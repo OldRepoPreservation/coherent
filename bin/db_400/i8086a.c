@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/db/i8086/RCS/i8086a.c,v 1.1 88/10/17 04:03:35 src Exp $
+/* $Header: /src386/bin/db/RCS/i8086a.c,v 1.1 92/06/10 14:36:27 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * A debugger.
  * Intel 8086.
  *
- * $Log:	/usr/src/cmd/db/i8086/RCS/i8086a.c,v $
+ * $Log:	i8086a.c,v $
+ * Revision 1.1  92/06/10  14:36:27  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/10/17  04:03:35 	src
  * Initial revision
  * Revision: 386 version 92/05/01 
@@ -28,6 +31,7 @@
 #include <sys/param.h>
 #include <l.out.h>
 #include <signal.h>
+#include <sys/timeout.h>
 #include <sys/uproc.h>
 #include "trace.h"
 #include "i8086.h"
