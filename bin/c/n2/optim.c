@@ -1,10 +1,12 @@
 /*
+ * n2/optim.c
  * C compiler.
  * Jump and shape optimization.
  * Jump to jump, etc.
  * Common sequences.
  * Cross jumping.
  */
+
 #ifdef   vax
 #include "INC$LIB:cc2.h"
 #else
@@ -84,7 +86,7 @@ INS		*ip1;
 	bp->i_fp = fp;
 	fp->i_bp = bp;
 	free((char *) ip);
-	return (bp);
+	return bp;
 }
 
 /*
@@ -168,11 +170,11 @@ register int	n;
 	register INS	*lp;
 
 	if ((lp=labhash[n&LHMASK])!=NULL && lp->i_labno==n)
-		return (lp);
+		return lp;
 	for (lp=ins.i_fp; lp!=&ins; lp=lp->i_fp)
 		if (lp->i_type==LLABEL && lp->i_labno==n)
-			return (lp);
-	return (NULL);
+			return lp;
+	return NULL;
 }
 
 /*
@@ -271,6 +273,15 @@ again:
 			++changes;
 			goto again;
 		}
+		/* Conditional jump followed by unconditional jump to same loc. */
+		if (t==JUMP && ip->i_rel!=UNCON
+		 && (ip1=ip->i_fp)->i_type==JUMP && ip1->i_rel==UNCON
+		 && ip->i_ip==ip1->i_ip) {
+			deleteins(ip, ip->i_fp);
+			++nexbr;
+			++changes;
+			goto again;
+		}
 		/*
  		 * The preceding optimizations do not change the code order,
 		 * so they can be executed even if VNOOPT.
@@ -357,8 +368,8 @@ register INS *ip1, *ip2;
 {
 	while ((ip1 = ip1->i_fp) != &ins)
 		if (ip1 == ip2)
-			return(1);
-	return(0);
+			return 1;
+	return 0;
 }
 
 /*
@@ -386,7 +397,7 @@ register INS	*ip;
 
 	if (ip->i_type == LLABEL) {
 		increfc(ip);
-		return (ip);
+		return ip;
 	}
 	lp = (INS *) malloc(sizeof(INS));
 	if (lp != NULL) {
@@ -400,7 +411,7 @@ register INS	*ip;
 		ip->i_bp = lp;
 		lp->i_bp = bp;
 	}
-	return (lp);
+	return lp;
 }
 
 /*
@@ -434,21 +445,21 @@ register INS	*ip1, *ip2;
 	register int	t;
 
 	if ((t=ip1->i_type) != ip2->i_type)
-		return (0);
+		return 0;
 	if (t==JUMP || t==LLLINK) {
 		if (ip1->i_labno != ip2->i_labno)
-			return (0);
+			return 0;
 		if (t==JUMP && ip1->i_rel!=ip2->i_rel)
-			return (0);
-		return (1);
+			return 0;
+		return 1;
 	}
 	if (t != CODE)
 		cbotch("xeq");
 	if (ip1->i_op != ip2->i_op)
-		return (0);
+		return 0;
 	if (ip1->i_naddr != ip2->i_naddr)
-		return (0);
-	return (cmpfield(ip1, ip2));
+		return 0;
+	return cmpfield(ip1, ip2);
 }
 
 /*
@@ -498,7 +509,7 @@ int *countp;
 			break;
 		xp = inslab(xp);
 		if (xp == NULL)
-			return (0);
+			return 0;
 		mrgdbgt(yp, xp->i_fp);
 		if ((yp->i_type==JUMP || yp->i_type==LLLINK) && yp->i_ip!=NULL)
 			decrefc(yp->i_ip);
@@ -511,5 +522,7 @@ int *countp;
 		++*countp;
 		++changes;
 	}
-	return(1);
+	return 1;
 }
+
+/* end of n2/optim.c */
