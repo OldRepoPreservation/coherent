@@ -449,17 +449,18 @@ struct tree
 /*
  * Opdope flag bits.
  */
-#define PRIO	037			/* Priority			*/
-#define NSTL	040			/* No structures on left	*/
-#define RAS	0100			/* Right associative		*/
-#define RLVL	0200			/* Require lvalue on left	*/
-#define NFLT	0400			/* No floats			*/
-#define NPTR	01000			/* No pointers on right		*/
-#define NPTL	02000			/* No pointers on left		*/
-#define RTOR	04000			/* Require truth value on right	*/
-#define RTOL	010000			/* Require truth value on left	*/
-#define ASGN	020000			/* Assignment op		*/
-#define NSTR	040000			/* No structures on right	*/
+#define PRIO	0x001F			/* Priority			*/
+#define NSTL	0x0020			/* No structures on left	*/
+#define RAS	0x0040			/* Right associative		*/
+#define RLVL	0x0080			/* Require lvalue on left	*/
+#define NFLT	0x0100			/* No floats			*/
+#define NPTR	0x0200			/* No pointers on right		*/
+#define NPTL	0x0400			/* No pointers on left		*/
+#define RTOR	0x0800			/* Require truth value on right	*/
+#define RTOL	0x1000			/* Require truth value on left	*/
+#define ASGN	0x2000			/* Assignment op		*/
+#define NSTR	0x4000			/* No structures on right	*/
+#define	FOLD	0x8000			/* Constant folding allowed	*/
 
 /*
  * Conversion dope bits.
@@ -495,28 +496,8 @@ extern char	deffalse[];
 extern long	curtime;
 
 /*
- * Functions and variables.
+ * Functions.
  */
-extern	int	mysizes[];
-extern	SYM	*cfsym;
-extern	int	cflab;
-extern	char	id[];
-extern	unsigned	idhash;
-extern	unsigned	idhide;
-extern	int	idsize;
-extern	TOK	*idp;
-extern	TOK	*hash0[];
-extern	int	llex;
-extern	int	lsym;
-extern	int	s;
-extern	ival_t	ival;
-extern	lval_t	lval;
-extern	dval_t	dval;
-extern	short	tval;
-extern	int	line;
-extern	char	file[];
-extern	TOK	*tfile;
-extern unsigned char ct[];
 extern	TOK	*newtoken();
 extern	SYM	*newsym();
 extern	CPPSYM	*newcpp();
@@ -524,18 +505,8 @@ extern	DIM	*dupldim();
 extern	DIM	*tackdim();
 extern	INFO	*newinfo();
 extern	char	*new();
-extern	int	nerr;
-extern	char	*passname;
-extern	int	nargs;
-extern	SYM	*args[];
 extern	TREE	*expr();
-extern	int	incpp;
-extern	int	ininit;
-extern	int	incase;
 extern	char	*talloc();
-extern	TREE	*transform();
-extern	short	opdope[];
-extern	short	cvdope[];
 extern	TREE	*pexpr();
 extern	DIM	*tdalloc();
 extern	TREE	*build();
@@ -549,7 +520,6 @@ extern	TREE	*bconvert();
 extern	TREE	*term();
 extern	TREE	*tree();
 extern	TREE	*bstring();
-extern	char	mytypes[];
 extern	TREE	*fold0();
 extern	SYM	*deflookup();
 extern	SYM	*reflookup();
@@ -566,8 +536,46 @@ extern	sizeof_t sdsize();
 extern	sizeof_t tidsize();
 extern	sizeof_t psize();
 extern	sizeof_t getbound();
-extern	sizeof_t szcheck();	/* mch - object size check	*/
 extern	TREE	*cast();	/* cast declarator reader	*/
+/* mch/bind.c */
+extern	TREE	*transform();
+extern	sizeof_t szcheck();
+#if	FOLD_DOUBLES
+extern	double	dval_to_d();
+extern	void	d_to_dval();
+#endif
+
+/*
+ * Variables.
+ */
+extern	SYM	*cfsym;
+extern	int	cflab;
+extern	char	id[];
+extern	unsigned idhash;
+extern	unsigned idhide;
+extern	int	idsize;
+extern	TOK	*idp;
+extern	TOK	*hash0[];
+extern	int	llex;
+extern	int	lsym;
+extern	int	s;
+extern	ival_t	ival;
+extern	lval_t	lval;
+extern	dval_t	dval;
+extern	short	tval;
+extern	int	line;
+extern	char	file[];
+extern	TOK	*tfile;
+extern unsigned char ct[];
+extern	int	nerr;
+extern	char	*passname;
+extern	int	nargs;
+extern	SYM	*args[];
+extern	int	incpp;
+extern	int	ininit;
+extern	int	incase;
+extern	short	opdope[];
+extern	short	cvdope[];
 extern	int	oldseg;
 extern	int	mnamef;
 extern	int	labgen;
@@ -580,5 +588,8 @@ extern	FILE	*ofp;		/* Output file			*/
 #if OVERLAID
 extern	jmp_buf	death;		/* Fatal errors			*/
 #endif
+/* mch/bind.c */
+extern	int	mysizes[];
+extern	char	mytypes[];
 
 /* end of h/cc0.h */

@@ -562,4 +562,32 @@ szcheck(n, a, s) sizeof_t n; int a; char *s;
 	return n;
 }
 
+#if	FOLD_DOUBLES
+/*
+ * Convert DCON to/from host double.
+ * Used by the double constant folder in n0/fold.c.
+ * Assumes host fp representation == target fp representation!
+ * The byte orders of the double and DCON are reversed.
+ */
+double
+dval_to_d(tp) TREE *tp;
+{
+	double d;
+	register char *src, *dst;
+
+	for (src = tp->t_dval, dst = ((char *)&d) + sizeof(d) - 1; dst >= &d; )
+		*dst-- = *src++;
+	return d;
+}
+
+void
+d_to_dval(tp, d) TREE *tp; double d;
+{
+	register char *src, *dst;
+
+	for (dst = tp->t_dval, src = ((char *)&d) + sizeof(d) - 1; src >= &d; )
+		*dst++ = *src--;
+}
+#endif
+
 /* end of n0/i386/bind.c */
