@@ -23,13 +23,17 @@ void
 _chirp(c, off)
 	char c;
 {
-	if (0 == (read_cr0() & PAGING)) {
+#if 1
+	if (!paging()) {
 		*(COLOR + off) = c;
 		*(MONO + off) = c;
 	} else {
 		*((char *) (ctob(VIDEOa) + off)) = c;
 		*((char *) (ctob(VIDEOb) + off)) = c;
 	}
+#else
+__putchar(c);
+#endif
 } /* _chirp() */
 
 /*
@@ -46,9 +50,8 @@ chirp(c)
 	_chirp(c, 158);
 } /* chirp() */
 
-
 /*
- * void mchirp(char *str);
+ * void strchirp(char *str);
  * Put string 'str' directly in the next character of video memory;
  * Note that calls to chirp and dchirp do not effect what mchirp considers
  *      to be the next character.
@@ -232,3 +235,105 @@ print8(my_int)
 	puts(buffer);
 }
 
+#define	ASCII	1
+#define	XONXOFF	1
+#define	BAUD	9600
+
+/*
+ *	file:	i8251.c
+ *
+ *	This version of putchar works with the serial lines.
+ *	Various configurations are possible through conditional
+ *	defines:
+ *
+ *	BAUD	default 9600
+ *		specifies the baudrate, can be as high as 38400
+ *
+ *	CONSOLE	default COM1:
+ *		is the base address of the uart
+ *
+ *	ASCII	default BINARY
+ *		if set, maps '\n' into CR, LF and reduces input
+ *		to 7-bit
+ *
+ *	XONXOFF	default not enabled
+ *		allows user to control output
+ *
+ */
+#define	INS8250	0x290
+
+#define	THR	(INS8250+0)
+#define	IER	(INS8250+1)
+#define	IIR	(INS8250+2)
+#define	LCR	(INS8250+3)
+#define	MCR	(INS8250+4)
+#define	LSR	(INS8250+5)
+#define	MSR	(INS8250+6)
+
+#define	RBR	THR
+#define	DLL	THR
+#define	DLM	IER
+
+#define	DR	0x01
+#define	THRE	0x20
+
+__cinit()
+{
+	register rate;
+
+#if	BAUD
+	rate = 115200L / BAUD;
+#else
+	rate = 1;
+#endif
+	outb(LCR, 0x00);
+	outb(IER, 0x00);
+	outb(LCR, 0x80);
+	outb(DLL, rate);
+	outb(DLM, rate>>8);
+	outb(LCR, 0x03);
+	outb(MCR, 0x03);
+	__putchar('\007');
+	__putchar('G');
+}
+#define CTLQ	0021
+#define CTLS	0023
+__getchar()
+{
+	register c;
+
+	while( (inb(LSR) & DR) == 0 )
+		;
+	c = inb( RBR );
+#if	ASCII
+	c &= 0x7F;
+#endif
+	return( c );
+}
+
+__putchar( c )
+register c;
+{
+	register f;
+
+#if	ASCII
+	if (c == '\n')
+		putchar( '\r' );
+#endif
+	while( ((f=inb(LSR)) & THRE) == 0 )
+		;
+#if	XONXOFF
+	if( (f & DR) != 0 ) {
+		f = inb( RBR ) & 0x7F;
+		if (f == CTLS) {
+			do {
+				while( (inb(LSR) & DR) == 0)
+					;
+				f = inb( RBR ) & 0x7F;
+			} while (f != CTLQ);
+		}
+	}
+#endif
+	outb( THR, c );
+	return( c );
+}

@@ -13,7 +13,7 @@ extern SR allocp;
  * Initialize a virtual address to access physical memory at location
  * 'paddr', of size 'len' bytes.  It provides read and write (but not
  * execute) access.  When no longer required, a virtual address should be
- * releaseed by vrelse.
+ * released by vrelse.
  */
 faddr_t
 map_pv(paddr, len)

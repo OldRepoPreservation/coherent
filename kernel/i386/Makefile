@@ -176,14 +176,8 @@ stuff: ktest $(I386OBJ) coh io memcpy.o $(OPTS) ker386.files
 ker386.files:	Makefile ../coh.386/Makefile ../io.386/Makefile
 	@echo $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o > $@
 
-ker386.o: $(I386OBJ) coh io memcpy.o
-	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o
-
-kld386.o:	never
-	@echo "$@ built"
-
-never:
-	ld -r -o kld386.o $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o
+$(K386LIB)/ker386.o: $(I386OBJ) coh io memcpy.o memset.o
+	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o memset.o
 
 ktest:
 	@./check
@@ -262,7 +256,7 @@ $(K386OBJ)/tioc.o: tioc.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/trap.o: trap.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
 
 $(K386OBJ)/atcon.o:			\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \

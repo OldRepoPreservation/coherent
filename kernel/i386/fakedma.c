@@ -18,7 +18,11 @@
 
 #define	min(a, b)	((a) < (b) ? (a) : (b))
 
-
+/*
+ * dmacopy()
+ *
+ * Copy "npage" 4 kbyte pages from phys addr "from" to phys addr "to".
+ */
 dmacopy(npage, from, to) 
 long	npage;
 cseg_t	*from, *to;
@@ -29,16 +33,15 @@ cseg_t	*from, *to;
 		ptable1_v[WORK0] = *from++ | SEG_SRW;
 		ptable1_v[WORK1] = *to++ | SEG_SRW;
 		mmuupd();
-		copyseg_d(ctob(1), ctob(WORK0), ctob(WORK1));
+		copyseg_d(NBPC, ctob(WORK0), ctob(WORK1));
 	}
 	setspace(save);
 }
 
-
 /*
  * dmaclear()
  *
- * Given a byte count, a system absolute address, and a fill value,
+ * Given a byte count, a system global address, and a fill value,
  * write the fill value through the given range of memory.
  */
 dmaclear(nbytes, to, fill)
@@ -59,11 +62,11 @@ paddr_t	to;
 	clearseg_d(n, ctob(WORK0)+off, fill);
 	nbytes -= n;
 
-	while (nbytes >= ctob(1)) {
+	while (nbytes >= NBPC) {
 		ptable1_v[WORK0] = *base++ | SEG_SRW;
 		mmuupd();
-		clearseg_d(ctob(1), ctob(WORK0), fill);
-		nbytes -= ctob(1);
+		clearseg_d(NBPC, ctob(WORK0), fill);
+		nbytes -= NBPC;
 	}
 
 	if (nbytes) {
@@ -74,6 +77,12 @@ paddr_t	to;
 	setspace(save);
 }
 
+/*
+ * dmain()
+ * 
+ * Copy in "nbytes" from system global address "to" to kernel address
+ * "vaddr".
+ */
 dmain(nbytes, to, vaddr)
 long	nbytes;
 paddr_t	to;
@@ -134,13 +143,13 @@ vaddr_t	vaddr;
 		/*
 		 * copy nbytes>>BPCSHIFT full pages
 		 */
-		while (nbytes >= ctob(1)) {
+		while (nbytes >= NBPC) {
 			ptable1_v[WORK0] = *base++ | SEG_SRW;
 			mmuupd();
 	
-			copyseg_d(ctob(1), ctob(WORK0), vaddr);
-			vaddr += ctob(1);
-			nbytes -= ctob(1);
+			copyseg_d(NBPC, ctob(WORK0), vaddr);
+			vaddr += NBPC;
+			nbytes -= NBPC;
 		}
 		/*
 		 * page n-1 (last one)
@@ -163,6 +172,12 @@ vaddr_t	vaddr;
 	setspace(save);
 }
 
+/*
+ * dmaout()
+ * 
+ * Copy out "nbytes" from kernel address "vaddr" to system global address
+ * "to".
+ */
 dmaout(nbytes, to, vaddr)
 long	nbytes;
 paddr_t	to;
@@ -221,12 +236,12 @@ vaddr_t	vaddr;
 		/*
 		 * copy nbytes>>BPCSHIFT full pages
 		 */
-		while (nbytes >= ctob(1)) {
+		while (nbytes >= NBPC) {
 			ptable1_v[WORK0] = *base++ | SEG_SRW;
 			mmuupd();
-			copyseg_d(ctob(1), vaddr, ctob(WORK0));
-			vaddr += ctob(1);
-			nbytes -= ctob(1);
+			copyseg_d(NBPC, vaddr, ctob(WORK0));
+			vaddr += NBPC;
+			nbytes -= NBPC;
 		}
 		/*
 		 * page n-1 (last one)
@@ -249,6 +264,12 @@ vaddr_t	vaddr;
 	setspace(save);
 }
 
+/*
+ * dmaio2()
+ * 
+ * Copy in "nbytes" from an I/O port "port" to the system global address
+ * "to".
+ */
 dmaio2(nbytes, to, port)
 long	nbytes, port;
 paddr_t	to;
@@ -268,11 +289,11 @@ paddr_t	to;
 	io2seg(n, ctob(WORK0)+off, port);
 	nbytes -= n;
 
-	while (nbytes >= ctob(1)) {
+	while (nbytes >= NBPC) {
 		ptable1_v[WORK0] = *base++ | SEG_SRW;
 		mmuupd();
-		io2seg(ctob(1), ctob(WORK0), port);
-		nbytes -= ctob(1);
+		io2seg(NBPC, ctob(WORK0), port);
+		nbytes -= NBPC;
 	}
 
 	if (nbytes) {
@@ -283,6 +304,12 @@ paddr_t	to;
 	setspace(save);
 }
 
+/*
+ * dma2io()
+ * 
+ * Copy out "nbytes" from the system global address "from" to an I/O port
+ * "port".
+ */
 dma2io(nbytes, to, port)
 long	nbytes, port;
 paddr_t	to;
@@ -302,11 +329,11 @@ paddr_t	to;
 	seg2io(n, ctob(WORK0)+off, port);
 	nbytes -= n;
 
-	while (nbytes >= ctob(1)) {
+	while (nbytes >= NBPC) {
 		ptable1_v[WORK0] = *base++ | SEG_SRW;
 		mmuupd();
-		seg2io(ctob(1), ctob(WORK0), port);
-		nbytes -= ctob(1);
+		seg2io(NBPC, ctob(WORK0), port);
+		nbytes -= NBPC;
 	}
 
 	if (nbytes) {
@@ -317,6 +344,18 @@ paddr_t	to;
 	setspace(save);
 }
 
+/*
+ * pxcopy()
+ *
+ * copy "n" bytes of data at kernel address "v" from address "uo" in:
+ * 	system global address space		(space&SEG_VIRT)
+ * 	physical memory				!(space&SEG_VIRT)
+ * Rights are determined by (space&~SEG_VIRT):
+ * 	"v" can be anywhere in kernel address space	SEG_386_KD
+ * 	"v" must be an address accessible to the user	SEG_386_UD
+ * Up to one click of data can be copied. No alignment restrictions
+ * on "uo" apply.
+ */
 pxcopy(uo, v, n, space)
 unsigned	uo;
 char	*v;
@@ -345,6 +384,18 @@ register int n;
 	return err;
 }
 
+/*
+ * xpcopy()
+ * 
+ * copy "n" bytes of data from kernel address "v" to address "uo" in:
+ *      system global address space                      (space&SEG_VIRT)
+ *      physical memory                                 !(space&SEG_VIRT)
+ * Rights are determined by (space&~SEG_VIRT):
+ *      "v" can be anywhere in kernel address space      SEG_386_KD
+ *      "v" must be an address accessible to the user    SEG_386_UD
+ * Up to one click of data can be copied. No alignment restrictions on "uo"
+ * apply.
+ */
 xpcopy(v, uo, n, space)
 char	*v;
 unsigned uo;
