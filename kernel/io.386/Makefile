@@ -46,7 +46,10 @@ IOOBJ = \
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/vtmm.o \
 	$(K386OBJ)/vtmmas.o \
-	$(K386OBJ)/vtnkb.o
+	$(K386OBJ)/vtnkb.o \
+	$(K386OBJ)/vtkb.o \
+	$(K386OBJ)/vtkb_d.o \
+	$(K386OBJ)/vtkb_f.o
 
 all: $(IOOBJ)
 	@echo "io objects up to date"
@@ -168,6 +171,60 @@ $(K386OBJ)/kb.o:				\
 		$(SYSINC)/uproc.h	\
 		kb.c
 	$(CC) $(CFLAGS) -c -o $@ kb.c
+
+$(K386OBJ)/vtkb.o:				\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/reg.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/reg.h	\
+		$(SYSINC)/sched.h	\
+		$(USRINC)/signal.h	\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/timeout.h	\
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
+		$(SYSINC)/uproc.h	\
+		$(SYSINC)/kb.h		\
+		$(SYSINC)/vt.h		\
+		vtkb.c
+	$(CC) $(CFLAGS) -c -o $@ vtkb.c
+
+$(K386OBJ)/vtkb_d.o:				\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/reg.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/reg.h	\
+		$(SYSINC)/sched.h	\
+		$(USRINC)/signal.h	\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/timeout.h	\
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
+		$(SYSINC)/uproc.h	\
+		$(SYSINC)/kb.h		\
+		$(SYSINC)/vt.h		\
+		vtkb_d.c
+	$(CC) $(CFLAGS) -c -o $@ vtkb_d.c
+
+$(K386OBJ)/vtkb_f.o:				\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/reg.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/reg.h	\
+		$(SYSINC)/sched.h	\
+		$(USRINC)/signal.h	\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/timeout.h	\
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
+		$(SYSINC)/uproc.h	\
+		$(SYSINC)/kb.h		\
+		$(SYSINC)/vt.h		\
+		vtkb_f.c
+	$(CC) $(CFLAGS) -c -o $@ vtkb_f.c
 
 $(K386OBJ)/kb_d.o: kb_d.c
 	$(CC) $(CFLAGS) -c -o $@ $<
