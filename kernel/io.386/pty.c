@@ -456,7 +456,7 @@ int msec;
 			 * Second look to avoid interrupt race.
 			 */
 			if (ttinp(tp) == 0)
-				ev &= ~POLLIN;
+				ev &= ~POLLOUT;
 		}
 
 		ret = ev;
