@@ -2,8 +2,6 @@
  * ls.c
  * 03/17/92
  * List structure
- * 07/10/92 changed fixed size array namelist to a pointer. That was
- * done to allow sort huge numbers of files.
  */
 
 #include <stdio.h>
@@ -28,7 +26,7 @@
 
 #define	GAP	1		/* Space between Multi-column entries 	*/
 #define	MAXLEN	78		/* Maximum line length			*/
-#define STEPARG	512		/* Alloc step of # args stored for -C sort */
+#define MAXARG	4096		/* Maximum # of args stored for -C sort */
 #define MAXDIR	128		/* Maximum # of subdirectories for -R	*/
 #define MAXWID	12		/* Default max width for columns	*/
 #define	MAXNBUF	80		/* Maximum namebuf length		*/
@@ -80,7 +78,7 @@ char	*deflist[] = {
 	NULL
 };
 
-char	**namelist = NULL;	/* store file names for column output */
+char	*namelist[MAXARG];	/* store file names for column output */
 
 typedef	struct	dlist{			
 	char *name;
@@ -1051,12 +1049,8 @@ svname(name,i)
 char *name;
 int i;
 {
-	extern char	*realloc();
-
-	if (!(i % STEPARG)) 
-		if ((namelist = realloc(namelist, sizeof(char *) * 
-				(i/STEPARG + 1) * STEPARG )) == NULL)
-			fatal("out of memory");
+	if (i >= MAXARG)
+		fatal("more than %d files with -C option", MAXARG);
 	namelist[i] = alloc(strlen(name)+1,"svname");
 	strcpy(namelist[i],name);
 }
