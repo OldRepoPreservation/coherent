@@ -11,6 +11,9 @@
  *	Company or persuant to the license agreement is unlawful.
  *
  * $Log:	main.c,v $
+ * Revision 1.11  92/07/27  18:15:32  hal
+ * Kernel #59
+ * 
  * Revision 1.10  92/06/09  20:32:11  root
  * Ker #55
  * 
@@ -113,8 +116,16 @@ main()
 	CHIRP(' ');
 
 	putchar_init();
-	printf("*** COHERENT Version %s - %s Mode.  %uKB free memory. ***\n",
-		release, "386", ctob(allocno())/1024);
+	printf("*** COHERENT Version %s - 386 Mode.  %uKB free memory. ***\n",
+		release, ctob(allocno())/1024);
+	if ((int11() & 0x30) == 0x30)
+		printf("Monochrome.  ");
+	else
+		printf("Color.  ");
+	if (int11() & 2)
+		printf("x87.  ");
+	else
+		printf("No x87.  ");
 #else
 	printf("*** COHERENT Version %s - %s Mode.  %uKB free memory. ***\n",
 		release, (realmode ? "Real" : "Protected"), msize);
