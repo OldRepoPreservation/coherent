@@ -147,7 +147,7 @@ print_m()
 		printf("  CPID LPID");
 
 	if (tflag)
-		printf("   ATIME    DTIME    CTIME");
+		printf("    ATIME    DTIME    CTIME");
 
 	printf("\n");
 
@@ -214,7 +214,7 @@ print_m()
 				printf(" no-entry");
 			else {
 				sprintf(date,"%s", ctime(&shmid[x].shm_dtime));
-				printf("%.8s", date + 11);
+				printf(" %.8s", date + 11);
 			}
 			/* creat time */
 			sprintf(date,"%s", ctime(&shmid[x].shm_ctime));
