@@ -5,6 +5,7 @@
  */
 #include	<stdio.h>
 #include	"ed.h"
+#include	<access.h>
 
 FILE	*ffp;				/* File pointer, all functions.	*/
 
@@ -15,7 +16,10 @@ ffropen(fn)
 uchar	*fn;
 {
 	if ((ffp=fopen(fn, "r")) == NULL)
-		return (FIOFNF);
+		if (access(fn, AEXISTS)) /* access returns 0 on success */
+			return (FIOFNF); /* new file */
+		else
+			return (FIOERR); /* error */
 	return (FIOSUC);
 }
 
