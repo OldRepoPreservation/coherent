@@ -1,3 +1,10 @@
+/*
+ * /usr/include/sys/ccompat.h
+ *
+ * C compiler compatibility definitions.
+ *
+ * Revised: Mon Apr  5 16:05:38 1993 CDT
+ */
 #ifndef	__SYS_CCOMPAT_H__
 #define	__SYS_CCOMPAT_H__
 
