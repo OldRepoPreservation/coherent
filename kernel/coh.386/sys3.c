@@ -477,15 +477,14 @@ unsigned n;
 /**
  *
  * int
- * useracc( base, count, mode )	-- determine user accessibility
+ * useracc(base, count, writeUsr) -- determine user accessibility
  * caddr_t base;
  * int count;
- * int mode;
+ * int writeUsr;
  *
  *	Input:	base  = offset in user data space of the region to be accessed.
  *		count = size of access region in bytes.
- *		mode  = access mode desired [B_READ or B_WRITE].
- *		write = 0 if read access to be checked, else write
+ *		writeUsr = 0 if read access to be checked, else write
  *
  *	Action:	Verify user has desired access mode into specified region.
  *
