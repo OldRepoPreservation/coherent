@@ -2,7 +2,10 @@
 # This is a makefile that creates the loader for the i8086 machine .
 #					Angus Telfer (June 11, 1985)
 #
-# $Log:	/usr/src/cmd/ld/RCS/Makefile,v $
+# $Log:	/newbits/bin/ld/RCS/Makefile,v $
+#Revision 1.1	91/05/15  09:44:17 	bin
+#Initial revision
+
 # Revision 1.1	89/07/21  15:52:06 	src
 # Initial revision
 # 
@@ -10,6 +13,7 @@
 # set this to maximum size for in memory load (e.g. 16384)
 BREADBOX=16384
 
+DESTDIR=/interim/bin/
 CFLAGS=-O -DBREADBOX=$(BREADBOX)
 LFLAGS=-i -s
 
@@ -21,7 +25,8 @@ OBJ=	main.o\
 
 # Primary target.
 ld:	$(OBJ)
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+	su root chmog 511 bin bin $(DESTDIR)$@
 
 # Unlinked objects.
 main.o:		main.c data.h
