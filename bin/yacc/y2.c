@@ -8,6 +8,7 @@
 #include "yacc.h"
 #include <action.h>
 
+static int phonysemi;	/* allow missing ; aftter } */
 struct sym *defsym(), *elook();
 YYSTYPE yylval;
 struct
@@ -122,7 +123,8 @@ readrules()
 	prdptr[0]->p_right[1] = seof->s_no;
 	prdptr[0]->p_right[2] = -1;
 	nprod = 1;
-	while( (t = yylex()) == C_IDENT ) {
+	while ((phonysemi || ((t = yylex())) == C_IDENT)) {
+		phonysemi = 0;
 		defsym(yylval.sptr->s_name, TNTERM);
 		nt = yylval.sptr->s_no;
 		while( getrule(nt) );
@@ -148,7 +150,6 @@ readrules()
  *  - the "value" of the token read is left in the global variable yylval
  *    this is either a symbol table pointer or an integer (for NUMBER)
  */
-
 yylex()
 {
 	int c, i, lesk;
@@ -225,7 +226,7 @@ read:
 			llungetc(c);
 			getword(s);
 			yylval.sptr = defsym(s, UNKNOWN);
-			while( whit2space(c = llgetc()) );
+			while( whitespace(c = llgetc()) );
 			if( c==':' )
 				return( C_IDENT );
 			llungetc(c);
@@ -243,7 +244,7 @@ read:
 getrule(nt)
 int nt;
 {
-	int precused, t, n, size, actpres;
+	int precused, n, size, actpres, t;
 	char s[SYMSIZE];
 	register struct prod *pp;
 	register struct sym *sp;
@@ -318,7 +319,11 @@ int nt;
 		}
 #endif		/* cc bug workaround */
 	}
-	if( t!=VBAR && t!=SEMICOLON )
+	if (t == C_IDENT) {
+		phonysemi = 1;
+		t = SEMICOLON;
+	}
+	if (t!=VBAR && t!=SEMICOLON )
 		yyerror(FATAL, "rule terminator not ';' or '|'");
 	bounded(nprod, maxprod, "productions");
 	nitprod->p_prodno = nprod;
@@ -427,7 +432,7 @@ wrtdefs()
 	if (ntype==0)
 		fprintf(fhdr, "typedef	int	YYSTYPE;\n");
 	fprintf(fhdr, "#ifdef YYTNAMES\n");
-	fprintf(fhdr, "extern struct yytname\n{\n");
+	fprintf(fhdr, "extern readonly struct yytname\n{\n");
 	fprintf(fhdr, "\tchar\t*tn_name;\n\tint\ttn_val;\n} yytnames[];\n");
 	fprintf(fhdr, "#endif\n");
 	fprintf(fhdr, "extern	YYSTYPE	yylval;\n");

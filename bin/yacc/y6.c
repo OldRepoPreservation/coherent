@@ -3,7 +3,8 @@
  * gets memory, reads in optimizer temp file
  * spits out parser
  */
-#include "action.h"
+#include <action.h>
+#include <limits.h>
 
 struct actn *atab;
 struct go2n *gotab;
@@ -98,26 +99,42 @@ warray(s, a, n, sw)
 char *s;
 int *a, n, sw;
 {
-	register i;
-	char *type;
+	register i, v;
+	char *type = "int";
 
 	if (!sw) {	/* !sw means array of array refs */
 		type = "char";
 		for (i = 0; i < n; i++) {
-			if (a[i] > 255) {
+			if (a[i] > UCHAR_MAX) {
 				type = "short";
 				break;
 			}
 		}
-	} else
-		type = "int";
-	fprintf(tabout, "unsigned %s %s[%d] = {\n", type, s, n--);
+	}
+	fprintf(tabout, "readonly unsigned %s %s[%d] = {\n", type, s, n--);
 
 	i = 0;
 	do {
-		fprintf(tabout, "%d", a[i]);
+		switch(v = a[i]) {
+		case YYEOFVAL:
+			fputs("YYEOFVAL", tabout);
+			break;
+		case YYERRVAL:
+			fputs("YYERRVAL", tabout);
+			break;
+		case YYOTHERS:
+			fputs("YYOTHERS", tabout);
+			break;
+		default:
+			if (!sw || (0 > v))
+				fprintf(tabout, "%d", v);
+			else
+				fprintf(tabout, "0x%x", v);
+		}
+
 		if (i != n)
 			fputc(',', tabout);
+
 		fputc(((++i%8 == 0) ? '\n' : ' '), tabout);
 	} while (i <= n);
 
