@@ -1,23 +1,26 @@
-
+/*
+ * lpr/print.c
+ */
 
 #include	<stdio.h>
 
+#define	LINESIZ	512
 
-#define	LINESIZ	132
-
+#define	lputc(c)	putc((c), lp)
 
 static		col,			/* current print position */
 		endcol;			/* leftmost unused position */
 static char	line0[LINESIZ],
 		line1[LINESIZ];
 
+extern	int	printing;
+extern	FILE	*lp;
 
 print( file)
 char	*file;
 {
 	register FILE	*f;
 	register	c;
-	extern		printing;
 
 	f = fopen( file, "r");
 	if (f == NULL)
@@ -69,7 +72,6 @@ register FILE	*f;
 	return (0);
 }
 
-
 store( c)
 {
 
@@ -84,13 +86,11 @@ store( c)
 	++col;
 }
 
-
 putline( linep)
 register char	*linep;
 {
 	register	c,
 			xcol;
-	extern FILE	*lp;
 
 	col = 0;
 	xcol = 0;
@@ -104,18 +104,13 @@ register char	*linep;
 		default:
 			while (col < xcol) {
 				++col;
-				putc( ' ', lp);
+				lputc( ' ');
 			}
-			putc( c, lp);
+			lputc( c);
 			++col;
 		case ' ':
 			++xcol;
 		}
 }
 
-
-lputc( c)
-{
-
-	putc( c, lp);
-}
+/* end of lpr/print.c */
