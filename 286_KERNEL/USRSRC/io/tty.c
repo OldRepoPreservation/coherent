@@ -7,6 +7,9 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.13  91/12/10  17:01:56  hal
+ * Don't wait for drain on TIOCFLUSH.
+ * 
  * Revision 1.12  91/11/14  14:28:51  hal
  * Move flow control out of tty.c.
  * Make ttin() run at hi priority.
@@ -179,8 +182,11 @@ register TTY *tp;
 /*
  * ttsetgrp()
  *
- *	Set process group when process does not have one.
- *	Also set up process's controlling terminal.
+ *	If process is a group leader without a control terminal,
+ *	make its control terminal this device.
+ *
+ *	If process is a group leader and this device does not have
+ *	a process group, give it the group of the current process.
  */
 void ttsetgrp(tp, ctdev)
 register TTY *tp;
@@ -189,15 +195,12 @@ dev_t ctdev;
 	register PROC *pp;
 
 	pp = SELF;
-	if (pp->p_group == 0) {
-		if (tp->t_group == 0) {
+	if (pp->p_group == pp->p_pid) {
+		if (pp->p_ttdev == NODEV)
+			pp->p_ttdev = ctdev;
+		if (tp->t_group == 0)
 			tp->t_group = pp->p_pid;
-		}	
-		pp->p_group = tp->t_group;
 	}
-
-	if (pp->p_ttdev == NODEV)
-		pp->p_ttdev = ctdev;
 }
 
 /*
@@ -216,7 +219,13 @@ register TTY *tp;
 		s = sphi();
 		if (tp->t_oq.cq_cc != 0) {
 			tp->t_flags |= T_DRAIN;
+#if DEBUG
+printf("T1 ");
+#endif
 			sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT);
+#if DEBUG
+printf("z ");
+#endif
 		}
 		spl(s);
 		if (SELF->p_ssig && nondsig())
@@ -279,7 +288,13 @@ register IO *iop;
 			}
 
 			tp->t_flags |= T_INPUT;  /* wait for more data */
+#if DEBUG
+printf("T2 ");
+#endif
 			sleep((char *)&tp->t_iq, CVTTIN, IVTTIN, SVTTIN);
+#if DEBUG
+printf("z ");
+#endif
 
 			if (SELF->p_ssig && nondsig()) {
 				if (iop->io_ioc == sioc)
@@ -352,7 +367,13 @@ register IO *iop;
 			if (tp->t_oq.cq_cc < OHILIM)
 				break;
 			tp->t_flags |= T_HILIM;
+#if DEBUG
+printf("T3 ");
+#endif
 			sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT);
+#if DEBUG
+printf("z ");
+#endif
 			if (SELF->p_ssig && nondsig()) {
 				u.u_error = EINTR;
 				spl(o);
@@ -466,6 +487,15 @@ register struct sgttyb *vec;
 		tp->t_flags &= ~T_BRD;
 		spl(s);
 		break;
+	/*
+	 * The following is a hack so that the process group for /dev/console
+	 * contains the current login shell running on it.
+	 * Only expect /etc/init to use this ugliness.
+	 */
+	case TIOCSETG:
+		if (super())
+			tp->t_group = SELF->p_group;
+		break;
 	default:
 		u.u_error = EINVAL;
 	}
@@ -489,7 +519,13 @@ register struct sgttyb *vec;
 			s = sphi();
 			tp->t_flags |= T_DRAIN;
 			spl(s);
+#if DEBUG
+printf("T4 ");
+#endif
 			sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT);
+#if DEBUG
+printf("z ");
+#endif
 			if (SELF->p_ssig && nondsig())
 				break;
 		}
