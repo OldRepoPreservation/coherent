@@ -1,17 +1,17 @@
 /*
+ * div.c
  * Nroff/Troff.
  * Traps and diversions.
  */
-#include <stdio.h>
+
 #include "roff.h"
-#include "code.h"
-#include "div.h"
-#include "reg.h"
-#include "str.h"
-#include "codebug.h"
 
 /*
- * Given a name, create and initialise a new diversion.
+ * Given a name, create and initialize a new diversion.
+ * For troff, the processed text in the diversion assumes the current font;
+ * if the current font is different when the diversion is read back (executed),
+ * the character widths will be wrong.
+ * Therefore the diversion starts with a font change to the current font.
  */
 newdivn(name)
 char name[2];
@@ -32,11 +32,16 @@ char name[2];
 	dp->d_trap = NULL;
 	dp->d_ctpp = NULL;
 	cdivp = dp;
+	devfont(fontype);
 	dprint3(DBGDIVR, "create diversion %c%c\n", name[0], name[1]);
 }
 
 /*
  * End a diversion.
+ * The diverted text may have changed the current font,
+ * but because it was diverted the output writer's notion of the current
+ * font remains unchanged.
+ * Therefore this writes a change to the current font after the diversion.
  */
 enddivn()
 {
@@ -44,18 +49,19 @@ enddivn()
 	register DIV *dp;
 
 	if ((dp=cdivp) == mdivp) {
-		printe("Cannot end diversion");
+		printe("cannot end diversion");
 		return;
 	}
-	if ((rp=findreg(dp->d_name)) != NULL) {
-		rp->r_maxh = cdivp->d_maxh;
-		rp->r_maxw = cdivp->d_maxw;
+	if ((rp=findreg(dp->d_name)) != (REG *)NULL) {
+		rp->t_reg.r_maxh = cdivp->d_maxh;
+		rp->t_reg.r_maxw = cdivp->d_maxw;
 	}
-	nrdnreg->r_nval = cdivp->d_maxh;
-	nrdlreg->r_nval = cdivp->d_maxw;
+	nrdnreg->n_reg.r_nval = cdivp->d_maxh;
+	nrdlreg->n_reg.r_nval = cdivp->d_maxw;
 	cdivp = cdivp->d_next;
 	dprint3(DBGDIVR, "ended diversion %c%c\n", dp->d_name[0], dp->d_name[1]);
-	nfree(dp);
+	nfree((char *)dp);
+	devfont(fontype);
 }
 
 /*
@@ -66,23 +72,24 @@ CODE *buffer, *bufend;
 {
 	register DIV *dp;
 	register MAC *mp;
-	register int n;
+	register unsigned n;
 
 	if((dp = cdivp) == NULL)
 		panic("flushd -- current diversion null");
 	dprint3(DBGDIVR, "flushing diversion %c%c\n", dp->d_name[0], dp->d_name[1]);
 	mp = dp->d_macp;
-	if (mp->m_type!=MDIVN || dp->d_seek!=tmpseek) {
-		dp->d_macp = dp->d_macp->m_next = mp = nalloc(sizeof *mp);
-		mp->m_next = NULL;
-		mp->m_type = MDIVN;
-		mp->m_size = 0;
-		mp->m_core = NULL;
-		mp->m_seek = tmpseek;
+	if (mp->t_div.m_type!=MDIVN || dp->d_seek!=tmpseek) {
+		dp->d_macp = dp->d_macp->t_div.m_next = mp = 
+			(MAC *)nalloc(sizeof *mp);
+		mp->t_div.m_next = NULL;
+		mp->t_div.m_type = MDIVN;
+		mp->t_div.m_size = 0;
+		mp->t_div.m_core = NULL;
+		mp->t_div.m_seek = tmpseek;
 	}
 	n = bufend - buffer;
-	nwrite(buffer, sizeof (CODE), n);
-	mp->m_size += n;
+	nwrite((char *)buffer, (unsigned)sizeof (CODE), n);
+	mp->t_div.m_size += n;
 	dp->d_seek = tmpseek;
 	if ((n=tmpseek%DBFSIZE) != 0)
 		nwrite(miscbuf, 1, DBFSIZE-n);
@@ -124,7 +131,7 @@ pspace()
 		if (tp!=NULL && npos>=tp->t_apos)
 			npos = tp->t_apos;
 		if (mdivp==dp && npos>=pgl) {
-			scroll(dp, pgl-dp->d_rpos);
+			scroll(dp, (int)pgl-dp->d_rpos);
 			npos = dp->d_rpos;
 			tp = dp->d_trap;
 		}
@@ -135,7 +142,7 @@ pspace()
 }
 
 /*
- * Space the distance `n'.  If a trap is encountered, spring the
+ * Space the distance 'n'.  If a trap is encountered, spring the
  * trap and stop.
  */
 sspace(n)
@@ -152,7 +159,7 @@ sspace(n)
 	if (tp!=NULL && npos>=tp->t_apos)
 		npos = tp->t_apos;
 	if (mdivp==dp && npos>=pgl) {
-		scroll(dp, pgl-dp->d_rpos);
+		scroll(dp, (int)pgl-dp->d_rpos);
 		npos = dp->d_rpos;
 		tp = dp->d_trap;
 	}
@@ -163,7 +170,7 @@ sspace(n)
 
 /*
  * Space down the given distance, resetting page information
- * if we pass a page boundary.  `dp' is a pointer to the
+ * if we pass a page boundary.  'dp' is a pointer to the
  * diversion we are using.
  */
 scroll(dp, n)
@@ -172,8 +179,8 @@ register DIV *dp;
 	CODE code[1];
 	register TPL *tp;
 
-	code[0].c_code = DSPAR;
-	code[0].c_iarg = n;
+	code[0].l_arg.c_code = DSPAR;
+	code[0].l_arg.c_iarg = n;
 	if (dp == mdivp)
 		flushl(code, &code[1]);
 	else
@@ -182,8 +189,7 @@ register DIV *dp;
 		cdivp->d_maxh = cdivp->d_rpos;
 	while (cdivp->d_rpos >= pgl) {
 		if (byeflag) {
-			if (ntroff == TROFF) /* Reset printer before leaving. */
-				resetdev();
+			resetdev();
 			leave(0);
 		}
 		pct++;
@@ -207,9 +213,11 @@ char name[2];
 	register REG *rp;
 
 	dprint3(DBGMACX, "execute macro %c%c\n", name[0], name[1]);
-	if ((rp=findreg(name, RTEXT)) != NULL) {
+	if ((rp=findreg(name, RTEXT)) != (REG *)NULL) {
 		adstreg(rp);
-		strp->s_eoff = 1;
+		strp->x1.s_eoff = 1;
 		process();
 	}
 }
+
+/* end of div.c */
