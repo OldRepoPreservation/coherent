@@ -328,7 +328,7 @@ register cseg_t *pp;
 		pp = pp1;
 	}
 
-	for (i=osz; --i >= 0; )
+	for (i=osz; --i >= 0;)
 		pp[i+1] = pp[i];
 
 	pno = *--sysmem.pfree;
@@ -722,9 +722,11 @@ mchinit()
 #else
 	int	dataseg;
 #endif
-	int	nalloc, diff;
+	int	nalloc;
 	extern char	digtab[];
 	static	SEG	uinit;
+	int	budArenaBytes;	/* number of bytes in buddy pool */
+	int	kerBytes;	/* number of bytes in kernel text and data */
 
 	/*
 	 * 1.
@@ -733,7 +735,7 @@ mchinit()
 	 *
 	 *   b. Verify that the data has been relocated correctly 
 	 */
-	pe = __end_data;						/* 1.a */
+	pe = __end_data;					/* 1.a */
 	i = (((unsigned)__end_text+15) & ~15) - (unsigned)sdata;
 	do {
 		pe--;
@@ -748,15 +750,16 @@ mchinit()
 	while (digtab[0]!='0');
 	CHIRP('*');
 
-	/*
-	 * 2. Zero the bss
-	 *    Zero the level 0 page directory
-	 */ 
+	/* Zero the bss. */
 	pe = __end_data;
 	do
 		*pe++ = zero;
 	while (pe != __end);
 
+	/*
+	 * Zero the level 0 page directory, which occupies the click
+	 * of virtual space immediately below kernel text.
+	 */
 	pe = (char *) ptable0_v;
 	do
 		*pe++ = zero;
@@ -764,15 +767,32 @@ mchinit()
 
 	CHIRP('2');
 
+#define DISP_VAR(v)	{ strchirp("  "#v"="); print32(v); }
+#define DV(v)		T_PIGGY(0x400, DISP_VAR(v))
+
 	/*
 	 * 3. Calculate total system memory.
 	 *    Count the space used by the system and the page
 	 *    descriptors, the interrupt stack, and the refresh work area
 	 *
 	 * a. initialize allocation area and adjust system size
-	 *	to take allocation area and free page area into account
+	 *    to take allocation area and free page area into account
 	 */
-	sysmem.lo = btoc((unsigned)__end) - SBASE + PBASE;
+
+	/*
+	 * btoc(__end) - SBASE is the number of clicks in kernel text
+	 * plus data, rounded up.
+	 * PBASE is the starting physical click number of the kernel.
+	 *
+	 * Set sysmem.lo to the physical click address just past the kernel.
+	 */
+	DV(__end);
+
+	kerBytes = __end - ((SBASE - PBASE)<<BPCSHIFT);
+	DV(kerBytes);
+
+	sysmem.lo = btoc(kerBytes);
+	DV(sysmem.lo);
 
 	/*
 	 * lo is the size in bytes of memory between the end of the kernel
@@ -783,19 +803,13 @@ mchinit()
 	 * compensates for systems where the CMOS reports sizes that are
 	 * not multiples of 4K.
 	 */
+	DV(read16_cmos(LOMEM));
 	lo = ctob(read16_cmos(LOMEM) >> 2) - ctob(sysmem.lo);
-	hi = ctob(read16_cmos(EXTMEM) >> 2);
+	DV(lo);
 
-	T_PIGGY( 0x400, {
-		strchirp(" cmos lo: ");
-		print16(read16_cmos(LOMEM));
-		strchirp(" cmos hi: ");
-		print16(read16_cmos(EXTMEM));
-		strchirp(" lo: ");
-		print32(lo);
-		strchirp(" hi: ");
-		print32(hi);
-	} );
+	DV(read16_cmos(EXTMEM));
+	hi = ctob(read16_cmos(EXTMEM) >> 2);
+	DV(hi);
 
 	/*
 	 * Sometimes, we die horribly if there is too much memory.
@@ -804,49 +818,83 @@ mchinit()
 	if (hi > HACK_LIMIT)
 		hi = HACK_LIMIT;
 
+	/* clear base memory above the kernel */
 	CHIRP('z');
 	zero_fill(ctob(sysmem.lo+SBASE-PBASE), lo);
 	CHIRP('Z');
+
+	/* clear extended memory */
 	zero_fill(ONE_MEG+ctob(SBASE-PBASE), hi);
 	CHIRP('Y');
 	
 	/* Record total memory for later use.  */
 	total_mem = ctob(sysmem.lo) + lo + hi;
+	DV(total_mem);
 
+	/*
+	 * sysmem.pfree and relatives will keep track of a pool of 4k pages
+	 * assigned to processes, hereinafter known as the sysmem pool.
+	 * How many clicks can go into this pool?  nalloc.
+	 * Allow NBPC for the click itself, a short for the sysmem pointer,
+	 * and SPLASH*sizeof(long) for buddy system overhead.
+	 */
 	nalloc = (lo+hi) / (sizeof(short) + SPLASH*sizeof(long) + NBPC);
+	DV(nalloc);
+
 	/*
 	 * ASSERT:
 	 * For the moment we want only to assure that the
 	 * BUDDY arena and the stack of free pages will fit below
 	 * 640K.
 	 */
-#define SIZEOF_BUDDY ( (unsigned)SPLASH*nalloc*sizeof(long) )
-#define SIZEOF_FREE_PAGES ( ( btoc(hi) + btoc(lo) )* sizeof(short) )
-	T_PIGGY( 0x800, {
-		if ( SIZEOF_BUDDY + SIZEOF_FREE_PAGES >= lo ) {
-			strchirp("Too much memory");
+	budArenaBytes = SPLASH*nalloc*sizeof(long);
+	DV(budArenaBytes);
+
+#define SIZEOF_FREE_PAGES ((btoc(hi) + btoc(lo))* sizeof(short))
+	T_PIGGY(0x800, {
+		if (budArenaBytes + SIZEOF_FREE_PAGES >= lo) {
 			panic("Too much memory");
 		}
-	} );
-
+	});
 
 	/*
 	 * Initialize the buddy system arena.  This memory is used
 	 * for the compressed page tables.
 	 */
-	areainit(SPLASH*nalloc*sizeof(long));
+	areainit(budArenaBytes);
 
 	/*
 	 * Initialize the stack of free pages.
+	 * __end is the virtual address just past kernel data
+	 * Point sysmem.tfree to the lowest virtual address just above
+	 * the buddy pool, and initialize sysmem.pfree there.
 	 */
 	sysmem.tfree = sysmem.pfree = 
-		(unsigned short *)(__end + SPLASH*nalloc*sizeof(long));
+	  (unsigned short *)(__end + budArenaBytes);
+	DV(sysmem.tfree);
 
-	sysmem.hi = btoc(hi+1024*1024);
+	/* sysmem.hi is the physical click number just past high RAM */
+	sysmem.hi = btoc(hi+ONE_MEG);
+	DV(sysmem.hi);
+
+	/* base is the physical click number just past base RAM */
 	base = sysmem.lo + (lo>>BPCSHIFT);
-	diff = ((lo + hi) >> BPCSHIFT) - nalloc;
-	sysmem.lo += diff;	
+	DV(base);
+
+	/*
+	 * Adjust sysmem.lo to be the physical click number just above
+	 * not just the kernel, but above sysmem overhead as well.
+	 */
+	sysmem.lo = btoc(kerBytes + budArenaBytes + nalloc*sizeof(short));
+	DV(sysmem.lo);
+
+	/*
+	 * sysmem.vaddre is the virtual address of the next click after the
+	 * kernel.
+	 */
 	sysmem.vaddre = ctob(sysmem.lo+SBASE-PBASE);
+	DV(sysmem.vaddre);
+
 	/* include in system area pages for arena, free area */
 
 	CHIRP('3');
@@ -861,83 +909,80 @@ mchinit()
 	 *  is the top of the stack.  The stack grows upwards.
 	 */
 	total_clicks = 0;
+
+	/*
+	 * Initialize the sysmem table (phase 1 - base RAM).
+	 * Put base RAM above the kernel and sysmem overhead area into
+	 * sysmem pool.
+	 */
 	while (base > sysmem.lo) {
 		*sysmem.pfree++ = --base;
 		++total_clicks;
 	}
 
-	base = btoc(1024*1024);
-	while (base < sysmem.hi) {
+	/*
+	 * Initialize the sysmem table (phase 2 - extended RAM).
+	 * Put all extended RAM into the sysmem pool.
+	 */
+	base = btoc(ONE_MEG);
+	while (base < sysmem.hi && total_clicks < nalloc) {
 		*sysmem.pfree++ = base++;
 		++total_clicks;
 	}
+	DV(total_clicks);
 
+	/*
+	 * Roundoff error may have made nalloc smaller than necessary.
+	 */
+	while(base < sysmem.hi) {
+		if (sysmem.pfree + 1 >= sysmem.vaddre)
+			break;
+		*sysmem.pfree++ = base++;
+		++total_clicks;
+		nalloc++;
+	}
+	DV(total_clicks);
+	DV(nalloc);
+
+	/*
+	 * sysmem.efree points just past the last pointer in the sysmem
+	 * table.
+	 */
 	sysmem.efree = sysmem.pfree;
+	DV(sysmem.efree);
+	DV(allocno());
 
-	T_PIGGY( 0x400, {
-		strchirp("  sysmem.efree: ");
-		print32(sysmem.efree);
-		strchirp("  nalloc: ");
-		print32(nalloc);
-		strchirp("  total_clicks: ");
-		print32(total_clicks);
-		strchirp("  allocno(): ");
-		print32(allocno());
-	} );
-
-	T_PIGGY( 0x800, {
+	T_PIGGY(0x800, {
 		/*
 		 * ASSERT:  The stack of free pages should end within a click
 		 * of the lowest available memory.
 		 */
-		if ( (cseg_t *)ctob(sysmem.lo+SBASE-PBASE) < sysmem.efree ) {
-			strchirp("sysmem.lo is too low: ");
-			print32(ctob(sysmem.lo+SBASE-PBASE));
-			strchirp("  sysmem.efree: ");
-			print32(sysmem.efree);
+		if ((cseg_t *)ctob(sysmem.lo+SBASE-PBASE) < sysmem.efree) {
 			panic("sysmem.lo is too low");
 		}
 
-		if ( sysmem.efree < (cseg_t *)ctob(sysmem.lo+SBASE-PBASE - 1)){
-			strchirp("sysmem.efree is too low: ");
-			print32(sysmem.efree);
-			strchirp("  sysmem.lo-1: ");
-			print32(ctob(sysmem.lo+SBASE-PBASE - 1));
+		if (sysmem.efree < (cseg_t *)ctob(sysmem.lo+SBASE-PBASE - 1)){
 			panic("sysmem.efree is too low");
 		}
 
 		/*
 		 * ASSERT:  There should be nalloc total_clicks.
 		 */
-		if ( nalloc != total_clicks ) {
-			strchirp("nalloc != total_clicks: ");
-			print32(nalloc);
-			strchirp(" != ");
-			print32(total_clicks);
+		if (nalloc != total_clicks) {
 			panic("nalloc != total_clicks ");
 		}
-	} );
-
-	/*
-	 * We may want to be able to stop at this point so we can see
-	 * anything that has just been printed.
-	 */
-	T_PIGGY( 0x80, {
-		for (;;) {
-			/* DO NOTHING FOREVER */
-		}
-	} );
+	});
 
 	CHIRP('4');
 
 	/*
 	 * 5. allocate page entries and initialize level 0 ^'s
-	 * a. [ 00000000 .. 003FFFFF )		user code segment
-	 * b. [ 00400000 .. 007FFFFF )		user data & bss
-	 * c. [ 7FC00000 .. 7FFFFFFF )		user stack
-	 *c.i.[ 80000000 .. 80FFFFFF )		ram disk
-	 * d. [ FF800000 .. FFBFFFFF )		pointers to level 1 page table
-	 * e. [ FFC00000 .. FFFFFFFF )		system process addresses
+	 * a. [ 00000000 .. 003FFFFF)		user code segment
+	 * b. [ 00400000 .. 007FFFFF)		user data & bss
+	 * c. [ 7FC00000 .. 7FFFFFFF)		user stack
+	 *c.i.[ 80000000 .. 80FFFFFF)		ram disk
+	 * d. [ FF800000 .. FFBFFFFF)		pointers to level 1 page table
+	 * e. [ FFC00000 .. FFFFFFFF)		system process addresses
 	 */
 	codeseg = clickseg(*--sysmem.pfree);		/* 5.a */
 	ptable0_v[0x000] = codeseg  | DIR_RW; 
@@ -1181,7 +1226,8 @@ i8086()
 	unsigned int	calc_mem, boost;
 
 	/*
-	 * Allocate a click for ring 0 stack.
+	 * Allocate contiguous physical memory if PHYS_MEM is patched
+	 * to a nonzero value.
 	 */
 	if (PHYS_MEM) {
 		physMem.sr_size = (PHYS_MEM+NBPC-1)&~(NBPC-1);
@@ -1514,7 +1560,7 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 	}
 }
 
-printhex( v, max)
+printhex(v, max)
 unsigned long v;
 {
 	register int i;
@@ -1543,7 +1589,7 @@ int new_bytes;
 	int		new_clicks, pno, nsize, old_clicks;
 	SR		*srp;
 
-	T_PIGGY( 0x8000000, printf("c_grow(sp: %x, new: %x)", sp, new_bytes); );
+	T_PIGGY(0x8000000, printf("c_grow(sp: %x, new: %x)", sp, new_bytes););
 
 	new_clicks = btoc(new_bytes);
 	old_clicks = btoc(sp->s_size);
@@ -1561,7 +1607,7 @@ int new_bytes;
 		goto no_c_grow;
 	}
 
-	T_PIGGY( 0x8000000, printf("nc: %x, oc: %x,",new_clicks,old_clicks); );
+	T_PIGGY(0x8000000, printf("nc: %x, oc: %x,",new_clicks,old_clicks););
 
 	/*
 	 * Allocate a new descriptor vector if necessary.
@@ -1572,15 +1618,15 @@ int new_bytes;
 	nsize = areasize(new_clicks);
 	if (nsize != areasize(old_clicks)
 	  && !(pp = (cseg_t*)arealloc(new_clicks))) {
-		T_PIGGY( 0x8000000,
-			 printf("Can not allocate new descriptor."); );
+		T_PIGGY(0x8000000,
+			 printf("Can not allocate new descriptor."););
 		goto no_c_grow;
 	}
 
-	T_PIGGY( 0x8000000, printf("new pp: %x", pp); );
+	T_PIGGY(0x8000000, printf("new pp: %x", pp););
 
 	if (0 != (srp = loaded(sp->s_vmem))) {
-		T_PIGGY( 0x8000000, printf("unloading srp: %x, ", srp); );
+		T_PIGGY(0x8000000, printf("unloading srp: %x, ", srp););
 		unload(srp);
 		srp->sr_segp = 0;
 	}
@@ -1588,24 +1634,24 @@ int new_bytes;
 	/*
 	 * Allocate new descriptors.
 	 */
-	T_PIGGY( 0x8000000, printf("new desc: ["); );
+	T_PIGGY(0x8000000, printf("new desc: ["););
 	for (i = old_clicks; i < new_clicks; i++) {
 		pno = *--sysmem.pfree;
 		pp[i] = clickseg(pno) | SEG_RW;
-		T_PIGGY( 0x8000000, printf("%x, ", pp[i]); );
+		T_PIGGY(0x8000000, printf("%x, ", pp[i]););
 	}
-	T_PIGGY( 0x8000000, printf("]"); );
+	T_PIGGY(0x8000000, printf("]"););
 
 	/*
 	 * Copy unchanged descriptors and free old vector if necessary.
 	 */
 	if (pp != sp->s_vmem) {
-		T_PIGGY( 0x8000000, printf("old desc: ["); );
+		T_PIGGY(0x8000000, printf("old desc: ["););
 		for (i = 0; i < old_clicks; i++) {
 			pp[i] = sp->s_vmem[i];
-			T_PIGGY( 0x8000000, printf("%x, ", pp[i]); );
+			T_PIGGY(0x8000000, printf("%x, ", pp[i]););
 		}
-		T_PIGGY( 0x8000000, printf("]"); );
+		T_PIGGY(0x8000000, printf("]"););
 		areafree((BLOCKLIST*)sp->s_vmem, old_clicks);
 	}
 
@@ -1617,10 +1663,10 @@ int new_bytes;
 	 * MAPIO macro - convert array of page descriptors, offset
 	 *   into system global address.
 	 */
-	T_PIGGY( 0x8000000, printf("dmaclear(%x, %x, 0)", 
+	T_PIGGY(0x8000000, printf("dmaclear(%x, %x, 0)", 
 				ctob(new_clicks - old_clicks),
 				MAPIO(sp->s_vmem, ctob(old_clicks))
-			    );
+			   );
 	); /* T_PIGGY() */
 
 	dmaclear(ctob(new_clicks - old_clicks),
