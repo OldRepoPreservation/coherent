@@ -44,8 +44,9 @@ extern	char	*strstr();		/* 4.11.5.7 */
 extern	char	*strtok();		/* 4.11.5.8 */
 extern	size_t	strxfrm();		/* 4.11.4.5 */
 
-/* Non-ANSI function. */
+/* Non-ANSI functions. */
 extern	char	*memccpy();
+extern	char	*strdup();
 
 /* Internal function. */
 extern	void	_memxchg();
