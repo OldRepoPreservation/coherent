@@ -1,10 +1,12 @@
-/*	     
- * This is the common part of
- * typewriter service. It handles all
- * device independent aspects of
- * a typewriter, including tandem flow
- * control, erase and kill, stop and
- * start and common ioctl functions.
+/*
+ * File:	$USRSRC/ttydrv/tty.c
+ *
+ * Purpose:	COHERENT line discipline module.
+ *	This is the common part of typewriter service. It handles all device-
+ *	independent aspects of a typewriter, including tandem flow control,
+ *	erase and kill, stop and start, and common ioctl functions.
+ *
+ * $Log$
  *
  * Bug: no support for 8-bit characters.
  * Fix: don't strip keyboard input. 01/22/91.  (norm)
@@ -15,7 +17,6 @@
  * Bug: setting speed to default in ttopen() was conditioned to
  *      use hard constants.  90/08/28.  hws
  *
- * $Log:	tty.c,v $
  * Revision 1.5  91/06/06  18:28:53  norm
  * Restore 8-bit fix.
  * 
@@ -46,36 +47,74 @@
  * 85/03/01	Allan Cornish
  * made ttclose() interruptible.
  */
-#include <sys/coherent.h>
-#include <sys/clist.h>
-#include <sys/proc.h>
-#include <sys/uproc.h>
-#include <errno.h>
-#include <sys/sched.h>
-#include <sys/io.h>
-#include <sys/tty.h>
-#include <sys/deftty.h>
-#include <sys/stat.h>
-#include <sys/con.h>
 
 /*
- * NEAR_OR_FAR_CALL is for invoking t_param and t_start
+ * Includes.
  */
+#include <sys/clist.h>
+#include <sys/coherent.h>
+#include <sys/con.h>
+#include <sys/deftty.h>
+#include <sys/io.h>
+#include <sys/proc.h>
+#include <sys/sched.h>
+#include <sys/stat.h>
+#include <sys/tty.h>
+#include <sys/uproc.h>
+#include <errno.h>
+
+/*
+ * Definitions.
+ *	Constants.
+ *	Macros with argument lists.
+ *	Typedefs.
+ *	Enums.
+ */
+ 
+/* NEAR_OR_FAR_CALL is for invoking t_param and t_start */
 #define	 NEAR_OR_FAR_CALL(tp_fn)  {\
 	if (tp->t_cs_sel) \
 		ld_call(tp->t_cs_sel, tp->tp_fn, tp); \
 	else \
 		(*tp->tp_fn)(tp); }
 
+/*
+ * Functions.
+ *	Import Functions.
+ *	Export Functions.
+ *	Local Functions.
+ */
+void ttclose();
+void ttflush();
+void tthup();
+void ttin();
+void ttioctl();
+void ttopen();
+int  ttout();
+int  ttpoll();
+void ttread();
+void ttsetgrp();
+void ttsignal();
+void ttstart();
+void ttstash();
+void ttwrite();
+
+/*
+ * Global Data.
+ *	Import Variables.
+ *	Export Variables.
+ *	Local Variables.
+ */
 extern	int	wakeup();
 extern	void	pollwake();
 
 /*
- * Tty open.
- * Called by driver on first open.
- * Set up defaults.
+ * ttopen()
+ *
+ *	Called by driver on first open.
+ *	Set up defaults.
  */
-ttopen(tp)
+void ttopen(tp)
 register TTY *tp;
 {
 	tp->t_escape = 0;
@@ -96,11 +135,12 @@ register TTY *tp;
 }
 
 /*
- * ttsetgrp - set process group when process
- * does not have one.
- * Also set up process's controlling terminal.
+ * ttsetgrp()
+ *
+ *	Set process group when process does not have one.
+ *	Also set up process's controlling terminal.
  */
-ttsetgrp(tp, ctdev)
+void ttsetgrp(tp, ctdev)
 register TTY *tp;
 dev_t ctdev;
 {
@@ -117,12 +157,13 @@ dev_t ctdev;
 }
 
 /*
- * Tty close.
- * Called by driver on the last
- * close. Wait for all pending output
- * to go out. Kill input.
+ * ttyclose()
+ *
+ *	Called by driver on the last close.
+ *	Wait for all pending output to go out.
+ *	Kill input.
  */
-ttclose(tp)
+void ttclose(tp)
 register TTY *tp;
 {
 	register int s;
@@ -142,14 +183,19 @@ register TTY *tp;
 }
 
 /*
- * Read routine.
- * In cooked mode, copy up to the first newline or
- * break character, or until the count runs out.
- * In CBREAK or RAW modes, return when count runs out
- * or when input clist is empty and we're returning
- * at least one byte.
+ * ttread()
+ *
+ *	The read routine for a tty device driver will call this function.
+ *
+ *	Move data from tp->t_iq to io segment iop.
+ *	Number of characters to copy is in iop->ioc.
+ *
+ *	In cooked mode, copy up to the first newline or break character, or
+ *	until the count runs out.
+ *	In CBREAK or RAW modes, return when count runs out or when input clist
+ *	is empty and we're returning at least one byte.
  */
-ttread(tp, iop, s)
+void ttread(tp, iop)
 register TTY *tp;
 register IO *iop;
 {
@@ -158,7 +204,7 @@ register IO *iop;
 	int sioc = iop->io_ioc;  /* number of bytes to read */
 
 	while (iop->io_ioc) {
-		o = spl(s);
+		o = sphi();
 		while ((c = getq(&tp->t_iq)) < 0) {
 			if ((tp->t_flags & T_CARR) == 0) {
 			   u.u_error = EIO;  /* error since no carrier */
@@ -173,13 +219,14 @@ register IO *iop;
 			/* run out of characters from the clist.	*/ 
 
 			if (ISBBYB && ((tp->t_flags & T_BRD) == 0) 
-			   && iop->io_ioc < sioc)
-			{  spl(o);  
+			   && iop->io_ioc < sioc) {
+			   spl(o);  
 			   return;
 			}
 
 			/*
 			 * Non-blocking reads.
+			 * Tell user process to try again later.
 			 */
 			if ( iop->io_flag & IONDLY ) {
 				u.u_error = EAGAIN;
@@ -197,6 +244,9 @@ register IO *iop;
 				return;
 			}
 		}
+		/*
+		 * Flow control - can we turn on input from the driver yet?
+		 */
 		if (tp->t_iq.cq_cc <= ILOLIM) {
 			if ((tp->t_flags&T_ISTOP) != 0)
 				tp->t_flags &= ~T_ISTOP;
@@ -220,11 +270,12 @@ register IO *iop;
 }
 
 /*
- * Write routine.
- * Transfer stuff to the character
- * list.
+ * ttwrite()
+ *
+ *	Write routine.
+ *	Transfer stuff to the character list.
  */
-ttwrite(tp, iop, s)
+void ttwrite(tp, iop)
 register TTY *tp;
 register IO *iop;
 {
@@ -251,7 +302,7 @@ register IO *iop;
 			u.u_error = EIO;  /* error since no carrier */
 			return;
 		}
-		o = spl(s);
+		o = sphi();
 		while (tp->t_oq.cq_cc >= OHILIM) {
 			ttstart(tp);
 			if (tp->t_oq.cq_cc < OHILIM)
@@ -270,18 +321,19 @@ register IO *iop;
 		}
 		spl(o);
 	}
-	o = spl(s);
+	o = sphi();
 	ttstart(tp);
 	spl(o);
 }
 
 /*
- * This routine handles common
- * typewriter ioctl functions. Note that
- * flushing the stream now means drain the
- * output and clear the input.
+ * ttioctl()
+ *
+ *	This routine handles common typewriter ioctl functions.
+ *	Note that flushing the stream now means drain the output
+ *	and clear the input.
  */
-ttioctl(tp, com, vec)
+void ttioctl(tp, com, vec)
 register TTY *tp;
 register struct sgttyb *vec;
 {
@@ -394,10 +446,12 @@ register struct sgttyb *vec;
 }
 
 /*
- * Polling routine.
- * [System V.3 Compatible]
+ * ttpoll()
+ *
+ *	Polling routine.
+ *	[System V.3 Compatible]
  */
-ttpoll( tp, ev, msec )
+int ttpoll( tp, ev, msec )
 register TTY * tp;
 int ev;
 int msec;
@@ -450,15 +504,15 @@ int msec;
 }
 
 /*
- * Pull a character from the
- * output queues of the typewriter.
- * Doing fills, newline insert,
- * tab expansion and all other good
- * things. If the stream is empty
- * return a -1.
- * Called at high priority.
+ * ttout()
+ *
+ *	Pull a character from the output queues of the typewriter.
+ *	Doing fills, newline insert, tab expansion, etc.
+ *
+ *	If the stream is empty return a -1.
+ *	Called at high priority.
  */
-ttout(tp)
+int ttout(tp)
 register TTY *tp;
 {
 	register c;
@@ -471,7 +525,7 @@ register TTY *tp;
 		c = '\n';
 	} else {
 		if ((c=getq(&tp->t_oq)) < 0)
-			return (-1);
+			return -1;
 		if (!ISROUT) {
 			if (c=='\n' && ISCRMOD) {
 				tp->t_flags |= T_INL;
@@ -498,19 +552,17 @@ register TTY *tp;
 #endif
 			++tp->t_hpos;
 	}
-	return (c);
+	return c;
 }
 
 /*
- * Pass a character to the
- * device independent typewriter
- * routines. Handle erase and
- * kill, tandem flow control things
- * and other magic.
- * Called at high priority from 
- * the driver's interrupt processor.
+ * ttin()
+ *
+ *	Pass a character to the device independent typewriter routines.
+ *	Handle erase and kill, tandem flow control, and other magic.
+ *	Called at high priority from  the driver's interrupt processor.
  */
-ttin(tp, c)
+void ttin(tp, c)
 register TTY *tp;
 register c;
 {
@@ -674,13 +726,13 @@ register c;
 }
 
 /*
- * Cooked mode.
- * Put character in the buffer and
- * check for end of line. Only a legal
- * end of line can take the last character
- * position.
+ * ttstash()
+ *
+ *	Cooked mode.
+ *	Put character in the buffer and check for end of line.
+ *	Only a legal end of line can take the last character position.
  */
-ttstash(tp, c)
+void ttstash(tp, c)
 register TTY *tp;
 {
 	register char *p1, *p2;
@@ -713,11 +765,12 @@ register TTY *tp;
 }
 
 /*
- * Start output on a tty.
- * Duck out if stopped.
- * Do wakeups.
+ * ttstart()
+ *
+ *	Start output on a tty.
+ *	Duck out if stopped.  Do wakeups.
  */
-ttstart(tp)
+void ttstart(tp)
 register TTY *tp;
 {
 	register int n;
@@ -750,10 +803,12 @@ register TTY *tp;
 }
 
 /*
- * Flush a tty.
- * Called to clear out queues.
+ * ttflush()
+ *
+ *	Flush a tty.
+ *	Called to clear out queues.
  */
-ttflush(tp)
+void ttflush(tp)
 register TTY *tp;
 {
 	clrq(&tp->t_iq);
@@ -781,9 +836,11 @@ register TTY *tp;
 }
 
 /*
- * Send a signal to every process in the given process group.
+ * ttsignal()
+ *
+ *	Send a signal to every process in the given process group.
  */
-ttsignal(tp, sig)
+void ttsignal(tp, sig)
 TTY *tp;
 int sig;
 {
@@ -801,10 +858,12 @@ int sig;
 }
 
 /*
- * Flag hangup internally to force errors
- * on tty read/write, flush tty, then send hangup signal.
+ * tthup()
+ *
+ *	Flag hangup internally to force errors on tty read/write, flush tty,
+ *	then send hangup signal.
  */
-tthup(tp)
+void tthup(tp)
 register TTY *tp;
 {
 	tp->t_flags &= ~T_CARR;  /* indicate no carrier */
