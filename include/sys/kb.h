@@ -4,10 +4,11 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * kb.h:	Keyboard definitions and constants for user configurable
- *		AT keyboard driver.
+ * /usr/include/sys/kb.h
  *
- *		Version 1.2,  07/09/92
+ * Keyboard definitions and constants for user configurable AT keyboard driver.
+ *
+ * Revised: Wed Apr  7 17:15:34 1993 CDT
  */
 #ifndef	__SYS_KB_H__
 #define	__SYS_KB_H__
@@ -161,6 +162,11 @@
 #define	f72	72	/* function key 72 */
 #define	f73	73	/* function key 73 */
 #define	f74	74	/* function key 74 */
+#define	f75	75	/* function key 75 */
+#define	f76	76	/* function key 76 */
+#define	f77	77	/* function key 77 */
+#define	f78	78	/* function key 78 */
+#define	f79	79	/* function key 79 */
 
 /*
  * table entry definition
@@ -227,7 +233,7 @@ typedef	struct	{
 
 /*
  * function key definitions
- * 
+ *
  * Struct member k_fnval contains the actual function key values.
  * Entries are delimited by DELIM (0xFF or '\377') to allow NUL characters to
  * be embedded in function strings.
@@ -325,8 +331,15 @@ typedef	struct	{
 #define	VTKEY(x)	((x)>=VTKEY_HOME && (x)<=VTKEY_MAX)
 
 /*
+ * The following is provisional, pending STREAMS enhancements to the console.
+ *
+ * "fgk" is normally bound to <alt>+<enter>.
+ */
+#define fgk		(VTKEY_MAX+1)
+
+/*
  * function key definitions
- * 
+ *
  * Struct member k_fnval contains the actual function key values.
  * Entries are delimited by DELIM (0xFF or '\377') to allow NUL characters to
  * be embedded in function strings.

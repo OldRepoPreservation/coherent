@@ -1,11 +1,16 @@
 /*
- * Some useful and miscellaneous things.
+ * /usr/include/sys/coherent.h
+ *
+ * Coherent-specific definitions, for linking kernels and related bits.
+ *
+ * Revised: Wed Apr  7 15:07:47 1993 CDT
  */
 #ifndef	__SYS_COHERENT_H__
 #define	__SYS_COHERENT_H__
 
 #define	 KERNEL
 #define	__KERNEL__
+#include <sys/__paddr.h>
 #include <sys/types.h>
 #include <sys/_time.h>
 #include <sys/param.h>
@@ -92,13 +97,13 @@ extern	int	 icodes;		/* Init code size */
 extern	dev_t	 rootdev;		/* Root device */
 extern	dev_t	 swapdev;		/* Swap device */
 extern	dev_t	 pipedev;		/* Pipe device */
-extern	paddr_t	 corebot;		/* Bottom of core */
-extern	paddr_t	 coretop;	 	/* Top of core */
-extern	paddr_t	 holebot;		/* Bottom of I/O memory */
-extern	paddr_t	 holetop;		/* Top of I/O memory */
+extern	__paddr_t	 corebot;	/* Bottom of core */
+extern	__paddr_t	 coretop;	 /* Top of core */
+extern	__paddr_t	 holebot;	/* Bottom of I/O memory */
+extern	__paddr_t	 holetop;	/* Top of I/O memory */
 extern	daddr_t	 swapbot;		/* Bottom of swap */
 extern	daddr_t	 swaptop;		/* Top of swap */
-extern	paddr_t	 clistp;		/* Base of clists */
+extern	__paddr_t	 clistp;	/* Base of clists */
 extern	struct	 all *allkp;		/* Alloc space */
 extern	int	 NSLOT;			/* Num of loadable driver data slots */
 extern	int	 slotsz;		/* Size of loadable driver data slot */
@@ -118,7 +123,7 @@ extern	int	DUMP_LIM;
 
 extern	char	 *idatap;		/* Init data start */
 extern	int	 idatas;		/* Init data size */
-extern	paddr_t	 blockp;		/* Base of buffers */
+extern	__paddr_t	 blockp;	/* Base of buffers */
 extern	int	 altsel;		/* for far polling, this is selector */
 					/* ... for altclk; for near polling, */
 					/* ... this is zero */

@@ -4,19 +4,24 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * /usr/include/sys/seg.h
+ *
  * Segments.
+ *
+ * Revised: Wed Apr  7 15:13:49 1993 CDT
  */
 
 #ifndef	 __SYS_SEG_H__
 #define	 __SYS_SEG_H__
 
+#include <sys/__paddr.h>
 #include <sys/types.h>
 #include <sys/ksynch.h>
 
 
 /*
  * NIGEL: for some reason the type "cseg_t" was in <sys/types.h>. It belongs
- * here and in <sys/seg.h> as much as it belongs anywhere.
+ * here and in <sys/mmu.h> as much as it belongs anywhere.
  */
 
 #ifndef	__CSEG_T
@@ -40,7 +45,7 @@ typedef struct seg {
 #else
 	faddr_t	 s_faddr;		/* Memory access selector */
 	fsize_t	 s_size;		/* Size in bytes */
-	paddr_t  s_paddr;		/* Physical base address */
+	__paddr_t  s_paddr;		/* Physical base address */
 #endif
 	daddr_t	 s_daddr;		/* Disk base address */
 } SEG;

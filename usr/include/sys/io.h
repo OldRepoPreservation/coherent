@@ -4,12 +4,17 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * /usr/include/sys/io.h
+ *
  * I/O template.
+ *
+ * Revised: Wed Apr  7 15:09:53 1993 CDT
  */
 
 #ifndef	 __SYS_IO_H__
 #define	 __SYS_IO_H__
 
+#include <sys/__paddr.h>
 #include <sys/types.h>
 
 /*
@@ -22,12 +27,12 @@ typedef struct io {
 	off_t	 io_seek;		/* Seek posiion */
 	union {
 		caddr_t	vbase;		/* Virtual base */
-		paddr_t	pbase;		/* Physical base */
+		__paddr_t pbase;	/* Physical base */
 	} io;
 #else
 	fsize_t	 io_seek;		/* Seek posiion */
 	char	 *io_base;		/* Virtual base */
-	paddr_t	 io_phys;		/* Physical base */
+	__paddr_t	io_phys;	/* Physical base */
 #endif
 	short	 io_flag;		/* Flags: 0, IONDLY */
 } IO;

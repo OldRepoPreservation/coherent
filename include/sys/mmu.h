@@ -3,10 +3,18 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * /usr/include/sys/mmu.h
+ *
+ * Paging and other mmu support.
+ *
+ * Revised: Wed Apr  7 15:12:21 1993 CDT
+ */
 #ifndef	__SYS_MMU_H__
 #define	__SYS_MMU_H__
 
 #ifdef _I386
+#include <sys/__paddr.h>
 #include <sys/types.h>
 #include <sys/uproc.h>
 
@@ -241,7 +249,7 @@ extern saddr_t	gdtsel;
  */
 extern	faddr_t	ptov();		/* faddr_t ptov( paddr_t, fsize_t );	*/
 extern	faddr_t	ptovx();	/* faddr_t ptovx( paddr_t );		*/
-extern	paddr_t vtop();		/* paddr_t vtop( faddr_t );		*/
+extern	__paddr_t vtop();	/* __paddr_t vtop( faddr_t );		*/
 extern	void	vrelse();	/* void    vrelse( faddr_t );		*/
 extern	void	vremap();	/* void    vremap( SEG * );		*/
 #endif /* KERNEL */
