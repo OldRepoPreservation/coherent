@@ -11,7 +11,7 @@ OBJ=ibmpac.o ibmout.o
 
 pacman:	$(OBJ)
 	cc -o $(DESTDIR)chase $(OBJ)
-	su root chmog 511 bin bin $(DESTDIR)$@
+	su root chmog 511 bin bin $(DESTDIR)chase
 
 ibmpac.o:	ibmpac.c term.c io.c
 	cc -c ibmpac.c
