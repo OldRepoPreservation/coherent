@@ -506,8 +506,8 @@ int *lenp;
 				nlost = 0;
 				low += need;
 				if (*lenp)
-				printmsg(M_DATA, "|%s|",
-					 visbuf(buf + ENV_LEN, *lenp));
+					printmsg(M_DATA, "|%s|",
+					   visbuf(buf + ENV_LEN, *lenp));
 				return tt;
 			}
 		}

@@ -54,6 +54,9 @@ int len;
 	register unsigned char c;
 	register char *p;
 
+
+	if ( len <= 0 )
+		return("");
 	p = buf;
 	while( (p<&buf[BUFSIZ-4]) && (len--) ) {
 		c = *data++;
