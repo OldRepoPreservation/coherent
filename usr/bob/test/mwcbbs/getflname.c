@@ -61,10 +61,25 @@ char tryfile[7][15] = {FILE0,FILE1,FILE2,FILE3,FILE4,FILE5,FILE6};
 			}
 		}
 
-	if( (x-48)==5)
+	/* if option 5 was selected, display a menu of net maps */
+
+	if( (x-48)==5){
 		get_net_map();
-	else
+		return ;
+	}
+
+	/* if option 6 (QUIT) was selected, copy that to our workfile.
+	 * otherwise, we are going to get a real file, so append
+	 * the directory path specified in the .mwcbbs file, if one
+	 * was specified as DATAPATH.
+	 */
+
+	if ( (x-48) == 6){
 		strcpy(workfile,tryfile[x-48]);
+	}else{
+		strcpy(workfile,find_workfile);
+		strcat(workfile,tryfile[x-48]);
+	}
 
 	echo();	
 	if (strcmp(workfile,"QUIT")!= 0)
@@ -102,6 +117,12 @@ char choice;
 	while( (choice > 51) || (choice <48) )
 		choice = getch();
 
-	strcpy(workfile,mapfile[choice - 48]);
+	if ( (choice-48) == 3){
+		strcpy(workfile,mapfile[choice-48]);
+	}else{
+		strcpy(workfile,find_workfile);
+		strcat(workfile,mapfile[choice-48]);
+	}
+
 
 }
