@@ -69,6 +69,7 @@
 	.globl	regfp
 	.globl	sdata
 	.globl	seg2io
+	.globl	setEmfR0
 	.globl	setspace
 	.globl	sig32
 	.globl	sphi
@@ -157,7 +158,8 @@
 	.set	SEG_RNG0_STK,	0x78	/ Stack for ring 0 CPL
 	.set	SEG_RNG1_TXT,	0x81	/ Text for ring 1
 	.set	SEG_RNG1_STK,	0x89	/ Stack for ring 1 CPL
-	.set	SEG_MMUUPD,	0x91	/ Ring 0 call gate
+	.set	SEG_MMUUPD,	0x91	/ call gate into ring 0
+	.set	SEG_SET_EM,	0x99	/ call gate into ring 0
 
 	.set	SEG_SRW,	0x03
 

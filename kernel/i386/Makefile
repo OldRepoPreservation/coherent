@@ -67,6 +67,8 @@ I386OBJ =\
 	$(K386OBJ)/memcpy.o \
 	$(K386OBJ)/memset.o \
 	$(K386OBJ)/mmu.o \
+	$(K386OBJ)/ndp.o \
+	$(K386OBJ)/ndpas.o \
 	$(K386OBJ)/sys1632.o \
 	$(K386OBJ)/tioc.o \
 	$(K386OBJ)/trap.o
@@ -89,7 +91,6 @@ OPTS =\
 	$(K386OBJ)/mm.o \
 	$(K386OBJ)/mmas.o \
 	$(K386OBJ)/msg.o \
-	$(K386OBJ)/msgcon.o \
 	$(K386OBJ)/nkb.o \
 	$(K386OBJ)/pipe.o \
 	$(K386OBJ)/pty.o \
@@ -182,7 +183,6 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/lp.o \
 	$(K386OBJ)/msg.o \
-	$(K386OBJ)/msgcon.o \
 	$(K386OBJ)/pipe.o \
 	$(K386OBJ)/pty.o \
 	$(K386OBJ)/putchar.o \
@@ -263,8 +263,14 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(USRINC)/sgtty.h
 	$(CC) $(CFLAGS) -c -o $@ sys1632.c
 
-$(K386OBJ)/mmu.o: mmu.c
+$(K386OBJ)/ndpas.o: ndpas.s
+	$(AS) -g -o $@ ndpas.s
+
+$(K386OBJ)/ndp.o: ndp.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/mmu.o: mmu.c
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
 
 $(K386OBJ)/md.o: md.c
 	$(CC) $(CFLAGS) -c -o $@ $<
