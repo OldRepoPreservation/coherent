@@ -446,6 +446,11 @@ conversion:
 	case QUEST:
 		if (rp->t_op != COLON)
 			cerror("mismatched conditional");
+		/* Make sure the condition type 'lt' is computational. */
+		gt.t_type = (cvdope[13 * (lt - T_CHAR) + lt - T_CHAR] & GOAL);
+		if (bitcompat(gt.t_type, lt) == 0)
+			lp = bcvt(lp, &gt);
+		/* then fall through... */
 
 	case COMMA:
 	case ARGLST:
