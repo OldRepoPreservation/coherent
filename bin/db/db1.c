@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <canon.h>
 #include <signal.h>
+#include <sys/core.h>
 #include <sys/uproc.h>
 #include "db.h"
 
@@ -101,24 +102,46 @@ again:
 /*
  * Set up segmentation for a core dump.
  * The registers are also read.
+ * hal improved the core file format 4/93 for COHERENT V4.0.1r75.
+ * Compiling without -DOLD_CORE builds db which groks only the new format.
+ * Compiling with -DOLD_CORE builds db which groks both old and new formats.
+ * This hack should disappear when the old format becomes irrelevant.
  */
 void
 set_core(name) char *name;
 {
+	struct ch_info ch_info;
+	long offset;
 	register unsigned i;
 	register char *cp;
 	register ADDR_T size;
 	register off_t offt;
 	ADDR_T regl;		/* an address, int * in <sys/uproc.h> */
+	int iflag, textflag;
 	int signo;
 	char ucomm[U_COMM_LEN+1];
 	SR usegs[NUSEG];
-	int iflag;
 
-	/* Open the core file and read the file name. */
+	/* Open the core file. */
 	cfn = name;
 	cfp = openfile(name, rflag);
-	fseek(cfp, (long)U_OFFSET+offsetof(UPROC, u_comm[0]), SEEK_SET);
+
+	/* Read the core file header and set uproc offset. */
+	if (fread(&ch_info, sizeof ch_info, 1, cfp) != 1)
+		panic("Cannot read core file header");
+#if	!OLD_CORE
+	if (ch_info.ch_magic != CORE_MAGIC)
+		panic("Not a core file");
+	offset = ch_info.ch_info_len + ch_info.ch_uproc_offset;
+#else
+	if (ch_info.ch_magic == CORE_MAGIC)
+		offset = ch_info.ch_info_len + ch_info.ch_uproc_offset;
+	else
+		offset = (long)U_OFFSET;
+#endif
+
+	/* Read the file name from the core file. */
+	fseek(cfp, offset+offsetof(UPROC, u_comm[0]), SEEK_SET);
 	if ((cp = lfn) != NULL && fread(ucomm, sizeof(ucomm), 1, cfp) == 1) {
 
 		/* Compare object filename to core filename. */
@@ -131,30 +154,76 @@ set_core(name) char *name;
 		}
 	}
 
-	/* Seek to the segment information and read it. */
-	fseek(cfp, (long)U_OFFSET+offsetof(UPROC, u_segl[0]), SEEK_SET);
+	/* Read the core file segment information. */
+	fseek(cfp, offset+offsetof(UPROC, u_segl[0]), SEEK_SET);
 	if (fread(usegs, sizeof(usegs), 1, cfp) != 1)
 		panic("Bad core file");
 
-	/* Read the core signal number and register pointer. */
-	fseek(cfp, (long)U_OFFSET+offsetof(UPROC, u_signo), SEEK_SET);
+	/* Read the core file signal number and register pointer. */
+	fseek(cfp, offset+offsetof(UPROC, u_signo), SEEK_SET);
 	if (fread(&signo, sizeof(signo), 1, cfp) != 1)
 		panic("cannot read signo");
 	dbprintf(("signo=%d\n", signo));
 	if (fread(&regl, sizeof(regl), 1, cfp) != 1)
 		panic("cannot read regl");
-	regl &= 0xFFF;
+	regl &= (NBPC - 1);
+#if	OLD_CORE
+	if (ch_info.ch_magic == CORE_MAGIC)
+		regl += ch_info.ch_info_len;
+#else
+	regl += ch_info.ch_info_len;
+#endif
 	dbprintf(("regl=%d\n", regl));
+
+#if	__I386__
+	/* Adjust the i386 stack segment base. */
+	usegs[SISTACK].sr_base -= usegs[SISTACK].sr_size;
+	dbprintf(("adjust usegs[SISTACK].sr_base to %x\n", usegs[SISTACK].sr_base));
+#endif
+
+	/*
+	 * The new core dump format might or might not include the text segment
+	 * but does not include a flag stating if it has been dumped (oops);
+	 * this decides if text is present/absent by adding up segment sizes.
+	 * Presumably it should be setting SRFDUMP flag correctly instead...
+	 */
+	textflag = 0;
+#if	OLD_CORE
+	if (ch_info.ch_magic == CORE_MAGIC) {
+#endif
+		offt = usegs[0].sr_size + ch_info.ch_info_len;
+		for (i=1; i<NUSEG; i++) {
+			if (usegs[i].sr_segp == (SEG *)NULL)
+				continue;
+			if ((~usegs[i].sr_flag) & (SRFDUMP|SRFPMAP))
+				continue;
+			offt += usegs[i].sr_size;
+		}
+		fseek(cfp, 0, SEEK_END);
+		textflag = (ftell(cfp) != offt);
+		dbprintf(("cfp_len=%lx offt=%lx textflag=%d", ftell(cfp), offt, textflag));
+#if	OLD_CORE
+	}
+#endif
 
 	/* Set up segmentation. */
 	iflag = ISPACE == DSPACE;
 	map_set(USEG, MIN_ADDR, (ADDR_T)UPASIZE, (off_t)regl, MAP_CORE);
 	map_clear(DSEG, endpure);
 	offt = usegs[0].sr_size;
-#if	__I386__
-	usegs[SISTACK].sr_base -= usegs[SISTACK].sr_size;
-	dbprintf(("adjust usegs[SISTACK].sr_base to %x\n", usegs[SISTACK].sr_base));
+#if	OLD_CORE
+	if (ch_info.ch_magic == CORE_MAGIC)
+		offt += ch_info.ch_info_len;
+#else
+	offt += ch_info.ch_info_len;
 #endif
+	if (textflag) {
+		/* Map the text segment. */
+		map_clear(ISEG, NULL);
+		size = usegs[SISTEXT].sr_size;
+		map_set(ISEG, (ADDR_T)usegs[SISTEXT].sr_base, size, offt, MAP_CORE);
+		offt += size;
+	}
 	for (i=1; i<NUSEG; i++) {
 		if (usegs[i].sr_segp == (SEG *)NULL)
 			continue;
