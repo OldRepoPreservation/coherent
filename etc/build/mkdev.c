@@ -3,43 +3,51 @@
  * 10/25/90
  * Allow the user to configure devices requiring loadable drivers.
  * Uses common routines in build0.c: cc -o mkdev mkdev.c build0.c
- * Usage: mkdev [ -bdv ] scsi
+ * Usage: mkdev [ -bdv ] { scsi | at }
  * Options:
  *	-b	Use special processing when invoked from /etc/build
  *	-d	Debug; echo commands without executing
  *	-v	Verbose
  *
- * $Log:	mkdev.c,v $
- * Revision 1.3  91/06/28  07:29:59  bin
- * updated by hal
- * 
- * Revision 1.5  91/06/17  08:13:40  hal
- * Allow for older Future Domain host adapters.
- * 
- * Revision 1.4  91/06/17  08:09:22  hal
- * Shipped with 3.2.0.
- * 
- * Revision 1.3  91/05/30  12:22:24  hal
- * Patch SS_INT and SS_BASE.
- * 
- * Revision 1.2  91/05/24  03:06:43  hal
- * Add Seagate and Future Domain.
- * 
+ * $Log$
+ *
+ * Roughly, do the following for device "foo" ( at | aha154x | ss )
+ *
+ *	cp /drv/foo /tmp/drv/foo
+ *	make necessary patches "xxx" to /tmp/drv/foo
+ *	if not "at" device
+ *		make nodes (mknod -f) for the device
+ *	if build mode (bflag)
+ *		if rootdev
+ *			append to LDKERFILE:
+ *				HD=foo.a
+ *				HDUNDEF="-u foocon_"
+ *				HDPATCH="drvl_+xx0=foocon_"
+ *		/etc/drvld -r /tmp/drv/foo
+ *		append to PATCHFILE:
+ *			cp /tmp/drv/foo /mnt/drv/foo
+ *		if rootdev, also append to PATCHFILE:
+ *			/conf/patch /mnt/coherent xxx
+ *	else - not build mode
+ *		display message saying patched driver is at /tmp/drv/foo
  */
 
 #include <stdio.h>
 #include <sys/devices.h>
 #include "build0.h"
 
-#define	VERSION		"V1.2"		/* version number */
-#define	USAGEMSG	"Usage:\t/etc/mkdev [ -bdv ] [ scsi ]\n"
+#define	VERSION		"V1.4"		/* version number */
+#define	USAGEMSG	"Usage:\t/etc/mkdev [ -bdv ] [ scsi | at ]\n"
 #define BUFLEN		50
 #define AHA_HDS		64
 #define AHA_DMA		5
+#define AHA_IRQ		11
+#define AHA_BASE	0x330
 #define TANDY_HDS	16
 
 /* Forward. */
 void	scsi();
+void	at();
 
 /* Globals. */
 int	bflag;				/* Invoked from /etc/build. */
@@ -67,13 +75,14 @@ main(argc, argv) int argc; char *argv[];
 	}
 
 	if (argc == 1) {
-		/* Do everything mkdev knows how to do. */
-		scsi();
+		usage();
 	} else {
 		/* Do specified things. */
 		while (--argc > 0) {
 			if (strcmp(argv[1], "scsi") == 0)
 				scsi();
+			else if (strcmp(argv[1], "at") == 0)
+				at();
 			else
 				usage();
 			++argv;
@@ -84,7 +93,8 @@ main(argc, argv) int argc; char *argv[];
 
 void
 scsi()
-{ char *drv, *coh, *dev;
+{
+	char *dev, *coh;
 	int i, id, lun, rootflag;
 	int ss_dev = 0;
 	int fut_dev = 0;
@@ -94,6 +104,7 @@ scsi()
 	unsigned char ss_patch[80], buf[BUFLEN];
 	FILE *fp;
 	int aha_dev = 0, sd_hds = AHA_HDS, sd_dma = AHA_DMA;
+	int sd_irq = AHA_IRQ, sd_base = AHA_BASE;
 
 	rootflag = 0;
 #if	0
@@ -116,31 +127,33 @@ retry:
 		return;
 	case 1:
 		aha_dev = 1;
-		drv = "/drv/aha154x";
 		coh = "aha";
 		break;
 	case 2:
 		ss_dev = 1;
-		drv = "/drv/ss";
 		coh = "ss";
 		break;
 	case 3:
 		ss_dev = 1;
 		fut_dev = 1;
-		drv = "/drv/ss";
 		coh = "ss";
 		nsdrive |= 0x8000;
 		break;
 	case 4:
 		ss_dev = 1;
 		fut_dev = 1;
-		drv = "/drv/ss";
 		coh = "ss";
 		nsdrive |= 0x4000;
 		break;
 	default:
 		goto retry;		/* should never happen */
 	}
+
+	/* Make /tmp/drv if not already there. */
+	if ((i = is_dir("/tmp/drv")) == 0)
+		sys("/bin/mkdir /tmp/drv", S_FATAL);
+	else if (i == -1)
+		fatal("/tmp/drv is not a directory");
 
 	/*
 	 * If Adaptec, allow patching host adapter variables SD_HDS
@@ -151,6 +164,46 @@ printf("\nMost versions of the Adaptec BIOS use 64-head translation mode.\n");
 printf("A few, including some Tandy variants, use 16-head translation mode.\n\n");
 		if (!yes_no("Do you want 64-head translation mode"))
 			sd_hds = TANDY_HDS;
+printf("\nWhich IRQ does the host adapter use (9/10/11/12/14/15) [%d]? ",
+	sd_irq);
+		for (;;) {
+			new_int = sd_irq;
+			fgets(buf, BUFLEN, stdin);
+			sscanf(buf, "%d", &new_int);
+			switch(new_int) {
+			case 9:
+			case 10:
+			case 11:
+			case 12:
+			case 14:
+			case 15:
+				goto ok_sdirq;
+			}
+printf("Type 9,10,11,12,14,15 or just <Enter> for the default: ");
+		} /* endwhile */
+ok_sdirq:
+		sd_irq = new_int;
+
+printf("\nWhat is the hexadecimal host adapter base port address \n");
+printf("  (130/134/230/234/330/334) [%x]? ", sd_base);
+		for (;;) {
+			new_int = sd_base;
+			fgets(buf, BUFLEN, stdin);
+			sscanf(buf, "%x", &new_int);
+			switch(new_int) {
+			case 0x130:
+			case 0x134:
+			case 0x230:
+			case 0x234:
+			case 0x330:
+			case 0x334:
+				goto ok_sdbase;
+			}
+printf("Type 130,134,230,234,330,334 or just <Enter> for the default: ");
+		} /* endfor */
+ok_sdbase:
+		sd_base = new_int;
+
 printf("\nWhich DMA channel does the host adapter use (0/5/6/7) [%d]? ",
 	sd_dma);
 		for (;;) {
@@ -202,29 +255,27 @@ printf("Type a number between C800 and DE00 or just <Enter> for the default: ");
 		ss_base = new_base;
 	}
 	
-	/* If rootdev is SCSI, copy /coherent.xxx to /tmp/coherent. */
-	if (bflag && !rootflag) {
+	/*
+	 * Set rootflag if root partition is on SCSI device.
+	 * If using both AT and SCSI devices, write to drvld.all for
+	 * non-root device.
+	 */
+	if (bflag) {
 		cls(0);
-#if	0
-		printf(
-"If your computer system includes both a standard AT-type hard disk and\n"
-"a SCSI hard disk, you must put the COHERENT root partition on the AT disk.\n"
-"If it includes only a SCSI disk, the COHERENT root partition must be on\n"
-"the SCSI disk.\n"
-			);
-#endif
-		if (yes_no("Will the COHERENT root partition be on this SCSI device")) {
-			++rootflag;
-			sprintf(cmd, "/bin/cp /coherent.%s /tmp/coherent", coh);
-			sys(cmd, S_FATAL);
-			if (yes_no(
+		if (yes_no(
 "Does your computer system include both a standard AT-type hard disk\n"
-"and a SCSI hard disk"
-				)) {
-				sprintf(cmd, "/bin/echo /etc/drvld -r /drv/at >>%s",
-					(bflag) ? "/tmp/drvld.all" : "/etc/drvld.all");
+"and a SCSI hard disk" )) {
+			if (yes_no(
+"Will the COHERENT root partition be on this SCSI device")) {
+				++rootflag;
+sys("/bin/echo /etc/drvld -r /drv/at >> /tmp/drvld.all", S_FATAL);
+			} else {	/* root is on "at" device */
+sprintf(cmd, "/bin/echo /etc/drvld -r /drv/%s >> /tmp/drvld.all",
+(aha_dev)?"aha154x":"ss");
 				sys(cmd, S_FATAL);
 			}
+		} else {	/* SCSI-only system */
+			++rootflag;
 		}
 	}
 
@@ -307,52 +358,38 @@ newdev:
 		sprintf(ss_patch,
 			"NSDRIVE_=0x%04x SS_INT_=%d SS_BASE_=0x%04x",
 			nsdrive, ss_int, ss_base);
-
-		/*
-		 * Write PATCHFILE which is run by build.
-		 * Tell it to patch the driver.
-		 * Patch /tmp/coherent if there is one.
-		 */
+		sys("/bin/cp /drv/ss /tmp/drv/ss", S_FATAL);
+		sprintf(cmd, "/conf/patch /tmp/drv/ss %s", ss_patch);
+		sys(cmd, S_FATAL);
 		if (bflag) {
+			if (rootflag) {
+				fp = fopen(LDKERFILE, "a");
+				fprintf(fp, "HD=ss.a\n");
+				fprintf(fp, "HDUNDEF=\"-u sscon_\"\n");
+				fprintf(fp, "HDPATCH=\"drvl_+130=sscon_\"\n");
+				fclose(fp);
+			}
+			sys("/etc/drvld -r /tmp/drv/ss", S_FATAL);
 			fp = fopen(PATCHFILE, "a");
-			fprintf(fp, "/conf/patch /mnt%s %s\n", drv, ss_patch);
+			fprintf(fp, "/bin/cp /tmp/drv/ss /mnt/drv/ss\n");
+			if (rootflag)
+				fprintf(fp,
+				  "/conf/patch /mnt/coherent %s\n", ss_patch);
 			fclose(fp);
+			/*
+			 * Allow patching of the loaded driver parameters.
+			 */
+			for (unit = 0; unit < 7; unit++)
+				if (nsdrive & (1<<unit)) {
+					sprintf(cmd,
+					  "/etc/hdparms -%c%c %s/sd%dx",
+					  (rootflag)?'r':'b',
+					  (fut_dev)?'f':'s', dev, unit);
+					sys(cmd, S_NONFATAL);
+				}
+		} else
+			printf("Patched driver at /tmp/drv/ss\n");
 
-			if(rootflag) {
-sprintf(cmd, "/conf/patch /tmp/coherent %s\n", ss_patch);
-				sys(cmd, S_FATAL);
-			}
-		} else {
-			sprintf(cmd, "/conf/patch %s %s", drv, ss_patch);
-			sys(cmd, S_FATAL);
-		}
-
-		/* Load the driver for the device. */
-		if (bflag) {
-			sprintf(cmd, "/bin/mkdir /tmp/drv");
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/bin/cp %s /tmp%s", drv, drv);
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/conf/patch /tmp%s %s", drv, ss_patch);
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/etc/drvld -r /tmp%s", drv);
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/bin/rm /tmp%s", drv);
-			sys(cmd, S_FATAL);
-		} else {
-			sprintf(cmd, "/etc/drvld -r %s", drv);
-			sys(cmd, S_FATAL);
-		}
-
-		/*
-		 * Allow patching of the loaded driver parameters.
-		 */
-		for (unit = 0; unit < 7; unit++)
-			if (nsdrive & (1<<unit)) {
-				sprintf(cmd, "/etc/hdparms -b%c %s/sd%dx",
-					(fut_dev)?'f':'s', dev, unit);
-				sys(cmd, S_NONFATAL);
-			}
 	} /* end of "ss" stuff */
 
 	/*
@@ -365,60 +402,85 @@ sprintf(cmd, "/conf/patch /tmp/coherent %s\n", ss_patch);
 		 * Adaptec's Own Translation Mode.
 		 */
 		sprintf(ss_patch,
-			"SD_HDS_=%d SDDMA_=%d", sd_hds, sd_dma);
-
-		/*
-		 * Write PATCHFILE which is run by build.
-		 * Tell it to patch the driver.
-		 * Patch /tmp/coherent if there is one.
-		 */
-		if (bflag) {
-			fp = fopen(PATCHFILE, "a");
-			fprintf(fp, "/conf/patch /mnt%s %s\n", drv, ss_patch);
-			fclose(fp);
-
-			if(rootflag) {
-sprintf(cmd, "/conf/patch /tmp/coherent %s\n", ss_patch);
-				sys(cmd, S_FATAL);
-			}
-		} else {
-			sprintf(cmd, "/conf/patch %s %s", drv, ss_patch);
-			sys(cmd, S_FATAL);
-		}
-
-		/* Load the driver for the device. */
-		if (bflag) {
-			sprintf(cmd, "/bin/mkdir /tmp/drv");
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/bin/cp %s /tmp%s", drv, drv);
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/conf/patch /tmp%s %s", drv, ss_patch);
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/etc/drvld -r /tmp%s", drv);
-			sys(cmd, S_FATAL);
-			sprintf(cmd, "/bin/rm /tmp%s", drv);
-			sys(cmd, S_FATAL);
-		} else {
-			sprintf(cmd, "/etc/drvld -r %s", drv);
-			sys(cmd, S_FATAL);
-		}
-	} /* end of "aha154x" stuff */
-
-	/*
-	 * If the device is not the root,
-	 * append a line to load the driver
-	 * to /etc/drvld.all or /tmp/drvld.all.
-	 */
-	if (!rootflag) {
-		sprintf(cmd, "/bin/echo /etc/drvld -r %s >>%s",
-			drv, (bflag) ? "/tmp/drvld.all" : "/etc/drvld.all");
+		  "SD_HDS_=%d SDDMA_=%d SDIRQ_=%d SDBASE_=0x%x ",
+		  sd_hds, sd_dma, sd_irq, sd_base);
+		sys("/bin/cp /drv/aha154x /tmp/drv/aha154x", S_FATAL);
+		sprintf(cmd, "/conf/patch /tmp/drv/aha154x %s", ss_patch);
 		sys(cmd, S_FATAL);
-	}
-
+		if (bflag) {
+			if (rootflag) {
+				fp = fopen(LDKERFILE, "a");
+				fprintf(fp, "HD=aha154x.a\n");
+				fprintf(fp, "HDUNDEF=\"-u sdcon_\"\n");
+				fprintf(fp, "HDPATCH=\"drvl_+130=sdcon_\"\n");
+				fclose(fp);
+			}
+			sys("/etc/drvld -r /tmp/drv/aha154x", S_FATAL);
+			fp = fopen(PATCHFILE, "a");
+			fprintf(fp, "/bin/cp /tmp/drv/aha154x /mnt/drv/aha154x\n");
+			if (rootflag)
+				fprintf(fp,
+				  "/conf/patch /mnt/coherent %s\n", ss_patch);
+			fclose(fp);
+		} else
+			printf("Patched driver at /tmp/drv/aha154x\n");
+	} /* end of "aha154x" stuff */
 
 #if	0
 	if (yes_no("Is there another SCSI host adapter in your system"))
 		goto again;
 #endif
+}
+
+void
+at()
+{
+	unsigned char at_patch[80];
+	FILE *fp;
+	int patch_atsreg = 0;
+	int rootflag = 0;
+	int i;
+
+	/* Make /tmp/drv if not there. */
+	if ((i = is_dir("/tmp/drv")) == 0)
+		sys("/bin/mkdir /tmp/drv", S_FATAL);
+	else if (i == -1)
+		fatal("/tmp/drv is not a directory");
+
+	cls(0);
+	sys("/bin/cp /drv/at /tmp/drv/at", S_FATAL);
+	printf(
+"Most AT-compatible drives and controllers work with NORMAL polling.\n\n"
+"Some AT-style hard disk equipment, including most Perstor controllers and\n"
+"some older IDE hard drives, require ALTERNATE polling.  If you get\n"
+"\"Controller not found\" or \"at0:TO\" errors with normal polling, you\n"
+"should use alternate polling.\n\n");
+
+	if (yes_no("Do you want ALTERNATE polling")) {
+		patch_atsreg = 1;
+		strcpy(at_patch, "ATSREG_=0x1F7 ");
+		sprintf(cmd, "/conf/patch /tmp/drv/at %s", at_patch);
+		sys(cmd, S_FATAL);
+	}
+	if (bflag){
+		if (yes_no(
+		  "Will the COHERENT root partition be on an AT_style drive")) {
+			++rootflag;
+			fp = fopen(LDKERFILE, "a");
+			fprintf(fp, "HD=at.a\n");
+			fprintf(fp, "HDUNDEF=\"-u atcon_\"\n");
+			fprintf(fp, "HDPATCH=\"drvl_+110=atcon_\"\n");
+			fclose(fp);
+			
+		}
+		sys("/etc/drvld -r /tmp/drv/at", S_FATAL);
+		fp = fopen(PATCHFILE, "a");
+		fprintf(fp, "/bin/cp /tmp/drv/at /mnt/drv/at\n");
+		if (rootflag)
+			fprintf(fp,
+			  "/conf/patch /mnt/coherent %s\n", at_patch);
+		fclose(fp);
+	} else
+		printf("Patched driver at /tmp/drv/at\n");
 }
 /* end of mkdev.c */
