@@ -121,6 +121,7 @@ char *argv[];
 				mfun = dirmatch;
 				break;
 
+			case 'i':
 			case 'y':
 				redual = 1;
 				yflag = 1;
@@ -243,11 +244,11 @@ char *s;
 		return;
 	if (!lflag && !cflag) {
 		if (!hflag)
-			printf("%s: ", fname);
+			printf("%s:", fname);
 		if (bflag)
-			printf("%d:\t", blkno);
+			printf("%d:", blkno);
 		else if (nflag)
-			printf("%d:\t", lineno);
+			printf("%d:", lineno);
 		printf("%s\n", s);
 	} else if (lflag)
 		outfile = 1;
