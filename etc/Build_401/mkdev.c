@@ -245,7 +245,7 @@ printf("Type a number between 3 and 15 or just <Enter> for the default: ");
 		/* Get value to patch for SS_BASE */
 printf("Your host adapter is configured for a base segment address.  Possible\n");
 printf("values are: C800, CA00, CC00, CE00, DC00, and DE00.\n");
-printf("What is your 4-digit hexadecimal base address [%04X]? ", ss_base);
+printf("What is your 4-digit hexadecimal base address [%04lx]? ", ss_base);
 		while (1) {
 			new_base = ss_base;
 			fgets(buf, BUFLEN, stdin);

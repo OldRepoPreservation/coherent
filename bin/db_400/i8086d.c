@@ -1,4 +1,4 @@
-/* $Header: /src386/bin/db/RCS/i8086d.c,v 1.1 92/06/10 14:36:47 bin Exp Locker: bin $
+/* $Header: /src386/bin/db/RCS/i8086d.c,v 1.2 92/12/09 08:53:15 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,8 @@
  * Intel 8086.
  *
  * $Log:	i8086d.c,v $
+ * Revision 1.2  92/12/09  08:53:15  bin
+ * 
  * Revision 1.1  92/06/10  14:36:47  bin
  * Initial revision
  * 
