@@ -31,25 +31,25 @@ char	*u_name;	/* User name */
 time_t	c_time;		/* Time when command started */
 char	*cmd;		/* Command */
 {
-	child_id	*pst;
+	register child_id	*pst;
 
 	/* Structure child_id has one extracharacter at the end */
 	if ((pst = (child_id *) malloc(sizeof(child_id) + strlen(cmd))) 
 								== NULL) {
 		fprintf(stderr, "crond: out of memory\n");
-		pst = current;
 	} else {	/* Write information about child to a table */
 		pst->prev = current;
-		pst->next = NULL;
-		pst->pid = pid;
-		strncpy(pst->name, u_name, MAX_UNAME - 1);
-		pst->time = c_time;
-		strcpy(pst->command, cmd);
-		Dprint("add_entry: ID should be %d\t", pid);
-		Dprint("Command is %s\t", cmd);
-		Dprint("Command is %s\n", pst->command);
+		if (current != NULL)
+			current->next = pst;
+		current = pst;
+		current->next = NULL;
+		current->pid = pid;
+		strncpy(current->name, u_name, MAX_UNAME - 1);
+		current->time = c_time;
+		strcpy(current->command, cmd);
+		Dprint("add_entry: added ID is %d, ", current->pid);
 	}
-	return pst;
+	return current;
 }
 
 /*
@@ -59,11 +59,11 @@ char	*cmd;		/* Command */
 child_id *find_entry(pid)
 int	pid;
 {
-	child_id	*pst;
+	register child_id	*pst;
 
-	Dprint("find_entry: request ID is %d\n", pid);
+	Dprint("find_entry: request ID is %d. List of incore pids:\n", pid);
 	for (pst = current; pst != NULL; pst = pst->prev) {
-		Dprint("find_entry: next ID is %d\n", pst->pid);
+		Dprint(" %d ", pst->pid);
 		if (pst->pid == pid)
 			break;
 	}
@@ -79,14 +79,22 @@ child_id	*corpse;	/* Entry that should be deleted */
 {
 	child_id	*pst;
 
-	if (pst == NULL)
+	Dprint("del_entry: ID should be %d\t", corpse->pid);
+	Dprint("next_id is %d\t", corpse->next->pid);
+	Dprint("prev_id is %d\n", corpse->prev->pid);
+
+	if (corpse == NULL)
 		return current;
 
-	if ((pst = corpse->prev) != NULL)
+	if ((pst = corpse->prev) != NULL) {
 		pst->next = corpse->next;
+		Dprint("del_entry: prev_id is %d\n", pst->pid);
+	}
 
-	if ((pst = corpse->next) != NULL)
+	if ((pst = corpse->next) != NULL) {
 		pst->prev = corpse->prev;
+		Dprint("del_entry: next_id is %d\n", pst->pid);
+	}
 
 	if (corpse->next == NULL) {
 		pst = corpse->prev;
@@ -137,3 +145,4 @@ child_id	*entry;
 	fclose(fp);
 	unlink(tmpName);
 }	
+
