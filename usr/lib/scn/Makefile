@@ -14,6 +14,7 @@ L = 	yesNo.o \
 	noWhite.o \
 	noVerify.o \
 	showbak.o \
+	showMsg.o \
 	query.o \
 	fatal.o \
 	closeup.o \
