@@ -1,4 +1,4 @@
-# libm/i387/Makefile 10/20/92
+# libm/i387/Makefile 12/2/92
 
 ASFLAGS=-fx
 
@@ -14,7 +14,11 @@ OBJ=\
 	exp87.o\
 	fabs87.o\
 	hypot87.o\
+	j0.o\
+	j1.o\
+	jn.o\
 	log87.o\
+	pol.o\
 	pow87.o\
 	sin87.o\
 	sqrt87.o\
@@ -25,6 +29,7 @@ libm87.a:	$(OBJ)
 	ar ruvks libm87.a $(OBJ)
 
 # Secondary targets.
+# Assembler sources.
 acos87.o:	acos87.s
 asin87.o:	asin87.s
 atan287.o:	atan287.s
@@ -42,3 +47,8 @@ sin87.o:	sin87.s
 sqrt87.o:	sqrt87.s
 tan87.o:	tan87.s
 tanh87.o:	tanh87.s
+# C sources.
+j0.o:		j0.c
+j1.o:		j1.c
+jn.o:		jn.c
+pol.o:		pol.c
