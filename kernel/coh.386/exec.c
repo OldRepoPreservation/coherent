@@ -89,6 +89,7 @@ char	*envp[];
 	if ((ip=exlopen(&head, np, &shrdsize)) == NULL) {
 		goto done;
 	}
+
 	roundup = (shrdsize) & 0xf;
 	ssegp = exstack(&head,argp, envp, wdsize());
 
@@ -268,11 +269,13 @@ int *shrds;
 		idetach(ip);
 		return (NULL);
 	}
+
 	if ((ip->i_mode&(IPE|IPE<<3|IPE<<6))==0 || (ip->i_mode&IFMT)!=IFREG) {
 		u.u_error = EACCES;
 		idetach(ip);
 		return (NULL);
 	}
+
 	if ((bp=vread(ip, (daddr_t)0)) == NULL)
 		goto bad;
 	/*
@@ -336,6 +339,7 @@ int *shrds;
 		fhead.f_nscns*sizeof(scnhdr) > BSIZE)
 			goto bad;
 
+		kkcopy(bp->b_vaddr, &fhead, sizeof(struct filehdr));
 		kkcopy(bp->b_vaddr+sizeof(fhead), &ahead, sizeof(ahead));
 		if ((/*ahead.magic!=O_MAGIC && ahead.magic!=N_MAGIC && */
 		     ahead.magic!=Z_MAGIC))
@@ -561,7 +565,6 @@ vaddr_t	in, out;
 	} while (c);
 	return in - init_in;
 }
-
 
 /*
  * Given a pointer to a list of arguments, a pointer to an argument count
