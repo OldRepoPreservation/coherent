@@ -986,24 +986,6 @@ int msec;
 }
 
 /*
- * Given a device, return the flags word.
- */
-dflag(dev)
-dev_t dev;
-{
-	register CON *cp;
-	register int f;
-	dold_t dold;
-
-	if ((cp=drvmap(dev, &dold)) == NULL)
-		return (DFERR);
-	f = cp->c_flag;
-	drest(dold);
-	return (f);
-}
-
-
-/*
  * Given a device, and a pointer to a driver map save area, save the
  * current map in the driver map save area and map in the new device,
  * returning a pointer to the configuration entry for that device.

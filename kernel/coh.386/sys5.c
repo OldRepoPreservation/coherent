@@ -101,7 +101,7 @@ int func, arg1, arg2, arg3, arg4;
  * Before lcall instruction 4(%esp) contains buf (REVERSE order of argument)
  * 8(%esp) contains dev, and 12(%esp) contains the value 0.
  */
-
+int
 uutssys(arg1, arg2, func)
 {
 	switch(func) {	
@@ -117,6 +117,11 @@ uutssys(arg1, arg2, func)
 extern char	version[];	/* Defined in main.c */
 extern char 	release[];	/* Defined in main.c */
 
+/*
+ * uname() should return a non-negative value on success
+ * On failure, u.u_error is set.
+ */
+int
 uname(name)
 struct utsname	*name;
 {
@@ -130,40 +135,58 @@ struct utsname	*name;
 	/* Check if *name is an available user area */
 	if (!useracc((char *) name, sizeof(struct utsname), 1)) {
 		u.u_error = EFAULT;
-		return(0);
+		return;
 	}
+
 	/* Find the size of the version number */
 	for (rcp = version, i = 0; *rcp != '\0' && i < SYS_NMLN; i++, rcp++)
 			;
+
 	/* Write version number to user area */
-	if (!kucopy(version, name->version, i))
-		return(0);
+	if (!kucopy(version, name->version, i)) {
+		u.u_error = EFAULT;
+		return;
+	}
+
 	/* Find the size of the release number */
 	for (rcp = release, i = 0; *rcp != '\0' && i < SYS_NMLN; i++, rcp++)
 			;
+
 	/* Write release number to user area */
-	if (!kucopy(release, name->release, i))
+	if (!kucopy(release, name->release, i)) {
+		u.u_error = EFAULT;
 		return;
+	}
+
 	/* Write "machine" to user area */
-	if (!kucopy("i386", name->machine, 4))
+	if (!kucopy("i386", name->machine, 4)) {
+		u.u_error = EFAULT;
 		return;
+	}
+
 	/* We supposed that system name and nodename are in /etc/uucpname */
 	if (ftoi("/etc/uucpname", 'r') != 0)
 		return(sys_unknown(name));
+
 	ip = u.u_cdiri;
 	if ((fl = ip->i_size) == 0) {
 		idetach(ip);
 		return(sys_unknown(name));
 	}
+
+	/* iaccess() sets u_error if it fails. */
 	if (iaccess(ip, IPR) == 0) {
 		idetach(ip);
 		return;
 	}
+
 	if ((bp = vread(ip, (daddr_t) 0)) == NULL) {
 		brelease(bp);
 		idetach(ip);
+		u.u_error = EFAULT;
 		return;
 	}
+
 	/* namebuf should be not more than SYS_NMLN - 1 characters long */
 	fl = (fl > SYS_NMLN) ? SYS_NMLN : fl;
 	kkcopy(bp->b_vaddr, namebuf, fl);
@@ -172,6 +195,7 @@ struct utsname	*name;
 
 	if (fl == 1 && namebuf[0] == '\n')
 		return(sys_unknown(name));
+
 	for (rcp = namebuf, i = 0; i < fl; rcp++) {
 		i++;
 		if (*rcp == '\n') {
@@ -180,27 +204,44 @@ struct utsname	*name;
 		}
 	}
 	namebuf[i - 1] = '\0';
-	/* Write system name to user area */
-	if (!kucopy(namebuf, name->sysname, i))
-		return(0);
 
 	/* Write system name to user area */
-	if (!kucopy(namebuf, name->nodename, i))
-		return(0);
+	if (!kucopy(namebuf, name->sysname, i)) {
+		u.u_error = EFAULT;
+		return;
+	}
+
+	/* Write system name to user area */
+	if (!kucopy(namebuf, name->nodename, i)) {
+		u.u_error = EFAULT;
+		return;
+	}
+
 	return 0;
 }
 
 /*
  * sys_unknown - write name unknown to utsname struct
+ * Return 0 on success.
+ * Set u.u_error on failure.
  */
 char	unknown[] = "UNKNOWN";
+
+int
 sys_unknown(name)
 struct utsname	*name;
 {
-	if (!kucopy(unknown, name->sysname, sizeof(unknown)))
+	if (!kucopy(unknown, name->sysname, sizeof(unknown))) {
+		u.u_error = EFAULT;
 		return;
-	if (!kucopy(unknown, name->nodename, sizeof(unknown)))
+	}
+
+	if (!kucopy(unknown, name->nodename, sizeof(unknown))) {
+		u.u_error = EFAULT;
 		return;
+	}
+
+	return 0;
 }
 
 /* 

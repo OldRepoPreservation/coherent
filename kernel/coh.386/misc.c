@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/misc.c,v 1.3 92/11/09 17:10:53 root Exp $ */
+/* $Header: /y/coh.386/RCS/misc.c,v 1.4 93/04/14 10:06:36 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Miscellaneous routines.
  *
  * $Log:	misc.c,v $
+ * Revision 1.4  93/04/14  10:06:36  root
+ * r75
+ * 
  * Revision 1.3  92/11/09  17:10:53  root
  * Just before adding vio segs.
  * 
@@ -33,7 +36,7 @@
  * Panic message now includes system code and data segments.
  */
 #include <sys/coherent.h>
-#include <acct.h>
+#include <sys/acct.h>
 #include <errno.h>
 #include <sys/ino.h>
 #include <sys/stat.h>
@@ -126,52 +129,18 @@ char *a1;
 	printf("\n");
 }
 
-#if 0
-/*
- * Copy 'n' bytes from 'bp1' to 'bp2'.
- * Return 'n'.
- */
-kkcopy(bp1, bp2, n)
-register char *bp1;
-register char *bp2;
-unsigned n;
-{
-	register unsigned n1;
-
-	n1 = n;
-	if (n1) {
-		do {
-			*bp2++ = *bp1++;
-		} while (--n1);
-	}
-	return (n);
-}
-
-/*
- * Clear the next `n' bytes starting at `bp'.
- */
-kclear(bp, n)
-register char *bp;
-register unsigned n;
-{
-	if (n) {
-		do {
-			*bp++ = 0;
-		} while (--n);
-	}
-}
-#endif
-
 /*
  * Wait up to "ticks" clock ticks for an event to occur.
+ * A tick is 1/HZ seconds (10 msec).
  * Works whether interrupts are enabled or not.
  * Busy-waits the system.
  * The event occurs when (*fn)() returns a nonzero value.
+ * If fn is NULL, delay unconditionally.
  *
  * Return 0 if timeout occurred, 1 if the desired event occurred.
  */
 
-#define THRESH 5966	/* half of 11932 */
+#define THRESH (T0_RATE/2)	/* half of 11932 */
 
 int
 busyWait(fn, ticks)
@@ -190,7 +159,7 @@ int ticks;
 	int p1;
 
 	for (;;) {
-		if ((*fn)())
+		if (fn && (*fn)())
 			return 1;
 
 		/* did we change halves of counter cycle? */
@@ -198,8 +167,9 @@ int ticks;
 		if (p0 != p1) {
 			p0 = p1;
 			flips++;
-			/* did a full .01 sec tick elapse? */
-			if ((flips >> 1) >= HZ) {
+
+			/* two phase flips make a tick */
+			if (flips >= 2) {
 				flips = 0;
 				tickCt++;
 				if (tickCt > ticks)
@@ -207,5 +177,50 @@ int ticks;
 			}
 		}
 		
+	}
+}
+
+/*
+ * busyWait2() has finer granularity than busyWait().
+ *
+ * Wait up to "counts" clock counts for an event to occur.
+ * A count is 1/(11932*HZ) seconds (about 0.84 usec).
+ * Works whether interrupts are enabled or not.
+ * Busy-waits the system.
+ * The event occurs when (*fn)() returns a nonzero value.
+ * If fn is NULL, delay unconditionally.
+ *
+ * Return 0 if timeout occurred, 1 if the desired event occurred.
+ */
+
+int
+busyWait2(fn, counts)
+int (*fn)();
+unsigned int counts;
+{
+	/*
+	 * ct0 is previous t0 reading, ct1 is current reading.
+	 * We have timer rollover when ct1 < ct0.
+	 */
+
+	unsigned int totCt = 0;
+	unsigned int ct0 = read_t0();
+	unsigned int ct1;
+
+	for (;;) {
+		if (fn && (*fn)())
+			return 1;
+
+		ct1 = read_t0();
+		if (ct1 > ct0) {
+			/* no timer 0 rollover */
+			totCt += ct1 - ct0;
+		} else {
+			/* timer 0 rollover */
+			totCt += ct1 + T0_RATE - ct0;
+		}
+		if (totCt > counts)
+			return 0;
+		ct0 = ct1;
 	}
 }

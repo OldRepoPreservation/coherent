@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/seg.c,v 1.7 92/11/09 17:10:57 root Exp $ */
+/* $Header: /y/coh.386/RCS/seg.c,v 1.8 93/04/14 10:07:48 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -270,7 +270,6 @@ unsigned int new_bytes;
 	dowflag = sp->s_flags & SFDOWN;
 	old_bytes = sp->s_size;
 
-	T_HAL(0x20, goto dont_c_grow);
 	/*
 	 * If we want a larger segment AND c_grow() succeeds
 	 *	boost segment size to new_bytes

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fs2.c,v 1.2 92/01/06 11:59:27 hal Exp $ */
+/* $Header: /y/coh.386/RCS/fs2.c,v 1.5 93/04/14 10:06:31 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (disk inodes).
  *
  * $Log:	fs2.c,v $
+ * Revision 1.5  93/04/14  10:06:31  root
+ * r75
+ * 
  * Revision 1.2  92/01/06  11:59:27  hal
  * Compile with cc.mwc.
  * 
@@ -38,7 +41,7 @@
  * eliminated test for rootdev in msync()
  */
 #include <sys/coherent.h>
-#include <acct.h>
+#include <sys/acct.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>

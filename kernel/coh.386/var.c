@@ -21,7 +21,6 @@ int	debflag = 0;			/* coherent.h */
 
 int	batflag;			/* coherent.h */
 int	dev_loaded;			/* coherent.h */
-int	DUMP_LIM=512*1024;		/* coherent.h */
 int	outflag;			/* coherent.h */
 int	ttyflag;			/* coherent.h */
 unsigned utimer;			/* coherent.h */
@@ -137,7 +136,6 @@ int	ustty();
 int	ugtty();
 int	uaccess();
 int	unice();
-int	uftime();
 int	usync();
 int	ukill();
 int	udup();
@@ -283,6 +281,9 @@ struct systab sysitab[NMICALL] ={
  *  Assists the dispatching mechanism in i386/trap.c
  */
 int	uchsize();
+int	unap();
+int	oftime();
+
 struct systab h28itab[] = {
 	0,  INT,	unone,			/* 0x0128 = locking */
 	0,  INT,	unone,			/* 0x0228 = creatsem */
@@ -294,8 +295,8 @@ struct systab h28itab[] = {
 	0,  INT,	unone,			/* 0x0828 = ??? */
 	0,  INT,	unone,			/* 0x0928 = ??? */
 	2,  INT,	uchsize,		/* 0x0A28 = chsize */
-	0,  INT,	unone,			/* 0x0B28 = ftime */
-	0,  INT,	unone,			/* 0x0C28 = nap */
+	1,  INT,	oftime,			/* 0x0B28 = ftime */
+	1,  INT,	unap,			/* 0x0C28 = nap */
 	0,  INT,	unone,			/* 0x0D28 = _sdget */
 	0,  INT,	unone,			/* 0x0E28 = sdfree */
 	0,  INT,	unone,			/* 0x0F28 = sdenter */

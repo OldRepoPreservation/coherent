@@ -1,21 +1,12 @@
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
+/*
+ * coh.386/exec.c
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
+ * The exec() system call.
  *
- *	Intel 386 port and extensions (16/32 bit compatibility)
- *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
- -lgl) */
+ * Revised: Fri Jun  4 10:41:40 1993 CDT
+ */
 #include <sys/coherent.h>
-#include <acct.h>
+#include <sys/acct.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>
@@ -116,13 +107,20 @@ char	*envp[];
 	case XMAGIC(I286MAGIC,I_MAGIC):
 		u.u_regl[CS] = SEG_286_UII | R_USR;
 		u.u_regl[DS] = SEG_286_UD  | R_USR;
-		segp = pp->p_segp[SISTEXT] = ssalloc(ip,SFTEXT,
-		  head.segs[SISTEXT].size);
+
+		if ((segp = ssalloc(ip,SFTEXT, head.segs[SISTEXT].size))
+		  == NULL)
+			goto out; 
+		pp->p_segp[SISTEXT] = segp;
+
 		if (!exsread(segp, ip, &head.segs[SISTEXT], 0))
 			goto out;
-		segp = ssalloc(ip,0,roundup +
-		  head.segs[SIPDATA].size + head.segs[SIBSS].size);
+
+		if ((segp = ssalloc(ip, 0, roundup + head.segs[SIPDATA].size 
+		  + head.segs[SIBSS].size)) == NULL)
+			goto out;
 		pp->p_segp[SIPDATA] = segp;
+
 		if (!exsread(segp, ip, &head.segs[SIPDATA], shrdsize)) {
 			goto out;
 		}
@@ -160,13 +158,15 @@ char	*envp[];
 				goto out;
 		}
 
-		segp = pp->p_segp[SISTEXT]
-		  = ssalloc(ip, SFTEXT|SFSHRX, textSize);
+		if ((segp = ssalloc(ip, SFTEXT|SFSHRX, textSize))
+		  == NULL)
+			goto out;
+		pp->p_segp[SISTEXT] = segp;
+
 		if (segp->s_ip==0) {
 			if (!exsread(segp, ip, &tempseg, 0)) {
 				goto out;
 			}
-
 			/* load additional text sections, if any */
 			for (xp = xlist; xp; xp = xp->xn) {
 				if (xp->segtype != SISTEXT)
@@ -179,8 +179,9 @@ char	*envp[];
 			segp->s_ip = ip;
 			ip->i_refc++;
 		}
-		segp = ssalloc(ip,0,
-		  head.segs[SIPDATA].size+head.segs[SIBSS].size);
+		if ((segp = ssalloc(ip, 0, 
+		  head.segs[SIPDATA].size+head.segs[SIBSS].size)) == NULL)
+			goto out;
 		pp->p_segp[SIPDATA] = segp;
 		if (segp->s_ip==0 &&
 		    !exsread(segp, ip, &head.segs[SIPDATA], 0)) {
@@ -246,10 +247,10 @@ u.u_error = 0;
 	/*
 	 * Default every signal that is not ignored.
 	 */
-	for (i=0; i<NSIG; ++i) {
-		if (u.u_sfunc[i] != SIG_IGN) {
-			u.u_sfunc[i] = SIG_DFL;
-			pp->p_dfsig |= ((sig_t) 1) << (i - 1);
+	for (i = 1; i <= NSIG; ++i) {
+		if (u.u_sfunc[i - 1] != SIG_IGN) {
+			u.u_sfunc[i - 1] = SIG_DFL;
+			pp->p_dfsig |= SIG_BIT(i);
 		}
 	}
 
@@ -265,11 +266,7 @@ u.u_error = 0;
 	goto done;
 
 	/*
-	 * We did not make it.
-	 * Release the INODE for the load
-	 * file, and return through the "sys exit"
-	 * code with a "SIGSYS", or with the signal actually received
-	 * if we are aborting due to interrupted exec.
+	 * Alas, exec() has failed..
 	 */
 out:
 	/* Deallocate nodes hooked into xlist by exlopen. */
@@ -279,8 +276,25 @@ out:
 		xlist = tmp;
 	}
 
+	/* Release the INODE for the load file. */
 	idetach(ip);
 
+	/* If we allocated a text segment, let it go. */
+	if (segp = pp->p_segp[SISTEXT]) {
+		pp->p_segp[SISTEXT] = NULL;
+		sfree(segp);
+	}
+
+	/* If we allocated a data segment, let it go. */
+	if (segp = pp->p_segp[SIPDATA]) {
+		pp->p_segp[SIPDATA] = NULL;
+		sfree(segp);
+	}
+
+	/*
+	 * Return through the "sys exit" code with a "SIGSYS", or with the
+	 * signal actually received if we are aborting due to interrupted exec.
+	 */
 	if (u.u_error == EINTR)
 		pexit(nondsig());
 	pexit(SIGSYS);
