@@ -56,8 +56,8 @@ int	total_shmids = 0,	/* total shared memory segs found */
 	total_sems = 0,		/* total semaphores found */
 	usemsqs = 0;		/* is msq in use */
 
-int	SHMMNI,		/* total # shared memory segments */
-	NSEMID,			/* total # semaphores */
+int	SHMMNI,			/* total # shared memory segments */
+	SEMMNI,			/* total # semaphores */
 	NMSQID;			/* total # message queues */
 
 /*
@@ -164,7 +164,7 @@ set_flags()
 /*
  * Get the following values from the corefile:
  *	SHMMNI:		max number of allowable shared memory segments
- *	NSEMID:		max number of allowable semaphores
+ *	SEMMNI:		max number of allowable semaphore sets
  *	NMSQID:		max number of allowable message queues
  */
 getmaxnum(fname)
@@ -181,8 +181,8 @@ char	*fname;		/* Kernel file name */
 		sym[i].n_type = -1;
 	}
 	strcpy(sym[0].n_name, "SHMMNI");
-	strcpy(sym[1].n_name, "NSEMID");
-	strcpy(sym[2].n_name, "NMSQID");
+	strcpy(sym[1].n_name, "NMSQID");
+	strcpy(sym[2].n_name, "SEMMNI");
 
 	/* do lookups. coffnlist returns 0 on error. */
 	if (!coffnlist(fname, sym, NULL, 3)) {
@@ -209,16 +209,16 @@ char	*fname;		/* Kernel file name */
 	if ((fd = iMemSeek(sym[1].n_value, 0)) < 0) 	/* Open and seek the */
 		exit(1);				/* proper file */
 	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
-		fprintf(stderr, "ipcs: read value of NSEMID error\n");
+		fprintf(stderr, "ipcs: read value of SEMMNI error\n");
 		exit(1);
 	}
 	close(fd);
-	NSEMID = val;
+	SEMMNI = val;
 	/* Get max number of allowable message queues */
 	if ((fd = iMemSeek(sym[2].n_value, 0)) < 0) 	/* Open and seek the */
 		exit(1);				/* proper file */
 	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
-		fprintf(stderr, "ipcs: read value of SHMMNI error\n");
+		fprintf(stderr, "ipcs: read value of NMSQID error\n");
 		exit(1);
 	}
 	NMSQID = val;
