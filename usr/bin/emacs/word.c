@@ -363,6 +363,9 @@ delfword(f, n)
 	dotp = curwp->w_dotp;
 	doto = curwp->w_doto;
 	size = 0;
+	if ((lastflag&CFKILL) == 0)		/* Clear kill buffer if	*/
+		kdelete();			/* last wasn't a kill.	*/
+	thisflag |= CFKILL;
 	while (n--) {
 		while (inword() == FALSE) {
 			if (forwchar(FALSE, 1) == FALSE)
@@ -397,6 +400,9 @@ delbword(f, n)
 	if (backchar(FALSE, 1) == FALSE)
 		return (FALSE);
 	size = 0;
+	if ((lastflag&CFKILL) == 0)		/* Clear kill buffer if	*/
+		kdelete();			/* last wasn't a kill.	*/
+	thisflag |= CFKILL;
 	while (n--) {
 		while (inword() == FALSE) {
 			if (backchar(FALSE, 1) == FALSE)
