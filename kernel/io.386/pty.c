@@ -23,6 +23,9 @@
  *	master read does ttout()
  *
  * $Log:	pty.c,v $
+ * Revision 1.3  92/07/16  16:35:29  hal
+ * Kernel #58
+ * 
  * Revision 1.2  92/03/18  07:45:33  hal
  * master device polling added
  * 
@@ -93,7 +96,6 @@ int nulldev();
  */
 static void ptyclose();
 static void ptyioctl();
-static void ptyioctl0();
 static void ptyload();
 static void ptyopen();
 static void ptyread();
@@ -127,11 +129,7 @@ CON ptycon ={
 	nulldev,			/* Block */
 	ptyread,			/* Read */
 	ptywrite,			/* Write */
-#ifdef _I386
-	ptyioctl0,			/* Ioctl */
-#else
 	ptyioctl,			/* Ioctl */
-#endif
 	nulldev,			/* Powerfail */
 	nulldev,			/* Timeout */
 	ptyload,			/* Load */
@@ -370,17 +368,6 @@ write_done:;
 /*
  * ptyioctl()
  */
-#ifdef _I386
-static void
-ptyioctl0(dev, com, vec)
-dev_t dev;
-int com;
-struct sgttyb *vec;
-{
-	tioc286(dev, com, vec, ptyioctl);
-}
-#endif
-
 static void
 ptyioctl(dev, com, vec)
 dev_t	dev;

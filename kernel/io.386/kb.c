@@ -75,8 +75,6 @@ int	ispoll();
 int	nulldev();
 int	nonedev();
 
-static int	isioctl0();
-
 /*
  * Configuration table.
  */
@@ -88,11 +86,7 @@ CON iscon ={
 	nulldev,			/* Block */
 	isread,				/* Read */
 	mmwrite,			/* Write */
-#ifdef _I386
-	isioctl0,			/* Ioctl */
-#else
 	isioctl,			/* Ioctl */
-#endif
 	nulldev,			/* Powerfail */
 	mmwatch,			/* Timeout */
 	isload,				/* Load */
@@ -341,15 +335,6 @@ IO *iop;
 /*
  * Ioctl routine.
  */
-#ifdef _I386
-isioctl0(dev, com, vec)
-dev_t dev;
-struct sgttyb *vec;
-{
-	tioc286(dev, com, vec, isioctl);
-}
-#endif
-
 isioctl(dev, com, vec)
 dev_t dev;
 struct sgttyb *vec;

@@ -493,10 +493,13 @@ register struct sgttyb *vec;
 		break;
 	case TCSETAW:
 		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
+		was_bbyb = ISBBYB;	/* previous mode */
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
 		++drain;	  /* delay for output */
 		++rload;
+		if (!was_bbyb && ISBBYB)
+			ttrtp(tp);
 		break;
 	case TCSETAF:
 		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
