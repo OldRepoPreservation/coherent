@@ -7,6 +7,10 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.9  91/09/16  10:27:47  hal
+ * Explain T_ISTOP/T_TSTOP/T_STOP.
+ * Add check for TANDEM before sending t_startc.
+ * 
  * Revision 1.8  91/09/13  18:01:39  piggy
  * Only do XON/XOFF flow control if TANDEM is set.
  *
@@ -369,8 +373,9 @@ register struct sgttyb *vec;
 	register int	flush = 0;
 	register int	drain = 0;
 	register char	*p1, *p2;
-		 int    rload = 0;
-		 int	was_bbyb = 0;
+	int s;
+	int rload = 0;
+	int was_bbyb = 0;
 
 	switch (com) {
 	case TIOCQUERY:
@@ -410,19 +415,28 @@ register struct sgttyb *vec;
 		ukcopy(vec, &tp->t_tchars, sizeof (struct tchars));
 		break;
 	case TIOCEXCL:
+		s = sphi();
 		tp->t_flags |= T_EXCL;
+		spl(s);
 		break;
 	case TIOCNXCL:
+		s = sphi();
 		tp->t_flags &= ~T_EXCL;
+		spl(s);
 		break;
 	case TIOCHPCL:		/* set hangup on last close */
+		s = sphi();
 		tp->t_flags |= T_HPCL;
+		spl(s);
 		break;
 	case TIOCCHPCL:		/* don't hangup on last close */
 		if (!super())   /* only superuser may do this */
-		   u.u_error = EPERM;        /* not su */
-		else
- 	   	   tp->t_flags &= ~T_HPCL;   /* turn off hangup bit */
+			u.u_error = EPERM;        /* not su */
+		else {
+			s = sphi();
+			tp->t_flags &= ~T_HPCL;   /* turn off hangup bit */
+			spl(s);
+		}
 		break;
 	case TIOCGETTF:		/* get tty flag word */
 		kucopy(&tp->t_flags, (unsigned *) vec, sizeof(unsigned));
@@ -432,10 +446,14 @@ register struct sgttyb *vec;
 		++drain;
 		break;
 	case TIOCBREAD:		/* blocking read for CBREAK/RAW mode */
+		s = sphi();
 		tp->t_flags |= T_BRD;
+		spl(s);
 		break;
 	case TIOCCBREAD:	/* turn off CBREAK/RAW blocking read mode */
+		s = sphi();
 		tp->t_flags &= ~T_BRD;
+		spl(s);
 		break;
 	default:
 		u.u_error = EINVAL;
@@ -450,12 +468,16 @@ register struct sgttyb *vec;
 		 * Ensure output is enabled BEFORE waiting for output to drain.
 		 */
 		if (ISRIN && (tp->t_flags & T_STOP)) {
+			s = sphi();
 			tp->t_flags &= ~T_STOP;
 			ttstart(tp);
+			spl(s);
 		}
 
 		while (tp->t_oq.cq_cc != 0) {
+			s = sphi();
 			tp->t_flags |= T_DRAIN;
+			spl(s);
 			sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT);
 			if (SELF->p_ssig && nondsig())
 				break;
@@ -590,7 +612,7 @@ register TTY *tp;
  *
  *	Pass a character to the device independent typewriter routines.
  *	Handle erase and kill, tandem flow control, and other magic.
- *	Called at high priority from  the driver's interrupt processor.
+ *	Called at high priority from the driver's interrupt processor.
  */
 void ttin(tp, c)
 register TTY *tp;
@@ -767,6 +789,8 @@ register c;
  *	Cooked mode.
  *	Put character in the buffer and check for end of line.
  *	Only a legal end of line can take the last character position.
+ *
+ *	Only called from ttin(), and ttin() is called at high priority.
  */
 void ttstash(tp, c)
 register TTY *tp;
@@ -805,6 +829,7 @@ register TTY *tp;
  *
  *	Start output on a tty.
  *	Duck out if stopped.  Do wakeups.
+ *	Only called at high priority.
  */
 void ttstart(tp)
 register TTY *tp;
@@ -816,8 +841,8 @@ register TTY *tp;
 		return;
 
 	if ((n&T_DRAIN)!=0 && tp->t_oq.cq_cc==0
-	   && (n&T_INL)==0 && tp->t_nfill==0)
-	{	tp->t_flags &= ~T_DRAIN;
+	   && (n&T_INL)==0 && tp->t_nfill==0) {
+		tp->t_flags &= ~T_DRAIN;
 		defer(wakeup, (char *) &tp->t_oq);
 		return;
 	}
@@ -902,7 +927,11 @@ int sig;
 void tthup(tp)
 register TTY *tp;
 {
+	int s;
+
+	s = sphi();
 	tp->t_flags &= ~T_CARR;  /* indicate no carrier */
+	spl(s);
 	ttflush(tp);
 	ttsignal(tp, SIGHUP);
 }
