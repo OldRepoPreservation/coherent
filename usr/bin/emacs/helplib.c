@@ -98,9 +98,9 @@ uchar *
 flexName()
 {
 #ifdef COHERENT
-	return(name_gen(".emacs.rc", "HOME", DEFHELPATH));
+	return (name_gen(".emacs.rc", "HOME", DEFHELPATH));
 #else
-	return(name_gen("emacs.rc", "LIBPATH", DEFHELPATH));
+	return (name_gen("emacs.rc", "LIBPATH", DEFHELPATH));
 #endif
 }
 
@@ -164,7 +164,7 @@ int (*output)();
 	if (helpline == NULL)
 		if ((helpline = malloc(NLINE)) == NULL)
 			return -1;
-	return(lookup(topic, helpfp, helpindex, output));
+	return (lookup(topic, helpfp, helpindex, output));
 }
 
 /*
@@ -181,7 +181,7 @@ int (*output)();
 	if (helpline == NULL)
 		if ((helpline = malloc(NLINE)) == NULL)
 			return -1;
-	return(doindex(topic, helpfp, output));
+	return (doindex(topic, helpfp, output));
 }
 
 /*
