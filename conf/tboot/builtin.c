@@ -9,35 +9,67 @@
 #include <sys/inode.h>
 #include <sys/ino.h>
 #include <sys/dir.h>
+#include <sys/typed.h>
 #include "tboot.h"
 
 extern int slow_flag;	/* Slow down pacifier.  */
 extern int feet_flag;	/* Enable pacifier footprints.  */
 
-/* If possible, execute "command".
+/*
+ * If possible, execute "command".
  * Return "true" if the command exists, "false" otherwise.
  */
 int
 interpret(command)
 	char *command;
 {
-	if (0 == strcmp(command, "info")) {
+	char *argv[MAX_TOKENS+1];	/* Command vector.  */
+	char *current_token;
+	char *cmd_name;	/* The first token of the command line.  */
+	int i;
+
+	current_token = strtok(command, WS);
+	cmd_name = current_token;		/* Extract the command.  */
+	/* Build the command argv.  */
+	for (i = 0; NULL != current_token && i < MAX_TOKENS; ++i) {
+		argv[i] = current_token;
+		current_token = strtok(NULL, WS);
+	}
+
+	argv[i] = NULL;	/* NULL terminate the list of pointers.  */
+
+	/*
+	 * If we ran out of token slots, print a warning.
+	 */
+	if (i >= MAX_TOKENS) {
+		puts("\r\nWarning: truncating line to:\r\n");
+		for (i = 0 ; i < MAX_TOKENS; ++i) {
+			puts(argv[i]);
+			puts(" ");
+		}
+		puts("\r\n");
+	}
+
+	/*
+	 * Interpret the lexed command.
+	 */
+	if (0 == strcmp(cmd_name, "info")) {
 		dpb();
 		return(TRUE);
-	} else if ((0 == strcmp(command, "dir")) ||
-		   (0 == strcmp(command, "ls") ) ||
-		   (0 == strcmp(command, "lc") )) {
+	} else if ((0 == strcmp(cmd_name, "dir")) ||
+		   (0 == strcmp(cmd_name, "ls") ) ||
+		   (0 == strcmp(cmd_name, "lc") )) {
 		dir();
 		return(TRUE);
-	} else if ( (0 == strncmp(command, "sys_base", strlen("sys_base")) ) ||
-		   (0 == strncmp(command, "scs", strlen("scs")) )
+	} else if ( (0 == strncmp(cmd_name, "sys_base", strlen("sys_base")) ) ||
+		   (0 == strncmp(cmd_name, "scs", strlen("scs")) )
 		) {
 		char lbuf[5]; /* 5 == strlen("0000") + 1 */
-		if (NULL != strchr(command, '=')){
+		if (NULL != strchr(cmd_name, '=')){
 			puts("Setting sys_base.\r\n");
 			sys_base_set = (1==1);
 			sys_base = (uint16)
-				basetoi(1 + strchr(command, '='), 16);
+				basetoi(1 + strchr(cmd_name, '='), 16);
 		}
 		if (!sys_base_set) {
 			puts("sys_base will default to ");
@@ -52,58 +84,77 @@ interpret(command)
 			puts("\r\n");
 		}
 		return(TRUE);
-	} else if (0 == strcmp(command, "monitor")) {
+	} else if (0 == strcmp(cmd_name, "monitor")) {
 		monitor();
 		return(TRUE);
-	} else if ((0 == strcmp(command, "slow"))) {
+	} else if (0 == strcmp(cmd_name, "cpu_type")) {
+		switch(get_cpu_type()) {
+		case 0: puts("less than 286\r\n");	break;
+		case 1: puts("286\r\n");		break;
+		case 2: puts("386 or better\r\n");	break;
+		}
+		return(TRUE);
+	} else if ((0 == strcmp(cmd_name, "verbose"))) {
+		verbose_flag = TRUE;
+		puts("Verbose mode.\r\n");
+		return(TRUE); 
+	} else if ((0 == strcmp(cmd_name, "terse"))) {
+		verbose_flag = FALSE;
+		puts("Terse mode.\r\n");
+		return(TRUE); 
+	} else if ((0 == strcmp(cmd_name, "slow"))) {
 		slow_flag = TRUE;
 		puts("Slow pacifier mode.\r\n");
 		return(TRUE); 
-	} else if ((0 == strcmp(command, "fast"))) {
+	} else if ((0 == strcmp(cmd_name, "fast"))) {
 		slow_flag = FALSE;
 		puts("Normal pacifier mode.\r\n");
 		return(TRUE); 
-	} else if ((0 == strcmp(command, "feet"))) {
+	} else if ((0 == strcmp(cmd_name, "feet"))) {
 		feet_flag = TRUE;
 		puts("Pacifier footprints enabled.\r\n");
 		return(TRUE); 
-	} else if ((0 == strcmp(command, "nofeet"))) {
+	} else if ((0 == strcmp(cmd_name, "nofeet"))) {
 		feet_flag = FALSE;
 		puts("No pacifier footprints.\r\n");
 		return(TRUE); 
-	} else if ((0 == strcmp(command, "gift"))) {
+	} else if ((0 == strcmp(cmd_name, "gift"))) {
 		dump_gift();	/* Dump boot_gift.  */
 		return(TRUE);
-	} else if ((0 == strcmp(command, "test arg"))) {
+	} else if ((0 == strcmp(cmd_name, "test"))) {
 		if (arg_exist("arg")) {
 			puts("Yep.\r\n");
 		} else {
 			puts("Nope.\r\n");
 		}
 		return(TRUE);
-	} else if ((0 == strcmp(command, "help")) ||
-		   (0 == strcmp(command, "?")) ) {
+	} else if ((0 == strcmp(cmd_name, "help")) ||
+		   (0 == strcmp(cmd_name, "?")) ) {
 		   puts("info          Print disk information.\r\n");
 		   puts("dir|ls        List contents of /.\r\n");
 		   puts("?|help        Print this list.\r\n");
 		   return(TRUE);
-	} else if (0 == strcmp(command, "mon_on")) {
+	} else if (0 == strcmp(cmd_name, "mon_on")) {
 		want_monitor = TRUE;
 		puts("Mini-monitor will autoinvoke before running kernel.\r\n");
 		return(TRUE);
-	} else if (0 == strcmp(command, "??")) {
+	} else if (0 == strcmp(cmd_name, "??")) {
 		   puts("UNSUPPORTED FEATURES:  (don't call :-)\r\n");
 		   puts("sys_base|scs  Print current load segment.\r\n");
 		   puts("sys_base=tttt Set current load segment to 0xtttt.\r\n");
 		   puts("test arg      Test for the presence of arg.\r\n");
 		   puts("monitor       Invoke the mini-monitor.\r\n");
 		   puts("mon_on        Autoinvoke the mini-monitor before kernel.\r\n");
+		   puts("cpu_type      print the cpu type.\r\n");
+		   puts("verbose       Be verbose.\r\n");
+		   puts("terse         Do not be verbose.\r\n");
 		   puts("slow          Slow down pacifier.\r\n");
 		   puts("fast          Normal speed pacifier.\r\n");
 		   puts("feet          Enable pacifier footprints.\r\n");
 		   puts("nofeet        Disable pacifier footprints.\r\n");
 		   return(TRUE);
 	} else {
+		execute(argv);
 		return(FALSE);
 	}
 	puts("\r\nUNREACHABLE CODE IN interpret() EXECUTED.\r\n");
