@@ -212,16 +212,25 @@ main(argc, argv) int argc; char *argv[];
 	 *	table into /tmp/drvld.all (386),
 	 *	or to /etc/drvld.all (286 update).
 	 */
+
+/*
+ * COH 4.2 adds vt support with non-loadable tables. If such a keyboard is
+ * selected by the user, then the table field will be "nl". In this instance,
+ * we don't want to build a drvld entry.  bob h 7/14/93
+ */
 	if (klist[n].k_loadable) {
-		sprintf(buf,
-		"/bin/echo %s >%s ; /bin/echo %s/%s >>%s/drvld.all",
-			(virtual) ? "vt.a" : "nkb.a mm.a", KBDFILE, 
-			KBDDIR, klist[n].k_table,
+		sprintf(buf,"/bin/echo %s >%s",(virtual)?klist[n].k_driver : "nkb.a mm.a", KBDFILE);
+		if(strcmp(klist[n].k_table,"nl")){
+			sprintf(buf,"/bin/echo %s/%s >>%s/drvld.all",
+				KBDDIR, klist[n].k_table,
 #if _I386
-			"/tmp");
+				"/tmp");
+
 #else
-			(bflag) ? "/tmp" : "/etc");
+				(bflag) ? "/tmp" : "/etc");
 #endif
+
+		}
 	} else {
 		sprintf(buf, "/bin/echo %s mm.a >%s",
 			klist[n].k_driver, KBDFILE);
