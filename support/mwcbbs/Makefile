@@ -1,7 +1,7 @@
 LDFLAGS= -lcurses -lterm
 CFLAGS= -c -v -A
 
-OBJECTS= main.o disp_rec.o getflname.o lite.o map_cmd.o states.o
+OBJECTS= globals.o main.o disp_rec.o getflname.o lite.o map_cmd.o states.o 
 
 beta/mwcbbs:	$(OBJECTS)
 	cc -v -A $< $(LDFLAGS) -o $@
@@ -22,4 +22,7 @@ map_cmd.o:	map_cmd.c
 	cc $(CFLAGS) $< $(LDFLAGS) -o $@
 
 disp_rec.o:	disp_rec.c
+	cc $(CFLAGS) $< $(LDFLAGS) -o $@
+
+globals.o:	globals.c
 	cc $(CFLAGS) $< $(LDFLAGS) -o $@
