@@ -1,16 +1,17 @@
 /*
- *	epson.c
- *	11/4/88
- *	Epson MX-80 printer driver
- *	Usage:  epson [ - cdfrw8 ] [ -b banner ] [ -in ] [ -o ofile ] [ -sn ] [ file ... ]
+ * epson.c
+ * 11/8/90
+ * Epson MX-80 printer driver.
+ * Usage: epson [ - cdfrw8 ] [ -b banner ] [ -in ] [ -o ofile ] [ -sn ] [ file ... ]
  */
 
 #include <stdio.h>
 
-/* version number */
-#define	VERSION	"1.7"
+#define	VERSION	"1.8"			/* Version number. */
+#define	ESC	"\033"			/* ASCII escape */
+#define	USAGE	"Usage: epson [ -cdfrw8 ] [ -b banner] [ -in ] [ -o ofile ] [ -sn ] [ file ... ]\n"
 
-/* Epson special characters */
+/* Epson special characters. */
 #define	COMPON	'\017'
 #define COMPOFF	'\222'
 #define FORMFD	'\014'
@@ -18,173 +19,192 @@
 #define	WIDEON	'\016'
 #define	WIDEOFF	'\224'
 
-/* default output device,  /dev/lp for COHERENT or prn: for MSDOS */
-#ifdef COHERENT
-#define	OUTFILE	"/dev/lp"
+/* Default output device. */
+#ifdef	COHERENT
+#define	OUTFILE	"/dev/lp"		/* COHERENT */
 #else
-#define	OUTFILE	"prn:"
+#define	OUTFILE	"prn:"			/* MS-DOS */
 #endif
 
-FILE *ifp, *ofp;
-int indentn = 0;		/* indent */
-int wide = 0;			/* double width */
+/* Forward. */
+void	fatal();
+void	indent();
+void	process();
+void	usage();
 
-main (argc, argv)
-int argc;
-char **argv;
+/* Globals. */
+char	*banner;			/* banner			*/
+int	cflag;				/* compressed			*/
+int	dflag;				/* double struck (default: emphasized) */
+int	eightflag;			/* eight lines per inch		*/
+int	fflag;				/* suppress formfeed		*/
+int	nindent;			/* indent			*/
+char	*ofile = OUTFILE;		/* output file			*/
+FILE	*ofp;				/* output FILE			*/
+int	rflag;				/* Roman (default: italic)	*/
+int	spaces = 1;			/* vertical spaces		*/
+int	wflag;				/* double width			*/
+
+main(argc, argv) int argc; char *argv[];
 {
-	char *version = VERSION;
-	int this, next;
-	int i;
+	register int i;
 
-	/* default option settings */
-	char *banner = NULL;		/* banner */
-	int compressed = 0;		/* compressed */
-	int dsbold = 0;			/* double struck (default: emphasized) */
-	int formfeed = 1;		/* formfeed */
-	char *ofile = OUTFILE;		/* output file */
-	int roman = 0;			/* Roman (default: italic) */
-	int spaces = 1;			/* vertical spaces */
-	int vspace8 = 0;		/* eight lines per inch */
-
-	/* process option flags */
+	/* Process option flags. */
 	while (--argc > 0 && **++argv == '-') {
 		switch (*++*argv) {
-			case 'b':	if (--argc == 0) usage ();
-					banner = *++argv;
-					break;
-			case 'c':	compressed = 1;
-					break;
-			case 'd':	dsbold = 1;
-					break;
-			case 'f':	formfeed = 0;
-					break;
-			case 'i':	indentn = atoi (++*argv);
-					if (indentn < 0)
-						fatal ("bad -i arg", *argv);
-					break;
-			case 'o':	if (--argc == 0) usage ();
-					ofile = *++argv;
-					break;
-			case 'r':	roman = 1;
-					break;
-			case 's':	spaces = atoi (++*argv);
-					if (spaces <1 || spaces > 3)
-						fatal ("bad -s arg", *argv);
-					break;
-			case 'w':	wide = 1;
-					break;
-			case 'V':	fprintf (stderr, "epson:  %s\n", version);
-					break;
-			case '8':	vspace8 = 1;
-					break;
-			default:	usage();
-					break;
+		case 'b':
+			if (--argc == 0)
+				usage();
+			banner = *++argv;
+			break;
+		case 'c':	++cflag;		break;
+		case 'd':	++dflag;		break;
+		case 'f':	++fflag;		break;
+		case 'i':
+			nindent = atoi(++*argv);
+			if (nindent < 0)
+				fatal("bad -i arg %d", nindent);
+			break;
+		case 'o':
+			if (--argc == 0)
+				usage();
+			ofile = *++argv;
+			break;
+		case 'r':	++rflag;		break;
+		case 's':
+			spaces = atoi(++*argv);
+			if (spaces <1 || spaces > 3)
+				fatal("bad -s arg %d", spaces);
+			break;
+		case 'w':	++wflag;		break;
+		case 'V':
+			fprintf(stderr, "epson: V%s\n", VERSION);
+			break;
+		case '8':	++eightflag;		break;
+		default:	usage();		break;
 		}
 	}
 
-	/* initialize Epson */
-	if ((ofp = fopen (ofile, "w")) == NULL)
-		fatal ("cannot open", ofile);
-	fputs ("\033@", ofp);
+	/* Open output file and initialize Epson. */
+	if ((ofp = fopen(ofile, "w")) == NULL)
+		fatal("cannot open file \"%s\"", ofile);
+	fputs(ESC "@", ofp);
 
-	/* print banner if given */
+	/* Print banner if given. */
 	if (banner != NULL) {
-		i = (wide ? indentn * 2 : compressed ? indentn / 2 : indentn);
-		while (i-- > 0) fputc (' ', ofp);
-		fputc (WIDEON, ofp);
-		fputs (banner, ofp);
-		fputc (WIDEOFF, ofp);
-		fputc ('\n', ofp);
+		i = (wflag ? nindent * 2 : cflag ? nindent / 2 : nindent);
+		while (i-- > 0)
+			fputc(' ', ofp);
+		fputc(WIDEON, ofp);
+		fputs(banner, ofp);
+		fputc(WIDEOFF, ofp);
+		fputc('\n', ofp);
 	}
-	if (compressed) fputc (COMPON, ofp);
-	if (vspace8) fputs ("\0330\033CX", ofp);
-	doindent ();
+	if (cflag)
+		fputc(COMPON, ofp);
+	if (eightflag)
+		fputs(ESC "0" ESC "CX", ofp);
 
-	/* process input files */
-	while (argc >= 0) {
+	/* Process input files. */
+	if (argc == 0)
+		process(NULL);			/* NULL means stdin */
+	else
+		while (argc-- > 0)
+			process(*argv++);
 
-		/* set ifp to next input file */
-		if (argc-- == 0) ifp = stdin;
-		else {
-			if (argc == 0) --argc;
-			if ((ifp = fopen (*argv, "r")) == NULL)
-				fatal ("cannot open", *argv);
-			argv++;
-		}
+	/* Cleanup and close output file. */
+	if (cflag)
+		fputc(COMPOFF, ofp);
+	if (eightflag)
+		fputs(ESC "2" ESC "CB", ofp);
+	if (wflag)
+		fputc(WIDEOFF, ofp);
+	fputs(ESC "@", ofp);
+	if (fclose(ofp) == EOF)
+		fatal("cannot close file \"%s\"", ofile);
+	exit(0);
+}
 
-		/* process a file */
-		while ((this = fgetc(ifp)) != EOF) {
-			if (this == '\n') {
-				for (i=spaces; i-- > 0; ) fputc (this, ofp);
-				doindent ();
-			}
-			else if (this == FORMFD) {
-				fputc (this, ofp);
-				doindent ();
-			}
-			else if ((next = fgetc (ifp)) != '\b') {
-				fputc (this, ofp);
-				ungetc (next, ifp);
-			}
-			else {	/* next char is backspace */
-				if (this == '_' && !roman) {
-					fputc (fgetc (ifp) + 0200, ofp);
+/* Print fatal error message and exit. */
+/* VARARGS */
+void
+fatal(s) char *s;
+{
+	fprintf(stderr, "epson: %r\n", &s);
+	exit(1);
+}
+
+/* Perform indentation. */
+void
+indent()
+{
+	register int i;
+
+	if (wflag)
+		fputc(WIDEON, ofp);
+	for (i = nindent; i-- > 0; )
+		fputc(' ', ofp);
+}
+
+/* Process input file ifp. */
+void
+process(fname) char *fname;
+{
+	register FILE *ifp;
+	register int this, next, i;
+
+	if (fname == NULL)
+		ifp = stdin;
+	else if ((ifp = fopen(fname, "r")) == NULL)
+		fatal("cannot open file \"%s\"", fname);
+	indent();
+	while ((this = fgetc(ifp)) != EOF) {
+		if (this == '\n') {		/* newline */
+			for (i = spaces; i-- > 0; )
+				fputc(this, ofp);
+			indent();
+		} else if (this == FORMFD) {	/* formfeed */
+			fputc(this, ofp);
+			indent();
+		} else if ((next = fgetc(ifp)) != '\b') {
+			fputc(this, ofp);
+			ungetc(next, ifp);
+		} else {
+			/* Next char is backspace, could mean bold or italic. */
+			if (this == '_' && !rflag) {
+				/* "_\bx" means italic x. */
+				fputc(fgetc(ifp) + 0200, ofp);
+			} else if (!dflag) {
+				if ((next = fgetc(ifp)) == this) {
+					/* "x\bx" means bold x. */
+					fputs(ESC "E", ofp);
+					fputc(this, ofp);
+					fputs(ESC "F", ofp);
+				} else {
+					/* "x\by", print as is. */
+					fputc(this, ofp);
+					fputc('\b', ofp);
+					ungetc(next, ifp);
 				}
-				else if (!dsbold) {
-					if ((next = fgetc (ifp)) == this) {
-						fputs ("\033E", ofp);
-						fputc (this, ofp);
-						fputs ("\033F", ofp);
-					}
-					else {
-						fputc (this, ofp);
-						fputc ('\b', ofp);
-						ungetc (next, ifp);
-					}
-				}
-				else {
-					fputc (this, ofp);
-					ungetc (next, ifp);
-				}
+			} else {
+				/* Just print as is... */
+				fputc(this, ofp);
+				ungetc(next, ifp);
 			}
-		}
-		if (ifp != stdin) fclose(ifp);
-		if (formfeed) {
-			fputc (FORMFD, ofp);
-			doindent ();
 		}
 	}
-
-	/* cleanup */
-	if (compressed) fputc (COMPOFF, ofp);
-	if (vspace8) fputs ("\0332\033CB", ofp);
-	if (wide) fputc (WIDEOFF, ofp);
-	fputs ("\033@", ofp);
-	if (fclose (ofp) == EOF)
-		fatal ("cannot close", ofile);
-	exit (0);
+	if (!fflag)
+		fputc(FORMFD, ofp);
+	if (fname != NULL)
+		fclose(ifp);
 }
 
-/* perform indentation */
-doindent ()
+/* Print usage message and exit. */
+void
+usage()
 {
-	int i;
-	if (wide) fputc (WIDEON, ofp);
-	for (i=indentn; i-- > 0; ) fputc (' ', ofp);
+	fprintf(stderr, "Usage:  epson [ -cdfrw8 ] [ -b banner] [ -in ] [ -o ofile ] [ -sn ] [ file ... ]\n");
+	exit(1);
 }
 
-/* print usage message and exit */
-usage ()
-{
-	fprintf (stderr, "Usage:  epson [ -cdfrw8 ] [ -b banner] [ -in ] [ -o ofile ] [ -sn ] [ file ... ]\n");
-	exit (1);
-}
-
-/* print fatal error message and exit */
-fatal (s1, s2)
-char *s1, *s2;
-{
-	fprintf (stderr, "epson:  %s %s\n", s1, s2);
-	exit (1);
-}
+/* end of epson.c */
