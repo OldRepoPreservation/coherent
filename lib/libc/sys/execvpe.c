@@ -9,6 +9,7 @@
 #include <string.h>
 
 #define	NULL	((char *)0)
+#define	SHELL	"/bin/sh"	/* not DEFSHELL, which is just "sh" */
 
 extern	char	*getenv();
 
@@ -42,7 +43,7 @@ execvpe(name, argv, env) char *name; char *argv[]; char **env;
 		if (errno == ENOEXEC) {			/* try again with sh */
 			p1 = argv[-1];
 			p2 = argv[0];
-			argv[-1] = DEFSHELL;
+			argv[-1] = SHELL;
 			argv[0] = fname;
 			execve(argv[-1], argv-1, env);
 			argv[-1] = p1;
