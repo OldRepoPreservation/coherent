@@ -61,6 +61,7 @@ $(K386OBJ)/clocked.o: clocked.c
 
 $(K386OBJ)/fd.o: fd.c \
 	$(USRINC)/sys/coherent.h \
+	$(USRINC)/sys/param.h \
 	$(USRINC)/errno.h \
 	$(USRINC)/fcntl.h \
 	$(USRINC)/sys/fd.h \
@@ -171,8 +172,9 @@ $(K386OBJ)/elog.o: elog.c
 $(K386OBJ)/sys1.o: sys1.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(K386OBJ)/sys2.o: sys2.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(K386OBJ)/sys2.o: sys2.c \
+	$(USRINC)/sys/param.h
+	$(CC) $(CFLAGS) -c -o $@ sys2.c
 
 $(K386OBJ)/sys3.o: sys3.c \
 	$(USRINC)/sys/coherent.h \
@@ -199,6 +201,7 @@ $(K386OBJ)/null.o: null.c
 
 $(K386OBJ)/exec.o: exec.c \
 	$(USRINC)/sys/coherent.h \
+	$(USRINC)/sys/param.h \
 	$(USRINC)/acct.h \
 	$(USRINC)/sys/buf.h \
 	$(USRINC)/canon.h \
