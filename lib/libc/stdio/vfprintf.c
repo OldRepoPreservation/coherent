@@ -1,247 +1,351 @@
 /*
- * libc/stdio/printf.c
- * C standard i/o library.
+ * libc/stdio/vfprintf.c
+ * ANSI-compliant C standard i/o library.
  * vfprintf()
- * Not ANSI compatible!
+ * ANSI 4.9.6.7, 4.9.6.1.
+ * Do the work for fprintf(), printf(), sprintf(), vprintf(), vsprintf().
+ * Thanks to the ANSI committee for all the complication.
+ *
+ * Implementation-defined behavior:
+ *	"%p" format is same as "%#.<PPREC>X" or "%#.<PPREC>lX"
  */
 
 #include <stdio.h>
-#include <ctype.h>
-#include <string.h>
+#include <stdlib.h>
 #include <stdarg.h>
+#include <limits.h>
 
-/* Avoid calling the new style toupper() function on MSDOS and GEMDOS */
-#ifdef _toupper
-#define toupper(c) _toupper(c)
+/* Compile-time options. */
+#if	_I386
+#define	PPREC		8	/* precision for %p format */
+#else
+#define	PPREC		4	/* precision for %p format */
 #endif
+#define	LONGDOUBLE	0	/* iff sizeof(double) != sizeof(long double) */
+#define	VA_PURE	0		/* iff va_list treated purely for doubles */
 
-/* External. */
-extern	char	*_dtefg();
+static	char	*convert();
 
-/*
- * NXBUF is the size of the buffer for a single conversion item.
- * ANSI requires at least 509 characters for a single conversion;
- * note that e.g. "%f" of 1E300 requires a 300+ character buffer.
- * NIBUF and NLBUF must be long enough to hold a converted int and long;
- * a 32-bit value converts to maximum of 11 octal digits + NUL.
- */
-#define	NXBUF	512		/* xprintf() buffer size */
-#define	NIBUF	12		/* printi() buffer size */
-#define	NLBUF	12		/* printl() buffer size */
-
-#define	NULLFMT	"{NULL}"
-
-/* Forward. */
-char	*printi();
-char	*printl();
+/* Manifest constants. */
+/* ANSI says any conversion item can be up to 509 characters. The only	*/
+/* case where cbuf needs to be big is for floating point (%f).		*/
+#define	CBUFMAX		512		/* conversion buffer size	*/
+#define	NDIGITS		12		/* ASCII digits in octal long	*/
+					/* i.e. "37777777777\0"		*/
+#define	PRINTNULL	"{NULL}"	/* for %s with NULL arg		*/
 
 int
-vfprintf(fp, fmt, args) FILE *fp; register char *fmt; va_list args;
+vfprintf(fp, format, args) FILE *fp; register char *format; va_list args;
 {
-	register char *cbp;
-	register int c;
-	char *s;
-	char *cbs;
-	int i, base, adj, pad, prec, fwidth, pwidth, isnumeric;
-	long l;
-	va_list rargs;
-	char cbuf[NXBUF];
+	char		cbuf[CBUFMAX];
+	register char *	cbp;
+	char *		cbs;
+	char *		s;
+	register int	count, c;
+	long		l;
+	int		fwidth, prec, base, len;
+	int		leftjustify, plusflag, spaceflag, altflag, longflag;
+	int		padchar, padwidth, issigned, prefix, ispfx, nzeros;
+	va_list		rargs;
+#if	VA_PURE
+	double		d;
+#if	LONGDOUBLE
+	long double	ld;
+#endif
+#endif
 
+	count = 0;			/* characters printed */
 	for (;;) {
-		while((c = *fmt++) != '%') {
+
+		/* Nonconversion characters. */
+		while ((c = *format++) != '%') {
 			if (c == '\0')
-				return;		/* end of format string, done */
-			putc(c, fp);		/* copy non-conversion char */
+				return count;
+			++count;
+			putc(c, fp);
 		}
-		pad = ' ';
-		fwidth = -1;
-		prec = -1;
-		c = *fmt++;
-		if (c == '-') {
-			adj = 1;
-			c = *fmt++;
-		} else
-			adj = 0;
-		if (c == '0') {
-			pad = '0';
-			c = *fmt++;
+
+		/* Optional flags "-+ #0". */
+		leftjustify = plusflag = spaceflag = altflag = 0;
+		padchar = ' ';
+		for (;;) {
+			switch(c = *format++) {
+			case '-':	++leftjustify;	continue;
+			case '+':	++plusflag;	continue;
+			case ' ':	++spaceflag;	continue;
+			case '#':	++altflag;	continue;
+			case '0':	padchar = '0';	continue;
+			default:	break;
+			}
+			break;
 		}
+
+		/* Optional field width ('*' or decimal integer). */
 		if (c == '*') {
 			if ((fwidth = va_arg(args, int)) < 0) {
-				adj = 1;
+				leftjustify = 1;
 				fwidth = -fwidth;
 			}
-			c = *fmt++;
+			c = *format++;
 		} else
-			for (fwidth = 0; c>='0' && c<='9'; c = *fmt++)
+			for (fwidth = 0; c>='0' && c<='9'; c = *format++)
 				fwidth = fwidth*10 + c-'0';
+
+		/* Optional precision ('.' followed by '*' or decimal integer). */
 		if (c == '.') {
-			c = *fmt++;
+			c = *format++;
 			if (c == '*') {
 				prec = va_arg(args, int);
-				c = *fmt++;
+				if (prec < 0)
+					prec = -1;
+				c = *format++;
 			} else
-				for (prec=0; c>='0' && c<='9'; c=*fmt++)
+				for (prec=0; c>='0' && c<='9'; c = *format++)
 					prec = prec*10 + c-'0';
-		}
-		if (c == 'l') {
-			c = *fmt++;
-			if (c=='d' || c=='o' || c=='u' || c=='x')
-				c = toupper(c);
-		}
+		} else
+			prec = -1;
+
+		/* Optional 'h', 'l' or 'L' flag. */
+		if (c == 'l' || c == 'h' || c == 'L') {
+			longflag = c;
+			c = *format++;
+		} else
+			longflag = 0;
+
+		/* Convert an item. */
 		cbp = cbs = cbuf;
-		isnumeric = 1;
-		base = 10;
+		issigned = nzeros = prefix = ispfx = 0;
 		switch (c) {
 
 		case 'd':
-			i = va_arg(args, int);
-			if (i < 0) {
-				i = -i;
-				*cbp++ = '-';
-			}
-			goto integer;
-			break;
+		case 'i':
+			base = 10;
+			if (longflag=='l')
+				l = va_arg(args, long);
+			else
+				l = (long) va_arg(args, int);
+			if (longflag == 'h')
+				l = (short) l;
+			if (l < 0L) {
+				l = -l;
+				--issigned;		/* -1 for negative */
+			} else
+				++issigned;		/* +1 for positive */
+			goto conv;
 
-		case 'u':
-signedint:
-			i = va_arg(args, int);
-integer:
-			cbp = printi(cbp, i, base);
-			break;
-	
 		case 'o':
 			base = 8;
-			goto signedint;
-			break;
+			goto unsconv;
 
+		case 'u':
+			base = 10;
+			goto unsconv;
+	
 		case 'x':
-			base = 16;
-			goto signedint;
-			break;
-
-		case 'D':
-			l = va_arg(args, long);
-			if (l < 0) {
-				l = -l;
-				*cbp++ = '-';
-			}
-			goto longint;
-			break;
-
-		case 'U':
-longuns:
-			l = va_arg(args, long);
-longint:
-			cbp = printl(cbp, l, base);
-			break;
-
-		case 'O':
-			base = 8;
-			goto longuns;
-			break;
-
 		case 'X':
 			base = 16;
-			goto longuns;
+unsconv:
+			if (longflag=='l')
+				l = va_arg(args, long);
+			else
+#if	_I386
+				/* The i8086 compiler sign-extends this. */
+				l = (unsigned long) va_arg(args, int);
+#else
+				/* Kludge. */
+				l = va_arg(args, int) & 0x0000FFFFL;
+#endif
+			if (longflag == 'h')
+				l = (unsigned short) l;
+			if (altflag && ((l != 0L && base == 8) || base == 16))
+				prefix = c;		/* 'o', 'x' or 'X' */
+conv:
+			if (prec == 0 && l == 0L)
+				break;			/* ANSI says so */
+			if (prec != -1)
+				padchar = ' ';		/* ignore 0 flag */
+			cbp = convert(cbp, l, base, c);
+			if ((nzeros = prec - (cbp - cbs)) < 0)	/* number of leading '0's */
+				nzeros = 0;
 			break;
 
-		case 'e':
+		/*
+		 * Floating point output.
+		 * A simple floating point operation may have considerable
+		 * overhead in some environments (e.g. MSDOS, where a large
+		 * 8087 emulator gets linked into executables which require
+		 * software floating point).  But there is only one
+		 * ideologically pure way to get the fp arg from the arg list,
+		 * namely with va_arg(), and that requires a fp fetch.
+		 * The code below is conditionalized to do it the pure way
+		 * (generating a fp fetch) or with a pointer to double (no fp).
+		 */
 		case 'f':
+		case 'e':
+		case 'E':
 		case 'g':
-			cbp = _dtefg(c, (double *)args, prec, cbp);
+		case 'G':
+#if	VA_PURE
+#if	LONGDOUBLE
+			if (longflag == 'L') {
+				ld = va_arg(args, long double);
+				cbp = _ldtefg(cbp, &ld, c, prec, altflag, &issigned);
+				break;
+			}
+#endif
+			d = va_arg(args, double);
+			cbp = _dtefg(cbp, &d, c, prec, altflag, &issigned);
+			break;
+#else
+#if	LONGDOUBLE
+			if (longflag == 'L') {
+				cbp = _ldtefg(cbp, (long double *)args, c,
+						 prec, altflag, &issigned);
+				args = ((char *)args) + sizeof(long double);
+				break;
+			}
+#endif
+			cbp = _dtefg(cbp, (double *)args, c, prec, altflag, &issigned);
 			args = ((char *)args) + sizeof(double);
 			break;
-
+#endif
+		case 'c':
+			*cbp++ = (unsigned char) va_arg(args, int);
+			break;
+	
 		case 's':
-			isnumeric = 0;
 			if ((s = va_arg(args, char *)) == NULL)
-				s = NULLFMT;
+				s = PRINTNULL;		/* not strictly ANSI */
 			cbp = cbs = s;
 			while (*cbp++ != '\0')
-				if (prec >= 0 && cbp-s > prec)
+				if (prec>=0 && cbp-s>prec)
 					break;
 			cbp--;
 			break;
-	
-		case 'c':
-			isnumeric = 0;
-			*cbp++ = (unsigned char)va_arg(args, int);
+
+		/* Implementation-defined '%p' format: %#.<PPREC>X or %#.<PPREC>lX */
+		case 'p':
+#if	_LARGE
+			longflag = 'l';
+#else
+			longflag = 0;
+#endif
+			prec = PPREC;
+			++altflag;
+			c = 'X';
+			base = 16;
+			goto unsconv;
+
+		case 'n':
+			if (longflag == 'h')
+				*(va_arg(args, short *)) = (short)count;
+			else if (longflag == 'l')
+				*(va_arg(args, long *)) = (long)count;
+			else
+				*(va_arg(args, int *)) = count;
 			break;
-	
+
+		/*
+		 * The '%r' recursive printf conversion is non-ANSI.
+		 * The item is a va_list; its first member is the format.
+		 */
 		case 'r':
 			rargs = va_arg(args, va_list);
 			s = va_arg(rargs, char *);
-			vfprintf(fp, s, rargs);
+			count += vfprintf(fp, s, rargs);
 			break;
 	
 		default:
+			++count;
 			putc(c, fp);
 			continue;
 		}
-		if ((pwidth = fwidth + cbs-cbp) < 0)
-			pwidth = 0;
-		if (!adj) {
-			if (isnumeric && pad == '0' && *cbs == '-')
-				putc(*cbs++, fp);
-			while (pwidth-- != 0)
-				putc(pad, fp);
+
+		/* Output an item. */
+		len = cbp - cbs;		/* length of converted item */
+		if (issigned && (issigned == -1 || plusflag || spaceflag)) {
+			++len;			/* for '-', '+', ' ' */
+			++ispfx;
 		}
-		while (cbs < cbp)
-			putc(*cbs++, fp);
-		if (adj)
-			while (pwidth-- != 0)
-				putc(pad, fp);
+		if (prefix) {
+			++len;			/* for '0' */
+			++ispfx;
+			if (prefix != 'o')
+				++len;		/* for 'x', 'X' */
+		}
+		if ((padwidth = fwidth - nzeros - len) < 0)
+			padwidth = 0;		/* length of padding required */
+		count += len + padwidth + nzeros;
+		if (!leftjustify && padwidth > 0) {
+			if (ispfx && padchar == '0')
+				nzeros += padwidth;	/* prefix before 0-padding */
+			else
+				while (padwidth-- > 0)	/* pad on the left */
+					putc(padchar, fp);
+		}
+		if (issigned) {
+			if (issigned == -1)
+				putc('-', fp);
+			else if (plusflag)
+				putc('+', fp);
+			else if (spaceflag)
+				putc(' ', fp);
+		}
+		if (prefix) {
+			putc('0', fp);
+			if (prefix != 'o')
+				putc(prefix, fp);
+		}
+		while (nzeros-- > 0)
+			putc('0', fp);		/* leading '0's */
+		len = cbp - cbs;
+		while (len-- > 0)
+			putc(*cbs++, fp);	/* converted item */
+		if (leftjustify)
+			while (padwidth-- > 0)
+				putc(' ', fp);	/* pad on the right */
 	}
 }
 
-static readonly char digits[] = {
+static const char digits[] = {
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 	'A', 'B', 'C', 'D', 'E', 'F'
 };
+static const char ldigits[] = {
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+	'a', 'b', 'c', 'd', 'e', 'f'
+};
 
 /*
- * Convert unsigned integer n to ASCII in base b.
- * Store it through cp and return a pointer past the end.
+ * Convert unsigned long 'n' to ASCII in base 'b' for conversion 'c'.
+ * Store the result through 'cp' and return a pointer past the end.
  */
 static
 char *
-printi(cp, n, b) register char *cp; register unsigned int n; register int b;
+convert(cp, n, b, c) register char *cp; unsigned long n; unsigned int b; int c;
 {
-	register unsigned int a;
-	register char *ep;
-	char pbuf[NIBUF];
+	register char *	ep;
+	char *		dp;
+	unsigned int	u;
+	char		pbuf[NDIGITS];
 
-	ep = &pbuf[NIBUF-1];
-	*ep = '\0';
-	for ( ; (a = n/b) != 0; n = a)
-		*--ep = digits[n%b];
-	*cp++ = digits[n];
+	dp = (c == 'x') ? &ldigits[0] : &digits[0];
+	ep = &pbuf[NDIGITS-1];
+	*ep = '\0';			/* NUL-terminate */
+	if (n <= UINT_MAX) {
+		u = n;			/* Use int arithmetic for efficiency */
+		do {			/* Store next digit */
+			*--ep = dp[u%b];
+		} while ((u /= b) != 0);
+	} else {
+		do {			/* Store next digit */
+			*--ep = dp[n%b];
+		} while ((n /= b) != 0);
+	}
 	while (*ep)
-		*cp++ = *ep++;
+		*cp++ = *ep++;		/* Copy result */
 	return cp;
 }
 
-/*
- * Convert unsigned long integer n to ASCII in base b.
- * Store it through cp and return a pointer past the end.
- */
-static
-char *
-printl(cp, n, b) register char *cp; register unsigned long n; register int b;
-{
-	register unsigned long a;
-	register char *ep;
-	char pbuf[NLBUF];
 
-	ep = &pbuf[NLBUF-1];
-	*ep = '\0';
-	for ( ; (a = n/b) != 0; n = a)
-		*--ep = digits[n%b];
-	*cp++ = digits[n];
-	while (*ep)
-		*cp++ = *ep++;
-	return cp;
-}
-
-/* end of libc/stdio/printf.c */
+/* end of libc/stdio/vfprintf.c */

@@ -1,24 +1,27 @@
 /*
  * libc/stdio/gets.c
- * Standard I/O Library.
- * Get string from standard input, deleting trailing '\n'.
+ * ANSI-compliant C standard i/o library.
+ * gets()
+ * ANSI 4.9.7.7.
+ * Read string from stdin.
+ * Do not retain newline.
  */
 
 #include <stdio.h>
 
 char *
-gets(is) register char *is;
+gets(s) char *s;
 {
-	register char	*s;
-	register int	c;
+	register c;
+	register char *cp;
 
-	s = is;
+	cp = s;
 	while ((c = getchar()) != EOF && c != '\n')
-		*s++ = c;
-	if (c == EOF && s == is)
+		*cp++ = c;
+	if (c == EOF && (s == cp || ferror(stdin)))
 		return NULL;		/* ANSI says leave *s unchanged */
-	*s = '\0';			/* else NUL-terminate */
-	return is;
+	*cp = '\0';			/* else NUL-terminate */
+	return s;
 }
 
 /* end of libc/stdio/gets.c */

@@ -1,40 +1,64 @@
 /*
  * libc/stdio/_fgetb.c
- * C Standard I/O Library internals.
- * Buffered input: read a buffer.
+ * ANSI-compliant C standard i/o library internals.
+ * _fgetb(), _fgetba()
+ * Read character, buffered.
  */
 
 #include <stdio.h>
+#if	COHERENT || GEMDOS
 #include <errno.h>
-
-extern	int	_fputt();
+#endif
 
 int
 _fgetb(fp) register FILE *fp;
 {
-	register int n, oerrno;
+	register _FILE2 *f2p;
 
-	if (fflush(fp))
-		return EOF;
-	if (stdout->_pt==&_fputt)	/* special kludge */
-		fflush(stdout);
-	oerrno = errno;			/* save old errno */
-	errno = 0;
-	n = fp->_cc = -read(fileno(fp), fp->_dp, _ep(fp) - fp->_dp);
-	if (errno == 0)
-		errno = oerrno;		/* preserve errno if no error */
-	if (n == 1) {			/* read() returned -1, i.e. error */
-		if (errno != EINTR)
-			fp->_ff |= _FERR;
-		fp->_cc = 0;
-		return EOF;
-	} else if (n == 0) {		/* read() returned 0, i.e. EOF */
+	if (--fp->_cc < 0) {
+		if (fflush(fp))
+			return EOF;
+
+		/* Special kludge: fflush stdout if line buffered. */
+		if ((stdout->_ff1 & _IOLBF) != 0)
+			fflush(stdout);
+
+		f2p = fp->_f2p;
+		if ((fp->_cc = read(fileno(fp), f2p->_dp, (int)(f2p->_ep - f2p->_dp))) == -1) {
+#if	COHERENT || GEMDOS
+			if (errno == EINTR)
+				errno = 0;
+			else
+#endif
+			fp->_ff1 |= _FERR;
+			fp->_cc = 0;
+			return EOF;
+		} else if (fp->_cc == 0) {
+			fp->_ff1 |= _FEOF;
+			return EOF;
+		}
+		f2p->_dp += fp->_cc--;
+	}
+	return (*fp->_cp++);
+}
+
+#if	_ASCII
+
+/* ASCII: ignore '\r', map _EOFCHAR to EOF. */
+int
+_fgetba(fp) register FILE *fp;
+{
+ 	register int c;
+
+	while ((c = _bingetb(fp)) == '\r')
+		;
+	if (c == _EOFCHAR) {
 		fp->_ff |= _FEOF;
 		return EOF;
-	} else {			/* success */
-		fp->_dp -= fp->_cc++;
-		return (*fp->_cp++);
 	}
+	return c;
 }
+
+#endif
 
 /* end of libc/stdio/_fgetb.c */

@@ -4,9 +4,11 @@
 /	Copyright (c) Ciaran O'Donnell, Bievres, France, 1991.
 / 	All rights reserved. May not be copied without permission.
 / -lgl)
-/ /usr/src/csu/i386/mcrts0.s
+//////////
+/ csu/i386/mcrts0.s
 / C run-time start-off with profiling.
 / i386 COHERENT native version.
+//////////
 
 	.globl	_start
 	.globl	environ
@@ -16,7 +18,7 @@
 	.globl	_profon
 	.globl	_profoff
 
-	.bss	environ,4
+	.bss	environ, 4
 
 	.text
 _start:	
@@ -38,4 +40,4 @@ _exit:
 	lcall	$0x7,$0
 	hlt					/ NOTREACHED
 
-/ end of /usr/src/csu/i386/mcrts0.s
+/ end of csu/i386/mcrts0.s

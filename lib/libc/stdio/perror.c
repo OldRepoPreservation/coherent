@@ -1,25 +1,21 @@
 /*
- * Print error messages based on value in `errno'.
+ * libc/stdio/perror.c
+ * ANSI-compliant C standard i/o library.
+ * perror()
+ * ANSI 4.9.10.4.
+ * Write an error message to stderr.
  */
 
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
-extern	int	errno;
-extern	char	*sys_errlist[];
-extern	int	sys_nerr;
-
-perror(s)
-register char *s;
+void
+perror(s) const char *s;
 {
-	register char *es;
-
-	if (errno < sys_nerr)
-		es = sys_errlist[errno]; else
-		es = "Bad error number";
-	if (s != NULL) {
-		fputs(s, stderr);
-		fputs(": ", stderr);
-	}
-	fputs(es, stderr);
-	fputs("\n", stderr);
+	if (s != NULL && *s != '\0')
+		fprintf(stderr, "%s: ", s);
+	fprintf(stderr, "%s\n", strerror(errno));
 }
+
+/* end of libc/stdio/perror.c */

@@ -29,7 +29,7 @@ int
 newarena(size) unsigned size;
 {
 	register MBLOCK *mp, *pmp, *linkmp;
-	register unsigned len;
+	register unsigned len, max;
 	static char failed = 0;
 
 	if (failed)			/* no more room */
@@ -54,6 +54,8 @@ newarena(size) unsigned size;
 	 * This means further calls to newarena must fail.
 	 */
 	while ((mp = (MBLOCK *)sbrk(len)) == BADSBRK) {
+		if (failed == 0 && (max = ulimit(3)) != -1 && len > max)
+			len = max;		/* use system limit as upper bound */
 		failed = 1;
 		if (len <= DECRSIZE)
 			return 1;		/* even zero may be ok */

@@ -1,32 +1,46 @@
 /*
  * libc/stdio/_fputc.c
- * C Standard I/O Library internals.
- * Unbuffered output.
+ * ANSI-compliant C standard i/o library internals.
+ * _fputc(), _fputca()
+ * Write character, unbuffered.
+ * Conditional for _FASCII and errno == EINTR code.
  */
 
 #include <stdio.h>
+#if	COHERENT || GEMDOS
 #include <errno.h>
+#endif
 
 int
-_fputc(c, fp) register unsigned int c; register FILE *fp;
+_fputc(c, fp) register int c; register FILE *fp;
 {
-	register int n, oerrno;
-	char s[1] = c;
+	unsigned char s;
 
-	fp->_cc = 0;
-	oerrno = errno;
-	errno = 0;
-	n = (unsigned char)c;
-	if (fp->_ff&_FERR || _fpseek(fp))
-		n = EOF;
-	else if (write(fileno(fp), s, 1) != 1) {
-		if (errno != EINTR)
-			fp->_ff |= _FERR;
-		n = EOF;
-	}
-	if (errno == 0)
-		errno = oerrno;
-	return n;
+	if (fp->_ff1 & _FERR)
+		return EOF;
+	s = c;
+	if (write(fileno(fp), &s, 1) == 1)
+		return s;
+#if	COHERENT || GEMDOS
+	if (errno == EINTR)
+		errno = 0;
+	else
+#endif
+	fp->_ff1 |= _FERR;
+	return EOF;
 }
+
+#if	_ASCII
+
+/* ASCII: prepend '\r' before '\n'. */
+int
+_fputca(c, fp) register int c; register FILE *fp;
+{
+ 	if ((unsigned char)c == '\n' && _fputc('\r', fp) == EOF)
+		return EOF;
+	return (_fputc(c, fp));
+}
+
+#endif
 
 /* end of libc/stdio/_fputc.c */

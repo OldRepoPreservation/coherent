@@ -1,4 +1,5 @@
 /*
+ * /usr/src/libc/gen/strtod.c
  * C general utilities library.
  * strtod()
  * ANSI 4.10.1.4.
@@ -73,6 +74,18 @@ strtod(nptr, endptr) char *nptr; char **endptr;
 	for (; ; c = *cp++) {
 		if (isdigit(c)) {
 			c -= '0';
+			if (c == 0 && (flag & DOT)) {
+				/* Check for trailing zeros to avoid imprecision.  */
+				char *look, d;
+
+				for (look = cp; (d = *look++) == '0'; )
+					;		/* skip a trailing zero */
+				if (!isdigit(d)) {	/* ignore zeroes */
+					cp = look;
+					c = d;
+					break;
+				}			/* else don't ignore */
+			}
 			if (sdigits != 0 || c != 0)
 				++sdigits;	/* significant digits seen */
 #if	__STDC__
@@ -169,4 +182,4 @@ done:
 	return ((flag & NEG) ? -d : d);
 }
 
-/* end of strtod.c */
+/* end of libc/gen/strtod.c */

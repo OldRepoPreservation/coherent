@@ -1,39 +1,49 @@
 /*
  * libc/stdio/fread.c
- * Standard i/o library.
- * Read nitems of size from file fp to bp.
+ * ANSI-compliant C standard i/o library.
+ * fread()
+ * ANSI 4.9.8.1.
+ * Read nmemb items of given size from stream to ptr.
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
-int
-fread(bp, size, nitems, fp)
-register char	*bp;
-unsigned int	size;
-unsigned int	nitems;
-register FILE	*fp;
+size_t
+fread(ptr, size, nmemb, stream) const Void *ptr; size_t size, nmemb; register FILE *stream;
 {
-	unsigned int	nb;
-	register int	c;
+	register size_t nb;
+	register int c;
+	register unsigned char *p;
 
-	nb = size * nitems;
-	if (fp->_ff&_FUNGOT) {
-		*bp++ = (*fp->_gt)(fp);
-		nb--;
+	if ((nb = size*nmemb) == 0)
+		return nb;
+	p = ptr;
+
+	/* Read ungotten character if present. */
+	if (stream->_ff2 & _FUNGOT) {		
+		*p++ = (*stream->_f2p->_gt)(stream);
+		if (--nb == 0)
+			return 1;
 	}
-	if (fp->_bp!=NULL || !(fp->_ff&_FSTBUF))
-		for (; nb && (c=getc(fp))!=EOF; nb--)
-			*bp++ = c;
-	else if ((c=read(fileno(fp), bp, nb)) > 0)
+
+	/* If unbuffered, read() will work, otherwise use getc(). */
+	/* getc() sets _FEOF and _FERR as required, read() does not. */
+	 if (stream->_mode == _MODE_FBUF || stream->_mode == _MODE_LBUF)
+		for (; nb && (c = getc(stream)) != EOF; nb--)
+			*p++ = c;
+	else if ((c = read(fileno(stream), p, nb)) > 0)
 		nb -= c;
 	else if (c == 0)
-		fp->_ff |= _FEOF;
+		stream->_ff1 |= _FEOF;
 	else
-		fp->_ff |= _FERR;
+		stream->_ff1 |= _FERR;
+
 	/* Adjust seek after partial read. */
 	if (nb != 0 && nb % size != 0)
-		fseek(fp, (long)(nb % size - size), SEEK_CUR);
-	return ((size*nitems-nb)/size);
+		fseek(stream, (long)(nb % size - size), SEEK_CUR);
+
+	return (size*nmemb-nb)/size;
 }
 
 /* end of libc/stdio/fread.c */

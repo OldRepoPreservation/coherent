@@ -1,8 +1,21 @@
 /*
- * Coherent Library Internals
- * This routine is placed in library after exit
- * to be loaded if there are no references to standard I/O,
- * displacing the routine of the same name in standard I/O
- * who drags in the world.
+ * libc/stdio/_finish.c
+ * ANSI-compliant C standard i/o library internals.
+ * _finish()
+ * Close all files.
+ * Called from exit().
  */
-_finish(){}
+
+#include <stdio.h>
+
+void
+_finish()
+{
+	register FILE **fpp;
+
+	for (fpp = _fp+_NFILE; --fpp >= _fp; )
+		if (*fpp != NULL)
+			fclose(*fpp);
+}
+
+/* end of libc/stdio/_finish.c */

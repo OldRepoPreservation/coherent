@@ -1,15 +1,18 @@
 /*
- * Standard I/O Library
- * putc function for those too lazy or cheap to use macro
+ * libc/stdio/putc.c
+ * ANSI-compliant C standard i/o library.
+ * putc()
+ * ANSI 4.9.7.8.
+ * Write character c to stream.
  */
 
 #include <stdio.h>
 #undef	putc
 
 int
-putc(c, fp)
-char	c;
-FILE	*fp;
+putc(c, stream) int c; FILE *stream;
 {
-	return (fputc(c, fp));
+	return (*stream->_f2p->_pt)(c,stream);
 }
+
+/* end of libc/stdio/putc.c */
