@@ -14,9 +14,24 @@
  * user mode.  SIG_QUIT causes /etc/ttys to be reread.
  * All other signals are ignored.
  */
+
+/* Define SWAPPER if init should start the swapper running.  */
+#ifndef SWAPPER
 #define	NOSWAPPER
+#endif /* SWAPPER */
+
+/* Define DRIVERS if init should load the loadable drivers.  This is
+ * generally done in /etc/brc, not in init.
+ */
+#ifndef DRIVERS
 #define	NODRIVERS
-#define	DEBUG	1
+#endif /* DRIVERS */
+
+/* Define DEBUG to 1 if you want debugging output on the console.  */
+#ifndef DEBUG
+#define	DEBUG	0
+#endif /* DEBUG	*/
+
 
 #ifndef NEWTTYS
 #define NEWTTYS	1
@@ -231,9 +246,15 @@ dbmsg(("About to access brc file  ", NULL));
 				chmod(tp->t_tty, 0700);
 				chown(tp->t_tty, 0, 0);
 
-				/* Unlock the tty; it was locked by login.
+				/*
+				 * Unlock the tty; it was locked by 
+				 * process n: originally login.
+				 *
+				 * We don't care about the return value;
+				 * if it was locked by somebody else,
+				 * locknrm() won't remove the lock.
 				 */
-				lockrm(strrchr(tp->t_tty, '/')+1);
+				locknrm(strrchr(tp->t_tty, '/')+1, n);
 
 				/* See if we panicked */
 				if ((status>>8) == 0377)
