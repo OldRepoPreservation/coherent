@@ -389,50 +389,46 @@ modlfld(tp, c) register TREE *tp; int c;
 TREE *
 modefld(tp, fp, c, flag) register TREE *tp, *fp; int c, flag;
 {
-	register n;
-	register tt;
-	register mw;
+	register int n, tt;
 	register MASK mask;
-	register ttold;
 
-	mw = 32;
-	if (isbyte(ttold = tt = tp->t_type) || isword(tt)) {
-		mw = (isbyte(tt)) ? 8 : 16;
+	if (isbyte(tt = tp->t_type) || isword(tt)) {
+		/* Byte and word fields.  Make the top a computational type. */
 		tp = leftnode(CONVERT, tp, tt);
 		fixtoptype(tp);
 		tt = tp->t_type;
 	}
 	if (c == MFLOW) {
-		mask = ((MASK)01<<fp->t_width) - 1;
-		if ((n=fp->t_base) != 0)
+		/* In a flow context, the field offset is irrelevant. */
+		mask = ((MASK)1 << fp->t_width) - 1;
+		if ((n = fp->t_base) != 0)
 			mask <<= n;
 		tp = leftnode(AND, tp, tt);
 		tp->t_rp = ivalnode((ival_t)mask);
 		return tp;
 	}
-	if (isuns(tt)) {
-		if ((n=fp->t_base) != 0) {
+	if (isuns(tt) || fp->t_width==1) {
+		/* Unsigned fields: shift right and mask to extract. */
+		/* Field width 1 is a special case, can be treated like unsigned. */
+		if ((n = fp->t_base) != 0) {
 			tp = leftnode(SHR, tp, tt);
 			tp->t_rp = ivalnode((ival_t)n);
 		}
-		if (flag && (n=fp->t_width)<mw) {
+		if (flag) {
 			tp = leftnode(AND, tp, tt);
-			tp->t_rp = ivalnode(((ival_t)01<<n)-1);
+			tp->t_rp = ivalnode(((ival_t)1 << fp->t_width) - 1);
 		}
-		if (ttold != tt)
-			tp = leftnode(CONVERT, tp, ttold);
 		return tp;
 	}
-	if ((n=mw-(fp->t_base+fp->t_width)) != 0) {
+	/* Signed fields: shift left and then right to extract and sign extend. */
+	if ((n = 32 - (fp->t_base + fp->t_width)) != 0) {
 		tp = leftnode(SHL, tp, tt);
 		tp->t_rp = ivalnode((ival_t)n);
 	}
-	if ((n=mw-fp->t_width) != 0) {
+	if ((n = 32 - fp->t_width) != 0) {
 		tp = leftnode(SHR, tp, tt);
 		tp->t_rp = ivalnode((ival_t)n);
 	}
-	if (ttold != tt)
-		tp = leftnode(CONVERT, tp, ttold);
 	return tp;
 }
 
