@@ -1,16 +1,21 @@
 /*
- * Standard I/O Library
- * Put string to standard output
- * append '\n'
+ * C input/output library.
+ * puts()
+ * ANSI 4.9.7.10.
+ * Write string s to stdout.
+ * Append newline.
  */
 
 #include <stdio.h>
 
-void
-puts(s)
-register char	*s;
+/* Should be "const char *s;". */
+int
+puts(s) register char *s;
 {
-	for (;  *s;  s++)
-		putchar(*s);
-	putchar('\n');
+	while (*s)
+		if (putchar(*s++) == EOF && ferror(stdout))
+			return EOF;
+	if (putchar('\n') == EOF)
+		return EOF;
+	return 1;
 }
