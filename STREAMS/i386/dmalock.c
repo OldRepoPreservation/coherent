@@ -28,6 +28,7 @@
  * 
  */
 
+#define	__KERNEL__	1
 #include <sys/timeout.h>
 
 typedef void (* vfp_t)();		/* Void function pointer type.	     */

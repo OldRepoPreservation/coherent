@@ -7,11 +7,10 @@
  *
  *  Copyright (c) 1993, Christopher Sean Hilton, All Rights Reserved.
  *
- *  Last Modified: Thu Jul 15 15:42:21 1993 by [chris]
+ *  Last Modified: Thu Jul 15 19:59:42 1993 by [chris]
  *
  *  $Id: haict.c,v 1.0 93/06/27 18:22:49 chris Exp Locker: chris $
  */
-
 /***********************************************************************
  *  READ THIS  *  READ THIS  *  READ THIS  *  READ THIS  *  READ THIS  *
  *
@@ -91,22 +90,21 @@
 #define CTDIRTY 	0x0001
 #define CTCLOSING	0x0002
 
-#define CTILI		0x0020		/* Illegal Length Indicator */
-#define CTEOM		0x0040		/* End OF Media bit */
-#define CTFILEMARK	0x0080		/* Filemark bit */
+#define CTILI		0x0020	    /* Sensekey's Illegal Length Indicator */
+#define CTEOM		0x0040	    /* Sensekey's End OF Media bit */
+#define CTFILEMARK	0x0080	    /* Sensekey's Filemark bit */
 #define     CTSKMASK	(CTILI | CTEOM | CTFILEMARK)
-
-#define CTRAWMODE	0x0100
-#define CTBLKRD 	0x0200
-#define CTBLKWRT	0x0400
-#define     CTMODEMASK	(CTRAWMODE | CTBLKRD | CTBLKWRT)
-int HAI_CACHESZ =	40 * BSIZE;	/* 40 Block Cache for each device */
+#define CTRDMD		0x0100	    /* We are reading from the tape */
+#define CTWRTMD 	0x0200	    /* we are writeing to the tape */
+int HAI_CACHESZ =	40 * BSIZE; /* 40 Block Cache for each device */
 
 typedef enum {
 	CTIDLE = 0,
 	CTINIT,
-	CTIO,
-	CTBLKIO,
+	CTFBRD,
+	CTVBRD,
+	CTFBWRT,
+	CTVBWRT,
 	CTSENSE,
 	CTWRITEFM,
 	CTSPACE,
@@ -131,48 +129,28 @@ typedef struct blkdscr_s {
 typedef struct ctctrl_s *ctctrl_p;
 
 typedef struct ctctrl_s {
-	BUF 		*actf,		/* First Buffer */
-			*actl;		/* Last Buffer */
-	char		*cache, 	/* Transfer Cache */
-			*start; 	/* Start of data in cache */
-	size_t		count;		/* Count of bytes in cache */
+	char		*cache, /* Transfer Cache */
+			*start; /* Start of data in cache */
+	size_t		avail;	/* bytes availaible in cache */
 	ctstate_t	state;
-	unsigned short	inuse,		/* In Use flag */
-			flags,		/* Flags from device */
-			block;		/* Block size of device */
-	srb_t		srb;		/* SCSI Request block for transfers */
-	BUF 		buf;		/* A buffer for pseudo raw i/o */
+	unsigned short	inuse,	/* In Use flag */
+			flags,	/* Flags from device */
+			block;	/* Block size of device */
+	srb_t		srb;	/* SCSI Request block for transfers */
 } ctctrl_t;
 
 static int ctinit();		/* Initialize a SCSI device at (id) */
 static void ctopen();		/* Open SCSI tape at (dev) */
 static void ctclose();		/* Close a SCSI tape at (dev) */
-#ifdef FIXED
-static void ctblock();		/* Block read/write */
-#endif
 static void ctread();		/* Read from SCSI tape at (dev) */
 static void ctwrite();		/* Write SCSI tape at (dev) */
 static void ctioctl();		/* I/O Control routine */
-static void flushcache();	/* Flush the contents of the tape cache */
 
 extern int nulldev();
 extern int nonedev();
 
 #define min(a, b)		((a) < (b) ? (a) : (b))
 
-#ifdef FIXED
-dca_t ctdca = {
-	ctopen, 		/* Open */
-	ctclose,		/* Close */
-	ctblock,		/* Block */
-	ctread, 		/* Read */
-	ctwrite,		/* Write */
-	ctioctl,		/* Ioctl */
-	ctinit, 		/* Load */
-	nulldev,		/* Unload */
-	nulldev 		/* Poll */
-};
-#else
 dca_t ctdca = {
 	ctopen, 		/* Open */
 	ctclose,		/* Close */
@@ -184,9 +162,8 @@ dca_t ctdca = {
 	nulldev,		/* Unload */
 	nulldev 		/* Poll */
 };
-#endif
 
-static ctctrl_p	ctdevs[MAXDEVS];
+static ctctrl_p     ctdevs[MAXDEVS];
 
 /***********************************************************************
  *  Utility functions.                                                 *
@@ -216,7 +193,7 @@ int opt;
 		g0->lun_lba |= 1;
 	if (opt & RETENSION)
 		g0->xfr_len |= 2;
-	doscsi(r, 4, "loadtape");
+	doscsi(r, 4, CVBLKIO, IVBLKIO, SVBLKIO, "loadtape");
 	if (r->status != ST_GOOD && printerror(r, "Load failed"))
 		u. u_error = EIO;
 
@@ -248,7 +225,7 @@ int count;
 	g0->lba_low = ((unsigned char *) &count)[1];
 	g0->xfr_len = ((unsigned char *) &count)[0];
 	g0->control = 0;
-	doscsi(r, 4, "writefm");
+	doscsi(r, 4, CVBLKIO, IVBLKIO, SVBLKIO, "writefm");
 	if (r->status != ST_GOOD && printerror(r, "Write filemarks failed"))
 		u. u_error = EIO;
 	c->state = CTIDLE;
@@ -278,7 +255,7 @@ int object;
 	g0->lba_low = ((unsigned char *) &count)[1];
 	g0->xfr_len = ((unsigned char *) &count)[0];
 	g0->control = 0;
-	doscsi(r, 2, "space");
+	doscsi(r, 2, CVBLKIO, IVBLKIO, SVBLKIO, "space");
 	if (r->status != ST_GOOD && printerror(r, "Space failed"))
 		u. u_error = EIO;
 	c->state = CTIDLE;
@@ -305,7 +282,7 @@ int wait;
 	g0->opcode = REWINDTAPE;
 	if (!wait)
 		g0->lun_lba = (r->lun << 5) | 1;
-	doscsi(r, 2, "rewind");
+	doscsi(r, 2, CVBLKIO, IVBLKIO, SVBLKIO, "rewind");
 	if (r->status != ST_GOOD && printerror(r, "Rewind failed"))
 		u. u_error = EIO;
 	c->flags = 0;
@@ -328,7 +305,7 @@ int to_eot;
 	g0->lun_lba = (r->lun << 5);
 	if (to_eot)
 		g0->lun_lba |= 1;
-	doscsi(r, 2, "erase");
+	doscsi(r, 2, CVBLKIO, IVBLKIO, SVBLKIO, "erase");
 	if (r->status != ST_GOOD && printerror(r, "Erase failed"))
 		u. u_error = EIO;
 	if (to_eot)
@@ -376,17 +353,8 @@ int mode;
 	register ctctrl_p	c = ctdevs[tid(dev)];
 	register srb_p		r = &(c->srb);
 	register g0cmd_p	g0 = &(r->cdb. g0);
-	int			s;
-#if 0
-#pragma align 1
-	struct {
-		unsigned long	max;
-		unsigned short	min;
-	} blim;
-#pragma align
-#else
+	int s;
 	unsigned long blim;
-#endif
 	char buf[64];
 	blkdscr_p	bd = (blkdscr_p) (buf + 4);
 
@@ -400,10 +368,12 @@ int mode;
 	}
 
 	s = sphi();
+
 	if (c->inuse) {
 		u. u_error = EDBUSY;
 		goto done;
 	}
+
 	c->inuse = 1;
 	c->state = CTINIT;
 	r->dev = dev;	   /* Save the rewind bit for close. */
@@ -430,7 +400,7 @@ int mode;
 	r->xferdir = 0;
 	memset(g0, 0, sizeof(cdb_t));		/* Test Unit Ready */
 	memset(r->sensebuf, 0, sizeof(r->sensebuf));
-	doscsi(r, 4, "ctopen");
+	doscsi(r, 4, CVBLKIO, IVBLKIO, SVBLKIO, "ctopen");
 
 /***********************************************************************
  *  If the command fails there probably wasn't a tape in the drive.
@@ -455,53 +425,12 @@ int mode;
 	}
 
 /***********************************************************************
- *  Read Block Limits to determine what kind of reads/writes to do.
- *  If we have a fixed block tape drive set the block size to the number
- *  of bytes per block and use that otherwise set the block size to
- *  0 through mode select.
- *
- * READ ME * READ ME * READ ME * READ ME * READ ME * READ ME * READ ME *
- *
- *  Implementation Notes:  This is the preferred way to determine if
- *  the Tape drive is capable of variable mode operation. On my Tandberg
- *  this is broken so I am using the result of the Mode Sense command
- *  and just leaving the tape drive in the default configuration.
- *  This should work for all tape drives but users will be stuck with
- *  the default media and the default block size (variable or fixed).
- *
- * READ ME * READ ME * READ ME * READ ME * READ ME * READ ME * READ ME *
- */
-
-#ifndef TDC3600
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) &blim;
-	r->buf. size = sizeof(blim);
-	r->xferdir = DMAREAD;
-	r->timeout = 2;
-	memset(g0, 0, sizeof(cdb_t));
-	g0->opcode = READBLKLM;
-	doscsi(r, 3, "ctopen");
-	if (r->status != ST_GOOD) {
-		if (printerror(r, "Read block limits failed"))
-			u. u_error = EIO;
-		goto openfailed;
-	}
-	flip(blim. max);
-	flip(blim. min);
-	if (blim. max == blim. min) {
-		c->block = blim. max;
-		HAI_CACHESZ -= HAI_CACHESZ % c->block;
-	}
-	else {
-		c->block = 0;
-		if (HAI_CACHESZ > blim. max)
-			HAI_CACHESZ = blim.max;
-	}
-#endif
-
-/***********************************************************************
  *  Do a mode sense right now to check if the tape is write protected
- *  and the user asked for write access.
+ *  and the user asked for write access.  Also need to figure out block
+ *  size for reads and writes.      This will end this fixed/variable
+ *  nonsense.  If you need to use variable block mode I will provide
+ *  an IO control to swap it.  Also this way my Tandberg will be supported
+ *  just like any other tape drive.
  */
 
 	r->buf. space = KRNL_ADDR;
@@ -512,7 +441,7 @@ int mode;
 	memset(g0, 0, sizeof(cdb_t));
 	g0->opcode = MODESENSE;
 	g0->xfr_len = sizeof(buf);
-	doscsi(r, 3, "ctopen");
+	doscsi(r, 3, CVBLKIO, IVBLKIO, SVBLKIO, "ctopen");
 	if (r->status != ST_GOOD) {
 		if (printerror(r, "Mode sense failed"))
 			u. u_error = EIO;
@@ -541,7 +470,7 @@ int mode;
 		c->block = blim;
 		if (c->block && HAI_CACHESZ % c->block) {
 			HAI_CACHESZ -= (HAI_CACHESZ % c->block);
-			devmsg(r->dev, "Cachesize adjusted to %d bytes", HAI_CACHESZ);
+			devmsg(r->dev, "HAI_CACHESZ adjusted to %d bytes", HAI_CACHESZ);
 		}
 	}
 	else {
@@ -552,32 +481,17 @@ int mode;
 	devmsg(dev, "Using blocksize %d bytes", c->block);
 #endif
 
-/***********************************************************************
- *  Set the tape type up to the default and the tape writes to buffered
- *  mode.
- */
-
-#if 0			/* Not until I get a better tape drive */
-	memset(buf, 0, 12);
-	buf[2] = (1 << 4);
-	buf[3] = 8;
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) buf;
-	r->buf. size = 12;
-	r->xferdir = DMAWRITE;
-	r->timeout = 2;
-	memset(g0, 0, sizeof(cdb_t));
-	g0->opcode = MODESELECT;
-	g0->xfr_len = 4;
-	doscsi(r, 3, "ctopen");
-	if (r->status != ST_GOOD) {
-		if (printerror(r, "Mode select failed"))
-			u. u_error = EIO;
-		goto openfailed;
+	c->flags = (mode == IPR) ? CTRDMD : CTWRTMD;
+	if (c->block) {
+		c->cache = kalloc(HAI_CACHESZ);
+		if (!c->cache) {
+			devmsg(dev, "Could not allocate tape cache");
+			u. u_error = ENOMEM;
+			goto openfailed;
+		}
+		c->avail = (c->flags & CTRDMD) ? 0 : HAI_CACHESZ;
+		c->start = c->cache;
 	}
-#endif
-
-	c->flags = 0;
 	c->state = CTIDLE;
 	goto done;
 
@@ -600,33 +514,30 @@ register dev_t	dev;
 {
 	register ctctrl_p	c = ctdevs[tid(dev)];
 	register srb_p		r = &(c->srb);
-	int 				s;
+	int 			s;
 
 	if (!c) {
 		u. u_error = EINVAL;
 		return;
 	}
 
-#ifdef FIXED
-	if (c->flags & CTBLKWRT) {
-		s = sphi();
-		c->flags |= CTCLOSING;
-		flushcache(c);
-		while (c->state != CTIDLE) {
-			if (x_sleep(&(c->flags), pritape, slpriSigCatch,
-			  "ctclose")) {
-				u. u_error = EINTR;
-				break;
-			}
-		}
-		spl(s);
-		if (c->cache) {
-			kfree(c->cache);
-			c->cache = c->start = NULL;
-			c->count = 0;
+	s = sphi();
+	c->flags |= CTCLOSING;
+	flushcache(c);
+	while (c->state != CTIDLE) {
+		/* x_sleep(&(c->flags), ...); */
+		v_sleep(&(c->flags), CVBLKIO, IVBLKIO, SVBLKIO, "ctclose");
+		if (nondsig()) {
+			u. u_error = EINTR;
+			break;
 		}
 	}
-#endif
+	spl(s);
+	if (c->cache) {
+		kfree(c->cache);
+		c->cache = c->start = NULL;
+		c->avail = 0;
+	}
 
 #ifndef TDC3600
 /***********************************************************************
@@ -648,7 +559,7 @@ register dev_t	dev;
  *  rewind fail after the the previous code.  The following will work in
  *  all situations but there is a risk that a user's tapes will only
  *  have one filemark at Logical End-of-Tape if the user isn't careful
- *  to use the rewind device the last time he uses tape drive. This is
+ *  to use the rewind device the last time he uses tape drive.      This is
  *  only a problem with drives which insist upon doing a Retension each
  *  time the tape is changed or the drive gets reset.
  */
@@ -666,116 +577,21 @@ register dev_t	dev;
 	return;
 }   /* ctclose() */
 
-#ifdef FIXED
-static void ctstart();
-
 /***********************************************************************
- *  drainqueue()
+ *  fillcache() --  Read from the tape into the cache (really?)
  *
- *  Mark all requests in the queue with errors because we could not
- *  recover from an error condition. There haven't been any requests
- *  to drain in all of my testing but...
+ *  return 0 and set u. u_error on any errors.
  */
 
-static void drainqueue(c)
-register ctctrl_p c;
-{
-	register BUF *bp;
-
-	for (bp = c->actf; bp != NULL; bp = bp->b_actf) {
-		bp->b_flag |= BFERR;
-		bdone(bp);
-	}
-	c->actf = c->actl = NULL;
-}   /* drainqueue() */
-
-/***********************************************************************
- *  filldone()
- *
- *  Cleanup after the fill cache routine has finished.
- */
-
-static void filldone(r)
-register srb_p r;
-{
-	register ctctrl_p	c = ctdevs[r->target];
-	register extsense_p e;
-	size_t				info;
-
-	switch (c->state) {
-	case CTBLKIO:
-		switch (r->status) {
-		case ST_GOOD:
-			c->start = c->cache;
-			c->count = HAI_CACHESZ;
-			break;
-		case ST_CHKCOND:
-			r->timeout = 4;
-			r->buf. space = KRNL_ADDR;
-			r->buf. addr. vaddr = (vaddr_t) r->sensebuf;
-			r->buf. size = sizeof(r->sensebuf);
-			r->xferdir = DMAREAD;
-			memset(&(r->cdb), 0, sizeof(cdb_t));
-			r->cdb. g0. opcode = REQSENSE;
-			r->cdb. g0. lun_lba = (r->lun << 5);
-			r->cdb. g0. xfr_len = r->buf. size;
-			if (startscsi(r))
-				c->state = CTSENSE;
-			return;
-		default:
-			devmsg(r->dev, "Block read failed: status: (0x%x)", r->status);
-			drainqueue(c);
-			break;
-		}
-		break;
-	case CTSENSE:
-		if (r->status != ST_GOOD) {
-			devmsg(r->dev, "Block read sense failed: status: (0x%x)", r->status);
-			drainqueue(c);
-		}
-		else {
-			e = r->sensebuf;
-			if ((e->errorcode & 0x70) == 0x70) {
-				info = 0;
-				if (e->errorcode & 0x80) {
-					info = e->info;
-					flip(info);
-				}
-				if (e->sensekey & (CTFILEMARK | CTEOM)) {
-
-					c->flags |= (e->sensekey & (CTFILEMARK | CTEOM));
-					c->start = c->cache;
-					c->count = HAI_CACHESZ - (info * c->block);
-					break;
-				}
-			}
-			printsense(r->dev, "Block read failed", r->sensebuf);
-			drainqueue(c);
-		}
-		break;
-	default:
-		devmsg(r->dev, "filldone() called from state (%d)", c->state);
-		drainqueue(c);
-		break;
-	}
-
-	c->state = CTIDLE;
-	while (c->state == CTIDLE && c->actf)
-		ctstart(c);
-}   /* filldone() */
-
-/***********************************************************************
- *  fillcache()
- *
- *  Fill the tape cache from the tape drive.
- */
-
-static void fillcache(c)
-register ctctrl_p c;
+static int fillcache(c)
+register ctctrl_p   c;
 {
 	register srb_p		r = (&c->srb);
 	register g0cmd_p	g0 = &(r->cdb. g0);
 	size_t				xfrsize;
+	extsense_p			e;
+	int 				info;
+	int 				retval = 0;
 
 	r->buf. space = KRNL_ADDR;
 	r->buf. addr. vaddr = (vaddr_t) c->cache;
@@ -783,7 +599,6 @@ register ctctrl_p c;
 	r->xferdir = DMAREAD;
 	r->timeout = 30;
 	r->tries = 0;
-	r->cleanup = &filldone;
 	g0->opcode = READ;
 	g0->lun_lba = (r->lun << 5);
 	if (c->block) {
@@ -794,295 +609,119 @@ register ctctrl_p c;
 	g0->lba_low = ((unsigned char *) &xfrsize)[1];
 	g0->xfr_len = ((unsigned char *) &xfrsize)[0];
 	g0->control = 0;
-	if (startscsi(r))
-		c->state = CTBLKIO;
+	doscsi(r, 1, CVBLKIO, IVBLKIO, SVBLKIO, "ctblkrd");
+	switch (r->status) {
+	case ST_GOOD:
+		c->start = c->cache;
+		c->avail = r->buf. size;
+		retval = 1;
+		break;
+	case ST_CHKCOND:
+		e = r->sensebuf;
+		if ((e->errorcode & 0x70) == 0x70) {
+			info = 0;
+			if (e->errorcode & 0x80) {
+				info = e->info;
+				flip(info);
+			}
+			if (e->sensekey & (CTFILEMARK | CTEOM)) {
+				c->flags |= (e->sensekey & (CTFILEMARK | CTEOM));
+				c->start = c->cache;
+				c->avail = HAI_CACHESZ - (info * c->block);
+				retval = 1;
+				break;
+			}
+		}
+		printsense(r->dev, "Read failed", r->sensebuf);
+		u. u_error = EIO;
+		retval = 0;
+		break;
+	case ST_USRABRT:
+		retval = 0;
+		break;
+	default:
+		devmsg(r->dev, "Read failed: status (0x%x)", r->status);
+		u. u_error = EIO;
+		retval = 0;
+		break;
+	}
+	c->state = CTIDLE;
+	return retval;
 }   /* fillcache() */
 
 /***********************************************************************
- *  flushdone()
- *
- *  Called when the operations started in flushcache have completed
- *  with a pointer to the srb in question.
+ *  ctfbrd()    --  Fixed block read handler.  Reads from the tape
+ *                  drive through the cache when the tape drive is
+ *                  in fixed block mode.
  */
 
-static void flushdone(r)
-register srb_p r;
+static void ctfbrd(c, iop)
+register ctctrl_p   c;
+register IO	    *iop;
 {
-	register ctctrl_p	c = ctdevs[r->target];
+	register size_t reqcount,	/* Total bytes transfered */
+			xfrsize;	/* Current transfer size */
+	size_t		total,		/* System global memory total transfer size */
+			size;		/* System global memory current transfer size */
 
-	switch (c->state) {
-	case CTBLKIO:
-		switch (r->status) {
-		case ST_GOOD:
-			c->start = c->cache;
-			c->count = 0;
-			c->flags |= CTDIRTY;
-			break;
-		case ST_CHKCOND:
-			r->timeout = 4;
-			r->buf. space = KRNL_ADDR;
-			r->buf. addr. vaddr = (vaddr_t) r->sensebuf;
-			r->buf. size = sizeof(r->sensebuf);
-			r->xferdir = DMAREAD;
-			memset(&(r->cdb), 0, sizeof(cdb_t));
-			r->cdb. g0. opcode = REQSENSE;
-			r->cdb. g0. lun_lba = (r->lun << 5);
-			r->cdb. g0. xfr_len = r->buf. size;
-			if (startscsi(r))
-				c->state = CTSENSE;
-			return;
-		default:
-			devmsg(r->dev, "Block write failed: status: (0x%x)", r->status);
-			drainqueue(c);
-			break;
-		}
-		break;
-	case CTSENSE:
-		if (r->status == ST_GOOD)
-			printsense(r->dev, "Block write failed", r->sensebuf);
-		else
-			devmsg(r->dev, "Block write sense failed");
-		drainqueue(c);
-		break;
-	default:
-		devmsg(r->dev, "flushdone() called from state (%d)", c->state);
-		drainqueue(c);
-		break;
-	}
-
-	c->state = CTIDLE;
-	if (c->flags & CTCLOSING)
-		wakeup(&(c->flags));
-	else
-		while (c->state == CTIDLE && c->actf)
-			ctstart(c);
-}   /* flushdone() */
-
-/***********************************************************************
- *  flushcache()
- *
- *  Flush the tape cache to the tape drive.  Hopefully the data within
- *  will be written error free.
- */
-
-static void flushcache(c)
-register ctctrl_p c;
-{
-	register srb_p		r = (&c->srb);
-	register g0cmd_p	g0 = &(r->cdb. g0);
-	size_t			xfrsize;
-
-	if (!c->count)
-		return;
-
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) c->cache;
-	r->buf. size = xfrsize = c->count;
-	r->xferdir = DMAWRITE;
-	r->timeout = 30;
-	r->tries = 0;
-	r->cleanup = &flushdone;
-	g0->opcode = WRITE;
-	g0->lun_lba = (r->lun << 5);
-	if (c->block) {
-		g0->lun_lba |= 1;
-		xfrsize = (c->count + c->block - 1) / c->block;
-	}
-	g0->lba_mid = ((unsigned char *) &xfrsize)[2];
-	g0->lba_low = ((unsigned char *) &xfrsize)[1];
-	g0->xfr_len = ((unsigned char *) &xfrsize)[0];
-	g0->control = 0;
-	if (startscsi(r))
-		c->state = CTBLKIO;
-}   /* flushcache() */
-
-/***********************************************************************
- *  ctstart()
- *
- *  Start the ball rolling on a block request.
- */
-
-static void ctstart(c)
-register ctctrl_p c;
-{
-	register BUF	*bp = c->actf;
-	register size_t xfrsize;
-	size_t		count;
-
-	while (bp && c->state == CTIDLE) {
-		count = ((c->flags & CTBLKRD) == CTBLKRD) ?
-				c->count :
-				(HAI_CACHESZ - c->count);
-		if (count <= 0) {
-			if (c->flags & CTBLKWRT)
-				flushcache(c);
-			else if ((c->flags & (CTFILEMARK | CTEOM)) == 0)
-				fillcache(c);
-			else if (c->flags & CTFILEMARK) {
-				bdone(bp);
-				c->actf = c->actf->b_actf;
-				if (c->actf) {
-					printf("Active Blocks After Filemark\n");
-					drainqueue(c);
+	reqcount = 0;
+	while (iop->io_ioc) {
+		xfrsize = min(c->avail, iop->io_ioc);
+		if (xfrsize) {
+			switch (iop->io_seg) {
+			case IOSYS:
+				memcpy(iop->io. vbase + reqcount, c->start, xfrsize);
+				break;
+			case IOUSR:
+				kucopy(c->start, iop->io. vbase + reqcount, xfrsize);
+				break;
+			case IOPHY:
+				total = 0;
+				while (total < xfrsize) {
+					size = min(xfrsize - total, NBPC);
+					xpcopy(c->start + total,
+					       iop->io. pbase + reqcount + total,
+					       size,
+					       SEG_386_KD | SEG_VIRT);
+					total += size;
 				}
-				if (bp->b_resid == bp->b_count)
-					c->flags &= ~CTFILEMARK;
+				break;
 			}
-			else {
-				printf("End Of Tape\n");
-				bp->b_flag |= BFERR;
-				bdone(bp);
-				c->actf = c->actf->b_actf;
-				if (c->actf) {
-					printf("Active Blocks After EOT\n");
-					drainqueue(c);
-				}
+			c->start += xfrsize;
+			c->avail -= xfrsize;
+			reqcount += xfrsize;
+			iop->io_ioc -= xfrsize;
+		}
+		if (iop->io_ioc) {
+			if (c->flags & CTFILEMARK) {
+				c->flags &= ~CTFILEMARK;
+				break;
 			}
-			return;
-		}
 
-		if (c->flags & CTBLKRD) {
-			xfrsize = min(c->count, bp->b_resid);
-			if (xfrsize > NBPC)
-				xfrsize = NBPC;
-			xpcopy(c->start,
-				   bp->b_paddr + bp->b_count - bp->b_resid,
-				   xfrsize,
-				   SEG_386_KD|SEG_VIRT);
-			c->count -= xfrsize;
-		}
-		else {
-			xfrsize = min(count, bp->b_resid);
-			if (xfrsize > NBPC)
-				xfrsize = NBPC;
-			pxcopy(bp->b_paddr + bp->b_count - bp->b_resid,
-				   c->start,
-				   xfrsize,
-				   SEG_386_KD|SEG_VIRT);
-			c->count += xfrsize;
-		}
+			if (c->flags & CTEOM) {
+				u. u_error = EIO;
+				break;
+			}
 
-		c->start += xfrsize;
-		bp->b_resid -= xfrsize;
-		if (bp->b_resid == 0) {
-			c->actf = bp->b_actf;
-			bdone(bp);
-			bp = c->actf;
+			if (!fillcache(c))
+				break;
 		}
-	}
-}   /* ctstart() */
+	}	/* while */
+}   /* ctfbrd() */
 
 /***********************************************************************
- *  ctblock()
- *
- *  Block device transfer routine.  This should be the fastest entry
- *  point for the tape drive because it will be cached.
+ *  ctvbrd()    --  Variable block read entry point.
  */
 
-static void ctblock(bp)
-register BUF *bp;
+static void ctvbrd(c, iop)
+register ctctrl_p   c;
+register IO	    *iop;
 {
-	register ctctrl_p	c = ctdevs[tid(bp->b_dev)];
-	register int 		s;
-
-	bp->b_resid = bp->b_count;
-	if (!c) {
-		bp->b_flag |= BFERR;
-		bdone(bp);
-		return;
-	}
-
-	if (!(c->flags & CTMODEMASK)) {
-		c->cache = kalloc(HAI_CACHESZ);
-		if (!c->cache) {
-			devmsg(bp->b_dev, "Could not allocate tape cache");
-			bp->b_flag |= BFERR;
-			bdone(bp);
-			return;
-		}
-		c->count = 0;
-		c->start = c->cache;
-		c->flags |= ((bp->b_req == BREAD) ? CTBLKRD : CTBLKWRT);
-	}
-	else
-		if ((bp->b_req == BREAD && (c->flags & CTBLKWRT)) ||
-			(bp->b_req != BREAD && (c->flags & CTBLKRD))) {
-			bp->b_flag |= BFERR;
-			bdone(bp);
-			return;
-		}
-
-	s = sphi();
-	bp->b_actf = NULL;
-	if (!c->actf)
-		c->actf = bp;
-	else
-		c->actl->b_actf = bp;
-	c->actl = bp;
-
-	while (c->state == CTIDLE && c->actf)
-		ctstart(c);
-	spl(s);
-}   /* ctblock() */
-
-#endif
-
-/***********************************************************************
- *  ctread()
- *
- *  SCSI Driver read entry point for character style devices.  This
- *  has to stay this way so that raw reads can use a block size other
- *  than BSIZE.
- */
-
-static void ctread(dev, iop)
-dev_t	dev;
-IO	*iop;
-{
-	register ctctrl_p	c = ctdevs[tid(dev)];
-#ifdef VARIABLE
 	register srb_p		r = &(c->srb);
 	register g0cmd_p	g0 = &(r->cdb. g0);
 	size_t			xfrsize;
 	extsense_p		e;
 	int 			info;
-#endif
-
-	if (!c) {
-		u. u_error = EINVAL;
-		return;
-	}
-
-/***********************************************************************
- *      Check here for first open.      If so then set up the tape drive for
- *      Whatever mode is applicable.  Eventually this should be set up
- *      so that to work with all three types of tape drive. A fixed block
- *      only tape drive will do all I/O through its block entry point.
- *      Hopefully the blocksize on such a device will be an even multiple
- *      of BSIZE bytes. If the drive is capable of variable mode operation
- *      then the character read and write entry points can use whatever
- *      blocksize it would like.  Drives that can do both are not properly
- *      supported right now - they use whatever they default to.
- */
-
-#ifdef VARIABLE
-	if (!(c->flags & CTMODEMASK)) {
-		if (!c->block)
-			c->flags |= CTRAWMODE;
-
-		/* Set the drive up for variable size operation here */
-		/* For right now, if tape drive is in block mode just */
-		/* use it that way. Otherwise, when done, set c->block  */
-		/* to 0 */
-	}
-
-	if (c->block) {
-		/* Couldn't use variable block mode have to settle */
-#endif
-		ioreq(&(c->buf), iop, dev, BREAD, BFIOC | BFRAW);
-#ifdef VARIABLE
-		return;
-	}
 
 	if (c->flags & CTEOM) {
 		u. u_error = EIO;
@@ -1092,7 +731,7 @@ IO	*iop;
 		c->flags &= ~CTFILEMARK;
 		return;
 	}
-	c->state = CTIO;
+	c->state = CTVBRD;
 	switch (iop->io_seg) {
 	case IOSYS:
 		r->buf. space = KRNL_ADDR;
@@ -1107,8 +746,7 @@ IO	*iop;
 		r->buf. addr. paddr = iop->io. pbase;
 		break;
 	}
-	xfrsize = iop->io_ioc;
-	r->buf. size = xfrsize;
+	r->buf. size = xfrsize = iop->io_ioc;
 	r->xferdir = DMAREAD;
 	r->timeout = 30;
 	g0->opcode = READ;
@@ -1117,8 +755,7 @@ IO	*iop;
 	g0->lba_low = ((unsigned char *) &xfrsize)[1];
 	g0->xfr_len = ((unsigned char *) &xfrsize)[0];
 	g0->control = 0;
-	info = 0;
-	doscsi(r, 1, "ctread");
+	doscsi(r, 1, CVBLKIO, IVBLKIO, SVBLKIO, "ctvbrd");
 	switch (r->status) {
 	case ST_GOOD:
 		iop->io_ioc -= r->buf. size;
@@ -1140,7 +777,10 @@ IO	*iop;
 					   "Read failed buffer size %d blocksize %d",
 					   xfrsize,
 					   xfrsize - info);
-				u. u_error = EIO;
+				if (info > 0)
+					iop->io_ioc -= (xfrsize - info);
+				else
+					u. u_error = EIO;
 				break;
 			}
 		}
@@ -1155,50 +795,164 @@ IO	*iop;
 		break;
 	}
 	c->state = CTIDLE;
-#endif
-}   /* ctread() */
+}   /* ctvbrd() */
 
 /***********************************************************************
- *  ctwrite()
- *
- *  Write Entry Point for SCSI Tape devices.
+ *  ctread()    --  OS Read entry point.
  */
 
-static void ctwrite(dev, iop)
-dev_t	dev;
-IO	*iop;
+static void ctread(dev, iop)
+dev_t	    dev;
+register IO *iop;
 {
 	register ctctrl_p	c = ctdevs[tid(dev)];
-#ifdef VARIABLE
-	register srb_p		r = &(c->srb);
-	register g0cmd_p	g0 = &(r->cdb. g0);
-	size_t			xfrsize;
-#endif
 
 	if (!c) {
 		u. u_error = EINVAL;
 		return;
 	}
 
+	if (c->block)
+		ctfbrd(c, iop);
+	else
+		ctvbrd(c, iop);
+}   /* ctread() */
+
 /***********************************************************************
- *      This is the same as the read entry point.  Here we can determine
- *      access type, variable/fixed block size and set up the tape drive
- *      accordingly.
+ *  flushcache()    --  flush the data in the cache to the tape.
+ *
+ *  returns 0 and sets u. u_error on failure else returns 1.
  */
-#ifdef VARIABLE
-	if (!(c->flags & CTMODEMASK)) {
-		if (!c->block)
-			c->flags |= CTRAWMODE;
-	}
 
+static int flushcache(c)
+register ctctrl_p   c;
+{
+	register srb_p		r = (&c->srb);
+	register g0cmd_p	g0 = &(r->cdb. g0);
+	size_t			xfrsize;
+	extsense_p		e;
+	int 			info;
+	int 			retval = 0;
+
+	r->buf. space = KRNL_ADDR;
+	r->buf. addr. vaddr = (vaddr_t) c->cache;
+	r->buf. size = xfrsize = HAI_CACHESZ - c->avail;
+	r->xferdir = DMAWRITE;
+	r->timeout = 30;
+	r->tries = 0;
+	g0->opcode = WRITE;
+	g0->lun_lba = (r->lun << 5);
 	if (c->block) {
-#endif
-		ioreq(&(c->buf), iop, dev, BWRITE, BFIOC | BFRAW);
-#ifdef VARIABLE
-		return;
+		g0->lun_lba |= 1;
+		xfrsize = (xfrsize + c->block - 1) / c->block;
 	}
+	g0->lba_mid = ((unsigned char *) &xfrsize)[2];
+	g0->lba_low = ((unsigned char *) &xfrsize)[1];
+	g0->xfr_len = ((unsigned char *) &xfrsize)[0];
+	g0->control = 0;
+	doscsi(r, 1, CVBLKIO, IVBLKIO, SVBLKIO, "ctblkwrt");
+	switch (r->status) {
+	case ST_GOOD:
+		c->start = c->cache;
+		c->avail = HAI_CACHESZ;
+		retval = 1;
+		break;
+	case ST_CHKCOND:
+		e = r->sensebuf;
+		if ((e->errorcode & 0x70) == 0x70) {
+			info = 0;
+			if (e->errorcode & 0x80) {
+				info = e->info;
+				flip(info);
+			}
+			if (e->sensekey & CTEOM) {
+				c->flags |= CTEOM;
+				devmsg(r->dev, "End of tape on block write");
+			}
+		}
+		printsense(r->dev, "Read failed", r->sensebuf);
+		u. u_error = EIO;
+		retval = 0;
+		break;
+	case ST_USRABRT:
+		retval = 0;
+		break;
+	default:
+		devmsg(r->dev, "Read failed: status (0x%x)", r->status);
+		u. u_error = EIO;
+		retval = 0;
+		break;
+	}
+	c->state = CTIDLE;
+	return retval;
+}   /* flushcache() */
 
-	c->state = CTIO;
+/***********************************************************************
+ *  ctfbwrt()   --  Fixed block write.  This should be fast because
+ *                  it uses the tapes drives optimum setting and it
+ *                  goes through a cache.
+ */
+
+static void ctfbwrt(c, iop)
+register ctctrl_p   c;
+register IO	    *iop;
+{
+	register size_t reqcount,	/* Total bytes transfered */
+			xfrsize;	/* Current transfer size */
+	size_t		total,		/* System global memory total transfer size */
+			size;		/* System global memory current transfer size */
+
+	reqcount = 0;
+	while (iop->io_ioc) {
+		xfrsize = min(c->avail, iop->io_ioc);
+		if (xfrsize) {
+			switch (iop->io_seg) {
+			case IOSYS:
+				memcpy(c->start, iop->io. vbase + reqcount, xfrsize);
+				break;
+			case IOUSR:
+				ukcopy(iop->io. vbase + reqcount, c->start, xfrsize);
+				break;
+			case IOPHY:
+				total = 0;
+				while (total < xfrsize) {
+					size = min(xfrsize - total, NBPC);
+					pxcopy(iop->io. pbase + reqcount + total,
+						   c->start + total,
+						   size,
+						   SEG_386_KD | SEG_VIRT);
+					total += size;
+				}
+				break;
+			}
+			c->start += xfrsize;
+			c->avail -= xfrsize;
+			reqcount += xfrsize;
+			iop->io_ioc -= xfrsize;
+		}
+		if (iop->io_ioc) {
+			if (!flushcache(c))
+				break;
+		}
+	}	/* while */
+}   /* ctfbwrt() */
+
+/***********************************************************************
+ *  ctvbwrt()   --  Variable block writes.
+ */
+
+
+static void ctvbwrt(c, iop)
+register ctctrl_p   c;
+register IO	    *iop;
+{
+	register srb_p		r = &(c->srb);
+	register g0cmd_p	g0 = &(r->cdb. g0);
+	size_t			xfrsize;
+	extsense_p		e;
+	int 			info;
+
+	c->state = CTVBWRT;
 	switch (iop->io_seg) {
 	case IOSYS:
 		r->buf. space = KRNL_ADDR;
@@ -1223,17 +977,57 @@ IO	*iop;
 	g0->lba_low = ((unsigned char *) &xfrsize)[1];
 	g0->xfr_len = ((unsigned char *) &xfrsize)[0];
 	g0->control = 0;
-	doscsi(r, 1, "ctwrite");
-	if (r->status != ST_GOOD && printerror(r, "Write failed"))
-		u. u_error = EIO;
-	else {
+	doscsi(r, 1, CVBLKIO, IVBLKIO, SVBLKIO, "ctvbwrt");
+	switch (r->status) {
+	case ST_GOOD:
 		iop->io_ioc -= r->buf. size;
-		c->flags |= CTDIRTY;
+		break;
+	case ST_CHKCOND:
+		e = r->sensebuf;
+		if ((e->errorcode & 0x70) == 0x70) {
+			info = 0;
+			if (e->errorcode & 0x80) {
+				info = (long) e->info;
+				flip(info);
+			}
+			if (e->sensekey & CTEOM) {
+				c->flags |= CTEOM;
+				devmsg(r->dev, "End of tape");
+			}
+		}
+		printsense(r->dev, "Write failed", r->sensebuf);
+		u. u_error = EIO;
+		break;
+	case ST_USRABRT:
+		break;
+	default:
+		devmsg(r->dev, "Read failed: status (0x%x)", r->status);
+		u. u_error = EIO;
+		break;
 	}
 	c->state = CTIDLE;
-#endif
-}   /* ctwrite() */
+}   /* ctvbwrt() */
 
+/***********************************************************************
+ *  ctwrite()   -- Write entry point for tape drive.
+ */
+
+static void ctwrite(dev, iop)
+register dev_t	dev;
+register IO	*iop;
+{
+	register ctctrl_p c = ctdevs[tid(dev)];
+
+	if (!c) {
+		u. u_error = EINVAL;
+		return;
+	}
+
+	if (c->block)
+		ctfbwrt(c, iop);
+	else
+		ctvbwrt(c, iop);
+}   /* ctwrite() */
 
 /***********************************************************************
  *  ctioctl()
@@ -1251,10 +1045,6 @@ register int	cmd;
 	if (!c) {
 		u. u_error = EINVAL;
 		return;
-	}
-
-	if (!(c->flags & CTMODEMASK)) {
-		c->flags |= CTRAWMODE;
 	}
 
 	switch (cmd) {

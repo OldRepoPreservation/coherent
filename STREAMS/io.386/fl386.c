@@ -4,7 +4,9 @@
  * Purpose:	Diskette device control.
  *		Requires 765 controller module fdc.c
  *
- * Revised: Wed Jul 14 13:11:34 1993 CDT
+ * Revised: Wed May  5 11:23:53 1993 CDT
+ * Modified: 7/93 - autosensing and track 0 skips for iBCS2
+ * complianacy and greater compatibility - CA8
  */
 
 /*
@@ -86,7 +88,20 @@
 
 #define funit(x)	(minor(x) >> 4)   /* Unit/drive number */
 #define fkind(x)	(minor(x) & 0x7)  /* Kind of format */
-#define fhbyh(x)	(minor(x) & 0x8)  /* 0=Side by side, 1=Head by head */
+/*
+ * From this point on, we will only support head-by-head attempts.
+ * This is left here in original form as a comment in case something
+ * breaks and it needs to be changed back.  Should eventually be
+ * removed altogether. This was done because bit position 3 (2^3)
+ * is now used to designate a special device - louis 7/93
+ */
+/* #define fhbyh(x)	(minor(x) & 0x8) */ /* 0=Side by side, 1=Head by head */
+#define fhbyh(x)	1 /* Always true from now on */
+#define fisspecial(x)	(!(minor(x) & 0x8))	/* if bit zero special device */
+/* All special devices skip cylinder 0 except type 1; no normal devices skip */
+#define fskip_cyl_0(x)	(fisspecial(x) && (fkind(x) != 1))
+/* Only special device types 0 and 1 are autosensing */
+#define fautosense(x)	(fisspecial(x) && ((fkind(x) == 0) || (fkind(x) == 1)))
 
 struct	FDATA	{
 	int	fd_size;	/* Blocks per diskette */
@@ -195,8 +210,14 @@ static void	flDrvStatus();
  * from low density to high density.  Missing address marks when reading
  * a HD floppy are the symptom if FL_AUTO_PARM is set when it shouldn't be.
  */
+
+/*
+ * Now set to 1 because we need the ability to autosense the floppy
+ * format. (originally defaulted to 0)	-louis 7/93
+ */
+
 int 	FL_DSK_CH_PROB = 0;
-int	FL_AUTO_PARM = 0;
+int	FL_AUTO_PARM = 1;
 
 int	jopen;
 
@@ -326,6 +347,7 @@ flload()
 	register int	eflag;
 	register int	s, t;
 
+	/* set up interrupt handling routine */
 	flIntr = flIntHandler;
 	fl_clrng_cd = 0;
 
@@ -340,16 +362,24 @@ flload()
 	 */
 	fl.fl_type[0] = eflag >> 4;
 	fl.fl_type[1] = eflag & 15;
+
+	/*
+	 * Pretend no drives -- we haven't found any yet! 
+	 */
 	fl.fl_ndsk = 0;
+
+	/*
+	 * Bang on all possible drives, setting startup vals
+	 */
 	for (s = 0; s < MAXDRVS; s++) {
-		drv_locked[s] = 0;
-		fl.fl_dsk_chngd[s] = 1;
-		fl.fl_incal[s] = -1;
-		t = fl.fl_type[s];
+		drv_locked[s] = 0;		/* not locked */
+		fl.fl_dsk_chngd[s] = 1;		/* disk has been changed */
+		fl.fl_incal[s] = -1;		/* not in calibration */
+		t = fl.fl_type[s];		/* type of drive */
 		if (t > MAXTYPE)		  /* --in case we get, like, */
 			fl.fl_type[s] = t = MAXTYPE;	/* a 2.88 meg drive. */
-		fl.fl_rate[s] = frates[t].dflt_rate;
-		fl.fl_fd[s] = fdata[frates[t].dflt_kind];
+		fl.fl_rate[s] = frates[t].dflt_rate;	/* default rate */
+		fl.fl_fd[s] = fdata[frates[t].dflt_kind]; /* data params */
 		if (t) fl.fl_ndsk = s + 1;	  /* Type 0 = no drive. */
 	}
 
@@ -358,7 +388,7 @@ flload()
 	if (FL_DSK_CH_PROB)
 		jopen = 1;
 
-	fl.fl_state = SIDLE;
+	fl.fl_state = SIDLE;		/* Initial state of IDLE */
 
 	fl.fl_mstatus = 0;		/* No motors on */
 	fl.fl_selected_unit = -1;	/* No unit selected */
@@ -375,6 +405,9 @@ flunload()
 	 */
 	timeout(&fltim, 0, NULL, NULL);
 
+	/*
+	 * Free the interrupt routine
+	 */
 	flIntr = NULL;
 }
 
@@ -399,6 +432,8 @@ int	mode;
 
 	/*
 	 * If first open, seize interrupt handler.
+	 * Also bang on the FDC to get it warmed up -
+	 * specify seek, load, and unload, and set rate.
 	 */
 	if (flOpenCount == 0) {
 		if (!setFlIntr(1))  {
@@ -413,11 +448,11 @@ int	mode;
 	/*
 	 * Validate existence and data rate (Gap length != 0).
 	 */
-	if ((unit_number >= fl.fl_ndsk)
-	  || (fl.fl_type[unit_number] == 0)
-	  || (fdata[fkind(dev)].fd_GPL[flrate(dev)] == 0)) {
+	if ((unit_number >= fl.fl_ndsk)			/* not over MAX drive */
+	  || (fl.fl_type[unit_number] == 0)		/* existance */
+	  || (fdata[fkind(dev)].fd_GPL[flrate(dev)] == 0)) {/* gap len == 0 */
 		u.u_error = ENXIO;
-		goto badFlopen;		/* status. */
+		goto badFlopen;		
 	}
 
 	if (FL_DSK_CH_PROB)
@@ -433,25 +468,47 @@ int	mode;
 	if (fl.fl_opct[unit_number] == 0) {	/* first open for this floppy */
 		if (drv_locked[unit_number]) {	/* Work areas avail? */
 			u.u_error = EBUSY;		/* No. */
-			goto badFlopen;		/* status. */
+			goto badFlopen;
 		} else {
 			drv_locked[unit_number] = 1;	/* Grab work areas. */
 			flbuf[unit_number].b_dev = dev;
 			flbuf[unit_number].b_req = BFLSTAT;
 			sw3[unit_number] = 0;
 							/* Get drive status. */
+			/* Queue the request up */
 			flQhang(&flbuf[unit_number]);
 
 			for (;;) {
+				/*
+				 * Enter the state machine and
+				 * execute the commands pending.
+				 */
 				s = sphi();
 				if (fl.fl_state == SIDLE)
 					flfsm();
 				spl(s);
+
+				/*
+				 * if we have a result, exit the loop
+				 */
 				if (sw3[unit_number])
 					break;
+
+				/*
+				 * Otherwise, if the drive is still
+				 * busy, go to sleep.
+				 */
+				
 				if (fl.fl_state != SIDLE)
 					x_sleep(&fl.fl_state,
 					  pridisk, slpriSigCatch, "flopen");
+
+				/* 
+				 * What woke us, a signal or the result?
+				 * if signal, trap it here.  Otherwise
+				 * go back up to the top where we will
+				 * bang on the drive again.
+				 */
 
 				if (nondsig()) {  /* signal? */
 					u.u_error = EINTR;
@@ -463,7 +520,7 @@ int	mode;
                         if (flbuf[unit_number].b_resid != 0) {
 				u.u_error = EIO;	/* Couldn't get drive */
 				drv_locked[unit_number] = 0;
-				goto badFlopen;		/* status. */
+				goto badFlopen;	
 			}
 
 			/* The payoff - set write enable status. */
@@ -515,7 +572,12 @@ int	mode;
 {
 	register int unit_number = funit(dev);
 
-	fl.fl_opct[unit_number]--;
+/*
+ * Not sure it needed changing, but protect against negative
+ * close count - ljg
+ */
+	if(--(fl.fl_opct[unit_number]) < 0)
+		fl.fl_opct[unit_number] = 0;
 	if (--flOpenCount == 0)
 		setFlIntr(0);
 }
@@ -567,6 +629,17 @@ char	*par;
 		u.u_error = EINVAL;
 		return;
 	}
+	
+	/*
+	 * We do not allow formatting of special devices.
+	 * Possible future mod.
+	 */
+	
+	if(fisspecial(dev)) {
+		u.u_error = EINVAL;
+		return;
+	}
+
 
 	fdp = &fdata[fkind(dev)];		/* Locate formatting	*/
 	cyl = getubd(par);			/* parameters.		*/
@@ -590,11 +663,28 @@ char	*par;
 	 * The b_bno is reconverted to hd, cyl in flfsm.
 	 */
 
-	s = fhbyh(dev) ? (cyl * fdp->fd_nhds + hd) : (hd * fdp->fd_trks + cyl);
+	/*
+	 * Convert to seek number based on whether or not we are running
+	 * sbys or hbyh.
+	 * Now we are always running hbyh, so this gets commented out
+	 * and should eventually be removed. -louis 7/93
+	 */
+
+	/* s = fhbyh(dev) ? (cyl * fdp->fd_nhds + hd) : (hd * fdp->fd_trks + cyl); */
+	s = (cyl * fdp->fd_nhds + hd);
 	s *= fdp->fd_nspt;
+
+	/*
+	 * Build the device I/O request.
+	 */
 	u.u_io.io_seek = ((long)s) * BSIZE;
 	u.u_io.io.vbase = par;
 	u.u_io.io_ioc = fdp->fd_nspt * 4;
+
+	/*
+	 * Hand off to the dmareq routine (i.e., indirectly call 
+	 * flblock() letting dmareq() do all the dirty work).
+	 */
 	dmareq(&flbuf[funit(dev)], &u.u_io, dev, BFLFMT);
 	return 0;
 }
@@ -614,7 +704,11 @@ register BUF	*bp;
 	register int	s;
 	register unsigned bno;
 
+	/*
+	 * Compute the ending block of the transfer.
+	 */
 	bno = bp->b_bno + (bp->b_count / BSIZE) - 1;
+
 
 { /*DEBUG*/
 	int first = bp->b_bno, last = bno;
@@ -622,6 +716,11 @@ register BUF	*bp;
 	int fl_fdsz = fl.fl_fd[funit(bp->b_dev)].fd_size;
 /*DEBUG*/
 
+	/*
+	 * If we're formatting, make sure that the starting block
+	 * number is within range for the device...the range is the
+	 * entire device range.
+	*/
 	if ((bp->b_req == BFLFMT)
 	&&   ((unsigned)bp->b_bno >= fdata[fkind(bp->b_dev)].fd_size)) {
 		bp->b_flag |= BFERR;
@@ -629,14 +728,34 @@ register BUF	*bp;
 		return;
 	}
 
+
+/*
+ * Here, we are checking the current setttings for each device 
+ * rather than the defaults for the type of device.  This is for
+ * a read/write rather than a format.
+ *
+ * Quickly hacked to check on special devices that skip cylinder 0
+ * since they are missing a cylinder's worth of sectors.
+ */
 	if (bp->b_req != BFLFMT) {
-		if ((unsigned)bp->b_bno >=
+		/*
+		 * Check starting block to see if in range 
+		 */
+		if ((unsigned)bp->b_bno + (fskip_cyl_0(bp->b_dev) ? \
+		  fl.fl_fd[funit(bp->b_dev)].fd_nspt*2 : 0) >= \
 		  fl.fl_fd[funit(bp->b_dev)].fd_size)  {
 			bp->b_flag |= BFERR;
 			bdone(bp);
 			return;
 		}
-		if (bno >= fl.fl_fd[funit(bp->b_dev)].fd_size) {
+
+		/*
+		 * Here we check the ending number to see if that
+		 * is within range.
+		 */
+		if (bno + (fskip_cyl_0(bp->b_dev) ? \
+		  fl.fl_fd[funit(bp->b_dev)].fd_nspt*2 : 0) >= \
+		  fl.fl_fd[funit(bp->b_dev)].fd_size) {
 			if (bp->b_flag & BFRAW) {
 				bp->b_flag |= BFERR;
 			}
@@ -644,6 +763,11 @@ register BUF	*bp;
 			bdone(bp);		/* return w/ b_resid != 0 */
 			return;
 		}
+
+		/*
+		 * Finally, make sure the byte count is a multiple
+		 * of 512 (the number of bytes per physical sector).
+		 */
 		if ((bp->b_count & 0x1FF) != 0) {
 			bp->b_flag |= BFERR;
 			bdone(bp);
@@ -734,14 +858,24 @@ flfsm()
 	int		dods;	/* for PS/1, do disk swap */
 
 again:
+	/*
+	 * This gets the head of the floppy request queue.
+	 */
 	bp = fl.fl_actf;
 
 	switch (fl.fl_state) {
 
 	case SIDLE:
 T_HAL(0x40000, printf("SIDLE "));
+		/*
+		 * Set the timer for floppy access.
+		 */
 		setFlTimer(1);
 
+		/* 
+		 * One way out completely is if there are no more
+		 * I/O requests and we are in an IDLE state.
+		 */
 		if (bp == NULL) {
 			break;
 		}
@@ -764,21 +898,45 @@ bp->b_count);
 		 * We do an entire check for drive status here
 		 */
 		if (bp->b_req == BFLSTAT) {
+			/*
+			 * Clear status buffer and get new status.
+			 */
 			fl.fl_drvstat[0] = 0;
 			flDrvStatus();
+
+			/*
+			 * Why |3 ??!?!? -louis
+			 */
 			sw3[fl.fl_unit] = fl.fl_drvstat[0] | 3;
 			bp->b_resid = (fl.fl_ndrvstat == 1) ? 0 : 1;
+
+			/*
+			 * set up to service next request.
+			 * and service it immediately by goto again.
+			 */
 			fl.fl_actf  = bp->b_actf;
 			fl.fl_state = SIDLE;
 			goto again;
 		}
 
-		fl.fl_hbyh = fhbyh(bp->b_dev);
+		/*
+		 * Only service hbyh now.  Original rval computation
+		 * in comment.  Should remove eventually. - ljg 7/93
+		 */
+		fl.fl_hbyh = 1; /* fhbyh(bp->b_dev); */
 
+		/*
+		 * Get physical address and starting postition.
+		 * Also set timeout value to zero.
+		 */
 		fl.fl_addr = bp->b_paddr;
 		fl.fl_secn = bp->b_bno;
 		fl.fl_time[fl.fl_unit] = 0;
 
+		/*
+		 * Make sure we read at least one sector.
+		 * Even if the request is for say 20 bytes.
+		 */
 		if ((fl.fl_nsec = bp->b_count>>9) == 0)
 			fl.fl_nsec = 1;
 
@@ -787,6 +945,8 @@ bp->b_count);
 		/*
 		 * Motor is turned off - turn it on, wait 1 second
 		 * (for write operations only)
+		 * flDrvSelect() is who selects the drive and turns
+		 * the motor on.
 		 */
 		if (((fl.fl_mstatus & fl.fl_mask) == 0)
 		|| (fl.fl_unit != fl.fl_selected_unit)) {
@@ -800,9 +960,16 @@ bp->b_count);
 		}
 
 		/* no break */
+		/* The "fsm" is fairly vile in gotos, fallthroughs,
+		 * and other hazy notions of jumping from state to
+		 * state without following a true transition edge.
+		 * This is one example.
+		 */
 
 	case SSEEK:
 T_HAL(0x40000, printf("SSEEK "));
+
+		/* In a fallthrough, this line would be a waste. */
 		flDrvSelect();			/* Keep drive turned on */
 
 		/*
@@ -815,6 +982,13 @@ T_HAL(0x40000, printf("SSEEK "));
 		&&   (inb(FDCCHGL) & DSKCHGD)
 		&&   (fl_clrng_cd == 0)) {
 			/* See note at def of FL_DSK_CH_PROB above */
+
+			/*
+			 * Hmm.  I would have done this:
+			 * if((FL_DSK_PROB && jopen) || !(FL_DSK_PROB))
+			 * instead of multiple if's, but that's me.
+			 * -louis
+			 */
 			if (FL_DSK_CH_PROB) {
 				if (jopen) {
 					jopen--;
@@ -837,14 +1011,43 @@ T_HAL(0x40000, printf("SSEEK "));
 		 * (it may, remember, be unformatted!) is of no
 		 * consequence.
 		 */
+
+		/* NOTE:
+		 * Since formats to special devices are not currently
+		 * allowed, this code should never be reached when
+		 * the device is special.  Therefore, if formats
+		 * to special devices are allowed later, this code
+		 * may need to be updated.
+		 */
 		if (bp->b_req == BFLFMT) {
+			/*
+			 * By making disk changed 0 we can avoid
+			 * figuring out the type of disk since we
+			 * don't care -- we're formatting (it may
+			 * be a 1.2M that we're formatting to 360K
+			 * anyhow.
+			 */
 			fl.fl_dsk_chngd[fl.fl_unit] = 0;
+	
+			/*
+			 * Here we just set up params for the
+			 * current drive in normal tables so 
+			 * we don't need to index the current unit
+			 * any more.
+			 */
 			fl.fl_fd[fl.fl_unit] = fdata[fkind(bp->b_dev)];
 			fl.fl_rate[fl.fl_unit] =
 			fl.fl_rate_set		 = flrate(bp->b_dev);
+
+			/*
+			 * If less than 45 tracks and we're not a 360K
+			 * drive, then we need to double step
+			 * the drive.
+			 */
 			if ((fl.fl_fd[fl.fl_unit].fd_trks < 45)
 			  && (fl.fl_type[fl.fl_unit] != 1))
 				fl.fl_2step[fl.fl_unit] = 1;
+
 			fdcRate(fl.fl_rate_set);
 			if (fl.fl_secn == 0)
 				fl.fl_incal[fl.fl_unit] = -1;
@@ -940,11 +1143,19 @@ Recalibrated:
 							/* the disk parameters*/
 							/* and the alternate  */
 							/* values.	      */
+		/*
+		 * Auto_parm defaults to active now, and is used
+		 * for the appropriate minor devices.  It can be 
+		 * patched to 0 if it causes problems with someone's
+		 * floppy, but then the iBCS2 devices that autosense
+		 * won't autosense anymore :-( -louis
+		 */
+
 		if (i == frates[fl.fl_type[fl.fl_unit]].fl_hi_rate){
 
 			fl.fl_fd[fl.fl_unit] =
 			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_hi_kind];
-                        if (FL_AUTO_PARM) {
+                        if (FL_AUTO_PARM && fautosense(bp->b_dev)) {
 				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_lo_kind;
 				fl_alt_rate =
@@ -959,7 +1170,7 @@ Recalibrated:
 		} else {
 			fl.fl_fd[fl.fl_unit] =
 			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_lo_kind];
-                        if (FL_AUTO_PARM) {
+                        if (FL_AUTO_PARM && fautosense(bp->b_dev)) {
 				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_hi_kind;
 				fl_alt_rate =
@@ -1148,24 +1359,50 @@ RateKnown:
 		 */
 		fl.fl_fsec = (fl.fl_secn % fl.fl_fd[fl.fl_unit].fd_nspt) + 1;
 
+#if ALLOW_SEEK_SURFACE_BY_SURFACE
 		/*
-		 * Seek cylinder by cylinder (XENIX/DOS compatible).
+		 * Minor numbers used for surface by surface seek have
+		 * been reassigned.
+		 * Will keep the old code around for awile, though.
 		 */
+
 		if (fl.fl_hbyh) {
+
+			/*
+			 * Seek cylinder by cylinder (XENIX/DOS compatible).
+			 */
 			fl.fl_head = fl.fl_secn / fl.fl_fd[fl.fl_unit].fd_nspt;
 			fl.fl_fcyl = fl.fl_head / fl.fl_fd[fl.fl_unit].fd_nhds;
 			fl.fl_head = fl.fl_head % fl.fl_fd[fl.fl_unit].fd_nhds;
-		}
-		
-		/*
-		 * Seek surface by surface.
-		 */
-		else {
+
+		} else {
+
+			/*
+			 * Seek surface by surface.
+			 */
 			fl.fl_fcyl = fl.fl_secn / fl.fl_fd[fl.fl_unit].fd_nspt;
 			fl.fl_head = fl.fl_fcyl / fl.fl_fd[fl.fl_unit].fd_trks;
 			fl.fl_fcyl = fl.fl_fcyl % fl.fl_fd[fl.fl_unit].fd_trks;
+
 		}
-					/* Don't seek unless we have to. */
+#else
+		/*
+		 * This should always be done from now on.  Original
+		 * code conditioned out.  Should eventually be
+		 * removed.  louis 7/93
+		 * 
+		 * Also, if it is a special device that skips track 0,
+		 * we just bang the cylinder number up by 1.
+		 */
+
+		fl.fl_head = fl.fl_secn / fl.fl_fd[fl.fl_unit].fd_nspt;
+		fl.fl_fcyl = fl.fl_head / fl.fl_fd[fl.fl_unit].fd_nhds;
+		if (fskip_cyl_0(bp->b_dev))
+			fl.fl_fcyl++;
+		fl.fl_head = fl.fl_head % fl.fl_fd[fl.fl_unit].fd_nhds;
+#endif
+
+		/* Don't seek unless we have to. */
 		if (fl.fl_fcyl == fl.fl_incal[fl.fl_unit])
 			goto Sought;		/* Past tense of seek. */
 
@@ -1449,9 +1686,12 @@ flrecov()
 
 	/*
 	 * Drives are no longer in calibration.
+	 * Was: fl.fl_incal[1] = -1;
+	 * Changed to: fl.fl_incal[x] = -1;
+	 * -louis 7/93
 	 */
 	for (x = 0; x < MAXDRVS; x++)
-		fl.fl_incal[1] = -1;
+		fl.fl_incal[x] = -1;
 
 	/*
 	 * Abort all block requests on current drive after 1st recov attempt.

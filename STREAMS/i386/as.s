@@ -474,7 +474,7 @@ tsave0q:
 
 envsave:
 consave:
-	mov	%edi,%ecx		/ Hide di.
+	mov	%edi, %ecx		/ Hide di.
 	mov	4(%esp), %edi 		/ di at the MCON block.
 
 	cld				/ Ensure increment.
@@ -492,6 +492,9 @@ consave:
 	stosl
 	pushfl				/ Save fw
 	pop	%eax
+	stosl
+	xorl	%eax, %eax
+	movw	%fs, %ax		/ save space pointer
 	stosl
 	mov	%ecx, %edi		/ Put di back,
 	sub	%eax, %eax		/ indicate a state save and
@@ -524,6 +527,8 @@ envrest:
 	push	%eax
 	lodsl				/ Restore flags
 	mov	%eax, 8(%esp)		/ Stack now in form PSW,CS,IP.
+	lodsl
+	movw	%ax, %fs		/ Restore space
 	mov	%ecx, %esi		/ Restore si
 	mov	$1,%eax			/ We are restoring
 	iret				/ Return through PSW,CS,IP.
@@ -569,6 +574,10 @@ conrest:
 
 	lodsl				/ Restore flags
 	mov	%eax,8(%esp)		/ Stack now in form PSW,CS,IP.
+
+	lodsl
+	movw	%ax, %fs		/ Restore space
+
 	mov	%ecx,%esi		/ Restore si
 	mov	$1,%eax			/ We are restoring
 	iret				/ Return through PSW,CS,IP.

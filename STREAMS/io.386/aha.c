@@ -22,6 +22,7 @@ extern char *palloc();
 #endif /* _I386 */
 
 #ifndef _I386
+extern	saddr_t	sds;		/* System Data Selector */
 static	paddr_t	sds_physical;	/* as physical address */
 #endif /* _I386 */
 static	short	aha_i_o_base;
@@ -135,6 +136,9 @@ ccb_cleanup ()
 			AHA_FREE (work->aha_ccb.ccb_sw);
 		AHA_FREE (work);
 
+#ifdef	TRACER
+		end_count (3);
+#endif
 		s = sphi ();
 	}
 
@@ -158,6 +162,9 @@ scsi_work_t   *	sw;
 	if ((drvccb = (drv_ccb_t *) AHA_ALLOC (sizeof (* drvccb))) == NULL)
 		return NULL;
 
+#ifdef	TRACER
+	begin_count (3);
+#endif
 	/*
 	 * Remember the 'sw' value. Note that this really should be put in
 	 * our wrapper structure, but that is to be fixed later.
@@ -186,7 +193,7 @@ ccb_t	      *	ccb;
 	drv_ccb_t     *	work;
 
 	/*
-	 * Perform a portable downcast from the aha_ccb to the base structure.
+	 * Perform a downcast from the aha_ccb to the base structure.
 	 */
 
 	work = (drv_ccb_t *) ((char *) ccb - offsetof (drv_ccb_t, aha_ccb));
@@ -280,7 +287,14 @@ aha_process(ccb)
 	register scsi_work_t *sw;
 	register BUF *bp;
 
+#ifdef	TRACER
+	end_count (1);
+#endif
+
 	if ((sw = ccb_to_scsiwork (ccb)) == NULL) {
+#ifdef	TRACER
+		end_count (2);
+#endif
 		ccb->opcode = AHA_OP_INVALID;
 		wakeup(ccb);
 		return;
@@ -289,13 +303,22 @@ aha_process(ccb)
 	bp = sw->sw_bp;
 
 	if((ccb->hoststatus != 0) || (ccb->targetstatus != 0)) {
+#if	0
+		/*
+		 * sw_retry is only ever set to 1, so this code was dead
+		 * anyway, but now in the i386 system it is not legal to
+		 * call aha_start () from interrupt level so be careful if
+		 * you reactivate this.
+		 */
 		if(--sw->sw_retry > 0
 		   || (ccb->targetstatus == CHECK_TARGET_STATUS
 		   && ccb->cmd_status[12] == SENSE_UNIT_ATTENTION)) {
 			int s = sphi();
 			if(scsi_work_queue->sw_actf == NULL) {
+				ASSERT (scsi_work_queue->sw_actl == NULL);
 				scsi_work_queue->sw_actf = sw;
 			} else {
+				ASSERT (scsi_work_queue->sw_actl != NULL);
 				scsi_work_queue->sw_actl->sw_actf = sw;
 			}
 			scsi_work_queue->sw_actl = sw;
@@ -303,11 +326,18 @@ aha_process(ccb)
 			aha_start();
 			return;
 		}
+#endif
 		bp->b_flag |= BFERR;
+#ifdef	TRACER
+		aha_ccb_print (ccb);
+#endif
 	} else {
 		bp->b_resid = 0;
 	}
 
+#ifdef	TRACER
+	end_count (0);
+#endif
 	bdone(bp);
 	ccb_free(ccb);
 }
@@ -584,6 +614,9 @@ register scsi_cmd_t *sc;
 	aha_l_to_p3(VTOP2(ccb, sds), mailbox_out[0].adr);
 #endif /* _I386 */
 
+#ifdef	TRACER
+	begin_count (2);
+#endif
 	mailbox_out[0].cmd = MBO_TO_START;
 
 	/* Start the AHA-154x scanning the mailboxes.  */
@@ -624,7 +657,7 @@ register scsi_work_t *sw;
 {
 	register ccb_t *ccb;
 
-	if ((ccb = ccb_alloc(sw)) == NULL)
+	if ((ccb = ccb_alloc (sw)) == NULL)
 		return NULL;
 
 #ifdef _I386
@@ -642,6 +675,7 @@ register scsi_work_t *sw;
 		ccb->target |= AHA_CCB_DATA_OUT;
 		ccb->cmd_status[0] = ScmdWRITEXTENDED;
 	}
+	ccb->cmd_status[1] = 0;
 	ccb->cmd_status[2] = 0;
 	ccb->cmd_status[3] = sw->sw_bno >>16;
 	ccb->cmd_status[4] = sw->sw_bno >> 8;
@@ -712,15 +746,19 @@ aha_start()
 				aha_l_to_p3(VTOP2(ccb, sds),
 						mailbox_out[i].adr);
 #endif /* _I386 */
-				mailbox_out[i].cmd = MBO_TO_START;
 
-				aha_1out(AHA_DO_SCSI_START);
-
+#ifdef	TRACER
+				begin_count (1);
+#endif
 				s = sphi();
 				sw = scsi_work_queue->sw_actf = sw->sw_actf;
 				if(sw == NULL)
 					scsi_work_queue->sw_actl = NULL;
 				spl(s);
+
+				mailbox_out[i].cmd = MBO_TO_START;
+
+				aha_1out(AHA_DO_SCSI_START);
 
 				if(sw == NULL)
 					break;
@@ -907,4 +945,35 @@ ccb_t	*ccb;
 	}
 }
 
+static int	_begin_count [4];
+static int	_end_count [4];
+
+begin_count (num) {
+	_begin_count [num] ++;
+}
+
+end_count (num) {
+	_end_count [num] ++;
+}
+
+void aha_mbox_status () {
+	int		i;
+	scsi_work_t   *	sw;
+	static char *	stats [] = {
+		"blocks", "adaptec transfers", "non-block commands",
+		"ccb allocs"
+	};
+
+	i = 0;
+	for (sw = scsi_work_queue->sw_actf ; sw != NULL ; sw = sw->sw_actf)
+		i ++;
+	if (i > 0)
+		printf ("[%d outstanding items]");
+
+	for (i = 0 ; i < __ARRAY_LENGTH (_begin_count) ; i ++) {
+		if (_begin_count [i] > _end_count [i])
+			printf ("<%d unaccounted %s>",
+				_begin_count [i] - _end_count [i], stats [i]);
+	}
+}
 #endif	/* TRACER */

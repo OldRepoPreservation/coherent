@@ -27,81 +27,232 @@
  * Initial revision
  * 
  */
+
+#include <common/ccompat.h>
+#include <common/__parith.h>
+#include <common/_tricks.h>
+#include <sys/debug.h>
+
 #include <sys/coherent.h>
 #include <sys/alloc.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/proc.h>
 #include <sys/param.h>
 
+/*
+ * Alloc definitions. These used to be in <sys/machine.h> for some unknown
+ * and unknowable reason. They belong here, so now here they are. Since the
+ * person(s) who wrote this stuff neglected to mention what the alignment
+ * issues are, we'll stay with what they did.
+ *
+ * This stuff is aligned on double-byte boundaries and the pointer to the
+ * next block in a circular list is tagged with the status of the current
+ * block. Blocks are not coalesced when freed, that is done by the allocator
+ * when trying to locate a sufficiently large free block.
+ *
+ * As an extra twist, you might have wondered why alloc () tries to loop
+ * twice over the whole arena. It does that because it looks for an exact fit
+ * (after coalescing). The allocator has no memory because there is no actual
+ * overall arena structure, so every call to alloc () will try to coalesce the
+ * entire arena unless there is an exact-sized hole.
+ */
+
+enum {
+	BLOCK_FREE	= 0,
+	BLOCK_USED
+};
+
+#define	ALIGN_MASK	1
+#define	align(p)	((ALL *) ((__ptr_arith_t) (p) & ~ ALIGN_MASK))
+#define	link(p)		align ((p)->a_link)
+#define	tstfree(p)	(((p)->a_link & BLOCK_USED) == BLOCK_FREE)
+
+#define	MAKE_LINK(a,f)	((__ptr_arith_t) a + (f))
+#define	MAKE_FREE(a)	((a)->a_link &= ~ BLOCK_USED)
+#define	MAKE_USED(a)	((a)->a_link |= BLOCK_USED)
+
+
+typedef union all_u {
+	__ptr_arith_t	a_link;
+} ALL;
+
+
+#define	NEXT_FIT	1
+
+#if	NEXT_FIT
+
+struct _heap {
+	ALL	      *	_next_block;
+};
+
+#define	HEAP_CONTROL_SIZE	sizeof (heap_t)
+#define	START_BLOCK(heap)	((heap)->_next_block)
+#define	SET_START_BLOCK(heap,newstart) \
+				((heap)->_next_block = (newstart))
+#else
+
+#define	HEAP_CONTROL_SIZE	0
+#define	START_BLOCK(heap)	((ALL *) (heap))
+#define	SET_START_BLOCK(heap,newstart)	((void) 0)
+
+#endif
+
 #ifndef TEST	/* Do not test setarena() or alloc() or free().  */
+
 /*
  * Create an arena.
  */
-ALL *
+
+heap_t *
 setarena(cp, n)
 register char *cp;
 {
-	register ALL *ap1;
-	register ALL *ap2;
+	ALL	      *	first_block;
+	ALL	      *	last_block;
+	heap_t	      *	heap_control;
 
-	if ((char *)(ap1=align(cp)) < (char *)cp)
-		ap1++;
-	if ((ap2=align(&cp[n])-1) < ap1)
+	/*
+	 * Begin by aligning the memory passed in and rounding down the size.
+	 */
+
+	{
+		int		align = (__ptr_arith_t) cp & ALIGN_MASK;
+
+		if (align) {
+			align = ALIGN_MASK + 1 - align;
+			cp += align;
+			n -= align;
+		}
+
+		n &= ~ sizeof (ALL *);
+	}
+
+	/*
+	 * Make room for a heap control area.
+	 */
+
+	heap_control = (heap_t *) cp;
+
+	cp += HEAP_CONTROL_SIZE;
+	n -= HEAP_CONTROL_SIZE;
+
+	first_block = (ALL *) cp;
+	if ((last_block = (ALL *) (cp + n) - 1) < first_block)
 		panic("Arena %x too small", (int) cp);
-	ap1->a_link = (char *)ap2;
-	ap2->a_link = (char *)ap1;
-	setused(ap2);
-	return (ap1);
+
+	/*
+	 * The initial memory arena consists of a circular list of blocks,
+	 * one large free block and one tiny used block at the end. In the
+	 * original "design", there was no heap control block.
+	 */
+
+	first_block->a_link = MAKE_LINK (last_block, BLOCK_FREE);
+	last_block->a_link = MAKE_LINK (first_block, BLOCK_USED);
+
+	SET_START_BLOCK (heap_control, first_block);
+	return heap_control;
 }
+
+
+#if	0
+/*
+ * NIGEL: This code intrigues me... let's keep statistics.
+ */
+
+typedef	unsigned long	stat_t;
+
+static	stat_t		_allocations;
+static	stat_t		_block_tests;
+static	stat_t		_block_fits;
+static	stat_t		_exact_fits;
+
+#define	ADD_STAT(stat)	((stat += 1) == 0 ? stat -- : 0)
+
+void dumpstats () {
+	printf ("allocations = %d\ntotal tests = %d\n"
+		"total matches =  %d\nexact fits = %d\n",
+		_allocations, _block_tests, _block_fits, _exact_fits);
+}
+#else
+# define	ADD_STAT(stat)	((void) 0)
+#endif
 
 /*
  * Allocate `l' bytes of memory.
  */
-char *
-alloc(apq, l)
-ALL *apq;
-unsigned l;
+
+__VOID__ *
+alloc (heap_control, size)
+heap_t	      *	heap_control;
+size_t		size;
 {
-	register ALL *ap;
-	register ALL *ap1;
-	register ALL *ap2;
+	register ALL *scan_block;
+	register ALL *next_block;
 	register unsigned i;
 	register unsigned n;
 	register unsigned s;
-	char * ret = NULL;
 
-	n = 1 + (l + sizeof(ALL) - 1) / sizeof(ALL);
-	for (i=0; i<2; i++) {
-		for (ap1=apq; link(ap1)!=apq; ap1=link(ap1)) {
-			if (vtop(ap1) == 0) {
-				panic("Corrupt arena");
-				goto alloc_done;
+	ADD_STAT (_allocations);
+
+	n = 1 + __DIVIDE_ROUNDUP (size, sizeof (ALL));
+
+#if	EXACT_FIT
+	for (i = 0 ; i < 2 ; i ++) {
+#endif
+		for (scan_block = START_BLOCK (heap_control) ;
+		     link (scan_block) != START_BLOCK (heap_control) ;
+		     scan_block = link (scan_block)) {
+			ASSERT (vtop (scan_block) != NULL);
+			ADD_STAT (_block_tests);
+
+			if (! tstfree (scan_block))
+				continue;
+
+		       for (next_block = link (scan_block) ;
+			    tstfree (next_block) ;
+			    next_block = link (next_block))
+				if (next_block == START_BLOCK (heap_control))
+					break;
+
+			scan_block->a_link = MAKE_LINK (next_block,
+							BLOCK_FREE);
+			if ((s = next_block - scan_block) < n)
+				continue;
+
+			ADD_STAT (_block_fits);
+
+			if (s > n) {
+#if	EXACT_FIT
+	/*
+	 * This innocent-looking line of code is what makes this system prefer
+	 * exact fits (which only happen about 10% of the time from the
+	 * statistics which I have collected).
+	 */
+				if (i == 0)
+					continue;
+#endif
+				(scan_block + n)->a_link =
+					MAKE_LINK (next_block, BLOCK_FREE);
+				next_block = scan_block + n;
+				scan_block->a_link = MAKE_LINK (next_block,
+								BLOCK_FREE);
 			}
-			if (tstfree(ap1)) {
-			       for (ap2=link(ap1); tstfree(ap2); ap2=link(ap2))
-					if (ap2 == apq)
-						break;
-				ap1->a_link = (char *)ap2;
-				if ((s=ap2-ap1) >= n) {
-					if (s > n) {
-						if (i == 0)
-							continue;
-						ap = &ap1[n];
-						ap->a_link = (char *)ap2;
-						ap1->a_link = (char *)ap;
-					}
-					setused(ap1);
-					kclear((char *)ap1->a_data, l);
-					ret = ap1->a_data;
-					goto alloc_done;
-				}
-			}
+			MAKE_USED (scan_block);
+			SET_START_BLOCK (heap_control, next_block);
+#if	0
+			memset (scan_block + 1, 0, size);
+#endif
+#if	EXACT_FIT
+			if (i == 0)
+				ADD_STAT (_exact_fits);
+#endif
+			return (__VOID__ *) (scan_block + 1);
 		}
+#if	EXACT_FIT
 	}
+#endif
 	u.u_error = ENOSPC;
-	goto alloc_done;
-alloc_done:
-	return ret;
+	return NULL;
 }
 
 /*
@@ -130,7 +281,7 @@ char *cp;
 		panic("Bad free() from eip=%x\n", *(r-1));
 	}
 #endif
-	setfree(ap);
+	MAKE_FREE (ap);
 }
 
 #endif /* TEST */
@@ -260,7 +411,10 @@ pfree(ptr)
 
 #ifdef TEST
 
+#include <sys/compat.h>
 #include <stdio.h>
+#include <stdarg.h>
+
 #define FOURK	4096	/* How many bytes in 4K?  */
 #define NUM_TESTS 40	/* How many tests do we run?  */
 #define SMALL_NUMBER 6	/* A small number whose exact value we don't care about.  */
@@ -288,9 +442,14 @@ main()
 /*
  * Print a message and die.
  */
-panic(args)
+
+panic(format)
+char * format;
 {
-	printf("%r\n", &args);
+	va_list	args;
+	va_start (args, format);
+	vprintf (format, args);
+	va_end (args);
 	exit(1);
 }
 

@@ -1,3 +1,5 @@
+int OUTB_DB = 0;
+
 /*
  * io.386/fdc.c
  *
@@ -12,7 +14,7 @@
  */
 #include	<sys/coherent.h>
 
-#include	<sys/errno.h>
+#include	<errno.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/devices.h>
@@ -58,6 +60,8 @@ void	fdcDrvStatus();
 int	fdcGet();
 void	fdcIntStatus();
 int	fdcPut();
+int	fdcPutStr();
+void	fdcReadID();
 void	fdcRecal();
 void	fdcReset();
 void	fdcResetSel();
@@ -202,7 +206,7 @@ fdcunload()
 	/*
 	 * Turn motors off.
 	 */
-	outb(FDCDOR, DORNMR);		/* Leave interrupts disabled. */
+	outbDb(FDCDOR, DORNMR);		/* Leave interrupts disabled. */
 
 	/*
 	 * Clear interrupt vector.
@@ -396,21 +400,18 @@ void
 fdcDrvSelect(drive, motorOn)
 int drive, motorOn;
 {
-	unsigned char motorBits;
+	unsigned char motorBits = 0;
 
 	if (drive >= 4) {
 		printf("Can't fdcDrvSelect(%d,%d) ", drive, motorOn);
 		return;
 	}
 
-	/* Don't turn off an unrelated drive if it's on. */
-	motorBits = inb(FDCDOR) & 0xF0;
-
 	/* If needed, generate motor on bit for current selected drive. */
 	if (motorOn)
-		motorBits |= 0x10 << drive;
+		motorBits = 0x10 << drive;
 
-	outb(FDCDOR, DORNMR | DORIEN | drive | motorBits);
+	outbDb(FDCDOR, DORNMR | DORIEN | drive | motorBits);
 	fdcSense();				/* Just in case --- */
 }
 
@@ -421,7 +422,7 @@ void
 fdcDrvStatus(drive, head)
 int drive, head;
 {
-	fdcPut(CMDSDRV);
+	fdcPut(FDC_CMD_SDRV);
 	fdcPut(drive | (head << 2));
 }
 
@@ -457,7 +458,7 @@ fdcIntStatus()
 	/*
 	 * Issue a sense interrupt command and stash result.
 	 */
-	fdcPut(CMDSINT);
+	fdcPut(FDC_CMD_SINT);
 
 	n = 0;
 	for (;;) {
@@ -510,9 +511,10 @@ fdcIntr()
 	/* Vector to diskette or tape device interrupt handler. */
 	if ((fdcIntOwner & FL_INTR) && flIntr)
 		(*flIntr)();
-
-	if ((fdcIntOwner & FT_INTR) && ftIntr)
+	else if ((fdcIntOwner & FT_INTR) && ftIntr)
 		(*ftIntr)();
+	else /* Just clear the interrupt status. */
+		fdcSense();
 	spl(s);
 }
 
@@ -531,12 +533,30 @@ int cmd;
 	/* Wait for RQM, then expect DIO false. */
 	if (busyWait(fdcWaitRQM, FDC_RQM_WAIT)) {
 		if ((inb(FDCMSR) & MSRDIO) == 0) {
-			outb(FDCDAT, cmd);
+			outbDb(FDCDAT, cmd);
 			ret = 0;
 		}
 	}
 
 	return ret;
+}
+
+/*
+ * Send a command string, given as byte array and length.
+ * Return the number of bytes sent.
+ */
+int
+fdcPutStr(cmdStr, cmdLen)
+unsigned char * cmdStr;
+unsigned int cmdLen;
+{
+	int bytesSent;
+
+	for (bytesSent = 0; bytesSent < cmdLen; bytesSent++) {
+		if (fdcPut(*cmdStr++))
+			break;
+	}
+	return bytesSent;
 }
 
 /*
@@ -546,7 +566,19 @@ void
 fdcRate(rate)
 int rate;
 {
-	outb(FDCRATE, rate);
+	outbDb(FDCRATE, rate);
+}
+
+/*
+ * Given drive # (0..3), and head (0..1), send Read ID command to the FDC.
+ */
+void
+fdcReadID(drive, head)
+int drive;
+int head;
+{
+	fdcPut(FDC_CMD_RDID);
+	fdcPut(drive | (head << 2));
 }
 
 /*
@@ -559,7 +591,7 @@ void
 fdcRecal(drive)
 int drive;
 {
-	fdcPut(CMDRCAL);
+	fdcPut(FDC_CMD_RCAL);
 	fdcPut(drive);
 }
 
@@ -574,7 +606,7 @@ void
 fdcSeek(drive, head, cyl)
 int drive, head, cyl;
 {
-	fdcPut(CMDSEEK);
+	fdcPut(FDC_CMD_SEEK);
 	fdcPut(drive | (head << 2));
 	fdcPut(cyl);
 }
@@ -600,7 +632,7 @@ void
 fdcSpecify(srt, hut, hlt)
 int srt, hut, hlt;
 {
-	fdcPut(CMDSPEC);
+	fdcPut(FDC_CMD_SPEC);
 	fdcPut((srt << 4) | hut);
 	fdcPut(hlt << 1);
 }
@@ -747,30 +779,40 @@ fdctimeout()
 void
 fdcReset()
 {
-	outb(FDCDOR, 0);
+	outbDb(FDCDOR, 0);
 
 	/* "Not Reset FDC" must remain low for at least 3.5 usec */
 	busyWait2(NULL, 4);
-	outb(FDCDOR, DORNMR | DORIEN);
+	outbDb(FDCDOR, DORNMR | DORIEN);
 }
 
 /*
  * Reset the fdc.
- * Do not change drive select or motor on settings during the reset.
+ * Maintain drive select and motor enable (as specified) during the reset.
  */
 void
-fdcResetSel()
+fdcResetSel(drive, motorOn)
+int drive, motorOn;
 {
-	unsigned char fdcsel;
+	unsigned char motorBits = 0;
+	unsigned char outByte;
 
-	/* save select info (motor on and drive select bits) to fdcsel */
-	fdcsel = inb(FDCDOR);
-	outb(FDCDOR, fdcsel & 0xFB);
+	/* If needed, generate motor on bit for current selected drive. */
+	if (motorOn)
+		motorBits = 0x10 << drive;
+
+	/*
+	 * Send drive select, motor on if needed, interrupt enable.
+	 * The "not reset" bit is zero, which is the point of this routine.
+	 */
+	outByte = motorBits | drive | DORIEN;
+	outbDb(FDCDOR, outByte);
 
 	/* "Not Reset FDC" must remain low for at least 3.5 usec */
 	busyWait2(NULL, 4);
 
-	outb(FDCDOR, fdcsel);
+	outByte |= DORNMR;
+	outbDb(FDCDOR, outByte);
 }
 
 /*
@@ -829,6 +871,31 @@ int sw, mask;
 			ret = 1;
 		} else
 			ret = 0;
+}
+
+/******* FOR DEBUG PURPOSES ONLY ************/
+
+int
+outbDb(addr, data)
+int addr, data;
+{
+	static int oldAddr, oldData;
+	int s = sphi();
+
+	if (OUTB_DB) {
+		outb(addr, data);
+		if (addr != oldAddr) {
+			printf("[%x,%x]", addr, data);
+			oldAddr = addr;
+			oldData = data;
+		} else if (data != oldData) {
+			printf("/%x", data);
+			oldData = data;
+		} else
+			putchar('=');
+	} else
+		outb(addr, data);
+	spl(s);
 }
 
 /*			  * * * * End of fdc.c * * * *			*/

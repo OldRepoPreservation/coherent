@@ -1,6 +1,5 @@
-extern int OUTB_DB;
-int XL_BLAB = 0;
-int OUTB_SAVE;
+#define MWC_FT 1
+
 /*
  * File:	xlft.c
  *
@@ -13,50 +12,18 @@ int OUTB_SAVE;
  */
 
 /*
- * Here is the protocol for QIC report commands, I think:
- * 
- * Send QIC report command to FDC (this will be an FDC seek command).
- * FDC interrupts when step pulses are sent.
- * Send Sense Interrupt Status to FDC.  (Clears interrupt line.)
- * Read interrupt status from FDC.
- * - Get ACK from tape drive.  Want Track 0 true.  Variable latency.
- * Do
- *   Send Sense Drive Status to FDC.
- *   Read drive status from FDC, including Track 0 bit.
- * Until Track 0 true.
- * - Get data bits for the report command.
- * For number-of-data-bits-in-report times
- *   Send QIC Report Next Bit command to FDC.
- *   FDC interrupts when step pulses are sent.
- *   Send Sense Interrupt Status to FDC.
- *   Read interrupt status from FDC.
- *   Send Sense Drive Status to FDC.
- *   Read drive status from FDC, including Track 0 bit.
- *   Save Track 0 bit value into report data.
- * End for
- * - Get final Track 0 true from tape drive.
- * Send QIC Report Next Bit command to FDC.
- * FDC interrupts when step pulses are sent.
- * Send Sense Interrupt Status to FDC.
- * Read interrupt status from FDC.
- * Send Sense Drive Status to FDC.
- * Read drive status from FDC, including Track 0 bit.
- * Track 0 bit must be true.
- */
-
-/*
  * ----------------------------------------------------------------------
  * Includes.
  */
 #include	<sys/coherent.h>
 
-#include	<errno.h>
+#include	<sys/errno.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/devices.h>
 #include	<sys/fdc765.h>
 #include	<sys/fdioctl.h>
-#include	<sys/inode.h>
+#include	<sys/file.h>
 #include	<sys/sched.h>
 #include	<sys/stat.h>
 #include	<sys/xl.h>
@@ -72,8 +39,6 @@ int OUTB_SAVE;
  *	Typedefs.
  *	Enums.
  */
-#define ACK_WATCH()		{putchar(bit?'|':'o');}
-
 #define	HDRSZ	0x4000		/* 16k, size of qic-40 header		*/
 #define	BFRSZ	0x8000		/* 32k, size of qic-40 buffer		*/
 
@@ -164,7 +129,6 @@ static	void	xlintr(), (*pfint)();	/* xl2 ptr to intr handler	*/
 static	void	xlnull();
 static	int	xlopn();
 static	void	xloutput_step();	/* output steps, exit=pfint	*/
-static	void	xl_cmd(), xl_cmdarg();
 static	void	xlpark(), (*pfprk)();
 static	void	xlpark0(), xlpark1(), xlpark2();
 static	void	xlpos(), xlpos0(), xlpos1(), xlpos2(), xlpos3(), (*pfpos)();
@@ -191,7 +155,13 @@ static	void	xlwds(), (*pfwds)();	/* write del adm segment	*/
 static	void	xlwts(), (*pfwts)();	/* write segment		*/
 static	void	xlwt0(), xlwt1();
 
-static	void	ftDbPrintErr(), ftDbPrintCmd(), ftDbPrintStat();
+static	void	xlDbPrintErr(), xlDbPrintCmd(), xlDbPrintStat();
+
+static	void	ftDbPrtStat();
+static	int	ftCmd();
+static	void	ftIrqHandler();
+static	int	ftRecal();
+static	void	ftSelect();
 
 /*
  * ----------------------------------------------------------------------
@@ -230,6 +200,11 @@ CON	ftxlcon = {
 int	XL_VERBOSE = 1;
 int	XL_NBUFS = 17;		/* ~ 3K total 'DATA' for driver		*/
 				/* 1.25K for ecc, + XL_NBUFS * 94	*/
+
+/* Parameters for FDC Specify Command */
+int FT_SRT = 0xE;
+int FT_HUT = 0xF;
+int FT_HLT = 0x1;
 
 /************************************************************************/
 /*	UNIX data areas	 and externals					*/
@@ -273,7 +248,7 @@ static	int	nseg_p_cyl;		/* # segments/cylinder		*/
 
 static	int	fdcmd;			/* last fdc cmd			*/
 
-static	unchar	status_buf[10]; 	/* status buffer		*/
+static	unchar	status_buf[ 10 ]; 	/* status buffer		*/
 					/* bytes 0-6 = 8272 status	*/
 					/*	7   = nec phase err	*/
 					/*	8   = 8272 st3		*/
@@ -285,7 +260,7 @@ static	unchar	xlests;
 static	ushort	xl7sts;
 static	int	xlbcnt;			/* xlrnb counter, # of sts bits	*/
 
-static	unchar	fdstb[4] = { 0x0c, 0x2d, 0x4e, 0x8f };
+static	unchar	fdstb[ 4 ] = { 0x1c, 0x2d, 0x4e, 0x8f };
 static	unchar	fdsel, unit, fdselr, ftfmt;
 
 static	ushort	sgwrd;			/* strbsg params		*/
@@ -306,18 +281,18 @@ static	int	vftrk;			/* verify track (debug display)	*/
 static	int	xltimoutf = 0;		/* timeout flag			*/
 
 /*	fdc commands							*/
-static	unchar	sf2cms[3] = { 0x03, 0xef, 0x02 };
+static	unchar	sf2cms[ 3 ] = { 0x03, 0xef, 0x02 };
 
-static	unchar	sf3cms[3] = { 0x03, 0xdf, 0x02 };
-static	unchar	sekcms[3] = { 0x0f, 0x00, 0x00 };
-static	unchar	rdicms[2] = { 0x4a, 0x00 };
-static	unchar	rwdcms[9] = { 0x46, 0, 0, 0, 0, 3, 226, 1, 0xff };
-static	unchar	fmtcms[6] = { 0x4d, 0, 3, 32, 233, 0x6d };
-/*		sekcms[2] = current track, see xlintr()		*/
+static	unchar	sf3cms[ 3 ] = { 0x03, 0xdf, 0x02 };
+static	unchar	sekcms[ 3 ] = { 0x0f, 0x00, 0x00 };
+static	unchar	rdicms[ 2 ] = { 0x4a, 0x00 };
+static	unchar	rwdcms[ 9 ] = { 0x46, 0, 0, 0, 0, 3, 226, 1, 0xff };
+static	unchar	fmtcms[ 6 ] = { 0x4d, 0, 3, 32, 233, 0x6d };
+/*		sekcms[ 2 ] = current track, see xlintr()		*/
 
-static	unchar	vtbl[] = "VTBL";
-static	unchar	xnxnm[] = "unix";
-static	unchar	xnxvs[20] = {
+static	unchar	vtbl[  ] = "VTBL";
+static	unchar	xnxnm[  ] = "unix";
+static	unchar	xnxvs[ 20 ] = {
 				0x55, 0xaa, 0x55, 0xaa, 0x02, 0x00, 0x00, 0x00,
 				0x01, 0x00, 0x02, 0x00, 0x4f, 0x05, 0x00, 0x00,
 				0x00, 0x00, 0x00, 0x00
@@ -341,6 +316,14 @@ static	int	rcnt;			/* # bytes to copy		*/
 static	struct	rb *fprb;	 	/* used to enque requests	*/
 
 static	TIM	xltmo, xldly;
+
+static struct	FT {
+	unsigned char ft_pcn;		/* present cylinder #		*/
+	unsigned char ft_bitsNeeded;	/* # of Report Next Bit's to do	*/
+	unsigned char ft_wakeMeUp;	/* 1 = sleeping til next FDC IRQ */
+	unsigned char ft_dumpIrq;	/* 1 = dump IRQ status		*/
+	unsigned char ft_senseDrvStat;	/* 1 = need to sense drv status	*/
+} ft;
 
 /*
  * ----------------------------------------------------------------------
@@ -376,15 +359,17 @@ ftclose(dev, mode)
 dev_t dev;
 int mode;
 {
+#if MWC_FT
 	printf("ftclose ");
-
+	f.open = 0;
+#else
 	if (f.open) {
-		getfdc(unit);	
 		/* f.open = 0;		reset open flag	 U001 		*/
 		xlflush();		/* flush all bfrs		*/
 		if (f.werr)		/* flag error if occurred	*/
 			u.u_error = EIO;
 
+		getfdc(unit);	
 		xlsel(unit);
 		if (minor(dev) & M_REW) { /* rewind if rewind_on_close  */
 			pfprk = xlcomplete;/* clear drive status and rewind*/
@@ -398,9 +383,9 @@ int mode;
 		xlrel();
 		relfdc();
 		f.open = 0;		/* reset open flag 	U001	*/
-		cmn_err(CE_CONT, "xlclose: xlster %x  f.werr %d ",
-		  xlster, f.werr);
+		cmn_err(CE_CONT, "xlclose: xlster %x  f.werr %d\n", xlster, f.werr);
 	}
+#endif
 }
 
 /************************************************************************/
@@ -415,7 +400,7 @@ int		arg;
 	int			xlarg;	/* ioctl argument		*/
 	union	xl_status	xl;	/* status structure		*/
 
-	cmn_err(CE_CONT, "ftioctl: cmd %x ", cmd);
+	cmn_err(CE_CONT, "ftioctl: cmd %x\n", cmd);
 
 	if ((cmd & 0xff00) != XLIOC) {
 		u.u_error = EINVAL;
@@ -435,9 +420,9 @@ int		arg;
 		* Report current status, then clear
 		* any errors by reading the status again.
 		*/
-		xl.stat[0] = xl6sts;
-		xl.stat[1] = xl7sts;
-		xl.stat[2] = xl7sts >> 8;
+		xl.stat[ 0 ] = xl6sts;
+		xl.stat[ 1 ] = xl7sts;
+		xl.stat[ 2 ] = xl7sts >> 8;
 
 		if (copyout(xl.stat, arg, sizeof(xl.stat)) == -1)
 			u.u_error = EFAULT;
@@ -463,12 +448,12 @@ int		arg;
 		case XL_RETEN : 	/* retention tape		*/
 			pfint = xlready;
 			pfrdy = xlcomplete;
-			xl_cmd(QIC_CMD_EOT);
+			xloutput_step(QIC_CMD_EOT);
 			xlwait();
 
 			pfint = xlready;
 			pfrdy = xlcomplete;
-			xl_cmd(QIC_CMD_BOT);
+			xloutput_step(QIC_CMD_BOT);
 			xlwait();
 			if (xlster)
 				u.u_error = ENXIO;
@@ -478,7 +463,7 @@ int		arg;
 		case XL_REWIND: 	/* rewind			*/
 			pfint = xlready;
 			pfrdy = xlcomplete;
-			xl_cmd(QIC_CMD_BOT);
+			xloutput_step(QIC_CMD_BOT);
 			xlwait();
 			if (xlster)
 				u.u_error = ENXIO;
@@ -493,10 +478,12 @@ int		arg;
 			break;
 
 		case XL_FORMAT: 	/* format tape			*/
-ftfmt = 1;
-			if ((arg >= 0 && arg <= 14 && ftfmt == 0) ||
-			         (arg >= 0 && arg <= 28 && ftfmt == 1)) {
-				xlformat(arg);
+			if  (copyin(arg, (caddr_t) &xlarg, sizeof(int)) == -1)
+				u.u_error = EFAULT;
+
+			else if ((xlarg >= 0 && xlarg <= 14 && ftfmt == 0) ||
+			         (xlarg >= 0 && xlarg <= 28 && ftfmt == 1)) {
+				xlformat(xlarg);
 				if (f.werr)	/* flag err if occurred	*/
 					u.u_error = EIO;
 			} else		/* invalid track number		*/
@@ -512,7 +499,7 @@ ftfmt = 1;
 	}
 	xlrel();			/* release fdc			*/
 	relfdc();
-	cmn_err(CE_CONT, "xlioctl: returning ");
+	cmn_err(CE_CONT, "xlioctl: returning\n");
 }
 
 /************************************************************************/
@@ -524,7 +511,11 @@ ftload()
 	register int	eflag;
 	register int	s, t;
 
+#if MWC_FT
+	ftIntr = ftIrqHandler;
+#else
 	ftIntr = xlintr;
+#endif
 
 	f.init = 0;			/* reset flags			*/
 	f.open = 0;
@@ -537,13 +528,13 @@ ftload()
 	xlcompw = 0;
 	xlcompf = 0;
 	xlster = 0;
-	status_buf[7] = 0;
+	status_buf[ 7 ] = 0;
 	pfint = xlnull;			/* reset ptr to fun		*/
 	xl_tbi();			/* init ecc tables		*/
 	if(getmem())
-		printf("XL: getmem() failed. ");
+		printf("XL: getmem() failed.\n");
 	else
-		printf("Archive xl floppy tape driver v1.0 COH loaded ");
+		printf("Archive xl floppy tape driver v1.0 COH loaded\n");
 }
 
 /************************************************************************
@@ -555,18 +546,22 @@ ftopen(dev, mode)
 dev_t dev;
 int mode;
 {
+	unsigned int drvStat;
 	int i;
+	int bit;
+
+printf("ftopen %x ", dev);
 
 	/* Can't append to tape. */
 	if (mode & IPAPPEND) {
-		devmsg(dev, "can't append ");
+printf("can't append ");
 		u.u_error = EINVAL;
 		return;
 	}
 
 	/* Only one open at a time. */
 	if (f.open) {
-		devmsg(dev, "only one ftopen at a time ");
+printf("only one ftopen at a time ");
 		u.u_error = EBUSY;
 		return;
 	}
@@ -574,30 +569,47 @@ int mode;
 
 	unit = FT_UNIT(dev);		/* set unit #			*/
 
-	if (!setFtIntr(1)) {
-		printf("fdc unavailable ");
+	if (! getfdcn(unit)) {	/* get control of fdc		*/
+printf("fdc unavailable ");
+		u.u_error = EBUSY;	/* exit if fdc is being used	*/
+		f.open = 0;
+		return;
 	}
 
+#if MWC_FT
+	/* Select tape drive. */
+	ftSelect(unit);
+
+	/* Do recal to set pcn in fdc - shouldn't affect tape drive. */
+	if (ftRecal(unit)
+	  || fdc.fdc_nintstat < 2
+	  || fdc.fdc_intstat[1] != 0) {
+printf("recal failed ");
+		u.u_error = EIO;
+		f.open = 0;
+		setFtIntr(0);
+		return;
+	}
+
+	if (ftCmd(QIC_CMD_STS)) {
+printf("get drive status failed ");
+		u.u_error = EIO;
+		f.open = 0;
+		setFtIntr(0);
+		return;
+	}
+
+	xlrel();
+	relfdc();
+#else
+	/* Select tape unit. */
 	xlsel(unit);
-f.init = 0;
+
 	if (0 == f.init) {		/* init drive if 1st time	*/
 		pfrst = xlcomplete;
 		xlreset();
 		if (xlwait()) {
-printf("xlreset interrupted ");
-			u.u_error = EINTR;
-			f.open = 0;
-			relfdc();
-			return;
-		}
-
-		/* select again for soft select case */
-		xlsel(unit);
-
-		pfsts = xlcomplete;	/* get drive status		*/
-		xlstatus();
-		if (xlwait()) {
-printf("xlstatus interrupted ");
+printf("init interrupted ");
 			u.u_error = EINTR;
 			f.open = 0;
 			relfdc();
@@ -609,9 +621,8 @@ printf("xlstatus interrupted ");
 	if (!xlopn(minor(dev))) {	/* open drive			*/
 		/* init current params					*/
 		read_ahead_seg_num = curr_seg_num = data_seg_num;
-		cmn_err(CE_CONT, "xlopen: volume_seg_num %d  data_seg_num %d  "
-		  "last_seg_num %d  lnbr %d ",
-		  volume_seg_num, data_seg_num, last_seg_num, lnbr);
+		cmn_err(CE_CONT, "xlopen: volume_seg_num %d  data_seg_num %d  last_seg_num %d  lnbr %d\n",
+		   volume_seg_num, data_seg_num, last_seg_num, lnbr);
 
 		cnbr = 0;
 		xstop = 0;
@@ -624,58 +635,25 @@ printf("xlopn failed ");
 	}
 	xlrel();			/* release fdc			*/
 	relfdc();
-	cmn_err(CE_CONT, "xlopen: xlster %x, xl6sts %x, xlests %x, xl7sts %x ",
-	  xlster, xl6sts, xlests, xl7sts);
+	cmn_err(CE_CONT, "xlopen: xlster %x, xl6sts %x, xlests %x, xl7sts %x\n",
+	   xlster, xl6sts, xlests, xl7sts);
+#endif
 }
 
 /************************************************************************
  * ftread
  *
  ***********************************************************************/
-
-#define PXCOPY_LIM	4096	/* also in null.c */
-
 static int
 ftread(dev, iop)
 dev_t dev;
 IO * iop;
 {
-	uint src, dest;
-	uint startSeg, endSeg;
-
 	if (!f.open) {			/* exit if not open		*/
 		u.u_error = EIO;
 		return;
 	}
-#if 0
 	xlgtdat(iop);
-#else
-	src = iop->io_seek;
-	dest = iop->io.pbase;
-
-	/*
-	 * Seek 0-32767 is header segment.
-	 * Seek 32768-65535 is map segment.
-	 * Read beyond map segment is illegal.
-	 * Read across segments is illegal.
-	 */
-	startSeg = src >> 15;
-	endSeg = (src + iop->io_ioc - 1) >> 15;
-printf("Rd SS=%d ES=%d ", startSeg, endSeg);
-	if (startSeg != endSeg || startSeg > 1) {
-		u.u_error = EFAULT;
-		return;
-	}
-
-	if (startSeg == 0)
-		src += (uint)ptr_header;
-	else if (startSeg == 1)
-		src += (uint)ptr_buffer;
-
-	iowrite(iop, src, iop->io_ioc);
-
-	return;
-#endif
 }
 
 /************************************************************************
@@ -734,11 +712,232 @@ char * format;
 static	int
 dsperr()
 {					/* disregard fdc ecc error */
-	if (!(status_buf[0] == 0x41 &&
-	       status_buf[1] == 0x20 &&
-	       status_buf[2] == 0x20)) 
-		cmn_err(CE_CONT, "fdcerr: ST0=%x ST1=%x ST2=%x ",
-			status_buf[0], status_buf[1], status_buf[2]);
+	if (!(status_buf[ 0 ] == 0x41 &&
+	       status_buf[ 1 ] == 0x20 &&
+	       status_buf[ 2 ] == 0x20)) 
+		cmn_err(CE_CONT, "fdcerr: ST0=%x ST1=%x ST2=%x\n",
+			status_buf[ 0 ], status_buf[ 1 ], status_buf[ 2 ]);
+}
+
+/*
+ * For debugging, print command status and interrupt status to console.
+ */
+static void
+ftDbPrtStat()
+{
+	int i;
+
+	printf("[[");
+	if (fdc.fdc_ncmdstat) {
+		printf("cmd ");
+		for (i = 0; i < fdc.fdc_ncmdstat; i++)
+			printf("%x ", fdc.fdc_cmdstat[i]);
+	}
+	if (fdc.fdc_nintstat) {
+		printf("int ");
+		for (i = 0; i < fdc.fdc_nintstat; i++)
+			printf("%x ", fdc.fdc_intstat[i]);
+	}
+	printf("]] ");
+}
+
+/*
+ * Given a QIC-117 command number, cause that number of step pulses
+ * to be sent from the FDC by faking a seek command.
+ */
+static int
+ftCmdSend(cmd)
+int cmd;
+{
+	/* Like NEC - pcn=present cylinder #; ncn=new cylinder #. */
+	unsigned char ncn;
+	
+	xlDbPrintCmd(cmd);
+
+	/*
+	 * Will fake a seek command.
+	 * Figure out whether to simulate seek to lower or higher
+	 * cylinder number.
+	 */
+	if (ft.ft_pcn + cmd <= MAX_PCN) {
+		ncn = ft.ft_pcn + cmd;
+	} else if (ft.ft_pcn - cmd >= 0) {
+		ncn = ft.ft_pcn - cmd;
+	} else {
+		printf("ftCmd %d invalid, pcn %d ", cmd, ft.ft_pcn);
+		return -1;
+	}
+
+	ft.ft_dumpIrq = 1;
+	fdcSeek(unit, 0, ncn);
+}
+
+/*
+ * Given a QIC-117 command number, send the command.
+ * If report bits are expected in response, initialize the bit counter.
+ * Then sleep until the commmand is done and report bits are gathered.
+ */
+static int
+ftCmd(cmd)
+int cmd;
+{
+#if MWC_FT
+
+	/* Will sleep until command done and report bits are in. */
+	ft.ft_wakeMeUp = 1;
+
+	/*
+	 * The following commands expect report bits from the tape drive.
+	 * The drive sends a leading ACK bit (always 1), then data bits
+	 * (least significant bit first), then a trailing 1.  So, the
+	 * number of bits needed is 2 more than the number of data bits
+	 * in the report, or zero.
+	 */
+	switch(cmd) {
+	case QIC_CMD_STS:
+	case QIC_CMD_DRVCN:
+	case QIC_CMD_ROMVN:
+	case QIC_CMD_TPSTAT:
+		ft.ft_bitsNeeded = 10;
+		break;
+	case QIC_CMD_ECD:
+	case QIC_CMD_VNDID:
+		ft.ft_bitsNeeded = 18;
+		break;
+	default:
+		ft.ft_bitsNeeded = 0;
+	}
+
+	ftCmdSend(cmd);
+
+	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftCmd"))
+		return -1;
+	else
+		return 0;
+#else
+	sekcms[ 1 ] = unit;
+	if (sekcms[ 2 ] > 80)
+		sekcms[ 2 ] -= cnt;
+	else
+		sekcms[ 2 ] += cnt;
+	xlfdc_out_str(sekcms, 3);	/* start seek cmd		*/
+#endif
+}
+
+/*
+ * Interrupt handler.
+ */
+static void
+ftIrqHandler()
+{
+	/*
+	 * Need to get FDC status from result phase, and clear interrupt
+	 * that may have been generated by diskette change or seek/recal
+	 * complete.
+	 */
+	if (FDC_BUSY()) {
+		fdcCmdStatus();
+	} else {
+		/* After seek or recal, must Sense Interrupt to clear IRQ. */
+		fdcIntStatus();
+
+		/* Update present cylinder number. */
+		if (fdc.fdc_nintstat >= 2)
+			ft.ft_pcn = fdc.fdc_intstat[1];
+	}
+
+	/*
+	 * If report bits are needed
+	 *   Get current report bit.
+	 *   Update number of bits needed.
+	 */
+	if (ft.ft_bitsNeeded) {
+		ft.ft_bitsNeeded--;
+
+		/*
+		 * Need unit # for Sense Drive Status command.
+		 * Get it from preceding Sense Interrupt command.
+		 */
+		if (fdc.fdc_nintstat > 1) {
+			unit = fdc.fdc_intstat[0] & 3;
+			ft.ft_senseDrvStat = 0;
+			fdcDrvStatus(unit, 0);	/* Send FDC command.		*/
+			fdcCmdStatus();		/* Stash command result.	*/
+		} else {
+			printf("missing int status \n");
+		}
+
+		if (fdc.fdc_ncmdstat == 1) {
+			int bit;
+			bit = (fdc.fdc_cmdstat[0] & ST3_T0) ? 1 : 0;
+			printf("<%d>", bit);
+		} else {
+			printf("rnb status bad ");
+		}
+	}
+
+	/*
+	 * If more report bits will be needed
+	 *   Send request for next bit.
+	 * Else
+	 *   See if original requestor needs wakeup, etc.
+	 */
+	if (ft.ft_bitsNeeded) {
+		ftCmdSend(QIC_CMD_RNB);
+	} else {
+		if (ft.ft_wakeMeUp) {
+			ft.ft_wakeMeUp = 0;
+			wakeup(&ft.ft_wakeMeUp);
+		}
+	}
+
+	/* Print debug output if needed. */
+	if (ft.ft_dumpIrq) {
+		ft.ft_dumpIrq = 0;
+		defer(ftDbPrtStat);
+	}
+}
+
+/*
+ * Send Recalibrate command to FDC and wait for it to finish.
+ *
+ * Return 0 if normal operation, -1 if signaled before recal complete.
+ */
+static int
+ftRecal(unit)
+int unit;
+{
+	ft.ft_wakeMeUp = 1;
+	fdcRecal(unit);
+	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftRecal"))
+		return -1;
+	else
+		return 0;
+}
+
+/*
+ * Select tape unit.
+ */
+static	void
+ftSelect(unit)
+int unit;
+{
+	fdcRate(FDC_RATE_500K);		/* set transfer rate		*/
+	fdcDrvSelect(unit, 1);		/* 1=motor on			*/
+	fdcResetSel();			/* Reset, preserving selection	*/
+	fdcSpecify(FT_SRT, FT_HUT, FT_HLT);
+
+	/* 80 MB nseg_p_track = 100, nseg_p_head = 600, nseg_p_cyl = 4	*/
+	/* 40 MB nseg_p_track = 68, nseg_p_head = 680, nseg_p_cyl = 4	*/
+	if (ftfmt) {
+		nseg_p_track = 100;	/* set for 80 MB drive		*/
+		nseg_p_head = 600;
+		nseg_p_cyl = 4;
+	} else {
+		nseg_p_track = 68;	/* set for 40 MB drive		*/
+		nseg_p_head = 680;
+		nseg_p_cyl = 4;
+	}
 }
 
 /************************************************************************
@@ -765,20 +964,20 @@ getmem()
 
 	rbmp = (struct rb *)kalloc(XL_NBUFS * sizeof(struct rb));
 	if (rbmp == NULL) {
-		printf("XL: initial kalloc() failed ");
+		printf("XL: initial kalloc() failed\n");
 		return 1;
 	}
 
 	allocated_add = getDmaMem(nb * BFRSZ, BFRSZ);
 	if (allocated_add == NULL) {
-		printf("XL: getDmaMem() failed ");
+		printf("XL: getDmaMem() failed\n");
 		return 1;
 	}
 
 	highAddr = allocated_add + (nb * BFRSZ);
 
 	cmn_err(CE_CONT, "Allocated %d buffers.  Virtual <%x-%x>.  "
-	  "Physical <%x-%x>. ",
+	  "Physical <%x-%x>.\n",
 	  nb, allocated_add, highAddr, vtop(allocated_add), vtop(highAddr));
 
 	/* tmpad = 1st 32k bfr adr			*/
@@ -796,7 +995,7 @@ getmem()
 	}
 	xlfree_q.bot->nxt = 0;
 
-	cmn_err(CE_CONT, "getmem: allocated %d buffers ", nb);
+	cmn_err(CE_CONT, "getmem: allocated %d buffers\n", nb);
 
 	xlmem_allocated = 1;
 	data_queue.top = 0;
@@ -859,10 +1058,8 @@ int	mode;
 paddr_t	adr;
 int	count;
 {
-#if 0
-	cmn_err(CE_CONT, "%s V=%x P=%x ",
-	  ((mode&0x4C)==0x48)?"M->":"M<-", adr, kvtophys(adr));
-#endif
+	cmn_err(CE_CONT, "dir: %x Vadd: %x, Padd: %x, count: %x\n",
+	  mode, adr, kvtophys(adr), count);
 
 	/* dma_param(DMA_CH2, mode, kvtophys(adr), count - 1); */
 	/* dma_enable(DMA_CH2); */
@@ -978,9 +1175,9 @@ static void
 stseg(prb)
 struct	rb	*prb;
 {
-	rwdcms[1] = unit;		/* set rwdcmd constants		*/
-	rwdcms[2] = prb->cyl;
-	rwdcms[3] = prb->hed;
+	rwdcms[ 1 ] = unit;		/* set rwdcmd constants		*/
+	rwdcms[ 2 ] = prb->cyl;
+	rwdcms[ 3 ] = prb->hed;
 	xadr = prb->adr;		/* set base adr			*/
 	xsct = prb->sct;		/* set base sct			*/
 	xrty = 6;			/* set default # retries	*/
@@ -1006,22 +1203,22 @@ wvtbl()
 	splx(ilvl);
 	p = (xlvtbl *)cprb->adr;
 	wptr = (fpchr)p;		/* save ptr for encode		*/
-	for (i = 0; vtbl[i]; ++i)
-		p->ident[i] = vtbl[i];
+	for (i = 0; vtbl[ i ]; ++i)
+		p->ident[ i ] = vtbl[ i ];
 	p->data_seg_num = (unsigned short)data_seg_num;
 	p->last_seg_num = (unsigned short)curr_seg_num - 1;
-	for (i = 0; p->op_system[i] = xnxnm[i]; ++i);
+	for (i = 0; p->op_system[ i ] = xnxnm[ i ]; ++i);
 
 	for (ilvl = 0; ilvl < 43; ++ilvl)	/* fill zero not implemented */	
-		p->p1[ilvl] = 0;
+		p->p1[ ilvl ] = 0;
 	p->c_seq_num = 1;			/* cartridge sequence # =1   */
 
 	for (ilvl = 0; ilvl < 34; ++ilvl) 	/* fill zero		     */
-		p->p3[ilvl] = 0;
+		p->p3[ ilvl ] = 0;
 
 	p->last_blk_size = (unsigned short)(lnbr - cnbr);
 	cprb->sgn = volume_seg_num;
-	cprb->map = ptr_header[volume_seg_num + 0x200];
+	cprb->map = ptr_header[ volume_seg_num + 0x200 ];
 	cprb->fun = RBFWT;
 	strbsg(cprb);
 	xl_enc(wptr, cprb->nbk);
@@ -1070,11 +1267,11 @@ printf("xlcal:calibrate ");
 		}
 		f.cal = 1;		/* else send calibrate		*/
 		pfint = xlready;
-		xl_cmd(QIC_CMD_CAL);
+		xloutput_step(QIC_CMD_CAL);
 		return;
 	}
 	pfint = xlready;		/* rewind tape			*/
-	xl_cmd(QIC_CMD_BOT);
+	xloutput_step(QIC_CMD_BOT);
 }
 
 /************************************************************************/
@@ -1116,17 +1313,16 @@ int	count;
 	int	oldpri;
 
 	oldpri = sphi();
-	outbDb(DMA1CBPFF, 0);
-	outbDb(DMA1WMR, rw);
-	outbDb(DMA1BCA2, addr & 0xff);
-	outbDb(DMA1BCA2, (addr >> 8) & 0xff);
-	outbDb(DMACH2PG, (addr >> 16) & 0xff);
+	outb(DMA1CBPFF, 0);
+	outb(DMA1WMR, rw);
+	outb(DMA1BCA2, addr & 0xff);
+	outb(DMA1BCA2, (addr >> 8) & 0xff);
+	outb(DMACH2PG, (addr >> 16) & 0xff);
 	tenmicrosec();
-	outbDb(DMA1BCWC2, count & 0xff);
-	outbDb(DMA1BCWC2, (count >> 8) & 0xff);
+	outb(DMA1BCWC2, count & 0xff);
+	outb(DMA1BCWC2, (count >> 8) & 0xff);
 	spl(oldpri);
-
-	outbDb(DMA1WSMR, 2);
+	outb(DMA1WSMR, 2);
 }
 
 /************************************************************************/
@@ -1143,11 +1339,11 @@ xlfdc_in_byte()				/* input byte from fdc		*/
 		if (inb(FDSTAT) & 0x80) {
 			/* exit if in output mode			*/
 			if ((inb(FDSTAT) & 0x40) == 0)
-				return(status_buf[7] = -1);
+				return(status_buf[ 7 ] = -1);
 			return(inb(FDDATA));
 		}
 	}
-	return(status_buf[7] = -1);	/* exit if timeout		*/
+	return(status_buf[ 7 ] = -1);	/* exit if timeout		*/
 }
 
 /************************************************************************/
@@ -1164,14 +1360,13 @@ int	chr;
 		/* Wait for Request from Master asserted. */
 		if (inb(FDSTAT) & 0x80) {
 			/* exit if in status mode			*/
-			if (inb(FDSTAT) & 0x40) {
-				return(status_buf[7] = -1);
-			}
-			outbDb(FDDATA, chr);	/* output byte, exit ok */
+			if (inb(FDSTAT) & 0x40)
+				return(status_buf[ 7 ] = -1);
+			outb(FDDATA, chr);	/* output byte, exit ok */
 			return 0;
 		}
 	}
-	return(status_buf[7] = -1);	/* exit if timeout		*/
+	return(status_buf[ 7 ] = -1);	/* exit if timeout		*/
 }
 
 /************************************************************************/
@@ -1190,7 +1385,7 @@ int	cnt;
 		if (xlfdc_out_byte((int)(*p0)))/* stop if error	*/
 			break;
 	}
-	return(status_buf[7]);	 /* exit ok			*/
+	return(status_buf[ 7 ]);	 /* exit ok			*/
 }
 
 /************************************************************************/
@@ -1199,10 +1394,10 @@ int	cnt;
 static void
 xlfdc_reset() 				/* fdc reset			*/
 {
-	sekcms[1] = 0xff;
-	status_buf[7] = 0;		/* reset error flag		*/
-	outbDb(FDCTRL, fdselr);		/* reset fdc			*/
-	outbDb(FDCTRL, fdsel);
+	sekcms[ 1 ] = 0xff;
+	status_buf[ 7 ] = 0;		/* reset error flag		*/
+	outb(FDCTRL, fdselr);		/* reset fdc			*/
+	outb(FDCTRL, fdsel);
 }
 
 /************************************************************************/
@@ -1250,7 +1445,7 @@ xlfmq()
 			f.actv = 1;
 			f.tmov = 1;
 			pfint = xlfmq0;
-			xl_cmd(QIC_CMD_FWD);
+			xloutput_step(QIC_CMD_FWD);
 			return;
 		}
 		else{
@@ -1310,13 +1505,12 @@ xlfms()
 		xloutput_step(0);
 		return;
 	}
-	fmtcms[1] = unit;
+	fmtcms[ 1 ] = unit;
 	stdma(DMA_Wrmode, xprb->adr, 128);
 
 	xltimout(IOTMO);		/* do the format		*/
 	xlfdc_out_str(fmtcms, 6);
-	if (status_buf[7]) {		/* exit if nec error		*/
-printf("nec err ");
+	if (status_buf[ 7 ]) {		/* exit if nec error		*/
 		xltimout(0);
 		xlster |= XLSNEC;
 		xprb->sts = 1;
@@ -1329,7 +1523,7 @@ printf("nec err ");
 static void
 xlfm0()
 {
-	if (status_buf[0] & 0xc0)
+	if (status_buf[ 0 ] & 0xc0)
 		xprb->sts = 1;
 	(*pffms)();
 }
@@ -1344,11 +1538,11 @@ int	ntrkf;
 	int	ilvl, i;
 	fplng	p0;
 
-	cmn_err(CE_CONT, "xlformat: formatting %d tracks ", ntrkf);
+	cmn_err(CE_CONT, "xlformat: formatting %d tracks\n", ntrkf);
 
 	pfint = xlready;		/* rewind tape			*/
 	pfrdy = xlcomplete;
-	xl_cmd(QIC_CMD_BOT);
+	xloutput_step(QIC_CMD_BOT);
 	xlwait();
 	if (xlster)
 		return 2;
@@ -1357,16 +1551,16 @@ int	ntrkf;
 	bcopy(ptr_header + 4, ptr_header + 5, 16 * 1024 - 20);
 
 	pfint = xlcomplete;		/* format mode			*/
-	xl_cmd(QIC_CMD_FMD);
+	xloutput_step(QIC_CMD_FMD);
 	xlwait();
 
-	cmn_err(CE_CONT, "writing reference bursts... ");
+	cmn_err(CE_CONT, "writing reference bursts...\n");
 	pfint = xlready;
 	pfrdy = xlcomplete;
-	xl_cmd(QIC_CMD_WRF);	/* start wrt reference bursts	*/
+	xloutput_step(QIC_CMD_WRF);	/* start wrt reference bursts	*/
 	xlwait();
 
-	cmn_err(CE_CONT, "reference bursts done, format... ");
+	cmn_err(CE_CONT, "reference bursts write done, starting format...\n");
 
 	f.werr = 0;
 
@@ -1376,15 +1570,15 @@ int	ntrkf;
 		curr_seg_num = fmtrk * nseg_p_track;
 
 		pfint = xlcomplete;	/* normal mode			*/
-		xl_cmd(QIC_CMD_NMD);
+		xloutput_step(QIC_CMD_NMD);
 		xlwait();
 
 		pfint = xlcomplete;	/* format mode			*/
-		xl_cmd(QIC_CMD_FMD);
+		xloutput_step(QIC_CMD_FMD);
 		xlwait();
 		/*				format a track pair	*/
 		do{
-			cmn_err(CE_CONT, "\tformatting track %d ", tptrk);
+			cmn_err(CE_CONT, "\tformatting track %d\n", tptrk);
 			pfsek = xlcomplete;	/* seek to track	*/
 			xlseek();
 			xlwait();
@@ -1421,11 +1615,11 @@ int	ntrkf;
 
 		/*				verify a track pair	*/
 		pfint = xlcomplete;	/* normal mode			*/
-		xl_cmd(QIC_CMD_NMD);
+		xloutput_step(QIC_CMD_NMD);
 		xlwait();
 
 		pfint = xlcomplete;	/* verify mode			*/
-		xl_cmd(QIC_CMD_VMD);
+		xloutput_step(QIC_CMD_VMD);
 		xlwait();
 
 		/* set up for verify					*/
@@ -1455,7 +1649,7 @@ int	ntrkf;
 			splx(ilvl);
 			if (vftrk != cprb->trk) {
 				vftrk = cprb->trk;
-				cmn_err(CE_CONT, "\tverifying track %d ", vftrk);
+				cmn_err(CE_CONT, "\tverifying track %d\n", vftrk);
 			}
 			if (cprb->sts) /* mask out segment if error	*/
 				*(ptr_header + 0x200 + cprb->sgn) = 0xffffffffL;
@@ -1492,7 +1686,7 @@ int	ntrkf;
 	}
 
 	pfint = xlcomplete;		/* normal mode			*/
-	xl_cmd(QIC_CMD_NMD);
+	xloutput_step(QIC_CMD_NMD);
 	xlwait();
 
 	/*	done with format / verify				*/
@@ -1500,20 +1694,20 @@ int	ntrkf;
 
 	p0 = ptr_header + 0x200;
 	for (i = 0; *p0++; ++i);	/* set hdr segment  #'s		*/
-	((fpwrd)ptr_header)[3] = h0sgn = i;	/*  and vol segment	*/
+	((fpwrd)ptr_header)[ 3 ] = h0sgn = i;	/*  and vol segment	*/
 	do {
 		++i;
 	} while(*p0++);
-	((fpwrd)ptr_header)[4] = h1sgn = i;
+	((fpwrd)ptr_header)[ 4 ] = h1sgn = i;
 	do {
 		++i;
 	} while(*p0++);
-	((fpwrd)ptr_header)[5] = volume_seg_num = i;
+	((fpwrd)ptr_header)[ 5 ] = volume_seg_num = i;
 	/* set last seg number						*/
-	((fpwrd)ptr_header)[6] = last_seg_num = ntrkf * nseg_p_track - 1;
+	((fpwrd)ptr_header)[ 6 ] = last_seg_num = ntrkf * nseg_p_track - 1;
 
 	cmn_err(CE_CONT,
-           "xlformat: h0sgn %d  h1sgn %d  volume_seg_num %d  last_seg_num %d ",
+           "xlformat: h0sgn %d  h1sgn %d  volume_seg_num %d  last_seg_num %d\n",
 	   h0sgn, h1sgn, volume_seg_num, last_seg_num);
 
 	pfprk = xlcomplete;		/* park tape			*/
@@ -1538,7 +1732,7 @@ int	ntrkf;
 		splx(ilvl);
 		cprb->sgn = curr_seg_num;/* set up for hdr or del adm write */
 		cprb->map = 0L;
-		if (ptr_header[curr_seg_num + 0x200]) {
+		if (ptr_header[ curr_seg_num + 0x200 ]) {
 			cmn_err(CE_CONT, "-");
 			cprb->fun = RBWFD;
 		}
@@ -1616,7 +1810,7 @@ IO * iop;
 			}
 			else{
 				if (!xl_dec(p1, cprb->nbk, cprb->erc,
-				   cprb->ers[0], cprb->ers[1], cprb->ers[2])) {
+				   cprb->ers[ 0 ], cprb->ers[ 1 ], cprb->ers[ 2 ])) {
 					u.u_error = EIO;
 				}
 			}
@@ -1662,7 +1856,7 @@ xlhalt()
 	}
 	pfint = xlready;		/* after stop cmd wait for rdy	*/
 	pfrdy = pfhlt;			/* after ready, exit		*/
-	xl_cmd(QIC_CMD_STOP);
+	xloutput_step(QIC_CMD_STOP);
 }
 
 /************************************************************************/
@@ -1672,7 +1866,6 @@ static void
 xlintr()				/* fdc interrupt handler	*/
 {
 	register unchar	*p0, *p1;
-	int s = sphi();
 
 	xltimout(0);			/* reset interrupt timeout	*/
 
@@ -1687,7 +1880,7 @@ xlintr()				/* fdc interrupt handler	*/
 		p0 = status_buf;	/* set up			*/
 		for (p1 = p0 + 7; p0 != p1; ++p0) {
 			*p0 = xlfdc_in_byte();	/* store next byte	*/
-			if (status_buf[7]) {
+			if (status_buf[ 7 ]) {
 				xlster |= XLSNEC;
 				break;
 			}
@@ -1695,41 +1888,29 @@ xlintr()				/* fdc interrupt handler	*/
 	} else {
 		/* handle non-I/O int		*/
 		for(;;) {
-			if (xlfdc_out_byte(8)) {/* start sense int	*/
+			if (xlfdc_out_byte(8))/* start sense int	*/
 				break;
-			}
-			status_buf[0] = xlfdc_in_byte();/* get 1st sts byte*/
-			if (status_buf[7]) {
+			status_buf[ 0 ] = xlfdc_in_byte();/* get 1st sts byte*/
+			if (status_buf[ 7 ]) {
 				xlster |= XLSNEC;
 				break;
 			}
-#if 0
-			if (status_buf[0] == 0x80) {/* br if done	*/
-				status_buf[0] = unit;
+			if (status_buf[ 0 ] == 0x80) {/* br if done	*/
+				status_buf[ 0 ] = unit;
 				if (xltimoutf) {
 					xltimoutf = 0;
-					status_buf[0] = 0xc0;
+					status_buf[ 0 ] = 0xc0;
 				}
 				break;
 			}
-#endif
-			status_buf[1] = xlfdc_in_byte();/* get 2nd sts byte*/
-
-#if 0
+			status_buf[ 1 ] = xlfdc_in_byte();/* get 2nd sts byte*/
 			/* update track if my unit			*/
-			if (unit == (3 & status_buf[0])) {
-				sekcms[2] = status_buf[1];
-			}
-#else
-			sekcms[2] = status_buf[1];
-			break;
-#endif
+			if (unit == (3 & status_buf[ 0 ]))
+				sekcms[ 2 ] = status_buf[ 1 ];
 			/* check for more bytes				*/
 		}
 	}
 	(*pfint)();			/* exit via caller handler	*/
-
-	spl(s);
 	return;
 }
 
@@ -1751,19 +1932,19 @@ dev_t	dev;
 	register int	i;
 	xlvtbl		*pp;
 
-	/* try several times to see drive ready - will fix this later */
-	for (i = 0; i < 30; i++) {
+printf("xlopn ");
+
+	/* try 100 times to see drive ready - will fix this later */
+	for (i = 0; i < 100; i++) {
 		xlster = 0;		/* reset error status		*/
 		xlests = 0;
 		xl7sts = 0;
 		pfsts = xlcomplete;	/* get drive status		*/
 		xlstatus();
 		xlwait();
-printf("i=%d ", i+1);
+printf("try:%d ", i+1);
 		if (xl6sts & XLSRDY)
 			break;
-		timeout(&xldly, HZ*3, xlcomplete, 0);
-		xlwait();
 	}
 
 	xlster &= ~XLSSFT;		/* clear soft error bits	*/
@@ -1789,7 +1970,7 @@ printf("fatal error ");
 	if (dev & M_RET) {		/* retension if retension_on_open */
 		pfint = xlready;
 		pfrdy = xlcomplete;
-		xl_cmd(QIC_CMD_EOT);
+		xloutput_step(QIC_CMD_EOT);
 		xlwait();
 		if (xlster) {
 printf("another fatal error ");
@@ -1798,8 +1979,9 @@ printf("another fatal error ");
 	}
 	pfint = xlready;		/* rewind tape			*/
 	pfrdy = xlcomplete;
-	xl_cmd(QIC_CMD_BOT);
+	xloutput_step(QIC_CMD_BOT);
 	xlwait();
+printf("should now be at BOT ");
 	if (xlster) {
 printf("yet another fatal error ");
 		return 2;
@@ -1808,7 +1990,7 @@ printf("yet another fatal error ");
 	pfcal = xlcomplete;		/* calibrate drive		*/
 	xlcal();
 	xlwait();
-	ftDbPrintStat(xl6sts);
+printf("should now be referenced ");
 	if (xlster) {			/* exit if fatal error		*/
 printf("still yet another fatal error ");
 		return 2;
@@ -1818,13 +2000,11 @@ printf("still yet another fatal error ");
 printf("no ref bursts ");
 		return 1;
 	}
-
 	if (i != 0x65) {		/* return general error		*/
 printf("general error ");
 		xlster |= XLSSFT;
 		return 2;
 	}
-
 	xprb = getrb(&xlfree_q);	/* get a buffer for open	*/
 	xprb->sgn = 0;			/* set up buffer		*/
 xlopn0:
@@ -1839,21 +2019,17 @@ xlopn0:
 	xlwait();
 
 	if (!xprb->sts) { 	/* ck for errors */
-		int result = xl_dec(ptr_buffer, xprb->nbk, xprb->erc,
-		   xprb->ers[0], xprb->ers[1], xprb->ers[2]);
-
-#if 0
-printf("xl_dec(0x%x, %d, %d, %d, %d, %d) = %d ",
-  ptr_buffer, xprb->nbk, xprb->erc,
-  xprb->ers[0], xprb->ers[1], xprb->ers[2], result);
-#endif
-
-		if (!result)
+printf("xlopn trying ecc ");
+		if (!xl_dec(ptr_buffer, xprb->nbk, xprb->erc,
+		   xprb->ers[ 0 ], xprb->ers[ 1 ], xprb->ers[ 2 ])) {
+printf("failed ");
 			xprb->sts = 1;
+		} else {
+printf("succeeded ");
+		}
 	}
 
 	if (xprb->sts) {		/* if error, try next segment	*/
-printf("bad seg %d ", xprb->sgn);
 		++xprb->sgn;
 		if (xprb->sgn < 10 && !xlster) {
 			goto xlopn0;
@@ -1870,11 +2046,11 @@ printf("fatal ");
 
 	bcopy(ptr_buffer, ptr_header, HDRSZ);	/* copy header data	*/
 
-	volume_seg_num = ((fpwrd)ptr_header)[5];/* set seg numbers	*/
+	volume_seg_num = ((fpwrd)ptr_header)[ 5 ];/* set seg numbers	*/
 	data_seg_num = volume_seg_num + 1;
 
 	xprb->sgn = volume_seg_num;	/* read in volume segment	*/
-	xprb->map = ptr_header[volume_seg_num + 0x200];
+	xprb->map = ptr_header[ volume_seg_num + 0x200 ];
 	strbsg(xprb);
 	pfpos = xlrds;
 	pfrds = xlcomplete;
@@ -1882,13 +2058,13 @@ printf("fatal ");
 	xlwait();
 
 	if (!xprb->sts) { 		/* ck for errors		*/
-printf("ecc2 ");
+printf("xlopn trying 2nd ecc ");
 		if (!xl_dec(ptr_buffer, xprb->nbk, xprb->erc,
-		   xprb->ers[0], xprb->ers[1], xprb->ers[2])) {
+		   xprb->ers[ 0 ], xprb->ers[ 1 ], xprb->ers[ 2 ])) {
 printf("failed ");
 			xprb->sts = 1;
 		} else {
-printf("OK ");
+printf("succeeded ");
 		}
 	}
 
@@ -1897,13 +2073,10 @@ printf("OK ");
 	last_seg_num = (int)pp->last_seg_num;
 	/* set last # bytes	*/
 	lnbr = (int)pp->last_blk_size;
-#if 0
 	putrb(&xlfree_q, xprb);	/* return buffer		*/
-#endif
 	pfprk = xlcomplete;		/* park tape			*/
 	xlpark();
 	xlwait();
-
 	if (xprb->sts) {		/* return error if error	*/
 printf("sts err ");
 		return 2;
@@ -1915,34 +2088,19 @@ printf("sts err ");
 /*	xloutput_step	output cnt steps				*/
 /************************************************************************/
 static void
-xl_cmd(cmd)
-uint cmd;
-{
-	if (cmd != 6 && cmd != 2)
-		printf("[%d]", cmd);
-
-	xloutput_step(cmd);
-}
-
-static void
-xl_cmdarg(arg)
-uint arg;
-{
-	printf("(%d) ", arg);
-	xloutput_step(arg);
-}
-
-static void
 xloutput_step(cnt)			/* output cnt steps		*/
-uint	cnt;
+int	cnt;
 {
-	sekcms[1] = unit;
-	if (sekcms[2] > cnt)
-		sekcms[2] -= cnt;
+
+	xlDbPrintCmd(cnt);
+
+	sekcms[ 1 ] = unit;
+	if (sekcms[ 2 ] > 80)
+		sekcms[ 2 ] -= cnt;
 	else
-		sekcms[2] += cnt;
+		sekcms[ 2 ] += cnt;
 	xlfdc_out_str(sekcms, 3);	/* start seek cmd		*/
-	if (status_buf[7]) {		/* exit if nec error		*/
+	if (status_buf[ 7 ]) {		/* exit if nec error		*/
 		xlster |= XLSNEC;
 		(*pfint)();
 	}
@@ -1970,7 +2128,7 @@ xlpark0()
 		return;
 	}
 	pfint = xlpark1; 		/* set normal mode		*/
-	xl_cmd(QIC_CMD_NMD);
+	xloutput_step(QIC_CMD_NMD);
 }
 
 static void
@@ -1990,7 +2148,7 @@ xlpark2()
 	}
 	pfint = xlready;		/* after rewind, wait for rdy	*/
 	pfrdy = pfprk;			/* after ready, exit		*/
-	xl_cmd(QIC_CMD_BOT);	/* start rewind			*/
+	xloutput_step(QIC_CMD_BOT);	/* start rewind			*/
 }
 
 /************************************************************************/
@@ -2002,15 +2160,14 @@ xlpos()
 {
 	register int d0;
 
+	cmn_err(CE_CONT, "xlpos ");
+
 	if (xlster) {			/* exit if error		*/
 		pfint = xlpos0;		/* use null int to cleanup stak	*/
 		xloutput_step(0);
 		return;
 	}
-
-	/* d0 is desired track. */
 	d0 = xprb->trk;
-
 	if (tptrk != d0) {		/* if not same track		*/
 		if ((tptrk ^ d0) & 1)	/* adjust tpseg		*/
 			tpseg = nseg_p_track + 5 - tpseg;
@@ -2028,15 +2185,13 @@ printf("seek %d->%d ", tptrk, d0);
 	/* adjust tpseg if 1st seg on trk				*/
 	if (!d0)
 		tpseg = nseg_p_track;
-#if 0
-printf("tpseg=%d  d0=%d mov=%d ", tpseg, d0, f.tmov);
-#endif
 	if (d0 == tpseg && f.tmov == 1) { /* exit if on target		*/
+printf("xpos on target ");
 		(*pfpos)();
 		return;
 	}
-
 	if (d0 > tpseg) { 		/* if before target read id	*/
+printf("before: %d < %d ", tpseg, d0);
 		pfrdi = xlpos2;
 		if (f.tmov) {
 			xlreadid();
@@ -2044,7 +2199,7 @@ printf("tpseg=%d  d0=%d mov=%d ", tpseg, d0, f.tmov);
 		}
 		f.tmov = 1;
 		pfint = xlreadid;
-		xl_cmd(QIC_CMD_FWD);
+		xloutput_step(QIC_CMD_FWD);
 		return;
 	}
 	else{
@@ -2071,7 +2226,7 @@ xlpos0()				/* new track, tape stopped	*/
 		f.tmov = 1;
 		pfint = xlreadid;	/* start tape fwd and read id	*/
 		pfrdi = xlpos2;
-		xl_cmd(QIC_CMD_FWD);
+		xloutput_step(QIC_CMD_FWD);
 		return;
 	}
 	else{
@@ -2084,6 +2239,8 @@ xlpos0()				/* new track, tape stopped	*/
 static void
 xlpos1()				/* skip backwards done		*/
 {
+	cmn_err(CE_CONT, "xlpos1()\n");
+
 	if (xlster) {			/* exit if error		*/
 		(*pfpos)();
 		return;
@@ -2091,24 +2248,26 @@ xlpos1()				/* skip backwards done		*/
 	f.tmov = 1;
 	if (!xprb->tps) { 		/* check for 1st seg on trk	*/
 		pfint = pfpos;
-		xl_cmd(QIC_CMD_FWD);
+		xloutput_step(QIC_CMD_FWD);
 		return;
 	}
 	pfint = xlreadid;		/* start tape fwd and read id's	*/
 	pfrdi = xlpos2;
-	xl_cmd(QIC_CMD_FWD);
+	xloutput_step(QIC_CMD_FWD);
 }
 
 static void
 xlpos2()				/* read id finished		*/
 {
+	cmn_err(CE_CONT, "xlpos2()");
+
 	if (xlster) {			/* exit if error		*/
 		(*pfpos)();
 		return;
 	}
-	if (status_buf[0] & 0xc0) {	/* error handler		*/
+	if (status_buf[ 0 ] & 0xc0) {	/* error handler		*/
 		/* if crc error, read id again				*/
-		if (status_buf[1] & 0x20) {
+		if (status_buf[ 1 ] & 0x20) {
 printf("crc err ");
 			xlreadid();
 			return;
@@ -2117,33 +2276,28 @@ printf("crc err ");
 		xlhalt();
 		return;
 	}
-#if 0
-printf("C=%d H=%d R=%d N=%d ",
-  status_buf[3], status_buf[4], status_buf[5], status_buf[6]);
-#endif
-
-	/* if before target, read id again	*/
-	if (xprb->idc > status_buf[3] || xprb->ids > status_buf[5]) {
+	if (xprb->idc > status_buf[ 3 ] ||/* if bef tgt, read id again	*/
+					xprb->ids > status_buf[ 5 ]) {
+printf("before target ");
 		xlreadid();
 		return;
 	}
-
-	/* if past it, back up	*/
-	if (xprb->cyl <= status_buf[3] && xprb->sct <= status_buf[5]) {
+	if (xprb->cyl <= status_buf[ 3 ] &&	/* if past it back up	*/
+ 					xprb->sct <= status_buf[ 5 ]) {
 		pfskp = xlpos1;
 		xlskipb(9);
 		return;
 	}
-
-	/* we are at target spot	*/
-	/* set tpseg and exit		*/
-	tpseg = xprb->tps;
+					/* we are at target spot	*/
+	tpseg = xprb->tps;		/* set tpseg and exit		*/
 	(*pfpos)();
 }
 
 static void
 xlpos3()				/* status complete tape stopped	*/
 {
+	cmn_err(CE_CONT, "xlpos3()\n");
+
 	if (xlster) {			/* exit if error		*/
 		(*pfpos)();
 		return;
@@ -2183,7 +2337,7 @@ IO * iop;
 			do{
 				/* set up segment			*/
 				cprb->sgn = curr_seg_num;
-				cprb->map = ptr_header[curr_seg_num + 0x200];
+				cprb->map = ptr_header[ curr_seg_num + 0x200 ];
 				cprb->fun = RBFWT;
 				strbsg(cprb);
 				++curr_seg_num;
@@ -2215,16 +2369,17 @@ IO * iop;
 static void
 xlque()
 {
+	cmn_err(CE_CONT, "xlque()\n");
 xlque0:
 	xprb = getrb(&req);		/* get next request		*/
 	if (!xprb) {			/* if end queue and		*/
 		if (f.tmov) {		/* if tape moving, stop tape	*/
-			cmn_err(CE_CONT, "xlque: stopping ");
+			cmn_err(CE_CONT, "xlque: stopping\n");
 			pfhlt = xlque;
 			xlhalt();
 			return;
 		}
-		cmn_err(CE_CONT, "xlque: inactive ");
+		cmn_err(CE_CONT, "xlque: inactive\n");
 
 		if (f.actv) {		/* if active, release fdc	*/
 			xlrel();
@@ -2303,7 +2458,7 @@ xlrds()
 		xloutput_step(0);
 		return;
 	}
-	rwdcms[0] = 0x46;		/* set for read			*/
+	rwdcms[ 0 ] = 0x46;		/* set for read			*/
 	stseg(xprb);
 	xrty = 2;			/* 2 tries per sector		*/
 	xlrd0();			/* start io			*/
@@ -2320,18 +2475,13 @@ printf("xlrd0 - err xlster=%x xstop=%x ", xlster, xstop);
 		return;
 	}
 	pfint = xlrd1;			/* set int handler		*/
-	xtbl = (xprb->tbl)[xsct - xprb->sct];/* get rb.tbl entry	*/
+	xtbl = (xprb->tbl)[ xsct - xprb->sct ];/* get rb.tbl entry	*/
 	if (xtbl) {		      /* if more data, start other read	*/
-		rwdcms[4] = (xtbl & 0x1f) + xprb->sct;
+		rwdcms[ 4 ] = (xtbl & 0x1f) + xprb->sct;
 		stdma(DMA_Rdmode, xadr | ((xtbl & 0x3e0) << 5), (int)(xtbl & 0xfc00));
 		xltimout(IOTMO);
 		xlfdc_out_str(rwdcms, 9);
-#if 0
-printf("R-%x/%x", rwdcms[0], rwdcms[1]);
-printf("-%d/%d/%d/%d", rwdcms[2], rwdcms[3], rwdcms[4], rwdcms[5]);
-printf("-%d/%d/%d ", rwdcms[6], rwdcms[7], rwdcms[8]);
-#endif
-		if (status_buf[7]) { 	/* exit if nec error	*/
+		if (status_buf[ 7 ]) { 	/* exit if nec error	*/
 			xltimout(0);
 			xlster |= XLSNEC;
 			pfint = xlnull;
@@ -2364,13 +2514,13 @@ printf("xlrd1 - err xlster=%x xstop=%x ", xlster, xstop);
 		(*pfrds)();
 		return;
 	}
-	if (status_buf[0] & 0xc0) {	/* if error			*/
+	if (status_buf[ 0 ] & 0xc0) {	/* if error			*/
 		dsperr();
-		if (status_buf[2] & 0x40) {/* if del adr mark, exit	*/
+		if (status_buf[ 2 ] & 0x40) {/* if del adr mark, exit	*/
 			++tpseg;
 			goto xlrd2;
 		}
-		if (status_buf[0] == 0xc0)/* adjust tpseg		*/
+		if (status_buf[ 0 ] == 0xc0)/* adjust tpseg		*/
 			tpseg += TMSKP;
 		else{
 			tpseg += 2;
@@ -2378,13 +2528,13 @@ printf("xlrd1 - err xlster=%x xstop=%x ", xlster, xstop);
 		if (tpseg > nseg_p_track)
 			tpseg = nseg_p_track;
 
-		if (status_buf[0] != 0xc0) { /* if not timeout	*/
+		if (status_buf[ 0 ] != 0xc0) { /* if not timeout	*/
 			/* if no data read				*/
-			if (xsct == status_buf[5]) {
+			if (xsct == status_buf[ 5 ]) {
 				--xrty;		/* skip sct if 2nd time	*/
 				if (xrty == 0) {
 					if (xprb->erc < 3) {
-						xprb->ers[xprb->erc] = xsct-xprb->sct;
+						xprb->ers[ xprb->erc ] = xsct-xprb->sct;
 						++xprb->erc;
 						++xsct;
 						xrty = 2;
@@ -2396,7 +2546,7 @@ printf("xlrd1 - err xlster=%x xstop=%x ", xlster, xstop);
 			}
 			else{			/* some data read in	*/
 				xrty = 1; 	/* 1mor try on this sct	*/
-				xsct = status_buf[5];
+				xsct = status_buf[ 5 ];
 			}
 		}				/* update xsct		*/
 		else{ 				/* if timeout		*/
@@ -2417,7 +2567,7 @@ printf("xlrd2 - err xlster=%x xstop=%x ", xlster, xstop);
 
 	/*	no errors, start io for next part of segment (if any)	*/
 
-	xsct = status_buf[5];		/* update xsct, start next io	*/
+	xsct = status_buf[ 5 ];		/* update xsct, start next io	*/
 	xlrd0();
 }
 
@@ -2427,6 +2577,8 @@ printf("xlrd2 - err xlster=%x xstop=%x ", xlster, xstop);
 static void
 xlreadid()
 {
+	cmn_err(CE_CONT, "xlreadid()");
+
 	pfint = xlreadid0; 		/* set pfint			*/
 	xltimout(IOTMO);
 	xlfdc_out_str(rdicms, 2);	/* start read id cmd		*/
@@ -2449,18 +2601,14 @@ xlreadid0()
 /************************************************************************/
 /*	xlready		wait for ready					*/
 /************************************************************************/
-int rcount = 0;
-
 static void
 xlready()
 {
-rcount = 0;
 	if (xlster) {			/* exit if error		*/
 		(*pfrdy)();
 		return;
 	}
 	pfsts = xlready0; 		/* get drive status		*/
-putchar('S');
 	xlstatus();
 }
 
@@ -2471,8 +2619,6 @@ xlready0()
 		(*pfrdy)();
 		return;
 	}
-rcount++;
-printf((rcount&1)?"\bR":"\br");
 	xlstatus();			/* else get status again	*/
 }
 
@@ -2482,17 +2628,8 @@ printf((rcount&1)?"\bR":"\br");
 static void
 xlrel()
 {
-	/* turn off soft select */
-	if (unit == 0) {
-		pfint = xlcomplete;
-		xl_cmd(24);
-		xlwait();
-		timeout(&xldly, 2, xlcomplete, 0);
-		xlwait();
-	}
-
 	while(0x80 != (0xc0 & inb(FDSTAT)));  /* wait for ready	*/
-	outbDb(FDCTRL, 0x0c);		/* deselect all units		*/
+	outb(FDCTRL, 0x0c);		/* deselect all units		*/
 	xlfdc_out_str(sf3cms, 3);	/* set step rate to 3ms		*/
 }
 
@@ -2502,22 +2639,16 @@ xlrel()
 static void
 xlreset()
 {
-printf("xlreset ");
 	pfint = xlreset0; 		/* output 1 step		*/
-	xl_cmd(QIC_CMD_RST);
+	xloutput_step(QIC_CMD_RST);
 }
 
 static void
 xlreset0()
 {
-printf("xlreset0 ");
 	pfint = xlnull;			/* reset pfint			*/
-#if 0
 	pfdly = xlready;		/* after delay "wait" for ready	*/
 	pfrdy = pfrst;			/* after ready, exit via pfrst	*/
-#else
-	pfdly = pfrst;
-#endif
 	xldelay(HZ);			/* start delay			*/
 }
 
@@ -2531,62 +2662,25 @@ int	cnt;
 	xlrnbw = 0;			/* reset status int		*/
 	pfint = xlrnb0; 		/* set int handler		*/
 	xlbcnt = cnt;			/* set up			*/
-	xl_cmd(QIC_CMD_RNB);	/* start 2 step seek		*/
+	xloutput_step(QIC_CMD_RNB);	/* start 2 step seek		*/
 }
 
 static void
 xlrn9() 				/* get 9 bits			*/
 {
-	unchar bit;
-
-#if 0
-	/* Sense drive status. */
-	xlfdc_out_byte(4);
-	xlfdc_out_byte((int)unit);
-
-	/* Read ST3, look at T0 bit. */
-	bit = (0x10 & xlfdc_in_byte()) ? 1 : 0;
-#else
-{
-	int i;
-
-	for (i = 0; i < 10; i++) {
-		xlfdc_out_byte(4);
-		xlfdc_out_byte((int)unit);
-		bit = (0x10 & xlfdc_in_byte()) ? 1 : 0;
-		if (bit)
-			break;
-	}
-}
-#endif
-
 	xlrnbw = 0;
 	pfint = xlrnb0;
 	xlbcnt = 9;
-	xl_cmd(QIC_CMD_RNB);
+	xloutput_step(QIC_CMD_RNB);
 }
 
 static void
 xlrn17()				/* get 17 bits			*/
 {
-#if 1
-{
-	int i;
-	unchar bit;
-
-	for (i = 0; i < 20; i++) {
-		xlfdc_out_byte(4);
-		xlfdc_out_byte((int)unit);
-		bit = (0x10 & xlfdc_in_byte()) ? 1 : 0;
-		if (bit)
-			break;
-	}
-}
-#endif
 	xlrnbw = 0;
 	pfint = xlrnb0;
 	xlbcnt = 17;
-	xl_cmd(QIC_CMD_RNB);
+	xloutput_step(QIC_CMD_RNB);
 }
 
 static void
@@ -2603,7 +2697,7 @@ xlrnb0()
 	bit = (0x10 & xlfdc_in_byte()) ? 1 : 0;
 
 	xlrnbb = bit ? 0x8000 : 0x0000;
-	if (status_buf[7])		/* exit if nec handshake error	*/
+	if (status_buf[ 7 ])		/* exit if nec handshake error	*/
 		xlster |= XLSNEC;
 	if (xlster) {
 		pfint = xlnull;
@@ -2614,7 +2708,7 @@ xlrnb0()
 	if (xlbcnt) {			/* if not done, shift in bit	*/
 		xlrnbw >>= 1; 		/*  and continue		*/
 		xlrnbw |= xlrnbb;
-		xl_cmd(QIC_CMD_RNB);
+		xloutput_step(QIC_CMD_RNB);
 		return;
 	} else {
 		if (!xlrnbb)		/* last bit must = 1		*/
@@ -2638,7 +2732,7 @@ xlrqr0:
 			break;
 		}
 		fprb->sgn = read_ahead_seg_num;
-		fprb->map = ptr_header[read_ahead_seg_num + 0x200];
+		fprb->map = ptr_header[ read_ahead_seg_num + 0x200 ];
 		fprb->fun = RBFRD;
 		strbsg(fprb);
 		if (fprb->nbk < 4) {	/* skip if < 4 sectors		*/
@@ -2672,7 +2766,7 @@ xlseek0()
 		return;
 	}
 	pfint = xlseek1; 		/* do 13 steps			*/
-	xl_cmd(QIC_CMD_SEEK);
+	xloutput_step(QIC_CMD_SEEK);
 }
 
 static void
@@ -2684,7 +2778,7 @@ xlseek1()
 	}
 	pfint = xlready;		/* after seek "wait" for rdy	*/
 	pfrdy = pfsek;			/* after ready, exit		*/
-	xl_cmdarg(2 + tptrk);
+	xloutput_step(2 + tptrk);
 }
 
 /************************************************************************
@@ -2695,8 +2789,8 @@ xlsel()
 {
 	fdsel = fdstb[unit];
 	fdselr = 0xfb & fdsel;
-	outbDb(FDCSR1, 0); 		/* set 500khz speed		*/
-	outbDb(FDCTRL, fdsel);		/* select unit			*/
+	outb(FDCSR1, 0); 		/* set 500khz speed		*/
+	outb(FDCTRL, fdsel);		/* select unit			*/
 	pfint = xlcomplete;		/* reset fdc			*/
 	xlfdc_reset();
 	xlwait();
@@ -2712,27 +2806,6 @@ xlsel()
 		nseg_p_track = 68;	/* set for 40 MB drive		*/
 		nseg_p_head = 680;
 		nseg_p_cyl = 4;
-	}
-/* soft select */
-	if (unit == 0) {
-printf("xl soft select ");
-		pfint = xlcomplete;
-		xl_cmd(77);
-		xlwait();
-		timeout(&xldly, 2, xlcomplete, 0);
-		xlwait();
-
-		pfint = xlcomplete;
-		xl_cmd(23);
-		xlwait();
-		timeout(&xldly, 2, xlcomplete, 0);
-		xlwait();
-
-		pfint = xlcomplete;
-		xl_cmd(20);
-		xlwait();
-		timeout(&xldly, 2, xlcomplete, 0);
-		xlwait();
 	}
 }
 
@@ -2751,14 +2824,14 @@ int	cnt;
 	xlskip_count = cnt;		/* set skip count		*/
 	pfint = xlready;		/* stop tape first		*/
 	pfrdy = xlskipb0;
-	xl_cmd(QIC_CMD_STOP);
+	xloutput_step(QIC_CMD_STOP);
 }
 
 static	void
 xlskipb0()
 {
 	pfint = xlskipb1; 		/* start skip back cmd		*/
-	xl_cmd(QIC_CMD_SKPB);
+	xloutput_step(QIC_CMD_SKPB);
 }
 
 static	void
@@ -2769,7 +2842,7 @@ xlskipb1()
 		return;
 	}
 	pfint = xlskipb2; 		/* issue 2nd part of cmd	*/
-	xl_cmdarg(2 + (0xf & xlskip_count));
+	xloutput_step(2 + (0xf & xlskip_count));
 }
 
 static	void
@@ -2783,7 +2856,7 @@ xlskipb2()
 	pfint = xlready;
 	pfrdy = pfskp;			/* after ready, exit		*/
 	/* start 3rd part cmd	*/
-	xl_cmdarg(2 + (0xf & (xlskip_count >> 4)));
+	xloutput_step(2 + (0xf & (xlskip_count >> 4)));
 }
 
 /************************************************************************/
@@ -2800,7 +2873,7 @@ xlstatus()
 	/* after 6 steps, get 9 report bits				*/
 	pfint = xlrn9;
 	pfrnb = xlstatus0; 		/* after 9 bits, goto xlstatus0	*/
-	xl_cmd(QIC_CMD_STS);	/* start steps			*/
+	xloutput_step(QIC_CMD_STS);	/* start steps			*/
 }
 
 static void
@@ -2819,13 +2892,15 @@ xlstatus0()
 		pfint = xlnull;
 		(*pfsts)();
 		return;
+	} else {
+		xlDbPrintStat(xl6sts);
 	}
 
 	if (xl6sts & (XLSEXC | XLSCHG)) {/* if exception condition,	*/
 		xlests = xl6sts;	/* start type 7 status		*/
 		pfint = xlrn17;
 		pfrnb = xlstatus1;
-		xl_cmd(QIC_CMD_ECD);
+		xloutput_step(QIC_CMD_ECD);
 		return;
 	}
 
@@ -2847,10 +2922,10 @@ xlstatus1()
 		return;
 	}
 	xl7sts = xlrnbw;		/* save type 7 status		*/
-	ftDbPrintErr(xl7sts);
+	xlDbPrintErr(xl7sts);
 	pfint = xlrn9;			/* restart normal status sequce	*/
 	pfrnb = xlstatus0;
-	xl_cmd(QIC_CMD_STS);
+	xloutput_step(QIC_CMD_STS);
 }
 
 /************************************************************************
@@ -2871,7 +2946,7 @@ int	cnt;
 static void
 xltimfn()
 {
-	cmn_err(CE_CONT, "Timeout!! ");
+	cmn_err(CE_CONT, "Timeout!!\n");
 	xltimoutf = 1;
 	xlfdc_reset();
 }
@@ -2910,7 +2985,7 @@ xlwds()
 		xloutput_step(0);
 		return;
 	}
-	rwdcms[0] = 0x49;		/* set for write del adm	*/
+	rwdcms[ 0 ] = 0x49;		/* set for write del adm	*/
 	stseg(xprb);
 	xrty = 2;
 	pfint = xlwt1;
@@ -2929,7 +3004,7 @@ xlwts()
 		xloutput_step(0);
 		return;
 	}
-	rwdcms[0] = 0x45;		/* set for write		*/
+	rwdcms[ 0 ] = 0x45;		/* set for write		*/
 	stseg(xprb);
 	xlwt0();
 }
@@ -2943,17 +3018,14 @@ xlwt0()					/* start io			*/
 		(*pfwts)();
 		return;
 	}
-	xtbl = (xprb->tbl)[xsct - xprb->sct];/* get rb.tbl entry	*/
+	xtbl = (xprb->tbl)[ xsct - xprb->sct ];/* get rb.tbl entry	*/
 	if (xtbl) {		      /* if more data start other write	*/
 		pfint = xlwt1;
-		rwdcms[4] = (xtbl & 0x1f) + xprb->sct;
+		rwdcms[ 4 ] = (xtbl & 0x1f) + xprb->sct;
 		stdma(DMA_Wrmode, xadr | ((xtbl & 0x3e0) << 5), (int)(xtbl & 0xfc00));
 		xltimout(IOTMO);
 		xlfdc_out_str(rwdcms, 9);
-printf("W-%x/%x", rwdcms[0], rwdcms[1]);
-printf("-%d/%d/%d/%d", rwdcms[2], rwdcms[3], rwdcms[4], rwdcms[5]);
-printf("-%d/%d/%d ", rwdcms[6], rwdcms[7], rwdcms[8]);
-		if (status_buf[7]) { 	/* exit if nec error	*/
+		if (status_buf[ 7 ]) { 	/* exit if nec error	*/
 			xltimout(0);
 			xlster |= XLSNEC;
 			xprb->sts = 1;
@@ -2986,14 +3058,14 @@ xlwt1()
 		(*pfwts)();
 		return;
 	}
-	if (status_buf[0] & 0xc0) {	/* check for io error		*/
+	if (status_buf[ 0 ] & 0xc0) {	/* check for io error		*/
 		dsperr();
-		if (status_buf[0] == 0xc0)/* adjust tpseg		*/
+		if (status_buf[ 0 ] == 0xc0)/* adjust tpseg		*/
 			tpseg += TMSKP;
 		else
 			tpseg += 2;
-		if (status_buf[0] != 0xc0)/* update xsct		*/
-			xsct = status_buf[5];
+		if (status_buf[ 0 ] != 0xc0)/* update xsct		*/
+			xsct = status_buf[ 5 ];
 		--xrty;			/* retry if more to try		*/
 		if (xrty) {
 			pfpos = xlwt0;
@@ -3002,7 +3074,7 @@ xlwt1()
 		}
 		else{
 			/* if del adm write, continue			*/
-			if (rwdcms[0] == 0x49) {
+			if (rwdcms[ 0 ] == 0x49) {
 				++xsct;
 				xrty = 2;
 				pfpos = xlwt0;
@@ -3015,7 +3087,7 @@ xlwt1()
 			return;
 		}
 	}
-	xsct = status_buf[5];		/* if no error, start next io	*/
+	xsct = status_buf[ 5 ];		/* if no error, start next io	*/
 	xlwt0();
 }
 
@@ -3109,7 +3181,7 @@ static	char	*qicCmd[] = {
 
 /* print 2-byte error status as <error-code,command> */
 static void
-ftDbPrintErr(errword)
+xlDbPrintErr(errword)
 unsigned int errword;
 {
 	unsigned int lo, hi;
@@ -3120,42 +3192,38 @@ unsigned int errword;
 	if (lo >= 1 && lo < sizeof(qicErr)/sizeof(qicErr[0]))
 		printf("<%s,", qicErr[lo]);
 	else
-		printf("<%x,", lo);
+		printf("<%d,", lo);
 
 	if (hi >= 1 && hi < sizeof(qicCmd)/sizeof(qicCmd[0]))
 		printf("%s> ", qicCmd[hi]);
 	else
-		printf("%x> ", hi);
+		printf("%d> ", hi);
 }
 
 /* print command as [command] */
 static void
-ftDbPrintCmd(cmd)
+xlDbPrintCmd(cmd)
 unsigned int cmd;
 {
 	if (cmd >= 1 && cmd < sizeof(qicCmd)/sizeof(qicCmd[0])) {
-		switch (cmd) {
-		case QIC_CMD_STS:
-			break;
-		case QIC_CMD_RNB:
-			break;
-		default:
+		if (cmd == QIC_CMD_RNB)
+			putchar ('.');
+		else
 			printf("[%s] ", qicCmd[cmd]);
-		}
 	} else
-		printf("[%x] ", cmd);
+		printf("[%d] ", cmd);
 }
 
 /* print tape status as { status string,... } */
 static void
-ftDbPrintStat(stat)
+xlDbPrintStat(stat)
 unsigned int stat;
 {
 	int i;
 
 	printf("{ ");
 	for (i = 0; i < 8; i++) {
-		if (stat & (1 << i))
+		if (xl6sts & (1 << i))
 			printf("%s, ", qicStat[i]);
 	}
 	putchar('}');

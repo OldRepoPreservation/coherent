@@ -5,11 +5,27 @@
  *  adapter module and the SCSI device modules. It's just a simple
  *  dispatcher that determines which routine to call based upon the
  *  calling device's Target ID.  The target ID should be set in bits
- *  4-6 of the device's minor number.  
+ *  4-6 of the device's minor number.
  *
  *  Copyright (c) 1993, Christopher Sean Hilton, All Rights Reserved.
  *
- *  Last Modified: Thu Jun  3 20:55:19 1993 by [chris]
+ *  Last Modified: Sun Jun 27 16:41:41 1993 by [chris]
+ *
+ *  $Id: haiscsi.c,v 1.0 93/06/27 18:23:44 chris Exp Locker: chris $
+ */
+
+/***********************************************************************
+ *  Compile time configuration options are:
+ *
+ *  DEBUG   --  add dumpmem routine for outside modules to use so that
+ *              we can see what's up with the results are in structures
+ *              and buffers.
+ *
+ *  CONFIG  --  make a self configuration driver.  this driver won't
+ *              be able to access devices through anything but the
+ *              ioctl system call so no device modules will be needed.
+ *              a program will be able to do ioctls to figure out what
+ *              types of devices are available on the bus.
  */
 
 #include <stddef.h>
@@ -25,101 +41,68 @@
 
 #include <sys/haiscsi.h>
 
-#define DEBUG       1   /* Adds dumpmem() routine. */
-
 /***********************************************************************
  *  Constants/patchable variables
  */
 
 #define GROUPMASK   0xe0
-#define GROUP0      0x00
-#define GROUP1      0x20
-#define GROUP5      0xa0
+#define GROUP0	    0x00	/* SCSI-1/2 */
+#define GROUP1	    0x20	/* SCSI-1/2 */
+#define GROUP2	    0x40	/* SCSI-2 */
+#define GROUP5	    0xa0	/* SCSI-1/2 */
 
-extern int nonedev();       /* Set error and exit. */
-extern int nulldev();       /* Do nothing and exit. */
+extern int nonedev();		/* Set error and exit. */
+extern int nulldev();		/* Do nothing and exit. */
 
-/***********************************************************************
- *  Host Adapter routines.
- *
- *  These must be defined by the host adapter module.  For each individual
- *  routine's functionality see the host adapter module aha154x.c.
- */
-
-extern int haintr();                /* Interrupt handler */
-extern int hainit();                /* Initialization routine */
-extern int hatimer();               /* Timeout counter/handler */
-extern int startscsi();             /* Start a command from an srb */
-extern void abortscsi();            /* Abort the command from an srb */
-extern int resetdevice();           /* Reset device on the scsi bus */
-
-static void scsi_open();
-static void scsi_close();
-static void scsi_block();
-static void scsi_read();
-static void scsi_write();
-static void scsi_ioctl();
-static int scsi_load();
-static int scsi_unload();
+static void scsi_open();	/* Open dispatcher */
+static void scsi_close();	/* Close dispatcher */
+static void scsi_block();	/* Block dispatcher */
+static void scsi_read();	/* Read dispatcher */
+static void scsi_write();	/* Write dispatcher */
+static void scsi_ioctl();	/* I/O Control dispatcher */
+static int scsi_load(); 	/* Load driver */
+static int scsi_unload();	/* Unload driver */
 
 CON scsicon = {
-    DFBLK | DFCHR,
-    SCSIMAJOR,
-    scsi_open,                      /* Open entry point */
-    scsi_close,                     /* Close entry point */
-    scsi_block,                     /* Block entry point. */
-    scsi_read,                      /* Read Entry point */
-    scsi_write,                     /* write entry point */
-    scsi_ioctl,                     /* IO control entry point */
-    nulldev,                        /* No powerfail entry (yet?) */
-    hatimer,                        /* timeout entry point */
-    scsi_load,                      /* Load entry point */
-    scsi_unload,                    /* Unload entry point */
-    nulldev                         /* No poll entry yet either. */
+	DFBLK | DFCHR,
+	SCSIMAJOR,
+	scsi_open,		/* Open entry point */
+	scsi_close, 		/* Close entry point */
+	scsi_block, 		/* Block entry point. */
+	scsi_read,		/* Read Entry point */
+	scsi_write, 		/* write entry point */
+	scsi_ioctl, 		/* IO control entry point */
+	nulldev,		/* No powerfail entry (yet?) */
+	hatimer,		/* timeout entry point */
+	scsi_load,		/* Load entry point */
+	scsi_unload,		/* Unload entry point */
+	nulldev 		/* No poll entry yet either. */
 };
 
 static char *errstr[] = {
-    "No sense",
-    "Recovered error",
-    "Not ready",
-    "Medium error",
-    "Hardware error",
-    "Illegal request",
-    "Unit attention",
-    "Data protect",
-    "Blank check",
-    "Vendor unique error",
-    "Copy Aborted",
-    "Aborted command",
-    "Equal",
-    "Volume overflow",
-    "Miscompare",
-    "Reserved"
+	"No sense",
+	"Recovered error",
+	"Not ready",
+	"Medium error",
+	"Hardware error",
+	"Illegal request",
+	"Unit attention",
+	"Data protect",
+	"Blank check",
+	"Vendor unique error",
+	"Copy Aborted",
+	"Aborted command",
+	"Equal",
+	"Volume overflow",
+	"Miscompare",
+	"Reserved"
 };
 
 char iofailmsg[] = "%s: status(0x%x)";
+int  HAI_HAID	 = 7;
 
-extern dca_t sddca;             /* SCSI Hard Disks - see sd.c */
-extern dca_t ctdca;             /* Tape Drives - see ct.c */
-/* extern dca_t cdromdca; */    /* CD-ROM Drives - see cdrom.c (not yet written) */
-
-/***********************************************************************
- *  To Configure the SCSI Driver just patch the correct device type
- *  into the mdca array.  Each entry in mdca tells the drive how or
- *  how not to handle the device at each particular id. This entry
- *  can be patched after the kernel has been built.
- */
-
-dca_p mdca[MAXDEVS] = {
-    &sddca,             /* ID 0: Fixed Disk */
-    NULL,               /* ID 1: No Device  */
-    &ctdca,             /* ID 2: Tape drive */
-    NULL,               /* ID 3: No Device  */
-    NULL,               /* ID 4: No Device  */
-    NULL,               /* ID 5: No Device  */
-    NULL,               /* ID 6: No Device  */
-    NULL                /* ID 7: No Device  */
-};
+extern int hapresent;		/* Provided/Controled by host adapter module */
+extern dca_p mdca[MAXDEVS];	/* See haicfg.c */
 
 /***********************************************************************
  *  int scsi_open(dev_t dev, int mode)
@@ -129,15 +112,15 @@ dca_p mdca[MAXDEVS] = {
  */
 
 static void scsi_open(dev, mode)
-register dev_t   dev;
+register dev_t	 dev;
 int mode;
 {
-    register dca_p d = mdca[tid(dev)];
+	register dca_p d = mdca[tid(dev)];
 
-    if (!d)
-        u. u_error = EINVAL;
-    else
-        (*(d->d_open))(dev, mode);
+	if (!hapresent || !d)
+		u. u_error = EINVAL;
+	else
+		(*(d->d_open))(dev, mode);
 }   /* scsi_open() */
 
 /***********************************************************************
@@ -149,12 +132,12 @@ int mode;
 static void scsi_close(dev)
 register dev_t dev;
 {
-    register dca_p d = mdca[tid(dev)];
+	register dca_p d = mdca[tid(dev)];
 
-    if (!d)
-        u. u_error = EINVAL;
-    else
-        (*(d->d_close))(dev);
+	if (!hapresent || !d)
+		u. u_error = EINVAL;
+	else
+		(*(d->d_close))(dev);
 }   /* scsi_close() */
 
 /***********************************************************************
@@ -166,15 +149,15 @@ register dev_t dev;
 static void scsi_block(bp)
 register BUF *bp;
 {
-    register dca_p d = mdca[tid(bp->b_dev)];
+	register dca_p d = mdca[tid(bp->b_dev)];
 
-    if (!d) {
-        bp->b_resid = bp->b_count;
-        bp->b_flag |= BFERR;
-        bdone(bp);
-    }
-    else
-        (*(d->d_block))(bp);
+	if (!hapresent || !d) {
+		bp->b_resid = bp->b_count;
+		bp->b_flag |= BFERR;
+		bdone(bp);
+	}
+	else
+		(*(d->d_block))(bp);
 }   /* scsi_block() */
 
 /***********************************************************************
@@ -184,14 +167,14 @@ register BUF *bp;
  */
 
 void scsi_read(dev, iop)
-register dev_t  dev;
+register dev_t	dev;
 register IO  *iop;
 {
-    register dca_p d = mdca[tid(dev)];
-    if (!d)
-        u. u_error = EINVAL;
-    else
-        (*(d->d_read))(dev, iop);
+	register dca_p d = mdca[tid(dev)];
+	if (!hapresent || !d)
+		u. u_error = EINVAL;
+	else
+		(*(d->d_read))(dev, iop);
 }   /* scsi_read() */
 
 /***********************************************************************
@@ -201,14 +184,14 @@ register IO  *iop;
  */
 
 void scsi_write(dev, iop)
-register dev_t  dev;
+register dev_t	dev;
 IO  *iop;
 {
-    register dca_p d = mdca[tid(dev)];
-    if (!d)
-        u. u_error = EINVAL;
-    else
-        (*(d->d_write))(dev, iop);
+	register dca_p d = mdca[tid(dev)];
+	if (!hapresent || !d)
+		u. u_error = EINVAL;
+	else
+		(*(d->d_write))(dev, iop);
 }   /* scsi_write() */
 
 /***********************************************************************
@@ -218,16 +201,16 @@ IO  *iop;
  */
 
 static void scsi_ioctl(dev, cmd, vec)
-register dev_t  dev;
-int             cmd;
-char            *vec;
+register dev_t	dev;
+int		cmd;
+char		*vec;
 {
-    register dca_p d = mdca[tid(dev)];
+	register dca_p d = mdca[tid(dev)];
 
-    if (!d)
-        u. u_error = EINVAL;
-    else
-        (*(d->d_ioctl))(dev, cmd, vec);
+	if (!hapresent || !d)
+		u. u_error = EINVAL;
+	else
+		(*(d->d_ioctl))(dev, cmd, vec);
 }   /* scsi_ioctl() */
 
 /***********************************************************************
@@ -239,24 +222,22 @@ char            *vec;
 static int scsi_load()
 
 {
-    register int    id;
-    register dca_p  d;
+	register int	id;
+	register dca_p	d;
 
-    printf("\nCoherent Host Adapter Independent SCSI Driver v1.0.0 beta\n");
-    if (!hainit()) {
-        printf("Host Adapter Initialization failed\n");
-        if (major(rootdev) == SCSIMAJOR)
-            panic("Root Device cannot be opened press <Ctrl-Alt-Del>\n");
-    }
+	printf("\nHost Adapter Independent SCSI Driver v1.1\n");
+	hainit();
+	if (!hapresent)
+		printf("Host Adapter Initialization failed.\n");
 
-    for (id = 0; id < MAXDEVS; ++id) {
-        if ((d = mdca[id]) && d->d_load) {
-            printf("ID %d: ", id);
-            if (!(*(d->d_load))(id))
-                printf("Load() failed.\n");
-        }
-    }
-    return;
+	for (id = 0; id < MAXDEVS; ++id) {
+		if ((d = mdca[id]) && d->d_load) {
+			printf("ID %d: ", id);
+			if (!(*(d->d_load))(id))
+				printf("\tLoad() failed.\n");
+		}
+	}
+	return;
 }   /* scsi_load() */
 
 /***********************************************************************
@@ -268,12 +249,12 @@ static int scsi_load()
 int scsi_unload()
 
 {
-    register int    id;
-    register dca_p  d;
+	register int	id;
+	register dca_p	d;
 
-    for (id = 0; id < MAXDEVS; ++id)
-        if ((d = mdca[id]) && d->d_unload)
-            (*(d->d_unload))(id);
+	for (id = 0; id < MAXDEVS; ++id)
+		if ((d = mdca[id]) && d->d_unload)
+			(*(d->d_unload))(id);
 }   /* scsi_unload() */
 
 /***********************************************************************
@@ -287,21 +268,21 @@ int scsi_unload()
  */
 
 char *swapbytes(mem, size)
-char    *mem;
-size_t  size;
+char	*mem;
+size_t	size;
 
 {
-    register char *p = mem;
-    register char *q = p + size - 1;
+	register char *p = mem;
+	register char *q = p + size - 1;
 
-    while (q > p) {
-        *p ^= *q;
-        *q ^= *p;
-        *p ^= *q;
-        p++;
-        q--;
-    }
-    return mem;
+	while (q > p) {
+		*p ^= *q;
+		*q ^= *p;
+		*p ^= *q;
+		p++;
+		q--;
+	}
+	return mem;
 }   /* swapbytes() */
 
 /***********************************************************************
@@ -314,22 +295,23 @@ int cpycdb(dst, src)
 register cdb_p dst;
 register cdb_p src;
 {
-        switch (src->g0. opcode & GROUPMASK) {
-        case GROUP0:
-            memcpy(dst, src, sizeof(g0cmd_t));
-            return sizeof(g0cmd_t);
-        case GROUP1:
-            memcpy(dst, src, sizeof(g1cmd_t));
-            return sizeof(g1cmd_t);
-        case GROUP5:
-            memcpy(dst, src, sizeof(g5cmd_t));
-            return sizeof(g5cmd_t);
-        default:
-            return 0;
-    }
+		switch (src->g0. opcode & GROUPMASK) {
+		case GROUP0:
+			memcpy(dst, src, sizeof(g0cmd_t));
+			return sizeof(g0cmd_t);
+		case GROUP1:
+		case GROUP2:
+			memcpy(dst, src, sizeof(g1cmd_t));
+			return sizeof(g1cmd_t);
+		case GROUP5:
+			memcpy(dst, src, sizeof(g5cmd_t));
+			return sizeof(g5cmd_t);
+		default:
+			return 0;
+	}
 }   /* cpycdb() */
 
-#if DEBUG
+#ifdef DEBUG
 /***********************************************************************
  *  dumpmem()
  *
@@ -337,36 +319,36 @@ register cdb_p src;
  */
 
 static char hexchars[] = "0123456789abcdef",
-            linebuf[] = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | ................\n";
+	    linebuf[] = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | ................\n";
 
 void dumpmem(m, p, s)
 char m[];
 register unsigned char *p;
 register size_t s;
 {
-    register int i;
-    char *l;
+	register int i;
+	char *l;
 
-    if (m)
-        printf(m);
-    printf(" (0x%x)\n", (unsigned) p);
-    memset(linebuf, ' ', sizeof(linebuf) - 2);
-    linebuf[48] = '|';
-    l = linebuf;
-    for (i = 0; i < s; ++i, ++p) {
-        *l++ = hexchars[(*p >> 4) & 0x0f];
-        *l++ = hexchars[*p & 0x0f];
-        *l++ = ' ';
-        linebuf[50 + (i & 15)] = (*p >= ' ' && *p <= '~') ? *p : '.';
-        if ((i & 15) == 15) {
-            printf(linebuf);
-            memset(linebuf, ' ', sizeof(linebuf) - 2);
-            linebuf[48] = '|';
-            l = linebuf;
-        }
-    }
-    if ((s & 15) != 0)
-        printf(linebuf);
+	if (m)
+		printf(m);
+	printf(" (0x%x)\n", (unsigned) p);
+	memset(linebuf, ' ', sizeof(linebuf) - 2);
+	linebuf[48] = '|';
+	l = linebuf;
+	for (i = 0; i < s; ++i, ++p) {
+		*l++ = hexchars[(*p >> 4) & 0x0f];
+		*l++ = hexchars[*p & 0x0f];
+		*l++ = ' ';
+		linebuf[50 + (i & 15)] = (*p >= ' ' && *p <= '~') ? *p : '.';
+		if ((i & 15) == 15) {
+			printf(linebuf);
+			memset(linebuf, ' ', sizeof(linebuf) - 2);
+			linebuf[48] = '|';
+			l = linebuf;
+		}
+	}
+	if ((s & 15) != 0)
+		printf(linebuf);
 }   /* dumpmem() */
 #endif
 
@@ -377,9 +359,9 @@ register size_t s;
  */
 
 static int scsidone(r)
-register srb_p    r;
+register srb_p	  r;
 {
-    wakeup(&(r->status));
+	wakeup(&(r->status));
 }
 
 /***********************************************************************
@@ -392,51 +374,54 @@ register srb_p    r;
 void reqsense(r)
 register srb_p r;
 {
-    int             s;
-    unsigned short  tries;
-    unsigned short  timeout;
-    bufaddr_t       buf;
-    unsigned short  xferdir;
-    int             (*cleanup)();
-    cdb_t           cdb;
+	int 		s;
+	unsigned short	status;
+	unsigned short	tries;
+	unsigned short	timeout;
+	bufaddr_t	buf;
+	unsigned short	xferdir;
+	int 		(*cleanup)();
+	cdb_t		cdb;
 
-    if (r->status == ST_CHKCOND) {
-        tries = r->tries;
-        timeout = r->timeout;
-        memcpy(&buf, &(r->buf), sizeof(bufaddr_t));
-        xferdir = r->xferdir;
-        cleanup = r->cleanup;
-        memcpy(&cdb, &(r->cdb), sizeof(cdb_t));
+	if (r->status == ST_CHKCOND) {
+		status = ST_CHKCOND;
+		tries = r->tries;
+		timeout = r->timeout;
+		memcpy(&buf, &(r->buf), sizeof(bufaddr_t));
+		xferdir = r->xferdir;
+		cleanup = r->cleanup;
+		memcpy(&cdb, &(r->cdb), sizeof(cdb_t));
 
-        r->timeout = 4;
-        r->buf. space = KRNL_ADDR;
-        r->buf. addr. vaddr = (caddr_t) r->sensebuf;
-        r->buf. size = sizeof(r->sensebuf);
-        r->xferdir = DMAREAD;
-        r->cleanup = &scsidone;
-        memset(&(r->cdb), 0, sizeof(cdb_t));
-        r->cdb. g0. opcode = 0x03;
-        r->cdb. g0. lun_lba = (r->lun << 5);
-        r->cdb. g0. xfr_len = r->buf. size;
-        s = sphi();
-        startscsi(r);
-#if defined(V_SLEEP)
-        while (r->status == ST_PENDING)
-            v_sleep(&(r->status), CVTTIN, IVTTIN, SVTTIN, "reqsense");
-#else
-        while (r->status == ST_PENDING)
-            x_sleep(&(r->status), pridisk, slpriSigCatch, "reqsense");
-#endif
-        spl(s);
+		r->timeout = 4;
+		r->buf. space = KRNL_ADDR;
+		r->buf. addr. vaddr = (vaddr_t) r->sensebuf;
+		r->buf. size = sizeof(r->sensebuf);
+		r->xferdir = DMAREAD;
+		r->cleanup = &scsidone;
+		memset(&(r->cdb), 0, sizeof(cdb_t));
+		r->cdb. g0. opcode = 0x03;
+		r->cdb. g0. lun_lba = (r->lun << 5);
+		r->cdb. g0. xfr_len = r->buf. size;
+		s = sphi();
+		startscsi(r);
+		while (r->status == ST_PENDING) {
+			if (x_sleep(&(r->status), pridisk, slpriSigCatch,
+				  "reqsense")) {
+				u. u_error = EINTR;
+				status = ST_USRABRT;
+				break;
+			}
+		}
+		spl(s);
 
-        r->tries = tries;
-        r->timeout = timeout;
-        memcpy(&(r->buf), &buf, sizeof(bufaddr_t));
-        r->xferdir = xferdir;
-        r->cleanup = cleanup;
-        memcpy(&(r->cdb), &(cdb), sizeof(cdb_t));
-        r->status = ST_CHKCOND;
-    }
+		r->tries = tries;
+		r->timeout = timeout;
+		memcpy(&(r->buf), &buf, sizeof(bufaddr_t));
+		r->xferdir = xferdir;
+		r->cleanup = cleanup;
+		memcpy(&(r->cdb), &(cdb), sizeof(cdb_t));
+		r->status = status;
+	}
 }   /* reqsense() */
 
 /***********************************************************************
@@ -452,49 +437,41 @@ register srb_p r;
  *  that some host adapters do the sense part this automatically.
  */
 
-#if defined(V_SLEEP)
-void doscsi(r, retrylimit, cv, iv, sv, m)
-register srb_p  r;
-int             retrylimit;
-int             cv;
-int             iv;
-int             sv;
-char            m[];
-#else
-void doscsiX(r, retrylimit, m)
-register srb_p  r;
-int             retrylimit;
-char            * m;
-#endif
+/* void doscsi(r, retrylimit, schedPri, sleepPri, reason) */
+/* register srb_p  r; */
+/* int             retrylimit; */
+/* int             schedPri; */
+/* int             sleepPri; */
+/* char            reason[]; */
+void doscsi(r, retrylimit, m)
+register srb_p	r;
+int		retrylimit;
+char		m[];
 {
-    int     s;
+	int 	s;
 
-    r->cleanup = &scsidone;
-    for (r->tries = 0; r->tries < retrylimit; ) {
-        if (startscsi(r)) {
-            s = sphi();
-            while (r->status == ST_PENDING) {
-#if defined(V_SLEEP)
-                v_sleep(&(r->status), cv, iv, sv, m);
-#else
-                x_sleep(&(r->status), pridisk, slpriSigCatch, m);
-#endif
-                if (nondsig()) {
-                    abortscsi(r);
-                    r->status = ST_USRABRT;
-                    u. u_error = EINTR;
-                }
-            }
-            spl(s);
-            if (r->status == ST_GOOD)
-                return;
+	r->cleanup = &scsidone;
+	for (r->tries = 0; r->tries < retrylimit; ) {
+		if (startscsi(r)) {
+			s = sphi();
+			while (r->status == ST_PENDING) {
+				if (x_sleep(&(r->status), pridisk,
+				  slpriSigCatch, m)) {
+					abortscsi(r);
+					r->status = ST_USRABRT;
+					u. u_error = EINTR;
+				}
+			}
+			spl(s);
+			if (r->status == ST_GOOD)
+				return;
 
-            if (r->status == ST_CHKCOND)
-                reqsense(r);
-        }
-        else
-            r->status = ST_TIMEOUT;
-    }
+			if (r->status == ST_CHKCOND)
+				reqsense(r);
+		}
+		else
+			r->status = ST_TIMEOUT;
+	}
 }   /* doscsi() */
 
 /***********************************************************************
@@ -505,36 +482,36 @@ char            * m;
  */
 
 void printsense(dev, msg, e)
-register dev_t      dev;
-register char       *msg;
+register dev_t	    dev;
+register char	    *msg;
 register extsense_p e;
 {
-    long info;
-    if ((e->errorcode & 0x70) != 0x70)
-        devmsg(dev, "%s: Bad sensekey", msg);
-    else {
-        if ((e->errorcode & 0x80) != 0x80)
-            devmsg(dev,
-                   "%s: %s - key: (0x%x)",
-                   msg,
-                   errstr[e->sensekey & 0x0f],
-                   (e->sensekey & 0xe0));
-        else {
-            info = (long) e->info;
-            flip(info);
-            devmsg(dev,
-                   "%s: %s - addr: %d key: (0x%x)",
-                   msg,
-                   errstr[e->sensekey & 0x0f],
-                   info,
-                   (e->sensekey & 0xe0));
-        }
-    }
+	long info;
+	if ((e->errorcode & 0x70) != 0x70)
+		devmsg(dev, "%s: Bad sensekey", msg);
+	else {
+		if ((e->errorcode & 0x80) != 0x80)
+			devmsg(dev,
+			       "%s: %s - key: (0x%x)",
+			       msg,
+			       errstr[e->sensekey & 0x0f],
+			       (e->sensekey & 0xe0));
+		else {
+			info = (long) e->info;
+			flip(info);
+			devmsg(dev,
+			       "%s: %s - addr: %d key: (0x%x)",
+			       msg,
+			       errstr[e->sensekey & 0x0f],
+			       info,
+			       (e->sensekey & 0xe0));
+		}
+	}
 }   /* printsense() */
 
 /***********************************************************************
  *  printerror()
- *  
+ *
  *  Print an error after command completion.  Be silent if the command
  *  was aborted by the user.
  */
@@ -543,14 +520,14 @@ int printerror(r, msg)
 register srb_p r;
 register char *msg;
 {
-    if (r->status == ST_USRABRT)
-        return 0;
-    else {
-        if (r->status != ST_CHKCOND)
-            devmsg(r->dev, iofailmsg, msg, r->status);
-        else
-            printsense(r->dev, msg, r->sensebuf);
-        return 1;
+	if (r->status == ST_USRABRT)
+		return 0;
+	else {
+		if (r->status != ST_CHKCOND)
+			devmsg(r->dev, iofailmsg, msg, r->status);
+		else
+			printsense(r->dev, msg, r->sensebuf);
+		return 1;
 	}
 }   /* printerror() */
 

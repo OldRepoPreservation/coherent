@@ -1628,22 +1628,6 @@ mm_von:
 	pop	%ebp
 	ret
 
-ASMdump:
-	pusha
-	mov	$0, %eax
-	mov	%es, %ax
-	push	%eax
-	mov	%ds, %ax
-	push	%eax
-	mov	%cs, %ax
-	push	%eax
-	call	asmdump
-	pop	%eax
-	pop	%eax
-	pop	%eax
-	popa
-	ret
-
 	.globl	ds_sel
 ds_sel:
 	mov	$0, %eax

@@ -30,7 +30,7 @@ unsigned asize;				/* coherent.h */
 paddr_t	 clistp;			/* coherent.h */
 MAKESR(blockp, _blockp);		/* coherent.h */
 MAKESR(allocp, _allocp);		/* coherent.h */
-struct	 all *allkp;			/* coherent.h */
+heap_t	      *	allkp;			/* coherent.h */
 #if USE_SLOT
 int	NSLOT	= 64;			/* coherent.h */
 int	slotsz	= 64;			/* coherent.h */
@@ -136,6 +136,7 @@ int	ustty();
 int	ugtty();
 int	uaccess();
 int	unice();
+int	uftime();
 int	usync();
 int	ukill();
 int	udup();
@@ -249,7 +250,7 @@ struct systab sysitab[NMICALL] ={
 	1,  INT,	uumask,			/* 60 = umask */
 	1,  INT,	uchroot,		/* 61 = chroot */
 	3,  INT,	ufcntl,			/* 62 = fcntl */
-	2,  INT,	uulimit,		/* 63 = ulimit - n/i */
+	2,  INT,	uulimit,		/* 63 = ulimit */
 	0,  INT,	unone,			/* 64 = ??? (sload) */
 	0,  INT,	unone,			/* 65 = ??? (suload */
 	0,  INT,	unone,			/* 66 = ??? (fcntl) */
@@ -282,9 +283,7 @@ struct systab sysitab[NMICALL] ={
  */
 int	uchsize();
 int	unap();
-int	oftime();
-
-struct systab h28itab[] = {
+struct systab h28itab [H28CALL] = {
 	0,  INT,	unone,			/* 0x0128 = locking */
 	0,  INT,	unone,			/* 0x0228 = creatsem */
 	0,  INT,	unone,			/* 0x0328 = opensem */
@@ -295,7 +294,7 @@ struct systab h28itab[] = {
 	0,  INT,	unone,			/* 0x0828 = ??? */
 	0,  INT,	unone,			/* 0x0928 = ??? */
 	2,  INT,	uchsize,		/* 0x0A28 = chsize */
-	1,  INT,	oftime,			/* 0x0B28 = ftime */
+	0,  INT,	unone,			/* 0x0B28 = ftime */
 	1,  INT,	unap,			/* 0x0C28 = nap */
 	0,  INT,	unone,			/* 0x0D28 = _sdget */
 	0,  INT,	unone,			/* 0x0E28 = sdfree */
@@ -303,13 +302,37 @@ struct systab h28itab[] = {
 	0,  INT,	unone,			/* 0x1028 = sdleave */
 	0,  INT,	unone,			/* 0x1128 = sdgetv */
 	0,  INT,	unone,			/* 0x1228 = sdwaitv */
+	0,  INT,	unone,			/* 0x1328 = ?? */
+	0,  INT,	unone,			/* 0x1428 = ?? */
+	0,  INT,	unone,			/* 0x1528 = ?? */
+	0,  INT,	unone,			/* 0x1628 = ?? */
+	0,  INT,	unone,			/* 0x1728 = ?? */
+	0,  INT,	unone,			/* 0x1828 = ?? */
+	0,  INT,	unone,			/* 0x1928 = ?? */
+	0,  INT,	unone,			/* 0x1A28 = ?? */
+	0,  INT,	unone,			/* 0x1B28 = ?? */
+	0,  INT,	unone,			/* 0x1C28 = ?? */
+	0,  INT,	unone,			/* 0x1D28 = ?? */
+	0,  INT,	unone,			/* 0x1E28 = ?? */
+	0,  INT,	unone,			/* 0x1F28 = ?? */
+	0,  INT,	unone,			/* 0x2028 = proctl */
+	0,  INT,	unone,			/* 0x2128 = execseg */
+	0,  INT,	unone,			/* 0x2228 = unexecseg */
+	0,  INT,	unone,			/* 0x2328 = ?? */
+	0,  INT,	unone,			/* 0x2428 = ?? */
+	0,  INT,	unone,			/* 0x2528 = ?? */
+	0,  INT,	unone,			/* 0x2628 = ?? */
+	0,  INT,	unone,			/* 0x2728 = sigaction */
+	0,  INT,	unone,			/* 0x2828 = sigprocmask */
+	0,  INT,	unone,			/* 0x2928 = sigpending */
+	0,  INT,	unone,			/* 0x2A28 = sigsuspend */
+	0,  INT,	unone,			/* 0x2B28 = getgroups */
+	0,  INT,	unone,			/* 0x2C28 = setgroups */
+	0,  INT,	unone,			/* 0x2D28 = sysconf */
+	0,  INT,	unone,			/* 0x2E28 = pathconf */
+	0,  INT,	unone,			/* 0x2F28 = fpathconf */
+	0,  INT,	unone,			/* 0x3028 = rename */
 };
-/*
- * Also
- * 0x2028 = proctl
- * 0x2128 = execseg
- * 0x2228 = unexecseg
- */
 
 extern	CON nlcon;
 int	(*altclk)();		/* hook for polled devices */

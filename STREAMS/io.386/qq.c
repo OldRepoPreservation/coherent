@@ -16,7 +16,7 @@ static int sg_hal;
 #include <sys/uproc.h>
 #include <sys/proc.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/sched.h>
 #include <sys/seg.h>
 #include <sys/types.h>
@@ -216,11 +216,12 @@ qqct = 0;
 	}
 	while (blocked) {
 #ifdef _I386
-		x_sleep(&blocked, pritty, slpriSigCatch, "qqioctl");
+		if (x_sleep (& blocked, pritty, slpriSigCatch,
+			     "qqioctl") == PROCESS_SIGNALLED) {
 #else
 		v_sleep(&blocked, CVTTOUT, IVTTOUT, SVTTOUT, "qqioctl");
+		if (nondsig ()) {  /* signal? */
 #endif
-		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			u.u_error = EINTR;
 			break;
 		}

@@ -11,7 +11,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/sched.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/io.h>
 #include <sys/tty.h>
@@ -139,7 +139,7 @@ register IO *iop;
 			/*
 			 * Signal received.
 			 */
-			if ( SELF->p_ssig && nondsig() ) {
+			if (nondsig ()) {
 				kbunscroll();	/* update kbd LEDS */
 				/*
 				 * No data transferred yet.

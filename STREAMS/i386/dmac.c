@@ -18,8 +18,6 @@
 #include	<sys/types.h>
 #include	<sys/dmac.h>
 
-#define DMA_SEG(paddr)	(paddr & ~0xFFFF)
-
 /*
  * This table maps channel
  * numbers into DMA page address
@@ -79,9 +77,8 @@ unsigned	count;
 
 	/*
 	 * Check for DMA straddle.
-	 * Count has been decremented.
 	 */
-	if (DMA_SEG(paddr) != DMA_SEG(paddr+count))
+	if (dmaseg(paddr) != dmaseg(paddr+count))
 		return 0;
 
 	s = sphi();
@@ -190,10 +187,8 @@ register int chan;
 
 	/*
 	 * Convert residual from -1 based to 0 based.
-	 * Residual of zero must not be returned as 65536.
 	 */
 	count++;
-	count &= 0xffff;
 
 	/*
 	 * Convert residual from word based to byte based.

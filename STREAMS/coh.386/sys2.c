@@ -611,7 +611,7 @@ int msec;
 			/*
 			 * Validate file descriptor.
 			 */
-			if ((fdp = u.u_filep[fd]) == 0) {
+			if ((fdp = fdget (fd)) == NULL) {
 				rev = POLLNVAL;
 				goto remember;
 			}

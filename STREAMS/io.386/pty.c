@@ -47,7 +47,7 @@
 #include <sys/tty.h>		/* indirectly includes sgtty.h */
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <poll.h>
 #include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
 
@@ -215,15 +215,16 @@ int mode;
 		for (;;) {	/* wait for carrier */
 			if (pp->p_mopen)
 				break;
+			/* PTY driver is waiting for carrier.  */
 #ifdef _I386
-			x_sleep((char *)(&tp->t_open), pritty, slpriSigCatch,
-			  "ptycd");
+			if (x_sleep ((char *) & tp->t_open, pritty,
+				     slpriSigCatch, "ptycd")
+			    == PROCESS_SIGNALLED) {
 #else
 			v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
 			  SVTTOUT, "ptycd");
+			if (nondsig ()) {  /* signal? */
 #endif
-			/* PTY driver is waiting for carrier.  */
-			if (SELF->p_ssig && nondsig()) {  /* signal? */
 				u.u_error = EINTR;
 				tp->t_flags &= ~(T_HOPEN | T_STOP);
 				goto open_done;
@@ -296,8 +297,10 @@ register IO * iop;
 					ttstart(tp);
 					goto read_done;
 				}
-				if (iop->io_flag & IONDLY) {
-					u.u_error = EAGAIN;
+				if (iop->io_flag & (IONDLY | IONONBLOCK)) {
+					if (tp->t_group == 0 ||
+					    (iop->io_flag & IONONBLOCK) != 0)
+						u.u_error = EAGAIN;
 					goto read_done;
 				}
 				if (pp->p_mopen == 3) {
@@ -306,15 +309,16 @@ register IO * iop;
 				}
 				ttstart(tp);
 				pp->p_asleep = 1;
+				/* The PTY driver is waiting for a read.  */
 #ifdef _I386
-				x_sleep(&pp->p_mopen, pritty, slpriSigCatch,
-				  "ptyread");
+				if (x_sleep (& pp->p_mopen, pritty,
+					     slpriSigCatch, "ptyread")
+				    == PROCESS_SIGNALLED) {
 #else
 				v_sleep(&pp->p_mopen, CVTTOUT, IVTTOUT,
 				  SVTTOUT, "ptyread");
+				if (nondsig ()) {
 #endif
-				/* The PTY driver is waiting for a read.  */
-				if (SELF->p_ssig && nondsig()) {
 					u.u_error = EINTR;
 					goto read_done;
 				}
@@ -355,7 +359,7 @@ register IO * iop;
 	if (master(dev)){
 		while (iop->io_ioc) {
 			if (!ttinp(tp)) {
-				if (iop->io_flag & IONDLY) {
+				if (iop->io_flag & (IONDLY | IONONBLOCK)) {
 					u.u_error = EAGAIN;
 					goto write_done;
 				}
@@ -364,15 +368,16 @@ register IO * iop;
 					goto write_done;
 				}
 				pp->p_asleep = 1;
+				/* The PTY driver is waiting for a write.  */
 #ifdef _I386
-				x_sleep(&pp->p_mopen, pritty, slpriSigCatch,
-				  "ptywrite");
+				if (x_sleep (& pp->p_mopen, pritty,
+					     slpriSigCatch, "ptywrite")
+				    == PROCESS_SIGNALLED) {
 #else
 				v_sleep(&pp->p_mopen, CVTTOUT, IVTTOUT,
 				  SVTTOUT, "ptywrite");
+				if (nondsig ()) {  /* signal? */
 #endif
-				/* The PTY driver is waiting for a write.  */
-				if (SELF->p_ssig && nondsig()) {  /* signal? */
 					u.u_error = EINTR;
 					goto write_done;
 				}

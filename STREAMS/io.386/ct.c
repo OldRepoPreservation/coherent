@@ -28,7 +28,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/proc.h>
 #include <sys/stat.h>
 

@@ -12,7 +12,8 @@
  */
 #include <sys/coherent.h>
 #include <sgtty.h>
-#include <errno.h>
+#include <sys/errno.h>
+
 
 /*
  * ----------------------------------------------------------------------
@@ -138,6 +139,7 @@ int dev, com, vec, (*iocfn)();
 {
 	struct sgttyb sg;
 	int my_com = com, my_vec = vec, old_getp = 0;
+	int		space;
 
 	if (com >= OIOC_LOW && com <= OIOC_HIGH && u.u_error==0) {
 		my_com = cvtsgtty[com - OIOC_LOW];
@@ -152,7 +154,22 @@ int dev, com, vec, (*iocfn)();
 			my_vec = &sg;
 		}
 	}
+
+	/*
+	 * NIGEL: I have tightened up the segment limits so that kucopy ()
+	 * and ukcopy () no longer accept kernel addresses as user addresses;
+	 * in this case, we really do want this to happen, so we use
+	 * setspace () to allow access to kernel data space as user space.
+	 */
+
+	if (my_vec != vec)
+		space = setspace (SEG_386_KD);
+
 	(*iocfn)(dev, my_com, my_vec);
+
+	if (my_vec != vec)
+		(void) setspace (space);
+
 	if (old_getp && u.u_error==0) {
 		to_coh_sgfld(my_vec);
 		kucopy(my_vec, vec, sizeof(struct sgttyb)-2);

@@ -9,15 +9,15 @@
 
 #include	<sys/coherent.h>
 #include	<sys/buf.h>
-#include	<errno.h>
+#include	<sys/errno.h>
 #ifndef _I386
 #include	<sys/uproc.h>
 #include	<sys/devices.h>
 #endif
 #include	<sys/seg.h>
 #include	<sys/con.h>
-#include	<sys/inode.h>
 #include	<sys/stat.h>
+#include	<sys/file.h>
 
 #if _I386
 /*

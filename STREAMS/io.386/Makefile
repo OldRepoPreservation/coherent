@@ -7,6 +7,17 @@ SYSINC=$(USRINC)/sys
 AS=exec /bin/as
 CC=exec /bin/cc
 ASFLAGS=-g
+T=/tmp
+
+HAIINC = $(SYSINC)/haiinst.h $(SYSINC)/haiscsi.h
+
+HAIOBJ = \
+	$T/hai154x.o \
+	$T/haicfg.o \
+	$T/haict.o \
+	$T/haiinst.o \
+	$T/haiscsi.o \
+	$T/haisd.o
 
 IOOBJ = \
 	$(K386OBJ)/aha.o \
@@ -23,6 +34,8 @@ IOOBJ = \
 	$(K386OBJ)/fdisk.o \
 	$(K386OBJ)/fdc.o \
 	$(K386OBJ)/fl386.o \
+	$(K386OBJ)/ft.o \
+	$(K386OBJ)/hai.o \
 	$(K386OBJ)/hs.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/kb.o \
@@ -48,8 +61,8 @@ IOOBJ = \
 	$(K386OBJ)/vtkb_d.o \
 	$(K386OBJ)/vtkb_f.o \
 	$(K386OBJ)/xla.o \
-	$(K386OBJ)/xl_dec.o
-#	$(K386OBJ)/xlft.o
+	$(K386OBJ)/xl_dec.o \
+	$(K386OBJ)/xlft.o
 
 all: $(IOOBJ)
 	@echo "io objects up to date"
@@ -159,6 +172,30 @@ $(K386OBJ)/fontw.o: fontgen.c
 	: ./fontgen > $*.s
 	rm fontgen
 	: $(AS) -gxo $@ $*.s
+
+$(K386OBJ)/ft.o: ft.c
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
+
+$(K386OBJ)/hai.o: $(HAIOBJ) $(HAIINC)
+	ld -r -o $@ $(HAIOBJ)
+
+$T/hai154x.o: hai154x.c $(HAIINC)
+	$(CC) $(CFLAGS) -c -o $@ hai154x.c
+
+$T/haicfg.o: haicfg.c $(HAIINC)
+	$(CC) $(CFLAGS) -c -o $@ haicfg.c
+
+$T/haict.o: haict.c $(HAIINC)
+	$(CC) $(CFLAGS) -c -o $@ haict.c
+
+$T/haiinst.o: haiinst.c $(HAIINC)
+	$(CC) $(CFLAGS) -c -o $@ haiinst.c
+
+$T/haiscsi.o: haiscsi.c $(HAIINC)
+	$(CC) $(CFLAGS) -c -o $@ haiscsi.c
+
+$T/haisd.o: haisd.c $(HAIINC)
+	$(CC) $(CFLAGS) -c -o $@ haisd.c
 
 $(K386OBJ)/hs.o: hs.c
 	$(CC) $(CFLAGS) -c -o $@ hs.c

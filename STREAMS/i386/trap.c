@@ -4,10 +4,13 @@
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  -lgl) */
+
+#include <common/_gregset.h>
+
 #include <sys/coherent.h>
 #include <sys/reg.h>
 #include <sys/systab.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/proc.h>
 #include <sys/seg.h>
 #include <signal.h>
@@ -42,20 +45,7 @@ extern unsigned char selkcopy();
 extern unsigned int DR0,DR1,DR2,DR3,DR7;
 static int trap_op();
 
-/*
- * Macro RDUMP does register dump, followed by final message.
- *
- * Callable only from within trap() or one of its cousins.
- */
-#define RDUMP() { \
-  printf("\neax=%x  ebx=%x  ecx=%x  edx=%x\n", eax, ebx, ecx, edx); \
-  printf("esi=%x  edi=%x  ebp=%x  esp=%x\n", esi, edi, ebp, esp); \
-  printf("cs=%x  ds=%x  es=%x  ss=%x  fs=%x  gs=%x\n", \
-    cs&0xffff, ds&0xffff, es&0xffff, ss&0xffff, fs&0xffff, gs&0xffff); \
-  printf("err #%d eip=%x  uesp=%x  cmd=%s\n", err, eip, uesp, u.u_comm); \
-  printf("efl=%x  ", efl); }
-/* end RDUMP */
-
+#if	0
 /*
  * Debug only - display 64 words of stack traceback.
  */
@@ -69,6 +59,8 @@ static int trap_op();
   putchar('\n'); \
 }
 /* end SDUMP */
+#endif
+
 
 /*
  * Global symbols from kernel text.
@@ -109,9 +101,6 @@ char *eip;
 	register SEG *segp;
 	int	splo, datahi;
 	unsigned int	txtlo, txthi;
-	unsigned char opcode;	/* Opcode we trapped on.	*/
-	unsigned short e_arg;	/* Argument to 'enter' opcode.  */
-	unsigned long newsp;	/* Anticipated value for stack pointer.  */
 	unsigned int cr2 = 0;
 	unsigned int cpl = cs & SEG_PL;
 
@@ -123,7 +112,7 @@ char *eip;
 
 	if (err==SINMI) {
 		printf("Parity error\n");
-		RDUMP();
+		curr_register_dump ((gregset_t *) & gs);
 		panic("...");
 	}
 
@@ -196,6 +185,10 @@ char *eip;
 		 * Trap.
 		 */
 	case SIDIV:
+#ifdef	TRACER
+		printf ("Integer divide by zero");
+		curr_register_dump ((gregset_t *) & gs);
+#endif
 		sigcode = SIGFPE;
 		break;
 
@@ -225,7 +218,7 @@ char *eip;
 		if (cpl < 2) {
 			int *ip = (int *)eip;
 
-			RDUMP();
+			curr_register_dump ((gregset_t *) & gs);
 			printf("(eip)=%x %x %x  ", ip[0], ip[1], ip[2]);
 			panic("Invalid Opcode");
 		}
@@ -281,7 +274,7 @@ char *eip;
 		sigcode = SIGKILL;
 		break;
 	default:
-		RDUMP();
+		curr_register_dump ((gregset_t *) & gs);
 		panic("Fatal Trap");
 	}
 
@@ -292,7 +285,7 @@ trapend:
 	 */
 	if (sigcode) {
 		if (sigcode != SIGTRAP) {
-			RDUMP();
+			curr_register_dump ((gregset_t *) & gs);
 			printf("sigcode=#%d  User Trap\n", sigcode);
 		}
 		sendsig(sigcode, SELF);
@@ -334,11 +327,11 @@ unsigned int cs, eip;
 {
 	int		ret = 0;
 
-	switch (selkcopy(cs,eip)) {
+	switch (ffbyte (eip, cs)) {
 	case 0x0F:
-		switch (selkcopy(cs,eip+1)) {
+		switch (ffbyte (eip + 1, cs)) {
 		case 0x20:
-			switch (selkcopy(cs,eip+2)) {
+			switch (ffbyte (eip + 2, cs)) {
 			case 0xC0:
 				ret = READ_CR0;
 				break;
@@ -351,7 +344,7 @@ unsigned int cs, eip;
 			}
 			break;
 		case 0x21:
-			switch (selkcopy(cs,eip+2)) {
+			switch (ffbyte (eip + 2, cs)) {
 			case 0xC0:
 				ret = READ_DR0;
 				break;
@@ -373,7 +366,7 @@ unsigned int cs, eip;
 			}
 			break;
 		case 0x22:
-			switch (selkcopy(cs,eip+2)) {
+			switch (ffbyte (eip + 2, cs)) {
 			case 0xC0:
 				ret = WRITE_CR0;
 				break;
@@ -383,7 +376,7 @@ unsigned int cs, eip;
 			}
 			break;
 		case 0x23:
-			switch (selkcopy(cs,eip+2)) {
+			switch (ffbyte (eip + 2, cs)) {
 			case 0xC0:
 				ret = WRITE_DR0;
 				break;
@@ -459,7 +452,9 @@ __debug_ker__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 					do_rdump = 0;
 				} else {
 printf("/nefl=%x  No single stepping the kernel.\n", efl);
+#if 0
 					SDUMP(uesp);
+#endif
 				}
 				efl &= ~TRAP_FLAG;
 				break;
@@ -475,9 +470,10 @@ T_HAL(0x20000, printf("Kernel SSTEP eip=%x efl=%x  ", eip, efl));
 			eip += 3;
 		}
 	}
-	if (do_rdump) {
-		RDUMP();
-	}
+
+	if (do_rdump)
+		curr_register_dump ((gregset_t *) & gs);
+
 	write_dr6(0);
 	efl |= RESUME_FLAG;
 	return;
@@ -501,9 +497,11 @@ char *eip;
 		/*
 		 * Ring 0 should not gp fault.
 		 */
-		RDUMP();
+		curr_register_dump ((gregset_t *) & gs);
+#if 0
 		T_HAL(0x1000, SDUMP(&uesp));
 		T_HAL(0x1000, SDUMP(*((&uesp) + 2)));
+#endif
 		panic("System GP Fault from Ring 0");
 		break;
 	case DPL_1:
@@ -599,6 +597,9 @@ char *eip;
 			write_dr7(eax);
 			eip += 3;
 			break;
+		case HALT:
+			halt ();
+			break;
 #if 0
 		case WRITE_DR7:
 			/*
@@ -616,11 +617,18 @@ printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
 #endif
 		default:
 			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
+				long	* bp = ebp;
+
+				curr_register_dump ((gregset_t *) & gs);
+				printf ("copy fault called from %x\n",
+					* (int *) edx);
 				SET_U_ERROR(EFAULT, "copy gp");
 				eip = &__xtrap_break__;
 			} else {
-				RDUMP();
+				curr_register_dump ((gregset_t *) & gs);
+#if 0
 				T_HAL(0x1000, SDUMP(uesp));
+#endif
 				panic("System GP Fault from Ring 1");
 			}
 		}
@@ -634,7 +642,7 @@ printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
 		/*
 		 * Ring 3 gp fault means errant user process.
 		 */
-		RDUMP();
+		curr_register_dump ((gregset_t *) & gs);
 		printf("User GP Violation\n");
 		sendsig(SIGSEGV, SELF);
 		break;
@@ -686,7 +694,9 @@ __debug_usr__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 					do_rdump = 0;
 				} else {
 printf("/nefl=%x  No single stepping the kernel.\n", efl);
+#if 0
 					SDUMP(uesp);
+#endif
 				}
 				efl &= ~TRAP_FLAG;
 				break;
@@ -702,9 +712,10 @@ T_HAL(0x20000, printf("User SSTEP eip=%x efl=%x  ", eip, efl));
 			eip += 3;
 		}
 	}
-	if (do_rdump) {
-		RDUMP();
-	}
+
+	if (do_rdump)
+		curr_register_dump ((gregset_t *) & gs);
+
 	write_dr6(0);
 	efl |= RESUME_FLAG;
 	return;
@@ -738,8 +749,6 @@ char *eip;
 	register SEG *segp;
 	int	splo, datahi;
 	unsigned int	txtlo, txthi;
-	unsigned char opcode;	/* Opcode we trapped on.	*/
-	unsigned short e_arg;	/* Argument to 'enter' opcode.  */
 	unsigned long newsp;	/* Anticipated value for stack pointer.  */
 	unsigned int cr2 = 0;
 	unsigned int cpl = cs & SEG_PL;
@@ -780,14 +789,14 @@ char *eip;
 				eip = &__xtrap_break__;
 				goto pf_end;
 			} else {
+#if 0
 				printf("&uesp=>");
 				SDUMP(&uesp);
-#if 0
 				printf("*(&uesp + 2)=>");
 				SDUMP(*((&uesp) + 2));
 #endif
 				printf("cr2=%x", cr2);
-				RDUMP();
+				curr_register_dump ((gregset_t *) & gs);
 				panic("Kernel Page Fault");
 			}
 		}
@@ -837,11 +846,15 @@ char *eip;
 		 * into the real esp--when we return from the trap the
 		 * enter instruction will decrement the esp.
 		 */
+
 		newsp = uesp;
-		opcode = selkcopy(cs, eip);
-		if (ENTER_OP == opcode) {
-			e_arg = (selkcopy(cs, eip+2)<<8) + selkcopy(cs, eip+1);
-			newsp -= e_arg;
+		if (ffbyte (eip, cs) == ENTER_OP) {
+			/*
+			 * Adjust the sp by the argument of the ENTER
+			 * instruction.
+			 */
+
+			newsp -= ffword (eip + 1, cs);
 		}
 
 		if (cr2 <= splo
@@ -889,7 +902,7 @@ pf_end:
 	 * If not a breakpoint, do console register dump.
 	 */
 	if (sigcode) {
-		RDUMP();
+		curr_register_dump ((gregset_t *) & gs);
 		printf("sigcode=#%d  User Page Fault\n", sigcode);
 		sendsig(sigcode, SELF);
 	}

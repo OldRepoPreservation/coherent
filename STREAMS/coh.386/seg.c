@@ -19,7 +19,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/proc.h>
@@ -213,7 +213,7 @@ int bytes_wanted, flags;
 #endif
 	}
 	if ((flags&SFNCLR) == 0)
-		dmaclear(sp->s_size, MAPIO(sp->s_vmem, 0), 0L);
+		dmaclear (sp->s_size, MAPIO (sp->s_vmem, 0));
 	return sp;
 }
 
@@ -277,8 +277,8 @@ unsigned int new_bytes;
 	if (new_bytes >= old_bytes && c_grow(sp, new_bytes)==0) {
 		T_HAL(0x100, printf("c_grow(%d) ", new_bytes));
 		sp->s_size = new_bytes;
-		dmaclear(new_bytes - old_bytes,
-		  MAPIO(sp->s_vmem, old_bytes), 0);
+		dmaclear (new_bytes - old_bytes,
+			  MAPIO (sp->s_vmem, old_bytes));
 		return 1;
 	}
 dont_c_grow:
@@ -288,10 +288,9 @@ dont_c_grow:
 		if (dowflag == 0) {
 			common_clicks = btoc(min(new_bytes, old_bytes));
 			dmacopy(common_clicks, sp->s_vmem, sp1->s_vmem);
-			if (new_bytes > old_bytes) {
-				dmaclear(new_bytes - old_bytes,
-				  MAPIO(sp1->s_vmem, old_bytes), 0);
-			}
+			if (new_bytes > old_bytes)
+				dmaclear (new_bytes - old_bytes,
+					  MAPIO (sp1->s_vmem, old_bytes));
 		} else
 			panic("downflag");
 		lock(seglink);
@@ -313,7 +312,8 @@ dont_c_grow:
 
 	if (dowflag == 0) {
 		if (new_bytes > old_bytes)
-			dmaclear(new_bytes - old_bytes, MAPIO(sp->s_vmem,old_bytes), 0);
+			dmaclear (new_bytes - old_bytes,
+				  MAPIO(sp->s_vmem,old_bytes));
 	} else
 		panic("downflag");
 
@@ -568,8 +568,13 @@ off_t s;
  * Allocate a segment in memory that is `bytes_wanted' bytes long.
  * The `seglink' gate should be locked before this routine is called.
  *
- * if successful, return allocated SEG *
- * else, return 0
+ * if successful, return allocated SEG * else, return 0
+ *
+ * NIGEL: This routine is actually only called from salloc (), whose callers
+ * expect a completely initialized structure (or so it seems). Let's do that
+ * initialization rather than expecting kalloc () to have accidentally done
+ * the job. Furthermore, this routine is specially set up to only work for the
+ * _I386 version of the data structures.
  */
 SEG *
 smalloc(bytes_wanted)
@@ -608,6 +613,9 @@ off_t bytes_wanted;
 	new_seg->s_urefc = 1;
 	new_seg->s_lrefc = 1;
 	new_seg->s_size  = bytes_wanted;
+
+	new_seg->s_ip = NULL;
+	new_seg->s_daddr = 0;
 
 	return new_seg;
 }
@@ -704,7 +712,7 @@ char *t;
 daddr_t b;
 off_t s;
 {
-	printf( "Bad %s segment at %X of len %X\n", t, b, s );
+	printf( "Bad %s segment at %lx of len %lx\n", t, b, s );
 	return (1);
 }
 */

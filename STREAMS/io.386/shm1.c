@@ -18,7 +18,7 @@
 #include <sys/proc.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-#include <errno.h>
+#include <sys/errno.h>
 
 /*
  * ----------------------------------------------------------------------

@@ -3,6 +3,8 @@
  * Adaptec AHA154x host adapter driver for the AT.
  */
 
+#include <sys/debug.h>
+
 #include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
@@ -13,13 +15,16 @@
 #ifdef _I386
 #include	<sys/uproc.h>
 #endif /* _I386 */
-#include	<errno.h>
+#include	<sys/errno.h>
 #include	<sys/scsiwork.h>
 #include	<sys/typed.h>
 #ifdef _I386
 #include	<sys/mmu.h>
 #endif /* _I386 */
 
+#ifndef _I386
+extern	saddr_t sds;
+#endif /* _I386 */
 extern	short	n_atdr;
 
 /*
@@ -244,7 +249,7 @@ dev_t	dev;
 	sc.blklen = 0;
 
 #ifdef _I386
-	/* sc.buffer is a system global address. */
+	/* sc.buffer is a virtual-physical address (Ciaran Space.) */
 	sc.buffer = vtovp(buffer);
 #else /* _I386 */
 	sc.buffer = VTOP2(buffer, sds);
@@ -281,7 +286,7 @@ dev_t	dev;
 	sc.blklen = (buffer[6]<<8) | buffer[7];
 
 	T_PIGGY( 0x20000, {
-		printf("SCSI %D. blocks of size %d\n", sc.block, sc.blklen);
+		printf("SCSI %ld. blocks of size %d\n", sc.block, sc.blklen);
 	} );
 
 #ifdef _I386
@@ -594,18 +599,31 @@ register BUF	*bp;
 	sw->sw_retry = 1;
 
 	T_PIGGY( 0x20000,
-		printf("sdblock: drv %x bno %x:%x  bp=%x, flag = %x\n",
-			drv, (long)sw->sw_bno, bp, bp->b_flag);
+		printf("sdblock: drv %x bno %lx bp=%x, flag = %x\n",
+			drv, (long) sw->sw_bno, bp, bp->b_flag);
 	);
 
+	/*
+	 * NIGEL: These fields were never filled in before, now that kalloc ()
+	 * does as it is supposed to we have to do it properly.
+	 */
+
+	sw->sw_actl = sw->sw_actf = NULL;
+
 	s = sphi();
-	if (sd.sw_actf == NULL)
+	if (sd.sw_actf == NULL) {
+		ASSERT (sd.sw_actl == NULL);
 		sd.sw_actf = sw;
-	else
+	} else {
+		ASSERT  (sd.sw_actl != NULL);
 		sd.sw_actl->sw_actf = sw;
+	}
 	sd.sw_actl = sw;
 	spl(s);
 
+#ifdef	TRACER
+	begin_count (0);
+#endif
 	aha_start();
 }
 
@@ -620,4 +638,6 @@ sdwatch()
 	if ( 0!= (i = aha_completed())) {
 		T_PIGGY( 0x20000, printf("sdwatch: completed %d actions\n", i); );
 	}
+
+	T_PIGGY (0x20000, aha_mbox_status ());
 }

@@ -131,10 +131,10 @@ gdt:
 	.long	0,0			/ null entry
 
 	/ segment 0008 - SEG_386_UI
-	MEM_SEG	0,0xFFFFF,0xB,DPL_3,0xC
+	MEM_SEG	0,0x7FFFF,0xB,DPL_3,0xC
 
 	/ segment 0010 - SEG_386_UD
-	MEM_SEG	0,0xFFFFF,0x3,DPL_3,0xC
+	MEM_SEG	0,0x7FFFF,0x3,DPL_3,0xC
 
 	/ segment 0018 - SEG_RNG0_TXT/SEG_386_KI
 	MEM_SEG	0,0xFFFFF,0xB,DPL_0,0xC
@@ -192,10 +192,6 @@ gdtFixBegin:
 
 	/ segment 0098 - SEG_SET_EM - Call gate for writing CR0 EM bit
 	CALL_GATE	SEG_RNG0_TXT,setEmfR0,1,DPL_1
-
-	/ segment 00A0 - SEG_BOOT - Call gate for mmu update
-	CALL_GATE	SEG_RNG0_TXT,bootfR0,0,DPL_1
-
 gdtFixEnd:
 gdtend:
 

@@ -1,21 +1,9 @@
 /*
- * File:	syscoh.c
+ * coh.386/syscoh.c
  *
- * Purpose:	Functions for the COHERENT-specific system call
+ * Functions for the COHERENT-specific system call.
  *
- * $Log:	syscoh.c,v $
- * Revision 1.4  93/04/14  10:08:11  root
- * r75
- * 
- * Revision 1.3  92/11/12  10:06:19  root
- * Ker #68
- * 
- * Revision 1.2  92/11/09  17:11:25  root
- * Just before adding vio segs.
- * 
- * Revision 1.1  92/10/06  23:49:04  root
- * Ker #64
- * 
+ * Revised: Thu Jul 15 14:22:19 1993 CDT
  */
 
 /*
@@ -69,8 +57,9 @@ static int devload();
  * COH_SETBP	a2=bp#,a3=addr,a4=type,a5=len;  set kernel breakpoint
  * COH_CLRBP	a2=bp#;  clear kernel breakpoint
  * COH_REBOOT	reboot
+ * COH_GETINT11 returns hardware equipment word saved at boot time
  */
-ucohcall(a1,a2,a3,a4,a5,a6)
+ucohcall(a1,a2,a3,a4,a5)
 {
 	int ret = 0;
 
@@ -103,6 +92,9 @@ ucohcall(a1,a2,a3,a4,a5,a6)
 		break;
 	case	COH_WTEXT:
 		ret = cohWtext(a2,a3,a4);
+		break;
+	case    COH_GETINT11:
+		ret = (int11() & 0x0000FFFF);
 		break;
 	default:
 		SET_U_ERROR(EINVAL, "bad COH function");

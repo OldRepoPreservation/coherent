@@ -1,7 +1,11 @@
 /*
- * Keyboard/display driver.
- * Coherent, IBM PC/XT/AT.
+ * io.386/kb.c
+ *
+ * Keyboard driver, no virtual consoles, no loadable tables.
+ *
+ * Revised: Fri Jul 16 08:39:12 1993 CDT
  */
+
 #include <sys/coherent.h>
 #ifdef _I386
 #include <sys/reg.h>
@@ -124,6 +128,7 @@ static	char	isfbuf[NFBUF];		/* Function key values */
 static	char	*isfval[NFKEY];		/* Function key string pointers */
 static	int	ledcmd;			/* LED update command flag */
 static	int	extended;		/* extended key scan count */
+static  int     xlate = 1;		/* scan code translation flag */
 
 /*
  * Tables for converting key code to ASCII.
@@ -342,6 +347,48 @@ IO *iop;
 /*
  * Ioctl routine.
  */
+/*
+ * special struct for the KDMAPDISP call
+ */
+
+#define KDMAPDISP       (('K' << 8) | 2)      /* map display into user space */
+#define KDSKBMODE       (('K' << 8) | 6)      /* turn scan code xlate on/off */
+#define KDMEMDISP       (('K' << 8) | 7)      /* dump byte of virt/phys mem  */
+#define KDENABIO        (('K' << 8) | 60)     /* enable IO                   */
+#define KIOCSOUND       (('K' << 8) | 63)     /* start sound generation      */ 
+#define KDSETLED        (('K' << 8) | 66)     /* set leds	             */
+
+#define TIMER_CTL    0x43                     /* Timer control */
+#define TIMER_CNT    0x42                     /* Timer counter */
+#define SPEAKER_CTL  0x61                     /* Speaker control */
+
+struct kd_memloc {
+        char    *vaddr;         /* virtual address to map to */
+        char    *physaddr;      /* physical address to map to */
+        long    length;         /* size in bytes to map */
+        long    ioflg;          /* enable I/O addresses if non-zero */
+};
+
+static TIM tp;
+int
+kbstate(action)
+   int action;
+{
+   int i;
+   if (action == 1) {
+      timeout(&tp,20,kbstate,2);
+      outb(KBCTRL, 0xCC);             /* Clock high */
+   }
+   if (action == 2) {
+      i = inb(KBDATA);
+      outb(KBCTRL, 0xCC);                     /* Clear keyboard */
+      outb(KBCTRL, 0x4D);                     /* Enable keyboard */
+   }
+}
+
+
+static int X11led;
+
 isioctl(dev, com, vec)
 dev_t dev;
 struct sgttyb *vec;
@@ -349,6 +396,66 @@ struct sgttyb *vec;
 	register int s;
 
 	switch(com) {
+#define KDDEBUG 0
+#if KDDEBUG
+        case KDMEMDISP:
+	{
+		struct kd_memloc* mem;
+		unsigned char ub, pb;
+		mem = vec;
+                pxcopy( mem->physaddr, &pb, 1, SEG_386_KD );
+		ub = getubd( mem->vaddr );
+		printf( "User's byte %x(%x), Physical byte %x, Addresses %x %x\n",
+			mem->ioflg, ub, pb, mem->vaddr, mem->physaddr );
+                goto ioc_done;;
+	}
+#endif
+        case KDMAPDISP:
+	{
+		struct kd_memloc* mem;
+		mem = vec;
+#if KDDEBUG
+		printf( "mapPhysUser(%x, %x, %x) = %d\n",
+		         mem->vaddr, mem->physaddr, mem->length,  
+#endif
+                mapPhysUser(mem->vaddr, mem->physaddr, mem->length)
+#if KDDEBUG
+		)
+#endif
+;
+	}
+        case KDENABIO:
+	{
+		int i;
+	        for (i = 0 ; i < 64 ; i++ )
+		    iomapAnd(0,i);
+                goto ioc_done;;
+	}
+        case KIOCSOUND:
+	{
+		if (vec) {
+                 outb(TIMER_CTL, 0xB6); 
+                 outb(TIMER_CNT, (int)vec&0xFF);
+                 outb(TIMER_CNT, (int)vec>>8);
+                 outb(SPEAKER_CTL, inb(SPEAKER_CTL) | 03); /* Turn speaker on */
+		}
+		else 
+                 outb(SPEAKER_CTL, inb(SPEAKER_CTL) & ~03 ); /* speaker off */
+                goto ioc_done;;
+	}
+        case KDSKBMODE:
+	{
+                outb(KBCTRL, 0x0C);             /* Clock low */
+		timeout(&tp,3,kbstate,1);	/* wait about 20-30ms */
+		xlate = (int)vec;
+		goto ioc_done;;	
+	}
+	case KDSETLED:
+        {
+		X11led = (int)vec;
+		updleds();
+		goto ioc_done;;
+        }
 	case TIOCSETF:
 	case TIOCGETF:
 		isfunction(com,(char *)vec);
@@ -448,6 +555,19 @@ isrint()
 	c = inb(KBCTRL);
 	outb(KBCTRL, c | KBFLAG);
 	outb(KBCTRL, c);
+        if (!xlate) {
+		if (ledcmd) {
+			ledcmd = 0;
+
+			/* output to status LEDS */
+			if (r == KBACK) {
+				outb(KBDATA, X11led);
+				return;
+			}
+		}
+		isin(r);
+		return;
+        }
 #if	KBDEBUG
 	printf("kbd: %d\n", r);			/* print scan code/direction */
 #endif
@@ -728,7 +848,6 @@ register int c;
 	 * discard t_stopc and t_startc.
 	 */
 	if (_IS_IXON_MODE(tp)) {
-#if _I386
 		if (_IS_START_CHAR(tp, c) ||
 		   (_IS_IXANY_MODE(tp) &&(tp->t_flags & T_STOP) != 0)) {
 			tp->t_flags &= ~(T_STOP | T_XSTOP);
@@ -739,18 +858,6 @@ register int c;
 				tp->t_flags |=(T_STOP | T_XSTOP);
 			cache_it = 0;
 		}
-#else
-		if (_IS_STOP_CHAR(tp, c)) {
-			if ((tp->t_flags & T_STOP) == 0)
-				tp->t_flags |= T_STOP;
-			cache_it = 0;
-		}
-		if (_IS_START_CHAR(tp, c)) {
-			tp->t_flags &= ~ T_STOP;
-			ttstart(tp);
-			cache_it = 0;
-		}
-#endif
 	}
 
 	/*

@@ -15,7 +15,7 @@
 #include <sys/tty.h>		/* indirectly includes sgtty.h */
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
 #include <sys/poll_clk.h>
 

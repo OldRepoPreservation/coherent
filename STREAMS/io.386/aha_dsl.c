@@ -7,7 +7,7 @@
 #include <sys/buf.h>
 #include <sys/scsiwork.h>
 #include <sys/aha154x.h>
-#include <errno.h>
+#include <sys/errno.h>
 
 #ifndef LESSER
 #define LESSER(a, b)	(((a)<(b))?(a):(b))

@@ -37,13 +37,14 @@
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/filsys.h>
 #include <sys/mount.h>
 #include <sys/io.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 
 /*
  * Given an inode, open it.
@@ -124,18 +125,22 @@ register IO *iop;
 {
 	if (iop->io_ioc == 0)
 		return;
-	switch (ip->i_mode&IFMT) {
+
+	switch (ip->i_mode & IFMT) {
 	case IFCHR:
 		dread(ip->i_a.i_rdev, iop);
 		break;
+
 	case IFBLK:
 	case IFREG:
 	case IFDIR:
 		fread(ip, iop);
 		break;
+
 	case IFPIPE:
 		pread(ip, iop);
 		break;
+
 	default:
 		u.u_error = ENXIO;
 		break;
@@ -149,26 +154,31 @@ iwrite(ip, iop)
 register INODE *ip;
 register IO *iop;
 {
-	imod(ip);	/* write - mtime */
-	icrt(ip);	/* write - ctime */
+	imod (ip);	/* write - mtime */
+	icrt (ip);	/* write - ctime */
 	if (iop->io_ioc == 0)
 		return;
-	switch (ip->i_mode&IFMT) {
+
+	switch (ip->i_mode & IFMT) {
 	case IFCHR:
-		dwrite(ip->i_a.i_rdev, iop);
+		dwrite (ip->i_a.i_rdev, iop);
 		break;
+
 	case IFBLK:
-		fwrite(ip, iop);
+		fwrite (ip, iop);
 		break;
+
 	case IFREG:
 	case IFDIR:
-		if (getment(ip->i_dev, 1) == NULL)
+		if (getment (ip->i_dev, 1) == NULL)
 			return;
-		fwrite(ip, iop);
+		fwrite (ip, iop);
 		break;
+
 	case IFPIPE:
-		pwrite(ip, iop);
+		pwrite (ip, iop);
 		break;
+
 	default:
 		u.u_error = ENXIO;
 		break;
@@ -194,8 +204,9 @@ register IO *iop;
 	register BUF *bp;
 	register int blk;
 	daddr_t list[NEXREAD];
+	int		do_readahead;
 
-	if ((ip->i_mode&IFMT) == IFBLK) {
+	if ((ip->i_mode & IFMT) == IFBLK) {
 		blk = 1;
 		dev = ip->i_a.i_rdev;
 	} else {
@@ -204,57 +215,75 @@ register IO *iop;
 	}
 	abn = 0;
 	zbn = 0;
-	lbn = blockn(iop->io_seek);
-	off = blocko(iop->io_seek);
+	lbn = blockn (iop->io_seek);
+	off = blocko (iop->io_seek);
 	res = ip->i_size - iop->io_seek;
-	if ( (blk!=0) || ((res>0) && (res>iop->io_ioc)) )  /* unsigned prob */
-		res = iop->io_ioc;			   /* with io_ioc   */
+
+	if (blk != 0 || (res > 0 && res > iop->io_ioc)) 
+		res = iop->io_ioc;	/* unsigned prob with io_ioc */
 	if (res <= 0)
 		return;
-	if (res+off <= BSIZE) {
-		bp = blk ? bread(dev, lbn, 1) : vread(ip, lbn);
-		if (bp == NULL)
-			return;
-		iowrite(iop, bp->b_vaddr+off, (unsigned)res);
-		brelease(bp);
-		return;
-	}
+
+	/*
+	 * NIGEL: Test whether we want readahead based on whether this access
+	 * immediately follows some previous access... this does not apply to
+	 * inodes made from pipes, because there readahead will make us seek
+	 * beyond the space that is legal (pipes store funky data where a
+	 * normal file has indirect block pointers).
+	 */
+
+	do_readahead = (lbn == ip->i_lastblock + 1) &&
+			((ip->i_mode & IFMT) != IFPIPE);
+
+	ip->i_lastblock = lbn;
+
 	while (res > 0) {
 		if (lbn >= zbn) {
-			if ((n=blockn(res+BSIZE-1)) > NEXREAD)
+			if ((n = blockn (res + BSIZE - 1)) < NEXREAD) {
+				if ((n += do_readahead) <= 0)
+					n = 1;
+			} else
 				n = NEXREAD;
-			if (n <= 0)
-				n = 1;
+
 			abn = lbn;
-			for (i=0, zbn=lbn; i<n; i++, zbn++) {
+			for (i = 0, zbn = lbn ; i < n ; i ++, zbn ++) {
 				if (blk != 0)
 					pbn = zbn;
 				else {
-					if ((pbn=vmap(ip, zbn)) < 0)
+					if ((pbn = vmap (ip, zbn)) < 0)
 						return;
 					if (pbn == 0) {
-						list[i] = -1;
+						list [i] = -1;
 						continue;
 					}
 				}
-				list[i] = pbn;
-				bread(dev, pbn, 0);
+				list [i] = pbn;
+				bread (dev, pbn, 0);
 			}
 		}
-		if ((pbn=list[lbn-abn]) < 0) {
-			bp = bclaim(NODEV, (daddr_t)0);
-			kclear(bp->b_vaddr, BSIZE);
-		} else {
-			if ((bp=bread(dev, pbn, 1)) == NULL)
+
+		/*
+		 * With readhead, we can get a little ahead of ourselves.
+		 */
+
+		if (res == 0)
+			break;
+
+		if (res < (n = BSIZE - off))
+			n = res;
+
+		if ((pbn = list [lbn - abn]) < 0)
+			ioclear (iop, n);
+		else {
+			if ((bp = bread (dev, pbn, 1)) == NULL)
 				return;
+			iowrite (iop, bp->b_vaddr + off, n);
+			brelease (bp);
 		}
-		n = BSIZE - off;
-		n = res>n ? n : res;
-		iowrite(iop, bp->b_vaddr+off, n);
-		brelease(bp);
+
 		if (u.u_error)
 			return;
-		lbn++;
+		lbn ++;
 		off = 0;
 		res -= n;
 	}
@@ -276,32 +305,32 @@ register IO *iop;
 
 	lbn = blockn(iop->io_seek);
 	off = blocko(iop->io_seek);
-	blk = (ip->i_mode&IFMT) == IFBLK;
+	blk = (ip->i_mode & IFMT) == IFBLK;
 	while (iop->io_ioc > 0) {
 		n = BSIZE - off;
-		n = iop->io_ioc>n ? n : iop->io_ioc;
-		com = off==0 && n==BSIZE;
+		n = iop->io_ioc > n ? n : iop->io_ioc;
+		com = off == 0 && n == BSIZE;
 		if (blk == 0)
-			bp = aread(ip, lbn, com);
+			bp = aread (ip, lbn, com);
 		else {
 			if (com)
-				bp = bclaim(ip->i_a.i_rdev, lbn);
+				bp = bclaim (ip->i_a.i_rdev, lbn);
 			else
-				bp = bread(ip->i_a.i_rdev, lbn, 1);
+				bp = bread (ip->i_a.i_rdev, lbn, 1);
 		}
 		if (bp == NULL)
 			return;
-		ioread(iop, bp->b_vaddr+off, n);
+		ioread (iop, bp->b_vaddr + off, n);
 		bp->b_flag |= BFMOD;
-		if (com && ((ip->i_mode&IFMT) != IFPIPE) )
-			bwrite(bp, 0);
+		if (com && ((ip->i_mode & IFMT) != IFPIPE) )
+			bwrite (bp, 0);
 		else
-			brelease(bp);
+			brelease (bp);
 		if (u.u_error)
 			return;
-		lbn++;
+		lbn ++;
 		off = 0;
-		if ((iop->io_seek+=n) > ip->i_size)
+		if ((iop->io_seek += n) > ip->i_size)
 			if (blk == 0)
 				ip->i_size = iop->io_seek;
 	}
@@ -319,13 +348,13 @@ daddr_t lb;
 	register daddr_t pb;
 	register BUF *bp;
 
-	if ((pb=vmap(ip, lb)) < 0)
-		return (NULL);
+	if ((pb = vmap (ip, lb)) < 0)
+		return NULL;
 	if (pb != 0)
-		return (bread(ip->i_dev, pb, 1));
-	bp = bclaim(NODEV, (daddr_t)0);
-	kclear(bp->b_vaddr, BSIZE);
-	return (bp);
+		return bread (ip->i_dev, pb, 1);
+	bp = bclaim (NODEV, (daddr_t) 0);
+	kclear (bp->b_vaddr, BSIZE);
+	return bp;
 }
 
 /*
@@ -343,20 +372,20 @@ daddr_t lb;
 	register int *lp;
 	daddr_t * dp;
 	daddr_t pb;
-	int list[1+NI];
+	int list [1 + NI];
 
-	if ((lp=lmap(lb, list)) == NULL)
-		return (-1);
-	pb = ip->i_a.i_addr[*--lp];
+	if ((lp = lmap (lb, list)) == NULL)
+		return -1;
+	pb = ip->i_a.i_addr [* -- lp];
 	for (;;) {
-		if (pb==0 || lp==list)
-			return (pb);
-		if ((bp=bread(ip->i_dev, pb, 1)) == NULL)
-			return (0);
+		if (pb == 0 || lp == list)
+			return pb;
+		if ((bp = bread (ip->i_dev, pb, 1)) == NULL)
+			return 0;
 		dp = bp->b_vaddr;
-		pb = dp[*--lp];
-		brelease(bp);
-		candaddr(pb);
+		pb = dp [* -- lp];
+		brelease (bp);
+		candaddr (pb);
 	}
 }
 
@@ -366,8 +395,9 @@ daddr_t lb;
  * If the flag, `fflag' is set, the final buffer is just claimed rather than
  * read as we are going to change it's contents completely.
  */
+
 BUF *
-aread(ip, lb, fflag)
+aread (ip, lb, fflag)
 register INODE *ip;
 daddr_t lb;
 {
@@ -381,45 +411,57 @@ daddr_t lb;
 	daddr_t pb;
 	int list[1+NI];
 
-	if ((lp=lmap(lb, list)) == NULL)
+	if ((lp = lmap (lb, list)) == NULL)
 		return (NULL);
 	aflag = 0;
 	dev = ip->i_dev;
-	pb = ip->i_a.i_addr[l=*--lp];
+	pb = ip->i_a.i_addr [l = * -- lp];
 	if (pb == 0) {
 		aflag = 1;
-		if ((pb=balloc(dev)) == 0)
-			return (NULL);
-		ip->i_a.i_addr[l] = pb;
+		if ((pb = balloc (dev)) == 0)
+			return NULL;
+		ip->i_a.i_addr [l] = pb;
 	}
 	for (;;) {
-		lflag = lp==list;
-		if (aflag==0  &&  (fflag==0 || lflag==0)) {
-			if ((bp=bread(dev, pb, 1)) == NULL)
-				return (NULL);
+		lflag = lp == list;
+		/*
+		 * If we are not allocating a new block and the caller is
+		 * going to preserve any of the data that we are going to
+		 * return, then read in the previous block contents.
+		 */
+		if (! (aflag || (fflag && lflag))) {
+			if ((bp = bread (dev, pb, 1)) == NULL)
+				return NULL;
 		} else {
-			bp = bclaim(dev, pb);
-			kclear(bp->b_vaddr, BSIZE);
+			bp = bclaim (dev, pb);
+
+			/*
+			 * If this is the last block and the caller is just
+			 * going to overwrite it, don't zero-fill.
+			 */
+
+			if (! (fflag && lflag))
+				kclear (bp->b_vaddr, BSIZE);
 			bp->b_flag |= BFMOD;
 		}
 		if (lflag)
-			return (bp);
+			return bp;
 
 		aflag = 0;
 		dp = bp->b_vaddr;
-		pb = dp[l=*--lp];
-		candaddr(pb);
+		pb = dp [l = * -- lp];
+		candaddr (pb);
 		if (pb == 0) {
 			aflag = 1;
-			if ((pb=balloc(dev)) == 0) {
+			if ((pb = balloc (dev)) == 0) {
 				brelease(bp);
 				return (NULL);
 			}
-			dp[l] = pb;
-			candaddr( dp[l] );
+			dp [l] = pb;
+			candaddr (dp [l]);
 			bp->b_flag |= BFMOD;
 		}
-		brelease(bp);
+		brelease (bp);
 	}
 }
 
@@ -436,20 +478,19 @@ register int *lp;
 	register int n;
 
 	if (b < ND) {
-		*lp++ = b;
-		return (lp);
+		* lp ++ = b;
+		return lp;
 	}
 	b -= ND;
 	n = NI;
 	do {
-		if (n-- == 0) {
+		if (n -- == 0) {
 			u.u_error = EFBIG;
-			return (NULL);
+			return NULL;
 		}
-		*lp = nbnrem(b);
-		++lp;
-		b = nbndiv(b);
-	} while (b--);
-	*lp++ = ND+NI-1-n;
-	return (lp);
+		* lp ++ = nbnrem (b);
+		b = nbndiv (b);
+	} while (b --);
+	* lp ++ = ND + NI - 1 - n;
+	return lp;
 }

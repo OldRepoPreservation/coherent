@@ -1,13 +1,13 @@
 /*
- * User configurable AT keyboard/display driver.
- * 286/386 AT COHERENT
+ * io.386/nkb.c
+ *
+ * Keyboard driver, no virtual consoles, loadable tables.
+ *
+ * Revised: Fri Jul 16 08:39:12 1993 CDT
  */
+
 #include <sys/coherent.h>
-#ifdef _I386
 #include <sys/reg.h>
-#else
-#include <sys/i8086.h>
-#endif
 #include <sys/con.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
@@ -99,6 +99,7 @@ int		isbusy;			/* Raw input conversion busy */
 static	char	table_loaded;		/* true == keyboard table resident */
 static	char	fk_loaded;		/* true == function keys resident */
 static	int	kbstate = KB_IDLE;	/* current keyboard state */
+static	int	xlate = 1;		/* scan code translation flag */
 
 #define	ESCAPE_CHAR	'\x1B'
 #define	ESCAPE_STRING	"\x1B"
@@ -264,6 +265,48 @@ IO *iop;
 }
 
 /*
+ * special constants/struct for the XWindow/KDMAPDISP calls
+ */
+
+#define KDMAPDISP       (('K' << 8) | 2)      /* map display into user space */
+#define KDSKBMODE       (('K' << 8) | 6)      /* turn scan code xlate on/off */
+#define KDMEMDISP       (('K' << 8) | 7)      /* dump byte of virt/phys mem  */
+#define KDENABIO        (('K' << 8) | 60)     /* enable IO                   */
+#define KIOCSOUND       (('K' << 8) | 63)     /* start sound generation      */ 
+#define KDSETLED        (('K' << 8) | 66)     /* set leds                   */
+
+#define TIMER_CTL    0x43                     /* Timer control */
+#define TIMER_CNT    0x42                     /* Timer counter */
+#define SPEAKER_CTL  0x61                     /* Speaker control */
+
+struct kd_memloc {
+        char    *vaddr;         /* virtual address to map to */
+        char    *physaddr;      /* physical address to map to */
+        long    length;         /* size in bytes to map */
+        long    ioflg;          /* enable I/O addresses if non-zero */
+};
+
+static TIM tp;
+
+int
+resetkb(action)
+int action;
+{
+   int i;
+   if (action == 1) {
+      timeout(&tp,20,resetkb,2);
+      outb(KBCTRL, 0xCC);             /* Clock high */
+   }
+   if (action == 2) {
+      i = inb(KBDATA);
+      outb(KBCTRL, 0xCC);             /* Clear keyboard */
+      outb(KBCTRL, 0x4D);             /* Enable keyboard */
+   }
+}
+
+static int X11led;
+
+/*
  * Ioctl routine.
  * nb: archaic TIOCSHIFT and TIOCCSHIFT no longer needed/supported.
  */
@@ -274,6 +317,75 @@ struct sgttyb *vec;
 	register int s;
 
 	switch (com) {
+#define KDDEBUG 0
+#if KDDEBUG
+       case KDMEMDISP:
+       {
+               struct kd_memloc* mem;
+               unsigned char ub, pb;
+               mem = vec;
+               pxcopy( mem->physaddr, &pb, 1, SEG_386_KD );
+               ub = getubd( mem->vaddr );
+               printf( "User's byte %x(%x), Physical byte %x, Addresses %x %x\n",
+                       mem->ioflg, ub, pb, mem->vaddr, mem->physaddr );
+               break;;             
+       }
+#endif
+       case KDMAPDISP:
+       {
+               struct kd_memloc* mem;
+               mem = vec;
+#if KDDEBUG
+               printf( "mapPhysUser(%x, %x, %x) = %d\n",
+                        mem->vaddr, mem->physaddr, mem->length,  
+#endif
+               mapPhysUser(mem->vaddr, mem->physaddr, mem->length)
+#if KDDEBUG
+               )
+#endif
+;
+       }
+       case KDENABIO:
+       {
+               int i;
+               for (i = 0 ; i < 64 ; i++ )
+                   iomapAnd(0,i);
+                break;;             
+       }
+       case KIOCSOUND:
+       {
+               if (vec) {
+                 outb(TIMER_CTL, 0xB6); 
+                 outb(TIMER_CNT, (int)vec&0xFF);
+                 outb(TIMER_CNT, (int)vec>>8);
+                 outb(SPEAKER_CTL, inb(SPEAKER_CTL) | 03); /* Turn speaker on */
+               }
+               else 
+                 outb(SPEAKER_CTL, inb(SPEAKER_CTL) & ~03 ); /* speaker off */
+                break;;             
+       }
+       case KDSKBMODE:
+       {
+	       static int vtB4X11;
+               /* outb(KBCTRL, 0x0C);             /* Clock low */
+               /* timeout(&tp,3,resetkb,1);       /* wait about 20-30ms */
+	       if (xlate > vec) {	/* Turning translation off */
+ 		   kb_cmd2(K_SCANCODE_CMD, 1);      /* set 1 for X */
+ 	       }
+ 	       else if (xlate < vec) {		   /* turning translation on */
+ 		   kb_cmd2(K_SCANCODE_CMD, 3);      /* set 3 for COH */
+ 	       }
+               xlate = (int)vec;
+ 	       /* kb_cmd(K_ALL_TMB_CMD);	/* default: TMB for all keys */
+                break;;             
+        }
+        case KDSETLED:
+        {
+                X11led = (int)vec;
+                updleds();
+                break;;             
+         }
+
 	case TIOCSETF:
 	case TIOCGETF:
 		isfunction(com, (char *)vec);
@@ -533,7 +645,46 @@ isrint()
 
 	KBDEBUG2 (" intr(%x)", r);
 
-	switch (r) {
+ 	if (!xlate) switch (r) {
+
+ 	case K_BAT_BAD:
+ 		printf("kb: keyboard BAT failed\n");
+ 		break;
+ 	case K_RESEND:
+ 		KBDEBUG("\nkb: request to resend command\n");
+ 		outb(KBDATA, prev_cmd);
+ 		break;
+ 	case K_OVERRUN_23:
+ 		printf("kb: keyboard buffer overrun\n");
+ 		break;
+ 	case K_ACK:
+ 		/*
+ 		 * we received an ACKnowledgement from the keyboard.
+ 		 * advance the state machine and continue.
+ 		 */
+ 		KBDEBUG(" ACK ");
+ 		switch (kbstate) {
+ 		case KB_IDLE:			/* shouldn't happen */
+ 			printf("vtnkb: ACK while idle ");
+ 			break;
+ 		case KB_SINGLE:			/* done with 1-byte command */
+ 		case KB_DOUBLE_2:		/* done w/ 2nd of 2-byte cmd */
+ 			kbstate = KB_IDLE;
+ 			wakeup(&kbstate);
+ 			break;
+ 		case KB_DOUBLE_1:
+ 			kbstate = KB_DOUBLE_2;
+ 			outb(KBDATA, cmd2);
+ 			break;
+ 		default:
+ 			printf("kb: bad kbstate %d\n", kbstate);
+ 			break;
+ 		}
+ 		break;
+ 	default:
+          	isin(r);
+              	break;
+ 	} else switch (r) {
 
 	case K_BREAK:
 		keyup = 1;			/* key going up */
@@ -853,7 +1004,10 @@ register TTY * tp;
  */
 updleds()
 {
-	kb_cmd2 (K_LED_CMD, (shift >> 1) & 0x7);
+ 	if (!xlate)
+		kb_cmd2(K_LED_CMD, X11led);
+ 	else
+		kb_cmd2(K_LED_CMD, (shift >> 1) & 0x7);
 }
 
 /*
@@ -870,7 +1024,9 @@ updleds2()
 	while (--timeout > 0 && (inb(KBSTS_CMD) & STS_IBUF_FULL))
 		;
 	kbstate = KB_DOUBLE_1;
-	cmd2 = (shift >> 1) & 0x7;
+	
+	if (!xlate) cmd2 = X11led;
+	else        cmd2 = (shift >> 1) & 0x7;
 	prev_cmd = K_LED_CMD;
 	outb(KBDATA, K_LED_CMD);
 	spl(s);

@@ -22,6 +22,7 @@
  *  Minor device 5 is /dev/clock
  *  Minor device 6 is /dev/ps
  *  Minor device 7 is /dev/kmemhi, virtual memory 0x8000_0000-0xFFFF_FFFF
+ *  Minor device 11 is /dev/idle
  *
  * $Log:	null.c,v $
  * Revision 1.7  93/04/14  10:06:37  root
@@ -48,18 +49,25 @@
 #define NULL_IOCTL	/* Allow ioctl()s for /dev/kmem.  */
 #define DANGEROUS	/* Allow dangerous ioctl()s for /dev/null.  */
 #endif
+#define IDLE_DEV
 
 #include <sys/coherent.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/typed.h>
 #include <sys/inode.h>
 #include <sys/seg.h>
 #include <sys/coh_ps.h>
-#ifdef NULL_IOCTL
-#include <sys/null.h>
-#endif /* NULL_IOCTL */
+#include <sys/file.h>
+#if defined NULL_IOCTL || defined IDLE_DEV
+   #include <sys/null.h>
+#endif /* NULL_IOCTL || IDLE_DEV */
+
+
+#if	TRACER
+#include <sys/buf.h>
+#endif
 
 /* These are minor numbers.  */
 #define DEV_NULL	0	/* /dev/null	*/
@@ -70,6 +78,7 @@
 #define DEV_CLOCK	5	/* /dev/clock  */
 #define DEV_PS		6	/* /dev/ps  */
 #define DEV_KMEMHI	7	/* /dev/kmemhi  */
+#define DEV_IDLE	11	/* /dev/idle    */
 
 #define KMEMHI_BASE	0x80000000
 #define PXCOPY_LIM	4096
@@ -119,11 +128,11 @@ CON nlcon ={
 	nulldev,			/* Block */
 	nlread,				/* Read */
 	nlwrite,			/* Write */
-#ifdef NULL_IOCTL
+#if defined NULL_IOCTL || defined IDLE_DEV
 	nlioctl,			/* Ioctl */
-#else /* NULL_IOCTL */
+#else /* NULL_IOCTL || IDLE_DEV */
 	nonedev,			/* Ioctl */
-#endif /* NULL_IOCTL */
+#endif /* NULL_IOCTL || IDLE_DEV */
 	nulldev,			/* Powerfail */
 	nulldev,			/* Timeout */
 	nulldev,			/* Load */
@@ -142,6 +151,9 @@ dev_t dev;
 int mode;
 {
 	switch (minor(dev)) {
+#ifdef IDLE_DEV
+	case DEV_IDLE:
+#endif
 	case DEV_PS:
 		/* /dev/ps is read only */
 		if (IPR != (IPR & mode)) 
@@ -181,7 +193,6 @@ dev_t dev;
 register IO *iop;
 {
 	register unsigned 	bytesRead;
-	register SEG		*sp;		/* u area segment */
 	register PROC 		*pp1;		/* */
 	char			psBuf[ARGSZ];	/* buffer for command line
 						 * arguments for ps. */
@@ -202,10 +213,11 @@ register IO *iop;
 		 */
 		break;
 
-	case DEV_MEM:
+	case DEV_MEM: {
+		int src = iop->io_seek;
+		int dest = iop->io.pbase;
+
 		while (iop->io_ioc) {
-			int src = iop->io_seek;
-			int dest = iop->io.pbase;
 			int numBytes = PXCOPY_LIM;
 			if (numBytes > iop->io_ioc)
 				numBytes = iop->io_ioc;
@@ -220,6 +232,7 @@ register IO *iop;
 			}
 		}
 		break;
+	}
 
 	case DEV_KMEM:
 		iowrite(iop, iop->io_seek, iop->io_ioc);
@@ -302,6 +315,7 @@ register IO *iop;
 			register int		i;	/* loop index */
 			register unsigned	uLen, 	/* Process size */
 						uLenR;	/* Real process size */
+			register SEG	*sp;	/* u area segment */
 			int work;	/* virtual click number */
 
 			/* Check if driver can send next proc data */ 
@@ -310,7 +324,7 @@ register IO *iop;
 				
 			/* Calculate the size of process. */
 			uLen = uLenR = 0;
-			for (i = 0; i < NUSEG + 1; i++) {
+			for (i = 0; i < NUSEG; i++) {
 				if ((sp=pp1->p_segp[i]) == NULL)
 					continue;
 				uLenR += sp->s_size;
@@ -326,11 +340,25 @@ register IO *iop;
 			work = workAlloc();
 			ptable1_v[work] = 
 				   sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
-			mmuupd();
 			uprc = (UPROC *) (ctob(work) + U_OFFSET);
 			kkcopy(uprc->u_comm, psData.u_comm, ARGSZ);
 			kkcopy(uprc->u_sleep, psData.u_sleep, U_SLEEP_LEN);
 			workFree(work);
+
+#ifdef	TRACER
+			if (strncmp (psData.u_sleep, "lock",
+				     U_SLEEP_LEN) == 0) {
+				printf ("[%d] locked at %x lock = %x\n",
+					pp1->p_pid, pp1->p_event,
+					pp1->p_event [0]);
+			}
+			if (strncmp (psData.u_sleep, "bpwait",
+				     U_SLEEP_LEN) == 0) {
+				BUF	      *	bp = pp1->p_event;
+				printf ("[%d] blocked on %x flags = %x\n",
+					pp1->p_pid, bp, bp->b_flag);
+			}
+#endif
 
 			/* fill up stMonitor */
 			psData.p_pid = pp1->p_pid;
@@ -481,7 +509,7 @@ register IO *iop;
 	return;
 }
 
-#ifdef NULL_IOCTL /* Includes all of nlioctl().  */
+#if defined NULL_IOCTL || defined IDLE_DEV /* Includes all of nlioctl().  */
 
 /*
  * Do an ioctl call for /dev/null.
@@ -492,8 +520,9 @@ nlioctl(dev, cmd, vec)
 	int cmd;
 	char * vec;
 {
-	/* Only /dev/kmem has an ioctl.  */
+	/* Only /dev/kmem and /dev/idle have an ioctl.  */
 	switch (minor(dev)) {
+#ifdef NULL_IOCTL
 	case DEV_KMEM:
 		switch (cmd) {
 #ifdef DANGEROUS
@@ -505,6 +534,38 @@ nlioctl(dev, cmd, vec)
 				     "nioctl(): illegal command for kmem");
 			return(-1);
 		}
+#endif /* NULL_IOCTL */
+#ifdef IDLE_DEV
+	case DEV_IDLE:
+	if (cmd != NLIDLE) { 
+		SET_U_ERROR(EINVAL,
+                        "nioctl(): illegal command for idle");
+                return(-1);
+	}
+        else {
+                register PROC *pp;
+                register int *mem = vec;
+
+                pp = &procq;                      /* point to process queue */
+                if (pp->p_pid != 0) {
+                    while ((pp = pp->p_nforw) != &procq)
+                        if (pp->p_pid == 0)       /* idle process ? */
+                                break;
+                }
+
+           /*
+            * At this point, pp->p_utime and pp->p_stime contain the idle
+            * time of the system process
+            */
+                if (pp->p_pid != 0)
+                        putuwd(mem++, 0);
+                else
+                        putuwd(mem++, pp->p_utime+pp->p_stime);
+                putuwd(mem,   lbolt);
+                return 1; 
+        }
+
+#endif /* IDLE_DEV */
 	default:
 		SET_U_ERROR(EINVAL, "illegal minor device for null ioctl");
 		return (-1);
@@ -512,7 +573,7 @@ nlioctl(dev, cmd, vec)
 
 } /* nlioctl() */
 
-#endif /* NULL_IOCTL */
+#endif /* NULL_IOCTL || IDLE_DEV */
 
 #ifdef DANGEROUS /* Includes all of docall().  */
 /*

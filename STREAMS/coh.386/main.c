@@ -80,6 +80,13 @@ main()
 #endif
 
 	CHIRP('a');
+	while (& u + 1 < & u) {
+		_CHIRP ('t', 8);
+		_CHIRP ('k', 6);
+		_CHIRP ('u', 4);
+		_CHIRP ('h', 2);
+		_CHIRP ('p', 0);
+	}
 
 #ifdef _I386
 	wrNdpUser(0);
@@ -113,8 +120,8 @@ main()
 		printf("Monochrome.  ");
 	else
 		printf("Color.  ");
-	senseNdp();
-	printf(ndpTypeName());
+	senseNdp ();
+	printf (ndpTypeName ());
 	if (ndpType <= 1 && ndpEmFn)
 		printf("FP Emulation.  ");
 #if 0
@@ -146,7 +153,7 @@ main()
 
 	if (_entry) {
 		printf("Serial Number ");
-		printf("%U\n", _entry);
+		printf("%lu\n", _entry);
 	}
 
 	/*
