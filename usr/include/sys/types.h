@@ -1,7 +1,7 @@
 /*
  * /usr/include/sys/types.h
  *
- * Revised: Wed Apr  7 15:15:05 1993 CDT
+ * Revised: Wed May 19 09:31:05 1993 CDT
  */
 
 /*
@@ -70,7 +70,7 @@ typedef	unsigned long	mode_t;
 typedef	long		off_t;
 
 
-#if	! _POSIX_SOURCE
+#if	!defined(_POSIX_SOURCE)
 
 typedef	unsigned char	uchar_t;
 typedef	unsigned short	ushort_t;
@@ -127,7 +127,7 @@ typedef	o_ino_t		ino_t;
 #endif
 
 
-#if	(! _POSIX_SOURCE) && (defined (__KERNEL__) || _DDI_DKI)
+#if	!defined(_POSIX_SOURCE) && (defined (__KERNEL__) || _DDI_DKI)
 
 /*
  * Old Coherent kernel code defined several types here that conflict with
@@ -145,5 +145,11 @@ typedef __paddr_t	paddr_t;
 
 #endif
 
+#if	!defined(_POSIX_SOURCE) && (defined (__KERNEL__) || _SYSV4)
+typedef	unsigned char	unchar;
+typedef	unsigned short	ushort;
+typedef	unsigned int	uint;
+typedef	unsigned long	ulong;
+#endif
 
 #endif	/* ! defined (__SYS_TYPES_H__) */

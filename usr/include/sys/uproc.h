@@ -4,7 +4,11 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * /usr/include/sys/uproc.h
+ *
  * The user process area.
+ *
+ * Revised: Wed May 26 16:45:05 1993 CDT
  */
 
 #ifndef	 __SYS_UPROC_H__
@@ -40,10 +44,10 @@
 typedef struct uproc {
 #ifdef _I386
 	/* Magic number UPROC_VERSION identifies this uproc struct.  */
-#define UPROC_VERSION 0x0104
+#define UPROC_VERSION 0x0105
 	unsigned short u_version;	/* Version number for uproc struct */
 #endif /* _I386 */
-	char	 u_error;		/* Error number (must be first) */
+	int	 u_error;		/* Error number (must be first) */
 	char	 u_flag;		/* Flags (for accounting) */
 	int	 u_uid;			/* User id */
 	int	 u_gid;			/* Group id */

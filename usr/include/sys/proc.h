@@ -9,7 +9,7 @@
  * Process information.  PROC structs, unlike UPROC structs, are visible
  * whether the process is active or not.
  *
- * Revised: Mon Apr 19 13:49:40 1993 CDT
+ * Revised: Wed May 12 09:48:19 1993 CDT
  */
 
 #ifndef __SYS_PROC_H__
@@ -58,11 +58,15 @@ typedef struct proc {
 	unsigned p_rgid;		/* Real gid */
 	unsigned p_state;		/* Scheduling state */
 	unsigned p_flags;		/* Flags */
-	sig_t	 p_ssig;		/* Signals which have been set */
+	sig_t	 p_ssig;		/* Signals which have been sent */
+
+/* bit fields p_dfsig and p_isig are redundant with u.u_sfunc, but
+   appear in PROC data for visibility across processes. */
+
 #ifdef _I386
 	sig_t	 p_dfsig;		/* Signals which are defaulted */
-	sig_t	 p_hsig;		/* Signals which are being held */
-	sig_t	 p_dsig;		/* Signals which are being deferred */
+	sig_t	 p_hsig;		/* Signals which are held */
+	sig_t	 p_dsig;		/* Signals which are sigset */
 #endif
 	sig_t	 p_isig;		/* Signals which are being ignored */
 	char	 *p_event;		/* Wakeup event channel */

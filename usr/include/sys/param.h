@@ -3,6 +3,14 @@
  * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
+/*
+ * /usr/include/sys/param.h
+ *
+ * Parameters specific to this port of COHERENT.
+ *
+ * Revised: Wed May  5 16:52:17 1993 CDT
+ */
 #ifndef __SYS_PARAM_H__
 #define	__SYS_PARAM_H__
 
@@ -62,10 +70,11 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 #define COH_SHM		8
 #define COH_WTEXT	9
 
-/*
- * There must be an even number of HZ in a second.
- */
-#define	HZ		100
+#define	HZ	100	/* Number of clock ticks per second.		*/
+#define T0_RATE	11932	/* Number of timer 0 counts per clock tick.	*/
+/* convert microseconds to timer 0 counts - roughly multiply by 1.1932	*/
+#define USEC_TO_COUNTS(usec)	((usec)+(((usec)*3)/16))
+
 #endif
 
 #endif
