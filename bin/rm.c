@@ -1,6 +1,10 @@
 /*
+ * rm.c
+ * 5/8/91
+ * Remove files or directories and their contents.
+ * Usage: rm [-firtv] file ...
+ *
  * Rec'd from Lauren Weinstein, 7-16-84.
- * rm -- remove files or directories and their contents.
  * This command is setuid to root to allow directory unlinks.
  * Interrupts are handled to prevent mangled directories.
  * Exit status of 1 indicates an error:
@@ -29,7 +33,12 @@
 #include <access.h>
 #include <signal.h>
 
+extern	int errno;
+
+char	*save();
+
 #define	NFNAME	1000		/* Largest filename expansion in `-r' option */
+#define	equals(s1, s2)	(strcmp((s1), (s2)) == 0)
 
 char	fname[NFNAME];		/* current argument name */
 struct	stat	sb;		/* current argument status buffer */
@@ -43,8 +52,6 @@ char 	*dot = ".";
 char	*dotdot = "..";
 char	*root = "/";
 char	*cmd = "rm: ";		/* for messages */
-char	*save();
-extern  int errno;
 
 int	fflag;			/* Force removal */
 int	iflag;			/* Interactive removal */
@@ -53,8 +60,7 @@ int	tflag;			/* Test, do not perform removes */
 int	vflag;			/* Verbose report */
 int 	ntflag;			/* Non-zero if stdin not a terminal */
 
-main(argc, argv)
-char *argv[];
+main(argc, argv) int argc; char *argv[];
 {
 	register char *ap;
 	register int i;
@@ -63,26 +69,11 @@ char *argv[];
 	while (argc>1 && *argv[1]=='-') {
 		for (ap=&argv[1][1]; *ap != '\0'; ap++)
 			switch (*ap) {
-			case 'f':
-				fflag = 1;
-				break;
-
-			case 'i':
-				iflag = 1;
-				break;
-
-			case 'r':
-				rflag = 1;
-				break;
-
-			case 't':
-				tflag = 1;
-				break;
-
-			case 'v':
-				vflag = 1;
-				break;
-
+			case 'f':	fflag = 1;	break;
+			case 'i':	iflag = 1;	break;
+			case 'r':	rflag = 1;	break;
+			case 't':	tflag = 1;	break;
+			case 'v':	vflag = 1;	break;
 			default:
 				usage();
 			}
@@ -92,8 +83,11 @@ char *argv[];
 	if (argc < 2)
 		usage();
 	if (!isatty(fileno(stdin))) {
-		iflag = 0;
 		ntflag = 1;
+		if (iflag) {
+			fprintf(stderr, "rm: -i illegal with redirection\n");
+			exit(1);
+		}
 	}		
 	if (stat(dot, &dot_sb)) {
 		lerror(dot);
@@ -126,36 +120,30 @@ char *argv[];
 remove()
 {
 	register int isdir;
-	register int abortf = 0;
-	char c;
 
 	if (stat(fname, &sb))
 		return (didnt(NULL));
 	if (isdir = ((sb.st_mode & S_IFMT) == S_IFDIR)) {
 		if (!rflag)
-			return (didnt("%s: directory\n"));
-		if (access(fname, ALIST|ADEL|ASRCH)<0)
+			return (didnt("directory"));
+		if (access(fname, ALIST|ADEL|ASRCH) < 0)
 			return (didnt(NULL));
 		if (sb.st_dev == dot_sb.st_dev && sb.st_ino == dot_sb.st_ino)
-			return (didnt("%s: current directory\n"));
+			return (didnt("current directory"));
 		if (sb.st_dev == root_sb.st_dev && sb.st_ino == root_sb.st_ino)
-			return (didnt("%s: root directory|n"));
-	} else if (accparent()<0)
+			return (didnt("root directory"));
+	} else if (accparent() < 0)
 		return (didnt(NULL));
 	if (iflag) {
-		if (!query("%s? "))
+		if (!query("%s?", fname))
 			return (report(1));
-	} else if (!fflag && access(fname, AWRITE)<0) {
-		if (ntflag)  /* stdin not a terminal? */
-		   fprintf(stderr, "%sno write permission", cmd, fname);
-		fprintf(stderr, "%soverride protection %o for %s? ", 
-		   cmd, (sb.st_mode & 0777), fname);
-		if ((c = getchar()) != 'y')
-		   abortf++;  /* flag abort */  
-		while (c != EOF && c != '\n')  /* flush remaining input */
-		   c = getchar();
-		if (abortf)   /* abort delete? */
-		   return(report(1));   /* yes */
+	} else if (!fflag && access(fname, AWRITE) < 0) {
+		if (ntflag)	/* stdin not a terminal? */
+			fprintf(stderr,"%sno write permission for %s",
+				cmd, fname);
+		else if (!query("override protection %o for %s?", 
+			(sb.st_mode & 0777), fname))
+				return(report(1));	/* abort */
 	}
 	if (isdir) {
 		if (isdir = rmdir())
@@ -177,7 +165,8 @@ accparent()
 	register int c;
 	register int accpar;
 
-	for (sp = fname; *sp; sp += 1);		/* find end */
+	for (sp = fname; *sp; sp += 1)		/* find end */
+		;
 	while (sp > fname && sp[-1] != '/')	/* find last / */
 		sp -= 1;
 	if (sp > fname) {			/* a real name */
@@ -205,7 +194,8 @@ rmdir()
 
 	/* save directory name */
 	cp = fname;
-	while (*cp++);
+	while (*cp++)
+		;
 	cp[-1] = '/';
 	*cp = '\0';
 	limit = NFNAME - 2 - (cp - fname);
@@ -218,12 +208,12 @@ rmdir()
 	/* read and save file names in directory */
 	while (fread(&db, sizeof(db), 1, dfp) == 1) {
 		if (db.d_ino == 0
-		 || equals(db.d_name, dot)
-		 || equals(db.d_name, dotdot))
+		   || equals(db.d_name, dot)
+		   || equals(db.d_name, dotdot))
 			continue;
 		if ((ntops = save(db.d_name)) == NULL) {
 			fclose(dfp);
-			return (didnt("%s: out of memory\n"));
+			return (didnt("out of memory"));
 		}
 		if (nbase == NULL)
 			nbase = ntops;
@@ -272,10 +262,10 @@ rmdir()
 		return (-1);
 	}
 	if (rmfile()
-	 || copy(cp, dot, limit)
-	 || rmfile()
-	 || (cp[-1] = '\0')
-	 || rmfile())
+	   || copy(cp, dot, limit)
+	   || rmfile()
+	   || (cp[-1] = '\0')
+	   || rmfile())
 		botch("directory unlink error");
 	return (rmstat);
 }
@@ -292,17 +282,15 @@ rmfile()
  * Ask a question about the current file,
  * return one if the answer begins with y or Y.
  */
-query(question)
-char *question;
+/* VARARGS */
+query(question) char *question;
 {
 	register int c;
-	register int answer = 0;
+	register int answer;
 
-	fputs(cmd, stderr);
-	fprintf(stderr, question, fname);
-	if ((c = getchar())=='y')
-		answer = 1;
-	while (c!=EOF && c!='\n')
+	fprintf(stderr, "%s%r [y/n] ", cmd, &question);
+	answer = ((c = getchar()) == 'y' || c == 'Y');
+	while (c != EOF && c != '\n')
 		c = getchar();
 	return (answer);
 }
@@ -310,20 +298,17 @@ char *question;
 /*
  * Report that fname concatenated with the argument string is too long.
  */
-toolong(cp)
-char *cp;
+toolong(cp) char *cp;
 {
 	if (!fflag)
-	   fprintf(stderr, "%s%s%s: too long\n", cmd, fname, cp);
+		fprintf(stderr, "%s%s%s: too long\n", cmd, fname, cp);
 }
 
 /*
  * Copy src string to dst observing that no more than lim characters can fit.
  * Clean up on error.
  */
-copy(dst, src, lim)
-char *dst, *src;
-int lim;
+copy(dst, src, lim) char *dst, *src; int lim;
 {
 	register char *dp, *sp, *ep;
 
@@ -331,8 +316,8 @@ int lim;
 	sp = src;
 	ep = dp + lim;
 
-	while ((dp < ep) && (*dp++ = *sp++));
-
+	while ((dp < ep) && (*dp++ = *sp++))
+		;
 	if (dp == ep) {
 		*dst = '\0';
 		return (-1);
@@ -342,24 +327,21 @@ int lim;
 
 usage()
 {
-	fprintf(stderr, "Usage: rm [-frivt] file ...\n");
+	fprintf(stderr, "Usage: rm [-firtv] file ...\n");
 	exit(1);
 }
 
 /*
  * Report reason for failure.
  */
-didnt(reason)
-char *reason;
+didnt(reason) char *reason;
 {
 	if (fflag)
-	   return;
+		return;
 	if (reason == NULL)
-   	   lerror(fname);
+ 		lerror(fname);
 	else
-	{  fputs(cmd, stderr);
-	   fprintf(stderr, reason, fname);
-	}
+		fprintf(stderr, "%s%s: %s\n", cmd, fname, reason);
 	return (report(-1));
 }
 
@@ -373,7 +355,7 @@ int err;
 {
 	if (vflag)
 		fprintf(stderr, "%s%s: %sremoved\n", cmd, fname,
-		   err ? "not ":"");
+			err ? "not ":"");
 	if (interrupted)
 		exit(1);
 	return (err);
@@ -388,21 +370,8 @@ onintr()
 
 catch(sig)
 {
-
 	if (signal(sig, SIG_IGN) == SIG_DFL)
 		signal(sig, onintr);
-}
-
-/*
- * Compare strings for equality.
- */
-equals(s1, s2)
-register char *s1, *s2;
-{
-	while (*s1++ == *s2)
-		if (*s2++ == '\0')
-			return (1);
-	return (0);
 }
 
 /*
@@ -413,8 +382,7 @@ char *curbase = NULL;
 char *curtops = NULL;
 
 char *
-save(name)
-register char *name;
+save(name) register char *name;
 {
 	register char *saved;
 	register int ntosave;
@@ -439,28 +407,27 @@ register char *name;
 	return (name);
 }
 
-forget(names)
-register char *names;
+forget(names) register char *names;
 {
 	if (names < membase || names >= curtops)
 		botch("memory deallocation");
 	curbase = names;
 }
 
-botch(msg)
-char *msg;
+botch(msg) char *msg;
 {
 	fprintf(stderr, "%sbotched: %s at %s\n", cmd, msg, fname);
 	exit(1);
 }
 
-lerror(msg)
-char *msg;
+lerror(msg) char *msg;
 {
-   register int err;
+	register int err;
 
-   err = errno;         /* save error code for perror */
-   fputs(cmd, stderr);  /* command name */
-   errno = err;         /* restore error code */
-   perror(msg);
+	err = errno;  		/* save error code for perror */
+	fputs(cmd, stderr);	/* command name */
+	errno = err;		/* restore error code */
+	perror(msg);
 }
+
+/* end of rm.c */
