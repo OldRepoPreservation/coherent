@@ -1,5 +1,5 @@
 
-#line 16 "sh.y"
+#line 16 "/z/tmp/sh/sh.y"
 typedef union {
 	NODE	*yu_node;
 	char	*yu_strp;

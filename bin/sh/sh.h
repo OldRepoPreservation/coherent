@@ -1,10 +1,12 @@
 /*
- * A shell.
+ * sh/sh.h
+ * Bourne shell.
  * Header file.
  */
 
 #include <stdio.h>
 #include <setjmp.h>
+#include <string.h>
 
 #define STRSIZE	2000			/* Maximum length of single token */
 #define IALSIZE	8			/* Initial argument list size */
@@ -222,6 +224,7 @@ extern	int	errflag;		/* Set by call to printe */
 extern	int	keyflag;		/* Look for keyword in next word */
 extern	int	noeflag;		/* Turn off errors */
 extern	int	prpflag;		/* Do prompt before next read */
+extern	int	readflag;		/* Doing read command? */
 /* Parameters used by shell. */
 extern	char	*vhome;			/* Home directory */
 extern	char	*vpath;			/* Search pathname */
@@ -263,8 +266,7 @@ extern	VAR	*assnvar();		/* in var.c */
 extern	char	*convvar();		/* in var.c */
 extern	char	**envlvar();		/* in var.c */
 extern	char	*getwd();		/* in /lib/libc.a */
-extern	char	*index();		/* in /lib/libc.a */
-extern	char	*rindex();		/* in /lib/libc.a */
-extern	char	*strcpy();		/* in /lib/libc.a */
-extern	char	*strncpy();		/* in /lib/libc.a */
-extern	char	*strcat();		/* in /lib/libc.a */
+#define	index(cp, c)	strchr((cp), (c))
+#define	rindex(cp, c)	strrchr((cp), (c))
+
+/* end of sh/sh.h */

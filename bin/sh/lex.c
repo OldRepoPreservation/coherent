@@ -1,7 +1,9 @@
 /*
- * A shell.
- * Lexical analyser.
+ * sh/lex.c
+ * Bourne shell.
+ * Lexical analysis.
  */
+
 #include "sh.h"
 #include "y.tab.h"
 
@@ -58,56 +60,60 @@ yylex()
 again:
 	while ((c=getn())==' '  ||  c=='\t') ;
 	strp = strt;
-	if (c == '#') {
+	if ((c == '#' || c == ':') && readflag == 0) {
+		/*
+		 * Ignore a comment line.
+		 * The built-in "read" does not ignore comment lines.
+		 */
 		do
 			c = getn();
 		while (c > 0 && c != '\n');
-		return (c);
+		return c;
 	} else if (class(c, MDIGI)) {
 		*strp++ = c;
 		c = getn();
 		if (c=='>' || c=='<') {
 			*strp++ = c;
-			return (lexiors(c));
+			return lexiors(c);
 		}
 		ungetn(c);
-		return (lexname());
+		return lexname();
 	}
 	if (!class(c, MNAME)) {
 		ungetn(c);
 		if ((c = lexname()) == 0)
 			goto again;
 		else if (c < 0)
-			return (c);
+			return c;
 		if (keyflag) {
 			register KEY *kp;
 			for (kp=keytab; kp->k_lexv!=_NULL; kp++) {
 				if (strcmp(strt, kp->k_name) == 0)
-					return (kp->k_lexv);
+					return kp->k_lexv;
 			}
 		}
-		return (c);
+		return c;
 	}
 	*strp++ = c;
 	*strp = '\0';
 	switch (c) {
 	case ';':
-		return (isnext(c, _DSEMI));
+		return isnext(c, _DSEMI);
 	case '>':
-		return (lexiors(c));
+		return lexiors(c);
 	case '<':
-		return (lexiors(c));
+		return lexiors(c);
 	case '&':
-		return (isnext(c, _ANDF));
+		return isnext(c, _ANDF);
 	case '|':
 #ifdef NAMEPIPE
 		if ( ! isnext(')', 0))
-			return (_NCLOSE);
+			return _NCLOSE;
 #endif
-		return (isnext(c, _ORF));
+		return isnext(c, _ORF);
 #ifdef NAMEPIPE
 	case '(':
-		return (isnext('|', _NOPEN));
+		return isnext('|', _NOPEN);
 #endif
 	default:
 		if (hereeof != NULL) {
@@ -133,7 +139,7 @@ again:
 			hereeof = NULL;
 			return '\n';
 		}
-		return (c);
+		return c;
 	}
 }
 
@@ -145,10 +151,10 @@ register int c;
 	if ((c2=getn()) == c) {
 		*strp++ = c2;
 		*strp = '\0';
-		return (t1);
+		return t1;
 	}
 	ungetn(c2);
-	return (strp[-1]);
+	return strp[-1];
 }
 
 /*
@@ -196,7 +202,7 @@ lexname()
 			if (c == '\n') {
 				ungetn((c=getn())<0 ? '\n' : c);
 				if (--cp == strp)
-					return (0);
+					return 0;
 				continue;
 			}
 			*cp++ = c;
@@ -226,7 +232,7 @@ lexname()
 		break;
 	}
 	if (c < 0)
-		return (c);
+		return c;
 	if (q) {
 		emisschar('"');
 		*cp = '\0';
@@ -240,11 +246,11 @@ lexname()
 	prints("\t<%d> <%s> %s\n", getpid(), (asgn==2 ? "ASGN" : "NAME"), strt);
 #endif
 	if (errflag)
-		return (_NULL);
+		return _NULL;
 	else if (asgn==2)
-		return (_ASGN);
+		return _ASGN;
 	else
-		return (_NAME);
+		return _NAME;
 	return (asgn==2 ? _ASGN : _NAME);
 }
 
@@ -263,10 +269,10 @@ lexiors(c1)
 	if (c=='&') {
 		*strp++ = c = getn();
 		*strp = '\0';
-		if (c < 0) return (c);
+		if (c < 0) return c;
 		if (c!='-' && !class(c, MDIGI))
 			eredir();
-		return (_IORS);
+		return _IORS;
 	}
 	if (c==c1)
 		c1 += 0200;
@@ -281,12 +287,12 @@ lexiors(c1)
 	name = strp;
 	if (c=='\n') {
 		eredir();
-		return (_IORS);
+		return _IORS;
 	}
 	while ((c = lexname())==0);
-	if (c < 0) return (c);
+	if (c < 0) return c;
 	if (c1!='<'+0200)
-		return (_IORS);
+		return _IORS;
 #if	1
 	/*
 	 * Set up here document processing.
@@ -316,7 +322,7 @@ lexiors(c1)
 		++strp;
 		c = collect('\n', 1);
 	}
-	if (c < 0) return (c);
+	if (c < 0) return c;
 	bpp = savebuf();
 	strp = strt;
 	/* Simplify quoted to ?<file from ?<<file */
@@ -353,9 +359,9 @@ lexiors(c1)
 	strcpy(strt, iors);
 	freebuf(bpp);
 	/* Check for interrupt, since EOF is legal for once */
-	if (c < 0 && ! recover(ILEX)) return (c);
+	if (c < 0 && ! recover(ILEX)) return c;
 #endif
-	return (_IORS);
+	return _IORS;
 }
 
 /*
@@ -375,12 +381,12 @@ register int ec;
 		if (c<0 || (c=='\n' && f==0)) {
 			if (--f <= 0)
 				emisschar(ec);
-			return (c);
+			return c;
 		}
 		if (c=='\\' && f==0) {
 			if ((c=getn()) < 0) {
 				syntax();
-				return (c);
+				return c;
 			}
 			if (c == '\n')
 				continue;
@@ -392,7 +398,7 @@ register int ec;
 	}
 	*cp++ = ec;
 	strp = cp;
-	return (ec);
+	return ec;
 }
 
 /*
@@ -406,7 +412,7 @@ getn()
 	if (lastget != '\0') {
 		c = lastget;
 		lastget = '\0';
-		return (c);
+		return c;
 	}
 	switch (t = sesp->s_type) {
 	case SSTR:
@@ -430,11 +436,11 @@ getn()
 		}
 		if (vflag)
 			putc(c, stderr);
-		return (c);
+		return c;
 	case SARGS:
 	case SARGV:
 		if (sesp->s_flag)
-			return (EOF);
+			return EOF;
 		if ((c=*sesp->s_strp++) == '\0') {
 			if (t == SARGV
 			 && (sesp->s_strp=*++sesp->s_argv) != NULL)
@@ -446,7 +452,7 @@ getn()
 		}
 		if (vflag)
 			putc(c, stderr);
-		return (c);
+		return c;
 	}
 }
 
@@ -476,3 +482,4 @@ char *s, *spcl;
 	return 0;
 }
 
+/* end of sh/lex.c */
