@@ -20,7 +20,7 @@
 #include <termio.h>
 
 #define	NCIB	256		/* Input buffer */
-#define	OHILIM	128		/* Output buffer hi water mark */
+#define	OHILIM	500		/* Output buffer hi water mark */
 #define	OLOLIM	40		/* Output buffer lo water mark */
 #define	IHILIM	512		/* Input buffer hi water mark */
 #define	ILOLIM	40		/* Input buffer lo water mark */

@@ -12,11 +12,12 @@
  * Raw Character Silo.
  */
 
-#define	SI_BUFSIZ	256	/* Silo buffer size */
+#define	SI_BUFSIZ	512	/* Silo buffer size */
 
 typedef struct silo {
-	unsigned char	si_ix;
-	unsigned char	si_ox;
+	int	si_ix;
+	int	si_ox;
+	int	si_cnt;
 	unsigned char	si_buf[SI_BUFSIZ];
 } silo_t;
 
