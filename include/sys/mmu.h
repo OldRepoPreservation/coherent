@@ -82,11 +82,13 @@
 #define	PPTABLE1_V	0xFFFFC	/* Virtual address of the page table
 				 * for the virtual page table.
 				 */
-#define	WORK1		0xFFFFB /* Scratch page 1 virtual address.	*/
-#define	WORK0		0xFFFFA	/* Scratch page 0 virtual address.	*/
 
 #define MAX_VADDR	ctob(VIDEOb)	/* Highest allocatable virtual address.  */
 /*
+ * Temporary virtual clicks WORK0 and WORK1 are no longer used.
+ * Instead there is a range of click pairs starting at START_WORK
+ * (which is currently 0xFFFFA000) and working down, managed in work.c.
+ *
  * Addresses in kernel data for the RAM disk are now in rm.c.
  * As of 92/06/25, they are
  *	RAM0	0x80000		Ram disk 0 virtual click address.
@@ -112,9 +114,6 @@
 
 #define	regread(n)	ptable0_v[(n)>>BPC1SHIFT]
 #define	regload(n, v)	{ ptable0_v[(n)>>BPC1SHIFT] = v; mmuupd(); }
-
-#define	maparea(v) \
-	{ ptable1_v[WORK0-SBASE] = clickseg(v) | SEG_SRW; mmuupd(); }
 
 #define	xmode(ty)	((u.u_regl[DS]&0xffff) \
   == ((ty)==286 ? (SEG_286_UD|R_USR) : (SEG_386_UD|R_USR)))

@@ -58,6 +58,8 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 #define COH_CLRBP	5
 #define COH_REBOOT	6
 #define COH_VIO		7
+#define COH_SHM		8
+#define COH_WTEXT	9
 
 /*
  * There must be an even number of HZ in a second.

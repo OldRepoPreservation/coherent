@@ -6,7 +6,6 @@
 
 #define	 KERNEL
 #include <sys/types.h>
-#include <sys/timeout.h>
 #include <sys/param.h>
 #include <sys/fun.h>
 #include <sys/mmu.h>
