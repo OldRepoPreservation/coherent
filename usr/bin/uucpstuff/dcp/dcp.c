@@ -46,6 +46,7 @@ unsigned int checksum();
  */
 
 int	abort_cico = 0;		/* Indicates Process Abort Signalled	*/
+int	sysended = 0;		/* Indicates sysend() was called	*/
 int	processid;		/* Current Process Id (uucico)		*/
 int	fpfd = -1;		/* File Decriptor used for send&receive	*/
 int	role = SLAVE;		/* Our role, either MASTER or SLAVE	*/
@@ -195,6 +196,8 @@ char *argv[];
 				break;
 		}
 	}
+	if ( !sysended )
+		sysend();
 	exec_xqt();
 	exit(0);
 }
