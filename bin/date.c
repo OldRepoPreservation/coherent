@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <types.h>
+#include <sys/types.h>
 #include <time.h>
 #include <sys/timeb.h>
 
@@ -64,7 +64,7 @@ char *argv[];
 	s = asctime(tmp = gtime(&ltime));
 	s[24] = '\0';
 	if (!gmtflag)
-		tzone = tzname[tmp->tm_isdst? 1 : 0];
+		tzone = tzname[tmp->tm_isdst];
 	else
 		tzone = TFCFLAG ? "UTC" : "GMT";
 	printf("%s %s\n", s, tzone);
@@ -137,7 +137,8 @@ char *s;
 	if (!gmtflag) {
 		ltime += timezone;
 		tmp = localtime(&ltime);
-		ltime -= tmp->tm_isdst;
+		if (tmp->tm_isdst)
+			ltime -= HOUR;
 	}
 	status = stime(&ltime);
 	if (status < 0) {
