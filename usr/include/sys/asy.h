@@ -61,10 +61,10 @@ typedef struct asy1 {
 	silo_t	a_in;		/* raw input fifo			*/
 	silo_t	a_out;		/* raw output fifo			*/
 	TTY	a_tty;		/* stuff for line discipline		*/
-	TIM	a_tim;		/* for irq timeout kluge		*/
 	short	a_in_use;	/* increment with each open attempt	*/
 	char	a_ut;		/* uart type				*/
 	char	a_lcr;		/* lcr readback				*/
+	char	a_clto;		/* timed out during close		*/
 	int	a_irq:1;	/* true when open or hanging with irq's */
 	int	a_has_irq:1;	/* irq vector is usable			*/
 	int	a_hopn:1;	/* doing first open			*/
