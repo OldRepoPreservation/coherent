@@ -281,16 +281,21 @@ devmsg(dev, "No tape yet");
 	if ( pparmp[d] == PNULL )   /* no entry yet for this drive ? */
 		if (!sdgetpartitions(dev)) {
 			u.u_error = ENXIO;
+devmsg(dev, "sdgetpartitions() failed");
 			return;
 		}
 	/*
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
 	fdp = (struct fdisk_s *) pparmp[d];
+printf("base=%ld size=%ld ", fdp[p].p_base, fdp[p].p_size);
+printf("cap=%ld\n", fdp[WHOLE_DRIVE].p_size);
 	if ((fdp[p].p_base+fdp[p].p_size) > fdp[WHOLE_DRIVE].p_size) {
 		u.u_error = EBADFMT;
+devmsg(dev, "partition past end of drive");
 	} else if ( fdp[p].p_size == 0 ) {
 		u.u_error = ENODEV;
+devmsg(dev, "partition size 0");
 	} else {
 		++drvl[SDMAJOR].d_time;	
 		++sw_active;
