@@ -36,8 +36,12 @@ int verbose = 0;
 int pstat = 0;
 FILE *defin, *tabout, *actout, *listout, *optout, *fhdr;
 int tno = 256;
+int maxitem = MAXITEM;
+int maxprodl = MAXPRODL;
 int maxprod = MAXPROD;
 int maxstates = MAXSTATE;
+int maxreds = MAXREDS;
+
 int nprod;
 int nstates;
 int startsym = NTBASE+1;

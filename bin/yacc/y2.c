@@ -278,7 +278,7 @@ int nt;
 				nitprod->p_ass = sp->s_ass;
 				nitprod->p_prc = sp->s_prc;
 			}
-			if( n >= MAXPRODL-1 )
+			if( n >= maxprodl-1 )
 				yyerror(FATAL, "production too long");
 			nitprod->p_right[n++] = sp->s_no;
 			break;
@@ -427,9 +427,8 @@ wrtdefs()
 	if (ntype==0)
 		fprintf(fhdr, "typedef	int	YYSTYPE;\n");
 	fprintf(fhdr, "#ifdef YYTNAMES\n");
-	fprintf(fhdr, "extern readonly struct yytname\n{\n");
-	fprintf(fhdr, "\tchar\t*tn_name;\n\tint\ttn_val;\n} yytnames[%d];\n",
-		nterm+1);
+	fprintf(fhdr, "extern struct yytname\n{\n");
+	fprintf(fhdr, "\tchar\t*tn_name;\n\tint\ttn_val;\n} yytnames[];\n");
 	fprintf(fhdr, "#endif\n");
 	fprintf(fhdr, "extern	YYSTYPE	yylval;\n");
 	fclose(fhdr);

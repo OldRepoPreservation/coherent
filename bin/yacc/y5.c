@@ -70,22 +70,27 @@ outgo2(n)
 
 paout()
 {
+	struct actn *rdact;
 	register i;
-
-	if( verbose )
+	
+	if (verbose)
 		fprintf(listout, "\n\nParsing action table:\n\n");
-	for(i=0; i<nstates; i++)
-		outstate(i);
+
+	rdact = yalloc(maxreds, sizeof(*rdact));
+	for(i = 0; i < nstates; i++)
+		outstate(i, rdact);
+	free(rdact);
 }
 
-outstate(n)
+outstate(n, rdact)
+struct actn rdact[];
 {
 	extern yydefact, yypact;
 	register i, k;
 	register struct state *stp;
 	int size, max, errshift, pno, maxp, j, l;
 	struct lset shls, rdls;
-	struct actn rdact[MAXREDS], act;
+	struct actn act;
 
 	stp = &states[n];
 	zerolset(&shls);
@@ -104,7 +109,7 @@ outstate(n)
 					redred(n, pno, rdact[l].a_no&YYAMASK, j);
 					goto nextj; /* C needs next <var> */
 				}
-			bounded(l, MAXREDS, "reductions");
+			bounded(l, maxreds, "reductions");
 			rdact[k].a_chr = j;
 			rdact[k++].a_no = (YYREDACT<<YYACTSH) | pno;
 			size++;
