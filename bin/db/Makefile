@@ -1,39 +1,24 @@
 # Makefile for the db symbolic debugger.
 # This assumes TARG has been defined to be the target environment.
 #	MACROS
+
+DESTDIR=/interim/bin/
 CC = exec /bin/cc
 CFLAGS = -c -O -I/usr/src/sys/h -I/usr/src/sys/$(TARG)/h -I$(TARG) -I.
 LDFLAGS = -f
+TARG=i8086
 
 OBJS =	$(TARG)/trace0.o $(TARG)/trace1.o $(TARG)/trace2.o \
 	$(TARG)/trace3.o $(TARG)/trace4.o $(TARG)/trace5.o $(TARG)/trace6.o
 
 I86OBJS = i8086/i8086a.o i8086/i8086b.o i8086/i8086c.o i8086/i8086d.o
 
-M68OBJS = m68000/m68000a.o m68000/m68000b.o m68000/m68000c.o
-
-PDPOBJS = pdp11/pdp11.o pdp11/pdp11t.o
-
-Z01OBJS = z8001/z8001a.o z8001/z8001b.o z8001/z8001c.o \
-	z8001/shrlib.o z8001/stack.
-
-Z02OBJS = z8002/z8002a.o z8002/z8002b.o z8002/z8002c.o
 
 #	TARGETS
 i8086/db: $(OBJS) $(I86OBJS)
 	$(CC) $(LDFLAGS) -o i8086/db $(OBJS) $(I86OBJS)
-
-m68000/db: $(OBJS) $(M68OBJS)
-	$(CC) $(LDFLAGS) -o m68000/db $(OBJS) $(M68OBJS)
-
-pdp11/db: $(OBJS) $(PDPOBJS)
-	$(CC) $(LDFLAGS) -o pdp11/db $(OBJS) $(PDPOBJS)
-
-z8001/db: $(OBJS) $(Z01OBJS)
-	$(CC) $(LDFLAGS) -o z8001/db $(OBJS) $(Z01OBJS)
-
-z8002/db: $(OBJS) $(Z02OBJS)
-	$(CC) $(LDFLAGS) -o z8002/db $(OBJS) $(Z02OBJS)
+	mv i8086/db $(DESTDIR)
+	su root chmog $(DESTDIR)db 511 bin bin 
 
 #	MACHINE INDEPENDENT OBJECTS
 $(TARG)/trace0.o: trace.h $(TARG)/mtrace.h trace0.c
@@ -81,33 +66,9 @@ $(TARG)/$(TARG)d.o: trace.h $(TARG)/$(TARG).h $(TARG)/$(TARG)d.c
 	$(CC) $(CFLAGS) $(TARG)/$(TARG)d.c
 	mv $(TARG)d.o $(TARG)/$(TARG)d.o
 
-pdp11/pdp11.o: trace.h pdp11/pdp11.h pdp11/pdp11.c
-	$(CC) $(CFLAGS) pdp11/pdp11.c
-	mv pdp11.o pdp11/pdp11.o
-
-pdp11/pdp11t.o: trace.h pdp11/pdp11.h pdp11/pdp11t.c
-	$(CC) $(CFLAGS) pdp11/pdp11t.c
-	mv pdp11t.o pdp11/pdp11t.o
-
-z8001/shrlib.o: trace.h z8001/z8001.h z8001/shrlib.c
-	$(CC) $(CFLAGS) z8001/shrlib.c
-	mv shrlib.o z8001/shrlib.o
-
-z8001/stack.o: trace.h z8001/z8001.h z8001/stack.c
-	$(CC) $(CFLAGS) z8001/stack.c
-	mv stack.o z8001/stack.o
 
 #	SOURCES
 SRCS =	trace0.c trace1.c trace2.c trace3.c trace4.c trace5.c trace6.c
 
 I86SRCS = i8086/i8086a.c i8086/i8086b.c i8086/i8086c.c i8086/i8086d.c
-
-M68SRCS = m68000/m68000a.c m68000/m68000b.c m68000/m68000c.c
-
-PDPSRCS = pdp11/pdp11.c pdp11/pdp11t.c
-
-Z01SRCS = z8001/z8001a.c z8001/z8001b.c z8001/z8001c.c \
-	z8001/shrlib.c z8001/stack.
-
-Z02SRCS = z8002/z8002a.c z8002/z8002b.c z8002/z8002c.c
 
