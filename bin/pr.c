@@ -242,7 +242,7 @@ char	*file;
 					putchar( '\n');
 					continue;
 				}
-				printf( "%.12s%.5s  %s  Page %d, line %D\n",
+				printf( "%.12s%.5s  %s  Page %d, line %ld\n",
 					date+4, date+19,
 					header? header: file,
 					pg,

@@ -61,7 +61,7 @@ char	*file;
 
 	if (n < 0)
 		error( errno==EIO? "read error": (char *)0);
-	printf( "%5u %2D", a, (size+BUFSIZ-1)/BUFSIZ);
+	printf( "%5u %2ld", a, (size+BUFSIZ-1)/BUFSIZ);
 	if (file)
 		printf( " %s", file);
 	printf( "\n");

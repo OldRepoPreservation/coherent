@@ -798,7 +798,7 @@ char *as;
 			break;
 		}
 	if (max == 0)
-		serr("input record #%D exceeds maximum length %d",
+		serr("input record #%ld exceeds maximum length %d",
 		    inline + 1, NREC);
 	*s = '\0';
 	return (c==EOF && s==as ? NULL : as);
