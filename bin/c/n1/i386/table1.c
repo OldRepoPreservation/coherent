@@ -36,6 +36,8 @@ char	wtype[]	= {
  * byte values go in EAX|EBX|ECX|EDX (i.e. AL|BL|CL|DL; AH|BH|CH|DH are unused).
  * This allows TREG sharing of e.g. EAX/AX/AL and makes it easy to generate
  * decent code for the shorter types.
+ * gen1.c/coderinit() patches the EDX:EAX and FPAC entries if -VNDP;
+ * values below are for software fp, for NDP rvalue KD is FPAC, not EDX:EAX.
  */
 REGDESC	reg[]	= {
 
@@ -51,11 +53,7 @@ REGDESC	reg[]	= {
 /* esp	*/	0,     0,     -1,      	-1,	-1,	-1,	BESP,
 /* ebp	*/	KBWL,  0,     -1,      	-1,	-1,	-1,	BEBP,
 
-#if	NDP
-/* edx:eax */	0,     0,    MRVALUE,	-1,	EDX,	EAX,	BEDX|BEAX,
-#else
 /* edx:eax */	0,     KD,    MRVALUE,	-1,	EDX,	EAX,	BEDX|BEAX,
-#endif
 
 /* ax	*/	0,     0,     MRVALUE,	EAX,	AH,	AL,	BEAX,
 /* dx	*/	0,     0,     MRVALUE,	EDX,	DH,	DL,	BEDX,
@@ -75,7 +73,7 @@ REGDESC	reg[]	= {
 /* ch	*/	0,     0,     -1,	CX,	-1,	-1,	BECX,
 /* dh	*/	0,     0,     -1,	DX,	-1,	-1,	BEDX,
 
-/* st	*/	0,     KD,    MRVALUE,  -1,	-1,	-1,	BFPAC
+/* st	*/	0,     0,    MRVALUE,  -1,	-1,	-1,	BFPAC
 
 /* None	*/
 /* Anyr	*/
@@ -165,6 +163,8 @@ unsigned char	optab[][3] = {
  * Column 4 is bit set for searching pattern tables.
  * Column 5 is register kind.
  * Column 6 is register kind for a pair.
+ * gen1.c/coderinit() patches the F64 entry if -VNDP;
+ * its return register name below is for software fp but is FPAC if -VNDP.
  */
 PERTYPE	pertype[] = {
 /*		REGNAME	char		char	char	TYPESET	KIND	KIND	*/
@@ -176,11 +176,7 @@ PERTYPE	pertype[] = {
 /* S32   */  {	EAX,	MRVALUE,	4,	4,	FS32,	KL,	0 	},
 /* U32   */  {	EAX,	MRVALUE,	4,	4,	FU32,	KL,	0 	},
 /* F32   */  {	-1,	MRVALUE,	8,	4,	FF32,	0,	0 	},
-#if	NDP
-/* F64   */  {	FPAC,	MRVALUE,	8,	8,	FF64,	KD,	0 	},
-#else
 /* F64   */  {	EDXEAX,	MRVALUE,	8,	8,	FF64,	KD,	0 	},
-#endif
 /* BLK   */  {	-1,	MRVALUE,	0,	0,	FBLK,	0,	0 	},
 /* FLD8  */  {	-1,	MRVALUE,	0,	0,	FFLD8,	0,	0 	},
 /* FLD16 */  {	-1,	MRVALUE,	0,	0,	FFLD16,	0,	0 	},

@@ -33,8 +33,6 @@ ADD:
 / Floating point.
 //////////
 
-#ifndef	NDPDEF
-
 / DECVAX or IEEE software floating point.
 / Double + double.
 %	PEFFECT|PVALUE|P_SLT|PDECVAX|PIEEE
@@ -46,18 +44,12 @@ ADD:
 			[ZCALL]	[GID _dadd]
 			[ZADD]	[REGNO ESP],[CONST 8]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Hardware coprocessor (NDP) floating point.
 %	PVALUE|P_SLT|PNDP
 	FLOAT		FPAC	FPAC	*	FPAC
 		TREG		FF64
 		ADR		NDPARG
 			[TR ZFADDD] [AR]
-
-#endif
 
 //////////
 / end of n1/i386/tables/add.t

@@ -180,8 +180,6 @@ ASSIGN:
 / Floating point.
 //////////
 
-#ifndef	NDPDEF
-
 / DECVAX and IEEE software floating point assignment.
 / Zero and immediates are special.
 / Floats are different for DECVAX and IEEE. 
@@ -254,10 +252,6 @@ ASSIGN:
 			[ZMOV]	[AL],[LO R]
 		[IFV]	[ZCALL]	[GID _dfcvt]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Hardware coprocessor (NDP) floating point.
 / Pop the NDP stack on assignment for effect.
 %	PEFFECT|P_SRT|PNDP
@@ -272,8 +266,6 @@ ASSIGN:
 		ADR|LV		FLOAT
 		TREG		FLOAT
 			[TL ZFSTD]	[AL]
-
-#endif
 
 //////////
 / end of n1/i386/tables/assign.t

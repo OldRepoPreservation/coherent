@@ -50,7 +50,7 @@ register INS	*ip1;
 		break;
 
 	case CODE:
-#if	NDP
+#if	0
 		if (isvariant(VEMU87)) {
 			/*
 			 * Under the VEMU87 emulation option, the assembler

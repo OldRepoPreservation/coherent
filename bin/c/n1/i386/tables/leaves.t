@@ -65,8 +65,6 @@ LEAF:
 		*		*
 			[TN ZMOV]	[TN R],[AL]
 
-#ifndef	NDPDEF
-
 / DECVAX or IEEE software floating point loads.
 / Double immediate load.
 %	PVALUE|PIEEE|PDECVAX
@@ -104,10 +102,6 @@ LEAF:
 			[ZMOV]	[LO R],[AL]
 			[ZCALL]	[GID _dfcvt]
 
-#endif
-
-#ifdef	NDPDEF 
-
 / Floating point loads using the numeric data coprocessor (80x87).
 / Load floating 0.
 %	PVALUE|PNDP
@@ -129,7 +123,6 @@ LEAF:
 		ADR		FF64
 		*		*
 			[ZFLDD]	[AL]
-#endif
 
 /////////
 /
@@ -152,8 +145,6 @@ LEAF:
 		ADR		BYTE
 		*		*
 			[TL ZMOVSX]	[R],[AL]
-
-#ifndef	NDPDEF
 
 / DECVAX or IEEE software floating point.
 / Widen signed immediate dword to double.
@@ -196,18 +187,12 @@ LEAF:
 			[ZMOV]		[LO R],[AL]
 			[ZCALL]		[GID _dfcvt]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Widen to NDP float or double.
 %	PVALUE|PNDP
 	FLOAT		FPAC	*	*	FPAC
 		ADR		FS16|FS32|FF32
 		*		*
 			[TL ZFLDD] [AL]
-
-#endif
 
 /////////
 /
@@ -275,8 +260,6 @@ LEAF:
 		ADR		WORD|DWORD
 		*		*
 			[ZMOV]	[R],[AL]
-
-#ifndef	NDPDEF
 
 / IEEE or DECVAX software floating point.
 / The bogus left arg spec EDX prevents EDX from being used
@@ -356,8 +339,6 @@ LEAF:
 			[ZCALL]		[GID _ufcvt]
 			[TN ZMOVZX]	[R], [TN R]
 
-#endif
-
 /////////
 /
 / 4. Test contexts.
@@ -429,8 +410,6 @@ LEAF:
 			[ZOR]	[RL],[RL]
 			[REL0]	[LAB]
 
-#ifndef	NDPDEF
-
 / Double, IEEE software floating point.
 %	PREL|PIEEE
 	FF64		NONE	*	*	NONE
@@ -455,10 +434,6 @@ LEAF:
 			[ZTEST]	[AL],[CONST 0x7F800000]
 			[REL0]	[LAB]
 
-#endif
-
-#ifdef	NDPDEF
-
 / NDP floating point.
 %	PREL|PNDP
 	FF64		*	*	*	NONE
@@ -466,7 +441,6 @@ LEAF:
 		*		*
 			[ZCALL]	[GID _tstccp]
 			[REL0]	[LAB]
-#endif
 
 /////////
 / 
@@ -498,8 +472,6 @@ LEAF:
 / Floating point.
 //////////
 
-#ifndef	NDPDEF
-
 / IEEE or DECVAX software fp.
 / Push FPAC.
 %	PFNARG|PIEEE|PDECVAX
@@ -517,10 +489,6 @@ LEAF:
 			[ZPUSH]	[HI AL]
 			[ZPUSH]	[LO AL]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Hardware coprocessor (NDP) floating point.
 / Push double from NDP stacktop.
 %	PFNARG|PNDP
@@ -528,8 +496,6 @@ LEAF:
 		REG|MMX		FF64
 		*		*
 			[ZCALL]	[GID _dp87]
-
-#endif
 
 ////////
 /
@@ -553,17 +519,12 @@ LEAF:
 		*		*
 			;
 
-#ifndef NDPDEF
-
 / Ignore software fp double for effect.
 %	PEFFECT|PIEEE|PDECVAX
 	FF64		NONE	*	*	NONE
 		REG|MMX		FF64
 		*		*
 			;
-#endif
-
-#ifdef	NDPDEF
 
 / Clean the 80x87 stack.
 %	PEFFECT|PNDP
@@ -571,8 +532,6 @@ LEAF:
 		REG|MMX		FF64
 		*		*
 			[ZFDROP]
-
-#endif
 
 //////////
 / end of n1/i386/tables/leaves.t
