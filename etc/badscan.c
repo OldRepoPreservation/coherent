@@ -1,6 +1,6 @@
 /*
  * badscan.c
- * 4/19/90
+ * 4/20/90
  * Usage: badscan [-v] [-o proto] [-b boot] device count
  *	device	  device to be scanned (e.g. /dev/rat0a)
  *	count	  size of file system to be scanned
@@ -10,7 +10,12 @@
  *	-o proto  output file name for prototype file  (default: stdout)
  *	-v	  verbose messages as to the percentage of file system scanned
  *
- * $Log:	/usr/src/etc/badscan.c,v $
+ * $Log:	/usr/src.inetco/etc/badscan.c,v $
+ * Revision 1.4	90/04/19  14:08:36 	bin
+ * steve 4/19/90
+ * Change -v messages slightly for use during install;
+ * use '\r' instead of '\n', overwrite with "Done\n" when finished.
+ * 
  * Revision 1.3	90/03/27  08:33:48 	bin
  * steve 03/27/90
  * Mark entire bad track as bad rather than reading each sector in track.
@@ -58,6 +63,8 @@
 #define	MAXUINT	((unsigned)65535L)
 #define	NULL	((char *)0)
 #define	TRUE	(0 == 0)
+#define	FDCMAJ	4			/* floppy controller major number */
+#define	HDCMAJ	11			/* hard disk controller major number */
 
 /*
  * External functions.
@@ -101,9 +108,7 @@ main(argc, argv) register int argc; register char *argv[];
 	char *buf;
 	hdparm_t hdparms;
 	unsigned int tracksize;
-#if	1
 	unsigned long base;
-#endif
 
 	/*
 	 * Read options declared.
@@ -166,6 +171,8 @@ main(argc, argv) register int argc; register char *argv[];
 	sb.st_mode &= S_IFMT;
 	if ((sb.st_mode != S_IFCHR) && (sb.st_mode != S_IFBLK))
 		fatal("not a special file: ", argv[0]);
+	if ((n = major(sb.st_rdev)) != HDCMAJ && n != FDCMAJ)
+		fatal("not a disk device: ", argv[0]);
 
 	/*
 	 * Open the special file (arg1).
@@ -174,9 +181,29 @@ main(argc, argv) register int argc; register char *argv[];
 	close(0);
 	if (open(argv[0], 0) == -1)
 		fatal("cannot open: ", argv[0]);
-	if (ioctl(0, HDGETA, (char *)&hdparms) == -1)
-		fatal("cannot get hard disk parameters: ", argv[0]);
-	tracksize = hdparms.nspt;
+	if (n == HDCMAJ) {
+		/* Get hard disk track size with ioctl. */
+		if (ioctl(0, HDGETA, (char *)&hdparms) == -1)
+			fatal("cannot get disk device parameters: ", argv[0]);
+		tracksize = hdparms.nspt;
+	} else {
+		/* ioctl FDGETA should be implemented but is not (yet). */
+#if	0
+		/* Kludge: this code knows floppy minor to tracksize mapping. */
+		n = minor(sb.st_rdev) & 7;
+		if (n < 3)		/* minor 0, 1, 2, 8, 9, 10, ... */
+			tracksize = 8;
+		else if (n < 6)		/* minor 3, 4, 5, 11, 12, 13, ... */
+			tracksize = 9;
+		else if (n == 6)	/* minor 6, 14, ... */
+			tracksize = 15;
+		else			/* minor 7, 15, ... */
+			fatal("unsupported minor number", argv[0]);
+#else
+		/* Scan block by block for now. */
+		tracksize = 1;
+#endif
+	}
 
 	/*
 	 * Allocate a track buffer.
