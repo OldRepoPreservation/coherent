@@ -3,6 +3,10 @@
  */
 #include <math.h>
 
+#if	EMU87
+#include "emumath.h"
+#endif
+
 double
 sqrt(x)
 double x;

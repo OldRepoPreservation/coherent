@@ -4,6 +4,10 @@
  */
 #include <math.h>
 
+#if	EMU87
+#include "emumath.h"
+#endif
+
 static readonly double logntab[] ={
 	-0.1042911213725266949744122e+02,
 	 0.1344458152275036223645300e+02,

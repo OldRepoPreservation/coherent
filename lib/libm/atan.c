@@ -4,7 +4,11 @@
  */
 #include <math.h>
 
-static double tanntab[] ={
+#if	EMU87
+#include "emumath.h"
+#endif
+
+static readonly double tanntab[] ={
 	0.12097470017580907217240715e+04,
 	0.30310745956115083044212807e+04,
 	0.27617198246138834959053784e+04,
@@ -13,7 +17,7 @@ static double tanntab[] ={
 	0.11322159411676465523624500e+02,
 	0.97627215917176330369830000e-01
 };
-static double tanmtab[] ={
+static readonly double tanmtab[] ={
 	0.12097470017580907287514197e+04,
 	0.34343235961975351716547069e+04,
 	0.36645449563283749893504796e+04,

@@ -1,15 +1,20 @@
 /*
+ * libm/ceil.c
  * Ceiling.
  */
+
 #include <math.h>
 
+#if	EMU87
+#include "emumath.h"
+#endif
+
 double
-ceil(x)
-double x;
+ceil(x) double x;
 {
 	double r;
 
-	if (modf(x, &r) != 0.0)
-		r += 1.0;
-	return (r);
+	return (modf(x, &r) > 0.0) ? r + 1.0 : r;
 }
+
+/* end of libm/ceil.c */
