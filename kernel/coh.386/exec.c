@@ -13,34 +13,6 @@
  *
  *	Intel 386 port and extensions (16/32 bit compatibility)
  *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
- *
- * $Log:	exec.c,v $
- * Revision 1.10  92/07/16  16:33:31  hal
- * Kernel #58
- * 
- * Revision 1.9  92/06/11  21:39:19  root
- * Add close on exec.
- * 
- * Revision 1.8  92/06/10  12:51:09  hal
- * Do click roundup on call to salloc for eveinit.
- * Assorted cosmetic changes.
- * 
- * Revision 1.6  92/02/11  10:09:57  hal
- * Execute shared l.out's now
- * 
- * Revision 1.5  92/02/10  18:11:27  hal
- * Ignore SHR bit in l.out's for now.
- * 
- * Revision 1.4  92/01/23  18:15:28  hal
- * Add "double sfree" fix from Ciaran.
- * 
- * Revision 1.3  92/01/15  11:11:26  hal
- * Remove exlock temporary fix.
- * 
- * Revision 1.2  92/01/06  11:58:57  hal
- * Compile with cc.mwc.
- * 
- *
  -lgl) */
 #include <sys/coherent.h>
 #include <acct.h>
@@ -97,6 +69,9 @@ char	*envp[];
 		idetach(ip);
 		goto done;
 	}
+
+	/* Release shared memory. */
+	shmAllDt();
 
 	/*
 	 * At this point the file has been
@@ -240,8 +215,15 @@ done:
 }
 
 /*
- * Open an l.out, make sure it is an l.out and executable and return the
- * appropriate information.
+ * Open a file, make sure it is l.out, coff, or v86 as well as
+ * executable.
+ *
+ * "xhp" points to a cleared xechdr supplied by the caller.
+ * "np" is the file name.
+ * "shrds" points to an int that will be written by exlopen().
+ *   *shrds is set nonzero only for shared l.out.
+ *
+ * return NULL if failure, else return inode pointer for the file.
  */
 INODE *
 exlopen(xhp, np, shrds) 
@@ -259,21 +241,20 @@ int *shrds;
 	struct scnhdr scnhdr;
 
 	/*
-	 * Make sure the file is really an executable l.out and read the
-	 * header in.
+	 * Make sure the file is executable and read the header.
 	 */
-	if (ftoi(np, 'r') != 0)
-		return (NULL);
+	if (ftoi(np, 'r'))
+		return NULL;
 	ip = u.u_cdiri;
 	if (iaccess(ip, IPE) == 0) {
 		idetach(ip);
-		return (NULL);
+		return NULL;
 	}
 
 	if ((ip->i_mode&(IPE|IPE<<3|IPE<<6))==0 || (ip->i_mode&IFMT)!=IFREG) {
 		u.u_error = EACCES;
 		idetach(ip);
-		return (NULL);
+		return NULL;
 	}
 
 	if ((bp=vread(ip, (daddr_t)0)) == NULL)
@@ -282,7 +263,7 @@ int *shrds;
 	 * Copy everything we need from the l.out header and check magic
 	 * number and machine type.
 	 */
-	*shrds = 0;  /* set return arg shrds nonzero only for shared l.out */
+	*shrds = 0;
 	kkcopy(bp->b_vaddr, &magic, sizeof(magic));
 	canint(magic);
 	switch (magic) {
@@ -459,7 +440,7 @@ int first;
 	}
 	if (u.u_error == 0)
 		return (sp);
-	return (NULL);
+	return NULL;
 }
 
 struct adata {		/* Storage for arg and env data */
@@ -568,7 +549,7 @@ vaddr_t	in, out;
 
 /*
  * Given a pointer to a list of arguments, a pointer to an argument count
- * and a pointer to a byte count, count the #characters/#strigns
+ * and a pointer to a byte count, count the #characters/#strings
  * in the arguments
  */
 excount(usrvp, adp, wdin)
@@ -628,8 +609,8 @@ char * np;
 
 }
 /*
- * Set up the first process, a small programme which will exec
- * the init programme.
+ * Set up the first process, a small program which will exec
+ * the init program.
  */
 extern char aicodep[];
 

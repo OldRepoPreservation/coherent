@@ -71,7 +71,7 @@ register INODE *ip;
 	for (sp=segmq.s_forw; sp!=&segmq; sp=sp->s_forw) {
 		if (sp->s_ip==ip && (sp->s_flags&(SFSHRX|SFTEXT))==f) {
 			unlock(seglink);
-			if ((sp = segdupl(sp)) != NULL)
+			if (sp = segdupl(sp))
 				segfinm(sp);
 			return (sp);
 		}
@@ -83,7 +83,7 @@ register INODE *ip;
 	for (sp=segdq.s_forw; sp!=&segdq; sp=sp->s_forw) {
 		if (sp->s_ip==ip && (sp->s_flags&(SFSHRX|SFTEXT))==f) {
 			unlock(seglink);
-			if ((sp = segdupl(sp)) != NULL)
+			if (sp = segdupl(sp))
 				segfinm(sp);
 			return (sp);
 		}
@@ -99,7 +99,10 @@ register INODE *ip;
 /*
  * Given a pointer to a newly created process, copy all of our segments
  * into the given process.
+ *
+ * Return nonzero if successful.
  */
+int
 segadup(cpp)
 register PROC *cpp;
 {
@@ -118,16 +121,21 @@ register PROC *cpp;
 		if ((sp->s_flags&SFCORE) == 0)
 			cpp->p_flags &= ~PFCORE;
 	}
+
+	/*
+	 * One of the calls to segdupl() failed.
+	 * Undo any that succeeded.
+	 */
 	if (n < NUSEG) {
 		while (n > 0) {
-			if ((sp=cpp->p_segp[--n]) != NULL) {
+			if (sp=cpp->p_segp[--n]) {
 				cpp->p_segp[n] = NULL;
 				sfree(sp);
 			}
 		}
 	}
 	cpp->p_flags &= ~PFSWIO;
-	return (n);
+	return n;
 }
 
 /*
@@ -139,7 +147,7 @@ register SEG *sp;
 {
 	register SEG *sp1;
 
-	if ((sp->s_flags&SFSHRX) != 0) {
+	if (sp->s_flags & SFSHRX) {
 		sp->s_urefc++;
 		sp->s_lrefc++;
 		return (sp);
@@ -389,7 +397,7 @@ register SEG *sp;
 	register PROC *pp;
 	register int s;
 
-	if ((sp->s_flags&SFCORE) != 0)
+	if (sp->s_flags&SFCORE)
 		return;
 	pp = SELF;
 	sp->s_urefc++;

@@ -62,6 +62,7 @@ main()
 {
 	register SEG *sp;
 #ifdef _I386
+	extern int BPFMAX;
 	int speed1, speed2;
 	char * ndpTypeName();
 #else
@@ -73,6 +74,7 @@ main()
 #ifdef _I386
 	wrNdpUser(0);
 	wrNdpSaved(0);
+	u.u_bpfmax = BPFMAX;
 #endif
 	u.u_error = 0;
 	bufinit();

@@ -296,6 +296,7 @@ register IO *iop;
 			register int		i;	/* loop index */
 			register unsigned	uLen, 	/* Process size */
 						uLenR;	/* Real process size */
+			int work;	/* virtual click number */
 
 			/* Check if driver can send next proc data */ 
 			if ( iop->io_ioc < sizeof(stMonitor)) 
@@ -312,13 +313,19 @@ register IO *iop;
 				uLen += sp->s_size;
 		
 			} 
+
 			/* Find u area for process pp1 */
 			sp = pp1->p_segp[0];
 			ndpUseg = MAPIO(sp->s_vmem, U_OFFSET);
-			ptable1_v[WORK0] = 
+			work = workAlloc();
+			ptable1_v[work] = 
 				   sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
 			mmuupd();
-			uprc = (UPROC *) (ctob(WORK0) + U_OFFSET);
+			uprc = (UPROC *) (ctob(work) + U_OFFSET);
+			kkcopy(uprc->u_comm, psData.u_comm, ARGSZ);
+			kkcopy(uprc->u_sleep, psData.u_sleep, 10);
+			workFree(work);
+
 			/* fill up stMonitor */
 			psData.p_pid = pp1->p_pid;
 			psData.p_ppid = pp1->p_ppid;
@@ -339,8 +346,6 @@ register IO *iop;
 			psData.p_rval = pp1->p_rval;
 			psData.p_utime = pp1->p_utime;
 			psData.p_stime = pp1->p_stime;
-			kkcopy(uprc->u_comm, psData.u_comm, ARGSZ);
-			kkcopy(uprc->u_sleep, psData.u_sleep, 10);
 			kkcopy(psBuf, psData.pr_argv, ARGSZ);
 			/* send data to user */
 			iowrite(iop, (char *) &psData, sizeof(stMonitor));
