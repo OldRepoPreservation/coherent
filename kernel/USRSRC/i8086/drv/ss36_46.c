@@ -15,6 +15,9 @@
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.44	91/05/16  14:17:20	root
+ * Drop unneeded fields from ss struct.  Try ss_get().
+ * 
  * Revision 1.43	91/05/16  01:08:22	root
  * Needs assembler I/O most.
  * 
@@ -305,7 +308,7 @@ static void ssload()
 	ss_ram = ss_fp + SS_RAM;
 	ss_csr = ss_fp + SS_CSR;
 	ss_dat = ss_fp + SS_DAT;
-
+printf("ss_dat=%lx ", ss_dat);
 	/*
 	 * Primitive test of ST0x RAM.
 	 */
@@ -859,6 +862,7 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
 	int xfer_good = 1;
+int first=1;
 
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
@@ -927,9 +931,18 @@ int s_id;
 			 * data byte.  Else toss it.
 			 */
 if (bp->b_req == BREAD) {
-	if (bp->b_resid <= SS_DAT_LEN)
+	if (first) {
+		first=0;
+		printf("ss_fp=%lx ", ss_fp);
+		printf("buf_f=%lx resid=%d ", bp->b_faddr, bp->b_resid);
+	}
+#if 0
+	if (bp->b_resid <= SS_DAT_LEN) {
 		ss_get(ss_fp, bp->b_faddr, (uint)bp->b_resid);
-	else {
+printf("word 1FC = %x\n", ffword(bp->b_faddr+0x1fc));
+ssp->data_bytes_in += bp->b_resid;
+	} else
+#endif
 			if (ssp->data_bytes_in < bp->b_count) {
 				uchar dat;
 
@@ -938,7 +951,6 @@ if (bp->b_req == BREAD) {
 				ssp->data_bytes_in++;
 			} else
 				ffbyte(ss_dat);
-	}
 } else
 	xfer_good = 0;
 			break;
@@ -1415,6 +1427,11 @@ PR3("DQ ");
 	case SST_HIPRI_RESET:
 	case SST_LOPRI_RESET:
 PR1("rst");
+if ((ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA)) == XP_MSG_OUT) {
+	printf("honk");
+	sfbyte(ss_csr, WC_ENABLE_SCSI);
+	sfbyte(ss_dat, MSG_ABORT); 
+}
 		/*
 		 * SST_LOPRI_RESET is same as SST_HIPRI_RESET for now.
 		 * Later, can implement a delay to allow other targets to
@@ -1659,8 +1676,10 @@ RV_TYPE errtype;
 			ssp->state = SST_HIPRI_RESET;
 		}
 	} else { /* try_count >= MAX_TRY_COUNT */
-		if (bp)
+		if (bp) {
 			bp->b_flag |= BFERR;
+PR3("BF4 ");
+		}
 		ss_finished(s_id);
 	}
 }
