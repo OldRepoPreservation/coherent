@@ -51,7 +51,7 @@ typedef struct sr {
 typedef struct uproc {
 #ifdef _I386
 	/* Magic number UPROC_VERSION identifies this uproc struct.  */
-#define UPROC_VERSION 0x0101
+#define UPROC_VERSION 0x0102
 	unsigned short u_version;	/* Version number for uproc struct */
 #endif /* _I386 */
 	char	 u_error;		/* Error number (must be first) */
@@ -63,7 +63,7 @@ typedef struct uproc {
 	unsigned u_umask;		/* Mask for file creation */
 	struct	 inode *u_cdir;		/* Current working directory */
 	struct	 inode *u_rdir;		/* Current root directory */
-	struct	 fd *u_filep[NUFILE];	/* Open files */
+	struct	 fd *u_filep[NOFILE];	/* Open files */
 	struct	 sr u_segl[NUSEG];	/* User segment descriptions */
 #ifdef _I386
 	int	 (*u_sfunc[MAXSIG])();	/* Signal functions */
