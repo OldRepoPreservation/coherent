@@ -177,8 +177,8 @@ stat:
 	IF_ '(' e specparen stat {
 		$$ = node(AIF, $3, $5, NULL);
 	}
-      | IF_ '(' e specparen stat ELSE_ {nlskip = 1;} stat {
-		$$ = node(AIF, $3, $5, $8);
+      | IF_ '(' e specparen stat ELSE_ stat {
+		$$ = node(AIF, $3, $5, $7);
 	}
       | WHILE_ '(' e specparen stat {
 		$$ = node(AWHILE, $3, $5);
