@@ -18,8 +18,6 @@
 	KEYBD	= 0x16			/ keyboard swi
 	MON	= 0x00			/ Monitor swi
 	READ1	= 0x0201		/ read 1 sector
-	BOOTLC	= 0x7C00		/ boot location
-	RBOOTLC	= 0x0600		/ relocated boot location
 	
 	BUFSIZE	= 0x200		/ Size of a physical disk block.
 	
@@ -69,10 +67,12 @@ _bread_:
 
 	/ Block #0 is the sparse block--it means a block of all zeros.
 	test	ax, ax			/ if block 0, return zeroed buffer
+	jnz	3f
+	test	dx, dx
 	jz	2f
 
 	/ Translate block number into cylinder, head, and sector.
-	add	ax, first		/ add first block
+3:	add	ax, first		/ add first block
 	adc	dx, first+2		/ add rest
 
 	mov	bx, ax			/ save block number
