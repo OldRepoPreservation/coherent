@@ -233,7 +233,7 @@ dbmsg(("About to access brc file  ", NULL));
 
 				/* Unlock the tty; it was locked by login.
 				 */
-				unlockit(strrchr(tp->t_tty, '/')+1);
+				lockrm(strrchr(tp->t_tty, '/')+1);
 
 				/* See if we panicked */
 				if ((status>>8) == 0377)
