@@ -31,6 +31,9 @@ void sendsig();
 
 static struct _fpstate * empack();
 
+/* Patch DUMP_TEXT nonzero to make text segment show up in core files. */
+int DUMP_TEXT = 0;
+
 /*
  * Set up the action to be taken on a signal.
  */
@@ -380,8 +383,17 @@ sigdump()
 	sp->s_lrefc--;
 
 	for (srp=u.u_segl; u.u_error==0 && srp<&u.u_segl[NUSEG]; srp++) {
+#if 0
 		if ((sp = srp->sr_segp)==NULL || (srp->sr_flag&SRFDUMP)==0)
 			continue;
+#else
+		if ((sp = srp->sr_segp)==NULL)
+			continue;
+		if ((srp->sr_flag & SRFDUMP)==0) {
+			if (DUMP_TEXT == 0 || (srp - u.u_segl) != SISTEXT)
+				continue;
+		}
+#endif
 		u.u_io.io_seg = IOPHY;
 		u.u_io.io.pbase = MAPIO(sp->s_vmem, 0);
 		u.u_io.io_flag = 0;
