@@ -3,6 +3,9 @@
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
 / $Log:	/usr/src/sys/i8086/drv/RCS/ssas.s,v $
+/ Revision 1.3	91/05/20  10:23:13	root
+/ Drop 3rd arg.  Same code for Seagate & Future Domain.
+/ 
 / Revision 1.2	91/05/17  00:24:17	root
 / Code ss_put - use REQ handshake.
 / 
@@ -25,6 +28,7 @@
 ////////
 	.globl	ss_get_
 	.globl	ss_put_
+	.globl	req_waitA_	/ temporary!
 
 ////////
 /
@@ -43,7 +47,7 @@
 	BSIZE	= 0x200		/ Disk block size in bytes
 	CSR_OFF	= 0x200
 
-	REQ_LIM = 200
+	REQ_LIM = 500
 	RS_REQUEST = 0x10
 
 ////////
@@ -115,7 +119,7 @@ ss_put_:
 	lds	si, 8(bp)	/ buf_fp to DS:SI
 	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
 	mov	bx, di		/ .. and to ES:BX
-	sub	bx, CSR_OFF	/ ss_csr to ES:BX
+	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
 	mov	cx, $BSIZE	/ count to CX
 
 P01:				/ start outer loop - writing bytes to SCSI
@@ -133,6 +137,61 @@ P03:				/ got REQ - ok to write a byte
 	loop	P01
 P04:				/ all done - now restore registers
 	mov	ax, cx
+	pop	si
+	pop	ds
+	pop	di
+	pop	es
+	pop	bp
+	ret
+
+////////
+/
+/ int req_waitA(ss_dat_fp, buf_fp)
+/ faddr_t ss_dat_fp, buf_fp;
+/
+/ Return when REQ is true or timeout.
+/
+/ Return 1 if REQ received, 0 if timeout.
+/
+/ Here is the stack after initial "push bp":
+/
+/	10(bp)	FP_SEL(buf_fp)
+/	8(bp)	FP_OFF(buf_fp)
+/	6(bp)	FP_SEL(ss_dat_fp)
+/	4(bp)	FP_OFF(ss_dat_fp)
+/	2(bp)	return IP
+/	0(bp)	old bp
+/
+////////
+
+req_waitA_:
+	push	bp
+	mov	bp, sp
+	push	es
+	push	di
+	push	ds
+	push	si 
+	lds	si, 8(bp)	/ buf_fp to DS:SI
+	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
+	mov	bx, di		/ .. and to ES:BX
+	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
+	mov	cx, $BSIZE	/ count to CX
+
+Q01:				/ start outer loop - writing bytes to SCSI
+	mov	ax, $REQ_LIM	/ max # of times to look for REQ
+Q02:				/ start inner loop - polling for REQ
+	movb	dl, es:(bx)
+	testb	dl, $RS_REQUEST
+	jne	Q03
+	dec	ax
+	jnz	Q02
+	xor	ax, ax		/ timeout - return 0
+	jmp	Q04
+
+Q03:				/ got REQ
+	mov	ax, $1		/ return 1
+Q04:				/ all done - now restore registers
+	movb	dh, $0xEE
 	pop	si
 	pop	ds
 	pop	di
