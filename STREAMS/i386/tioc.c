@@ -134,22 +134,25 @@ static unsigned short cvtsgtty[] = {
  * 4.  Call driver's ioctl().
  * 5.  If just finished a converted TIOCGETP, convert back to COH 286 sgttyb.
  */
-void tioc(dev, com, vec, iocfn)
+void tioc(dev, com, vec, iocfn, mode)
 int dev, com, vec, (*iocfn)();
 {
 	struct sgttyb sg;
 	int my_com = com, my_vec = vec, old_getp = 0;
 	int		space;
 
-	if (com >= OIOC_LOW && com <= OIOC_HIGH && u.u_error==0) {
-		my_com = cvtsgtty[com - OIOC_LOW];
-		if (my_com==TIOCSETP || my_com==TIOCSETN) {
-			ukcopy(vec, &sg, sizeof (struct sgttyb));
+	if (com >= OIOC_LOW && com <= OIOC_HIGH && u.u_error == 0) {
+
+		my_com = cvtsgtty [com - OIOC_LOW];
+
+		if (my_com == TIOCSETP || my_com == TIOCSETN) {
+			ukcopy (vec, & sg, sizeof (struct sgttyb));
 			sg.sg_flags &= 0xffff;
-			to_s5_sgfld(&sg);
-			my_vec = &sg;
+			to_s5_sgfld (& sg);
+			my_vec = & sg;
 		}
-		if (my_com==TIOCGETP) {
+
+		if (my_com == TIOCGETP) {
 			old_getp = 1;
 			my_vec = &sg;
 		}
@@ -165,14 +168,14 @@ int dev, com, vec, (*iocfn)();
 	if (my_vec != vec)
 		space = setspace (SEG_386_KD);
 
-	(*iocfn)(dev, my_com, my_vec);
+	(* iocfn) (dev, my_com, my_vec, mode);
 
 	if (my_vec != vec)
 		(void) setspace (space);
 
-	if (old_getp && u.u_error==0) {
-		to_coh_sgfld(my_vec);
-		kucopy(my_vec, vec, sizeof(struct sgttyb)-2);
+	if (old_getp && u.u_error == 0) {
+		to_coh_sgfld (my_vec);
+		kucopy (my_vec, vec, sizeof (struct sgttyb) - 2);
 	}
 }
 
@@ -181,6 +184,7 @@ int dev, com, vec, (*iocfn)();
  *
  * Convert fields in a sgttyb struct from COH 286 format to Sys 5.
  */
+
 static void to_s5_sgfld(sgp)
 struct sgttyb * sgp;
 {
@@ -189,8 +193,9 @@ struct sgttyb * sgp;
 	/*
 	 * Convert sg_ispeed and sg_ospeed.
 	 */
-	to_s5speed(&(sgp->sg_ispeed));
-	to_s5speed(&(sgp->sg_ospeed));
+
+	to_s5speed (& sgp->sg_ispeed);
+	to_s5speed (& sgp->sg_ospeed);
 
 	/*
 	 * Convert sg_flags.
@@ -210,7 +215,7 @@ struct sgttyb * sgp;
 	if (f & O_CBREAK)
 		g |= CBREAK;	/* No CBREAK in Sys 5 sgtty. */
 				/* Only one RAW bit in Sys 5 sgtty. */
-	if ((f & O_RAWIN)&&(f & O_RAWOUT))
+	if ((f & O_RAWIN) != 0 && (f & O_RAWOUT) != 0)
 		g |= RAW;
 	if (f & O_RAWIN)
 		g |= RAWIN;
@@ -260,11 +265,12 @@ unsigned char *speed;
 	static char s5sp[]={B0,B50,B75,B110,B134,B150,B200,B300,B600,B1200,
 		B1800,BADSPD,B2400,BADSPD,B4800,BADSPD,B9600,EXTA,EXTA,EXTB};
 
-	if (*speed >= sizeof(s5sp))
+	if (* speed >= sizeof (s5sp))
 		u.u_error = EINVAL;
-	else if (s5sp[*speed] == BADSPD)
+	else if (s5sp [* speed] == BADSPD)
 		u.u_error = EINVAL;
-	else *speed = s5sp[*speed];
+	else
+		* speed = s5sp [* speed];
 }
 
 /*
@@ -280,8 +286,9 @@ struct sgttyb * sgp;
 	/*
 	 * Convert sg_ispeed and sg_ospeed.
 	 */
-	to_cohspeed(&(sgp->sg_ispeed));
-	to_cohspeed(&(sgp->sg_ospeed));
+
+	to_cohspeed (& sgp->sg_ispeed);
+	to_cohspeed (& sgp->sg_ospeed);
 
 	/*
 	 * Convert sg_flags.
@@ -316,11 +323,14 @@ struct sgttyb * sgp;
 static void to_cohspeed(speed)
 unsigned char *speed;
 {
-	static char cohsp[]={O_B0,O_B50,O_B75,O_B110,O_B134,O_B150,O_B200,
-		O_B300,O_B600,O_B1200,O_B1800,O_B2400,O_B4800,O_B9600,O_EXTA,
-		O_EXTB};
+	static char cohsp[]={
+		O_B0, O_B50, O_B75, O_B110, O_B134, O_B150, O_B200,
+		O_B300, O_B600, O_B1200, O_B1800, O_B2400, O_B4800, 
+		O_B9600, O_EXTA, O_EXTB
+	};
 
-	if (*speed >= sizeof(cohsp))
+	if (* speed >= sizeof (cohsp))
 		u.u_error = EINVAL;
-	else *speed = cohsp[*speed];
+	else
+		* speed = cohsp [* speed];
 }

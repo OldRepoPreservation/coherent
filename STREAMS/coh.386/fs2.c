@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fs2.c,v 1.5 93/04/14 10:06:31 root Exp $ */
+/* $Header: /ker/coh.386/RCS/fs2.c,v 2.2 93/07/26 15:19:24 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,12 @@
  * Filesystem (disk inodes).
  *
  * $Log:	fs2.c,v $
+ * Revision 2.2  93/07/26  15:19:24  nigel
+ * Nigel's R80
+ * 
+ * Revision 2.2  93/07/26  14:28:32  nigel
+ * Nigel's R80
+ * 
  * Revision 1.5  93/04/14  10:06:31  root
  * r75
  * 
@@ -40,6 +46,10 @@
  * 85/04/17	Allan Cornish
  * eliminated test for rootdev in msync()
  */
+
+#include <common/ccompat.h>
+#include <sys/debug.h>
+
 #include <sys/coherent.h>
 #include <sys/acct.h>
 #include <sys/buf.h>
@@ -71,7 +81,7 @@ fsminit()
 
 	for (ip = inodep + NINODE - 1 ; ip >= inodep ; ip --) {
 		ip->i_refc = 0;
-		__GATE_INIT (ip->i_gate);
+		__GATE_INIT (ip->i_gate, "inode");
 	}
 
 
@@ -102,6 +112,7 @@ fsminit()
 	iunlock (u.u_rdir);
 }
 
+
 /*
  * Mount the given device.
  */
@@ -122,12 +133,12 @@ register dev_t dev;
 		kfree (mp);
 		return NULL;
 	}
-	if ((bp = bread (dev, (daddr_t) SUPERI, 1)) == NULL) {
+	if ((bp = bread (dev, (daddr_t) SUPERI, BUF_SYNC)) == NULL) {
 		dclose (dev, (f ? IPR : IPR | IPW), DFBLK);	/* NIGEL */
 		kfree (mp);
 		return NULL;
 	}
-	kkcopy (bp->b_vaddr, &mp->m_super, sizeof (struct filsys));
+	memcpy (& mp->m_super, bp->b_vaddr, sizeof (mp->m_super));
 	brelease (bp);
 	cansuper (& mp->m_super);
 
@@ -137,12 +148,13 @@ register dev_t dev;
 	mp->m_super.s_fmod = 0;
 	mp->m_next = mountp;
 
-	__GATE_INIT (mp->m_ilock);
-	__GATE_INIT (mp->m_flock);
+	__GATE_INIT (mp->m_ilock, "mount ilock");
+	__GATE_INIT (mp->m_flock, "mount flock");
 
 	mountp = mp;
 	return mp;
 }
+
 
 /*
  * Canonize a super block.
@@ -152,20 +164,20 @@ register struct filsys *fsp;
 {
 	register int i;
 
-	canint(fsp->s_isize);
-	candaddr(fsp->s_fsize);
-	canshort(fsp->s_nfree);
-	for (i=0; i<NICFREE; i++)
-		candaddr(fsp->s_free[i]);
-	canshort(fsp->s_ninode);
-	for (i=0; i<NICINOD; i++)
-		canino(fsp->s_inode[i]);
-	cantime(fsp->s_time);
-	candaddr(fsp->s_tfree);
-	canino(fsp->s_tinode);
-	canshort(fsp->s_m);
-	canshort(fsp->s_n);
-	canlong(fsp->s_unique);
+	canint (fsp->s_isize);
+	candaddr (fsp->s_fsize);
+	canshort (fsp->s_nfree);
+	for (i = 0 ; i < NICFREE ; i ++)
+		candaddr (fsp->s_free [i]);
+	canshort (fsp->s_ninode);
+	for (i = 0 ; i < NICINOD ; i ++)
+		canino (fsp->s_inode [i]);
+	cantime (fsp->s_time);
+	candaddr (fsp->s_tfree);
+	canino (fsp->s_tinode);
+	canshort (fsp->s_m);
+	canshort (fsp->s_n);
+	canlong (fsp->s_unique);
 }
 
 /*
@@ -177,19 +189,19 @@ register MOUNT *mp;
 	register struct filsys *sbp;
 	register BUF *bp;
 
-	if ((mp->m_flag&MFRON) != 0)
+	if ((mp->m_flag & MFRON) != 0)
 		return;
-	isync(mp->m_dev);
-	sbp = &mp->m_super;
-	if (sbp->s_fmod==0)
+	isync (mp->m_dev);
+	sbp = & mp->m_super;
+	if (sbp->s_fmod == 0)
 		return;
-	bp = bclaim(mp->m_dev, (daddr_t)SUPERI);
+	bp = bclaim (mp->m_dev, (daddr_t) SUPERI, BUF_SYNC);
 	sbp->s_time = timer.t_time;
 	sbp->s_fmod = 0;
-	kkcopy(sbp, bp->b_vaddr, sizeof(*sbp));
-	cansuper(bp->b_vaddr);
-	bwrite(bp, 1);
-	brelease(bp);
+	memcpy (bp->b_vaddr, sbp, sizeof (* sbp));
+	cansuper (bp->b_vaddr);
+	bwrite (bp, 1);
+	brelease (bp);
 }
 
 /*
@@ -202,17 +214,17 @@ register dev_t dev;
 {
 	register MOUNT *mp;
 
-	for (mp=mountp; mp!=NULL; mp=mp->m_next) {
+	for (mp = mountp ; mp != NULL ; mp = mp->m_next) {
 		if (mp->m_dev != dev)
 			continue;
-		if ((mp->m_flag&MFRON) != 0) {
+		if ((mp->m_flag & MFRON) != 0) {
 			if (f != 0)
 				u.u_error = EROFS;
 			return NULL;
 		}
-		return (mp);
+		return mp;
 	}
-	panic("getment: dev=0x%x", dev);
+	panic ("getment: dev=0x%x", dev);
 }
 
 /*
@@ -266,7 +278,7 @@ unsigned mode;
 					ino += INOPB;
 					continue;
 				}
-				if ((bp = bread (dev, b, 1)) == NULL) {
+				if ((bp = bread (dev, b, BUF_SYNC)) == NULL) {
 					ino += INOPB;
 					continue;
 				}
@@ -367,7 +379,7 @@ register unsigned l;
 
 	if (b == 0)
 		return;
-	if (l -- > 0 && (bp = bread(dev, b, 1)) != NULL) {
+	if (l -- > 0 && (bp = bread (dev, b, BUF_SYNC)) != NULL) {
 		i = NBN;
 		while (i -- > 0) {
 			dp = bp->b_vaddr;
@@ -404,6 +416,7 @@ int		sync_flag;
 /*
  * Allocate a block from the filesystem mounted of device `dev'.
  */
+
 daddr_t
 balloc(dev)
 dev_t dev;
@@ -429,8 +442,8 @@ enospc:
 		if ((b = sbp->s_free [-- sbp->s_nfree]) == 0)
 			goto enospc;
 		if (sbp->s_nfree == 0) {
-			if (b >= sbp->s_fsize || b < sbp->s_isize ||
-			    (bp = bread(dev, b, 1)) == NULL) {
+			if ((bp = read_free_block_list (sbp, dev, b,
+							BUF_SYNC)) == NULL) {
 ebadflist:
 				devmsg(dev, "Bad free list");
 				goto enospc;
@@ -438,12 +451,14 @@ ebadflist:
 			fbp = bp->b_vaddr;
 			sbp->s_nfree = fbp->df_nfree;
 			canshort (sbp->s_nfree);
-			if ((unsigned) sbp->s_nfree > NICFREE)
-				goto ebadflist;
 			memcpy (sbp->s_free, fbp->df_free,
 				sizeof (sbp->s_free));
-			canndaddr (sbp->s_free, sbp->s_nfree);
+
+			if (sbp->s_nfree > NICFREE)
+				goto ebadflist;
 			brelease (bp);
+
+			canndaddr (sbp->s_free, sbp->s_nfree);
 
 			/*
 			 * NIGEL: As an experiment, try reading ahead on the
@@ -452,7 +467,8 @@ ebadflist:
 
 			if (sbp->s_nfree > 0)
 				read_free_block_list (sbp, dev,
-						      sbp->s_free [0], 0);
+						      sbp->s_free [0],
+						      BUF_ASYNC);
 		}
 		-- sbp->s_tfree;
 		if (b >= sbp->s_fsize || b < sbp->s_isize)
@@ -461,6 +477,59 @@ ebadflist:
 	unlock (mp->m_flock);
 	return b;
 }
+
+
+/*
+ * Flag to say whether we should try and keep the free-block list sorted.
+ */
+
+int	t_sortblocks = 0;
+
+/*
+ * If we are sorting blocks, this routine can be used to keep blocks in sorted
+ * order. Given a fixed-size list in reverse rank order, this routine returns
+ * the new element if it is smaller than all others, or the smallest element
+ * after the new element has been inserted in position.
+ */
+
+#if	__USE_PROTO__
+static daddr_t daddr_add (daddr_t * list, int count, daddr_t newblock)
+#else
+static daddr_t
+daddr_add (list, count, newblock)
+daddr_t	      *	list;
+int		count;
+daddr_t		newblock;
+#endif
+{
+	daddr_t	      *	end = list + count;
+
+	ASSERT (count >= 0);
+
+	while (list != end) {
+		if (newblock < * list ++) {
+			daddr_t	      temp;
+			/*
+			 * We have found the insertion point... move all the
+			 * elements from (list - 1) to (end - 1) up, and put
+			 * the new element in place.
+			 */
+
+			temp = * -- end;
+			list --;
+
+			while (list != end) {
+				end --;
+				* (end + 1) = * end;
+			}
+			* list = newblock;
+			return temp;
+		}
+	}
+
+	return newblock;
+}
+
 
 /*
  * Free the block `b' on the device `dev'.
@@ -481,15 +550,34 @@ daddr_t b;
 		devmsg (dev, "Bad block %u (free)", (unsigned) b);
 		return;
 	}
+
+	/*
+	 * NIGEL : Are we keeping things in order? If so, insert the new block
+	 * in position (the smallest block-number is the new 'b'). Note that
+	 * the zero-position of the free-block list never changes... this is
+	 * an important invariant, because the block in that position is a
+	 * link and *must* be preserved in that position so that the links get
+	 * properly followed later on.
+	 */
+
+	if (t_sortblocks && sbp->s_nfree > 0)
+		b = daddr_add (sbp->s_free + 1, sbp->s_nfree - 1, b);
+
 	lock (mp->m_flock);
 	if (sbp->s_nfree == 0 || sbp->s_nfree == NICFREE) {
-		bp = bclaim (dev, b);
-		memset (bp->b_vaddr, 0, BSIZE);
+		bp = bclaim (dev, b, BUF_SYNC);
 		fbp = bp->b_vaddr;
+
+		/*
+		 * NIGEL: Is there really any reason to do this?
+		 */
+		memset (bp->b_vaddr, 0, BSIZE);
+
 		fbp->df_nfree = sbp->s_nfree;
 		canshort (fbp->df_nfree);
 		memcpy (fbp->df_free, sbp->s_free, sizeof (fbp->df_free));
 		canndaddr (fbp->df_free, sbp->s_nfree);
+
 		bp->b_flag |= BFMOD;
 		brelease (bp);
 		sbp->s_nfree = 0;
@@ -517,7 +605,7 @@ daddr_t b;
 	if ((ip = iattach (dev, 1)) == NULL)
 		panic ("bad()");
 	n = blockn (ip->i_size);
-	if ((m=n) > ND)
+	if ((m = n) > ND)
 		m = ND;
 	for (i = 0 ; i < m ; i ++) {
 		-- n;
@@ -530,7 +618,7 @@ daddr_t b;
 	idetach (ip);
 	if (n == 0)
 		return 0;
-	if ((bp = bread (dev, l, 1)) == NULL)
+	if ((bp = bread (dev, l, BUF_SYNC)) == NULL)
 		return 0;
 	if ((m = n) > NBN)
 		m = NBN;

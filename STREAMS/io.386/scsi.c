@@ -12,42 +12,39 @@
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/stat.h>
-#ifdef _I386
+#if	_I386
 #include	<sys/uproc.h>
 #endif /* _I386 */
 #include	<sys/errno.h>
 #include	<sys/scsiwork.h>
-#include	<sys/typed.h>
-#ifdef _I386
+#include	<kernel/typed.h>
+#if	_I386
 #include	<sys/mmu.h>
 #endif /* _I386 */
 
 #ifndef _I386
 extern	saddr_t sds;
 #endif /* _I386 */
-extern	short	n_atdr;
+extern	short	at_drive_ct;
 
 /*
  * Configurable parameters
- *
- * Adaptec ROM translates at 64 heads, except the Tandy version, which
- * uses 16 heads.  Kernel variable SD_HDS is patchable for this reason.
  */
 #define DEF_AHA_HDS	64
 #define DEF_AHA_SPT	32
-
-int SD_HDS = 0;
-int SD_SPT = 0;
 
 #define NDRIVE	(8 * 4)			/* 8 SCSI ids and 4 LUNs */
 #define	SDMAJOR	13			/* Major Device Number */
 
 /*
- * user configurable parameters
+ * Configurable variables - see /etc/conf/aha/Space.c
  */
-int	SDIRQ	= 11;			/* Interrupt */
-int	SDBASE	= 0x0330;		/* Port base */
-int	SDDMA	= 5;			/* Used for first party DMA */
+extern int	SDIRQ;		/* Interrupt */
+extern int	SDBASE;		/* Port base */
+extern int	SDDMA;		/* Used for first party DMA */
+
+extern int	AHA_SD_HDS;
+extern int	AHA_SD_SPT;
 
 /*
  *					LUN --------++
@@ -171,24 +168,24 @@ sdload()
 	 * Otherwise, look in the data area written by tboot.
 	 * If nothing from tboot, use default values.
 	 */
-	if (SD_HDS == 0 || SD_SPT == 0) {
+	if (AHA_SD_HDS == 0 || AHA_SD_SPT == 0) {
 		/* heads & spt not both patched */
-		SD_HDS = DEF_AHA_HDS;
-		SD_SPT = DEF_AHA_SPT;
+		AHA_SD_HDS = DEF_AHA_HDS;
+		AHA_SD_SPT = DEF_AHA_SPT;
 		if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 			if (tp = fifo_read(ffp)) {
 				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
 				if ((T_BIOS_DISK == tp->ts_type) &&
-				    (n_atdr == bdp->dp_drive) ) {
+				    (at_drive_ct == bdp->dp_drive) ) {
 				/* got values from tboot */
-					SD_HDS = bdp->dp_heads;
-					SD_SPT = bdp->dp_sectors;
+					AHA_SD_HDS = bdp->dp_heads;
+					AHA_SD_SPT = bdp->dp_sectors;
 				}
 			}
 			fifo_close(ffp);
 		}
 	}
-printf(" SD_HDS=%d SD_SPT=%d\n", SD_HDS, SD_SPT);
+printf(" AHA_SD_HDS=%d AHA_SD_SPT=%d\n", AHA_SD_HDS, AHA_SD_SPT);
 
 /*	aha_device_info(); */		/* enable after this gets fixed */
 }
@@ -470,9 +467,9 @@ char * vec;
 		fdp = (struct fdisk_s *) pparmp[d];
 		*(short *)&hdparm.landc[0] =
 		*(short *)&hdparm.ncyl[0] = fdp[WHOLE_DRIVE].p_size
-						/ (SD_HDS * SD_SPT);
-		hdparm.nhead = SD_HDS;
-		hdparm.nspt = SD_SPT;
+						/ (AHA_SD_HDS * AHA_SD_SPT);
+		hdparm.nhead = AHA_SD_HDS;
+		hdparm.nspt = AHA_SD_SPT;
 		kucopy(&hdparm, vec, sizeof hdparm);
 		/*
 		 * I know it's ugly.  But it gets around startup Catch-22.
@@ -493,11 +490,11 @@ char * vec;
 		 */
 		fdp = (struct fdisk_s *) pparmp[d];
 		ukcopy(vec, &hdparm, sizeof hdparm);
-		SD_HDS = hdparm.nhead;
-		SD_SPT = hdparm.nspt;
+		AHA_SD_HDS = hdparm.nhead;
+		AHA_SD_SPT = hdparm.nspt;
 		fdp[WHOLE_DRIVE].p_size =
 			(long)(*(short *)&hdparm.ncyl[0])
-			* (long)SD_HDS * (long)SD_SPT;
+			* (long)AHA_SD_HDS * (long)AHA_SD_SPT;
 
 		return 0;
 	case SCSI_HA_CMD:

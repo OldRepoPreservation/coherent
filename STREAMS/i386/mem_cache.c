@@ -39,7 +39,7 @@ mem_remember(vaddr, paddr)
 {
 	CACHE_ENTRY *entry;
 
-	T_PIGGY( 0x40, printf("mem_remember(v:%x, p:%x)", vaddr, paddr); );
+	T_PIGGY( 0x40, printf("mem_remember(v:%x, p:%x)", vaddr, paddr));
 
 	/* Be sure to overwrite any existing entry.  */
 	if (NULL != (entry = find_paddr(paddr))) {
@@ -53,7 +53,7 @@ mem_remember(vaddr, paddr)
 			return;
 		}
 
-		T_PIGGY( 0x40, printf(": creating %x,", entry); );
+		T_PIGGY( 0x40, printf(": creating %x,", entry));
 
 		/* Store the data.  */
 		entry->vaddr = vaddr;
@@ -76,10 +76,10 @@ void
 mem_forget(vaddr)
 {
 	CACHE_ENTRY *entry, *my_next, *my_prev;
-	T_PIGGY( 0x40, printf("mem_forget(v:%x)", vaddr); );
+	T_PIGGY( 0x40, printf("mem_forget(v:%x)", vaddr));
 
 	if (NULL != (entry = find_vaddr(vaddr))) {
-		T_PIGGY( 0x40, printf("forgetting(p:%x)", entry->paddr); );
+		T_PIGGY( 0x40, printf("forgetting(p:%x)", entry->paddr));
 
 		/* Remove 'entry' from the linked list.  */
 		my_next = entry->next;
@@ -106,7 +106,7 @@ mem_recall(paddr)
 	CACHE_ENTRY *entry;
 	caddr_t retval;
 
-	T_PIGGY( 0x40, printf("mem_recall(%x)=", paddr); );
+	T_PIGGY( 0x40, printf("mem_recall(%x)=", paddr));
 
 	if (NULL == (entry = find_paddr(paddr))) {
 		retval = 0;
@@ -114,9 +114,9 @@ mem_recall(paddr)
 		retval = entry->vaddr;
 	}
 
-	T_PIGGY( 0x40, printf("%x, ", retval); );
+	T_PIGGY( 0x40, printf("%x, ", retval));
 
-	return( retval );
+	return retval;
 } /* mem_recall() */
 
 

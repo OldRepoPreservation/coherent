@@ -27,10 +27,8 @@ dsl_free( dsl_ptr )
 {
 	caddr_t dsl_vaddr;	/* Virtual address of DSL.  */
 
-	T_PIGGY(0x4000, {
-		printf("dsl_free(%x:%x:%x)",
-			dsl_ptr[0], dsl_ptr[1], dsl_ptr[2] );
-	} );
+	T_PIGGY(0x4000, printf("dsl_free(%x:%x:%x)",
+				dsl_ptr[0], dsl_ptr[1], dsl_ptr[2] ));
 
 	dsl_vaddr = mem_recall( aha_p3_to_l( dsl_ptr ) );
 
@@ -72,10 +70,9 @@ dsl_gen( new_dsl, new_len, buffer, len)
 
 	int i;			/* Handy counter/index.  */
 
-	T_PIGGY( 0x4000, {
-		printf("dsl_gen(dsl: %x, new_len: %x, buf: %x, len: %x)", 
-			new_dsl, new_len, buffer, len);
-	} );
+	T_PIGGY( 0x4000,
+		 printf("dsl_gen(dsl: %x, new_len: %x, buf: %x, len: %x)", 
+			new_dsl, new_len, buffer, len));
 
 	/*
 	 * The buffer can have up to three sections:
@@ -133,8 +130,7 @@ dsl_gen( new_dsl, new_len, buffer, len)
 	T_PIGGY(0x4000,
 		printf("DSL first(size: %x:%x:%x, addr: %x:%x:%x)",
 		tmp_dsl[0].size[0], tmp_dsl[0].size[1], tmp_dsl[0].size[2],
-		tmp_dsl[0].addr[0], tmp_dsl[0].addr[1], tmp_dsl[0].addr[2]);
-	);
+		tmp_dsl[0].addr[0], tmp_dsl[0].addr[1], tmp_dsl[0].addr[2]));
 	len_to_stuff -= first;
 	addr_to_stuff += first;
 
@@ -144,11 +140,10 @@ dsl_gen( new_dsl, new_len, buffer, len)
 		aha_l_to_p3( NBPC, tmp_dsl[i].size );
 		aha_l_to_p3( vptop( addr_to_stuff  ), tmp_dsl[i].addr );
 
-	T_PIGGY(0x4000,
-		printf("DSL middle:%x(size: %x:%x:%x, addr: %x:%x:%x)", i,
-		tmp_dsl[i].size[0], tmp_dsl[i].size[1], tmp_dsl[i].size[2],
-		tmp_dsl[i].addr[0], tmp_dsl[i].addr[1], tmp_dsl[i].addr[2]);
-	);
+T_PIGGY(0x4000,
+	printf("DSL middle:%x(size: %x:%x:%x, addr: %x:%x:%x)", i,
+	tmp_dsl[i].size[0], tmp_dsl[i].size[1], tmp_dsl[i].size[2],
+	tmp_dsl[i].addr[0], tmp_dsl[i].addr[1], tmp_dsl[i].addr[2]));
 		len_to_stuff -= NBPC;
 		addr_to_stuff += NBPC;
 		++i;
@@ -159,15 +154,21 @@ dsl_gen( new_dsl, new_len, buffer, len)
 		aha_l_to_p3( last, tmp_dsl[i].size );
 		aha_l_to_p3( vptop( addr_to_stuff  ), tmp_dsl[i].addr );
 
-	T_PIGGY(0x4000,
-		printf("DSL last:%x(size: %x:%x:%x, addr: %x:%x:%x)", i,
-		tmp_dsl[i].size[0], tmp_dsl[i].size[1], tmp_dsl[i].size[2],
-		tmp_dsl[i].addr[0], tmp_dsl[i].addr[1], tmp_dsl[i].addr[2]);
-	);
+T_PIGGY(0x4000,
+	printf("DSL last:%x(size: %x:%x:%x, addr: %x:%x:%x)", i,
+	tmp_dsl[i].size[0], tmp_dsl[i].size[1], tmp_dsl[i].size[2],
+	tmp_dsl[i].addr[0], tmp_dsl[i].addr[1], tmp_dsl[i].addr[2]));
+
 		len_to_stuff -= last;
 		addr_to_stuff += last;
 		++i;
 	}
+
+#if	0
+	/*
+	 * NIGEL: Trace macros must now be given expressions... this one
+	 * wasn't worth cleaning up.
+	 */
 
 	T_PIGGY(0x4000, {
 		/* Sanity Check.  */
@@ -187,7 +188,7 @@ dsl_gen( new_dsl, new_len, buffer, len)
 			addr_to_stuff, (buffer + len));
 		}
 	} ); /* T_PIGGY() */
-
+#endif
 
 	/* Fill in return values.  */
 	aha_l_to_p3( table_len, new_len );
@@ -195,13 +196,9 @@ dsl_gen( new_dsl, new_len, buffer, len)
 	mem_remember( tmp_dsl, aha_p3_to_l( new_dsl ));
 
 
-	T_PIGGY( 0x4000, {
-		printf("new_dsl: %x:%x:%x, ",
-			new_dsl[0], new_dsl[1], new_dsl[2]);
-		printf("new_len: %x:%x:%x, ",
-			new_len[0], new_len[1], new_len[2]);
-	} );
-
+	T_PIGGY( 0x4000, printf("new_dsl: %x:%x:%x, new_len: %x:%x:%x, ",
+				new_dsl[0], new_dsl[1], new_dsl[2],
+				new_len[0], new_len[1], new_len[2]));
 } /* dsl_gen() */
 #endif /* 1 */
 

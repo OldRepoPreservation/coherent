@@ -131,16 +131,17 @@ __sigset_t * mask;
  */
 
 __sigfunc_t
-usigsys(signal, func)
-int	signal;
-__sigfunc_t func;
+usigsys (signal, func, regsetp)
+unsigned	signal;
+__sigfunc_t	func;
+gregset_t     *	regsetp;
 {
 	int		sigtype;
 	__sigmask_t	mask;
 	__sigset_t	signal_mask;
 	__sigaction_t	signal_action;
 
-	sigtype = signal & ~0xFF;
+	sigtype = signal & ~ 0xFF;
 	signal &= 0xFF;
 
 #if 0
@@ -188,7 +189,7 @@ __sigfunc_t func;
 			u.u_error = EINVAL;
 			return 0;
 		}
-		u.u_sigreturn = (__sigfunc_t) u.u_regl [EDX];
+		u.u_sigreturn = (__sigfunc_t) regsetp->_i386._edx;
 
 		if (signal == SIGCHLD) {
 			/*
@@ -214,7 +215,7 @@ __sigfunc_t func;
 		return signal_action.sa_handler;		
 
 	case SIGSET:
-		u.u_sigreturn = (__sigfunc_t) u.u_regl [EDX];
+		u.u_sigreturn = (__sigfunc_t) regsetp->_i386._edx;
 
 		if (__SIGSET_TSTMASK (signal_mask, signal, mask))
 			func = SIG_HOLD;
@@ -343,6 +344,7 @@ gregset_t     *	regsetp;
 		 * and fetch the signal disposition.
 		 */
 
+got_signal:
 		proc_unkill (SELF, signum);
 		curr_signal_action (signum, NULL, & signal_action);
 
@@ -386,28 +388,37 @@ gregset_t     *	regsetp;
 		 * msysgen() is a nop for COHERENT 4.0.  The comment in the
 		 * assembly code is "Nothing useful to save".
 		 */
-		msysgen(u.u_sysgen);
+
+		msysgen (u.u_sysgen);
 
 		/*
 		 * When a traced process is signaled, it may need to exchange
 		 * data with its parent (via ptret).
 		 */
+
 		if ((SELF->p_flags & PFTRAC) != 0) {
 			SELF->p_flags |= PFWAIT;
-			ptval = ptret();
+			ptval = ptret (regsetp);
+
 			T_HAL(0x10000, printf("ptret()=%x ", ptval));
-			SELF->p_flags &= ~(PFWAIT|PFSTOP);
+
+			SELF->p_flags &= ~ (PFWAIT | PFSTOP);
+
+			while ((signum = curr_signal_pending ()) != 0)
+				proc_unkill (SELF, signum);
+
 			if (ptval == 0)
 				/* see if another signal came in */
 				continue;
-			else
-				signum = ptval;
+
+			if ((signum = ptval) != SIGKILL)
+				goto got_signal;
 		}
 
 		/*
 		 * Some signals cause a core file to be written.
 		 */
-		switch(signum) {
+		switch (signum) {
 		case SIGQUIT:
 		case SIGILL:
 		case SIGTRAP:
@@ -426,8 +437,9 @@ gregset_t     *	regsetp;
 /*
  * Create a dump of ourselves onto the file `core'.
  */
+
 int
-sigdump()
+sigdump ()
 {
 	register INODE *ip;
 	register SR *srp;
@@ -436,47 +448,51 @@ sigdump()
 	register paddr_t ssize;
 	extern	int	DUMP_LIM;
 	struct ch_info chInfo;
+	IO		io;
+	struct direct	dir;
 
-	if (SELF->p_flags&PFNDMP)
+	if (SELF->p_flags & PFNDMP)
 		return 0;
-	u.u_io.io_seg  = IOSYS;
-	u.u_io.io_flag = 0;
+
 	/* Make the core with the real owners */
-	schizo();
-	if (ftoi("core", 'c')) {
-		schizo();
+	schizo ();
+
+	io.io_seg = IOSYS;
+	io.io_flag = 0;
+	if (ftoi ("core", 'c', & io, & dir)) {
+		schizo ();
 		return 0;
 	}
-	if ((ip=u.u_cdiri) == NULL) {
-		if ((ip=imake(IFREG|0644, 0)) == NULL) {
-			schizo();
+
+	if ((ip = u.u_cdiri) == NULL) {
+		if ((ip = imake (IFREG | 0644, 0, & io, & dir)) == NULL) {
+			schizo ();
 			return 0;
 		}
 	} else {
-		if ((ip->i_mode&IFMT)!=IFREG
-		 || iaccess(ip, IPW)==0
-		 || getment(ip->i_dev, 1)==NULL) {
-			idetach(ip);
-			schizo();
+		if ((ip->i_mode & IFMT) != IFREG || iaccess (ip, IPW) == 0 ||
+		    getment (ip->i_dev, 1) == NULL) {
+			idetach (ip);
+			schizo ();
 			return 0;
 		}
-		iclear(ip);
+		iclear (ip);
 	}
-	schizo();
+	schizo ();
 	u.u_error = 0;
-	u.u_io.io_seek = 0;
 
 	/* Write core file header */
 	chInfo.ch_magic = CORE_MAGIC;
-	chInfo.ch_info_len = sizeof(chInfo);
+	chInfo.ch_info_len = sizeof (chInfo);
 	chInfo.ch_uproc_offset = U_OFFSET;
 
-	u.u_io.io_seg = IOSYS;
-	u.u_io.io.vbase = &chInfo;
-	u.u_io.io_ioc = sizeof(chInfo);
-	u.u_io.io_flag = 0;
+	io.io_seek = 0;
+	io.io_seg = IOSYS;
+	io.io.vbase = & chInfo;
+	io.io_ioc = sizeof (chInfo);
+	io.io_flag = 0;
 
-	iwrite(ip, &u.u_io);
+	iwrite (ip, & io);
 
 	/*
 	 * Added to aid in kernel debugging - if DUMP_TEXT is nonzero,
@@ -484,16 +500,18 @@ sigdump()
 	 * the dump flag so that postmortem utilities will know that
 	 * text is present in the core file.
 	 */
+
 	if (DUMP_TEXT)
-		u.u_segl[SISTEXT].sr_flag |= SRFDUMP;
+		u.u_segl [SISTEXT].sr_flag |= SRFDUMP;
 
-	for (srp=u.u_segl + 1; u.u_error==0 && srp < u.u_segl + NUSEG; srp++) {
+	for (srp = u.u_segl + 1 ; u.u_error == 0 && srp < u.u_segl + NUSEG ;
+	     srp ++) {
 
-		if ((srp->sr_flag & SRFDUMP)==0)
+		if ((srp->sr_flag & SRFDUMP) == 0)
 			continue;
 
 		/* Don't try to dump empty segments. */
-		if ((sp = srp->sr_segp)==NULL) {
+		if ((sp = srp->sr_segp) == NULL) {
 			srp->sr_flag &= ~SRFDUMP;
 			continue;
 		}
@@ -504,32 +522,33 @@ sigdump()
 	}
 
 	/* Always dump the U segment. */
-	u.u_segl[SIUSERP].sr_flag |= SRFDUMP;
+	u.u_segl [SIUSERP].sr_flag |= SRFDUMP;
 
-	for (srp=u.u_segl; u.u_error==0 && srp < u.u_segl + NUSEG; srp++) {
+	for (srp = u.u_segl ; u.u_error == 0 && srp < u.u_segl + NUSEG ;
+	     srp ++) {
 
 		/* Only dump segments flagged for dumping. */
-		if ((srp->sr_flag & SRFDUMP)==0)
+		if ((srp->sr_flag & SRFDUMP) == 0)
 			continue;
 
 		sp = srp->sr_segp;
 
 		ssize = sp->s_size;
-		u.u_io.io_seg = IOPHY;
-		u.u_io.io.pbase = MAPIO(sp->s_vmem, 0);
-		u.u_io.io_flag = 0;
-		sp->s_lrefc++;
+		io.io_seg = IOPHY;
+		io.io.pbase = MAPIO (sp->s_vmem, 0);
+		io.io_flag = 0;
+		sp->s_lrefc ++;
 		while (u.u_error == 0 && ssize != 0) {
 			n = ssize > SCHUNK ? SCHUNK : ssize;
-			u.u_io.io_ioc = n;
-			iwrite(ip, &u.u_io);
-			u.u_io.io.pbase += n;
-			ssize -= (paddr_t)n;
+			io.io_ioc = n;
+			iwrite (ip, & io);
+			io.io.pbase += n;
+			ssize -= (paddr_t) n;
 		}
-		sp->s_lrefc--;
+		sp->s_lrefc --;
 	}
-	idetach(ip);
-	return (u.u_error==0);
+	idetach (ip);
+	return u.u_error == 0;
 }
 
 /*
@@ -537,6 +556,7 @@ sigdump()
  *
  * "pid" is child pid.
  */
+
 int
 ptset(req, pid, addr, data)
 unsigned req;
@@ -544,16 +564,18 @@ int *addr;
 {
 	register PROC *pp;
 
-	lock(pnxgate);
-	for (pp=procq.p_nforw; pp!=&procq; pp=pp->p_nforw)
+	lock (pnxgate);
+	for (pp = procq.p_nforw ; pp != & procq ; pp = pp->p_nforw)
 		if (pp->p_pid == pid)
 			break;
-	unlock(pnxgate);
-	if (pp==&procq || (pp->p_flags&PFSTOP)==0 || pp->p_ppid!=SELF->p_pid){
+	unlock (pnxgate);
+	if (pp == & procq || (pp->p_flags & PFSTOP) == 0 ||
+	    pp->p_ppid != SELF->p_pid) {
 		u.u_error = ESRCH;
 		return;
 	}
-	lock(pts.pt_gate);
+
+	lock (pts.pt_gate);
 	pts.pt_req = req;
 	pts.pt_pid = pid;
 	pts.pt_addr = addr;
@@ -561,15 +583,18 @@ int *addr;
 	pts.pt_errs = 0;
 	pts.pt_rval = 0;
 	pts.pt_busy = 1;
-	wakeup((char *)&pts.pt_req);
+
+	wakeup ((char *) & pts.pt_req);
+
 	while (pts.pt_busy) {
 		x_sleep ((char *) & pts.pt_busy, primed, slpriSigCatch,
 			 "ptrace");
 		/* Send a ptrace command to the child.  */
 	}
+
 	u.u_error = pts.pt_errs;
-	unlock(pts.pt_gate);
-	return (pts.pt_rval);
+	unlock (pts.pt_gate);
+	return pts.pt_rval;
 }
 
 /*
@@ -583,7 +608,8 @@ int *addr;
  */
 
 static int
-ptret()
+ptret (regsetp)
+gregset_t     *	regsetp;
 {
 	extern void (*ndpKfrstor)();
 	register PROC *pp;
@@ -591,57 +617,62 @@ ptret()
 	register int sign;
 	unsigned off;
 	int doEmUnpack = 0;
-
-	struct _fpstate * fstp = empack();
+	struct _fpstate * fstp = empack ();
 
 	pp = SELF;
 next:
 	u.u_error = 0;
 	if (pp->p_ppid == 1)
-		return (SIGKILL);
+		return SIGKILL;
 	sign = -1;
 
 	/* wake up parent if it is sleeping */
-	lock(pnxgate);
-	pp1 = &procq;
+	lock (pnxgate);
+	pp1 = & procq;
 	for (;;) {
-		if ((pp1=pp1->p_nforw) == &procq) {
+		if ((pp1 = pp1->p_nforw) == & procq) {
 			sign = SIGKILL;
 			break;
 		}
 		if (pp1->p_pid != pp->p_ppid)
 			continue;
-		if (ASLEEP(pp1))
-			wakeup((char *)pp1);
+		if (ASLEEP (pp1))
+			wakeup ((char *) pp1);
 		break;
 	}
-	unlock(pnxgate);
+	unlock (pnxgate);
 
 	while (sign < 0) {
 		/* If no pending ptrace transaction for this process, sleep. */
-		if (pts.pt_busy==0 || pp->p_pid!=pts.pt_pid) {
-			/* If a signal bit is set now, just exit - let
+		if (pts.pt_busy == 0 || pp->p_pid != pts.pt_pid) {
+			/*
+			 * If a signal bit is set now, just exit - let
 			 * actvsig() handle it next time through.
-			 * Doing sleep and goto next will stick us in a loop */
-			if (nondsig())
+			 * Doing sleep and goto next will stick us in a loop
+			 */
+
+			if (nondsig ())
 				return 0;
-			x_sleep((char *)&pts.pt_req,
-			  primed, slpriSigCatch, "ptret");
+			x_sleep ((char *) & pts.pt_req, primed,
+				 slpriSigCatch, "ptret");
 			goto next;
 		}
+
 		switch (pts.pt_req) {
 		case PTRACE_RD_TXT:
-			if (XMODE_286) {
-				pts.pt_rval = getuwd(NBPS+pts.pt_addr);
+			if (__xmode_286 (regsetp)) {
+				pts.pt_rval = getuwd (NBPS + pts.pt_addr);
 				break;
 			}
 			/* Fall through for 386 mode processes. */
+
 		case PTRACE_RD_DAT:
-			pts.pt_rval = getuwd(pts.pt_addr);
+			pts.pt_rval = getuwd (pts.pt_addr);
 			break;
+
 		case PTRACE_RD_USR:
 			/* See ptrace.h for valid offsets. */
-			off = (unsigned)pts.pt_addr;
+			off = (unsigned) pts.pt_addr;
 			if (off & 3)
 				u.u_error = EINVAL;
 			else if (off < PTRACE_FP_CW) {
@@ -649,7 +680,8 @@ next:
 				if (off == PTRACE_SIG)
 					pts.pt_rval = u.u_signo;
 				else
-					pts.pt_rval = u.u_regl[off>>2];
+					pts.pt_rval =
+						((int *) regsetp) [off >> 2];
 			} else if (off < PTRACE_DR0) {
 				/*
 				 * Reading NDP state.
@@ -657,17 +689,17 @@ next:
 				 * Fetch desired info.
 				 * Restore NDP state in case we will resume.
 				 */
-				if (rdNdpUser()) {
+				if (rdNdpUser ()) {
 					/* if using coprocessor */
-					if (!rdNdpSaved()) {
-						ndpSave(&u.u_ndpCon);
-						wrNdpSaved(1);
+					if (! rdNdpSaved ()) {
+						ndpSave (& u.u_ndpCon);
+						wrNdpSaved (1);
 					}
-pts.pt_rval = ((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2];
-					ndpRestore(&u.u_ndpCon);
-					wrNdpSaved(0);
+pts.pt_rval = ((int *) & u.u_ndpCon) [(off - PTRACE_FP_CW) >> 2];
+					ndpRestore (& u.u_ndpCon);
+					wrNdpSaved (0);
 				} else if (fstp) {
-pts.pt_rval = getuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2));
+pts.pt_rval = getuwd(((int *) fstp) + ((off - PTRACE_FP_CW) >> 2));
 					/* if emulating */
 				} else { /* no ndp state to display */
 					pts.pt_rval = 0;
@@ -676,18 +708,21 @@ pts.pt_rval = getuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2));
 			} else /* Bad pseudo offset. */
 				u.u_error = EINVAL;
 			break;
+
 		case PTRACE_WR_TXT:
-			if (XMODE_286) {
-				putuwd(NBPS+pts.pt_addr, pts.pt_data);
+			if (__xmode_286 (regsetp)) {
+				putuwd (NBPS + pts.pt_addr, pts.pt_data);
 				break;
 			}
 			/* Fall through for 386 mode processes. */
+
 		case PTRACE_WR_DAT:
-			putuwd(pts.pt_addr, pts.pt_data);
+			putuwd (pts.pt_addr, pts.pt_data);
 			break;
+
 		case PTRACE_WR_USR:
 			/* See ptrace.h for valid offsets. */
-			off = (unsigned)pts.pt_addr;
+			off = (unsigned) pts.pt_addr;
 
 			if (off & 3)
 				u.u_error = EINVAL;
@@ -696,22 +731,23 @@ pts.pt_rval = getuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2));
 				if (off == PTRACE_SIG)
 					u.u_error = EINVAL;
 				else
-					u.u_regl[off>>2] = pts.pt_data;
+					((int *) regsetp) [off >> 2] =
+						pts.pt_data;
 			} else if (off < PTRACE_DR0) {
-				if (rdNdpUser()) {
+				if (rdNdpUser ()) {
 					/*
 					 * Writing NDP state.
 					 * If NDP state not already saved, save it.
 					 * Store desired info.
 					 * Restore NDP state in case we will resume.
 					 */
-					if (!rdNdpSaved()) {
-						ndpSave(&u.u_ndpCon);
-						wrNdpSaved(1);
+					if (! rdNdpSaved ()) {
+						ndpSave (& u.u_ndpCon);
+						wrNdpSaved (1);
 					}
 ((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2] = pts.pt_data;
-					ndpRestore(&u.u_ndpCon);
-					wrNdpSaved(0);
+					ndpRestore (& u.u_ndpCon);
+					wrNdpSaved (0);
 				} else if (fstp && ndpKfrstor) {
 putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
 					doEmUnpack = 1;
@@ -721,35 +757,38 @@ putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
 			} else /* Bad pseudo offset. */
 				u.u_error = EINVAL;
 			break;
+
 		case PTRACE_RESUME:
-			u.u_regl[EFL] &= ~MFTTB;
+			regsetp->_i386._eflags &= ~ MFTTB;
 			goto sig;
+
 		case PTRACE_TERM:
 			sign = SIGKILL;
 			break;
+
 		case PTRACE_SSTEP:
-			u.u_regl[EFL] |= MFTTB;
+			regsetp->_i386._eflags |= MFTTB;
 		sig:
-			if (pts.pt_data<0 || pts.pt_data>NSIG) {
+			if (pts.pt_data < 0 || pts.pt_data > NSIG) {
 				u.u_error = EINVAL;
 				break;
 			}
 			sign = pts.pt_data;
-			if (pts.pt_addr != SIG_IGN) {
-				u.u_regl[EIP] = (int)pts.pt_addr;
-			}
 			break;
+
 		default:
 			u.u_error = EINVAL;
 		}
-		if ((pts.pt_errs=u.u_error) == EFAULT)
+
+		if ((pts.pt_errs = u.u_error) == EFAULT)
 			pts.pt_errs = EINVAL;
+
 		pts.pt_busy = 0;
-		wakeup((char *)&pts.pt_busy);
+		wakeup((char *) & pts.pt_busy);
 	}
 	if (doEmUnpack)
-		(*ndpKfrstor)(fstp, &u.u_ndpCon);
-	return (sign);
+		(* ndpKfrstor) (fstp, & u.u_ndpCon);
+	return sign;
 }
 
 /*
@@ -760,19 +799,19 @@ putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
  * Return the virtual address in user space of the context area, or
  * return NULL if not using FP emulation.
  */
+
 static struct _fpstate *
-empack()
+empack (regsetp)
+gregset_t     *	regsetp;
 {
-	int uesp;
-	int sphi, splo;
-	SEG * segp;
-	cseg_t * pp;
-	struct _fpstate * ret = NULL;
+	int		sphi;
+	struct _fpstate * ret;
+	SEG	      *	segp = u.u_segl [SISTACK].sr_segp;
 	extern void (*ndpKfsave)();
 	unsigned long sw_old;
 
 	/* If not emulating, do nothing */
-	if (rdNdpUser() || !rdEmTrapped() || !ndpKfsave)
+	if (rdNdpUser () || ! rdEmTrapped () || ! ndpKfsave)
 		return NULL;
 
 	/*
@@ -780,37 +819,39 @@ empack()
 	 * If using ndp, need room for an _fpstate.
 	 * If emulating, need room for an _fpemstate.
 	 */
-	uesp = u.u_regl[UESP] - sizeof(struct _fpstate);
+
+	ret = (struct _fpstate *)
+		(__xmode_286 (regsetp) ? regsetp->_i286._usp :
+					 regsetp->_i386._uesp) - 1;
 
 	/* Add to user stack if necessary. */
-	segp = u.u_segl[SISTACK].sr_segp;
-	sphi = (XMODE_286) ? ISP_286 : ISP_386;
-	splo = sphi - segp->s_size;
+	sphi = __xmode_286 (regsetp) ? ISP_286 : ISP_386;
 
-	if (splo > uesp) {
-		pp = c_extend(segp->s_vmem, btoc(segp->s_size));
-		if (pp==0) {
-			printf("Empack failed.  cmd=%s  c_extend(%x,%x)=0 ",
-			  u.u_comm, segp->s_vmem, btoc(segp->s_size));
+	if (sphi - segp->s_size > (__ptr_arith_t) ret) {
+		cseg_t	      *	pp;
+
+		pp = c_extend (segp->s_vmem, btoc (segp->s_size));
+		if (pp == 0) {
+			printf ("Empack failed.  cmd=%s  c_extend(%x,%x)=0 ",
+				u.u_comm, segp->s_vmem, btoc (segp->s_size));
 			return NULL;
 		}
 
 		segp->s_vmem = pp;
 		segp->s_size += NBPC;
-		if (sproto(0)==0) {
-			printf("Empack failed.  cmd=%s  sproto(0)=0 ",
-			  u.u_comm);
+		if (sproto (0) == 0) {
+			printf ("Empack failed.  cmd=%s  sproto(0)=0 ",
+				u.u_comm);
 			return NULL;
 		}
 
-		segload();
+		segload ();
 	}
 
-	ret = (struct _fpstate *)uesp;
-	(*ndpKfsave)(&u.u_ndpCon, uesp);
-	sw_old = getuwd(&ret->sw);
-	putuwd(&ret->status, sw_old);
-	putuwd(&ret->sw, sw_old & 0x7f00);
+	(* ndpKfsave) (& u.u_ndpCon, ret);
+	sw_old = getuwd (& ret->sw);
+	putuwd (& ret->status, sw_old);
+	putuwd (& ret->sw, sw_old & 0x7f00);
 
 	return ret;
 }

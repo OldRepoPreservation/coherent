@@ -13,7 +13,6 @@
  * User configurable AT keyboard/display driver.
  */
 #include <sys/coherent.h>
-#include <sys/reg.h>
 #include <sys/con.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
@@ -113,13 +112,13 @@ static  int     xlate = 1;              /* scan code translation flag */
 int		isrint();
 int		istime();
 void		isbatch();
-int		mmstart();
+int		vtmmstart();
 int		isopen();
 int		isclose();
 int		isread();
-int		mmwrite();
+int		vtmmwrite();
 int		isioctl();
-void		mmwatch();
+void		vtmmwatch();
 int		isload();
 int		isuload();
 int		ispoll();
@@ -130,17 +129,18 @@ int		updleds();
 /*
  * Configuration table.
  */
-CON iscon ={
+
+CON vtnkbcon ={
 	DFCHR|DFPOL,			/* Flags */
 	KB_MAJOR,			/* Major index */
 	isopen,				/* Open */
 	isclose,			/* Close */
 	nulldev,			/* Block */
 	isread,				/* Read */
-	mmwrite,			/* Write */
+	vtmmwrite,			/* Write */
 	isioctl,			/* Ioctl */
 	nulldev,			/* Powerfail */
-	mmwatch,			/* Timeout */
+	vtmmwatch,			/* Timeout */
 	isload,				/* Load */
 	isuload,			/* Unload */
 	ispoll				/* Poll */
@@ -163,7 +163,7 @@ CON iscon ={
 #endif
 
 /*
-	Patchable table entrys,
+	Patchable table entries,
 	we go indirect in order to produce a label which can be addressed
 */
 #if SWANFIX
@@ -176,6 +176,10 @@ static int ToGreek();
 int VTGREEK = 0;	/* patch to 1 for TECOP Greek mod */
 #endif
 
+/* Configurable variables - see ker/conf/console/Space.c */
+extern int 	vga_count;
+extern int 	mono_count;
+
 HWentry	VTVGA =		{ 4, 0, VT_VGAPORT, { 0, VT_VGABASE }, { 25, 80 } };
 HWentry	VTMONO =	{ 4, 0, VT_MONOPORT, { 0, VT_MONOBASE }, { 25, 80 } };
 
@@ -185,9 +189,9 @@ HWentry	*vtHWtable[] = {
 	0		/* MUST STAY AS LAST ELEMENT !!! */
 };
 
-extern	int	mminit();
+extern	int	vtmminit();
 static	VTDATA	const_vtdata	= {
-	mminit, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 23, 24, 0, 0, 0, 23, 0, 0, 1
+	vtmminit, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 23, 24, 0, 0, 0, 23, 0, 0, 1
 };
 
 /* later this should be dynamic */
@@ -251,6 +255,10 @@ isload()
 	table_loaded = 0;
 	kbstate = KB_IDLE;
 
+	/* Sugar for idtune and kpatch. */
+	VTVGA.count = vga_count;
+	VTMONO.count = mono_count;
+
 	/* figure out what our current max is */
 	for( vtmax = 0, hw = vtHWtable; *hw; ++hw ) {
 		vtmax += (*hw)->count;
@@ -307,7 +315,7 @@ isload()
 				vp->vmm_visible = VNKB_TRUE;
 				vp->vmm_seg = vp->vmm_vseg;
 				vp->vmm_off = vp->vmm_voff;
-				updscreen(vtcount);
+				vtupdscreen(vtcount);
 			}
 			(*hw)->found++;
 			vtcount++;
@@ -349,7 +357,7 @@ isload()
 	 * Initialize video display.
 	 */
 	for ( i = 0; i < vtcount; ++i )
-		mmstart( vttty[i] );
+		vtmmstart( vttty[i] );
 
 
 #ifndef	_I386
@@ -483,7 +491,7 @@ IO *iop;
 
 	ttread(tp, iop, 0);
 	if (tp->t_oq.cq_cc)
-		mmtime(tp);
+		vtmmtime(tp);
 }
 
 /*
@@ -1264,7 +1272,7 @@ register TTY * tp;
 	 * Ensure video display is enabled.
 	 */
 	if( vp->vmm_visible ) {
-		mm_von(vp);
+		vtmm_von(vp);
 	}
 	isbusy = 0;
 
@@ -1446,7 +1454,7 @@ int i;
 	tp->t_rawout.si_buf = NCIB+SI_BUFSIZ;
 #endif
 	tp->t_param = NULL;
-	tp->t_start = &mmstart;
+	tp->t_start = &vtmmstart;
 
 #ifndef	_I386
 #if	VT_MAJOR == KB_MAJOR
@@ -1473,7 +1481,7 @@ VTDATA	*vp;
 
 #ifdef	_I386
 	vp->vt_buffer = kalloc( TEXTBLOCK );
-	vp->vmm_seg = vp->vmm_mseg = ds_sel();
+	vp->vmm_seg = vp->vmm_mseg = vtds_sel();
 	vp->vmm_off = vp->vmm_moff = vp->vt_buffer;
 #else
 	vp->vt_buffer = salloc ( (fsize_t)TEXTBLOCK, SFSYST|SFNSWP|SFHIGH );
@@ -1682,7 +1690,7 @@ register VTDATA	*vp_new, *vp_old;
 			  && (vpi->vmm_invis == 0) ) {
 				/* update, but don't deactivate */
 				vpi->vmm_invis = ~0; 
-				updscreen(i);
+				vtupdscreen(i);
 			}
 		}
 	}
@@ -1732,7 +1740,7 @@ VTDATA *vp;
 updterminal(index)
 int index;
 {
-	updscreen(index);
+	vtupdscreen(index);
 	updleds2();
 }
 

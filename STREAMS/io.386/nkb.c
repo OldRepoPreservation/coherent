@@ -7,7 +7,6 @@
  */
 
 #include <sys/coherent.h>
-#include <sys/reg.h>
 #include <sys/con.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
@@ -128,7 +127,8 @@ int		updleds();
 /*
  * Configuration table.
  */
-CON iscon ={
+
+CON nkbcon ={
 	DFCHR|DFPOL,			/* Flags */
 	KB_MAJOR,			/* Major index */
 	isopen,				/* Open */

@@ -23,6 +23,7 @@ COHOBJ= $(K386OBJ)/alloc.o \
 	$(K386OBJ)/fs3.o \
 	$(K386OBJ)/main.o \
 	$(K386OBJ)/misc.o \
+	$(K386OBJ)/nlp.o \
 	$(K386OBJ)/null.o \
 	$(K386OBJ)/pipe.o \
 	$(K386OBJ)/poll.o \
@@ -46,6 +47,9 @@ COHOBJ= $(K386OBJ)/alloc.o \
 all:	$(COHOBJ)
 	@echo "coh objects up to date"
 
+clean:
+	@:
+
 $(K386OBJ)/alloc.o: alloc.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -63,7 +67,7 @@ $(K386OBJ)/clocked.o: clocked.c
 
 $(K386OBJ)/fd.o: fd.c \
 	$(USRINC)/sys/coherent.h \
-	$(USRINC)/sys/param.h \
+	$(USRINC)/kernel/param.h \
 	$(USRINC)/errno.h \
 	$(USRINC)/fcntl.h \
 	$(USRINC)/sys/fd.h \
@@ -123,6 +127,12 @@ $(K386OBJ)/main.o: ../i386/version main.c
 $(K386OBJ)/misc.o: misc.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(K386OBJ)/nlp.o: nlp.c \
+	$(USRINC)/common/_tricks.h \
+	$(USRINC)/common/ccompat.h \
+	$(USRINC)/common/xdebug.h
+	$(CC) $(CFLAGS) -c -o $@ nlp.c
+
 $(K386OBJ)/pipe.o: pipe.c \
 	$(USRINC)/sys/coherent.h \
 	$(USRINC)/errno.h \
@@ -150,7 +160,7 @@ $(K386OBJ)/rlock.o: rlock.c \
 	$(USRINC)/fcntl.h \
 	$(USRINC)/sys/fd.h \
 	$(USRINC)/sys/proc.h \
-	$(USRINC)/sys/rlock.h \
+	$(USRINC)/kernel/rlock.h \
 	$(USRINC)/sys/sched.h \
 	$(USRINC)/sys/uproc.h \
 	$(USRINC)/unistd.h
@@ -169,7 +179,7 @@ $(K386OBJ)/sys1.o: sys1.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/sys2.o: sys2.c \
-	$(USRINC)/sys/param.h
+	$(USRINC)/kernel/param.h
 	$(CC) $(CFLAGS) -c -o $@ sys2.c
 
 $(K386OBJ)/sys3.o: sys3.c \
@@ -197,7 +207,7 @@ $(K386OBJ)/null.o: null.c
 
 $(K386OBJ)/exec.o: exec.c \
 	$(USRINC)/sys/coherent.h \
-	$(USRINC)/sys/param.h \
+	$(USRINC)/kernel/param.h \
 	$(USRINC)/sys/acct.h \
 	$(USRINC)/sys/buf.h \
 	$(USRINC)/canon.h \
@@ -214,7 +224,7 @@ $(K386OBJ)/exec.o: exec.c \
 	$(USRINC)/sys/seg.h \
 	$(USRINC)/signal.h \
 	$(USRINC)/sys/uproc.h \
-	$(USRINC)/sys/reg.h \
+	$(USRINC)/kernel/reg.h \
 	$(USRINC)/sys/stat.h \
 	$(USRINC)/sys/fd.h
 	$(CC) $(CFLAGS) -c -o $@ exec.c

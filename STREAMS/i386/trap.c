@@ -6,10 +6,9 @@
  -lgl) */
 
 #include <common/_gregset.h>
+#include <kernel/systab.h>
 
 #include <sys/coherent.h>
-#include <sys/reg.h>
-#include <sys/systab.h>
 #include <sys/errno.h>
 #include <sys/proc.h>
 #include <sys/seg.h>
@@ -45,26 +44,11 @@ extern unsigned char selkcopy();
 extern unsigned int DR0,DR1,DR2,DR3,DR7;
 static int trap_op();
 
-#if	0
-/*
- * Debug only - display 64 words of stack traceback.
- */
-#define SDUMP(frame) { \
-  int *ip = frame, i; \
-  for (i=0;i < 32;i++) { \
-    if ((i % 8)==0) \
-      putchar('\n'); \
-    printf("%x ", *ip++); \
-  } \
-  putchar('\n'); \
-}
-/* end SDUMP */
-#endif
-
 
 /*
  * Global symbols from kernel text.
  */
+
 extern unsigned int	_Idle;
 extern unsigned int	__xtrap_break__;
 extern unsigned int	__xtrap_off__;
@@ -88,12 +72,12 @@ static int iret_flt;
  *
  * Argument "trapno" is the return eip for the code calling tsave().
  */
-trap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
-  eip, cs, efl, uesp, ss)
-char *eip;
+
+void
+trap (regset)
+gregset_t	regset;
 {
 	register struct	systab	*stp;
-	register int	callnum;
 	register int	sigcode;
 	extern int	trapcode;
 	extern	*mmdata[], mminit;
@@ -102,92 +86,109 @@ char *eip;
 	int	splo, datahi;
 	unsigned int	txtlo, txthi;
 	unsigned int cr2 = 0;
-	unsigned int cpl = cs & SEG_PL;
+	unsigned int cpl = regset._i386._cs & SEG_PL;
 
-	/*
-	 * Avoid sign extension confusion on 286 ds
-	 */
-	if (ds == (SEG_286_UD | R_USR))
-		uesp = (unsigned short)uesp;
-
-	if (err==SINMI) {
-		printf("Parity error\n");
-		curr_register_dump ((gregset_t *) & gs);
+	if (regset._i386._err == SINMI) {
+		printf ("Parity error\n");
+		curr_register_dump (& regset);
+#if	0
 		panic("...");
+#else
+		return;
+#endif
 	}
 
 	/*
 	 * Expect this to never happen!
 	 */
 	if (SELF->p_flags & PFKERN) {
-		panic("pid%d: kernel process trap: err=%x, ip=%x ax=%d",
-			SELF->p_pid, err, eip, eax);
+		panic ("pid%d: kernel process trap: err=%x, ip=%x ax=%d",
+			SELF->p_pid, regset._i386._err, regset._i386._eip,
+			regset._i386._eax);
 	}
 
-	T_HAL(0x4000, printf("T%d ", err));
+	T_HAL (0x4000, printf ("T%d ", regset._i386._err));
 	sigcode = 0;
 
-	u.u_regl = &gs;	/* hook in register set for consave/conrest */
+#if	0
+	u.u_regl = & regset;	/* hook in register set for consave/conrest */
+#endif
 
-	switch (err) {
+	switch (regset._i386._err) {
 	case SIOSYS:
 		/*
 		 * 286 System call.
 		 */
-		sigcode = oldsys();
+		sigcode = oldsys (& regset);
 		break;
-	case SISYS:
+
+	case SISYS: {
+		long		args [MSACOUNT];
+		unsigned	callnum;
+
 		/*
 		 * 386 System call.
 		 */
 		u.u_error = 0;
-		callnum = eax;
+		callnum = regset._i386._eax;
 
-		T_PIGGY(4, printf("{%d}", callnum));
+		T_PIGGY (4, printf ("{%d", callnum));
 
 		if (callnum < NMICALL)
 			stp = sysitab + callnum;
-		else if ( callnum == COHCALL )
-			stp = &cohcall;
-		else if ( ((callnum&0xFF)==0x28) && ((callnum>>8)<=H28CALL) )
-			stp = h28itab + ((callnum>>8) - 1);
+		else if (callnum == COHCALL)
+			stp = & cohcall;
+		else if ((callnum & 0xFF) == 0x28 &&
+			 (callnum >> 8) <= H28CALL)
+			stp = h28itab + (callnum >> 8) - 1;
 		else {
 			sigcode = SIGSYS;
 			goto trapend;
 		}
 
-		ukcopy(uesp+sizeof(long),u.u_args, stp->s_nargs*sizeof(long));
+		ukcopy (regset._i386._uesp + sizeof (long), args,
+			stp->s_nargs * sizeof (long));
+
 		if (u.u_error) {
 			sigcode = SIGSYS;
 			goto trapend;
 		}
 
+		/*
+		 * NIGEL: This is sleazy and stupid, and must go ASAP. We
+		 * must learn to initialize structures properly.
+		 */
+
+#if	0
 		u.u_io.io_seg = IOUSR;
-		if (envsave(&u.u_sigenv)) {
+#endif
+
+		if (envsave (& u.u_sigenv)) {
 			u.u_error = EINTR;
 		} else {
-			eax = (*stp->s_func)(u.u_args[0],
-			      u.u_args[1],
-			      u.u_args[2],
-			      u.u_args[3],
-			      u.u_args[4],
-			      u.u_args[5]);
-			edx = u.u_rval2;
+			regset._i386._eax = __DOSYSCALL (stp->s_nargs,
+							 stp->s_func, args,
+							 & regset);
+			regset._i386._edx = u.u_rval2;
 		}
 
-		efl &= ~MFCBIT;		/* clear carry flag in return efl */
 		if (u.u_error) {
-			eax = u.u_error;
-			efl |= MFCBIT;
-		}
+			regset._i386._eax = u.u_error;
+			regset._i386._eflags |= MFCBIT;
+		} else		/* clear carry flag in return efl */
+			regset._i386._eflags &= ~ MFCBIT;
+
+		T_PIGGY (0x04, printf ("=%x}", regset._i386._eax));
 		break;
+	    } /* end block */
+
 		/*
 		 * Trap.
 		 */
 	case SIDIV:
 #ifdef	TRACER
 		printf ("Integer divide by zero");
-		curr_register_dump ((gregset_t *) & gs);
+		curr_register_dump (& regset);
 #endif
 		sigcode = SIGFPE;
 		break;
@@ -216,11 +217,11 @@ char *eip;
 		 * Invalid opcode
 		 */
 		if (cpl < 2) {
-			int *ip = (int *)eip;
+			int	      *	ip = (int *) regset._i386._eip;
 
-			curr_register_dump ((gregset_t *) & gs);
-			printf("(eip)=%x %x %x  ", ip[0], ip[1], ip[2]);
-			panic("Invalid Opcode");
+			curr_register_dump (& regset);
+			printf ("(eip)=%x %x %x  ", ip [0], ip [1], ip [2]);
+			panic ("Invalid Opcode");
 		}
 		sigcode = SIGILL;
 		break;
@@ -241,7 +242,8 @@ char *eip;
 		/*
 		 * Double exception
 		 */
-		panic("double exception: cs=%x ip=%x", cs, eip);
+		panic ("double exception: cs=%x ip=%x", regset._i386._cs,
+		       regset._i386._eip);
 		sigcode = SIGSEGV;
 		break;
 
@@ -256,7 +258,8 @@ char *eip;
 		/*
 		 * Invalid task state segment
 		 */
-		panic("invalid tss: cs=%x ip=%x", cs, eip);
+		panic ("invalid tss: cs=%x ip=%x", regset._i386._cs,
+		       regset._i386._eip);
 		sigcode = SIGSEGV;
 		break;
 
@@ -273,8 +276,9 @@ char *eip;
 		 */
 		sigcode = SIGKILL;
 		break;
+
 	default:
-		curr_register_dump ((gregset_t *) & gs);
+		curr_register_dump (& regset);
 		panic("Fatal Trap");
 	}
 
@@ -285,10 +289,10 @@ trapend:
 	 */
 	if (sigcode) {
 		if (sigcode != SIGTRAP) {
-			curr_register_dump ((gregset_t *) & gs);
+			curr_register_dump (& regset);
 			printf("sigcode=#%d  User Trap\n", sigcode);
 		}
-		sendsig(sigcode, SELF);
+		sendsig (sigcode, SELF);
 	}
 }
 
@@ -414,11 +418,13 @@ unsigned int cs, eip;
  *
  * Runs in ring 0.
  */
-__debug_ker__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
-  err, eip, cs, efl, uesp, ss)
+
+void
+__debug_ker__ (regset)
+gregset_t	regset;
 {
-	unsigned int	dr6 = read_dr6();
-	unsigned	cpl = cs & SEG_PL;
+	unsigned int	dr6 = read_dr6 ();
+	unsigned	cpl = regset._i386._cs & SEG_PL;
 	int		do_rdump = 1;
 
 	if (dr6 & 0xf) {	/* report breakpoint exception(s) */
@@ -433,12 +439,14 @@ __debug_ker__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 			printf("DR3=%x  ", DR3);
 		printf("DR7=%x\n", DR7);
 	}
+
 	if (dr6 &  0xf000) {	/* report other debug exception(s) */
 		if (dr6 & 0x8000)
 			printf("Switch to debugged task\n");
+
 		if (dr6 & 0x4000) {
 			/* Single Step */
-			switch(cpl) {
+			switch (cpl) {
 			/*
 			 * If user code trapped, send signal
 			 * and suppress console register dump.
@@ -448,34 +456,33 @@ __debug_ker__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 				 * Turn off single-stepping when entering
 				 * Ring 1.
 				 */
-				if (eip == &syc32 || eip == &sig32) {
+				if (regset._i386._eip == & syc32 ||
+				    regset._i386._eip == & sig32) {
 					do_rdump = 0;
 				} else {
-printf("/nefl=%x  No single stepping the kernel.\n", efl);
-#if 0
-					SDUMP(uesp);
-#endif
+printf("\nefl=%x  No single stepping the kernel.\n", regset._i386._eflags);
 				}
-				efl &= ~TRAP_FLAG;
+				regset._i386._eflags &= ~TRAP_FLAG;
 				break;
 			case DPL_3:
 				do_rdump = 0;
-T_HAL(0x20000, printf("Kernel SSTEP eip=%x efl=%x  ", eip, efl));
-				sendsig(SIGTRAP, SELF);
+T_HAL(0x20000, printf ("Kernel SSTEP eip=%x efl=%x  ", regset._i386._eip,
+			regset._i386._eflags));
+				sendsig (SIGTRAP, SELF);
 				break;
 			}
 		}
 		if (dr6 & 0x2000) {
 			printf("ICE in use\n");
-			eip += 3;
+			regset._i386._eip += 3;
 		}
 	}
 
 	if (do_rdump)
-		curr_register_dump ((gregset_t *) & gs);
+		curr_register_dump (& regset);
 
-	write_dr6(0);
-	efl |= RESUME_FLAG;
+	write_dr6 (0);
+	regset._i386._eflags |= RESUME_FLAG;
 	return;
 }
 
@@ -483,57 +490,57 @@ T_HAL(0x20000, printf("Kernel SSTEP eip=%x efl=%x  ", eip, efl));
  * General protection fault handler.
  * Entered via a ring 0 gate.
  */
-gpfault(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
-  eip, cs, efl, uesp, ss)
-char *eip;
+
+void
+gpfault (regset)
+gregset_t	regset;
 {
-	unsigned cpl = cs & SEG_PL;
+	unsigned cpl = regset._i386._cs & SEG_PL;
 
 	/*
 	 * Switch on CPL of code that trapped.
 	 */
+
 	switch(cpl) {
 	case DPL_0:
 		/*
 		 * Ring 0 should not gp fault.
 		 */
-		curr_register_dump ((gregset_t *) & gs);
-#if 0
-		T_HAL(0x1000, SDUMP(&uesp));
-		T_HAL(0x1000, SDUMP(*((&uesp) + 2)));
-#endif
-		panic("System GP Fault from Ring 0");
+		curr_register_dump (& regset);
+		panic ("System GP Fault from Ring 0");
 		break;
+
 	case DPL_1:
 		/*
 		 * If ring 1 faulted on a valid request, emulate the
 		 * request while running in ring 0.
 		 */
-		switch(trap_op(cs,eip)) {
+		switch (trap_op (regset._i386._cs, regset._i386._eip)) {
 		case READ_CR0:
-			eax = read_cr0();
-			eip += 3;
+			regset._i386._eax = read_cr0 ();
+			regset._i386._eip += 3;
 			break;
 #if 0
 		case WRITE_CR0:
 			if (eax & 4)
-				setfpe(0);
+				setfpe (0);
 			else
-				setfpe(1);
+				setfpe (1);
 			eip += 3;
 			break;
 #endif
 		case READ_CR2:
-			eax = read_cr2();
-			eip += 3;
+			regset._i386._eax = read_cr2 ();
+			regset._i386._eip += 3;
 			break;
+
 		case READ_CR3:
-			eax = read_cr3();
-			eip += 3;
+			regset._i386._eax = read_cr3 ();
+			regset._i386._eip += 3;
 			break;
 #if 0
 		case WRITE_CR3:
-			mmuupdnR0();
+			mmuupdnR0 ();
 			eip += 3;
 			break;
 #endif
@@ -543,60 +550,73 @@ char *eip;
 			 * from inner ring to ring 3.
 			 * Fix is to retry the instruction a few times.
 			 */
-			if (!iret_flt) {
+			if (! iret_flt) {
 				iret_flt = 1;
-				printf("CPU Bug:  "
+				printf ("CPU Bug:  "
 				  "Spurious GP Fault on Iret to Ring 3.\n");
 			}
 			break;
+
 		case READ_DR0:
-			eax = read_dr0();
-			eip += 3;
+			regset._i386._eax = read_dr0 ();
+			regset._i386._eip += 3;
 			break;
+
 		case READ_DR1:
-			eax = read_dr1();
-			eip += 3;
+			regset._i386._eax = read_dr1 ();
+			regset._i386._eip += 3;
 			break;
+
 		case READ_DR2:
-			eax = read_dr2();
-			eip += 3;
+			regset._i386._eax = read_dr2 ();
+			regset._i386._eip += 3;
 			break;
+
 		case READ_DR3:
-			eax = read_dr3();
-			eip += 3;
+			regset._i386._eax = read_dr3 ();
+			regset._i386._eip += 3;
 			break;
+
 		case READ_DR6:
-			eax = read_dr6();
-			eip += 3;
+			regset._i386._eax = read_dr6 ();
+			regset._i386._eip += 3;
 			break;
+
 		case READ_DR7:
-			eax = read_dr7();
-			eip += 3;
+			regset._i386._eax = read_dr7 ();
+			regset._i386._eip += 3;
 			break;
+
 		case WRITE_DR0:
-			write_dr0(eax);
-			eip += 3;
+			write_dr0 (regset._i386._eax);
+			regset._i386._eip += 3;
 			break;
+
 		case WRITE_DR1:
-			write_dr1(eax);
-			eip += 3;
+			write_dr1 (regset._i386._eax);
+			regset._i386._eip += 3;
 			break;
+
 		case WRITE_DR2:
-			write_dr2(eax);
-			eip += 3;
+			write_dr2 (regset._i386._eax);
+			regset._i386._eip += 3;
 			break;
+
 		case WRITE_DR3:
-			write_dr3(eax);
-			eip += 3;
+			write_dr3 (regset._i386._eax);
+			regset._i386._eip += 3;
 			break;
+
 		case WRITE_DR6:
-			write_dr6(eax);
-			eip += 3;
+			write_dr6 (regset._i386._eax);
+			regset._i386._eip += 3;
 			break;
+
 		case WRITE_DR7:
-			write_dr7(eax);
-			eip += 3;
+			write_dr7 (regset._i386._eax);
+			regset._i386._eip += 3;
 			break;
+
 		case HALT:
 			halt ();
 			break;
@@ -607,60 +627,63 @@ char *eip;
 			 */
 printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
   DR0, DR1, DR2, DR3, DR7);
-			write_dr0(DR0);
-			write_dr1(DR1);
-			write_dr2(DR2);
-			write_dr3(DR3);
-			write_dr7(DR7);
-			eip += 3;
+			write_dr0 (DR0);
+			write_dr1 (DR1);
+			write_dr2 (DR2);
+			write_dr3 (DR3);
+			write_dr7 (DR7);
+			regset._i386._eip += 3;
 			break;
 #endif
 		default:
-			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
-				long	* bp = ebp;
-
-				curr_register_dump ((gregset_t *) & gs);
+			if (regset._i386._eip >= & __xtrap_on__ &&
+			    regset._i386._eip < & __xtrap_off__) {
+#ifdef	TRACER
+				curr_register_dump (& regset);
 				printf ("copy fault called from %x\n",
-					* (int *) edx);
-				SET_U_ERROR(EFAULT, "copy gp");
-				eip = &__xtrap_break__;
-			} else {
-				curr_register_dump ((gregset_t *) & gs);
-#if 0
-				T_HAL(0x1000, SDUMP(uesp));
+					* (int *) regset._i386._edx);
 #endif
-				panic("System GP Fault from Ring 1");
+				SET_U_ERROR (EFAULT, "copy gp");
+				regset._i386._eip = & __xtrap_break__;
+			} else {
+				curr_register_dump (& regset);
+				panic ("System GP Fault from Ring 1");
 			}
 		}
 		goto gpdone;
 		break;
+
 	case DPL_2:
 		/*
 		 * Nothing should be running in Ring 2.
 		 */
+
 	case DPL_3:
 		/*
 		 * Ring 3 gp fault means errant user process.
 		 */
-		curr_register_dump ((gregset_t *) & gs);
-		printf("User GP Violation\n");
-		sendsig(SIGSEGV, SELF);
+		curr_register_dump (& regset);
+		printf ("User GP Violation\n");
+		sendsig (SIGSEGV, SELF);
 		break;
 	}
 gpdone:
 	return;
 }
 
+
 /*
  * User debugger.
  *
  * Runs in ring 1.
  */
-__debug_usr__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
-  err, eip, cs, efl, uesp, ss)
+
+void
+__debug_usr__ (regset)
+gregset_t	regset;
 {
 	unsigned int	dr6 = read_dr6();
-	unsigned	cpl = cs & SEG_PL;
+	unsigned	cpl = regset._i386._cs & SEG_PL;
 	int		do_rdump = 1;
 
 	if (dr6 & 0xf) {	/* report breakpoint exception(s) */
@@ -675,9 +698,11 @@ __debug_usr__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 			printf("DR3=%x  ", DR3);
 		printf("DR7=%x\n", DR7);
 	}
+
 	if (dr6 &  0xf000) {	/* report other debug exception(s) */
 		if (dr6 & 0x8000)
 			printf("Switch to debugged task\n");
+
 		if (dr6 & 0x4000) {
 			/* Single Step */
 			switch(cpl) {
@@ -690,55 +715,55 @@ __debug_usr__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 				 * Turn off single-stepping when entering
 				 * Ring 1.
 				 */
-				if (eip == &syc32 || eip == &sig32) {
+				if (regset._i386._eip == & syc32 ||
+				    regset._i386._eip == & sig32) {
 					do_rdump = 0;
 				} else {
-printf("/nefl=%x  No single stepping the kernel.\n", efl);
-#if 0
-					SDUMP(uesp);
-#endif
+printf("/nefl=%x  No single stepping the kernel.\n", regset._i386._eflags);
 				}
-				efl &= ~TRAP_FLAG;
+				regset._i386._eflags &= ~TRAP_FLAG;
 				break;
+
 			case DPL_3:
 				do_rdump = 0;
-T_HAL(0x20000, printf("User SSTEP eip=%x efl=%x  ", eip, efl));
-				sendsig(SIGTRAP, SELF);
+T_HAL(0x20000, printf ("User SSTEP eip=%x efl=%x  ", regset._i386._eip,
+			regset._i386._eflags));
+				sendsig (SIGTRAP, SELF);
 				break;
 			}
 		}
 		if (dr6 & 0x2000) {
 			printf("ICE in use\n");
-			eip += 3;
+			regset._i386._eip += 3;
 		}
 	}
 
 	if (do_rdump)
-		curr_register_dump ((gregset_t *) & gs);
+		curr_register_dump (& regset);
 
-	write_dr6(0);
-	efl |= RESUME_FLAG;
+	write_dr6 (0);
+	regset._i386._eflags |= RESUME_FLAG;
 	return;
 }
 
-irqblab(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
-  err, eip, cs, efl, uesp, ss)
+irqblab (regset)
+gregset_t	regset;
 {
 	puts("*ip=");
-	print32(eip);
+	print32 (regset._i386._eip);
 	puts(" *err=");
-	print32(err);
-	if ((err & 0xff) == 0x40) {
-		int irqno = (err >> 8) & 0xFF;
-		print8(irqno);
-	} else if (err == 2) {
+	print32 (regset._i386._err);
+
+	if ((regset._i386._err & 0xff) == 0x40) {
+		int irqno = (regset._i386._err >> 8) & 0xFF;
+		print8 (irqno);
+	} else if (regset._i386._err == 2)
 		puts("NMI ");
-	}
 }
 
-pagefault(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
-  eip, cs, efl, uesp, ss)
-char *eip;
+void
+pagefault (regset)
+gregset_t	regset;
 {
 	register struct	systab	*stp;
 	register int	callnum;
@@ -751,159 +776,168 @@ char *eip;
 	unsigned int	txtlo, txthi;
 	unsigned long newsp;	/* Anticipated value for stack pointer.  */
 	unsigned int cr2 = 0;
-	unsigned int cpl = cs & SEG_PL;
-
-	/*
-	 * Avoid sign extension confusion on 286 ds
-	 */
-	if (ds == (SEG_286_UD | R_USR))
-		uesp = (unsigned short)uesp;
+	unsigned int cpl = regset._i386._cs & SEG_PL;
 
 	/*
 	 * Expect this to never happen!
 	 */
-	if (SELF->p_flags&PFKERN) {
-		panic("pid%d: kernel process trap: err=%x, ip=%x ax=%d",
-			SELF->p_pid, err, eip, eax);
+
+	if (SELF->p_flags & PFKERN) {
+		panic ("pid%d: kernel process trap: err=%x, ip=%x ax=%d",
+			SELF->p_pid, regset._i386._err, regset._i386._eip,
+			regset._i386._eax);
 	}
 
-	T_HAL(0x4000, printf("T%d ", err));
+	T_HAL (0x4000, printf("T%d ", regset._i386._err));
 	sigcode = 0;
 
+#if	0
 	u.u_regl = &gs;	/* hook in register set for consave/conrest */
-
-	{
-		/*
-		 * Page fault
-		 */
-		cr2 = read_cr2();
-		if (cpl < 2) {
-			/*
-			 * If page fault during Ring 1 copy service routine,
-			 * such as kucopy or ukcopy, set u_error and abort
-			 * the copy, but don't send signal to the user.
-			 */
-			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
-				T_HAL(0x1000, printf("copy trapped "));
-				SET_U_ERROR(EFAULT, "copy service");
-				eip = &__xtrap_break__;
-				goto pf_end;
-			} else {
-#if 0
-				printf("&uesp=>");
-				SDUMP(&uesp);
-				printf("*(&uesp + 2)=>");
-				SDUMP(*((&uesp) + 2));
 #endif
-				printf("cr2=%x", cr2);
-				curr_register_dump ((gregset_t *) & gs);
-				panic("Kernel Page Fault");
-			}
-		}
 
-		/* Check for stack underflow. */
+	/*
+	 * Page fault
+	 */
 
+	cr2 = read_cr2 ();
+	if (cpl < 2) {
 		/*
-		 * I think 'splo' is being calculated in a bass-ackwards way,
-		 * and that 'datahi' is just wrong, but I'm not certain,
-		 * so the fixes are #if 0'd out. -piggy
-		 *
-		 * I'll take out the 0 some day and test these changes.
+		 * If page fault during Ring 1 copy service routine,
+		 * such as kucopy or ukcopy, set u_error and abort
+		 * the copy, but don't send signal to the user.
 		 */
-		segp = u.u_segl[SISTACK].sr_segp;
+
+		if (regset._i386._eip >= & __xtrap_on__ &&
+		    regset._i386._eip < & __xtrap_off__) {
+
+			T_HAL (0x1000, printf ("copy trapped "));
+#ifdef	TRACER
+			curr_register_dump (& regset);
+			printf ("copy fault called from %x\n",
+				* (int *) regset._i386._edx);
+#endif
+			SET_U_ERROR (EFAULT, "copy service");
+			regset._i386._eip = & __xtrap_break__;
+			goto pf_end;
+		} else {
+			printf ("cr2=%x", cr2);
+			curr_register_dump (& regset);
+			panic ("Kernel Page Fault");
+		}
+	}
+
+	/* Check for stack underflow. */
+
+	/*
+	 * I think 'splo' is being calculated in a bass-ackwards way,
+	 * and that 'datahi' is just wrong, but I'm not certain,
+	 * so the fixes are #if 0'd out. -piggy
+	 *
+	 * I'll take out the 0 some day and test these changes.
+	 */
+	segp = u.u_segl [SISTACK].sr_segp;
 #if 0
-		splo = u.u_segl[SISTACK].sr_base - segp->s_size;
-		datahi = u.u_segl[SIPDATA].sr_base + u.u_segl[SIPDATA].sr_size;
+	splo = u.u_segl [SISTACK].sr_base - segp->s_size;
+	datahi = u.u_segl [SIPDATA].sr_base + u.u_segl [SIPDATA].sr_size;
 #else
-		splo = (XMODE_286) ? ISP_286 : ISP_386;
-		splo -= segp->s_size;
-		datahi = u.u_segl[SIPDATA].sr_size;
+	splo = __xmode_286 (& regset) ? ISP_286 : ISP_386;
+	splo -= segp->s_size;
+	datahi = u.u_segl [SIPDATA].sr_size;
 #endif /* 0 */
 
+	/*
+	 * Catch bad function pointer here - don't want to restart
+	 * the user instruction and get runaway segv's.
+	 *
+	 * For 286 executables, eip starts at 0, but cs points to
+	 * descriptor SEG_286_UII which adds 0x400000 (UII_BASE).
+	 */
+
+	txtlo = u.u_segl [SISTEXT].sr_base;
+	if (__xmode_286 (& regset))
+		txtlo -= UII_BASE;
+
+	txthi = txtlo + u.u_segl [SISTEXT].sr_size;
+	if (regset._i386._eip < txtlo ||
+	    regset._i386._eip > txthi) {
+		T_HAL (0x1000, printf ("Bad eip, txtlo=%x txthi=%x\n",
+				       txtlo, txthi));
+		goto bad_pf;
+	}
+
+	/*
+	 * If we trapped on an 'enter' instruction, the stack
+	 * pointer (uesp) has not yet been decremented.  In
+	 * order to correctly process such a stack overflow,
+	 * we must look at the _expected_ value for uesp.
+	 * NB: We COPY uesp, because that arg gets loaded back
+	 * into the real esp--when we return from the trap the
+	 * enter instruction will decrement the esp.
+	 */
+
+	newsp = __xmode_286 (& regset) ? regset._i286._usp :
+					 regset._i386._uesp;
+
+	if (ffbyte (regset._i386._eip, regset._i386._cs) == ENTER_OP) {
 		/*
-		 * Catch bad function pointer here - don't want to restart
-		 * the user instruction and get runaway segv's.
-		 *
-		 * For 286 executables, eip starts at 0, but cs points to
-		 * descriptor SEG_286_UII which adds 0x400000 (UII_BASE).
+		 * Adjust the sp by the argument of the ENTER
+		 * instruction.
 		 */
-		txtlo = u.u_segl[SISTEXT].sr_base;
-		if (XMODE_286)
-			txtlo -= UII_BASE;
-		txthi = txtlo + u.u_segl[SISTEXT].sr_size;
-		if (eip < txtlo || eip > txthi) {
-			T_HAL(0x1000, printf("Bad eip, txtlo=%x txthi=%x\n",
-			  txtlo, txthi));
+
+		newsp -= ffword (regset._i386._eip + 1, regset._i386._cs);
+	}
+
+	if (cr2 <= splo && newsp <= splo && newsp > datahi &&
+	    btoc (datahi) < btocrd (splo)) {
+
+		pp = c_extend(segp->s_vmem, btoc(segp->s_size));
+		if (pp==0) {
+			T_HAL (0x1000, printf ("c_extend(%x,%x)=0 ",
+					       segp->s_vmem,
+					       btoc(segp->s_size)));
 			goto bad_pf;
 		}
 
-		/*
-		 * If we trapped on an 'enter' instruction, the stack
-		 * pointer (uesp) has not yet been decremented.  In
-		 * order to correctly process such a stack overflow,
-		 * we must look at the _expected_ value for uesp.
-		 * NB: We COPY uesp, because that arg gets loaded back
-		 * into the real esp--when we return from the trap the
-		 * enter instruction will decrement the esp.
-		 */
+		segp->s_vmem = pp;
+		segp->s_size += NBPC;
 
-		newsp = uesp;
-		if (ffbyte (eip, cs) == ENTER_OP) {
-			/*
-			 * Adjust the sp by the argument of the ENTER
-			 * instruction.
-			 */
-
-			newsp -= ffword (eip + 1, cs);
+		if (sproto (0) == 0) {
+			T_HAL(0x1000, printf("sproto(0)=0 "));
+			goto bad_pf;
 		}
 
-		if (cr2 <= splo
-		  && newsp <= splo
-		  && newsp > datahi
-		  && btoc(datahi) < btocrd(splo)) {
-			pp = c_extend(segp->s_vmem, btoc(segp->s_size));
-			if (pp==0) {
-				T_HAL(0x1000, printf("c_extend(%x,%x)=0 ",
-				  segp->s_vmem, btoc(segp->s_size)));
-				goto bad_pf;
-			}
-
-			segp->s_vmem = pp;
-			segp->s_size += NBPC;
-			if (sproto(0)==0) {
-				T_HAL(0x1000, printf("sproto(0)=0 "));
-				goto bad_pf;
-			}
-
-			segload();
-			goto pf_end;
-		}
-
-		/*
-		 * Catch bad data pointer here - don't want to restart
-		 * the user instruction and get runaway segv's.
-		 */
-		{
-			T_HAL(0x1000, printf("Bad data, splo=%x datahi=%x\n",
-			  splo, datahi));
-		}
-
-	bad_pf:
-		/*
-		 * User generated unacceptable page fault.
-		 */
-		sigcode = SIGSEGV;
-		printf("\ncr2=%x  ", cr2);
+		segload ();
+		goto pf_end;
 	}
+
+	/*
+	 * Catch bad data pointer here - don't want to restart
+	 * the user instruction and get runaway segv's.
+	 */
+
+	{
+		T_HAL(0x1000, printf ("Bad data, splo=%x datahi=%x\n",
+				      splo, datahi));
+	}
+
+bad_pf:
+	/*
+	 * User generated unacceptable page fault.
+	 */
+
+	sigcode = SIGSEGV;
+	printf("\ncr2=%x  ", cr2);
 
 pf_end:
 	/*
 	 * Send user a signal.
+	 * If not segload ();
 	 * If not a breakpoint, do console register dump.
 	 */
+
 	if (sigcode) {
-		curr_register_dump ((gregset_t *) & gs);
-		printf("sigcode=#%d  User Page Fault\n", sigcode);
-		sendsig(sigcode, SELF);
+		curr_register_dump (& regset);
+		printf ("sigcode=#%d  User Page Fault\n", sigcode);
+		sendsig (sigcode, SELF);
 	}
 }

@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/printf.c,v 1.2 92/01/06 12:00:01 hal Exp $ */
+/* $Header: /ker/coh.386/RCS/printf.c,v 2.2 93/07/26 14:29:00 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Print formatted.
  *
  * $Log:	printf.c,v $
+ * Revision 2.2  93/07/26  14:29:00  nigel
+ * Nigel's R80
+ * 
  * Revision 1.2  92/01/06  12:00:01  hal
  * Compile with cc.mwc.
  * 
@@ -118,10 +121,13 @@ register char *fp;
 			continue;
 
 		case 's':
-			cp = ind(ap, char *);
-			ap += inc(int, char *);
-			while ((c=*cp++) != '\0')
-				putchar(c);
+			cp = ind (ap, char *);
+			ap += inc (int, char *);
+			if (cp == NULL)
+				cp = "{NULL}";
+
+			while ((c = * cp++) != '\0')
+				putchar (c);
 			continue;
 
 		case 'x':

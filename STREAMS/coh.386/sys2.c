@@ -21,27 +21,29 @@
 /*
  * Determine accessibility of the given file.
  */
+
 uaccess(np, mode)
 char *np;
 register int mode;
 {
 	register INODE *ip;
 	register int r;
-	int ioType;		/* Type of I/O operation */
+	IO		io;
+	struct direct	dir;
 
-	schizo();
-	ioType = u.u_io.io_seg;
-	u.u_io.io_seg = IOUSR;
-	r = ftoi(np, 'r');
-	u.u_io.io_seg = ioType;
-	schizo();
+	schizo ();
+
+	io.io_seg = IOUSR;
+	r = ftoi (np, 'r', & io, & dir);
+
+	schizo ();
 
 	if (r)
 		return;
 	ip = u.u_cdiri;
-	if (!iaccess(ip, mode))
+	if (! iaccess (ip, mode))
 		u.u_error = EACCES;
-	idetach(ip);
+	idetach (ip);
 	return 0;
 }
 
@@ -66,31 +68,38 @@ schizo()
 uacct(np)
 register char *np;
 {
-	register INODE *ip;
-
-	if (super() == 0)
+	if (super () == 0)
 		return;
+
 	if (np == NULL) {
 		if (acctip == NULL) {
 			u.u_error = EINVAL;
 			return;
 		}
-		ldetach(acctip);
+
+		ldetach (acctip);
 		acctip = NULL;
 	} else {
+		INODE	      *	ip;
+		IO		io;
+		struct direct	dir;
+
 		if (acctip != NULL) {
 			u.u_error = EINVAL;
 			return;
 		}
-		if (ftoi(np, 'r'))
+
+		io.io_seg = IOUSR;
+		if (ftoi (np, 'r', & io, & dir))
 			return;
+
 		ip = u.u_cdiri;
-		if ((ip->i_mode&IFMT) != IFREG) {
+		if ((ip->i_mode & IFMT) != IFREG) {
 			u.u_error = EINVAL;
-			idetach(ip);
+			idetach (ip);
 			return;
 		}
-		iunlock(ip);
+		iunlock (ip);
 		acctip = ip;
 	}
 	return 0;
@@ -102,7 +111,7 @@ register char *np;
 uchdir(np)
 char *np;
 {
-	setcdir(np, &u.u_cdir);
+	setcdir (np, & u.u_cdir);
 	return 0;
 }
 
@@ -117,23 +126,27 @@ char *np;
 register INODE **ipp;
 {
 	register INODE *ip;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(np, 'r'))
+	io.io_seg = IOUSR;
+	if (ftoi (np, 'r', & io, & dir))
 		return;
+
 	ip = u.u_cdiri;
-	if ((ip->i_mode&IFMT) != IFDIR) {
+	if ((ip->i_mode & IFMT) != IFDIR) {
 		u.u_error = ENOTDIR;
-		idetach(ip);
+		idetach (ip);
 		return;
 	}
-	if (iaccess(ip, IPE) == 0) {
+	if (iaccess (ip, IPE) == 0) {
 		u.u_error = EACCES;
-		idetach(ip);
+		idetach (ip);
 		return;
 	}
-	iunlock(ip);
-	ldetach(*ipp);
-	*ipp = ip;
+	iunlock (ip);
+	ldetach (* ipp);
+	* ipp = ip;
 }
 
 /*
@@ -143,18 +156,22 @@ uchmod(np, mode)
 char *np;
 {
 	register INODE *ip;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(np, 'r'))
+	io.io_seg = IOUSR;
+	if (ftoi (np, 'r', & io, & dir))
 		return;
+
 	ip = u.u_cdiri;
-	if (owner(ip->i_uid)) {
+	if (owner (ip->i_uid)) {
 		if (u.u_uid)
-			mode &= ~ISVTXT;
+			mode &= ~ ISVTXT;
 		ip->i_mode &= IFMT;
-		ip->i_mode |= mode&~IFMT;
-		icrt(ip);	/* chmod - ctime */
+		ip->i_mode |= mode & ~ IFMT;
+		icrt (ip);	/* chmod - ctime */
 	}
-	idetach(ip);
+	idetach (ip);
 	return 0;
 }
 
@@ -165,17 +182,21 @@ uchown(np, uid, gid)
 char *np;
 {
 	register INODE *ip;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(np, 'r'))
+	io.io_seg = IOUSR;
+	if (ftoi (np, 'r', & io, & dir))
 		return;
+
 	ip = u.u_cdiri;
-	if (super()) {
-		ip->i_mode &= ~(ISUID | ISGID);  /* clear any setuid/setgid */
+	if (super ()) {
+		ip->i_mode &= ~ (ISUID | ISGID);  /* clear any setuid/setgid */
 		ip->i_uid = uid;
 		ip->i_gid = gid;
-		icrt(ip);	/* chown - ctime */
+		icrt (ip);	/* chown - ctime */
 	}
-	idetach(ip);
+	idetach (ip);
 	return 0;
 }
 
@@ -185,8 +206,8 @@ char *np;
 uchroot(np)
 register char *np;
 {
-	if (super())
-		setcdir(np, &u.u_rdir);
+	if (super ())
+		setcdir (np, & u.u_rdir);
 	return 0;
 }
 
@@ -195,7 +216,7 @@ register char *np;
  */
 uclose(fd)
 {
-	fdclose(fd);
+	fdclose (fd);
 	return 0;
 }
 
@@ -206,7 +227,7 @@ ucreat(np, mode)
 char *np;
 register int mode;
 {
-	return(uopen(np, O_WRONLY|O_CREAT|O_TRUNC, mode));
+	return uopen (np, O_WRONLY | O_CREAT | O_TRUNC, mode);
 }
 
 /*
@@ -227,19 +248,27 @@ struct stat *stp;
 	register FD *fdp;
 	struct stat stat;
 
-	if ((fdp=fdget(fd)) == NULL)
+	if ((fdp = fdget (fd)) == NULL)
 		return;
+
 	ip = fdp->f_ip;
-	istat(ip, &stat);
-	kucopy(&stat, stp, sizeof(stat));
+	istat (ip, & stat);
+
+	if (kucopy (& stat, stp, sizeof (stat)) != sizeof (stat)) {
+		u.u_error = EFAULT;
+		return -1;
+	}
 	return 0;
 }
 
 /*
  * File control.
  */
-ufcntl( fd, cmd, arg )
-int fd, cmd, arg;
+
+ufcntl (fd, cmd, arg)
+unsigned	fd;
+unsigned	cmd;
+unsigned	arg;
 {
 	register FD * fdp;
 	struct flock sfl;
@@ -249,6 +278,7 @@ int fd, cmd, arg;
 	/*
 	 * Validate file descriptor.
 	 */
+
 	if ((fdp = fdget (fd)) == NULL) {
 		u.u_error = EBADF;
 		return;
@@ -260,7 +290,7 @@ int fd, cmd, arg;
 		/*
 		 * Validate base file descriptor.
 		 */
-		if ((arg < 0) || (arg >= NOFILE)) {
+		if (arg >= NOFILE) {
 			u.u_error = EINVAL;
 			return;
 		}
@@ -295,27 +325,33 @@ int fd, cmd, arg;
 		case IPW: arg = O_WRONLY; break;
 		default:  arg = O_RDWR;   break;
 		}
-		if (fdp->f_flag & IPNDLY)
+
+		if ((fdp->f_flag & IPNDLY) != 0)
 			arg |= O_NDELAY;
-		if (fdp->f_flag & IPAPPEND)
+
+		if ((fdp->f_flag & IPAPPEND) != 0)
 			arg |= O_APPEND;
-		if (fdp->f_flag & IPNONBLOCK)
+
+		if ((fdp->f_flag & IPNONBLOCK) != 0)
 			arg |= O_NONBLOCK;
+
 		return arg;
 
 	case F_GETLK:
 	case F_SETLK:
 	case F_SETLKW:
-		ukcopy(*(struct flock **)&arg, &sfl, sizeof (struct flock));
-		if (u.u_error)
+		if (ukcopy ((struct flock *) arg, & sfl,
+			    sizeof (struct flock)) != sizeof (struct flock)) {
+			u.u_error = EFAULT;
 			return -1;
-		if (rlock(fdp, cmd, &sfl))
+		}
+		if (rlock (fdp, cmd, & sfl))
 			return -1;
-		if (cmd == F_GETLK) {
-			kucopy(&sfl, *(struct flock **)&arg,
-			       sizeof(struct flock));
-			if (u.u_error)
-				return -1;
+		if (cmd == F_GETLK &&
+		    kucopy (& sfl, (struct flock *) arg,
+			    sizeof (struct flock)) != sizeof (struct flock)) {
+			u.u_error = EFAULT;
+			return -1;
 		}
 		return 0;
 
@@ -326,8 +362,8 @@ int fd, cmd, arg;
 		return fdsetflags (fd, arg);
 
 	default:
-		T_VLAD(0x02,
-		  printf("'fcntl - unknown cmd=%d arg=0x0%x' ", cmd, arg));
+		T_VLAD (0x02, printf ("'fcntl - unknown cmd=%d arg=0x0%x' ",
+				      cmd, arg));
 		u.u_error = EINVAL;
 	}
 }
@@ -335,84 +371,121 @@ int fd, cmd, arg;
 /*
  * Device control information.
  */
-uioctl(fd, r, argp)
-struct sgttyb *argp;
+
+int
+uioctl (fd, cmd, argp, regsetp)
+unsigned	fd;
+unsigned	cmd;
+__VOID__      *	argp;
+gregset_t     *	regsetp;
 {
 	register FD *fdp;
 	register INODE *ip;
 	register int mode;
 
 
-	T_PIGGY( 0x8, printf("uioctl(%d, 0x%x, 0x%x)", fd, r, argp); );
+	T_PIGGY (0x8, printf ("uioctl(%d, 0x%x, 0x%x)", fd, cmd, argp));
 
-	if ((fdp=fdget(fd)) == NULL)
+	if ((fdp = fdget (fd)) == NULL)
 		return;
 	ip = fdp->f_ip;
-	mode = ip->i_mode&IFMT;
-	if (mode!=IFCHR && mode!=IFBLK) {
+	mode = ip->i_mode & IFMT;
+	if (mode != IFCHR && mode != IFBLK) {
 		u.u_error = ENOTTY;
 		return;
 	}
-	dioctl(ip->i_a.i_rdev, r, argp);
+	dioctl (ip->i_a.i_rdev, cmd, argp, fdp->f_flag, regsetp);
 	return 0;
 }
 
 /*
  * Create a link, `np2' to the already existing file `np1'.
  */
-ulink(np1, np2)
+
+ulink (np1, np2)
 char *np1;
 char *np2;
 {
-	register INODE *ip1;
+	return do_link (np1, np2, IOUSR);
+}
 
-	if (ftoi(np1, 'r'))
+
+/*
+ * Internal version of link (), used by ulink () and umkdir ().
+ */
+
+int
+do_link (path1, path2, space)
+char	      *	path1;
+char	      *	path2;
+int		space;
+{
+	register INODE *ip1;
+	IO		io;
+	struct direct	dir;
+
+	io.io_seg = space;
+	if (ftoi (path1, 'r', & io, & dir))
 		return;
+
 	ip1 = u.u_cdiri;
-	if ((ip1->i_mode&IFMT)==IFDIR && super()==0) {
-		idetach(ip1);
+	if ((ip1->i_mode & IFMT) == IFDIR && super () == 0) {
+		idetach (ip1);
 		return;
 	}
-	iunlock(ip1);
-	if (ftoi(np2, 'c')) {
-		ldetach(ip1);
+
+	iunlock (ip1);
+
+	io.io_seg = space;
+	if (ftoi (path2, 'c', & io, & dir)) {
+		ldetach (ip1);
 		return;
 	}
+
 	if (u.u_cdiri != NULL) {
 		u.u_error = EEXIST;
-		idetach(u.u_cdiri);
-		ldetach(ip1);
+		idetach (u.u_cdiri);
+		ldetach (ip1);
 		return;
 	}
+
 	if (ip1->i_dev != u.u_pdiri->i_dev) {
 		u.u_error = EXDEV;
-		idetach(u.u_pdiri);
-		ldetach(ip1);
+		idetach (u.u_pdiri);
+		ldetach (ip1);
 		return;
 	}
-	if (iaccess(u.u_pdiri, IPW) == 0) {
-		idetach(u.u_pdiri);
-		ldetach(ip1);
+
+	if (iaccess (u.u_pdiri, IPW) == 0) {
+		idetach (u.u_pdiri);
+		ldetach (ip1);
 		return;
 	}
-	idirent(ip1->i_ino);
-	idetach(u.u_pdiri);
-	ilock(ip1);
-	/* idirent() can fail during iwrite. In this case we should not 
+
+	idirent (ip1->i_ino, & io, & dir);
+	idetach (u.u_pdiri);
+	ilock (ip1);
+
+	/*
+	 * idirent() can fail during iwrite. In this case we should not 
          * increase link count. 
 	 * As result of this old bug, 286 mkdir utility destroys file 
 	 * system when runs out of free blocks.
 	 */
-	if (!u.u_error)
-		ip1->i_nlink++;
-	icrt(ip1);	/* link - ctime */
-	idetach(ip1);
+
+	if (! u.u_error)
+		ip1->i_nlink ++;
+
+	icrt (ip1);	/* link - ctime */
+	idetach (ip1);
 	return 0;
 }
+
 
 /*
  * Seek on the given file descriptor.
  */
+
 off_t
 ulseek(fd, off, w)
 register off_t off;
@@ -420,22 +493,25 @@ register off_t off;
 	register FD *fdp;
 	register INODE *ip;
 
-	if ((fdp=fdget(fd)) == NULL)
+	if ((fdp = fdget (fd)) == NULL)
 		return;
 	ip = fdp->f_ip;
-	if ((ip->i_mode&IFMT) == IFPIPE) {
+	if ((ip->i_mode & IFMT) == IFPIPE) {
 		u.u_error = ESPIPE;
 		return;
 	}
 	switch (w) {
 	case 0:
 		break;
+
 	case 1:
 		off += fdp->f_seek;
 		break;
+
 	case 2:
 		off += ip->i_size;
 		break;
+
 	default:
 		u.u_error = EINVAL;
 		return;
@@ -447,7 +523,7 @@ register off_t off;
 	}
 
 	fdp->f_seek = off;
-	return (off);
+	return off;
 }
 
 /*
@@ -459,21 +535,28 @@ dev_t rdev;
 {
 	register INODE *ip;
 	register int type;
+	IO		io;
+	struct direct	dir;
 
-	type = mode&IFMT;
-	if (type!=IFPIPE && super()==0)
+	type = mode & IFMT;
+	if (type != IFPIPE && super () == 0)
 		return;
-	if (type!=IFBLK && type!=IFCHR)
+	if (type != IFBLK && type != IFCHR)
 		rdev = 0;
-	if (ftoi(np, 'c'))
+
+	io.io_seg = IOUSR;
+	if (ftoi (np, 'c', & io, & dir))
 		return;
-	if ((ip=u.u_cdiri) != NULL) {
+
+	if ((ip = u.u_cdiri) != NULL) {
 		u.u_error = EEXIST;
-		idetach(ip);
+		idetach (ip);
 		return;
 	}
-	if ((ip=imake(mode, rdev)) != NULL)
-		idetach(ip);
+
+	if ((ip = imake (mode, rdev, & io, & dir)) != NULL)
+		idetach (ip);
+
 	return 0;
 }
 
@@ -489,46 +572,60 @@ char *np;
 	register MOUNT *mp;
 	register dev_t rdev;
 	register int mode;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(sp, 'r'))
+	io.io_seg = IOUSR;
+	if (ftoi (sp, 'r', & io, & dir))
 		return;
+
 	ip = u.u_cdiri;
-	if (iaccess(ip, IPR|IPW) == 0)
+	if (iaccess (ip, IPR | IPW) == 0)
 		goto err;
+
 	mode = ip->i_mode;
 	rdev = ip->i_a.i_rdev;
-	if ((mode&IFMT) != IFBLK) {
+	if ((mode & IFMT) != IFBLK) {
 		u.u_error = ENOTBLK;
 		goto err;
 	}
+
 	idetach(ip);
-	if (ftoi(np, 'r'))
+
+	io.io_seg = IOUSR;
+	if (ftoi (np, 'r', & io, & dir))
 		return;
+
 	ip = u.u_cdiri;
-	if (iaccess(ip, IPR) == 0)
+
+	if (iaccess (ip, IPR) == 0)
 		goto err;
-	if ((ip->i_mode&IFMT) != IFDIR) {
+
+	if ((ip->i_mode & IFMT) != IFDIR) {
 		u.u_error = ENOTDIR;
 		goto err;
 	}
+
 	/* Check for current directory, open, or mount directory */
+
 	if (ip->i_refc > 1 || ip->i_ino == ROOTIN) {
 		u.u_error = EBUSY;
 		goto err;
 	}
-	for (mp=mountp; mp!=NULL; mp=mp->m_next) {
+	for (mp = mountp ; mp != NULL ; mp = mp->m_next) {
 		if (mp->m_dev == rdev) {
 			u.u_error = EBUSY;
 			goto err;
 		}
 	}
-	if ((mp=fsmount(rdev, f)) == NULL)
+
+	if ((mp = fsmount (rdev, f)) == NULL)
 		goto err;
 	mp->m_ip = ip;
 	ip->i_flag |= IFMNT;
-	ip->i_refc++;
+	ip->i_refc ++;
 err:
-	idetach(ip);
+	idetach (ip);
 	return 0;
 }
 
@@ -737,7 +834,7 @@ int msec;
 	 * For 100 Hz clock, if nap is for 11 msec, timeout is for 2 ticks.
 	 */
 	ticksToWait = ((msec * HZ) + 999) / 1000;
-	timeout(&cprocp->p_polltim, ticksToWait, wakeup, &cprocp->p_polls);
+	timeout (& cprocp->p_polltim, ticksToWait, wakeup, & cprocp->p_polls);
 
 	/*
 	 * Wake for timeout or signal.
@@ -767,7 +864,8 @@ napDone:
 	/*
 	 * Cancel timeout
  	 */
-	timeout(&cprocp->p_polltim, 0, NULL, NULL);
+	timeout (& cprocp->p_polltim, 0, NULL, NULL);
 
 	return ret;
 }
+

@@ -4,6 +4,8 @@
  * Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
  */
 
+#include <kernel/alloc.h>
+
 #include <sys/coherent.h>
 #include <sys/clist.h>
 #include <sys/errno.h>
@@ -11,7 +13,6 @@
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/buf.h>
-#include <sys/alloc.h>
 #include <l.out.h>
 #include <ieeefp.h>
 
@@ -583,7 +584,7 @@ register	BLOCKLIST *sp;
 }
 
 MAKESR(physMem, _physMem);
-int	PHYS_MEM = 0;		/* Number of bytes of contiguous RAM needed */
+extern int	PHYS_MEM;	/* Number of bytes of contiguous RAM needed */
 
 /*
  * A block of contiguous physical memory has been allocated for special
@@ -928,11 +929,8 @@ mchinit()
 	DV(budArenaBytes);
 
 #define SIZEOF_FREE_PAGES ((btoc(hi) + btoc(lo))* sizeof(short))
-	T_PIGGY(0x800, {
-		if (budArenaBytes + SIZEOF_FREE_PAGES >= lo) {
-			panic("Too much memory");
-		}
-	});
+	T_PIGGY(0x800, budArenaBytes + SIZEOF_FREE_PAGES >= lo ?
+			panic("Too much memory") : 0);
 
 	/*
 	 * Initialize the buddy system arena.  This memory is used
@@ -1029,6 +1027,12 @@ mchinit()
 	DV(sysmem.efree);
 	DV(allocno());
 
+#if	0
+	/*
+	 * NIGEL: Trace macros must now be given expressions. This one isn't
+	 * worth cleaning up.
+	 */
+
 	T_PIGGY(0x800, {
 		/*
 		 * ASSERT:  The stack of free pages should end within a click
@@ -1049,6 +1053,7 @@ mchinit()
 			panic("nalloc != total_clicks ");
 		}
 	});
+#endif
 
 	CHIRP('4');
 
@@ -1366,6 +1371,11 @@ i8086()
 		NBUF = 128 + (400 * boost);
 
 	/*
+	 * Calculate NHASH as the next lower prime number from NBUF.
+	 */
+	NHASH = nlp(NBUF);
+
+	/*
 	 * If the amount of kalloc() space was not explicitly set (i.e., !0)
 	 * then calculate using the simple heuristic:
 	 *     64k minimum + 32k per MB of available RAM (i.e., after 1MB)
@@ -1512,7 +1522,7 @@ int new_bytes;
 	int		new_clicks, pno, nsize, old_clicks;
 	SR		*srp;
 
-	T_PIGGY(0x8000000, printf("c_grow(sp: %x, new: %x)", sp, new_bytes););
+	T_PIGGY(0x8000000, printf("c_grow(sp: %x, new: %x)", sp, new_bytes));
 
 	new_clicks = btoc(new_bytes);
 	old_clicks = btoc(sp->s_size);
@@ -1530,7 +1540,7 @@ int new_bytes;
 		goto no_c_grow;
 	}
 
-	T_PIGGY(0x8000000, printf("nc: %x, oc: %x,",new_clicks,old_clicks););
+	T_PIGGY(0x8000000, printf("nc: %x, oc: %x,",new_clicks,old_clicks));
 
 	/*
 	 * Allocate a new descriptor vector if necessary.
@@ -1542,14 +1552,14 @@ int new_bytes;
 	if (nsize != areasize(old_clicks)
 	  && !(pp = (cseg_t*)arealloc(new_clicks))) {
 		T_PIGGY(0x8000000,
-			 printf("Can not allocate new descriptor."););
+			 printf("Can not allocate new descriptor."));
 		goto no_c_grow;
 	}
 
-	T_PIGGY(0x8000000, printf("new pp: %x", pp););
+	T_PIGGY(0x8000000, printf("new pp: %x", pp));
 
 	if (0 != (srp = loaded(sp->s_vmem))) {
-		T_PIGGY(0x8000000, printf("unloading srp: %x, ", srp););
+		T_PIGGY(0x8000000, printf("unloading srp: %x, ", srp));
 		unload(srp);
 		srp->sr_segp = 0;
 	}
@@ -1557,24 +1567,24 @@ int new_bytes;
 	/*
 	 * Allocate new descriptors.
 	 */
-	T_PIGGY(0x8000000, printf("new desc: ["););
+	T_PIGGY(0x8000000, printf("new desc: ["));
 	for (i = old_clicks; i < new_clicks; i++) {
 		pno = *--sysmem.pfree;
 		pp[i] = clickseg(pno) | SEG_RW;
-		T_PIGGY(0x8000000, printf("%x, ", pp[i]););
+		T_PIGGY(0x8000000, printf("%x, ", pp[i]));
 	}
-	T_PIGGY(0x8000000, printf("]"););
+	T_PIGGY(0x8000000, printf("]"));
 
 	/*
 	 * Copy unchanged descriptors and free old vector if necessary.
 	 */
 	if (pp != sp->s_vmem) {
-		T_PIGGY(0x8000000, printf("old desc: ["););
+		T_PIGGY(0x8000000, printf("old desc: ["));
 		for (i = 0; i < old_clicks; i++) {
 			pp[i] = sp->s_vmem[i];
-			T_PIGGY(0x8000000, printf("%x, ", pp[i]););
+			T_PIGGY(0x8000000, printf("%x, ", pp[i]));
 		}
-		T_PIGGY(0x8000000, printf("]"););
+		T_PIGGY(0x8000000, printf("]"));
 		areafree((BLOCKLIST*)sp->s_vmem, old_clicks);
 	}
 
@@ -1589,8 +1599,7 @@ int new_bytes;
 	T_PIGGY(0x8000000, printf("dmaclear(%x, %x, 0)", 
 				ctob(new_clicks - old_clicks),
 				MAPIO(sp->s_vmem, ctob(old_clicks))
-			   );
-	); /* T_PIGGY() */
+			   )); /* T_PIGGY() */
 
 	dmaclear (ctob (new_clicks - old_clicks),
 		  MAPIO(sp->s_vmem, ctob(old_clicks)));

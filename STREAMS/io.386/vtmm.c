@@ -1,10 +1,13 @@
 /*
- * mm.c
+ * vtmm.c
  *
  * Memory Mapped Video
  * High level output routines.
  *
  * $Log:	vtmm.c,v $
+ * Revision 2.2  93/07/26  15:33:01  nigel
+ * Nigel's R80
+ * 
  * Revision 1.2  92/07/16  16:35:31  hal
  * Kernel #58
  * 
@@ -12,13 +15,15 @@
  * Call mmgo() from mmstart() at low priority.
  * 
  */
+
+#include <kernel/timeout.h>
+
 #include <sys/coherent.h>
 #include <sys/sched.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/io.h>
 #include <sys/tty.h>
-#include <sys/timeout.h>
 
 #include <sys/kb.h>
 #include <sys/vt.h>
@@ -29,12 +34,12 @@
 #define	PORTB	0x61			/* Port containing speaker enable */
 #define	FREQ	((int)(1193181L/440))	/* Counter for 440 Hz. tone */
 
-int mmtime();
+int vtmmtime();
 
-char mmbeeps;		/* number of ticks remaining on bell */
-char mmesc;		/* last unserviced escape character */
-int  mmcrtsav = 1;	/* crt saver enabled */
-int  mmvcnt   = 900;	/* seconds remaining before crt saver is activated */
+char vtmmbeeps;		/* number of ticks remaining on bell */
+char vtmmesc;		/* last unserviced escape character */
+int  vtmmcrtsav = 1;	/* crt saver enabled */
+int  vtmmvcnt   = 900;	/* seconds remaining before crt saver is activated */
 
 extern TTY **vttty;
 
@@ -42,9 +47,9 @@ extern TTY **vttty;
  * Start the output stream.
  * Called from `ttwrite' and `isrint' routines.
  */
-TIM mmtim;
+TIM vtmmtim;
 
-mmstart(tp)
+vtmmstart(tp)
 register TTY *tp;
 {
 	int c, s;
@@ -53,7 +58,7 @@ register TTY *tp;
 
 	if (mmbegun == 0) {
 		++mmbegun;
-		timeout(&mmtim, HZ/10, mmtime, (char *)tp);
+		timeout(&vtmmtim, HZ/10, vtmmtime, (char *)tp);
 	}
 
 	while ((tp->t_flags&T_STOP) == 0) {
@@ -64,30 +69,30 @@ register TTY *tp;
 		iob.io.vbase = &c;
 		iob.io_flag = 0;
 #if 0
-		mmwrite( ((VTDATA *)tp->t_ddp)->vt_dev, &iob );
+		vtmmwrite( ((VTDATA *)tp->t_ddp)->vt_dev, &iob );
 #else
 		s = splo();
-		mmgo(&iob, tp->t_ddp, ((VTDATA *)(tp->t_ddp))->vt_ind);
+		vtmmgo(&iob, tp->t_ddp, ((VTDATA *)(tp->t_ddp))->vt_ind);
 		spl(s);
 #endif
 	}
 }
 
-mmtime(xp)
+vtmmtime(xp)
 char *xp;
 {
 	register int s;
 	register VTDATA *vp = (VTDATA *)((TTY *)xp)->t_ddp;
 
 	s = sphi();
-	if (mmbeeps < 0) {
-		mmbeeps = 2;
+	if (vtmmbeeps < 0) {
+		vtmmbeeps = 2;
 		outb(TIMCTL, 0xB6);	/* Timer 2, lsb, msb, binary */
 		outb(TIMCNT, FREQ&0xFF);
 	        outb(TIMCNT, FREQ>>8);
 		outb(PORTB, inb(PORTB) | 03);	/* Turn speaker on */
 	}
-	else if ((mmbeeps > 0) && (--mmbeeps == 0))
+	else if ((vtmmbeeps > 0) && (--vtmmbeeps == 0))
 		outb( PORTB, inb(PORTB) & ~03 );
 
 	if (vp->vmm_esc) {
@@ -98,7 +103,7 @@ char *xp;
 
 	ttstart( (TTY *) xp );
 
-	timeout(&mmtim, HZ/10, mmtime, xp);
+	timeout(&vtmmtim, HZ/10, vtmmtime, xp);
 }
 
 /**
@@ -107,14 +112,14 @@ char *xp;
  * mmwatch()	-- turn video display off after 15 minutes inactivity.
  */
 void
-mmwatch()
+vtmmwatch()
 {
-	if ( (mmcrtsav > 0) && (mmvcnt > 0) && (--mmvcnt == 0) ) {
-		mm_voff(vtdata[vtactive]);
+	if ( (vtmmcrtsav > 0) && (vtmmvcnt > 0) && (--vtmmvcnt == 0) ) {
+		vtmm_voff(vtdata[vtactive]);
 	}
 }
 
-mmwrite( dev, iop )
+vtmmwrite( dev, iop )
 dev_t dev;
 register IO *iop;
 {
@@ -128,7 +133,7 @@ register IO *iop;
 	 * Kernel writes.
 	 */
 	if (iop->io_seg == IOSYS) {
-		while (mmgo(iop, tp->t_ddp, vtindex(dev)))
+		while (vtmmgo(iop, tp->t_ddp, vtindex(dev)))
 			;
 		goto mmwdone;
 	}
@@ -162,11 +167,11 @@ register IO *iop;
 				 * Transfer remaining data
 				 * without pausing after scrolling.
 				 */
-				else while ( mmgo(iop, tp->t_ddp, vtindex(dev)))
+				else while ( vtmmgo(iop, tp->t_ddp, vtindex(dev)))
 					;
 				goto mmwdone;
 			}
-			mmgo(iop, tp->t_ddp, vtindex(dev));
+			vtmmgo(iop, tp->t_ddp, vtindex(dev));
 		} while ( iop->io_ioc );
 		goto mmwdone;
 	}
@@ -183,7 +188,7 @@ register IO *iop;
 	 * Non-blocking user writes do not pause after scrolling.
 	 */
 	{
-		while ( mmgo(iop, tp->t_ddp, vtindex(dev)) )
+		while ( vtmmgo(iop, tp->t_ddp, vtindex(dev)) )
 			;
 	}
 #else
@@ -203,7 +208,7 @@ mmwdone:
 /*
  * update the screen to match vtactive
  */
-updscreen(index)
+vtupdscreen(index)
 int index;
 {
 	register int pos, s;

@@ -8,8 +8,11 @@
 /*
  * Shared parts of IBM async port drivers.
  */
+
+#include <kernel/timeout.h>
+
 #include <sys/coherent.h>
-#ifndef _I386
+#if	! _I386
 #include <sys/i8086.h>
 #endif
 #include <sys/al.h>
@@ -17,7 +20,6 @@
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
-#include <sys/timeout.h>
 #include <sys/clist.h>
 #include <sys/ins8250.h>
 #include <sys/sched.h>

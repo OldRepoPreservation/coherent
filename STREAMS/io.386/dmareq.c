@@ -51,10 +51,10 @@ dev_t dev;
 	paddr_t next_seg;	/* Beginning of next dma segment.  */
 	BUF *tbp;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	lock(bp->b_gate);
-	drest(dold);
+	lock (bp->b_gate);
+
 	if (blocko(iop->io_seek)) {
 		SET_U_ERROR(EIO, "dmareq() seek");
 		goto out;
@@ -66,6 +66,7 @@ dev_t dev;
 	bp->b_dev = dev;
 	bp->b_flag = 0;
 	sp->s_lrefc++;
+
 	/*
 	 * The dma address is 20 bits; 16 bit offset counter from a 4 bit
 	 * base segment.  Since io_ioc is limited to 32Kb positive, we
@@ -102,7 +103,7 @@ dev_t dev;
 			to_read = BSIZE;
 			if (to_read > iop->io_ioc)
 				to_read = iop->io_ioc;
-			bp = bclaim(dev, next_block);
+			bp = bclaim (dev, next_block, BUF_SYNC);
 			bp->b_count = to_read;
 			bp->b_req = req;
 			if (req != BREAD)

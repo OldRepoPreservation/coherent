@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys3.c,v 2.2 93/07/12 09:32:00 root Exp $ */
+/* $Header: /ker/coh.386/RCS/sys3.c,v 2.3 93/07/26 14:29:10 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -40,6 +40,8 @@ char *np;
 	register INODE *ip;
 	register fd_t fd;
 	int cflag;	/* Flag is set if we create a file.  */
+	IO		io;
+	struct direct	dir;
 
 	cflag = 0;	/* Nothing created so far.  */
 
@@ -70,25 +72,27 @@ char *np;
 		break;
 	default:
 		SET_U_ERROR( EINVAL, "bad oflag" );
-		T_PIGGY( 0x10000, printf("<open: bad oflag %x>", oflag); );
+		T_PIGGY( 0x10000, printf("<open: bad oflag %x>", oflag));
 		goto done;
 	}
 
 	/* Process the O_CREAT flag.  */
 	if ((oflag & O_CREAT) != 0) {
-		if (ftoi(np, 'c') != 0) {
+
+		io.io_seg = IOUSR;
+		if (ftoi (np, 'c', & io, & dir) != 0) {
 			T_PIGGY( 0x10000,
-				printf("<open: bad ftoi(%s, 'c')>", np); );
+				printf("<open: bad ftoi(%s, 'c')>", np));
 			goto done;
 		}
 
 		/* If it didn't exist, but its parent did, then make it.  */
-		if ((ip=u.u_cdiri) == NULL) {
-			if ((ip=imake((magic&~IFMT)|IFREG, 0)) == NULL) {
-				T_PIGGY( 0x10000, 
-					printf("<open: bad imake(%x, 0)>",
-						(magic&~IFMT)|IFREG);
-				);
+		if ((ip = u.u_cdiri) == NULL) {
+			if ((ip = imake ((magic & ~ IFMT) | IFREG,
+					 0, & io, & dir)) == NULL) {
+				T_PIGGY (0x10000, 
+					printf ("<open: bad imake(%x, 0)>",
+						(magic & ~ IFMT) | IFREG));
 				goto done;
 			}
 			cflag = 1;	/* Note that we just created a file.  */
@@ -97,40 +101,44 @@ char *np;
 			 * Exclusive O_CREAT on existing file should fail.
 			 */
 			if ((oflag & O_EXCL) != 0) {
-				idetach(ip);
-				SET_U_ERROR( EEXIST,
+				idetach (ip);
+				SET_U_ERROR (EEXIST,
 					 "exclusive creat on existing file");
 				goto done;
 			}
-			/* Do not write to a read only file system;
+			/*
+			 * Do not write to a read only file system;
 			 * never write to a directory;
 			 * always write to block and character special devices.
 			 */
-			switch (ip->i_mode&IFMT) {
+			switch (ip->i_mode & IFMT) {
 			case IFBLK:
 			case IFCHR:
 				break;
+
 			case IFDIR:
-				idetach(ip);
-				SET_U_ERROR( EISDIR, "<open: EISDIR>" );
+				idetach (ip);
+				SET_U_ERROR (EISDIR, "<open: EISDIR>");
 				goto done;
+
 			default:
-				if (getment(ip->i_dev, 1) == NULL) {
-					idetach(ip);
-					SET_U_ERROR( EROFS,
+				if (getment (ip->i_dev, 1) == NULL) {
+					idetach (ip);
+					SET_U_ERROR (EROFS,
 						"Could not fetch mount entry");
-					T_PIGGY( 0x10000,
-printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
+					T_PIGGY (0x10000,
+printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev));
 					goto done;
 				}
 			}
 		} /* Did the file exist?  */
 
 	} else { /* O_CREAT was not set--just reference the file.  */
-		if (ftoi(np, 'r') != 0) {
+
+		io.io_seg = IOUSR;
+		if (ftoi (np, 'r', & io, & dir) != 0) {
 			T_PIGGY( 0x10000, printf("<open: bad ftoi(%s, 'r')>",
-				np);
-			);
+				np));
 			goto done;
 		}
 		ip = u.u_cdiri;	/* This must be the inode we wanted.  */
@@ -145,11 +153,10 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	/*
 	 * Only check permissions on a pre-existing file.
 	 */
-	if ((0 == cflag) && (iaccess(ip, f) == 0)) {
-		idetach(ip);
-		T_PIGGY( 0x10000,
-			printf("<open: bad access(ip:%x, f:%x)>", ip, f);
-		);
+	if (0 == cflag && iaccess (ip, f) == 0) {
+		idetach (ip);
+		T_PIGGY (0x10000,
+			 printf ("<open: bad access(ip:%x, f:%x)>", ip, f));
 		goto done;
 	}
 
@@ -159,8 +166,8 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	 */
 
 	if ((ip->i_flag & IFEXCL) != 0) {
-		idetach(ip);
-		SET_U_ERROR( EEXIST, "open: file already open O_EXCL" );
+		idetach (ip);
+		SET_U_ERROR (EEXIST, "open: file already open O_EXCL");
 		goto done;	/* Somebody else has an exclusive open.  */
 	}
 
@@ -169,8 +176,8 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	 */
 	if ((oflag & O_EXCL) != 0) {
 		if (ip->i_refc != 1) {
-			idetach(ip);
-			SET_U_ERROR( EEXIST, "<open: O_EXCL but already open>" );
+			idetach (ip);
+			SET_U_ERROR (EEXIST, "<open: O_EXCL but already open>");
 			goto done;
 		}
 
@@ -192,29 +199,27 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 		f |= IPNOCTTY;
 
 	if (fdinit (fd, ip, f) < 0) {
-		idetach(ip);
-		T_PIGGY( 0x10000,
-			printf("<open: bad fdopen(ip: %x, f: %x>", ip, f);
-		);
+		idetach (ip);
+		T_PIGGY (0x10000,
+			 printf ("<open: bad fdopen(ip: %x, f: %x>", ip, f));
 		goto done;
 	}
 
 	/* If requested, truncate the file.  */
 	if ((oflag & O_TRUNC) != 0 && ((ip->i_mode & IFPIPE) != IFPIPE)) {
 		if (0 == cflag) {	/* No need to truncate a new file.  */
-			if (iaccess(ip, IPW) != 0) {
-				iclear(ip);
+			if (iaccess (ip, IPW) != 0) {
+				iclear (ip);
 			} else {
-				idetach(ip);
-				T_PIGGY( 0x10000,
-				    printf("<open: No access to truncate.>");
-				);
+				idetach (ip);
+				T_PIGGY (0x10000,
+				    printf("<open: No access to truncate.>"));
 				goto done;
 			}
 		}
 	}
 
-	iunlock(ip);
+	iunlock (ip);
 
 done:
 	return (fd = fdfinish (fd)) == ERROR_FD ? -1 : fd;
@@ -233,22 +238,22 @@ short fdp[2];
 	register fd_t fd1;
 	register fd_t fd2;
 
-	if ((ip=pmake(0)) == NULL)
+	if ((ip = pmake (0)) == NULL)
 		return;
 	if ((fd1 = fdopen (ip, IPR | IPNDLY)) != ERROR_FD) {
-		ip->i_refc++;
+		ip->i_refc ++;
 		if ((fd2 = fdopen (ip, IPW)) != ERROR_FD) {
-			iunlock(ip);
+			iunlock (ip);
 			u.u_rval2 = fd2;
-			ufcntl(fd1, F_SETFL, 0);
+			ufcntl (fd1, F_SETFL, 0);
 			return fd1;
 		}
-		--ip->i_refc;
-		iunlock(ip);
-		fdclose(fd1);
+		-- ip->i_refc;
+		iunlock (ip);
+		fdclose (fd1);
 		return 0;
 	}
-	idetach(ip);
+	idetach (ip);
 	return 0;
 }
 
@@ -259,16 +264,18 @@ uread(fd, bp, n)
 char *bp;
 unsigned n;
 {
-	T_PIGGY( 0x200, printf("uread(fd: %d, bp: %x, n: %d)", fd, bp, n); );
-	return (sysio(fd, bp, n, 0));
+	T_PIGGY (0x200, printf("uread(fd: %d, bp: %x, n: %d)", fd, bp, n));
+	return sysio (fd, bp, n, 0);
 }
+
 
 /*
  * Read or write `n' bytes from the file number `fd' using the buffer
  * `bp'.  If `do_write' is nonzero, write, else read.
  */
+
 int
-sysio(fd, bp, n, do_write)
+sysio (fd, bp, n, do_write)
 int fd;
 char *bp;
 unsigned n;
@@ -277,10 +284,12 @@ int do_write;
 	register FD *fdp;
 	register INODE *ip;
 	register int type;
+	IO		io;
 
-	if ((fdp=fdget(fd)) == NULL)
+	if ((fdp = fdget(fd)) == NULL)
 		return 0;
-	if ((fdp->f_flag&(do_write?IPW:IPR)) == 0) {
+
+	if ((fdp->f_flag & (do_write ? IPW : IPR)) == 0) {
 		u.u_error = EBADF;
 		return 0;
 	}
@@ -290,70 +299,83 @@ int do_write;
 	 * segment.  When writing (reading from user memory), buffer may
 	 * be in text segment.
 	 */
-	if (!useracc(bp, n, !do_write)) {
+	if (! useracc (bp, n, ! do_write)) {
 		u.u_error = EFAULT;
 		return 0;
 	}
 
 	ip = fdp->f_ip;
-	type = ip->i_mode&IFMT;
+	type = ip->i_mode & IFMT;
 	if (type != IFCHR)
-		ilock(ip);
+		ilock (ip);
 
 	/* Writes in append mode are forced to end of file. */
-	if ((fdp->f_flag & IPAPPEND) && do_write)
+	if ((fdp->f_flag & IPAPPEND) != 0 && do_write)
 		fdp->f_seek = ip->i_size;
 
-	if ( do_write && ((ip->i_mode&IFMT)==IFREG) ) {
-		long maxbyte = ((long)u.u_bpfmax) * BSIZE;
-		if ( maxbyte <= fdp->f_seek )
+	if (do_write && (ip->i_mode & IFMT) == IFREG) {
+		long maxbyte = (long) u.u_bpfmax * BSIZE;
+		if (maxbyte <= fdp->f_seek)
 			n = 0;
-		else if ( ((long)n) > (maxbyte - fdp->f_seek) )
+		else if ((long) n > maxbyte - fdp->f_seek)
 			n = (unsigned) (maxbyte - fdp->f_seek);
 	}
-	u.u_io.io_seek = fdp->f_seek;
-	u.u_io.io.vbase = bp;
-	u.u_io.io_ioc  = n;
-	u.u_io.io_flag = 0;
+
+	io.io_seg = IOUSR;
+	io.io_seek = fdp->f_seek;
+	io.io.vbase = bp;
+	io.io_ioc  = n;
+	io.io_flag = 0;
+
 	if ((fdp->f_flag & IPNDLY) != 0)
-		u.u_io.io_flag |= IONDLY;
+		io.io_flag |= IONDLY;
 	if ((fdp->f_flag & IPNONBLOCK) != 0)
-		u.u_io.io_flag |= IONONBLOCK;
+		io.io_flag |= IONONBLOCK;
 
 	if (do_write) {
-		iwrite(ip, &u.u_io);
+		iwrite(ip, & io);
 	} else {
-		iread(ip, &u.u_io);
-		iacc(ip);		/* read - atime */
+		iread(ip, & io);
+		iacc (ip);		/* read - atime */
 	}
-	n -= u.u_io.io_ioc;
+	n -= io.io_ioc;
 	fdp->f_seek += n;
+
 	if (type != IFCHR)
-		iunlock(ip);
+		iunlock (ip);
 
 	/* Was this inode opened for synchronous writes?  */
-	if (fdp->f_flag & IPSYNC)
-		isync(ip->i_dev);
+	if ((fdp->f_flag & IPSYNC) != 0)
+		isync (ip->i_dev);
 
 	return n;
 }
 
+
 /*
  * Return a status structure for the given file name.
  */
+
 ustat(np, stp)
 char *np;
 struct stat *stp;
 {
 	register INODE *ip;
 	struct stat stat;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(np, 'r') != 0)
+	if (ftoi (np, 'r', & io, & dir) != 0)
 		return;
+
 	ip = u.u_cdiri;
-	istat(ip, &stat);
-	idetach(ip);
-	kucopy(&stat, stp, sizeof(stat));
+	istat (ip, & stat);
+	idetach (ip);
+
+	if (kucopy (& stat, stp, sizeof (stat)) != sizeof (stat)) {
+		u.u_error = EFAULT;
+		return -1;
+	}
 	return 0;
 }
 
@@ -396,101 +418,154 @@ char *sp;
 	register MOUNT **mpp;
 	register dev_t rdev;
 	register int mode;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(sp, 'r') != 0)
+	if (ftoi (sp, 'r', & io, & dir) != 0)
 		return;
+
 	ip = u.u_cdiri;
-	if (iaccess(ip, IPR|IPW) == 0) {
-		idetach(ip);
+	if (iaccess (ip, IPR | IPW) == 0) {
+		idetach (ip);
 		return;
 	}
+
 	rdev = ip->i_a.i_rdev;
 	mode = ip->i_mode;
-	idetach(ip);
-	if ((mode&IFMT) != IFBLK) {
+
+	idetach (ip);
+	if ((mode & IFMT) != IFBLK) {
 		u.u_error = ENOTBLK;
 		return;
 	}
-	for (mpp=&mountp; (mp=*mpp)!=NULL; mpp=&mp->m_next)
+	for (mpp = & mountp ; (mp = * mpp) != NULL ; mpp = & mp->m_next)
 		if (mp->m_dev == rdev)
 			break;
+
 	if (mp == NULL) {
 		u.u_error = EINVAL;
 		return;
 	}
-	msync(mp);
-	for (ip=&inodep[NINODE-1]; ip>=inodep; --ip) {
-		if (ip->i_refc>0 && ip->i_dev==rdev) {
+
+	msync (mp);
+	for (ip = & inodep [NINODE - 1] ; ip >= inodep ; -- ip) {
+		if (ip->i_refc > 0 && ip->i_dev == rdev) {
 			u.u_error = EBUSY;
 			return;
 		}
 	}
-	for (ip=&inodep[NINODE-1]; ip>=inodep; --ip) {
+
+	for (ip = & inodep [NINODE - 1] ; ip >= inodep ; -- ip) {
 		if (ip->i_dev == rdev)
 			ip->i_ino = 0;
 	}
-	bflush(rdev);
-	dclose(rdev, mp->m_flag ? IPR : IPR | IPW, DFBLK);/* NIGEL */
+
+	bflush (rdev);
+	dclose (rdev, mp->m_flag ? IPR : IPR | IPW, DFBLK);/* NIGEL */
 	*mpp = mp->m_next;
-	mp->m_ip->i_flag &= ~IFMNT;
-	ldetach(mp->m_ip);
-	kfree(mp);
+	mp->m_ip->i_flag &= ~ IFMNT;
+
+	ldetach (mp->m_ip);
+	kfree (mp);
 	return 0;
 }
 
 /*
  * Unlink the given file.
  */
-uunlink(np)
+
+uunlink (np)
 char *np;
+{
+	(void) do_unlink (np, IOUSR);
+	return 0;
+}
+
+
+/*
+ * Internal version of unlink () called by uunlink () and umkdir ().
+ */
+
+int
+do_unlink (path, space)
 {
 	register INODE *ip;
 	register dev_t dev;
+	IO		io;
+	struct direct	dir;
+	unsigned	olderror;
 
-	if (ftoi(np, 'u') != 0)
-		return;
+	/*
+	 * We start by clearing u_error because we are called from umkdir ()
+	 * in a situation where the active error number is not relevant to
+	 * us. We return the old error number so that umkdir () can restore
+	 * the error number it wants easily.
+	 */
+
+	olderror = u.u_error;
+	u.u_error = 0;
+
+	io.io_seg = space;
+	if (ftoi (path, 'u', & io, & dir) != 0)
+		return olderror;
+
 	ip = u.u_pdiri;
-	if (iaccess(ip, IPW) == 0) {
+	if (iaccess (ip, IPW) == 0) {
 		u.u_error = EACCES;
 		goto err;
 	}
 	dev = ip->i_dev;
-	if (iucheck(dev, u.u_cdirn) == 0)
+
+	if (iucheck (dev, u.u_cdirn) == 0)
 		goto err;
-	idirent(0);
-	idetach(ip);
-	if ((ip=iattach(dev, u.u_cdirn)) == NULL)
+
+	idirent (0, & io, & dir);
+	idetach (ip);
+
+	if ((ip = iattach (dev, u.u_cdirn)) == NULL)
 		return;
+
 	if (ip->i_nlink > 0)
-		--ip->i_nlink;
-	icrt(ip);	/* unlink - ctime */
+		-- ip->i_nlink;
+	icrt (ip);	/* unlink - ctime */
 err:
-	idetach(ip);
-	return 0;
+	idetach (ip);
+	return olderror;
 }
+
 
 /*
  * Set file times.
  */
+
 uutime(np, utime)
 char *np;
-time_t utime[2];
+time_t utime [2];
 {
 	register INODE *ip;
-	time_t stime[2];
+	struct {
+		time_t		_time [2];
+	} stime;
+	IO		io;
+	struct direct	dir;
 
-	if (ftoi(np, 'r') != 0)
+	if (ftoi (np, 'r', & io, & dir) != 0)
 		return;
+
 	ip = u.u_cdiri;
-	if (owner(ip->i_uid)) {
-		iamc(ip);	/* utime - atime/mtime/ctime */
+	if (owner (ip->i_uid)) {
+		iamc (ip);	/* utime - atime/mtime/ctime */
 		if (utime != NULL) {
-			ukcopy(utime, stime, sizeof(time_t[2]));
-			ip->i_atime = stime[0];
-			ip->i_mtime = stime[1];
+			if (ukcopy (utime, & stime,
+				    sizeof (stime)) != sizeof (stime)) {
+				u.u_error = EFAULT;
+			} else {
+				ip->i_atime = stime._time [0];
+				ip->i_mtime = stime._time [1];
+			}
 		}
 	}
-	idetach(ip);
+	idetach (ip);
 	return 0;
 }
 
@@ -501,7 +576,7 @@ uwrite(fd, bp, n)
 char *bp;
 unsigned n;
 {
-	return (sysio(fd, bp, n, 1));
+	return sysio (fd, bp, n, 1);
 }
 
 /*
@@ -529,20 +604,19 @@ useracc(base, count, writeUsr)
 register char *base;
 int writeUsr, count;
 {
-	int ret = 0;
+	if (base + count >= base) {
+		int		ret;
 
-	if (base+count >= base) {
-		ret = accdata(base, count) || accstack(base, count)
-		  || accShm(base, count);
-		if (!writeUsr)
-			ret = ret || acctext(base, count);
+		ret = accdata (base, count) || accstack (base, count) ||
+			accShm (base, count);
+		if (! writeUsr)
+			ret = ret || acctext (base, count);
+
+		return ret;
 	}
-
-	return ret;
-
-	return accdata(base, count) || accstack(base, count)
-	  || accShm(base, count);
+	return 0;
 }
+
 
 /*
  * strUserAcc(str, writeUsr) - Check user accessibility of 0 terminated string.
@@ -560,14 +634,14 @@ int	writeUsr;
 {
 	register char	*ch;
 
-	if (!useracc(str, 1, writeUsr))
+	if (! useracc (str, 1, writeUsr))
 		return -1;
 
-	for (ch = str; *ch != 0; ch++) 
-		if (!useracc(ch+1, 1, writeUsr)) 
+	for (ch = str ; * ch != 0 ; ch ++) 
+		if (! useracc (ch + 1, 1, writeUsr)) 
 			return -1;
 
-	return (ch - str);
+	return ch - str;
 }
 
 /*
@@ -576,8 +650,8 @@ int	writeUsr;
 int
 kucopyS(kernel, user, n)
 {
-	if (useracc(user, n, 1))
-		return kucopy(kernel, user, n);
+	if (useracc (user, n, 1))
+		return kucopy (kernel, user, n);
 	else {
 		u.u_error = EFAULT;
 		return 0;
@@ -587,8 +661,8 @@ kucopyS(kernel, user, n)
 int
 ukcopyS(user, kernel, n)
 {
-	if (useracc(user, n, 0))
-		return ukcopy(user, kernel, n);
+	if (useracc (user, n, 0))
+		return ukcopy (user, kernel, n);
 	else {
 		u.u_error = EFAULT;
 		return 0;

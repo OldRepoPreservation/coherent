@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/seg.c,v 1.8 93/04/14 10:07:48 root Exp $ */
+/* $Header: /ker/coh.386/RCS/seg.c,v 2.2 93/07/26 14:29:02 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -62,38 +62,46 @@ register INODE *ip;
 	register SEG *sp;
 	register int f;
 
-	lock(seglink);
-	f = ff & (SFSHRX|SFTEXT);
+	lock (seglink);
+	f = ff & (SFSHRX | SFTEXT);
 
 	/*
 	 * Look for the segment in the memory queue.
 	 */
-	for (sp=segmq.s_forw; sp!=&segmq; sp=sp->s_forw) {
-		if (sp->s_ip==ip && (sp->s_flags&(SFSHRX|SFTEXT))==f) {
-			unlock(seglink);
-			if (sp = segdupl(sp))
-				segfinm(sp);
-			return (sp);
+
+	for (sp = segmq.s_forw ; sp != & segmq ; sp = sp->s_forw) {
+
+		if (sp->s_ip == ip &&
+		    (sp->s_flags & (SFSHRX | SFTEXT)) == f) {
+
+			unlock (seglink);
+			if ((sp = segdupl(sp)) != NULL)
+				segfinm (sp);
+			return sp;
 		}
 	}
 
 	/*
 	 * Look for the segment on the disk queue.
 	 */
-	for (sp=segdq.s_forw; sp!=&segdq; sp=sp->s_forw) {
-		if (sp->s_ip==ip && (sp->s_flags&(SFSHRX|SFTEXT))==f) {
-			unlock(seglink);
-			if (sp = segdupl(sp))
-				segfinm(sp);
-			return (sp);
+
+	for (sp = segdq.s_forw ; sp != & segdq ; sp = sp->s_forw) {
+
+		if (sp->s_ip == ip &&
+		    (sp->s_flags & (SFSHRX | SFTEXT)) == f) {
+
+			unlock (seglink);
+			if ((sp = segdupl (sp)) != NULL)
+				segfinm (sp);
+			return sp;
 		}
 	}
-	unlock(seglink);
+	unlock (seglink);
 
 	/*
 	 * Allocate and create the segment.
 	 */
-	return salloc(roundu(ss, NBPC), ff);
+	return salloc (__ROUND_UP_TO_MULTIPLE (ss, NBPC), ff);
 }
 
 /*
@@ -112,28 +120,31 @@ register PROC *cpp;
 
 	pp = SELF;
 	cpp->p_flags |= PFSWIO;
-	for (n=0; n<NUSEG; n++) {
-		if ((sp=pp->p_segp[n]) == NULL)
+
+	for (n = 0 ; n < NUSEG ; n ++) {
+		if ((sp = pp->p_segp [n]) == NULL)
 			continue;
-		if ((sp=segdupl(sp)) == NULL)
+		if ((sp = segdupl (sp)) == NULL)
 			break;
-		cpp->p_segp[n] = sp;
-		if ((sp->s_flags&SFCORE) == 0)
-			cpp->p_flags &= ~PFCORE;
+		cpp->p_segp [n] = sp;
+		if ((sp->s_flags & SFCORE) == 0)
+			cpp->p_flags &= ~ PFCORE;
 	}
 
 	/*
 	 * One of the calls to segdupl() failed.
 	 * Undo any that succeeded.
 	 */
+
 	if (n < NUSEG) {
 		while (n > 0) {
-			if (sp=cpp->p_segp[--n]) {
-				cpp->p_segp[n] = NULL;
-				sfree(sp);
+			if ((sp = cpp->p_segp [-- n]) != NULL) {
+				cpp->p_segp [n] = NULL;
+				sfree (sp);
 			}
 		}
 	}
+
 	cpp->p_flags &= ~PFSWIO;
 	return n;
 }
@@ -148,18 +159,21 @@ register SEG *sp;
 	register SEG *sp1;
 
 	if (sp->s_flags & SFSHRX) {
-		sp->s_urefc++;
-		sp->s_lrefc++;
-		return (sp);
+		sp->s_urefc ++;
+		sp->s_lrefc ++;
+		return sp;
 	}
-	if ((sp->s_flags&SFCORE) == 0)
+	if ((sp->s_flags & SFCORE) == 0)
 		panic("Cannot duplicate non shared swapped segment");
-	if ((sp1=salloc(sp->s_size, sp->s_flags|SFNSWP|SFNCLR)) == NULL)
-		sp1 = segdupd(sp);
+
+	if ((sp1 = salloc (sp->s_size,
+			   sp->s_flags | SFNSWP | SFNCLR)) == NULL)
+		sp1 = segdupd (sp);
 	else {
 		sp1->s_flags = sp->s_flags;
-		dmacopy( btoc(sp->s_size), sp->s_vmem, sp1->s_vmem) ;
+		dmacopy (btoc (sp->s_size), sp->s_vmem, sp1->s_vmem);
 	}
+
 	return sp1;
 }
 
@@ -174,21 +188,21 @@ int bytes_wanted, flags;
 	register SEG *sp;
 	register int r;
 
-	r = (flags & (SFSYST|SFTEXT|SFSHRX|SFDOWN)) | SFCORE;
+	r = (flags & (SFSYST | SFTEXT | SFSHRX | SFDOWN)) | SFCORE;
 
-/*
-#ifdef _I386
-	bytes_wanted += (sizeof(char *) - 1);
-	bytes_wanted &= ~(sizeof(char *) - 1);
+#if	0
+#if	_I386
+	bytes_wanted += (sizeof (char *) - 1);
+	bytes_wanted &= ~(sizeof (char *) - 1);
 #else
 	bytes_wanted += (BSIZE - 1);
 	bytes_wanted &= ~(BSIZE - 1);
 #endif
-*/
+#endif	/* 0 */
 
-	lock(seglink);
-	sp = smalloc(bytes_wanted);
-	unlock(seglink);
+	lock (seglink);
+	sp = smalloc( bytes_wanted);
+	unlock (seglink);
 
 	if (sp) {
 		sp->s_flags = r;
@@ -212,7 +226,7 @@ int bytes_wanted, flags;
 		return 0;
 #endif
 	}
-	if ((flags&SFNCLR) == 0)
+	if ((flags & SFNCLR) == 0)
 		dmaclear (sp->s_size, MAPIO (sp->s_vmem, 0));
 	return sp;
 }
@@ -225,33 +239,34 @@ register SEG *sp;
 {
 	register INODE *ip;
 
-	if ( sp->s_urefc != 1 ) {
-		sp->s_urefc--;
-		sp->s_lrefc--;
+	if (sp->s_urefc != 1) {
+		sp->s_urefc --;
+		sp->s_lrefc --;
 		return;
 	}
 
-	lock(seglink);
+	lock (seglink);
 
-	--sp->s_lrefc;
+	-- sp->s_lrefc;
 
 	sp->s_back->s_forw = sp->s_forw;
 	sp->s_forw->s_back = sp->s_back;
 
-	c_free(sp->s_vmem, btoc(sp->s_size));
+	c_free (sp->s_vmem, btoc (sp->s_size));
 
-	unlock(seglink);
+	unlock (seglink);
 	if (sp->s_lrefc)
-		panic("Bad segment count");
+		panic ("Bad segment count");
 
 	/*
 	 * Check if inode is ilocked, in order to allow the process
 	 * to exec itself (file with the same inode as parent). Vlad.
 	 */
-	if ((ip=sp->s_ip) && !ilocked(ip)) {
-		ldetach(ip);
-	}
-	kfree(sp);
+
+	if ((ip = sp->s_ip) != NULL && ! ilocked (ip))
+		ldetach (ip);
+
+	kfree (sp);
 }
 
 /*
@@ -274,8 +289,11 @@ unsigned int new_bytes;
 	 * If we want a larger segment AND c_grow() succeeds
 	 *	boost segment size to new_bytes
 	 */
-	if (new_bytes >= old_bytes && c_grow(sp, new_bytes)==0) {
+
+	if (new_bytes >= old_bytes && c_grow (sp, new_bytes) == 0) {
+
 		T_HAL(0x100, printf("c_grow(%d) ", new_bytes));
+
 		sp->s_size = new_bytes;
 		dmaclear (new_bytes - old_bytes,
 			  MAPIO (sp->s_vmem, old_bytes));
@@ -283,20 +301,23 @@ unsigned int new_bytes;
 	}
 dont_c_grow:
 
-	if (sp1 = salloc(new_bytes, (sp->s_flags|SFNSWP|SFNCLR))) {
+	if ((sp1 = salloc (new_bytes,
+			   sp->s_flags | SFNSWP | SFNCLR)) != NULL) {
+
 		T_HAL(0x100, printf("salloc(%d) ", new_bytes));
 		if (dowflag == 0) {
-			common_clicks = btoc(min(new_bytes, old_bytes));
-			dmacopy(common_clicks, sp->s_vmem, sp1->s_vmem);
+			common_clicks = btoc (min (new_bytes, old_bytes));
+			dmacopy (common_clicks, sp->s_vmem, sp1->s_vmem);
 			if (new_bytes > old_bytes)
 				dmaclear (new_bytes - old_bytes,
 					  MAPIO (sp1->s_vmem, old_bytes));
 		} else
-			panic("downflag");
-		lock(seglink);
-		c_free(sp->s_vmem, btoc(old_bytes));
-		satcopy(sp, sp1);
-		unlock(seglink);
+			panic ("downflag");
+
+		lock (seglink);
+		c_free (sp->s_vmem, btoc(old_bytes));
+		satcopy (sp, sp1);
+		unlock (seglink);
 
 		return 1;
 	}
@@ -332,17 +353,19 @@ caddr_t s2;
 	register caddr_t s1;
 
 	s1 = (caddr_t) sp->s_size;
-	if (s2 == 0 || seggrow(sp, (off_t)s2) == 0) {
-		SET_U_ERROR( ENOMEM, "can not grow segment" );
+	if (s2 == 0 || seggrow (sp, (off_t) s2) == 0) {
+		SET_U_ERROR (ENOMEM, "can not grow segment");
 		return;
 	}
-	if (sproto(0) == 0) {
-		if (seggrow(sp, (off_t)s1)==0 || sproto(0)==0) {
-			T_PIGGY( 0x2000000, printf("auto SEGV\n"); );
-			sendsig(SIGSEGV, SELF);
+
+	if (sproto (0) == 0) {
+		if (seggrow (sp, (off_t) s1) == 0 || sproto (0) == 0) {
+
+			T_PIGGY (0x2000000, printf("auto SEGV\n"));
+			sendsig (SIGSEGV, SELF);
 		}
 	}
-	segload();
+	segload ();
 }
 
 /*
@@ -362,9 +385,10 @@ register off_t s;
 		printf("Segsext(%p, %u)\n", SELF, SELF->p_pid);
 #endif
 	if (sexflag == 0) {
-		SET_U_ERROR( ENOMEM, "can not extend, swapping is off" );
-		return (NULL);
+		SET_U_ERROR (ENOMEM, "can not extend, swapping is off");
+		return NULL;
 	}
+
 	lock(seglink);
 	if ((sp2=sdalloc(s)) == NULL) {
 		unlock(seglink);
@@ -396,23 +420,25 @@ register SEG *sp;
 	register PROC *pp;
 	register int s;
 
-	if (sp->s_flags&SFCORE)
+	if (sp->s_flags & SFCORE)
 		return;
+
 	pp = SELF;
-	sp->s_urefc++;
-	sp->s_lrefc++;
-	pp->p_segp[SIAUXIL] = sp;
-	pp->p_flags &= ~PFCORE;
+	sp->s_urefc ++;
+	sp->s_lrefc ++;
+	pp->p_segp [SIAUXIL] = sp;
+	pp->p_flags &= ~ PFCORE;
+
 #ifndef QWAKEUP
 	s = sphi();
 #endif
-	setrun(pp);
-	dispatch();
+	setrun (pp);
+	dispatch ();
 #ifndef QWAKEUP
-	spl(s);
+	spl (s);
 #endif
-	pp->p_segp[SIAUXIL] = NULL;
-	sfree(sp);
+	pp->p_segp [SIAUXIL] = NULL;
+	sfree (sp);
 }
 
 /*
@@ -426,19 +452,23 @@ register SEG *sp1;
 	register SEG *sp2;
 
 	if (sexflag == 0)
-		return (NULL);
-	lock(seglink);
-	if ((sp2=sdalloc(sp1->s_size)) == NULL) {
-		unlock(seglink);
-		return (NULL);
+		return NULL;
+
+	lock (seglink);
+	if ((sp2 = sdalloc (sp1->s_size)) == NULL) {
+		unlock (seglink);
+		return NULL;
 	}
-	sp1->s_lrefc++;
-	unlock(seglink);
-	swapio(1, MAPIO(sp1->s_vmem, 0), sp2->s_daddr, sp1->s_size);
-	sp1->s_lrefc--;
-	sp2->s_flags = sp1->s_flags & ~SFCORE;
+
+	sp1->s_lrefc ++;
+	unlock (seglink);
+	swapio (1, MAPIO (sp1->s_vmem, 0), sp2->s_daddr, sp1->s_size);
+
+	sp1->s_lrefc --;
+	sp2->s_flags = sp1->s_flags & ~ SFCORE;
 	sp2->s_size  = sp1->s_size;
-	return (sp2);
+
+	return sp2;
 }
 
 /*
@@ -519,7 +549,7 @@ register SEG *sp2;
 	sp1->s_daddr = sp2->s_daddr;
 	sp1->s_size = sp2->s_size;
 	sp1->s_vmem = sp2->s_vmem;
-	kfree(sp2);
+	kfree (sp2);
 }
 
 /*

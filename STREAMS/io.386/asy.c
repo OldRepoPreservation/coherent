@@ -1258,8 +1258,14 @@ int chan;
 		else
 			a1->a_ohlt = 1;
 		spl(s);
+#if	0
+	/*
+	 * NIGEL: From now on, trace macros need to be given expressions. This
+	 * one needs some work to fix...
+	 */
 T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 } else if (cts && !(msr & MS_CTS)) { cts = 0; putchar(']'); }});
+#endif
 
 		/*
 		 * If using hardware flow control, see if we need to drop RTS.

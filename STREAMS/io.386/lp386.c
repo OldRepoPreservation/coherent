@@ -4,7 +4,6 @@
  * Supports up to three line printers.
  */
 #include <sys/coherent.h>
-#include <sys/reg.h>
 #include <sys/con.h>
 #include <sys/devices.h>
 #include <sys/errno.h>

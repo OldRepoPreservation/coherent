@@ -4,6 +4,9 @@
  * Purpose: System V Compatible Shared Memory Device Driver
  *
  * $Log:	shm1.c,v $
+ * Revision 2.2  93/07/26  15:32:18  nigel
+ * Nigel's R80
+ * 
  * Revision 1.3  93/04/14  10:23:10  root
  * r75
  * 
@@ -57,10 +60,9 @@ caddr_t		vCheckReqAdd();	/* Check attach address for shmat */
  *	Local Variables.
  */
 
-/* Patchable global variables. */
-int	SHMMNI = 100;	  /* Maximum # of shared memory segments, systemwide */
-int 	SHMMAX = 0x10000; /* Max size in bytes of shared memory segment */
-
+/* Configurable variables - see /etc/conf/mtune. */
+extern int	SHMMNI;
+extern int 	SHMMAX;
 
 struct shmid_ds	*shmids = NULL;		/* Array of shared memory segments */
 SEG		**shmsegs;		/* Array of pointers to segments */

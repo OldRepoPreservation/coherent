@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/clock.c,v 1.9 93/04/14 10:06:19 root Exp $ */
+/* $Header: /ker/coh.386/RCS/clock.c,v 2.2 93/07/26 16:11:18 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -47,13 +47,15 @@
  */
 
 #include <common/_gregset.h>
+#include <common/_tricks.h>
+
 #include <kernel/sigproc.h>
+#include <kernel/timeout.h>
 #include <sys/coherent.h>
 #include <sys/con.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
 #include <sys/stat.h>
-#include <sys/timeout.h>
 
 int (*altclk)();	/* pointer to higher-speed clock function */
 
@@ -62,6 +64,13 @@ int altsel;	/* if nonzero, CS for LOADABLE driver owning altclk() */
 #endif
 
 int clocks;
+
+#ifdef	TRACER
+
+extern	char	stext;
+extern	char	__end_text;
+
+#endif
 
 /*
  * This routine is called once every tick (1/HZ seconds).
@@ -92,13 +101,13 @@ caddr_t pc;
 	 * the despatch routine at CS:4 (ld.s) in any loadable driver.
 	 */
 	if (altclk) {
-#ifndef _I386
+#if	! _I386
 		if (altsel) {	/* will do far call to altclk fn */
-			if (ld_call(altsel, altclk))
+			if (ld_call (altsel, altclk))
 				return;
 		} else
 #endif
-			if ((*altclk)())
+			if ((* altclk) ())
 				return;
 	}
 
@@ -110,7 +119,7 @@ caddr_t pc;
 	timer.t_tick += 1;
 	quantum -= 1;
 
-#ifndef _I386
+#if	! _I386
 	/*
 	 * Give processes their schedule values per tick.
 	 */
@@ -124,14 +133,14 @@ caddr_t pc;
 	 * Tax current process and update his times.
 	 */
 	pp = SELF;
-#ifndef _I386
+#if	! _I386
 	pp->p_cval >>= 1;
 #endif
 	if (umode == R_USR) {
-		pp->p_utime++;
+		pp->p_utime ++;
 		u.u_ppc = pc;
 	} else
-		pp->p_stime++;
+		pp->p_stime ++;
 }
 
 /*
@@ -189,8 +198,18 @@ gregset_t	regset;
 	/*
 	 * Update the clock.
 	 */
+
 	while (timer.t_tick >= HZ) {
-		timer.t_time++;
+#ifdef	TRACER
+		extern	int	checkTheSum ();
+		static	int	check_check;
+
+		if (check_check ++ > 120) {
+			check_check = 0;
+			checkTheSum ();
+		}
+#endif
+		timer.t_time ++;
 		timer.t_tick -= HZ;
 		outflag = 1;
 	}
@@ -198,6 +217,7 @@ gregset_t	regset;
 	/*
 	 * Check expiration of quantum.
 	 */
+
 	if (quantum <= 0) {
 		quantum = 0;
 		disflag = 1;
@@ -214,36 +234,40 @@ gregset_t	regset;
 		/*
 		 * Update [serviced] clock ticks since startup.
 		 */
-		lbolt++;
-		clocks--;
+		lbolt ++;
+		clocks --;
 
 		/*
 		 * Remove timing list from queue, creating new temporary queue.
 		 */
-		tp = (TIM *) &timq[ lbolt % nel(timq) ];
-		s  = sphi();
+
+		tp = timq + (lbolt % __ARRAY_LENGTH (timq));
+		s  = sphi ();
 
 		/*
 		 * Scan timing list.
 		 */
-		for (np = tp->t_next; tp = np;) {
 
+		for (np = tp->t_next; tp = np;) {
 			/*
 			 * Remember next function in timing list.
 			 * NOTE: Must be done before function is invoked,
 			 *	 since it may start a new timer.
 			 */
+
 			np = tp->t_next;
 
 			/*
 			 * Function has not timed out: leave it on timing list.
 			 */
+
 			if (tp->t_lbolt != lbolt)
 				continue;
 
 			/*
 			 * Remove function from timing list.
 			 */
+
 			if (tp->t_last->t_next = tp->t_next)
 				tp->t_next->t_last = tp->t_last;
 			tp->t_last = NULL;
@@ -251,12 +275,18 @@ gregset_t	regset;
 			/*
 			 * Invoke function.
 			 */
-			spl(s);
-			(*tp->t_func)(tp->t_farg, tp);
-			sphi();
+#ifdef	TRACER
+			if (tp->t_func < & stext || tp->t_func > & __end_text)
+				panic ("Bad timeout function %x in timer %x",
+					tp->t_func, tp);
+#endif
+
+			spl (s);
+			(* tp->t_func) (tp->t_farg, tp);
+			sphi ();
 		}
 
-		spl(s);
+		spl (s);
 
 		STREAMS_TIMEOUT ();
 
@@ -265,23 +295,25 @@ gregset_t	regset;
 	/*
 	 * Timeout any devices.
 	 */
+
 	if (outflag) {
 		register int n;
 
 		outflag = 0;
-		for (n=0; n<drvn; n++) {
-			if (drvl[n].d_time == 0)
+		for (n = 0 ; n < drvn ; n ++) {
+			if (drvl [n].d_time == 0)
 				continue;
-			s = sphi();
-			dtime((dev_t)makedev(n, 0));
-			spl(s);
+			s = sphi ();
+			dtime ((dev_t) makedev (n, 0));
+			spl (s);
 		}
 	}
 
 	/*
 	 * Do profiling.
 	 */
-#ifdef _I386	/* profiling */
+
+#if	_I386	/* profiling */
 	if (u.u_pscale & ~1) {	/* if scale is not zero or one */
 		/*
 		 * Treat u.u_pscale as fixed-point fraction 0xXXXX.YYYY.
@@ -321,17 +353,17 @@ gregset_t	regset;
 	 * Execute deferred functions.
 	 */
 
-	defend();
+	defend ();
 
 
 	/*
 	 * Should we dispatch?
 	 */
-	if ((SELF->p_flags&PFDISP) != 0) {
-		SELF->p_flags &= ~PFDISP;
+	if ((SELF->p_flags & PFDISP) != 0) {
+		SELF->p_flags &= ~ PFDISP;
 		disflag = 1;
 		if (stimer.t_last != 0)
-			wakeup((char *)&stimer);
+			wakeup ((char *)& stimer);
 	}
 
 	/*
@@ -340,16 +372,14 @@ gregset_t	regset;
 	if (disflag) {
 		register PROC *pp;
 
-		s=sphi();
-		if ((pp=SELF)!=iprocp)
-			setrun(pp);
-		dispatch();
-		spl(s);
+		s = sphi ();
+		if ((pp = SELF) != iprocp)
+			setrun (pp);
+		dispatch ();
+		spl (s);
 	}
 
 	STREAMS_SCHEDULER ();
-
-	return;
 }
 
 #ifdef TIMING

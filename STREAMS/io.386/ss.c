@@ -49,8 +49,9 @@ static int s_id;
  */
 #include	<sys/coherent.h>
 
-#ifdef _I386
-#include	<sys/fakeff.h>
+#include	<kernel/typed.h>
+#if	_I386
+#include	<kernel/fakeff.h>
 #include	<sys/dmac.h>
 #endif
 #include	<sys/io.h>
@@ -63,9 +64,7 @@ static int s_id;
 #include	<sys/errno.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
-#include	<sys/buf.h>
 #include	<sys/scsiwork.h>
-#include	<sys/typed.h>
 
 /*
  * Definitions.
@@ -181,12 +180,6 @@ typedef struct ss {
 	uint	waiting:1;	/* 1 if target timer is running */
 }	ss_type;
 
-typedef struct {
-	uint	ncyl;
-	unchar	nhead;
-	unchar	nspt;
-}	drv_parm_type;
-
 /*
  * Functions.
  *	Import Functions.
@@ -255,7 +248,7 @@ static unchar	xpmod();
  *	Local Variables.
  */
 
-extern short n_atdr; /* set by atcount() before any load routines run */
+extern short at_drive_ct; /* set by atcount() before any load routines run */
  
 CON	sscon	= {
 	DFBLK|DFCHR,			/* Flags */
@@ -273,28 +266,21 @@ CON	sscon	= {
 	nulldev				/* Poll */
 };
 
-	/* Patch these Export Variables to configure the driver. */
 /*
+ * Configurable variables - see /etc/conf/ss/Space.c
+ *
  * In the low byte of NSDRIVE, bit n is 1 if SCSI ID n is an installed target.
  * The high byte indicates which type of host adapter:
  *   00 - ST01/ST02
  *   80 - TMC-845/850/860/875/885
  *   40 - TMC-840/841/880/881
  */
-uint	NSDRIVE = 0x0001;
-uint	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
-uint	SS_BASE = 0xCA00;	/* Segment addr of ST0x communication area */
+extern unsigned int	NSDRIVE;
+extern unsigned int	SS_INT;		/* ST0[12] use either IRQ3 or IRQ5 */
+extern unsigned int	SS_BASE;	/* Segment addr of ST0x comm area */
 
 /* ncyl, nhead, nspt */
-drv_parm_type drv_parm[MAX_SCSI_ID] = {
-	{ 0, 0, 0},
-	{ 0, 0, 0},
-	{ 0, 0, 0},
-	{ 0, 0, 0},
-	{ 0, 0, 0},
-	{ 0, 0, 0},
-	{ 0, 0, 0}
-};
+extern _drv_parm_t drv_parm[];
 
 static BUF	dbuf;		/* For raw I/O */
 static paddr_t	ss_base;	/* physical address of ST0x comm area */
@@ -439,10 +425,10 @@ static void ssload()
 	 * Part of this is getting parameters from tboot, if any.
 	 * The drive number in tboot's data block must be matched with
 	 * the SCSI id in question.  Drive numbering in tboot is assumed
-	 * to start with any "at" drives (n_atdr counts these)
+	 * to start with any "at" drives (at_drive_ct counts these)
 	 * then proceed with SCSI drives in increasing id number order.
 	 */
-	tbnum = n_atdr; /* tboot drive number for first SCSI drive */
+	tbnum = at_drive_ct; /* tboot drive number for first SCSI drive */
 	host_claimed = -1;
 	bufq_init(max_id + 1);
 	max_req_poll = INL_MAX_REQ_POLL;

@@ -197,27 +197,11 @@ static void	flDrvStatus();
  *	Local Variables.
  */
 
-/*
- * Patchable variables for compatibility with IBM products:
- *
- * FL_DSK_CH_PROB - some machines always have the disk changed line turned on.
- * Currently some PS/1's (Consultant, Professional - possibly most of them)
- * have this problem, so the default value of zero assumes normal disk change
- * line operation.
- *
- * FL_AUTO_PARM - Only try to autosense floppy parameters if this variable
- * is nonzero.  The PS/2-L40 floppy controller apparently has trouble changing
- * from low density to high density.  Missing address marks when reading
- * a HD floppy are the symptom if FL_AUTO_PARM is set when it shouldn't be.
- */
+/* Configurable variables - see /etc/conf/fd/Space.c. */
 
-/*
- * Now set to 1 because we need the ability to autosense the floppy
- * format. (originally defaulted to 0)	-louis 7/93
- */
-
-int 	FL_DSK_CH_PROB = 0;
-int	FL_AUTO_PARM = 1;
+extern int 	fl_dsk_ch_prob;
+extern int	fl_auto_parm;
+extern int	fl_disp;
 
 int	jopen;
 
@@ -230,12 +214,12 @@ one I could come up with. Basically, what I said was since we can't tell when
 the disk has changed, we will act as if it has changed every time we do an
 open or a reset. The code
 
-		if (FL_DSK_CH_PROB)
+		if (fl_dsk_ch_prob)
 			jopen = 2;
 
 indicates the need to pretend that the disk has changed. It is set to 2 since
 there are two parts to the change procedure. Additional code dependent on
-the value of FL_DSK_CH_PROB says that if we have not just down an open, then
+the value of fl_dsk_ch_prob says that if we have not just down an open, then
 we should skip the recal.  Otherwise, decrement the counter, and do the
 recal. - mlk */
 
@@ -310,7 +294,6 @@ int	fl_srt = 0xD;	/* Floppy seek step rate, in unit -2 millisec */
 			/* 4 msec/step, but there's no sense in pushing it.) */
 int	fl_hlt = 25;	/* Floppy head load time, in unit 4 millisec */
 int	fl_hut = 0xF;	/* Floppy head unload time, in unit 32 millisec */
-int	fl_disp = 0;	/* If nonzero, print drive parameters on screen */
 
 CON	fl386con = {
 	DFBLK | DFCHR,			/* Flags */
@@ -385,7 +368,7 @@ flload()
 
 	fl.fl_rate_set = 0;
 
-	if (FL_DSK_CH_PROB)
+	if (fl_dsk_ch_prob)
 		jopen = 1;
 
 	fl.fl_state = SIDLE;		/* Initial state of IDLE */
@@ -455,7 +438,7 @@ int	mode;
 		goto badFlopen;		
 	}
 
-	if (FL_DSK_CH_PROB)
+	if (fl_dsk_ch_prob)
 		jopen = 1;
 
 	/*
@@ -540,7 +523,7 @@ int	mode;
 			fl.fl_incal[unit_number] = -1;
 			fl.fl_dsk_chngd[unit_number] = 1;
 
-			if (FL_DSK_CH_PROB)
+			if (fl_dsk_ch_prob)
 				jopen = 1;
 		}
 	}	/* end of first open stuff */
@@ -615,6 +598,7 @@ IO	*iop;
  * The only valid command is to format a track.
  * The parameter block contains the header records supplied to the controller.
  */
+
 static int
 flioctl(dev, com, par)
 dev_t	dev;
@@ -624,6 +608,7 @@ char	*par;
 	register unsigned s;
 	register struct fdata *fdp;
 	unsigned hd, cyl;
+	IO		io;
 
 	if (com != FDFORMAT) {
 		u.u_error = EINVAL;
@@ -635,15 +620,15 @@ char	*par;
 	 * Possible future mod.
 	 */
 	
-	if(fisspecial(dev)) {
+	if (fisspecial (dev)) {
 		u.u_error = EINVAL;
 		return;
 	}
 
 
-	fdp = &fdata[fkind(dev)];		/* Locate formatting	*/
-	cyl = getubd(par);			/* parameters.		*/
-	hd  = getubd(par+1);
+	fdp = & fdata [fkind (dev)];		/* Locate formatting	*/
+	cyl = getubd (par);			/* parameters.		*/
+	hd  = getubd (par+1);
 
 	if (hd > 1 || cyl >= fdp->fd_trks) {
 		u.u_error = EINVAL;
@@ -677,15 +662,17 @@ char	*par;
 	/*
 	 * Build the device I/O request.
 	 */
-	u.u_io.io_seek = ((long)s) * BSIZE;
-	u.u_io.io.vbase = par;
-	u.u_io.io_ioc = fdp->fd_nspt * 4;
+
+	io.io_seg = IOUSR;
+	io.io_seek = (long) s * BSIZE;
+	io.io.vbase = par;
+	io.io_ioc = fdp->fd_nspt * 4;
 
 	/*
 	 * Hand off to the dmareq routine (i.e., indirectly call 
 	 * flblock() letting dmareq() do all the dirty work).
 	 */
-	dmareq(&flbuf[funit(dev)], &u.u_io, dev, BFLFMT);
+	dmareq (& flbuf [funit (dev)], & io, dev, BFLFMT);
 	return 0;
 }
 
@@ -981,7 +968,7 @@ T_HAL(0x40000, printf("SSEEK "));
 		if ((frates[fl.fl_type[fl.fl_unit]].fl_hi_rate != -1)
 		&&   (inb(FDCCHGL) & DSKCHGD)
 		&&   (fl_clrng_cd == 0)) {
-			/* See note at def of FL_DSK_CH_PROB above */
+			/* See note at def of fl_dsk_ch_prob above */
 
 			/*
 			 * Hmm.  I would have done this:
@@ -989,7 +976,7 @@ T_HAL(0x40000, printf("SSEEK "));
 			 * instead of multiple if's, but that's me.
 			 * -louis
 			 */
-			if (FL_DSK_CH_PROB) {
+			if (fl_dsk_ch_prob) {
 				if (jopen) {
 					jopen--;
 					fl.fl_dsk_chngd[fl.fl_unit] = 1;
@@ -1155,13 +1142,12 @@ Recalibrated:
 
 			fl.fl_fd[fl.fl_unit] =
 			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_hi_kind];
-                        if (FL_AUTO_PARM && fautosense(bp->b_dev)) {
+                        if (fl_auto_parm && fautosense(bp->b_dev)) {
 				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_lo_kind;
 				fl_alt_rate =
 				  frates[fl.fl_type[fl.fl_unit]].fl_lo_rate;
-			}
-			else {
+			} else {
 				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_hi_kind;
 				fl_alt_rate =
@@ -1170,7 +1156,7 @@ Recalibrated:
 		} else {
 			fl.fl_fd[fl.fl_unit] =
 			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_lo_kind];
-                        if (FL_AUTO_PARM && fautosense(bp->b_dev)) {
+                        if (fl_auto_parm && fautosense(bp->b_dev)) {
 				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_hi_kind;
 				fl_alt_rate =
@@ -1652,7 +1638,7 @@ flrecov()
 {
 	register int	x;
 
-	if (FL_DSK_CH_PROB)
+	if (fl_dsk_ch_prob)
 		jopen = 1;
 
 	/*

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/bio.c,v 1.9 93/04/14 10:06:14 root Exp $ */
+/* $Header: /ker/coh.386/RCS/bio.c,v 2.2 93/07/26 15:22:22 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,12 @@
  * Buffered I/O.
  *
  * $Log:	bio.c,v $
+ * Revision 2.2  93/07/26  15:22:22  nigel
+ * Nigel's R80
+ * 
+ * Revision 2.2  93/07/26  14:28:20  nigel
+ * Nigel's R80
+ * 
  * Revision 1.9  93/04/14  10:06:14  root
  * r75
  * 
@@ -47,6 +53,9 @@
  * 86/07/24	Allan Cornish		/usr/src/sys/coh/bio.c
  * Added check in devinit() for null dp->d_conp->c_load function pointer.
  */
+
+#include <common/gregset.h>
+#include <sys/debug.h>
 #include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/con.h>
@@ -58,10 +67,9 @@
 #include <sys/stat.h>
 
 /*
- * NIGEL: Whatever a "dold_t" was, there is no such thing now. Strip them
- * out sometime soon.
+ * This is here for the old-style Coherent I/O support hacks.
  */
-typedef	unsigned char	dold_t;
+#include <sgtty.h>
 
 static	BUF	**hasharray;		/* pointer to hash buckets */
 static	BUF	*firstbuf;		/* pointer to first in LRU chain */
@@ -96,7 +104,7 @@ bufinit()
 		panic("bufinit: insufficient memory for %d buffers", NBUF);
 
 	for (i = 0; i < NHASH; ++i)
-		hasharray[i] = BNULL;
+		hasharray [i] = BNULL;
 
 	/*
 	 * initialize the buffer header array with the physical and
@@ -115,7 +123,7 @@ bufinit()
 		bp->b_LRUf = bp + 1;		/* next entry in chain */
 		bp->b_LRUb = bp - 1;		/* prev entry in chain */
 
-		__GATE_INIT (bp->b_gate);
+		__GATE_INIT (bp->b_gate, "buffer");
 
 		p += BSIZE;
 		v += BSIZE;
@@ -128,6 +136,46 @@ bufinit()
 
 	bufl [0].b_LRUb = BNULL;		/* no predecessor */
 	bufl [NBUF - 1].b_LRUf = BNULL;		/* no successor */
+}
+
+/*
+ * NIGEL: This function is the only code that references drvl [] directly
+ * other than the bogus code that manages the load and unload entry points,
+ * which we will also need to "enhance". What we add to this code is a range
+ * check so that it no longer can index off the end of drvl [], and in the
+ * case that we would go off the end of drvl [] we vector instead to the
+ * STREAMS system and ask it to return a kludged-up "CON *". The mapping
+ * code referred to above is for the i286 and does nothing whatsoever, so
+ * all this function really does as it stands is a table lookup.
+ */
+
+CON *
+drvmap(dev)
+dev_t dev;
+{
+	register DRV *dp;
+	register unsigned m;
+
+	if ((m = major(dev)) >= drvn) {
+		CON	      *	conp;
+
+		/*
+		 * NIGEL: If STREAMS is disabled or there is no device
+		 * corresponding to this (external) major number, flag ENXIO.
+		 */
+
+		if ((conp = STREAMS_GETCON (dev)) != NULL)
+			return conp;
+
+		SET_U_ERROR (ENXIO, "drvmap()");
+		return NULL;
+	}
+
+	dp = drvl + m;
+	if (dp->d_conp == NULL)
+		SET_U_ERROR (ENXIO, "drvmap()");
+
+	return dp->d_conp;
 }
 
 /*
@@ -148,7 +196,7 @@ bsync()
 }
 
 /*
- * Synchronise all block for a particular device in the buffer cache
+ * Synchronise all blocks for a particular device in the buffer cache
  * and invalidate all references.
  */
 bflush(dev)
@@ -169,6 +217,8 @@ register dev_t dev;
 	}
 }
 
+int	t_async = 0;
+
 /*
  * Return a buffer containing the given block from the given device.
  * If `sync' is not set, the read is asynchronous and no buffer is returned.
@@ -182,19 +232,39 @@ register int sync;
 	register BUF *bp;
 	register int s;
 
-	bp = bclaim (dev, bno);
+	bp = bclaim (dev, bno, sync);
+	if (sync == BUF_ASYNC && t_async) {
+		lock (bp->b_gate);
+		unlock (bp->b_gate);
+	}
 	if (bp->b_flag & BFNTP) {
-		if (sync)
-			bp->b_flag &= ~BFASY;
+		if (sync == BUF_SYNC)
+			ASSERT ((bp->b_flag & BFASY) == 0);
 		else {
+			/*
+			 * If the BFASY flag is set, then we don't need to
+			 * actually initiate a new operation. Whatever is
+			 * happening to the buffer now is fine by us...
+			 */
+			if ((bp->b_flag & BFASY) != 0)
+				return (BUF *) 1;
+
+			/*
+			 * Since we are actually going to perform some I/O
+			 * on the buffer, we need to lock it first (it used
+			 * to be that bclaim () would always do this, but that
+			 * prevented useful parallelism).
+			 */
+
+			ASSERT (__GATE_LOCKED (bp->b_gate) == 0);
+			lock (bp->b_gate);
 			bp->b_flag |= BFASY;
-			bumap(bp);
 		}
 		bp->b_req = BREAD;
 		bp->b_count = BSIZE;
-		dblock(dev, bp);
-		if (! sync)
-			return (NULL);
+		dblock (dev, bp);
+		if (sync == BUF_ASYNC)
+			return (BUF *) 2;
 
 		/*
 		 * If buffer is not valid, wait for it.
@@ -208,21 +278,20 @@ register int sync;
 		spl(s);
 
 		if (bp->b_flag & BFERR) {
-			SET_U_ERROR(bp->b_err ? bp->b_err : EIO, "bread()");
-			brelease(bp);
-			return (NULL);
+			SET_U_ERROR (bp->b_err ? bp->b_err : EIO, "bread()");
+			brelease (bp);
+			return NULL;
 		}
 		if (bp->b_resid == BSIZE) {
-			brelease(bp);
-			return (NULL);
+			brelease (bp);
+			return NULL;
 		}
 	}
-	if (!sync) {
-		brelease(bp);
-		return (NULL);
-	}
-	u.u_block++;
-	return (bp);
+	if (sync == BUF_ASYNC)
+		return (BUF *) 3;
+
+	u.u_block ++;
+	return bp;
 }
 
 /*
@@ -289,32 +358,32 @@ register BUF *bp;
  * it.  If not, pick an empty buffer, set it up and return it.
  */
 BUF *
-bclaim(dev, bno)
+bclaim(dev, bno, sync)
 dev_t dev;
 register daddr_t bno;
+int		sync;
 {
 	register BUF *bp;
 	register int s;
 	unsigned long hashval;
-	static GATE bufgate;			/* better than sphi()/spl() */
 
-	hashval = HASH(dev, bno) % NHASH;	/* select a hash bucket */
+	hashval = HASH (dev, bno) % NHASH;	/* select a hash bucket */
 
 again:
-	lock(bufgate);				/* avoid pointer updates */
-
 	for (bp = hasharray [hashval]; bp != BNULL; bp = bp->b_hashf) {
 		if (bp->b_bno == bno && bp->b_dev == dev) {
-#if	! NIGEL_TEST
-			unlock (bufgate);
+			if (sync == BUF_ASYNC) {
+#if	1
+				LRUupdate (bp);
 #endif
-			lock(bp->b_gate);
-#if	! NIGEL_TEST
-			lock (bufgate);
-#endif
+				return bp;
+			}
+
+			lock (bp->b_gate);
+
 			if (bp->b_bno != bno || bp->b_dev != dev) {
+				ASSERT (0);
 				unlock (bp->b_gate);
-				unlock (bufgate);
 				goto again;
 			}
 
@@ -324,22 +393,18 @@ again:
 			 * LRU chain and move it to the front.
 			 */
 
-			LRUupdate(bp);
+			LRUupdate (bp);
 
 			/*
 			 * If the buffer had an I/O error, mark it as
-			 * invalid.  Unlock the buffer gate and return
-			 * the buffer to the requestor.
+			 * invalid.
 			 */
 
 			if (bp->b_flag & BFERR)
 				bp->b_flag |= BFNTP;
-			unlock (bufgate);
-			bsmap (bp);
-			return (bp);
+			return bp;
 		}
 	}
-	unlock (bufgate);
 
 	/*
 	 * The requested buffer is not resident in our cache.  Locate the
@@ -352,41 +417,42 @@ again:
 	 */
 
 	for (;;) {				/* loop until successful */
-		lock(bufgate);
-		for (bp = lastbuf; bp != BNULL; bp = bp->b_LRUb) {
-			if (locked (bp->b_gate))
+		for (bp = lastbuf ; bp != BNULL ; bp = bp->b_LRUb) {
+			/*
+			 * NIGEL: This code assumes that buffers can be locked
+			 * only by other process-level code.
+			 */
+
+			if (__GATE_LOCKED (bp->b_gate))
 				continue;	/* not available */
-			s = sphi ();
-			if (locked (bp->b_gate)) {
-				spl (s);
-				continue;	/* they snuck in ;-) */
-			}
-			lock (bp->b_gate);
-			spl (s);
-			if (bp->b_flag & BFMOD)
+
+			if (bp->b_flag & BFMOD) {
+				lock (bp->b_gate);
 				bwrite (bp, 0);	/* flush dirty buffer */
-			else {
-				/*
-				 * Update the hash chain for this old
-				 * buffer.  Unlink it from it's old location
-				 * fixing up any references. Also, update
-				 * the LRU chain to move the buffer to the head.
-				 */
-				HASHdelete(bp);
-				LRUupdate(bp);
-
-				bp->b_flag = BFNTP;
-				bp->b_dev = dev;
-				bp->b_bno = bno;
-				bp->b_hashval = hashval;
-
-				HASHinsert(bp);
-				unlock(bufgate);
-				bsmap(bp);
-				return (bp);
+				continue;
 			}
+
+			if (sync == BUF_SYNC)
+				lock (bp->b_gate);
+
+			/*
+			 * Update the hash chain for this old
+			 * buffer.  Unlink it from it's old location
+			 * fixing up any references. Also, update
+			 * the LRU chain to move the buffer to the head.
+			 */
+
+			HASHdelete (bp);
+			LRUupdate (bp);
+
+			bp->b_flag = BFNTP;
+			bp->b_dev = dev;
+			bp->b_bno = bno;
+			bp->b_hashval = hashval;
+
+			HASHinsert (bp);
+			return bp;
 		}
-		unlock (bufgate);
 		s = sphi();
 		bufneed = 1;
 		x_sleep((char *)&bufneed, pridisk, slpriNoSig, "bufneed");
@@ -407,15 +473,14 @@ register BUF *bp;
 
 	if (sync)
 		bp->b_flag &= ~BFASY;
-	else {
+	else
 		bp->b_flag |= BFASY;
-		bumap(bp);
-	}
+
 	bp->b_flag |= BFNTP;
 	bp->b_req = BWRITE;
 	bp->b_count = BSIZE;
 
-	dblock(bp->b_dev, bp);
+	dblock (bp->b_dev, bp);
 
 	if (! sync)
 		return;
@@ -435,17 +500,17 @@ bdone(bp)
 register BUF *bp;
 {
 	if (bp->b_req == BWRITE)
-		bp->b_flag &= ~BFMOD;
+		bp->b_flag &= ~ BFMOD;
 	if (bp->b_req == BREAD) {
-		if (bp->b_flag&BFERR)
+		if (bp->b_flag & BFERR)
 			bp->b_dev = NODEV;
 	}
-	if (bp->b_flag&BFASY) {
-		bp->b_flag &= ~BFASY;
-		brelease(bp);
+	if (bp->b_flag & BFASY) {
+		bp->b_flag &= ~ BFASY;
+		brelease (bp);
 	}
-	bp->b_flag &= ~BFNTP;
-	dwakeup((char *)bp);
+	bp->b_flag &= ~ BFNTP;
+	dwakeup ((char *) bp);
 }
 
 /*
@@ -459,35 +524,12 @@ register BUF *bp;
 		bp->b_dev = NODEV;
 	}
 	bp->b_flag &= ~ BFNTP;
-	bumap (bp);
+
 	unlock (bp->b_gate);
 	if (bufneed) {
 		bufneed = 0;
 		wakeup ((char *) & bufneed);
 	}
-}
-
-/*
- * Map the given buffer.
- */
-bsmap(bp)
-register BUF *bp;
-{
-	bsave(bp->b_map);
-	bp->b_flag |= BFMAP;
-	bmapv(bconv(bp->b_paddr));
-}
-
-/*
- * Unmap the given buffer.
- */
-bumap(bp)
-register BUF *bp;
-{
-	if ((bp->b_flag&BFMAP) == 0)
-		return;
-	bp->b_flag &= ~BFMAP;
-	brest(bp->b_map);
 }
 
 /*
@@ -623,6 +665,7 @@ register IO *iop;
  * Given a buffer pointer, an I/O structure, a device, request type, and
  * a flags word, check the I/O structure and perform the I/O request.
  */
+
 ioreq(bp, iop, dev, req, f)
 register BUF *bp;
 register IO *iop;
@@ -631,13 +674,13 @@ dev_t dev;
 	register int n;
 	register int s;
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp = drvmap (dev, & dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
+
 	lock (bp->b_gate);
 	n = cp->c_flag;	/* n should do something with that flag */
-	drest (dold);
+
 	if (iop) {
 		if (f & BFBLK) {
 			if (blocko (iop->io_seek)) {
@@ -731,10 +774,10 @@ register BUF *bp;
 	}
 
 	/* Is the io area in question contained in a shared memory segment? */
-	if (srp = accShm(iobase, ioc)) {
+	if ((srp = accShm (iobase, ioc)) != NULL) {
 		sp = srp->sr_segp;
 		base = srp->sr_base;
- 		bp->b_paddr = MAPIO(sp->s_vmem, iobase - base);
+ 		bp->b_paddr = MAPIO (sp->s_vmem, iobase - base);
 		return sp;
 	}
 
@@ -750,10 +793,10 @@ devinit()
 	register DRV *dp;
 	register int mind;
 
-	for ( dp = drvl, mind = 0; mind < drvn; mind++, dp++ ) {
+	for (dp = drvl, mind = 0 ; mind < drvn ; mind ++, dp ++) {
 		if (dp->d_conp && dp->d_conp->c_load) {
-			(*dp->d_conp->c_load)();
-			dev_loaded |= (1<<mind);
+			(* dp->d_conp->c_load) ();
+			dev_loaded |= (1 << mind);
 		}
 	}
 
@@ -776,16 +819,16 @@ dopen(dev, m, f)
 register dev_t dev;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	if ((cp->c_flag&f) == 0) {
-		SET_U_ERROR(ENXIO, "dopen()");
+
+	if ((cp->c_flag & f) == 0) {
+		SET_U_ERROR (ENXIO, "dopen()");
 		return;
 	}
-	(*cp->c_open)(dev, m, f);			/* NIGEL */
-	drest(dold);
+
+	(* cp->c_open) (dev, m, f);			/* NIGEL */
 }
 
 /*
@@ -802,12 +845,11 @@ dclose(dev, mode, typ)
 register dev_t dev;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	(*cp->c_close)(dev, mode, typ);			/* NIGEL */
-	drest(dold);
+
+	(* cp->c_close) (dev, mode, typ);			/* NIGEL */
 }
 
 /*
@@ -818,12 +860,11 @@ dev_t dev;
 BUF *bp;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	(*cp->c_block)(bp);
-	drest(dold);
+
+	(* cp->c_block) (bp);
 }
 
 /*
@@ -834,12 +875,11 @@ register dev_t dev;
 register IO *iop;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	(*cp->c_read)(dev, iop);
-	drest(dold);
+
+	(* cp->c_read) (dev, iop);
 }
 
 /*
@@ -850,12 +890,11 @@ register dev_t dev;
 register IO *iop;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	(*cp->c_write)(dev, iop);
-	drest(dold);
+
+	(* cp->c_write) (dev, iop);
 }
 
 /*
@@ -867,22 +906,41 @@ register IO *iop;
  * function, for uioctl () and in the /dev/tty driver, "io.386/ct.c" which is
  * passing its arguments back here (ie, a layered open). The "ct.c" call has
  * not been changed.
+ *
+ * NIGEL: To support the elimination of u_regl, the current user register set
+ * is passed in here (NULL if we are being called from a driver).
  */
-dioctl(dev, com, vec, mode)
+
+dioctl (dev, com, vec, mode, regsetp)
 register dev_t dev;
 union ioctl *vec;
+gregset_t     *	regsetp;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	if (XMODE_286)
-		tioc(dev, com, vec, cp->c_ioctl);
-	else
-		(*cp->c_ioctl)(dev, com, vec, mode);	/* NIGEL */
-	drest(dold);
+
+	if (regsetp != NULL) {
+		/*
+		 * Here we do a bunch of special hacks so that the tty code
+		 * can remain ignorant of the myriad variants on the tty
+		 * ioctl's.
+		 */
+
+		if (__xmode_286 (regsetp))
+			tioc (dev, com, vec, cp->c_ioctl, mode);
+		else if ((com == TIOCGETP &&
+			  ! useracc (vec, sizeof (struct sgttyb), 1)) ||
+			 ((com == TIOCSETP || com == TIOCSETN) &&
+			  ! useracc (vec, sizeof (struct sgttyb), 0)))
+			SET_U_ERROR (EFAULT, "dioctl ()");
+		else
+			(* cp->c_ioctl) (dev, com, vec, mode);
+	} else
+		(* cp->c_ioctl) (dev, com, vec, mode);
 }
+
 
 /*
  * Call the powerfail entry point of a device.
@@ -891,27 +949,26 @@ dpower(dev)
 register dev_t dev;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	(*cp->c_power)(dev);
-	drest(dold);
+
+	(* cp->c_power) (dev);
 }
 
 /*
  * Call the timeout entry point of a device.
  */
-dtime(dev)
+
+dtime (dev)
 register dev_t dev;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return;
-	(*cp->c_timer)(dev);
-	drest(dold);
+
+	(* cp->c_timer) (dev);
 }
 
 /*
@@ -923,71 +980,16 @@ int ev;
 int msec;
 {
 	register CON *cp;
-	dold_t dold;
 
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev)) == NULL)
 		return POLLNVAL;
 
-	if ( cp->c_flag & DFPOL )
-		ev = (*cp->c_poll)(dev, ev, msec);
+	if (cp->c_flag & DFPOL)
+		ev = (* cp->c_poll) (dev, ev, msec);
 	else
 		ev = POLLNVAL;
 
-	drest(dold);
 	return ev;
-}
-
-/*
- * Given a device, and a pointer to a driver map save area, save the
- * current map in the driver map save area and map in the new device,
- * returning a pointer to the configuration entry for that device.
- *
- * NIGEL: This function is the only code that references drvl [] directly
- * other than the bogus code that manages the load and unload entry points,
- * which we will also need to "enhance". What we add to this code is a range
- * check so that it no longer can index off the end of drvl [], and in the
- * case that we would go off the end of drvl [] we vector instead to the
- * STREAMS system and ask it to return a kludged-up "CON *". The mapping
- * code referred to above is for the i286 and does nothing whatsoever, so
- * all this function really does as it stands is a table lookup.
- */
-CON *
-drvmap(dev, doldp)
-dev_t dev;
-dold_t *doldp;
-{
-	register DRV *dp;
-	register unsigned m;
-
-	if ((m=major(dev)) >= drvn) {
-		CON	      *	conp;
-
-		/*
-		 * NIGEL: If STREAMS is disabled or there is no device
-		 * corresponding to this (external) major number, flag ENXIO.
-		 */
-
-		if ((conp = STREAMS_GETCON (dev)) != NULL)
-			return conp;
-
-		SET_U_ERROR(ENXIO, "drvmap()");
-		return (NULL);
-	}
-	dp = &drvl[m];
-	if (locked(dp->d_gate)) {
-		SET_U_ERROR(ENXIO, "drvmap()");
-		return (NULL);
-	}
-	if (dp->d_conp == NULL) {
-		SET_U_ERROR(ENXIO, "drvmap()");
-		return (NULL);
-	}
-	dsave(*doldp);
-#ifndef	_I386
-	if (dp->d_map)
-		dmapv(dp->d_map);
-#endif
-	return (dp->d_conp);
 }
 
 /*
@@ -995,7 +997,7 @@ dold_t *doldp;
  */
 nonedev()
 {
-	SET_U_ERROR(ENXIO, "nonedev()");
+	SET_U_ERROR (ENXIO, "nonedev()");
 }
 
 /*

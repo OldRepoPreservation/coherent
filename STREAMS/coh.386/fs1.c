@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fs1.c,v 1.8 93/04/14 10:06:28 root Exp $ */
+/* $Header: /ker/coh.386/RCS/fs1.c,v 2.2 93/07/26 15:19:00 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (mostly handling of in core inodes).
  *
  * $Log:	fs1.c,v $
+ * Revision 2.2  93/07/26  15:19:00  nigel
+ * Nigel's R80
+ * 
  * Revision 1.8  93/04/14  10:06:28  root
  * r75
  * 
@@ -58,7 +61,8 @@
  * Get character for `ftoi' depending on what space the characters are
  * coming from.
  */
-#define ftoic(p)	(u.u_io.io_seg==IOSYS ? *p : getubd(p))
+
+#define ftoic(p,seg)	((seg) == IOSYS ? * (p) : getubd (p))
 
 /*
  * Map the given filename to an inode.  If an error is encountered,
@@ -75,21 +79,29 @@
  *  'u' =>  Unlink.  The parent directory is returned unlocked.  The child's
  *          inode number is returned.  The seek position is also set.
  */
-ftoi(np, t)
-char *np;
-int	t;
+
+int
+ftoi (np, t, iop, dirent)
+char	      *	np;
+int		t;
+IO	      *	iop;
+struct direct *	dirent;
 {
-	return file_to_inode(np, t, 0);
+	return file_to_inode (np, t, 0, iop, dirent);
 }
 
 /*
  * Does main ftoi job. Was created to solve the problem with rmdir.
  * doRmdir is 0 for all cases except when called from rmdir.
  */
-file_to_inode(np, t, doRmdir)
-char	*np;
-int	t;
-int	doRmdir;
+
+int
+file_to_inode (np, t, doRmdir, iop, dirent)
+char	      *	np;
+int		t;
+int		doRmdir;
+IO	      *	iop;
+struct direct *	dirent;
 {
 	register INODE *cip;
 	register char *cp;
@@ -106,116 +118,131 @@ int	doRmdir;
 	u.u_cdiri = NULL;
 	u.u_pdiri = NULL;
 
-	if ((c=ftoic(np++)) != '/') {
+	if ((c = ftoic (np ++, iop->io_seg)) != '/') {
 		cip = u.u_cdir;
 	} else {
-		c = ftoic(np++);
+		c = ftoic (np ++, iop->io_seg);
 		cip = u.u_rdir;
 	}
 	while (c == '/')
-		c = ftoic(np++);
-	ilock(cip);
-	cip->i_refc++;
+		c = ftoic (np ++, iop->io_seg);
+	ilock (cip);
+	cip->i_refc ++;
 
 	if (c == '\0') {
 		if (t == 'r') {
 			u.u_cdiri = cip;
-			return (u.u_error);
+			return u.u_error;
 		}
-		u.u_error = ENOENT;
-		idetach(cip);
-		return (u.u_error);
+
+		idetach (cip);
+		return u.u_error = ENOENT;
 	}
+
 	for (;;) {
-		cp = u.u_direct.d_name;
-		while (c!='/' && c!='\0') {
-			if (cp < &u.u_direct.d_name[DIRSIZ])
-				*cp++ = c;
-			c = ftoic(np++);
+		cp = dirent->d_name;
+		while (c != '/' && c != '\0') {
+			if (cp < & dirent->d_name [sizeof (dirent->d_name)])
+				* cp ++ = c;
+			c = ftoic (np ++, iop->io_seg);
 		}
+
 		while (c == '/')
-			c = ftoic(np++);
-		while (cp < &u.u_direct.d_name[DIRSIZ])
-			*cp++ = '\0';
-		if ((cip->i_mode&IFMT) != IFDIR)
+			c = ftoic (np ++, iop->io_seg);
+
+		while (cp < & dirent->d_name [sizeof (dirent->d_name)])
+			* cp ++ = '\0';
+
+		if ((cip->i_mode & IFMT) != IFDIR)
 			u.u_error = ENOTDIR;
 		else {
 			/* For rmdir we need only write */
 			if (doRmdir)
-				iaccess(cip, IPW);
+				iaccess (cip, IPW);
 			else
-				iaccess(cip, IPE);
+				iaccess (cip, IPE);
 		}
 
 		if (u.u_error) {
-			idetach(cip);
-			return (u.u_error);
+			idetach (cip);
+			return u.u_error;
 		}
-		cp = u.u_direct.d_name;
-		if (cip->i_ino==ROOTIN && cip->i_dev!=rootdev)
-			if (*cp++=='.' && *cp++=='.' && *cp++=='\0')
-				cip = ftoim(cip);
+
+		cp = dirent->d_name;
+
+		if (cip->i_ino == ROOTIN && cip->i_dev != rootdev &&
+		    * cp ++ == '.' && * cp ++ == '.' && * cp ++ == '\0')
+			cip = ftoim (cip);
+
 		b = 0;
 		fflag = 0;
 		mflag = 0;
 		cseek = 0;
 		s = cip->i_size;
+
 		while (s > 0) {
-			if ((bp=vread(cip, b++)) == NULL) {
-				idetach(cip);
-				return (u.u_error);
+			if ((bp = vread (cip, b ++)) == NULL) {
+				idetach (cip);
+				return u.u_error;
 			}
+
 			dp = bp->b_vaddr;
-			while (dp < bp->b_vaddr+BSIZE) {
-				if ((s-=sizeof(*dp)) < 0)
+			while (dp < bp->b_vaddr + BSIZE) {
+
+				if ((s -= sizeof (* dp)) < 0)
 					break;
-				if ((ino=dp->d_ino) == 0) {
+
+				if ((ino = dp->d_ino) == 0) {
 					if (fflag == 0) {
 						fflag++;
 						fseek = cseek;
 					}
-				} else {
-					if (direq(dp)) {
-						canino(ino);
-						mflag = 1;
-						s = 0;
-						break;
-					}
+				} else if (direq (dp, dirent)) {
+					canino (ino);
+					mflag = 1;
+					s = 0;
+					break;
 				}
-				cseek += sizeof(*dp);
-				dp++;
+				cseek += sizeof (* dp);
+				dp ++;
 			}
-			brelease(bp);
+			brelease (bp);
 		}
+
 		dev = cip->i_dev;
 		if (fflag == 0)
 			fseek = cseek;
+
 		if (mflag == 0) {
-			if (c=='\0' && t=='c') {
+			if (c == '\0' && t == 'c') {
 				u.u_pdiri = cip;
-				u.u_io.io_seek = fseek;
+				iop->io_seek = fseek;
 			} else {
 				u.u_error = ENOENT;
-				idetach(cip);
+				idetach (cip);
 			}
-			return (u.u_error);
+			return u.u_error;
 		}
+
 		if (c == '\0') {
 			if (t == 'u') {
 				u.u_cdirn = ino;
 				u.u_pdiri = cip;
-				u.u_io.io_seek = cseek;
-				return (u.u_error);
+				iop->io_seek = cseek;
+				return u.u_error;
 			}
-			idetach(cip);
-			u.u_cdiri = iattach(dev, ino);
-			return (u.u_error);
+
+			idetach (cip);
+			u.u_cdiri = iattach (dev, ino);
+			return u.u_error;
 		}
-		idetach(cip);
-		if ((cip=iattach(dev, ino)) == NULL)
-			return (u.u_error);
+
+		idetach (cip);
+		if ((cip = iattach (dev, ino)) == NULL)
+			return u.u_error;
 	}
 }
+
 
 /*
  * Given an inode which is the root of a file system, return the inode
@@ -227,89 +254,96 @@ register INODE *ip;
 {
 	register MOUNT *mp;
 
-	for (mp=mountp; mp!=NULL; mp=mp->m_next) {
+	for (mp = mountp ; mp != NULL ; mp = mp->m_next) {
 		if (mp->m_dev == ip->i_dev) {
-			idetach(ip);
+			idetach (ip);
 			ip = mp->m_ip;
-			ilock(ip);
-			ip->i_refc++;
+			ilock (ip);
+			ip->i_refc ++;
 			break;
 		}
 	}
-	return (ip);
+	return ip;
 }
+
 
 /*
  * Compare the string in `u.u_direct.d_name' with the name in the
  * given directory pointer.
  */
-direq(dp)
-struct direct *dp;
-{
-	register char *cp1, *cp2;
-	register unsigned n;
 
-	if (dp->d_ino == 0)
-		return 0;
-	cp1 = dp->d_name;
-	cp2 = u.u_direct.d_name;
-	n = DIRSIZ;
-	do {
-		if (*cp1++ != *cp2++)
-			return 0;
-	} while (--n);
-	return 1;
+direq (dp1, dp2)
+struct direct *	dp1;
+struct direct * dp2;
+{
+	return dp1->d_ino == 0 ? 0 :
+		strncmp (dp1->d_name, dp2->d_name, sizeof (dp1->d_name)) == 0;
 }
+
 
 /*
  * Make an inode of the given mode and device.  The parent directory,
  * name and such stuff is set by ftoi.
  */
+
 INODE *
-imake(mode, rdev)
+imake (mode, rdev, iop, dirent)
 unsigned mode;
 dev_t rdev;
+IO	      *	iop;
+struct direct *	dirent;
 {
 	register INODE *ip;
 
 	ip = NULL;
-	mode &= ~u.u_umask;
-	if ((mode&ISVTXT)!=0 && super()==0)
+	mode &= ~ u.u_umask;
+	if ((mode & ISVTXT) != 0 && super () == 0)
 		goto det;
-	if (iaccess(u.u_pdiri, IPW) == 0)
+
+	if (iaccess (u.u_pdiri, IPW) == 0)
 		goto det;
-	if ((ip=ialloc(u.u_pdiri->i_dev, mode)) == NULL)
+
+	if ((ip = ialloc (u.u_pdiri->i_dev, mode)) == NULL)
 		goto det;
+
 	ip->i_nlink = 1;
 	ip->i_a.i_rdev = rdev;
-	idirent(ip->i_ino);
-	iamc(ip);	/* creat/mknod - atime/mtime/ctime */
+	idirent (ip->i_ino, iop, dirent);
+	iamc (ip);	/* creat/mknod - atime/mtime/ctime */
 det:
-	idetach(u.u_pdiri);
-	return (ip);
+	idetach (u.u_pdiri);
+	return ip;
 }
+
 
 /*
  * Write a directory entry out.  Everything necessary has been conveniently
  * set by `ftoi', except the new inode number of this directory entry.
  */
-idirent(ino)
+
+idirent (ino, iop, dirent)
+IO	      *	iop;
+struct direct *	dirent;
 {
-	u.u_direct.d_ino = ino;
-	canino(u.u_direct.d_ino);
-	u.u_io.io_ioc  = sizeof (struct direct);
-	u.u_io.io.vbase = &u.u_direct;
-	u.u_io.io_seg  = IOSYS;
-	u.u_io.io_flag = 0;
-	iwrite(u.u_pdiri, &u.u_io);
+	dirent->d_ino = ino;
+	canino (dirent->d_ino);
+
+	iop->io_ioc = sizeof (struct direct);
+	iop->io.vbase = dirent;
+	iop->io_seg = IOSYS;
+	iop->io_flag = 0;
+
+	iwrite (u.u_pdiri, iop);
 }
+
 
 /*
  * Return a pointer to a locked inode in core containing the given
  * inode number and device.
  */
+
 INODE *
-iattach(dev, ino)
+iattach (dev, ino)
 {
 	register INODE *ip;
 	register INODE *fip;
@@ -318,25 +352,26 @@ iattach(dev, ino)
 
 	for (;;) {
 		fip = NULL;
-		for (ip=&inodep[NINODE-1]; ip>=inodep; --ip) {
-			if (ip->i_ino==ino && ip->i_dev==dev)
+		for (ip = & inodep [NINODE - 1] ; ip >= inodep ; -- ip) {
+			if (ip->i_ino == ino && ip->i_dev == dev)
 				break;
 			if (ip->i_refc == 0) {
-				if (fip==NULL || ip->i_lrt<lrt) {
+				if (fip == NULL || ip->i_lrt < lrt) {
 					fip = ip;
 					lrt = ip->i_lrt;
 				}
 			}
 		}
+
 		if (ip < inodep) {
-			if ((ip=fip) == NULL) {
-				devmsg(dev, "Inode table overflow");
+			if ((ip = fip) == NULL) {
+				devmsg (dev, "Inode table overflow");
 				u.u_error = ENFILE;
-				return (NULL);
+				return NULL;
 			}
-			ilock(ip);
+			ilock (ip);
 			if (ip->i_refc != 0) {
-				iunlock(ip);
+				iunlock (ip);
 				continue;
 			}
 			ip->i_dev = dev;
@@ -344,16 +379,16 @@ iattach(dev, ino)
 			ip->i_refc = 1;
 			ip->i_lrt = timer.t_time;
 			ip->i_lastblock = -1;
-			if (icopydm(ip) == 0) {
+			if (icopydm (ip) == 0) {
 				ip->i_ino = 0;
 				ip->i_refc = 0;
-				iunlock(ip);
-				return (NULL);
+				iunlock (ip);
+				return NULL;
 			}
-			return (ip);
+			return ip;
 		}
-		if ((ip->i_flag&IFMNT) != 0) {
-			for (mp=mountp; mp!=NULL; mp=mp->m_next) {
+		if ((ip->i_flag & IFMNT) != 0) {
+			for (mp = mountp ; mp != NULL ; mp = mp->m_next) {
 				if (mp->m_ip == ip) {
 					ino = ROOTIN;
 					dev = mp->m_dev;
@@ -362,16 +397,16 @@ iattach(dev, ino)
 			}
 			continue;
 		}
-		ilock(ip);
-		if (ip->i_ino!=ino || ip->i_dev!=dev) {
-			iunlock(ip);
+		ilock (ip);
+		if (ip->i_ino != ino || ip->i_dev != dev) {
+			iunlock (ip);
 			continue;
 		}
 		if (ip->i_refc < 0)
-			panic("iattach(%x)", ip);
-		ip->i_refc++;
+			panic ("iattach(%x)", ip);
+		ip->i_refc ++;
 		ip->i_lrt = timer.t_time;
-		return (ip);
+		return ip;
 	}
 }
 
@@ -382,30 +417,30 @@ idetach(ip)
 register INODE *ip;
 {
 #if 0
-	if (ilocked(ip)==0 || ip->i_refc<=0)
+	if (ilocked (ip) == 0 || ip->i_refc <= 0)
 		panic("idetach(%p)", ip);
 #else
-	if (ilocked(ip)==0) {
-		printf("bad unlocked inode, dev=%x, ino=%d, flags=%x\n",
+	if (ilocked (ip) == 0) {
+		printf ("bad unlocked inode, dev=%x, ino=%d, flags=%x\n",
 			ip->i_dev, ip->i_ino, ip->i_flag);
-		panic("idetach(%p)", ip);
+		panic ("idetach(%p)", ip);
 	}
-	if (ip->i_refc<=0) {
-		printf("negative refc, dev=%x, ino=%d, flags=%x, refc=%d\n",
+	if (ip->i_refc <= 0) {
+		printf ("negative refc, dev=%x, ino=%d, flags=%x, refc=%d\n",
 			ip->i_dev, ip->i_ino, ip->i_flag, ip->i_refc);
-		panic("idetach(%p)", ip);
+		panic ("idetach(%p)", ip);
 	}
 #endif
-	if (--ip->i_refc == 0) {
+	if (-- ip->i_refc == 0) {
 #if	1
 		if (ip->i_rl)
-			panic("idetach(%p) with locked records", ip);
+			panic ("idetach(%p) with locked records", ip);
 #endif
-		if ((ip->i_flag&(IFACC|IFMOD|IFCRT))
-		 || ip->i_nlink == 0)
-			icopymd(ip);
+		if ((ip->i_flag & (IFACC | IFMOD | IFCRT)) != 0 ||
+		    ip->i_nlink == 0)
+			icopymd (ip);
 	}
-	iunlock(ip);
+	iunlock (ip);
 }
 
 /*
@@ -414,8 +449,8 @@ register INODE *ip;
 ldetach(ip)
 register INODE *ip;
 {
-	ilock(ip);
-	idetach(ip);
+	ilock (ip);
+	idetach (ip);
 }
 
 /*
@@ -433,19 +468,19 @@ register ino_t ino;
 	register INODE *ip;
 	INODE inode;
 
-	for (ip=&inodep[NINODE-1]; ip>=inodep; --ip) {
-		if (ip->i_ino==ino && ip->i_dev==dev)
+	for (ip = & inodep [NINODE - 1] ; ip >= inodep; -- ip) {
+		if (ip->i_ino == ino && ip->i_dev == dev)
 			break;
 	}
 	if (ip < inodep) {
-		ip = &inode;
+		ip = & inode;
 		ip->i_dev = dev;
 		ip->i_ino = ino;
-		if (icopydm(ip) == 0)
+		if (icopydm (ip) == 0)
 			return 0;
 	}
-	if ((ip->i_mode&IFMT) == IFDIR) {
-		if (super() == 0)
+	if ((ip->i_mode & IFMT) == IFDIR) {
+		if (super () == 0)
 			return 0;
 	}
 	return 1;
@@ -466,54 +501,59 @@ register INODE *ip;
 	ip->i_flag = 0;
 	ino = ip->i_ino;
 
-	if ((bp=bread(ip->i_dev, (daddr_t)iblockn(ino), 1)) == NULL)
+	if ((bp = bread (ip->i_dev, (daddr_t) iblockn (ino),
+			 BUF_SYNC)) == NULL)
 		return 0;
 
-	dip = &dinode;
-	v = (char *)((struct dinode *)bp->b_vaddr + iblocko(ino));
-	kkcopy( v, dip, sizeof(dinode));
-	brelease(bp);
-	ip->i_mode = dip->di_mode;
-	canshort(ip->i_mode);
-	ip->i_nlink = dip->di_nlink;
-	canshort(ip->i_nlink);
-	ip->i_uid = dip->di_uid;
-	canshort(ip->i_uid);
-	ip->i_gid = dip->di_gid;
-	canshort(ip->i_gid);
-	ip->i_size = dip->di_size;
-	cansize(ip->i_size);
+	dip = & dinode;
+	v = (char *) ((struct dinode *) bp->b_vaddr + iblocko (ino));
+	memcpy (dip, v, sizeof (dinode));
+	brelease (bp);
 
-	switch (ip->i_mode&IFMT) {
+	ip->i_mode = dip->di_mode;
+	canshort (ip->i_mode);
+	ip->i_nlink = dip->di_nlink;
+	canshort (ip->i_nlink);
+	ip->i_uid = dip->di_uid;
+	canshort (ip->i_uid);
+	ip->i_gid = dip->di_gid;
+	canshort (ip->i_gid);
+	ip->i_size = dip->di_size;
+	cansize (ip->i_size);
+
+	switch (ip->i_mode & IFMT) {
 	case IFBLK:
 	case IFCHR:
 		ip->i_a.i_rdev = dip->di_a.di_rdev;
-		candev(ip->i_a.i_rdev);
+		candev (ip->i_a.i_rdev);
 		break;
+
 	case IFREG:
 	case IFDIR:
-		l3tol(ip->i_a.i_addr, dip->di_a.di_addb, NADDR);
+		l3tol (ip->i_a.i_addr, dip->di_a.di_addb, NADDR);
 		break;
+
 	case IFPIPE:
-		l3tol(ip->i_pipe, dip->di_addp, ND);
+		l3tol (ip->i_pipe, dip->di_addp, ND);
 		ip->i_pnc = dip->di_pnc;
-		canshort(ip->i_pnc);
+		canshort (ip->i_pnc);
 		ip->i_prx = dip->di_prx;
-		canshort(ip->i_prx);
+		canshort (ip->i_prx);
 		ip->i_pwx = dip->di_pwx;
-		canshort(ip->i_pwx);
+		canshort (ip->i_pwx);
 		break;
+
 	default:
-		kclear(&ip->i_a, sizeof(ip->i_a));
+		kclear (& ip->i_a, sizeof (ip->i_a));
 		break;
 	}
 
 	ip->i_atime = dip->di_atime;
-	cantime(ip->i_atime);
+	cantime (ip->i_atime);
 	ip->i_mtime = dip->di_mtime;
-	cantime(ip->i_mtime);
+	cantime (ip->i_mtime);
 	ip->i_ctime = dip->di_ctime;
-	cantime(ip->i_ctime);
+	cantime (ip->i_ctime);
 	ip->i_rl = NULL;
 	return 1;
 }
@@ -543,51 +583,55 @@ register INODE *ip;
 
 	dip = & dinode;
 	dip->di_mode = ip->i_mode;
-	canshort(dip->di_mode);
+	canshort (dip->di_mode);
 	dip->di_nlink = ip->i_nlink;
-	canshort(dip->di_nlink);
+	canshort (dip->di_nlink);
 	dip->di_uid = ip->i_uid;
-	canshort(dip->di_uid);
+	canshort (dip->di_uid);
 	dip->di_gid = ip->i_gid;
-	canshort(dip->di_gid);
+	canshort (dip->di_gid);
 	dip->di_size = ip->i_size;
-	cansize(dip->di_size);
+	cansize (dip->di_size);
 
-	switch (ip->i_mode&IFMT) {
+	switch (ip->i_mode & IFMT) {
 	case IFBLK:
 	case IFCHR:
 		dip->di_a.di_rdev = ip->i_a.i_rdev;
-		candev(dip->di_a.di_rdev);
+		candev (dip->di_a.di_rdev);
 		break;
+
 	case IFREG:
 	case IFDIR:
-		ltol3(dip->di_addr, ip->i_a.i_addr, NADDR);
+		ltol3 (dip->di_addr, ip->i_a.i_addr, NADDR);
 		break;
+
 	case IFPIPE:
-		ltol3(dip->di_addp, ip->i_pipe, ND);
+		ltol3 (dip->di_addp, ip->i_pipe, ND);
 		dip->di_pnc = ip->i_pnc;
-		canshort(dip->di_pnc);
+		canshort (dip->di_pnc);
 		dip->di_prx = ip->i_prx;
-		canshort(dip->di_prx);
+		canshort (dip->di_prx);
 		dip->di_pwx = ip->i_pwx;
-		canshort(dip->di_pwx);
+		canshort (dip->di_pwx);
 		break;
+
 	default:
-		kclear(&dip->di_a, sizeof(dip->di_a));
+		kclear (& dip->di_a, sizeof (dip->di_a));
 		break;
 	}
 
 	dip->di_atime = ip->i_atime;
-	cantime(dip->di_atime);
+	cantime (dip->di_atime);
 	dip->di_mtime = ip->i_mtime;
-	cantime(dip->di_mtime);
+	cantime (dip->di_mtime);
 	dip->di_ctime = ip->i_ctime;
-	cantime(dip->di_ctime);
+	cantime (dip->di_ctime);
 
-	if ((bp = bread (ip->i_dev, (daddr_t) iblockn (ino), 1)) == NULL)
+	if ((bp = bread (ip->i_dev, (daddr_t) iblockn (ino),
+			 BUF_SYNC)) == NULL)
 		return;
 
-	v = (char *)((struct dinode *)bp->b_vaddr + iblocko(ino));
+	v = (char *) ((struct dinode *) bp->b_vaddr + iblocko (ino));
 	memcpy (v, dip, sizeof (dinode));
 	bp->b_flag |= BFMOD;
 	brelease (bp);
@@ -687,12 +731,14 @@ register struct stat *sbp;
 	sbp->st_atime = ip->i_atime;
 	sbp->st_mtime = ip->i_mtime;
 	sbp->st_ctime = ip->i_ctime;
-	switch (ip->i_mode&IFMT) {
+
+	switch (ip->i_mode & IFMT) {
 	case IFBLK:
 	case IFCHR:
 		sbp->st_rdev = ip->i_a.i_rdev;
 		sbp->st_size = 0;
 		break;
+
 	case IFPIPE:
 		sbp->st_size = ip->i_pnc;
 		break;
@@ -711,21 +757,23 @@ register int mode;
 {
 	/* Super user can do everything with directories */
 	if (((ip->i_mode & IFMT) != IFDIR) || u.u_uid)
-		if ((imode(ip, u.u_uid, u.u_gid)&mode) != mode) {
+		if ((imode (ip, u.u_uid, u.u_gid) & mode) != mode) {
 			u.u_error = EACCES;
 			return 0;
 		}
 
-	if ((mode & IPW) && ip->i_refc > 1 && sbusy(ip)) {
+	if ((mode & IPW) != 0 && ip->i_refc > 1 && sbusy (ip)) {
 		u.u_error = ETXTBSY;
 		return 0;
 	}
 	return 1;
 }
 
+
 /*
  * Get the maximum allowable mode on a file.
  */
+
 imode(ip, uid, gid)
 register INODE *ip;
 {
@@ -736,13 +784,13 @@ register INODE *ip;
 		 * If superuser, say the file is executable if any
 		 * of the 'x' perm bits is set.
 		 */
-		if (ip->i_mode & 0111)
+		if ((ip->i_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0)
 			ret |= IPE;
 		return ret;
 	}
 	if (uid == ip->i_uid)
-		return ((ip->i_mode>>6) & 07);
+		return (ip->i_mode & S_IRWXU) >> 6;
 	if (gid == ip->i_gid)
-		return ((ip->i_mode>>3) & 07);
-	return (ip->i_mode & 07);
+		return (ip->i_mode & S_IRWXG) >> 3;
+	return ip->i_mode & S_IRWXO;
 }

@@ -1,3 +1,4 @@
+/* $Header: /ker/coh.386/RCS/sys6.c,v 2.2 93/07/26 14:55:33 nigel Exp $ */
 /*
  * POSIX.1-oriented system calls for Coherent.
  *
@@ -7,6 +8,12 @@
  * good thing for testing, and can save on redundant prototypes. Wherever
  * possible, we use such function-call interfaces rather than get involved in
  * the disgusting mess that is the U area or process-table mechanisms.
+ */
+/*
+ * $Log:	sys6.c,v $
+ * Revision 2.2  93/07/26  14:55:33  nigel
+ * Nigel's R80
+ * 
  */
 
 #include <common/ccompat.h>
