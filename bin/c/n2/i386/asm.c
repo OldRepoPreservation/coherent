@@ -484,6 +484,19 @@ assemble(ip1) register INS *ip1;
 			m2 = MOD(af_p(ip1, 1));
 			/* Sanity check: register specs vs. opcode. */
 			opcode = ip1->i_op;
+#if	1
+			/*
+			 * Kludge flakey register references generated
+			 * by the load table in n1/i386/tables/leaves.t.
+			 * There must be a better way.
+			 */
+			if ((opcode == ZMOVW && m2 != A_WR)
+			 || (opcode == ZMOVB && m2 != A_BR)) {
+				ip1->i_af[1].a_mode &= ~A_AMOD;
+				ip1->i_af[1].a_mode |= (opcode == ZMOVW) ? A_WR : A_BR;
+				m2 = MOD(af_p(ip1, 1));
+			}
+#endif
 			if (((opcode != ZMOV ) && ((m1 == A_DR) || (m2 == A_DR)))
 			 || ((opcode != ZMOVW) && ((m1 == A_WR) || (m2 == A_WR)))
 			 || ((opcode != ZMOVB) && ((m1 == A_BR) || (m2 == A_BR))))
