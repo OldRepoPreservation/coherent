@@ -413,7 +413,7 @@ slowexit(status)
     char *s_tty;
 
     if ((s_tty = ttyname(2)) != NULL) {
-	unlockit(strrchr(s_tty, '/') + 1);
+	lockrm(strrchr(s_tty, '/') + 1);
     }
 
     sleep(2);
