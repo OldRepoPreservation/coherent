@@ -2,7 +2,10 @@
  * This is the generic SCSI part of the
  * Adaptec AHA154x host adaptor driver for the AT.
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/scsi.c,v $
+ * Revision 1.1	91/04/30  11:02:22	root
+ * Shipped with COH 3.1.0
+ * 
  */
 
 #include	<coherent.h>
@@ -13,7 +16,6 @@
 #include	<sys/con.h>
 #include	<sys/stat.h>
 #include	<sys/uproc.h>
-#include	<sys/mmu.h>
 #include	<errno.h>
 #include	<scsiwork.h>
 
@@ -189,7 +191,8 @@ dev_t	dev;
 	sc.unit = d;
 	sc.block = 0L;
 	sc.blklen = 0;
-	sc.buffer = vtop( buffer, sds );
+printf("A");
+	sc.buffer = VTOP2( buffer, sds );
 	++drvl[SDMAJOR].d_time;	
 #if	0
 	sc.cmd = ScmdINQUIRY;
@@ -248,8 +251,12 @@ register dev_t	dev;
 	struct fdisk_s	*fdp;		/* one partition entry */
 
 	if ( minor(dev) & SDEV ) {
-		if ( PARTITION(minor(dev)) != 0 )	/* tape device ? */
+		if ( PARTITION(minor(dev)) != 0 ) {	/* tape device ? */
 			u.u_error = ENXIO;		/* not yet! */
+		} else {
+			++drvl[SDMAJOR].d_time;	
+			++sw_active;
+		}
 		return;
 	}
 
