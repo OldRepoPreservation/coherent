@@ -1288,6 +1288,8 @@ msigstart(signum, func)
 	u.u_regl[EFL] &= ~MFTTB;
 	u.u_regl[EIP] = func;
 	u.u_regl[UESP] = uesp;
+	if (signum+1 != SIGTRAP)
+		u.u_sfunc[signum] = SIG_DFL;
 
 	/*
 	 * We are about to enter a signal handling function for the process.

@@ -244,9 +244,13 @@ emtrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
   eip, cs, efl, uesp, ss)
 char *eip;
 {
-	if (ndpType == NDP_TYPE_387 || ndpType == NDP_TYPE_486)
+	switch (ndpType) {
+	case NDP_TYPE_287:
+	case NDP_TYPE_387:
+	case NDP_TYPE_486:
 		ndpNewOwner();
-	else {
+		break;
+	default:
 		if (ndpDump) {
 			RDUMP();
 		}

@@ -5,6 +5,11 @@
 	.globl	ndpInit
 	.globl	ndpSense
 
+fsetpm	.macro
+	.byte	0xDB
+	.byte	0xE4
+	.endm
+
 / void ndpInit(short cw);
 ndpInit:
 	fninit
@@ -15,6 +20,7 @@ ndpInit:
 / void ndpSave(char * bp);
 ndpSave:
 	mov	4(%esp),%eax
+	fsetpm
 	fnsave	(%eax)
 	fwait
 	ret
@@ -22,6 +28,7 @@ ndpSave:
 / void ndpRestore(char * bp);
 ndpRestore:
 	mov	4(%esp),%eax
+	fsetpm
 	frstor	(%eax)
 	ret
 
