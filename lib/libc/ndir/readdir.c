@@ -62,13 +62,13 @@ readdir( dirp )
 		dirp->dd_loc += dp->d_reclen;
 #ifdef DBG
 	printf("readdir: dir. buffer loc= %d\n",dirp->dd_loc);
-	printf("\tinode = %D\n",dp->d_ino);
+	printf("\tinode = %ld\n",dp->d_ino);
 #endif
 		}
 	while ( dp->d_ino == 0L );	/* don't rely on getdents() */
 
 #if DBG
-printf ("readdir: name: %s; inode %D; offset %D; reclen %d\n",dp->d_name,
+printf ("readdir: name: %s; inode %ld; offset %ld; reclen %d\n",dp->d_name,
 	dp->d_ino, dp->d_off, dp->d_reclen);
 #endif
 	return dp;
