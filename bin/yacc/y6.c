@@ -33,7 +33,8 @@ pronts()
 	register i;
 	for (i=0; i<nprod; i++)
 		pdl[i] = -prdptr[i]->p_left - NTBASE;
-	warray("yypdnt", pdl, nprod);
+	fprintf(tabout, "#include <action.h>\n");
+	warray("yypdnt", pdl, nprod, 0);
 }
 
 rdgos()
@@ -55,8 +56,8 @@ rdgos()
 		else
 			pgo += size;
 	}
-	warray("yypgo", pgotab, nnonterm);
-	warray("yygo", gotab, 2*(pgo-gotab));
+	warray("yypgo", pgotab, nnonterm, 0);
+	warray("yygo", gotab, 2*(pgo-gotab), 1);
 }
 
 rdacts()
@@ -81,8 +82,8 @@ rdacts()
 		else
 			pa += size;
 	}
-	warray("yypa", patab, nstates);
-	warray("yyact", atab, 2*(pa-atab));
+	warray("yypa", patab, nstates, 0);
+	warray("yyact", atab, 2*(pa-atab), 1);
 }
 
 prodls()
@@ -90,25 +91,55 @@ prodls()
 	register i;
 	for(i=0; i<nprod; i++)
 		pdl[i] = prodl(prdptr[i]);
-	warray("yypn", pdl, nprod);
+	warray("yypn", pdl, nprod, 0);
 }
 
-warray(s, a, n)
+warray(s, a, n, sw)
 char *s;
-int *a, n;
+int *a, n, sw;
 {
-	register i;
+	register i, v;
+	char *type = "";
 
-	fprintf(tabout, "unsigned %s[%d] = {\n", s, n);
+	if (!sw) {	/* !sw means array of array refs */
+		type = "char";
+		for (i = 0; i < n; i++) {
+			if (a[i] > 255) {
+				type = "short";
+				break;
+			}
+		}
+	}
+	fprintf(tabout, "unsigned %s %s[%d] = {\n", type, s, n--);
+
 	i = 0;
 	do {
-		fprintf(tabout, "0%o%c ", a[i], (i==n-1?' ':','));
-		if( ++i%8 == 0 )
-			fprintf(tabout, "\n");
-	} while( i<n );
-	if( i%8 != 0 )
-		fprintf(tabout, "\n");
-	fprintf(tabout, "} ;\n");
+		switch(v = a[i]) {
+		case YYEOFVAL:
+			fputs("YYEOFVAL", tabout);
+			break;
+		case YYERRVAL:
+			fputs("YYERRVAL", tabout);
+			break;
+		case YYOTHERS:
+			fputs("YYOTHERS", tabout);
+			break;
+		default:
+			if (!sw || (0 > v))
+				fprintf(tabout, "%d", v);
+			else
+				fprintf(tabout, "0x%x", v);
+		}
+
+		if (i != n)
+			fputc(',', tabout);
+
+		fputc(((++i%8 == 0) ? '\n' : ' '), tabout);
+	} while (i <= n);
+
+	if (i%8 != 0)
+		fputc('\n', tabout);
+	fprintf(tabout, "};\n");
 }
 
 tmperr()
