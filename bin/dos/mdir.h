@@ -1,27 +1,46 @@
 /*
- * Directory entry on an MS-DOS diskette.
- * Used by file extraction program "dos"
+ * Directory entry on an MS-DOS diskette. Used by file extraction program "dos"
  * and by the MS-DOS emulator.
  */
+
+#ifdef _I386
+#pragma align 1
+#endif
 typedef	struct	mdir	{
 	unsigned char	m_name[8];	/* File name		*/
 	unsigned char	m_ext[3];	/* File extension	*/
-	char		m_attr;		/* File attribute	*/
+	unsigned char	m_attr;		/* File attribute	*/
 	unsigned char	m_junk[10];	/* Reserved		*/
-	unsigned	m_sec:5,	/* Seconds/2		*/
-			m_min:6,	/* Minutes		*/
-			m_hour:5;	/* Hour (creation time)	*/
-	unsigned	m_day:5,	/* Day of month (1-31)	*/
-			m_mon:4,	/* Month (1-12)		*/
-			m_year:7;	/* Year-1980		*/
-	int		m_cluster;	/* Starting cluster	*/
+	unsigned short  m_time;		/* Sec/Min/Hour Creation*/
+	unsigned short  m_date;		/* Day/Month/(Year-1980)*/
+	short		m_cluster;	/* Starting cluster	*/
 	long		m_size;		/* File size in bytes	*/
 } MDIR;
+#ifdef _I386
+#pragma align
+#endif
+
+#define m_sec(z)	(unsigned short)((unsigned short)(z->m_time    ) & 0x1f)
+#define m_min(z)	(unsigned short)((unsigned short)(z->m_time>>5)  & 0x3f)
+#define m_hour(z)	(unsigned short)((unsigned short)(z->m_time>>11) & 0x1f)
+
+#define m_day(z)	(unsigned short)((unsigned short)(z->m_date   ) &0x1f)
+#define m_month(z)	(unsigned short)((unsigned short)(z->m_date>>5) &0xf)
+#define m_year(z)	(unsigned short)((unsigned short)(z->m_date>>9) &0x7f)
+
+#define c_sec(y)	(unsigned short)(y)
+#define c_min(y)	((unsigned short)(y)<<5)
+#define c_hour(y)	((unsigned short)(y)<<11)
+
+#define c_day(y)	(unsigned short)(y)
+#define c_month(y)	((unsigned short)(y)<<5)
+#define c_year(y)	((unsigned short)(y)<<9)
+
 
 /* Special values for m_name[0]. */
-#define MFREE	0x00			/* Never used		*/
-#define MMDIR	0x2E			/* Directory file	*/
-#define	MEMPTY	0xE5			/* Empty name		*/
+#define MFREE	(char)0x00			/* Never used		*/
+#define MMDIR	(char)0x2E			/* Directory file	*/
+#define	MEMPTY	(char)0xE5			/* Empty name		*/
 
 /* Attributes in m_attr. */
 #define MRONLY	0x01			/* Read only		*/
