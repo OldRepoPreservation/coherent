@@ -48,6 +48,7 @@ struct	dlist
 	long	dl_size;		/* Size in bytes */
 };
 
+int	is_open;			/* dump device open? */
 int	key;				/* Operation */
 int	vflag;				/* A verbose flag */
 char	*dtn	= DTAPE;		/* Dump file name */
@@ -183,10 +184,9 @@ char *argv[];
 		if ((dbfp = fopen(argv[i], "r+w")) == NULL)
 			message(1, "%s: cannot open filesystem", argv[i]);
 		dbclaim(NRBUF);
-		if (key == 'r') {
-			opendump();
+		if (key == 'r')
 			nextvol(1);
-		} else {
+		else {
 			for (;;) {
 				reel = getreel();
 				opendump();
@@ -201,7 +201,6 @@ char *argv[];
 
 	case 'x':
 	case 'X':
-		opendump();
 		nextvol(1);
 		mktemp(tfn);
 		if ((tfp = fopen(tfn, "w")) == NULL
@@ -303,6 +302,7 @@ opendump()
 {
 	if ((dtp = fopen(dtn, "r")) == NULL)
 		message(1, "%s: cannot open dump file", dtn);
+	++is_open;
 }
 
 /*
@@ -1095,7 +1095,10 @@ int flag;
 	if (RESTMIN && reel > 1 && (restime < RESTMIN || restime > RESTMAX))
 		message(1, "volume sync: %D", restime);
 	for (;;) {
-		fclose(dtp);
+		if (is_open) {
+			fclose(dtp);
+			is_open = 0;
+		}
 		if (length != 0)
 			vtype = "volume";
 		fprintf(stderr, "restor: mount %s %d, type return key...",
