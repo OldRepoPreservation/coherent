@@ -471,7 +471,7 @@ rest_syscall(flagp) int *flagp;
 void
 setcoffseg()
 {
-	register SCNHDR	*shp;
+	register SCNHDR	*shp, *oshp;
 	ADDR_T fbase, tbase, tsize, dbase, dsize, bbase, bsize;
 	off_t tsp, dsp, bsp;
 	int i;
@@ -479,7 +479,7 @@ setcoffseg()
 	fbase = sizeof(FILEHDR) + coff_hdr.f_opthdr;
 	tbase = tsize = dbase = dsize = bbase = bsize = MIN_ADDR;
 	tsp = dsp = bsp = (off_t)0;
-	shp = (SCNHDR *)nalloc(coff_hdr.f_nscns*sizeof(SCNHDR), "COFF section headers");
+	oshp = shp = (SCNHDR *)nalloc(coff_hdr.f_nscns*sizeof(SCNHDR), "COFF section headers");
 	if (fseek(lfp, (long)fbase, SEEK_SET) == -1)
 		panic("COFF header seek failed");
 	for (i = 0; i < coff_hdr.f_nscns; shp++, i++) {
@@ -525,7 +525,7 @@ setcoffseg()
 	map_set(DSEG, bbase, bsize+4L, bsp, MAP_PROG);
 	ISPACE = DSPACE;
 #endif
-	nfree(shp);
+	nfree(oshp);
 }
 
 /*
