@@ -1,3 +1,4 @@
+/* $Header: /y/i386/RCS/sys1632.c,v 1.16 93/04/14 10:29:37 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -6,13 +7,14 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
+ *	COHERENT Version 2.3.37
+ *	Copyright (c) 1982, 1983, 1984.
+ *	An unpublished work by Mark Williams Company, Chicago.
+ *	All rights reserved.
+ *
  *	Intel 386 port and extensions (16/32 bit compatibility)
  *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
  -lgl)
- */
-
-/*
- * i386/sys1632.c
  *
  * This file contains the code for those system calls whose implementation
  * must vary, according to system call arguments size (16 or 32 bits)
@@ -22,15 +24,17 @@
  * ftime:alignment of longs
  * lseek:argument is a long pointer
  * dup, dup2: old implementation
- * 
- * Revised: Fri Jun 11 06:36:06 1993 CDT
  */
+
+#include <common/_tricks.h>
+#include <common/_gregset.h>
+
 #include <sys/coherent.h>
 #include <sys/acct.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
@@ -41,7 +45,7 @@
 #include <signal.h>
 #include <sys/systab.h>
 #include <sys/oldstat.h>
-#include <sys/timeb.h>
+#include <sys/oldtimeb.h>
 #include <sys/fd.h>
 
 /*
@@ -49,7 +53,7 @@
  * called from trap.c
  */
 
-char cvtsig[] = 
+static char cvtsig [] = 
 {
 	0,
 	SIGHUP, SIGINT, SIGQUIT, SIGALRM, SIGTERM, SIGPWR, 
@@ -59,7 +63,6 @@ char cvtsig[] =
 	SIGUSR1,
 	SIGUSR2,
 	SIGUSR2,
-	-1
 };
 
 int	ostat();
@@ -72,11 +75,41 @@ int	usysi86();
 int	ulock();
 int	ufcntl();
 int	uexece();
-int	fddup();
 int	obrk();
 
 static long ualarm2();
 static long utick();
+
+/*
+ * Duplicate a file descriptor number.  This has the same calling
+ * sequence as the dup2 system call and even uses the silly DUP2 bit.
+ */
+coh286dup(ofd, nfd)
+register unsigned ofd;
+register unsigned nfd;
+{
+	register FD *fdp;
+
+	if ((fdp=fdget(ofd&~DUP2)) == NULL)
+		return (-1);
+	if ((ofd&DUP2) != 0) {
+		if (nfd >= NOFILE) {
+			u.u_error = EBADF;
+			return (-1);
+		}
+		ofd &= ~DUP2;
+		if (ofd == nfd)
+			return (nfd);
+		if (u.u_filep [nfd] != NULL) {
+			fdclose (nfd);
+			if (u.u_error)
+				return (-1);
+		}
+	} else
+		nfd = 0;
+
+	return fddup (ofd, nfd);
+}
 
 int
 oldsys()
@@ -135,7 +168,7 @@ oldsys()
 		goto update;
 	case 41:		/* kludge second argument for dup2() */
 		nargs = 2;
-		func = fddup;
+		func = coh286dup;
 		goto update;
 	case 42:		/* pipe - store thru pointer */
 		nargs = 1;
@@ -373,71 +406,43 @@ utick()
  * Cause a signal routine to be executed.
  * Called from [coh/sig.c]
  */
-oldsigstart(n, f)
+oldsigstart (n, func, regsetp)
+__sigfunc_t	func;
+gregset_t     *	regsetp;
 {
-	int i, n1;		
+	int i;
 	register int	usp;
-
-	usp = u.u_regl[UESP];
+	struct {
+		ushort_t	sf_signo;
+		ushort_t	sf_prev_ip;
+		ushort_t	sf_flags;
+	} signal_frame;
 
 	/*
 	 *                 -1
 	 * calculate cvtsig  [n]
 	 *
  	 */
-	n1 = n; 
-	for (i=0; cvtsig[i]>=0; i++)
-		if (cvtsig[i]==n)
-			n1 = i;
-			
-	putuwd(usp-3*sizeof(short), n1);
-	putuwd(usp-2*sizeof(short), u.u_regl[EIP]);
-	putubd(usp-2, u.u_regl[EFL]);
-	putubd(usp-1, u.u_regl[EFL]>>8);
-	u.u_regl[EFL] &= ~MFTTB;
-	u.u_regl[EIP] = f;
-	u.u_regl[UESP] -= 3*sizeof(short);
-	if (n != SIGTRAP)
-		u.u_sfunc[n-1] = SIG_DFL;
-}
 
-/*
- * Duplicate a file descriptor number.  This has the same calling
- * sequence as the dup2 system call and even uses the silly DUP2 bit.
- */
-fddup(ofd, nfd)
-register unsigned ofd;
-register unsigned nfd;
-{
-	register FD *fdp;
+	signal_frame.sf_signo = n;
+	for (i = 0 ; i < __ARRAY_LENGTH (cvtsig) ; i ++)
+		if (cvtsig [i] == n) {
+			signal_frame.sf_signo = i;
+			break;
+		}
 
-	if ((fdp=fdget(ofd&~DUP2)) == NULL)
-		return (-1);
-	if ((ofd&DUP2) != 0) {
-		if (nfd >= NOFILE) {
-			u.u_error = EBADF;
-			return (-1);
-		}
-		ofd &= ~DUP2;
-		if (ofd == nfd)
-			return (nfd);
-		if (u.u_filep[nfd] != NULL) {
-			fdclose(nfd);
-			if (u.u_error)
-				return (-1);
-		}
-	} else {
-		for (nfd=0; nfd<NOFILE; nfd++)
-			if (u.u_filep[nfd] == NULL)
-				break;
-		if (nfd == NOFILE) {
-			u.u_error = EMFILE;
-			return (-1);
-		}
-	}
-	u.u_filep[nfd] = fdp;
-	fdp->f_refc++;
-	return (nfd);
+	signal_frame.sf_prev_ip = regsetp->_i286._ip;
+	signal_frame.sf_flags = regsetp->_i286._flags;
+	kucopy (& signal_frame, usp - sizeof (signal_frame),
+		sizeof (signal_frame));
+
+	/*
+	 * Turn off single-stepping in signal handler.
+	 */
+
+	regsetp->_i286._flags &= ~ MFTTB;
+	regsetp->_i286._ip = (ushort_t) func;
+	regsetp->_i286._sp -= sizeof (signal_frame);
 }
 
 /*
