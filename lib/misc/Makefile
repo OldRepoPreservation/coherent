@@ -1,5 +1,6 @@
 # misc/Makefile 10/11/90
 CFLAGS=
+DESTDIR=/bin386/usr/lib/
 # Objects.
 O = \
 	alloc.o \
@@ -20,6 +21,7 @@ O = \
 	is_fs.o \
 	kernelName.o \
 	lcase.o \
+	lock.o \
 	match.o \
 	metaphone.o \
 	newcpy.o \
@@ -53,8 +55,8 @@ O = \
 
 # Primary target.
 libmisc.a: $O
-	rm -f libmisc.a
-	ar crs libmisc.a $O
+	rm -f $(DESTDIR)libmisc.a
+	ar crs $(DESTDIR)libmisc.a $O
 
 install: libmisc.a
 	su root `srcpath installer`
