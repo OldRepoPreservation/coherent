@@ -792,8 +792,6 @@ char *eip;
 
 		/* Check for stack underflow. */
 
-		T_HAL(0x1000, printf("Page Fault cr2=%x", cr2));
-		T_HAL(0x1000, RDUMP());
 		/*
 		 * I think 'splo' is being calculated in a bass-ackwards way,
 		 * and that 'datahi' is just wrong, but I'm not certain,
@@ -829,16 +827,6 @@ char *eip;
 		}
 
 		/*
-		 * Catch bad data pointer here - don't want to restart
-		 * the user instruction and get runaway segv's.
-		 */
-		if (cr2 > splo) {
-			T_HAL(0x1000, printf("Bad data, splo=%x datahi=%x\n",
-			  splo, datahi));
-			goto bad_pf;
-		}
-
-		/*
 		 * If we trapped on an 'enter' instruction, the stack
 		 * pointer (uesp) has not yet been decremented.  In
 		 * order to correctly process such a stack overflow,
@@ -854,7 +842,10 @@ char *eip;
 			newsp -= e_arg;
 		}
 
-		if (newsp<=splo && newsp>datahi && btoc(datahi)<btocrd(splo)) {
+		if (cr2 <= splo
+		  && newsp <= splo
+		  && newsp > datahi
+		  && btoc(datahi) < btocrd(splo)) {
 			pp = c_extend(segp->s_vmem, btoc(segp->s_size));
 			if (pp==0) {
 				T_HAL(0x1000, printf("c_extend(%x,%x)=0 ",
@@ -872,6 +863,16 @@ char *eip;
 			segload();
 			goto pf_end;
 		}
+
+		/*
+		 * Catch bad data pointer here - don't want to restart
+		 * the user instruction and get runaway segv's.
+		 */
+		{
+			T_HAL(0x1000, printf("Bad data, splo=%x datahi=%x\n",
+			  splo, datahi));
+		}
+
 	bad_pf:
 		/*
 		 * User generated unacceptable page fault.

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/bio.c,v 1.7 92/10/06 23:48:44 root Exp $ */
+/* $Header: /y/coh.386/RCS/bio.c,v 1.9 93/04/14 10:06:14 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Buffered I/O.
  *
  * $Log:	bio.c,v $
+ * Revision 1.9  93/04/14  10:06:14  root
+ * r75
+ * 
  * Revision 1.7  92/10/06  23:48:44  root
  * Ker #64
  * 
@@ -1067,3 +1070,20 @@ nonedev()
 nulldev()
 {
 }
+
+#if 0
+/* debugging utility.  given a system global addr (e.g. iop->io.pbase),
+   return the first int at the address */
+grabDB(paddr)
+{
+	int ret;
+	int work = workAlloc();
+	cseg_t * base = sysmem.u.pbase + btocrd(paddr);
+
+	ptable1_v[work] = *base | SEG_SRW;
+	mmuupd();
+	ret = *(int*)(ctob(work)+(paddr&(NBPC-1)));
+	workFree(work);
+	return ret;
+}
+#endif
