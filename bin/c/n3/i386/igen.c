@@ -179,6 +179,7 @@ char *id;
 		fprintf(ofp, "%s %s\n", MODNAM, id);
 #if	AS_FORMAT
 		fprintf(ofp, "\t.alignoff\n");
+		fprintf(ofp, "\t.intelorder\n");
 #endif
 		break;
 	case GLABEL:

@@ -463,15 +463,53 @@ cppwork()
 	register char *p;
 	register int myline;
 	register char *myfile;
+
 	myfile = file;
 	myline = line;
 	while ((c = get()) >= 0) {
 		switch (ct[c]) {
+
+		case DIV:
+			putc(c, ofp);
+			if (notvariant(VCPPC))
+				continue;
+			/*
+			 * Watch out for comments in cpp -C mode,
+			 * single and double quotes otherwise cause problems.
+			 */
+			if ((c = get()) >= 0
+			 && (c == '*' || isvariant(VCPLUS) && c == '/')) {
+				putc(c, ofp);
+				if (c == '*') {
+					/* Copy normal C-style comment. */
+					while ((c = getc(ifp)) >= 0) {
+						putc(c, ofp);
+						if (c != '*')
+							continue;
+						if ((c = getc(ifp)) >= 0) {
+							putc(c, ofp);
+							if (c != '/')
+								continue;
+							break;
+						}
+					}
+				} else {
+					/* Copy //-delimited C++ online comment. */
+					while ((c = getc(ifp)) >= 0 && c != '\n')
+						putc(c, ofp);
+					if (c == '\n')
+						ungetc(c, ifp);
+				}
+			} else
+				ungetc(c, ifp);
+			continue;
+
 		case ID:
 			if (expand(c))
 				continue;
 			for (p = id; c = *p++; putc(c, ofp));
 			continue;
+
 		case QUOTE:
 		case STRING:
 			putc(c, ofp);
@@ -487,6 +525,7 @@ cppwork()
 			else
 				putc(d, ofp);
 			continue;
+
 		default:
 			putc(c, ofp);
 			if (c != '\n')
