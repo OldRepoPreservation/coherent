@@ -3,7 +3,7 @@
 #
 # Written by Mark H. Colburn (mark@jhereg.mn.org)
 #
-# $Id: Makefile,v 1.1 88/12/23 18:02:42 mark Rel $
+# $Id: Makefile,v 1.1 92/08/28 08:01:45 bin Exp Locker: bin $
 #
 
 #
@@ -28,6 +28,9 @@ POSIX=
 #
 CFLAGS = -O $(POSIX)
 CC = cc
+COPY = /bin/cp
+DESTDIR=/bin386/usr/bin/
+DESTDIR2=/bin386/bin
 
 #
 # Set LFLAGS to whatever makes your linker happy
@@ -92,6 +95,9 @@ PROGS = pax tar cpio
 PMAN1 = pax.1 tar.1
 PMAN5 = pax.5 tar.5
 
+romana: pax
+	>done!
+
 all: $(PROGS)
 
 install: $(PROGS)
@@ -113,7 +119,10 @@ lint:
 	lint $(LINTFLAGS) $(SOURCE)
 
 pax : $(OBJECT)
-	$(CC) $(CFLAGS) -o pax $(OBJECT) $(DIRENT) 
+	$(CC) $(CFLAGS) -o $(DESTDIR)pax $(OBJECT) $(DIRENT) 
+	ln -f $(DESTDIR)pax $(DESTDIR)cpio
+	ln -f $(DESTDIR)pax $(DESTDIR)ustar
+	ln -f $(DESTDIR)pax $(DESTDIR2)tar
 
 tar: pax
 	rm -f tar
