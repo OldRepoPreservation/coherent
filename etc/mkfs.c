@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <access.h>
 #include <assert.h>
+#include <string.h>
 
 #define inodeb(i)	(INODEI + ((i)-1)/8)
 #define inodei(i)	(((i)-1)%8)
@@ -278,6 +279,12 @@ mkproto()
 	register char *p, *p1, *p0;
 
 	p0 = p = xmalloc(BSIZE);
+
+	if ((p1 = P.p_bname) == NULL && (P.p_fname!=NULL || P.p_fpack != NULL))
+		P.p_bname = devnull;
+	if (P.p_fpack != NULL && P.p_fname == NULL)
+		P.p_fname = "noname";
+
 	if ((p1 = P.p_bname) != NULL) {
 		while (*p = *p1++) ++p;
 		if ((p1 = P.p_fname) != NULL) {
@@ -336,14 +343,28 @@ getboot()
 
 getsuper()
 {
+	register char	*ch;
+	register int	i;
+
 	if ((FS = open(special, 2)) < 0)
 		return badopen("special file", special);
-	if ((P.p_fname = gettoken()) == NULL)
+
+	if ((P.p_fname = gettoken()) == NULL) {
 		P.p_fname = "noname";
-	strncpy(S.s_fname, P.p_fname, 6);
-	if ((P.p_fpack = gettoken()) == NULL)
+		strncpy(S.s_fname, P.p_fname, 6);
+	} else 
+		for (ch = P.p_fname, i = 0; *ch != ' ' && *ch != '\t' && 
+				*ch != '\n' && *ch != '\r' && i < 6; i++, ch++)
+			S.s_fname[i] = *ch;
+
+	if ((P.p_fpack = gettoken()) == NULL) {
 		P.p_fpack = "nopack";
-	strncpy(S.s_fpack, P.p_fpack, 6);
+		strncpy(S.s_fpack, P.p_fpack, 6);
+	} else
+		for (ch = P.p_fpack, i = 0; *ch != ' ' && *ch != '\t' && 
+				*ch != '\n' && *ch != '\r' && i < 6; i++, ch++)
+			S.s_fpack[i] = *ch;
+
 	if (getline() == NULL)
 		return earlyeof();
 	if ((P.p_fsize = gettoken()) == NULL)
