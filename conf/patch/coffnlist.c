@@ -36,7 +36,8 @@ int count;	/* size of passed table */
 	if (NULL == (fp = fopen(fn, "rb")))
 		return(0);
 
-	if (1 != fread(&head, FILHSZ, 1, fp) || head.f_magic != C_386_MAGIC) {
+	if (1 != fread(&head, sizeof(head), 1, fp) ||
+	    head.f_magic != C_386_MAGIC) {
 		fclose (fp);
 		return (0);
 	}
@@ -93,7 +94,6 @@ int count;	/* size of passed table */
 			np->n_scnum  = sym.n_scnum;
 			np->n_type   = sym.n_type;
 			np->n_sclass = sym.n_sclass;
-			break;
 		}
 	}
 	free(str_tab);

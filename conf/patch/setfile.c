@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include "patch.h"
 
-extern symbols;		/* String of symbol names.  */
+extern char *symbols;		/* String of symbol names.  */
 
 /*
  * Modify the contents of the file namep to match the array of patch
@@ -34,6 +34,8 @@ setfile(namep, n, pl)
 	vaddr_t	data_addr;	/* Virtual memory base address for data.  */
 	short	data_scnum;	/* Section number of data section.  */
 	fsize_t data_base;	/* File offset of start of data section.  */
+
+	char *symname;		/* Name of the currently patched LHS.  */
 
 	/* Open the file to be patched.  */
 	if ((fd=open(namep, 2)) < 0) {
@@ -108,7 +110,7 @@ setfile(namep, n, pl)
 
 			    fprintf(stderr, "Symbol out of range for text section.\n");
 			    fprintf(stderr, "%s: %x\n",
-			    	   symbols + sym->n_offset - sizeof(long),
+			    	   &(symbols[sym->n_offset - sizeof(long)]),
 				   sym->n_value);
 			    exit(1);
 			}
@@ -118,13 +120,16 @@ setfile(namep, n, pl)
 
 			    fprintf(stderr, "Symbol out of range for data section.\n");
 			    fprintf(stderr, "%s: %x\n",
-			    	   symbols + sym->n_offset - sizeof(long),
+			    	   &(symbols[sym->n_offset - sizeof(long)]),
 				   sym->n_value);
 			    exit(1);
 			}
 		} else {
-			fprintf(stderr, "Illegal section number %d for symbol %s.\n",
-				sym->n_scnum, symbols + sym->n_offset - sizeof(long));
+			fprintf(stderr,
+				"Illegal section number %d for symbol %s.\n",
+				sym->n_scnum,
+				&(symbols[(sym->n_offset) - sizeof(long)]));
+			fprintf(stderr, "Was there really a mem fault?\n");
 			exit(1);
 		}
 
@@ -134,6 +139,10 @@ setfile(namep, n, pl)
 	for (i = 0; i < n; i += 1) {
 		seek = pl[i].p_lval;
 		sym = pl[i].p_lvnp;
+		/*
+		 * Adjust the file offset for the symbol based on which
+		 * segement it resides in.
+		 */
 		if (sym->n_scnum == text_scnum) {
 			seek = (seek - text_addr) + text_base;
 		} else if (sym->n_scnum == data_scnum) {
@@ -145,7 +154,8 @@ setfile(namep, n, pl)
 
 		lseek(fd, seek, 0);
 
-		if (patch(fd, &pl[i]) < 0) {
+ 		symname = &(symbols[pl[i].p_lvnp->n_offset - sizeof(long)]);
+		if (patch(fd, &pl[i], namep, symname) < 0) {
 			fprintf(stderr, "Write error in %s\n", namep);
 		}
 	}
