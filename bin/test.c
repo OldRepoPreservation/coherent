@@ -264,7 +264,7 @@ int	test_boolor		PROTO ((int argc, char * argv [],
 int test_primop (int argc, char * argv [], int * matchedp, int paren)
 #else
 int
-test_primop (argc, argv, matchedp)
+test_primop (argc, argv, matchedp, paren)
 int		argc;
 char	      *	argv [];
 int	      *	matchedp;
@@ -500,7 +500,7 @@ int		paren;
 int test (int argc, char * argv [])
 #else
 int
-test ARGS (argc, argv)
+test ARGS ((argc, argv))
 int		argc;
 char	      *	argv [];
 #endif
