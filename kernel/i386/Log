@@ -1,3 +1,59 @@
+Changes to kernel and related files for version #74:
+
+NOTES:
+--
+03/10  fl.c: workaround for incorrect detection of nspt on some 3-1/2" drives
+03/05  aha.c: nigel's interrupt fix
+03/05  fs1.c: verbose panic output in case idetach panic
+03/05  fs2.c: once again, restore verbose inode busy diagnostic
+03/04  alloc.c: verbose panic output in case of bad free
+
+
+Changes to kernel and related files for version #73:
+
+NOTES:
+
+1.  You will need a new libc.a to use waitpid() and chsize().
+2.  There is a new fsck from epstein.
+3.  "putq()" and "getq()" from prior kernels are now "cltputq()" and "cltgetq()"
+4.  sleep() and v_sleep() have been superseded by x_sleep() - see the comments
+    in proc.c for argument list and return values.
+5.  new ps needed
+
+03/01  sys1.c,proc.c,sig.c: numerous fixes to sleep/wakeup/wait().
+       waitpid() is still a stub.
+02/23  fs1.c,sys2.c,sys5.c,timeout.c,var.c,fs2.c,pipe.c,sys3.c,atcon.c,
+       trap.c,usswan.c,vtnkb.c: epstein's file system changes - pipe fix,
+       chsize(), enforce ulimit on file size...,allow Swan kb support
+       by patching VTSWAN=1.
+02/18  types.h et al - Nigel replaced vaddr_t with caddr_t and made other
+       header changes in preparation for STREAMS.
+02/17  fd.c: Nigel's fix - open was creating files even when it failed
+02/12  tty.c: make sure VEOF is initialized properly on first opens.
+02/10  sys2.c: allow upoll() to succeed when number of fd's is 0
+02/09  seg.h,mmu.c,shm0.c: allow individual shm seg references to be RW/RO
+02/04  reg.h,con.h,bio.c,fs2.c,fs3.c,sys3.c,sys5.c,md.c,as.s,clock.c: Nigel's
+       fixes (1) call STREAMS at key places via macros;  (2) add extra
+       parameters to dopen()/dclose()/dioctl();  (3) support mask register
+       for interrupts.
+02/04  shm1.c: don't allow attempts to create shm segments of size 0
+02/02  fs2.c: restore verbose inode busy diagnostic
+02/02  as.inc,as.s,clist.c,tty.c: replace getq() and putq() with cltgetq()
+       and cltputq() since the old names conflict with standard STREAMS
+       externals.
+02/02  coherent.h,proc.c,rlock.c,alx.c,asy.c,dmareq.c,hs.c,lf.c,msg386.c,sem.c:
+       stop passing 2nd and 3rd magic arguments to sleep as they were always
+       ignored.  sleep() vanishes;  v_sleep() becomes a macro calling
+       w_sleep(char * event, int cl, char * msg)
+01/22  sys1.c: utimes() - check for null or otherwise invalid user pointer
+01/22  fs1.c: imode() - access() as superuser returns exec perm set only
+       if the file is executable.
+01/22  fs3.c: iopen() - a non-superuser trying to write to a directory
+       gets EISDIR, not EPERM.
+01/22  tty.c: sgtty-type TIOCSETx ioctl's no longer set ISTRIP.
+01/22  sys1.c: add interface for waitpid(); fix uwait return value for
+       stopped processes (i.e., processes that hit a breakpoint)
+
 Changes to kernel and related files for version #72:
 
 NOTES:
