@@ -1,3 +1,4 @@
+#define FUT_DOM 0
 /*
  * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
@@ -13,7 +14,10 @@
  *	nonzero LUN's
  *	assembler I/O
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 2.1	91/05/17  14:26:12	root
+ * Debug level up to 4 tracking write problem.
+ * 
  */
 
 /*
@@ -76,8 +80,14 @@
  */
 
 #define SS_RAM		0x1800	/* Offset of parameter RAM */
+
+#if FUT_DOM
+#define SS_CSR		0x1C00	/* Offset of control/status register */
+#define SS_DAT		0x1E00	/* Offset of data port */
+#else
 #define SS_CSR		0x1A00	/* Offset of control/status register */
 #define SS_DAT		0x1C00	/* Offset of data port */
+#endif
 
 #define SS_RAM_LEN	128	/* ST0x has 128 bytes of RAM */
 #define SS_DAT_LEN	0x400	/* Byte range mapped to data port */
@@ -258,19 +268,22 @@ CON	sscon	= {
 };
 
 	/* Patch these Export Variables to configure the driver. */
+/*
+ * Two test drives in use:
+ *
+ * ST1126N, SCSI 0  LUN 0  (Unit 0)
+ * CP340,   SCSI 3  LUN 0  (Unit 3)
+ */
 int	NSDRIVE = 1;		/* Bitmap of attached SCSI drives. */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
-#define NCYL	1004
-#define NHEAD	4
-#define NSPT	52
-
+/* ncyl, nhead, nspt */
 drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
-	{ NCYL, NHEAD, NSPT},
+	{ 1004, 4, 52},		/* Unit 0 */
 	{ 0, 0, 0},
 	{ 0, 0, 0},
-	{ 0, 0, 0},
+	{ 964, 5, 17},		/* Unit 3 */
 	{ 0, 0, 0},
 	{ 0, 0, 0},
 	{ 0, 0, 0}
@@ -978,22 +991,22 @@ if (block_done)
 printf("Data in overrun ");
 block_done=1;
 			if (bp->b_req == BREAD)
-				ss_get(ss_fp, bp->b_faddr + xfer_count, BSIZE);
+				ss_get(ss_dat, bp->b_faddr + xfer_count);
 			else
 				xfer_good = 0;
 			break;
 		case XP_DATA_OUT:
-PR4("DO ");
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
 			if (bp->b_req == BWRITE) {
-#if 1
+#if 0
 				int res;
+PR4("DO ");
 if (block_done)
 	printf("Data out overrun ");
 block_done=1;
-				res=ss_put(ss_fp, bp->b_faddr + xfer_count, BSIZE);
+				res=ss_put(ss_dat, bp->b_faddr + xfer_count);
 #if (DEBUG >= 3)
 				printf("p%d ", res);
 #else
@@ -1004,10 +1017,14 @@ block_done=1;
 #endif
 #else
 				uchar dat;
-
+if (i==0)
+	PR4("DO");
+/***FOOO***/
 				dat = ffbyte(bp->b_faddr + xfer_count + i);
 				sfbyte(ss_dat, dat);
 				i++;
+if (i==BSIZE)
+	PR4("n ");
 #endif
 			} else /* This case should not happen. */
 				xfer_good = 0;
