@@ -1,8 +1,9 @@
 /*
  * dg - device driver for Digiboard PC/Xe intelligent multiport controller
  *
- * $Header$
+ * $Header: /usr/src/sys/i8086/drv/RCS/dg.c,v 1.2 91/03/01 13:29:12 root Exp $
  *
+ * $Log$
  */
  
 /*
@@ -144,7 +145,7 @@ static dgload()
 	 * Allocate a selector to map onto the dual-port RAM.  ptov() will
 	 * return the first available selector of the 8,192 possible.
 	 */
-	dg_ram_base = (paddr_t)DG_RAM << 4;
+	dg_ram_base = (paddr_t)((long)(unsigned)DG_RAM << 4);
 	dg_ram_fp = ptov(dg_ram_base, (fsize_t)DG_RAM_LENGTH);
 	
 	/*
