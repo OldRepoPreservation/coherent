@@ -9,12 +9,14 @@
  *	bufq_rm_head()
  *	bufq_wr_tail()
  *
- *	mask interrupts on finishing arbitration, etc.
  *	backoff & retry when bdr or req sense needed
  *	nonzero LUN's
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.45	91/05/16  17:47:26	root
+ * Still trying to test ss_get.  Always hangs.
+ * 
  * Revision 1.44	91/05/16  14:17:20	root
  * Drop unneeded fields from ss struct.  Try ss_get().
  * 
@@ -161,8 +163,6 @@ typedef struct ss {
 	int	cmdlen;
 	int	cmd_bytes_out;
 	int	cmdstat;
-	int	data_bytes_in;
-	int	data_bytes_out;
 	BUF	*bp;		/* current I/O request node, or NULL */
 	struct	fdisk_s parmp[NPARTN+1];
 	SST_TYPE state;
@@ -624,7 +624,6 @@ register BUF	*bp;
 	int partition, drive, s_id;
 	dev_t dev;
 	ss_type * ssp;
-	int valid_op = 1;
 
 	/*
 	 * Set up local variables.
@@ -638,6 +637,8 @@ register BUF	*bp;
 		partition = WHOLE_DRIVE;
 	fdp = ssp->parmp;
 
+	bp->b_resid = bp->b_count;
+
 	/*
 	 * Range check disk region.
 	 */
@@ -646,22 +647,24 @@ register BUF	*bp;
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
 PR1("BF1 ");
 				bp->b_flag |= BFERR;
-				valid_op = 0;
+				goto bad_open;
 			}
 		} else {
 PR2("BF2 ");
 			devmsg(dev, "no partition table");
 			bp->b_flag |= BFERR;
-			valid_op = 0;
+			goto bad_open;
 		}
 	}
+
 	/*
 	 * Check for read at end of partition.
 	 * (Need to return with b_resid = BSIZE to signal end of volume.)
 	 */
 	else if ((bp->b_req == BREAD) && (bp->b_bno == fdp[partition].p_size)) {
-		valid_op = 0;
+		goto bad_open;
 	}
+
 	/*
 	 * Check for read past end of partition.
 	 */
@@ -669,24 +672,34 @@ PR2("BF2 ");
 	> fdp[partition].p_size ) {
 PR3("BF3 ");
 		bp->b_flag |= BFERR;
-		valid_op = 0;
+		goto bad_open;
+	}
+
+	/*
+	 * Fail if request is for zero bytes or is not even # of blocks.
+	 */
+	if ((bp->b_count % BSIZE) || bp->b_count == 0) {
+		bp->b_flag |= BFERR;
+		goto bad_open;
 	}
 
 	/*
 	 * Operation appears valid.
 	 * Fill fields in the node and queue the request.
 	 */
-	if (valid_op) {
-		bufq_wr_tail(s_id, bp);
-		ss_mach(s_id);
-	}
+	bufq_wr_tail(s_id, bp);
+	ss_mach(s_id);
+	goto end_open;
+
 	/*
 	 * Operation cannot be done.  Release the kernel buffer structure.
 	 * Value of "bp->b_flag" tells caller if error occurred.
 	 */
-	else { 	/* "valid_op" is FALSE */
+bad_open:
 		bdone(bp);
-	}
+
+end_open:
+	return;
 }
 
 /*
@@ -862,7 +875,8 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
 	int xfer_good = 1;
-int first=1;
+	int xfer_count = bp->b_count - bp->b_resid;
+	int i = 0;
 
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
@@ -930,46 +944,23 @@ int first=1;
 			 * If caller's buffer has room, keep incoming
 			 * data byte.  Else toss it.
 			 */
-if (bp->b_req == BREAD) {
-	if (first) {
-		first=0;
-		printf("ss_fp=%lx ", ss_fp);
-		printf("buf_f=%lx resid=%d ", bp->b_faddr, bp->b_resid);
-	}
-#if 0
-	if (bp->b_resid <= SS_DAT_LEN) {
-		ss_get(ss_fp, bp->b_faddr, (uint)bp->b_resid);
-printf("word 1FC = %x\n", ffword(bp->b_faddr+0x1fc));
-ssp->data_bytes_in += bp->b_resid;
-	} else
-#endif
-			if (ssp->data_bytes_in < bp->b_count) {
-				uchar dat;
-
-				dat = ffbyte(ss_dat);
-				sfbyte(bp->b_faddr + ssp->data_bytes_in, dat);
-				ssp->data_bytes_in++;
-			} else
-				ffbyte(ss_dat);
-} else
-	xfer_good = 0;
+			if (bp->b_req == BREAD)
+				ss_get(ss_fp, bp->b_faddr + xfer_count, BSIZE);
+			else
+				xfer_good = 0;
 			break;
 		case XP_DATA_OUT:
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
-if (bp->b_req == BWRITE) {
-			if (ssp->data_bytes_out < bp->b_count) {
+			if (bp->b_req == BWRITE) {
 				uchar dat;
 
-				dat = ffbyte(bp->b_faddr + ssp->data_bytes_out);
+				dat = ffbyte(bp->b_faddr + xfer_count + i);
 				sfbyte(ss_dat, dat);
-				ssp->data_bytes_out++;
-			} else { /* This case should not happen. */
+				i++;
+			} else /* This case should not happen. */
 				xfer_good = 0;
-			}
-} else
-	xfer_good = 0;
 			break;
 		default:
 			break;
@@ -1412,8 +1403,8 @@ PR3("DQ ");
 			ssp->cmdbuf[4] = ssp->bno >>  8;
 			ssp->cmdbuf[5] = ssp->bno;
 			ssp->cmdbuf[6] = 0;
-			ssp->cmdbuf[7] = bp->b_count / (BSIZE * 256L);
-			ssp->cmdbuf[8] = bp->b_count / BSIZE;
+			ssp->cmdbuf[7] = 0;
+			ssp->cmdbuf[8] = 1;
 			ssp->cmdbuf[9] = 0;
 			ssp->cmdlen = G1CMDLEN;
 			init_pointers(s_id);
@@ -1594,13 +1585,8 @@ int s_id;
 	BUF * bp = ssp->bp;
 
 	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
 	ssp->cmd_bytes_out = 0;
 	ssp->avl_count = 0;
-	if (bp) {
-		bp->b_resid = bp->b_count;
-	}
 }
 
 /*
@@ -1694,21 +1680,27 @@ int s_id;
 {
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
+	int go_again = 1;
 
 	if (host_claimed == s_id)
 		host_claimed = -1;
 	ssp->busy = 0;
 	if (bp) {
-		ssp->bp = NULL;
-		if (bp->b_req == BREAD)
-			bp->b_resid -= ssp->data_bytes_in;
-		else
-			bp->b_resid -= ssp->data_bytes_out;
-		bdone(bp);
+		if (!(bp->b_flag & BFERR))
+			bp->b_resid -= BSIZE;
+		if ((bp->b_flag & BFERR) || bp->b_resid == 0) {
+			ssp->bp = NULL;
+			bdone(bp);
+			go_again = 0;
+		}
 	}
-	ssp->state = SST_DEQUEUE;
-	do_sst_op = 0;
-	set_timeout(2);
+	if (go_again) {
+		ssp->state = SST_POLL_BEGIN_IO;
+		ssp->bdr_count = 0;
+		ssp->bsy_count = 0;
+		ssp->try_count = 0;
+	} else
+		ssp->state = SST_DEQUEUE;
 }
 
 /*
