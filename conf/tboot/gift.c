@@ -220,7 +220,7 @@ gift_argf(ffp, argv)
 	/*
 	 * Build the command fifo.
 	 */
-	for (i = 0; NULL != current_token; ++i) {
+	for (i = 0; NULL != current_token; current_token = argv[++i]) {
 		if (T_NULL == 
 			fifo_write_untyped(argfp,
 				   current_token,
@@ -231,7 +231,6 @@ gift_argf(ffp, argv)
 			puts("Truncating.\r\n");
 			break;
 		}
-		current_token = argv[i];
 	}
 
 
