@@ -148,6 +148,7 @@ int             limit;		/* limit of length for user's response */
     }
     write(ttyf, msg, (uint) strlen(msg));
     idx = 0;
+
     while ((got = read(ttyf, &c, 1)) == 1) {
 	if (c == '\n') {
 	    break;
@@ -241,30 +242,44 @@ int             mode;		/* mode of archive (READ, WRITE, PASS) */
 
 #endif
 {
-    char            msg[200];	/* buffer for message display */ 
+    char            msggo[200],
+		    msgdev[200];/* buffers for message display */ 
     char            answer[20];	/* buffer for user's answer */
+    static char	    arfile[20]; /* local buffer for file name Vlad */
     int             ret;
+    static int	    openflag = 0;/* 1 when open_archive failed */
 
     close_archive();
 
+    sprintf(msgdev, "%s: Ready for volume %u\n%s: Type \"/dev/name\" when"
+		" ready to proceed (or \"quit\" to abort): \07",
+		   	myname, arvolume + 1, myname);
+    sprintf(msggo, "%s: Ready for volume %u\n%s: Type \"go\" when"
+		" ready to proceed (or \"quit\" to abort): \07",
+		   	myname, arvolume + 1, myname);
+
     if (!strcmp(ar_file, "-")) 
-    	sprintf(msg, "%s: Ready for volume %u\n%s: Type \"/dev/name\" when"
-			" ready to proceed (or \"quit\" to abort): \07",
-		   	myname, arvolume + 1, myname);
-    else
-    	sprintf(msg, "%s: Ready for volume %u\n%s: Type \"go\" when"
-			" ready to proceed (or \"quit\" to abort): \07",
-		   	myname, arvolume + 1, myname);
+        openflag = 1;
+
     for (;;) {
-	ret = nextask(msg, answer, sizeof(answer));
+	if (openflag) 
+		ret = nextask(msgdev, answer, sizeof(answer));
+	else
+		ret = nextask(msggo, answer, sizeof(answer));	
+	
 	if (ret == -1 || strcmp(answer, "quit") == 0) {
 	    fatal("Aborted");
 	}
-	if (!strcmp(ar_file, "-")) 
-	    ar_file = answer;
+
+	if (strcmp("go", answer) || openflag) {
+	    strcpy(arfile, answer);
+	    ar_file = arfile;
+	}
+	openflag = 0;
 	if (open_archive(mode) == 0) {
 	    break;
 	}
+	openflag = 1;
     }
     warnarch("Continuing", (OFFSET) 0);
 }

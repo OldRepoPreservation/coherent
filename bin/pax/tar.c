@@ -113,6 +113,7 @@ char          **argv;		/* argument list (argv from main) */
      */
     f_unconditional = 1;
     f_mtime = 1;
+    f_owner = 1;
     f_dir_create = 1;
     blocking = 0;
     ar_interface = TAR;
@@ -145,7 +146,7 @@ char          **argv;		/* argument list (argv from main) */
 	    f_modified = 1;
 	    break;
 	case 'o':		/* take on user's group rather than */
-	    f_owner = 1;	/* archives */
+	    f_owner = 0;	/* archives */
 	    break;
 	case 'r':		/* named files are appended to archive */
 	    f_append = 1;
