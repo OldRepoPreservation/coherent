@@ -502,10 +502,13 @@ register int gid;
 	if (super()) {
 		u.u_gid = u.u_rgid = u.u_egid = gid;
 		SELF->p_rgid = gid;
-	} else if (u.u_rgid == gid || u.u_egid == gid) {
-		u.u_gid = gid;
 	} else {
-		SET_U_ERROR(EPERM, "Illegal gid");
+		u.u_error = 0;  /* super() sets u_error when it fails */
+		if (u.u_rgid == gid || u.u_egid == gid) {
+			u.u_gid = gid;
+		} else {
+			SET_U_ERROR(EPERM, "Illegal gid");
+		}
 	}
 	return 0;
 }
@@ -528,10 +531,13 @@ register int uid;
 	if (super()) {
 		u.u_uid = u.u_ruid = u.u_euid = uid;
 		SELF->p_uid = SELF->p_ruid = uid;
-	} else if (u.u_ruid == uid || u.u_euid == uid) {
-		SELF->p_uid = u.u_uid = uid;
 	} else {
-		SET_U_ERROR(EPERM, "Illegal uid");
+		u.u_error = 0;  /* super() sets u_error when it fails */
+		if (u.u_ruid == uid || u.u_euid == uid) {
+			SELF->p_uid = u.u_uid = uid;
+		} else {
+			SET_U_ERROR(EPERM, "Illegal uid");
+		}
 	}
 	return 0;
 }
