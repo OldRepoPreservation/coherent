@@ -1,6 +1,7 @@
-# misc/Makefile 10/11/90
-CFLAGS=
-DESTDIR=/bin386/usr/lib/
+# misc/Makefile
+#CFLAGS= -O -VNDP
+CFLAGS= -O
+DESTDIR=/usr/local/misc
 # Objects.
 O = \
 	alloc.o \
@@ -8,6 +9,7 @@ O = \
 	ask.o \
 	banner.o \
 	basename.o \
+	bedaemon.o \
 	copyd.o \
 	crc16.o \
 	fatal.o \
@@ -54,9 +56,12 @@ O = \
 	yn.o
 
 # Primary target.
+.c.o:
+	cc $(CFLAGS) -c $<
+
 libmisc.a: $O
-	rm -f $(DESTDIR)libmisc.a
-	ar crs $(DESTDIR)libmisc.a $O
+	rm -f $(DESTDIR)/libmisc.a
+	ar crs $(DESTDIR)/libmisc.a $O
 
 install: libmisc.a
 	su root `srcpath installer`
