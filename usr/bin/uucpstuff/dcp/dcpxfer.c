@@ -313,8 +313,41 @@ sepcline()
 		printmsg(M_SPOOL, "cline[%d]:\t%\"%s\"", i, clinep[i]);
 		sp = NULL;
 	}
-	if (clinep[9] != NULL) 
+
+
+	/* If the last field of a parsed command line is NOT null, then
+	 * there is something wrong with the line parsed. Leave a  message
+	 * to this affect in the logs, and print the offending line there
+	 * as well. Abort processing this file.
+
+	 * It has not yet been determined what affects this will have.
+	 * It may keep other requests from the site which is expecting to 
+	 * receive files from receving all of the files it expects.
+
+	 * the following is a short description of how this was called:
+
+		sendf() -> calls cdotcmd() until 'complete'	(dcp.c)
+		cdotcmd() -> calls getcline() until a non-zero
+			     value is returned. When a non zero
+			     value is returned, the C. file being
+			     read is closed and deleted. A 'B' is
+			     then returned back to sendf()
+		getcline() -> calls sepcline (breaks out the C. fields)
+
+	 * Bob Hemedinger 01/27/92
+	 */
+
+	if (clinep[9] != NULL) {
+		plog(M_SPOOL, "Error parsing command 'C.' file");
 		plog(M_SPOOL, "last sepcline field not null");
+		plog(M_SPOOL, "Actually parsed: ");
+		plog(M_SPOOL, " %s %s %s %s %s %s %s %s %s",
+				clinep[1], clinep[2], clinep[3],
+				clinep[4], clinep[5], clinep[6],
+				clinep[7], clinep[8], clinep[9]);
+		plog(M_SPOOL, "Aborted acting upon this command file.");
+		return(1);
+	}
 	nclinep = i;
 	fromfilep = clinep[2];
 	tofilep = clinep[3];
