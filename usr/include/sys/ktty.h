@@ -47,6 +47,10 @@ typedef struct tty {
 	event_t t_opolls;	/* List of output polls enabled on device */
 	TIM	t_rawtim;	/* Raw timing struct */
 	int	t_cs_sel;	/* 0 for resident drivers, CS for loadable */
+#ifdef _I386
+	TIM	t_vtime;	/* VTIME timing struct */
+	TIM	t_sbrk;		/* TCSBRK timing struct */
+#endif
 } TTY;
 
 /*
@@ -84,7 +88,8 @@ typedef struct tty {
 #define	ISISIG	(tp->t_termio.c_lflag & ISIG)
 #define	ISISTRIP (tp->t_termio.c_iflag & ISTRIP)
 #define ISIXON	(tp->t_termio.c_iflag & IXON)
-#define ISONLCR	(tp->t_termio.c_iflag & ONLCR)
+#define ISOCRNL	(tp->t_termio.c_oflag & OCRNL)
+#define ISONLCR	(tp->t_termio.c_oflag & ONLCR)
 #define	ISROUT	((tp->t_termio.c_oflag & OPOST) == 0)
 #define	ISTAND	(tp->t_termio.c_iflag & IXOFF)
 #define	ISXTABS	(tp->t_termio.c_oflag & XTABS)
@@ -105,6 +110,7 @@ typedef struct tty {
 #define	ISISTRIP (!ISRIN)
 #define ISIXON	(!ISRIN)
 #define	ISKILL	(tp->t_sgttyb.sg_kill  == c)
+#define ISOCRNL	0
 #define ISONLCR	(tp->t_sgttyb.sg_flags&CRMOD)
 #define	ISROUT	(tp->t_sgttyb.sg_flags&RAWOUT)
 #define	ISTAND	(tp->t_sgttyb.sg_flags&TANDEM)

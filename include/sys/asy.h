@@ -71,6 +71,7 @@ typedef struct asy1 {
 	int	a_modc:1;	/* open with modem control		*/
 	int	a_poll:1;	/* open in polled mode			*/
 	int	a_flc:1;	/* open with RTS/CTS flow control	*/
+	int	a_brk:1;	/* sending 2.5-second break		*/
 } asy1_t;
 
 /*

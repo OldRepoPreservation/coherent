@@ -138,6 +138,7 @@
 #define	SPLASH	3
 #define	NDATA	4	/* process data segments			*/
 #define	BLKSZ	2	/* log2 sizeof(BLOCKLIST)/sizeof(cseg_t)	*/
+
 SR	*loaded();
 cseg_t	*c_begin();
 
@@ -186,12 +187,14 @@ BLOCKLIST	*arealloc();
  * Declare and initialize an in-memory segment structure.
  */
 #define	MAKESR(sr, seg) SEG seg; SR sr = { 0, 0, 0, &seg }
+
 /*
  * Is 'p' a valid physical click address?
  */
 #define	pvalid(p)	((p) >= sysmem.lo && (p) < sysmem.hi)
+
 /*
- * How many physical clicks are free for allocation?
+ * How many clicks are free for allocation?
  */
 #define allocno()	(sysmem.pfree - sysmem.tfree)
 
@@ -208,6 +211,7 @@ typedef struct {
 	int	res;
 	int	err;
 } EVENT;
+
 #define	NEV	32
 extern	EVENT	evtab[NEV];
 EVENT	*evtrap();
