@@ -9,7 +9,7 @@
  *  modswap() and modrneg() and finally calls modleaf() to insert
  *  leaf nodes where required.
  *
- * mflag -
+ * mflag:
  *	0 < mflag - prints trees before and after modification
  *		unless in MINIT context, where you get after only.
  *	1 < mflag - prints trees at end of modtree()
@@ -90,9 +90,7 @@ again:
 	if (isleaf(op))
 		goto done;
 	lp = tp->t_lp;
-	rp = NULL;
-	if (op != FIELD)
-		rp = tp->t_rp;
+	rp = (op == FIELD) ? NULL : tp->t_rp;
 	tt = tp->t_type;
 	ts = tp->t_size;
 	/*
@@ -200,12 +198,20 @@ again:
 			tp = lp;
 			goto again;
 		}
-		lp = modtree(lp, MRVALUE, tp);
+		tp->t_lp = lp = modtree(lp, MRVALUE, tp);
+		/* modtree() may have changed the op of lp. */
+		if (lp->t_op==COMMA || lp->t_op==QUEST)
+			goto again;
+		/* Ignore conversions to same type and size. */
 		if (tt==lp->t_type && ts==lp->t_size) {
 			tp = lp;
 			goto again;
 		}
-		tp->t_lp = lp;
+		/* Ignore conversions like (type1)(type2)type1 if type2 is wider. */
+		if (iswiden(lp) && tt==lp->t_lp->t_type && ts==lp->t_lp->t_size) {
+			tp = lp->t_lp;
+			goto again;
+		}
 		break;
 
 	case OROR:
@@ -462,7 +468,7 @@ register TREE	*tp, *lp, *rp;
 	if (isnval(rp, 0)) {
 		if (tp->t_op == AMUL) {
 			tp->t_op = ASSIGN;
-			return(tp);
+			return tp;
 		}
 		rp->t_type = tp->t_type;
 		rp->t_size = tp->t_size;
