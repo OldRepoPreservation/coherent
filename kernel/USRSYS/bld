@@ -9,38 +9,43 @@ if [ $KOBJ ]
 then
 if [ $LOBJ ]
 then
-HDDR=${1-"at"}
-case $HDDR in
-at)
-	DRIVERS="at rm fl lp mm"
-	;;
-ss)
-	DRIVERS="ss rm fl lp mm"
-	;;
-aha)
-	DRIVERS="aha154x rm fl lp mm"
-	;;
-*)
-	echo "Usage: $0 { at | ss | aha }"
-	exit 0
-	;;
-esac
-echo "Building kernel /coh.$HDDR Version `version ID` with drivers ($DRIVERS)."
+DRIVERS="rm fl lp mm"
+COH_TYPE=fl
+HD=""
+KB=nkb
+for ARG
+do
+	case $ARG in
+	at|aha|ss)
+		HD=$ARG
+		COH_TYPE=$ARG
+		;;
+	kb|nkb|gkb)
+		KB=$ARG
+		;;
+	*)		echo "Usage: $0 { at | ss | aha } { kb | nkb | gkb }"
+			exit 0
+			;;
+	esac
+done
+DRIVERS="$KB $HD $DRIVERS"
+echo "Kernel:    /coh.$COH_TYPE"
+echo "Version:   `version ID`"
+echo "Devices:   $DRIVERS"
 
 : default root/pipe device
 BOOTDEV="fva0"
 echo "Default root/pipe device is $BOOTDEV."
 
-( cd $USRSRC/ldrv; make ld_support )				|| exit 1
-( cd $USRSRC/i8086/drv; make install )				|| exit 1
-( make kernel )							|| exit 1
-./config ibm-at $DRIVERS root=$BOOTDEV				|| exit 1
-cp coherent /tmp/coh						|| exit 1
-strip /tmp/coh							|| exit 1
-: the SIZE expression needs fewer backslashes since Steve fixed sh
-:SIZE=`ls -s /tmp/coh | sed -n -e 's/^\\\(....\\\).*$/\\\1/p'`
-SIZE=`ls -s /tmp/coh | sed -n -e 's/^\(....\).*$/\1/p'`
-rm /tmp/coh							|| exit 1
+( cd $USRSRC/ldrv; make ld_support )			|| exit 1
+( cd $USRSRC/i8086/drv; make -f Mf.mwc install )	|| exit 1
+( make kernel )						|| exit 1
+./config.mwc ibm-at $DRIVERS root=$BOOTDEV			|| exit 1
+cp coherent /tmp/coh					|| exit 1
+strip /tmp/coh						|| exit 1
+set `ls -s /tmp/coh`
+SIZE=$1
+rm /tmp/coh						|| exit 1
 echo "Coherent bootable limit is 138 blocks.  This kernel is $SIZE"
 if [ $SIZE -gt 138 ] ;then
 	echo 
@@ -53,18 +58,18 @@ if [ $SIZE -gt 138 ] ;then
 	echo drivers may then be linked as loadable drivers using the
 	echo ldconfig script located in this directory.
 fi
-mv coherent /coh.$HDDR
-chown sys /coh.$HDDR
-chgrp sys /coh.$HDDR
-chmod 400 /coh.$HDDR
-echo "New kernel in /coh.$HDDR"
-ls -l /coh.$HDDR
+mv coherent /coh.$COH_TYPE
+chown sys /coh.$COH_TYPE
+chgrp sys /coh.$COH_TYPE
+chmod 400 /coh.$COH_TYPE
+echo "New kernel in /coh.$COH_TYPE"
+ls -l /coh.$COH_TYPE
 # the rest is error exits
 else
-echo "Error - LOBJ not defined - (e.g. /tmp/lobj)"
+echo "Error - LOBJ not defined - (e.g. /usr/lobj)"
 fi
 else
-echo "Error - KOBJ not defined - (e.g. /tmp/kobj)"
+echo "Error - KOBJ not defined - (e.g. /usr/kobj)"
 fi
 else
 echo "Error - USRSRC not defined - (e.g. /usr/src/sys)"
