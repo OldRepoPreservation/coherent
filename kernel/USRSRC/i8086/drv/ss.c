@@ -3,11 +3,13 @@
  *
  * To do:
  *	set host_claimed conscientiously
- *
- *	backoff & retry when bdr or req sense needed
+ *	make ssinit() more rugged
  *	nonzero LUN's
  *
  * $Log:	ss.c,v $
+ * Revision 2.6  91/05/21  13:53:22  root
+ * Patch NSDRIVE for Future Domain.  Call per/id queue fns.
+ * 
  * Revision 2.5  91/05/20  18:02:52  root
  * Remove test code.
  * 
@@ -29,8 +31,9 @@
  * Debug levels.
  * DEBUG = 0	No debug output.
  * DEBUG = 1	Debug output on error only.
- * DEBUG = 2	Debug output on error only and at other selected places.
- * DEBUG = 3	Maximum debug output.
+ * DEBUG = 2	Debug output on error and at other selected places.
+ * DEBUG = 3	Print state machine trace.
+ * DEBUG = 4	Print info xfer phases and msg_in values.
  */
 #if (DEBUG >= 1)
 #define PR1(str)		printf(str)
@@ -51,13 +54,6 @@
 #define PR4(str)		printf(str)
 #else
 #define PR4(str)
-#endif
-
-#if 0
-/* TEMPORARY S**T */
-#define bufq_rd_head(s_id)	ssq_rd_head()
-#define bufq_rm_head(s_id)	ssq_rm_head()
-#define bufq_wr_tail(s_id, foo)	ssq_wr_tail(foo)
 #endif
 
 /*
@@ -126,9 +122,10 @@
 #define DEV_SPECIAL(dev)	(dev & 0x0080)
 
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
-#define HIPRI_RETRIES	4000	/* # of times to retry while hogging CPU */
+#define HIPRI_RETRIES	5000	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
+#define RESET_TICKS	50	/* # of clock ticks for reset settling */
 
 #define BUS_FREE	((ffbyte(ss_csr) & (RS_BUSY | RS_SELECT)) == 0)
 #define TGT_RSEL	\
@@ -246,6 +243,7 @@ static int	read_cap();
 static void	recover();
 static int	req_sense();
 static int	rsel_handshake();
+static void	ssdelay();
 static void	ss_finished();
 static void	ss_mach();
 static void	set_timeout();
@@ -307,14 +305,28 @@ static faddr_t	ss_ram;		/* (far *) to parameter RAM */
 static faddr_t	ss_csr;		/* (far *) to control/status */
 static faddr_t	ss_dat;		/* (far *) to data port */
 
-static int	num_drives;	/* number of controller SCSI id's */
-
+static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static int	do_sst_op;	/* 1 when state machine iteration continues */
-static int	host_claimed;	/* -1 or SCSI id of target using the host */
 static int	ss_expired;	/* 1 after local timeout */
 
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
 static ss_type  *ss[MAX_SCSI_ID-1];
+
+/*
+ * host_claimed is -1 if host is available, else it's the SCSI id of the
+ *	target that claims the host.
+ *
+ * host is claimed at start of any of the follwoing:
+ *	SCSI bus reset
+ *	arbitration for block i/o request
+ *	reselect
+ *
+ * host is released at:
+ *	end of SCSI bus reset
+ *	completion (successful or not) of block i/o request (ss_finished)
+ *	disconnect
+ */
+static int	host_claimed;
 
 /*
  * ssload()	- load routine.
@@ -327,6 +339,8 @@ static void ssload()
 	int erf = 0;  /* 1 if error occurs */
 	int i;
 	int max_id = -1;
+	int num_drives = 0;
+
 
 	/*
 	 * Claim IRQ vector.
@@ -1384,6 +1398,25 @@ PR3("PA ");
 					do_sst_op = 0;
 			}
 			break;
+		case SST_POLL_RESELECT:
+PR3("PR ");
+			if ((host_claimed == -1 || host_claimed == s_id)
+			&& TGT_RSEL) {
+				ssp->waiting = 0;
+				host_claimed = s_id;
+				if (rsel_handshake()) {
+					do_connect(s_id);
+				} else {
+					recover(s_id, RV_P_TIMEOUT);
+				}
+			} else  { /* Reselect poll is negative */
+				if (ssp->expired) {
+					ssp->expired = 0;
+					recover(s_id, RV_R_TIMEOUT);
+				} else
+					do_sst_op = 0;
+			}
+			break;
 		case SST_POLL_BEGIN_IO:
 PR3("PBI ");
 			if (bp == NULL)
@@ -1414,23 +1447,6 @@ PR3("PBI ");
 					else
 						set_timeout(s_id, DELAY_BSY);
 				}
-			}
-			break;
-		case SST_POLL_RESELECT:
-PR3("PR ");
-			if (TGT_RSEL) {
-				ssp->waiting = 0;
-				if (rsel_handshake()) {
-					do_connect(s_id);
-				} else {
-					recover(s_id, RV_P_TIMEOUT);
-				}
-			} else  { /* Reselect poll is negative */
-				if (ssp->expired) {
-					ssp->expired = 0;
-					recover(s_id, RV_R_TIMEOUT);
-				} else
-					do_sst_op = 0;
 			}
 			break;
 		default:
@@ -1517,12 +1533,19 @@ PR1("rst");
 		 * Later, can implement a delay to allow other targets to
 		 * finish pending operations.
 		 */
+		host_claimed = s_id;
 		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
 		ssp->state = SST_RESET_OFF;
 		set_timeout(s_id, DELAY_RST);
 		break;
 	case SST_REQ_SENSE:
 PR1("RQS ");
+		/*
+		 * Come here at end of SCSI Bus reset (and at other times).
+		 * If we have host claimed, release it.
+		 */
+		if (host_claimed == s_id)
+			host_claimed = -1;
 		if (req_sense(s_id))
 			ssp->state = SST_POLL_BEGIN_IO;
 		else
@@ -1741,7 +1764,6 @@ RV_TYPE errtype;
 			break;
 
 		case RV_BF_TIMEOUT:
-			host_claimed = -1;
 			/* fall thru */
 		case RV_A_TIMEOUT:
 			ssp->state = SST_HIPRI_RESET;
@@ -1798,7 +1820,9 @@ int s_id;
  * do_connect()
  *
  * This function is called when the host is successfully connected to
- * the target.
+ * the target.  It invokes information transfer protocol and then sets
+ * up some sort of recovery unless the command completed successfully
+ * or there was a normal disconnect.
  */
 static void do_connect(s_id)
 int s_id;
@@ -1807,13 +1831,13 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 
 	result = far_info_xfer(s_id);
-	if (host_claimed == s_id)
-		host_claimed = -1;
 	if (!result)
 		recover(s_id, RV_P_TIMEOUT);
 	else if (ssp->msg_in == MSG_DISCONNECT) {
 		ssp->state = SST_POLL_RESELECT;
 		set_timeout(s_id, DELAY_RES);
+		if (host_claimed == s_id)
+			host_claimed = -1;
 	} else if (ssp->msg_in == MSG_CMD_CMPLT && ssp->cmdstat == CS_GOOD)
 		ss_finished(s_id);
 	else if (ssp->cmdstat == CS_BUSY)
@@ -1919,6 +1943,37 @@ uint cmdlen, inlen, outlen;
 	if (!bus_timeout && xfer_good && cmdstat == CS_GOOD)
 		ret = 1;
 
-	host_claimed = -1;
 	return ret;
+}
+
+/*
+ * scsireset()
+ *
+ * Reset the SCSI bus.
+ * Allow settling time when turning reset on/off.
+ * Settling times were determined empirically.
+ * Each tick is 10 msec.
+ */
+static void scsireset()
+{
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
+	ssdelay(RESET_TICKS);
+	sfbyte(ss_csr, 0);
+	ssdelay(RESET_TICKS);
+}
+
+/*
+ * ssdelay()
+ *
+ * Delay for some number of clock ticks.
+ * 286/386 kernel ticks are at 100Hz
+ *
+ * WARNING:  Since this routine uses sleep(), it is callable ONLY from
+ * ssload()/ssunload()/ssopen()/ssclose().
+ */
+static void ssdelay(ticks)
+int ticks;
+{
+	timeout(&delay_tim, ticks, wakeup, (int)&delay_tim);
+	sleep((char *)&delay_tim, CVPAUSE, IVPAUSE, SVPAUSE);
 }
