@@ -2,7 +2,7 @@
  * h/i386/varmch.h
  * Machine specific variant bits.
  * i386.
- * All except -VNDP are currently meaningless for the i386 compiler,
+ * All except -VNDP and -VXSTAT are currently meaningless for the i386 compiler,
  * but remain here so the same driver can run the i8086 and i386 compilers.
  */
 
@@ -18,5 +18,6 @@
 #define	V80287	(VMBASE+8)	/* Generate 80287 floating point	*/
 #define	VALIGN	(VMBASE+9)	/* Word-align stack			*/
 #define	VEMU87	(VMBASE+10)	/* Generate 8087 emulation calls	*/
+#define	VXSTAT	(VMBASE+11)	/* Output static external items		*/
 
 /* end of h/i386/varmch.h */

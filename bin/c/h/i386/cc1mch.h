@@ -37,7 +37,7 @@ typedef	char	INDEX;		/* Index type				*/
 #if	DECVAX
 #define poolseg(op)	((op!=DCON) ? SLINK : SDATA)
 #else
-#define poolseg(op)	((notvariant(VRAM)||(op!=DCON)) ? SLINK : SDATA)
+#define poolseg(op)	SLINK
 #endif
 
 #if	!TINY
@@ -148,7 +148,6 @@ typedef	char	INDEX;		/* Index type				*/
 #define mapcode(c, tp)	(c)		/* Escape to map mch opcodes	*/
 #define gentos(x,y)			/* No top of stack required	*/
 #define genstar(x,y,z,zz)		/* No star address required	*/
-#define getstar(tp,nse,npfx,pfx)	/* No star address required	*/
 #define iptrtype()	PTR
 
 /*
