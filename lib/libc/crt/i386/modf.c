@@ -42,24 +42,15 @@ modf(d, dp) double d; register double *dp;
 		*dp = d;
 		return 0.0;
 	} else if (e <= 0) {			/* -1. < d < 1. */
-		if (d < 0.0) {			/* -1. < d < 0. */
-			*dp = -1.0;
-			return 1.0 + d;
-		}
-		*dp = 0.0;			/* 0. <= d < 1. */
+		*dp = 0.0;
 		return d;
 	} else if (d >= 0.0)
 		return _modf(d, dp, e);		/* d >= 0., 1 <= e < DMBITS+1 */
 
 	/* d is negative. */
 	d = _modf(-d, dp, e);
-	if (d != 0.0) {
-		*dp = -*dp - 1.0;
-		return 1.0 - d;
-	} else {				/* -0.0, this should not happen */
-		*dp = -*dp;
-		return d;
-	}
+	*dp = -*dp;
+	return -d;
 }
 
 /* end of modf.c */
