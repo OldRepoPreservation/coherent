@@ -54,7 +54,7 @@ main()
 	sys_base = DEF_SYS_BASE;
 	sys_base_set = FALSE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.4 alpha\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 1.0.5 alpha\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
