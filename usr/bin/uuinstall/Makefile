@@ -1,18 +1,14 @@
 P =lsys1.o uuin.o uunam.o helpscn.o devices.o permis.o \
-  comment.o choices.o choices1.o
+  comment.o choices.o choices1.o choices2.o getline.o escapes.o
 S = Makefile lsys1 uuin uunam helpscn devices permis \
- comment choices choices1 uuinstall.c \
+ comment choices choices1 choices2 escapes uuinstall.c getline.c \
  L.sys Permissions domain uucpname uuinstall
 
-CFLAGS = -I.
+CFLAGS = -I. -A
 L = -lscn  -lcurses -lterm -lmisc
-DESTDIR= /interim/usr/bin/
 
-uuinstall : $P uuinstall.o
-	cc -o $(DESTDIR)uuinstall uuinstall.o $P $L
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
+uuinstall : $P uuinstall.o /usr/lib/libscn.a
+	cc -o uuinstall uuinstall.o $P $L
 
 uuinstall.o : uuinstall.c
 
@@ -23,6 +19,12 @@ choices.c : choices
 	scn $<
 
 choices1.c : choices1
+	scn $<
+
+escapes.c : escapes
+	scn $<
+
+choices2.c : choices2
 	scn $<
 
 uunam.c : uunam
@@ -48,7 +50,10 @@ devices.o : devices.c
 permis.o : permis.c
 choices.o : choices.c
 choices1.o : choices1.c
+choices2.o : choices2.c
+escapes.o : escapes.c
 lsys1.o : lsys1.c
 uuin.o : uuin.c
 uunam.o : uunam.c
 helpscn.o : helpscn.c
+getline.o : getline.c
