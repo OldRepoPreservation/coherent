@@ -23,11 +23,6 @@ IOOBJ = \
 	$(K386OBJ)/fdisk.o \
 	$(K386OBJ)/fdc.o \
 	$(K386OBJ)/fl386.o \
-	$(K386OBJ)/ft.o \
-	$(K386OBJ)/haiscsi.o \
-	$(K386OBJ)/haiAha.o \
-	$(K386OBJ)/haiCt.o \
-	$(K386OBJ)/haiSd.o \
 	$(K386OBJ)/hs.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/kb.o \
@@ -52,9 +47,9 @@ IOOBJ = \
 	$(K386OBJ)/vtkb.o \
 	$(K386OBJ)/vtkb_d.o \
 	$(K386OBJ)/vtkb_f.o \
-	$(K386OBJ)/xlft.o \
 	$(K386OBJ)/xla.o \
 	$(K386OBJ)/xl_dec.o
+#	$(K386OBJ)/xlft.o
 
 all: $(IOOBJ)
 	@echo "io objects up to date"
@@ -86,7 +81,7 @@ $(K386OBJ)/bufq.o: bufq.c $(SYSINC)/buf.h $(SYSINC)/coherent.h
 $(K386OBJ)/com1.o: al.c \
 		$(SYSINC)/clist.h	$(SYSINC)/coherent.h $(SYSINC)/types.h \
 		$(SYSINC)/timeout.h $(SYSINC)/reg.h $(SYSINC)/param.h \
-		$(SYSINC)/fun.h $(SYSINC)/con.h $(USRINC)/errno.h $(SYSINC)/reg.h \
+		$(SYSINC)/fun.h $(SYSINC)/con.h $(USRINC)/sys/errno.h $(SYSINC)/reg.h \
 		$(SYSINC)/ins8250.h $(SYSINC)/sched.h $(SYSINC)/stat.h \
 		$(SYSINC)/timeout.h $(SYSINC)/tty.h $(SYSINC)/ktty.h $(SYSINC)/uproc.h
 	$(CC) $(CFLAGS) -DALCOM1=1 -c -o $@ al.c
@@ -94,7 +89,7 @@ $(K386OBJ)/com1.o: al.c \
 $(K386OBJ)/com2.o: al.c	\
 		$(SYSINC)/clist.h	$(SYSINC)/coherent.h $(SYSINC)/types.h \
 		$(SYSINC)/timeout.h $(SYSINC)/reg.h $(SYSINC)/param.h \
-		$(SYSINC)/fun.h $(SYSINC)/con.h $(USRINC)/errno.h $(SYSINC)/reg.h \
+		$(SYSINC)/fun.h $(SYSINC)/con.h $(USRINC)/sys/errno.h $(SYSINC)/reg.h \
 		$(SYSINC)/ins8250.h $(SYSINC)/sched.h $(SYSINC)/stat.h \
 		$(SYSINC)/timeout.h $(SYSINC)/tty.h $(SYSINC)/ktty.h $(SYSINC)/uproc.h
 	$(CC) $(CFLAGS) -DALCOM2=1 -c -o $@ al.c
@@ -109,7 +104,7 @@ $(K386OBJ)/dmareq.o:			\
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(SYSINC)/dmac.h	\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/io.h		\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(USRINC)/poll.h \
 		$(SYSINC)/sched.h	\
@@ -125,9 +120,9 @@ $(K386OBJ)/fdisk.o:			\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/fdisk.h	\
-		$(SYSINC)/inode.h	\
+		$(SYSINC)/file.h	\
 		$(SYSINC)/uproc.h	\
 		fdisk.c
 	$(CC) $(CFLAGS) -c -o $@ fdisk.c
@@ -138,7 +133,7 @@ $(K386OBJ)/fdc.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/fdc765.h		\
 		$(SYSINC)/uproc.h	\
 		fdc.c
@@ -150,11 +145,12 @@ $(K386OBJ)/fl386.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/fdioctl.h	\
 		$(SYSINC)/sched.h	\
-		$(SYSINC)/fdc765.h		\
+		$(SYSINC)/fdc765.h	\
 		$(SYSINC)/uproc.h	\
+		$(SYSINC)/file.h	\
 		fl386.c
 	$(CC) $(CFLAGS) -c -o $@ fl386.c
 
@@ -163,21 +159,6 @@ $(K386OBJ)/fontw.o: fontgen.c
 	: ./fontgen > $*.s
 	rm fontgen
 	: $(AS) -gxo $@ $*.s
-
-$(K386OBJ)/ft.o: ft.c
-	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
-
-$(K386OBJ)/haiscsi.o: haiscsi.c $(SYSINC)/haiscsi.h
-	$(CC) $(CFLAGS) -c -o $@ haiscsi.c
-
-$(K386OBJ)/haiAha.o: haiAha.c $(SYSINC)/haiscsi.h
-	$(CC) $(CFLAGS) -c -o $@ haiAha.c
-
-$(K386OBJ)/haiSd.o: haiSd.c $(SYSINC)/haiscsi.h
-	$(CC) $(CFLAGS) -c -o $@ haiSd.c
-
-$(K386OBJ)/haiCt.o: haiCt.c $(SYSINC)/haiscsi.h
-	$(CC) $(CFLAGS) -c -o $@ haiCt.c
 
 $(K386OBJ)/hs.o: hs.c
 	$(CC) $(CFLAGS) -c -o $@ hs.c
@@ -190,7 +171,7 @@ $(K386OBJ)/kb.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/sched.h	\
 		$(USRINC)/signal.h	\
@@ -206,7 +187,7 @@ $(K386OBJ)/vtkb.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/sched.h	\
 		$(USRINC)/signal.h	\
@@ -224,7 +205,7 @@ $(K386OBJ)/vtkb_d.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/sched.h	\
 		$(USRINC)/signal.h	\
@@ -242,7 +223,7 @@ $(K386OBJ)/vtkb_f.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/sched.h	\
 		$(USRINC)/signal.h	\
@@ -266,7 +247,7 @@ $(K386OBJ)/lp.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/io.h		\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(USRINC)/poll.h \
@@ -281,7 +262,7 @@ $(K386OBJ)/mm.o:				\
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/sched.h	\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/io.h		\
 		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
@@ -302,7 +283,7 @@ $(K386OBJ)/nkb.o:				\
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(SYSINC)/devices.h	\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/kb.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/seg.h	\
@@ -318,7 +299,7 @@ $(K386OBJ)/nkb.o:				\
 $(K386OBJ)/pty.o:  pty.c \
 	$(SYSINC)/stat.h $(SYSINC)/uproc.h \
 	$(SYSINC)/tty.h $(SYSINC)/con.h \
-	$(SYSINC)/devices.h $(USRINC)/errno.h
+	$(SYSINC)/devices.h $(USRINC)/sys/errno.h
 	$(CC) $(CFLAGS) -c -o $@ pty.c
 
 $(K386OBJ)/putchar.o:			\
@@ -327,15 +308,16 @@ $(K386OBJ)/putchar.o:			\
 					$(SYSINC)/fun.h \
 		$(SYSINC)/asy.h		\
 		$(SYSINC)/con.h		\
-		$(SYSINC)/devices.h		\
-		$(SYSINC)/inode.h	\
+		$(SYSINC)/devices.h	\
+		$(SYSINC)/file.h	\
 		$(SYSINC)/io.h		\
 		$(SYSINC)/stat.h	\
 		putchar.c
 	$(CC) $(CFLAGS) -c -o $@ putchar.c
 
-$(K386OBJ)/rm.o: rm.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(K386OBJ)/rm.o: rm.c \
+		$(SYSINC)/file.h
+	$(CC) $(CFLAGS) -c -o $@ rm.c
 
 $(K386OBJ)/scsi.o: scsi.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -349,8 +331,9 @@ $(K386OBJ)/shm1.o: shm1.c
 $(K386OBJ)/ss.o: ss.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(K386OBJ)/tty.o: tty.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(K386OBJ)/tty.o: tty.c \
+		$(SYSINC)/file.h
+	$(CC) $(CFLAGS) -c -o $@ tty.c
 
 $(K386OBJ)/vtmm.o: vtmm.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -361,8 +344,9 @@ $(K386OBJ)/vtmmas.o:	vtmmas.s
 $(K386OBJ)/vtnkb.o: vtnkb.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(K386OBJ)/xlft.o: xlft.c
-	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
+$(K386OBJ)/xlft.o: xlft.c \
+		$(SYSINC)/file.h
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ xlft.c
 
 $(K386OBJ)/xl_dec.o: xl_dec.c
 	$(CC) $(CFLAGS) -c -o $@ $<

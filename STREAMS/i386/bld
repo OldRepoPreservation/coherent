@@ -3,6 +3,8 @@
 # requires a running 386 kernel
 #
 
+sync
+
 # make sure the environment is set for kernel objects
 if [ $K386OBJ ]
 then
@@ -40,7 +42,7 @@ USE_ASYNC=y
 MAKE_LIBS=y
 PATCH="flCon=fl386con"
 KEROBJ=${K386LIB}/ker386.o
-TARGET=/at386.tst
+: ${TARGET=/at386.tst}
 ASYNC=/etc/default/async
 
 # Each drvl entry is 0x14, or 20 decimal, bytes.
@@ -72,11 +74,6 @@ do
 	emu)
 		OPTS=${OPTS}" em87.o "
 		;;
-	hai)
-		OPTS=${OPTS}" ${K386OBJ}/haiscsi.o ${K386OBJ}/haiSd.o"
-		OPTS=${OPTS}" ${K386OBJ}/haiCt.o ${K386OBJ}/haiAha.o"
-		PATCH="${PATCH} drvl+260=scsicon"
-		;;
 	hs)
 		OPTS=${OPTS}" ${K386OBJ}/hs.o"
 		PATCH="${PATCH} drvl+140=hscon"
@@ -92,10 +89,6 @@ PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 		USE_LP=n
 		USE_ASYNC=n
 		DEFAULT_ASYNC=n
-		;;
-	ft)
-		PATCH="${PATCH} ftCon=ftcon PHYS_MEM=589824"
-OPTS=${OPTS}" ${K386OBJ}/ft.o"
 		;;
 	fva)
 OPTS=${OPTS}" stubs.o ${K386OBJ}/at.o ${K386OBJ}/ss.o"
@@ -166,7 +159,7 @@ OPTS=${OPTS}" ${K386OBJ}/xlft.o ${K386OBJ}/xla.o ${K386OBJ}/xl_dec.o"
 		;;
 	*)
 echo "Usage:  $0"
-echo "  {aha|al|asy|at|fha|fva|ft|hai|hs|inst|kb|kb_d|kb_f|nkb"
+echo "  {aha|al|asy|at|fha|fva|hs|inst|kb|kb_d|kb_f|nkb"
 echo "    |sc|ss|ticom|vt|vtkb|vtkb_d|vtkb_f|xl}"
 echo "  {-o target} {-a async_file} {-c cflags} {addr=value}..."
 		exit 1

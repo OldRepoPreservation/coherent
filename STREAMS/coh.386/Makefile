@@ -39,7 +39,9 @@ COHOBJ= $(K386OBJ)/alloc.o \
 	$(K386OBJ)/sys5.o \
 	$(K386OBJ)/syscoh.o \
 	$(K386OBJ)/timeout.o \
-	$(K386OBJ)/var.o
+	$(K386OBJ)/var.o \
+	$(K386OBJ)/ker_data.o \
+	$(K386OBJ)/sys6.o
 
 all:	$(COHOBJ)
 	@echo "coh objects up to date"
@@ -48,13 +50,13 @@ $(K386OBJ)/alloc.o: alloc.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/bio.o: bio.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -D_ENABLE_STREAMS=1 -c -o $@ $<
 
 $(K386OBJ)/clist.o: clist.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/clock.o: clock.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -D_ENABLE_STREAMS=1 -c -o $@ $<
 
 $(K386OBJ)/clocked.o: clocked.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -163,12 +165,6 @@ $(K386OBJ)/sig.o: sig.c
 $(K386OBJ)/support.o: support.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-#$(K386OBJ)/swap.o: swap.c
-#	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(K386OBJ)/elog.o: elog.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
 $(K386OBJ)/sys1.o: sys1.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -232,3 +228,10 @@ $(K386OBJ)/sys5.o: sys5.c
 
 $(K386OBJ)/syscoh.o: syscoh.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/ker_data.o: ker_data.c $(USRINC)/sys/proc.h $(USRINC)/sys/uproc.h \
+		$(USRINC)/kernel/sigproc.h
+	$(CC) $(CFLAGS) -c -o $@ ker_data.c
+
+$(K386OBJ)/sys6.o: sys6.c $(USRINC)/kernel/sigproc.h
+	$(CC) $(CFLAGS) -c -o $@ sys6.c

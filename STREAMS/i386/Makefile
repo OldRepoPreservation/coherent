@@ -39,7 +39,6 @@ COHOBJ =\
 	$(K386OBJ)/main.o \
 	$(K386OBJ)/misc.o \
 	$(K386OBJ)/null.o \
-	$(K386OBJ)/poll.o \
 	$(K386OBJ)/printf.o \
 	$(K386OBJ)/proc.o \
 	$(K386OBJ)/rlock.o \
@@ -53,7 +52,9 @@ COHOBJ =\
 	$(K386OBJ)/sys5.o \
 	$(K386OBJ)/syscoh.o \
 	$(K386OBJ)/timeout.o \
-	$(K386OBJ)/var.o
+	$(K386OBJ)/var.o \
+	$(K386OBJ)/ker_data.o \
+	$(K386OBJ)/poll.o	# Soon to disappear
 
 I386OBJ0 =\
 	$(K386OBJ)/as.o \
@@ -69,8 +70,6 @@ I386OBJ1 =\
 	$(K386OBJ)/ff.o \
 	$(K386OBJ)/md.o \
 	$(K386OBJ)/mem_cache.o \
-	$(K386OBJ)/memcpy.o \
-	$(K386OBJ)/memset.o \
 	$(K386OBJ)/mmu.o \
 	$(K386OBJ)/msig.o \
 	$(K386OBJ)/ndp.o \
@@ -79,9 +78,14 @@ I386OBJ1 =\
 	$(K386OBJ)/sys1632.o \
 	$(K386OBJ)/tioc.o \
 	$(K386OBJ)/trap.o \
-	$(K386OBJ)/work.o
+	$(K386OBJ)/work.o \
+	$(K386OBJ)/memory.o
+#	$(K386OBJ)/memcpy.o \
+#	$(K386OBJ)/memset.o
 
 I386OBJ = $(I386OBJ0) $(I386OBJ1)
+
+STREAMSOBJ= $(K386LIB)/drivers.o
 
 STUBS = $(K386OBJ)/stubs.o
 
@@ -94,11 +98,6 @@ OPTS =\
 	$(K386OBJ)/at.o \
 	$(K386OBJ)/com1.o \
 	$(K386OBJ)/com2.o \
-	$(K386OBJ)/ft.o \
-	$(K386OBJ)/haiscsi.o \
-	$(K386OBJ)/haiAha.o \
-	$(K386OBJ)/haiCt.o \
-	$(K386OBJ)/haiSd.o \
 	$(K386OBJ)/hs.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/kb.o \
@@ -121,9 +120,9 @@ OPTS =\
 	$(K386OBJ)/vtkb_d.o \
 	$(K386OBJ)/vtkb_f.o \
 	$(K386OBJ)/vtnkb.o \
-	$(K386OBJ)/xlft.o \
 	$(K386OBJ)/xla.o \
 	$(K386OBJ)/xl_dec.o 
+#	$(K386OBJ)/xlft.o
 
 # LIBLIST is the .a files needed for 386 installation.
 # k386.a is an aggregate used since 92/11/11 for driver kit kernel links.
@@ -193,9 +192,9 @@ $(K386LIB)/vtkb_f.a: \
 	$(AR) $(ARFLAGS) $@ $<
 
 # k386.a is used for linking driver kit kernels.
-$(K386LIB)/k386.a: $(I386OBJ) $(COHOBJ) $(IOOBJ)
+$(K386LIB)/k386.a: $(I386OBJ) $(COHOBJ) $(IOOBJ) $(STREAMSOBJ)
 	rm -f $@
-	$(AR) $(ARFLAGS) $@ $(I386OBJ1) $(COHOBJ) $(IOOBJ)
+	$(AR) $(ARFLAGS) $@ $(I386OBJ1) $(COHOBJ) $(IOOBJ) $(STREAMSOBJ)
 
 # kl386.a is used for linking customer kernels.
 $(K386LIB)/kl386.a: \
@@ -206,11 +205,6 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/at.o \
 	$(K386OBJ)/fdc.o \
 	$(K386OBJ)/fl386.o \
-	$(K386OBJ)/ft.o \
-	$(K386OBJ)/haiscsi.o \
-	$(K386OBJ)/haiAha.o \
-	$(K386OBJ)/haiCt.o \
-	$(K386OBJ)/haiSd.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/lp.o \
 	$(K386OBJ)/msg.o \
@@ -223,16 +217,17 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/shm1.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
-	$(K386OBJ)/xlft.o \
 	$(K386OBJ)/xla.o \
 	$(K386OBJ)/xl_dec.o \
-	$(K386OBJ)/memcpy.o \
-	$(K386OBJ)/memset.o
+	$(K386OBJ)/memory.o
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
+#	$(K386OBJ)/memcpy.o \
+#	$(K386OBJ)/memset.o
+#	$(K386OBJ)/xlft.o
 
-$(K386LIB)/ker386.o: $(I386OBJ) coh io $(STUBS)
-	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ)
+$(K386LIB)/ker386.o: $(I386OBJ) coh io conf $(STUBS)
+	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ) $(STREAMSOBJ)
 
 coh:
 	cd ../coh.386; make "CFLAGS=$(CFLAGS)" "CC=$(CC)"
@@ -240,10 +235,14 @@ coh:
 io:
 	cd ../io.386; make "CFLAGS=$(CFLAGS)" "CC=$(CC)"
 
+conf:
+	cd ../conf; make
+
 libs:	$(LIBLIST)
 	@/bin/echo "Installation libraries up to date."
 
 $(K386OBJ)/as.o: as.s as.inc
+	echo $(K386OBJ)
 	$(AS) -g -o $@ as.s
 
 $(K386OBJ)/xdt.o: xdt.s as.inc
@@ -288,16 +287,19 @@ $(K386OBJ)/fvcon.o:			\
 	$(CC) $(CFLAGS) -c -o $@ fvcon.c
 
 $(K386OBJ)/md.o: md.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -D_ENABLE_STREAMS=1 -c -o $@ $<
 
 $(K386OBJ)/mem_cache.o: mem_cache.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(K386OBJ)/memcpy.o: memcpy.s
-	$(AS) -g -o $@ memcpy.s
+$(K386OBJ)/memory.o: memory.s
+	$(AS) -o $@ memory.s
 
-$(K386OBJ)/memset.o: memset.s
-	$(AS) -g -o $@ memset.s
+#$(K386OBJ)/memcpy.o: memcpy.s
+#	$(AS) -g -o $@ memcpy.s
+#
+#$(K386OBJ)/memset.o: memset.s
+#	$(AS) -g -o $@ memset.s
 
 $(K386OBJ)/mmu.o: mmu.c
 	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
@@ -324,7 +326,7 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/acct.h	\
 		$(SYSINC)/buf.h		\
 		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
+		$(USRINC)/sys/errno.h	\
 		$(SYSINC)/filsys.h	\
 		$(SYSINC)/ino.h		\
 		$(SYSINC)/inode.h	\
@@ -337,7 +339,7 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/reg.h		\
 		$(SYSINC)/systab.h	\
 		$(SYSINC)/oldstat.h	\
-		$(SYSINC)/timeb.h	\
+		$(SYSINC)/oldtimeb.h	\
 		$(SYSINC)/fd.h		\
 		$(USRINC)/sgtty.h
 	$(CC) $(CFLAGS) -c -o $@ sys1632.c
