@@ -2,12 +2,13 @@
  * This is the host adaptor specific portion of the
  * Adaptec AHA154x driver.
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/aha.c,v $
+ * Revision 1.1	91/04/30  11:01:41	root
+ * Shipped with COH 3.1.0
+ * 
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
-#include <sys/mmu.h>
-#include <sys/types.h>
 #include <sys/sched.h>
 
 #include "scsiwork.h"
@@ -99,8 +100,9 @@ ccb_t *ccb;
 	register scsi_work_t *sw = ccb->ccb_sw;
 	register BUF *bp;
 
+	printf( "aha_process: ccb %x ", ccb );
+printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
 #if	VERBOSE
-	printf( "aha_process: ccb %x\n", ccb );
 	aha_ccb_print( ccb );
 #endif
 	if( ccb->ccb_sw == 0 ) {
@@ -121,10 +123,17 @@ ccb_t *ccb;
 		   || (ccb->targetstatus == CHECK_TARGET_STATUS
 		   && ccb->cmd_status[12] == SENSE_UNIT_ATTENTION)) {
 			int s = sphi();
-			if( scsi_work_queue->sw_actf == NULL )
+			if( scsi_work_queue->sw_actf == NULL ) {
 				scsi_work_queue->sw_actf = sw;
-			else
+printf("0-swq-f=%x\n", scsi_work_queue->sw_actf);
+{BUF *bp=sw->sw_bp;
+printf("bno=%lx count=%d ", bp->b_bno, bp->b_count);
+printf("faddr=%lx resid=%d ", bp->b_faddr, bp->b_resid);
+printf("req=%x bp=%x\n", bp->b_req, bp);
+}
+			} else {
 				scsi_work_queue->sw_actl->sw_actf = sw;
+			}
 			scsi_work_queue->sw_actl = sw;
 			spl(s);
 			aha_start();
@@ -323,8 +332,10 @@ scsi_work_t *head;
 	for( i = 0; i < MAX_MAILBOX; ++i )
 		mailbox_out[i].cmd = mailbox_in[i].cmd = 0;
 
-	sds_physical = vtop( 0, sds );
-	aha_l_to_p3( vtop( mailbox_out, sds ), &adr[1] );
+printf("B");
+	sds_physical = VTOP2( 0, sds );
+printf("C");
+	aha_l_to_p3( VTOP2( mailbox_out, sds ), &adr[1] );
 	adr[0] = MAX_MAILBOX;
 
 	/*
@@ -345,6 +356,7 @@ scsi_work_t *head;
 	for( i = 0; i < 4; ++i )
 		aha_1out( adr[i] );
 	scsi_work_queue = head;
+printf("1-swq-f=%x\n", scsi_work_queue->sw_actf);
 	++aha_loaded;
 	return MAX_MAILBOX;
 }
@@ -358,7 +370,7 @@ register scsi_cmd_t *sc;
 	short	count = sc->blklen;
 	long	block = sc->block;
 
-	ccb = (ccb_t *) kalloc(sizeof *ccb);
+	ccb = (ccb_t *) kalloc(sizeof (ccb_t));
 	if (ccb == (ccb_t *) 0) {
 		no_mem();
 		return -1;
@@ -392,7 +404,8 @@ register scsi_cmd_t *sc;
 
 	aha_l_to_p3( (long)sc->buflen, ccb->datalen );
 	aha_l_to_p3( sc->buffer, ccb->dataptr );
-	aha_l_to_p3( vtop( ccb, sds ), mailbox_out[0].adr );
+printf("D");
+	aha_l_to_p3( VTOP2( ccb, sds ), mailbox_out[0].adr );
 #if	VERBOSE
 	aha_ccb_print( ccb );
 #endif
@@ -422,9 +435,9 @@ ccb_t	*buildccb( sw )
 register scsi_work_t *sw;
 {
 	register ccb_t *ccb;
-	ccb = (ccb_t *)kalloc(10 + sizeof *ccb);
+	ccb = (ccb_t *)kalloc(sizeof(ccb_t));
 
-#if	VERBOSE
+#if	1
 	printf( "build: drv = %x, bno = %D  ",
 		sw->sw_drv, sw->sw_bno );
 #endif
@@ -451,7 +464,13 @@ register scsi_work_t *sw;
 	ccb->senselen = MAX_SENSEDATA;
 
 	aha_l_to_p3( (long)sw->sw_bp->b_count, ccb->datalen );
-	aha_l_to_p3( vtop(sw->sw_bp->b_faddr), ccb->dataptr );
+printf("E");
+{BUF *bp=sw->sw_bp;
+printf("bno=%lx count=%d ", bp->b_bno, bp->b_count);
+printf("faddr=%lx resid=%d ", bp->b_faddr, bp->b_resid);
+printf("req=%x bp=%x\n", bp->b_req, bp);
+}
+	aha_l_to_p3( VTOP(sw->sw_bp->b_faddr), ccb->dataptr );
 	return ccb;
 #if	0
 /* start of ioctl code */
@@ -470,7 +489,7 @@ aha_start()
 	register i, s, n = 0;
 	scsi_work_t *sw;
 	static char locked;
-
+printf("aha_start ");
 	s = sphi();
 	if( locked ) {
 		spl(s);
@@ -486,24 +505,29 @@ aha_start()
 				int s;
 
 				++n;
+printf("before buildccb\n");
 				ccb = buildccb( sw );
+printf("after buildccb\n");
 #if	VERBOSE
 				aha_ccb_print( ccb );
 #endif
-				aha_l_to_p3( vtop( ccb, sds ),
+printf("F");
+				aha_l_to_p3( VTOP2( ccb, sds ),
 						mailbox_out[i].adr );
 				mailbox_out[i].cmd = MBO_TO_START;
-#if	VERBOSE
-				printf( "MBO[%d] = %x:%x:%x:%x, ccb = %x\n",
+#if	1
+				printf( "MBO[%d] = %x:%x:%x:%x, ccb = %x ",
 					i, mailbox_out[i].cmd,
 					mailbox_out[i].adr[0],
 					mailbox_out[i].adr[1],
 					mailbox_out[i].adr[2], ccb );
+printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
 #endif
 				aha_1out( AHA_DO_SCSI_START );
 
 				s = sphi();
 				sw = scsi_work_queue->sw_actf = sw->sw_actf;
+printf("2-swq-f=%x\n", scsi_work_queue->sw_actf);
 				if( sw == NULL )
 					scsi_work_queue->sw_actl = NULL;
 				spl(s);
@@ -521,10 +545,10 @@ aha_start()
 int	aha_completed()
 {
 	register i, n;
-
+printf("aha_completed ");
 	for( n = 0, i = 0; i < MAX_MAILBOX; ++i )
 		if( mailbox_in[i].cmd != MBI_IS_FREE ) {
-#if	VERBOSE
+#if	1
 			printf( "aha: mail[%d] = %x:%x:%x:%x\n",
 				i, mailbox_in[i].cmd,
 				mailbox_in[i].adr[0],
