@@ -13,7 +13,7 @@
 #ifndef	__FLOAT_H__
 #define	__FLOAT_H__
 
-#if	__DECVAX__
+#if	_DECVAX
 /*
  * DECVAX format.
  * Double:	1 sign +  8 exponent + 56 mantissa, bias  129.
@@ -51,7 +51,7 @@
 #define	LDBL_MIN_10_EXP	DBL_MIN_10_EXP
 #endif
 
-#if	__IEEE__
+#if	_IEEE
 /*
  * IEEE format.
  * Double:	1 sign + 11 exponent + 53 mantissa, bias 1023.
@@ -59,7 +59,7 @@
  * Long double:	unimplemented, limits defined here are same as double.
  */
 #define	DBL_DIG		15
-#define	DBL_EPSILON	1.110223024625157e-16
+#define	DBL_EPSILON	2.220446049250313e-16
 #define	DBL_MANT_DIG	53
 #define	DBL_MAX		1.797693134862316e+308
 #define	DBL_MAX_EXP	1024
