@@ -1,4 +1,4 @@
-.\" /usr/lib/roff/nroff/specials.r 4/16/91
+.\" /usr/lib/roff/nroff/specials.r 3/25/93
 .\" Default special character definitions for nroff.
 .dc em --
 .dc hy -
@@ -19,6 +19,7 @@
 .dc ct \o'c|'
 .dc rg (r)
 .dc co (c)
+.dc tm [tm]
 .dc pl +
 .dc mi -
 .dc eq =
