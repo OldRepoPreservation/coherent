@@ -258,15 +258,14 @@ gift_rootdev(ffp)
 	FIFO *ffp;
 {
 #define	NOPARTITION	255	/* Convenient illegal partition number.  */
+#define PART_PER_DRIVE	4	/* Number of partitions per drive.  */
 
 	BIOS_ROOTDEV myrootdev;	/* Build the data to be passed here.  */
 	FDISK_S fp[NPARTN];	/* Room for a partition table from disk.  */
 	int8 i;
 
-	extern uint8 drive;
-	extern uint32 first;
-	
-
+	extern uint8 drive;	/* Drive number from secondary boot.  */
+	extern uint32 first;	/* Block number of start of partition.  */
 	
 	/* Fetch the partition table from disk.  */
 	if (0 == fdisk(fp)) {
@@ -274,8 +273,8 @@ gift_rootdev(ffp)
 		return(2);
 	}
 
-
-	myrootdev.rd_partition = NOPARTITION; /* Mark an invalid partition.  */
+	/* Mark an invalid partition.  */
+	myrootdev.rd_partition = NOPARTITION;
 
 	/* Look for the current partition in the table.  */
 	for (i=0; i < NPARTN; ++i) {
@@ -289,6 +288,9 @@ gift_rootdev(ffp)
 		puts("gift_rootdev() WARNING: Can't find my partition.\r\n");
 		return(2);
 	}
+
+	/* Adjust the partition for the drive number.  */
+	myrootdev.rd_partition += (PART_PER_DRIVE * drive);
 
 	if (T_NULL == fifo_write_untyped(ffp,
 					 &myrootdev,
