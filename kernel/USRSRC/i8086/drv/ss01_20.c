@@ -7,6 +7,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.16	91/03/22  17:40:03	root
+ * Need to do more with ss_start()
+ * 
  * Revision 1.15	91/03/21  16:44:03	root
  * getting ready to call fdisk - finish ss_start next
  * 
@@ -86,6 +89,7 @@
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
 #define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
+#define WHOLE_DRIVE	NPARTN
 
 #define G0CMDLEN	6	/* Group 0 commands are 6 bytes long  */
 #define G1CMDLEN	10	/* Group 1 commands are 10 bytes long */
@@ -100,6 +104,12 @@
 #define CS_CHECK	0x02
 #define CS_BUSY		0x08
 #define CS_RESERVED	0x18
+
+				/* Device States */
+#define	SIDLE		0	/* controller idle */
+#define	SRETRY		1	/* seeking */
+#define	SREAD		2	/* reading */
+#define	SWRITE		3	/* writing */
 
 /*
  * Information Transfer Phase masks -
@@ -169,9 +179,13 @@ int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 /*
  * Import Functions.
  */
-int	nulldev();
-int	nonedev();
-unsigned char ffbyte();
+extern int	nulldev();
+extern int	nonedev();
+extern unsigned char ffbyte();
+
+extern void ssq_wr_tail();
+extern scsi_work_t * ssq_rd_head();
+extern scsi_work_t * ssq_rm_head();
 
 /*
  * Local Functions.
@@ -198,6 +212,8 @@ static int	inquiry();
 static int	read_cap();
 static void	ssintr();
 static void	ss_start();
+static void	ss_done();
+static void	do_ss();
 
 /*
  * Local Variables.
@@ -212,11 +228,12 @@ static faddr_t	ss_dat;		/* (far *) to data port */
 
 static int	num_drives;	/* number of controller SCSI id's */
 static struct ss *ss_block;	/* points to block of "ss" structs */
+static int	st0x_busy;	/* 1 if SCSI host adapter busy */
+
 static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
-
 static int	ss_expired;	/* 1 after local timeout */
-static scsi_work_t	*scsi_work_queue;
+static int	ss_state;	/* starts at SIDLE */
 
 /*
  * Driver CON entry - an export variable.
@@ -256,6 +273,7 @@ static struct ss	{
 	int	data_bytes_in;
 	struct	fdisk_s parmp[NPARTN+1];
 	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
+	unsigned int	id_busy:1;  /* 1 if device with this SCSI id busy */
 } *ss[MAX_SCSI_ID-1], rqs;
 
 /*
@@ -433,7 +451,7 @@ register dev_t	dev;
 static void ssclose( dev )
 dev_t dev;
 {
-	--drvl[SDMAJOR].d_time;	
+	--drvl[SCSI_MAJOR].d_time;	
 }
 
 /*
@@ -501,7 +519,7 @@ char * vec;
 
 	switch(cmd) {
 	default:
-		u.uerror = EINVAL;
+		u.u_error = EINVAL;
 		ret = -1;
 	}
 
@@ -509,8 +527,6 @@ char * vec;
 }
 
 /*
- *
- * void
  * ssblock( bp )	- queue a block to the disk
  *
  *	Input:	bp = pointer to block to be queued.
@@ -529,6 +545,9 @@ register BUF	*bp;
 	dev_t dev;
 	struct ss * ssp;
 
+	/*
+	 * Set up local variables.
+	 */
 	dev = bp->b_dev;
 	partition = DEV_PARTN(dev);
 	drive = DEV_DRIVE(dev);
@@ -557,7 +576,19 @@ register BUF	*bp;
 			bdone(bp);
 			return;
 		}
-	} else if ( (bp->b_bno + (bp->b_count/BSIZE))
+	}
+	/*
+	 * Check for read at end of partition.
+	 * (Need to return with b_resid = BSIZE to signal end of volume.)
+	 */
+	else if ((bp->b_req == BREAD) && (bp->b_bno == fdp[partition].p_size)) {
+		bdone(bp);
+		return;
+	}
+	/*
+	 * Check for read past end of partition.
+	 */
+	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
 		bp->b_flag |= BFERR;
 		bdone(bp);
@@ -566,7 +597,7 @@ register BUF	*bp;
 
 	bp->b_actf = NULL;
 	sw = (scsi_work_t *)kalloc( sizeof(*sw) );
-	if (sw == (scsi_work_t *)0) {
+	if (sw == NULL) {
 		devmsg(dev, "out of kernel memory");
 		bp->b_flag |= BFERR;
 		bdone(bp);
@@ -581,24 +612,15 @@ register BUF	*bp;
 	sw->sw_retry = 1;
 
 printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
-	drv, (long)sw->sw_bno, bp, bp->b_flag);
+	drive, (long)sw->sw_bno, bp, bp->b_flag);
 
-	s = sphi();
-	if (sd.sw_actf == NULL)
-		sd.sw_actf = sw;
-	else
-		sd.sw_actl->sw_actf = sw;
-	sd.sw_actl = sw;
-	spl(s);
-
-	ss_start();
+	ssq_wr_tail(sw);
+	if (ss_state == SIDLE)
+		ss_start();
 }
 
 /*
- *
- * void
  * ssintr()	- Interrupt routine.
- *
  */
 #if 0
 static int irpted;
@@ -660,6 +682,8 @@ PUSHI;
 }
 
 /*
+ * ssinit()
+ *
  * Attempt to initialize the (unique) drive with a given SCSI id.
  * Assume only one drive per SCSI id, having LUN = 0.
  * 
@@ -717,10 +741,11 @@ int s_id;
 
 	if (retval) {
 		retval = fdisk(dev, ss[s_id]->parmp);
-		if (retval)
-			printf("fdisk succeeded\n");
-		else
-			printf("fdisk failed\n");
+		if (retval) {
+			printf("fdisk scsi id #%d succeeded\n", s_id);
+			ss[s_id]->ptab_read = 1;
+		} else
+			printf("fdisk scsi id #%d failed\n", s_id);
 	}
 
 	return retval;
@@ -808,6 +833,8 @@ int ticks;
 }
 
 /*
+ * ss_start_timing()
+ *
  * Start a timeout for some number of ticks.
  * Caller knows timer has expired when "ss_expired" goes to 1.
  *
@@ -829,6 +856,8 @@ int ticks;
 }
 
 /*
+ * ss_stop_timing()
+ *
  * Stub function called only by ss_start_timing()
  */
 static void ss_stop_timing(flagval)
@@ -1146,8 +1175,7 @@ printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
  * ss_start()
  *
  * Invoked whenever there is I/O to do.  Pull first request, if any,
- * off the queue and try to send it to the drive.
- * If request is sent, delete it from the queue.
+ * off the queue, send it to the drive, and delete it from the queue.
  *
  * Disallow re-entrancy in this routine (variable "locked").
  */
@@ -1158,21 +1186,66 @@ static void ss_start()
 	static char locked;
 
 	s = sphi();
-	if( locked ) {
+	if(locked) {
 		spl(s);
 		return;
 	}
 	++locked;
 	spl(s);
 
-	if( (sw = scsi_work_queue->sw_actf) != NULL ) {
-		if (do_ss(sw)) {
-			s = sphi();
-			sw = scsi_work_queue->sw_actf = sw->sw_actf;
-			if( sw == NULL )
-				scsi_work_queue->sw_actl = NULL;
-			spl(s);
-		}
+	if((sw = ssq_rm_head()) != NULL) {
+		if (sw->sw_bp->b_req == BWRITE)
+			ss_state = SWRITE;
+		else if (sw->sw_bp->b_req == BREAD)
+			ss_state = SREAD;
+		else
+			printf("Error:  b_req=%d\n", sw->sw_bp->b_req);
+		do_ss(sw);
 	}
 	--locked;
+}
+
+/*
+ * do_ss()
+ *
+ * Begin a block read or write command as found in an "sw" queue entry.
+ */
+static void do_ss(sw)
+struct scsi_work_t * sw;
+{
+	BUF * bp;
+
+printf("do_ss\n");
+	bp = sw->sw_bp;
+	switch(ss_state) {
+	case SREAD:
+		bp->b_resid -= BSIZE;
+		ss_done(sw);
+		break;
+	case SWRITE:
+		bp->b_resid -= BSIZE;
+		ss_done(sw);
+		break;
+	}
+}
+
+/*
+ * ss_done
+ *
+ * Release current i/o buffer to the O/S.
+ */
+static void ss_done(sw)
+struct scsi_work_t * sw;
+{
+	BUF * bp;
+
+printf("ss_done\n");
+	bp = sw->sw_bp;
+
+	ss_state = SIDLE;
+	bdone(bp);
+	kfree(sw);
+
+	if (ssq_rd_head())
+		ss_start();
 }
