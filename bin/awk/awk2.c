@@ -309,7 +309,6 @@ fsmapinit(fsp)
 register CHAR *fsp;
 {
 	register CHAR *cp;
-	extern int whitesw;
 
 	whitesw = !strcmp(fsp, " \t");
 	for (cp = FSMAP; cp < &FSMAP[NCSET]; )

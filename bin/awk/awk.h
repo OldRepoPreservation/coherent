@@ -19,7 +19,7 @@
 
 typedef	double	FLOAT;		/* Floating point type */
 typedef	long	INT;		/* Integer type */
-typedef unsigned char CHAR;	/* character type */
+typedef unsigned char CHAR;	/* Character type */
 typedef	unsigned char *STRING;	/* String type */
 
 #define	stof	atof		/* String to FLOAT */
@@ -175,6 +175,7 @@ extern	int	yflag;
 extern	int	nlskip;
 extern	int	exitflag;
 extern	int	lineno;
+extern	int	whitesw;
 extern	CHAR	*inline;
 extern	jmp_buf	nextenv;
 extern	jmp_buf	fwenv[NNEST];
