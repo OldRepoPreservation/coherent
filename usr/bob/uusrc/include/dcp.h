@@ -15,7 +15,7 @@
  *  Various definitions of Global Strings and Values
  */
 
-#define	VERSION		"3.2.17"
+#define	VERSION		"3.2.20"
 
 #define PUBDIR		"/usr/spool/uucppublic"
 #define SPOOLDIR	"/usr/spool/uucp"
@@ -84,7 +84,7 @@ extern	FILE	*cfp;		/* FILE Pointer for C.* files		*/
 extern	char	*devname;	/* Communications Device Name Connected	*/
 extern	char	*nodename;	/* UUCP node name (or MYNAME, perhaps)	*/
 extern	char	*version;	/* Version Character String		*/
-
+extern	int	stripflg;	/* Flag to strip chars to 7bits on read */
 
 extern int pktsize;		/* packet size for this protocol */
 extern int findwork;
