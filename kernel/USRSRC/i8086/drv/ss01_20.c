@@ -7,6 +7,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.17	91/03/25  19:06:36	root
+ * calls ssqueue functions - need real i/o
+ * 
  * Revision 1.16	91/03/22  17:40:03	root
  * Need to do more with ss_start()
  * 
@@ -257,7 +260,7 @@ CON	sscon	= {
 /*
  * A per-drive structure - ss
  */
-#define IN_BUF_SIZE	100
+#define IN_BUF_SIZE	512
 typedef unsigned char	uchar;
 
 static struct ss	{
@@ -277,15 +280,12 @@ static struct ss	{
 } *ss[MAX_SCSI_ID-1], rqs;
 
 /*
- *
- * void
  * ssload()	- load routine.
  *
  *	Action:	The controller is reset and the interrupt vector is grabbed.
  *		The drive characteristics are set up at this time.
  */
-static void
-ssload()
+static void ssload()
 {
 	int erf = 0;  /* 1 if error occurs */
 	int i;
@@ -359,11 +359,9 @@ ssload()
 }
 
 /*
- * void
  * ssunload()	- unload routine.
  */
-static void
-ssunload()
+static void ssunload()
 {
 	/*
 	 * Deallocate driver heap space.
@@ -383,9 +381,7 @@ ssunload()
 }
 
 /*
- * ssopen( dev, mode )
- * dev_t dev;
- * int mode;
+ * ssopen()
  *
  *	Input:	dev = disk device to be opened.
  *		mode = access mode [IPR,IPW, IPR+IPW].
@@ -393,8 +389,7 @@ ssunload()
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
-static void
-ssopen( dev, mode )
+static void ssopen( dev, mode )
 register dev_t	dev;
 {
 	int drive, partn;
@@ -455,19 +450,14 @@ dev_t dev;
 }
 
 /*
- *
- * void
- * ssread( dev, iop )	- write a block to the raw disk
- * dev_t dev;
- * IO * iop;
+ * ssread()	- write a block to the raw disk
  *
  *	Input:	dev = disk device to be written to.
  *		iop = pointer to source I/O structure.
  *
  *	Action:	Invoke the common raw I/O processing code.
  */
-static void
-ssread( dev, iop )
+static void ssread( dev, iop )
 dev_t	dev;
 IO	*iop;
 {
@@ -475,19 +465,14 @@ IO	*iop;
 }
 
 /*
- *
- * void
- * sswrite( dev, iop )	- write a block to the raw disk
- * dev_t dev;
- * IO * iop;
+ * sswrite()	- write a block to the raw disk
  *
  *	Input:	dev = disk device to be written to.
  *		iop = pointer to source I/O structure.
  *
  *	Action:	Invoke the common raw I/O processing code.
  */
-static void
-sswrite( dev, iop )
+static void sswrite( dev, iop )
 dev_t	dev;
 IO	*iop;
 {
@@ -495,12 +480,7 @@ IO	*iop;
 }
 
 /*
- *
- * int
- * ssioctl( dev, cmd, arg )
- * dev_t dev;
- * int cmd;
- * char * vec;
+ * ssioctl()
  *
  *	Input:	dev = disk device to be operated on.
  *		cmd = input/output request to be performed.
@@ -509,8 +489,7 @@ IO	*iop;
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
-static int
-ssioctl( dev, cmd, vec )
+static int ssioctl( dev, cmd, vec )
 register dev_t	dev;
 int cmd;
 char * vec;
@@ -527,15 +506,14 @@ char * vec;
 }
 
 /*
- * ssblock( bp )	- queue a block to the disk
+ * ssblock()	- queue a block to the disk
  *
  *	Input:	bp = pointer to block to be queued.
  *
  *	Action:	Queue a block to the disk.
  *		Make sure that the transfer is within the disk partition.
  */
-static void
-ssblock(bp)
+static void ssblock(bp)
 register BUF	*bp;
 {
 	register scsi_work_t *sw;
@@ -628,8 +606,7 @@ static long x;
 for (x = 0, irpted = 0; x < 100000L; x++)  if (irpted) break;
 #endif
 
-static void
-ssintr()
+static void ssintr()
 {
 	printf("@");
 }
@@ -637,7 +614,7 @@ ssintr()
 /*
  * sswatch()
  */
-static void	sswatch()
+static void sswatch()
 {
 	static int calls;
 
@@ -739,6 +716,7 @@ int s_id;
 		} else
 			devmsg(dev, "Read Capacity Failed");
 
+#if 0
 	if (retval) {
 		retval = fdisk(dev, ss[s_id]->parmp);
 		if (retval) {
@@ -747,6 +725,17 @@ int s_id;
 		} else
 			printf("fdisk scsi id #%d failed\n", s_id);
 	}
+#else
+	/*
+	 * For test purposes only, try to read the partition table.
+	 */
+	if (retval) {
+		if (read_pt(s_id)) {
+			retval = 1;
+		} else
+			devmsg(dev, "Read Partition Table Failed");
+	}
+#endif
 
 	return retval;
 }
@@ -1248,4 +1237,32 @@ printf("ss_done\n");
 
 	if (ssq_rd_head())
 		ss_start();
+}
+
+/*
+ * read_pt()
+ *
+ * Read partition table for a device.
+ *
+ * Return 1 if command succeeds, else 0.
+ */
+static int read_pt(s_id)
+int s_id;
+{
+	int ret = 0;
+	struct ss * ssp = ss[s_id];
+
+	ssp->cmdbuf[0] = ScmdREADEXTENDED;
+	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
+	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[7] = ssp->cmdbuf[9] = 0;
+	ssp->cmdbuf[8] = 1;	/* transfer 1 block */
+	ssp->cmdlen = G1CMDLEN;
+	ssp->in_buf_len = BSIZE;
+
+	ret = scsicmd(s_id);
+	if (ret) {
+printf("signature low:%x high:%x\n", ssp->in_buf[510], ssp->in_buf[511]);
+	}
+
+	return ret;
 }
