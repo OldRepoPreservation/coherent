@@ -3,7 +3,13 @@
  *
  * Purpose:	Functions for the COHERENT-specific system call
  *
- * $Log$
+ * $Log:	syscoh.c,v $
+ * Revision 1.2  92/11/09  17:11:25  root
+ * Just before adding vio segs.
+ * 
+ * Revision 1.1  92/10/06  23:49:04  root
+ * Ker #64
+ * 
  */
 
 /*
@@ -33,7 +39,6 @@
 int ucohcall();
 
 static int devload();
-static int setfpe();
 
 /*
  * ----------------------------------------------------------------------
@@ -55,7 +60,6 @@ static int setfpe();
  * ----------	----------
  * COH_PRINTF	kernel printf
  * COH_DEVLOAD	call load() routine for device with major number a2
- * COH_SETFPE	a2=0, trap on FP;  a2!=0, allow FP
  * COH_SETBP	a2=bp#,a3=addr,a4=type,a5=len;  set kernel breakpoint
  * COH_CLRBP	a2=bp#;  clear kernel breakpoint
  * COH_REBOOT	reboot
@@ -76,9 +80,6 @@ ucohcall(a1,a2,a3,a4,a5,a6)
 	case	COH_DEVLOAD:
 		ret = devload(a2);
 		break;
-	case	COH_SETFPE:
-		ret = setfpe(a2);
-		break;
 	case	COH_SETBP:
 		ret = setbp(a2,a3,a4,a5);
 		break;
@@ -88,11 +89,41 @@ ucohcall(a1,a2,a3,a4,a5,a6)
 	case	COH_REBOOT:
 		ret = boot();
 		break;
+	case	COH_VIO:
+		ret = vio(a2,a3,a4,a5);
+		break;
 	default:
 		SET_U_ERROR(EINVAL, "bad COH function");
 	}
 ucc_done:
 	return ret;
+}
+
+/*
+ * Test of video io map support.
+ */
+int
+vio(x1, x2, x3, x4)
+int x1, x2, x3;
+{
+	switch (x1) {
+	case 0:
+		return iomapOr(x2, x3);
+		break;
+	case 1:
+		return iomapAnd(x2, x3);
+		break;
+	case 2:
+		return kiopriv(x2, x3);
+		break;
+	case 3:
+		return mapPhysUser(x2, x3, x4);
+		break;
+	default:
+		SET_U_ERROR(EINVAL, "bad COH vio function");
+		break;
+	}
+	return -1;
 }
 
 /*
