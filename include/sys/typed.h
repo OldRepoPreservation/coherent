@@ -1,8 +1,9 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	COHERENT Version 4.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /* typed.h -- Data structures for an implimentation of internally
  * typed data structures.
  *
@@ -18,8 +19,8 @@
  *	Anything else you need to define should go here.
  */
 
-#ifndef TYPED_H	/* Rest of file.  */
-#define TYPED_H
+#ifndef __SYS_TYPED_H__
+#define __SYS_TYPED_H__
 
 #include <sys/ptypes.h>
 

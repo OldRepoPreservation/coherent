@@ -1,8 +1,8 @@
 /*
  * Define useful symbols for use in the ps program.
  */
-#ifndef MONITOR_H	/* Rest of file.  */
-#define MONITOR_H
+#ifndef __SYS_COH_PS_H__
+#define __SYS_COH_PS_H__
 
 #define	ARGSZ	64	/* size of argument list */
 
@@ -30,8 +30,11 @@ typedef struct {
 	long	 p_stime;		/* System time */
 	unsigned char	rrun;		/* Ready to run */
 	char	 u_comm[U_COMM_LEN];	/* Command name */
-	char	 u_sleep[10];		/* Sleep on event */
+	char	 u_sleep[U_SLEEP_LEN];	/* Sleep on event */
 	char	 pr_argv[ARGSZ];	/* Insert the argument vector here. */
+#if _I386
+	int	 p_schedPri;		/* will index into table in sys/ts.h */
+#endif
 } stMonitor;
 
-#endif /* MONITOR_H */
+#endif /* _SYS_COH_PS_H */

@@ -1,27 +1,34 @@
-/* (-lgl
- * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
-
 #ifndef	__SYS__NULL_H__
 #define	__SYS__NULL_H__
 
 /*
- * Canonical definition for NULL.
+ * This internal header is designed to factor out the definition of NULL
+ * from all other aspects of the STREAMS and device systems. In order to
+ * be able to create a reasonable facsimile of the STREAMS and DDI/DDK
+ * programming environments, many of the header files defined by those
+ * documents in the System V environment have been defined. From the POSIX
+ * and ISO C standards documents we learn that <sys/types.h> is the most
+ * likely candidate, but that definitions also occur in <stdlib.h>, <stdio.h>
+ * and many other places.
  */
 
-#ifdef	__cplusplus
 
-# define	NULL		0
+/*
+ * For Borland C++, the use of memory models requires that we define NULL
+ * appropriately. There is a special Borland header for this, however.
+ */
 
-#elif	defined (COHERENT)
+#ifndef	NULL
 
-# define	NULL		((char *) 0)
+# ifdef	__BORLANDC__
 
-#else
+#  include <_null.h>
 
-# error	The correct type for NULL is not known for your system.
+# else
+
+#  define  NULL	0
+
+# endif
 
 #endif
 
