@@ -12,18 +12,20 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
+#include <float.h>
 #include <math.h>
 
 #if	__STDC__
-#include <float.h>
 #include <locale.h>
 #else
 #define	_decimal_point	'.'
-#define	DBL_MIN_10_EXP	-37		/* DECVAX fp */
-#define	DBL_MAX_10_EXP	38
 #endif
 
+#if	_DECVAX
 #define	DBL_EXP_10_DIG	2		/* max dec digits in legal DECVAX exponent */
+#elif	_IEEE
+#define	DBL_EXP_10_DIG	3		/* max dec digits in legal IEEE exponent */
+#endif
 
 /* Flag bits. */
 #define	NEG	1			/* negative significand */
@@ -60,8 +62,9 @@ strtod(nptr, endptr) char *nptr; char **endptr;
 		c = *cp++;
 	}
 
-	/* Next character must be decimal digit. */
-	if (!isdigit(c)) {
+	/* Next character must be decimal digit or '.' followed by decimal digit. */
+	if (!isdigit(c)
+	 && (c != _decimal_point || (c == _decimal_point && !isdigit(*cp)))) {
 		cp = nptr;
 		goto done;
 	}
