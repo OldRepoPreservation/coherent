@@ -36,7 +36,7 @@
  * 86/11/24	Allan Cornish		/usr/src/sys/coh/timeout.c
  * Added support for new t_last field in tim struct.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/timeout.h>
 #include <sys/fun.h>
 

@@ -45,12 +45,12 @@
  * usetpgrp() modified to be System V compatible (group set to pid).
  * ugetpgrp() system call added.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <acct.h>
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/proc.h>
-#include <sched.h>
+#include <sys/sched.h>
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/timeb.h>

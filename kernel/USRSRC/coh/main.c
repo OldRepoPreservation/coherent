@@ -15,7 +15,7 @@
  * 87/01/05	Allan Cornish		/usr/src/sys/coh/main.c
  * Copyright notice revised to include 1987.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/proc.h>
 #include <sys/seg.h>
 #include <sys/uproc.h>

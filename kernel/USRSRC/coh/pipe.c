@@ -24,14 +24,14 @@
  * Added check for non-blocking read and write if (io_flag & IPNDLY) set.
  * Eliminated use of i_a inode field since now included in inode macros.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/io.h>
 #include <sys/proc.h>
-#include <sched.h>
+#include <sys/sched.h>
 #include <signal.h>
 #include <sys/uproc.h>
 

@@ -29,7 +29,7 @@
  * Ported to Coherent from RTX.
  */
 
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/proc.h>
 #include <sys/uproc.h>
 

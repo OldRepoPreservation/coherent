@@ -22,7 +22,7 @@
  * Shipped with COH 3.1.0.
  * 
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <errno.h>
 #include <sys/fcntl.h>
 #include <sys/fd.h>

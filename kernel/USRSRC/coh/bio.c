@@ -38,13 +38,13 @@
  * 86/07/24	Allan Cornish		/usr/src/sys/coh/bio.c
  * Added check in devinit() for null dp->d_conp->c_load function pointer.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/io.h>
 #include <sys/proc.h>
-#include <sched.h>
+#include <sys/sched.h>
 #include <sys/seg.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>

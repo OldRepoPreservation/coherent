@@ -23,7 +23,7 @@
  * 86/11/19	Allan Cornish		/usr/src/sys/coh/exec.c
  * Exsread() initializes the (new) (IO).io_flag field to 0.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <acct.h>
 #include <sys/buf.h>
 #include <canon.h>

@@ -21,7 +21,7 @@
  * Initial revision
  * 
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <errno.h>
 #include <sys/fd.h>
 #include <sys/inode.h>

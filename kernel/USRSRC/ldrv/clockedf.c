@@ -17,7 +17,7 @@
     90/09/12 hws	add far version
 */
 
-#include	"coherent.h"	/* altclk */
+#include	<sys/coherent.h>	/* altclk */
 #include	<sys/const.h>	/* HZ */
 
 #define	PIT	0x40	/* 8253 port */

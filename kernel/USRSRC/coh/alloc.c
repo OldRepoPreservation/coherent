@@ -21,8 +21,8 @@
  * Initial revision
  * 
  */
-#include <coherent.h>
-#include <alloc.h>
+#include <sys/coherent.h>
+#include <sys/alloc.h>
 #include <errno.h>
 #include <sys/proc.h>
 #include <sys/uproc.h>

@@ -29,7 +29,7 @@
  * 86/11/19	Allan Cornish		/usr/src/sys/coh/fs1.c
  * idirent() initializes the (new) (IO).io_flag field to 0.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/dir.h>

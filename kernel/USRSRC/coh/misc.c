@@ -26,7 +26,7 @@
  * 87/02/17	Allan Cornish		/usr/src/sys/coh/misc.c
  * Panic message now includes system code and data segments.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <acct.h>
 #include <errno.h>
 #include <sys/ino.h>
