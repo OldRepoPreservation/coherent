@@ -109,7 +109,6 @@ typedef	struct	OFILE {
 #define	bump(ip,t)	(ip+=sizeof(t)/sizeof(int))	/* bump for printf */
 
 /* Function declaration */
-void	sprintf();
 CHAR	*xalloc();
 STRING	awkinput();
 NODE	*lookup();
