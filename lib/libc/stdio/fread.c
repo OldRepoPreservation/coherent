@@ -1,6 +1,7 @@
 /*
- * Standard I/O Library
- * Read nitems of size from file fp
+ * libc/stdio/fread.c
+ * Standard i/o library.
+ * Read nitems of size from file fp to bp.
  */
 
 #include <stdio.h>
@@ -12,9 +13,10 @@ unsigned int	size;
 unsigned int	nitems;
 register FILE	*fp;
 {
-	unsigned int	nb = size*nitems;
+	unsigned int	nb;
 	register int	c;
 
+	nb = size * nitems;
 	if (fp->_ff&_FUNGOT) {
 		*bp++ = (*fp->_gt)(fp);
 		nb--;
@@ -28,5 +30,10 @@ register FILE	*fp;
 		fp->_ff |= _FEOF;
 	else
 		fp->_ff |= _FERR;
+	/* Adjust seek after partial read. */
+	if (nb != 0 && nb % size != 0)
+		fseek(fp, (long)(nb % size - size), SEEK_CUR);
 	return ((size*nitems-nb)/size);
 }
+
+/* end of libc/stdio/fread.c */

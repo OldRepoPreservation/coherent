@@ -29,4 +29,4 @@ _fputc(c, fp) register unsigned int c; register FILE *fp;
 	return n;
 }
 
-/* libc/stdio/_fputc.c */
+/* end of libc/stdio/_fputc.c */

@@ -4,7 +4,7 @@
  */
 
 #include <stdio.h>
-#include <mdata.h>
+#include <sys/mdata.h>
 
 FILE *
 _stropen(string, length, fp)
