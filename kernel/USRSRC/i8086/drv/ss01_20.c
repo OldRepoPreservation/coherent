@@ -2,13 +2,14 @@
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * To do:
- *	run scsicmd() at hi priority
  *	turn on interrupts
- *	put retry logic into arbitrate, etc.
  *	figure out a better storage class for rqs
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.14	91/03/20  17:25:14	root
+ * Inquiry and Read Capacity working
+ * 
  * Revision 1.13	91/03/18  17:43:18	root
  * add retry logic to scsicmd(); general cleanup
  * 
@@ -49,6 +50,7 @@
  */
 #define DEV_SCSI_ID(dev)	((dev >> 4) & 0x0007)
 #define DEV_LUN(dev)		((dev >> 2) & 0x0003)
+#define DEV_DRIVE(dev)		((dev >> 2) & 0x001F)
 #define DEV_PARTN(dev)		(dev & 0x0003)
 #define DEV_SPECIAL(dev)	(dev & 0x0080)
 
@@ -174,6 +176,7 @@ unsigned char ffbyte();
 static void	ssload();
 static void	ssunload();
 static void	ssopen();
+static void	ssclose();
 static void	ssread();
 static void	sswrite();
 static int	ssioctl();
@@ -191,6 +194,7 @@ static int	req_sense();
 static int	inquiry();
 static int	read_cap();
 static void	ssintr();
+static void	ss_start();
 
 /*
  * Local Variables.
@@ -209,6 +213,7 @@ static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
 
 static int	ss_expired;	/* 1 after local timeout */
+static scsi_work_t	*scsi_work_queue;
 
 /*
  * Driver CON entry - an export variable.
@@ -217,7 +222,7 @@ CON	sscon	= {
 	DFBLK|DFCHR,			/* Flags */
 	SCSI_MAJOR,			/* Major index */
 	ssopen,				/* Open */
-	nulldev,			/* Close */
+	ssclose,			/* Close */
 	ssblock,			/* Block */
 	ssread,				/* Read */
 	sswrite,			/* Write */
@@ -246,6 +251,8 @@ static struct ss	{
 	uchar	in_buf[IN_BUF_SIZE];
 	int	in_buf_len;
 	int	data_bytes_in;
+	struct	fdisk_s parmp[NPARTN+1];
+	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
 } *ss[MAX_SCSI_ID-1], rqs;
 
 /*
@@ -355,8 +362,6 @@ ssunload()
 }
 
 /*
- *
- * void
  * ssopen( dev, mode )
  * dev_t dev;
  * int mode;
@@ -393,27 +398,22 @@ register dev_t	dev;
 		u.u_error = ENXIO;
 		erf = 1;
 	}
-#if 0
-	if ( minor(dev) & SDEV ) {
-		d = minor(dev) % NDRIVE;
-		p += NDRIVE * NPARTN;
-	}
-	else
-		d = minor(dev) / NPARTN;
-
-	if ( (d >= NDRIVE) || (at.at_dtype[d] == 0) ) {
-		return;
-	}
-
-	if ( minor(dev) & SDEV )
-		return;
 
 	/*
-	 * If partition not defined read partition characteristics.
+	 * If "special" bit is NOT set, error return for now.
 	 */
-	if ( pparm[p].p_size == 0 )
-		fdisk( makedev( major(dev), SDEV + d), &pparm[ d * NPARTN ] );
+	if (!erf && !DEV_SPECIAL(dev)) {
+		u.u_error = ENXIO;
+		erf = 1;
+	}
 
+	/*
+	 * OK - open the device.
+	 */
+	if (!erf) {
+		++drvl[SCSI_MAJOR].d_time;
+	}
+#if 0
 	/*
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
@@ -422,6 +422,15 @@ register dev_t	dev;
 	else if ( pparm[p].p_size == 0 )
 		u.u_error = ENODEV;
 #endif
+}
+
+/*
+ * ssclose()
+ */
+static void ssclose( dev )
+dev_t dev;
+{
+	--drvl[SDMAJOR].d_time;	
 }
 
 /*
@@ -485,6 +494,15 @@ register dev_t	dev;
 int cmd;
 char * vec;
 {
+	int ret = 0;
+
+	switch(cmd) {
+	default:
+		u.uerror = EINVAL;
+		ret = -1;
+	}
+
+	return ret;
 }
 
 /*
@@ -501,6 +519,79 @@ static void
 ssblock(bp)
 register BUF	*bp;
 {
+	register scsi_work_t *sw;
+	register int s;
+	struct	fdisk_s	*fdp;
+	int partition, drive, s_id;
+	dev_t dev;
+	struct ss * ssp;
+
+	dev = bp->b_dev;
+
+	partition = DEV_PARTN(dev);
+	drive = DEV_DRIVE(dev);
+	s_id = DEV_SCSI_ID(dev);
+	ssp = ss[s_id];
+
+	if (dev & SDEV )
+		partition = WHOLE_DRIVE;
+	bp->b_resid = bp->b_count;
+	
+	fdp = ssp->parmp;
+
+	/*
+	 * Range check disk region.
+	 */
+	if (!(ssp->ptab_read)) {
+		if ( partition == WHOLE_DRIVE ) {
+			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
+				bp->b_flag |= BFERR;
+				bdone(bp);
+				return;
+			}
+		} else {
+			devmsg(dev, "no partition table");
+			bp->b_flag |= BFERR;
+			bdone(bp);
+			return;
+		}
+	} else if ( (bp->b_bno + (bp->b_count/BSIZE))
+	> fdp[partition].p_size ) {
+		bp->b_flag |= BFERR;
+		bdone(bp);
+		return;
+	}
+
+	bp->b_actf = NULL;
+	sw = (scsi_work_t *)kalloc( sizeof(*sw) );
+	if (sw == (scsi_work_t *)0) {
+		devmsg(dev, "out of kernel memory");
+		bp->b_flag |= BFERR;
+		bdone(bp);
+		return;
+	}
+	sw->sw_bp = bp;
+	sw->sw_drv = drive;
+	sw->sw_type = 0;
+	if ( partition != WHOLE_DRIVE )
+		sw->sw_bno   = fdp[partition].p_base + bp->b_bno;
+	else
+		sw->sw_bno   = bp->b_bno;
+	sw->sw_retry = 1;
+
+printf( "ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
+	drv, (long)sw->sw_bno, bp, bp->b_flag );
+
+	s = sphi();
+	if (sd.sw_actf == NULL)
+		sd.sw_actf = sw;
+	else
+		sd.sw_actl->sw_actf = sw;
+	sd.sw_actl = sw;
+	++drvl[SDMAJOR].d_time;	
+	spl(s);
+
+	ss_start();
 }
 
 /*
@@ -521,8 +612,18 @@ ssintr()
 	printf("@");
 }
 
+/*
+ * sswatch()
+ */
 static void	sswatch()
 {
+	static int calls;
+
+	if (calls == 0)
+		printf("*");
+	calls++;
+	if (calls >= 60)
+		calls = 0;
 }
 
 /*
@@ -593,7 +694,6 @@ int s_id;
 
 	if (retval)
 		if (req_sense(s_id)) {
-			devmsg(dev, "Sense Requested");
 			retval = 1;
 		} else
 			devmsg(dev, "Request Sense Failed");
@@ -603,7 +703,6 @@ int s_id;
 			ss[s_id]->in_buf[INQUIRYLEN] = 0;
 			devmsg(dev, ss[s_id]->in_buf + 8);
 			if (ss[s_id]->in_buf[0] == 0) {
-				devmsg(dev, "Inquiry Complete");
 				retval = 1;
 			} else
 				devmsg(dev, "Not Direct Access Device");
@@ -612,10 +711,17 @@ int s_id;
 
 	if (retval)
 		if (read_cap(s_id)) {
-			devmsg(dev, "Read Capacity Done");
 			retval = 1;
 		} else
 			devmsg(dev, "Read Capacity Failed");
+
+	if (retval) {
+		retval = fdisk(dev, ss[s_id]->parmp);
+		if (retval)
+			printf("fdisk succeeded\n");
+		else
+			printf("fdisk failed\n");
+	}
 
 	return retval;
 }
@@ -646,8 +752,10 @@ int s_id;
  *
  * Send command packet to target device.
  * Start a new SCSI bus cycle when this routine is called.
+ * If command status after sending is Device Check (CS_CHECK), do a
+ * Request Sense to find out what happened and clear check status.
  *
- * Return 1 if command succeeds, else 0.
+ * Return 1 if command was send and status was good, else 0.
  */
 static int scsicmd(s_id)
 int s_id;
@@ -660,7 +768,7 @@ int s_id;
 		retval = (ssp->cmdlen == ssp->cmd_bytes_out
 			&& ssp->cmdstat == CS_GOOD);
 	}
-SSDUMP(ssp, "command sent");
+
 	if (ssp->cmdstat == CS_CHECK) {
 		if (req_sense(s_id))
 			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
@@ -809,17 +917,27 @@ int s_id;
  *   endif
  * endwhile
  */
+int zzzz;
+
 static int bus_info_xfer(ssp)
 struct ss *ssp;
 {
 	int bus_timeout;
 	unsigned char phase_type;
 	int no_msg_rcvd = 1;
+	int s;
+	int bytes_to_send;
+int zzgo=0;
 
 	ssp->cmdstat = -1;
 	ssp->data_bytes_in = 0;
 	ssp->cmd_bytes_out = 0;
+	s = sphi();
 	while(req_wait(&bus_timeout)) {
+if(zzgo) {
+	zzgo = 0;
+	printf("zzzz=%d\n", zzzz);
+}
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
@@ -845,22 +963,25 @@ struct ss *ssp;
 			ssp->cmdstat = ffbyte(ss_dat);
 			break;
 		case XP_CMD_OUT:
-#if 0
-			if (ssp->cmd_bytes_out < ssp->cmdlen)
+			/*
+			 * Ship out command bytes.
+			 * Reset SCSI bus if too many command bytes are wanted.
+			 */
+			bytes_to_send = ssp->cmdlen - ssp->cmd_bytes_out;
+			if(bytes_to_send > 0) {
 				sfbyte(ss_dat, ssp->cmdbuf[ssp->cmd_bytes_out++]);
-			else {	/* This case should not happen. */
+				/*
+				 * If just sent last byte, allow interrupts.
+				 */
+				if (bytes_to_send == 1) {
+					spl(s);
+zzgo=1;
+					s = sphi();
+				}
+			} else {	/* This case should not happen. */
 SSDUMP(ssp, "Command overrun");
 				scsireset();
 			}
-#else
-{int diff = ssp->cmdlen - ssp->cmd_bytes_out;
-	if(diff > 0) {
-		sfbyte(ss_dat, ssp->cmdbuf[ssp->cmd_bytes_out++]);
-		if (diff == 1)
-			ssdelay(1);
-	}
-}
-#endif
 			break;
 		case XP_DATA_IN:
 			/*
@@ -884,6 +1005,7 @@ SSDUMP(ssp, "Command overrun");
 			break;
 		} /* endswitch */
 	}
+	spl(s);
 POPI;
 	return (bus_timeout) ? 0 : 1 ;
 }
@@ -921,6 +1043,7 @@ int *to_ptr;
 	if (*to_ptr)
 		printf("ST0x info xfer timeout;  status=%x\n", status);
 PUSHI;
+zzzz=i;
 	return req_found;
 }
 
@@ -955,7 +1078,7 @@ int s_id;
 				ret = 1;
 		}
 	}
-SSDUMP((&rqs), "sense req");
+
 	return ret;
 }
 
@@ -981,7 +1104,7 @@ int s_id;
 	ssp->in_buf_len = INQUIRYLEN;
 
 	ret = scsicmd(s_id);
-SSDUMP(ssp, "inquiry");
+
 	return ret;
 }
 
@@ -1015,6 +1138,47 @@ int s_id;
 		| (((long)(ssp->in_buf[4])) << 24);
 printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
 	}
-SSDUMP(ssp, "read_cap");
+
 	return ret;
+}
+
+/*
+ * ss_start()
+ */
+static void ss_start()
+{
+	int i, s, n = 0;
+	scsi_work_t *sw;
+	static char locked;
+
+	s = sphi();
+	if( locked ) {
+		spl(s);
+		return;
+	}
+	++locked;
+	spl(s);
+
+	while( (sw = scsi_work_queue->sw_actf) != NULL ) {
+		for( i = MIN_MAILBOX; i < MAX_MAILBOX; ++i )
+			if( mailbox_out[i].cmd == MBO_IS_FREE ) {
+				register ccb_t *ccb;
+				int s;
+
+				++n;
+SEND SCSI COMMAND
+				s = sphi();
+				sw = scsi_work_queue->sw_actf = sw->sw_actf;
+				if( sw == NULL )
+					scsi_work_queue->sw_actl = NULL;
+				spl(s);
+
+				if( sw == NULL )
+					break;
+			}
+		if( i == MAX_MAILBOX )
+			break;
+	}
+	--locked;
+	return n;
 }
