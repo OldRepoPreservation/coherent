@@ -35,6 +35,21 @@
 #include <sys/fd.h>
 
 /*
+ * Round section and segment start address to nearest lower click boundary.
+ */
+static void
+xecrnd(xsp)
+struct xecseg * xsp;
+{
+	int diff;
+
+	diff = xsp->fbase & (NBPC-1);
+	xsp->mbase -= diff;
+	xsp->fbase -= diff;
+	xsp->size += diff;
+}
+
+/*
  * Pass control to an image in a file.
  * Make sure the format is acceptable. Release
  * the old segments. Read in the new ones. Some special
@@ -52,13 +67,16 @@ char	*envp[];
  	register SEG    *segp;
 	SEG	*ssegp;
 	register int	i;			/* For looping over segments*/
-	register BUF *bp;
 	int roundup;
 	int shrdsize;
+	struct xecnode * xlist = NULL;		/* list head */
+	struct xecnode * xp;
+	struct xecseg tempseg;
+	unsigned int textSize;
 
 	pp = SELF;
 	kclear(&head, sizeof(head)); 
-	if ((ip=exlopen(&head, np, &shrdsize)) == NULL) {
+	if ((ip=exlopen(&head, np, &shrdsize, &xlist)) == NULL) {
 		goto done;
 	}
 
@@ -83,8 +101,8 @@ char	*envp[];
  	 * NOTE: User-area segment is NOT released.
  	 *	 Segment pointer in proc is erased BEFORE invoking sfree().
 	 */
-	for ( i = 1; i < NUSEG; ++i ) {
- 		if ((segp = pp->p_segp[i]) != NULL) {
+	for (i = 1; i < NUSEG; ++i) {
+ 		if ((segp = pp->p_segp[i])) {
 			pp->p_segp[i] = NULL;
 			sfree(segp);
 		}
@@ -95,7 +113,7 @@ char	*envp[];
 	 * Read in the loadable segments.
 	 */
 	switch (head.magic) {
-	case XMAGIC(	I286MAGIC,I_MAGIC	):
+	case XMAGIC(I286MAGIC,I_MAGIC):
 		u.u_regl[CS] = SEG_286_UII | R_USR;
 		u.u_regl[DS] = SEG_286_UD  | R_USR;
 		segp = pp->p_segp[SISTEXT] = ssalloc(ip,SFTEXT,
@@ -103,23 +121,62 @@ char	*envp[];
 		if (!exsread(segp, ip, &head.segs[SISTEXT], 0)) {
 			goto out;
 		}
-		segp = ssalloc(ip,0,roundup+
-		  head.segs[SIPDATA].size+head.segs[SIBSS].size);
+		segp = ssalloc(ip,0,roundup +
+		  head.segs[SIPDATA].size + head.segs[SIBSS].size);
 		pp->p_segp[SIPDATA] = segp;
 		if (!exsread(segp,ip,&head.segs[SIPDATA],shrdsize)) {
 			goto out;
 		}
 		head.segs[SIPDATA].size += roundup;
 		break;
-	case XMAGIC(	I386MAGIC,Z_MAGIC	):
+	case XMAGIC(I386MAGIC,Z_MAGIC):
 		u.u_regl[CS] = SEG_386_UI | R_USR;
 		u.u_regl[DS] = SEG_386_UD | R_USR;
-		segp = pp->p_segp[SISTEXT] = ssalloc(ip,SFTEXT|SFSHRX,
-				head.segs[SISTEXT].size);
+
+		/*
+		 * Round segment address down to nearest click boundary.
+		 * Ciaran did this.  I'm not sure why, but will preserve
+		 * it for now. -hws-
+		 */
+		tempseg = head.segs[SISTEXT];	/* save pre-rounding value */
+		xecrnd(head.segs + SISTEXT);
+		xecrnd(head.segs + SIPDATA);
+
+		/*
+		 * Compute text segment size by taking highest address
+		 * seen in any text section.
+		 */
+		textSize = head.segs[SISTEXT].size + head.segs[SISTEXT].mbase;
+		for (xp = xlist; xp; xp = xp->xn) {
+			unsigned int tmpSize;
+			if (xp->segtype != SISTEXT)
+				continue;
+			tmpSize = xp->xseg.size + xp->xseg.mbase;
+			if (tmpSize > textSize)
+				textSize = tmpSize;
+		}
+
+		/* Entry point must be within text segment. */
+		if (head.entry >= textSize) {
+				goto out;
+		}
+
+		segp = pp->p_segp[SISTEXT]
+		  = ssalloc(ip, SFTEXT|SFSHRX, textSize);
 		if (segp->s_ip==0) {
-			if (!exsread(segp, ip, &head.segs[SISTEXT], 0)) {
+			if (!exsread(segp, ip, &tempseg, 0)) {
 				goto out;
 			}
+
+			/* load additional text sections, if any */
+			for (xp = xlist; xp; xp = xp->xn) {
+				if (xp->segtype != SISTEXT)
+					continue;
+				if (!exsread(segp, ip, &xlist->xseg, 0)) {
+					goto out;
+				}
+			}
+
 			segp->s_ip = ip;
 			ip->i_refc++;
 		}
@@ -129,6 +186,13 @@ char	*envp[];
 		if (segp->s_ip==0 &&
 		    !exsread(segp, ip, &head.segs[SIPDATA], 0)) {
 			goto out;
+		}
+
+		/* Deallocate nodes hooked into xlist by exlopen. */
+		while (xlist) {
+			struct xecnode * tmp = xlist->xn;
+			kfree(xlist);
+			xlist = tmp;
 		}
 		break;
 	default:
@@ -168,15 +232,18 @@ u.u_error = 0;
 		pp->p_uid = u.u_uid = u.u_euid = ip->i_uid;
 		pp->p_flags &= ~PFTRAC;
 	}
+
 	if ((ip->i_mode&ISGID) != 0) {	/* Set group id ? no trace */
 		u.u_egid = u.u_gid = ip->i_gid;
 		pp->p_flags &= ~PFTRAC;
 	}
+
 	for (i=0; i < NOFILE; i++) {
 		if (u.u_filep[i]!=NULL && (u.u_filep[i]->f_flag2&FD_CLOEXEC))  {
 			fdclose(i);	/* close fd on exec bit set */
 		}
 	}
+
 	/*
 	 * Default every signal that is not ignored.
 	 */
@@ -186,6 +253,7 @@ u.u_error = 0;
 			pp->p_dfsig |= ((sig_t) 1) << (i - 1);
 		}
 	}
+
 	if (pp->p_flags&PFTRAC)	/* Being traced */
 		sendsig(SIGTRAP, pp);
 	idetach(ip);
@@ -205,7 +273,15 @@ u.u_error = 0;
 	 * if we are aborting due to interrupted exec.
 	 */
 out:
+	/* Deallocate nodes hooked into xlist by exlopen. */
+	while (xlist) {
+		struct xecnode * tmp = xlist->xn;
+		kfree(xlist);
+		xlist = tmp;
+	}
+
 	idetach(ip);
+
 	if (u.u_error == EINTR)
 		pexit(nondsig());
 	pexit(SIGSYS);
@@ -223,16 +299,21 @@ done:
  * "shrds" points to an int that will be written by exlopen().
  *   *shrds is set nonzero only for shared l.out.
  *
+ * If file is COFF, there may be multiple text (or data?) sections.
+ * Use "xlist" linked structure to keep track of variably many sections
+ * after the first text and data sections.
+ *
  * return NULL if failure, else return inode pointer for the file.
  */
 INODE *
-exlopen(xhp, np, shrds) 
+exlopen(xhp, np, shrds, xlist) 
 register struct xechdr *xhp;
 char *np;
 int *shrds;
+struct xecnode ** xlist;
 {
 	register INODE *ip;
-	int	i, nscn, diff, hdrsize;
+	int	i, nscn, hdrsize;
 	register BUF *bp;
 	unsigned short magic;
 	struct ldheader head;
@@ -257,8 +338,10 @@ int *shrds;
 		return NULL;
 	}
 
-	if ((bp=vread(ip, (daddr_t)0)) == NULL)
+	if ((bp=vread(ip, (daddr_t)0)) == NULL) {
 		goto bad;
+	}
+
 	/*
 	 * Copy everything we need from the l.out header and check magic
 	 * number and machine type.
@@ -270,8 +353,10 @@ int *shrds;
 	case L_MAGIC:		/* Coherent 286 format */
 		kkcopy(bp->b_vaddr, &head, sizeof(struct ldheader));
 		canint(head.l_machine);
-		if (head.l_machine!=M_8086)
+		if (head.l_machine!=M_8086) {
 			goto bad;
+		}
+
 		for (i=0; i<NXSEG; i++) {
 			cansize(head.l_ssize[i]);
 		}	
@@ -290,7 +375,7 @@ int *shrds;
 		  || head.l_ssize[L_PRVI] || head.l_ssize[L_BSSI]) {
 			goto bad;
 		}
-		xhp->magic = XMAGIC(	I286MAGIC,I_MAGIC	);
+		xhp->magic = XMAGIC(I286MAGIC,I_MAGIC);
 		xhp->entry = head.l_entry;
 
 		xhp->segs[SISTEXT].fbase = sizeof(struct ldheader);
@@ -315,21 +400,22 @@ int *shrds;
 
 	case I386MAGIC:		/* ... COFF */
 		kkcopy(bp->b_vaddr, &fhead, sizeof(struct filehdr));
-		hdrsize = sizeof(ahead)+sizeof(fhead);
-		if(fhead.f_opthdr!=sizeof (ahead) || !(fhead.f_flags&F_EXEC)||
-		fhead.f_nscns*sizeof(scnhdr) > BSIZE)
+		hdrsize = sizeof(ahead) + sizeof(fhead);
+		if(fhead.f_opthdr != sizeof (ahead)
+		  || !(fhead.f_flags & F_EXEC)
+		  || fhead.f_nscns * sizeof(scnhdr) > BSIZE) {
 			goto bad;
+		}
 
-		kkcopy(bp->b_vaddr, &fhead, sizeof(struct filehdr));
-		kkcopy(bp->b_vaddr+sizeof(fhead), &ahead, sizeof(ahead));
-		if ((/*ahead.magic!=O_MAGIC && ahead.magic!=N_MAGIC && */
-		     ahead.magic!=Z_MAGIC))
+		kkcopy(bp->b_vaddr + sizeof(fhead), &ahead, sizeof(ahead));
+		if (ahead.magic != Z_MAGIC) {
 			goto bad;
+		}
 
-		xhp->magic = XMAGIC(	I386MAGIC,ahead.magic	);
+		xhp->magic = XMAGIC(I386MAGIC, ahead.magic);
 		xhp->entry = ahead.entry;
 
-		for (i=0; i<fhead.f_nscns; i++) {
+		for (i = 0; i < fhead.f_nscns; i++) {
 			kkcopy(bp->b_vaddr + hdrsize + sizeof(scnhdr)*i,
 				&scnhdr, sizeof(scnhdr));
 			switch ((int)(scnhdr.s_flags)) {
@@ -339,37 +425,56 @@ int *shrds;
 				nscn = SIBSS;
 				break;
 			case STYP_TEXT:
-				nscn = SISTEXT;	goto common;
+				nscn = SISTEXT;
+				break;
 			case STYP_DATA:
 				nscn = SIPDATA;
-			common:
-				diff = scnhdr.s_scnptr & (NBPC-1);
-				scnhdr.s_vaddr -= diff;
-				scnhdr.s_scnptr -= diff;
-				scnhdr.s_size += diff;
 				break;
 			default:
 				goto bad;
 			}
 
-			if (xhp->segs[nscn].size!=0
-			||  (unsigned)scnhdr.s_vaddr >= ISP_386)
+			/* Text/data shouldn't collide with stack. */
+			if ((unsigned)scnhdr.s_vaddr >= ISP_386) {
 				goto bad;
+			}
 
-			xhp->segs[nscn].mbase = scnhdr.s_vaddr;
-			xhp->segs[nscn].fbase = scnhdr.s_scnptr;
-			xhp->segs[nscn].size = scnhdr.s_size;
+			/* Have we already seen a segment of this type? */
+			if (xhp->segs[nscn].size) {
+				struct xecnode * tmp;
+
+				if (nscn != SISTEXT) {
+					goto bad;
+				}
+
+				/* insert new node at head of "xlist" */
+				if (!(tmp = (struct xecnode *)
+				  kalloc(sizeof (struct xecnode)))) {
+					printf("can't kalloc(xecnode)\n");
+					goto bad;
+				}
+				tmp->xn = *xlist;
+				*xlist = tmp;
+				tmp->segtype = nscn;
+				tmp->xseg.mbase = scnhdr.s_vaddr;
+				tmp->xseg.fbase = scnhdr.s_scnptr;
+				tmp->xseg.size = scnhdr.s_size;
+			} else {
+				xhp->segs[nscn].mbase = scnhdr.s_vaddr;
+				xhp->segs[nscn].fbase = scnhdr.s_scnptr;
+				xhp->segs[nscn].size = scnhdr.s_size;
+			}
 		}
 
-		if (!xhp->segs[SISTEXT].size || !xhp->segs[SIPDATA].size)
+		/* Text and data segments must both be nonempty. */
+		if (!xhp->segs[SISTEXT].size || !xhp->segs[SIPDATA].size) {
 			goto bad;
+		}
 
 		xhp->entry = ahead.entry;
-		if (xhp->entry >= xhp->segs[SISTEXT].size)
-			goto bad;
 
 		xhp->segs[SISTACK].mbase = ISP_386;	/* size 0, fbase 0 */
-		xhp->magic = XMAGIC(	I386MAGIC,ahead.magic	);
+		xhp->magic = XMAGIC(I386MAGIC,ahead.magic);
 		brelease(bp);	
 		return ip;
 	default:
@@ -385,59 +490,72 @@ int *shrds;
  * Given a segment `sp', read `ss' bytes from the inode `ip' starting
  * at seek address `sa' into offset `so' in the segment.
  *
- * Argument "first" is nonzero only when loading data for l.out -
+ * Argument "shrdSz" is nonzero only when loading data for l.out -
  * need this because *shared* l.out's need PRVD to be aligned on the next
  * 16 byte boundary after the end of SHRD.  So we need to leave a hole
  * between SHRD and PRVD in this case.
+ *
+ * If "shrdSz" is nonzero, we want to:
+ * 1.  Load "shrdSz" # of bytes.
+ * 2.  Skip to the next higher 16-byte boundary in RAM.
+ * 3.  Continue loading until
+ *       (# of bytes loaded in step 1)
+ *     + (# of bytes skipped in step 2)
+ *     + (# of bytes loaded in step 3)
+ *     = "xsp->size"
  */
 static SEG *
-exsread(sp, ip, xsp, first)
+exsread(sp, ip, xsp, shrdSz)
 register SEG *sp;
 INODE *ip;
 struct xecseg *xsp;
-int first;
+int shrdSz;
 {
-	register int ss, sa, so, did;
-	int overshoot;
+	register int sa, so;
 
 	sa = xsp->fbase;
-	so = 0;
+	so = xsp->mbase & (NBPC - 1);
 
-	for (ss = first ? first : xsp->size;; ss -= did) {
-		if (!ss) {	/* we finished a hunk */
-			/* is there more to read */
-			if (!first || (!(ss = xsp->size - first)))
-				break;
-			so = (so + 15) & ~15; /* round up */
-			first = 0;	/* don't go again */
-		}
-		u.u_io.io_seg = IOPHY;
-		u.u_io.io_seek = sa;
-		u.u_io.io.pbase = MAPIO(sp->s_vmem, so);
-		u.u_io.io_flag = 0;
-		/*
-		 * "did" is how many bytes to read in with this request.
-		 */
-		if (ss >= 4096)
-			did = u.u_io.io_ioc = 4096;
-		else
-			did = u.u_io.io_ioc = ss;
-		/*
-		 * Don't allow incoming data to straddle a 4k segment.
-		 */
-		overshoot = did + (so & 4095) - 4096;
-		if (overshoot > 0)
-			did -= overshoot;
+	u.u_io.io_seg = IOPHY;
+	u.u_io.io_seek = sa;
+	u.u_io.io.pbase = MAPIO(sp->s_vmem, so);
+	u.u_io.io_flag = 0;
+
+	if (shrdSz) {	/* shared l.out? */
+
+		/* Load SHRD. */
+		u.u_io.io_ioc = shrdSz;
 		sp->s_lrefc++;
 		iread(ip, &u.u_io);
 		sp->s_lrefc--;
-		if (nondsig()) {
-			u.u_error = EINTR;
-			break;
+
+		if ((u.u_io.io_ioc = xsp->size - shrdSz) != 0) {
+
+			/* Advance file and RAM offsets past SHRD. */
+			sa += shrdSz;
+			so += shrdSz;
+
+			/* Advance RAM offset to next 16-byte boundary. */
+			so = (so + 15) & ~15; /* round up */
+
+			/* Load PRVD. */
+			u.u_io.io_seg = IOPHY;
+			u.u_io.io_seek = sa;
+			u.u_io.io.pbase = MAPIO(sp->s_vmem, so);
+			u.u_io.io_flag = 0;
+			sp->s_lrefc++;
+			iread(ip, &u.u_io);
+			sp->s_lrefc--;
 		}
-		sa += did;
-		so += did;
+	} else {	/* NOT shared l.out */
+		u.u_io.io_ioc = xsp->size;
+		sp->s_lrefc++;
+		iread(ip, &u.u_io);
+		sp->s_lrefc--;
 	}
+	if (nondsig())
+		u.u_error = EINTR;
+
 	if (u.u_error == 0)
 		return (sp);
 	return NULL;
@@ -468,8 +586,9 @@ caddr_t	argp, envp;
 	register int i;
 
 	/* Validate and evaluate size of args and envs */
-	if (!excount(argp, &arg, wdin) || !excount(envp, &env, wdin))
+	if (!excount(argp, &arg, wdin) || !excount(envp, &env, wdin)) {
 		return NULL;
+	}
 
 	/* Calculate stack size and allocate it */
 	chrsz = roundu(arg.nc + env.nc, sizeof(int));
@@ -602,7 +721,7 @@ off_t	s;
 	return ((s+15)&~0x0F);
 }
 
-pload( np )
+pload(np)
 char * np;
 {
 	return -1;
@@ -654,7 +773,7 @@ int m;
 		goto ret;
 	}
 	(*cp->c_uload)();
-	if ( ! u.u_error)
+	if (! u.u_error)
 		dp->d_conp = NULL;
 ret:
 	unlock(dp->d_gate);
