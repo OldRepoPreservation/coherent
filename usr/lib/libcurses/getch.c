@@ -42,6 +42,7 @@ reg WINDOW	*win; {
 # ifdef DEBUG
 	fprintf(outf, "WGETCH: _echoit = %c, _rawmode = %c\n", _echoit ? 'T' : 'F', _rawmode ? 'T' : 'F');
 # endif
+#ifndef COHERENT
 	if (_echoit && !_rawmode) {
 		cbreak();
 		weset++;
@@ -72,7 +73,7 @@ reg WINDOW	*win; {
 			fmods++;
 		}
 	}
-
+#endif
 	/*
 	 * Get next character, or keyboard token.
 	 * NOTE: Valid characters are in range 1 to 127.
@@ -103,6 +104,7 @@ reg WINDOW	*win; {
 	}
 #endif
 
+#ifndef COHERENT
 	/*
 	 * Fcntl flags were modified - restore previous value.
 	 */
@@ -111,6 +113,6 @@ reg WINDOW	*win; {
 
 	if (weset)
 		nocbreak();
-
+#endif
 	return inp;
 }
