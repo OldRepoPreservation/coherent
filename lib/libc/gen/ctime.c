@@ -129,6 +129,21 @@ setdst(cp1) register char *cp1;
 }
 
 /*
+ * ftime()
+ */
+ftime (tb) struct timeb *tb;
+{
+	time_t t;
+
+	tb->time = time(&t);
+	settz();	
+	localtime(&t);
+	tb->millitm = 0;
+	tb->timezone = (short)(timezone / 60L);
+       	tb->dstflag = isdaylight();
+}
+
+/*
  * Most common interface, returns a static string
  * which is a printable version of the time and date.
  */
