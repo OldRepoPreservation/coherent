@@ -8,11 +8,8 @@
 /*
 **	IPC Shared Memory Facility.
 */
-#ifndef _IPC_H
 #include <sys/ipc.h>
-#endif
 #include <sys/_time.h>
-
 
 extern int shmfd;		/* file descriptor to access shared memory */
 

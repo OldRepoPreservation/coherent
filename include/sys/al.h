@@ -10,17 +10,9 @@
 #ifndef	__SYS_AL_H__
 #define	__SYS_AL_H__
 
-#ifndef TIMEOUT_H
 #include <sys/timeout.h>
-#endif
-
-#ifndef KTTY_H
 #include <sys/ktty.h>
-#endif
-
-#ifndef POLL_CLK_H
 #include <sys/poll_clk.h>
-#endif
 
 #define NUM_AL_PORTS	4
 

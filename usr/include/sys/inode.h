@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/ksynch.h>
 #include <sys/_time.h>
+#include <poll.h>
 
 
 /*

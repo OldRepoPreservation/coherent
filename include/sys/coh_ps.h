@@ -22,19 +22,16 @@ typedef struct {
 	unsigned p_nice;		/* Nice value */
 	short	 size;			/* Size of the process */
 	short	 rsize;			/* Real size of the process */
-	unsigned p_cval;		/* Cpu schedule value */
-	unsigned p_sval;		/* Swap schedule value */
-	int	 p_ival;		/* Importance value */
-	unsigned p_rval;		/* Response value */
 	long	 p_utime;		/* User time (HZ) */
 	long	 p_stime;		/* System time */
 	unsigned char	rrun;		/* Ready to run */
 	char	 u_comm[U_COMM_LEN];	/* Command name */
 	char	 u_sleep[U_SLEEP_LEN];	/* Sleep on event */
-	char	 pr_argv[ARGSZ];	/* Insert the argument vector here. */
 #if _I386
 	int	 p_schedPri;		/* will index into table in sys/ts.h */
 #endif
+/* All new fields should be added here. */
+	char	 pr_argv[ARGSZ];	/* Insert the argument vector here. */
 } stMonitor;
 
 #endif /* _SYS_COH_PS_H */

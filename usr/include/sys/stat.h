@@ -81,8 +81,8 @@ struct stat {
 /*
  * Functions.
  */
-#define	major(dev)	((dev>>8)&0377)
-#define minor(dev)	(dev&0377)
+#define	major(dev)	((dev>>8) & 0xFF)
+#define minor(dev)	(dev & 0xFF)
 #define makedev(m1, m2)	((m1<<8)|m2)
 
 #endif
