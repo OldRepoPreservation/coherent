@@ -252,6 +252,11 @@ loop:
 		if (s != SEMI) {
 			newtree(sizeof(TREE));
 			tp = expr();
+			if (cfsym==NULL) {
+				cerror("return(e) not inside valid function");
+				mustbe(SEMI);
+				break;
+			}
 			lp = talloc();
 			lp->t_op   = CONVERT;
 			lp->t_type = cfsym->s_type;
