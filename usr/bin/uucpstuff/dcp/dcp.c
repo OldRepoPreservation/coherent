@@ -163,11 +163,11 @@ char *argv[];
 					break;
 				}
 				if((checkfirst != 0) && (scandir() == 'S')){
+					plog(M_CALL,"Attempting to call, checking for queued files.");
 					state = callup();
 				}
 				else{
 					state = 'Y';
-					plog(M_CALL,"Attempting to call, checking for queued files.");
 					plog(M_CALL,"No Files pending");
 				}
 				break;
