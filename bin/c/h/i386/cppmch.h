@@ -5,6 +5,14 @@
  * i386.
  */
 
+/*
+ * n0/cc0.c defines MACHINE, SYSTEM, LOCATION and FPFORMAT for cpp by default.
+ * It also defines ISO-compatible versions, e.g. "__COHERENT__".
+ * The code in n0/cc0.c knows that MACHINE and FPFORMAT defined below
+ * have leading '_' but SYSTEM and LOCATION do not,
+ * it must change if the definitions here change.
+ */
+
 #define	MACHINE	 "_I386"
 
 #if	IEEE
