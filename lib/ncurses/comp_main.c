@@ -25,7 +25,10 @@
 /*
  *	comp_main.c --- Main program for terminfo compiler
  *
- *  $Log:	RCS/comp_main.v $
+ *  $Log:	comp_main.c,v $
+ * Revision 1.2  92/04/13  14:36:18  bin
+ * update by vlad
+ * 
  * Revision 2.1  82/10/25  14:45:37  pavel
  * Added Copyright Notice
  * 
@@ -44,9 +47,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/comp_main.v  Revision 2.1  82/10/25  14:45:37  pavel  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_main.c,v 1.2 92/04/13 14:36:18 bin Exp Locker: bin $";
 #endif
 
 #include <sys/types.h>
@@ -109,8 +112,6 @@ char	*argv[];
 }
 
 
-
-
 /*
  *	init(progname)
  *
@@ -182,7 +183,6 @@ char	*progname;
 }
 
 
-
 /*
  *	mkdir(dirname)
  *

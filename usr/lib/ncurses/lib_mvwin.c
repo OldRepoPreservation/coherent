@@ -27,7 +27,10 @@
 **
 **	The routine mvwin().
 **
-** $Log:	RCS/lib_mvwin.v $
+** $Log:	lib_mvwin.c,v $
+ * Revision 1.2  92/04/13  14:38:09  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  19:27:27  munk
  * Usage of register variables
  *
@@ -40,9 +43,9 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_mvwin.v  Revision 2.2  91/04/20  19:27:27  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_mvwin.c,v 1.2 92/04/13 14:38:09 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

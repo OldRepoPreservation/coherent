@@ -28,7 +28,10 @@
 **
 **	mvcur() and its subroutines
 **
-** $Log:	RCS/lib_mvcur.v $
+** $Log:	lib_mvcur.c,v $
+ * Revision 1.2  92/04/13  14:37:43  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  19:25:30  munk
  * Usage of register variables
  *
@@ -44,9 +47,9 @@
 **		routine revisions
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_mvcur.v  Revision 2.2  91/04/20  19:25:30  munk  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_mvcur.c,v 1.2 92/04/13 14:37:43 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"
@@ -68,7 +71,7 @@ struct Sequence
 **	Make_seq_best(s1, s2)
 **	
 **	Make_seq_best() swaps the values
-**  of the pointers if s1->cost > s2->cost.
+**	of the pointers if s1->cost > s2->cost.
 */
 
 #define Make_seq_best(s1, s2)		\
@@ -90,7 +93,6 @@ static int	c_count;		/* used for counting tputs output */
 /*static char	*c_save;*/		/* used for saving tputs output */
 
 #define	INFINITY	1000		/* biggest, impossible sequence cost */
-
 
 #define NUM_OPS		16		/* num. term. control sequences */
 #define NUM_NPARM	9		/* num. ops wo/ parameters */
@@ -117,7 +119,6 @@ static int	c_count;		/* used for counting tputs output */
 static bool	loc_init = FALSE;	/* set if op_info is init'ed */
 
 static bool	rel_ok;			/* set if we really know where we are */
-
 
 /*
  *	op_info[NUM_OPS]
@@ -147,7 +148,7 @@ static int	op_info[NUM_OPS] =
 	-1,		/* parm_up_cursor */
 	-2		/* cursor_address */
 };
-
+
 
 /*
 **
@@ -250,7 +251,7 @@ int	oldrow, oldcol,
 	    _tracef("\tmvcur: end of result");
 #endif
 }
-
+
 
 /*
 **	row(outseq, oldrow, newrow)
@@ -312,7 +313,7 @@ struct Sequence	*outseq;		/* where to put the output */
 
 	add_seq(outseq, best);
 }
-
+
 
 /*
 **	column(outseq, oldcol, newcol)
@@ -374,7 +375,7 @@ int		ocol, ncol;			/* old, new cursor  column */
 
 	add_seq(outseq, best);
 }
-
+
 
 /*
 ** 	simp_col(outseq, oldcol, newcol)
@@ -471,7 +472,7 @@ int		oc, nc;			/* old column, new column */
 	    add_seq(outseq, &tabseq);
 	add_seq(outseq, best);
 }
-
+
 
 /*
 **	zero_seq(seq)
@@ -491,6 +492,7 @@ struct Sequence	*seq;
 	seq->cost = 0;
 }
 
+
 static
 add_seq(seq1, seq2)
 register struct Sequence *seq1, *seq2;
@@ -507,7 +509,7 @@ register struct Sequence *seq1, *seq2;
 	    seq1->cost += seq2->cost;
 	}
 }
-
+
 
 static
 out_seq(seq)
@@ -543,7 +545,7 @@ register struct Sequence *seq;
 	    }
 	}
 }
-
+
 
 /*
 **	update_ops()
@@ -590,7 +592,7 @@ update_ops()
 		op_info[CURS_DOWN] = INFINITY;
 	}
 }
-
+
 
 /*
 **	init_costs(costs)
@@ -621,7 +623,7 @@ int	costs[];
 	    else
 		costs[i] = INFINITY;
 }
-
+
 
 /*
 **	countc()
@@ -639,12 +641,14 @@ countc()
 	c_count++;
 }
 
+
 static
 outc(c)
 char c;
 {
 	fputc(c, out_file);
 }
+
 
 /*rev not yet needed 
 static
@@ -655,7 +659,7 @@ char c;
 	c_count++;
 }
 */
-
+
 
 /*
 **	add_op(seq, op, p0, p1, ... , p8)
@@ -704,7 +708,7 @@ int		op, p0, p1, p2, p3, p4, p5, p6, p7, p8;
 	    seq->cost += c_count;
 	}
 }
-
+
 
 /*
 **	char	*
@@ -757,4 +761,3 @@ register int op;
 		return ((char *) 0);
 	}
 }
-

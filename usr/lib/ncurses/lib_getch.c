@@ -28,6 +28,9 @@
 **	The routine getch().
 **
 ** $Log:	lib_getch.c,v $
+ * Revision 1.3  92/06/10  14:17:06  bin
+ * changed ref to sys/fcntl.h
+ * 
  * Revision 1.2  92/04/13  14:37:30  bin
  * update by vlad
  * 
@@ -46,9 +49,9 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_getch.c,v 1.2 92/04/13 14:37:30 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_getch.c,v 1.3 92/06/10 14:17:06 bin Exp Locker: bin $";
 #endif
 
 #include <signal.h>
@@ -134,7 +137,6 @@ register WINDOW	*win;
 }
 
 
-
 /*
 **      short
 **      kgetch()

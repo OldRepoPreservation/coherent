@@ -26,7 +26,10 @@
  *	comp_hash.c --- Routines to deal with the hashtable of capability
  *			names.
  *
- *  $Log:	RCS/comp_hash.v $
+ *  $Log:	comp_hash.c,v $
+ * Revision 1.2  92/04/13  14:36:14  bin
+ * update by vlad
+ * 
  * Revision 2.1  82/10/25  14:45:34  pavel
  * Added Copyright Notice
  * 
@@ -45,14 +48,13 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/comp_hash.v  Revision 2.1  82/10/25  14:45:34  pavel  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_hash.c,v 1.2 92/04/13 14:36:14 bin Exp Locker: bin $";
 #endif
 
 #include "compiler.h"
 #include "term.h"
-
 
 
 /*
@@ -87,7 +89,6 @@ make_hash_table()
 }
 
 
-
 /*
  *	int hash_function(string)
  *
@@ -115,7 +116,6 @@ char	*string;
 }
 
 
-
 /*
  *	struct name_table_entry *
  *	find_entry(string)

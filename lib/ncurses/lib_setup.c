@@ -31,6 +31,12 @@
  *	If XTABS was on, remove the tab and backtab capabilities.
  *
  *  $Log:	lib_setup.c,v $
+ * Revision 2.3  92/10/27  22:23:15  munk
+ * Initialize alternate character set map
+ *
+ * Revision 1.5  92/06/02  12:05:36  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:38:31  bin
  * update by vlad
  * 
@@ -62,9 +68,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_setup.c,v 1.2 92/04/13 14:38:31 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_setup.c,v 1.5 92/06/02 12:05:36 bin Exp Locker: bin $";
 #endif
 
 #include <stdio.h>
@@ -84,11 +90,13 @@ static char RCSid[] =
 					}
 
 
-char ttytype[NAMESIZE];
-struct term _first_term;
+chtype	acs_map[128];
+char	ttytype[NAMESIZE];
+struct	term _first_term;
 
 int	_tracing;
 struct screen *SP = 0;
+
 
 setupterm(termname, filedes, errret)
 char	*termname;
@@ -149,6 +157,7 @@ int	*errret;
 	cur_term->Nttyb = cur_term->Ottyb;
 	cur_term->Nttyb.sg_flags &= ~XTABS;
 
+	setup_acs();
 	fixterm();
 
 	if (errret)
@@ -165,6 +174,7 @@ int	*errret;
 **	and substitute it in for the prototype given in 'command_character'.
 **
 */
+
 static
 do_prototype()
 {

@@ -25,7 +25,15 @@
 /*
  *	tparm.c
  *
- *  $Log:	RCS/lib_tparm.v $
+ *  $Log:	lib_tparm.c,v $
+ * Revision 2.4  92/10/23  00:31:38  munk
+ * npush(npop()...) does not work with COHERENT's cc
+ * because of side effects, use x = npop(); npush(x...) instead.
+ * Now hold x and y in register, not level.
+ * 
+ * Revision 1.2  92/04/13  14:38:35  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  21:54:27  munk
  * Usage of register variables
  *
@@ -47,15 +55,14 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_tparm.v  Revision 2.2  91/04/20  21:54:27  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_tparm.c,v 1.2 92/04/13 14:38:35 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
 #include "curses.priv.h"
 #include "term.h"
-
 
 
 /*
@@ -120,8 +127,8 @@ static char RCSid[] =
 #define npush(x)    if (stack_ptr < STACKSIZE) {stack[stack_ptr].num = x;\
                                                 stack_ptr++;\
                                                }
-#define npop()	   (stack_ptr > 0  ?  stack[--stack_ptr].num  :  0)
-#define spop()	   (stack_ptr > 0  ?  stack[--stack_ptr].str  :  (char *) 0)
+#define npop()	    (stack_ptr > 0  ?  stack[--stack_ptr].num  :  0)
+#define spop()	    (stack_ptr > 0  ?  stack[--stack_ptr].str  :  (char *) 0)
 
 typedef union
 {
@@ -138,6 +145,7 @@ static	int	variable[26];
 
 static	char	*do_tparm();
 
+
 char *
 tparm(string, parms)
 register char	*string;
@@ -145,8 +153,8 @@ int		parms;
 {
 	char		len;
 	int		number;
-	register int	level;
-	int		x, y;
+	int		level;
+	register int	x, y;
 
 	param = &parms;
 
@@ -258,7 +266,9 @@ int		parms;
 			break;
 
 		    case '+':
-			npush(npop() + npop());
+			y = npop();
+			x = npop();
+			npush(x + y);
 			break;
 
 		    case '-':
@@ -268,7 +278,9 @@ int		parms;
 			break;
 
 		    case '*':
-			npush(npop() * npop());
+			y = npop();
+			x = npop();
+			npush(x * y);
 			break;
 
 		    case '/':
@@ -284,15 +296,21 @@ int		parms;
 			break;
 
 		    case '&':
-			npush(npop() & npop());
+			y = npop();
+			x = npop();
+			npush(x & y);
 			break;
 
 		    case '|':
-			npush(npop() | npop());
+			y = npop();
+			x = npop();
+			npush(x | y);
 			break;
 
 		    case '^':
-			npush(npop() ^ npop());
+			y = npop();
+			x = npop();
+			npush(x ^ y);
 			break;
 
 		    case '=':
@@ -314,11 +332,13 @@ int		parms;
 			break;
 
 		    case '!':
-			npush(! npop());
+			x = ! npop();
+			npush(x);
 			break;
 
 		    case '~':
-			npush(~ npop());
+			x = ~ npop();
+			npush(x);
 			break;
 
 		    case 'i':
@@ -406,7 +426,6 @@ int		parms;
 }
 
 
-
 /*
  *	char *
  *	tgoto(string, x, y)

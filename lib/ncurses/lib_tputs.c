@@ -26,6 +26,9 @@
  *	tputs.c
  *
  *  $Log:	lib_tputs.c,v $
+ * Revision 1.5  92/06/02  12:05:41  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:38:41  bin
  * update by vlad
  * 
@@ -53,9 +56,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_tputs.c,v 1.2 92/04/13 14:38:41 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_tputs.c,v 1.5 92/06/02 12:05:41 bin Exp Locker: bin $";
 #endif
 
 #include <ctype.h>

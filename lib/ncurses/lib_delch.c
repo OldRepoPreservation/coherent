@@ -28,6 +28,9 @@
 **	The routine wdelch().
 **
 ** $Log:	lib_delch.c,v $
+ * Revision 1.5  92/06/02  12:05:05  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:37:18  bin
  * update by vlad
  * 
@@ -43,14 +46,15 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_delch.c,v 1.2 92/04/13 14:37:18 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_delch.c,v 1.5 92/06/02 12:05:05 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
 #include "curses.priv.h"
 #include "term.h"
+
 
 wdelch(win)
 register WINDOW	*win;

@@ -26,24 +26,26 @@
  *	compiler.h - Global variables and structures for the terminfo
  *			compiler.
  *
- *  $Header:   RCS/compiler.v  Revision 2.1  82/10/25  14:46:04  pavel  Exp$
+ *  $Header: /src386/usr/lib/ncurses/RCS/compiler.h,v 1.2 92/04/13 14:39:59 bin Exp Locker: bin $
  *
- *  $Log:	RCS/compiler.v $
-Revision 2.1  82/10/25  14:46:04  pavel
-Added Copyright Notice
-
-Revision 2.0  82/10/24  15:17:20  pavel
-Beta-one Test Release
-
-Revision 1.3  82/08/23  22:30:09  pavel
-The REAL Alpha-one Release Version
-
-Revision 1.2  82/08/19  19:10:10  pavel
-Alpha Test Release One
-
-Revision 1.1  82/08/12  18:38:11  pavel
-Initial revision
-
+ *  $Log:	compiler.h,v $
+ * Revision 1.2  92/04/13  14:39:59  bin
+ * *** empty log message ***
+ * 
+ * Revision 2.1  82/10/25  14:46:04  pavel
+ * Added Copyright Notice
+ * 
+ * Revision 2.0  82/10/24  15:17:20  pavel
+ * Beta-one Test Release
+ * 
+ * Revision 1.3  82/08/23  22:30:09  pavel
+ * The REAL Alpha-one Release Version
+ * 
+ * Revision 1.2  82/08/19  19:10:10  pavel
+ * Alpha Test Release One
+ * 
+ * Revision 1.1  82/08/12  18:38:11  pavel
+ * Initial revision
  *
  */
 
