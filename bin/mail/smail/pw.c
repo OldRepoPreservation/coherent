@@ -148,7 +148,9 @@ pwparse()
 
 	if((pw_eof == 1)
 	|| ((pwent = getpwent()) == (struct passwd *) NULL)) {
+		/* We've parsed and cached the entire passwd file.  */
 		pw_eof = 1;
+		endpwent();
 		return(PNULL);
 	}
 	/*
