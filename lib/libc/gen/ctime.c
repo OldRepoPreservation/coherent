@@ -25,7 +25,7 @@
 
 
 #include <time.h>
-#include <timeb.h>
+#include <sys/timeb.h>
 
 
 #define	FEB	1
@@ -44,7 +44,7 @@ static	struct	dsttimes {
 };
 static	char	dsthour = 2;
 static	char	timestr[] = "AAA AAA DD DD:DD:DD DDDD\n";
-static char daynames[3*NWDAY] = "SunMonTueWedThuFriSat";
+static char daynames[3*NWDAY+1] = "SunMonTueWedThuFriSat";
 static char months[3*NMON+1] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 static char dpm[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 static	int	dstadjust = 60*60;	/* In seconds */
