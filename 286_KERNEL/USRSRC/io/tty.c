@@ -7,6 +7,10 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.11  91/09/16  18:11:08  hal
+ * Update t_flags in ttstart() at high priority.
+ * Document that ttstash() is local.
+ * 
  * Revision 1.10  91/09/16  15:58:26  hal
  * Mask interrrupts when modifying tp->t_flags as some IRQ handlers change this.
  *
@@ -20,7 +24,6 @@
  * Revision 1.7  91/09/13  17:58:00  hal
  * Drop 3rd arg (was writing PSW directly from it!) for ttread/ttwrite.
  * General face lift.
- *
  *
  * Bug: no support for 8-bit characters.
  * Fix: don't strip keyboard input. 01/22/91.  (norm)
@@ -76,11 +79,9 @@
  *		and T_TSTOP is set.  When the input queue is empty enough,
  *		t_startc is sent and T_TSTOP is cleared.
  *	T_STOP is the flow control bit for output.  No output will be
- *		sent to the device from tty.c while this bit is true.  If
- *		TANDEM is set for the device, tty.c will set T_STOP whenever it
- *		receives t_stopc and clear T_STOP when it receives t_startc.
- *		If TANDEM is not set, the device driver can write this bit when
- *		doing hardware flow control.
+ *		written to the output queue while this bit is true.
+ *		Except for initialization of flags in the TTY struct, by
+ *		ttopen(), this bit is not written by tty.c.
  *	91/09/15 - hal
  */
 
@@ -616,45 +617,32 @@ register TTY *tp;
  *
  *	Pass a character to the device independent typewriter routines.
  *	Handle erase and kill, tandem flow control, and other magic.
- *	Called at high priority from the driver's interrupt processor.
+ *	Was often called at high priority from the driver's interrupt processor,
+ *	but now also runs explicitly at hi priority. - hws 91/11/12
  */
 void ttin(tp, c)
 register TTY *tp;
 register c;
 {
 	int dc, i, n;
+	int s;
 
+	s = sphi();
 	if (!ISRIN) {
 #if NOT_8_BIT
 		c &= 0177;
 #endif
 		if (ISINTR) {
 			ttsignal(tp, SIGINT);
-			return;
+			goto ttin_ret;
 		}
 		if (ISQUIT) {
 			ttsignal(tp, SIGQUIT);
-			return;
-		}
-
-		/*
-		 * Only do flow control if TANDEM is set.
-		 */
-		if (ISTAND) {
-			if (ISSTOP) {
-				if ((tp->t_flags&T_STOP) == 0)
-					tp->t_flags |= T_STOP;
-				return;
-			}
-			if (ISSTART) {
-				tp->t_flags &= ~T_STOP;
-				ttstart(tp);
-				return;
-			}
+			goto ttin_ret;
 		}
 	}
 	if ((tp->t_flags&T_ISTOP) != 0)
-		return;
+		goto ttin_ret;
 	if (!ISRIN) {
 		if (c=='\r' && ISCRMOD)
 			c = '\n';
@@ -680,7 +668,7 @@ register c;
 #endif
 				ttstart(tp);
 			}
-			return;
+			goto ttin_ret;
 		}
 		if (ISERASE && !ISCBRK) {
 			while (tp->t_escape!=0 && tp->t_ibx<NCIB-1) {
@@ -688,7 +676,7 @@ register c;
 				--tp->t_escape;
 			}
 			if (tp->t_ibx == 0)
-				return;
+				goto ttin_ret;
 			dc = tp->t_ib[--tp->t_ibx];
 			if (ISECHO) {
 				if (!ISCRT)
@@ -701,7 +689,7 @@ register c;
 				else if (((c = dc) == '\007')
 					|| c == 0 || c == 0177 || c == 0377)
 #endif
-				        return;
+				        goto ttin_ret;
 				else if (c != '\b' && c != '\t') {
 					putq(&tp->t_oq, '\b');
 					putq(&tp->t_oq,  ' ');
@@ -737,7 +725,7 @@ register c;
 #endif
 				ttstart(tp);
 			}
-			return;
+			goto ttin_ret;
 		}
 		if (ISKILL && !ISCBRK) {
 			tp->t_ibx = 0;
@@ -751,7 +739,7 @@ register c;
 				putq(&tp->t_oq, '\n');
 				ttstart(tp);
 			}
-			return;
+			goto ttin_ret;
 		}
 	}
 	if (ISBBYB) {
@@ -785,6 +773,9 @@ register c;
 		putq(&tp->t_oq, stopc);
 		ttstart(tp);
 	}
+
+ttin_ret:
+	spl(s);
 }
 
 /*
