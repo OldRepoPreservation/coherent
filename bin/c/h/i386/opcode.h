@@ -250,6 +250,7 @@
 #define	ZFSTPT	196
 #define	ZFWAIT	197
 #define	ZFDROP	198
+#define	is_ndp_op(op)	(ZFADDD <= (op) && (op) <= ZFDROP)
 
 /* Unused... */
 #if	0
