@@ -29,7 +29,6 @@
 #define	NTRK	40			/* # of tracks on floppy. */
 #endif
 
-#define BOOTLC	0x7C00			/* Boot location (ROM). */
 #define ROOTINO 2			/* Root inode # */
 #define INOORG	2			/* First inode block. */
 #define IBSHIFT 3			/* Shift, inode to blocks */
@@ -39,11 +38,13 @@
 #define DISK	0x13			/* Disk Interrupt */
 #define KEYBD	0x16			/* Keyboard Interrupt */
 #define READ1	0x0201			/* read one sector */
-#define SYS_BASE	0x0060		/* System load base paragraph. */
+#define DEF_SYS_BASE	0x0060		/* System load base paragraph. */
 #define SYS_START	0x0100		/* System entry point. */
 #define FIRST	8			/* Relative start of partition. */
 #define FULLSEG	0xffff			/* Size of a whole 8086 segment. */
 #define PPMASK	(unsigned short) 0xfff0 /* Mask for rounding to paragraph.  */
+
+unsigned short sys_base;	/* Segment into which to load the kernel.  */
 
 main()
 {
@@ -61,6 +62,8 @@ main()
 	fsize_t load_lenarg;
 
 	char imagename[5*DIRSIZ+1] = "autoboot";	/* File to boot.  */
+
+	sys_base = DEF_SYS_BASE;
 
 	puts("\r\nCOHERENT Tertiary boot Version 0.9\r\n");
 
@@ -131,7 +134,7 @@ main()
 	if (imageheader.l_flag & LF_SEP) { /* if sep i/d executable */
 		puts("\r\nLoading code segments...\r\n");
 		/* Load the shared and private code segments as one.  */
-		load_toseg = SYS_BASE; /* This is where we want the OS.  */
+		load_toseg = sys_base; /* This is where we want the OS.  */
 		load_tooffset = 0;
 		load_offset = sizeof(struct ldheader); /* Skip the header.  */
 		load_lenarg = imageheader.l_ssize[L_SHRI] + /* Both segments as one.  */
@@ -144,7 +147,7 @@ main()
 		/* Load both data segments.  */
 
 		/* Round up to next 16 byte paragraph.  */
-		load_toseg = (SYS_BASE +
+		load_toseg = (sys_base +
 			(imageheader.l_ssize[L_SHRI] + /* Shared code */
 			imageheader.l_ssize[L_PRVI] +  /* Private code */
 			15) / 16),
@@ -164,7 +167,7 @@ main()
 		
 		puts("\r\nLoading all segments...\r\n");
 		/* Load the shared and private code segments as one.  */
-		load_toseg = SYS_BASE, /* This is where we want the OS.  */
+		load_toseg = sys_base, /* This is where we want the OS.  */
 		load_tooffset = 0,
 	
 		load_offset = (fsize_t) sizeof(struct ldheader), /* Skip the header.  */
@@ -184,14 +187,15 @@ main()
 
 	/* Be sure to set the data segement appropriately.  */
 	if (imageheader.l_flag & LF_SEP) { /* if sep i/d executable */
-		data_seg = (unsigned short) (SYS_BASE +
+		data_seg = (unsigned short) (sys_base +
 			(imageheader.l_ssize[L_SHRI] +	/* Shared code */
 			 imageheader.l_ssize[L_PRVI] +	/* Private code */
 			 15) / 16);	/* Rounded up a paragraph.  */
 	} else {
 		/* Tiny model: ds = cs */
-		data_seg = SYS_BASE;
+		data_seg = sys_base;
 	}
+
 	/* Run the image (the kernel).  */
-	gotoker(SYS_START, SYS_BASE, data_seg);
+	gotoker(SYS_START, sys_base, data_seg);
 }
