@@ -1,879 +1,278 @@
-static char _version[]="ps version 2.10";
-/*
- *	Modifications copyright INETCO Systems Ltd.
- *
- * Print out process statuses.
- *
- * $Log:	ps.c,v $
- * Revision 1.3  91/07/17  14:22:55  bin
- * stevesf supplied as INETCO source because previous sources are of
- * questionable origin... this one works
- * 
- * Revision 1.2	89/06/12  15:15:22 	src
- * Bug:	A directory at the end of the '/dev' directory would cause 'ps'
- * 	to crash with the message "Cannot open <dir> in /dev".
- * Fix:	A stat was being done without the return code being checked. (ART)
- * 
- * Revision 1.1	89/06/12  14:42:24 	src
- * Initial revision
- * 
- * 88/02/15	Allan Cornish	/usr/src/cmd/cmd/ps.c
- * Kernel processes are now displayed regardless of -ax flags.
- *
- * 87/11/25	Allan Cornish	/usr/src/cmd/cmd/ps.c
- * Debug flag now -D.  Drivers now displayed by -d flag.
- *
- * 87/11/12	Allan Cornish	/usr/src/cmd/cmd/ps.c
- * Modified to support Coherent 9.0 [protected mode] segmentation.
- *
- * 87/10/20	Allan Cornish	/usr/src/cmd/cmd/ps.c
- * Now extracts cmd name from u_comm field in uproc struct for kernel procs.
- * Kernel processes only displayed if -d [debug] flag given.
- *
- * 87/09/28	Phil Selby	/usr/src/cmd/cmd/ps.c
- * Altered so that the terminal name rather than major and minor
- * device number is printed out
- *
- * 84/08/21	Rec
- * Added gflag for group identification.
- *
- * 84/07/16	Lauren Weinstein
- * Initial version.
- */
-
-#include <sys/coherent.h>
-#include <sys/param.h>
-#include <sys/proc.h>
-#include <sys/sched.h>
-#include <sys/dir.h>
-#include <sys/seg.h>
-#include <sys/stat.h>
-#include <sys/uproc.h>
-#include <sys/mmu.h>
-#include <signal.h>
-#include <access.h>
-#include <fcntl.h>
 #include <stdio.h>
-#include <ctype.h>
-#include <coff.h>
+#include <string.h>
+#include <sys/coherent.h>
+#include <sys/coh_ps.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <pwd.h>
+#include "ps.h"
+
+#define	PROC_NUM	64	/* Number of processes */
+#define CON_SIZE	8	/* max # of bytes in contrl terminal filed */
+
+extern char	*malloc();
+void		vGetData();	/* Read the data about all processes */
+void		vCvtArgs();	/* Process command line */
+void		vPrintPs();	/* Print data */
+void		vPrintHeader();	/* Print ps header */
+void		vPrintLine();	/* Print ps data */
+dev_t		dvtGetTerminal();/* Get ps controlling terminal */
+int		iState();	/* Is the process asleep, running, or zombie? */
+void 		ReadDevDir();	 /* Read device directory */
+
+stMonitor	*pMonData = NULL; 	/* Pointer to an array of data for ps */
+int		iRet;			/* Number of bytes read */
+dev_t		dvtPs;			/* ps device */
+
+static stDevices	*pstDevFirst= NULL;	/* List of character devices. */
+
+/* Flags for input command options */
+int	iaFlag,		/* Display information from all terminals */
+	idFlag,		/* Status of loadable drivers */
+	ifFlag,		/* Blank fields have '-' */
+	igFlag,		/* Print group leader if l given */
+	ilFlag,		/* Long format */
+	imFlag,		/* Scheduling fields */
+	inFlag,		/* Suppress header line */
+	irFlag,		/* Print real size of processes */
+	itFlag,		/* Print elapsed CPU time */
+	iwFlag,		/* Wide format (print 132 columns) */
+	ixFlag;		/* Display processes without controlling terminals */
 
 /*
- * This is a kludge for the i8086 only and will be
- * made to disappear when the segmentation (jproto)
- * is thrown away.
-#undef	SISTACK
-#define	SISTACK	SIPDATA
+ * Print out process status.
  */
-
-/*
- *	Terminal information stored in memory for use by ps in TTY field
- */
-
-struct handle {
-	dev_t	dnum;		/* device number */
-	char dname[DIRSIZ];	/* device name */
-	struct handle *nptr;	/* pointer to next */
-} *fptr, *lptr;
-
-/*
- * Maximum sizes.
- */
-#define ARGSIZE	512
-
-/*
- * Functions to see if a pointer is in alloc space and to map a
- * pointer from alloca space to this process.
- */
-#define map(p)		(&(allp[(char *)(p) - (char *) callocp.sr_base]))
-
-/*
- * For easy referencing.
- */
-#define NUM_SYMS	7	/* Number of symbols to look up.  */
-#define	aprocq		nl[0].n_value
-#define	autime		nl[1].n_value
-#define astime		nl[2].n_value
-#define aallocp		nl[3].n_value
-#define	aend		nl[4].n_value
-#define	asysmem		nl[5].n_value
-#define	au		nl[6].n_value
-
-#define TRUE	(1==1)
-#define FALSE	(1==2)
-#define LESSER(a, b)	((a < b)?a:b)
-
-/*
- * Defines for referencing page tables.
- */
-#define BPCSHIFT	12	/* Shift this many to convert bytes to clicks.  */
-#define ONE_CLICK	4096	/* Bytes in a click.  */
-#define CLICK_OFFSET	0x00000fffL	/* Bits in virtual address indexing into page.  */
-#define PT_CLICK_ADDR	0xfffff000L	/* Bits in pte pointing at the page.  */
-#define PT_PRESENT(entry)  (0x01 == (entry & 0x01))	/* Is the page for
-							 * this pte present? 
-							 */
-/*
- * This is the address of the start of the U area segment.  This
- * should probably be extracted somehow from an include file.
- * It can be derived with much pain from the s_vmem field in the seg
- * struct from the U area segment.
- */
-#define USEG_BASE	0xfffff000
-
-/*
- * Variables.
- */
-int	aflag;				/* All processes */
-int	dflag;				/* Driver flag */
-int	dbflag;				/* Debug flag */
-int	fflag;				/* Print out all fields */
-int	gflag;				/* Print out process groups */
-int	lflag;				/* Long format */
-int	mflag;				/* Print scheduling values */
-int	nflag;				/* No header */
-int	rflag;				/* Print out real sizes */
-int	tflag;				/* Print times */
-int	wflag;				/* Wide format */
-int	xflag;				/* Get special processes */
-int	Pflag;				/* UNDOCUMENTED: ignore present bit.  */
-dev_t	ttdev;				/* Terminal device */
-
-/*
- * Table for namelist.
- */
-SYMENT nl[NUM_SYMS];
-
-/*
- * Symbols.
- */
-char	 *allp;				/* Pointer to alloc space */
-char	 *kfile;			/* Kernel data memory file */
-char	 *nfile;			/* Namelist file */
-char	 *mfile;			/* Memory file */
-char	 *dfile;			/* Swap file */
-char	 argp[ARGSIZE];			/* Arguments */
-int	 kfd;				/* Kernel memory file descriptor */
-int	 mfd;				/* Memory file descriptor */
-int	 dfd;				/* Swap file descriptor */
-struct	 uproc u;	 		/* User process area */
-unsigned cutime;			/* Unsigned time */
-PROC	 cprocq;			/* Process queue header */
-SR	 callocp;			/* Size of alloc area */
-SYSMEM	 sysmem;			/* Useful system-memory info.
-					 * This variable MUST be called
-					 * "sysmem" for the MAPIO() macro.
-					 */
-char *malloc();
-char *uname();
-unsigned cval();
-cseg_t	pt_index();
-char *pick_nfile();
-
 main(argc, argv)
-	int argc;
-	char *argv[];
+int	argc;
+char	*argv[];
 {
-	register int i;
-	register char *cp;
+	/*
+	 * Digest the command line.
+	 *
+	 * This routine will not return if there are errors in
+	 * the command line.
+	 */
+	fakeMinus(argc, argv);
+	vCvtArgs(argc, argv);
 
-#if 0
-fprintf(stderr, "initialise()\n");	/* DEBUG */
-#endif /* 0 */
-	initialise();
-#if 0
-fprintf(stderr, "parse args()\n");	/* DEBUG */
-#endif /* 0 */
-	for (i=1; i<argc; i++) {
-		for (cp=&argv[i][0]; *cp; cp++) {
-			switch (*cp) {
-			case '-':
-				continue;
-			case 'a':
-				aflag++;
-				continue;
-			case 'c':
-				if (++i >= argc)
-					usage();
-				nfile = argv[i];
-				continue;
-			case 'd':
-				dflag++;
-				continue;
-			case 'D':
-				dbflag++;
-				continue;
-			case 'f':
-				fflag++;
-				continue;
-			case 'g':
-				gflag++;
-				continue;
-			case 'k':
-				if (++i >= argc)
-					usage();
-				mfile = argv[i];
-				continue;
-			case 'l':
-				lflag++;
-				continue;
-			case 'm':
-				mflag++;
-				continue;
-			case 'n':
-				nflag++;
-				continue;
-			case 'P':
-				Pflag++;
-				continue;
-			case 'r':
-				rflag++;
-				continue;
-			case 't':
-				tflag++;
-				continue;
-			case 'w':
-				wflag++;
-				continue;
-			case 'x':
-				xflag++;
-				continue;
-			default:
-				usage();
-			}
+	/* This function will not return if error occurs */
+	vGetData();
+
+	/* Get dev_t value for device from which ps was fired */
+	dvtPs = dvtGetTerminal();
+
+	/* We have our data and all flags are set. So, we can print it */
+	vPrintPs();
+}
+
+/* 
+ * Fetch all data for ps from the kernel.
+ */
+void	vGetData()
+{
+	int	fd;	/* File descriptor to /dev/ps*/
+	int	iCnt;	/* number of attempt to read */
+
+	/* Open process device */
+ 	if ((fd = open("/dev/ps", O_RDONLY)) < 0) {
+		perror("ps");
+		exit(1);
+	}
+
+	/* This is our main engine. At this point we do not know the
+	 * total number of processes. So, we start from our gess PROC_NUM.
+	 * If we get close enough, do realloc and try again.
+	 */
+	for (iCnt = 0, iRet = 0; iCnt - iRet <= sizeof(stMonitor); ) {
+		iCnt += sizeof(stMonitor) * PROC_NUM;
+		if (pMonData != NULL)
+			free(pMonData);
+		if ((pMonData = (stMonitor *) malloc(iCnt)) == NULL) {
+			perror("ps");
+			exit(1);
+		}
+		if ((iRet = read(fd, (char *) pMonData, iCnt)) < 0) {
+			perror("ps");
+			exit(1);
 		}
 	}
 
-#if 0
-fprintf(stderr, "execute()\n");	/* DEBUG */
-#endif /* 0 */
-	execute();
-
-#if 0
-fprintf(stderr, "exit(0)\n");	/* DEBUG */
-#endif /* 0 */
-	exit(0);
-}
-
-/*
- * Initialise.
- */
-initialise()
-{
-	register char *cp;
-
-	aflag = 0;
-	gflag = 0;
-	lflag = 0;
-	mflag = 0;
-	nflag = 0;
-	Pflag = 0;
-	xflag = 0;
-	nfile = pick_nfile();
-	kfile = "/dev/kmem";
-	mfile = "/dev/mem";
-	dfile = "/dev/swap";
-	if ((cp=malloc(BUFSIZ)) != NULL)
-		setbuf(stdout, cp);
-
-	/* Initialise the request for coffnlist().  */
-	strcpy(nl[0]._n._n_name, "procq");
-	nl[0].n_type = -1;
-	strcpy(nl[1]._n._n_name, "utimer");
-	nl[1].n_type = -1;
-	strcpy(nl[2]._n._n_name, "stimer");
-	nl[2].n_type = -1;
-	strcpy(nl[3]._n._n_name, "allocp");
-	nl[3].n_type = -1;
-	strcpy(nl[4]._n._n_name, "end");
-	nl[4].n_type = -1;
-	strcpy(nl[5]._n._n_name, "sysmem");
-	nl[5].n_type = -1;
-	strcpy(nl[6]._n._n_name, "u");
-	nl[6].n_type = -1;
-
-}
-
-/*
- * Print out usage.
- */
-usage()
-{
-	panic("Usage: ps [-][acdfgklmnrtwx]");
-}
-
-
-/*
- * Print out information about processes.
- */
-execute()
-{
-	int fd;
-	int c, l;
-	int loop_count;		/* Keep track of the number of entries read.  */
-	register PROC *pp1, *pp2;
-
-#if 0
-	printf("execute()\n");
-	fflush(stdout);
-#endif /* 0 */
-
-	/*
-	 * Check to see if the desired kernel exists and is accessable.
-	 * NB: the access() system call uses the REAL uid to check
-	 * permissions--it will not work here.
-	 */
-	if (-1 == (fd = open(nfile, O_RDONLY))) {
-		panic("%s is not readable or does not exist.", nfile);
-	}
 	close(fd);
+	fflush(stdout);
 
-#if 0
-fprintf(stderr, "Extract symbol information from the kernel %s.\n", nfile);	/* DEBUG */
-#endif /* 0 */
-	/*
-	 * Extract symbol information from the kernel.
-	 */
-	if (0 == coffnlist(nfile, nl, "", NUM_SYMS) ) {
-		panic("Can not use kernel image %s.", nfile);
-	}
-
-	if (nl[0].n_type == -1) {
-		panic("Bad namelist file %s", nfile);
-	}
-
-#if 0
-fprintf(stderr, "Open the physical memory device.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Open the physical memory device.
-	 */
-	if ((mfd=open(mfile, 0)) < 0) {
-		panic("Cannot open %s", mfile);
-	}
-
-#if 0
-fprintf(stderr, "Open the virtual memory device.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Open the virtual memory device.
-	 */
-	if ((kfd = open(kfile, 0)) < 0) {
-		panic("Cannot open %s", kfile);
-	}
-
-	/*
-	 * Open swap device if it exists
-	 */
-	dfd = open(dfile, 0);
-
-#if 0
-fprintf(stderr, "Fetch the head of the process queue.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Fetch the head of the process queue.
-	 */
-	kread((long)aprocq, &cprocq, sizeof (cprocq));
-
-	/*
-	 * Fetch information about system memory.
-	 */
-	kread((long)asysmem, &sysmem, sizeof (sysmem));
-
-	
-
-#if 0
-fprintf(stderr, "Take a snapshot of kernel memory.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Take a snapshot of kernel memory.
-	 */
-	kread((unsigned long)aallocp, &callocp, sizeof (callocp));
-
-#if 0
-	fprintf(stderr, "callocp.sr_size: %x\n", callocp.sr_size);
-	fflush(stderr);
-#endif /* 0 */
-
-	if ((allp=malloc(callocp.sr_size)) == NULL) {
-		panic( "Out of core or invalid kernel specified" );
-	}
-
-#if 0
-fprintf(stderr, "kread(%x, %x, %x)\n",	/* DEBUG */
-		(unsigned long)callocp.sr_base, allp, callocp.sr_size);
-fflush(stderr);
-#endif /* 0 */
-
-	kread((unsigned long)callocp.sr_base, allp, callocp.sr_size);
-
-
-#if 0
-fprintf(stderr, "Fetch the current tick time.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Fetch the current tick time.
-	 */
-	kread((long)autime, &cutime, sizeof (cutime));
-
-#if 0
-fprintf(stderr, "Find out what our controlling terminal is.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Find out what our controlling terminal is.
-	 */
-	settdev();
-
-	fttys( "/dev");	/* load all the devices in dev */
-
-#if 0
-fprintf(stderr, "Calculate the length of the output line.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Calculate the length of the output line.
-	 */
-	l = strlen("TTY       PID");
-	if (dbflag)
-		l += strlen("0xffffffff ");
-	if (gflag)
-		l += strlen(" GROUP");
-	if (lflag)
-		l += strlen("  PPID      UID    K    F S     EVENT");
-	if (mflag)
-		l += strlen("      CVAL      SVAL       IVAL       RVAL");
-	if (tflag)
-		l += strlen(" UTIME STIME");
-	if (nflag == 0) {
-		if (dbflag)
-			printf("           ");
-		printf("TTY       PID");
-		if (gflag)
-			printf(" GROUP");
-		if (lflag)
-			printf("  PPID      UID    K    F S      EVENT");
-		if (mflag)
-			printf("      CVAL      SVAL       IVAL       RVAL");
-		if (tflag)
-			printf(" UTIME STIME");
-		putchar('\n');
-		fflush(stdout);
-	}
-
-#if 0
-fprintf(stderr, "Walk through the process queue printing out each entry.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-	/*
-	 * Walk through the process queue printing out each entry.
-	 */
-	loop_count = 0;	/* How many PROC entries have we seen?  */
-	pp1 = &cprocq;
-	while ((pp2=pp1->p_nback) != (PROC *) aprocq) {
-		loop_count++;
-
-#if 0
-fprintf(stderr, "count: %d\n", loop_count);	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-
-		if (range((char *)pp2) == 0)
-			panic("Fragmented list");
-		pp1 = map(pp2);
-
-		/*
-		 * Kernel process - display only if '-d' argument given.
-		 */
-		if ( pp1->p_flags & PFKERN ) {
-#if 0
-fprintf(stderr, "PFKERN\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-			if ( dflag == 0 ) {
-				continue;
-			}
-		}
-
-		/*
-		 * Unattached process - display only if '-x' argument given.
-		 */
-		else if ( pp1->p_ttdev == NODEV ) {
-#if 0
-fprintf(stderr, "NODEV\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-			if ( xflag == 0 ) {
-				continue;
-			}
-		}
-
-		/*
-		 * Attached to other terminal - display only if '-a' arg given.
-		 */
-		else if ( pp1->p_ttdev != ttdev ) {
-#if 0
-fprintf(stderr, "Other tty\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-			if ( aflag == 0 )
-				continue;
-		}
-
-#if 0
-fprintf(stderr, "ASSERTION: pp1 is a proc entry we want to print.\n");	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-		/*
-		 * ASSERTION: pp1 is a proc entry we want to print.
-		 */
-
-		if (dbflag)
-			printf("0x%8x ", pp2);
-		ptty(pp1);
-		printf(" %5d", pp1->p_pid);
-		if (gflag)
-			printf(" %5d", pp1->p_group);
-		if (lflag) {
-			printf(" %5d", pp1->p_ppid);
-			fflush(stdout);
-			printf(" %8.8s", uname(pp1));
-			fflush(stdout);
-			psize(pp1);
-			fflush(stdout);
-			printf(" %4o", pp1->p_flags);
-			fflush(stdout);
-			printf(" %c", c=state(pp1, pp2));
-			fflush(stdout);
-			if (c == 'S') {
-				print_event(pp1);
-			} else {
-				if (fflag)
-					printf("          -");
-				else
-					printf("           ");
-			}
-			fflush(stdout);
-		}
-		if (mflag) {
-			printf(" %9u", cval(pp1, pp2));
-			printf(" %9u", pp1->p_sval);
-			printf(" %10d", pp1->p_ival);
-			printf(" %10d", pp1->p_rval);
-		}
-		if (tflag) {
-			ptime(pp1->p_utime);
-			ptime(pp1->p_stime);
-		}
-		printf("  ");
-		printl(pp1, (wflag?132:80)-l-1);
-
-		putchar('\n');
-		fflush(stdout);
-	}
-	rttys();	/* release all alloced space */
-}
+} /* main() */
 
 /*
- * Set our terminal device.
+ * Digest the command line.
  */
-settdev()
+void
+vCvtArgs(argc, argv)
+int argc;
+char *argv[];
 {
-	register PROC *pp1, *pp2;
-	register int p;
-	int loop_count;
+	char		*opstring = "ac:dfgk:lmnrtwx";
+	extern char	*optarg;
+	int		c;
 
-	p = getpid();
-	pp1 = &cprocq;
-
-	loop_count = 0;	/* How many PROC entries have we seen?  */
-	while ((pp2=pp1->p_nforw) != (PROC *) aprocq) {
-		loop_count++;
-#if 0
-fprintf(stderr, "settdev() count: %d\n", loop_count);	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-		
-#if 0
-fprintf(stderr, "range():sr_base: %x < %x < sr_base + sr_size: %x\n",
-		callocp.sr_base, pp2, callocp.sr_base + callocp.sr_size);	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-		if (range((char *)pp2) == 0)
+	while ((c = getopt(argc, argv, opstring)) != EOF)
+		switch (c) {
+		case 'a':
+			iaFlag = 1;
 			break;
-
-#if 0
-fprintf(stderr, "About to map %x\n", pp2);	/* DEBUG */
-fflush(stderr);
-
-fprintf(stderr, "offset = (%x - sr_base) = %x \n",
-		pp2, ((char *)pp2) - callocp.sr_base );	/* DEBUG */
-fflush(stderr);
-fprintf(stderr, "(allp:%x + offset): \n",
-		allp, allp + ( ((char *) pp2) - ( (char *) callocp.sr_base) ) );	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-
-		pp1 = map(pp2);
-
-#if 0
-fprintf(stderr, "mapped %x to %x\n", pp2, pp1);	/* DEBUG */
-fflush(stderr);
-#endif /* 0 */
-		if (pp1->p_pid == p) {
-			ttdev = pp1->p_ttdev;
-			return;
-		}
-	}
-	ttdev = NODEV;
-}
-
-/*
- *	Finds all special files in the specified directory (e.g. /dev)
- */
-
-fttys( dirname)
-
-char *dirname;
-
-{
-	int filein;		/* directory file descriptor */
-	struct stat sbuf;	/* stat structure */
-	struct direct dbuf;	/* directory buffer structure */
-	
-	/* move to the appropriate directory and open file for reading */
-	
-	chdir( dirname );
-
-	if( ( filein = open( ".", 0) ) < 0 ) {
-		fprintf( stderr, "Cannot open '%s' in /dev\n", dirname );
-		exit( 1 );
-	}
-
-	read( filein, &dbuf, sizeof(dbuf) );	/* read . */
-	read( filein, &dbuf, sizeof(dbuf) );	/* read .. */
-
-	while( read( filein, &dbuf, sizeof(dbuf) ) ) {
-		if( stat( dbuf.d_name, &sbuf ) < 0 )
-			continue;
-
-		if( sbuf.st_mode & S_IFCHR )
-			addname( dbuf.d_name, sbuf.st_rdev );
-
-		else if( sbuf.st_mode & S_IFDIR )
-			fttys( dbuf.d_name );
-	}
-
-	close( filein );
-	chdir( ".." );
-}
-
-/*
- *	Adds a name and device to the master list of ttys.
- */
-
-addname( devname, devnum )
-	char *devname;
-	dev_t devnum;
-{
-	extern struct handle *fptr;
-	extern struct handle *lptr;
-	
-	if( fptr == (struct handle *) NULL ) {
-		if( (fptr=(struct handle *) malloc( sizeof(struct handle))) ==
-				(struct handle *) NULL ) {
-			fprintf( stderr, "Out of memory\n");
-			exit( 1 );
-		}
-
-		fptr->nptr = (struct handle *) NULL;
-		strcpy( fptr->dname, devname);
-		fptr->dnum = devnum;
-	}
-
-	else {
-		lptr = fptr;
-
-		while( ( lptr->nptr != (struct handle *) NULL ) &&
-			( lptr->dnum != devnum ) ) lptr = lptr->nptr;
-
-		if( lptr->dnum == devnum )
-			return;
-
-		if( (lptr->nptr=(struct handle *)malloc(sizeof(struct handle)))
-				== (struct handle *) NULL ) {
-			fprintf( stderr, "Out of memory\n");
-			exit( 1 );
-		}
-
-		lptr = lptr->nptr;
-		lptr->nptr = (struct handle *) NULL;
-		strcpy( lptr->dname, devname);
-		lptr->dnum = devnum;
-	}
-}
-
-/*
- *	Release allocated space on exit (default action anyway)
- */
-
-rttys()
-{
-	/* release allocated space */
-	
-	lptr = fptr;
-	while( lptr->nptr != (struct handle *) NULL ) {
-		fptr = lptr;
-		lptr = fptr->nptr;
-		free( fptr);
-	}
-	free( lptr);
-}
-
-/*
- *	Print the controlling terminal name.  If not found it prints the
- *	major and minor device numbers.  If no controlling terminal on the
- *	process then '--------' is printed.
- */
-
-ptty( pp )
-	register PROC *pp;
-{
-	register dev_t d;
-
-	/* when supplied with a device number, look for the name
-	   of the special file from the dev directory */
-	   
-	if( ((dev_t)( d = pp->p_ttdev )) == NODEV ) {
-		printf( "-------");
-		return;
-	}
-
-	lptr = fptr;
-	while( lptr->nptr != (struct handle *) NULL ) {
-		if( lptr->dnum == d ) {
-			printf( "%-7.7s", lptr->dname);
-			return;
-		}
-		lptr = lptr->nptr;
-	}
-	if( lptr->dnum == d ) {
-		printf( "%-7.7s", lptr->dname);
-		return;
-	}
-	printf( "%3d %3d", major( d ), minor( d ) );
-	return;
-}
-
-/*
- * Given a process, return it's user name.
- */
-char *
-uname(pp)
-	register PROC *pp;
-{
-	static char name[8];
-	register struct passwd *pwp;
-
-	if ((pwp=getpwuid(pp->p_ruid)) != NULL)
-		return (pwp->pw_name);
-	sprintf(name, "%d", pp->p_ruid);
-	return (name);
-}
-
-/*
- * Return the core value for a process.
- */
-unsigned
-cval(pp1, pp2)
-	register PROC *pp1;
-	PROC *pp2;
-{
-	unsigned u;
-	register PROC *pp3, *pp4;
-
-	if (pp1->p_state == PSSLEEP) {
-		u = (cutime-pp1->p_lctim) * 1;
-		if (pp1->p_cval+u > pp1->p_cval)
-			return (pp1->p_cval+u);
-		return (-1);
-	}
-	u = 0;
-	pp3 = &cprocq;
-	while ((pp4=pp3->p_lforw) != (PROC *) aprocq) {
-		if (range((char *)pp4) == 0)
+		case 'c':	/* We will just ignore it */
 			break;
-		pp3 = map(pp4);
-		u -= pp3->p_cval;
-		if (pp2 == pp4)
-			return (u);
+		case 'd':
+			idFlag = 1;
+			break;
+		case 'f':
+			ifFlag = 1;
+			break;
+		case 'g':
+			igFlag = 1;
+			break;
+		case 'k':	/* We will just ignore it */
+			break;
+		case 'l':
+			ilFlag = 1;
+			break;
+		case 'm':
+			imFlag = 1;
+			break;
+		case 'n':
+			inFlag = 1;
+			break;
+		case 'r':
+			irFlag = 1;
+			break;
+		case 't':
+			itFlag = 1;
+			break;
+		case 'w':
+			iwFlag = 1;
+			break;
+		case 'x':
+			ixFlag = 1;
+			break;
+		default: 
+			usage(c);
 	}
-	if (pp1->p_pid == getpid())
-		return (pp1->p_cval);
-	return (0);
-} /* cval() */
+	if (ilFlag && igFlag)
+		igFlag = 1;
+	else
+		igFlag = 0;	
+} /* cvt_args() */
 
-/*
- * Return the size in K of the given process.
- */
-psize(pp)
-	register PROC *pp;
+void vPrintPs()
 {
-	long len;
-	register SEG *sp;
-	register int n;
+	register stMonitor	*pMonTmp;
 
-	len = 0;
-	for (n=0; n<NUSEG+1; n++) {
-		if (rflag == 0)
-			if (n==SIUSERP || n==SIAUXIL)
-				continue;
-		if ((sp=pp->p_segp[n]) == NULL)
-			continue;
-		if (range((char *)sp) == 0) {
- 			printf("   ?K");
-			return;
-		}
-		sp = map(sp);
-		len += sp->s_size;
-	}
-	if (len != 0)
-		printf("%4ldK", len/1024);
-	else {
-		if (fflag)
-			printf("    -");
-		else
-			printf("     ");
+	/* Read device directory only once */
+	ReadDevDir();	/* We may not return from ReadDevDir */
+
+	/* Print the header line */
+	vPrintHeader();
+
+	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1; 
+					pMonTmp >= pMonData; pMonTmp--) {
+		vPrintLine(pMonTmp);
 	}
 }
 
-/*
- * Get the state of the process.
- */
-state(pp1, pp2)
-	register PROC *pp1;
-	char *pp2;
+void vPrintHeader()
 {
-	register unsigned s;
+	/* If header suppressed */
+	if (inFlag)
+		return;
+	/* Now we can print */
+	printf("%-8s%5s", "TTY", "PID");
+	if (igFlag)
+		printf(" %5s", "GROUP");
+	if (ilFlag)
+		printf(" %5s%9s%5s%5s%2s%9s", 
+			"PPID", "UID", "K", "F", "S", "EVENT");
+	if (imFlag)
+		printf(" %8s %8s %8s %8s", "CVAL", "SVAL", "IVAL", "RVAL");
+	if (itFlag)
+		printf(" UTIME STIME");
+	printf("\n");
+}
 
-	s = pp1->p_state;
-	if (s == PSSLEEP) {
-		if (pp1->p_event == pp2)
-			return ('W');
-		if ((pp1->p_flags&PFSTOP) != 0)
-			return ('T');
-		return ('S');
+/*
+ * Print next line.
+ */
+void vPrintLine(pMonLine)
+stMonitor	*pMonLine;
+{
+	char		*cpFindTerminal();
+	char		*cpTty;
+
+	/* Check controling terminal */
+	if (major(pMonLine->p_ttdev) == 0) {
+		if (minor(pMonLine->p_ttdev) == 0)
+			cpTty = "null";
+	} else {
+		if (major(pMonLine->p_ttdev) == 0x0FF) {
+			if (minor(pMonLine->p_ttdev) == 255) {
+				cpTty = "-------";
+			}
+		} else {
+			if ((cpTty=cpFindTerminal(pMonLine->p_ttdev)) == NULL)
+				cpTty = "?";
+		}
 	}
-	if (s == PSRUN)
-		return ('R');
-	if (s == PSDEAD)
-		return ('Z');
-	return ('?');
+
+	/* Do we have to skip this line? */
+	if (!iaFlag && (dvtPs != pMonLine->p_ttdev)) {
+		if (!ixFlag || strcmp("-------", cpTty))
+			return;
+	} else
+		if (!ixFlag && !strcmp("-------", cpTty))
+			return;
+	printf("%-8s%5d", cpTty, pMonLine->p_pid);
+
+	if (igFlag)
+		printf(" %5d", pMonLine->p_rgid);
+
+	if (ilFlag) {
+		int	c;
+
+		printf("%6d%9s", pMonLine->p_ppid,
+		 		getpwuid(pMonLine->p_uid)->pw_name);
+		if (irFlag)
+			printf("%5d", pMonLine->rsize);
+		else 
+			printf("%5d", pMonLine->size);
+		printf("%5o", pMonLine->p_flags);
+		c = iState(pMonLine);
+		printf(" %c", c);
+		if (c == 'S') {
+			if (pMonLine->u_sleep[0] != '\0')
+				printf("%9s", pMonLine->u_sleep);
+			else
+				printf("%9x", pMonLine->p_event);
+		} else
+			if (ifFlag)
+				printf("        -");
+			else
+				printf("         ");
+
+	}
+
+	/* Scheduling fields */
+	if (imFlag) {
+		printf(" %8x %8x %8x %8x", pMonLine->p_cval,
+				pMonLine->p_sval,
+				pMonLine->p_ival,
+				pMonLine->p_rval);
+	}
+	if (itFlag) {
+		ptime(pMonLine->p_utime);
+		ptime(pMonLine->p_stime);
+	}
+				
+	printf("  %s\n", pMonLine->u_comm); 
 }
 
 /*
@@ -885,7 +284,7 @@ ptime(l)
 	register unsigned m;
 
 	if ((l=(l+HZ/2)/HZ) == 0) {
-		if (fflag)
+		if (ifFlag)
 			printf("     -");
 		else
 			printf("      ");
@@ -899,408 +298,134 @@ ptime(l)
 }
 
 /*
- * Print out the reason for a sleep.
+ * Find status of a proces. If sleep, reason why.
  */
-print_event(pp)
-	register PROC *pp;
+int iState(pMon)
+stMonitor	*pMon;
 {
-	/* Only print the u.u_sleep field if it is non-empty.  */
+	register unsigned	us;
 
-	if (	(u_init(pp->p_segp[SIUSERP], &u) != 0) &&
-		('\0' != u.u_sleep[0]) ) {
-			printf(" %10.10s", u.u_sleep );
-	} else {
-		/* Otherwise, print the address we are sleeping on.  */
-		printf(" 0x%08X", pp->p_event);
+	us = pMon->p_state;
+	if (us == PSSLEEP) {
+		if (pMon->rrun)
+			return 'S';
+		if ((pMon->p_flags & PFSTOP) != 0)
+			return 'T';
+		return 'W';
 	}
-
-	fflush(stdout);
-} /* print_event() */
-
-/*
- * Print out the command line of a process.
- */
-printl(pp, m)
-	register PROC *pp;
-{
-	register char *cp;
-	register int c;
-	register int argc;
-	register int n;
-	static SR *srp;
-
-	if (pp->p_state == PSDEAD) {
-		printf("<zombie>");
-		return;
-	}
-	if (pp->p_pid == 0) {
-		printf("<idle>");
-		return;
-	}
-
-	if (u_init(pp->p_segp[SIUSERP], &u) == 0) {
-		printf("<ghost>");
-		return;
-	}
-
-	printf(" %.10s", u.u_comm);
-	return;
-
-	/*
-	 * Handle kernel processes.
-	 */
-	if ( pp->p_flags & PFKERN ) {
-		printf("<%.*s>",sizeof(u.u_comm), u.u_comm[0] ? u.u_comm : "");
-		return;
-	}
-
-	if ((argc=u.u_argc) <= 0)
-		return;
-
-	srp = &u.u_segl[SISTACK];
-	printf("segread 2 in printl\n");
-	printf("u.u_argp: %x, srp->sr_base: %x\n",
-		u.u_argp, srp->sr_base);
-	printf("u.u_argc: %x srp->sr_size: %x\n", u.u_argc, srp->sr_size);
-
-	n = segread(&u.u_segl[SISTACK], u.u_argp, argp, 64);
-
-	if (n == 0) {
-		fprintf(stderr, "Bad segread()\n");	/* DEBUG */
-		return;
-	}
-
-	m -= 2;
-	cp = argp;
-
-	while (argc--) {
-		while ((c=*cp++) != '\0') {
-			if (!isascii(c) || !isprint(c)) {
-#if 0 /* Blocked out for test purposes.  */
-				return;
-#else
-				putchar('.');
-				continue;
-#endif /* 0 */
-			}
-			if (m-- == 0)
-				return;
-			putchar(c);
-		}
-		fflush(stdout);
-#if 0 /* Blocked out for test purposes.  */
-		if (m-- == 0)
-			return;
-#endif /* 0 */
-		if (argc != 0)
-			putchar(' ');
-	}
-}
-
-
-/*
- * Given a segment pointer `sp', read a u area into buffer `bp'.
- */
-u_init(sp, bp)
-	SEG *sp;
-	char *bp;
-{
-#ifdef UPROC_VERSION
-	/* Have we verrified the uproc version number?  */
-	static version_ok = FALSE;
-#endif /* UPROC_VERSION */
-
-	register SEG *sp1;
-	long offset;
-
-#if 0
-	printf("u_init(sp:%x, bp:%x)\n", sp, bp);
-	fflush(stdout);
-#endif /* 0 */
-
-	if (range((char *)sp) == 0) {
-		return (0);
-	}
-
-	sp1 = map(sp);
-
-	/*
-	 * Figure out how far into the U segment the U area is.
-	 * We do this by subtracting the starting address of the
-	 * U area segment from the address of u.
-	 */
-	offset = au - USEG_BASE;
-
-	/*
-	 * If the process is not swapped out, read directly from
-	 * main memory.  Otherwise, read from the swap device.
-	 */
-	if ((sp1->s_flags&SFCORE) != 0) {
-		if (0 == pt_mread( sp1->s_vmem, offset, bp, sizeof(UPROC) )) {
-			return (0);
-		}
-	} else if (
-	    dread((long)(sp1->s_daddr*BSIZE)+offset, bp, sizeof(UPROC)) < 0
-	){
-			return (0);
-	}
-
-#ifdef UPROC_VERSION
-	/*
-	 * Check the version number on this U area.
-	 * I.e. does this ps match this kernel?
-	 */
-	if ( ((UPROC *) bp)->u_version != UPROC_VERSION ) {
-		/*
-		 * Only print the warning if we have not yet seen
-		 * a valid version number, and then only once.
-		 *
-		 * If we have seen at least one valid version number,
-		 * it probably means that this process was dying.
-		 */
-		if (!version_ok) {
-			static int printed_once = FALSE;
-			if (!printed_once) {
-				fprintf( stderr,
-				"\nps WARNING: u area version is %x, not %x.\n",
-				((UPROC *) bp)->u_version, UPROC_VERSION );
-				printed_once = TRUE;
-			}
-		}
-		return (0);
-	}
-	version_ok = TRUE;	/* We've now seen one valid version number.  */
-#endif /* UPROC_VERSION */
 		
-	return (1);
+	if (pMon->p_state == PSRUN)
+		return 'R';
+	if (pMon->p_state == PSDEAD)
+		return 'Z';
+	return '?';
 }
 
-
 /*
- * Given an open segment pointer `sr' and an offset into the segment,
- * `s', read `n' bytes from the segment into the buffer `bp'.
+ * Find a device. Return device name or NULL if device was not found.
  */
-segread(sr, s, bp, n)
-	SR *sr;
-	vaddr_t s;
-	char *bp;
-	int n;
+char *cpFindTerminal(dev)
+dev_t	dev;
 {
-	register SEG *sp1;
-	vaddr_t offset;
+	register stDevices	*pstDev;
 
-#if 0
-	printf("segread(sr:%x, s:%x, bp:%x, n:%x)\n", sr, s, bp, n);
-	fflush(stdout);
-#endif /* 0 */
-
-	if (range((char *)sr->sr_segp) == 0) {
-		return (0);
-	}
-
-	sp1 = map(sr->sr_segp);
-
-	/* If segment grows up... */
-	if (0 == (SFDOWN & (sp1->s_flags)) ) {
-		/* then sr_base is the bottom of the segment, */
-		offset = s - sr->sr_base;
-	} else {
-		/* otherwise sr_base is the top of the segment.  */
-		offset = s - (sr->sr_base - sr->sr_size);
-	}
-
-	/*
-	 * If the process is not swapped out, read directly from
-	 * main memory.  Otherwise, read from the swap device.
-	 */
-	if ((sp1->s_flags&SFCORE) != 0) {
-		if (0 == pt_mread( sp1->s_vmem, offset, bp, n )) {
-			return (0);
+	/* Find a proper device */
+	for (pstDev = pstDevFirst; pstDev != NULL; pstDev = pstDev->next) {
+		if (dev == pstDev->dev) {
+			return pstDev->pDevName;
 		}
-	} else if (dread( (long)sp1->s_daddr*BSIZE + s, bp, n ) < 0 ) {
-			return( 0 );
 	}
-	return (1);
-} /* segread() */
-
-/*
- * Read `n' bytes into the buffer `bp' from kernel memory
- * starting at seek position `s'.
- */
-kread(s, bp, n)
-	long s;
-	char *bp;
-	int n;
-{
-	lseek(kfd, (long)s, 0);
-	if (read(kfd, bp, n) != n)
-		panic("Kernel memory read error");
+	/* Device not found */
+	return NULL;
 }
 
 /*
- * Read `n' bytes into the buffer `bp' from absolute memory
- * starting at seek position `s'.
+ * Read device directory and store data in memory. 
+ * This function will not return if it cannot open /dev or run
+ * out of memory.
  */
-mread(s, bp, n)
-	long s;
-	char *bp;
-	int n;
+void ReadDevDir()
 {
-	lseek(mfd, (long)s, 0);
-	if (read(mfd, bp, n) != n)
-		panic("Memory read error");
-}
-
-/*
- * Read `n' bytes into the buffer `bp' from the swap file
- * starting at seek position `s'.
- */
-dread(s, bp, n)
-	long s;
-	char *bp;
-	int n;
-{
-	/*
-	 * If swap device exists go look at it
-	 */
-	if( dfd > 0 ) {
-		lseek(dfd, (long)s, 0);
-
-		if (read(dfd, bp, n) != n)
-			panic("Swap read error");
-
-		return( 1 );
+	register DIR		*pDir;
+	register stDevices	*pstDevNext;
+	static stDevices	*pstDevPrev;
+	register struct dirent	*pDrnt;
+	struct stat		stStat;
+	char			pFileName[32];	/* File name buffer */
+	
+	if ((pDir = opendir( "/dev" )) == NULL) {
+		perror("ps");
+		exit(1);
 	}
 
-	return( 0 );
+	while ( (pDrnt = readdir( pDir )) != NULL ) {
+		sprintf(pFileName, "/dev/%.*s", DIRSIZ, pDrnt->d_name);
+		/* We may skip silent the file that we cannot stat.
+		 */
+		if (stat(pFileName, &stStat) < 0)
+			continue;
+		if ((stStat.st_mode & S_IFMT) != S_IFCHR)
+			continue;
+
+		if ((pstDevNext = malloc(sizeof(struct DEVICES))) == NULL) {
+			perror("ps");
+			exit(1);	
+		}
+		if (pstDevFirst == NULL) 
+			pstDevFirst = pstDevPrev = pstDevNext;
+		else
+			pstDevPrev->next = pstDevNext;
+			
+		pstDevNext->dev = stStat.st_rdev;
+		strncpy(pstDevNext->pDevName, pDrnt->d_name, DIRSIZ);
+		pstDevNext->next = NULL;
+		pstDevPrev = pstDevNext;
+        }
+	closedir(pDir);
 }
 
 /*
- * Print out an error message and exit.
+ * Get dev_t value for ps controlling terminal.
+ * Return 0 is a flag was set or controlling terminal was not found.
  */
-panic(a1)
-	char *a1;
+dev_t dvtGetTerminal()
 {
-	fflush(stdout);
-	sleep(2);
+	register stMonitor	*pMonTmp;
+	register int		iPid;	/* Our process id */
 
-	fprintf(stderr, "%r", &a1);
-	fprintf(stderr, "\n");
+	if (iaFlag)
+		return 0;
+	
+	iPid = getpid();
+	
+	/* Go through all data until ps id will be found */
+	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1; 
+					pMonTmp >= pMonData; pMonTmp--) 
+		if (pMonTmp->p_pid == iPid)
+			return pMonTmp->p_ttdev;
 
-	fflush(stderr);
+	return 0;
+}
+		
+usage()
+{
+	printf("usage: ps [-afglmnrtwx]\n");
 	exit(1);
 }
 
-/*
- * Functions to see if a pointer is in alloc space and to map a
- * pointer from alloc space to this process.
- */
-int
-range(p)
-	char *p;
+fakeMinus(argc, argv)
+int argc;
+char * argv[];
 {
-	return (p>=(char *)(callocp.sr_base) &&
-			 p<(char*)(callocp.sr_base + callocp.sr_size));
-} /* range() */
+	int argn;
+	char * malloc();
 
-/*
- * Read `n' bytes into the buffer `bp' from physical memory
- * starting at seek position `s', relative to the page table 'table'.
- *
- * 'table' is a fraction of a 386 page table.  The upper 20 bits of the
- * adjusted virtual address 's' form an index into the table.  The address
- * 's' must be adjusted so that it is relative to the start of the fractional
- * table 'table'.  'table' is fractional because COH386 does not store whole
- * page tables for non-running processes.
- *
- * The entries in the table are 32 bits long (called 'pte').  The lowest bit
- * is the present bit.  If this is 0 for ANY of the pages we are asked to
- * read, we return 0, indicating that we have read nothing.  The upper
- * 20 bits of this entry point in physical memory to a click.  The lower
- * 12 bits of the virtual address 's' are used as an index into this click
- * to find the desired data.
- *
- * All other bits in the page table entry are ignored by this routine.
- *
- * Returns 0 on failure, 1 on success.
- */
-
-int
-pt_mread(table, s, bp, n)
-	cseg_t *table;	/* Page table.  */
-	vaddr_t s;	/* Where to start reading.  */
-	char *bp;	/* Buffer to copy into.  */
-	int n;		/* Number of bytes to read.  */
-{
-	int to_read;		/* Number of bytes to read next.  */
-	vaddr_t page_offset;	/* How far into page to start reading.  */
-	cseg_t pt_entry;	/* Current entry from Page Table.  */
-
-
-#if 0
-	printf("pt_mread(table: %x, s: %x, bp: %x, n: %x)\n", table, s, bp, n);
-	fflush(stdout);
-	sleep(1);
-#endif /* 0 */
-
-	pt_entry = pt_index(table, s>>BPCSHIFT);
-
-	if (!Pflag && !PT_PRESENT(pt_entry)) {
-#if 0	/* If the page is not present, the proess probably died already.  */
-		static printed_once = FALSE;
-		if (!printed_once) {
-			printf("\npage not present: %x\n", pt_entry);
-			printed_once = TRUE;
+	for (argn = 1; argn < argc; argn++) {
+		if (argv[argn][0] && argv[argn][0] != '-') {
+			char * temp = malloc(strlen(argv[argn])+2);
+			temp[0] = '-';
+			strcpy(temp+1, argv[argn]);
+			argv[argn] = temp;
 		}
-#endif /* 0 */
-		return(0);
 	}
-	pt_entry &= PT_CLICK_ADDR;	/* Extract Address of click.  */
-	page_offset = s & CLICK_OFFSET;	/* Extract offset into click.  */
-	to_read = LESSER(n, ONE_CLICK - page_offset); /* How far to end of click?  */
-	
-	while (n > 0) {
-
-#if 0
-		printf("pt_mread(): mread(from: %x, to: %x, for: %x))\n",
-		       pt_entry+page_offset, bp, to_read);
-		fflush(stdout);
-		sleep(1);
-#endif /* 0 */
-
-		mread(pt_entry+page_offset, bp, to_read);
-
-		n -= to_read;	/* How many left?  */
-		s += to_read;	/* From where?  */
-		bp += to_read;	/* To where?  */
-
-		pt_entry = pt_index(table, s>>BPCSHIFT);
-		if (!Pflag && !PT_PRESENT(pt_entry)) {
-			printf("partition not present: %x.\n", pt_entry);
-			return(0);
-		}
-		pt_entry &= PT_CLICK_ADDR;	/* Extract Address of click.  */
-		page_offset = s & CLICK_OFFSET;	/* Extract offset into click. */
-		to_read = LESSER(n, ONE_CLICK);
-	} /* while (n > 0) */
-
-	return(1);
-} /* pt_mread() */
-
-cseg_t
-pt_index(table, index)
-	cseg_t *table;
-	vaddr_t index;
-{
-	cseg_t pte;	/* The page table entry we are looking for.  */
-
-#if 0
-	printf("pt_index(0x%x, 0x%x)\n", table, index);
-	fflush(stdout);
-	sleep(1);
-#endif /* 0 */
-
-	kread(table+index, &pte, sizeof(cseg_t));
-
-	return(pte);
-} /* pt_index() */
+}
