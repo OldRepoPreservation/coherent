@@ -1,9 +1,21 @@
 /*
- * Coherent.
+ * File:	main.c
+ *
+ * Purpose:	part of COHERENT kernel
+ *
+ *	The information contained herein is a trade secret of Mark Williams
+ *	Company, and  is confidential information.  It is provided  under a
+ *	license agreement,  and may be  copied or disclosed  only under the
+ *	terms of  that agreement.  Any  reproduction or disclosure  of this
+ *	material without the express written authorization of Mark Williams
+ *	Company or persuant to the license agreement is unlawful.
  *
  * $Log:	main.c,v $
- * Revision 1.2  91/11/11  12:27:07  hal
- * Add atcount & global n_atdr.
+ * Revision 1.4  92/01/21  16:08:34  hal
+ * Merged with 386 main.c.  Call read_cmos().
+ * 
+ * Revision 1.3  92/01/15  10:16:02  hal
+ * Trivial banner change.
  * 
  * Revision 1.2	88/06/29  12:00:29 	src
  * Real/Protected mode status now printed during boot sequence.
@@ -18,6 +30,10 @@
  * 87/01/05	Allan Cornish		/usr/src/sys/coh/main.c
  * Copyright notice revised to include 1987.
  */
+
+/*
+ * Includes.
+ */
 #include <sys/coherent.h>
 #include <sys/devices.h>
 #include <sys/fdisk.h>
@@ -27,50 +43,104 @@
 #include <sys/typed.h>
 #include <sys/uproc.h>
 
+/*
+ * Definitions.
+ *	Constants.
+ *	Macros with argument lists.
+ *	Typedefs.
+ *	Enums.
+ */
 #ifndef VERSION		/* This should be specified at compile time */
 #define VERSION	"..."
 #endif
-
-unsigned long	_entry = 0;		/* really the serial number */
-unsigned long	__ = 0;			/* really the serial number also */
+typedef unsigned char uchar;
+typedef unsigned int  uint;
+typedef unsigned long ulong;
 
 /*
- * Initialise various things.  When we return we will return to user mode.
+ * Functions.
+ *	Import Functions.
+ *	Export Functions.
+ *	Local Functions.
  */
-char version[] = VERSION;
-char copyright[] = "\
-Copyright (c) 1982, 1991 by Mark Williams Company\n\
-";
+int read_cmos();
 
-#define	CMOSA	0x70		/* write cmos address to this port */
-#define	CMOSD	0x71		/* read cmos data through this port */
+static void atcount();
+static void rpdev();
 
+/*
+ * Global Data.
+ *	Import Variables.
+ *	Export Variables.
+ *	Local Variables.
+ */
 extern dev_t rootdev;
 extern dev_t pipedev;
 extern int ronflag;
 
 short n_atdr;
+char version[] = VERSION;
+#ifdef _I386
+char copyright[] = "\
+Copyright 1982,1992 Mark Williams Company\n\
+Copyright 1991 Inst. O'Donnell, Bievres, France\n";
+#else
+char copyright[] = "\
+Copyright 1982,1992 Mark Williams Company\n";
+#endif
 
-static void atcount();
-static void rpdev();
+#ifdef _I386
+unsigned serialnum0 = 0;
+unsigned serialnum1 = 0;
+static long sntime  = 870409113L;
+static long snm	    = 0;
+static long snmcopy = 0;
+#else
+unsigned long	_entry = 0;		/* really the serial number */
+unsigned long	__ = 0;			/* really the serial number also */
+#endif
 
 main()
 {
 	register SEG *sp;
-	extern int realmode;	/* real addressing mode - as2.s */
+#ifndef _I386
+	extern int realmode;
+#endif
 
 	u.u_error = 0;
 	bufinit();
 	cltinit();
 	pcsinit();
 	seginit();
-	atcount();	/* count "at" drives; put into n_atdr */
-	rpdev();	/* set rootdev and pipedev if not already patched */
+	atcount();
+	rpdev();
 	devinit();
+#ifdef _I386
+	printf("\nCOHERENT Version %s - 386 Mode (mem=%u Kbytes)\n",
+		version, ctob(allocno())/1024);
+#else
 	printf("\Mark Williams COHERENT Version %s - %s Mode (mem=%u Kbytes)\n",
 		version, (realmode ? "Real" : "Protected"), msize );
+#endif
 	printf(copyright);
 
+#ifdef _I386
+	if ( snm ) {
+		printf("Serial Number %u", (unsigned) snm );
+		if ( serialnum0 ) {
+			printf(":%u", (unsigned) serialnum0 );
+			if ( serialnum1 )
+				printf(":%u", (unsigned) serialnum1 );
+		}
+		printf("\n");
+	}
+
+	/*
+	 * Verify correct serial number
+	 */
+	if (snm != snmcopy)
+		panic("Verification error - call Mark Williams Company at 1-800-MWC-1700\n");
+#else
 	if ( _entry ) {
 		printf("Serial Number ");
 		printf("%U\n", _entry);
@@ -81,18 +151,30 @@ main()
 	 */
 	if (_entry != __)
 		panic("Verification error - call Mark Williams Company at 1-800-MARK-WMS\n");
+#endif
 
 	/*
-	 * Turn on clock, start off processes, mount root device
+	 * Turn on clock, mount root device, start off processes
 	 * and return.
 	 */
 	batflag = 1;
+#ifdef _I386
+	iprocp = SELF;
+	if (pfork()) {
+		idle();
+	} else {
+		fsminit();
+		eprocp = SELF;
+		eveinit();
+	}
+#else
 	if ((sp=salloc((fsize_t)UPASIZE, SFNCLR|SFNSWP)) == NULL)
 		panic("Cannot allocate user area");
 	if ((iprocp=process(idle))==NULL || (eprocp=process(NULL))==NULL)
 		panic("Cannot create process");
 	eveinit(sp);
 	fsminit();
+#endif
 }
 
 /*
@@ -111,9 +193,7 @@ static void atcount()
 	 *	High nibble of CMOS 0x12 is drive 0's type.
 	 *	Low  nibble of CMOS 0x12 is drive 1's type.
 	 */
-	outb(CMOSA, 0x12);
-	/* delay */
-	u = inb(CMOSD);
+	u = read_cmos(0x12);
 	if (u & 0x00F0)
 		n_atdr++;
 	if (u & 0x000F)
