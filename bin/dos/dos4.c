@@ -1,3 +1,4 @@
+/*#define DEBUG 1 */
 /* dos4.c */
 
 #include "dos0.h"
@@ -196,7 +197,7 @@ replacedir(name) char *name;
 	while(read(fd,dirbuf, sizeof(struct direct))==sizeof(struct direct)) {
 		if (dirp->d_ino == 0
 		 || strcmp(dirp->d_name, ".") == 0
-		 || strcmp(dirp->d_name, "..") == 0) 
+		 || strcmp(dirp->d_name, "..") == 0)
 			continue;
 		strncpy(cp, dirp->d_name, DIRSIZ);
 		cp[strlen(dirp->d_name)] = '\0';
@@ -282,7 +283,7 @@ replacefile(file) char *file;
 }
 
 /*
- * Make a full path from base and name 
+ * Make a full path from base and name
  */
 char * makef(name, cr) char * name; short cr;
 {
@@ -291,7 +292,7 @@ char * makef(name, cr) char * name; short cr;
 	struct stat s;
 	short done = 0, rs;
 	register MDIR *mdp;
-	short srcd, destd, deste; 
+	short srcd, destd, deste;
 
 	if (base1) {
 		strcpy(t, base1);
@@ -356,7 +357,7 @@ char *fequiv(name) char *name;
 	if (!base)		/* No base at all means a full disk copy */
 		return name;
 				/* No path means return the whole name */
-	if (strchr(name, '/') == NULL) 
+	if (strchr(name, '/') == NULL)
 		return name;
 
 	if (!strcmp(base, name))  /* No wc or subdir means return the fname */
@@ -389,7 +390,7 @@ maketree(name) char *name;
 			}
 		*h = '/';
 		h = strchr(h+1, '/');		
-	} 
+	}
 }
 				
 
@@ -445,7 +446,7 @@ table(nargs, args) short nargs; char *args[];
 		else {
 			npap = (temp = strrchr(*ap, '/')) ? temp+1 : *ap;
 			do {
-				if((strcmp(npap,cohn(mdp->m_name)) == 0) 
+				if((strcmp(npap,cohn(mdp->m_name)) == 0)
 							    && isdir(mdp))
 
 					tabledir(dp, cohn(mdp->m_name));
@@ -501,8 +502,8 @@ tablefile(mdp, name) register MDIR *mdp; char *name;
 		putchar((attr & MSUBDIR) ? 'd' : '-');
 
 		printf("  %02d/%02d/%02d %02d:%02d %9ld  ",
-			m_month(mdp), m_day(mdp), m_year(mdp)+80, 
-			m_hour(mdp),  m_min(mdp), (isdir(mdp)) ? 
+			m_month(mdp), m_day(mdp), m_year(mdp)+80,
+			m_hour(mdp),  m_min(mdp), (isdir(mdp)) ?
 			   (long)dirclusters(mdp)*clsize*ssize : mdp->m_size);
 	}
 
@@ -543,7 +544,7 @@ writedir(dp) register DIR *dp;
 	if (dp->d_sibling != NULL)
 		writedir(dp->d_sibling);
 	mdp = dp->d_dir;
-	dbprintf(("writedir(%s) flag=%u cl=%x blocks=%u mdp=%x\n", 
+	dbprintf(("writedir(%s) flag=%u cl=%x blocks=%u mdp=%x\n",
 	      dp->d_dname, dp->d_dirflag, dp->d_cluster, dp->d_dirblocks, mdp));
 
 	if (dp->d_dirflag == 0)

@@ -38,7 +38,7 @@
 "	[1-9]	Specify desired drive on extended MS-DOS partition\n"\
 "The default device is /dev/dos.\n\n"\
 "See also doscat, doscp, doscpdir, dosdel, dosdir, dosformat, doslabel,\n"\
-"         dosls, dosmkdir, dosrm, dosrmdir.\n"
+"         dosls, dosmkdir, dosrm, dosrmdir.\n\n"
 
 #define	USAGE	\
 "Usage: Copy:        doscp [-abkmrv] src dest\n"\
@@ -55,7 +55,7 @@
 "	k	Keep mtime on copies		(default: current time)\n"\
 "	n	Newest files first in list	(default: alphabetized)\n"\
 "	v	Verbose\n\n"\
-"       See also /etc/default/msdos\n"
+"       See also /etc/default/msdos\n\n"
 /*
 "       The src and dest arguments have the format \"[device:]name\" where\n"\
 "       device is a COHERENT pathname for the special device file, and name\n"\
