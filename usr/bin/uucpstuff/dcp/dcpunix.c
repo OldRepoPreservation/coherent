@@ -42,7 +42,7 @@ int num, timeout;
 	ret = read(sreadfd, data, num);
 	CLRALRM();
 
-	if ( stripflg )
+	if ( (ret > 0) && stripflg )
 		for (ptr=data; ptr<data+ret; ptr++)
 			*ptr &= 0x7F;
 #if 0
