@@ -1,10 +1,10 @@
 /* (-lgl
- * 	COHERENT Version 4.1.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 /*
- * /usr/include/math.h
  * Definitions for math library.
  * ANSI C Standard, section 4.5.
  */
@@ -15,7 +15,7 @@
 #include <common/feature.h>
 #include <common/ccompat.h>
 
-#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+#if	! _STDC_SOURCE && ! _POSIX_C_SOURCE
 
 #if	__DECVAX__
 #define L2HUGE_VAL	127.0		/* log2(infinity)	*/
@@ -67,8 +67,8 @@ double		cosh		__PROTO ((double _x));
 double		sinh		__PROTO ((double _x));
 double		tanh		__PROTO ((double _x));
 double		exp		__PROTO ((double _x));
-double		frexp		__PROTO ((double _x));
-double		ldexp		__PROTO ((double _x));
+double		frexp		__PROTO ((double _x, int * _iptr));
+double		ldexp		__PROTO ((double _x, int _i));
 double		log		__PROTO ((double _x));
 double		log10		__PROTO ((double _x));
 double		modf		__PROTO ((double _value, double * _iptr));
@@ -79,7 +79,7 @@ double		fabs		__PROTO ((double _x));
 double		floor		__PROTO ((double _x));
 double		fmod		__PROTO ((double _x, double _y));
 
-#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+#if	! _STDC_SOURCE && ! _POSIX_C_SOURCE
 
 /* Math library functions in /lib/libm.a. */
 double		cabs		__PROTO ((struct cpx _z));
@@ -88,7 +88,7 @@ double		j0		__PROTO ((double _x));
 double		j1		__PROTO ((double _x));
 double		jn		__PROTO ((int _n, double _x));
 
-#endif	/* ! _STDC_SOURCE && ! _POSIX_SOURCE */
+#endif	/* ! _STDC_SOURCE && ! _POSIX_C_SOURCE */
 
 __EXTERN_C_END__
 
