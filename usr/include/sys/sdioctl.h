@@ -1,8 +1,10 @@
-/* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
+/*
+ * /usr/include/sys/sdioctl.h
+ *
+ * ioctl constants for SCSI devices.
+ *
+ * Revised: Mon Jun 21 05:52:59 1993 CDT
+ */
 
 #ifndef __SYS_SDIOCTL_H__
 #define __SYS_SDIOCTL_H__
@@ -12,5 +14,10 @@
 #define	SCSI_CMD	(SDIOC|1)
 #define	SCSI_CMD_IN	(SDIOC|2)
 #define	SCSI_CMD_OUT	(SDIOC|3)
+
+/*
+ * Temporary additions for haiscsi from C. Hilton
+ */
+#define SDGTINQ     (SDIOC | 0)     /* Get inquiry info */
 
 #endif

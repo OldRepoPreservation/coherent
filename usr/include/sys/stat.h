@@ -5,86 +5,137 @@
  -lgl) */
 /*
  * /usr/include/sys/stat.h
- * Stat.
+ * Revised Sun Jun 20 1993 for POSIX.1, prototypes	-- NB
  */
 
 #ifndef	__SYS_STAT_H__
 #define	__SYS_STAT_H__
 
+#include <common/ccompat.h>
+
+#if	_POSIX_SOURCE || _DDI_DKI
+
+#include <common/__time.h>
+#include <common/__off.h>
+#include <common/_fsize.h>
+#include <common/_uid.h>
+
+#else
+
+#include <common/_time.h>
 #include <sys/types.h>
 
+#endif
+
+#include <common/_imode.h>
+
 /*
- * Structure returned by stat and fstat system calls.
+ * Structure returned by stat () and fstat () system calls.
  */
+
 struct stat {
-	dev_t	 st_dev;		/* Device	*/
-	ino_t	 st_ino;		/* Inode number	*/
-	unsigned short st_mode;		/* Mode		*/
-	short	 st_nlink;		/* Link count	*/
-	short	 st_uid;		/* User id	*/
-	short	 st_gid;		/* Group id	*/
-	dev_t	 st_rdev;		/* Real device	*/
-	fsize_t	 st_size;		/* Size		*/
-	time_t	 st_atime;		/* Access time	*/
-	time_t	 st_mtime;		/* Modify time	*/
-	time_t	 st_ctime;		/* Change time	*/
+	__dev_t		st_dev;		/* Device	*/
+	__ino_t		st_ino;		/* Inode number	*/
+	__mode_t	st_mode;	/* Mode		*/
+	__nlink_t	st_nlink;	/* Link count	*/
+	__uid_t		st_uid;		/* User id	*/
+	__gid_t		st_gid;		/* Group id	*/
+	__dev_t	 	__NON_POSIX (st_rdev);
+					/* Real device	*/
+	__off_t		st_size;	/* Size		*/
+	__time_t	st_atime;	/* Access time	*/
+	__time_t	st_mtime;	/* Modify time	*/
+	__time_t	st_ctime;	/* Change time	*/
 };
 
 /*
- * Modes.
+ * Mode macros. Note that the following definitions are required to be
+ * macros, but are /not/ constrained to be integral constant expressions
+ * suitable for use in #if-expressions.
  */
-#define	S_IFMT		0xF000		/* Type				*/
-#define	S_IFDIR		0x4000		/* Directory			*/
-#define	S_IFCHR		0x2000		/* Character special		*/
-#define	S_IFPIP		0x1000		/* Pipe				*/
-#define	S_IFIFO		S_IFPIP		/* Pipe				*/
-#define	S_IFBLK		0x6000		/* Block special		*/
-#define	S_IFREG		0x8000		/* Regular			*/
+
+#define	S_IFMT		__IFMT		/* Type				*/
+#define	S_IFDIR		__IFDIR		/* Directory			*/
+#define	S_IFCHR		__IFCHR		/* Character special		*/
+#define	S_IFPIP		__IFPIP		/* Pipe				*/
+#define	S_IFIFO		__IFFIFO	/* Pipe				*/
+#define	S_IFBLK		__IFBLK		/* Block special		*/
+#define	S_IFREG		__IFREG		/* Regular			*/
+
 #define	S_IFSOCK	0xC000		/* Socket -- UNIMPLEMENTED	*/
 #define	S_IFMPC		0x3000		/* Multiplexed character special */
 #define	S_IFMPB		0x7000		/* Multiplexed block special	*/
 
-#define	S_ISUID		0x0800		/* Set user id on execution	*/
-#define	S_ISGID		0x0400		/* Set group id on execution	*/
-#define	S_ISVTX		0x0200		/* Save swapped text even after use */
+#define	S_ISUID		__ISUID		/* Set user id on execution	*/
+#define	S_ISGID		__ISGID		/* Set group id on execution	*/
+#define	S_ISVTX		__ISVTX		/* Save swapped text even after use */
 
-#define	S_IREAD		0400		/* Read permission, owner	*/
-#define	S_IWRITE	0200		/* Write permission, owner	*/
-#define	S_IEXEC		0100		/* Execute/search permission, owner */
-#define	S_IRWXU		0700		/* RWX permission, owner	*/
-#define	S_IRUSR		S_IREAD		/* Read permission, owner	*/
-#define	S_IWUSR		S_IWRITE	/* Write permission, owner	*/
-#define	S_IXUSR		S_IEXEC		/* Execute/search permission, owner */
-#define	S_IRWXG		0070		/* RWX permission, group	*/
-#define	S_IRGRP		0040		/* Read permission, group	*/
-#define	S_IWGRP		0020		/* Write permission, group	*/
-#define	S_IXGRP		0010		/* Execute/search permission, group */
-#define	S_IRWXO		0007		/* RWX permission, other	*/
-#define	S_IROTH		0004		/* Read permission, other	*/
-#define	S_IWOTH		0002		/* Write permission, other	*/
-#define	S_IXOTH		0001		/* Execute/search permission, other */
+#define	S_IREAD		__IREAD		/* Read permission, owner	*/
+#define	S_IWRITE	__IWRITE	/* Write permission, owner	*/
+#define	S_IEXEC		__IEXEC		/* Execute/search permission, owner */
+#define	S_IRWXU		__IRWXU		/* RWX permission, owner	*/
+#define	S_IRUSR		__IRUSR		/* Read permission, owner	*/
+#define	S_IWUSR		__IWUSR		/* Write permission, owner	*/
+#define	S_IXUSR		__IXUSR		/* Execute/search permission, owner */
+#define	S_IRWXG		__IRWXG		/* RWX permission, group	*/
+#define	S_IRGRP		__IRGRP		/* Read permission, group	*/
+#define	S_IWGRP		__IWGRP		/* Write permission, group	*/
+#define	S_IXGRP		__IXGRP		/* Execute/search permission, group */
+#define	S_IRWXO		__IRWXO		/* RWX permission, other	*/
+#define	S_IROTH		__IROTH		/* Read permission, other	*/
+#define	S_IWOTH		__IWOTH		/* Write permission, other	*/
+#define	S_IXOTH		__IXOTH		/* Execute/search permission, other */
 
 /* Mode test macros. */
-#define	S_ISFIFO(mode)	(((mode)&S_IFMT) == S_IFIFO)
-#define	S_ISCHR(mode)	(((mode)&S_IFMT) == S_IFCHR)
-#define	S_ISDIR(mode)	(((mode)&S_IFMT) == S_IFDIR)
-#define	S_ISBLK(mode)	(((mode)&S_IFMT) == S_IFBLK)
-#define	S_ISREG(mode)	(((mode)&S_IFMT) == S_IFREG)
-#define	S_ISSOCK(mode)	(((mode)&S_IFMT) == S_IFSOCK)
+
+#define	S_ISFIFO(mode)	(((mode) & S_IFMT) == S_IFIFO)
+#define	S_ISCHR(mode)	(((mode) & S_IFMT) == S_IFCHR)
+#define	S_ISDIR(mode)	(((mode) & S_IFMT) == S_IFDIR)
+#define	S_ISBLK(mode)	(((mode) & S_IFMT) == S_IFBLK)
+#define	S_ISREG(mode)	(((mode) & S_IFMT) == S_IFREG)
+#define	S_ISSOCK(mode)	(((mode) & S_IFMT) == S_IFSOCK)
+
+__EXTERN_C_BEGIN__
+
+int		chmod		__PROTO ((__CONST__ char * _path,
+					  __mode_t _mode));
+int		mkdir		__PROTO ((__CONST__ char * _path,
+					  __mode_t _mode));
+int		fstat		__PROTO ((int _fildes, struct stat * _buf));
+int		stat		__PROTO ((__CONST__ char * _path,
+					  struct stat * _buf));
+__mode_t	umask		__PROTO ((__mode_t _mask));
+
+#if 0		/* not supported */
+int		mkfifo		__PROTO ((__CONST__ char * _path,
+					  __mode_t _mode));
+#endif
+
+__EXTERN_C_END__
+
+
+#if	! _DDI_DKI
 
 /*
  * Nonexistent device.
- * Must compare correctly with dev_t, which is an unsigned short.
+ * Must compare correctly with dev_t, which is an unsigned short in the old
+ * Coherent device-driver system.
  */
-#define NODEV	((dev_t)-1)
+
+#ifndef	NODEV
+# define NODEV		((__dev_t) -1)
+#endif
+
 
 /*
  * Functions.
  */
-#define	major(dev)	((dev>>8) & 0xFF)
-#define minor(dev)	(dev & 0xFF)
-#define makedev(m1, m2)	((m1<<8)|m2)
+#define	major(dev)	(((dev) >> 8) & 0xFF)
+#define minor(dev)	((dev) & 0xFF)
+#define makedev(m1, m2)	((__dev_t) (((m1) << 8) | (m2)))
 
-#endif
+#endif	/* ! _DDI_DKI */
+
+#endif	/* ! defined (__SYS_STAT_H__) */
 
 /* end of sys/stat.h */
