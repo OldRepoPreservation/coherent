@@ -1,5 +1,8 @@
 #
-#	makefile for Coherent (TM) 386 - overall system build
+#	makefile for Coherent 386 - overall system build
+#
+#	Do not use this makefile directly!  Use a build script.
+#	(Unless you know what you are doing.)
 #
 
 AR=exec /bin/ar
@@ -98,6 +101,9 @@ OPTS =\
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/vtmm.o \
 	$(K386OBJ)/vtmmas.o \
+	$(K386OBJ)/vtkb.o \
+	$(K386OBJ)/vtkb_d.o \
+	$(K386OBJ)/vtkb_f.o \
 	$(K386OBJ)/vtnkb.o 
 
 # LIBLIST is the .a files needed for 386 installation
@@ -166,33 +172,23 @@ $(K386LIB)/kl386.a: \
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
 
-at386: ktest $(I386OBJ) coh io memcpy.o $(OPTS) 
-	ld -K -o at386 -e stext $(I386OBJ) $(COHOBJ) \
-	$(IOOBJ) $(K386OBJ)/tty.o $(K386OBJ)/nkb.o memcpy.o
-
-stuff: ktest $(I386OBJ) coh io memcpy.o $(OPTS) ker386.files
-	@echo "kernel binaries up to date"
-
-ker386.files:	Makefile ../coh.386/Makefile ../io.386/Makefile
-	@echo $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o > $@
-
 $(K386LIB)/ker386.o: $(I386OBJ) coh io memcpy.o memset.o
 	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o memset.o
 
-ktest:
-	@./check
-
 coh:
-	cd ../coh.386; make "CFLAGS=$(CFLAGS)"
+	cd ../coh.386; make "CFLAGS=$(CFLAGS)" "CC=$(CC)"
 
 io:
-	cd ../io.386; make "CFLAGS=$(CFLAGS)"
+	cd ../io.386; make "CFLAGS=$(CFLAGS)" "CC=$(CC)"
 
 ver:
 	newversion < version
 
 libs:	$(LIBLIST)
 	@/bin/echo "Installation libraries up to date."
+
+$(K386OBJ)/memset.o: memset.s
+	$(AS) -g -o $@ memset.s
 
 $(K386OBJ)/as.o: as.s as.inc
 	$(AS) -g -o $@ as.s

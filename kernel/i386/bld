@@ -2,7 +2,28 @@
 #
 # requires a running 386 kernel
 #
-CFLAGS="-DTRACER -VPSTR"
+
+# make sure the environment is set for kernel objects
+if [ $K386OBJ ]
+then
+	:
+else
+	echo "Error - K386OBJ environment variable not set!"
+	exit 1
+fi
+
+# make sure the environment is set for kernel libraries
+if [ $K386LIB ]
+then
+	:
+else
+	echo "Error - K386LIB environment variable not set!"
+	exit 1
+fi
+
+CFLAGS=${CFLAGS-"-DTRACER -VPSTR"}
+CC=${CC-"exec /bin/cc"}
+
 OPTS="${K386OBJ}/tty.o ${K386OBJ}/pipe.o ${K386OBJ}/putchar.o"
 OPTS=${OPTS}" ${K386OBJ}/rm.o ${K386OBJ}/fl.o"
 DEFAULT_KB=y
@@ -15,7 +36,7 @@ USE_LP=y
 USE_PTY=y
 USE_ASYNC=y
 PATCH=
-KEROBJ=ker386.o
+KEROBJ=${K386LIB}/ker386.o
 TARGET=/at386.test
 ASYNC=/etc/default/async
 
@@ -78,11 +99,6 @@ PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 		OPTS=${OPTS}" ${K386OBJ}/$ARG.o"
 		DEFAULT_KB=n
 		;;
-	# option "ld" will link .o's without checking for needed recompiles
-	# - useful when comparing files generated with different headers
-	ld)
-		KEROBJ=kld386.o
-		;;
 	ss)
 		OPTS=${OPTS}" ${K386OBJ}/$ARG.o"
 		PATCH="${PATCH} drvl+260=sscon"
@@ -94,6 +110,21 @@ PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 		DEFAULT_KB=n
 		DEFAULT_MM=n
 OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtnkb.o"
+		;;
+	vtkb)
+		DEFAULT_KB=n
+		DEFAULT_MM=n
+OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb.o"
+		;;
+	vtkb_d)
+		DEFAULT_KB=n
+		DEFAULT_MM=n
+OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb_d.o"
+		;;
+	vtkb_f)
+		DEFAULT_KB=n
+		DEFAULT_MM=n
+OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb_f.o"
 		;;
 	-a)
 		shift
@@ -112,7 +143,8 @@ OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtnkb.o"
 		;;
 	*)
 echo "Usage:  $0"
-echo "  {aha|al|asy|at|fha|fva|hs|inst|kb|kb_d|kb_f|ld|nkb|ss|ticom|vt}"
+echo "  {aha|al|asy|at|fha|fva|hs|inst|kb|kb_d|kb_f|nkb"
+echo "    |ss|ticom|vt|vtkb|vtkb_d|vtkb_f}"
 echo "  {-o target} {-a async_file} {-c cflags} {addr=value}..."
 		exit 1
 		;;
@@ -163,7 +195,7 @@ if [ ${DEFAULT_MM} = "y" ]
 then
 	OPTS=${OPTS}" ${K386OBJ}/mmas.o ${K386OBJ}/mm.o"
 fi
-make "CFLAGS=$CFLAGS" ${KEROBJ} 	|| exit 1
+make "CFLAGS=$CFLAGS" "CC=$CC" ${KEROBJ} 	|| exit 1
 set -x
 
 #if [ -f $TARGET ]

@@ -1,5 +1,13 @@
 	.llen	132
 	.include	as.inc
+
+MMUUPD	.macro
+/	push	%edx
+/	pushfl
+/	pop	%edx
+	mov	%eax,%cr3
+/	pop	%edx
+	.endm
 /
 / USTART and ESP_START map kernel stack and u area within top 4k page
 / of virtual space.
@@ -138,6 +146,8 @@ loc0:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 
 	movb	$0xD1, %al 	/ Request next output byte to be
 	outb	$KBCTRL		/	sent to the 8042 output port.
+	jmp	.+2		/ DELAY
+	jmp	.+2		/ DELAY
 
 	sub	%ecx, %ecx
 loc1:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
@@ -147,6 +157,8 @@ loc1:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 
 	movb	$0xDF,%al	/ Enable A20 address line.
 	outb	$KBDATA		/ See Page 1-44, IBM-AT Tech Ref.
+	jmp	.+2		/ DELAY
+	jmp	.+2		/ DELAY
 
 	sub	%ecx, %ecx
 loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
@@ -341,6 +353,11 @@ tsave1b:
 / Here is another version of tsave, called only from the GP vector (RING 0)
 /
 
+BYPASS	.macro	addr
+	cmpl	$addr,X_ERR+4(%esp)	/ trapped EIP
+	jz	tsave0b
+	.endm
+	
 tsave0:					/ What level of interrupt ? 
 	pusha
 	push	%ds			/ Save current state
@@ -356,7 +373,16 @@ tsave0:					/ What level of interrupt ?
 	jmp	tsave0b
 
  //The following lines help find traps during startup.
-
+	BYPASS	mmuu0
+	BYPASS	mmuu1
+	BYPASS	mmuu2
+	BYPASS	mmuu3
+	BYPASS	mmuu4
+	BYPASS	mmuu5
+	BYPASS	read_cr0
+	BYPASS	read_cr2
+	BYPASS	read_cr3
+tsave0q:
  	mov	52(%esp),%eax		/ Print fault code.
  	cmpb	$0x40,%al
  	je	tsave0b			/ Skip over hardware interrupts.
@@ -489,7 +515,8 @@ conrest:
 	orb	$SEG_SRW,%al
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+UADDR
 	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
-	mov	%eax,%cr3
+mmuu0:
+	MMUUPD
 
 	/ Restore context
 
@@ -666,7 +693,8 @@ atsend:
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK1
 
 	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
-	mov	%eax,%cr3
+mmuu1:
+	MMUUPD
 
 / Now that page boundaries are set, work on the offsets.
 
@@ -684,7 +712,8 @@ atsend:
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-	mov	%eax,%cr3		/ mmuupd()
+mmuu2:
+	MMUUPD		/ mmuupd()
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
@@ -713,7 +742,8 @@ atrecv:
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK1
 
 	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
-	mov	%eax,%cr3
+mmuu3:
+	MMUUPD
 
 	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
 	and	$NBPC-1,%esi
@@ -729,7 +759,8 @@ atrecv:
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-	mov	%eax,%cr3		/ mmuupd()
+mmuu4:
+	MMUUPD		/ mmuupd()
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
@@ -747,10 +778,10 @@ vret:	ret
 
 mmuupd:
 	mov	$PTABLE0_P<<BPCSHIFT,%eax
-	mov	%eax,%cr3
+mmuu5:
+	MMUUPD
 	jmp	.+2		/ DELAY
 	jmp	.+2		/ DELAY
-/	mov	%cr2,%eax
 	ret
 ///////
 
@@ -1392,10 +1423,10 @@ trap12:
 
 trap13:
 /	pop	%ss:trapcode		/ Get error code from stack
-	add	$4,%esp
-	push	$0x0D			/ General protection
+/	add	$4,%esp
+/	push	$0x0D			/ General protection
 	call	tsave0
-	jmp	trap
+	jmp	gpfault
 
 trap14:
 /	pop	%ss:trapcode		/ Get error code from stack
@@ -2106,6 +2137,62 @@ read_cr3:
 	movl	%cr3,%eax
 	ret
 
+/////////
+/
+/ Debugging support.
+/
+/////////
+	.globl	write_dr0
+	.globl	write_dr1
+	.globl	write_dr2
+	.globl	write_dr3
+	.globl	read_dr6
+	.globl	write_dr6
+	.globl	write_dr7
+
+/ write arg to dr0
+write_dr0:
+	movl	4(%esp),%eax
+	movl	%eax,%dr0
+	ret
+
+/ write arg to dr1
+write_dr1:
+	movl	4(%esp),%eax
+	movl	%eax,%dr1
+	ret
+
+/ write arg to dr2
+write_dr2:
+	movl	4(%esp),%eax
+	movl	%eax,%dr2
+	ret
+
+/ write arg to dr3
+write_dr3:
+	movl	4(%esp),%eax
+	movl	%eax,%dr3
+	ret
+
+/ read dr6
+read_dr6:
+	movl	%dr6,%eax
+	ret
+
+/ write arg to dr6
+write_dr6:
+	movl	4(%esp),%eax
+	movl	%eax,%dr6
+	ret
+
+/ write arg to dr7
+/ when called from ring 1, this routine acts as a call gate into the
+/ gp fault handler
+write_dr7:
+	movl	4(%esp),%eax
+	movl	%eax,%dr7
+	ret
+
 / enable/disable FPE traps
 /
 /	int setfpe(mask)
@@ -2133,39 +2220,6 @@ done_fp:
 	mov	%eax,%cr0
 	popl	%eax
 	ret
-
-	.globl	hal
-hal:
-	push	%esp
-	call	print32
-	add	$4,%esp
- 
- 	push	$' '
- 	call	mchirp
-	add	$4,%esp
- 
- 	push	%eax
-	xorl	%eax,%eax
-	movw	%ss,%ax
-	xchgl	%eax,(%esp)
- 	call	print32
-	add	$4,%esp
-	
- 	push	$' '
- 	call	mchirp
-	add	$4,%esp
- 
- 	push	%eax
-	xorl	%eax,%eax
-	movw	%cs,%ax
-	xchgl	%eax,(%esp)
- 	call	print32
-	add	$4,%esp
-	
- 	push	$' '
- 	call	mchirp
-	add	$4,%esp
-	ret 
 
 / return nonzero if paging is turned on
 	.globl	paging
