@@ -9,11 +9,12 @@
 #include <stdio.h>
 #include <pwd.h>
 
+extern char *getenv();
+
 #define ACCNAME "remacc"	/* Remote access password dummy username */
 #define PASSLEN 13		/* Encrypted password length */
 
 char	*getpass();
-char	*getenv();
 short	gid;
 char	*password;		/* Set by getuname */
 char	salt[3];
@@ -55,7 +56,9 @@ char *argv[];
 		command = argv[2];
 		args = &argv[2];
 	} else {
-		command = shell;
+		command = getenv("SHELL");
+		if (command == NULL || strlen(command) < 1)
+			command = shell;
 		args = shargs;
 	}
 	setgid(gid);
@@ -116,7 +119,7 @@ char *s;
 
 	for (epp1 = environ; *epp1!=NULL; epp1++)
 		;
-	n = (epp1-environ+1) * sizeof (char *);
+	n = (epp1-environ+2) * sizeof (char *);
 	if ((newenv = (char **)malloc(n)) == NULL) {
 		fprintf(stderr, "Out of memory for environments\n");
 		exit(1);
