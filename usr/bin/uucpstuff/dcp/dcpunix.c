@@ -185,4 +185,10 @@ dcpundial()
 }
 
 sendbrk()
-{}
+{
+#if SGTTY
+	ioctl(swritefd, TIOCSBRK);
+	sleep(1);
+	ioctl(swritefd, TIOCCBRK);
+#endif
+}

@@ -175,9 +175,13 @@ startup()
 		if ( rmsg(msg, BUFSIZ) < 0 )
 			FAIL1("Logon failed: 1st msg (broken communication?)");
 		printmsg(M_CALLMSG, "1st msg = {%s}", visib(msg));
-		if ( strncmp(msg, "Shere=", 6) )
+
+		if ( strncmp(msg, "Shere", 5) )
 			FAIL1("Bad format for 1st msg");
-		if ( strncmp(&msg[6], rmtname, SITESIG) )
+		if ( (msg[5] == '\0') || (msg[5] == '\n') ||
+		     (msg[6] == '\0') || (msg[6] == '\n') )
+			plog(M_CALL, "Warning: Null sitename contacted");
+		else if ( strncmp(&msg[6], rmtname, SITESIG) )
 			FAIL2("Incorrect sitename contacted: %s", &msg[6]);
 
 		sprintf(msg, "S%.*s -Q0 -x%d", SITESIG, nodename, debuglevel);
@@ -485,9 +489,6 @@ calluperr:
 
 sysend()
 {
-	plog(M_CALL, terminatelevel ?
-		"Abnormal completion {%d}" :
-		"Call completing normally {%d}", processid);
 	if ( lockexist(devname) ) {
 		if ( role == MASTER )
 			dcpundial();
@@ -495,6 +496,9 @@ sysend()
 	}
 	if ( !leavelock && lockexist(rmtname) )
 		lockrm(rmtname);
+	plog(M_CALL, terminatelevel ?
+		"Abnormal completion {%d}" :
+		"Call completing normally {%d}", processid);
 	close_logfile();
 	sysended = 1;
 	return( (role == MASTER) ? 'I': 'A' );

@@ -27,17 +27,19 @@ char *system;
 	FILE	*sfp;
 
 	sprintf(locknm, "%.*s.S", SITESIG, system);
+	sprintf(seqfn, "%s/%.*s", SPOOLSQD, SITESIG, system);
 	seq = 0;
 	while ( lockit(locknm) < 0 ) {
 		sleep(SLEEPTIME);
 		if (++seq > MAXLOCKTRY)
-			goto seqerr;
+			fatal("Lock File timeout on: %s", seqfn);
 	}
 
-	sprintf(seqfn, "%s/%.*s", SPOOLSQD, SITESIG, system);
 	if ( (sfp=fopen(seqfn, "r+")) == NULL ) {
-		if ( (sfp=fopen(seqfn, "w+")) == NULL )
-			goto seqerr;
+		if ( (sfp=fopen(seqfn, "w+")) == NULL ) {
+			lockrm(locknm);
+			fatal("Error using sequence file %s", seqfn);
+		}
 		seq = 1;
 	} else {
 		fgets(buf, sizeof buf, sfp);
@@ -49,8 +51,4 @@ char *system;
 	fclose(sfp);
 	lockrm(locknm);
 	return( seq );
-
-seqerr:
-	lockrm(locknm);
-	fatal("Error using sequence file %s", seqfn);
 }

@@ -70,14 +70,11 @@ CALL *cp;
 	}
 	if (err = mdial (cp->telno, fd)) 	/* some error trying to dial */
 		goto error;
-#ifdef CATCH
-	signal (SIGHUP, hupcatch);	/* set catcher for HANG UP */
-#endif CATCH
 
 okay:
 	return (modemfd = fd);
 error:
-	undial(fd);
+	hangup(fd);
 	return (merrno = err);
 }
 
@@ -86,13 +83,13 @@ int	fd;
 {
 	if (fd > 2)
 		close (fd);
-	if ( (devname != NULL) && lockexist(devname) )
-		lockrm(devname);
-	devname = NULL;
 	if (enableme[0] != '\0') {
 		plog(M_CALL, "Enabling line %s", enableme);
 		exec_stat("enable", enableme);
 	}
+	if ( (devname != NULL) && lockexist(devname) )
+		lockrm(devname);
+	devname = NULL;
 }
 
 static
@@ -141,6 +138,9 @@ char **brand;
 		strcat(login_lock, "+");
 		if (lockexist(login_lock))
 			continue;	/* somebody is logged in there */
+		if ( lockit(l_lline) < 0 )
+			continue;
+
 		enableme[0] = '\0';
 		if (strcmp(l_rline, "-") != 0) {
 			if (exec_stat("disable", l_rline) != 0) {
@@ -148,11 +148,6 @@ char **brand;
 				/* tty was enabled */
 				strcpy(enableme, l_rline);
 			}
-		}
-		if ( lockit(l_lline) < 0 ) {
-			if (strlen(enableme) > 0) 
-				exec_stat("enable", enableme);
-			continue;
 		}
 		devname = l_lline;
 		*brand = l_brand;
@@ -169,18 +164,6 @@ char **brand;
 		return (merrno = M_DV_NT_K);
 	}
 }
-
-#ifdef CATCH
-
-hupcatch ()
-{
-	close (modemfd);
-	printmsg(M_CALL, "Hanging up: %s", devname);
-	lockrm(devname);
-	devname = NULL;
-	signal (SIGHUP, SIG_DFL);
-}
-#endif CATCH
 
 exec_stat(command, line)
 char	*command;
