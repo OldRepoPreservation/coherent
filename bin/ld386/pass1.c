@@ -64,12 +64,12 @@ mod_t	*mp;
 	 */
 	if (mp->mname[0] == '\0')
 		spmsg(sp, "redefined in file '%s'", mp->fname);
-	/* A symbol is defined in incompatable ways in different files. */
+	/* A symbol is defined in incompatible ways in different files. */
 
 	else
 		spmsg(sp, "redefined in file '%s': module '%.*s'",
 			mp->fname, DIRSIZ, mp->mname );
-	/* A symbol is defined in incompatable ways in different files. */
+	/* A symbol is defined in incompatible ways in different files. */
 }
 
 /*
@@ -147,7 +147,7 @@ int  loadsw;	/* 1 = load this file, 0 = use its symbol table */
 		break;
 	default:
 		message("unlikely input file name '%s'", fname);
-		/* Input file names must end .o for object or .a
+		/* Input file names must end \fB.o\fR for object or \fB.a\fR
 		 * for archive. */
 	}
 	close(ifd);
@@ -256,13 +256,15 @@ mod_t *mp;
 			case comm:
 				spwarn(sp,
 			"symbol defined as a common and a global");
-			/* A symbol was defined as a common for example
-			 * int x; and a global for example int x = 5;
-			 * There is no good way to fix this without reading
-			 * the code and thinking about the variable usage.
-			 * The linker turned the global into an external.
-			 * That is it turned int x; into extern int x;
-			 * This matches the INIX linker. */
+			/* A symbol was defined as a common and a globl, eg
+			 * .DM
+			 *	int x;		// a common in one module
+			 *	int x = 5;	// a globl in another module
+			 * .DE
+			 * Read your code and think about variable usage.
+			 * We redefined the common as an external to match
+			 * the UNIX linker, which fails to flag this.
+			 */
 				memcpy(&(sp->sym), s, sizeof(*s));
 				sp->mod = mp;
 				s->n_offset = (long)sp;
@@ -297,7 +299,7 @@ mod_t *mp;
 				/* A common was defined with different lengths,
 				 * while this is legal it is very unusual in
 				 * C programs. This warning may be turned off
-				 * with the -c flag */
+				 * with the -q flag */
 
 				addComm(- sp->sym.n_value);
 				if (sp->sym.n_value < s->n_value) {
@@ -360,8 +362,7 @@ int len;
 	int got;
 
 	if (len != (got = read(ifd, to, len)))
-		fatal("error reading '%s' expected %d bytes got %d",
-			fname, len, got); /**/
+		fatal("error reading '%s'", fname); /**/
 }
 
 /*
@@ -375,6 +376,7 @@ long size;
 	register SCNHDR *s;
 	SYMENT *endSym;
 	mod_t *mp;
+	char *endmod;
 	long i, j, k;
 
 	if (watch) {
@@ -383,10 +385,14 @@ long size;
 	}
 	mp    = alloc(sizeof(*mp));	/* allocate our header */
 	mp->f = alloc((int)size);	/* allocate space for file */
+	endmod = mp->f + size;		/* end of space for file */
 	xread(mp->f, (int)size);	/* inhale file */
 
 	if (mp->f->f_magic != C_386_MAGIC) {
-		modmsg(fname, mname, "bad header");
+		modmsg(fname, mname, "bad header - %x found", mp->f->f_magic);
+		/* Coff headers are expected to start 0x14C,
+		 * which is called the magic number.
+		 * This started with the stated hex number. */
 		free(mp->f);
 		free(mp);
 		return;
@@ -421,10 +427,22 @@ long size;
 	mp->s = (SCNHDR *)(sizeof(FILEHDR) + j + mp->f->f_opthdr);
 	mp->f->f_symptr += j;
 	mp->l = (char *)(mp->f->f_symptr + (mp->f->f_nsyms * sizeof(SYMENT)));
+	if ((mp->f->f_symptr > (long)endmod) ||
+	    (mp->l > endmod) ||
+	    (mp->f->f_nsyms < 0))
+		corrupt(mp);
 
 	/* Setup all sections */
 	for (i = 0; i < mp->f->f_nscns; i++) {
 		s = mp->s + i;
+
+		if ((s->s_scnptr > size) ||
+		    (s->s_scnptr < 0)    ||
+		    (s->s_relptr > size) ||
+		    (s->s_relptr < 0)	 ||
+		    (s->s_lnnoptr > size) ||
+		    (s->s_lnnoptr < 0))
+			corrupt(mp);
 		s->s_scnptr += j;
 		s->s_relptr += j;
 		s->s_lnnoptr += j;
@@ -447,6 +465,8 @@ long size;
 	sym = (SYMENT *)mp->f->f_symptr;
 	endSym =  sym + mp->f->f_nsyms;
 	for (; sym < endSym; sym += sym->n_numaux + 1) {
+		if (sym->n_numaux < 0)
+			corrupt(mp);
 		if (!sym->n_zeroes)
 			sym->n_offset += (long)(mp->l);
 		addsym(sym, mp);
@@ -493,7 +513,7 @@ archive(loadsw)
 
 	if (memcmp(ARMAG, magic, SARMAG))
 		fatal("'%s' is not a COFF archive", fname);
-		/* All files ending .a should be COFF archives. */
+		/* All files ending \fB.a\fR should be COFF archives. */
 
 	xread(&in_arh, sizeof(in_arh));	/* read archive header */
 
@@ -508,7 +528,7 @@ archive(loadsw)
 
 	if (arh.ar_name[0])
 		fatal("Library must be created with ar -s option");
-		/* The \fBar \-s\fR option gives librarys a symbol table
+		/* The \fBar \-s\fR option gives libraries a symbol table
 		 * for the use of \fBld\fR. */
 
 	/*

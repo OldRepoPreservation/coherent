@@ -37,7 +37,7 @@ AOUTHDR aouth;
 SCNHDR  *secth;		/* output segments */
 
 static long str_length;
-static FILE *ofd;
+static int ofd;
 char *argv0;
 
 /*
@@ -543,15 +543,14 @@ mod_t *  mp;
 		rel = ((RELOC *)isgp->s_relptr) + i;
 
 		w = rel->r_vaddr - isgp->s_vaddr;
-		if ((w < 0) || (w > size)) {
-			mpmsg(mp, "relocation out of range %lx", w);
-			/* A relocation record points outside the
-			 * range of its segment. */
-			continue;
-		}
+		if ((w < 0) || (w > size))
+			corrupt(mp);
 		ptr = t + w;
 
-		s = (SYMENT *)mp->f->f_symptr + (int)rel->r_symndx;
+		if ((rel->r_symndx < 0) || (rel->r_symndx > mp->f->f_nsyms))
+			corrupt(mp);
+		
+		s = (SYMENT *)mp->f->f_symptr + rel->r_symndx;
 		if (1 == s->n_zeroes) {	/* fixed elsewhere */ 
 			sp = (sym_t *)s->n_offset;
 			sym = &(sp->sym);
@@ -782,9 +781,10 @@ char *argv[];
 	char	*specialList = NULL;
 	char	*argString = "?ae:finKl:L:o:rsu:wXxZ:q";
 
+#if 0
 	/* We use a lot of storage, this makes malloc() faster */
 	free(alloc(1024 * 256));
-
+#endif
 	/* find program name */
 	if (NULL == (argv0 = strrchr(argv[0], '/')))
 		argv0 = argv[0];
@@ -878,7 +878,7 @@ char *argv[];
 						DEFLIBPATH, "r");
 				if (NULL == lp)
 				   fatal("can't find '%s'", xp);
-				   /* Can't locate requested library */
+				   /* Can't locate requested library. */
 
 				readFile(lp, 1);
 				free(xp);
@@ -948,7 +948,7 @@ char *argv[];
 #if 0
 	if (drvld) {
 		execl(ofname, ofname, NULL); /* should never return */
-		fatal("cannot execute loadable driver '%s'", ofname); /**/
+		fatal("Cannot execute loadable driver '%s'.", ofname); /**/
 	}
 #endif
 	return (0);
