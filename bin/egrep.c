@@ -278,6 +278,7 @@ char	**argv;
 				hflag = TRUE;
 				break;
 			case 'y':
+			case 'i':
 				yflag = TRUE;
 				break;
 			default:
