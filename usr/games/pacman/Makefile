@@ -1,17 +1,21 @@
-# pacman/Makefile 10/4/90
+# pacman/Makefile 6/10/92
 # This Makefile halfheartedly preserves dal's original braindamaged notion
 # of machine independence.
 # His sources build either a PDP-11 or an IBM PC version,
 # using links to get the right one.
 # The pac.c also #includes other C sources, not really kosher,
 # but for now this goes with the flow rather than cleaning it all up.
-
 DESTDIR=/interim/usr/games/
+DESTDIR386=/bin386/usr/games/
+
 OBJ=ibmpac.o ibmout.o
+OBJ386=ibmpac.o
 
 pacman:	$(OBJ)
 	cc -o $(DESTDIR)chase $(OBJ)
-	su root chmog 511 bin bin $(DESTDIR)chase
+
+pac386:	$(OBJ386)
+	cc -o $(DESTDIR386)chase $(OBJ386)
 
 ibmpac.o:	ibmpac.c term.c io.c
 	cc -c ibmpac.c
