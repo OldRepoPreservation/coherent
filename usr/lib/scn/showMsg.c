@@ -4,11 +4,11 @@
 /*
  * Show a message and wait.
  */
-void
+int
 showMsg(s)
 char *s;
 {
-	char work[80];
+	char work[80], c;
 
 	if (NULL == errWindow)
 		fatal("No error window");
@@ -18,6 +18,7 @@ char *s;
 	waddstr(errWindow, work);
 	wstandend(errWindow);
 	wrefresh(errWindow);
-	if (CTRL('C') == wgetch(errWindow))
+	if (CTRL('C') == (c = wgetch(errWindow)))
 		exit(0);
+	return(c);
 }
