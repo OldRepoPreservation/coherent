@@ -4,8 +4,7 @@
  * And misc functions.
  */
 
-#include "data.h"
-#include <path.h>
+#include "ld.h"
 #include <errno.h>
 
 extern char *memset();
@@ -15,7 +14,7 @@ message(args)
 char * args;
 {
 	errCount++;
-	printf("ld: %r\n", &args);
+	printf("%s: %r\n", argv0, &args);
 }
 
 void
@@ -23,21 +22,16 @@ w_message(args)
 char * args;
 {
 	if (watch)
-		printf("ld: %r\n", &args);
+		printf("%s: %r\n", argv0, &args);
 }
 
 /*
  * Fatal error; print message and exit
  */
-void
 fatal(args)
-char * args;
+char *args;
 {
-	int  save = errno;
-
-	printf("ld: %r\n", &args);
-	if (0 != (errno = save))
-		perror("errno reports");
+	printf("%s: %r\n", argv0, &args);
 	exit(1);
 }
 
@@ -65,7 +59,6 @@ help()
 	exit(0);
 }
 
-void
 usage()
 {
 	fprintf(stderr,
@@ -77,10 +70,10 @@ usage()
  * message with filename
  */
 void
-filemsg( fname, args )
+filemsg(fname, args)
 char	*fname, *args;
 {
-	message( "file %s: %r", fname, &args );
+	message( "file '%s': %r", fname, &args );
 }
 
 /*
@@ -93,10 +86,10 @@ char   mname[DIRSIZ];
 char * args;
 {
 	if (mname[0] == 0)
-		filemsg( fname, "%r", &args );
+		filemsg(fname, "%r", &args );
 
 	else
-		filemsg(fname, "module %.*s: %r",
+		filemsg(fname, "module '%.*s': %r",
 			DIRSIZ, mname, &args );
 }
 
@@ -111,15 +104,6 @@ char  * args;
 	modmsg(mp->fname, mp->mname, "%r", &args);
 }
 
-void
-mpfatal(mp, args)
-mod_t * mp;
-char  * args;
-{
-	modmsg(mp->fname, mp->mname, "%r", &args);
-	exit(1);
-}
-
 /*
  * Message for symbol passed by pointer
  */
@@ -128,89 +112,57 @@ spmsg(sp, args)
 sym_t	*sp;
 char	*args;
 {
-	static char msg[] = "symbol %s: %r";
+	static char msg[] = "symbol '%s' %r";
+	char work[SYMNMLEN + 1], *name;
+
+	name = symName(&(sp->sym), work);
 
 	if (sp->mod == NULL)
-		message(msg, sp->name, &args);
+		message(msg, name, &args);
 	else
-		mpmsg(sp->mod, msg, sp->name, &args);
+		mpmsg(sp->mod, msg, name, &args);
 }
 
 /*
- * find a file on a path in the environment, or a default path
- * with an access priveledge.
- *
- * example: pathn("helpfile", "LIBPATH", ",,\lib", "r");
- *
- * Returns full path name.
+ * Warning message for symbol passed by pointer
  */
-char	*getenv(), *path(), *strchr();
-char *
-pathn(name, envpath, deflpath)
-char *name, *envpath, *deflpath;
+void
+spwarn(sp, args)
+sym_t	*sp;
+char	*args;
 {
-	register char *pathptr;
+	static char msg[] = "warning: symbol '%s' %r";
+	char work[SYMNMLEN + 1], *name;
 
-	if ((NULL == envpath) || (NULL == (pathptr = getenv(envpath))))
-		pathptr = deflpath;
+	if (qflag)
+		return;
 
-	if ((pathptr = path(pathptr, name, AREAD)) == NULL)
-		return (NULL);
-	return (pathptr);
+	errCount--;	/* don't increment count */
+	name = symName(&(sp->sym), work);
+
+	if (sp->mod == NULL)
+		message(msg, name, &args);
+	else
+		mpmsg(sp->mod, msg, name, &args);
 }
 
 /*
- * Get arguments off of argv[]. more flexable than getopt().
- * Allows optional names after arguments flagged with ! on optstring.
- * Non optional names are still flagged with : on optstring.
- * Returns non switch arguments as if they had a precedding switch of zero,
- * this permits interspersed switch and non switch arguments.
+ * Open a file or die in the attempt.
  */
-char	*optarg;		/* Global argument pointer. */
-int	optind = 1;		/* Global argv index. */
-extern char	*strchr();
-
 int
-getargs(argc, argv, optstring)
-int argc;
-char *argv[];
-char *optstring;
+qopen(fn, type)
+char *fn;
 {
-	register char c, d;
-	register char *place;
-	static char	*scan = NULL;	/* Private scan pointer. */
+	int fd;
 
-	for (optarg = NULL; scan == NULL || !*scan; scan++, optind++) {
-		if (optind >= argc) {
-			scan = NULL;
-			return(EOF);
-		}
-		if (*(scan = argv[optind]) != '-') {
-			optarg = scan;
-			scan = NULL;
-			optind++;
-			return (0);
-		}
+	if (type)
+		fd = creat(fn, 0666);
+	else
+		fd = open(fn, 0);
+
+	if (-1 == fd) {
+		filemsg(fn, "Cannot open.");	/**/
+		exit(1);
 	}
-
-	if ((place = strchr(optstring, c = *scan++)) == NULL || 
-	     (c == ':') || (c == '!')) {
-		printf("%s: unknown option %c\n", argv[0], c);
-		return('?');
-	}
-
-	if ((d = place[1]) == ':' || d == '!') {
-		if (*scan || d == '!') {
-			optarg = scan;
-			scan = NULL;
-		} else if (optind < argc)
-			optarg = argv[optind++];
-		else {
-			printf("%s: %c argument missing\n",
-				argv[0], c);
-			return('?');
-		}
-	}
-
-	return(c);
+	return (fd);
 }
