@@ -158,7 +158,7 @@ long *tp;
 	if (isdaylight()) {
 		ltime = *tp - timezone + dstadjust;
 		gmtime(&ltime);
-		tm.tm_isdst = dstadjust;
+		tm.tm_isdst = (dstadjust != 0);
 	} else
 		tm.tm_isdst = 0;
 	return (&tm);
