@@ -219,7 +219,7 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	movb	$0xFF,%al
 	outb	$SPICM		/ Disable interrupts from slave PIC.
 /DEBUG
-/	call	__cinit
+	call	__cinit
 	call	mchinit		/ C initialization
 	mov	%cr0,%eax	/ Turn on paging
 / use 80000001 to allow FP
@@ -1348,11 +1348,27 @@ trap0:
 	call	tsave
 	jmp	trap
 
-	.globl	__debug__
-trap1:
+/ The debug vector is tricky.
+/
+/ If single stepping user code, the vector must point into Ring 1 code
+/ so that a ptraced child can be synchronized with its parent.
+/	use trap1_usr for this
+/
+/ If single stepping the kernel, the vector must point into Ring 0 code
+/ so context switches switch out the debug stack frame.
+/	use trap1_ker for this
+
+	.globl	__debug_usr__
+trap1_usr:
+	push	$0x01			/ Single step.
+	call	tsave
+	jmp	__debug_usr__
+
+	.globl	__debug_ker__
+trap1_ker:
 	push	$0x01			/ Single step.
 	call	tsave0
-	jmp	__debug__
+	jmp	__debug_ker__
 
 trap2:
 	push	$0x02			/ Non-maskable interrupt.
@@ -2142,9 +2158,15 @@ read_cr3:
 	.globl	write_dr1
 	.globl	write_dr2
 	.globl	write_dr3
-	.globl	read_dr6
 	.globl	write_dr6
 	.globl	write_dr7
+
+	.globl	read_dr0
+	.globl	read_dr1
+	.globl	read_dr2
+	.globl	read_dr3
+	.globl	read_dr6
+	.globl	read_dr7
 
 / write arg to dr0
 write_dr0:
@@ -2170,11 +2192,6 @@ write_dr3:
 	movl	%eax,%dr3
 	ret
 
-/ read dr6
-read_dr6:
-	movl	%dr6,%eax
-	ret
-
 / write arg to dr6
 write_dr6:
 	movl	4(%esp),%eax
@@ -2182,11 +2199,33 @@ write_dr6:
 	ret
 
 / write arg to dr7
-/ when called from ring 1, this routine acts as a call gate into the
-/ gp fault handler
 write_dr7:
 	movl	4(%esp),%eax
 	movl	%eax,%dr7
+	ret
+
+read_dr0:
+	movl	%dr0,%eax
+	ret
+
+read_dr1:
+	movl	%dr1,%eax
+	ret
+
+read_dr2:
+	movl	%dr2,%eax
+	ret
+
+read_dr3:
+	movl	%dr3,%eax
+	ret
+
+read_dr6:
+	movl	%dr6,%eax
+	ret
+
+read_dr7:
+	movl	%dr7,%eax
 	ret
 
 / enable/disable FPE traps
