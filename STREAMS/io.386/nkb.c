@@ -5,9 +5,11 @@
 #include <sys/coherent.h>
 #ifdef _I386
 #include <sys/reg.h>
+#else
+#include <sys/i8086.h>
 #endif
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <signal.h>
@@ -16,6 +18,7 @@
 #include <sys/kb.h>
 #include <sys/devices.h>
 #include <sys/silo.h>
+#include <stddef.h>
 
 #define	ISVEC		1		/* Keyboard interrupt vector */
 
@@ -78,7 +81,7 @@ int	KBCMDBYTE = 0x05;		/* no translation */
 static	unsigned shift;			/* state of all shift/lock keys */
 static	unsigned char	**funkeyp = 0;	/* ptr to array of func. keys ptrs */
 static	FNKEY	*fnkeys = 0;		/* pointer to structure of values */
-static	unsigned fklength;		/* length of k_fnval field in fnkeys */
+static	unsigned fklength;		/* length of function key data */
 static	unsigned prev_cmd;		/* previous command sent to KBD */
 static	unsigned cmd2;			/* 2nd byte of command to KBD */
 static	unsigned sh_index;		/* shift/lock state index */
@@ -96,6 +99,10 @@ int		isbusy;			/* Raw input conversion busy */
 static	char	table_loaded;		/* true == keyboard table resident */
 static	char	fk_loaded;		/* true == function keys resident */
 static	int	kbstate = KB_IDLE;	/* current keyboard state */
+
+#define	ESCAPE_CHAR	'\x1B'
+#define	ESCAPE_STRING	"\x1B"
+
 
 /*
  * Functions.
@@ -189,12 +196,12 @@ isload()
 isuload()
 {
 	if (kbstate != KB_IDLE)
-		printf("kb: keyboard busy during unload\n");
-	clrivec(ISVEC);
+		printf ("kb: keyboard busy during unload\n");
+	clrivec (ISVEC);
 #ifndef _I386
-	if (kbsegp != (SEG *)0) {
+	if (kbsegp != (SEG *) 0) {
 		table_loaded = 0;
-		sfree(kbsegp);
+		sfree (kbsegp);
 	}
 #endif
 }
@@ -445,8 +452,8 @@ FNKEY *v;
 		if (funkeyp != NULL)
 			kfree(funkeyp);		/* free old ptr array */
 		ukcopy(&v->k_nfkeys, &numkeys, sizeof(numkeys));
-		fklength = sizeof(FNKEY);
-		cp = v->k_fnval;
+		fklength = sizeof (FNKEY);
+		cp = (char *) (v + 1);
 		for (i = 0; i < numkeys; i++) {
 			do {
 				++fklength;
@@ -466,8 +473,8 @@ FNKEY *v;
 			u.u_error = ENOMEM;
 			return;
 		}
-		cp = fnkeys->k_fnval;			/* point to Fn ... */
-		v = v->k_fnval;				/* ... key arena */
+		cp = (char *) (fnkeys + 1);		/* point to Fn ... */
+		v = (char *) (v + 1);			/* ... key arena */
 		for (i = 0; i < numkeys; i++) {
 			funkeyp[i] = cp;	           /* save pointer */
 			while ((*cp++ = getubd(v++)) != DELIM)  /* copy key */
@@ -487,7 +494,7 @@ dev_t dev;
 int ev;
 int msec;
 {
-	return ttpoll(&istty, ev, msec);
+	return ttpoll (& istty, ev, msec);
 }
 
 /*
@@ -502,8 +509,9 @@ isrint()
 	/*
 	 * Schedule raw input handler if not already active.
 	 */
-	if (!isbusy) {
-		defer(isbatch, &istty);
+
+	if (! isbusy) {
+		defer (isbatch, & istty);
 		isbusy = 1;
 	}
 
@@ -512,33 +520,42 @@ isrint()
 	 * port. Pulse the KBFLAG in the control
 	 * port to reset the data buffer.
 	 */
+
 	r = inb(KBDATA) & 0xFF;
-	c = inb(KBCTRL);
-	outb(KBCTRL, c|KBFLAG);
-	outb(KBCTRL, c);
+	c = inb (KBCTRL);
+	outb (KBCTRL, c | KBFLAG);
+	outb (KBCTRL, c);
 
 	/*
 	 * check returned value from keyboard to see if it's a command
 	 * or status back to us. If not, it we assume that it's a key code.
 	 */
-	KBDEBUG2(" intr(%x)", r);
+
+	KBDEBUG2 (" intr(%x)", r);
+
 	switch (r) {
+
 	case K_BREAK:
 		keyup = 1;			/* key going up */
 		break;
+
 	case K_ECHO_R:
 	case K_BAT_OK:
 		break;				/* very nice, but ignored */
+
 	case K_BAT_BAD:
-		printf("kb: keyboard BAT failed\n");
+		printf ("kb: keyboard BAT failed\n");
 		break;
+
 	case K_RESEND:
-		KBDEBUG("\nkb: request to resend command\n");
+		KBDEBUG ("\nkb: request to resend command\n");
 		outb(KBDATA, prev_cmd);
 		break;
+
 	case K_OVERRUN_23:
-		printf("kb: keyboard buffer overrun\n");
+		printf ("kb: keyboard buffer overrun\n");
 		break;
+
 	case K_ACK:
 		/*
 		 * we received an ACKnowledgement from the keyboard.
@@ -546,25 +563,29 @@ isrint()
 		 */
 		KBDEBUG(" ACK");
 		switch (kbstate) {
+
 		case KB_IDLE:			/* shouldn't happen */
-			printf("kb: ACK while keyboard idle\n");
+			printf ("kb: ACK while keyboard idle\n");
 			break;
+
 		case KB_SINGLE:			/* done with 1-byte command */
 		case KB_DOUBLE_2:		/* done w/ 2nd of 2-byte cmd */
 			kbstate = KB_IDLE;
-			wakeup(&kbstate);
+			wakeup (& kbstate);
 			break;
+
 		case KB_DOUBLE_1:
 			kbstate = KB_DOUBLE_2;
-			outb(KBDATA, cmd2);
+			outb (KBDATA, cmd2);
 			break;
+
 		default:
-			printf("kb: bad kbstate %d\n", kbstate);
+			printf ("kb: bad kbstate %d\n", kbstate);
 			break;
 		}
 		break;
 	default:
-		process_key(r, keyup);
+		process_key (r, keyup);
 		keyup = 0;
 	}
 }
@@ -600,32 +621,31 @@ int	 up;
 	flags = key_vals.k_flags;
 
 	if (flags & S) {			/* some shift/lock key ? */
-		switch (key_vals.k_val[BASE]) {
+		switch (key_vals.k_val [BASE]) {
 		case caps:
 		case num:
 			if (!up) {
-				shift ^= (1 << key_vals.k_val[BASE]);
-				updleds2();
+				shift ^= (1 << key_vals.k_val [BASE]);
+				updleds2 ();
 			}
 			break;
 		case scroll:
 			if (!up) {
-				shift ^= (1 << key_vals.k_val[BASE]);
-				updleds2();
-				if (!(istty.t_sgttyb.sg_flags&RAWIN)) {
-					if (istty.t_flags & T_STOP) {
-						isin(istty.t_tchars.t_startc);
-					} else {
-						isin(istty.t_tchars.t_stopc);
-					}
+				shift ^= (1 << key_vals.k_val [BASE]);
+				updleds2 ();
+				if (! _IS_RAW_INPUT (& istty)) {
+					if (istty.t_flags & T_STOP)
+						isin (istty.t_tchars.t_startc);
+					else
+						isin (istty.t_tchars.t_stopc);
 				}
 			}
 			break;
 		default:
 			if (up)
-				shift &= ~(1 << key_vals.k_val[BASE]);
+				shift &= ~(1 << key_vals.k_val [BASE]);
 			else
-				shift |= (1 << key_vals.k_val[BASE]);
+				shift |= (1 << key_vals.k_val [BASE]);
 			break;
 		}
 		/*
@@ -650,34 +670,37 @@ int	 up;
 	 * If the tty is not open or the key has no value in the current
 	 * shift state, the key is just tossed away.
 	 */
-	if (up || !istty.t_open || key_vals.k_val[sh_index] == none)
+
+	if (up || ! istty.t_open || key_vals.k_val [sh_index] == none)
 		return;
+
 	if (((flags & C) && (shift & (1 << caps)))
 	   || ((flags & N) && (shift & (1 << num))))
-		val = key_vals.k_val[sh_index^SHIFT];
+		val = key_vals.k_val [sh_index ^ SHIFT];
 	else
-		val = key_vals.k_val[sh_index];
+		val = key_vals.k_val [sh_index];
 
 	/*
 	 * Check for function key or special key implemented as
 	 * a function key (reboot == f0, tab and back-tab, etc).
 	 */
+
 	if (flags & F) {
-		if (val == 0 && !up && KBBOOT)
-			boot();
-		if (!fk_loaded || val >= fnkeys->k_nfkeys)
+		if (val == 0 && ! up && KBBOOT)
+			boot ();
+		if (! fk_loaded || val >= fnkeys->k_nfkeys)
 			return;
-		if ((cp = funkeyp[val]) == NULL) /* has a value? */
+		if ((cp = funkeyp [val]) == NULL) /* has a value? */
 			return;
-		while (*cp != DELIM)
-			isin(*cp++);		/* queue up Fn key value */
+		while (* cp != DELIM)
+			isin (* cp ++);		/* queue up Fn key value */
 		return;
 	}
 
 	/*
 	 * Normal key processing.
 	 */
-	isin(val);		 /* send the char */
+	isin (val);		 /* send the char */
 	return;
 }
 
@@ -696,13 +719,16 @@ register int c;
 		shift |= (1 << num);
 		updleds();			/* update LED status */
 		break;
+
 	case 'u':	/* Leave numlock */
-		shift &= ~(1 << num);
-		updleds();			/* update LED status */
+		shift &= ~ (1 << num);
+		updleds ();			/* update LED status */
 		break;
+
 	case '=':			/* Enter alternate keypad -- ignored */
 	case '>':			/* Exit alternate keypad -- ignored */
 		break;
+
 	case 'c':	/* Reset terminal */
 		islock = 0;
 		break;
@@ -727,25 +753,26 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (ISIXON) {
+	if (_IS_IXON_MODE (tp)) {
 #if _I386
-		if (ISSTART || (ISIXANY && ISXSTOP)) {
-			tp->t_flags &= ~(T_STOP | T_XSTOP);
-			ttstart(tp);
+		if (_IS_START_CHAR (tp, c) ||
+		    (_IS_IXANY_MODE (tp) && (tp->t_flags & T_STOP) != 0)) {
+			tp->t_flags &= ~ (T_STOP | T_XSTOP);
+			ttstart (tp);
 			cache_it = 0;
-		} else if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		} else if (_IS_STOP_CHAR (tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= (T_STOP | T_XSTOP);
 			cache_it = 0;
 		}
 #else
-		if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		if (_IS_STOP_CHAR (tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= T_STOP;
 			cache_it = 0;
 		}
-		if (ISSTART) {
-			tp->t_flags &= ~T_STOP;
+		if (I_S_START_CHAR (tp, c)) {
+			tp->t_flags &= ~ T_STOP;
 			ttstart(tp);
 			cache_it = 0;
 		}
@@ -756,9 +783,9 @@ register int c;
 	 * Cache received character.
 	 */
 	if (cache_it) {
-		in_silo.si_buf[ in_silo.si_ix ] = c;
+		in_silo.si_buf [in_silo.si_ix] = c;
 
-		if (++in_silo.si_ix >= sizeof(in_silo.si_buf))
+		if (++ in_silo.si_ix >= sizeof (in_silo.si_buf))
 			in_silo.si_ix = 0;
 	}
 }
@@ -773,6 +800,7 @@ register int c;
  *
  *	Notes:	isbatch() was scheduled as a deferred process by isrint().
  */
+
 static void
 isbatch(tp)
 register TTY * tp;
@@ -783,34 +811,36 @@ register TTY * tp;
 	/*
 	 * Ensure video display is enabled.
 	 */
-	mm_von();
+	mm_von ();
 	isbusy = 0;
 
 	/*
 	 * Process all cached characters.
 	 */
+
 	while (in_silo.si_ix != in_silo.si_ox) {
 		/*
 		 * Get next cached char.
 		 */
-		c = in_silo.si_buf[ in_silo.si_ox ];
+		c = in_silo.si_buf [in_silo.si_ox];
 
-		if (in_silo.si_ox >= sizeof(in_silo.si_buf) - 1)
+		if (in_silo.si_ox >= sizeof (in_silo.si_buf) - 1)
 			in_silo.si_ox = 0;
 		else
-			in_silo.si_ox++;
+			in_silo.si_ox ++;
 
-		if ((islock == 0) || ISINTR || ISQUIT) {
-			ttin(tp, c);
-		} else if ((c == 'b') && (lastc == '\033')) {
+		if (islock == 0 || _IS_INTERRUPT_CHAR (tp,c) ||
+		    _IS_QUIT_CHAR (tp, c)) {
+			ttin (tp, c);
+		} else if ((c == 'b') && lastc == ESCAPE_CHAR) {
 			islock = 0;
-			ttin(tp, lastc);
-			ttin(tp, c);
-		} else if ((c == 'c') && (lastc == '\033')) {
-			ttin(tp, lastc);
-			ttin(tp, c);
+			ttin (tp, lastc);
+			ttin (tp, c);
+		} else if ((c == 'c') && lastc == ESCAPE_CHAR) {
+			ttin (tp, lastc);
+			ttin (tp, c);
 		} else
-			putchar('\007');
+			putchar ('\a');
 		lastc = c;
 	}
 }
@@ -823,7 +853,7 @@ register TTY * tp;
  */
 updleds()
 {
-	kb_cmd2(K_LED_CMD, (shift >> 1) & 0x7);
+	kb_cmd2 (K_LED_CMD, (shift >> 1) & 0x7);
 }
 
 /*
