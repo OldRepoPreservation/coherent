@@ -3,6 +3,9 @@
  * Adaptec AHA154x host adaptor driver for the AT.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/scsi.c,v $
+ * Revision 1.2	91/05/01  04:50:11	root
+ * Debug code and d_time/sw_active imbalance fixed.
+ * 
  * Revision 1.1	91/04/30  11:02:22	root
  * Shipped with COH 3.1.0
  * 
@@ -23,11 +26,19 @@ extern	saddr_t sds;
 
 /*
  * Configurable parameters
+ *
+ * Adaptec ROM translates at 64 heads, except the Tandy version, which
+ * uses 16 heads.  Kernel variable SD_HDS is patchable for this reason.
  */
+#ifdef TANDY
+int SD_HDS = 16;
+#else
+int SD_HDS = 64;
+#endif
+
 #define NDRIVE	(8 * 4)			/* 8 SCSI ids and 4 LUNs */
 #define	SDMAJOR	13			/* Major Device Number */
-#define	NHEAD	64			/* controller fakes this value */
-#define	NSEC	32			/* likewise... */
+#define	NSEC	32			/* controller fakes this value */
 #define	SDDMA	5			/* Used for first party DMA */
 
 /*
@@ -191,7 +202,7 @@ dev_t	dev;
 	sc.unit = d;
 	sc.block = 0L;
 	sc.blklen = 0;
-printf("A");
+
 	sc.buffer = VTOP2( buffer, sds );
 	++drvl[SDMAJOR].d_time;	
 #if	0
@@ -253,6 +264,7 @@ register dev_t	dev;
 	if ( minor(dev) & SDEV ) {
 		if ( PARTITION(minor(dev)) != 0 ) {	/* tape device ? */
 			u.u_error = ENXIO;		/* not yet! */
+devmsg(dev, "No tape yet");
 		} else {
 			++drvl[SDMAJOR].d_time;	
 			++sw_active;
@@ -275,11 +287,11 @@ register dev_t	dev;
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
 	fdp = (struct fdisk_s *) pparmp[d];
-	if ((fdp[p].p_base+fdp[p].p_size) > fdp[WHOLE_DRIVE].p_size)
+	if ((fdp[p].p_base+fdp[p].p_size) > fdp[WHOLE_DRIVE].p_size) {
 		u.u_error = EBADFMT;
-	else if ( fdp[p].p_size == 0 )
+	} else if ( fdp[p].p_size == 0 ) {
 		u.u_error = ENODEV;
-	else {
+	} else {
 		++drvl[SDMAJOR].d_time;	
 		++sw_active;
 	}
@@ -372,8 +384,8 @@ char * vec;
 		fdp = (struct fdisk_s *) pparmp[d];
 		*(short *)&hdparm.landc[0] =
 		*(short *)&hdparm.ncyl[0] = fdp[WHOLE_DRIVE].p_size
-						/ (NHEAD * NSEC);
-		hdparm.nhead = NHEAD;
+						/ (SD_HDS * NSEC);
+		hdparm.nhead = SD_HDS;
 		hdparm.nspt = NSEC;
 		kucopy( &hdparm, vec, sizeof hdparm );
 		return 0;
@@ -469,7 +481,6 @@ register BUF	*bp;
 	else
 		sd.sw_actl->sw_actf = sw;
 	sd.sw_actl = sw;
-	++drvl[SDMAJOR].d_time;	
 	spl(s);
 
 	aha_start();
