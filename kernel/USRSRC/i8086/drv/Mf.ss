@@ -52,7 +52,6 @@ objects/ssqueue.o:			\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
 		$(SYSINC)/buf.h		\
-		$(DRVINC)/scsiwork.h	\
 		ssqueue.c
 	$(CC) $(CFLAGS) -c -o $@ ssqueue.c
 
