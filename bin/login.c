@@ -20,7 +20,9 @@
  *		login before the tty is hung up.
  *		c) if the user has no password, and the REMACC user in
  *		/etc/passwd does have a password, then the REMACC password
- *		must be supplied.
+ *		must be supplied.  If this program is compiled with
+ *		"BBS" defined, then a valid serial number must be supplied
+ *		at the remote access password prompt.
  *	5) An unsuccessful login appends a utmp record to the file
  *		/usr/adm/failed if it exists.
  *	6) A successful login:
@@ -53,8 +55,15 @@
 #include <sys/tty.h>
 #endif
 #include <sys/deftty.h>
+#ifdef BBS
+#include <sys/types.h>
+#endif
 
 extern long lseek();
+#ifdef BBS
+extern int chk_srlno();
+extern	time_t time();
+#endif
 
 #define FALSE	0
 #define TRUE 	1
@@ -110,12 +119,25 @@ char 	faillog[] = "/usr/adm/failed";  /* failed login attempt log */
 char	wholog[] = "/etc/utmp";		/* current login log */
 char	motd[] = "/etc/motd";		/* message of the day */
 char    goodlog[] = "/usr/adm/wtmp";    /* successful login log */       
+#ifdef BBS
+char    goodsrl[] = "/usr/adm/wsrl";    /* successful login log */       
+#endif
 char	*prompt[] = {
 	"Password: ",			/* password msg 1 */
+#ifdef BBS
+	"BBS access password: "		/* password msg 2 */
+#else
 	"Remote access password: "	/* password msg 2 */
+#endif
 };
 char	buff[NBUF];			/* I/O buffer */
 char	*argv0 = "login";		/* Command name */
+
+#ifdef BBS
+static	int	good_serialno;
+FILE * fp_srl;
+time_t tnum;
+#endif
 
 main(argc, argv) int argc; char *argv[];
 {
@@ -216,20 +238,35 @@ again:	failed = TRUE;	/* assume attempt will fail */
 	}
  	else			/* second pass, remote access password */
 	{
+#ifdef BBS
+	  pwp = NULL;
+#else
 	   pwp = getpwnam(ACCNAME);  /* check for remote access entry */
 	   if (pwp == NULL || pwp->pw_passwd[0] == 0)  /* no access pass? */
 	      goto ok;	/* all done */
+#endif
 	}
 
 	if (pwp == NULL			/* Not a user name */
 	 || pwp->pw_passwd[0] != 0) 	/* Password present */
-	{   if ((cp = getpass(prompt[passcount])) != NULL && cp[0] != '\0')
-	    {  cp = crypt(cp, pwp==NULL ? "xx" : pwp->pw_passwd);
+	{   if ((cp = getpass(prompt[passcount])) != NULL && cp[0] != '\0') {
+#ifdef BBS
+	    if (passcount == 0) {
+#endif
+	       cp = crypt(cp, pwp==NULL ? "xx" : pwp->pw_passwd);
 	       if (pwp != NULL
 		  && strcmp(cp, pwp->pw_passwd) == 0
  	  	  && strcmp(s_user, ACCNAME) != 0
 		  && strlen(pwp->pw_passwd) == PASSLEN)
 			failed = FALSE;  /* success */
+#ifdef BBS
+	    } else { /* for BBS, second password is a serial # */
+		if (chk_srlno(cp)) {
+			failed = FALSE;  /* success */
+			good_serialno = TRUE;
+		}
+	    }
+#endif
 	    }
 
 	    if (failed)  /* failed attempt? */
@@ -254,6 +291,22 @@ ok:	alarm(0);	/* turn off login alarm timeout */
 		slowexit(1);
 	}
 	setutmp(s_tty, buff, goodlog, TRUE);	/* successful login */
+#ifdef BBS
+/*
+ * for BBS users, write "xxxxxxxxx time tty" to /usr/adm/wsrl
+ * where	xxxxxxxxx is the serial number
+ *		time is decimal long value of clock time at login
+ *		tty is login device minus "/dev/"
+ */
+	if (good_serialno) {
+		good_serialno = FALSE;
+		if (fp_srl = fopen(goodsrl, "a")) {
+			time(&tnum);
+			fprintf(fp_srl, "%s %10ld %s\n", cp, tnum, s_tty+5);
+			fclose(fp_srl);
+		}
+	}
+#endif
 	chown(s_tty, s_uid, s_gid);		/* grab the terminal */
 	chmod(s_tty, TTYMODE);			/* initialize its modes */
 	setgid(s_gid);				/* set group */
