@@ -85,6 +85,7 @@ static char RCSid[] =
 
 
 char ttytype[NAMESIZE];
+struct term _first_term;
 
 int	_tracing;
 struct screen *SP = 0;
