@@ -4,9 +4,9 @@
  */
 #include "sh.h"
 #include <errno.h>
-#include <param.h>
+#include <sys/param.h>
 #include <signal.h>
-#include <stat.h>
+#include <sys/stat.h>
 
 /*
  * Wait for the given process to complete.
