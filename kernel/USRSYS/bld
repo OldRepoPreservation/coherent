@@ -1,6 +1,25 @@
-:
-:  Build a Coherent executable with a host adapter driver linked in.
-:
+#
+# Build - make a complete COHERENT kernel.
+#
+
+# Shell variables
+#	DRIVERS is the list of device drivers to be linked into the kernel.
+#	COH_TYPE is one of [ fl | at | ss | aha ] and is for information -
+#		it is the suffix on the name of the kernel produced.
+#	BOOTDEV is the device name for the COHERENT boot floppy or partition -
+#		it is passed to the "config" script.
+#	HD is the device driver name for the hard drive device driver linked
+#		into this kernel - it is one of [ aha154x | at | ss ], or
+#		may be omitted entirely for a floppy-only system.
+#	KB is one of [ kb | nkb ] - the first of these uses fixed keyboard
+#		tables and scan code set 1, and source is provided in the
+#		driver kit;  use it if you are concerned about supporting
+#		keyboards of questionable compatibility or want to work with
+#		keyboard driver source - the second of these uses loadable
+#		keyboard tables for international support, but requires
+#		full compatibility, and source code is not provided in the
+#		driver kit.
+
 if [ $USRSYS ]
 then
 if [ $USRSRC ]
@@ -13,22 +32,22 @@ DRIVERS="rm fl lp mm"
 COH_TYPE=fl
 BOOTDEV="fha0"
 HD=""
-KB=nkb
+KB=kb
 for ARG
 do
 	case $ARG in
 	at)
-		BOOTDEV="at0a"
+#		BOOTDEV="at0a"
 		HD=$ARG
 		COH_TYPE=$ARG
 		;;
 	aha)
-		BOOTDEV="sd0a"
+#		BOOTDEV="sd0a"
 		HD=aha154x
 		COH_TYPE=$ARG
 		;;
 	ss)
-		BOOTDEV="sd0a"
+#		BOOTDEV="ss0a"
 		HD=$ARG
 		COH_TYPE=$ARG
 		;;
@@ -45,7 +64,7 @@ echo "Kernel:    /coh.$COH_TYPE"
 echo "Version:   `version ID`"
 echo "Devices:   $DRIVERS"
 echo "Default root/pipe device is $BOOTDEV."
-
+export KB HD
 ( cd $USRSRC/ldrv; make ld_support )			|| exit 1
 ( cd $USRSRC/i8086/drv; make -f Mf.mwc install )	|| exit 1
 ( make kernel )						|| exit 1
@@ -86,3 +105,7 @@ fi
 else
 echo "Error - USRSYS not defined - (e.g. /usr/sys)"
 fi
+
+-Hal Snyder-      Mark Williams Tech. Support     (708)-291-6700 (voice)
+hal@mwc.com            uunet!mwc!support          (708)-291-6750 (fax)
+
