@@ -444,12 +444,12 @@ dump_cc()
 	if (t.c_lflag & ICANON) {
 		dump_ch("eof", t.c_cc[VEOF]);
 		dump_ch("eol", t.c_cc[VEOL]);
-#if 0
+#if 1
 		dump_ch("eol2", t.c_cc[VEOL2]);
 #endif
 	} else {
 		printf("min=%d\ttime=%d\t", t.c_cc[VMIN], t.c_cc[VTIME]);
-#if 0
+#if 1
 		dump_ch("swtch", t.c_cc[VSWTCH]);
 #endif
 	}
@@ -461,14 +461,18 @@ dump_ch(tag, ch)
 char	* tag;
 unsigned char	ch;
 {
-	if (ch < 0x20)
-		printf("%s=^%c\t", tag, ch|0x60);
+	if (ch == '\0')
+		printf("%s=<undef>  ", tag);
+	else if (ch < 0x20)
+		printf("%s=^%c  ", tag, ch|0x60);
 #if 0
 	else if (ch > 0x7f)
-		printf("%s=%x\t", tag, ch);
+		printf("%s=%x  ", tag, ch);
 #endif
+	else if (ch != 0x7f)
+		printf("%s=%c  ", tag, ch);
 	else
-		printf("%s=%c\t", tag, ch);
+		printf("%s=DEL  ", tag);
 }
 
 /*
@@ -678,29 +682,17 @@ char * opt;
 		goto combo_done;
 	}
 	if (strcmp(opt, "raw") == 0) {
-		simple("-parenb", c_list, &t.c_cflag);
-		simple("-parodd", c_list, &t.c_cflag);
-		simple("-hupcl", c_list, &t.c_cflag);
-		simple("cs8", c_list, &t.c_cflag);
-		simple("-opost", o_list, &t.c_oflag);
-		simple("-olcuc", o_list, &t.c_oflag);
-		simple("-ocrnl", o_list, &t.c_oflag);
-		simple("-onocr", o_list, &t.c_oflag);
-		simple("-onlret", o_list, &t.c_oflag);
-		simple("-ofill", o_list, &t.c_oflag);
-		simple("-ofdel", o_list, &t.c_oflag);
-		simple("nl0", o_list, &t.c_oflag);
-		simple("cr0", o_list, &t.c_oflag);
-		simple("tab0", o_list, &t.c_oflag);
-		simple("bs0", o_list, &t.c_oflag);
-		simple("vt0", o_list, &t.c_oflag);
-		simple("ff0", o_list, &t.c_oflag);
+		t.c_iflag = 0;
+		t.c_oflag &= ~OPOST;
+		t.c_cflag &= ~(PARODD|PARENB);
+		t.c_cflag |= (CS8|CREAD);
+		t.c_lflag &= ~(ECHONL|ISIG|ICANON|XCASE);
 		goto combo_done;
 	}
 	if (strcmp(opt, "-raw") == 0) {
-		combo("evenp");
 		t.c_iflag |= BRKINT|IGNPAR|ISTRIP|ICRNL|IXON;
 		t.c_oflag |= OPOST|ONLCR;
+		t.c_cflag |= (PARENB|CS7|CREAD);
 		t.c_iflag |= ISIG|ICANON;
 		goto combo_done;
 	}
