@@ -31,14 +31,18 @@ object2load(magic, ip, table, data_seg)
 	switch (magic) {
 	/* Is this an i386 COFF executable?  */
 	case I386MAGIC:
+#ifdef VERBOSE
 		puts("COFF!  COFF!\r\n");
+#endif
 		retval = 
 			coff2load(ip, table, data_seg);
 		break;
 		
 	/* Is this an l.out executable?  */
 	case L_MAGIC:
+#ifdef VERBOSE
 		puts("l.out!\r\n");
+#endif
 		retval =
 			lout2load(ip, table, data_seg);
 		break;
@@ -78,7 +82,7 @@ object_nlist(magic, filename, symbol)
 	/* Is this an i386 COFF executable?  */
 	case I386MAGIC:
 		/* Check that offset into data segment is < 64K.  */
-		if ((tmp = wrap_coffnlist(filename, symbol)) > BIGINT) {
+		if ((tmp = wrap_coffnlist(filename, symbol)) > MAXUINT16) {
 			puts("object_nlist(): ERROR: Symbol ");
 			puts(symbol);
 			puts(" will not fit into 16 bits.\r\n");

@@ -267,22 +267,10 @@ gift_rootdev(ffp)
 
 	myrootdev.rd_partition = NOPARTITION; /* Mark an invalid partition.  */
 
-	puts("partition start: ");
-	print32(first);
-	puts("\r\n");
 	/* Look for the current partition in the table.  */
 	for (i=0; i < NPARTN; ++i) {
-		puts("fp[");
-		print8(i);
-		puts("]=");
-		print32(fp[i].p_base);
-		puts("\r\n");
-
 		if (first == fp[i].p_base) {
 			myrootdev.rd_partition = i;
-			puts("Decided partition is ");
-			print8(i);
-			puts("\r\n");
 			break;
 		}
 	}
