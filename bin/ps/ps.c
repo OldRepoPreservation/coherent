@@ -90,7 +90,8 @@ void	vGetData()
 
 	/* Open process device */
  	if ((fd = open("/dev/ps", O_RDONLY)) < 0) {
-		perror("ps");
+		fflush(stdout);
+		perror("ps: cannot open /dev/ps");
 		exit(1);
 	}
 
@@ -103,10 +104,12 @@ void	vGetData()
 		if (pMonData != NULL)
 			free(pMonData);
 		if ((pMonData = (stMonitor *) malloc(iCnt)) == NULL) {
+			fflush(stdout);
 			perror("ps");
 			exit(1);
 		}
 		if ((iRet = read(fd, (char *) pMonData, iCnt)) < 0) {
+			fflush(stdout);
 			perror("ps");
 			exit(1);
 		}
@@ -271,9 +274,14 @@ stMonitor	*pMonLine;
 
 	if (ilFlag) {
 		int	c;
+		struct passwd	*pstPasswd;
 
-		printf("%6d%9s", pMonLine->p_ppid,
-		 		getpwuid(pMonLine->p_uid)->pw_name);
+		if ((pstPasswd = getpwuid(pMonLine->p_uid)) == NULL) {
+			fflush(stdout);
+			perror("\nps: cannot get user name");
+			exit(1);
+		}
+		printf("%6d%9s", pMonLine->p_ppid, pstPasswd->pw_name);
 		if (irFlag)
 			printf("%5d", pMonLine->rsize);
 		else
@@ -390,6 +398,7 @@ void ReadDevDir()
 	char			pFileName[32];	/* File name buffer */
 	
 	if ((pDir = opendir( "/dev" )) == NULL) {
+		fflush(stdout);
 		perror("ps");
 		exit(1);
 	}
@@ -404,6 +413,7 @@ void ReadDevDir()
 			continue;
 
 		if ((pstDevNext = malloc(sizeof(struct DEVICES))) == NULL) {
+			fflush(stdout);
 			perror("ps");
 			exit(1);	
 		}
