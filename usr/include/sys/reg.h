@@ -196,7 +196,8 @@ typedef int MGEN[1];
 #define	SINP	11			/* Segment not present */
 #define	SISS	12			/* Stack segment overrun/not present */
 #define	SIGP	13			/* General protection */
-#define SIPF	14			/* page fault */
+#define SIPF	14			/* Page Fault */
+#define SIFP	16			/* Floating Point */
 #define	SISYS	32			/* System call */
 #define	SIRAN	33			/* Random interrupt */
 #define	SIOSYS	34			/* System call */
