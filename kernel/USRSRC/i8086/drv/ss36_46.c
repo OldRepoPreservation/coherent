@@ -2,13 +2,28 @@
  * This is a driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
- *	bufq_wr_tail
- *	recover()
- *	do_connect()
- *	set_timeout()
+ *	get rid of declarations for deleted functions
+ *	if (bp->b_req == BREAD) {...
+ *	set host_claimed conscientiously
+ *	ss_start() code moved elsewhere
+ *	initialize and maintain retry counters
+ *	inquiry()
+ *	read_cap()
+ *	mode_sense()
+ *	req_sense() <- called from dblock!!!
+ *
+ * To try after initial working version:
+ *	bufq_rd_head()
+ *	bufq_rm_head()
+ *	bufq_wr_tail()
+ *
+ *	bus_pre_xfer() -> start_arb() + host_ident()
  *	mask interrupts on finishing arbitration, etc.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.38	91/05/14  10:05:37	root
+ * Code ss_mach().
+ * 
  * Revision 1.37	91/05/13  15:02:21	root
  * Initial state machine hacks.
  * 
@@ -62,10 +77,21 @@
 	(  (ffbyte(ss_csr) & (RS_SELECT |  RS_I_O   )) \
 	&& (ffbyte(ss_dat) & (HOST_ID   | (1<<s_id) )) )
 
+#define DELAY_ARB	10	/* delays units are 10 msec (clock ticks) */
+#define DELAY_BDR	30
+#define DELAY_BSY	10
+#define DELAY_RES	40
+#define DELAY_RST	40
+
+#define MAX_AVL_COUNT	10
+#define MAX_BDR_COUNT	2
+#define MAX_BSY_COUNT	2
+#define MAX_TRY_COUNT	7
+
 typedef unsigned char	uchar;
 typedef unsigned int	uint;
 typedef unsigned long	ulong;
-typedef enum {
+typedef enum {			/* values for current driver state */
 	SST_DEQUEUE =0,
 	SST_BUS_DEV_RESET,
 	SST_HIPRI_RESET,
@@ -77,12 +103,22 @@ typedef enum {
 	SST_RESET_DONE,
 	SST_RESET_OFF
 } SST_TYPE;
+
+typedef enum {			/* values for input to recovery routine */
+	RV_A_TIMEOUT,
+	RV_P_TIMEOUT,
+	RV_R_TIMEOUT,
+	RV_BF_TIMEOUT,
+	RV_CS_BUSY,
+	RV_CS_CHECK
+} RV_TYPE;
+
 typedef struct ss {
 	ulong	capacity;
 	ulong	blocklen;
 	ulong	bno;
 	int	msg_in;
-	int	dr_watch;	/* number of seconds for pending timeout */
+	int	dr_watch;
 	uchar	cmdbuf[G1CMDLEN];
 	int	cmdlen;
 	int	cmd_bytes_out;
@@ -97,11 +133,17 @@ typedef struct ss {
 	struct	fdisk_s parmp[NPARTN+1];
 	SST_TYPE state;
 	TIM	tim;		/* for target-specific timers */
-	unsigned int	busy:1;		/* 1 if command uses local buffer */
-	unsigned int	expired:1;	/* 1 if target's timer has expired */
-	unsigned int	local_buf:1;	/* 1 if command uses local buffer */
-	unsigned int	ptab_read:1;	/* 1 if partition table has been read */
-	unsigned int	waiting:1;	/* 1 if target timer is running */
+	uchar	avl_count;
+	uchar	bdr_count;
+	uchar	bsy_count;
+	uchar	try_count;
+	uint	busy:1;		/* 1 if command uses local buffer */
+	uint	expired:1;	/* 1 if target's timer has expired */
+	uint	local_buf:1;	/* 1 if command uses local buffer */
+	uint	local_done:1;	/* 1 if local command is finished */
+	uint	local_fail:1;	/* 1 if local command ended in error */
+	uint	ptab_read:1;	/* 1 if partition table has been read */
+	uint	waiting:1;	/* 1 if target timer is running */
 }	ss_type;
 
 typedef struct {
@@ -134,12 +176,14 @@ static int	bus_dev_reset();	/* additional support functions */
 static int	bus_info_xfer();
 static int	bus_pre_xfer();
 static int	chk_reconn();
+static void	do_connect();
 static int	host_ident();
+static void	init_pointers();
 static int	inquiry();
 static int	mode_sense();
 static void	nonpolled();
 static int	read_cap();
-static void	reconnect();
+static void	recover();
 static int	req_sense();
 static int	rezero();
 static int	rsel_handshake();
@@ -147,14 +191,15 @@ static int	scsicmd();
 static void	scsireset();
 static void	ss_done();
 static void	ss_mach();
-static int	ss_rw();
 static void	ss_start();
 static void	ss_start_timing();
 static void	ss_stop_timing();
+static void	set_timeout();
 static void	ssdelay();
 static int	ssinit();
 static void	ssintr();
 static int	start_arb();
+static void	stop_timeout();
 
 /*
  * Global Data.
@@ -213,7 +258,7 @@ static TIM	sst_tim;	/* for timeout() call from ss_start() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
 
 static int	do_sst_op;	/* 1 when state machine iteration continues */
-static int	host_busy;	/* 1 when host is arbitrating or connected */
+static int	host_claimed;	/* -1 or SCSI id of target using the host */
 static int	ss_expired;	/* 1 after local timeout */
 
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
@@ -293,6 +338,7 @@ static void ssload()
 	/*
 	 * Initialize drives we know about (i.e. in NSDRIVE bitmap).
 	 */
+	host_claimed = -1;
 	if (!erf) {
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
@@ -613,7 +659,7 @@ static void ssintr()
 
 	s_id = chk_reconn();
 	if (s_id != -1)
-		defer(ss_mach, s_id); */
+		defer(ss_mach, s_id);
 }
 
 /*
@@ -630,7 +676,7 @@ static void sswatch()
 	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++) {
 		ssp = ss[s_id];
 		if (ssp && ssp->dr_watch)
-			ss_mach(s_id);
+			defer(ss_mach, s_id);
 	} /* endfor */
 }
 
@@ -728,98 +774,19 @@ printf("%d heads\n", heads);
 }
 
 /*
- * scsireset()
- *
- * Reset the SCSI bus.
- *
- * Allow settling time when turning reset on/off.
- * Settling times were determined empirically.
- * Each tick is 10 msec.
- *
- * If called while ssload() is running, don't return until reset is complete.
- * If called after ssload(), start up state machine and return.
- *
- * Either way, mark host adapter busy until reset completes.
- */
-#define RESET_TICKS	40
-static void scsireset()
-{
-	static int reset_state;
-
-printf("!");
-	/*
-	 * During load, it's ok to do sleep() calls for reset settling.
-	 * After load is finished, use timeout() to accomplish this.
-	 */
-	if (loading) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
-		ssdelay(RESET_TICKS);
-		sfbyte(ss_csr, 0);
-		ssdelay(RESET_TICKS);
-	} else {
-		switch(reset_state) {
-		case 0:
-			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
-			timeout(&reset_tim, RESET_TICKS, scsireset, 0);
-			reset_state = 1;
-			break;
-		case 1:
-			sfbyte(ss_csr, 0);
-			timeout(&reset_tim, RESET_TICKS, scsireset, 0);
-			reset_state = 2;
-			break;
-		case 2:
-			reset_state = 0;
-			break;
-		}
-	}
-}
-
-/*
  * ssdelay()
  *
  * Delay for some number of clock ticks.
  * 286/386 kernel ticks are at 100Hz
+ *
+ * This routine is of limited use as it can only be called via
+ * ssload()/ssunload()/ssopen()/ssclose().
  */
 static void ssdelay(ticks)
 int ticks;
 {
 	timeout(&delay_tim, ticks, wakeup, (int)&delay_tim);
 	sleep((char *)&delay_tim, CVPAUSE, IVPAUSE, SVPAUSE);
-}
-
-/*
- * ss_start_timing()
- *
- * Start a timeout for some number of ticks.
- * Caller knows timer has expired when "ss_expired" goes to 1.
- *
- * Sample invocation:
- *	ss_start_timing(n);
- *	while (check for desired event fails) {
- *		if (ss_expired) {
- *			...failure stuff..
- *			break;
- *		}
- *		ssdelay(m); <= needed to allow kernel to update timers
- *	}
- */
-static void ss_start_timing(ticks)
-int ticks;
-{
-	ss_expired = 0;
-	timeout(&timeout_tim, ticks, ss_stop_timing, 1);
-}
-
-/*
- * ss_stop_timing()
- *
- * Stub function called only by ss_start_timing()
- */
-static void ss_stop_timing(flagval)
-int flagval;
-{
-	ss_expired = flagval;
 }
 
 /*
@@ -1321,31 +1288,6 @@ printf("R%d ",retry[s_id]);
 }
 
 /*
- * ss_done
- *
- * Release current i/o buffer to the O/S.
- */
-static void ss_done(s_id)
-int s_id;
-{
-	ss_type * ssp = ss[s_id];
-	BUF * bp = ssp->bp;
-	int s;
-
-	s = sphi();
-	ssp->id_busy = 0;
-	ssp->dr_watch = 0;
-	ssp->in_buf = ssp->out_buf = NULL;
-	if (bp) {
-		bdone(bp);
-		ssp->bp = NULL;
-	}
-	spl(s);
-
-	ss_start();
-}
-
-/*
  * bus_dev_reset()
  *
  * Send Bus Device Reset message to the given SCSI id.
@@ -1414,8 +1356,6 @@ printf("bdr");
  *
  * Return -1 if no reselect detected, or the SCSI ID of the reselecting
  * target if there is one.
- *
- * Call reconnect() after this if reselect has occurred.
  */
 static int chk_reconn()
 {
@@ -1434,141 +1374,6 @@ static int chk_reconn()
 	}
 
 	return s_id;
-}
-
-/*
- * reconnect()
- *
- * Given SCSI ID of target device that is issuing reselect, do reconnect
- * SCSI bus stuff.
- */
-static void reconnect(s_id)
-int s_id;
-{
-	uchar dat;
-	int cmd_ok = 0;
-	ss_type * ssp = ss[s_id];
-	BUF * bp = ssp->bp;
-
-	dat = ffbyte(ss_dat);
-	if ((dat & HOST_ID) && (dat & (1 << s_id)) && ssp) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
-		if (bus_wait(RS_SELECT << 8 | 0)) {
-			sfbyte(ss_csr, WC_ENABLE_SCSI);
-			cmd_ok = bus_info_xfer(ssp);
-			if (bp) {
-				if (bp->b_req == BREAD)
-					bp->b_resid -= ssp->data_bytes_in;
-				else
-					bp->b_resid -= ssp->data_bytes_out;
-				if (cmd_ok && ssp->cmdstat == CS_GOOD) {
-					if (ssp->msg_in == MSG_DISCONNECT) {
-						ssp->dr_watch = WATCHDOG_SECONDS;
-					} else
-						ss_done(s_id);
-				} else {
-printf("BF6 ");
-					bp->b_flag |= BFERR;
-					ss_done(s_id);
-				}
-			}
-		}
-	}
-}
-
-/*
- * ss_rw()
- *
- * Send read or write command to the host adapter.
- */
-static int ss_rw(s_id)
-int s_id;
-{
-	ss_type * ssp = ss[s_id];
-	BUF * bp = ssp->bp;
-	int rw_ok = 0;
-uchar rwc;
-
-	ssp->cmdstat = -1;
-	if (bp->b_req == BREAD) {
-		ssp->cmdbuf[0] = ScmdREADEXTENDED;
-		ssp->in_buf_len = bp->b_count;
-		ssp->in_buf = bp->b_faddr;
-		ssp->out_buf_len = 0;
-		ssp->out_buf = NULL;
-rwc='R';
-	} else {
-		ssp->cmdbuf[0] = ScmdWRITEXTENDED;
-		ssp->in_buf_len = 0;
-		ssp->in_buf = NULL;
-		ssp->out_buf_len = bp->b_count;
-		ssp->out_buf = bp->b_faddr;
-rwc='W';
-	}
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
-	ssp->cmdbuf[1] = 0;
-	ssp->cmdbuf[2] = ssp->bno >> 24;
-	ssp->cmdbuf[3] = ssp->bno >> 16;
-	ssp->cmdbuf[4] = ssp->bno >>  8;
-	ssp->cmdbuf[5] = ssp->bno;
-	ssp->cmdbuf[6] = 0;
-	ssp->cmdbuf[7] = bp->b_count / (BSIZE * 256L);
-	ssp->cmdbuf[8] = bp->b_count / BSIZE;
-	ssp->cmdbuf[9] = 0;
-	ssp->cmdlen = G1CMDLEN;
-
-{ int s = sphi();
-	rw_ok = bus_pre_xfer(s_id);
-	if (rw_ok) {
-		bus_info_xfer(ssp);
-spl(s);
-		rw_ok = (ssp->cmdlen == ssp->cmd_bytes_out);
-	}
-else {{if(sserrct<=MAXSSERR)printf("F1");}spl(s);}
-}
-
-	if (ssp->cmdstat == CS_CHECK) {
-{if(sserrct<=MAXSSERR)printf("ss_rw(): requesting sense\n");}
-		if (req_sense(s_id)) {
-			rw_ok = (ssp->cmdlen == ssp->cmd_bytes_out);
-if(!rw_ok) {if(sserrct<=MAXSSERR)printf("F3");}
-		}
-	}
-
-	if (rw_ok) {
-		rw_ok =
-		(ssp->cmdstat == CS_GOOD || ssp->msg_in == MSG_DISCONNECT);
-if(!rw_ok) {if(sserrct<=MAXSSERR)printf("F4");}
-	}
-
-	return rw_ok;
-
-}
-
-/*
- * rezero()
- *
- * Send Rezero Unit command.
- *
- * Return 1 if no timeouts occurred, 0 if not.
- */
-static int rezero(s_id)
-int s_id;
-{
-	int retval;
-	ss_type * ssp = ss[s_id];
-
-	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
-	ssp->cmdbuf[0] = ScmdREZERO;
-	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] =
-		ssp->cmdbuf[5] = 0;
-	ssp->cmdlen = G0CMDLEN;
-	retval = scsicmd(s_id);
-
-	return retval;
 }
 
 /*
@@ -1596,14 +1401,15 @@ int s_id;
 				else
 					recover(s_id, RV_P_TIMEOUT);
 			} else {
-				if (ssp->expired)
+				if (ssp->expired) {
+					ssp->expired = 0;
 					recover(s_id, RV_A_TIMEOUT);
-				else
+				} else
 					do_sst_op = 0;
 				endif
 			}
 			break;
-		case SST_POLL_BEGIN_IO
+		case SST_POLL_BEGIN_IO:
 			if (bp == NULL && ssp->local_buf == 0)
 				ssp->state = SST_DEQUEUE;
 			else {
@@ -1611,14 +1417,10 @@ int s_id;
 				 * At this point a SCSI command is about to
 				 * be initiated.  It may be a retry.
 				 */
-				if (!host_busy && BUS_FREE) {
-					host_busy = 1;
+				if (host_claimed == -1 && BUS_FREE) {
+					host_claimed = s_id;
 					ssp->waiting = 0;
-					ssp->cmd_bytes_out = 0;
-					ssp->data_bytes_in = 0;
-					ssp->data_bytes_out = 0;
-					if (bp)
-						bp->b_resid = bp->b_count;
+					init_pointers(s_id);
 					if (start_arb()) {
 						if (host_ident(s_id))
 							do_connect(s_id);
@@ -1626,25 +1428,29 @@ int s_id;
 							recover(s_id, RV_P_TIMEOUT);
 					} else {
 						ssp->state = SST_POLL_ARBITN;
-						set_timeout(DELAY_ARB);
+						set_timeout(s_id, DELAY_ARB);
 					}
-				} else  /* host_busy or bus not free */
-					set_timeout(DELAY_BSY);
+				} else  /* host busy or bus not free */
+					++ssp->avl_count;
+					if (ssp->avl_count >= MAX_AVL_COUNT)
+						recover(s_id, RV_BF_TIMEOUT);
+					else
+						set_timeout(s_id, DELAY_BSY);
 				}
 			}
 			break;
 		case SST_POLL_RESELECT:
 			if (TGT_RSEL) {
 				ssp->waiting = 0;
-				if reconnect handshake succeeds
 				if (rsel_handshake())
 					do_connect(s_id);
 				else
 					recover(s_id, RV_P_TIMEOUT);
 			} else  { /* Reselect poll is negative */
-				if (ssp->expired)
+				if (ssp->expired) {
+					ssp->expired = 0;
 					recover(s_id, RV_R_TIMEOUT);
-				else
+				} else
 					do_sst_op = 0;
 			}
 			break;
@@ -1678,16 +1484,26 @@ int s_id;
 	case SST_BUS_DEV_RESET:
 		if (bus_dev_reset(s_id)) {
 			do_sst_op = 0;
-			set_timeout(DELAY_BDR);
+			set_timeout(s_id, DELAY_BDR);
 			ssp->state = SST_REQ_SENSE;
 		} else
 			recover(s_id, RV_P_TIMEOUT);
 		break;
 	case SST_DEQUEUE:
-		if(ssq_rd_head() != NULL && !ssp->busy) {
+		if(bufq_rd_head(s_id) != NULL && !ssp->busy) {
 			ssp->busy = 1;
-			bp = ssq_rm_head();
-			form current block request - initialize try counts, etc.
+			bp = bufq_rm_head(s_id);
+			init_pointers(s_id);
+			ssp->cmdbuf[1] = 0;
+			ssp->cmdbuf[2] = ssp->bno >> 24;
+			ssp->cmdbuf[3] = ssp->bno >> 16;
+			ssp->cmdbuf[4] = ssp->bno >>  8;
+			ssp->cmdbuf[5] = ssp->bno;
+			ssp->cmdbuf[6] = 0;
+			ssp->cmdbuf[7] = bp->b_count / (BSIZE * 256L);
+			ssp->cmdbuf[8] = bp->b_count / BSIZE;
+			ssp->cmdbuf[9] = 0;
+			ssp->cmdlen = G1CMDLEN;
 			ssp->state = SST_POLL_BEGIN_IO;
 		} else /* queue is empty or ssp->busy */
 			do_sst_op = 0;
@@ -1701,7 +1517,7 @@ int s_id;
 		 */
 		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
 		ssp->state = SST_RESET_OFF;
-		set_timeout(DELAY_RST);
+		set_timeout(s_id, DELAY_RST);
 		break;
 	case SST_REQ_SENSE:
 		if (req_sense(s_id))
@@ -1715,7 +1531,7 @@ int s_id;
 	case SST_RESET_OFF:
 		sfbyte(ss_csr, 0); /* reset OFF */
 		ssp->state = SST_RESET_DONE;
-		set_timeout(DELAY_RST);
+		set_timeout(s_id, DELAY_RST);
 	} /* endswitch */
 }
 
@@ -1798,4 +1614,221 @@ static int rsel_handshake()
 		ret = 1;
 	}
 	return ret;
+}
+
+/*
+ * set_timeout()
+ *
+ * Start a timer so as not to wait forever in case something goes wrong while
+ * waiting for an event.  Available delays are:
+ *
+ * 	DELAY_ARB -	wait for arbitration complete
+ * 	DELAY_BDR -	allow settling time after Bus Device Reset
+ * 	DELAY_BSY -	wait for not HOST_BUSY and bus free
+ * 	DELAY_RES -	wait for reselect by target
+ * 	DELAY_RST -	allow settling times when doing SCSI Bus Reset
+ *
+ * Second argument is number of clock ticks to wait until timer expiration.
+ */
+static void set_timeout(s_id, delay)
+int s_id, delay;
+{
+	ss_type * ssp = ss[s_id];
+
+	ssp->expired = 0;
+	ssp->timing = 1;
+	do_sst_op =  0;
+	timeout(&(ssp->tim), delay, stop_timeout, s_id);
+}
+
+/*
+ * stop_timeout()
+ *
+ * Called on expiration of the timer for a given target.
+ * Don't expire a timer if it's no longer active.
+ */
+static void stop_timeout(s_id);
+int s_id;
+{
+	ss_type * ssp = ss[s_id];
+
+	if (ssp->waiting) {
+		ssp->expired = 1;
+		ssp->waiting = 0;
+	}
+	ss_mach(s_id);
+}
+
+/*
+ * init_pointers()
+ *
+ * Initialize command and data pointers when starting (or restarting)
+ * a block i/o command.
+ */
+static void init_pointers(s_id)
+int s_id;
+{
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
+
+	ssp->cmdstat = -1;
+	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
+	ssp->cmd_bytes_out = 0;
+	ssp->avl_count = 0;
+	if (bp) {
+		bp->b_resid = bp->b_count;
+		if (bp->b_req == BREAD) {
+			ssp->cmdbuf[0] = ScmdREADEXTENDED;
+			ssp->in_buf_len = bp->b_count;
+			ssp->in_buf = bp->b_faddr;
+			ssp->out_buf_len = 0;
+			ssp->out_buf = NULL;
+		} else {
+			ssp->cmdbuf[0] = ScmdWRITEXTENDED;
+			ssp->in_buf_len = 0;
+			ssp->in_buf = NULL;
+			ssp->out_buf_len = bp->b_count;
+			ssp->out_buf = bp->b_faddr;
+		}
+	}
+}
+
+/*
+ * recover()
+ *
+ * This routine is called directly or indirectly from ss_mach().  It
+ * determines what to do when the interface fails to behave as desired.
+ *
+ * Arguments are the SCSI id of the target HDC and an error type.
+ * Error types are:
+ *
+ * RV_A_TIMEOUT (arbitration timeout)
+ * Host adapter takes too long to respond with arbitration complete.
+ * 
+ * RV_P_TIMEOUT (protocol timeout)
+ * Timeout waiting for desired SCSI bus status while connected to a target.
+ * 
+ * RV_R_TIMEOUT (reconnect timeout)
+ * Timeout after target disconnects, waiting for reconnect.
+ * 
+ * RV_BF_TIMEOUT (reconnect timeout)
+ * Waited too long for host not busy and BUS_FREE.
+ * 
+ * RV_CS_BUSY (target device busy)
+ * Command status returned was Busy.
+ * 
+ * RV_CS_CHECK (target device check)
+ * Command status returned was CHECK.
+ * 
+ * Whenever an error occurs, one of the above inputs, together with the SCSI id
+ * of the target, is sent to the recovery process.  The recovery process in turn
+ * programs the next state for the machine.
+ */
+static void recover(s_id, errtype)
+int s_id;
+RV_TYPE errtype;
+{
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
+
+	++ssp->try_count;
+	if (ssp->try_count < MAX_TRY_COUNT) {
+
+		switch (errtype) {
+
+		case RV_CS_BUSY:
+			++ssp->bsy_count;
+			if (ssp->bsy_count < MAX_BSY_COUNT) {
+				ssp->state = SST_POLL_BEGIN_IO;
+				set_timeout(s_id, DELAY_BSY);
+			} else
+				ssp->state = SST_BUS_DEV_RST;
+			}
+			break;
+
+		case RV_CS_CHECK:
+			ssp->state = SST_REQ_SENSE;
+			break;
+
+		case RV_P_TIMEOUT:
+			/* fall thru */
+		case RV_R_TIMEOUT:
+			++ssp->bdr_count;
+			if (ssp->bdr_count < MAX_BDR_COUNT)
+				ssp->state = SST_BUS_DEV_RST;
+			else
+				ssp->state = SST_LOPRI_RESET;
+			}
+			break;
+
+		case RV_BF_TIMEOUT:
+			host_claimed = -1;
+			/* fall thru */
+		case RV_A_TIMEOUT
+			ssp->state = SST_HIPRI_RESET;
+		}
+	else { /* try_count >= MAX_TRY_COUNT */
+		if (bp)
+			bp->b_flag |= BFERR;
+		if (ssp->local_buf) {
+			ssp->local_fail = 1;
+		}
+		ss_finished(s_id);
+	}
+}
+
+/*
+ * ss_finished
+ *
+ * Release current i/o buffer to the O/S.
+ */
+static void ss_finished(s_id)
+int s_id;
+{
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
+
+	if (host_claimed == s_id)
+		host_claimed = -1;
+	ssp->busy = 0;
+	ssp->in_buf = ssp->out_buf = NULL;
+	if (bp) {
+		bdone(bp);
+		ssp->bp = NULL;
+		ssp->state = SST_DEQUEUE;
+	}
+	if (ssp->local_buf) {
+		ssp->local_buf = 0;
+		ssp->local_done = 1;
+	}
+}
+
+/*
+ * do_connect()
+ *
+ * This function is called when the host is successfully connected to
+ * the target.
+ */
+static void do_connect(s_id)
+int s_id;
+{
+	int result;
+
+	result = info_xfer(s_id);
+	if (host_claimed == s_id)
+		host_claimed = -1;
+	if (!result)
+		recover(s_id, RV_P_TIMEOUT);
+	else if (ssp->msg_in == MSG_DISCONNECT) {
+		target_state = SST_POLL_RESELECT;
+		set_timeout(s_id, DELAY_RES);
+	} else if (ssp->msg_in == MSG_CMD_CMPLT && ssp->cmdstat == CS_GOOD)
+		ss_finished(s_id);
+	} else if (ssp->cmdstat == CS_BUSY)
+		recover(s_id, RV_CS_BUSY);
+	} else if (ssp->cmdstat == CS_CHECK)
+		recover(s_id, RV_CS_CHECK);
+	else  /* something else went wrong */
+		recover(s_id, RV_P_TIMEOUT);
 }
