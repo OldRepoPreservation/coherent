@@ -1,25 +1,22 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__KERNEL_DDI_PROC_H__
 #define	__KERNEL_DDI_PROC_H__
 
 /*
  * This internal header file defines structures and an access procedure for
  * DDI/DKI per-process state that may be accessed outside the process context.
- * This corresponds to data stored in the process table in traditional Unix
+ * This corresponds to data stored in the process table in traditional UNIX
  * systems, and we expect that this would probably be implemented that way.
  * However, the DDI/DKI system data is kept separate from the host data to
  * ease porting by reducing coupling with the host system to a single accessor
  * function. We anticipate that space reserved in the process structure by the
  * host for this system will be opaque to the rest of the kernel.
- */
-
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__EXTERN_C_BEGIN__
- *		__EXTERN_C_END__
- *		__PROTO ()
- *	<kernel/x86lock.h>
- *		atomic_ptr_t
  */
 
 #include <common/feature.h>
@@ -30,39 +27,14 @@
 # error	You must be compiling in the DDI/DKI environment to use this header
 #endif
 
-#if	__COHERENT__
-
-/*
- * In <sys/proc.h>, cprocp is guarded by #ifdef KERNEL.
- */
-
-#if	! __KERNEL__
-#define	__KERNEL__	2
-#endif
-
-#include <sys/proc.h>
-
-#if	__KERNEL__ == 2
-#undef	__KERNEL__
-#endif
-
-#define	CURRENT_PROCESS()	cprocp
-
-#elif	defined (__MSDOS__)
-
-#include <sys/dosproc.h>
-
-#endif
-
 
 /*
  * The following structure defines the "process-table" data that a DDI/DKI
- * scheduling functions need to be able to access. Note that the "pn_plist"
- * member normally is used to point at the process list that this node is
- * threaded on. For reasons discussed elsewhere, this member is the only
- * member intended to be accessed without having a prior lock on the list
- * header (since it is used to *find* the list header), and so must be
- * accessed atomically.
+ * scheduling functions need to be able to access.  Note that the "pn_plist"
+ * member normally points at the process list on which this node is threaded.
+ * For reasons discussed elsewhere, this member is the only member intended
+ * to be accessed without having a prior lock on the list header (since it
+ * is used to *find* the list header), and so must be accessed atomically.
  */
 
 typedef struct proc_node pnode_t;
@@ -95,7 +67,5 @@ __EXTERN_C_BEGIN__
 dpdata_t      *	ddi_proc_data	__PROTO ((void));
 
 __EXTERN_C_END__
-
-#define	ddi_proc_data()	((dpdata_t *) & CURRENT_PROCESS ()->p_ddi_space)
 
 #endif	/* ! defined (__KERNEL_DDI_PROC_H__) */

@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__KERNEL_DDI_LOCK_H__
 #define	__KERNEL_DDI_LOCK_H__
 
@@ -6,7 +13,7 @@
  *
  * This is a registry of value and constants for the lock hierarchy values
  * recommended for use in internal DDI/DKI basic and read/write locking
- * operations. Many of these hierarchy values are outside the range that
+ * operations.  Many of these hierarchy values are outside the range that
  * are permitted to DDI/DKI-compliant drivers, and a special value in the
  * "lk_flags" member of the "lkinfop" structure passed to LOCK_ALLOC () is
  * necessary to permit access to this range of hierarchy values.
@@ -15,31 +22,11 @@
  * used with the indicated lock whenever a specific value is not indicated.
  */
 
+#define	__LOCK_MIN(a,b)		((a) < (b) ? (a) : (b))
+
+
 enum {
 	INTERNAL_LOCK = 1,		/* access to reserved hierarchies */
-
-	/*
-	 * For polling, the global lock nests outside the "pollhead" lock
-	 * which nests outside the "pollwait" lock.
-	 */
-
-	pollwait_hierarchy = 40,
-#define	pollwait_priority 	plhi
-
-	pollhead_hierarchy = 39,
-#define	pollhead_priority	plhi
-
-	poll_global_hierarchy = 38,
-#define	poll_global_priority	plhi
-
-
-	/*
-	 * For the timeout system. The timeout code calls defer_int_cpu ().
-	 */
-
-	timeout_global_hierarchy = 39,
-#define	timeout_global_priority	plhi
-
 
 	/*
 	 * For the defer system.
@@ -56,18 +43,12 @@ enum {
 	proc_global_hierarchy = 40,
 #define	proc_global_priority	plhi
 
-
 	/*
-	 * For streams, the stream directory lock nests outside the stream
-	 * head lock, which nests outside STREAMS memory allocation. STREAMS
-	 * locks are all at "plstr" by definition *except* for the streams
-	 * heap locks, which have a priority conditional on various factors.
-	 * Both of the streams heap locks call defer... () routines.
+	 * For the kmem_... () pool.
 	 */
 
-	stream_heap_hierarchy = 39,
-	stream_head_hierarchy = 38,
-	stream_dir_hierarchy = 37,
+	kmem_heap_hierarchy = 40,
+#define	kmem_heap_priority	plhi
 
 
 	/*
@@ -78,8 +59,68 @@ enum {
 	stream_schedule_hierarchy = 40,
 	stream_event_hierarchy = 40,
 	stream_proc_hierarchy = 40,
-	stream_seq_hierarchy = 40
+	stream_seq_hierarchy = 40,
 
+
+	/*
+	 * For the timeout system. The timeout code calls defer_int_cpu (),
+	 * so we have to be lower than defer.
+	 */
+
+	timeout_global_hierarchy = defer_hierarchy - 1,
+#define	timeout_global_priority	plhi
+
+
+	/*
+	 * For streams, the stream directory lock nests outside the stream
+	 * head lock, which nests outside STREAMS memory allocation. STREAMS
+	 * locks are all at "plstr" by definition *except* for the streams
+	 * heap locks, which have a priority conditional on various factors.
+	 * Both of the streams heap locks call defer... () routines.
+	 */
+
+	stream_heap_hierarchy = kmem_heap_hierarchy - 1,
+
+	/*
+	 * For polling, the global lock nests outside the "pollhead" lock
+	 * which nests outside the "pollwait" lock.  These must all be lower
+	 * than the timeout lock code, since a timeout for a poll is taken out
+	 * with the pollwait lock held.
+	 */
+
+	pollwait_hierarchy = timeout_global_hierarchy - 1,
+#define	pollwait_priority 	plhi
+
+	pollhead_hierarchy = pollwait_hierarchy - 1,
+#define	pollhead_priority	plhi
+
+	/*
+	 * This has to nest outside the pollwait lock, since there are
+	 * occasions when polling conditions are satisfied and pollwakeup()
+	 * is called while a stream head is held locked.
+	 */
+
+	stream_head_hierarchy = __LOCK_MIN (stream_heap_hierarchy,
+					    pollwait_hierarchy) - 1,
+
+	/*
+	 * The polling global lock must be lower than the stream head lock
+	 * because we hold it around calls to the stream poll entry point to
+	 * prevent race conditions.
+	 */
+
+	poll_global_hierarchy = __LOCK_MIN (pollhead_hierarchy,
+					    stream_head_hierarchy) - 1,
+#define	poll_global_priority	plhi
+
+
+	/*
+	 * This needs to be lower than the polling global lock because
+	 * phfree () is called with this lock held when a stream is being
+	 * deallocated.
+	 */
+
+	stream_dir_hierarchy = poll_global_hierarchy - 1
 };
 
 #endif	/* ! defined (__KERNEL_DDI_LOCK_H__) */
