@@ -101,10 +101,15 @@ register SR	*srp;
 	/*
 	 * we load all pages
 	 */
-	switch (flags&(SFSYST|SFTEXT)) {
-	case SFTEXT:	akey = SEG_RO;  break;
-	case SFSYST:	akey = SEG_SRW; break;
-	default:	akey = SEG_RW;  break;
+	 /* a shm segment ref may be Read-Write or Read-Only */
+	if (srp->sr_flag & SRFRODT)
+		akey = SEG_RO;
+	else {
+		switch (flags&(SFSYST|SFTEXT)) {
+		case SFTEXT:	akey = SEG_RO;  break;
+		case SFSYST:	akey = SEG_SRW; break;
+		default:	akey = SEG_RW;  break;
+		}
 	}
 
 	do
@@ -1199,8 +1204,8 @@ segload()
 			case SIPDATA:
 				if (u.u_segl[SISTACK].sr_base)
 					start->sr_size = min(start->sr_size,
-						u.u_segl[SISTACK].sr_base-
-						   u.u_segl[SISTACK].sr_size);
+					  (long)u.u_segl[SISTACK].sr_base-
+					  u.u_segl[SISTACK].sr_size);
 				break;
 			case SISTACK:
 				start->sr_base -= start->sr_size;
@@ -1244,7 +1249,7 @@ void
 i8086()
 {
 	unsigned	csize, isize, ssize, allsize;
-	vaddr_t	base;
+	caddr_t	base;
 	unsigned int	calc_mem, boost;
 
 	/* This is the first C code executed after paging is turned on. */

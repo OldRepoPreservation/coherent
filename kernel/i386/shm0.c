@@ -124,16 +124,19 @@ shmAllocDone:
  * index "shm_ix" into p_shmsr[] for a process, set up the
  * SR struct accordingly.
  *
+ * Argument "ronflag" is nonzero if segment is to be attached read-only.
+ *
  * Return 0 in case of failure, else nonzero.
  */
 int
-shmAtt(shm_ix, base, segp)
+shmAtt(shm_ix, base, segp, ronflag)
 unsigned int shm_ix;
-vaddr_t base;
+caddr_t base;
 SEG * segp;
+int ronflag;
 {
 	int numBytes = segp->s_size;
-	return shmAttach(shm_ix, numBytes, base, segp);
+	return shmAttach(shm_ix, numBytes, base, segp, ronflag);
 }
 
 /*
@@ -145,14 +148,17 @@ SEG * segp;
  * index "shm_ix" into p_shmsr[] for a process, set up the
  * SR struct accordingly.
  *
+ * Argument "ronflag" is nonzero if segment is to be attached read-only.
+ *
  * Return 0 in case of failure, else nonzero.
  */
 int
-shmAttach(shm_ix, numBytes, base, segp)
+shmAttach(shm_ix, numBytes, base, segp, ronflag)
 unsigned int shm_ix;
 off_t numBytes;
-vaddr_t base;
+caddr_t base;
 SEG * segp;
+int ronflag;
 {
 	SR * srp;
 
@@ -172,6 +178,8 @@ SEG * segp;
 	srp = SELF->p_shmsr + shm_ix;
 	srp->sr_base = base;
 	srp->sr_flag = (SRFDUMP | SRFDATA);
+	if (ronflag)
+		srp->sr_flag |= SRFRODT;
 	srp->sr_size = numBytes;
 	srp->sr_segp = segp;
 
@@ -239,7 +247,7 @@ unsigned int shm_ix;
  */
 SR *
 accShm(base, numBytes)
-vaddr_t base;
+caddr_t base;
 off_t numBytes;
 {
 	SR * srp;
