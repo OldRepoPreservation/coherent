@@ -1,7 +1,9 @@
 /*
- * A shell.
+ * sh/extern.c
+ * Bourne shell.
  * External variables.
  */
+
 #include "sh.h"
 
 /* Set time, run time, and internal flags */
@@ -38,6 +40,7 @@ int	errflag = 0;
 int	keyflag = 1;
 int	noeflag = 0;
 int	prpflag = 1;
+int	readflag = 0;
 /* Parameters used by shell, names and values */
 char	*vhome = NULL;
 char	*vpath = NULL;
@@ -53,3 +56,5 @@ VAR	*varp = NULL;
 /* Directory stack. */
 char	*dstack[DSTACKN];		/* Directory stack */
 int	dstkp;				/* Directory stack pointer */
+
+/* end of sh/extern.c */

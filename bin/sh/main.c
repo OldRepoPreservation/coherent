@@ -205,7 +205,7 @@ register char *p;
 				reset(rcode);
 				NOTREACHED;
 			}
-			if ( ! iflag || (tflag && tflag++ >= 2))
+			if (rcode == RUEXITS || (tflag && tflag++ >= 2))
 				break;
 			continue;
 		case RNOSBRK:

@@ -14,7 +14,6 @@
 
 char	*cd();
 
-extern	s_colon();
 extern	s_dot();
 extern	s_break();
 #define s_continue	s_break
@@ -45,7 +44,6 @@ typedef struct {
 } INLINE;
 
 INLINE inls[] = {
-	0,	":",		s_colon,
 	0,	".",		s_dot,
 	0,	"break",	s_break,
 	0,	"continue",	s_continue,
@@ -80,17 +78,20 @@ inline()
 		for (ip=inls; ip->i_name!=NULL; ip++)
 			ip->i_hash = ihash(ip->i_name);
 	if (nargv[0] == NULL)
-		return (0);
+		return 0;
 	ahash = ihash(nargv[0]);
 	for (ip=inls; ip->i_name!=NULL; ip++)
 		if (ip->i_hash==ahash && strcmp(nargv[0], ip->i_name)==0)
 			break;
 	if ((s_func=ip->i_func) == SNULL)
-		return (0);
+		return 0;
 	if (*niovp != NULL && s_func != s_exec) {
 		/* Redirection with built-in command. */
-		/* Allowed only with export, readonly, set, times. */
-		if (s_func != s_export && s_func != s_set && s_func != s_times) {
+		/* Allowed only with eval, export, readonly, set, times. */
+		if (s_func != s_eval
+		 && s_func != s_export
+		 && s_func != s_set
+		 && s_func != s_times) {
 			eredir();
 			slret = 1;
 			return 1;
@@ -99,6 +100,8 @@ inline()
 			/* Perform redirection in child process. */
 			if (redirect(niovp) < 0)
 				slret = 1;
+			else if (s_func == s_eval)
+				slret = (*s_func)();
 			else {
 				/* Kludge stderr output to stdout. */
 				dup2(1, 2);
@@ -110,7 +113,7 @@ inline()
 		}
 	} else
 		slret = (*s_func)();
-	return (1);
+	return 1;
 }
 
 ihash(cp)
@@ -118,30 +121,26 @@ register char *cp;
 {
 	register int i;
 	for (i=0; *cp; i+=*cp++);
-	return (i);
+	return i;
 }
 
 /*
  * Actual builtin functions.
  */
-s_colon()
-{
-	return (0);
-}
 s_dot()
 {
 	if (nargc==2) {
 		ffind(NULL);
 		if (ffind(vpath, nargv[1], 4))
-			return (session(SFILE, duplstr(strt, 0)));
+			return session(SFILE, duplstr(strt, 0));
 		else {
 			ecantfind(nargv[1]);
-			return (1);
+			return 1;
 		}
 	} else if (nargc==1)
-		return (0);
+		return 0;
 	syntax();
-	return (1);
+	return 1;
 }
 s_break()
 {
@@ -188,9 +187,9 @@ s_dirs()
 s_eval()
 {
 	if (nargc>1)
-		return (session(SARGV, ++nargv));
+		return session(SARGV, ++nargv);
 	else
-		return (0);
+		return 0;
 }
 s_exec()
 {
@@ -199,10 +198,10 @@ s_exec()
 			exit(1);
 			NOTREACHED;
 		}
-		return (1);
+		return 1;
 	}
 	if (nargc==1)
-		return (0);
+		return 0;
 	if (no1flag)
 		cleanup(2, NULL);
 	dflttrp(ICMD);
@@ -234,7 +233,7 @@ s_export()
 				flagvar(*varv++, flag);
 			else
 				eillvar(*varv++);
-	return (0);
+	return 0;
 }
 s_login()
 {
@@ -243,7 +242,7 @@ s_login()
 	cmd = nargv[0][0]=='l' ? "/bin/login" : "/bin/newgrp";
 	execve(cmd, nargv, envlvar(nenvp));
 	ecantfind(cmd);
-	return (1);
+	return 1;
 }
 /* s_newgrp is overlaid with s_login */
 s_popd()
@@ -313,9 +312,11 @@ s_read()
 			if (c == '\n')
 				--strp;
 			*strp = '\0';
-		} else if (! eol)
+		} else if (! eol) {
+			readflag = 1;
 			c = yylex();
-		else
+			readflag = 0;
+		} else
 			*strt = '\0';
 		if (namevar(*vp))
 			assnvar(*vp, duplstr(strt, 0));
@@ -324,16 +325,16 @@ s_read()
 		eol = c=='\n' || c==EOF;
 	}
 	sesp = s.s_next;
-	return (c==EOF);
+	return c==EOF;
 }
 /* s_readonly overlaid with s_export */
 s_set()
 {
 	if (nargc < 2) {
 		tellvar(0);
-		return (0);
+		return 0;
 	}
-	return (set(nargc, nargv, 0));
+	return set(nargc, nargv, 0);
 }
 s_shift()
 {
@@ -345,7 +346,7 @@ s_shift()
 		sargc -= 1;
 		sargp += 1;
 	}
-	return (n!=0);
+	return n!=0;
 }
 s_times()
 {
@@ -362,7 +363,7 @@ s_times()
 	ptime(tb.tb_cutime);
 	ptime(tb.tb_cstime);
 	prints("\n");
-	return (0);
+	return 0;
 }
 s_trap()
 {
@@ -372,7 +373,7 @@ s_trap()
 
 	err = 0;
 	if (nargc==1)
-		return (telltrp());
+		return telltrp();
 	vp = ++nargv;
 	cp = *vp;
 	if (class(cp[0], MDIGI)
@@ -388,7 +389,7 @@ s_trap()
 			err |= 1;
 		}
 	}
-	return (err);
+	return err;
 }
 s_umask()
 {
@@ -396,7 +397,7 @@ s_umask()
 		prints("%03o\n", ufmask);
 	else
 		umask(ufmask = atoi(nargv[1]));
-	return (0);
+	return 0;
 }
 s_wait()
 {
@@ -406,7 +407,7 @@ s_wait()
 	if (f > 0)
 		f = -f;
 	waitc(f);
-	return (slret);
+	return slret;
 }
 
 /*
@@ -503,16 +504,16 @@ register char *argv[];
 			xflag = 0;
 		}
 		if (flag == 0 && argc == 2)
-			return (errflag);
+			return errflag;
 	}
 	if (errflag)
-		return (1);
+		return 1;
 	if (sargv != NULL)
 		vfree(sargv);
 	sargv = vdupl(argv);
 	sargc = argc - n;
 	sargp = sargv + n;
-	return (0);
+	return 0;
 }
 
 /*
