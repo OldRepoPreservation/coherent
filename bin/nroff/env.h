@@ -76,6 +76,7 @@ typedef	struct {
 	int	e_posexls;		/* Post extra line space	*/
 	int	e_preexls;		/* Pre extra line space		*/
 	int	e_psz;			/* Pointsize			*/
+	int	e_spcnt;		/* Space padding size		*/
 	int	e_ssz;			/* Space size			*/
 	int	e_sszdiv;		/* Space size divisor		*/
 	int	e_sszmul;		/* Space size multiplier	*/
@@ -151,6 +152,7 @@ typedef	struct {
 #define	posexls	env.e_posexls		/* Post extra line space	*/
 #define	preexls	env.e_preexls		/* Pre extra line space		*/
 #define	psz	env.e_psz		/* Pointsize			*/
+#define	spcnt	env.e_spcnt		/* Space padding size		*/
 #define	ssz	env.e_ssz		/* Space size			*/
 #define	sszdiv	env.e_sszdiv		/* Space size divisor		*/
 #define	sszmul	env.e_sszmul		/* Space size multiplier	*/

@@ -1,12 +1,11 @@
 /* fwtable.h */
 
 /* Manifest constants. */
-#define	USAGE	"Usage: fwtable [ -cptv ] [ -ssymset ] [ infile [ outfile ] ]\n"
 #define	FLAG_PCL	1		/* PCL font width table flag */
 #define	FLAG_PS		2		/* PostScript font width table flag */
 #define	NBUF		512
 #define	NWIDTH		256		/* character buffer size */
-#define	VERSION		"1.3"
+#define	VERSION		"1.5"
 
 /* Debugging output macro. */
 #if	DEBUG
@@ -35,7 +34,7 @@ short		getshort();
 unsigned int	getuchar();
 void		nonfatal();
 void		ofpwrite();
-void		putint();
+void		putshort();
 void		putstring();
 void		read_header();
 void		usage();
@@ -50,10 +49,10 @@ void		outputPS();
 
 /* Functions in fwt_TFM.c. */
 long		gcd();
-int		getint();
 long		getlong();
 void		getrational();
 char		*getstring();
+int		getword();
 void		inputTFM();
 void		outputTFM();
 int		PCL_width();
@@ -63,7 +62,6 @@ void		xseek();
 long		xtell();
 
 /* Externals in libc.a. */
-extern	long	fseek();
 extern	long	ftell();
 extern	char	*malloc();
 

@@ -11,8 +11,8 @@
  * The font table contains the user name and font index of each font.
  */
 typedef struct {
-	char f_name[2];
-	int f_font;
+	char	f_name[2];
+	int	f_font;
 } FTB;
 
 /*
@@ -29,18 +29,18 @@ typedef struct {
 typedef struct	fwtab {
 	char		*f_descr;	/* descriptive name for font	*/
 	char		*f_PSname;	/* PostScript font name		*/
-	int		f_flags;	/* flag bits			*/
-	int		f_fonttype;	/* font type			*/
-	int		f_orientation;	/* portrait=0, landscape=1	*/
-	int		f_spacing;	/* fixed=0, variable=1		*/
-	int		f_symset;	/* symbol set			*/
-	int		f_pitch;	/* pitch			*/
-	int		f_psz;		/* point size (internal units)	*/
-	int		f_style;	/* upright=0, italic=1		*/
-	int		f_weight;	/* stroke weight		*/
-	int		f_face;		/* typeface			*/
-	int		f_num;		/* width table numerator	*/
-	int		f_den;		/* width table denominator	*/
+	short		f_flags;	/* flag bits			*/
+	short		f_fonttype;	/* font type			*/
+	short		f_orientation;	/* portrait=0, landscape=1	*/
+	short		f_spacing;	/* fixed=0, variable=1		*/
+	short		f_symset;	/* symbol set			*/
+	short		f_pitch;	/* pitch			*/
+	short		f_psz;		/* point size (internal units)	*/
+	short		f_style;	/* upright=0, italic=1		*/
+	short		f_weight;	/* stroke weight		*/
+	short		f_face;		/* typeface			*/
+	short		f_num;		/* width table numerator	*/
+	short		f_den;		/* width table denominator	*/
 	unsigned char	f_width[NWIDTH]; /* width table			*/
 } FWTAB;
 
