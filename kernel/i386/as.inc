@@ -164,7 +164,5 @@
 	.set	STROBE,	0x01
 	.set	UADDR,		0x3FFFFC
 	.set	U_ERROR,	2	/ Offset into u for u_error
-	.set	WORK0,		0x3FFFE8
-	.set	WORK1,		0x3FFFEC
 	.set	X_ERR,		52
 	.set	X_TRAPNO,	48

@@ -30,10 +30,12 @@ cseg_t	*from, *to;
 	int save = setspace(SEG_386_KD);
 
 	while (npage--) {
-		ptable1_v[WORK0] = *from++ | SEG_SRW;
-		ptable1_v[WORK1] = *to++ | SEG_SRW;
+		int work = workAlloc();	/* Get a virtual click pair. */
+		ptable1_v[work] = *from++ | SEG_SRW;
+		ptable1_v[work + 1] = *to++ | SEG_SRW;
 		mmuupd();
-		copyseg_d(NBPC, ctob(WORK0), ctob(WORK1));
+		copyseg_d(NBPC, ctob(work), ctob(work + 1));
+		workFree(work);
 	}
 	setspace(save);
 }
@@ -52,29 +54,31 @@ paddr_t	to;
 	int	n;
 	cseg_t *base;
 	int save = setspace(SEG_386_KD);
+	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 	n = min(nbytes, NBPC-off);
-	ptable1_v[WORK0] = *base++ | SEG_SRW;
+	ptable1_v[work] = *base++ | SEG_SRW;
 	mmuupd();
 	
-	clearseg_d(n, ctob(WORK0)+off, fill);
+	clearseg_d(n, ctob(work)+off, fill);
 	nbytes -= n;
 
 	while (nbytes >= NBPC) {
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
-		clearseg_d(NBPC, ctob(WORK0), fill);
+		clearseg_d(NBPC, ctob(work), fill);
 		nbytes -= NBPC;
 	}
 
 	if (nbytes) {
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
-		clearseg_d(nbytes, ctob(WORK0), fill);
+		clearseg_d(nbytes, ctob(work), fill);
 	}
 	setspace(save);
+	workFree(work);
 }
 
 /*
@@ -92,12 +96,13 @@ vaddr_t	vaddr;
 	unsigned	n, n1;
 	cseg_t* base;
 	int save = setspace(SEG_386_KD);
+	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 
 	n = min(nbytes, NBPC-off);
-	ptable1_v[WORK0] = *base++ | SEG_SRW;
+	ptable1_v[work] = *base++ | SEG_SRW;
 	mmuupd();
 
 	if (nbytes==n) {
@@ -111,12 +116,12 @@ vaddr_t	vaddr;
 		if (n >= sizeof(long))
 			n &= sizeof(long)-1;
 		if (n)
-			copyseg_b(n, ctob(WORK0)+off, vaddr);
+			copyseg_b(n, ctob(work)+off, vaddr);
 		off += n;
 		vaddr += n;
 		nbytes -= n;
 		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, ctob(WORK0)+off, vaddr);
+			copyseg_d(n, ctob(work)+off, vaddr);
 			off += n;
 			vaddr += n;
 			nbytes -= n;
@@ -129,12 +134,12 @@ vaddr_t	vaddr;
 		 * in the first page
 		 */			
 		if (n1 = n & 3)
-			copyseg_b(n1, ctob(WORK0)+off, vaddr);
+			copyseg_b(n1, ctob(work)+off, vaddr);
 		off += n1;
 		vaddr += n1;
 		nbytes -= n1;
 		if (n = n & ~(sizeof(long)-1)) {
-			copyseg_d(n, ctob(WORK0)+off, vaddr);
+			copyseg_d(n, ctob(work)+off, vaddr);
 			off += n;
 			vaddr += n;
 			nbytes -= n;
@@ -144,10 +149,10 @@ vaddr_t	vaddr;
 		 * copy nbytes>>BPCSHIFT full pages
 		 */
 		while (nbytes >= NBPC) {
-			ptable1_v[WORK0] = *base++ | SEG_SRW;
+			ptable1_v[work] = *base++ | SEG_SRW;
 			mmuupd();
 	
-			copyseg_d(NBPC, ctob(WORK0), vaddr);
+			copyseg_d(NBPC, ctob(work), vaddr);
 			vaddr += NBPC;
 			nbytes -= NBPC;
 		}
@@ -157,19 +162,20 @@ vaddr_t	vaddr;
 		 * copy nbytes>>2 long words
 		 * copy nbytes & 3 bytes
 		 */
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
 	
 		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, ctob(WORK0), vaddr);
+			copyseg_d(n, ctob(work), vaddr);
 			vaddr += n;
 			nbytes -= n;
 		}
 		if (nbytes)
-			copyseg_b(nbytes, ctob(WORK0)+n, vaddr);
+			copyseg_b(nbytes, ctob(work)+n, vaddr);
 	}
 
 	setspace(save);
+	workFree(work);
 }
 
 /*
@@ -187,12 +193,13 @@ vaddr_t	vaddr;
 	unsigned	n, n1;
 	cseg_t *base;
 	int save = setspace(SEG_386_KD);
+	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 
 	n = min(nbytes, NBPC-off);
-	ptable1_v[WORK0] = *base++ | SEG_SRW;
+	ptable1_v[work] = *base++ | SEG_SRW;
 	mmuupd();
 
 	if (nbytes==n) {
@@ -204,12 +211,12 @@ vaddr_t	vaddr;
 		 * copy nbytes bytes
 		 */
 		if (n1 = n & (sizeof(long)-1))
-			copyseg_b(n1, vaddr, ctob(WORK0)+off);
+			copyseg_b(n1, vaddr, ctob(work)+off);
 		off += n1;
 		vaddr += n1;
 		nbytes -= n1;
 		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, vaddr, ctob(WORK0)+off);
+			copyseg_d(n, vaddr, ctob(work)+off);
 			off += n;
 			vaddr += n;
 			nbytes -= n;
@@ -222,12 +229,12 @@ vaddr_t	vaddr;
 		 * in the first page
 		 */			
 		if (n1 = n & (sizeof(long)-1))
-			copyseg_b(n1, vaddr, ctob(WORK0)+off);
+			copyseg_b(n1, vaddr, ctob(work)+off);
 		off += n1;
 		vaddr += n1;
 		nbytes -= n1;
 		if (n = n & ~(sizeof(long)-1)) {
-			copyseg_d(n, vaddr, ctob(WORK0)+off);
+			copyseg_d(n, vaddr, ctob(work)+off);
 			off += n;
 			vaddr += n;
 			nbytes -= n;
@@ -237,9 +244,9 @@ vaddr_t	vaddr;
 		 * copy nbytes>>BPCSHIFT full pages
 		 */
 		while (nbytes >= NBPC) {
-			ptable1_v[WORK0] = *base++ | SEG_SRW;
+			ptable1_v[work] = *base++ | SEG_SRW;
 			mmuupd();
-			copyseg_d(NBPC, vaddr, ctob(WORK0));
+			copyseg_d(NBPC, vaddr, ctob(work));
 			vaddr += NBPC;
 			nbytes -= NBPC;
 		}
@@ -249,19 +256,20 @@ vaddr_t	vaddr;
 		 * copy nbytes>>2 long words
 		 * copy nbytes & 3 bytes
 		 */
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
 	
 		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, vaddr, ctob(WORK0));
+			copyseg_d(n, vaddr, ctob(work));
 			vaddr += n;
 			nbytes -= n;
 		}
 		if (nbytes)
-			copyseg_b(nbytes, vaddr, ctob(WORK0)+off);
+			copyseg_b(nbytes, vaddr, ctob(work)+off);
 	}
 
 	setspace(save);
+	workFree(work);
 }
 
 /*
@@ -278,30 +286,32 @@ paddr_t	to;
 	int	n;
 	cseg_t *base;
 	int save = setspace(SEG_386_KD);
+	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 
 	n = min(nbytes, NBPC-off);
-	ptable1_v[WORK0] = *base++ | SEG_SRW;
+	ptable1_v[work] = *base++ | SEG_SRW;
 	mmuupd();
 	
-	io2seg(n, ctob(WORK0)+off, port);
+	io2seg(n, ctob(work)+off, port);
 	nbytes -= n;
 
 	while (nbytes >= NBPC) {
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
-		io2seg(NBPC, ctob(WORK0), port);
+		io2seg(NBPC, ctob(work), port);
 		nbytes -= NBPC;
 	}
 
 	if (nbytes) {
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
-		io2seg(nbytes, ctob(WORK0), port);
+		io2seg(nbytes, ctob(work), port);
 	}
 	setspace(save);
+	workFree(work);
 }
 
 /*
@@ -318,30 +328,32 @@ paddr_t	to;
 	int	n;
 	cseg_t *base;
 	int save = setspace(SEG_386_KD);
+	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 
 	n = min(nbytes, NBPC-off);
-	ptable1_v[WORK0] = *base++ | SEG_SRW;
+	ptable1_v[work] = *base++ | SEG_SRW;
 	mmuupd();
 	
-	seg2io(n, ctob(WORK0)+off, port);
+	seg2io(n, ctob(work)+off, port);
 	nbytes -= n;
 
 	while (nbytes >= NBPC) {
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
-		seg2io(NBPC, ctob(WORK0), port);
+		seg2io(NBPC, ctob(work), port);
 		nbytes -= NBPC;
 	}
 
 	if (nbytes) {
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
 		mmuupd();
-		seg2io(nbytes, ctob(WORK0), port);
+		seg2io(nbytes, ctob(work), port);
 	}
 	setspace(save);
+	workFree(work);
 }
 
 /*
@@ -363,24 +375,27 @@ register int n;
 {
 	cseg_t *base;
 	register	int save, err;
+	int work;
 
 	if (n > NBPC)
 		return 0;
 
+	work = workAlloc();
 	if (space & SEG_VIRT) {
 		space &= ~SEG_VIRT;
 		base = &sysmem.u.pbase[btocrd(uo)];
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
-		ptable1_v[WORK1] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
+		ptable1_v[work + 1] = *base++ | SEG_SRW;
 	} else {
-		ptable1_v[WORK0] = (uo&~(NBPC-1)) + SEG_SRW;
-		ptable1_v[WORK1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
+		ptable1_v[work] = (uo&~(NBPC-1)) + SEG_SRW;
+		ptable1_v[work + 1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
 	}
 	mmuupd();
 	save = setspace(space);
 
-	err = ukcopy(ctob(WORK0) + (uo&(NBPC-1)), v, n);
+	err = ukcopy(ctob(work) + (uo&(NBPC-1)), v, n);
 	setspace(save);
+	workFree(work);
 	return err;
 }
 
@@ -403,23 +418,26 @@ register int n;
 {
 	register cseg_t *base;
 	register	int save, err;
+	int work;
 
 	if (n > NBPC)
 		return 0;
 
+	work = workAlloc();
 	if (space & SEG_VIRT) {
 		space &= ~SEG_VIRT;
 		base = &sysmem.u.pbase[btocrd(uo)];
-		ptable1_v[WORK0] = *base++ | SEG_SRW;
-		ptable1_v[WORK1] = *base++ | SEG_SRW;
+		ptable1_v[work] = *base++ | SEG_SRW;
+		ptable1_v[work + 1] = *base++ | SEG_SRW;
 	} else {
-		ptable1_v[WORK0] = (uo&~(NBPC-1)) + SEG_SRW;
-		ptable1_v[WORK1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
+		ptable1_v[work] = (uo&~(NBPC-1)) + SEG_SRW;
+		ptable1_v[work + 1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
 	}
 	mmuupd();
 	save = setspace(space);
 
-	err = kucopy(v, ctob(WORK0) + (uo&(NBPC-1)), n);
+	err = kucopy(v, ctob(work) + (uo&(NBPC-1)), n);
 	setspace(save);
+	workFree(work);
 	return err;
 }

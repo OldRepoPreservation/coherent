@@ -55,6 +55,7 @@ void	ndpNewOwner();
 void	ndpNewProc();
 char *	ndpTypeName();
 int	rdNdpSaved();
+int	rdNdpSavedU();
 int	rdNdpUser();
 void	senseNdp();
 void	wrNdpSaved();
@@ -114,11 +115,13 @@ ndpNewOwner()
 
 	/* save old ndp status, if any process was using it */
 	if (ndpOwner) {
-		ptable1_v[WORK0] = sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
+		int work = workAlloc();
+		ptable1_v[work] = sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
 		mmuupd();
-		up = (UPROC *)(ctob(WORK0) + U_OFFSET);
+		up = (UPROC *)(ctob(work) + U_OFFSET);
 		ndpSave(&up->u_ndpCon);
 		wrNdpSavedU(1, up);
+		workFree(work);
 	}
 
 	/* Make current process NDP owner */
@@ -152,22 +155,40 @@ ndpConRest()
 	UPROC *		up;
 
 	/* make CR0 EM bit match what this process needs */
-	ndpEmTraps(rdNdpUser()^1);
+	ndpEmTraps(rdNdpUser() ? 0 : 1);
 
-	/* if current process uses ndp, may need to fix ndp state */
-	if (rdNdpUser() && ndpOwner != SELF) {
-		if (ndpOwner) {		/* save old ndp state */
-			ptable1_v[WORK0] = sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
-			mmuupd();
-			up = (UPROC *)(ctob(WORK0) + U_OFFSET);
-			ndpSave(&up->u_ndpCon);
-			wrNdpSavedU(1, up);
+	/*
+	 * If current process uses ndp, may need to fix ndp state
+	 *
+	 * By the nature of NDP save op's, if the NDP owner's NDP state
+	 * is saved, then it's not in the NDP.
+	 *
+	 * So, we have to be careful (1) not to save twice, and (2) to
+	 * restore, even if we are NDP owner, if NDP state is saved.
+	 */
+	if (rdNdpUser()) {
+		if (ndpOwner != SELF) {
+			if (ndpOwner) {		/* save old ndp state */
+				int work = workAlloc();
+				ptable1_v[work] =
+				  sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
+				mmuupd();
+				up = (UPROC *)(ctob(work) + U_OFFSET);
+				if (!rdNdpSavedU(up)) {
+					ndpSave(&up->u_ndpCon);
+					wrNdpSavedU(1, up);
+				}
+				workFree(work);
+			}
+
+			/* Make current process NDP owner and reload ndp state */
+			ndpMine();
+			ndpRestore(&u.u_ndpCon);
+			wrNdpSaved(0);
+		} else if (rdNdpSaved()) {
+			ndpRestore(&u.u_ndpCon);
+			wrNdpSaved(0);
 		}
-
-		/* Make current process NDP owner and reload ndp state */
-		ndpMine();
-		ndpRestore(&u.u_ndpCon);
-		wrNdpSaved(0);
 	}
 }
 
@@ -290,6 +311,13 @@ rdNdpSaved()
 	return (u.u_ndpFlags & NF_NDP_SAVED) ? 1 : 0;
 }
 
+int
+rdNdpSavedU(up)
+UPROC * up;
+{
+	return (up->u_ndpFlags & NF_NDP_SAVED) ? 1 : 0;
+}
+
 void
 wrNdpSaved(n)
 int n;
@@ -366,7 +394,7 @@ senseNdp()
 		ndpType = ndpSense();	/* Rely on assembler tricks now. */
 		ndpEmTraps(1);
 	}
-	if (ndpType == NDP_TYPE_387) {
+	if (ndpType == NDP_TYPE_387 || ndpType == NDP_TYPE_287) {
 		setivec(NDP_IRQ, ndpIrq);
 	}
 }
