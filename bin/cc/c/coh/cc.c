@@ -1,4 +1,6 @@
 /*
+ * cc.c
+ * 11/3/90
  * CC command.
  * Compile, assemble and link edit C programs.
  * A lot of grunge.
@@ -342,6 +344,7 @@ char *argv[];
 	setvariant(VSPVAL);
 	setvariant(VPEEP);
 	setvariant(VCOMM);
+	setvariant(V80186);
 
 	if (p = getenv("PATH")) dpath = p;
 	if (p = getenv("LIBPATH")) dlibpath = p;
