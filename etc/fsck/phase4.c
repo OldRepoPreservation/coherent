@@ -14,7 +14,6 @@ phase4()
 
 	if (!qflag)
 		printf("Phase 4 : Check Reference Counts\n");
-	lostsize = 0;
 	for (i=FIRSTIN; i<=ninodes; i++) {
 		if ( badblks(i) )
 			if ( bddp(i) == YES )
@@ -107,7 +106,6 @@ ino_t ino;
 	struct dinode *dip;
 
 	dip = ptrino(ino, databuf);
-	lostsize += dip->di_size;
 	zeroinode(dip);
 	writeino(ino, databuf);
 	setflags(ino, UNALLOC);
@@ -180,7 +178,8 @@ freeilist()
 			sbpfix = TRUE;
 		}
 
-	if ( (daction!=NO) && ((sbpfix==TRUE) || (badilist()==BAD)) ) 
+	if ( (daction!=NO) &&
+	     ( (sflag==TRUE) || (sbpfix==TRUE) || (badilist()==BAD) ) )
 	 	rebuild();
 
 }
@@ -212,19 +211,24 @@ badilist()
 rebuild()
 {
 	daddr_t bn;
-	ino_t i = FIRSTIN;
-	int index = 0;
+	ino_t i;
+	int index;
 
 	sbpfix = TRUE;
-	while ( (i<=ninodes) && (index<NICINOD) ) {
+	for (i=FIRSTIN, index=0; (i<=ninodes) && (index<NICINOD); i++) {
 		if ( (flags(i)&ALLOCMASK) == UNALLOC ) {
 			bn = iblockn(i);
 			if ( (!testblock(bn)) || (bn==INODEI) )
-				sbp->s_inode[index++] = i;
+				index++;
 		}
-		i++;
 	}
-
 	sbp->s_ninode = index;
+	for (i=FIRSTIN; (i<=ninodes) && (index>0); i++) {
+		if ( (flags(i)&ALLOCMASK) == UNALLOC ) {
+			bn = iblockn(i);
+			if ( (!testblock(bn)) || (bn==INODEI) )
+				sbp->s_inode[--index] = i;
+		}
+	}
 	printf("Free i-node list in superblock rebuilt.\n");
 }

@@ -149,6 +149,7 @@ struct dinode *dip;
 	register char *ptr;
 	register struct dinode *next;
 
+	lostsize += dip->di_size;
 	next = dip+1;
 	ptr = (char *) dip;
 
@@ -248,7 +249,7 @@ register daddr_t bn;
 register ino_t ino;
 {
 	register int flag;
-
+	
 	if ( (flag=checkbad(bn, ino)) == OK ) 
 		return( checkdup(bn, ino) );
 	else

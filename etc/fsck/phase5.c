@@ -23,7 +23,7 @@ phase5()
 	badflag = FALSE;
 	freetrav(fbp);
 	fixerup = FALSE;
-	if (badflag) 
+	if (badflag || sflag) 
 		asksalvage();
 }
 
@@ -59,12 +59,18 @@ struct fblk *fbp;
 		total++;
 		bread(fbp->df_free[0], databuf);
 		fbp = (struct fblk *) databuf;
-		canfblk(fbp);
+		if ( !canfblk(fbp) ) {
+			badflag = TRUE;
+			printf("Bad freeblock count.\n");
+			break;
+		}
 	}
 
-/*	printf("Total traversed free blocks     = %U\n", total);	 */
-/*	printf("Total free blocks by Superblock = %U\n", sbp->s_tfree);	 */
-/*	printf("Running total free blocks       = %U\n", totfree);	 */
+#if 0
+	printf("Total traversed free blocks     = %U\n", total);	 
+	printf("Total free blocks by Superblock = %U\n", sbp->s_tfree);	 
+	printf("Running total free blocks       = %U\n", totfree);	 
+#endif
 
 	if ( flag == ABORT ) { 		/* To Terminate fsck on this 	*/
 		badflag = FALSE;	/* File System, because of	*/
@@ -137,14 +143,17 @@ register struct fblk *fbp;
 	register short i;
 
 	canshort(fbp->df_nfree);
+	if ( (unsigned) fbp->df_nfree > NICFREE )
+		return(FALSE);
+
 	for (i=0; i<fbp->df_nfree; i++)
 		candaddr(fbp->df_free[i]);
-
+	return(TRUE);
 }
 
 asksalvage()
 {
-	if ( qflag && (daction!=NO) ) {
+	if ( (daction!=NO) && (qflag || sflag) ) {
 		fixerup = TRUE;
 		return;
 	}

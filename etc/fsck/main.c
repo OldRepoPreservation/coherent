@@ -3,7 +3,7 @@
  * an interactive file system check and repair program.
  *
  * Usage:
- *	/etc/fsck [-y] [-n] [-q] [-f] [-t TMPFILE] [filesystem ...]
+ *	/etc/fsck [-y] [-n] [-q] [-f] [-s] [-t TMPFILE] [filesystem ...]
  *	audit and interactively repair inconsistent conditions for
  *  	file systems.  Options -y and -n indicate an assumed response
  *	to all questions asked by fsck.  Default is to prompt operator
@@ -14,10 +14,14 @@
  *	Option -f is for a 'fast' check of the file system, i.e. only
  *	check blocks, sizes, superblock counts, and the free list.
  *	(-f) does not check pathnames, connectivity, or reference
- *	counts. Option -t sets the temporary file to use for disk caching
- *	of necessary tables on filesystems which are too big to do in core.
- *	The temporary file defaults to "/dev/rram1", which must be there.
- *
+ *	counts.  Option -s forces the reconstruction (or salvaging) of
+ *	both the free inode list and the free block list, even if there
+ *	are no file system problems.  This will reorder the free block
+ *	list in the best order to limit additional fragmentation (respecting
+ *	interleaving as well). Option -t sets the temporary file to use
+ *	for disk caching of necessary tables on filesystems which are too
+ *	big to do in core. The temporary file defaults to "/dev/rram1",
+ *	which must be there.
  */
 
 #include "fsck.h"
@@ -26,8 +30,9 @@ int	errflag;
 
 int	mdaction;			/* default action for invocation */
 int	daction;			/* default action for file system */
-int	qflag=FALSE;			/* fsck quiet flag */
-int	fflag=FALSE;			/* fsck fast flag */
+int	sflag=FALSE;			/* force salvage flag	*/
+int	qflag=FALSE;			/* fsck quiet flag	*/
+int	fflag=FALSE;			/* fsck fast flag	*/
 
 char *tmpfile = NULL;			/* TMP file for virtual.c */
 char *checklistfile = "/etc/checklist";	/* default file for list of file */
@@ -61,6 +66,9 @@ char *argv[];
 			break;
 		case 'f':
 			fflag = TRUE;
+			break;
+		case 's':
+			sflag = TRUE;
 			break;
 		case 't':
 			tmpfile = argv[2];
@@ -200,6 +208,6 @@ char *name;
 usage()
 {
 	printf("\
-Usage: /etc/fsck [-y] [-n] [-q] [-f] [-t TMPFILE] [filesystem ...]\n");
+Usage: /etc/fsck [-y] [-n] [-q] [-f] [-s] [-t TMPFILE] [filesystem ...]\n");
 	_exit(1);
 }
