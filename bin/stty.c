@@ -8,7 +8,10 @@
  *	Input can be a string of 12 hex numbers separated by colons,
  *	  same as output using -g flag.
  *
- * $Log$
+ * $Log:	stty.c,v $
+ * Revision 1.4  92/08/11  15:59:27  root
+ * COH 4.0.1
+ * 
  */
 
 /*
@@ -675,9 +678,23 @@ char * opt;
 		goto combo_done;
 	}
 	if (strcmp(opt, "raw") == 0) {
-		t.c_cflag = 0;
-		t.c_oflag = 0;
-		combo("-parity");
+		simple("-parenb", c_list, &t.c_cflag);
+		simple("-parodd", c_list, &t.c_cflag);
+		simple("-hupcl", c_list, &t.c_cflag);
+		simple("cs8", c_list, &t.c_cflag);
+		simple("-opost", o_list, &t.c_oflag);
+		simple("-olcuc", o_list, &t.c_oflag);
+		simple("-ocrnl", o_list, &t.c_oflag);
+		simple("-onocr", o_list, &t.c_oflag);
+		simple("-onlret", o_list, &t.c_oflag);
+		simple("-ofill", o_list, &t.c_oflag);
+		simple("-ofdel", o_list, &t.c_oflag);
+		simple("nl0", o_list, &t.c_oflag);
+		simple("cr0", o_list, &t.c_oflag);
+		simple("tab0", o_list, &t.c_oflag);
+		simple("bs0", o_list, &t.c_oflag);
+		simple("vt0", o_list, &t.c_oflag);
+		simple("ff0", o_list, &t.c_oflag);
 		goto combo_done;
 	}
 	if (strcmp(opt, "-raw") == 0) {
