@@ -1,4 +1,4 @@
-# scall.s5 2/24/93
+# scall.s5 6/4/93
 #ident libc-m32:scall.list %I%
 #
 # $1= func_name, $2=s_call number, $3= arg count, $4= flags
@@ -70,4 +70,5 @@ mkdir	80	2
 getdents 81	4
 poll	87	3
 chsize	2600	2
+nap	3112	1
 # end of scall.s5
