@@ -8,6 +8,7 @@
 #ifndef	 __SYS_SEG_H__
 #define	 __SYS_SEG_H__
 
+#include <common/ccompat.h>
 #include <common/feature.h>
 #include <common/__paddr.h>
 #include <common/__caddr.h>
@@ -68,10 +69,11 @@ typedef struct seg {
 
 extern	SEG	*segdupl();		/* seg.c */
 extern	SEG	*ssalloc();		/* seg.c */
-extern	SEG	*salloc();		/* seg.c */
 extern	SEG	*smalloc();		/* seg.c */
 extern	SEG	*shalloc();		/* seg.c */
 
+SEG *		salloc	__PROTO ((int bytesWanted, int flags));
+void		sfree	__PROTO ((SEG * sp));
 
 /*
  * Open segment structure.
