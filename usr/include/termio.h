@@ -6,6 +6,13 @@
  * 91/10/17 - Adapt for 386 COHERENT.
  *
  -lgl) */
+/*
+ * /usr/include/termio.h
+ *
+ * Line discipline support.
+ *
+ * Revised Tue Mar 23 14:23:58 1993 CST
+ */
 #ifndef __TERMIO_H__
 #define __TERMIO_H__
 
@@ -182,5 +189,20 @@ struct	termio {
 				   arg=1 -> flush output queue
 				   arg=2 -> flush both input and output queues
 				 */
+
+#if !(_POSIX_SOURCE)
+
+#define TIOCGWINSZ	(TIOC | 104)
+#define TIOCSWINSZ	(TIOC | 103)
+
+struct winsize {
+	unsigned short ws_row;		/* characters per row */
+	unsigned short ws_col;		/* characters per column */
+	unsigned short ws_xpixel;	/* pixels per row */
+	unsigned short ws_ypixel;	/* pixels per column */
+};
+
 #endif
-#endif
+
+#endif _COH_TERMIO
+#endif __TERMIO_H__
