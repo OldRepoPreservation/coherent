@@ -1,11 +1,11 @@
 /*
- * cc.c
- * 11/3/90
+ * coh/cc.c
  * CC command.
  * Compile, assemble and link edit C programs.
  * A lot of grunge.
  * Revised by rec may1987 to incorporate all
  * coherent and gemdos revisions to date.
+ * Revised by steve 3/92 to produce monolithic COHERENT compiler.
  *
  * Defining VeryVflag will produce very verbose output under -VSTAT
  *	option
@@ -17,24 +17,30 @@
  *	*u	marks an option unrecognized by cc, ie passed to linker
  *		with no interpretation or processing.
  *
- *7c	Bstring		use string to find compiler passes
+ * Still up for grabs:
+ * [  C  FGH J       R    W Y ]
+ * [ b    gh j  m        v  yz]
+ *
  *	A		run in auto edit mode
+ *7c	Bstring		use string to find compiler passes
  *7	Dname[=value]	preprocessor: #define
  *7	E		run preprocessor to stdout
  *7	Ipathname	preprocessor: #include search directory
  *	K		keep intermediate files in name.[P012so]
- *	L		loader: directive for >64K file sizes
+ *	Lpathname	loader: library directory specification
  *	Mstring		use string as cross-compiler prefix
  *	N[01ab2sdlrt]string	rename pass with string
  *7	O		run object code optimiser
  *7d	P		put preprocessor output into name.i; use -Kqp
  *	Q		be quiet, make no messages
  *7	S		make assembly language output in name.s
+ *	T[value]	use in-memory tempfiles of size value (default: 64K)
  *7	Uname		preprocessor: #undef
  *	V		be verbose, report everything
  *	Vvariant	enable variant
  *	X		loader: remove c generated local symbols
  *	Z		(GEMDOS) floppy change prompts for phases
+ *	a		do not implicit output file name to loader
  *7	c		compile but do not load
  *	d		loader: define common space
  *7	e name		loader: entry point specification
@@ -53,6 +59,7 @@
  *	w		loader: watch
  *	x		loader: remove local symbols from symbol table
  */
+
 #if GEMDOS
 #ifndef VERS
 #define VERS	"2.1"
@@ -60,12 +67,16 @@
 #endif
 
 #include <stdio.h>
+#include <setjmp.h>
 #include <string.h>
 #include <ctype.h>
 #include <signal.h>
 #include <path.h>
 #include <errno.h>
 #include "mch.h"
+#include "host.h"
+#include "ops.h"
+#include "stream.h"
 #undef NONE
 #include "var.h"
 #include "varmch.h"
@@ -76,6 +87,12 @@
 
 #ifndef PREFIX
 #define PREFIX	""
+#endif
+
+#if	_I386
+#define	DTEFG	"_dtefg"
+#else
+#define	DTEFG	"_dtefg_"
 #endif
 
 /*
@@ -96,6 +113,7 @@
 #define CRT	11
 #define TMP	12
 #define ALL	13
+#define	CC2B	14	/* for monolithic compiler */
 
 #define P_TAKE	1	/* Take pass from backup directory */
 #define P_BACK	2	/* Backup directory specified */
@@ -147,18 +165,19 @@ struct pass {
 #define MARG	0x100
 #define LDARG	0x200
 
-#define FLAG_c	1		/* -c flag */
-#define FLAG_O	2		/* -O flag */
-#define FLAG_f	4		/* -f flag */
-#define FLAG_K	010		/* -K or -VKEEP flag */
-#define VS	020		/* Turn on strict messages */
-#define VDB	040		/* Turn on debugging */
-#define FLAG_A	0100		/* Auto edit mode */
-#define FLAG_Z	0200		/* Floppy change prompts */
-#define FLAG_V	0400		/* Verbose flag */
-
-#define FLAG_GEMAPP	01000	/* Gem application compile */
-#define FLAG_GEMACC	02000	/* Gem accessory compile */
+/* Flag bits for ccvariant. */
+#define FLAG_c	0x001		/* -c flag */
+#define FLAG_O	0x002		/* -O flag */
+#define FLAG_f	0x004		/* -f flag */
+#define FLAG_K	0x008		/* -K or -VKEEP flag */
+#define VS	0x010		/* Turn on strict messages */
+#define VDB	0x020		/* Turn on debugging */
+#define FLAG_A	0x040		/* Auto edit mode */
+#define FLAG_Z	0x080		/* Floppy change prompts */
+#define FLAG_V	0x100		/* Verbose flag */
+#define FLAG_GEMAPP	0x200	/* Gem application compile */
+#define FLAG_GEMACC	0x400	/* Gem accessory compile */
+#define	FLAG_a	0x800		/* Suppress output file name to ld */
 
 struct option {			/* option table */
 	char o_kind;
@@ -221,6 +240,7 @@ struct option {			/* option table */
 	{ 2,	CCOPT,	"VDB",		VDB	},
 	{ 2,	CCOPT,	"VS",		VS	},
 	{ 12,	CCOPT,	"A",		FLAG_A	},
+	{ 12,	CCOPT,	"a",		FLAG_a	},
 	{ 12,	CCOPT,	"Z",		FLAG_Z	},
 	{ 12,	CCOPT,	"c",		FLAG_c	},
 	{ 10,	CCOPT,	"S",		VASM	},
@@ -248,8 +268,8 @@ struct option {			/* option table */
 	{ 4,	LDOPT,	"w"	},
 	{ 4,	LDOPT,	"x"	},
 	{ 4,	LDOPT,	"X"	},
-#if 0
-	{ 4,	LDOPT,	"L"	},
+#if	1
+	{ 8,	LDOPT,	"L"	},
 #endif
 	{ 5,	LDOPT,	"e"	},
 	{ 5,	LDOPT,	"k"	},
@@ -260,6 +280,9 @@ struct option {			/* option table */
 	{ 7,	CCOPT,	"B"	},
 	{ 7,	CCOPT,	"M"	},
 	{ 7,	CCOPT,	"N"	},
+#if	TEMPBUF
+	{ 9,	CCOPT,	"T"	},
+#endif
 	{ 8,	CCLIB,	"l"	},
 
 	{ -1,	-1,	""	}
@@ -290,6 +313,7 @@ int 	ndoto;
 int	ndots;
 int	partial;			/* Partial link specified */
 
+#define	aflag	((ccvariant&FLAG_a)!=0)
 #define	cflag	((ccvariant&FLAG_c)!=0)
 #define pflag	isvariant(VPROF)
 #define	fflag	((ccvariant&FLAG_f)!=0)
@@ -321,15 +345,44 @@ int	argf[NCMDA];		/* Argument flags */
 char	optb[NCMDB];		/* Option rewrite buffer */
 char	*optp = &optb[0];	/* Option rewrite position */
 
+#if	TEMPBUF
+unsigned char	*inbuf;			/* memory input buffer	*/
+unsigned char	*inbufp;		/* input buffer pointer	*/
+unsigned char	*inbufmax;		/* input buffer end	*/
+unsigned char	*outbuf;		/* memory output buffer	*/
+unsigned char	*outbufp;		/* output buffer pointer */
+unsigned char	*outbufmax;		/* output buffer end	*/
+unsigned int	tempsize = 65536;	/* memory buffer size	*/
+#endif
+
+#if	MONOLITHIC
+/* Information passed to phases through globals in monolithic compiler */
+jmp_buf		death;			/* for fatal error handling	*/
+int		dotseg;			/* current segment		*/
+char		file[NFNAME];		/* input file name buffer	*/
+char		id[NCSYMB];		/* global identifier buffer	*/
+FILE		*ifp;			/* input FILE			*/
+int		line;			/* line number			*/
+int		mflag;			/* debug flag			*/
+char		module[NMNAME];		/* module name buffer		*/
+int		oflag;			/* debug flag			*/
+FILE		*ofp;			/* output FILE			*/
+int		sflag;			/* debug flag			*/
+#endif
+
+/* Forward. */
+FILE	*ccopen();
 char	*makepass();
 char	*makelib();
 int	cleanup();
+
+/* External. */
 char	*getenv();
+char	*malloc();
 char	*tempnam();
 char	*path();
 
-main(argc, argv)
-char *argv[];
+main(argc, argv) int argc; char *argv[];
 {
 	register char *p;
 	register struct option *op;
@@ -339,6 +392,10 @@ char *argv[];
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
 		signal(SIGINT, cleanup);
 #endif
+#if	_I386
+	/* Conditionalized only because _addargs() not in COH286 libc.a yet. */
+	_addargs("CC", &argc, &argv);
+#endif
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 	setvariant(VSUVAR);
@@ -347,8 +404,12 @@ char *argv[];
 	setvariant(VSPVAL);
 	setvariant(VPEEP);
 	setvariant(VCOMM);
+	setvariant(VPSTR);
 	setvariant(V80186);
 
+#if	0
+	printmem("initially");
+#endif
 	if (p = getenv("PATH")) dpath = p;
 	if (p = getenv("LIBPATH")) dlibpath = p;
 	if (p = getenv("EDITOR")) strcpy(pass[ED].p_pln, p);
@@ -449,8 +510,15 @@ char *argv[];
 				case 8:
 					p = dnul;
 					continue;
+#if	TEMPBUF
+				case 9:
+					tempsize = atoi(++p);
+					tempsize = (tempsize + 3) & ~3;
+					p = dnul;
+					continue;
+#endif
 				default:
-					cfatal("options");
+					cquit("options");
 				}
 			}
 			if (((unsigned)argf[i]-1)&((unsigned)argf[i])) {
@@ -510,7 +578,7 @@ char *argv[];
 	}
 #if GEMDOS
 	if (Vflag) {
-	 fprintf(stderr, "Mark Williams C for the Atart ST, %s\n", VERS);
+	 fprintf(stderr, "Mark Williams C for the Atari ST, %s\n", VERS);
 	 fprintf(stderr, "Copyright 1984-1987, Mark Williams Co., Chicago\n");
 	}
 #endif
@@ -520,6 +588,15 @@ char *argv[];
 		if (Kflag==0 && nldob==1 && newo[0]!=0)
 			rm(newo);
 	}
+#if	TEMPBUF
+	if (inbuf != NULL)
+		free(inbuf);
+	if (outbuf != NULL)
+		free(outbuf);
+#if	0
+	printmem("before exit");
+#endif
+#endif
 	exit(xstat);
 }
 
@@ -531,6 +608,37 @@ resolve()
 {
 	register int i;
 
+#if	TEMPBUF
+	register char *p;
+
+	/*
+	 * The following malloc is a temporary hack for COH386 efficiency.
+	 * The rationale is:
+	 * (1) reduce the number of required sbrk() calls, and
+	 * (2) reduce the risk of running out of memory,
+	 * because COH386 without paging requires old+new bytes free
+	 * to grow from old to new.
+	 * This will doubtless be changed in the future.
+	 */
+#define	NARENA	131072
+	if ((p = malloc(tempsize + tempsize + NARENA)) != NULL)
+		free(p);
+	if (tempsize != 0 && Eflag == 0 && Kflag == 0) {
+		inbuf = malloc(tempsize);
+		outbuf = malloc(tempsize);
+		outbufp = outbuf;
+		outbufmax = outbuf + tempsize;
+		if (inbuf == NULL || outbuf == NULL) {
+			fprintf(stderr, "cc: in-memory tempfile buffer allocation failed\n");
+			if (inbuf != NULL)
+				free(inbuf);
+			inbuf = outbuf = NULL;
+		}
+	}
+#if	0
+	printmem("after buffer allocation");
+#endif
+#endif
 	for (i = CPP; i < ALL; i += 1) {
 		if (pass[i].p_flag & P_BACK)
 			;
@@ -545,14 +653,14 @@ resolve()
 			strcat(cmdb, i==ED ? ".tos" : ".prg");
 #endif
 		if (strlen(cmdb) > PTMP-1)
-			cfatal("pass name \"%s\" is too long", cmdb);
+			cquit("pass name \"%s\" is too long", cmdb);
 		strcpy(pass[i].p_pln, cmdb);
 	}
 #if 1
 	if (isvariant(VOMF)) {
 		clrvariant(VCOMM);
 		if (isvariant(VLARGE) && isvariant(VSMALL))
-			cfatal("invalid model specification");
+			cquit("invalid model specification");
 		if (notvariant(VLARGE) && notvariant(VSMALL))
 			setvariant(VSMALL);
 	} else {
@@ -561,7 +669,7 @@ resolve()
 	}
 #endif
 	if (GEMAPPflag && GEMACCflag)
-		cfatal("specify VGEMAPP or VGEMACC, not both");
+		cquit("specify VGEMAPP or VGEMACC, not both");
 	if (GEMAPPflag) getpass('N', "rcrtsg.o");
 	if (GEMACCflag) getpass('N', "rcrtsd.o");
 	if (pflag) getpass('N', "rmcrts0.o");
@@ -622,16 +730,24 @@ resolve()
 				pass[CC3].p_ifn = pass[CC2].p_ofn = tmp[1];
 				pass[CC3].p_ofn = tmp[5];
 			}
-			maketempfile(0);
-			maketempfile(1);
+#if	TEMPBUF
+			if (inbuf != NULL && outbuf != NULL)
+				tmp[0][0] = tmp[1][0] = '\0';
+			else
+#endif
+			{
+				maketempfile(0);
+				maketempfile(1);
+			}
 		}
 		pass[AS].p_ofn = tmp[5];
 	}
 }
 
-maketempfile(i) int i;
+maketempfile(i) register int i;
 {
-	char *p;
+	register char *p;
+
 	strcpy(tmp[i], p = tempnam(pass[TMP].p_dir, pass[TMP].p_pln));
 	free(p);
 	++istmp[i];
@@ -640,8 +756,7 @@ maketempfile(i) int i;
 /*
 ** Compilation.
 */
-compile(argc, argv)
-char *argv[];
+compile(argc, argv) int argc; char *argv[];
 {
 	register char *p1;
 	register c, i, err;
@@ -729,23 +844,30 @@ char *argv[];
 	cleanup(0);
 }
 
-runpp(argc, argv, var)
-register char *argv[];
-char var[];
+runpp(argc, argv, var) int argc; register char *argv[]; char var[];
 {
 	register char **cp;
 	register int i;
 	char *p1;
+#if	MONOLITHIC
+	int status;
+	extern int nerr;			/* in common/diag.c */
+#endif
 
 	cp = cmda;
+#if	MONOLITHIC
+	nerr = 0;
+	*cp++ = "cc0";
+#else
 	p1 = cmdb;
 	p1 = makepass(CC0, *cp++ = p1, AEXEC);
+#endif
 	*cp++ = var;
 	*cp++ = pass[CPP].p_ifn;
 	if (qpass < CC0)
-		*cp++ = Kflag ? pass[CPP].p_ofn : "-";
+		p1 = *cp++ = Kflag ? pass[CPP].p_ofn : "-";
 	else
-		*cp++ = pass[CC0].p_ofn;
+		p1 = *cp++ = pass[CC0].p_ofn;
 	for (i=1; i<argc; ++i) {
 		if ((argf[i]&PPOPT) != 0) {
 			*cp++ = argv[i];
@@ -754,11 +876,186 @@ char var[];
 		}
 	}
 	*cp = 0;
-	return (run(Aflag));
+#if	MONOLITHIC
+	if ((ifp = fopen(pass[CPP].p_ifn, "r")) == NULL) {
+		fprintf(stderr, "cc: cannot open %s\n", pass[CPP].p_ifn);
+		return 1;
+	}
+	if (Eflag)
+		ofp = (strcmp(p1, "-") == 0) ? stdout : ccopen(p1, "w");
+	else
+		ofp = (*p1 == '\0') ? NULL : ccopen(p1, SWMODE);
+	argc = cp - cmda;
+	if (Vflag) {
+		for (i = 0; i < argc; i++)
+			printf("%s ", cmda[i]);
+		if (ofp == NULL)
+			printf("0x%x", outbuf);
+		printf("\n");
+	}
+	if (Aflag)
+		err_open();
+	status = cc0(argc, cmda);
+	if (Aflag)
+		err_close(status);
+	closeinout();
+#if	0
+	printmem("after cc0");
+#endif
+	if (status)
+		xstat = 1;
+	return status;
+#else
+	return run(Aflag, 0);
+#endif
 }
 
-runcc(pn)
+#if	MONOLITHIC
+
+#if	0
+/* This is temporary stuff, here for malloc arena debugging. */
+/* Knows format of malloc arena. */
+#include <sys/malloc.h>
+printmem(s) char *s;
 {
+	register int i, j;
+	unsigned int u;
+	register MBLOCK *p;
+	register unsigned char *cp;
+	int nfree, nused, bfree, bused, freef;
+
+	printf("%s:\n", s);
+	printf("__a_count=%d\n", __a_count);
+	printf("__a_scanp=%x\n", __a_scanp);
+	printf("__a_first=%x\n", __a_first);
+	nfree = nused = bfree = bused = 0;
+	for (p = __a_first, i = 0; i < __a_count; i++) {
+		u = p->blksize;
+		freef = isfree(u);
+		u = realsize(u);
+		printf("%x: size %d ", p, u-4);
+		if (freef) {
+			printf("free\n");
+			++nfree;
+			bfree += u - sizeof(unsigned);
+		} else {
+			++nused;
+			if (u != 0) {
+				printf("%x: size %d ", p, u-4);
+				printf("used\n");
+				bused += u - sizeof(unsigned);
+			}
+			if (u != tempsize + 4) {
+				for (j = 4, cp = (char *)p + 4; j < u; j++)
+					printf("%02x ", *cp++);
+				printf("\n");
+			}
+		}
+		p = bumpp(p, u);
+	}
+	printf("nfree=%d nused=%d\n", nfree, nused-1);
+	printf("bfree=%d bused=%d overhead=%d total=%d\n",
+		bfree, bused, 4*(nfree+nused+1), bfree+bused+4*(nfree+nused+1));
+}
+#endif
+
+/*
+ * Close input and output files as appropriate.
+ */
+closeinout()
+{
+	if (ifp != NULL) {
+		fclose(ifp);
+		ifp = NULL;
+	}
+	if (ofp != NULL) {
+		fclose(ofp);
+		ofp = NULL;
+	}
+}
+
+/*
+ * Set input and output file pointers for monolithic compiler.
+ * Print verbose phase message if Vflag.
+ */
+setinout(pn) register int pn;
+{
+	register char *p, *in, *out, *ln;
+
+	if (pn == CC2B) {
+		ln = "cc2b";
+		in = pass[CC2].p_sfn;
+		out = pass[CC2].p_ofn;
+	} else {
+		in = pass[pn].p_ifn;
+		if (pn == CC2) {
+			ln = "cc2a";
+			out = (Sflag) ? pass[pn].p_ofn : pass[pn].p_sfn;
+		} else {
+			ln = pass[pn].p_pln;
+			out = pass[pn].p_ofn;
+		}
+	}
+	if (Vflag)
+		printf("%s %s ", ln, vstr);
+	if (*in == '\0') {
+		ifp = NULL;
+		p = inbuf;
+		inbuf = inbufp = outbuf;
+		inbufmax = outbufp;
+		outbuf = outbufp = p;
+		outbufmax = outbuf + tempsize;
+		if (Vflag)
+			printf("0x%x ", inbuf);
+	} else {
+		ifp = ccopen(in, SRMODE);
+		if (Vflag)
+			printf("%s ", in);
+	}
+	if (*out == '\0') {
+		ofp = NULL;
+		if (Vflag)
+			printf("0x%x\n", outbuf);
+	} else {
+		ofp = ccopen(out, SWMODE);
+		if (Vflag)
+			printf("%s\n", out);
+	}
+}
+#endif
+
+runcc(pn) register int pn;
+{
+#if	MONOLITHIC
+	register int status;
+
+	setinout(pn);
+	switch(pn) {
+	case CC1:
+			status = cc1();
+			break;
+	case CC2:
+			if (status = cc2a())
+				 break;
+			if (!Sflag) {
+				closeinout();
+				setinout(CC2B);
+				status = cc2b();
+			}
+			break;
+	case CC3:
+			status = cc3();
+			break;
+	default:
+			cquit("bad pass number %d", pn);
+			break;
+	}
+	closeinout();
+#if	0
+	printmem((pn == CC1) ? "after cc1": (pn == CC2) ? "after cc2" : "after cc3");
+#endif
+	return status;
+#else
 	register char **cp;
 
 	cp = cmda;
@@ -769,7 +1066,8 @@ runcc(pn)
 	if (pn == CC2)
 		*cp++ = pass[CC2].p_sfn;
 	*cp = 0;
-	return (run(0));
+	return run(0, 0);
+#endif
 }
 
 runas()
@@ -778,12 +1076,18 @@ runas()
 
 	cp = cmda;
 	makepass(AS, *cp++ = cmdb, AEXEC);
+#if	_I386
+	*cp++ = "-fgx";
+	if (Qflag)
+		*cp++ = "-w";
+#else
 	*cp++ = "-gx";
+#endif
 	*cp++ = "-o";
 	*cp++ = pass[AS].p_ofn;
 	*cp++ = pass[AS].p_ifn;
 	*cp = 0;
-	return (run(Aflag));
+	return run(Aflag, 0);
 }
 
 runme(fn)
@@ -797,7 +1101,7 @@ char *fn;
 	*cp++ = "-e";
 	*cp++ = tmp[6];
 	*cp = 0;
-	return (run(0));
+	return run(0, 0);
 }
 runld(argc, argv)
 char *argv[];
@@ -813,7 +1117,11 @@ char *argv[];
 	cp = cmda;
 	p1 = makepass(LD, *cp++ = cmdb, AEXEC);
 	*cp++ = "-X";
-	if (outf == NULL) {
+#if	_I386
+	if (Qflag)
+		*cp++ = "-Q";
+#endif
+	if (outf == NULL && !aflag) {
 		*cp++ = "-o";
 		if (partial || doutf == NULL) {
 #if COHERENT
@@ -843,7 +1151,7 @@ char *argv[];
 	p1 = makepass(CRT, *cp++ = p1, AREAD);
 	if (fflag) {
 		*cp++ = "-u";
-		*cp++ = "_dtefg_";
+		*cp++ = DTEFG;
 	}
 	for (i=1; i<argc; ++i) {
 		p2 = argv[i];
@@ -867,8 +1175,14 @@ char *argv[];
 		p1 = makelib(LIB, *cp++ = p1, "vdi");
 	}
 	p1 = makelib(LIB, *cp++ = p1, "c");
+#if	_I386
+	if (Kflag == 0 && nldob == 1 && newo[0] != 0) {
+		*cp++ = "-Z";
+		*cp++ = newo;
+	}
+#endif
 	*cp = 0;
-	return (run(0));
+	return run(0, 1);
 }
 
 basename(in, out)
@@ -887,10 +1201,8 @@ char *in, *out;
 	out[n] = '\0';			/* and NUL-terminate */
 }
 
-run(catch_errors) int catch_errors;
+run(catch_errors, nofork) int catch_errors; int nofork;
 {
-	int new_fd;
-	int saved_fd;
 	int s;
 	extern char **environ;
 
@@ -906,15 +1218,15 @@ run(catch_errors) int catch_errors;
 		putchar('\n');
 		fflush(stdout);
 	}
-	if (catch_errors) {
-		fflush(stdout);
-		saved_fd = dup(1);
-		if ((new_fd = creat(tmp[6], 0644)) < 0)
-			cfatal("%s: %s", tmp[6], sys_errlist[errno]);
-		if (dup2(new_fd, 1) < 0)
-			cfatal("dup2 failed");
-	}
+	if (catch_errors)
+		err_open();
 #if	COHERENT
+#if	_I386
+	if (nofork) {
+		execve(cmda[0], cmda, environ);
+		cquit("cannot execute %s", cmda[0]);
+	}
+#endif
 	{
 		int nsleep;
 		int status;
@@ -923,7 +1235,7 @@ run(catch_errors) int catch_errors;
 		while ((pid=fork())<0 && nsleep--)
 			sleep(DELAY);
 		if (pid < 0)
-			cfatal("can't fork");
+			cquit("can't fork");
 		if (pid == 0) {
 			execve(cmda[0], cmda, environ);
 			exit(MAGIC);
@@ -942,23 +1254,52 @@ run(catch_errors) int catch_errors;
 				fprintf(stderr, " -- core dumped");
 			fprintf(stderr, "\n");
 		} else if ((s = (status>>8)&0377) == MAGIC)
-			cfatal("cannot execute %s", cmda[0]);
+			cquit("cannot execute %s", cmda[0]);
 	}
 #else
 	if (s = execve(cmda[0], cmda, environ))
 		if (s < 0)
 			perror(cmda[0]);
 #endif
-	if (catch_errors) {
-		fflush(stdout);
-		if (dup2(saved_fd, 1) < 0)
-			cfatal("dup2 failed");
-		if (close(new_fd) < 0)
-		/* cfatal("error on close") */ ;
-	}
+	if (catch_errors)
+		err_close(s);
 	if (s != 0)
 		xstat = 1;
-	return (s);
+	return s;
+}
+
+/*
+ * Routines to catch and release stdout for -A.
+ */
+int new_fd;
+int saved_fd;
+
+err_open()
+{
+	fflush(stdout);
+	saved_fd = dup(1);
+	if ((new_fd = creat(tmp[6], 0644)) < 0)
+		cquit("%s: %s", tmp[6], sys_errlist[errno]);
+	if (dup2(new_fd, 1) < 0)
+		cquit("dup2 failed");
+}
+
+err_close(status) int status;
+{
+	register int c;
+	register FILE *fp;
+
+	fflush(stdout);
+	if (dup2(saved_fd, 1) < 0)
+		cquit("dup2 failed");
+	if (close(new_fd) < 0)
+		/* cquit("error on close") */ ;
+	if (status == 0 && (fp = fopen(tmp[6], "r")) != NULL) {
+		/* Copy warnings, otherwise they go down the rathole. */
+		while ((c = getc(fp)) != EOF)
+			putchar(c);
+		fclose(fp);
+	}
 }
 
 /*
@@ -973,8 +1314,8 @@ register char *op, *ap;
 {
 	while (*op!=0)
 		if (*op++ != *ap++)
-			return (0);
-	return (1);
+			return 0;
+	return 1;
 }
 
 
@@ -989,8 +1330,8 @@ register int c;
 
 	for (pn = CPP; pn < ALL; pn += 1)
 		if (pass[pn].p_psn == c)
-			return (pn);
-	return (NONE);
+			return pn;
+	return NONE;
 }
 
 /*
@@ -1125,7 +1466,7 @@ char *s;
 	exit(1);
 }
 
-cfatal(s)
+cquit(s)
 char *s;
 {
 	fprintf(stderr, "cc: fatal error: %r\n", &s);
@@ -1173,6 +1514,21 @@ register char *cp;
 	if (!Sflag && newo[0] == 0 && access(tmp[5], 0) < 0)
 		strcpy(newo, tmp[5]);
 }
+
+#if	MONOLITHIC
+/*
+ * Open a file, die on failure.
+ */
+FILE *
+ccopen(name, mode) char *name; char *mode;
+{
+	register FILE *fp;
+
+	if ((fp = fopen(name, mode)) != NULL)
+		return fp;
+	cquit("cannot open file \"%s\"", name);
+}
+#endif
 
 /*
  * Unlink a file.
@@ -1282,3 +1638,5 @@ char *op, *ip, *ft;
 	while (*tp++ = *ep++)
 		;
 }
+
+/* end of coh/cc.c */
