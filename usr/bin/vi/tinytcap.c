@@ -299,21 +299,39 @@ static char *find(id, vtype)
 }
 
 int tgetnum(id)
-	char	*id;
+char	*id;
 {
-	id = find(id, '#');
-	if (id)
-	{
-		return atoi(id);
+	char * temp;
+	int ret = -1;
+#if COHERENT
+	if (strcmp(id, "co") == 0) {
+		temp = getenv("COLUMNS");
+		if (temp) {
+			ret = atoi(temp);
+			goto tgetnumdone;
 	}
-	return -1;
+
+	if (strcmp(id, "li") == 0) {
+		temp = getenv("LINES");
+		if (temp) {
+			ret = atoi(temp);
+			goto tgetnumdone;
+	}
+#endif
+
+	temp = find(id, '#');
+	if (temp) {
+		ret = atoi(temp);
+	}
+
+tgetnumdone:
+	return ret;
 }
 
 int tgetflag(id)
-	char	*id;
+char	*id;
 {
-	if (find(id, ':'))
-	{
+	if (find(id, ':')) {
 		return 1;
 	}
 	return 0;
