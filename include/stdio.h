@@ -12,9 +12,7 @@
 #ifndef	_STDIO_H
 #define	_STDIO_H
 
-#ifndef	NULL
-#define	NULL	((char *)0)
-#endif
+#include <sys/_null.h>
 
 /* Macros. */
 #define	BUFSIZ		512		/* default buffer size	*/

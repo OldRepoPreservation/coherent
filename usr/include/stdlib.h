@@ -32,9 +32,8 @@ typedef	char		wchar_t;	/* extended character set type	*/
 #endif
 #define	Void	char		/* Use "Void *" as generic pointer type	*/
 #define	const			/* Ignore type modifier "const"		*/
-#ifndef	NULL
-#define	NULL	((char *)0)		/* null pointer constant	*/
-#endif
+#include <sys/_null.h>
+
 
 /*
  * Functions in /lib/libc.a corresponding to ANSI <stdlib.h>.
