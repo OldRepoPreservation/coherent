@@ -4,9 +4,9 @@
 #  type file transfer and remote execution protocol.
 #
 
-IDIR=/newbits/usr/bin/uucpstuff/include
-ADIR=/newbits/usr/bin/uucpstuff/aux
-MDIR=/newbits/usr/bin/uucpstuff/modemcap
+IDIR=../include
+ADIR=../aux
+MDIR=../modemcap
 DESTDIR=/interim/usr/lib/uucp/
 
 CFLAGS= -O -I$(IDIR) -I$(MDIR)
