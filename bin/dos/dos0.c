@@ -33,6 +33,7 @@ char *		base1;
 
 char		ext[512];		/* Ascii Extension list */
 short		sext = 0;		/* size of extension list */
+short		numargs;
 
 char *tran_dev();
 char *tran_file();
@@ -200,6 +201,7 @@ main(argc, argv) short argc; char *argv[];
 		root = newdir(NULL, NULL, bpb->b_files);
 		readmdir(root);
 	}
+	numargs = tv;
 	(*fun)(tv , tmp);
 	if (fun != format) {
 		writedir(root);
