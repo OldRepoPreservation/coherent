@@ -26,7 +26,7 @@ extern	char	*realloc();
 #define	VERSION	"1.8"
 #define	MINSEEK	512			/* binary search threshold */
 #define	NBUF	512			/* buffer size		*/
-#define	NCHARS	128			/* first characters	*/
+#define	NCHARS	256			/* first characters	*/
 #define	SED_D	"s/\\(.*\\)\\/\\(.*\\)/\\2\\/ \\1/"
 #define	SED_F	"s/\\(.*\\)\\/\\(.*\\)/\\2 \\1/"
 #define	QFFILES	"/usr/adm/qffiles"	/* database filename	*/
@@ -47,7 +47,7 @@ void	usage();
 /* Globals. */
 int	aflag;				/* look for all		*/
 int	bflag;				/* build QFFILES	*/
-char	buf[NBUF];			/* command buffer	*/
+unsigned char	buf[NBUF];		/* command buffer	*/
 int	dflag;				/* look for directories	*/
 FILE	*ifp;				/* input FILE		*/
 int	pflag;				/* partial match	*/
@@ -190,7 +190,7 @@ build()
 	if (link(QFNEW, QFFILES) == -1)
 		fatal("cannot link \"%s\" to \"%s\"", QFNEW, QFFILES);
 	else if (unlink(QFNEW))
-		fatal("cannoot unlink \"%s\"", QFNEW);
+		fatal("cannot unlink \"%s\"", QFNEW);
 	return 0;
 }
 
