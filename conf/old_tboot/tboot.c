@@ -149,7 +149,7 @@ main()
 	/* Does the program we just loaded want more info?  */
 
 	/* Look up the variable "boot_gift" in the image.  */	
-	puts("\r\nChecking for argument compatability.\r\n");
+	puts("\r\nChecking for argument compatibility.\r\n");
 	boot_value = object_nlist(filemagic, cmd_name, "boot_gift");
 
 
