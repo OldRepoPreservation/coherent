@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__COMMON__SIGINFO_H__
 #define	__COMMON__SIGINFO_H__
 
@@ -5,9 +12,9 @@
  * This internal header file contains definitions related to the internal data
  * type "__siginfo_t", an internal equivalent to the System V, Release 4 data
  * type "siginfo_t", but with a private name to avoid accidental reservation
- * of user-space names. In addition, this internal version of the structure is
- * not padded to 128 bytes as the user-level version is. Otherwise, the form
- * of the "siginfo" structure exactly parallels the definition supplied in the
+ * of user-space names.  In addition, this internal version of the structure is
+ * not padded to 128 bytes as the user-level version is.  Otherwise, the form
+ * of the "siginfo" structure parallels the definition supplied in the
  * System V, Release 4 ABI.
  */
 

@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__COMMON__SIGNAL_H__
 #define	__COMMON__SIGNAL_H__
 
@@ -7,15 +14,15 @@
 
 /*
  * This header file contains a number of definitions for signal-related data
- * types which are variously used by kernel and user-level mechanisms to
- * support the variety of existing binary interfacs.
+ * types used by kernel and user-level mechanisms to support the variety of
+ * existing binary interfaces.
  */
 
 /*
  * The following constant gives the number of signals for which kernel storage
- * is actually made available; this number is traditionally made available to
- * user code though the NSIG constant, although neither Standard C nor POSIX.1
- * applications can use this.
+ * is made available; this number is traditionally made available to user code
+ * though the NSIG constant, although neither Standard C nor POSIX.1
+ * applications can use it.
  */
 
 #define	_SIGNAL_MAX		31
@@ -27,30 +34,48 @@
  * functions are supported.
  */
 
-typedef	void (*	__sigfunc_t)	__PROTO ((__ANY_ARGS__));
+typedef	void	__sighand_t	__PROTO ((__ANY_ARGS__));
 
 
 /*
- * For dealing with signal actions. For maximum efficiency, we deal with
+ * The following deals with signal actions. For maximum efficiency, we use
  * signals as collections of bit-vectors; various user-level binary
- * compatibility standards specify the lengths of the vectors, while the
+ * compatibility standards specify the lengths of the vectors, whereas the
  * kernel internally allocates exactly as much as is really needed.
  */
 
 typedef	unsigned long		__sigmask_t;
 
+#define	__SIGMASK_BIT		__LONG_BIT
+
 typedef	struct {
 	__sigmask_t	_sigbits [4];
 } n_sigset_t;
+
+#define	__N_SIGSET_SET(ss, value) \
+		((ss)._sigbits [3] = (ss)._sigbits [2] = \
+		 (ss)._sigbits [1] = (ss)._sigbits [0] = (value))
 
 typedef	struct {
 	__sigmask_t	_sigbits [1];
 } o_sigset_t;
 
+#define	__O_SIGSET_SET(ss, value)	(* (ss)._sigbits = (value))
+
+#define	___SIGSET_LEN	__DIVIDE_ROUNDUP_CONST (_SIGNAL_MAX, __SIGMASK_BIT)
 typedef struct {
-	__sigmask_t	_sigbits [__DIVIDE_ROUNDUP_CONST (_SIGNAL_MAX,
-				   __CHAR_BIT * sizeof (__sigmask_t))];
+	__sigmask_t	_sigbits [___SIGSET_LEN];
 } __sigset_t;
+
+#if	___SIGSET_LEN == 1
+#define	___SIGSET_SET(ss, value)	(* (ss)._sigbits = (value))
+#elif	___SIGSET_LEN == 2
+#define	___SIGSET_SET(ss, value) \
+		((ss)._sigbits [1] = (ss)._sigbits [0] = (value))
+#else
+#error	_SIGNAL_MAX is larger than we expect
+#endif
+
 
 /*
  * Signal-action flags that are relevant for all signals.
@@ -85,9 +110,6 @@ typedef	unsigned short	__sigmiscfl_t;
 #define	__SIGSET_UNIT(ss,n)	\
 	(sizeof ((ss)._sigbits) == sizeof (__sigmask_t) ? 0 : \
 	 (unsigned) ((n) - 1) / (sizeof (__sigmask_t) * __CHAR_BIT))
-
-#define	__SIGSET_EMPTY(ss)	memset ((ss)._sigbits, 0, sizeof (ss))
-#define	__SIGSET_FILL(ss)	memset ((ss)._sigbits, 0xFF, sizeof (ss));
 
 #define	__SIGSET_MASK(n)	(1UL << ((unsigned) ((n) - 1) & \
 				  (sizeof (__sigmask_t) * __CHAR_BIT - 1)))
