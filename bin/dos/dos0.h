@@ -38,7 +38,7 @@
 "	[1-9]	Specify desired drive on extended MS-DOS partition\n"\
 "The default device is /dev/dos.\n\n"\
 "See also doscat, doscp, doscpdir, dosdel, dosdir, dosformat, doslabel,\n"\
-"         dosls, dosmkdir, dosrm, dosrmdir."
+"         dosls, dosmkdir, dosrm, dosrmdir.\n"
 
 #define	USAGE	\
 "Usage: Copy:        doscp [-abkmrv] src dest\n"\
