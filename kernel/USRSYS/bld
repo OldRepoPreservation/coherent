@@ -1,0 +1,52 @@
+:
+:	Build a Coherent executable
+:
+HDDR=${1-"at"}
+case $HDDR in
+at)
+	DRIVERS="at rm fl lp mm"
+	;;
+ss)
+	DRIVERS="ss rm fl lp mm"
+	;;
+aha)
+	DRIVERS="aha154x rm fl lp mm"
+	;;
+*)
+	echo "Usage: $0 { at | ss | aha }"
+	exit 0
+	;;
+esac
+echo "Building kernel /coh.$HDDR with drivers ($DRIVERS)."
+
+: default root/pipe device
+BOOTDEV="fva0"
+echo "Default root/pipe device is $BOOTDEV."
+
+( cd /usr/src/sys/i8086/drv; make install )			|| exit 1
+( make kernel )							|| exit 1
+./config ibm-at $DRIVERS root=$BOOTDEV				|| exit 1
+cp coherent /tmp/coh						|| exit 1
+strip /tmp/coh							|| exit 1
+: the SIZE expression needs fewer backslashes since Steve fixed sh
+:SIZE=`ls -s /tmp/coh | sed -n -e 's/^\\\(....\\\).*$/\\\1/p'`
+SIZE=`ls -s /tmp/coh | sed -n -e 's/^\(....\).*$/\1/p'`
+rm /tmp/coh							|| exit 1
+echo "Coherent bootable limit is 138 blocks.  This kernel is $SIZE"
+if [ $SIZE -gt 138 ] ;then
+	echo 
+	echo Your Coherent image exceeds the bootable limit of 138 blocks
+	echo by `expr $SIZE - 138` 'block(s).'  You will need to decrease the
+	echo size of your kernel in order to make it bootable.
+	echo
+	echo We suggest removing some of the non critical drivers from the
+	echo default list of drivers linked into Coherent.  These additional
+	echo drivers may then be linked as loadable drivers using the
+	echo ldconfig script located in this directory.
+fi
+mv coherent /coh.$HDDR
+chown sys /coh.$HDDR
+chgrp sys /coh.$HDDR
+chmod 400 /coh.$HDDR
+echo "New kernel in /coh.$HDDR"
+ls -l /coh.$HDDR

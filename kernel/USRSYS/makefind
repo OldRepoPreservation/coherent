@@ -1,0 +1,8 @@
+# makefind - search kernel and driver Makefiles for a pattern
+for f in `cat /usr/sys/ker.src`
+do
+  if grep -n $1 $f/M* 2> /dev/null
+  then
+  	echo $f/M*
+  fi
+done
