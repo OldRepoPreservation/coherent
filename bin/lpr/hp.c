@@ -6,12 +6,12 @@
 
 /*
  *	HP --
- *	filter for the hewlet packhard printer.
+ *	filter for the Hewlett Packard printer.
  *
  *		This program translates nroff font specifications into the 
- *	correct escape sequences for the Hewlet Packhard Laser printer.
+ *	correct escape sequences for the HP Laser printer.
  *	It also allows the user to set indentation, page length, landscape
- *	mode, et cetera. Because the HP printer stacks pages in the reverse
+ *	mode, et cetera. Because the HP LJ I printer stacks pages in the reverse
  *	order as they come out of the printer, this filter puts them out in the
  *	reverse order, unless the -f (forward) flag is set.
  *
@@ -28,7 +28,12 @@
  *			default: straight (apostrophe), with -a: slanted
  *			(single quote).
  *			Included all available options into Usage message.
- *
+ *		10/31/90 (norm) -- fixed the brain damage regardling landscape
+ *			mode as well as this command not correctly recognizing
+ *			formfeeds. We also now default to printing pages in
+ *			order since almost all printers do. We now close any
+ *			files that we open. Guess that shows how much testing
+ *			was done by the author ;-)
  */
 
 #define ROMAN_F		0
@@ -58,7 +63,7 @@
 
 FILE *pfp;			/* The printer device */
 char pdev[64] = "/dev/hp";	/* Default printer device */
-char *umess = "Usage: hp [-a] [-c] [-f] [-l] [-imarg] [-ttop] [-plines] file ...\n";
+char *umess = "Usage: hp [-a] [-c] [-r] [-l] [-imarg] [-ttop] [-plines] file ...\n";
 char *argv0;
 char accentgrav = '\'';
 int  quit = 0;			/* Signal to interrupt program. */
@@ -69,7 +74,7 @@ int nlines = 66;		/* Lines per page */
 int indent = 0;			/* Left margin */
 int land = 0;			/* 0 for portrait mode, 1 for landscape */
 int cartin = 1;			/* 1 if font cartridge available */
-int nreverse = 0;		/* No reverse, pages printed in order. */
+int nreverse = 1;		/* No reverse, pages printed in order. */
 int tlength = 66;		/* Text length -- must satisfy */
 				/* tlength <= nlines - topmarg */
 int topmarg = 0;		/* Top margin */
@@ -93,8 +98,12 @@ char **argv;
 		switch(**argv)  {
 			case '-':
 				switch(*++*argv)  {
-					case 'f':
-						nreverse = 1;
+					case 'r':
+						nreverse = 0;
+						argv++;
+						argc--;
+						break;
+					case 'f':		/* ignore */
 						argv++;
 						argc--;
 						break;
@@ -102,7 +111,6 @@ char **argv;
 						land = 1;
 						pitch = 1;
 						ilines = 8;
-
 						argv++;
 						argc--;
 						break;
@@ -184,6 +192,7 @@ FILE	*fp;
 					 tempfile);
 			return(fp);
 		}
+	return (fp);
 }
 
 /*
@@ -220,6 +229,18 @@ init()
 	}
 }
 
+int
+hasFF(cp)
+register char *cp;
+{
+	register char c;
+
+	while (c = *cp++)
+		if (c == '\f')
+			return 1;
+	return 0;
+}
+
 printfile(file)
 char *file;
 {
@@ -238,9 +259,9 @@ char *file;
 	else if ((fp = fopen(file, "r")) == NULL)
 		fatal("cannot open %s\n", file);
 
-	while (end != 1) {
+	while (!end) {
 		markpage(output);
-		for (i=0; i<nlines; i++)  
+		for (i = 0; i < nlines; i++)  
 			if (fgets(&page[i][0], LINESZ, fp) == NULL) {
 				end = 1;
 				/* If last page is blank, decrement pgcount */
@@ -249,7 +270,8 @@ char *file;
 					return;
 				}
 				break;
-			}
+			} else if (hasFF(page[i]))
+				break;
 		for (lnbl = --i; lnbl > 0; --i)
 			if ((c = *skipws(page[i])) == '\0' || c == '\n')
 				lnbl--;
@@ -262,6 +284,8 @@ char *file;
 		if (end)
 			break;
 	}
+	if (fp != stdin)
+		fclose(fp);
 }
 
 /*
@@ -300,7 +324,6 @@ char *s;
  * character set.
  *
  */
-
 printline(cp)
 char *cp;
 {
@@ -315,15 +338,16 @@ char *cp;
 	 *	equivalents from the extended char-set
 	 */
 
-	while(*cp_x != '\0')
-	{
+	while (*cp_x != '\0') {
 		if(*cp_x == '\'')
 			*cp_x = accentgrav;
 		else if (*cp_x == '`')
 			*cp_x = ACCENTACUT;
 		cp_x++;
 	}
-	while((c1 = *cp++) != '\0') {
+	while ((c1 = *cp++) != '\0') {
+		if (c1 == '\f')			/* new page */
+			return 1;
 		if (c1 == '_')
 			if ((c2 = *cp++) == BACKSPACE) {
 				font(ITALIC_F);
@@ -357,6 +381,7 @@ char *cp;
 		if (quit)
 			wrapup(0);
 	}
+	return 0;
 }
 
 /* 
