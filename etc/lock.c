@@ -55,15 +55,18 @@ char *resource;
 #ifdef UUCP
 		printmsg(M_DEBUG, "Can't lock: %s", lockfn);
 #endif /* UUCP */
-		close(lockfd);
-		unlink(lockfn);
 		return( -1 );
 	}
 #ifdef UUCP
 	printmsg(M_DEBUG, "Just created lock: %s", lockfn);
 #endif /* UUCP */
 	sprintf(pidstring, "%d", getpid());
-	write(lockfd, pidstring, strlen(pidstring));
+	if(-1 == write(lockfd, pidstring, strlen(pidstring))){
+		close(lockfd);
+		unlink(lockfn);
+		return(-1);
+	}
+
 	close(lockfd);
 	return( 0 );
 }
