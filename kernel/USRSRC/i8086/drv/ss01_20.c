@@ -2,6 +2,9 @@
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.7	91/03/08  17:07:28	root
+ * Does Test Read and Request Sense properly.
+ * 
  * Revision 1.6	91/03/07  16:41:31	root
  * sends Test Ready, Starts to Request Sense
  * 
@@ -19,6 +22,11 @@
 /*
  * Definitions.
  */
+#define DEV_SCSI_ID(dev)	((dev >> 4) & 0x0007)
+#define DEV_LUN(dev)		((dev >> 2) & 0x0003)
+#define DEV_PARTN(dev)		(dev & 0x0003)
+#define DEV_SPECIAL(dev)	(dev & 0x0080)
+
 #define SS_RAM		0x1800	/* Offset of parameter RAM */
 #define SS_CSR		0x1A00	/* Offset of control/status register */
 #define SS_DAT		0x1C00	/* Offset of data port */
@@ -57,7 +65,8 @@
 #define CS_BUSY		0x08
 #define CS_RESERVED	0x18
 
-#if 1
+#define DEBUG	1
+#if DEBUG
 int stats[40], statsptr;
 #define PUSHI		{ stats[statsptr++] = i; }
 #define POPI		{ printf("%d:",statsptr);while(statsptr)\
@@ -96,8 +105,9 @@ int stats[40], statsptr;
 /*
  * Export Variables - patch these to configure the driver.
  */
-int	SS_INT = 5;		/* ST01/ST02 use either IRQ3 or IRQ5 */
-int	SS_BASE_SEG = 0xDE00;	/* Start of memory-mapped communication area */
+int	NSDRIVE = 1;		/* Bitmap of attached SCSI drives. */
+int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
+int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
 /*
  * Import Functions.
@@ -116,8 +126,8 @@ static void	sswrite();
 static int	ssioctl();
 static void	sswatch();
 static void	ssblock();
+static void	ssinit();
 
-static void	ssreset();
 static void	ssintr();
 
 /*
@@ -130,6 +140,9 @@ static faddr_t	ss_fp;		/* (far *) to ST0x comm area */
 static faddr_t	ss_ram;		/* (far *) to parameter RAM */
 static faddr_t	ss_csr;		/* (far *) to control/status */
 static faddr_t	ss_dat;		/* (far *) to data port */
+
+static int num_drives;
+static struct ss *ss_block;		/* points to block of "ss" structs */
 
 /*
  * Driver CON entry - an export variable.
@@ -150,6 +163,14 @@ CON	sscon	= {
 	nulldev				/* Poll */
 };
 
+/*
+ * A per-drive structure - ss
+ */
+static struct ss	{
+	long capacity;
+	char scsi_id;
+} *ss[MAX_SCSI_ID-1];
+
 /**
  *
  * void
@@ -161,15 +182,8 @@ CON	sscon	= {
 static void
 ssload()
 {
+	int erf = 0;  /* 1 if error occurs */
 	int i;
-	char status;
-	int await_bus;
-	int data1, data2;
-	int inbytes;
-#define CMDLEN		6
-#define SENSELEN	22
-	unsigned char cmd[CMDLEN];
-	unsigned char sense[SENSELEN];
 
 	/*
 	 * Claim IRQ vector.
@@ -179,7 +193,7 @@ ssload()
 	/*
 	 * Allocate a selector to map into ST0x memory-mapped comm area.
 	 */
-	ss_base = (paddr_t)((long)(unsigned)SS_BASE_SEG << 4);
+	ss_base = (paddr_t)((long)(unsigned)SS_BASE << 4);
 	ss_fp = ptov(ss_base, (fsize_t)SS_SEL_LEN);
 
 	ss_ram = ss_fp + SS_RAM;
@@ -198,10 +212,275 @@ ssload()
 	||  ffword(ss_ram + SS_RAM_LEN - 4) != 0xA55A
 	||  ffword(ss_ram + SS_RAM_LEN - 2) != 0x3CC3) {
 		printf("Error - ST0x failed memory test\n");
-		return;
-	} else
-		printf("ST0x passed memory test\n");
+		erf = 1;
+	}
 
+	/*
+	 * Allocate drive structs.
+	 *
+	 * Do a single call to kalloc() then put allocated pieces into
+	 * array ss.
+	 */
+	if (!erf) {
+		for (i = 0; i < MAX_SCSI_ID -1; i++)
+			if ((NSDRIVE >> i) & 1)
+				num_drives++;
+		if ((ss_block = kalloc(num_drives*sizeof(struct ss))) == NULL) {
+			printf("Error - ss can't allocate structs\n");
+			erf = 1;
+		} else
+			kclear(ssblock, num_drives * sizeof(struct ss));
+	}
+	if (!erf) {
+		struct ss *foo = ssblock;
+
+		for (i = 0; i < MAX_SCSI_ID -1; i++)
+			if ((NSDRIVE >> i) & 1)
+				ss[i] = foo++;
+	}
+
+	/*
+	 * Initialize drives we know about (i.e. in NSDRIVE bitmap).
+	 */
+	if (!erf) {
+		for (i = 0; i < MAX_SCSI_ID -1; i++)
+			if ((NSDRIVE >> i) & 1)
+				ssinit(i);
+	}
+}
+
+/*
+ * void
+ * ssunload()	- unload routine.
+ */
+static void
+ssunload()
+{
+	/*
+	 * Deallocate driver heap space.
+	 */
+	kfree(ssblock);
+
+	/*
+	 * Free the ST0x selector.
+	 */
+	vrelse(ss_fp);
+
+	/*
+	 * Release IRQ vector.
+	 */
+	clrivec(SS_INT);
+}
+
+/*
+ *
+ * void
+ * ssopen( dev, mode )
+ * dev_t dev;
+ * int mode;
+ *
+ *	Input:	dev = disk device to be opened.
+ *		mode = access mode [IPR,IPW, IPR+IPW].
+ *
+ *	Action:	Validate the minor device.
+ *		Update the paritition table if necessary.
+ */
+static void
+ssopen( dev, mode )
+register dev_t	dev;
+{
+	int drive, partn;
+	int erf = 0;
+
+	drive = DEV_SCSI_ID(dev);
+	partn = DEV_PARTN(dev);
+
+	/*
+	 * LUN must be zero.
+	 * SCSI id must have corresponding 1 in NSDRIVE bitmapped variable.
+	 */
+	if (DEV_LUN(dev) != 0 || ((1 << drive) & NSDRIVE) == 0) {
+		u.u_error = ENXIO;
+		erf = 1;
+	}
+
+	/*
+	 * If "special" bit is set, partition must be zero.
+	 */
+	if (!erf && DEV_SPECIAL(dev) && partn != 0) {
+		u.u_error = ENXIO;
+		erf = 1;
+	}
+#if 0
+	if ( minor(dev) & SDEV ) {
+		d = minor(dev) % NDRIVE;
+		p += NDRIVE * NPARTN;
+	}
+	else
+		d = minor(dev) / NPARTN;
+
+	if ( (d >= NDRIVE) || (at.at_dtype[d] == 0) ) {
+		return;
+	}
+
+	if ( minor(dev) & SDEV )
+		return;
+
+	/*
+	 * If partition not defined read partition characteristics.
+	 */
+	if ( pparm[p].p_size == 0 )
+		fdisk( makedev( major(dev), SDEV + d), &pparm[ d * NPARTN ] );
+
+	/*
+	 * Ensure partition lies within drive boundaries and is non-zero size.
+	 */
+	if ((pparm[p].p_base+pparm[p].p_size) > pparm[d+NDRIVE*NPARTN].p_size)
+		u.u_error = EBADFMT;
+	else if ( pparm[p].p_size == 0 )
+		u.u_error = ENODEV;
+#endif
+}
+
+/*
+ *
+ * void
+ * ssread( dev, iop )	- write a block to the raw disk
+ * dev_t dev;
+ * IO * iop;
+ *
+ *	Input:	dev = disk device to be written to.
+ *		iop = pointer to source I/O structure.
+ *
+ *	Action:	Invoke the common raw I/O processing code.
+ */
+static void
+ssread( dev, iop )
+dev_t	dev;
+IO	*iop;
+{
+	ioreq( &dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC );
+}
+
+/**
+ *
+ * void
+ * sswrite( dev, iop )	- write a block to the raw disk
+ * dev_t dev;
+ * IO * iop;
+ *
+ *	Input:	dev = disk device to be written to.
+ *		iop = pointer to source I/O structure.
+ *
+ *	Action:	Invoke the common raw I/O processing code.
+ */
+static void
+sswrite( dev, iop )
+dev_t	dev;
+IO	*iop;
+{
+	ioreq( &dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC );
+}
+
+/**
+ *
+ * int
+ * ssioctl( dev, cmd, arg )
+ * dev_t dev;
+ * int cmd;
+ * char * vec;
+ *
+ *	Input:	dev = disk device to be operated on.
+ *		cmd = input/output request to be performed.
+ *		vec = (pointer to) optional argument.
+ *
+ *	Action:	Validate the minor device.
+ *		Update the paritition table if necessary.
+ */
+static int
+ssioctl( dev, cmd, vec )
+register dev_t	dev;
+int cmd;
+char * vec;
+{
+}
+
+/**
+ *
+ * void
+ * ssblock( bp )	- queue a block to the disk
+ *
+ *	Input:	bp = pointer to block to be queued.
+ *
+ *	Action:	Queue a block to the disk.
+ *		Make sure that the transfer is within the disk partition.
+ */
+static void
+ssblock(bp)
+register BUF	*bp;
+{
+}
+
+/**
+ *
+ * void
+ * ssintr()	- Interrupt routine.
+ *
+ */
+static void
+ssintr()
+{
+	printf("ss IRPT\n");
+}
+
+static void	sswatch()
+{
+}
+
+/*
+ * Wait for specified bit values to appear in Status Register.
+ * This uses a tight loop and does not expect to be interrupted.
+ *
+ * Argument "flags" is a double-byte value;  the high byte is ANDed with
+ * status register contents, and the result is tested for equality with
+ * the low byte.
+ *
+ * Return 1 if values wanted appeared, 0 if timeout occurred.
+ */
+static int bus_wait(flags)
+unsigned short flags;
+{
+	int found, i;
+	unsigned char status;
+
+	found = 0;
+	for ( i = 0; i < BUS_RETRIES; i++) {
+		status = ffbyte(ss_csr);
+		if ((status & (flags >> 8)) == (flags & 0xff)) {
+			found = 1;
+			break;
+		}
+	}
+
+	if (!found)
+		printf("ST0x timeout;  flags=%x status=%x\n", flags, status);
+
+PUSHI;
+	return found;
+}
+
+/*
+ * Attempt to initialize the (unique) drive with a given SCSI id.
+ * Assume only one drive per SCSI id, having LUN = 0.
+ */
+static void ssinit(s_id)
+int s_id;
+{
+}
+
+#define STUFF 0
+/* pieces of code temporarily without a home */
+#if STUFF
 #if 0
 { long x;
 	/*
@@ -349,178 +628,4 @@ bus_wait(RS_REQUEST << 8 | RS_REQUEST);
 	/*
 	 * Initialize Drive Controller.
 	 */
-}
-
-/*
- * void
- * ssunload()	- unload routine.
- */
-static void
-ssunload()
-{
-	/*
-	 * Release IRQ vector.
-	 */
-	clrivec(SS_INT);
-
-	/*
-	 * Free the ST0x selector.
-	 */
-	vrelse(ss_fp);
-}
-
-/**
- *
- * void
- * ssreset()	-- reset hard disk controller, define drive characteristics.
- */
-static void
-ssreset()
-{
-}
-
-/**
- *
- * void
- * ssopen( dev, mode )
- * dev_t dev;
- * int mode;
- *
- *	Input:	dev = disk device to be opened.
- *		mode = access mode [IPR,IPW, IPR+IPW].
- *
- *	Action:	Validate the minor device.
- *		Update the paritition table if necessary.
- */
-static void
-ssopen( dev, mode )
-register dev_t	dev;
-{
-}
-
-/**
- *
- * void
- * ssread( dev, iop )	- write a block to the raw disk
- * dev_t dev;
- * IO * iop;
- *
- *	Input:	dev = disk device to be written to.
- *		iop = pointer to source I/O structure.
- *
- *	Action:	Invoke the common raw I/O processing code.
- */
-static void
-ssread( dev, iop )
-dev_t	dev;
-IO	*iop;
-{
-	ioreq( &dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC );
-}
-
-/**
- *
- * void
- * sswrite( dev, iop )	- write a block to the raw disk
- * dev_t dev;
- * IO * iop;
- *
- *	Input:	dev = disk device to be written to.
- *		iop = pointer to source I/O structure.
- *
- *	Action:	Invoke the common raw I/O processing code.
- */
-static void
-sswrite( dev, iop )
-dev_t	dev;
-IO	*iop;
-{
-	ioreq( &dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC );
-}
-
-/**
- *
- * int
- * ssioctl( dev, cmd, arg )
- * dev_t dev;
- * int cmd;
- * char * vec;
- *
- *	Input:	dev = disk device to be operated on.
- *		cmd = input/output request to be performed.
- *		vec = (pointer to) optional argument.
- *
- *	Action:	Validate the minor device.
- *		Update the paritition table if necessary.
- */
-static int
-ssioctl( dev, cmd, vec )
-register dev_t	dev;
-int cmd;
-char * vec;
-{
-}
-
-/**
- *
- * void
- * ssblock( bp )	- queue a block to the disk
- *
- *	Input:	bp = pointer to block to be queued.
- *
- *	Action:	Queue a block to the disk.
- *		Make sure that the transfer is within the disk partition.
- */
-static void
-ssblock(bp)
-register BUF	*bp;
-{
-}
-
-/**
- *
- * void
- * ssintr()	- Interrupt routine.
- *
- */
-static void
-ssintr()
-{
-	printf("ss IRPT\n");
-}
-
-static void	sswatch()
-{
-}
-
-/*
- * Wait for specified bit values to appear in Status Register.
- * This uses a tight loop and does not expect to be interrupted.
- *
- * Argument "flags" is a double-byte value;  the high byte is ANDed with
- * status register contents, and the result is tested for equality with
- * the low byte.
- *
- * Return 1 if values wanted appeared, 0 if timeout occurred.
- */
-static int bus_wait(flags)
-unsigned short flags;
-{
-	int found, i;
-	unsigned char status;
-
-	found = 0;
-	for ( i = 0; i < BUS_RETRIES; i++) {
-		status = ffbyte(ss_csr);
-		if ((status & (flags >> 8)) == (flags & 0xff)) {
-			found = 1;
-			break;
-		}
-	}
-
-	if (!found)
-		printf("ST0x timeout;  flags=%x status=%x\n", flags, status);
-
-PUSHI;
-	return found;
-}
+#endif
