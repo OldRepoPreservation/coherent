@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.6  91/09/11  13:23:12  hal
+ * Explicit sys in include paths.  AT_MAJOR.
+ * 
  * Revision 1.5  91/05/22  15:06:59  hal
  * Don't force 8's bit of control byte.
  * 
@@ -215,7 +218,13 @@ struct	at	{
 
 static BUF	dbuf;			/* For raw I/O */
 
+/*
+ * Patchable variables.
+ *	ATBSYW is a loop count for busy-waiting after issuing commands.
+ *	ATSECS is number of seconds to wait for an expected interrupt.
+ */
 int	ATBSYW = 50;			/* patchable */
+int	ATSECS = 4;			/* patchable */
 static char timeout_msg[] = "at%d: TO\n";
 
 /**
@@ -239,7 +248,7 @@ atload()
 	 *	High nibble of CMOS 0x12 is drive 0's type.
 	 *	Low  nibble of CMOS 0x12 is drive 1's type.
 	 */
-	outb( CMOSA, 0x12 );
+	outb(CMOSA, 0x12);
 	/* delay */
 	u = inb(CMOSD);
 	at.at_dtype[0] = u >> 4;
@@ -248,17 +257,17 @@ atload()
 	/*
 	 * Interrupt Vector 0x41 points to Drive 0 Characteristics.
 	 */
-	pkcopy( (paddr_t) (0x41*4), &p, sizeof p );
+	pkcopy((paddr_t) (0x41*4), &p, sizeof p);
 
 	/*
 	 * Obtain Drive Characteristics.
 	 */
-	for ( u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u ) {
+	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
 
-		if ( dp->d_ncyl == 0 ) {
+		if (dp->d_ncyl == 0) {
 			/* Not patched, use the ROM drive table values. */
-			pkcopy( (paddr_t) (p.seg << 4L) + p.off,
-				dp, sizeof(*dp) );
+			pkcopy((paddr_t) (p.seg << 4L) + p.off,
+				dp, sizeof(*dp));
 		}
 		else {
 			/*
@@ -266,10 +275,10 @@ atload()
 			 */
 			if (at.at_dtype[u] == 0)
 				at.at_dtype[u] = 1;
-			if ( dp->d_nspt == 0 )
+			if (dp->d_nspt == 0)
 				dp->d_nspt = 17;
 #if FORCE_CTRL_8
-			if ( dp->d_nhead > 8 )
+			if (dp->d_nhead > 8)
 				dp->d_ctrl |= 8;
 #endif
 
@@ -283,22 +292,22 @@ atload()
 				dp->d_eccl,
 				dp->d_ctrl,
 				dp->d_landc,
-				dp->d_nspt );
+				dp->d_nspt);
 #endif
 		}
 
 		/*
 		 * Interrupt Vector 0x46 points to Drive 1 Characteristics.
 		 */
-		pkcopy( (paddr_t) (0x46*4), &p, sizeof p );
+		pkcopy((paddr_t) (0x46*4), &p, sizeof p);
 	}
 
 	/*
 	 * Initialize Drive Size.
 	 */
-	for ( u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u ) {
+	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
 
-		if ( at.at_dtype[u] == 0 )
+		if (at.at_dtype[u] == 0)
 			continue;
 
 		pparm[NDRIVE*NPARTN + u].p_size =
@@ -310,16 +319,16 @@ atload()
 	 */
 	atreset();
 
-	setivec( HDIRQ, atintr );
+	setivec(HDIRQ, atintr);
 
 #if ATCACHE > 0
 	at.at_cdrv[0] = -1;
-	at.at_cbuf[0] = kalloc( BSIZE );
+	at.at_cbuf[0] = kalloc(BSIZE);
 #endif
 
 #if ATCACHE > 1
 	at.at_cdrv[1] = -1;
-	at.at_cbuf[1] = kalloc( BSIZE );
+	at.at_cbuf[1] = kalloc(BSIZE);
 #endif
 
 	at.at_bad_drv = -1;
@@ -333,7 +342,7 @@ atload()
 static void
 atunload()
 {
-	clrivec( HDIRQ );
+	clrivec(HDIRQ);
 }
 
 /**
@@ -350,20 +359,20 @@ atreset()
 	/*
 	 * Reset controller for a minimum of 4.8 microseconds.
 	 */
-	outb( HF_REG, 4 );
-	for ( u = 100; --u != 0; )
+	outb(HF_REG, 4);
+	for (u = 100; --u != 0;)
 		;
-	outb( HF_REG, atparm[0].d_ctrl & 0x0F );
+	outb(HF_REG, atparm[0].d_ctrl & 0x0F);
 	myatbsyw(0);
-	if ( inb(AUX_REG) != 0x01 )
+	if (inb(AUX_REG) != 0x01)
 		printf("at: AT disk controller not present (reset)\n");
 
 	/*
 	 * Initialize drive parameters.
 	 */
-	for ( u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u ) {
+	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
 
-		if ( at.at_dtype[u] == 0 )
+		if (at.at_dtype[u] == 0)
 			continue;
 
 		myatbsyw(u);
@@ -378,20 +387,20 @@ atreset()
 		 * 0x1F6 - HDRV_REG
 		 * 0x1F7 - CSR_REG
 		 */
-		outb( HF_REG,	dp->d_ctrl );
-		outb( AUX_REG,  dp->d_wpcc / 4 );
-		outb( NSEC_REG, dp->d_nspt );
-		outb( SEC_REG, 0x01 );
-		outb( LCYL_REG, (char)(dp->d_ncyl) );
-		outb( HCYL_REG, (char)(dp->d_ncyl >> 8) );
-		outb( HDRV_REG, 0xA0 + (u<<4) + dp->d_nhead - 1 );
-		outb( CSR_REG,  SETPARM_CMD );
+		outb(HF_REG,	dp->d_ctrl);
+		outb(AUX_REG,  dp->d_wpcc / 4);
+		outb(NSEC_REG, dp->d_nspt);
+		outb(SEC_REG, 0x01);
+		outb(LCYL_REG, (char)(dp->d_ncyl));
+		outb(HCYL_REG, (char)(dp->d_ncyl >> 8));
+		outb(HDRV_REG, 0xA0 + (u<<4) + dp->d_nhead - 1);
+		outb(CSR_REG,  SETPARM_CMD);
 		myatbsyw(u);
 
 		/*
 		 * Restore heads.
 		 */
-		outb( CSR_REG, RESTORE(0) );
+		outb(CSR_REG, RESTORE(0));
 		myatbsyw(u);
 	}
 }
@@ -399,7 +408,7 @@ atreset()
 /**
  *
  * void
- * atopen( dev, mode )
+ * atopen(dev, mode)
  * dev_t dev;
  * int mode;
  *
@@ -410,7 +419,7 @@ atreset()
  *		Update the paritition table if necessary.
  */
 static void
-atopen( dev, mode )
+atopen(dev, mode)
 register dev_t	dev;
 {
 	register int d;		/* drive */
@@ -418,40 +427,40 @@ register dev_t	dev;
 
 	p = minor(dev) % (NDRIVE*NPARTN);
 
-	if ( minor(dev) & SDEV ) {
+	if (minor(dev) & SDEV) {
 		d = minor(dev) % NDRIVE;
 		p += NDRIVE * NPARTN;
 	}
 	else
 		d = minor(dev) / NPARTN;
 
-	if ( (d >= NDRIVE) || (at.at_dtype[d] == 0) ) {
+	if ((d >= NDRIVE) || (at.at_dtype[d] == 0)) {
 		u.u_error = ENXIO;
 		return;
 	}
 
-	if ( minor(dev) & SDEV )
+	if (minor(dev) & SDEV)
 		return;
 
 	/*
 	 * If partition not defined read partition characteristics.
 	 */
-	if ( pparm[p].p_size == 0 )
-		fdisk( makedev( major(dev), SDEV + d), &pparm[ d * NPARTN ] );
+	if (pparm[p].p_size == 0)
+		fdisk(makedev(major(dev), SDEV + d), &pparm[ d * NPARTN ]);
 
 	/*
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
 	if ((pparm[p].p_base+pparm[p].p_size) > pparm[d+NDRIVE*NPARTN].p_size)
 		u.u_error = EBADFMT;
-	else if ( pparm[p].p_size == 0 )
+	else if (pparm[p].p_size == 0)
 		u.u_error = ENODEV;
 }
 
 /**
  *
  * void
- * atread( dev, iop )	- write a block to the raw disk
+ * atread(dev, iop)	- write a block to the raw disk
  * dev_t dev;
  * IO * iop;
  *
@@ -461,17 +470,17 @@ register dev_t	dev;
  *	Action:	Invoke the common raw I/O processing code.
  */
 static void
-atread( dev, iop )
+atread(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	ioreq( &dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC );
+	ioreq(&dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC);
 }
 
 /**
  *
  * void
- * atwrite( dev, iop )	- write a block to the raw disk
+ * atwrite(dev, iop)	- write a block to the raw disk
  * dev_t dev;
  * IO * iop;
  *
@@ -481,17 +490,17 @@ IO	*iop;
  *	Action:	Invoke the common raw I/O processing code.
  */
 static void
-atwrite( dev, iop )
+atwrite(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	ioreq( &dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC );
+	ioreq(&dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC);
 }
 
 /**
  *
  * int
- * atioctl( dev, cmd, arg )
+ * atioctl(dev, cmd, arg)
  * dev_t dev;
  * int cmd;
  * char * vec;
@@ -504,7 +513,7 @@ IO	*iop;
  *		Update the paritition table if necessary.
  */
 static int
-atioctl( dev, cmd, vec )
+atioctl(dev, cmd, vec)
 register dev_t	dev;
 int cmd;
 char * vec;
@@ -514,7 +523,7 @@ char * vec;
 	/*
 	 * Identify drive number.
 	 */
-	if ( minor(dev) & SDEV )
+	if (minor(dev) & SDEV)
 		d = minor(dev) % NDRIVE;
 	else
 		d = minor(dev) / NPARTN;
@@ -522,14 +531,14 @@ char * vec;
 	/*
 	 * Identify input/output request.
 	 */
-	switch ( cmd ) {
+	switch (cmd) {
 
 	case HDGETA:
 		/*
 		 * Get hard disk attributes.
 		 */
-		kucopy( &atparm[d], vec, sizeof(atparm[0]) );
-		return( 0 );
+		kucopy(&atparm[d], vec, sizeof(atparm[0]));
+		return(0);
 
 	case HDSETA:
 		/* Set hard disk attributes. */
@@ -542,7 +551,7 @@ char * vec;
 
 	default:
 		u.u_error = EINVAL;
-		return( -1 );
+		return(-1);
 	}
 }
 
@@ -561,14 +570,14 @@ atwatch()
 	register int s;
 
 	s = sphi();
-	if ( --drvl[AT_MAJOR].d_time > 0 ) {
+	if (--drvl[AT_MAJOR].d_time > 0) {
 		spl(s);
 		return;
 	}
 	printf("at%d%c: bno=%U head=%u cyl=%u <Watchdog Timeout>\n",
 		at.at_drv,
 		(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
-		bp->b_bno, at.at_head, at.at_cyl );
+		bp->b_bno, at.at_head, at.at_cyl);
 
 	/*
 	 * Reset hard disk controller.
@@ -587,7 +596,7 @@ atwatch()
 /**
  *
  * void
- * atblock( bp )	- queue a block to the disk
+ * atblock(bp)	- queue a block to the disk
  *
  *	Input:	bp = pointer to block to be queued.
  *
@@ -603,7 +612,7 @@ register BUF	*bp;
 
 	bp->b_resid = bp->b_count;
 
-	if ( minor(bp->b_dev) & SDEV )
+	if (minor(bp->b_dev) & SDEV)
 		partn += NDRIVE * NPARTN;
 
 	pp = &pparm[ partn ];
@@ -611,7 +620,7 @@ register BUF	*bp;
 	/*
 	 * Check for read at end of partition.
 	 */
-	if ( (bp->b_req == BREAD) && (bp->b_bno == pp->p_size) ) {
+	if ((bp->b_req == BREAD) && (bp->b_bno == pp->p_size)) {
 		bdone(bp);
 		return;
 	}
@@ -619,7 +628,7 @@ register BUF	*bp;
 	/*
 	 * Range check disk region.
 	 */
-	if ( ((bp->b_bno + (bp->b_count/BSIZE)) > pp->p_size)
+	if (((bp->b_bno + (bp->b_count/BSIZE)) > pp->p_size)
 	|| (bp->b_count % BSIZE) || bp->b_count == 0) {
 		bp->b_flag |= BFERR;
 		bdone(bp);
@@ -633,8 +642,8 @@ register BUF	*bp;
 		at.at_actl->b_actf = bp;
 	at.at_actl = bp;
 
-	if ( at.at_state == SIDLE )
-		if ( atdequeue() )
+	if (at.at_state == SIDLE)
+		if (atdequeue())
 			atstart();
 }
 
@@ -659,17 +668,17 @@ atdequeue()
 		at.at_caching = 0;
 		at.at_tries   = 0;
 
-		if ( (bp = at.at_actf) == NULL )
+		if ((bp = at.at_actf) == NULL)
 			return (0);
 
-		at.at_partn = minor( bp->b_dev ) % (NDRIVE*NPARTN);
+		at.at_partn = minor(bp->b_dev) % (NDRIVE*NPARTN);
 
-		if ( minor(bp->b_dev) & SDEV ) {
+		if (minor(bp->b_dev) & SDEV) {
 			at.at_partn += (NDRIVE*NPARTN);
-			at.at_drv  = minor( bp->b_dev ) % NDRIVE;
+			at.at_drv  = minor(bp->b_dev) % NDRIVE;
 		}
 		else
-			at.at_drv = minor( bp->b_dev ) / NPARTN;
+			at.at_drv = minor(bp->b_dev) / NPARTN;
 		nspt = atparm[at.at_drv].d_nspt;
 
 		pp = &pparm[ at.at_partn ];
@@ -678,34 +687,34 @@ atdequeue()
 		at.at_faddr = bp->b_faddr;
 
 #if ATCACHE > 0
-		if ( bp->b_req == BWRITE ) {
+		if (bp->b_req == BWRITE) {
 
 			/*
 			 * Invalidate cache if write might overlap.
 			 */
-			if ( at.at_nsec > 1 ) {
+			if (at.at_nsec > 1) {
 				at.at_cdrv[0] = -1;
 #if ATCACHE > 1
 				at.at_cdrv[1] = -1;
 #endif
 			}
-			else if ( at.at_bno == at.at_cbno[0] )
+			else if (at.at_bno == at.at_cbno[0])
 				at.at_cdrv[0] = -1;
 #if ATCACHE > 1
-			else if ( at.at_bno == at.at_cbno[1] )
+			else if (at.at_bno == at.at_cbno[1])
 				at.at_cdrv[1] = -1;
 #endif
 		}
-		else if ( at.at_nsec == 1 ) {
+		else if (at.at_nsec == 1) {
 
 			/*
 			 * Test for cache hit on block 0.
 			 */
-			if ( (at.at_drv == at.at_cdrv[0])
-			&&   (at.at_bno == at.at_cbno[0]) ) {
+			if ((at.at_drv == at.at_cdrv[0])
+			&&   (at.at_bno == at.at_cbno[0])) {
 
-				kpcopy( at.at_cbuf[0],
-					bp->b_paddr, BSIZE );
+				kpcopy(at.at_cbuf[0],
+					bp->b_paddr, BSIZE);
 				at.at_actf  = bp->b_actf;
 				bp->b_resid = 0;
 				bdone(bp);
@@ -716,11 +725,11 @@ atdequeue()
 			/*
 			 * Test for cache hit on block 1.
 			 */
-			if ( (at.at_drv == at.at_cdrv[1])
-			&&   (at.at_bno == at.at_cbno[1]) ) {
+			if ((at.at_drv == at.at_cdrv[1])
+			&&   (at.at_bno == at.at_cbno[1])) {
 
-				kpcopy( at.at_cbuf[1],
-					bp->b_paddr, BSIZE );
+				kpcopy(at.at_cbuf[1],
+					bp->b_paddr, BSIZE);
 				at.at_actf  = bp->b_actf;
 				bp->b_resid = 0;
 				bdone(bp);
@@ -731,20 +740,20 @@ atdequeue()
 			/*
 			 * Enable caching if no backlog for disk i/o.
 			 */
-			if ( bp->b_actf == NULL ) {
+			if (bp->b_actf == NULL) {
 				/*
 				 * Enable caching on single block reads
 				 * when at least one block left on same track.
 				 */
 				at.at_caching = nspt - 1 - (at.at_bno % nspt);
 #if ATCACHE > 1
-				if ( at.at_caching >= 2 ) {
+				if (at.at_caching >= 2) {
 					at.at_caching   = 2;
 					at.at_cdrv[2-1] = -1;
 				}
 #endif
 
-				if ( at.at_caching ) {
+				if (at.at_caching) {
 					at.at_nsec  += at.at_caching;
 					at.at_cdrv[1-1] = -1;
 				}
@@ -777,16 +786,16 @@ atstart()
 	/*
 	 * Check for repeated access to most recently identified bad track.
 	 */
-	if ( (at.at_drv  == at.at_bad_drv )
-	  && (at.at_cyl  == at.at_bad_cyl )
-	  && (at.at_head == at.at_bad_head) ) {
+	if ((at.at_drv  == at.at_bad_drv)
+	  && (at.at_cyl  == at.at_bad_cyl)
+	  && (at.at_head == at.at_bad_head)) {
 	  	BUF * bp = at.at_actf;
-		printf( "at%d%c: bno=%U head=%u cyl=%u <Track Flagged Bad>\n",
+		printf("at%d%c: bno=%U head=%u cyl=%u <Track Flagged Bad>\n",
 			at.at_drv,
 			(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
 			bp->b_bno,
 			at.at_head,
-			at.at_cyl );
+			at.at_cyl);
 		bp->b_flag |= BFERR;
 		atdone(bp);
 		return;
@@ -794,29 +803,29 @@ atstart()
 
 	myatbsyw(at.at_drv);
 
-	outb( HF_REG,   dp->d_ctrl );
-	outb( AUX_REG,  dp->d_wpcc / 4 );
-	outb( NSEC_REG, at.at_nsec );
-	outb( SEC_REG,  at.at_sec );
-	outb( LCYL_REG, at.at_cyl );
-	outb( HCYL_REG, at.at_cyl >> 8 );
-	outb( HDRV_REG, (at.at_drv << 4) + at.at_head + 0xA0 );
+	outb(HF_REG,   dp->d_ctrl);
+	outb(AUX_REG,  dp->d_wpcc / 4);
+	outb(NSEC_REG, at.at_nsec);
+	outb(SEC_REG,  at.at_sec);
+	outb(LCYL_REG, at.at_cyl);
+	outb(HCYL_REG, at.at_cyl >> 8);
+	outb(HDRV_REG, (at.at_drv << 4) + at.at_head + 0xA0);
 
-	if ( at.at_actf->b_req == BWRITE ) {
+	if (at.at_actf->b_req == BWRITE) {
 
-		outb( CSR_REG, WRITE_CMD );
+		outb(CSR_REG, WRITE_CMD);
 
-		while ( atdrqw() == 0 )
-			printf( timeout_msg, at.at_drv );
+		while (atdrqw() == 0)
+			printf(timeout_msg, at.at_drv);
 
-		atsend( at.at_faddr );
+		atsend(at.at_faddr);
 		at.at_state = SWRITE;
 	}
 	else {
-		outb( CSR_REG, READ_CMD );
+		outb(CSR_REG, READ_CMD);
 		at.at_state = SREAD;
 	}
-	drvl[AT_MAJOR].d_time = 2;
+	drvl[AT_MAJOR].d_time = ATSECS;
 }
 
 /**
@@ -828,7 +837,7 @@ atstart()
 static void
 atintr()
 {
-	defer( atdefer, 0 );
+	defer(atdefer, 0);
 }
 
 /**
@@ -845,7 +854,7 @@ atdefer()
 {
 	register BUF * bp = at.at_actf;
 
-	switch ( at.at_state ) {
+	switch (at.at_state) {
 
 	case SRETRY:
 		atstart();
@@ -855,7 +864,7 @@ atdefer()
 		/*
 		 * Check for I/O error before waiting for data.
 		 */
-		if ( aterror() ) {
+		if (aterror()) {
 			atrecov();
 			break;
 		}
@@ -863,27 +872,27 @@ atdefer()
 		/*
 		 * Wait for data, or forever.
 		 */
-		if ( atdrqw() == 0 )
-			printf( timeout_msg, at.at_drv );
+		if (atdrqw() == 0)
+			printf(timeout_msg, at.at_drv);
 
 #if ATCACHE > 0
 		/*
 		 * Cache data block.
 		 */
-		if ( at.at_caching == at.at_nsec )
-			atrecv( at.at_cbuf[ at.at_nsec - 1 ], sds );
+		if (at.at_caching == at.at_nsec)
+			atrecv(at.at_cbuf[ at.at_nsec - 1 ], sds);
 		else
 #endif
 
 		/*
 		 * Read data block.
 		 */
-			atrecv( at.at_faddr );
+			atrecv(at.at_faddr);
 
 		/*
 		 * Check for I/O error after reading data.
 		 */
-		if ( aterror() ) {
+		if (aterror()) {
 			atrecov();
 			break;
 		}
@@ -892,7 +901,7 @@ atdefer()
 		/*
 		 * Validate cached blocks.
 		 */
-		if ( at.at_caching == at.at_nsec ) {
+		if (at.at_caching == at.at_nsec) {
 			at.at_cbno[ at.at_nsec - 1 ] = at.at_bno;
 			at.at_cdrv[ at.at_nsec - 1 ] = at.at_drv;
 			at.at_caching--;
@@ -910,15 +919,15 @@ atdefer()
 		/*
 		 * Check for end of transfer.
 		 */
-		if ( --at.at_nsec == 0 )
-			atdone( bp );
+		if (--at.at_nsec == 0)
+			atdone(bp);
 		break;
 
 	case SWRITE:
 		/*
 		 * Check for I/O error.
 		 */
-		if ( aterror() ) {
+		if (aterror()) {
 			atrecov();
 			break;
 		}
@@ -931,21 +940,21 @@ atdefer()
 		/*
 		 * Check for end of transfer.
 		 */
-		if ( --at.at_nsec == 0 ) {
-			atdone( bp );
+		if (--at.at_nsec == 0) {
+			atdone(bp);
 			break;
 		}
 
 		/*
 		 * Wait for ability to send data, or forever.
 		 */
-		while ( atdrqw() == 0 )
-			printf( timeout_msg, at.at_drv );
+		while (atdrqw() == 0)
+			printf(timeout_msg, at.at_drv);
 
 		/*
 		 * Send data block.
 		 */
-		atsend( at.at_faddr );
+		atsend(at.at_faddr);
 	}
 }
 
@@ -967,7 +976,7 @@ aterror()
 	register int csr;
 	register int aux;
 
-	if ( (csr = inb(CSR_REG)) & (ERR_ST|WFLT_ST) ) {
+	if ((csr = inb(CSR_REG)) & (ERR_ST|WFLT_ST)) {
 
 		aux = inb(AUX_REG);
 
@@ -981,48 +990,48 @@ aterror()
 		}
 #endif
 
-		if ( aux & BAD_ERR ) {
+		if (aux & BAD_ERR) {
 			at.at_tries	= BADLIM;
 			at.at_bad_drv	= at.at_drv;
 			at.at_bad_head	= at.at_head;
 			at.at_bad_cyl	= at.at_cyl;
 		}
-		else if ( ++at.at_tries < SOFTLIM )
+		else if (++at.at_tries < SOFTLIM)
 			return 1;
 
-		printf( "at%d%c: bno=%U head=%u cyl=%u",
+		printf("at%d%c: bno=%U head=%u cyl=%u",
 			at.at_drv,
 			(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
 			(bp->b_count/BSIZE) + bp->b_bno
 				+ at.at_caching - at.at_nsec,
-			at.at_head, at.at_cyl );
+			at.at_head, at.at_cyl);
 
 #if VERBOSE > 0
-		if ( (csr & RDY_ST) == 0 )
+		if ((csr & RDY_ST) == 0)
 			printf(" <Drive Not Ready>");
-		if ( csr & WFLT_ST )
+		if (csr & WFLT_ST)
 			printf(" <Write Fault>");
 
-		if ( aux & DAM_ERR )
+		if (aux & DAM_ERR)
 			printf(" <No Data Addr Mark>");
-		if ( aux & TR0_ERR )
-			printf(" <Track 0 Not Found>" );
-		if ( aux & ID_ERR )
-			printf(" <ID Not Found>" );
-		if ( aux & ECC_ERR )
-			printf(" <Bad Data Checksum>" );
-		if ( aux & ABT_ERR )
-			printf(" <Command Aborted>" );
+		if (aux & TR0_ERR)
+			printf(" <Track 0 Not Found>");
+		if (aux & ID_ERR)
+			printf(" <ID Not Found>");
+		if (aux & ECC_ERR)
+			printf(" <Bad Data Checksum>");
+		if (aux & ABT_ERR)
+			printf(" <Command Aborted>");
 #else
-		if ( (csr & (RDY_ST|WFLT_ST)) != RDY_ST )
-			printf( " csr=%x", csr );
-		if ( aux & (DAM_ERR|TR0_ERR|ID_ERR|ECC_ERR|ABT_ERR) )
-			printf( " aux=%x", aux );
+		if ((csr & (RDY_ST|WFLT_ST)) != RDY_ST)
+			printf(" csr=%x", csr);
+		if (aux & (DAM_ERR|TR0_ERR|ID_ERR|ECC_ERR|ABT_ERR))
+			printf(" aux=%x", aux);
 #endif
-		if ( aux & BAD_ERR )
-			printf(" <Block Flagged Bad>" );
+		if (aux & BAD_ERR)
+			printf(" <Block Flagged Bad>");
 
-		if ( at.at_tries < HARDLIM )
+		if (at.at_tries < HARDLIM)
 			printf(" retrying...");
 		printf("\n");
 		return 1;
@@ -1044,14 +1053,14 @@ atrecov()
 	register int cmd = SEEK(0);
 	register int cyl = at.at_cyl;
 
-	switch ( at.at_tries ) {
+	switch (at.at_tries) {
 
 	case 1:
 	case 2:
 		/*
 		 * Move in 1 cylinder, then retry operation
 		 */
-		if ( --cyl < 0 )
+		if (--cyl < 0)
 			cyl += 2;
 		break;
 
@@ -1060,7 +1069,7 @@ atrecov()
 		/*
 		 * Move out 1 cylinder, then retry operation
 		 */
-		if ( ++cyl >= atparm[ at.at_drv ].d_ncyl )
+		if (++cyl >= atparm[ at.at_drv ].d_ncyl)
 			cyl -= 2;
 		break;
 
@@ -1084,12 +1093,13 @@ atrecov()
 	/*
 	 * Retry operation [after repositioning head]
 	 */
-	if ( at.at_tries < HARDLIM ) {
-		drvl[AT_MAJOR].d_time = (cmd == RESTORE(0)) ? 5 : 2;
-		outb( LCYL_REG, cyl );
-		outb( HCYL_REG, cyl >> 8 );
-		outb( HDRV_REG, (at.at_drv << 4) + 0xA0 );
-		outb( CSR_REG, cmd );
+	if (at.at_tries < HARDLIM) {
+		drvl[AT_MAJOR].d_time = (cmd == RESTORE(0))
+			? (ATSECS * 2) : ATSECS;
+		outb(LCYL_REG, cyl);
+		outb(HCYL_REG, cyl >> 8);
+		outb(HDRV_REG, (at.at_drv << 4) + 0xA0);
+		outb(CSR_REG, cmd);
 		at.at_state = SRETRY;
 	}
 
@@ -1101,7 +1111,7 @@ atrecov()
 		 * Not a cache-read error.
 		 */
 #if ATCACHE > 0
-		if ( (at.at_state != SREAD) || (at.at_caching != at.at_nsec) )
+		if ((at.at_state != SREAD) || (at.at_caching != at.at_nsec))
 #endif
 			bp->b_flag |= BFERR;
 
@@ -1112,13 +1122,13 @@ atrecov()
 /**
  *
  * void
- * atdone( bp )
+ * atdone(bp)
  * BUF * bp;
  *
  *	Action:	Release current i/o buffer to the O/S.
  */
 static void
-atdone( bp )
+atdone(bp)
 register BUF * bp;
 {
 	drvl[AT_MAJOR].d_time = 0;
@@ -1126,7 +1136,7 @@ register BUF * bp;
 	at.at_actf  = bp->b_actf;
 	bdone(bp);
 
-	if ( atdequeue() )
+	if (atdequeue())
 		atstart();
 }
 
