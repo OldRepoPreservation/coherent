@@ -1,4 +1,5 @@
-CMDS=kermit vi less cpio modeminit ramdisk me cgrep uudecode uuencode
+CMDS=kermit vi less cpio modeminit ramdisk me cgrep uuprogs uuins \
+     uuclean ksh
 DESTDIR=/interim/usr/bin/
 
 all:	$(CMDS)
@@ -39,14 +40,17 @@ cgrep: cgrep.c
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
 
-uudecode: uudecode.c
-	cc -O -o $(DESTDIR)$@ uudecode.c
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
+uuins:
+	cd uuinstall; make
 
-uuencode: uuencode.c
-	cc -O -o $(DESTDIR)$@ uuencode.c
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
+uuclean:
+	su root co $(DESTDIR)$@
+	su root chown uucp $(DESTDIR)$@
+	su root chgrp uucp $(DESTDIR)$@
+	su root chmod 500 $(DESTDIR)$@
+
+uuprogs:
+	cd uucpstuff/src; make
+
+ksh:
+	cd korn; make
