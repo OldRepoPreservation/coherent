@@ -4,7 +4,8 @@
  * System File Parsing and Initial Login Negotiation Routines for uucico
  */
 
-#include <sys/dir.h>
+/* #include <sys/dir.h> */
+#include "dirent.h"
 #include <ctype.h>
 #include "dcp.h"
 #include "lsys.h"
@@ -313,6 +314,7 @@ char type;
 	sendpkt	= p->sendpkt;
 	openpk	= p->openpk;
 	closepk	= p->closepk;
+
 }
 
 /*
@@ -558,12 +560,14 @@ scandir()
 	char dirname[CTLFLEN];
 	int len;
 	DIR *dirp;
-	struct direct *dp;
+	struct dirent *dp;
 
 	sprintf(dirname, "%s/%s", SPOOLDIR, rmtname);
 	printmsg(M_INFO, "Scandir: %s", dirname);
+
 	if ((dirp=opendir(dirname)) == NULL)
 		return('Q');
+
 	sprintf(cpref, "C.%.*s", SITESIG, rmtname);
 	len = strlen(cpref);
 	fn[0] = fn[DIRSIZ] = '\0';

@@ -337,6 +337,11 @@ sepcline()
 	 * Bob Hemedinger 01/27/92
 	 */
 
+	/* 01/30/92: removed the return statement. We WANT to continue
+	 * if we don't see the NULL terminator for compatibility with
+	 * other variants.
+	 */
+
 	if (clinep[9] != NULL) {
 		plog(M_SPOOL, "Error parsing command 'C.' file");
 		plog(M_SPOOL, "last sepcline field not null");
@@ -383,6 +388,7 @@ schkdir()
 	char c;
 
 	c = scandir();
+
 	if (c == 'Q') {
 		return ('Y');
 	}
@@ -400,6 +406,7 @@ schkdir()
  */
 endp()
 {
+
 	(void) sendmsg("HY");
 	(*closepk) ();
 	return 'P';
