@@ -12,7 +12,7 @@ CPP=exec /lib/icpp
 CFLAGS=-I.. -I../sys -I../.. -I../../sys -I/usr/include/sys
 DEBUG=1
 AFLAGS=-gx
-OBJECTS=objects/ss.o objects/fdisk.o objects/ssqueue.o objects/ssas.o
+OBJECTS=objects/ss.o objects/fdisk.o objects/bufq.o objects/ssas.o
 
 # Include directories
 USRINC=/usr/include
@@ -52,13 +52,13 @@ objects/ssas.o:				\
 		ssas.s
 	$(AS) -go $@ ssas.s
 
-objects/ssqueue.o:			\
+objects/bufq.o:			\
 		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
 		$(SYSINC)/buf.h		\
-		ssqueue.c
-	$(CC) $(CFLAGS) -c -o $@ ssqueue.c
+		bufq.c
+	$(CC) $(CFLAGS) -DDEBUG=$(DEBUG) -c -o $@ bufq.c
 
 objects/fdisk.o:			\
 		$(SYSINC)/buf.h		\
