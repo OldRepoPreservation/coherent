@@ -1,4 +1,4 @@
-# $Header: /usr/src/lib/libcurses/RCS/Makefile,v 1.3 89/11/07 17:47:19 src Exp $
+# $Header: /newbits/usr/lib/libcurses/RCS/Makefile,v 1.3 91/09/30 12:41:52 bin Exp Locker: bin $
 #
 # Copyright (c) 1987 Regents of the University of California.
 # All rights reserved.
@@ -19,7 +19,10 @@
 #
 # Modifications Copyright INETCO Systems Ltd. (c) 1989
 #
-# $Log:	/usr/src/lib/libcurses/RCS/Makefile,v $
+# $Log:	Makefile,v $
+#Revision 1.3  91/09/30  12:41:52  bin
+#source changed by cef for more Berkely compliancy and 8 bit characters
+#
 # Revision 1.3	89/11/07  17:47:19 	src
 # Bug:	Make install would always update modification times of include files.
 # Fix:	Now use "cpdir -d" to avoid updating modification times (ABC).
@@ -30,6 +33,7 @@
 # Mar 21, 1989: bcopy.c, beep.c, getkey.c, and need.c are INETCO additions.
 #
 
+DESTDIR=/interim/usr/lib/
 RCSPATH=$${CMDPATH-/usr/src/lib}/libcurses
 
 CC=exec /bin/cc
@@ -92,6 +96,7 @@ OBJS=	addbytes.o \
 libcurses.a: $(OBJS)
 	rm -f libcurses.a
 	ar rcs libcurses.a $(OBJS)
+	su root mv $@ $(DESTDIR)
 
 install: libcurses.a curses.h unctrl.h
 	su root cp -d libcurses.a /usr/lib
