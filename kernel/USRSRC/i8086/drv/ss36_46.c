@@ -15,6 +15,9 @@
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.42	91/05/15  23:58:22	root
+ * COH fdisk command gives junk when DEBUG=1, ok if DEBUG=3
+ * 
  * Revision 1.41	91/05/15  21:57:55	root
  * First working version.
  * 
@@ -592,8 +595,8 @@ PR3("HDGETA ");
 #if (DEBUG >= 3)
 printf("ncyl=%d nhead=%d nspt=%d\n",
   hdparm.ncyl[0]+((int)hdparm.ncyl[1]<<8), (int)hdparm.nhead, (int)hdparm.nspt);
-		kucopy( &hdparm, vec, sizeof hdparm );
 #endif
+		kucopy( &hdparm, vec, sizeof hdparm );
 		ret = 0;
 		break;
 	default:
@@ -1602,7 +1605,7 @@ int s_id;
  * RV_R_TIMEOUT (reconnect timeout)
  * Timeout after target disconnects, waiting for reconnect.
  * 
- * RV_BF_TIMEOUT (reconnect timeout)
+ * RV_BF_TIMEOUT (bus free timeout)
  * Waited too long for host not busy and BUS_FREE.
  * 
  * RV_CS_BUSY (target device busy)
@@ -1680,13 +1683,13 @@ int s_id;
 	ssp->in_buf = ssp->out_buf = NULL;
 	if (bp) {
 		ssp->bp = NULL;
-		ssp->state = SST_DEQUEUE;
 		if (bp->b_req == BREAD)
 			bp->b_resid -= ssp->data_bytes_in;
 		else
 			bp->b_resid -= ssp->data_bytes_out;
 		bdone(bp);
 	}
+	ssp->state = SST_DEQUEUE;
 }
 
 /*
