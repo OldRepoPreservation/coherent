@@ -47,6 +47,9 @@ SRCS=\
 # Primary target.
 sh: $(OBJ)
 	cc $(LDFLAGS) -o $(DESTDIR)sh $(OBJ)
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
 
 psh: $(OBJ)
 	cc -n -o psh -O -DPARANOID $(OBJ)
