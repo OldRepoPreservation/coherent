@@ -105,6 +105,8 @@ child_id	*corpse;	/* Entry that should be deleted */
 	return current;
 }	
 
+char	tmpFoo[] = "/tmp/cronXXXXXX";	/* Temporary file */
+
 /*
  * Mail entry. Send mail to a user about failed command.
  */
@@ -119,7 +121,7 @@ child_id	*entry;
 
 	*tmpBuf = 0;	/* Just to have */
 
-	strcpy(tmpName, mktemp("/tmp/cronXXXXXX"));
+	strcpy(tmpName, mktemp(tmpFoo));
 	if ((fp = fopen(tmpName, "w+")) == NULL) {
 		fprintf(stderr, "crond: cannot open temporary file %s.\n",
 							tmpName);
@@ -138,7 +140,7 @@ child_id	*entry;
 	fprintf(fp, "Subject: failed command\n\n");
 	fprintf(fp, "Time was %sCommand was \"%s\".\n\n", 
 			ctime(&(entry->time)), entry->command);
-	fprintf(fp, "Have a good one, cron!\n");
+	fprintf(fp, "Have a good one cron!\n");
 	rewind(fp);
 	sprintf(mailBuf, "smail %s < %s", entry->name, tmpName);
 	system(mailBuf);

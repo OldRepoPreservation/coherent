@@ -1,11 +1,15 @@
 /*
  * cron.h
  */
-#define VERSION "2.0 Beta"	/* Do fork only to execute next job 2-28-92 
-				 * opendir took out from the main loop.
-				 * check FIFO before cron bacame a daemon.
-				 * Minor bugs fixed.
+#define VERSION "3.2"		/* Ignore junk file in /usr/spool/cron/crontabs
+				 * Restored make dependencies. 9-11-92 
 				 */
+
+/* 3.1 Do fork only to execute next job 2-28-92 
+ * opendir took out from the main loop.
+ * check FIFO before cron bacame a daemon.
+ * Minor bugs fixed.
+ */
 /* 1.3 Beta  Cron will not die when cannot fork 2-26-92 
  * 1.2 Beta  Added stuff to be a real deamon.
  */

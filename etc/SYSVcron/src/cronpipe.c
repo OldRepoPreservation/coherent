@@ -13,6 +13,7 @@
 #define	W	1	/* Pipe write descriptor index */
 
 extern child_id	*add_entry();	/* Add an new entry to a link list */
+extern int	ifmail();
 
 extern char	acRealUser[MAX_UNAME];
 extern time_t	clock;
@@ -54,11 +55,17 @@ char *command, *type;
 		if (set_uid_flag == FALSE) {
 			/* If file name is not user name ignore it */
 			if ((set_uid_flag = set_uid(acRealUser)) != TRUE) {
-				fprintf(stderr, 
-				  "cron: cannot find/set user '%s'\n", 
-				   acRealUser);
-				return(NULL);
-			}
+				/* During testing were user traps
+					from smail. So they may come from here.
+				if (ifmail(acRealUser)) {
+					char mailBuf[80];
+					sprintf(mailBuf,"smail %s < %s" 
+					  "cron: cannot find/set user '%s'\n", 
+					   acRealUser, acRealUser);
+					system(mailBuf);
+				}*/
+				exit(0);
+			} 
 		}
 		if (mode == W) {
 			close(pd[W]);

@@ -23,7 +23,6 @@
 #include <stdio.h>
 #include <time.h>
 #include <signal.h>
-#include <sys/msig.h>
 #include <errno.h>
 #include <ctype.h>
 #include <pwd.h>
@@ -536,6 +535,7 @@ sigsetup()
 	signal(SIGHUP, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGALRM, catchalarm);
+	signal(SIGCLD, SIG_DFL);
 }
 
 /*
