@@ -23,10 +23,11 @@
 typedef	char	SECNAME[9];	/* NUL-terminated 8 character section name */
 
 /* Some shortcut display stuff. */
-#define show(flag, msg) if (fh.f_flags & flag) printf("\t" msg "\n");
-#define cs(x) case x: printf(#x); break;
-#define cd(x) case x: printf(#x "\tvalue=%ld ", se->n_value); break;
-#define cx(x) case x: printf(#x "\tvalue=0x%lx ", se->n_value); break;
+#define showFlag(flag, msg) if (fh.f_flags & flag) printf("\t" msg "\n");
+#define showCase(x) case x: printf(#x); break;
+#define showDesc(x, d) case x: printf(d); break;
+#define showValue(x) case x: printf(#x "\tvalue=%ld ", se->n_value); break;
+#define showHexVal(x) case x: printf(#x "\tvalue=0x%lx ", se->n_value); break;
 
 /* Externals. */
 extern	long	ftell();
@@ -126,14 +127,14 @@ optHeader()
 		fatal("error reading optional header");
 
 	printf("\nOPTIONAL HEADER VALUES\n");
-	printf("magic            = 0x%x\n", oh.magic);
-	printf("version stamp    = %d\n", oh.vstamp);
-	printf("text size        = 0x%lx\n", oh.tsize);
-	printf("init data size   = 0x%lx\n", oh.dsize);
-	printf("uninit data size = 0x%lx\n", oh.bsize);
-	printf("entry point      = 0x%lx\n", oh.entry);
-	printf("text start       = 0x%lx\n", oh.text_start);
-	printf("data start       = 0x%lx\n", oh.data_start);
+	printf("magic            = 0x%x\n",	oh.magic);
+	printf("version stamp    = %d\n",	oh.vstamp);
+	printf("text size        = 0x%lx\n",	oh.tsize);
+	printf("init data size   = 0x%lx\n",	oh.dsize);
+	printf("uninit data size = 0x%lx\n",	oh.bsize);
+	printf("entry point      = 0x%lx\n",	oh.entry);
+	printf("text start       = 0x%lx\n",	oh.text_start);
+	printf("data start       = 0x%lx\n",	oh.data_start);
 }
 
 /*
@@ -149,19 +150,20 @@ readHeaders(fn) char *fn;
 	if (1 != fread(&fh, sizeof(fh), 1, fp))
 		fatal("error reading COFF header");
 
-	printf("FILE %s HEADER VALUES\n", fn);
-	printf("magic number   = 0x%x\n", fh.f_magic);
-	printf("sections       = %ld\n", num_sections = fh.f_nscns);
-	printf("file date      = %s", ctime(&fh.f_timdat));
-	printf("symbol ptr     = 0x%lx\n", symptr = fh.f_symptr);
-	printf("symbols        = %ld\n", num_symbols = fh.f_nsyms);
-	printf("sizeof(opthdr) = %d\n", fh.f_opthdr);
-	printf("flags          = 0x%x\n", fh.f_flags);
-	show(F_RELFLG, "Relocation info stripped from file");
-	show(F_EXEC, "File is executable");
-	show(F_LNNO, "Line numbers stripped from file");
-	show(F_LSYMS, "Local symbols stripped from file");
-	show(F_MINMAL, "Minimal object file");
+	printf("FILE %s HEADER VALUES\n",	fn);
+	printf("magic number   = 0x%x\n",	fh.f_magic);
+	printf("sections       = %ld\n",	num_sections = fh.f_nscns);
+	printf("file date      = %s",		ctime(&fh.f_timdat));
+	printf("symbol ptr     = 0x%lx\n",	symptr = fh.f_symptr);
+	printf("symbols        = %ld\n",	num_symbols = fh.f_nsyms);
+	printf("sizeof(opthdr) = %d\n",		fh.f_opthdr);
+	printf("flags          = 0x%x\n",	fh.f_flags);
+
+	showFlag(F_RELFLG,	"Relocation info stripped from file");
+	showFlag(F_EXEC,	"File is executable");
+	showFlag(F_LNNO,	"Line numbers stripped from file");
+	showFlag(F_LSYMS,	"Local symbols stripped from file");
+	showFlag(F_MINMAL,	"Minimal object file");
 
 	/*
 	 * Allocate section name array.
@@ -224,46 +226,31 @@ readSection(n) register int n;
 	fseek(fp, sh.s_scnptr, 0);
 
 	strncpy(sec_name[n], checkStr(sh.s_name), sizeof(SECNAME) - 1);
-	printf("\n%s - SECTION HEADER -\n", sec_name[n]);
+	printf("\n%s - SECTION HEADER -\n",	sec_name[n]);
 	printf("physical address    = 0x%lx\n", sh.s_paddr);
 	printf("virtual address     = 0x%lx\n", sh.s_vaddr);
 	printf("section size        = 0x%lx\n", sh.s_size);
 	printf("file ptr to data    = 0x%lx\n", sh.s_scnptr);
 	printf("file ptr to relocs  = 0x%lx\n", sh.s_relptr);
 	printf("file ptr to lines   = 0x%lx\n", sh.s_lnnoptr);
-	printf("relocation entries  = %u\n", sh.s_nreloc);
-	printf("line number entries = %u\n", sh.s_nlnno);
+	printf("relocation entries  = %u\n",	sh.s_nreloc);
+	printf("line number entries = %u\n",	sh.s_nlnno);
 	printf("flags               = 0x%lx\t", sh.s_flags);
 	switch((int)sh.s_flags) {
 
-	case STYP_GROUP:
-		printf("grouped section");	break;
-
-	case STYP_PAD:
-		printf("padding section");	break;
-
-	case STYP_COPY:
-		printf("copy section");		break;
-
-	case STYP_INFO:
-		printf("comment section");	break;
-
-	case STYP_OVER:
-		printf("overlay section");	break;
+	showDesc(STYP_GROUP,	"grouped section")
+	showDesc(STYP_PAD,	"padding section")
+	showDesc(STYP_COPY,	"copy section")
+	showDesc(STYP_INFO,	"comment section")
+	showDesc(STYP_OVER,	"overlay section")
+	showDesc(STYP_TEXT,	"text only")
+	showDesc(STYP_DATA,	"data only")
+	showDesc(STYP_BSS,	"bss only")
 
 	case STYP_LIB:
 		printf(".lib section\n");
 		shrLib();
 		return;
-
-	case STYP_TEXT:
-		printf("text only");		break;
-
-	case STYP_DATA:
-		printf("data only");		break;
-
-	case STYP_BSS:
-		printf("bss only");		break;
 
 	default:
 		printf("unrecognized section");
@@ -301,16 +288,16 @@ readSection(n) register int n;
 			printf("address=0x%lx\tindex=%ld \ttype=",
 				re.r_vaddr, re.r_symndx);
 			switch(re.r_type) {
-			cs(R_DIR8)
-			cs(R_DIR16)
-			cs(R_DIR32)
-			cs(R_RELBYTE)
-			cs(R_RELWORD)
-			cs(R_RELLONG)
-			cs(R_PCRBYTE)
-			cs(R_PCRWORD)
-			cs(R_PCRLONG)
-			cs(R_NONREL)
+			showCase(R_DIR8)
+			showCase(R_DIR16)
+			showCase(R_DIR32)
+			showCase(R_RELBYTE)
+			showCase(R_RELWORD)
+			showCase(R_RELLONG)
+			showCase(R_PCRBYTE)
+			showCase(R_PCRWORD)
+			showCase(R_PCRLONG)
+			showCase(R_NONREL)
 			default:
 				fatal("unexpected relocation type 0x%x",
 					re.r_type);
@@ -539,9 +526,9 @@ print_sym(se, n) register SYMENT *se; register long n;
 		printf("%s", sec_name[i-1]);
 	else
 		switch(i) {
-		cs(N_UNDEF)
-		cs(N_ABS)
-		cs(N_DEBUG)
+		showCase(N_UNDEF)
+		showCase(N_ABS)
+		showCase(N_DEBUG)
 		default:
 			printf("%d?", i);
 			break;
@@ -549,46 +536,40 @@ print_sym(se, n) register SYMENT *se; register long n;
 
 	/* Print the type. */
 	printf("\ttype=");
-	i = se->n_type;
+	
+	/* print derived types */
 	derived = 0;
-	while (i & N_TMASK) {			/* derived type */
+	for (i = se->n_type; i & N_TMASK; i >>= N_TSHIFT) {
 		if (derived == 0) {
 			derived = 1;
 			putchar('<');
 		}
 		switch((i & N_TMASK) >> N_BTSHFT) {
-		cs(DT_PTR)
-		cs(DT_FCN)
-		cs(DT_ARY)
-		case DT_NON:
-		default:
-			fatal("unexpected derived type 0x%x", i & N_TMASK);
+		showCase(DT_PTR)
+		showCase(DT_FCN)
+		showCase(DT_ARY)
 		}
 		putchar(' ');
-		i >>= N_TSHIFT;
 	}
+
 	switch (c = (se->n_type & N_BTMASK)) {	/* base type */
+	showDesc(T_NULL, "none")
+	showCase(T_CHAR)
+	showCase(T_SHORT)
+	showCase(T_INT)
+	showCase(T_LONG)
+	showCase(T_FLOAT)
+	showCase(T_DOUBLE)
+	showCase(T_STRUCT)
+	showCase(T_UNION)
+	showCase(T_ENUM)
+	showCase(T_MOE)
+	showCase(T_UCHAR)
+	showCase(T_USHORT)
+	showCase(T_UINT)
+	showCase(T_ULONG)
 
-	case T_NULL:
-		printf("none");
-		break;
-
-	cs(T_CHAR)
-	cs(T_SHORT)
-	cs(T_INT)
-	cs(T_LONG)
-	cs(T_FLOAT)
-	cs(T_DOUBLE)
-	cs(T_STRUCT)
-	cs(T_UNION)
-	cs(T_ENUM)
-	cs(T_MOE)
-	cs(T_UCHAR)
-	cs(T_USHORT)
-	cs(T_UINT)
-	cs(T_ULONG)
-
-	case T_ARG:		/* What has base type (not storage class) ARG? */
+	case T_ARG:	/* What has base type (not storage class) ARG? */
 	default:
 		fatal("unexpected base type 0x%x", c);
 
@@ -600,28 +581,28 @@ print_sym(se, n) register SYMENT *se; register long n;
 	printf("\tclass=");
 	switch (i = se->n_sclass) {
 
-	cd(C_EFCN)
-	cd(C_NULL)
-	cd(C_AUTO)
-	cx(C_STAT)
-	cd(C_REG)
-	cd(C_EXTDEF)
-	cd(C_LABEL)
-	cd(C_ULABEL)
-	cd(C_MOS)
-	cd(C_ARG)
-	cd(C_STRTAG)
-	cd(C_MOU)
-	cd(C_UNTAG)
-	cd(C_TPDEF)
-	cd(C_ENTAG)
-	cd(C_MOE)
-	cd(C_REGPARM)
-	cd(C_FIELD)
-	cd(C_BLOCK)
-	cd(C_FCN)
-	cd(C_EOS)
-	cd(C_FILE)
+	showValue(C_EFCN)
+	showValue(C_NULL)
+	showValue(C_AUTO)
+	showHexVal(C_STAT)
+	showValue(C_REG)
+	showValue(C_EXTDEF)
+	showValue(C_LABEL)
+	showValue(C_ULABEL)
+	showValue(C_MOS)
+	showValue(C_ARG)
+	showValue(C_STRTAG)
+	showValue(C_MOU)
+	showValue(C_UNTAG)
+	showValue(C_TPDEF)
+	showValue(C_ENTAG)
+	showValue(C_MOE)
+	showValue(C_REGPARM)
+	showValue(C_FIELD)
+	showValue(C_BLOCK)
+	showValue(C_FCN)
+	showValue(C_EOS)
+	showValue(C_FILE)
 
 	case C_EXT:
 		if (se->n_scnum != N_UNDEF)
@@ -640,10 +621,6 @@ print_sym(se, n) register SYMENT *se; register long n;
 
 	}
 
-#if	0
-	if (se->n_numaux)
-		printf("\tnaux=%d", se->n_numaux);
-#endif
 	putchar('\n');
 
 	if (1 == flag) {
