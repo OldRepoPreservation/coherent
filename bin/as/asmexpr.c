@@ -28,7 +28,7 @@ register struct expr *esp;
 		rv = re.e_addr;
 		if (c == '|') {
 			if (rt != E_ACON)
-				aerr();
+				aerr("non constant in segment construction");
 			switch (lt) {
 			case E_ACON:
 				esp->e_type = E_ASEG;
@@ -40,7 +40,7 @@ register struct expr *esp;
 				break;
 
 			default:
-				aerr();
+				aerr("bad segment construction");
 			}
 			esp->e_addr = rv;
 			continue;
@@ -64,18 +64,18 @@ register struct expr *esp;
 				else if (rt==E_SYM || rt==E_SEG)
 					esp->e_base.e_sp = re.e_base.e_sp;
 			} else if (rt != E_ACON)
-				rerr();
+				rerr("add of 2 non constants");
 			esp->e_addr += rv;
 			continue;
 		}
 		if (c == '-') {
 			if (lt == E_ACON) {
 				if (rt != E_ACON)
-					rerr();
+					rerr("constant - non-constant");
 			} else if (rt != E_ACON) {
 				if (lt!=E_DIR || rt!=E_DIR || 
 				    esp->e_base.e_lp!=re.e_base.e_lp)
-					rerr();
+					rerr("cannot fold this expression");
 				esp->e_type = E_ACON;
 			}
 			esp->e_addr -= rv;
@@ -83,7 +83,7 @@ register struct expr *esp;
 		}
 		if (c == '*') {
 			if (lt!=E_ACON || rt!=E_ACON)
-				aerr();
+				aerr("non-constant in multiply");
 			esp->e_addr *= rv;
 			continue;
 		}
@@ -116,7 +116,7 @@ register struct expr *esp;
 	if ((c=getnb()) == '[') {
 		expr(esp, 0);
 		if (getnb() != ']')
-			qerr();
+			qerr("missing ']'");
 		return;
 	}
 	if (c == '-') {
@@ -168,7 +168,7 @@ register struct expr *esp;
 					return;
 				}
 			}
-			err('u');
+			err('u', "undefined local symbol");
 			return;
 		}
 		if (c != 0)
@@ -201,7 +201,68 @@ register struct expr *esp;
 		uerr(id);
 		return;
 	}
-	qerr();
+	qerr("invalid symbol");
+}
+
+/*
+ * Look for an optional floating point register specification
+ * and store an appropriate e_mode value through ep.
+ * No operand: store ST and return 0.
+ * One operand: store reg and return 1.
+ */
+fp_reg(ep)
+register struct expr *ep;
+{
+	register c;
+	char id[NCPLN];
+	struct sym  *sp;
+
+	ep->e_mode = ST;
+	if (ctype[c=getnb()] == LETTER) {
+		getid(id, c);
+		if ((sp=lookup(id, 0)) != NULL) {
+			if ((sp->s_addr&MMASK) != ST) {
+				qerr("invalid floating-point register");
+				return(0);
+			}
+			ep->e_mode = sp->s_addr;
+			return(1);
+		}
+		uerr(id);
+		return(0);
+	}
+	unget(c);
+	return(0);
+}
+
+/*
+ * Look for one or two optional floating point register operands
+ * and store appropriate e_mode values through ep1, ep2.
+ * Return a flag indicating whether any operands were supplied.
+ * No operand: store ST1, ST, return 0.
+ * One operand: store reg1, ST, return 1.
+ * Two operands: store reg1, reg2, return 1; at least one must be ST.
+ */
+fp_reg2(ep1, ep2)
+register struct expr *ep1, *ep2;
+{
+	register int c;
+
+	ep2->e_mode = ST;
+	if (fp_reg(ep1)) {
+		if ((c = getnb()) == ',') {
+			if (!fp_reg(ep2)
+			  || (ep1->e_mode != ST && ep2->e_mode != ST))
+				qerr("invalid floating-point register");
+		}
+		else
+			unget(c);
+		return(1);
+	}
+	else {
+		ep1->e_mode = ST1;
+		return(0);
+	}
 }
 
 digit(c, r)
@@ -222,7 +283,7 @@ abscheck(esp)
 register struct expr *esp;
 {
 	if (esp->e_type != E_ACON) {
-		rerr();
+		rerr("expected constant");
 		esp->e_type = E_ACON;
 	}
 }
