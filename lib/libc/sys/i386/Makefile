@@ -1,4 +1,4 @@
-# /usr/src/libc/sys/i386/Makefile 2/1/93
+# /usr/src/libc/sys/i386/Makefile 2/24/93
 
 ASFLAGS=-x
 
@@ -38,6 +38,7 @@ AUTOOBJ=\
 	chmod.o\
 	chown.o\
 	chroot.o\
+	chsize.o\
 	close.o\
 	creat.o\
 	dup.o\
