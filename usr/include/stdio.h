@@ -1,10 +1,10 @@
 /* (-lgl
- * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 /*
- * stdio.h
  * COHERENT Standard Input/Output library header.
  * ANSI C Standard, Section 4.9.
  */
@@ -28,6 +28,7 @@
 #define	FOPEN_MAX	_NFILE		/* max # of open files	*/
 #define	_NFILE		60		/* number of FILEs	*/
 #define	_NSTDFILE	3		/* number of predefined FILEs	*/
+#define	L_ctermid	9		/* ctermid () length */
 #define	L_tmpnam	64		/* tmpnam length	*/
 #define	P_tmpdir	"/tmp"		/* default temporary directory */
 #define	TMP_MAX		91		/* number of tmpnams	*/
@@ -36,8 +37,8 @@
 typedef long		fpos_t;		/* file position type	*/
 
 /*
- * The order the first 5 FILE members corresponds to the order in iBCS2,
- * to allow a degree of binary compatability.
+ * The order the first five FILE members corresponds to the order in iBCS2,
+ * to allow a degree of binary compatibility.
  */
 typedef struct	FILE {
 	int		_cc;		/* character count	*/
@@ -48,7 +49,7 @@ typedef struct	FILE {
 	char		_ff2;		/* more flags; see below */
 	char		_mode;		/* mode			*/
 }	FILE;
-/* These additional members are not in struct FILE for compatability reasons. */
+/* These additional members are not in struct FILE for compatibility reasons. */
 typedef	struct	_FILE2 {
 	int		(*_gt)();	/* getc function	*/
 	int		(*_pt)();	/* putc function	*/
@@ -59,7 +60,7 @@ typedef	struct	_FILE2 {
 	int		_uc;		/* ungot char		*/
 }	_FILE2;
 
-/* iBCS2 compatability. */
+/* iBCS2 compatibility. */
 #define	_cnt	_cc
 #define	_ptr	_cp
 #define	_base	_f2p
@@ -105,7 +106,7 @@ extern	FILE	*_fp[_NFILE];
 #define	_MODE_STR	0x08		/* string		*/
 #define	_MODE_UNINIT	0x10		/* uninitialized	*/
 
-/* External declarations for non-conforming implementations. */
+
 /* Standard functions. */
 
 __EXTERN_C_BEGIN__
@@ -126,15 +127,21 @@ void		setbuf		__PROTO ((FILE * _stream, char * _buf));
 int		setvbuf		__PROTO ((FILE * _stream, char * _buf,
 					  int _mode, size_t _size));
 int		fprintf		__PROTO ((FILE * _stream,
-					  __CONST__ char * _format, ...));
+					  __CONST__ char * _format, ...))
+				__PRINTF_LIKE (2, 3);
 int		fscanf		__PROTO ((FILE * _stream,
-					  __CONST__ char * _format, ...));
-int		printf		__PROTO ((__CONST__ char * _format, ...));
-int		scanf		__PROTO ((__CONST__ char * _format, ...));
+					  __CONST__ char * _format, ...))
+				__SCANF_LIKE (2, 3);
+int		printf		__PROTO ((__CONST__ char * _format, ...))
+				__PRINTF_LIKE (1, 2);
+int		scanf		__PROTO ((__CONST__ char * _format, ...))
+				__SCANF_LIKE (1, 2);
 int		sprintf		__PROTO ((char * _s,
-					  __CONST__ char * _format, ...));
+					  __CONST__ char * _format, ...))
+				__PRINTF_LIKE (2, 3);
 int		sscanf		__PROTO ((__CONST__ char * _s,
-					  __CONST__ char * _format, ...));
+					  __CONST__ char * _format, ...))
+				__SCANF_LIKE (2, 3);
 int		vfprintf	__PROTO ((FILE * _stream,
 					  __CONST__ char * _format,
 					  __va_list arg));
@@ -172,48 +179,24 @@ int		feof		__PROTO ((FILE * _stream));
 int		ferror		__PROTO ((FILE * _stream));
 void		perror		__PROTO ((__CONST__ char * _s));
 
+char	      *	ctermid		__PROTO ((char * _s));
+
 #if	! _STDC_SOURCE
 
 FILE	      *	fdopen		__PROTO ((int _fildes,
 					  __CONST__ char * _type));
 int		fileno		__PROTO ((FILE * _stream));
 
-#if	! _POSIX_SOURCE
+#if	_POSIX_C_SOURCE < 2
 
 FILE	      *	popen		__PROTO ((__CONST__ char * _command,
-					  __CONST__ char * _how));
+					  __CONST__ char * _mode));
+int		pclose		__PROTO ((FILE * _stream));
 
-#endif	/* ! _POSIX_SOURCE */
+#endif	/* _POSIX_C_SOURCE < 2 */
 #endif	/* ! _STDC_SOURCE */
 
 __EXTERN_C_END__
-
-#if	0
-/* Internal functions. */
-extern	void	_dassign();
-extern	int	_dscan	();
-extern	char *	_dtefg	();
-extern	void	_dtoa	();
-extern	int	_fgetb	();
-extern	int	_fgetc	();
-extern	int	_fgete	();
-extern	int	_fgetstr();
-extern	int	_fginit	();
-extern	int	_filbuf	();
-extern	void	_finish	();
-extern	int	_flsbuf	();
-extern	FILE *	_fopen	();
-extern	int	_fpinit	();
-extern	int	_fpseek	();
-extern	int	_fputa	();
-extern	int	_fputb	();
-extern	int	_fputc	();
-extern	int	_fpute	();
-extern	int	_fputt	();
-extern	int	_scanf	();
-extern	FILE *	_stropen();
-
-#endif	/* not permitted in <stdio.h> */
 
 /* Macros covering standard functions. */
 #define	clearerr(fp)	((fp)->_ff1 &= ~(_FERR|_FEOF))
