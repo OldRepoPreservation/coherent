@@ -21,14 +21,14 @@ aha)
 	exit 0
 	;;
 esac
-echo "Building kernel /coh.$HDDR with drivers ($DRIVERS)."
+echo "Building kernel /coh.$HDDR Version `version ID` with drivers ($DRIVERS)."
 
 : default root/pipe device
 BOOTDEV="fva0"
 echo "Default root/pipe device is $BOOTDEV."
 
-( cd $USRSRC/i8086/drv; make install )				|| exit 1
 ( cd $USRSRC/ldrv; make ld_support )				|| exit 1
+( cd $USRSRC/i8086/drv; make install )				|| exit 1
 ( make kernel )							|| exit 1
 ./config ibm-at $DRIVERS root=$BOOTDEV				|| exit 1
 cp coherent /tmp/coh						|| exit 1
