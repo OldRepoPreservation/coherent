@@ -208,4 +208,5 @@ char *linkPtr, *flagPtr, *blockPtr, *dupPtr;
  */
 extern char *malloc();
 extern char *calloc();
+#undef putchar(c)
 #define putchar(c) { char b = c; write(1, &b, 1); }
