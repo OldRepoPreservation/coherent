@@ -557,7 +557,7 @@ fsize_t dirsize;
 		dsavep = dsaved;
 	}
 	if (Rflag)
-		dirlist = (char **)alloc(MAXDIR * sizeof(char *));
+		dirlist = (char **)alloc(MAXDIR * sizeof(char *), "dirlist");
 	dirbuf = alloc(BSIZE,"dirbuf");
 	namebuf = alloc(MAXNBUF,"namebuf");
 	curname = alloc(DIRSIZ+1,"curname");
@@ -925,15 +925,15 @@ char *
 getname(s)
 char *s;
 {
-	char tmp[30];
+	char tmp[80];
 	char *t;
 	int i = 0;
 	char buf[5];
 
 	t = tmp;
 	if (bflag){
-		while ( *s != '\0'){
-			if ( *s >= ' ' && *s <= '~') {
+		while (*s) {
+			if (*s >= ' ' && *s <= '~') {
 				*t++ = *s++;
 			} else {
 				sprintf(buf,"\\0%o",*s++);
@@ -991,12 +991,12 @@ char *s;
  * entire length can be recorded.  Used for -x and -C.
  * Sets lsp->ls_name to allocated name.
 */
-cstore(lsp,name)
+cstore(lsp, name)
 LS *lsp;
 char *name;
 {
 	register int sl;
-	char buf[50],tmp[10],tmp2[20];
+	char buf[80],tmp[80],tmp2[80];
 
 	clear(buf); clear(tmp); clear(tmp2);
 	if ( sflag)
