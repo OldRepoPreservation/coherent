@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ldrv/RCS/ldmain.c,v 1.2 89/03/31 16:19:36 src Exp $ */
+/* $Header: /kernel/kersrc/ldrv/RCS/ldmain.c,v 1.1 92/07/17 15:27:53 bin Exp Locker: bin $ */
 /*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -15,7 +15,10 @@
 /*
  * Loadable Driver - Process Handler.
  *
- * $Log:	/usr/src/sys/ldrv/RCS/ldmain.c,v $
+ * $Log:	ldmain.c,v $
+ * Revision 1.1  92/07/17  15:27:53  bin
+ * Initial revision
+ * 
  * Revision 1.2	89/03/31  16:19:36 	src
  * Bug:	Did not cancel either attached timed functions or deferred functions
  * 	during an unload.  As a result, if a driver did not explicitly do

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ldrv/RCS/setivec.c,v 1.1 88/03/24 16:31:02 src Exp $ */
+/* $Header: /kernel/kersrc/ldrv/RCS/setivec.c,v 1.1 92/07/17 15:27:57 bin Exp Locker: bin $ */
 /*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -15,7 +15,10 @@
 /*
  * Loadable Driver - Enable/Disable Interrupts.
  *
- * $Log:	/usr/src/sys/ldrv/RCS/setivec.c,v $
+ * $Log:	setivec.c,v $
+ * Revision 1.1  92/07/17  15:27:57  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:31:02	src
  * Initial revision
  * 

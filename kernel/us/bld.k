@@ -4,6 +4,9 @@
 #	so these can be linked in during installation
 #
 # $Log:	bld.k,v $
+Revision 1.1  92/07/17  15:29:52  bin
+Initial revision
+
 # Revision 1.1  92/01/10  10:10:41  hal
 # Initial revision
 

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/pipe.c,v 1.7 93/04/14 10:06:40 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/pipe.c,v 1.9 93/04/16 06:49:10 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Pipes.
  *
  * $Log:	pipe.c,v $
+ * Revision 1.9  93/04/16  06:49:10  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.7  93/04/14  10:06:40  root
  * r75
  * 

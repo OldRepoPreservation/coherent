@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i286/RCS/as1.s,v 1.2 91/06/20 14:07:20 hal Exp $
+/ $Header: /kernel/kersrc/i286/RCS/as1.s,v 1.1 92/07/17 15:21:11 bin Exp Locker: bin $
 
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -25,6 +25,9 @@
 / called on the paths leading to consave or conrest.  Tread with caution.
 /
 / $Log:	as1.s,v $
+/ Revision 1.1  92/07/17  15:21:11  bin
+/ Initial revision
+/
 / Revision 1.2  91/06/20  14:07:20  hal
 / I'm not sure what changed here.
 

@@ -1,4 +1,4 @@
-# /usr/src/libc/Makefile 11/19/92
+# /usr/src/libc/Makefile 1/13/93
 # Assumes $(SRCPATH) defines root libc source directory, e.g. /usr/src/libc.
 # Assumes $(MCH) defines target machine, e.g. i8086 or i386.
 # Assumes $(AR), $(AS), $(AFLAGS), $(CC), $(CFLAGS) defined appropriately.
@@ -18,6 +18,10 @@ OBJ=\
 all:	ROOT dcrt dndir dstring dsys dstdlib dgen dstdio
 	: libc done.
 
+# Primary target for NDP library.
+ndp:	ROOT dcrtndp dndir dstring dsys dstdlib dgen dstdio
+	: NDP libc done.
+
 # Pseudotargets.
 # The lower case pseudotargets are made every time to check each subdirectory.
 # The upper case pseudotargets indicate when the objects in a given directory
@@ -27,6 +31,8 @@ ROOT:	$(OBJ)
 	touch $@
 dcrt:	
 	SRCPATH=$(SRCPATH)/crt make -e
+dcrtndp:	
+	SRCPATH=$(SRCPATH)/crt make -e ndp
 dgen:
 	SRCPATH=$(SRCPATH)/gen make -e
 dndir:

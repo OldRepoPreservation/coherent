@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/swap.c,v 1.3 93/04/14 10:07:55 root Exp $ */
+/* $Header: /ker/coh.386/RCS/swap.c,v 2.2 93/07/26 14:29:06 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Swapper.
  *
  * $Log:	swap.c,v $
+ * Revision 2.2  93/07/26  14:29:06  nigel
+ * Nigel's R80
+ * 
  * Revision 1.3  93/04/14  10:07:55  root
  * r75
  * 

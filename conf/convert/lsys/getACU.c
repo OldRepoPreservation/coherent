@@ -24,8 +24,7 @@ getACU()
 	}
 
 	while( (fgets(ldevline,sizeof(ldevline),ldevin)) != NULL){
-		if(ldevline[0] == 'A'){	/* found ACU line */
-			ldevptr = ldevline;
+		if(ldevline[0] != '#' && (ldevptr = strstr(ldevline, "ACU"))){	/* found ACU line */
 			ldevptr += 3;		/* skip ACU field */
 			lineptr = acudev;	
 

@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <limits.h>
+#include "stdio.int.h"
 
 extern	int	_fputstr();
 

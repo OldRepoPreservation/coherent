@@ -23,6 +23,9 @@
  *	master read does ttout()
  *
  * $Log:	pty.c,v $
+ * Revision 1.4  93/04/14  10:12:10  root
+ * r75
+ * 
  * Revision 1.3  92/07/16  16:35:29  hal
  * Kernel #58
  * 

@@ -40,7 +40,7 @@ int	sflag=FALSE;			/* force salvage flag	*/
 int	qflag=FALSE;			/* fsck quiet flag	*/
 int	fflag=FALSE;			/* fsck fast flag	*/
 
-char *tmpfile = NULL;			/* TMP file for virtual.c */
+char *tempFile = NULL;			/* TMP file for virtual.c */
 char *checklistfile = "/etc/checklist";	/* default file for list of file */
 					/* systems to fsck. */
 char *filelist[NFILSYS];		/* list of filesystems */
@@ -80,7 +80,7 @@ char *argv[];
 			gsflag = TRUE;
 			break;
 		case 't':
-			tmpfile = argv[2];
+			tempFile = argv[2];
 			argc--;
 			argv++;
 			break;

@@ -1,1 +1,0 @@
-cc -i -O -o ed ed*.c; echo mv ed /bin

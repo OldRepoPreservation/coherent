@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/ldrv/RCS/splo.s,v 1.1 88/03/24 16:31:19 src Exp $
+/ $Header: /kernel/kersrc/ldrv/RCS/splo.s,v 1.1 92/07/17 15:28:10 bin Exp Locker: bin $
 /
 /	The  information  contained herein  is a trade secret  of INETCO
 /	Systems, and is confidential information.   It is provided under
@@ -11,7 +11,10 @@
 /	An unpublished work by INETCO Systems, Ltd.
 /	All rights reserved.
 /
-/ $Log:	/usr/src/sys/ldrv/RCS/splo.s,v $
+/ $Log:	splo.s,v $
+/ Revision 1.1  92/07/17  15:28:10  bin
+/ Initial revision
+/
 / Revision 1.1	88/03/24  16:31:19	src
 / Initial revision
 / 

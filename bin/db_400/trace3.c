@@ -1,4 +1,4 @@
-/* $Header: /src386/bin/db/RCS/trace3.c,v 1.1 92/06/10 14:36:59 bin Exp Locker: bin $
+/* $Header: /src386/bin/db/RCS/trace3.c,v 1.2 93/03/11 07:46:06 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,10 @@
  * Display.
  *
  * $Log:	trace3.c,v $
+ * Revision 1.2  93/03/11  07:46:06  bin
+ * Hal: post NDP update that at least
+ * can st breakpoints.
+ * 
  * Revision 1.1  92/06/10  14:36:59  bin
  * Initial revision
  * 

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/pipe.c,v 1.7 93/04/14 10:06:40 root Exp $ */
+/* $Header: /ker/coh.386/RCS/pipe.c,v 2.2 93/07/26 14:28:58 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Pipes.
  *
  * $Log:	pipe.c,v $
+ * Revision 2.2  93/07/26  14:28:58  nigel
+ * Nigel's R80
+ * 
  * Revision 1.7  93/04/14  10:06:40  root
  * r75
  * 

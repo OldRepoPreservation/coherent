@@ -16,7 +16,10 @@
 / 90/09/11  Hal Snyder
 / Add ld_call()
 /
-/ $Log:	/usr/src/sys/i8086/src/RCS/ldas.s,v $
+/ $Log:	ldas.s,v $
+/ Revision 1.1  92/07/17  15:21:30  bin
+/ Initial revision
+/
 / Revision 1.2	91/03/01  09:23:04	root
 / Part of COHERENT 3.1.0 kernel
 / 

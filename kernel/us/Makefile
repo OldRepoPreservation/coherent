@@ -1,4 +1,4 @@
-# $Header: /x/usr/sys/RCS/Makefile,v 1.1 91/11/14 14:36:50 hal Exp $
+# $Header: /kernel/kersrc/us/RCS/Makefile,v 1.1 92/07/17 15:29:45 bin Exp Locker: bin $
 #
 # Makefile for ibm specific coherent sources and coherent images.
 #
@@ -8,6 +8,9 @@
 #	KOBJ (e.g. /usr/kobj)
 #
 # $Log:	Makefile,v $
+# Revision 1.1  92/07/17  15:29:45  bin
+# Initial revision
+# 
 # Revision 1.1  91/11/14  14:36:50  hal
 # Last before going to i286/coh/io tree.
 # 

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fs2.c,v 1.5 93/04/14 10:06:31 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/fs2.c,v 1.10 93/06/14 13:34:40 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (disk inodes).
  *
  * $Log:	fs2.c,v $
+ * Revision 1.10  93/06/14  13:34:40  bin
+ * Hal: kernel 78 update
+ * 
  * Revision 1.5  93/04/14  10:06:31  root
  * r75
  * 

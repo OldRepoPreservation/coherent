@@ -77,7 +77,6 @@ inline()
 	register int (*s_func)();
 	register INLINE *ip;
 	register int ahash;
-	int pid, status;
 
 	if (inls[0].i_hash==0)
 		for (ip=inls; ip->i_name!=NULL; ip++)
@@ -90,39 +89,45 @@ inline()
 			break;
 	if ((s_func=ip->i_func) == SNULL)
 		return 0;
-	if (*niovp != NULL && s_func != s_exec) {
-		/* Redirection with built-in command. */
-		/* Allowed only with eval, export, readonly, set, times. */
-		if (s_func != s_eval
-		 && s_func != s_export
-		 && s_func != s_set
-		 && s_func != s_times) {
-			eredir();
+	/*
+	 * Process exec specially, because it has unique semantics for
+	 * redirection (among other things). Redirection of builtins is done
+	 * using the "undo" facility because builtins must execute in the
+	 * top-level environment. The original code here permitted a small
+	 * subset of builtins to be redirected, but executed them in a
+	 * subshell, giving bogus semantics (eg, it permitted "export" to be
+	 * redirected, but in a subshell it had no effect).
+	 */
+	if (s_func == s_exec)
+		slret = (* s_func) ();
+	else {
+		REDIR_UNDO    *	undo = NULL;
+
+		if (redirect (niovp, & undo) < 0)
 			slret = 1;
-			return 1;
+		else 
+			slret = (* s_func) ();
+
+		/*
+		 * NB: The rationale for the following kludge is not clear,
+		 * but with the ability to properly redirect builtins and
+		 * execute the in the top-level context, it no longer works.
+		 * It could be added back in, but since it conflicts with
+		 * POSIX.2 anyway, why bother.
+		 */
+#if 0
+		if (s_func == s_eval)
+			slret = (*s_func)();
+		else {
+			/* Kludge stderr output to stdout. */
+			dup2(1, 2);
+			close(1);
+			slret = (*s_func)();
 		}
-		if ((pid = clone()) == 0) {
-			/* Perform redirection in child process. */
-			if (redirect(niovp) < 0)
-				slret = 1;
-			else if (s_func == s_eval)
-				slret = (*s_func)();
-			else {
-				/* Kludge stderr output to stdout. */
-				dup2(1, 2);
-				close(1);
-				slret = (*s_func)();
-			}
-			exit(slret);
-			/* NOTREACHED */
-		} else {
-			/* Parent waits for child and takes its exit status. */
-			while (wait(&status) != pid)
-				;
-			slret = status >> 8;
-		}
-	} else
-		slret = (*s_func)();
+#endif
+
+		redirundo (& undo);
+	}
 	return 1;
 }
 
@@ -133,6 +138,7 @@ register char *cp;
 	for (i=0; *cp; i+=*cp++);
 	return i;
 }
+
 
 /*
  * Actual builtin functions.
@@ -198,7 +204,7 @@ s_dirs()
 	register int i;
 
 	for (i = dstkp; i >= 0; i--)
-		fprintf(stderr, "%s ", dstack[i]);
+		printf (stdout, "%s ", dstack[i]);
 	fputc('\n', stderr);
 }
 
@@ -212,7 +218,7 @@ s_eval()
 
 s_exec()
 {
-	if (redirect(niovp) < 0) {
+	if (redirect (niovp, NULL) < 0) {
 		if (nargc>1) {
 			exit(1);
 			NOTREACHED;
@@ -221,8 +227,10 @@ s_exec()
 	}
 	if (nargc==1)
 		return 0;
-	if (no1flag)
-		cleanup(2, NULL);
+	if (no1flag) {
+		cleanup_shell_fns ();
+		unlink_temp (capture_temp ());
+	}
 	dflttrp(ICMD);
 	++nargv;
 	--nargc;
@@ -319,40 +327,111 @@ s_pushd()
 	return ret;
 }
 
+/*
+ * NB: For s_read (), wrap up the temporary-space global bullshit. Later we
+ * can add parameters to this stuff to get the effect of string streams.
+ */
+
+#define	temp_string_begin()	((void) (strp = strt))
+#define	temp_string_max()	STRSIZE
+#define	temp_string_add(c) \
+		(strp < strt + temp_string_max () ? (void) (* strp ++ = c) : \
+		 (void) etoolong ())
+#define	temp_string_end()	(strt)
+#define	temp_string_end_copy()	(duplstr (temp_string_end (), 1))
+#define	temp_string_temp_copy()	(duplstr (temp_string_end (), 0))
+#define	temp_mark()		(0)
+#define	temp_release(x)		((void) x)
+
+typedef	int		temp_mark_type;
+
+#define	ARGS(x)		x
+void temp_string_begin ARGS (()) {
+	temp_string_begin ();
+}
+int temp_string_max ARGS (()) {
+	return temp_string_max ();
+}
+void temp_string_add ARGS ((c)) int c; {
+	temp_string_add (c);
+}
+char * temp_string_end ARGS (()) {
+	return temp_string_end ();
+}
+char * temp_string_end_copy ARGS (()) {
+	return temp_string_end_copy ();
+}
+char * temp_string_temp_copy ARGS (()) {
+	return temp_string_temp_copy ();
+}
+temp_mark_type temp_mark ARGS (()) {
+	return temp_mark ();
+}
+void temp_release ARGS ((m)) temp_mark_type m; {
+	temp_release (m);
+}
+
+/*
+ * NB: Originally, this code used yylex () to break the input up into words.
+ * This was a bad idea, because this caused the IFS variable to have no
+ * useful effect. Now we just read using <stdio.h> functions, because the
+ * extra machinery for session-management doesn't seem to buy anything.
+ */
+
 s_read()
 {
-	SES s;
-	register int n, c;
-	register char **vp;
-	int eol;
+	char	     **	argp = nargv + 1;
+	char	     **	arg_end = argp + (nargc - 1);
+	char	      *	delimiters;
+	int		ch;
 
-	s.s_type = SSTR;
-	s.s_flag = 0;
-	s.s_ifp = stdin;
-	s.s_next = sesp;
-	sesp = &s;
-	for (eol=0, vp=++nargv, n=--nargc; n; n-=1, vp+=1) {
-		if (n==1 && ! eol) {
-			strp = strt;
-			c = collect('\n', 2);
-			if (c == '\n')
-				--strp;
-			*strp = '\0';
-		} else if (! eol) {
-			readflag = 1;
-			c = yylex();
-			readflag = 0;
-		} else
-			*strt = '\0';
-		if (namevar(*vp))
-			assnvar(*vp, duplstr(strt, 0));
-		else
-			eillvar(*vp);
-		eol = c=='\n' || c==EOF;
+	while (argp < arg_end)
+		if (! namevar (* argp ++))
+			eillvar (argp - 1);
+
+	delimiters = vifs == NULL ? " \t" : vifs;
+
+	argp = nargv + 1;
+	while (argp < arg_end)  {
+		temp_mark_type	mark;
+		enum	{
+			EAT_WS,
+			WORD
+		} state = EAT_WS;
+
+		mark = temp_mark ();
+		temp_string_begin ();
+
+		if (argp + 1 == arg_end)
+			delimiters = "";
+
+		while ((ch = getc (stdin)) != EOF && ch != '\n') {
+
+			if (strchr (delimiters, ch) != NULL) {
+
+				if (state == EAT_WS)
+					continue;
+				break;
+			}
+
+			temp_string_add (ch);
+			state = WORD;
+		}
+		temp_string_add (0);
+
+		assnvar (* argp ++, temp_string_temp_copy ());
+		temp_release (mark);
+
+		if (ch == EOF || ch == '\n')
+			break;
 	}
-	sesp = s.s_next;
-	return c==EOF;
+
+	while (argp < arg_end)
+		assnvar (* argp ++, "");
+
+	return ch == EOF;
 }
+
 
 /* s_readonly overlaid with s_export */
 
@@ -392,7 +471,7 @@ s_times()
 	times(&tb);
 	ptime(tb.tb_cutime);
 	ptime(tb.tb_cstime);
-	prints("\n");
+	puts ("\n");
 	return 0;
 }
 
@@ -426,7 +505,7 @@ s_trap()
 s_umask()
 {
 	if (nargc < 2)
-		prints("%03o\n", ufmask);
+		printf ("%03o\n", ufmask);
 	else
 		umask(ufmask = atoi(nargv[1]));
 	return 0;
@@ -558,7 +637,7 @@ long t;
 {
 	register int ticks, tenths, seconds;
 
-	prints("%Dm", t/MINUTE);
+	printf ("%ldm", t/MINUTE);
 	ticks = t%MINUTE;
 	seconds = ticks/SECOND;
 	tenths = (ticks%SECOND + SECOND/20)/(SECOND/10);
@@ -566,7 +645,7 @@ long t;
 		tenths = 0;
 		seconds++;
 	}
-	prints("%d.%ds ", seconds, tenths);
+	printf ("%d.%ds ", seconds, tenths);
 }
 
 /* User-defined shell functions. */
@@ -588,6 +667,63 @@ lookup_sh_fn(name) char *name;
 	return NULL;
 }
 
+
+/*
+ * When a subshell is created, the functions are available in the subshell
+ * but we don't want to lose the here-documents.
+ */
+
+void subshell_shell_fns ()
+{
+	SHFUNC	      *	scan;
+
+	scan = sh_fnp;
+
+	while (scan != NULL) {
+		forget_temp (scan->fn_temp);
+		scan->fn_temp = NULL;
+		scan = scan->fn_link;
+	}
+}
+
+
+/*
+ * Unset a shell function, freeing the function body and detaching any
+ * temporary files.
+ */
+
+void cleanup_shell_fn (fnp)
+SHFUNC	      *	fnp;
+{
+	free_node (fnp->fn_body);
+	unlink_temp (fnp->fn_temp);
+}
+
+
+/*
+ * Before final exit, clean up all shell functions. Freeing the memory of
+ * the function bodies is a waste of time here, so we leave that alone.
+ */
+
+void cleanup_shell_fns ()
+{
+	SHFUNC	      *	scan;
+	SHFUNC	      *	next;
+
+	for (scan = sh_fnp ; scan != NULL ; scan = next) {
+		next = scan->fn_link;
+		unlink_temp (scan->fn_temp);
+#if 0
+		cleanup_shell_fn (scan);
+		sfree (scan->fn_name);
+		sfree (scan);
+#endif
+	}
+
+	sh_fnp = NULL;
+}
+
+
 /*
  * Define a shell function.
  */
@@ -598,7 +734,7 @@ def_shell_fn(np) register NODE *np;
 
 	name = np->n_strp;
 	if ((fnp = lookup_sh_fn(name)) != NULL)
-		free_node(fnp->fn_body);	/* redeclared, free old body */
+		cleanup_shell_fn (fnp);	/* redeclared, free old body */
 	else {
 		fnp = salloc(sizeof *fnp);	/* allocate new function */
 		fnp->fn_link = sh_fnp;		/* add it to list */
@@ -606,6 +742,7 @@ def_shell_fn(np) register NODE *np;
 		fnp->fn_hash = ihash(name);	/* and set member info */ 
 		fnp->fn_name = duplstr(name, 1);
 	}
+	fnp->fn_temp = capture_temp ();
 	fnp->fn_body = copy_node(np->n_next);	/* and copy function body */
 }
 

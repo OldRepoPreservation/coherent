@@ -1,3 +1,0 @@
-tek4013|4013|tektronix 4013,
-	os, cols#75, lines#35, bel=^G, cr=^M, clear=\E^L$<1000>, cud1=^J, 
-	cub1=^H, smacs=\E^O, rmacs=\E^N, ff=^L$<1000>, is2=\E^O, 

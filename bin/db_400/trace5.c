@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/db/RCS/trace5.c,v 1.1 88/10/17 04:05:45 src Exp $
+/* $Header: /src386/bin/db/RCS/trace5.c,v 1.1 92/06/10 14:37:04 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * A debugger.
  * Expression evaluator.
  *
- * $Log:	/usr/src/cmd/db/RCS/trace5.c,v $
+ * $Log:	trace5.c,v $
+ * Revision 1.1  92/06/10  14:37:04  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/10/17  04:05:45 	src
  * Initial revision
  * 

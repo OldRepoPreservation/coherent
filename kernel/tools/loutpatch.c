@@ -4,7 +4,10 @@
  *
  * Purpose:	write into a l.out file
  *
- * $Log$
+ * $Log:	loutpatch.c,v $
+ * Revision 1.3  93/05/18  07:32:52  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

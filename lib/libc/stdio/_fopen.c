@@ -7,7 +7,7 @@
 
 /*
  * The recognized mode strings are as follows:
-n *	mode a.k.a.  notfound	found	mode   truncate	append
+ *	mode a.k.a.  notfound	found	mode   truncate	append
  *	r		error	read	RMODE	0	0
  *	w		create	trunc.	WMODE	1	0
  *	a		create	append	WMODE	0	1
@@ -26,6 +26,7 @@ n *	mode a.k.a.  notfound	found	mode   truncate	append
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "stdio.int.h"
 
 #define	RMODE	0
 #define	WMODE	1

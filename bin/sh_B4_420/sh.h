@@ -171,6 +171,44 @@ typedef struct ses {
 #define EARGS	2	/* Evaluete $N, `cmd`, strip quotes, *?[, blanks */
 #define EPATT	3	/* Evaluate for pattern match */
 
+
+/*
+ * NB: Here-document processing in shell functions places extra demands on
+ * the management of temporary files. When a shell function is interned, any
+ * here documents created within the function are turned into temporary
+ * files which must persist for the life of the function (ie, until the
+ * shell exits or the function is removed via "unset -f").
+ *
+ * The following data structure is intended to allow the temporary-file
+ * context to be managed in the manner required. A pointer to a list of these
+ * structures is stored in the function definition, taken from the global
+ * list of temporary files when a function is defined.
+ *
+ * Related functions:
+ *	def_sh_fn (nodep)
+ *		Captures the current temporary-file context and attaches it
+ *		to the shell function being defined.
+ *	remember_temp (filename)
+ *		Adds a filename to the current global list of temporary
+ *		files (copies filename to private buffer).
+ *	capture_temp ()
+ *		Detaches the global list of temporary files and returns
+ *		the list to the caller.
+ *	unlink_temp (templist)
+ *		Walks over the list of temporary files, unlinking the files
+ *		and deallocating the list nodes.
+ *	forget_temp (templist)
+ *		Deallocates the memory for the list of temporary files.
+ */
+
+typedef struct temp_file TEMP_FILE;
+
+struct temp_file {
+	TEMP_FILE     *	tf_next;
+	char	      *	tf_name;
+};
+
+
 /*
  * Shell functions.
  */
@@ -179,7 +217,54 @@ typedef struct shfunc {
 	int		fn_hash;
 	char		*fn_name;
 	NODE		*fn_body;
+	TEMP_FILE     *	fn_temp;
 } SHFUNC;
+
+
+/*
+ * NB : The shell is required to permit redirections of built-ins and special
+ * built-in operations in such a way that they are not run in subshells (since
+ * they have to affect the top-level environment). To permit this, the
+ * redirection code makes duplicates of file descriptors it overwrites and
+ * records all the information necessary to reverse the effect of the
+ * redirections on the global environment. This structure holds the "undo"
+ * information. Note that "ru_newfd" may be set to -1 if the fd that was
+ * redirected did not originally refer to an open file.
+ *
+ * Related functions:
+ *	redirect (iovp, undo)
+ *		The "undo" argument is an optional pointer to the head of a
+ *		list of REDIR_UNDO entries.
+ *	redirundo (undo)
+ *		Processes a list of REDIR_UNDO entries.
+ */
+
+typedef struct redir_undo REDIR_UNDO;
+
+struct redir_undo {
+	REDIR_UNDO    *	ru_next;	/* link to next undo item */
+	int		ru_oldfd;	/* fd changed by redirection */
+	int		ru_newfd;	/* duplicate of original fd */
+};
+
+
+/*
+ * Flags for controlling collect () in lex.c
+ */
+
+enum {
+	CONSUME_BACKSLASH,	/*
+				 * Allow back-slash quoting of anything and
+				 * consume the backslashes.
+				 */
+	BACKSLASH_END,		/*
+				 * Recognise backslash-quoting of the end
+				 * character, but retain the backslash.
+				 */
+	NO_BACKSLASH,		/* backslashes are ordinary */
+	NO_ERRORS		/* backslashes are ordinary, silent errors */
+};
+				
 
 /*
  * Global variables.
@@ -281,5 +366,26 @@ extern	char	**envlvar();		/* in var.c */
 extern	char	*_getwd();		/* in /lib/libc.a */
 #define	index(cp, c)	strchr((cp), (c))
 #define	rindex(cp, c)	strrchr((cp), (c))
+
+/* NB: new stuff for shell functions */
+extern	TEMP_FILE     *	capture_temp ();	/* main.c */
+extern	void		unlink_temp ();		/* main.c */
+extern	void		cleanup_shell_fns ();	/* exec3.c */
+
+#ifdef	ALLOC_DEBUG
+struct alloc_debug {
+	char	      *	name;
+	int		count;
+	int		maxcount;
+};
+# define	ALLOC_COUNT(x)		struct alloc_debug x##debug = { #x };
+# define	ALLOC_ALLOC(x)		alloc_alloc (& x##debug);
+# define	ALLOC_FREE(x)		x##debug.count --;
+#
+#else
+# define	ALLOC_COUNT(x)
+# define	ALLOC_ALLOC(x)
+# define	ALLOC_FREE(x)
+#endif
 
 /* end of sh/sh.h */

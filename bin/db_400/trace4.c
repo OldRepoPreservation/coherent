@@ -1,4 +1,4 @@
-/* $Header: /src386/bin/db/RCS/trace4.c,v 1.1 92/06/10 14:37:01 bin Exp Locker: bin $
+/* $Header: /src386/bin/db/RCS/trace4.c,v 1.2 93/03/11 07:46:10 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a

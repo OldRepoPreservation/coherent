@@ -1,9 +1,12 @@
-static	char	*rcsrev = "$Revision: 1.4 $";
+static	char	*rcsrev = "$Revision: 1.5 $";
 static	char	*rcshdr =
-"$Header: /src386/bin/mail/RCS/mail.c,v 1.4 92/05/28 10:28:53 bin Exp Locker: bin $";
+"$Header: /src386/bin/mail/RCS/mail.c,v 1.5 93/06/21 17:47:04 bin Exp Locker: bin $";
 /*
- * $Header: /src386/bin/mail/RCS/mail.c,v 1.4 92/05/28 10:28:53 bin Exp Locker: bin $
+ * $Header: /src386/bin/mail/RCS/mail.c,v 1.5 93/06/21 17:47:04 bin Exp Locker: bin $
  * $Log:	mail.c,v $
+ * Revision 1.5  93/06/21  17:47:04  bin
+ * bob h removed xmail referencs from help message.
+ * 
  * Revision 1.4  92/05/28  10:28:53  bin
  * bob h added a test for new msgsep scheme so that mail will exit
  * if it does not detect the new sep scheme.
@@ -198,7 +201,7 @@ char	*editname;			/* name of editor		*/
 char	*scatname;			/* name of scat filter		*/
 char	*askcc;				/* Ask for CC: list? (YES/NO)	*/
 
-fsize_t	ftell();
+/* fsize_t	ftell(); */
 char	*getlogin();
 char	*mktemp();
 int	catchintr();

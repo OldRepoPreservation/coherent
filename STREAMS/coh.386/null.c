@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/null.c,v 2.2 93/07/26 14:28:57 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/null.c,v 2.3 93/08/09 13:35:51 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -25,6 +25,9 @@
  *  Minor device 11 is /dev/idle
  *
  * $Log:	null.c,v $
+ * Revision 2.3  93/08/09  13:35:51  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  14:28:57  nigel
  * Nigel's R80
  * 

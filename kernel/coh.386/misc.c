@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/misc.c,v 1.4 93/04/14 10:06:36 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/misc.c,v 1.8 93/06/14 13:34:48 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Miscellaneous routines.
  *
  * $Log:	misc.c,v $
+ * Revision 1.8  93/06/14  13:34:48  bin
+ * Hal: kernel 78 update
+ * 
  * Revision 1.4  93/04/14  10:06:36  root
  * r75
  * 

@@ -5,6 +5,7 @@
 #	This makefile creates the 'db' command from the appropriate source
 #	files.
 #
+DESTDIR=/bin386/bin/
 LIBNAME=libc.a
 CC=exec /bin/cc
 AS=exec /bin/as
@@ -37,7 +38,7 @@ MCHOBJS=i8086a.o	\
 	i8086d.o	
 
 db:		$(OBJECTS) $(MCHOBJS)
-	$(CC) -o db $(OBJECTS) $(MCHOBJS)	#	$(LD) $(LFLAGS) $(CRT) $(OBJECTS) $(MCHOBJS) $(LIBC) -o db
+	$(CC) -o $(DESTDIR)db $(OBJECTS) $(MCHOBJS)	#	$(LD) $(LFLAGS) $(CRT) $(OBJECTS) $(MCHOBJS) $(LIBC) -o db
 
 trace0.o:	trace0.c		\
 			$(INCDIR)/stdio.h	\

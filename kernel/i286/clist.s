@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/src/RCS/clist.s,v 1.1 88/03/24 17:39:16 src Exp $
+/ $Header: /kernel/kersrc/i286/RCS/clist.s,v 1.1 92/07/17 15:21:23 bin Exp Locker: bin $
 
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -20,7 +20,10 @@
 / the remaining functions are as produced by cc -S coh/clist.c
 / with NCPCL substituted
 /
-/ $Log:	/usr/src/sys/i8086/src/RCS/clist.s,v $
+/ $Log:	clist.s,v $
+/ Revision 1.1  92/07/17  15:21:23  bin
+/ Initial revision
+/
 / Revision 1.1	88/03/24  17:39:16	src
 / Initial revision
 / 

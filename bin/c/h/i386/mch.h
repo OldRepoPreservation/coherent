@@ -2,7 +2,7 @@
  * h/i386/mch.h
  * Machine specific header for the i386 compiler.
  * Typedefs, register names and macros for all compiler phases.
- * This one builds a TINY i386 COHERENT compiler with disk tempfiles.
+ * This one builds a TINY i386 COHERENT compiler with memory tempfiles.
  */
 
 #define	DATE		"7/18/93"	/* Date			*/
@@ -25,7 +25,7 @@
 #define AS_FORMAT	1	/* Coherent/Rainbow .s format?	*/
 #define	INTEL		0	/* Intel copyright?		*/
 #define	OMF286		0	/* 286 object format?		*/
-#define	TEMPBUF		0	/* Memory tempfile buffers?	*/
+#define	TEMPBUF		1	/* Memory tempfile buffers?	*/
 
 #define	EMUFIXUPS	0	/* M: 8087 emulation fixups?	*/
 

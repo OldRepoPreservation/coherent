@@ -19,9 +19,12 @@
  *
  *  Last Modified: Mon Jul 26 17:18:59 1993 by [chris]
  *
- *  $Id: haict.c,v 1.0 93/06/27 18:22:49 chris Exp Locker: chris $
+ *  $Id: haict.c,v 2.4 93/08/09 13:45:06 bin Exp Locker: bin $
  *
- *  $Log$
+ *  $Log:	haict.c,v $
+ * Revision 2.4  93/08/09  13:45:06  bin
+ * Kernel 82 changes
+ * 
  */
 
 #include <stddef.h>

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/dmalock.c,v 1.1 89/06/30 16:21:26 src Exp $
+/* $Header: /kernel/kersrc/i286/RCS/dmalock.c,v 1.1 92/07/17 15:21:25 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, Ltd, and is  confidential information.   It is provided
@@ -15,11 +15,14 @@
  * $Description: $
  *	Routines to lock/unlock the DMA controller chip.
  *
- * $Author: src $
+ * $Author: bin $
  *
  * $Creation: June 21, 1989 $
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/dmalock.c,v $
+ * $Log:	dmalock.c,v $
+ * Revision 1.1  92/07/17  15:21:25  bin
+ * Initial revision
+ * 
  * Revision 1.1	89/06/30  16:21:26 	src
  * Initial revision
  * 

@@ -4,6 +4,9 @@
  * Purpose:	all ndp-related functions, except for assembler routines
  *
  * $Log:	ndp.c,v $
+ * Revision 1.7  93/06/14  13:43:02  bin
+ * Hal: kernel 78 update
+ * 
  * Revision 1.2  93/04/14  10:27:57  root
  * r75
  * 

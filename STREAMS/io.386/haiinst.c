@@ -6,7 +6,7 @@
  *
  *  Last Modified: Thu Jun 24 22:40:26 1993 by [chris]
  *
- *  $Id: haiinst.c,v 1.0 93/06/27 18:23:14 chris Exp Locker: chris $
+ *  $Id: haiinst.c,v 1.1 93/07/20 11:21:29 bin Exp Locker: bin $
  */
 
 #include <stddef.h>

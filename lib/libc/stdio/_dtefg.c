@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <float.h>
 #include <math.h>
+#include "stdio.int.h"
 
 #if	0
 #include <locale.h>
@@ -29,7 +30,7 @@ extern	char	*_dtof();
  * The number is converted if the entry is NULL,
  * otherwise the entry gives the string to print.
  */
-static readonly char *fxamsg[] = {
+static char *fxamsg[] = {
 	"{+ Unnormal}",
 	"{+ NAN}",
 	"{- Unnormal}",

@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/src/RCS/defer.s,v 1.2 88/04/04 17:05:05 src Exp $
+/ $Header: /kernel/kersrc/i286/RCS/defer.s,v 1.1 92/07/17 15:21:24 bin Exp Locker: bin $
 /
 /	The  information  contained herein  is a trade secret  of INETCO
 /	Systems, and is confidential information.   It is provided under
@@ -19,7 +19,10 @@
 /	defer( f, a )	- defer a function [usually from interrupt level]
 /	defend()	- execute deferred functions
 /
-/ $Log:	/usr/src/sys/i8086/src/RCS/defer.s,v $
+/ $Log:	defer.s,v $
+/ Revision 1.1  92/07/17  15:21:24  bin
+/ Initial revision
+/
 / Revision 1.2	88/04/04  17:05:05	src
 / ldefer/ldefend functions now allow deferred functions from loadable drivers.
 / 

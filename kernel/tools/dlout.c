@@ -3,7 +3,10 @@
  *
  * Purpose:	Display contents of l.out file intelligibly.
  *
- * $Log$
+ * $Log:	dlout.c,v $
+ * Revision 1.1  93/04/16  07:01:40  bin
+ * Initial revision
+ * 
  */
 
 /*

@@ -1,4 +1,4 @@
-/* $Header: /v4a/io/RCS/msgstub.c,v 1.2 92/01/06 12:29:17 hal Exp $
+/* $Header: /src386/kernel/io.386/RCS/msgstub.c,v 1.6 93/04/16 06:59:26 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -21,6 +21,9 @@
  *			Author: Allan Cornish, INETCO Systems Ltd., Nov 1986.
  *
  * $Log:	msgstub.c,v $
+ * Revision 1.6  93/04/16  06:59:26  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.2  92/01/06  12:29:17  hal
  * Compile with cc.mwc.
  * 

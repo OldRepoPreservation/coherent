@@ -32,13 +32,15 @@ static	struct m_flst	dummy[];
 static	short		*baddr;		/* buffer address */
 
 #ifndef	Z8001
-monitor(low, high, buff, blen) vaddr_t low, high; short buff[]; int blen;
+monitor(low, high, buff, blen) caddr_t low, high; short buff[]; int blen;
+/* monitor(low, high, buff, blen) vaddr_t low, high; short buff[]; int blen; */
 #else
 monitor(low)
 vaddr_t	low;
 #endif
 {
-	if (low == (vaddr_t)0) {
+/*	if (low == (vaddr_t)0) { */
+	if (low == (caddr_t)0) {
 		endmon();
 		return;
 	}
@@ -54,7 +56,8 @@ vaddr_t	low;
 	_mhdr.m_lowpc = low;
 
 	/* Without getting incredibly involved, this will do */
-	_mhdr.m_lowsp = ((vaddr_t)&blen) + sizeof(blen);
+/*	_mhdr.m_lowsp = ((vaddr_t)&blen) + sizeof(blen); */
+	_mhdr.m_lowsp = ((caddr_t)&blen) + sizeof(blen);
 #else
 	_mhdr.m_lowsp = 0xFFFEL;
 #endif

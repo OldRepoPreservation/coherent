@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/printf.c,v 1.2 92/01/06 12:00:01 hal Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/printf.c,v 1.6 93/04/16 06:49:16 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Print formatted.
  *
  * $Log:	printf.c,v $
+ * Revision 1.6  93/04/16  06:49:16  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.2  92/01/06  12:00:01  hal
  * Compile with cc.mwc.
  * 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/null.c,v 1.1 88/03/24 16:14:04 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/null.c,v 1.1 92/07/17 15:18:09 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -18,7 +18,10 @@
  *  Minor device 1 is physical memory
  *  Minor device 2 is kernel data
  *
- * $Log:	/usr/src/sys/coh/RCS/null.c,v $
+ * $Log:	null.c,v $
+ * Revision 1.1  92/07/17  15:18:09  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:14:04	src
  * Initial revision
  * 

@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "stdio.int.h"
 
 extern	int	_fungotc();
 extern	int	_funungetc();

@@ -36,7 +36,9 @@ char *envp[];
 
 	shpid = getpid();
 	initvar(envp);
+#if 0
 	cleanup(1, NULL);
+#endif
 	if (set(argc, argv, 1))
 		return(1);
 	if (cflag) {
@@ -55,7 +57,8 @@ char *envp[];
 	} else {
 		session(SSTR, stdin);
 	}
-	cleanup(2, NULL);
+	cleanup_shell_fns ();
+	unlink_temp (capture_temp ());
 	return (slret);
 }
 
@@ -147,6 +150,8 @@ register char *p;
 
 	/* Loop on input */
 	for (;;) {
+		unlink_temp (capture_temp ());
+
 		rcode = setjmp(s.s_envl);
 		switch (rcode) {
 		case RSET:	/* initial setjmp call */
@@ -241,35 +246,87 @@ reset(f)
 	NOTREACHED;
 }
 
-/*
- * Kludge cleanup.
- */
-cleanup(flag, file)
-char *file;
-{
-	static char *files[8];
-	static int nfiles = 0;
-	register char **pp;
 
-	if (flag) {
-		for (pp=files; pp<files+8; pp+=1)
-			if (*pp != NULL) {
-				if (flag==2)
-					unlink(*pp);
-				sfree(*pp);
-				*pp = NULL;
-			}
-		nfiles = 0;
-	} else {
-		pp = files + nfiles;
-		if (*pp != NULL) {
-			unlink(*pp);
-			sfree(*pp);
-		}
-		*pp = duplstr(file, 1);
-		nfiles = (nfiles + 1) & 7;
+/*
+ * Global head of list of temporary files.
+ */
+
+static TEMP_FILE      *	temp_list;
+
+ALLOC_COUNT (temp)
+
+/*
+ * Remember the name of a temporary file.
+ */
+
+void remember_temp (filename)
+char * filename;
+{
+	TEMP_FILE     *	temp = (TEMP_FILE *) salloc (sizeof (* temp));
+
+	temp->tf_name = duplstr (filename, 1);
+	temp->tf_next = temp_list;
+	temp_list = temp;
+
+	ALLOC_ALLOC (temp)
+}
+
+
+/*
+ * Return a pointer to the current global list of temporary files and clear
+ * the global pointer to that list.
+ */
+
+TEMP_FILE * capture_temp ()
+{
+	TEMP_FILE     *	temp = temp_list;
+
+	temp_list = NULL;
+	return temp;
+}
+
+
+/*
+ * Deallocate a list of temporary files.
+ */
+
+void forget_temp (templist)
+TEMP_FILE     *	templist;
+{
+	TEMP_FILE     *	temp;
+
+	while ((temp = templist) != NULL) {
+
+		templist = temp->tf_next;
+
+		ALLOC_FREE (temp);
+		sfree (temp->tf_name);
+		sfree (temp);
 	}
 }
+
+
+/*
+ * Walk over a list of temporary files, unlinking the files and deallocating
+ * the list nodes.
+ */
+
+void unlink_temp (templist)
+TEMP_FILE     *	templist;
+{
+	TEMP_FILE     *	temp;
+
+	while ((temp = templist) != NULL) {
+
+		templist = temp->tf_next;
+		unlink (temp->tf_name);
+
+		ALLOC_FREE (temp)
+		sfree (temp->tf_name);
+		sfree (temp);
+	}
+}
+
 
 /*
  * Make a temp file name.
@@ -345,6 +402,9 @@ enotdef(s) char *s; { printe("Cannot find variable %s", s); }
 eillvar(s) char *s; { printe("Illegal variable name: %s", s); }
 eredir() { printe("Illegal redirection"); }
 etoolong() { printe("Argument too long: %.*s", STRSIZE, strt); }
+eredirundo() {
+  printe ("Unable to preserve redirection state when redirecting builtin");
+}
 
 /*
  * Don't print out an error message.

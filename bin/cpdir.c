@@ -25,11 +25,8 @@
 
 #define	hash(ino)	((ino)%HASHSIZE)
 
-#define	not		!
-#define	and		&&
-#define	or		||
 #define	TRUE		(0==0)
-#define	FALSE		(not TRUE)
+#define	FALSE		(0==1)
 
 typedef	char		bool;
 typedef	unsigned char	uchar;
@@ -188,7 +185,7 @@ register char *av[];
 				eflag = TRUE;
 				break;
 			case 'r':
-				if (not isdigit(*cp)) {
+				if (!isdigit(*cp)) {
 					rlimit = 1;
 					break;
 				}
@@ -221,7 +218,7 @@ register char *av[];
 		NEXTARG:;
 	}
 
-	if ((dir1=*av++) == NULL  or  (dir2=*av++) == NULL  or  *av != NULL) {
+	if ((dir1=*av++) == NULL  ||  (dir2=*av++) == NULL  ||  *av != NULL) {
 		errprint(fmt1, usage);
 		exit(1);
 	}
@@ -247,11 +244,11 @@ init()
 	if (root)
 		umask(0);
 
-	errprefix = not isatty(fileno(stdin));
+	errprefix = !isatty(fileno(stdin));
 	fstat(fileno(stdout), &outstat);
 	fstat(fileno(stderr), &errstat);
-	splitmsg = (outstat.st_ino != errstat.st_ino)
-		or (outstat.st_dev != errstat.st_dev);
+	splitmsg = (outstat.st_ino != errstat.st_ino) ||
+		   (outstat.st_dev != errstat.st_dev);
 
 	dir1len = strlen(dir1);
 	srcsize = (dir1len + 1);
@@ -292,7 +289,7 @@ init()
 		}
 		tgt_dev = tgtstat.st_dev;
 	}
-	if (not dirchecks())
+	if (!dirchecks())
 		exit(1);
 
 	src_dev = srcstat.st_dev;
@@ -325,8 +322,8 @@ cpdir()
 	/*
 	 * Check for circular copy.
 	 */
-	if (srcstat.st_ino == dir2_ino
-	and srcstat.st_dev == dir2_dev) {
+	if (srcstat.st_ino == dir2_ino &&
+	    srcstat.st_dev == dir2_dev) {
 		if (wflag)
 			printf(fmt2, source,
 			"not copied to avoid circular copy");
@@ -376,13 +373,13 @@ cpdir()
 		}
 
 		canino(dbp->db_ino);
-		if (dbp->db_ino == INODE0
-		or  strcmp(dbp->db_name, dot) == 0
-		or  strcmp(dbp->db_name, dotdot) == 0)
+		if (dbp->db_ino == INODE0	||
+		    !strcmp(dbp->db_name, dot)	||
+		    !strcmp(dbp->db_name, dotdot))
 			continue;
 
 		grow(dbp->db_name);
-		if (sflag  and  suppress()) {
+		if (sflag  &&  suppress()) {
 			if (vflag)
 				printf(fmt2, source, supressd);
 			shrink();
@@ -420,7 +417,7 @@ cpdir()
 				shrink();
 				continue;
 			}
-			if (not dirchecks()) {
+			if (!dirchecks()) {
 				shrink();
 				continue;
 			}
@@ -480,14 +477,14 @@ cpfile()
 		return;
 	}
 
-	if (uflag  and  stat(target, &tgtstat) == 0)
+	if (uflag  &&  stat(target, &tgtstat) == 0)
 		if (srcstat.st_mtime <= tgtstat.st_mtime) {
 			if (vflag)
 				printf(fmt2, target, "no update");
 			return;
 		}
 
-	if (not tgtunlink())
+	if (!tgtunlink())
 		return;
 	if (srcstat.st_nlink > 1)
 		if (linkattempt())
@@ -590,17 +587,17 @@ cpfile()
  */
 cpnode()
 {
-	if (not root) {
+	if (!root) {
 		if (vflag)
 			printf(fmt2, source, "not the super-user");
 		return;
 	}
-	if (not tgtunlink())
+	if (!tgtunlink())
 		return;
 	if (srcstat.st_nlink > 1)
 		if (linkattempt())
 			return;
-	if (not tflag) {
+	if (!tflag) {
 		if (mknod(target, srcstat.st_mode, srcstat.st_rdev) < 0) {
 			errprint(fmt2, target, "cannot make node");
 			return;
@@ -634,7 +631,7 @@ register char *cp;
 		}
 		srcsize = a+b;
 	}
-	if (rlevel > 1  or  not dir1slash)
+	if (rlevel > 1  ||  !dir1slash)
 		source[b++] = '/';
 	strcpy(source+b, cp);
 
@@ -646,7 +643,7 @@ register char *cp;
 		}
 		tgtsize = a+b;
 	}
-	if (rlevel > 1  or  not dir2slash)
+	if (rlevel > 1  ||  !dir2slash)
 		target[b++] = '/';
 	strcpy(target+b, cp);
 }
@@ -656,11 +653,11 @@ register char *cp;
  */
 shrink()
 {
-	if (rlevel == 1  and  dir1slash)
+	if (rlevel == 1  &&  dir1slash)
 		source[dir1len] = '\0';
 	else
 		*rindex(source, '/') = '\0';
-	if (rlevel == 1  and  dir2slash)
+	if (rlevel == 1  &&  dir2slash)
 		target[dir2len] = '\0';
 	else
 		*rindex(target, '/') = '\0';
@@ -697,9 +694,9 @@ char *arg[];
 
 	format = (errprefix) ? "cpdir: %r" : "%r";
 	fprintf(stderr, format, &arg);
-	if (wflag  and  splitmsg)
+	if (wflag  &&  splitmsg)
 		printf(format, &arg);
-	if (not eflag)
+	if (!eflag)
 		exit(1);
 	exitval = 1;
 	return;
@@ -759,22 +756,11 @@ dirchecks()
 		return (TRUE);
 	}
 
-	if ((n = fork()) < 0) {
+	if (mkdir(target, 0700)) {
 		errprint(fmt2, target, nomkdir);
 		return (FALSE);
 	}
-	if (n == 0) {
-		close(2);
-		umask(077);
-		execl("/bin/mkdir", "cpdir", target, NULL);
-		exit(1);
-	}
-	while (wait(&status) != n)
-		;
-	if (status != 0) {
-		errprint(fmt2, target, nomkdir);
-		return (FALSE);
-	}
+
 	if (stat(target, &tgtstat) < 0) {
 		errprint(fmt2, target, "made but cannot stat");
 		return (FALSE);
@@ -807,7 +793,7 @@ suppress()
 	register STR **spp;
 
 	cp = source + dir1len;
-	if (not dir1slash)
+	if (!dir1slash)
 		++cp;
 	spp = strtab + strhash(cp);
 	if ((sp = *spp) == NULL)
@@ -976,7 +962,7 @@ tgtunlink()
 		return (FALSE);
 	}
 
-	if (not tflag)
+	if (!tflag)
 		if (unlink(target) < 0) {
 			errprint(fmt2, target, nounlink);
 			return (FALSE);
@@ -999,7 +985,7 @@ report()
 	register LINK **lpp;
 	static char *fmtlinks = "%s external links into hierarchy %s:\n";
 
-	if (not wflag)
+	if (!wflag)
 		return;
 	if (broken)
 		printf("%d internal link%s broken\n", broken,
@@ -1033,6 +1019,8 @@ adjust()
 		return;
 	if (root)
 		chown(target, srcstat.st_uid, srcstat.st_gid);
+	else
+		chown(target, uid, gid);
 	chmod(target, srcstat.st_mode & (root ? 07777 : 06777));
 	if (dflag) {
 		time(&date[0]);
@@ -1061,7 +1049,7 @@ char *b;
 	rp = ret = tmalloc(a1 + strlen(b) + 2);
 	strcpy(rp, a);
 	rp += a1;
-	if (not isslash(ret))
+	if (!isslash(ret))
 		*rp++ = '/';
 	strcpy(rp, b);
 	return (ret);

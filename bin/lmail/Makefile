@@ -4,7 +4,7 @@
 #	CFLAGS = -O -DHPCOHERENT	: if on Inetco HP Coherent
 #	CFLAGS = -O			: if on MWC Coherent
 #
-#DESTDIR=/interim/bin/
+DESTDIR=/bin386/bin/
 LIBS=-lmisc
 CFLAGS=-O
 O = send.o lmail.o util.o copyright.o

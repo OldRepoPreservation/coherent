@@ -9,6 +9,9 @@
  *	  same as output using -g flag.
  *
  * $Log:	stty.c,v $
+ * Revision 1.8  93/09/08  08:52:20  bin
+ * hal:report tabs/-tabs in brief output
+ * 
  * Revision 1.4  92/08/11  15:59:27  root
  * COH 4.0.1
  * 

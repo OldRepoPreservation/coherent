@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/poll.c,v 1.3 93/04/14 10:06:42 root Exp $ */
+/* $Header: /ker/coh.386/RCS/poll.c,v 2.2 93/07/26 14:29:00 nigel Exp $ */
 /*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -22,6 +22,9 @@
  *	event_t * ep;
  *
  * $Log:	poll.c,v $
+ * Revision 2.2  93/07/26  14:29:00  nigel
+ * Nigel's R80
+ * 
  * Revision 1.3  93/04/14  10:06:42  root
  * r75
  * 

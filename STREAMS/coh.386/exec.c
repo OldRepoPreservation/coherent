@@ -1,8 +1,11 @@
-/* $Header: /ker/coh.386/RCS/exec.c,v 2.2 93/07/26 15:22:36 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/exec.c,v 2.3 93/08/09 13:35:18 bin Exp Locker: bin $ */
 /*
  * Processing of the exec () system call.
  *
  * $Log:	exec.c,v $
+ * Revision 2.3  93/08/09  13:35:18  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  15:22:36  nigel
  * Nigel's R80
  * 

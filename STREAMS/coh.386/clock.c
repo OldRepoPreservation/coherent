@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/clock.c,v 2.2 93/07/26 16:11:18 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/clock.c,v 2.3 93/08/09 13:35:15 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a

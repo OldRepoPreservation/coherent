@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/drv/RCS/shm.c,v 2.1 88/09/03 13:12:17 src Exp $
+/* $Header: /kernel/kersrc/io.286/shm.c,v 1.1 92/07/17 15:24:46 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -22,7 +22,10 @@
  *
  *			Author: Allan Cornish, INETCO Systems Ltd., Sep 1984
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/shm.c,v $
+ * $Log:	shm.c,v $
+ * Revision 1.1  92/07/17  15:24:46  bin
+ * Initial revision
+ * 
  * Revision 2.1	88/09/03  13:12:17	src
  * *** empty log message ***
  * 

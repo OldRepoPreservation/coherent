@@ -7,11 +7,9 @@
 #include <errno.h>
 #include <path.h>
 #include <string.h>
+#include <stdlib.h>
 
-#define	NULL	((char *)0)
 #define	SHELL	"/bin/sh"	/* not DEFSHELL, which is just "sh" */
-
-extern	char	*getenv();
 
 
 /* execvpe(name, argv, env) */

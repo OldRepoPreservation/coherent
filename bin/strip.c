@@ -16,6 +16,7 @@ static int errCt;
 /*
  * Put message and longjmp to next file.
  */
+void
 fatal(s)
 char *s;
 {

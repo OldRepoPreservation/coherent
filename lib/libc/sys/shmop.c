@@ -3,7 +3,10 @@
  *
  *	Note: shmget() must be first function called.
  *
- * $Log:$
+ * $Log:	shmop.c,v $
+ * Revision 1.1  92/06/30  10:32:03  bin
+ * Initial revision
+ * 
  * 87/04/26	Allan Cornish
  * Support for 32 bit 'key' added to shmget.
  */

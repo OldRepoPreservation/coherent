@@ -23,6 +23,9 @@
  *	master read does ttout()
  *
  * $Log:	pty.c,v $
+ * Revision 2.2  93/07/26  15:32:12  nigel
+ * Nigel's R80
+ * 
  * Revision 1.4  93/04/14  10:12:10  root
  * r75
  * 

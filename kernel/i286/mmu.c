@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/ibm_at/RCS/mmu.c,v 1.1 88/03/24 17:33:41 src Exp $
+/* $Header: /kernel/kersrc/i286/RCS/mmu.c,v 1.1 92/07/17 15:21:33 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -16,7 +16,10 @@
  * Coherent.
  * Memory Management Unit.
  *
- * $Log:	/usr/src/sys/i8086/ibm_at/RCS/mmu.c,v $
+ * $Log:	mmu.c,v $
+ * Revision 1.1  92/07/17  15:21:33  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:33:41	src
  * Initial revision
  * 

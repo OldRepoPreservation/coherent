@@ -4,6 +4,9 @@
  * Purpose:	allow kernel to fetch data from real-mode bootstrap data area
  *
  * $Log:	fifo.c,v $
+ * Revision 1.3  93/04/14  10:06:27  root
+ * r75
+ * 
  * Revision 1.2  92/01/06  11:59:11  hal
  * Compile with cc.mwc.
  * 

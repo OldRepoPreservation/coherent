@@ -2,6 +2,9 @@
  * Inter-Process Communication common access routine.
  *
  * $Log:	ipc.c,v $
+ * Revision 2.2  93/07/26  15:28:59  nigel
+ * Nigel's R80
+ * 
  * Revision 1.3  93/04/14  10:11:48  root
  * r75
  * 

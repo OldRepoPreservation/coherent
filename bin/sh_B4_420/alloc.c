@@ -24,7 +24,14 @@ register char *cp0;
 	cp1 = cp0;
 	while (*cp1++)
 		;
-	cp2 = (char *) f ? salloc(cp1-cp0) : balloc(cp1-cp0);
+#if 0
+	cp2 = (char *) f ? salloc (cp1 - cp0) : balloc (cp1 - cp0);
+#else
+	if ((char *) f)
+		cp2 = salloc (cp1 - cp0);
+	else	
+		cp2 = balloc (cp1 - cp0);
+#endif
 	cp1 = cp2;
 	while (*cp1++=*cp0++)
 		;
@@ -141,6 +148,7 @@ salloc(n)
 		reset(RNOSBRK);
 		NOTREACHED;
 	}
+
 	return (cp);
 }
 
@@ -157,6 +165,22 @@ char *cp;
 	free(cp);
 }
 
+#ifdef	ALLOC_DEBUG
+/*
+ * For allocation debugging.
+ */
+
+void alloc_alloc (debug) struct alloc_debug * debug; {
+	if (++ debug->count > debug->maxcount) {
+		debug->maxcount = debug->count;
+		fprintf (stderr, "%s:%d\n", debug->name, debug->count);
+	}
+}
+
+#endif
+
+ALLOC_COUNT (vector)
+
 /*
  * Deallocate a vector.
  */
@@ -170,6 +194,7 @@ char **vecp;
 	for (vpp = vecp; *vpp!=NULL; vpp += 1)
 		sfree(*vpp);
 	sfree(vecp);
+	ALLOC_FREE (vector)
 }
 
 char **
@@ -183,6 +208,7 @@ char **vecp;
 	for (vp=vecp; *vp != NULL; )
 		*tvp++ = duplstr(*vp++, 1);
 	*tvp = NULL;
+	ALLOC_ALLOC (vector);
 	return (nvp);
 }
 

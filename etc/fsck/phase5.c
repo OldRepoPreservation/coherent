@@ -71,9 +71,9 @@ struct fblk *fbp;
 	}
 
 #if 0
-	printf("Total traversed free blocks     = %U\n", total);	 
-	printf("Total free blocks by Superblock = %U\n", sbp->s_tfree);	 
-	printf("Running total free blocks       = %U\n", totfree);	 
+	printf("Total traversed free blocks     = %lu\n", total);
+	printf("Total free blocks by Superblock = %lu\n", sbp->s_tfree);
+	printf("Running total free blocks       = %lu\n", totfree);
 #endif
 
 	if ( flag == ABORT ) { 		/* To Terminate fsck on this 	*/
@@ -82,13 +82,13 @@ struct fblk *fbp;
 	}
 
 	if ( sbp->s_tfree != totfree )
-		if ( (qflag==FALSE) && (daction!=NO) ) {
+		if ( !qflag || (daction==NO) ) {
 			printf("Free Block count wrong in superblock.  ");
 			if ( action(fixit) == TRUE ) {
 				sbp->s_tfree = totfree;
 				sbpfix = TRUE;
 			}
-		} else {
+		} else if ( daction != NO ) {
 			sbp->s_tfree = totfree;
 			sbpfix = TRUE;
 		}
@@ -104,7 +104,8 @@ char *message;
 daddr_t num;
 {
 	if ( num != 0 ) {
-		printf(message, num, ( (num>1) ? "s" : "" ) );
+		if ( !qflag )
+			printf(message, num, ( (num>1) ? "s" : "" ) );
 		badflag = TRUE;
 	}
 }

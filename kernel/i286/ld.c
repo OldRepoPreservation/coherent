@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/ld.c,v 1.1 88/03/24 17:39:36 src Exp $
+/* $Header: /kernel/kersrc/i286/RCS/ld.c,v 1.1 92/07/17 15:21:30 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -15,7 +15,10 @@
 /*
  * Pseudo-Device Interface to Loadable Drivers.
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/ld.c,v $
+ * $Log:	ld.c,v $
+ * Revision 1.1  92/07/17  15:21:30  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:39:36	src
  * Initial revision
  * 

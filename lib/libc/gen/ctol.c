@@ -6,7 +6,7 @@
  */
 
 #include <sys/types.h>
-
+#include <acct.h>
 #define	MAXMANT		017777		/* 2^13-1 - largest mantissa */
 
 long

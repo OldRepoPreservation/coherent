@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys1.c,v 1.2 92/01/13 08:42:37 hal Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/sys1.c,v 1.1 92/07/17 15:18:49 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * General system calls.
  *
  * $Log:	sys1.c,v $
+ * Revision 1.1  92/07/17  15:18:49  bin
+ * Initial revision
+ * 
  * Revision 1.2  92/01/13  08:42:37  hal
  * setpgrp() - detach controlling terminal if process not group leader
  * 

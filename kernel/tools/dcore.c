@@ -3,7 +3,10 @@
  *
  * Purpose:	Display contents of core file intelligibly.
  *
- * $Log$
+ * $Log:	dcore.c,v $
+ * Revision 1.1  93/04/16  07:01:38  bin
+ * Initial revision
+ * 
  */
 
 /*

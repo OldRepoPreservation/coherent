@@ -1,4 +1,4 @@
-/* $Header: /x/usr/src/sys/io/RCS/pccon.c,v 1.1 91/12/02 17:15:52 hal Exp $ */
+/* $Header: /kernel/kersrc/io.286/pccon.c,v 1.1 92/07/17 15:24:36 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -18,6 +18,9 @@
  * Minimal system.
  *
  * $Log:	pccon.c,v $
+ * Revision 1.1  92/07/17  15:24:36  bin
+ * Initial revision
+ * 
  * Revision 1.1  91/12/02  17:15:52  hal
  * Shipped with COH 3.2.0.
  * 

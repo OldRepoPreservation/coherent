@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/alloc.c,v 2.2 93/07/26 14:28:19 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/alloc.c,v 2.3 93/08/09 13:35:06 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Storage allocator.
  *
  * $Log:	alloc.c,v $
+ * Revision 2.3  93/08/09  13:35:06  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  14:28:19  nigel
  * Nigel's R80
  * 

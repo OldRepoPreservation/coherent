@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ker/RCS/swap.c,v 1.1 88/03/24 16:19:51 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/swap.c,v 1.1 92/07/17 15:18:48 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Swapper.
  *
- * $Log:	/usr/src/sys/ker/RCS/swap.c,v $
+ * $Log:	swap.c,v $
+ * Revision 1.1  92/07/17  15:18:48  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:19:51	src
  * Initial revision
  * 

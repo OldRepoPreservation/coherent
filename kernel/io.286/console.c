@@ -1,9 +1,12 @@
-/* $Header: /usr/src/sys/i8086/drv/RCS/console.c,v 2.1 88/09/03 13:03:39 src Exp $ */
+/* $Header: /kernel/kersrc/io.286/console.c,v 1.1 92/07/17 15:24:08 bin Exp Locker: bin $ */
 /*
  * Tiny console driver.
  * 8086/8088 Coherent, IBM PC.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/console.c,v $
+ * $Log:	console.c,v $
+ * Revision 1.1  92/07/17  15:24:08  bin
+ * Initial revision
+ * 
  * Revision 2.1	88/09/03  13:03:39	src
  * *** empty log message ***
  * 

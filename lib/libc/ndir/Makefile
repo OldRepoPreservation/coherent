@@ -2,12 +2,12 @@
 
 OBJ=\
 	closedir.o\
-	getdents.o\
 	opendir.o\
 	readdir.o\
 	rewinddir.o\
 	seekdir.o\
 	telldir.o
+#	getdents.o\
 
 CCFLAGS = -I$(SRCPATH) -DUFS -DBIT_16
 

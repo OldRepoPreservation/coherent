@@ -1,5 +1,7 @@
 # /usr/src/cmd0/sh/Makefile 4/29/93
 
+DESTDIR=/bin386/bin/
+
 # Version number for var.c.
 VERSION=V4.0.7
 # Parsing stack depth for y.tab.c.
@@ -49,9 +51,9 @@ SRCS=\
 # Primary target.
 sh: $(OBJ)
 	rm -f sh
-	$(CC) $(LDFLAGS) -o sh $(OBJ)
-	strip sh
-	su root chmog 511 bin bin sh
+	$(CC) $(LDFLAGS) -o $(DESTDIR)sh $(OBJ)
+	strip $(DESTDIR)sh
+	su root chmog 511 bin bin $(DESTDIR)sh
 
 psh: $(OBJ)
 	$(CC) -n -o psh -O -DPARANOID $(OBJ)

@@ -50,6 +50,12 @@ extern	NODE	*node();
 %type <yu_node>	logical_cmd	name_list	opt_cmd_seq	pattern_list
 %type <yu_node>	pipe_cmd	sub_shell
 
+%type <yu_node>	command		simple_command	redirect_list	cmd_prefix
+%type <yu_node>	cmd_word	cmd_suffix	cmd_name	redirect_list
+%type <yu_node>	asgn_node	redirect_node	name_node
+%type <yu_node>	function_definition	compound_command
+%type <yu_node>	non_keyword_name
+
 %type <yu_strp>	asgn		name		redirect
 
 %type <yu_nval> whuntile
@@ -150,6 +156,175 @@ pipe_cmd:
 	}
 ;
 
+/*
+ * In the original grammar, no distinction between simple command and compound
+ * commands was made. This, along with the right-recursive formulation of the
+ * command grammar, created a need for lookahead that defeated the complex
+ * machinery for context-sensitive lexing that is required.
+ */
+
+cmd:	turn_on_keywords command {
+		$$ = $2;
+		keypop ();
+	}
+;
+
+turn_on_keywords: {
+		keypush ();
+		keyflag = 1;
+	}
+;
+
+command:
+	simple_command {
+		$$ = node (NCOMS, $1, NULL);
+	}
+|	compound_command {
+		$$ = node (NCOMS, $1, NULL);
+	}
+|	compound_command redirect_list {
+		$$ = node (NCOMS, $1->n_next = $2, NULL);
+	}
+|	function_definition {
+		$$ = node (NCOMS, $1, NULL);
+	}
+|	_RET name {
+		$$ = node (NRET, $2, NULL);
+	}
+|	_RET {
+		$$ = node (NRET, "", NULL);
+	}
+;
+
+compound_command:
+	control {
+		$$ = node (NCTRL, $1, NULL);
+	}
+;
+	
+function_definition:
+	name _PARENS optnls obrack cmd_seq _CBRAC  {
+		$$ = node (NCTRL, node (NFUNC, $1, $5), NULL);
+	}
+;
+
+redirect_list:
+	redirect_node {
+		$$ = $1;
+	}
+|	redirect_list redirect_node {
+		($$ = $1)->n_next = $2;
+	}
+;
+
+simple_command:
+	cmd_prefix cmd_word cmd_suffix {
+		(($$ = $1)->n_next = $2)->n_next = $3;
+	}
+|	cmd_prefix cmd_word {
+		($$ = $1)->n_next = $2;
+	}
+|	cmd_prefix {
+		$$ = $1;
+	}
+|	cmd_name cmd_suffix {
+		($$ = $1)->n_next = $2;
+	}
+|	cmd_name {
+		$$ = $1;
+	}
+;
+
+cmd_prefix:
+	redirect_node {
+		$$ = $1;
+	}
+|	redirect_node cmd_prefix {
+		($$ = $1)->n_next = $2;
+	}
+|	asgn_node {
+		$$ = $1;
+	}
+|	asgn_node cmd_prefix {
+		($$ = $1)->n_next = $2;
+	}
+;
+
+cmd_name:
+	name_node {
+		$$ = $1;
+		keyflag = 0;
+	}
+;
+
+cmd_word:
+	name_node {
+		$$ = $1;
+		keyflag = 0;
+	}
+;
+
+/*
+ * The main part of this shell has some silliness with assignments and some
+ * flag called '-k'. To support this, we allow assignments after the command
+ * name and code elsewhere turns them back into parameters... it seems
+ * preferable to do it here, but because of the '-k' thing we'll just
+ * accept them.
+ */
+
+cmd_suffix:
+	redirect_node {
+		$$ = $1;
+	}
+|	redirect_node cmd_suffix {
+		($$ = $1)->n_next = $2;
+	}
+|	non_keyword_name {
+		$$ = $1;
+	}
+|	non_keyword_name cmd_suffix {
+		($$ = $1)->n_next = $2;
+	}
+|	asgn_node {
+		$$ = $1;
+	}
+|	asgn_node cmd_suffix {
+		($$ = $1)->n_next = $2;
+	}
+;
+
+non_keyword_name:
+	non_keyword_string {
+		$$ = node (NARGS, duplstr (strt, 0), NULL);
+	}
+;
+
+/*
+ * Many of the following cause S/R conflicts. This reflects the fact that the
+ * decision about whether to recognise a token in a given place needs some
+ * extra disambiguation or not. In all cases, the correct result is to shift
+ * (treating the reserved word as a normal word), which is the default.
+ */
+non_keyword_string:
+	_NAME
+|	_CASE
+|	_DO
+|	_DONE
+|	_ELIF
+|	_ELSE
+|	_ESAC
+|	_FI
+|	_FOR
+|	_IF
+|	_IN
+|	_RET
+|	_THEN
+|	_UNTIL
+|	_WHILE
+;
+	
+/*
+ * Replaced by detailed cases above.
 cmd:
 	arg_list_init arg_list {
 		$$ = node(NCOMS, $2, NULL);
@@ -184,15 +359,15 @@ arg_list:
 ;
 
 arg:
-	redirect {
-		$$ = node(NIORS, $1, NULL);
+	redirect_node {
+		$$ = $1;
 	}
-|	name {
-		$$ = node(NARGS, $1, NULL);
+|	name_node {
+		$$ = $1;
 		keyflag = 0;
 	}
-|	asgn {
-		$$ = node(NASSG, $1, NULL);
+|	asgn_node {
+		$$ = $1;
 	}
 |	control {
 		if (!keyflag) {
@@ -202,19 +377,42 @@ arg:
 		keyflag = 0;
 	}
 ;
+*/
+
+/*
+ * The form of the following productions arranges for the contents of the
+ * global "strt" to be duplicated ASAP, hopefully before lookahead gets
+ * involved.
+ */
+
+redirect_node:	redirect {
+		$$ = node (NIORS, $1, NULL);
+	}
+;
 
 redirect:	_IORS {
-		$$ = duplstr(strt, 0);
+		$$ = duplstr (strt, 0);
+	}
+;
+
+name_node: name {
+		$$ = node (NARGS, $1, NULL);
 	}
 ;
 
 name:	_NAME {
-		$$ = duplstr(strt, 0);
+		$$ = duplstr (strt, 0);
+	}
+;
+
+
+asgn_node: asgn {
+		$$ = node (NASSG, $1, NULL);
 	}
 ;
 
 asgn:	_ASGN {
-		$$ = duplstr(strt, 0);
+		$$ = duplstr (strt, 0);
 	}
 ;
 
@@ -245,9 +443,6 @@ control:
 	}
 |	obrack opt_cmd_seq _CBRAC {
 		$$ = node(NBRAC, $2, NULL);
-	}
-|	name _PARENS optnls obrack cmd_seq _CBRAC  {
-		$$ = node(NFUNC, $1, $5);
 	}
 ;
 

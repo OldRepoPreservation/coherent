@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 2.2  93/07/26  15:27:50  nigel
+ * Nigel's R80
+ * 
  * Revision 1.8  93/04/14  10:09:40  root
  * r75
  * 

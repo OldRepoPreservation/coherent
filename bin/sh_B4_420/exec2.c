@@ -9,6 +9,7 @@
 #include <sys/param.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 /*
  * Wait for the given process to complete.
@@ -95,7 +96,20 @@ clone()
 		slret = spipe = 0;
 		sp = sesp;
 		sp->s_con->c_next = NULL;
+
+		/*
+		 * Originally this function suppressed function definitions
+		 * in child processes. This is wrong. Note that we have to
+		 * detach the temporary-file stuff from the child functions,
+		 * however, so that functions with here-documents work (as
+		 * long as the top-level shell is alive, that is).
+		 */
+#if 1
+		subshell_shell_fns ();
+#else
 		sh_fnp = NULL;
+#endif
+
 		while (sp) {
 			if (sp->s_type == SFILE)
 				fclose(sp->s_ifp);
@@ -152,23 +166,59 @@ flexec()
 	return (-1);
 }
 
+ALLOC_COUNT (undo)
+
 /*
  * Process a redirection vector.
  * Abort and return -1 at the first failure, return 0 for success.
+ *
+ * NB: In ordr to support redirection of builtins, an extra argument to this
+ * function has been addded. If undo is NULL, things remain as before, but if
+ * non-NULL it is taken to be the head of a list of undo items. As the list of
+ * redirections is processed, undo entries will be added to the head of the
+ * list, so that the caller will see the list in the appropriate order for
+ * undoing the redirections.
  */
-redirect(iovp)
+redirect(iovp, undo)
 char **iovp;
+REDIR_UNDO ** undo;
 {
 	register char **iopp;
 	register char *io;
 	register int op;
 	int u1, u2;
+	REDIR_UNDO * undo_node;
 
 	for (iopp = iovp;(io = *iopp++)!=NULL; ) {
 		if (class(*io, MDIGI))
 			u1 = *io++ - '0';
 		else
 			u1 = *io=='<' ? 0 : 1;
+
+		if (undo) {
+			/*
+			 * Create and link in the undo node now. Stash away a
+			 * spare copy of the original fd as well. Note that
+			 * this may cause semantic changes in attempts to
+			 * redirect from fds that would otherwise be closed,
+			 * but that error was never diagnosed before anyway...
+			 */
+
+			ALLOC_ALLOC (undo);
+			undo_node = (REDIR_UNDO *) salloc (sizeof (REDIR_UNDO));
+			undo_node->ru_next = * undo;
+			undo_node->ru_oldfd = u1;
+			if ((undo_node->ru_newfd = dup (u1)) == -1) {
+				if (errno != EBADF)
+					eredirundo ();
+			} else {
+				fcntl (undo_node->ru_newfd, F_SETFD,
+				       fcntl (undo_node->ru_newfd, F_GETFD,
+					      0) | FD_CLOEXEC);
+			}
+			* undo = undo_node;
+		} else
+			undo_node = NULL;
 		for (op=0; ; io+=1)
 			if (*io=='>')
 				op += 1;
@@ -231,6 +281,29 @@ char **iovp;
 	return (0);
 }
 
+/*
+ * Undo a redirection sequence, reclaiming all the space for the undo nodes.
+ */
+redirundo (undo)
+REDIR_UNDO ** undo;
+{
+	REDIR_UNDO    *	undo_node;
+
+	while ((undo_node = * undo) != NULL) {
+		* undo = undo_node->ru_next;
+		if (undo_node->ru_newfd == -1)
+			close (undo_node->ru_oldfd);
+		else {
+			dup2 (undo_node->ru_newfd, undo_node->ru_oldfd);
+			close (undo_node->ru_newfd);
+		}
+		ALLOC_FREE (undo);
+		sfree (undo_node);
+	}
+	return 0;
+}
+
+
 #ifdef NAMEPIPE
 /*
  * Create a named pipe.
@@ -252,12 +325,12 @@ register NODE *np;
 		strt[1] = '\0';
 		tvec[0] = strcat(strt, tmp);
 		tvec[1] = NULL;
-		redirect(tvec);
+		redirect(tvec, NULL);
 		command(np->n_auxp);
 		exit(slret);
 		NOTREACHED;
 	}
-	cleanup(0, tmp);
+	remember_temp (tmp);
 	strcpy(strt, tmp);
 	return;
 }

@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/poll.c,v 1.2 92/01/06 11:59:56 hal Exp $ */
+/* $Header: /y/coh.386/RCS/poll.c,v 1.3 93/04/14 10:06:42 root Exp $ */
 /*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -22,6 +22,9 @@
  *	event_t * ep;
  *
  * $Log:	poll.c,v $
+ * Revision 1.3  93/04/14  10:06:42  root
+ * r75
+ * 
  * Revision 1.2  92/01/06  11:59:56  hal
  * Compile with cc.mwc.
  * 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/ibm_at/RCS/dmac.c,v 1.1 88/03/24 09:33:31 src Exp $ */
+/* $Header: /kernel/kersrc/i286/RCS/dmac.c,v 1.1 92/07/17 15:21:25 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,7 +17,10 @@
  * deal with the 8237 programmable
  * DMA controller on the system board.
  *
- * $Log:	/usr/src/sys/i8086/ibm_at/RCS/dmac.c,v $
+ * $Log:	dmac.c,v $
+ * Revision 1.1  92/07/17  15:21:25  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  09:33:31 	src
  * Initial revision
  * 

@@ -2,6 +2,9 @@
  * File:	putchar.c
  *
  * $Log:	putchar.c,v $
+ * Revision 1.5  93/04/14  10:12:14  root
+ * r75
+ * 
  * Revision 1.4  92/06/15  13:06:59  root
  * Use putchar_init on (2,0) as well as async.
  * 

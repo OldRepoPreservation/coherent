@@ -54,7 +54,7 @@ unsigned links, flags, blocks, dups;
 	if ( duplim < datasiz )
 		return;
 
-	if ( tmpfile == NULL ) {
+	if ( tempFile == NULL ) {
 		switch ( is_fs(dvtmp) ) {
 		case -1:
 			fatal(
@@ -78,16 +78,16 @@ unsigned links, flags, blocks, dups;
 			if ( VBLK != write(tmp, data[0], VBLK) )
 				fatal("Error writing to tmp file");
 	} else {
-		if ( -1 == (tmp = open(tmpfile, 2)) ) {
-			if ( -1 == (tmp = creat(tmpfile, 0600)) )
+		if ( -1 == (tmp = open(tempFile, 2)) ) {
+			if ( -1 == (tmp = creat(tempFile, 0600)) )
 				fatal("Cannot create temp file \"%s\"", 
-								tmpfile);
+								tempFile);
 			close(tmp);
-			tmp = open(tmpfile, 2);
-			unlink(tmpfile);
+			tmp = open(tempFile, 2);
+			unlink(tempFile);
 		}
 		if ( -1 == fstat(tmp, &st) )
-			fatal("Can't stat temp file \"%s\"", tmpfile);
+			fatal("Can't stat temp file \"%s\"", tempFile);
 		if ( st.st_dev == fsysrdev )
 			fatal("Temp File must not be on file system to fsck");
 	}
@@ -104,7 +104,7 @@ cleanV()
 		return;
 
 	close(tmp);
-	if ( tmpfile != NULL )		/* Virtual File not Default RAMDisk */
+	if ( tempFile != NULL )		/* Virtual File not Default RAMDisk */
 		return;
 					/* Virtual File is Default RAMDisk */
 	if ( (-1 == stat(dvtmpcls, &st)) || !(st.st_mode&S_IFCHR) ||

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/timeout.c,v 1.2 89/08/01 13:56:42 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/timeout.c,v 1.1 92/07/17 15:18:54 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Timeout management.
  *
- * $Log:	/usr/src/sys/coh/RCS/timeout.c,v $
+ * $Log:	timeout.c,v $
+ * Revision 1.1  92/07/17  15:18:54  bin
+ * Initial revision
+ * 
  * Revision 1.2	89/08/01  13:56:42 	src
  * Bug:	#include <timeout.h> not accurate; timeout.h now in /usr/include/sys.
  * Fix:	#include <sys/timeout.h> now used. (ABC)

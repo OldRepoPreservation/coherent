@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/ldrv/RCS/ldrts0.s,v 1.1 88/03/24 16:30:47 src Exp $
+/ $Header: /kernel/kersrc/ldrv/RCS/ldrts0.s,v 1.1 92/07/17 15:27:54 bin Exp Locker: bin $
 / 
 /	The  information  contained herein  is a trade secret  of INETCO
 /	Systems, and is confidential information.   It is provided under
@@ -18,7 +18,10 @@
 /
 / Notes:	This function MUST be at offset 0 in driver code segment.
 /
-/ $Log:	/usr/src/sys/ldrv/RCS/ldrts0.s,v $
+/ $Log:	ldrts0.s,v $
+/ Revision 1.1  92/07/17  15:27:54  bin
+/ Initial revision
+/
 / Revision 1.1	88/03/24  16:30:47	src
 / Initial revision
 / 

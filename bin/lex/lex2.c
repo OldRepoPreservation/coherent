@@ -1,7 +1,8 @@
 /*
- * lex2.c
+ * lex/lex2.c
  * lexical analyser and utilities
  */
+
 #include "lex.h"
 #define	CMAX	3
 
@@ -117,10 +118,10 @@ escape()
  */
 getclas()
 {
-	register unsigned c,d;
+	register unsigned int c,d;
 	register unsigned char *index;
-	register bit;
-	register invert;
+	register int bit;
+	register int invert;
 
 	if (clas == 0) {
 		classptr = alloc(MAXUCHAR+1);
@@ -203,7 +204,7 @@ next()
  * practically, n never exceeds 2
  */
 look(n)
-register n;
+register int n;
 {
 	while (bufc <= n)
 		cbuf[bufc++] = lstchr = getc(filein);
@@ -567,3 +568,5 @@ usage()
 	fprintf(stderr, "Usage: lex [-tv] [filename]\n");
 	exit (1);
 }
+
+/* end of lex2.c */

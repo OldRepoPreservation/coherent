@@ -13,8 +13,8 @@
 #endif
 
 #ifdef	COHERENT
-#define	OVERLAID	0
-#define	MONOLITHIC	0
+#define	OVERLAID	1
+#define	MONOLITHIC	1
 #define	OK		0
 #define	BAD		1
 #define	ABORT		2

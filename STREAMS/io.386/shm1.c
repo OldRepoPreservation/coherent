@@ -4,6 +4,9 @@
  * Purpose: System V Compatible Shared Memory Device Driver
  *
  * $Log:	shm1.c,v $
+ * Revision 2.3  93/08/09  13:46:24  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  15:32:18  nigel
  * Nigel's R80
  * 

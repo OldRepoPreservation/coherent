@@ -4,8 +4,9 @@
 # for some reason. The default compiler is fine for the Space.c and conf.c
 # files, though.
 
-CC=gcc
-CFLAGS=-O2 -Wall -ansi -pedantic
+CC=cc
+#CC=gcc
+#CFLAGS=-O2 -Wall -ansi -pedantic
 CONFDIR=.
 
 all: drivers $(CONFDIR)/drvbld.mak configure

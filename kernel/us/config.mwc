@@ -7,8 +7,11 @@
 #	 config [stand=fha0] [standard] [root=DRV] [DRV ...]
 #	 config [stand=fva0] [standard] [root=DRV] [DRV ...]
 #
-# $Log$
-
+# $Log:	config.mwc,v $
+# Revision 1.1  92/07/17  15:29:52  bin
+# Initial revision
+#
+#
 #	initialize variables
 #
 ATSTANDARD=" fl lp mm "

@@ -22,6 +22,9 @@ static char version[] =	"patch version 2.6 for COHERENT v.4.0";
  * referenced once at system initialization.
  *
  * $Log:	patch.c,v $
+ * Revision 1.6  92/11/25  15:32:04  bin
+ * hal: update to read fom /dev/imem
+ * 
  * Revision 1.5  92/07/06  15:41:09  bin
  * piggy: all hex numbers have leading zeroes to indicate their length
  * 

@@ -16,13 +16,17 @@ static jmp_buf env;
 static char namesw;
 static char cfile[100];
 
+static int errors = 0;		/* keep track of errors from fatal() */
+
 /*
  * Put message and longjmp to next file.
  */
+void
 fatal(s)
 char *s;
 {
 	fprintf(stderr, "size: %s: %r\n", cfile, &s);
+	++errors;
 	longjmp(env, 1);
 }
 
@@ -185,4 +189,6 @@ char *argv[];
 		fclose(ifp);
 		ifp = NULL;
 	}
+	exit(errors);
 }
+

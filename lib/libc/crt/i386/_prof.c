@@ -23,9 +23,9 @@ _profon()
 		write(STDERR, emsg, sizeof emsg);
 		abort();
 	}
-	monitor((vaddr_t)1, (vaddr_t)__end_text, buf, bufl);
+	monitor((caddr_t)1, (caddr_t)__end_text, buf, bufl);
 #else
-	monitor((vaddr_t)1);		/* dummy call to start things off */
+	monitor((caddr_t)1);		/* dummy call to start things off */
 #endif
 }
 

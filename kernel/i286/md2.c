@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/ibm_at/RCS/md2.c,v 1.1 88/03/24 17:33:38 src Exp $ */
+/* $Header: /kernel/kersrc/i286/RCS/md2.c,v 1.1 92/07/17 15:21:32 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * 8086/8088 Coherent.
  * IBM PC.
  *
- * $Log:	/usr/src/sys/i8086/ibm_at/RCS/md2.c,v $
+ * $Log:	md2.c,v $
+ * Revision 1.1  92/07/17  15:21:32  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:33:38	src
  * Initial revision
  * 

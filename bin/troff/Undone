@@ -1,7 +1,6 @@
-troff/Undone 6/26/91
+troff/Undone 4/7/93
 
 fwtable:
-	Understand TFMs
 	Write version ID in fwt
 	Change width fields from unsigned to signed
 [nt]roff:

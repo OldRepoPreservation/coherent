@@ -52,7 +52,7 @@ KEY keytab[] ={
 	0,	_CBRAC, "}"
 };
 #define	NKEYS	(sizeof(keytab) / sizeof(keytab[0]))
-
+	
 /*
  * Get the next lexical token.
  */
@@ -101,6 +101,13 @@ again:
 			for (kp = keytab; kp < &keytab[NKEYS]; kp++)
 				if (hash == kp->k_hash && strcmp(strt, kp->k_name) == 0)
 					return kp->k_lexv;
+#if 0
+			/*
+			 * As documented elsewhere, ':' is required to actually
+			 * evaluate the rest of the line, and a builtin with
+			 * name ':' then discards the result. This code belongs
+			 * to the age before builtins.
+			 */
 			if (strcmp(strt, ":") == 0) {
 				/* On-line comment, eat everything to newline. */
 				do
@@ -110,6 +117,7 @@ again:
 					ungetn(c);
 				c = _NAME;
 			}
+#endif
 		}
 		return c;
 	}
@@ -142,7 +150,7 @@ again:
 			/* Read here document. */
 			for (;;) {
 				strp = strt;
-				if ((c = collect('\n', 2)) < 0)
+				if ((c = collect('\n', NO_ERRORS)) < 0)
 					break;
 				*strp = '\0';
 				if (strcmp(strt, hereeof)==0)
@@ -157,7 +165,7 @@ again:
 					write(herefd, strt, strp-strt);
 			}
 			close(herefd);
-			cleanup(0, heretmp);
+			remember_temp (heretmp);
 			hereeof = NULL;
 			return '\n';
 		}
@@ -177,6 +185,83 @@ register int c;
 	}
 	ungetn(c2);
 	return strp[-1];
+}
+
+/*
+ * Read stuff delimited by (possibly nested) '{' '}' pairs.
+ */
+
+void getcurlies () {
+	int		c;
+	char	      *	cp = strp;
+	int		quote = 0;
+
+	for (;;) {
+		if ((c = getn ()) < 0 || c == '\n')
+			emisschar ();
+
+		if (cp >= strt + STRSIZE)
+			etoolong();
+
+		switch (* cp ++ = c) {
+		case '}':
+			if (! quote)
+				return;
+			continue;
+
+		case '"':
+			quote ^= 1;
+			continue;
+
+		case '\'':
+			strp = cp;
+			if ((c = collect('\'', NO_BACKSLASH)) != '\'')
+				break;
+			cp = strp;
+			continue;
+
+		case '\\':
+			if ((c = getn ()) < 0) {
+				syntax ();
+				break;
+			}
+			if (c == '\n') {
+				cp --;
+				continue;
+			}
+			* cp ++ = c;
+			continue;
+
+		case '$':
+			c = getn ();
+			if (c == '{') {
+				* cp ++ = c;
+				strp = cp;
+				getcurlies ();
+				cp = strp;
+			} else
+				ungetn(c);
+			continue;
+
+		case '`':
+			strp = cp;
+			if ((c = collect('`', BACKSLASH_END)) != '`')
+				break;
+			cp = strp;
+			continue;
+
+		case '\n':
+			if (quote)
+				continue;
+			break;
+		}
+
+		break;
+	}
+
+	if (quote)
+		emisschar ('"');
+	strp = cp;
 }
 
 /*
@@ -212,7 +297,7 @@ lexname()
 			continue;
 		case '\'':
 			strp = cp;
-			if ((c = collect('\'', 1)) != '\'')
+			if ((c = collect('\'', NO_BACKSLASH)) != '\'')
 				break;
 			cp = strp;
 			continue;
@@ -230,19 +315,18 @@ lexname()
 			*cp++ = c;
 			continue;
 		case '$':
-			if ((c=getn()) == '{') {
-				*cp++ = c;
+			c = getn ();
+			if (c == '{') {
+				* cp ++ = c;
 				strp = cp;
-				if ((c = collect('}', 0)) != '}')
-					break;
+				getcurlies ();
 				cp = strp;
-				continue;
-			}
-			ungetn(c);
+			} else
+				ungetn(c);
 			continue;
 		case '`':
 			strp = cp;
-			if ((c = collect('`', 1)) != '`')
+			if ((c = collect('`', BACKSLASH_END)) != '`')
 				break;
 			cp = strp;
 			continue;
@@ -341,7 +425,7 @@ lexiors(c1)
 	if ((c=getn())!='\n') {
 		eredir();
 		++strp;
-		c = collect('\n', 1);
+		c = collect('\n', NO_BACKSLASH);
 	}
 	if (c < 0) return c;
 	bpp = savebuf();
@@ -360,7 +444,7 @@ lexiors(c1)
 		ecantmake(tmp);
 	for (;;) {
 		strp = strt;
-		if ((c = collect('\n', 2)) < 0)
+		if ((c = collect('\n', NO_ERRORS)) < 0)
 			break;
 		*strp = '\0';
 		if (strcmp(strt, name)==0)
@@ -386,10 +470,12 @@ lexiors(c1)
 }
 
 /*
- * Collect characters until the end character is found.  If `f' is
- * set, all characters are passed through otherwise '\' escapes the
- * next character and newline is not allowed.
- * If `f' is set to 2, then no error is desired.
+ * Collect characters until the end character is found.  If 'f' is
+ * CONSUME_BACKSLASH, '\' escapes the next character and newline is
+ * not allowed. If 'f' is BACKSLASH_END, backslashes are retained but
+ * suppress recognition of the end-character. If 'f' is NO_BACKSLASH,
+ * all characters are passed through. If 'f' is NO_ERRORS, behave as
+ * NO_BACKSLASH but be quiet about errors.
  */
 collect(ec, f)
 register int ec;
@@ -399,12 +485,13 @@ register int ec;
 
 	cp = strp;
 	while ((c=getn()) != ec) {
-		if (c<0 || (c=='\n' && f==0)) {
-			if (--f <= 0)
+backslashed:
+		if (c<0 || (c=='\n' && f == CONSUME_BACKSLASH)) {
+			if (f != NO_ERRORS)
 				emisschar(ec);
 			return c;
 		}
-		if (c=='\\' && f==0) {
+		if (c=='\\' && f == CONSUME_BACKSLASH) {
 			if ((c=getn()) < 0) {
 				syntax();
 				return c;
@@ -416,6 +503,11 @@ register int ec;
 			etoolong();
 		else
 			*cp++ = c;
+		if (c == '\\' && f == BACKSLASH_END) {
+			if ((c = getn ()) != '\n')
+				goto backslashed;
+			cp --;
+		}
 	}
 	*cp++ = ec;
 	strp = cp;
