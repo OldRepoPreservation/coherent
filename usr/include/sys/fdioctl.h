@@ -1,6 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- *	Copyright 1989 by Inetco Systems, Ltd.
+ * 	COHERENT Version 4.0
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -10,7 +9,8 @@
 #ifndef FDIOCTL_H
 #define FDIOCTL_H	FDIOCTL_H
 
-#define FDFORMAT	0100	/* Format diskette track */
+#define FDIOC		('F'<<8)
+#define FDFORMAT	(FDIOC|1)	/* Format diskette track */
 
 /*
  * Formatting information is largely supplied

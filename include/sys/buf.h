@@ -60,6 +60,9 @@ typedef struct buf {
  */
 #define	BREAD	1			/* Read */
 #define BWRITE	2			/* Write */
+/* sad but true, floppy driver uses these: */
+#define	BFLSTAT	3			/* Floppy Drive Status */
+#define BFLFMT	4			/* Floppy Disk Format */
 
 #define	BNULL	((BUF *)0)
 

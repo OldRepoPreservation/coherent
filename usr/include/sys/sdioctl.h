@@ -1,5 +1,5 @@
-
-#define	SCSI_HA_CMD	0
-#define	SCSI_CMD	1
-#define	SCSI_CMD_IN	2
-#define	SCSI_CMD_OUT	3
+#define	SDIOC		('S'<<8)
+#define	SCSI_HA_CMD	(SDIOC|0)
+#define	SCSI_CMD	(SDIOC|1)
+#define	SCSI_CMD_IN	(SDIOC|2)
+#define	SCSI_CMD_OUT	(SDIOC|3)

@@ -31,6 +31,10 @@
 #ifdef _I386
 #define CHIRP(ch)		chirp(ch)
 #define _CHIRP(ch, locn)	_chirp(ch, locn)
+#if 1
+#define kclear(buf, nbytes)		memset(buf, 0, nbytes)
+#define kkcopy(src, dest, nbytes)	(memcpy(dest, src, nbytes),nbytes)
+#endif
 #else
 #define CHIRP(ch)
 #define _CHIRP(ch, locn)

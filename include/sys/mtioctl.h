@@ -9,17 +9,18 @@
 #ifndef	 MTIOCTL_H
 #define	 MTIOCTL_H
 
-#define MTREWIND 0			/* Rewind */
-#define	MTWEOF	 1			/* Write end of file mark */
-#define MTRSKIP	 2			/* Record skip */
-#define MTFSKIP	 3			/* File skip */
-#define MTDEC	 4			/* DEC mode */
-#define MTIBM	 5			/* IBM mode */
-#define MT800	 6			/* 800 bpi */
-#define MT1600	 7			/* 1600 bpi */
-#define	MT6250	 8			/* 6250 bpi */
+#define MTIOC		('M'<<8)
+#define MTREWIND 	(MTIOC|1)	/* Rewind */
+#define	MTWEOF	 	(MTIOC|2)	/* Write end of file mark */
+#define MTRSKIP	 	(MTIOC|3)	/* Record skip */
+#define MTFSKIP	 	(MTIOC|4)	/* File skip */
+#define MTDEC	 	(MTIOC|5)	/* DEC mode */
+#define MTIBM	 	(MTIOC|6)	/* IBM mode */
+#define MT800	 	(MTIOC|7)	/* 800 bpi */
+#define MT1600	 	(MTIOC|8)	/* 1600 bpi */
+#define	MT6250	 	(MTIOC|9)	/* 6250 bpi */
 
-#define MTTENSE	 100			/* Tension tape */
-#define	MTERASE	 101			/* Erase tape */
+#define MTTENSE	 	(MTIOC|10)	/* Tension tape */
+#define	MTERASE	 	(MTIOC|11)	/* Erase tape */
 
 #endif
