@@ -3,7 +3,7 @@ char helpmessage[] = "\
 Usage:	/etc/fdformat [-a] [-i n] [-o n] [-v] [-w file] special\n\
 Options:\n\
 	-a	write information line during format\n\
-	-i n	use interleave factor n (default: 4)\n\
+	-i n	use interleave factor n (default: 6)\n\
 	-o n	use offset factor n for numbering sectors (default: 0)\n\
 	-v	verify by reading each track (may be specified repeatedly)\n\
 	-w file	write file to the diskette\n\
@@ -23,7 +23,7 @@ char	*dvbuff = NULL;
 int	wrfd = 0;
 char	*wrname = NULL;
 char	*wrbuff = NULL;
-int	interleave = 4;
+int	interleave = 6;
 int	offset = 0;
 int	verify = 0;
 
