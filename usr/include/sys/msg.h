@@ -1,89 +1,119 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
 #ifndef __SYS_MSG_H__
 #define	__SYS_MSG_H__
-/*
-**	IPC Message Facility.
-*/
-#include <sys/ipc.h>
+
+#include <common/feature.h>
+#include <common/ccompat.h>
+#include <common/__pid.h>
+#include <common/__time.h>
+#include <common/__size.h>
+#include <common/_imode.h>
 #include <common/_time.h>
+#include <common/_ipcperm.h>
 
 /*
-**	Permission Definitions.
-*/
-
-#define	MSG_R	0400		/* read permission */
-#define	MSG_W	0200		/* write permission */
-
-/*
-**	ipc_perm Mode Definitions.
-*/
+ * ipc_perm Mode Definitions.
+ */
 
 #define	MSG_RWAIT	01000	/* a reader is waiting for a message */
 #define	MSG_WWAIT	02000	/* a writer is waiting to send */
 
+
 /*
-**	Message Operation Flags.
-*/
+ * Message Operation Flags.
+ */
 
 #define	MSG_NOERROR	010000	/* no error if big message */
 
-/*
-**	Structure Definitions.
-*/
 
 /*
-**	There is one msg structure for each message that may be in the system.
-*/
+ * There is one msg queue id data structure for each q in the system.
+ */
 
-struct msg {
-
-	struct	msg	*msg_next;	/* pointer to next message on q */
-	long		msg_type;	/* message type */
-	short		msg_ts;		/* message text size */
-	short		msg_spot;	/* message text map address */
-};
-
-/*
-**	There is one msg queue id data structure for each q in the system.
-*/
+#if	_SYSV4
 
 struct msqid_ds {
-
 	struct ipc_perm	msg_perm;	/* operation permission struct */
-	struct msg	*msg_first;	/* ptr to first message on q */
-	struct msg	*msg_last;	/* ptr to last message on q */
+	struct msg    *	msg_first;	/* ptr to first message on q */
+	struct msg    *	msg_last;	/* ptr to last message on q */
+	unsigned long	msg_cbytes;	/* current # bytes on q */
+	unsigned long	msg_qnum;	/* # of messages on q */
+	unsigned long	msg_qbytes;	/* max # of bytes on q */
+	__pid_t		msg_lspid;	/* pid of last msgsnd */
+	__pid_t		msg_lrpid;	/* pid of last msgrcv */
+	__time_t	msg_stime;	/* last msgsnd time */
+	long		__pad1;
+	__time_t	msg_rtime;	/* last msgrcv time */
+	long		__pad2;
+	__time_t	msg_ctime;	/* last change time */
+	long		__pad3;
+	long		__pad4 [4];
+};
+
+#else	/* if ! _SYSV4 */
+
+struct msqid_ds {
+	struct ipc_perm	msg_perm;	/* operation permission struct */
+	struct msg    *	msg_first;	/* ptr to first message on q */
+	struct msg    *	msg_last;	/* ptr to last message on q */
 	unsigned short	msg_cbytes;	/* current # bytes on q */
 	unsigned short	msg_qnum;	/* # of messages on q */
 	unsigned short	msg_qbytes;	/* max # of bytes on q */
 	unsigned short	msg_lspid;	/* pid of last msgsnd */
 	unsigned short	msg_lrpid;	/* pid of last msgrcv */
-	time_t		msg_stime;	/* last msgsnd time */
-	time_t		msg_rtime;	/* last msgrcv time */
-	time_t		msg_ctime;	/* last change time */
+	__time_t	msg_stime;	/* last msgsnd time */
+	__time_t	msg_rtime;	/* last msgrcv time */
+	__time_t	msg_ctime;	/* last change time */
 };
 
+#endif	/* ! _SYSV4 */
+
 /*
-**	User message buffer template for msgsnd and msgrcv system calls.
-*/
+ * There is one msg structure for each message that may be in the system.
+ */
+
+struct msg {
+	struct	msg	*msg_next;	/* pointer to next message on q */
+	long		msg_type;	/* message type */
+	unsigned short	msg_ts;		/* message text size */
+	short		msg_spot;	/* message text map address */
+};
+
+
+#if	_SYSV3
+/*
+ * The following atrocity is actually defined in the headers in some SVR3
+ * systems, despite being in apalling taste. Sadly, this was documented in
+ * Coherent 4.0, so we allow the above feature-test to make this visible.
+ *
+ * This will disappear from the next release of Coherent; this structure is
+ * not present in iBCS2 or the ABI.
+ */
 
 struct msgbuf {
-
 	long		mtype;		/* message type */
 	char		mtext [1];	/* message text */
 };
-
-/*
-**	Ioctl commands issued to Message device driver (Coherent specific).
-*/
-
-#define	MSGIOC		('M'<<8)
-#define	MSGCTL		(MSGIOC|0)
-#define	MSGGET		(MSGIOC|1)
-#define	MSGSND		(MSGIOC|2)
-#define	MSGRCV		(MSGIOC|3)
-
 #endif
+
+
+__EXTERN_C_BEGIN__
+
+int		msgctl		__PROTO ((int _msqid, int _cmd, ...));
+int		msgget		__PROTO ((__key_t _key, int _msgflag));
+int		msgsnd		__PROTO ((int _msqid,
+					  __CONST__ __VOID__ * _msgp,
+					  __size_t _msgsz, int _msgflag));
+int		msgrcv		__PROTO ((int _msqid, __VOID__ * _msgp,
+					  __size_t _msgsz, long _msgtyp,
+					  int _msgflag));
+
+__EXTERN_C_END__
+
+#endif	/* ! defined (__SYS_MSG_H__) */
