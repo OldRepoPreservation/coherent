@@ -59,6 +59,7 @@
  */
 
 #include <stdio.h>	    /* Standard UNIX definitions */
+#include <errno.h>
 
 /* Conditional compilation for different machines/operating systems */
 /* One and only one of the following lines should be 1 */
@@ -1024,6 +1025,7 @@ connect()
 #else
 	    count = read(ttyfd, inbuff, 1);  /* read one char */
 #endif
+if (count > 0){
 #if COHERENT
 	    for (p = inbuff; count--; p++)
 	       *p &= 0177;		/* strip parity for IBM display */
@@ -1044,6 +1046,7 @@ connect()
 			if (inbuff [0] != '\r');
 				write (logfd, inbuff, 1); /* log chars */
 #endif
+}
 	}
     }
 }
@@ -1450,4 +1453,3 @@ char *msg;
     printf("kermit: aborting with following error from remote host:\n%s\n",
        msg);
 }
-
