@@ -2,11 +2,11 @@
 # part of uucheck the uucp sanity checker.
 #
 # Destination directory for installing executable files
-BIN=/usr/lib/uucheck/
+BIN=../install/usr/lib/uucheck/
 # Destination directory for installing data files
 # BTW if LIB= anything other than /usr/lib/uucheck/, you will have to edit
 # uucheck by hand.
-LIB=/usr/lib/uucheck/
+LIB=../install/usr/lib/uucheck/
 
 OBJS=y.tab.o lex.yy.o main.o monitor.o hosts.o do_check.o messages.o \
 	chmod_chk.o util.o parse_args.o copyright.o
@@ -30,9 +30,15 @@ lex.yy.o:	checkperms.lex
 
 main.o:	checkperms.h monitor.h ../uucheck.h
 
-install: checkperms
-	cp checkperms $(BIN)uucheckperms
-	cp uucp.perms $(LIB)
+parse_args.o: ../parse_args.c
+
+copyright.o: ../copyright.c
+
+install:
+	cp -d checkperms $(BIN)/uucheckperms
+	cp -d uucp.perms $(LIB)
+	chown bin $(BIN)/uucheckperms $(LIB)/uucp.perms
+	chgrp bin $(BIN)/uucheckperms $(LIB)/uucp.perms
 
 clean:
 	rm -f $(OBJS) y.tab.c y.tab.h lex.yy.c core
