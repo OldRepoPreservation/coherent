@@ -9,13 +9,15 @@
  *	bufq_rm_head()
  *	bufq_wr_tail()
  *
- *	bus_pre_xfer() -> start_arb() + host_ident()
  *	mask interrupts on finishing arbitration, etc.
  *	backoff & retry when bdr or req sense needed
  *	nonzero LUN's
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.41	91/05/15  21:57:55	root
+ * First working version.
+ * 
  * Revision 1.40	91/05/15  15:19:52	root
  * First clean compile of state machine version.
  * 
@@ -197,7 +199,6 @@ static void	ssload();
 static void	ssunload();
 
 static int	bus_dev_reset();	/* additional support functions */
-static int	bus_pre_xfer();
 static int	chk_reconn();
 static void	do_connect();
 static int	far_info_xfer();
@@ -822,61 +823,6 @@ printf("%d heads\n", heads);
 }
 
 /*
- * bus_pre_xfer()
- *
- * Do bus cycle phases prior to the information transfer phases.
- * This includes arbitration and selection.
- */
-static int bus_pre_xfer(s_id)
-int s_id;
-{
-	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
-	int ret = 0;
-
-	/*
-	 * Do ST0x arbitration.
-	 */
-	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
-	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
-	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
-
-	/*
-	 * SCSI spec says there is "no maximum" to the wait for arbitration
-	 * complete.
-	 */
-	if (!bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL)) {
-		if (ffbyte(ss_csr) & (RS_REQUEST|RS_BUSY))
-			ret = 1;
-		goto frotz;
-	}
-
-	/*
-	 * Arbitration complete.  Now select, with ATN to allow messages.
-	 */
-	sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
-
-	if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
-		goto frotz;
-
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
-
-	if (!bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
-	| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
-		goto frotz;
-
-	/*
-	 * Disallow Disconnect.
-	 */
-	sfbyte(ss_dat, MSG_IDENTIFY);
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
-	ret = 1;
-
-frotz:
-	return ret;
-}
-
-/*
  * far_info_xfer()
  *
  * Do bus cycle information transfer phases.
@@ -914,7 +860,7 @@ int s_id;
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
 	s = sphi();
-	while(req_wait(&bus_timeout) && xfer_good) {
+	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
@@ -1091,7 +1037,7 @@ int s_id;
 	cmdbuf[4] = SENSELEN;
 	cmdbuf[5] = 0;
 
-	if (bus_pre_xfer(s_id) &&
+	if (start_arb() && host_ident(s_id, 0) &&
 	local_info_xfer(cmdbuf, G0CMDLEN, sense_buf, SENSELEN, NULL, 0)) {
 		if (sense_buf[2] == 0x00)	/* No Sense.  AOK */
 			ret = 1;
@@ -1125,7 +1071,7 @@ uchar * buf;
 	cmdbuf[4] = INQUIRYLEN;
 	cmdbuf[5] = 0;
 
-	if (bus_pre_xfer(s_id) &&
+	if (start_arb() && host_ident(s_id, 0) &&
 	local_info_xfer(cmdbuf, G0CMDLEN, buf, INQUIRYLEN, NULL, 0))
 		ret = 1;
 
@@ -1158,7 +1104,7 @@ uchar * buf;
 	cmdbuf[4] = MODESENSELEN;
 	cmdbuf[5] = 0;
 
-	if (bus_pre_xfer(s_id) &&
+	if (start_arb() && host_ident(s_id, 0) &&
 	local_info_xfer(cmdbuf, G0CMDLEN, buf, MODESENSELEN, NULL, 0))
 		ret = 1;
 
@@ -1190,7 +1136,7 @@ uchar * buf;
 	cmdbuf[8] = 0;
 	cmdbuf[9] = 0;
 
-	if (bus_pre_xfer(s_id) &&
+	if (start_arb() && host_ident(s_id, 0) &&
 	local_info_xfer(cmdbuf, G1CMDLEN, buf, READCAPLEN, NULL, 0))
 		ret = 1;
 
@@ -1309,7 +1255,7 @@ int s_id;
 PR3("PA ");
 			if (ffbyte(ss_csr) & RS_ARBIT_COMPL) {
 				ssp->waiting = 0;
-				if (host_ident(s_id))
+				if (host_ident(s_id, 1))
 					do_connect(s_id);
 				else
 					recover(s_id, RV_P_TIMEOUT);
@@ -1336,7 +1282,7 @@ PR3("PBI ");
 					init_pointers(s_id);
 					s=sphi();
 					if (start_arb()) {
-						if (host_ident(s_id)) {
+						if (host_ident(s_id, 1)) {
 							do_connect(s_id);
 							spl(s);
 						} else {
@@ -1504,15 +1450,16 @@ static int start_arb()
 }
 
 /*
- * host_ident(s_id)
+ * host_ident()
  *
  * This routine is the bridge in a SCSI bus cycle between Abitration
  * Complete and the Information Transfer phases.
  *
  * return 1 if everything went ok, 0 in case of timeout
  */
-static int host_ident(s_id)
+static int host_ident(s_id, disconnect)
 int s_id;
+int disconnect;
 {
 	int ret = 0;
 
@@ -1530,7 +1477,10 @@ int s_id;
 
 		if (bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
 		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE))) {
-			sfbyte(ss_dat, MSG_IDENT_DC); /* allow Disconnect */
+			if (disconnect)
+				sfbyte(ss_dat, MSG_IDENT_DC);
+			else
+				sfbyte(ss_dat, MSG_IDENTIFY);
 			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
 			ret = 1;
 		}
@@ -1795,7 +1745,7 @@ uint cmdlen, inlen, outlen;
 	int msg_in = -1;
 
 	s = sphi();
-	while(req_wait(&bus_timeout) && xfer_good) {
+	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
