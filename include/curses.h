@@ -25,44 +25,39 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header:   RCS/curses.v  Revision 2.1  82/10/25  14:46:08  pavel  Exp$
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.2 92/04/13 14:40:04 bin Exp Locker: bin $
  *
- *  $Log:	RCS/curses.v $
-Revision 2.1  82/10/25  14:46:08  pavel
-Added Copyright Notice
-
-Revision 2.0  82/10/24  15:17:22  pavel
-Beta-one Test Release
-
-Revision 1.4  82/08/23  22:30:13  pavel
-The REAL Alpha-one Release Version
-
-Revision 1.3  82/08/20  16:52:46  pavel
-Fixed <terminfo.h> bug
-
-Revision 1.2  82/08/19  19:10:13  pavel
-Alpha Test Release One
-
-Revision 1.1  82/08/12  18:38:57  pavel
-Initial revision
-
+ *  $Log:	curses.h,v $
+ * Revision 2.2  92/10/25  22:36:15  munk
+ * Several changes to make it more SV.3 compatible
  *
+ * Revision 1.2  92/04/13  14:40:04  bin
+ * *** empty log message ***
+ * 
+ * Revision 2.1  82/10/25  14:46:08  pavel
+ * Added Copyright Notice
+ * 
+ * Revision 2.0  82/10/24  15:17:22  pavel
+ * Beta-one Test Release
+ * 
+ * Revision 1.4  82/08/23  22:30:13  pavel
+ * The REAL Alpha-one Release Version
+ * 
+ * Revision 1.3  82/08/20  16:52:46  pavel
+ * Fixed <terminfo.h> bug
+ * 
+ * Revision 1.2  82/08/19  19:10:13  pavel
+ * Alpha Test Release One
+ * 
+ * Revision 1.1  82/08/12  18:38:57  pavel
+ * Initial revision
  */
 
 #ifndef WINDOW
 
-#include <terminfo.h>
-
-
 #define bool    char
 
-
-#ifndef MINICURSES
-    typedef unsigned short  chtype;
-#else
-    typedef unsigned char   chtype;
-#endif  MINICURSES
-
+typedef unsigned long chtype;
 
 #ifndef TRUE
 #  define TRUE    (1)
@@ -78,6 +73,8 @@ Initial revision
 #define _SCROLLWIN      010
 
 #define _NOCHANGE       -1
+
+#include "terminfo.h"
 
 struct _win_st {
 	short   _cury, _curx;
@@ -104,15 +101,14 @@ struct _win_st {
 
 WINDOW	*stdscr, *curscr;
 
-int	LINES, COLS;
+int	LINES, COLS, COLORS, COLOR_PAIRS;
 
 WINDOW  *initscr(), *newwin(), *subwin();
 char    *longname();
 struct  screen  *newterm(), *set_term();
 
-
 /*
- * psuedo functions
+ * pseudo functions
  */
 
 #define getyx(win,y,x)   (y = (win)->_cury, x = (win)->_curx)
@@ -131,10 +127,9 @@ struct  screen  *newterm(), *set_term();
 #define wattroff(win,at)        ((win)->_attrs &= ~(at))
 #define wattrset(win,at)        ((win)->_attrs = (at))
 
-
 #ifndef MINICURSES
 	/*
-	 * psuedo functions for standard screen
+	 * pseudo functions for standard screen
 	 */
 #  define addch(ch)       waddch(stdscr, ch)
 #  define getch()         wgetch(stdscr)
@@ -151,7 +146,6 @@ struct  screen  *newterm(), *set_term();
 #  define insch(c)        winsch(stdscr,c)
 #  define delch()         wdelch(stdscr)
 #  define setscrreg(t,b)  wsetscrreg(stdscr,t,b)
-
 	    /*
 	     * mv functions
 	     */
@@ -248,7 +242,6 @@ struct  screen  *newterm(), *set_term();
 #  define mvwinsch        no_mvwinsch
 
 #endif MINICURSES
-
 
 #ifndef MINICURSES
 /* Funny "characters" enabled for various special function keys for input */
