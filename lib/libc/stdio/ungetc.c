@@ -20,6 +20,8 @@ register FILE	*fp;
 	int	_fungote();
 	int	_funungc();
 
+	if (c == EOF)			/* ANSI 4.9.7.11 (22) */
+		return(EOF);		/* Leave input stream unchanged */
 	if (fp->_gt==&_fginit)
 		fp->_gt = &_fungoti;
 	else if (fp->_gt==&_fgetb)
@@ -33,6 +35,7 @@ register FILE	*fp;
 	fp->_pt = &_funungc;
 	fp->_cc = 0;
 	fp->_ff |= _FUNGOT;
+	fp->_ff &= ~_FEOF;		/* ANSI 4.9.7.11 (24) */
 	fp->_uc = c;
 	return (c);
 }
