@@ -21,7 +21,7 @@ MMUUPD	.macro
 / NDP context starts 0x100 bytes below u area.
 / See also U_OFFSET, NDP_OFFSET in uproc.h
 /
-	.set	USTART,0xFFFFFC00
+	.set	USTART,0xFFFFFB00
 	.set	ESP0_START,0xFFFFF300
 	.set	ESP1_START,USTART
 
@@ -148,17 +148,14 @@ stext:					/ kernel code starts at stext+0x100
 	ljmp	$SEG_386_II, $next
 
 next:
-	mov	$SEG_386_ID,%eax
-	movw	%ax,%ds
-	movw	%ax,%ss
-	mov	$SEG_386_UD|R_USR,%eax
-	movw	%ax,%es
+	movw	$SEG_386_ID, %ax
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	%ax, %ss
+	movw	$SEG_386_UD|R_USR, %ax
+	movw	%ax, %fs
 	mov	$stext+0x100,%eax	/ 256 byte stack for initialization
 	mov	%eax,%esp
-
-	push	$'@'			/ Debugging checkpoint:
-	call	chirp			/ protected mode is on
-	pop	%ecx
 
 / Enable the A20 address line, which is normally disabled by the ROM BIOS.
 / This line is under the control of the 8042 keyboard interface controller.
@@ -247,6 +244,7 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	movb	$0xFF,%al
 	outb	$SPICM		/ Disable interrupts from slave PIC.
 /DEBUG
+	xor	%ebp, %ebp	/ Halt stack backtraces
 	cli
 	call	__cinit
 	call	mchinit		/ C initialization
@@ -262,10 +260,10 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 / Ring 0 startup code
 /
 loc3:
-	movw	$SEG_386_KD,%ax
-	movw	%ax,%ds
-	movw	$SEG_RNG0_STK,%ax
-	movw	%ax,%ss
+	movw	$SEG_386_KD, %ax
+	movw	%ax, %ds
+	movw	$SEG_RNG0_STK, %ax
+	movw	%ax, %ss
 	movl	$ESP0_START,%esp	/ Stack pointer for init
 	clts				/ Clear task switched flag.
 
@@ -315,10 +313,10 @@ loc3:
 	push	$PSW_VAL		/ PSW
 	push	$SEG_RNG1_TXT		/ CS
 	push	$__xmain__		/ IP
-	movw	$SEG_386_KD,%ax		/ DS, ES
+	movw	$SEG_386_KD, %ax	/ DS, ES
 	movw	%ax, %ds		/ Map data segment
 	movw	%ax, %es		/ Map extra segment
-	iret				/ Go to user state.
+	iret				/ Go to ring 1
 
 /
 / Start of Ring 1 kernel.
@@ -338,7 +336,7 @@ __xmain__:
 	push	$PSW_VAL		/ PSW
 	push	$SEG_386_UI|R_USR	/ CS
 	push	$0			/ IP
-	movw	$SEG_386_UD|R_USR,%ax	/ DS, ES
+	movw	$SEG_386_UD|R_USR, %ax	/ DS, ES
 	movw	%ax, %ds		/ Map data segment
 	movw	%ax, %es		/ Map extra segment
 	iret				/ Go to user state.
@@ -359,10 +357,13 @@ tsave:					/ What level of interrupt ?
 	push	%fs
 	push	%gs
 
-	mov	$SEG_386_KD,%eax	/ Map ds
-	movw	%ax,%ds
-	mov	$SEG_386_UD|R_USR,%eax	/ Map es
-	movw	%ax,%es			/ to system ds
+	xor	%ebp, %ebp		/ Halt backtraces
+
+	movw	$SEG_386_KD, %ax	/ Map ds
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	$SEG_386_UD|R_USR, %ax	/ Map es
+	movw	%ax, %fs
 
 	sti
 	icall	X_TRAPNO(%esp)		/ and call the caller
@@ -408,10 +409,11 @@ tsave0:					/ What level of interrupt ?
 	push	%fs
 	push	%gs
 
-	mov	$SEG_386_KD,%eax	/ Map ds
-	movw	%ax,%ds
-	mov	$SEG_386_UD|R_USR,%eax	/ Map es
-	movw	%ax,%es			/ to system ds
+	movw	$SEG_386_KD, %ax	/ Map ds
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	$SEG_386_UD|R_USR, %ax	/ Map es
+	movw	%ax, %fs
 
 	jmp	tsave0b
 
@@ -475,10 +477,6 @@ consave:
 	mov	%edi,%ecx		/ Hide di.
 	mov	4(%esp), %edi 		/ di at the MCON block.
 
-	movw	%es,%dx		/ save = setspace(SEG_386_KD) -- should be %edx
-	movw	$SEG_386_KD,%ax
-	movw	%ax,%es
-
 	cld				/ Ensure increment.
 	mov	%ecx, %eax		/ Save di
 	stosl
@@ -497,7 +495,6 @@ consave:
 	stosl
 	mov	%ecx, %edi		/ Put di back,
 	sub	%eax, %eax		/ indicate a state save and
-	movw	%dx,%es			/ setspace(save)
 	ret				/ return to caller.
 
 ///////
@@ -600,18 +597,21 @@ splo:
 	sti
 	ret
 
-/ Change interrupt flag.  Previous value is returned.
+/ Change interrupt flag, with no return value. Since we want to test bit 10
+/ of the flags word, we test bit 2 of the second byte with a byte test.
+/ (An earlier version of this routine used IRET, which is a bad idea beacuse
+/ it is a) very slow, and b) dangerous).
 
 spl:
-	pop	%eax			/ ip
-	pop	%edx			/ psw
-	push	%edx
-	push	%edx			/ push psw, cs, ip for iret
-	push	%cs
-	push	%eax
-	pushf				/ old psw
-	pop	%eax
-	iret
+		pushf				/ Transfer previous flags to
+		pop	%eax			/ %eax by way of the stack
+		testb	$0x2,5(%esp)		/ Test argument interrupt flag
+		je	?cleari			/ Branch if flag was clear
+		sti
+		ret
+?cleari:
+		cli
+		ret
 
 ///////
 
@@ -700,18 +700,17 @@ outl:	movl	4(%esp),%edx
 ///////
 
 	.globl	atsend
+
+va		=	8		/ va offset from %ebp
+work0		=	-4		/ work0 offset from %ebp
 atsend:
 	enter	$0,$4	/ reserve 4 bytes (1 int) of local storage
 	push	%esi
-	push	%es
-	call	workAlloc	/ get a temp virt page
-	movl	%eax,-4(%ebp)	/ this is "work0" - a click number
-
-	movw	$SEG_386_KD,%ax
-	movw	%ax,%es			/ save = setspace(SEG_386_KD)
+	call	workAlloc		/ get a temp virt page
+	movl	%eax, work0(%ebp)	/ this is "work0" - a click number
 
 	cld
-	mov	20(%esp),%eax		/ fetch argument va
+	mov	va(%ebp), %eax		/ fetch argument va
 	shr	$BPCSHIFT,%eax		/ get page table index from va
 	mov	sysmem,%edx
 	leal	(%edx,%eax,4),%esi 	/ base = sysmem.u.pbase + btocrd(va)
@@ -722,7 +721,7 @@ atsend:
 
 	lodsl				/ ptable1_V[WORK0] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
-	movl	-4(%ebp),%edx		/ work0
+	movl	work0(%ebp), %edx	/ work0
 	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
@@ -730,13 +729,11 @@ atsend:
 	inc	%edx			/ work1
 	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
-	MMUUPD
-
 / Now that page boundaries are set, work on the offsets.
 
-	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
+	mov	va(%ebp), %esi		/ va = ctob(WORK0) + (va & (NBPC-1))
 	and	$NBPC-1,%esi		/ get click offset part of va
-	movl	-4(%ebp),%edx		/ work0
+	movl	work0(%ebp), %edx	/ work0
 	shl	$BPCSHIFT,%edx		/ ctob(work0)
 	add	%edx,%esi
 
@@ -748,12 +745,9 @@ atsend:
 	rep
 	outsw
 
-	MMUUPD
-
-	push	-4(%ebp)		/ workFree(work0)
+	push	work0(%ebp)		/ workFree(work0)
 	call	workFree
 	pop	%edx
-	pop	%es			/ setspace(save) 
 	pop	%esi
 	leave
 	ret
@@ -762,22 +756,18 @@ atsend:
 atrecv:
 	enter	$0,$4	/ reserve 4 bytes (1 int) of local storage
 	push	%esi
-	push	%es
 	call	workAlloc	/ get a temp virt page
-	movl	%eax,-4(%ebp)	/ this is "work0" - a click number
-
-	movw	$SEG_386_KD,%ax
-	movw	%ax,%es			/ save = setspace(SEG_386_KD)
+	movl	%eax, work0(%ebp)	/ this is "work0" - a click number
 
 	cld
-	mov	20(%esp),%eax
+	mov	va(%ebp), %eax
 	shr	$BPCSHIFT,%eax
 	mov	sysmem,%edx
 	leal	(%edx,%eax,4),%esi	/ base = sysmem.u.pbase + btocrd(va)
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
-	movl	-4(%ebp),%edx		/ work0
+	movl	work0(%ebp), %edx	/ work0
 	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
@@ -785,11 +775,9 @@ atrecv:
 	inc	%edx			/ work1
 	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
-	MMUUPD
-
-	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
+	mov	va(%ebp), %esi		/ va = ctob(WORK0) + (va & (NBPC-1))
 	and	$NBPC-1,%esi
-	movl	-4(%ebp),%edx		/ work0
+	movl	work0(%ebp), %edx	/ work0
 	shl	$BPCSHIFT,%edx		/ ctob(work0)
 	add	%edx,%esi
 
@@ -798,16 +786,12 @@ atrecv:
 
 	xchg	%esi,%edi
 	rep				/ Value of the ECX register is not
-/	insw	(%dx)			/ updated correctly
 	insw
 	xchg	%esi,%edi		
 
-	MMUUPD
-
-	push	-4(%ebp)		/ workFree(work0)
+	push	work0(%ebp)		/ workFree(work0)
 	call	workFree
 	pop	%edx
-	pop	%es			/ setspace(save) 
 	pop	%esi
 	leave
 	ret
@@ -855,17 +839,15 @@ cs_sel:
 	sub	%eax, %eax
 	ret
 
-/	load the 'alternate address space register' (es)
+/	load the 'alternate address space register' (fs)
 /	with the segment reference passed as an argument. 
 
-/	The value returned is the old value of the 'es' register
+/	The value returned is the old value of the 'fs' register
 
 setspace:
-	movl	%esp,%edx
-	sub	%eax,%eax
-	movw	%es,%ax
-	movl	4(%edx),%edx
-	movw	%dx,%es
+	xorl	%eax, %eax
+	movw	%fs, %ax
+	movw	4(%esp), %fs
 	ret
 
 /////////////////////////
@@ -875,228 +857,224 @@ setspace:
 / in panic.
 /
 /////////////////////////
-	.globl	__xtrap_on__
-	.globl	__xtrap_break__
-	.globl	__xtrap_off__
+		.globl	__xtrap_on__
+		.globl	__xtrap_break__
+		.globl	__xtrap_off__
 __xtrap_on__:
 
 ///////
 
+start_copy	.macro
+		movl	%esp, %edx		/ Frame pointer for copy code
+		.endm
+
+end_copy	.macro
+		ret
+		.endm
+
+copy_frame	.define	%edx
+
+///////
+/ Fetch a byte from the user's data space.
+/ getubd(u)
+/ char *u;
+///////
+
+getubd:
+		start_copy
+		movl	%ss:4(copy_frame), %ecx
+		movzxb	%fs:(%ecx), %eax
+		end_copy
+
 / Fetch a short from the user's data space.
 /	Coherent 386 fetches a 16 bit short
-
 / getusd(u)
 / char *u;
-
 ///////
 
 getusd:
-	call	start_copy
-	mov	4(%edx),%ecx
-	sub	%eax,%eax
-	movw	%es:(%ecx),%ax
-	jmp	end_copy
+		start_copy
+		movl	%ss:4(copy_frame), %ecx
+		movzxw	%fs:(%ecx), %eax
+		end_copy
 
 ///////
-
 / Fetch a word from the user's data space.
 /	Coherent 386 fetches a 32 bit word
-
 / getuwd(u)
 / char *u;
-
 ///////
 
 getuwd:
 getupd:
-	call	start_copy
-	mov	4(%edx),%ecx
-	mov	%es:(%ecx),%eax
-	jmp	end_copy
+		start_copy
+		movl	%ss:4(copy_frame), %ecx
+		movl	%fs:(%ecx), %eax
+		end_copy
 
 ///////
-
-/ Fetch a byte from the user's data space.
-
-/ getubd(u)
+/ Store a byte into the user's data space.
+/ putubd(u, w)
 / char *u;
-
+/ int w;
 ///////
 
-getubd:
-	call	start_copy
-	mov	4(%edx),%ecx
-	sub	%eax,%eax
-	movb	%es:(%ecx),%al
-	jmp	end_copy
+putubd:	
+		start_copy
+		movl	%ss:4(copy_frame), %ecx
+		movb	%ss:8(copy_frame), %al
+		movb	%al, %fs:(%ecx)
+		end_copy
 
 ///////
-
 / Store a short into the user's data space.
 /	Coherent 386 stores a 16 bit short
-
 / putusd(u, w)
 / char *u;
 / int w;
-
 ///////
 
 putusd:
-	call	start_copy
-	mov	8(%edx),%eax
-	mov	4(%edx),%ecx		/ eax
-	movw	%ax,%es:(%ecx)
-	jmp	end_copy
+		start_copy
+		movl	%ss:4(copy_frame), %ecx
+		movw	%ss:8(copy_frame), %ax
+		movw	%ax, %fs:(%ecx)
+		end_copy
 
 ///////
-
 / Store a word into the user's data space.
 /	Coherent 386 stores a 32 bit word
-
 / putuwd(u, w)
 / char *u;
 / int w;
-
 ///////
 
 putuwi:
 putuwd:
-	call	start_copy
-	mov	8(%edx),%eax
-	mov	4(%edx),%ecx		/ eax
-	mov	%eax,%es:(%ecx)
-	jmp	end_copy
+		start_copy
+		movl	%ss:4(copy_frame), %ecx
+		movl	%ss:8(copy_frame), %eax
+		movl	%eax, %fs:(%ecx)
+		end_copy
 
 ///////
+/ Perform a block-clear of user-space memory
+/ size_t umemclear (caddr_t * dest, size_t size)
+//////
+		.globl	umemclear
+umemclear:
+		start_copy
 
-/ Store a byte into the user's data space.
+		push	%ds			/ Preserve %ds
+		push	%es			/ Preserve %es (?)
+		pushl	%esi			/ Preserve %esi
+		pushl	%edi			/ Preserve %esi
 
-/ putubd(u, w)
-/ char *u;
-/ int w;
+		movw	%fs, %ax
+		movw	%ax, %es		/ Dest segment
 
-///////
+		movl	%ss:4(copy_frame), %edi	/ Dest
 
-putubd:
-	call	start_copy
-	mov	8(%edx),%eax	/ get data
-	mov	4(%edx),%ecx	/ get addr
-	movb	%al,%es:(%ecx)
-	jmp	end_copy
+		movl	%ss:8(copy_frame), %ecx	/ Length
+		sarl	$2, %ecx		/ in longwords.
 
-///////
+		xorl	%eax, %eax		/ Zero-fill target
+		rep stosl			/ If %ecx > 0, clear longwords
 
-/ Read a byte from a selector and offset.
+		movl	%ss:8(copy_frame), %ecx	/ Length
+		andl	$3, %ecx		/ residual byte count
+		rep stosb			/ If %ecx > 0, clear bytes
 
-/ selkcopy(sel, off)
-/ unsigned long sel;
-/ unsigned long off;
+		movl	%ss:8(copy_frame), %eax	/ Return value
 
-///////
-	.globl	selkcopy
-selkcopy:
-	call	start_copy
-	push	%es
-	sub	%eax,%eax
-	mov	4(%edx), %es
-	mov	8(%edx), %ecx
-	movb	%es:(%ecx), %al
-	pop	%es
-	jmp	end_copy
+		popl	%edi			/ Restore registers
+		popl	%esi
+		pop	%es
+		pop	%ds
+		end_copy
 
-/	startup routine for 1-element (byte/word) move
-
+////////
 / Block transfer "n" bytes from location
 / "k" in the system map to location "u" in the
 / user's data space. Return the number of bytes
 / transferred.
-
 / kucopy(k, u, n)
 / char *k;
 / char *u;
 / int n;
-
 ///////
 
-/	.globl	udat
 kucopy:
-/	mov	8(%esp),%eax		/ verify user address
-/	push	%eax
-/	call	udat
-/	cmp	$0,%eax
-/	pop	%eax
-/	jne	xx00
-/	ret
-/xx00:
+		start_copy
 
-	call	start_copy
+		push	%ds			/ Preserve %ds
+		push	%es			/ Preserve %es (?)
+		pushl	%esi			/ Preserve %esi
+		pushl	%edi			/ Preserve %esi
 
-	movl	4(%edx),%esi		/ esi
-	movl	8(%edx),%edi		/ edi
+		movw	%fs, %ax
+		movw	%ax, %es		/ Dest segment
 
-	mov	12(%edx),%ecx
-	sar	$2,%ecx
-	je	loc6
+		movl	%ss:4(copy_frame), %esi	/ Source
+		movl	%ss:8(copy_frame), %edi	/ Dest
 
-	rep
-	movsl
+		movl	%ss:12(copy_frame), %eax / Return value
+		movl	%eax, %ecx		/ Length
+		sarl	$2, %ecx		/ in longwords.
+		rep movsl			/ If %ecx > 0, move longwords
 
-loc6:
-	mov	12(%edx),%ecx
-	andl	$3,%ecx
-	je	loc7
+		movl	%eax, %ecx		/ Length
+		andl	$3, %ecx		/ residual byte count
+		rep movsb			/ If %ecx > 0, move bytes
 
-	rep
-	movsb
+		popl	%edi			/ Restore registers
+		popl	%esi
+		pop	%es
+		pop	%ds
+		end_copy
 
-loc7:
-	mov	12(%edx),%eax
-	jmp	end_copy
 
 ///////
-
 / Block copy "n" bytes from location "u" in
 / the user data space to location "k" in the system
 / data space. Return the actual number of bytes
 / moved.
-
 / ukcopy(u, k, n)
 / char *u;
 / char *k;
 / int n;
-
 ///////
 
 ukcopy:
-	call	start_copy
+		start_copy
 
-	mov	4(%edx),%esi		/ esi
-	mov	8(%edx),%edi		/ edi
-	mov	12(%edx),%ecx
+		push	%ds			/ Preserve %ds
+		push	%es			/ Preserve %es (assume == %ds)
+		pushl	%esi			/ Preserve %si
+		pushl	%edi			/ Preserve %di
 
-	push	%ds			/ exchange ds,es
-	movw	%es,%ax			/ don't assume ss=ds
-	movw	%ax,%ds
-	pop	%es
+		movw	%fs, %ax
+		movw	%ax, %ds		/ Source segment
 
-	sar	$2,%ecx
-	je	loc8
+		mov	%ss:4(copy_frame), %esi	/ Source
+		mov	%ss:8(copy_frame), %edi	/ Dest
 
-	rep
-	movsl
+		movl	%ss:12(copy_frame), %eax / Return value
+		movl	%eax, %ecx		/ Length
+		sarl	$2, %ecx		/ in longwords
+		rep movsl			/ If %ecx > 0, move longwords
 
-loc8:	mov	%ss:12(%edx),%ecx
-	andl	$3,%ecx
-	je	loc9
+		movl	%eax, %ecx		/ Length
+		andl	$3, %ecx		/ residual byte count
+		rep movsb			/ if %ecx > 0, move bytes
 
-	rep
-	movsb
-
-loc9:	mov	%ss:12(%edx),%eax
-	jmp	end_copy		/ Return
+		popl	%edi			/ Restore registers
+		popl	%esi
+		pop	%es
+		pop	%ds
+		end_copy			/ Return
 
 ////////
-/
 / Block copy "n" bytes from far location "src" in
 / an arbitrary (but valid) to location "dst" in 
 / data space. Return the actual number of bytes
@@ -1106,249 +1084,123 @@ loc9:	mov	%ss:12(%edx),%eax
 / char far *src;
 / char far *dst;
 / int n;
-/
 ////////
-	.globl	ffcopy
+		.globl	ffcopy
 ffcopy:
-	call	start_copy
+		start_copy
 
-	mov	4(%edx),%esi		/ esi
-	mov	8(%edx),%ebx		/  ds
-	mov	12(%edx),%edi		/ edi
-	mov	16(%edx),%eax		/  es
-	mov	20(%edx),%ecx
+		push	%ds			/ Preserve %ds
+		push	%es			/ Preserve %es
+		pushl	%esi			/ Preserve %esi
+		pushl	%edi			/ Preserve %edi
 
-	movw	%ax,%es			/ now load segment regs
-	movw	%bx,%ds
+		les	%ss:12(copy_frame), %edi / Dest segment, length
+		lds	%ss:4(copy_frame), %esi	/ Source segment, length
 
-	sar	$2,%ecx
-	je	ff01
+		movl	%ss:20(copy_frame), %eax / Return value
+		movl	%eax, %ecx		/ Length
+		sarl	$2, %ecx		/ in longwords
+		rep movsl			/ if %ecx > 0, move longwords
 
-	rep
-	movsl
+		movl	%eax, %ecx		/ Length
+		andl	$3, %ecx		/ residual byte count
+		rep movsb			/ if %ecx > 0, move bytes
 
-ff01:	mov	%ss:20(%edx),%ecx
-	andl	$3,%ecx
-	je	ff01
-
-	rep
-	movsb
-
-ff02:	mov	%ss:20(%edx),%eax
-	jmp	end_copy		/ Return
+		popl	%edi
+		popl	%esi
+		pop	%es
+		pop	%ds
+		end_copy			/ Return
 
 ////////
-/
 / Read a byte from a selector and offset.
 /
 / ffbyte(off, sel)
 / unsigned long sel;
 / unsigned long off;
-/
 ////////
-	.globl	ffbyte
+		.globl	ffbyte
 ffbyte:
-	call	start_copy
-	push	%es
-	sub	%eax,%eax
-	mov	4(%edx), %ecx
-	mov	8(%edx), %es
-	movb	%es:(%ecx), %al
-	pop	%es
-	jmp	end_copy
+		start_copy
+		lgs	%ss:4(copy_frame), %ecx	/ Source seg:offset
+		movzxb	%gs:(%ecx), %eax	/ Move with zero-fill
+		end_copy
 
 ////////
+/ Read a (short) word from a selector and offset.
 /
+/ ffword(off, sel)
+/ unsigned long sel;
+/ unsigned long off;
+////////
+		.globl	ffword
+ffword:
+		start_copy
+		lgs	%ss:4(copy_frame), %ecx	/ Source seg:offset
+		movzxw	%gs:(%ecx), %eax	/ Move with zero-fill
+		end_copy
+
+////////
 / write a byte using a selector and offset.
 /
 / sfbyte(off, sel, byte)
 / unsigned long sel;
 / unsigned long off;
 / int byte;
-/
 ////////
-	.globl	sfbyte
+		.globl	sfbyte
 sfbyte:
-	call	start_copy
-	push	%es
-	mov	4(%edx), %ecx
-	mov	8(%edx), %es
-	mov	12(%edx), %eax
-	movb	%al, %es:(%ecx)
-	pop	%es
-	jmp	end_copy
+		start_copy
+		lgs	%ss:4(copy_frame), %ecx	/ Dest seg:offset
+		movb	%ss:12(copy_frame), %al
+		movb	%al, %gs:(%ecx)
+		end_copy
 
 ////////
-/
-/ Read a word from a selector and offset.
-/
-/ ffword(off, sel)
-/ unsigned long sel;
-/ unsigned long off;
-/
-////////
-	.globl	ffword
-ffword:
-	call	start_copy
-	push	%es
-	sub	%eax,%eax
-	mov	4(%edx), %ecx
-	mov	8(%edx), %es
-	movw	%es:(%ecx), %ax
-	pop	%es
-	jmp	end_copy
-
-////////
-/
-/ write a word using a selector and offset.
+/ write a (short) word using a selector and offset.
 /
 / sfword(off, sel, word)
 / unsigned long sel;
 / unsigned long off;
 / int word;
-/
 ////////
-	.globl	sfword
+		.globl	sfword
 sfword:
-	call	start_copy
-	push	%es
-	mov	4(%edx), %ecx
-	mov	8(%edx), %es
-	mov	12(%edx), %eax
-	movw	%ax, %es:(%ecx)
-	pop	%es
-	jmp	end_copy
-
-/	startup routine for n-element copy
-
-start_copy:
-	pop	%eax
-	movl	%esp,%edx
-	push	%esi
-	push	%edi
-	push	%ds
-	push	%es
-/	lidt	%cs:bdtmap
-	ijmp	%eax
+		start_copy
+		lgs	%ss:4(copy_frame), %ecx	/ Dest seg:offset
+		movw	%ss:12(copy_frame), %ax
+		movw	%ax, %gs:(%ecx)
+		end_copy
 
 ///////
-
-/ The n-element copy routines jump here
-/ with the stack untouched, if they detect
-/ a bounds error on a user address.
-
+/ The n-element copy routines jump here with the stack untouched if they
+/ detect a bounds error or page fault on a user address. The only routines
+/ above that use the stack at all do so with a standard format, so we detect
+/ what is on the stack and restore appropriately.
+/ [ For simplicity, just assume that the pushed values will either all be
+/   there or not be there at all, which is a very good assumption. ]
 ///////
+
 __xtrap_break__:
+		subl	%eax, %eax		/ Return 0 to indicate error
+						/ condition.
+		cmpl	%esp, %edx		/ Anything on stack?
+		je	?no_stack
 
-/	add	$16,%esp		/ pop error code, IP, CS, PSW
-/	movb	$EFAULT,%ss:u+U_ERROR	/ Bad parameter error
-	subl	%eax,%eax		/ Return 0 to indicate error condition.
-
-/	cleanup routine for n-byte copy
-
-end_copy:
-/	lidt	%cs:idtmap
-	pop	%es
-	pop	%ds
-	pop	%edi
-	pop	%esi
-	ret				/ Return
+		popl	%edi			/ Restore registers
+		popl	%esi
+		pop	%es
+		pop	%ds
+?no_stack:
+		end_copy			/ Return
 
 __xtrap_off__:				/ See __xtrap_on__ above.
-
-/	the following four routines are used by [386/fakedma.c]
-/	and will disappear when a 386 assembler implementation
-/	is available
-
-/	clearseg_b(nbytes, vaddr_t p, long fill)	(byte clear)
-/	clearseg_d(nbytes, vaddr_t p, long fill)	(double word clear)
-
-
-clearseg_b:				/ setspace in caller
-	mov	%esp,%edx
-	push	%edi
-	push	%es
-
-	mov	8(%edx),%edi
-	mov	$SEG_386_KD,%eax
-	movw	%ax,%es
-	mov	12(%edx),%eax
-	mov	4(%edx),%ecx
-
-	cld
-	rep
-	stosb
-
-	pop	%es
-	pop	%edi
-	ret
-
-clearseg_d:				/ setspace in caller
-	mov	%esp,%edx
-	push	%edi
-	push	%es
-
-	mov	8(%edx),%edi
-	mov	$SEG_386_KD,%eax
-	movw	%ax,%es
-	mov	12(%edx),%eax		/ mov eax,2(dx)
-	mov	4(%edx),%ecx
-	sar	$2,%ecx			/ char to long
-
-	cld
-	rep
-	stosl
-
-	pop	%es
-	pop	%edi
-	ret
-
-/	copyseg_b(nbytes, p, q)				(byte copy)
-/	copyseg_d(nbytes, p, q)				(double word copy)
-
-/	copy the user page @ virtual address "p" to virtual address "q"
-
-copyseg_d:				/ setspace in caller
-	movl	%esp,%edx
-	push	%esi
-	push	%edi
-
-	mov	8(%edx),%esi
-	mov	12(%edx),%edi
-	mov	4(%edx),%ecx 
-	sar	$2,%ecx
-
-	cld
-	rep
-	movsl
-
-	pop	%edi
-	pop	%esi
-	ret
-
-copyseg_b:				/ setspace in caller
-	movl	%esp,%edx
-	push	%esi
-	push	%edi
-
-	mov	8(%edx),%esi
-	mov	12(%edx),%edi
-	mov	4(%edx),%ecx 
-
-	cld
-	rep
-	movsb
-
-	pop	%edi
-	pop	%esi
-	ret
-
 
 /	seg2io(long nbytes, vaddr_t p, long port)
 
 /	nbytes must be a short word multiple
 
-seg2io:					/ setspace in caller
+seg2io:
 	movl	%esp,%edx
 	push	%esi
 
@@ -1370,7 +1222,7 @@ seg2io:					/ setspace in caller
 
 /	nbytes must be a short word multiple
 
-io2seg:					/ setspace in caller
+io2seg:
 	mov	%esp,%edx
 	push	%edi
 
@@ -1381,7 +1233,6 @@ io2seg:					/ setspace in caller
 
 	cld
 	rep				/ Value of the ECX register is not
-/	insw	(%dx)			/ updated correctly
 	insw
 
 	pop	%edi
@@ -1715,35 +1566,9 @@ int11:	mov	%cs:val11,%eax		/ Ask the ROM
 /			Test 3, Page 5-68.
 
 ///////
-
-/boot:
-/	cli				/ Disable interrupts.
-/
-/	subl	%ecx,%ecx
-/loc12:	inb	$KBCTRL			/ Wait for 8042 input buffer to empty.
-/	testb	$2, %al
-/	loopne	loc12
-/	IODELAY
-/
-/	movb	$0xFE,%al		/ Issue a shutdown command
-/	outb	$KBCTRL			/ to the 8042 control port.
-/
-/loc13:	hlt				/ Halt until processor reset occurs.
-/	jmp	loc13
-
-//////
-/ boot() uses a call gate.
 boot:
-	pushf
-	cli
-	lcall	$SEG_BOOT,$0	/ gates to bootfR0
-	popf
-	ret
+	cli				/ Disable interrupts.
 
-/ Ring 0 far reboot.  Called via a gate.
-/ Want interrupts off when we arrive since the interrupt gates
-/ lead into Ring 1.
-bootfR0:
 	subl	%ecx,%ecx
 loc12:	inb	$KBCTRL			/ Wait for 8042 input buffer to empty.
 	testb	$2, %al
@@ -1756,7 +1581,6 @@ loc12:	inb	$KBCTRL			/ Wait for 8042 input buffer to empty.
 loc13:	hlt				/ Halt until processor reset occurs.
 	jmp	loc13
 
-//////
 	.globl	putchar
 
 /	Comment in the line below if debugging output is to go to the
@@ -1809,7 +1633,8 @@ regcr2:	mov	%cr2,%eax
 regfp:	mov	%ebp,%eax
 	ret
 
-	.align	4		/ CPU resets if val11 isn't aligned.
+/	.align	4		/ CPU resets if val11 isn't aligned.
+	.byte	0
 val11:	.long	0		/ Value obtained from int11 [in code].
 
 aicodep:
@@ -1882,8 +1707,9 @@ tss_ldt:.long	SEG_LDT		/ 60: Task LDT Selector.
 / Initialize to all 1's, meaning no I/O allowed.
 / tss + 0x68 = tssIoMap
 tssIoMap:
-	.long	[TSS_IOMAP_LEN .div 32] # -1
+	.long	[[TSS_IOMAP_LEN + 31] .div 32] # -1
 tssIoEnd:
+	.long	[[0x1000 - TSS_IOMAP_LEN] .div 32] # -1
 	.long	-1
 ///////
 
@@ -1899,203 +1725,6 @@ trapcode:.long	0
 
 	.text
 ///////
-
-/ i8086 coherent clist hack.
-
-///////
-
-/LXXX:	.long	NCPCL+4
-
-/cltinit:
-/	pushf			/ s = sphi()
-/	cli
-/	mov	NCLIST,%eax
-/	imull	LXXX,%eax
-/	addl	clistp,%eax
-/	sub	%ecx,%ecx
-/	jmp	loc32
-
-/loc33:	mov	%ecx,(%eax)
-/	mov	%eax,%ecx
-/loc32:	sub	$NCPCL+4, %eax
-/	cmp	clistp,%eax
-/	jnb	loc33
-
-/	mov	%ecx,cltfree
-/	call	spl
-/	add	$0x04,%esp
-/	ret
-
-/getq:
-/	push	%esi
-
-/	mov	8(%esp),%edx
-/	sub	%ecx,%ecx
-/	cmp	%ecx,(%edx)	/ if (cqp->cq_cc==0)
-/	je	loc21
-
-/	pushf			/ s = sphi()
-/	cli
-/	mov	12(%edx),%esi	/ op = cqp->cq_op	[%esi]
-/	mov	16(%edx),%eax	/ ox = cqp->cq_ox	[%eax]
-/	movb	4(%eax,%esi),%cl
-/	push	%ecx		/ save = op->cl_ch[ox]
-/	decl	(%edx)		/ if (--cqp->cq_cc == 0)
-/	je	loc23
-/	inc	%eax		/ ++ox
-/	mov	%eax,16(%edx)	/ cqp->cq_ox = ox
-/	cmp	$NCPCL,%eax	/ if (ox == NCPL)
-/	jne	loc24
-
-/loc23:	sub	%eax,%eax
-/	mov	%eax,16(%edx)	/ cqp->cq_ox = 0
-/	mov	(%esi),%ecx	/ np = op->cl_fp
-/	mov	%ecx,12(%edx)	/ cqp->cq_op = np
-/	cmp	%eax,%ecx	/ if (np==0)
-/	jne	loc25
-/	mov	%eax,4(%edx)		/ cqp->cq_ip = 0
-/	mov	%eax,8(%edx)		/ cqp->cq_ix = 0
-
-/loc25:	mov	cltfree,%ecx
-/	mov	%ecx,(%esi)	/ op->cl_fp = cltfree
-/	mov	%esi,cltfree	/ cltfree = op
-/	cmp	%eax,cltwant	/ if (cltwant)
-/	je	loc24
-/	mov	%eax,cltwant		/ cltwant = 0
-/	push	$cltwant
-/	call	wakeup			/ wakeup(&cltwant)
-/	pop	%eax
-
-/loc24:	pop	%esi
-/	call	spl		/ spl(s)
-/	pop	%eax
-/	mov	%esi,%eax	/ return save
-/	pop	%esi
-/	ret
-/loc21:
-/	mov	$-1,%eax			/ return -1
-/	pop	%esi
-/	ret
-
-/putq:
-/	push	%esi
-/	sub	%eax,%eax
-/	pushf			/ s = sphi();
-/	cli
-/	mov	12(%esp),%edx	/ ebp = cqp
-/	mov	4(%edx),%esi	/ ip = cqp->cq_ip	[%esi]
-/	mov	8(%edx),%ecx	/ ix = cqp->cq_ix	[%ecx]
-/	cmp	%eax,%ecx	/ if (ix==0) {
-/	jne	loc26
-/	mov	cltfree,%esi		/ ip = cltfree
-/	cmp	%eax,%esi		/ if (ip==0)
-/	je	loc27			/ goto bad;
-/	mov	(%esi),%ecx
-/	mov	%ecx,cltfree		/ cltfree = cltfree->cl_fp
-/	mov	%eax,(%esi)		/ ip->cl_fp = 0
-/	mov	4(%edx),%ecx		/ np = cqp->cq_ip
-/	cmp	%eax,%ecx		/ if (np==0)
-/	jne	loc29
-/	mov	%esi,12(%edx)			/ cqp->cq_op = ip
-/	jmp	loc30
-/					/ else
-/loc29:	mov	%esi,(%ecx)			/ np->cl_fp = ip
-
-/loc30:	mov	%esi,4(%edx)		/ cqp->cq_ip = ip
-/	mov	%eax,%ecx		/ ix = 0
-/				/ }
-
-/loc26:
-/	movb	16(%esp),%al	/ ip->cl_ch[ix] = c
-/	movb	%al, 4(%esi,%ecx) 
-/	inc	%ecx		/ ix++
-/	cmp	$NCPCL,%ecx	/ if (ix==NCPCL)
-/	jne	loc31
-/	sub	%ecx,%ecx		/ ix = 0
-
-/loc31:	mov	%ecx,8(%edx)	/ cqp->cq_ix = ix
-/	incl	(%edx)		/ cqp->cq_cc++
-/	call	spl		/ spl(s)
-/	add	$4,%esp
-/	mov	12(%esp),%eax	/ return (c)
-/loc28:
-/	pop	%esi
-/	ret
-/loc27:
-/	call	spl		/ 		spl(s)
-/	add	$4,%esp
-/	mov	$-1,%eax	/ 		return -1
-/	jmp	loc28
-
-/clrq:
-/	mov	4(%esp),%edx
-/	pushf
-/	cli
-
-/loc34:	push	%edx
-/	call	getq
-/	pop	%edx
-/	or	%eax,%eax
-/	jge	loc34
-
-/	call	spl
-/	pop	%eax
-/	ret
-
-/loc35:	movl	$0x01,cltwant
-/	push	%eax
-/	push	%eax
-/	push	$0x0100
-/	push	$cltwant
-/	call	sleep
-/	add	$16,%esp
-/waitq:
-/	sub	%eax,%eax
-/	cmp	%eax,cltfree
-/	jne	loc35
-/	ret
-
-///////
-
-/ atbsyw()	-- wait for AT disk controller to become not busy
-
-/	Return:	0 = timeout
-/		* = not busy
-
-///////
-/atbsyw:
-/	mov	$0x3FFFF, %ecx 
-/	mov	ATSREG, %edx
-/loc16:	inb	(%dx)
-/	testb	$BSY_ST, %al
-/	loopne	loc16
-/	mov	%ecx, %eax 
-/	ret
-
-///////
-
-/ AT Hard Disk Assembler Support
-/ atbsyw()	     - wait while controller is busy
-/ atdrqw()	     - wait for controller to request data transfer
-
-///////
-///////
-
-/ atdrqw()	-- wait for AT disk controller to initiate data request
-
-/	Return:	0 = timeout
-/		* = data requested
-
-///////
-
-/atdrqw:
-/	mov	$0x3FFFF, %ecx
-/	mov	ATSREG, %edx 
-/loc17:	inb	(%dx)
-/	testb	$DRQ_ST, %al 
-/	loope	loc17
-/	mov	%ecx, %eax 
-/	ret
 
 /       Read a byte from the CMOS.  Takes one argument--the
 /       CMOS address to read from as an int; returns the
@@ -2157,62 +1786,6 @@ read_psw:
 	popl	%eax
 	ret
 
-/ Read master PIC state
-/ return 00:xx:yy:zz 4-byte int value
-/	xx: interrupt mask
-/	yy: isr
-/	zz: irr
-
-/	.globl	mchirp
-/FOO	.macro	ch
-/	push	ch
-/	call	mchirp
-/	add	$4,%esp
-/	.endm
-
-/	.globl	rd_m_pic
-/rd_m_pic:
-/	pushfl
-/	cli
-/	sub	%eax,%eax
-/	inb	$PICM		/ interrupt mask to %eax:16..23
-/	shl	$8,%eax
-/	movb	$0x0B,%al	/ OCW3 - read isr
-/	outb	$PIC
-/	IODELAY
-/	inb	$PIC		/ in-service register to %eax:8..15
-/	shl	$8,%eax
-/	movb	$0x0A,%al	/ OCW3 - read irr
-/	outb	$PIC
-/	IODELAY
-/	inb	$PIC		/ irpt request register to %eax:0..7
-/	popfl
-/	ret
-
-/ Read slave PIC state
-/ return 00:xx:yy:zz 4-byte int value
-/	xx: interrupt mask
-/	yy: isr
-/	zz: irr
-
-/	.globl	rd_s_pic
-/rd_s_pic:
-/	pushfl
-/	cli
-/	sub	%eax,%eax
-/	inb	$SPICM		/ interrupt mask to %eax:16..23
-/	shl	$8,%eax
-/	movb	$0x0B,%al	/ OCW3 - read isr
-/	outb	$SPIC
-/	IODELAY
-/	inb	$SPIC		/ in-service register to %eax:8..15
-/	shl	$8,%eax
-/	movb	$0x0A,%al	/ OCW3 - read irr
-/	outb	$SPIC
-/	IODELAY
-/	inb	$SPIC		/ irpt request register to %eax:0..7
-/	popfl
-/	ret
 
 / return current contents of cr0
 	.globl	read_cr0

@@ -1,19 +1,9 @@
-/* $Header: /y/coh.386/RCS/sys2.c,v 1.14 93/04/14 10:07:58 root Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or pursuant to the license agreement is unlawful.
- *
- *	COHERENT Version 4.0
- *	Copyright (c) 1982, 1993.
- *	All rights reserved.
- -lgl) */
 /*
- * Coherent.
- * System calls (filesystem related).
+ * coh.386/sys2.c
+ *
+ * Filesystem related system calls.
+ *
+ * Revised: Mon Jul 12 08:56:23 1993 CDT
  */
 
 #include <kernel/_sleep.h>
@@ -37,14 +27,19 @@ register int mode;
 {
 	register INODE *ip;
 	register int r;
+	int ioType;		/* Type of I/O operation */
 
 	schizo();
+	ioType = u.u_io.io_seg;
+	u.u_io.io_seg = IOUSR;
 	r = ftoi(np, 'r');
+	u.u_io.io_seg = ioType;
 	schizo();
+
 	if (r)
 		return;
 	ip = u.u_cdiri;
-	if ((mode&imode(ip, u.u_ruid, u.u_rgid)) != mode)
+	if (!iaccess(ip, mode))
 		u.u_error = EACCES;
 	idetach(ip);
 	return 0;
