@@ -13,7 +13,7 @@
 #define	C	907633387L		/* Additive generator */
 
 
-static long	seed;
+static long	seed	= 1;
 
 srand(n)
 unsigned int n;
