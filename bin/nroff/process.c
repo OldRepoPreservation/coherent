@@ -13,7 +13,6 @@
  */
 
 #include <ctype.h>
-#include <ascii.h>
 #include "roff.h"
 
 #define	CHYPHEN	'-'				/* hyphenation character */
@@ -52,6 +51,7 @@ addchar(f, w) int f; register int w;
 	nlinptr++->c_arg.c_move = w;
 	nlindir++;
 	nlinsiz += w;
+	spcnt = 0;
 }
 
 /*
@@ -62,6 +62,7 @@ addidir(d, i)
 	chkcode();
 	nlinptr->l_arg.c_code = d;
 	nlinptr++->l_arg.c_iarg = i;
+	spcnt = 0;
 }
 
 /*
@@ -191,7 +192,7 @@ process()
 			setfont(name, 1);
 			continue;
 		case EHMT:		/* Local horizontal motion */
-			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, SMUNIT, SDUNIT) : 0;
+			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, SMEMSP, SDEMSP) : 0;
 			dprint2(DBGPROC, ".local horiz motion = %d\n", n);
 			hormove(n);
 			continue;
@@ -239,7 +240,7 @@ process()
 			continue;
 		case EPSZ:		/* Change pointsize */
 			dprintd(DBGPROC, ".pointsize change\n");
-			if (scandel(charbuf, CBFSIZE)) {
+			if (scanoptdel(charbuf, CBFSIZE)) {
 				n = number(charbuf, SMPOIN, SDPOIN, psz, 0, oldpsz);
 				if (n == 0)
 					n = oldpsz;
@@ -304,10 +305,11 @@ process()
 			default:
 				pad(ssz);
 			}
-			if (fill==0 || cec)
+			if (fill == 0 || cec != 0) {
 				linebreak(1);
-			if (cec)
-				--cec;
+				if (cec != 0)
+					--cec;
+			}
 			if (ulc) {
 				if (--ulc == 0)
 					setfontnum(ufp, 1);
@@ -534,9 +536,9 @@ diverse()
 			break;
 		case DPADC:
 			wordbreak(DPADC);
-			if (fill) {
+			if (fill)
 				padspace(lastcode);
-			} else
+			else
 				pad(arg);
 			break;
 		case DHYPC:
@@ -588,6 +590,7 @@ pad(n) register int n;
 {
 	llinptr->l_arg.c_iarg += n;
 	nlinsiz += n;
+	spcnt += n;
 }
 
 padspace(lastcode) int lastcode;
@@ -866,6 +869,15 @@ justify()
 		if (r == 0)
 			return;			/* no paddable characters */
 		n = lln - llinsiz;		/* padding required */
+
+		/*
+		 * Because tabs get expanded ex post facto,
+		 * a tab in fill mode can make the line grow too large.
+		 * If the line requires negative padding, tough matzohs.
+		 * Avoid tabs in fill mode!
+		 */
+		if (n < 0)
+			return;
 		t = n%r;			/* padding remainder */
 		n = 1 + n/r;			/* starting pad amount */
 		r = t;				/* to do before decrementing */
@@ -891,20 +903,25 @@ justify()
  * at the end of a line to finish up the final tab stop.
  * This must be called right after calling wordbreak().
  */
-movetab(c)
+movetab(c) int c;
 {
 	register TAB *tp;
 	int n, w, d2, savfont, ls;
 	register int d, d1;
 	register int pos;
 
-	ls = (nlinsiz != llinsiz) ? nlinsiz : llinsiz;
+ 	ls = (nlinsiz != llinsiz) ? nlinsiz : llinsiz;
+	if (spcnt) {
+		/* Adjust for space padding following tab. */
+		llinsiz -= spcnt;
+		ls -= spcnt;
+	}
 	tp = tabptr;
 	pos = tp->t_pos;
 	if (cdivp == mdivp)
 		pos += tin;		/* relative to indent */
 #if	0
-	fprintf(stderr, "movetab(%d) tab=%d ltabchr=%d pos=%d tlinsiz=%d ls=%d\n",
+	fprintf(stderr, "movetab(%d) tab#%d ltabchr=%d pos=%d tlinsiz=%d ls=%d\n",
 		c, tabptr-tab, ltabchr, pos, tlinsiz, ls);
 #endif
 	switch (tp->t_jus) {

@@ -25,16 +25,16 @@ FTB	fontab[NFNAMES];
  */
 FWTAB	*fwptab[NFONTS];
 
-/* Read a canonical int from file. */
+/* Read a canonical short from file. */
 int
-get_int(fp) register FILE *fp;
+get_short(fp) register FILE *fp;
 {
-	int i;
+	short s;
 
-	if (fread(&i, sizeof i, 1, fp) != 1)
+	if (fread(&s, sizeof s, 1, fp) != 1)
 		errflag = 1;
-	canint(i);
-	return i;
+	canint(s);
+	return (int)s;
 }
 
 /*
@@ -100,18 +100,18 @@ load_font(s, file) char *s, *file;
 	p = fwptab[new];
 	p->f_descr = get_str(fp);
 	p->f_PSname = get_str(fp);
-	p->f_flags = get_int(fp);
-	p->f_fonttype = get_int(fp);
-	p->f_orientation = get_int(fp);
-	p->f_spacing = get_int(fp);
-	p->f_symset = get_int(fp);
-	p->f_pitch = get_int(fp);
-	p->f_psz = get_int(fp);
-	p->f_style= get_int(fp);
-	p->f_weight = get_int(fp);
-	p->f_face = get_int(fp);
-	p->f_num = get_int(fp);
-	p->f_den = get_int(fp);
+	p->f_flags = get_short(fp);
+	p->f_fonttype = get_short(fp);
+	p->f_orientation = get_short(fp);
+	p->f_spacing = get_short(fp);
+	p->f_symset = get_short(fp);
+	p->f_pitch = get_short(fp);
+	p->f_psz = get_short(fp);
+	p->f_style= get_short(fp);
+	p->f_weight = get_short(fp);
+	p->f_face = get_short(fp);
+	p->f_num = get_short(fp);
+	p->f_den = get_short(fp);
 	for (i = 0; i < NWIDTH; i++)
 		p->f_width[i] = fgetc(fp);
 	i = fgetc(fp);				/* should return EOF */

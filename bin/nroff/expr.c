@@ -45,7 +45,7 @@ number(str, mul, div, num, hvf, def) char *str; long mul, div; int num, hvf, def
 		experr++;
 	if (experr) {
 		printe("syntax error");
-		return (0);
+		return 0;
 	}
 	switch (c) {
 	case '+':
@@ -58,7 +58,7 @@ number(str, mul, div, num, hvf, def) char *str; long mul, div; int num, hvf, def
 		n -= hvf ? cdivp->d_rpos : nlinsiz;
 		break;
 	}
-	return (n);
+	return n;
 }
 
 /*
@@ -79,7 +79,7 @@ expseq()
 
 	n1 = expval();
 	if (experr)
-		return (0);
+		return 0;
 	for (;;) {
 		while ((c = *expp++)==' ' || c == '\t')
 			;
@@ -104,11 +104,11 @@ expseq()
 			if ((c != 0) && index("+-/*%&:", c))
 				break;
 			--expp;
-			return (n1);
+			return n1;
 		}
 		n2 = expval();
 		if (experr)
-			return (0);
+			return 0;
 		switch (c) {
 		case '+':
 			n1 += n2;
@@ -123,7 +123,7 @@ expseq()
 			if (n2 == 0) {
 				printe("attempted zero divide");
 				experr++;
-				return (0);
+				return 0;
 			}
 			n1 /= n2;
 			break;
@@ -131,7 +131,7 @@ expseq()
 			if (n2 == 0) {
 				printe("attempted zero modulus");
 				experr++;
-				return (0);
+				return 0;
 			}
 			n1 %= n2;
 			break;
@@ -169,7 +169,7 @@ expseq()
 expval()
 {
 	long mul, div, m, d;
-	register int n, c;
+	register int n, c, s;
 
 	while (isascii(c = *expp++) && isspace(c))
 		;
@@ -182,15 +182,14 @@ expval()
 		}
 		return n;
 	}
-	m = 0;
+	for (s = 1; c == '-'; c = *expp++)
+		s = -s;
+	for (m = 0; isascii(c) && isdigit(c); c = *expp++)
+		m = m * 10 + c - '0';
 	d = 1;
-	while (isascii(c) && isdigit(c)) {
-		m = m*10 + c-'0';
-		c = *expp++;
-	}
 	if (c == '.') {
 		while (isascii(c = *expp++) && isdigit(c)) {
-			m = m*10 + c-'0';
+			m = m * 10 + c - '0';
 			d *= 10;
 		}
 	}
@@ -234,7 +233,7 @@ expval()
 	}
 	while (isascii(c = *expp) && isalpha(c))
 		expp++;
-	return unit(m*mul, d*div);
+	return unit(s*m*mul, d*div);
 }
 
 /*

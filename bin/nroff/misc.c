@@ -455,8 +455,18 @@ setfont(name, setflag) char name[2]; int setflag;
 		name[0] = oldfon[0];
 		name[1] = oldfon[1];
 	}
-	if ((n = font_number(name, NULL)) < 0)
+	if ((n = font_number(name, NULL)) < 0) {
+		if (setflag) {
+			/*
+			 * Bogus font change sets oldfon so \fP gets back
+			 * from the bogus font to the present font.
+			 * The bogus font change is really ignored.
+			 */
+			oldfon[0] = fon[0];
+			oldfon[1] = fon[1];
+		}
 		return -1;
+	}
 	dev_font(n);
 	if (setflag) {
 		oldfon[0] = fon[0];
@@ -478,7 +488,7 @@ printe(a1) char *a1;
 	fprintf(stderr, "%s: ", argv0);
 	for (sp=strp; sp; sp=sp->x1.s_next) {
 		if (sp->x1.s_type == SFILE) {
-			fprintf(stderr, "%d: ", sp->x1.s_clnc);
+			fprintf(stderr, "%s: %d: ", sp->x2.s_fname, sp->x2.s_clnc);
 			break;
 		}
 	}

@@ -368,8 +368,8 @@ dump_chartab()
 			mult /= w;
 		}
 	}
-	putint(mult);				/* int f_num		*/
-	putint(div);				/* int f_den		*/
+	putshort(mult);				/* short f_num		*/
+	putshort(div);				/* short f_den		*/
 
 	/* Dump the movement table. */
 	if (cflag) {
@@ -564,16 +564,16 @@ escape_cparen()
 		putstring("");			/* char *f_PSname	*/
 
 	/* Font parameters. */
-	putint(FLAG_PCL);			/* flags */
-	putint(fhp->f_font_type);
-	putint(fhp->f_orientation);
-	putint(fhp->f_spacing);
-	putint(fhp->f_symbol_set);
-	putint(fhp->f_pitch);
-	putint(ipointsz);
-	putint(fhp->f_style);
-	putint(fhp->f_weight);
-	putint(fhp->f_face);
+	putshort(FLAG_PCL);			/* flags */
+	putshort(fhp->f_font_type);
+	putshort(fhp->f_orientation);
+	putshort(fhp->f_spacing);
+	putshort(fhp->f_symbol_set);
+	putshort(fhp->f_pitch);
+	putshort(ipointsz);
+	putshort(fhp->f_style);
+	putshort(fhp->f_weight);
+	putshort(fhp->f_face);
 }
 
 /*
@@ -723,16 +723,19 @@ ofpwrite(buf, count) register char *buf; register unsigned int count;
 }
 
 /*
- * Write a canonical int.
+ * Write a canonical short.
  */
 void
-putint(i) int i;
+putshort(i) int i;
 {
+	short s;
+
 	if (cflag)
 		fprintf(ofp, "\t\t%d,\n", i);
 	else {
-		canint(i);
-		ofpwrite(&i, sizeof i);
+		s = (short)i;
+		canshort(s);
+		ofpwrite(&s, sizeof s);
 	}
 }
 
@@ -795,7 +798,15 @@ read_header(size) register int size;
 void
 usage()
 {
-	fprintf(stderr, USAGE);
+	fprintf(stderr,
+		"Usage: fwtable [ -cptv ] [ -ssymset ] [ infile [ outfile ] ]\n"
+		"Options:\n"
+		"\t-c\t\tWrite C instead of binary\n"
+		"\t-p\t\tInput is PostScript AFM file\n"
+		"\t-ssymset\tSpecify desired symbol set with -t option\n"
+		"\t-t\t\tInput is HP TFM file\n"
+		"\t-v\t\tWrite one-line font description to stderr\n"
+		);
 	exit(1);
 }
 
