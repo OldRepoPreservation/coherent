@@ -33,16 +33,16 @@
 #define	MB_LEN_MAX	1
 #define	SCHAR_MAX	127
 #define	SCHAR_MIN	-128
-#define	SHRT_MAX	((short)0x7FFF)
-#define	SHRT_MIN	((short)0x8000)
+#define	SHRT_MAX	0x7FFF
+#define	SHRT_MIN	0x8000
 #define	UCHAR_MAX	255
 #if	IAPX86
-#define	UINT_MAX	((unsigned int)0xFFFF)
+#define	UINT_MAX	0xFFFFU
 #elif	_I386
-#define	UINT_MAX	((unsigned int)0xFFFFFFFF)
+#define	UINT_MAX	0xFFFFFFFFU
 #endif
-#define	USHRT_MAX	((unsigned short)0xFFFF)
-#define	ULONG_MAX	((unsigned long)0xFFFFFFFFL)
+#define	USHRT_MAX	0xFFFFU
+#define	ULONG_MAX	0xFFFFFFFFUL
 
 #endif
 
