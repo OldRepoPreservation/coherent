@@ -11,7 +11,6 @@ CFLAGS=-DTRACER -VPSTR
 USRSRC=/usr/src
 USRINC=/usr/include
 SYSINC=$(USRINC)/sys
-K386LIB=lib
 
 IOOBJ =\
 	$(K386OBJ)/bufq.o \
