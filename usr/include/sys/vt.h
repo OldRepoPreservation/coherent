@@ -1,38 +1,46 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
 #ifndef __SYS_VT_H__
 #define __SYS_VT_H__
 
 /*
- * Type definitions
+ * Virtual console support.
  */
+
+#if	! _KERNEL
+# error	You must be compiling the kernel to use this header.
+#endif
+
 
 /*
  * Virtual terminal structure VTDATA
  */
-#ifdef	_I386
+
 typedef	struct	{
 	unsigned	int	off;
 	unsigned    /*short*/	seg;
-}	faddr_t;
-#endif
+} faddr_t;
 
 typedef struct _VTDATA {
 	/*
-	 * Elements dealing with the graphic adaptor 
+	 * Elements dealing with the graphic adapter 
 	 * - equivalent to the assembler definitions above.
 	 */
 	void	(*vmm_func)();
 	unsigned vmm_port,	vmm_seg,	vmm_off;
 	unsigned vmm_rowl,	vmm_col,	vmm_pos,	vmm_attr;
-	unsigned vmm_n1,	vmm_n2,		vmm_brow;
-	unsigned vmm_erow,	vmm_lrow,	vmm_srow;
+	unsigned char vmm_args[8];
+	unsigned vmm_nargs;
+	unsigned vmm_brow,	vmm_erow,	vmm_lrow,	vmm_srow;
 	unsigned vmm_scol,	vmm_ibrow,	vmm_ierow;
 	unsigned vmm_invis;
-	unsigned vmm_slow,	vmm_wrap,	vmm_visible,	vmm_esc;
+	unsigned vmm_slow,	vmm_wrap,	vmm_oattr,	vmm_font;
+	unsigned vmm_esc,	vmm_visible;
 	unsigned vmm_mseg,	vmm_moff,	vmm_vseg,	vmm_voff;
 
 	/*
@@ -40,12 +48,9 @@ typedef struct _VTDATA {
 	 * - equivalent to the assembler definitions above.
 	 */
 	dev_t		vt_ind;
-#ifdef	_I386
 	KBTBL		vt_kb[MAX_KEYS];
 	char		*vt_buffer;
-#else
-	SEG		*vt_buffer;
-#endif
+
 	/*
 	 * Elements dealing with the keyboard 
 	 *
@@ -54,6 +59,7 @@ typedef struct _VTDATA {
 	 * The function keys tend to be small and tend to change substantially
 	 * more often than the mapping table, so we keep them in the kernel data space.
 	 */
+
 	int  		vnkb_lastc;		/* state info */
 	unsigned	vnkb_shift;		/* Overall shift state */
 	unsigned	char **vnkb_funkeyp; 	/* Pointer to array of func. key ptrs */
@@ -95,9 +101,11 @@ typedef struct _HWentry {
 #define	PRINTV	if(vt_verbose)printf
 #define	PUTC	if(vt_verbose)putc
 
+
 /*
  * patchable params for non-standard keyboards
  */
+
 extern	int	KBDATA;			/* Keyboard data */
 extern	int	KBCTRL;			/* Keyboard control */
 extern	int	KBSTS_CMD;		/* Keyboard status/command */
@@ -115,4 +123,4 @@ extern	VTDATA		*vtconsole, **vtdata;
 extern	char		kb_table_loaded;
 extern	HWentry		*vtHWtable[];
 
-#endif /* VT_H */
+#endif	/* ! defined (__SYS_VT_H__) */

@@ -1,16 +1,23 @@
-/*
- * /usr/include/sys/hdioctl.h
- *
- * Ioctl support for hard disk devices.
- *
- * Revised: Sun Aug  1 17:24:39 1993 CDT
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef __SYS_HDIOCTL_H__
 #define	__SYS_HDIOCTL_H__
+
+#include <common/feature.h>
+
+/*
+ * Ioctl support for hard disk devices.
+ */
 
 #define	HDIOC	('H' << 8)
 #define	HDGETA	(HDIOC|1)	/* get drive attributes */
 #define	HDSETA	(HDIOC|2)	/* set drive attributes */
+
 
 /*
  * Drive attributes
@@ -18,6 +25,7 @@
  *	All multi-byte fields are stored low-byte first.
  * This struct is configured for binary compatibility with ROM data!
  */
+
 typedef struct hdparm_s {
 	unsigned char	ncyl[2];	/* number of cylinders */
 	unsigned char	nhead;		/* number heads */
@@ -31,22 +39,35 @@ typedef struct hdparm_s {
 	unsigned char	hdfill3;
 } hdparm_t;
 
+
 /* Macro for initializing drive parameter tables. */
+
 #define _HDPARMS(cyl,hd,spt,ctl,pcomp)	{ \
 	{ (cyl) & 0xFF, (cyl) >> 8 }, hd, { 0, 0 }, \
 	{ (pcomp) & 0xFF, (pcomp) >> 8 }, 0, ctl, \
 	{ 0, 0, 0 }, { 0 , 0 }, spt, 0 }
 
+
 /* Convert from a 2-element unsigned char array to unsigned short. */
+/* Copy number into a 2-element unsigned char array. */
+
+#if	_I386
+
+#define _CHAR2_TO_USHORT(c_array)	(* (unsigned short *) (c_array))
+#define	_NUM_TO_CHAR2(c_array, num)	(* (unsigned short *) (c_array) = (num))
+
+#else
+
 #define _CHAR2_TO_USHORT(c_array)	\
 	((unsigned short) ((c_array)[1] << 8) | (c_array)[0])
+/#define _NUM_TO_CHAR2(c_array, num) \
+	(((c_array)[0] = (num) & 0xFF), ((c_array)[1] = (num) >> 8))
 
-/* Copy number into a 2-element unsigned char array. */
-#define _NUM_TO_CHAR2(c_array, num) \
-	(((c_array)[0] = num & 0xFF), ((c_array)[1] = num >> 8))
-
-#if __KERNEL__
-#define N_ATDRV	2			/* only two drives supported */
 #endif
 
-#endif /* ndef __SYS_HDIOCTL_H__ */
+
+#if	_KERNEL
+#define N_ATDRV	2U			/* only two drives supported */
+#endif
+
+#endif /* ! defined (__SYS_HDIOCTL_H__) */

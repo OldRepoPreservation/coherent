@@ -1,5 +1,14 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_PATCH_H__
 #define	__SYS_PATCH_H__
+
+#include <common/feature.h>
 
 /*
  * Definitions for the patch driver.
@@ -13,7 +22,7 @@
 #define PATCH_CON_IN	(PATCH_IOC | 3)
 #define PATCH_CON_OUT	(PATCH_IOC | 4)
 
-#define PATCH_VAR_NAME_LENGTH	14
+#define PATCH_VAR_NAME_LENGTH	32
 
 /*
  * Structure passed as third argument of ioctl PATCH_WR and PATCH_RD.
@@ -39,7 +48,7 @@ struct patchCon {
 	int	patch_maj;
 };
 
-#if __KERNEL__
+#if _KERNEL
 /*
  * Structure used internally by patch driver for kernel variables.
  *
@@ -73,6 +82,6 @@ extern int patchVarCount;
 extern struct patchConInternal patchConTable[];
 extern int patchConCount;
 
-#endif /* __KERNEL__ */
+#endif /* _KERNEL */
 
 #endif	/* ! defined (__SYS_PATCH_H__) */

@@ -1,10 +1,13 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
 #ifndef __SYS_SILO_H__
 #define __SYS_SILO_H__
+
 /*
  * Raw Character Silo.
  */
@@ -16,4 +19,5 @@ typedef struct silo {
 	unsigned char	si_ox;
 	unsigned char	si_buf[SI_BUFSIZ];
 } silo_t;
-#endif
+
+#endif	/* ! defined (__SYS_SILO_H__) */

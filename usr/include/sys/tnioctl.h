@@ -1,8 +1,10 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
 #ifndef	__SYS_TNIOCTL_H__
 #define	__SYS_TNIOCTL_H__
 
@@ -17,6 +19,7 @@
  * Maintained on a per node id basis.
  * NOTE: Node id 0 is used for totals.
  */
+
 typedef struct tnattr {
 	unsigned char	host[6];	/* host id - node id in host[5] */
 	unsigned char	bad;		/* non-zero if node is down */
@@ -25,9 +28,11 @@ typedef struct tnattr {
 	unsigned long	stats[NTNST];	/* statistics */
 } tnattr_t ;
 
+
 /*
  * Statistics maintained per node.
  */
+
 #define	TnRxBYTES	0	/* # bytes received from node */
 #define	TnTxBYTES	1	/* # bytes transmitted to node */
 #define	TnRxPACKS	2	/* # packets received from node */
@@ -37,4 +42,4 @@ typedef struct tnattr {
 #define	TnWRTDLYS	6	/* # delayed writes */
 #define	TnELAPSED	7	/* elapsed time for stats in ticks */
 
-#endif
+#endif	/* ! defined (__SYS_TNIOCTL_H__) */

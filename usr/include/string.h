@@ -1,13 +1,9 @@
 /* (-lgl
- * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * string.h
- * C string handling library header.
- * Draft Proposed ANSI C Standard, Section 4.11, 5/13/88 draft.
- */
 
 #ifndef	__STRING_H__
 #define	__STRING_H__
@@ -60,7 +56,7 @@ __VOID__      *	memset		__PROTO ((__VOID__ * _s, int _c, size_t _n));
 char	      *	strerror	__PROTO ((int _errnum));
 size_t		strlen		__PROTO ((__CONST__ char * _s));
 
-#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+#if	! _STDC_SOURCE && ! _POSIX_C_SOURCE
 
 __VOID__      *	memccpy		__PROTO ((__VOID__ * _s1,
 					  __CONST__ __VOID__ * _s2, int _c,
@@ -69,17 +65,39 @@ char	      *	strdup		__PROTO ((__CONST__ char * _s));
 
 
 /*
- * While we are here, change calls to BSD-style string and memory functions
- * into something more modern. Programs which attempt to take the address of
- * the functions, or which attempt to access an underlying function, or
- * which do not include this header *must* be changed.
+ * BSD-style string and memory functions
+ *
+ * We permit the suppression of the definitions below to avoid
+ * conflicts; if you want to do so, set the symbol _SUPPRESS_BSD_DEFINITIONS
+ * to 1.
  */
 
-#define	index(s,c)		(strchr (s, c))
-#define	rindex(s,c)		(strrchr (s, c))
-#define	bcopy(s2,s1,c)		(memcpy (s1, s2, c))
-#define	bcmp(s1,s2,c)		(memcmp (s2, s1, c))
-#define	bzero(s,c)		(memset (s, 0, c))
+#if	! _SUPPRESS_BSD_DEFINITIONS
+
+#ifndef	index
+# define	index(s,c)		(strchr (s, c))
+#endif
+#ifndef	rindex
+# define	rindex(s,c)		(strrchr (s, c))
+#endif
+#ifndef	bcopy
+# define	bcopy(s2,s1,c)		(memcpy (s1, s2, c))
+#endif
+#ifndef	bcmp
+# define	bcmp(s1,s2,c)		(memcmp (s2, s1, c))
+#endif
+#ifndef	bzero
+# define	bzero(s,c)		(memset (s, 0, c))
+#endif
+
+#endif	/* ! _SUPPRESS_BSD_DEFINITIONS */
+
+
+/*
+ * There is no standard location for the alloca () prototype, so here it goes.
+ */
+
+__VOID__      *	alloca		__PROTO ((size_t _size));
 
 #endif
 
