@@ -1,7 +1,8 @@
-# dos/Makefile 3/26/90
+# /usr/src/cmd/dos/Makefile 3/26/90
 # Does not include header file dependencies.
 
 # CFLAGS=-DDEBUG
+DESTDIR= /f1/bin/
 
 OBJ=\
 	dos0.o\
@@ -24,9 +25,9 @@ SRC=\
 
 # Primary targets.
 dos:	$(OBJ)
-	$(CC) -i -o dos $(OBJ)
+	$(CC) -i -o $(DESTDIR)dos $(OBJ)
 dosshrink:	dosshrink.o dos1.o
-	$(CC) -i -o dosshrink dosshrink.o dos1.o -f
+	$(CC) -i -o $(DESTDIR)dosshrink dosshrink.o dos1.o -f
 
 # Secondary targets.
 dos0.o:		dos0.c
@@ -48,3 +49,5 @@ listing:
 dos.tar.Z:
 	tar cvf dos.tar dos dosshrink Makefile $(HDR) $(SRC)
 	compress dos.tar
+
+# end of /usr/src/cmd/dos/Makefile

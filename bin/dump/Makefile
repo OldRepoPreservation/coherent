@@ -1,6 +1,7 @@
 # /usr/src/cmd/dump/Makefile 2/20/91
 
 CFLAGS = -O
+DESTDIR= /f1/bin/
 
 EXE=\
 	dump\
@@ -21,13 +22,13 @@ all:	$(EXE)
 
 # Executables.
 dump:	dump.o discbuf.o
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
 dumpdate: dumpdate.o
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
 dumpdir: dumpdir.o
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
 restor:	restor.o discbuf.o
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
 
 # Secondary targets.
 discbuf.o:	discbuf.h discbuf.c
