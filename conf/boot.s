@@ -73,8 +73,10 @@ BUFMSK2 =	0x00FF			/ Block [word] mask, for reads.
 DISK	=	0x13			/ Disk Interrupt
 KEYBD	=	0x16			/ Keyboard Interrupt
 READ1	=	0x0201			/ read one sector
+DADDR	=	4			/ number of bytes in a disk block number
 ND	=	10			/ # of direct blocks.
 NIND	=	128			/ # of blocks in indirect block.
+NINDX2	=	256			/ NIND * 2 (number of words in indirect)
 ISIZE	=	8			/ Offset of "di_size".
 IADDR	=	12			/ Offset of "di_addr".
 JMPF	=	0xEA			/ Jump far, direct.
@@ -219,6 +221,7 @@ igrab:	dec	ax			/ Make origin 0 and
 	shr	ax, cl			/ inode block number,
 	inc	ax			/ then to physical block number,
 	inc	ax
+	sub	bx, bx			/ Assume inode within first 32 meg.
 	call	bread			/ and read in the data.
 
 	pop	ax			/ Get i-number back.
@@ -238,43 +241,26 @@ igrab:	dec	ax			/ Make origin 0 and
 	/ 3 bytes: msb, lsw.  lsw is lsb, msb.  We want to store them
 	/ in memory as msw, lsw, just like the inodes in the indirect
 	/ blocks on disk.  So we need to cast msb as msw.
-	movb	cl, $ND 		/ cx = # of direct blocks.
-0:	inc	si			/ Skip 0th byte.
-	movsw				/ Move 1st (lsb) and 2nd (msb)
-	loop	0b			/ Do them all.
+	movb	cl, $ND			/ cx = # of direct blocks
+	sub	ax, ax			/ cast byte in al to word in ax
+0:	lodsb				/ al = msb for direct byte
+	stosw				/ store msb cast as a word
+	movsw				/ store lsw.
+	loop	0b
 
-	/ Read the singly indirect block.
-	inc	si			/ Skip 0th byte and
-	lodsw				/ grab block # of (first) indirect.
-
-	inc	si			/ Skip 0th byte and
-	push	(si)			/ remember block # of double indirect.
-
+	lodsb				/ Get the msb for the indirect block.
+	xchg	bx, ax			/ (implicit cast of msb to msw)
+	lodsw				/ Get the lsw for the indirect block.
 	call	bread			/ Read (first) indirect block.
 
 	/ Copy out the singly indirect block numbers to iaddr.
-	movb	cl, $NIND		/ cx = # of indirect maps (ch=0)
-1:	lodsw				/ Skip hi half (canon long)
-	movsw				/ and move low half.
-	loop	1b			/ Do them all.
-
-	/ Read the doublely indirect block.
-	pop	ax
-	call	bread
-	lodsw
-	lodsw
-	/ Read the first block of THAT (do the indirection)
-	call	bread
-
-	/ Copy out the first block of
-	/ doublely indirect block numbers to iaddr.
 	/ These are stored on disk as 4 byte numbers: msw, lsw
-	/ where each word is lsb, msb.
-	movb	cl, $NIND		/ cx = # of indirect maps (ch=0)
-2:	lodsw				/ Skip hi half (canon long)
-	movsw				/ and move low half.
-	loop	2b			/ Do them all.
-
+	/ where each word is lsb, msb.  This is how we store them
+	/ in memory.
+	mov	cx, $NINDX2
+	rep
+	movsw
+	
 	/ Finish by reading the first block of the file into bbuf.
 	sub	dx, dx			/ Set dh to first block number in iaddr.
 /	jmp	iread			/ Done return through iread.
@@ -296,15 +282,22 @@ igrab:	dec	ax			/ Make origin 0 and
 iread:
 	sub	bx, bx			/ Convert from words to blocks.
 	movb	bl, dh			/
-	shl	bx, $1			/ Get 2 * block number into
-	mov	ax, iaddr(bx)		/ physical block from the table.
+
+	/ Block numbers are 4 bytes long, stored msw, lsw.
+	shl	bx, $2			/ Compute index into iaddr table.
+	push	iaddr(bx)		/ fetch msw
+	inc	bx
+	inc	bx
+	mov	ax, iaddr(bx)		/ fetch lsw
+	pop	bx			/ put msw where it belongs
 /	jmp	bread			/ Yes, return through "bread".
 
 ////////
 /
 / Read a block from the floppy disk,
 / drive A:, using the code in the IBM firmware.
-/ The physical block # is in "ax".
+/ The physical block # is in ax and bx.
+/ Register bx is the MSW, and ax is the LSW.
 /
 / This code is restricted to reading from the first 32meg of
 / disk because the block number is only 16 bits long.
@@ -327,7 +320,9 @@ bread:	push	es			/ Save registers
 	jz	2f
 
 	/ Translate block number into cylinder, head, and sector.
-	xor	dx, dx			/ extend block number
+	push	bx
+	pop	dx
+/	xor	dx, dx			/ extend block number
 	add	ax, first		/ add first block
 	adc	dx, first+2		/ add rest
 
@@ -365,6 +360,7 @@ bread:	push	es			/ Save registers
 
 2:	mov	si, bp			/ set SI to point to buffer for return
 	sub	cx, cx			/ clear CX here to save space
+
 	pop	dx			/ restore registers.
 	pop	di
 	pop	es
@@ -385,8 +381,8 @@ print:	lodsb				/ al=byte
 	ret
 
 / Prompt with a "?" and read the file name
-/ into "nbuf".  Only BS handling is provided
-/ for editing.
+/ into "nbuf".  No character editing facilites
+/ are provided.
 
 error:	mov	sp, bp			/ Reset stack
 	call	login			/ print boot message
@@ -398,18 +394,6 @@ input:	mov	di, $nbuf		/ di=name buffer pointer
 
 1:	movb	ah, $0			/ Get ASCII opcode.
 	int	KEYBD			/ Read keyboard ROM call.
-
-	cmpb	al, $BS			/ BS ?
-	jne	2f			/
-	cmpb	cl, $DIRSIZE		/ At start of buffer?
-	je	1b			/ Yup, ignore BS
-	call	putc			/ Output destructive backspace
-	movb	al, $SP
-	call	putc
-	movb	al, $BS
-	dec	di			/ Adjust pointer
-	inc	cx			/ and char count
-	jmp	0b			/ and continue.
 
 2:	cmpb	al, $CR 		/ CR ?
 	je	3f			/ Yup, do next thing
@@ -611,17 +595,17 @@ drive:	.byte	0	/ Drive our partition resides upon.
 first:	.word	0	/ First block of our partition (?)
 	.word	0
 
-msg00:	.ascii	"AT boot"
+msg00:	.ascii	"NATboot"
 crlf:	.byte	CR, LF
 
 / This magic pair of bytes must be the last two bytes of
 / the sector (address 0x1FE), otherwise mboot will refuse
 / to execute it.
 / If needed, uncomment the .blkb and adjust the number appropriately.
-/	.blkb	0	/ Padding need to make magic byte line up
+	.blkb	0x1c	/ Padding need to make magic byte line up
 	.byte	0x55,0xAA
 
 	.bssd
 stack:	.blkb	NSTK			/ Local Stack and name buffer
 bbuf:	.blkb	BUFSIZE 		/ Block buffer [must follow stack].
-iaddr:	.blkw	ND+NIND+NIND 		/ Inode map words.
+iaddr:	.blkw	ND+ND+NIND+NIND		/ Inode map words.
