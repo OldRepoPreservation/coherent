@@ -80,7 +80,7 @@ main(argc, argv) short argc; char *argv[];
 							break;
 					case '-':	break;
 					default:
-					fatal("Invalid argument %c", c); 
+					fatal1("Invalid argument %c", c); 
 								break;
 				}
 			}
