@@ -9,7 +9,7 @@ register char *output;	/* a data area as big as flags */
 {
 	register int c;
 
-	for(;c = *flags++; data >>= 1)
+	for (;c = *flags++; data >>= 1)
 		*output++ = (data & 1) ? c : '-';
 	output = '\0';
 }

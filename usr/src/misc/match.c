@@ -9,7 +9,7 @@
  *	$		end of string
  * if patttern is found fin is aimed past the end of the pattern.
  */
-#include "misc.h"
+#include "local_misc.h"
 
 /*
  * amatch is used internally by match.
@@ -24,29 +24,29 @@ char **start, **fin;
 	register c1;
 	int c2;
 
-	if(NULL == *start)
+	if (NULL == *start)
 		*start = s;
-	for(;c2 = *p++; pfc = 1) {
+	for (;c2 = *p++; pfc = 1) {
 		c1 = *s++;
 		*fin = s;
 
-		switch(c2) {
+		switch (c2) {
 		case '^':
-			if(pfc)
-				return(*start = NULL);
+			if (pfc)
+				return (*start = NULL);
 			s--;
 			continue;
 
 		case '$':
-			if(c1)
+			if (c1)
 				*start = NULL;
-			return(*start);
+			return (*start);
 
 		case '[':
 			for (;;) {
 				c2 = *p++;
 				if (c2=='\0' || c2==']')
-					return(*start = NULL);
+					return (*start = NULL);
 				if (c2 == '\\' && *p == '-')
 					c2 = *p++;
 				if (c2 == c1)
@@ -61,28 +61,28 @@ char **start, **fin;
 		case '?':
 			if (c1)
 				continue;
-			return(*start = NULL);
+			return (*start = NULL);
 
 		case '*':
 			if (!*p)
-				return(*start);
+				return (*start);
 			s--;
 			save = *start;
 			do {
-				if(NULL != amatch(s, p, 1, start, fin))
-					return(*start);
+				if (NULL != amatch(s, p, 1, start, fin))
+					return (*start);
 				*start = save;
-			} while(*s++ != '\0');
-			return(*start = NULL);
+			} while (*s++ != '\0');
+			return (*start = NULL);
 
 		case '\\':
 			if ((c2 = *p++) == '\0')
-				return(*start = NULL);
+				return (*start = NULL);
 		}
 		if (c1 != c2)
-			return(*start = NULL);
+			return (*start = NULL);
 	}
-	return(*start);
+	return (*start);
 }
 
 char *
@@ -94,10 +94,10 @@ char **fin;
 	int pfc;
 
 	start = *fin = NULL;
-	for(pfc = 0; *s; pfc = 1)
-		if(NULL != amatch(s++, p, pfc, &start, fin))
-			return(start);
-	return(*fin = start);
+	for (pfc = 0; *s; pfc = 1)
+		if (NULL != amatch(s++, p, pfc, &start, fin))
+			return (start);
+	return (*fin = start);
 }
 
 /*
@@ -108,9 +108,9 @@ char *s1, *pat;
 {
 	char *start, *fin;
 
-	if(flag)
-		return(NULL != match(s1, pat, &fin));
-	return((NULL != amatch(s1, pat, 0, &start, &fin)) && !*fin);
+	if (flag)
+		return (NULL != match(s1, pat, &fin));
+	return ((NULL != amatch(s1, pat, 0, &start, &fin)) && !*fin);
 }
 
 #ifdef TEST
@@ -118,12 +118,12 @@ main()
 {
 	char s1[80], pat[80], *start, *fin;
 
-	for(;;) {
+	for (;;) {
 		ask(s1, "String  ");
-		if(!strcmp(s1, "quit"))
+		if (!strcmp(s1, "quit"))
 			exit(0);
 		ask(pat, "Pattern");
-		if(NULL == (start = match(s1, pat, &fin)))
+		if (NULL == (start = match(s1, pat, &fin)))
 			printf("Not Found\n");
 		else {
 			*fin = '\0';

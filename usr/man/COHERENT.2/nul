@@ -1,0 +1,9 @@
+NNUULL -- Definition
+
+NNUULL is the ASCII null character  `\0' -- i.e., the character with the value
+zero.   Do not  confuse it  with the  null pointer NULL  or with  the empty
+string "".  A C-language string is always terminated with a NUL.  The empty
+string "" is an array of cchhaarrs with only one element, namely a NUL.
+
+_S_e_e _A_l_s_o
+AASSCCIIII, NNUULLLL, PPrrooggrraammmmiinngg CCOOHHEERREENNTT

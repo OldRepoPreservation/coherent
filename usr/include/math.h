@@ -88,6 +88,8 @@ double		j0		__PROTO ((double _x));
 double		j1		__PROTO ((double _x));
 double		jn		__PROTO ((int _n, double _x));
 
+double		atof		__PROTO ((__CONST__ char * _nptr));
+
 #endif	/* ! _STDC_SOURCE && ! _POSIX_C_SOURCE */
 
 __EXTERN_C_END__

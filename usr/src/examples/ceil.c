@@ -1,4 +1,5 @@
 #include <math.h>
+#include <errno.h>
 #include <stdio.h>
 #define display(x) dodisplay((double)(x), #x)
 

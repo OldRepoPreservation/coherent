@@ -51,8 +51,8 @@ typedef struct	FILE {
 }	FILE;
 /* These additional members are not in struct FILE for compatibility reasons. */
 typedef	struct	_FILE2 {
-	int		(*_gt)();	/* getc function	*/
-	int		(*_pt)();	/* putc function	*/
+	int	(*_gt) __PROTO ((FILE *));	/* getc function	*/
+	int	(*_pt) __PROTO ((int, FILE *));	/* putc function	*/
 	unsigned char	*_bp;		/* start of buffer	*/
 	unsigned char	*_dp;		/* start of data	*/
 	unsigned char	*_ep;		/* end of buffer	*/
@@ -63,7 +63,7 @@ typedef	struct	_FILE2 {
 /* iBCS2 compatibility. */
 #define	_cnt	_cc
 #define	_ptr	_cp
-#define	_base	_f2p
+#define	_base	_f2p->_dp
 #define	_flag	_ff1
 #define	_file	_fd
 

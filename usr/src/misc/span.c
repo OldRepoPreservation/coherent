@@ -12,32 +12,32 @@ register char **fin;
 	char c;
 	char *start = s1;
 
-	for(*fin = NULL; (c = *s1++) && (*matcher)(c); *fin = s1)
+	for (*fin = NULL; (c = *s1++) && (*matcher)(c); *fin = s1)
 		;
-	if(NULL == *fin)
-		return(NULL);
-	return(start);
+	if (NULL == *fin)
+		return (NULL);
+	return (start);
 }
 #ifdef TEST
 #include <ctype.h>
-#include "misc.h"
+#include "local_misc.h"
 
 /* eliminate under ansi */
 digit(s)
 char s;
 {
-	return(isdigit(s));
+	return (isdigit(s));
 }
 
 main()
 {
 	char s1[80], *fin;
 
-	for(;;) {
+	for (;;) {
 		ask(s1, "s1");
-		if(!strcmp(s1, "quit"))
+		if (!strcmp(s1, "quit"))
 			exit(0);
-		if(NULL == span(s1, digit, &fin))
+		if (NULL == span(s1, digit, &fin))
 			printf("No digits\n");
 		else {
 			*fin = '\0';

@@ -1,4 +1,0 @@
-d132|datagraphix|datagraphix 132a,
-	in, da, db, cols#80, lines#30, bel=^G, cr=^M, clear=^L, cud1=^J, 
-	home=\Et, cnorm=\Em\En, cuf1=\El, cuu1=\Ek, cvvis=\Ex, dch1=\E6, 
-	ich1=\E5, il1=\E3, ind=\Ev, ri=\Ew, 

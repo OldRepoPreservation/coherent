@@ -7,26 +7,26 @@ register unsigned char *s1, *s2;
     register c, d;
 
     for (;;) {
-	switch(c = *s1++ - (d = *s2++)) {
+	switch (c = *s1++ - (d = *s2++)) {
 	case 0:
-		if(!d)
+		if (!d)
 			break;
 		continue;
 	case ('A' - 'a'):
-		if((d < 'a') || (d > 'z'))
+		if ((d < 'a') || (d > 'z'))
 			break;
 		continue;
 	case ('a' - 'A'):
-		if((d < 'A') || (d > 'Z'))
+		if ((d < 'A') || (d > 'Z'))
 			break;
 		continue;
 	}
-	return(c);
+	return (c);
     }
 }
 
 #ifdef TEST
-#include "misc.h"
+#include "local_misc.h"
 main()
 {
     char s1[40], s2[40];

@@ -26,7 +26,7 @@ char *argv[];
 		exit(1);
 	}
 
-	if (NULL == (cmda[0] = path(getenv("PATH"), "me", AEXEC))) {
+	if (NULL == (cmda[0] = path(getenv("PATH"), "me", X_OK))) {
 		fprintf(stderr, "Cannot locate me\n");
 		exit(1);
 	}

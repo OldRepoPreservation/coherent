@@ -1,4 +1,0 @@
-dg|dg6053|data general 6053,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=^K, 
-	cup=^P%p2%c%p1%c, cud1=^J, home=^H, cub1=^H, cuf1=^S, cuu1=^W, 
-	ind=^J, 

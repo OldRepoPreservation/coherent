@@ -8,7 +8,7 @@ char *fn, *acs;
 {
 	FILE *tmp;
 
-	if(NULL == (tmp = fopen(fn, acs)))
+	if (NULL == (tmp = fopen(fn, acs)))
 		fatal("Cannot fopen(%s, %s)", fn, acs);
-	return(tmp);
+	return (tmp);
 }

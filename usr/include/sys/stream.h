@@ -580,7 +580,7 @@ int     	datamsg		__PROTO ((unsigned char _type));
 mblk_t	      *	dupb		__PROTO ((mblk_t * _bp));
 mblk_t	      *	dupmsg		__PROTO ((mblk_t * _mp));
 void		enableok	__PROTO ((queue_t * _q));
-mblk_t	      *	esballoc	__PROTO ((unsigned char * _base, int _size,
+mblk_t	      *	esballoc	__PROTO ((unsigned char * _mbase, int _size,
 					  int _pri, frtn_t * _fr_rtn));
 /* The following assumes __STDARG_BUFCALL__ as above */
 toid_t		esbbcall	__PROTO ((int _pri, ...));

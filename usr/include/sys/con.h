@@ -117,10 +117,11 @@ typedef struct con {
  * Flags.
  */
 
-#define	DFBLK	0x01			/* Block device */
-#define	DFCHR	0x02			/* Character device */
-#define DFTAP	0x04			/* Tape */
-#define	DFPOL	0x08			/* Pollable device */
+#define	DFBLK	0x01		/* Block device */
+#define	DFCHR	0x02		/* Character device */
+#define DFTAP	0x04		/* Tape */
+#define	DFPOL	0x08		/* Pollable device */
+#define DFCLC	0x10		/* Call driver close on last close only */
 
 /*
  * Global variables.

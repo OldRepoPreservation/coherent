@@ -46,9 +46,9 @@ long		atol		__PROTO ((__CONST__ char * _nptr));
 double		strtod		__PROTO ((__CONST__ char * _nptr,
 					  char ** _endptr));
 long		strtol		__PROTO ((__CONST__ char * _nptr,
-					  char ** _endptr, int _base));
+					  char ** _endptr, int _radix));
 unsigned long	strtoul		__PROTO ((__CONST__ char * _nptr,
-					  char ** _endptr, int _base));
+					  char ** _endptr, int _radix));
 int		rand		__PROTO ((void));
 void		srand		__PROTO ((unsigned _seed));
 __VOID__      *	calloc		__PROTO ((size_t _nmemb, size_t _size));
@@ -61,12 +61,12 @@ __NO_RETURN__	exit		__PROTO ((int _status));
 char	      *	getenv		__PROTO ((__CONST__ char * _name));
 int		system		__PROTO ((__CONST__ char * _string));
 __VOID__      *	bsearch		__PROTO ((__CONST__ __VOID__ * _key,
-					  __CONST__ __VOID__ * _base,
+					  __CONST__ __VOID__ * _radix,
 					  size_t _nmemb, size_t _size,
 					  int (* _compar)
 						(__CONST__ __VOID__ *,
 						 __CONST__ __VOID__ *)));
-void		qsort		__PROTO ((__VOID__ * _base, size_t _nmemb,
+void		qsort		__PROTO ((__VOID__ * _radix, size_t _nmemb,
 					  size_t _size,
 					  int (* _compar)
 						(__CONST__ __VOID__ *,

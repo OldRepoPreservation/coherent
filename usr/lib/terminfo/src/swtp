@@ -1,6 +1,0 @@
-swtp|ct82|Southwest Technical Products CT82,
-	am, cols#82, lines#20, bel=^G, cr=^M, clear=^L, el=^F, ed=^V, 
-	cup=^K%p2%c%p1%c, cud1=^J, home=^P, cub1=^H, cuf1=^S, ll=^C, cuu1=^A, 
-	dch1=^\^H, dl1=^Z, smso=^^^V, rmso=^^^F, 
-	is2=^\^R^^^S^^^D^]^W^I^S^^^]^^^O^]^W^R^I, ich1=^\^X, il1=^\^Y, 
-	ind=^N, ri=^O, 
