@@ -41,24 +41,7 @@ struct timeval {
 	long tv_usec;
 };
 
-#include <sys/param.h>
-
-#if NOFILE <= 32
-typedef int fd_set;
-
-#define FD_ZERO(fdp)	{*fdp = 0;}
-#define FD_SET(b,fdp)	(*fdp |= 1 << (b))
-#define FD_ISSET(b,fdp)	(*fdp & 1 << (b))
-#define FD_SETSIZE 32
-#else
-typedef int fd_set[2];
-
-#define FD_ZERO(fdp)	{(*fdp)[0]=(*fdp)[1]=0;}
-#define FD_SET(b,fdp)	((*fdp)[((b)>>5)&1] |= 1 << ((b)&0x1F))
-#define FD_ISSET(b,fdp)	((*fdp)[((b)>>5)&1] & 1 << ((b)&0x1F))
-#define FD_SETSIZE 64
-#endif
-/* end of select() support */
+#include <sys/select.h>
 
 extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);

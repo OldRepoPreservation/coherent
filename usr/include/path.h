@@ -18,7 +18,7 @@
 #define __PATH_H__
 
 #include <common/feature.h>
-#include <access.h>
+#include <unistd.h>
 
 #if	__COHERENT__
 #define PATHSEP		'/'	/* Path name component separator */

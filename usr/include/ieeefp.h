@@ -10,7 +10,33 @@
 #ifndef __IEEEFP_H__
 #define __IEEEFP_H__
 
-#include <sys/reg.h>
+/*
+ * The following magic numbers index the "reg" part of a saved signal context.
+ * These numbers *must* correspond to the structure offsets in the
+ * <common/_gregset.h> header for this to work.
+ */
+
+#define	SS	18
+#define	UESP	17
+#define	EFL	16
+#define	CS	15
+#define	EIP	14
+#define	ERR	13
+#define TRAPNO	12
+#define	EAX	11
+#define	ECX	10
+#define	EDX	9
+#define	EBX	8
+#define	ESP	7
+#define	EBP	6
+#define	ESI	5
+#define	EDI	4
+#define	DS	3
+#define	ES	2
+#define	FS	1
+#define	GS	0
+
+
 /*
  * "fpem" objects are for floating point emulation.
  *
@@ -74,4 +100,5 @@ union _fpcontext {
 	struct _fpstate		fpstate;
 	struct _fpemstate	fpemstate;
 };
+
 #endif

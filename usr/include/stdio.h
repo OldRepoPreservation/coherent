@@ -125,7 +125,7 @@ FILE	      *	freopen		__PROTO ((__CONST__ char * _filename,
 void		setbuf		__PROTO ((FILE * _stream, char * _buf));
 int		setvbuf		__PROTO ((FILE * _stream, char * _buf,
 					  int _mode, size_t _size));
-void		fprintf		__PROTO ((FILE * _stream,
+int		fprintf		__PROTO ((FILE * _stream,
 					  __CONST__ char * _format, ...));
 int		fscanf		__PROTO ((FILE * _stream,
 					  __CONST__ char * _format, ...));

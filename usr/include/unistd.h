@@ -70,7 +70,8 @@
 
 __EXTERN_C_BEGIN__
 
-void		_exit		__PROTO ((int _status));
+__NO_RETURN__ void
+		_exit		__PROTO ((int _status));
 int		access		__PROTO ((__CONST__ char * _path,
 					  int _mode));
 unsigned int	alarm		__PROTO ((unsigned int _seconds));
@@ -133,6 +134,11 @@ __pid_t		setsid		__PROTO ((void));
 long		sysconf		__PROTO ((int _name));
 __pid_t		tcgetpgrp	__PROTO ((int _fildes));
 int		tcsetpgrp	__PROTO ((int _fildes, __pid_t _pgrp_id));
+#endif	/* 0 */
+
+#if	! _POSIX_SOURCE
+int		brk		__PROTO ((__VOID__ * _endds));
+__VOID__      *	sbrk		__PROTO ((int _incr));
 #endif
 
 __EXTERN_C_END__
