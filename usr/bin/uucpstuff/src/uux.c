@@ -213,8 +213,8 @@ char *argv[];
 	fclose(execfile);
 	if (local == 0) {
 		fclose(commandfile);
-		sprintf(scratch, "%s/%s/C.%s%c%04d",
-			directory, cmdsite, cmdsite, grade, seq);
+		sprintf(scratch, "%s/%s/C.%.*s%c%04d",
+			directory, cmdsite, SITESIG, cmdsite, grade, seq);
 		if (link(tempname, scratch) == 0)
 			unlink(tempname);
 		else {
