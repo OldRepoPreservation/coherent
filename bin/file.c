@@ -8,6 +8,7 @@ char _version[] = "Version 1.1";
  */
 #include <stdio.h>
 #include <ctype.h>
+#include <sys/coherent.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
 #include <n.out.h>
