@@ -1,8 +1,9 @@
 /*
+ * lpd1.c
+ * 12/13/90
  * The line printer spooler daemon.
- * This should be invoked from the `/etc/rc'
- * file and by the `lpr' command.
- * (NOTE: this command should be setuid to daemon)
+ * This source produces both lpd and (compiled -DLASER) hpd.
+ * NOTE: this command should be setuid to daemon.
  */
 
 #include <stdio.h>
@@ -15,13 +16,14 @@
 #define DAEMON	1		/* Daemon's magic number */
 #define	BANWID	10		/* Longest banner */
 #define	MAXCOM	40		/* Longest comment line sent through mail */
+#define	NCOM	512		/* Comment and control line buffer size */
 #define	FF	014		/* Form feed */
 #define	SMALL	037		/* Set small characters -- paper tiger */
 #define	NORMAL	036		/* Set normal characters -- paper tiger */
 
 #ifdef LASER
 char	spooldir[] = "/usr/spool/hpd";
-char	*printer = "/dev/hp";
+char	*printer = "/dev/rhp";
 #else
 char	spooldir[] = "/usr/spool/lpd";
 char	*printer = "/dev/lp";
@@ -30,8 +32,8 @@ char	lockfile[] = "dpid";
 
 char	*argv0;
 char	obuf[BUFSIZ];
-char	cfline[300];		/* Control file line */
-char	comment[300];		/* Comment line */
+char	cfline[NCOM];		/* Control file line */
+char	comment[NCOM];		/* Comment line */
 FILE	*lp;
 int	printing;		/* On while printing */
 
@@ -75,7 +77,7 @@ char *argv[];
  * The basic algorithm is to
  * run down the current directory
  * looking for files whose names
- * begin with `cf' and do the work
+ * begin with 'cf' and do the work
  * associated with each of them.
  */
 process()
@@ -108,9 +110,10 @@ register char *cfname;
 {
 	FILE *cfp;
 	char mbuf[MAXCOM+40];
-	char *message = "%s: Listing complete: %.*s\n";
+	char *message, *s;
 	int state;	/* 0 to suppress header, 1 before first banner, 2 after */
 
+	message = "%s: Listing complete: %.*s\n";
 	if ((cfp = fopen(cfname, "r")) != NULL) {
 again:
 		printing = state = 1;
@@ -126,11 +129,13 @@ again:
 			case 'A':
 				if (state)
 					putc(FF, lp);	/* FF after banner */
-				if (print(cfline+1)) {
-					message = "%s: Printer file error: %.*s\n";
+				if (print(cfline+1, -1)) {
+					message = "%s: printer file error: %.*s\n";
 					strcpy(comment, cfline+1);
 				}
+#ifndef	LASER
 				putc(FF, lp);		/* FF after file */
+#endif
 				break;
 
 			case 'B':
@@ -140,6 +145,22 @@ again:
 			case 'D':
 				strcpy(comment, cfline+1);
 				break;
+
+#ifdef	LASER
+			case 'E':			/* unload fonts */
+				fprintf(lp, "\033*c0F");
+				break;
+
+			case 'F':			/* download font */
+				for (s = cfline+1; *s != ' '; ++s)
+					;		/* scan to space */
+				*s++ = '\0';		/* terminate filename */
+				if (print(cfline+1, atoi(s))) {
+					message = "%s: printer file error: %.*s\n";
+					strcpy(comment, cfline+1);
+				}
+				break;
+#endif
 
 			case 'L':
 				if (state == 0)
@@ -174,7 +195,7 @@ again:
 				break;
 
 			default:
-				lperr("Bad control line `%s'", cfline);
+				lperr("Bad control line '%s'", cfline);
 			}
 		}
 		fclose(cfp);
@@ -295,3 +316,5 @@ rmexit(s)
 		fclose(lp);
 	exit(s);
 }
+
+/* end of lpd1.c */
