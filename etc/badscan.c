@@ -1,6 +1,6 @@
 /*
  * badscan.c
- * 3/22/90
+ * 4/19/90
  * Usage: badscan [-v] [-o proto] [-b boot] device count
  *	device	  device to be scanned (e.g. /dev/rat0a)
  *	count	  size of file system to be scanned
@@ -11,6 +11,10 @@
  *	-v	  verbose messages as to the percentage of file system scanned
  *
  * $Log:	/usr/src/etc/badscan.c,v $
+ * Revision 1.3	90/03/27  08:33:48 	bin
+ * steve 03/27/90
+ * Mark entire bad track as bad rather than reading each sector in track.
+ * 
  * Revision 1.2	90/03/22  09:57:41 	root
  * Find sectors per track with ioctl rather than assuming 17.
  * Rearranged code, changed fatal error messages, changed screwy spacing.
@@ -253,7 +257,7 @@ main(argc, argv) register int argc; register char *argv[];
 			t1 += 5;
 
 			lput(2, (long) percent);
-			sput(2, " % done: ");
+			sput(2, "% done: ");
 			if (t1 <  6000)
 				sput(2, " ");
 			if (t1 <   600)
@@ -261,12 +265,13 @@ main(argc, argv) register int argc; register char *argv[];
 			lput(2, t1 / 60);
 			sput(2, ".");
 			lput(2, (t1 % 60) / 6);
-			sput(2, " minutes remaining ...\n");
+			sput(2, " minutes remaining...\r");
 
 			percent += 10;
 			incr =  (lim * percent) / 100;
 		}
 	}
+	sput(2, "Done.                               \n");
 	sput(1, "\nd--755 0 0\n$\n");
 	exit(0);
 }
