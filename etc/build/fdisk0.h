@@ -9,6 +9,8 @@
 #define	NBUF		512	/* buffer size			*/
 #define	SSIZE		512	/* sector size			*/
 
+#define PATCHFILE	"/tmp/patches" /* WARNING! duplicated in build0.h */
+
 /*
  * Conversions.
  * (unsigned) c:h:s to (ulong) sectors,
