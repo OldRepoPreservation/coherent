@@ -1,15 +1,14 @@
-
 char helpmessage[] = "\
-\
 /etc/fdformat -- format a floppy disk\n\
-Usage:	/etc/fdformat [-i n] [-o n] [-v] [-w file] special\n\
+Usage:	/etc/fdformat [-a] [-i n] [-o n] [-v] [-w file] special\n\
 Options:\n\
+	-a	write information line during format\n\
 	-i n	use interleave factor n (default: 4)\n\
 	-o n	use offset factor n for numbering sectors (default: 0)\n\
 	-v	verify by reading each track (may be specified repeatedly)\n\
 	-w file	write file to the diskette\n\
-\
 ";
+
 #include	<stdio.h>
 #include	<sys/fdioctl.h>
 #include	<sys/stat.h>
@@ -17,6 +16,7 @@ Options:\n\
 
 extern	char *malloc();
 
+int	aflag = 0;
 int	dvfd = 0;
 char	*dvname = NULL;
 char	*dvbuff = NULL;
@@ -65,11 +65,15 @@ char *argv[];
 {
 	register int i;
 	register char *p;
-	int retry;
+	int head, retry;
 
 	for (i=1; i<argc && argv[i][0]=='-'; ++i) {
 		for (p=&argv[i][1]; *p!='\0'; p+=1) {
 			switch (*p) {
+
+			case	'a':
+				++aflag;
+				break;
 
 			case	'i':
 				if (++i>argc
@@ -135,33 +139,19 @@ char *argv[];
 	if (wrfd && (wrbuff = malloc(fkind.fd_tsz)) == NULL)
 		xxerror("cannot allocate copy buffer", 1);
 
+	for (head = 0; head < fkind.fd_heads; head += 1)
 	for (i = 0; i < fkind.fd_tracks; i += 1) {
 		retry = 0;
-		makeform(i, 0, offset, interleave);
-
-		do
-			if (ioctl(dvfd, FDFORMAT, (char *)fform) < 0)
-				xxerror("ioctl", 1);
-		while ((verify || wrfd)
-		 && doextra(i, 0) < 0
-		 && ++retry < verify);
-
-		if (verify && (retry == verify)) {
-			errno = 0;
-			xxerror("verify failed", 1);
+		makeform(i, head, offset, interleave);
+		if (aflag) {
+			printf("hd=%d cyl=%2d\r", head, i);
+			fflush(stdout);
 		}
-
-		if (fkind.fd_heads < 2)
-			continue;
-
-		makeform(i, 1, offset, interleave);
-		retry = 0;
-
 		do
 			if (ioctl(dvfd, FDFORMAT, (char *)fform) < 0)
 				xxerror("ioctl", 1);
 		while ((verify || wrfd)
-		 && doextra(i, 1) < 0
+		 && doextra(i, head) < 0
 		 && ++retry < verify);
 
 		if (verify && (retry == verify)) {
@@ -169,7 +159,10 @@ char *argv[];
 			xxerror("verify failed", 1);
 		}
 	}
-
+	if (aflag) {
+		printf("           \r");
+		fflush(stdout);
+	}
 	exit(0);
 }
 
