@@ -3,7 +3,7 @@
  * User Message Functions.
  * Note: msgget() must be first function called.
  */
- 
+
 #include <sys/msg.h>
 #include <errno.h>
 
@@ -36,7 +36,7 @@ msgctl(msqid, cmd, buf) int msqid, cmd; struct msqid_ds * buf;
  */
 msgget(key, msgflg) key_t key; int msgflg;
 {
-	int parm[3];
+	int parm[4];
 
 	if (msgfno < 0) {
 		if ((msgfno = open(msgdev, 0)) < 0) {
@@ -48,7 +48,8 @@ msgget(key, msgflg) key_t key; int msgflg;
 
 	parm[0] = -1;
 	parm[1] = key;
-	parm[2] = msgflg;
+	parm[2] = key >> 16;
+	parm[3] = msgflg;
 
 	ioctl(msgfno, MSGGET, parm);
 	return parm[0];
@@ -57,8 +58,7 @@ msgget(key, msgflg) key_t key; int msgflg;
 /*
  * Send Message.
  */
-msgsnd(msqid, msgp, msgsz, msgflg)
-int msqid; struct msgbuf *msgp; int msgsz, msgflg;
+msgsnd(msqid, msgp, msgsz, msgflg) int msqid; struct msgbuf *msgp; int msgsz, msgflg;
 {
 	int parm[5];
 
