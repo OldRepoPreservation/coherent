@@ -1,4 +1,12 @@
 /*
+ * $Header: $
+ * $Log:	$
+ */
+static	char	*revision = "$Revision 1.1 $";
+static	char *header =
+	"$Header: /v/wgl/src.adm/hp/hpr/rcsmin.c,v 1.2 88/08/31 10:09:48 wgl Exp $";
+
+/*
  * units -- do multiplicative unit conversions
  * td 80.09.04
  * Modified to keep the intermediate format in a file and
@@ -15,8 +23,12 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+#include <path.h>
+#ifdef GEM
+#include <osbind.h>
+#endif
 
-#define BADSBRK ((char *) -1)
+#define  PATHSIZE 64
 #define	NDIM	12
 #define	NUNITS	900
 #define	NBUF	256		/* Length of longest line */
@@ -43,10 +55,14 @@ typedef	struct	UNIT {
 
 UNIT	*units;
 struct	stat	sb;
-char	ufile[] = "/usr/lib/units";
-char	binufile[] = "/usr/lib/binunits";
+char	ufile[] = "units";
+char	binufile[] = "binunits";
+char	*uname;
+char	*buname;
 char	buf[NBUF];
 char	inbuf[BUFSIZ];
+
+extern char	*getenv(), *path(), *index(), *strcpy();
 
 int nunits;
 int	uflag;			/* Update information only */
@@ -106,16 +122,71 @@ init()
 	peekc = EOF;
 	if (uflag)
 		exit(0);
-	/*
-	 * Throw away super-user information
-	 */
-	setuid(getuid());
+}
+
+/*
+ * allocate a new copy.
+ */
+char *
+newcpy(s)
+register char *s;
+{
+	return(strcpy(malloc(strlen(s) + 1), s));
+}
+
+/*
+ * find a file on a path in the environment, or a default path
+ * with an access priveledge.
+ *
+ * example: pathn("helpfile", "LIBPATH", ",,\lib", "r");
+ *
+ * Returns full path name.
+ */
+char *
+pathn(name, envpath, deflpath, acs)
+char *name, *envpath, *deflpath, *acs;
+{
+	static char fullname[PATHSIZE];
+	register char *pathptr;
+
+	if((NULL == envpath) || (NULL == (pathptr = getenv(envpath))))
+		pathptr = deflpath;
+
+	if(NULL == index(acs, 'w')) {
+		if ((pathptr = path(pathptr, name, AREAD)) == NULL)
+			fullname[0] = '\0'; /* bad name */
+		else
+			strcpy(fullname, pathptr);
+	}
+	else {
+		register char *p, c;
+
+		if((p = path(pathptr, name, AWRITE)) == NULL) {
+			for(p = fullname; (c = *pathptr++) && c != LISTSEP;)
+				*p++ = c;
+			*p++ = PATHSEP;
+			strcpy(p, name);
+		} else
+			strcpy(fullname, p);
+	}
+	return(fullname);
 }
 
 /*
  * Attempt to read in the already-stored
  * binary information.  Return non-zero if
  * successful.
+ *
+ * if(binary and ascii)
+ *	 if(binary out of date)
+ *		 rebuild
+ *	 else
+ *		use binary
+ * if(binary and no ascii)
+ *	use binary
+ * if(ascii and no binary)
+ *	rebuild
+ * crash
  */
 binary()
 {
@@ -124,17 +195,30 @@ binary()
 	register int bfd;
 	time_t timeasc;
 
-	if (stat(ufile, &sb) < 0)
+	uname  = newcpy(pathn(ufile,    "LIBPATH", DEFLIBPATH, "r"));
+	buname = newcpy(pathn(binufile, "LIBPATH", DEFLIBPATH, "r"));
+	if(!buname[0]) { /* no binary */
+		if(!uname[0]) /* also no ansii */
+			cerr("can't find unit file `%s' or `%s'", 
+				ufile, binufile);
+		buname = malloc(strlen(uname) + strlen(binufile));
+		strcpy(buname, uname);
+		strcpy(index(buname, '\0') - strlen(ufile), binufile);
+		return(0);
+	}
+	else if(!stat(uname, &sb)) { /* binary and ascii found */
+		timeasc = sb.st_mtime;
+		if(stat(buname, &sb) || (timeasc > sb.st_mtime))
+			return(0);	/* bin file out of date */
+	}
+	if(uflag)	/* update only */
+		return(0);
+	if((bfd = open(buname, 0)) < 0)
 		return (0);
-	timeasc = sb.st_mtime;
-	if ((bfd = open(binufile, 0))<0 || fstat(bfd, &sb)<0)
-		return (0);
-	if (timeasc > sb.st_mtime)	/* Out of date? */
-		goto bad1;
-	if (read(bfd, &hdr, sizeof(hdr)) != sizeof(hdr))
-		goto bad1;
-	if (hdr.h_magic != UMAGIC)
-		goto bad1;
+	if(read(bfd, &hdr, sizeof(hdr)) != sizeof(hdr))
+		goto bad;
+	if(hdr.h_magic != UMAGIC)
+		goto bad;
 	nunits = hdr.h_nunits;
 	sstart = alloc(hdr.h_ssize);
 	if (read(bfd, sstart, hdr.h_ssize) != hdr.h_ssize)
@@ -147,8 +231,6 @@ binary()
 	close(bfd);
 	return (1);
 bad:
-	brk(sstart);
-bad1:
 	close(bfd);
 	return (0);
 }
@@ -164,12 +246,12 @@ update()
 	register char *sstart, *send;
 	register int bfd;
 
-	fprintf(stderr, "Rebuilding %s from %s ...\n", binufile, ufile);
-	if ((fd = fopen(ufile, "r")) == NULL)
+	fprintf(stderr, "Rebuilding %s from %s ...\n", buname, uname);
+	if ((fd = fopen(uname, "r")) == NULL)
 		cerr("can't open unit file `%s'", ufile);
 	setbuf(fd, inbuf);
 	units = (UNIT *)alloc(NUNITS*sizeof(UNIT));
-	sstart = sbrk(0);
+	sstart = alloc(0);
 	for (nunits=0; nunits!=NUNITS; nunits++) {
 		name = getname();
 		for (i=0; i!=nunits; i++)
@@ -180,7 +262,7 @@ update()
 		if (!getunit(&units[nunits], NULL))
 			break;
 	}
-	send = sbrk(0);
+	send = alloc(0);
 	if (!feof(fd))
 		cerr("too many units");
 	fclose(fd);
@@ -188,7 +270,7 @@ update()
 	 * Write out, if possible, binary
 	 * information for faster response next time.
 	 */
-	if ((bfd = creat(binufile, 0644)) >= 0) {
+	if ((bfd = creat(buname, 0644)) >= 0) {
 		hdr.h_magic = UMAGIC;
 		hdr.h_nunits = nunits;
 		hdr.h_ssize = send-sstart;
@@ -547,22 +629,36 @@ register char *s, *t;
  */
 /* VARARGS */
 cerr(x)
+char *x;
 {
 	fprintf(stderr, "units: %r\n", &x);
 	exit(1);
 }
 
 /*
- * Use sbrk for alloc to get
- * contiguous memory.
+ * get contiguous memory.
  */
 char *
 alloc(nb)
 unsigned nb;
 {
 	register char *rp;
-
-	if ((rp = sbrk(nb)) == BADSBRK)
+#ifndef GEM
+	if((rp = sbrk(nb)) == ((char *)-1))
 		cerr("out of memory");
+#else
+	static char *mp = NULL;
+	static long l;
+
+	if((NULL == mp) &&
+	   (!(l = Malloc(-1L)) ||
+	    !(mp = (char *)Malloc(l))))
+		cerr("no memory");
+
+	if(0 > (l -= nb))
+		cerr("out of memory");
+	rp = mp;
+	mp += nb;
+#endif
 	return (rp);
 }
