@@ -1,15 +1,9 @@
 /*
- * File:	tioc.c
+ * i386/tioc.c
  *
- * Purpose:	Convert COH286 tty ioctl's to Sys 5 compatible calls.
+ * Convert COH286 tty ioctl's to Sys 5 compatible calls.
  *
- * $Log:	tioc.c,v $
- * Revision 1.2  92/02/20  17:51:55  hal
- * Do arg adjustment in driver, not in sys1632.c
- * 
- * Revision 1.1  92/02/16  18:13:47  hal
- * Initial revision
- * 
+ * Revised: Wed May 26 16:49:20 1993 CDT
  */
 
 /*
@@ -72,10 +66,6 @@
 #define	O_B19200	17	/* 19200 bps */
 #define	O_EXTA	18		/* External A (DH-11) */
 #define	O_EXTB	19		/* External B (DH-11) */
-
-typedef unsigned char uchar;
-typedef unsigned int  uint;
-typedef unsigned long ulong;
 
 /*
  * ----------------------------------------------------------------------

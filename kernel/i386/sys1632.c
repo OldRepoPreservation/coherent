@@ -1,4 +1,3 @@
-/* $Header: /y/i386/RCS/sys1632.c,v 1.13 92/05/21 18:16:13 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -7,14 +6,13 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- *
  *	Intel 386 port and extensions (16/32 bit compatibility)
  *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
  -lgl)
+ */
+
+/*
+ * i386/sys1632.c
  *
  * This file contains the code for those system calls whose implementation
  * must vary, according to system call arguments size (16 or 32 bits)
@@ -24,9 +22,11 @@
  * ftime:alignment of longs
  * lseek:argument is a long pointer
  * dup, dup2: old implementation
+ * 
+ * Revised: Fri Jun 11 06:36:06 1993 CDT
  */
 #include <sys/coherent.h>
-#include <acct.h>
+#include <sys/acct.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>
@@ -41,7 +41,7 @@
 #include <signal.h>
 #include <sys/systab.h>
 #include <sys/oldstat.h>
-#include <sys/oldtimeb.h>
+#include <sys/timeb.h>
 #include <sys/fd.h>
 
 /*
@@ -94,7 +94,7 @@ oldsys()
 		return SIGSYS;
 	callnum = (syscall>>8) & 0x7F;
 	/* Print out this 286 call number only if tracing is on.  */
-	T_PIGGY( 0x2, printf("[%d]", callnum); );
+	T_PIGGY(0x2, printf("[%d]", callnum););
 
 	stp = &sysitab[callnum];
 	if (callnum >= NMICALL)
@@ -346,18 +346,18 @@ long n;
 	 * Calculate time left before current alarm timeout.
 	 */
 	s = 0;
-	if ( pp->p_alrmtim.t_last != NULL )
+	if (pp->p_alrmtim.t_last != NULL)
 		s = pp->p_alrmtim.t_lbolt - lbolt;
 
 	/*
 	 * Cancel previous alarm [if any], start new alarm [if n != 0].
 	 */
-	timeout2( &pp->p_alrmtim, (long) n, sigalrm, pp );
+	timeout2(&pp->p_alrmtim, (long) n, sigalrm, pp);
 
 	/*
 	 * Return time left before previous alarm timeout.
 	 */
-	return( s );
+	return(s);
 }
 
 /*
@@ -366,7 +366,7 @@ long n;
 long
 utick()
 {
-	return( lbolt );
+	return(lbolt);
 }
 
 /*
@@ -451,8 +451,6 @@ long cp;
 {
 	register int res;
 
-	T_HAL(8, printf("obrk(%x)=", cp));
-
 	cp &= 0xffff;	/* Ward off sign extension problems with cp. */
 
 	/*
@@ -466,6 +464,5 @@ long cp;
 	else
 		res = u.u_segl[SIPDATA].sr_base + SELF->p_segp[SIPDATA]->s_size;
 
-	T_HAL(8, printf("%x ", res));
 	return res; 
 }

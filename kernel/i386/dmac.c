@@ -1,4 +1,3 @@
-/* $Header: /v4a/i386/RCS/dmac.c,v 1.1 92/01/06 10:43:02 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,19 +12,7 @@
  *	All rights reserved.
  -lgl) */
 /*
- * The routines in this file
- * deal with the 8237 programmable
- * DMA controller on the system board.
- *
- * $Log:	dmac.c,v $
- * Revision 1.1  92/01/06  10:43:02  hal
- * Mods for compilation with cc.mwc
- * 
- * Revision 1.1	88/03/24  09:33:31 	src
- * Initial revision
- * 
- * 86/12/18	Allan Cornish		/usr/src/sys/i8086/ibm_at/dmac.c
- * Full support for DMA channels 5..7 added.
+ * Program the 8237 DMA controller on the system board.
  */
 #include	<sys/coherent.h>
 #include	<sys/types.h>
@@ -63,6 +50,7 @@ static	int	dmaport[8] = {
  * that backplane "+T/C" is issued at
  * the expected point in time.
  */
+int
 dmaon(chan, paddr, count, wflag)
 register int	chan;
 paddr_t		paddr;
@@ -81,7 +69,7 @@ unsigned	count;
 	 * Channels 0-4 use byte transfer.
 	 * Channels 5-7 use word transfers, with low 17 addr bits right shifted.
 	 */
-	if ( chan >= 5 ) {
+	if (chan >= 5) {
 		count >>= 1;
 		paddr >>= 1;
 		paddr  += (paddr & 0xFF0000L);
@@ -90,25 +78,25 @@ unsigned	count;
 	/*
 	 * Check for DMA straddle.
 	 */
-	if ( dmaseg(paddr) != dmaseg(paddr+count) )
-		return (0);
+	if (dmaseg(paddr) != dmaseg(paddr+count))
+		return 0;
 
 	s = sphi();
 
 	/*
 	 * Select DMA controller.
 	 */
-	if ( chan < 4 ) {
+	if (chan < 4) {
 		port = DMA;
 
 		/*
 		 * Program for dma read/write operation.
 		 */
-		if ( wflag != 0 )
-			outb( port + (SETMODE * 1), (chan & 3) | RDMEM );
+		if (wflag != 0)
+			outb(port + (SETMODE * 1), (chan & 3) | RDMEM);
 		else
-			outb( port + (SETMODE * 1), (chan & 3) | WRMEM );
-		outb( port + (CLEARFL * 1), 0 );
+			outb(port + (SETMODE * 1), (chan & 3) | WRMEM);
+		outb(port + (CLEARFL * 1), 0);
 	}
 	else {
 		port = SDMA;
@@ -116,19 +104,19 @@ unsigned	count;
 		/*
 		 * Program for dma read/write operation.
 		 */
-		if ( wflag != 0 )
-			outb( SDMA + (SETMODE * 2), (chan & 3) | RDMEM );
+		if (wflag != 0)
+			outb(SDMA + (SETMODE * 2), (chan & 3) | RDMEM);
 		else
-			outb( SDMA + (SETMODE * 2), (chan & 3) | WRMEM );
-		outb( SDMA + (CLEARFL * 2), 0 );
+			outb(SDMA + (SETMODE * 2), (chan & 3) | WRMEM);
+		outb(SDMA + (CLEARFL * 2), 0);
 	}
 
 	/*
 	 * Select memory bank.
 	 */
-	outb( dmaport[chan], (int)(paddr >> 16) );
+	outb(dmaport[chan], (int)(paddr >> 16));
 
-	if ( chan < 4 )
+	if (chan < 4)
 		port += ((chan & 3) << 1);
 	else
 		port += ((chan & 3) << 2);
@@ -136,42 +124,44 @@ unsigned	count;
 	/*
 	 * Program memory offset in bank.
 	 */
-	outb( port, ((int) paddr) >> 0 );
-	outb( port, ((int) paddr) >> 8 );
+	outb(port, ((int) paddr) >> 0);
+	outb(port, ((int) paddr) >> 8);
 
 	port++;
-	if ( chan >= 4 )
+	if (chan >= 4)
 		port++;
 
 	/*
 	 * Program transfer count.
 	 */
-	outb( port, count >> 0 );
-	outb( port, count >> 8 );
+	outb(port, count >> 0);
+	outb(port, count >> 8);
 
 	spl(s);
-	return (1);
+	return 1;
 }
 
 /*
- * dmago( chan ) - initiate dma transfer
+ * dmago(chan) - initiate dma transfer
  */
-dmago( chan )
+void
+dmago(chan)
 register int chan;
 {
 	/*
 	 * Enable dma transfers.
 	 */
-	if ( chan < 4 )
-		outb( DMA  + (SETMASK * 1), (chan & 3) | MASKOFF );
+	if (chan < 4)
+		outb(DMA  + (SETMASK * 1), (chan & 3) | MASKOFF);
 	else
-		outb( SDMA + (SETMASK * 2), (chan & 3) | MASKOFF );
+		outb(SDMA + (SETMASK * 2), (chan & 3) | MASKOFF);
 }
 
 /*
- * dmaoff( chan ) - turn dma channel off, return residual count
+ * dmaoff(chan) - turn dma channel off, return residual count
  */
-dmaoff( chan )
+int
+dmaoff(chan)
 register int chan;
 {
 	register int port;
@@ -183,17 +173,17 @@ register int chan;
 	 * Obtain the -1 based residual count.
 	 */
 	s = sphi();
-	if ( chan < 4 ) {
-		outb(  DMA + (SETMASK * 1), (chan & 3) | MASKON );
+	if (chan < 4) {
+		outb( DMA + (SETMASK * 1), (chan & 3) | MASKON);
 		port = DMA + ((chan & 3) << 1) + 1;
 	}
 	else {
-		outb(  SDMA + (SETMASK * 2), (chan & 3) | MASKON );
+		outb( SDMA + (SETMASK * 2), (chan & 3) | MASKON);
 		port = SDMA + ((chan & 3) << 2) + 2;
 	}
 	count  = inb(port);
 	count += inb(port) << 8;
-	spl( s );
+	spl(s);
 
 	/*
 	 * Convert residual from -1 based to 0 based.
@@ -203,7 +193,7 @@ register int chan;
 	/*
 	 * Convert residual from word based to byte based.
 	 */
-	if ( chan >= 5 )
+	if (chan >= 5)
 		count <<= 1;
 
 	/*

@@ -247,6 +247,7 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	movb	$0xFF,%al
 	outb	$SPICM		/ Disable interrupts from slave PIC.
 /DEBUG
+	cli
 	call	__cinit
 	call	mchinit		/ C initialization
 	mov	%cr0,%eax	/ Turn on paging
@@ -275,14 +276,32 @@ loc3:
 
 	sub	%eax, %eax	/ Load local descriptor table register.
 	lldt	%ax
-	movw	$tss,%ax	/ Fix low 16 bits of tss base in gdt
-	movw	%ax,gdt+SEG_TSS+2
+
+/	movw	$tss,%ax	/ Fix low 16 bits of tss base in gdt
+/	movw	%ax,gdt+SEG_TSS+2
+
+	/ Fix tss base in gdt
+	movl	$tss,%eax
+	movw	%ax,gdt+SEG_TSS+2	/ Fix bits  0..15
+	rorl	$16,%eax		/ Get tss bits 16..31
+	movb	%al,gdt+SEG_TSS+4	/ Fix bits 16..23
+	movb	%ah,gdt+SEG_TSS+7	/ Fix bits 24..31
+
 	movw	$SEG_TSS,%ax		/ Load task state segment register.
 	ltr	%ax
 	lidt	idtmap			/ Load interrupt descriptor table
 	lgdt	gdtmap
-	movw	$ldt,%ax		/ Relocate ldt in gdt
-	movw	%ax,gdt+SEG_LDT+2
+
+/	movw	$ldt,%ax		/ Relocate ldt in gdt
+/	movw	%ax,gdt+SEG_LDT+2
+
+	/ Fix ldt base in gdt
+	movl	$ldt,%eax
+	movw	%ax,gdt+SEG_LDT+2	/ Fix bits  0..15
+	rorl	$16,%eax		/ Get ldt bits 16..31
+	movb	%al,gdt+SEG_LDT+4	/ Fix bits 16..23
+	movb	%ah,gdt+SEG_LDT+7	/ Fix bits 24..31
+
 	movw	$SEG_LDT,%ax 
 	lldt	%ax
 
@@ -1831,20 +1850,13 @@ tss_ds:	.long	0		/ 54: Register DS.
 tss_fs:	.long	0		/ 58: Register FS.
 tss_gs:	.long	0		/ 5C: Register GS.
 tss_ldt:.long	SEG_LDT		/ 60: Task LDT Selector.
-	.long	0x00680000	/ 64: T bit & I/O map base
+	.long	TSS_IOMAP_OFF	/ 64: T bit & I/O map base
 / I/O map is part of tss.
-/ Bitmap up to port address 0x7FF, which is 64 longs worth.
+/ Bitmap up to port address TSS_IOMAP_LEN.
 / Initialize to all 1's, meaning no I/O allowed.
 / tss + 0x68 = tssIoMap
 tssIoMap:
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
-	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	[TSS_IOMAP_LEN .div 32] # -1
 tssIoEnd:
 	.long	-1
 ///////
@@ -1855,22 +1867,7 @@ tssIoEnd:
 	.data
 sdata:
 
-vecs:	.long	vret			/ Interrupt vector table
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
-	.long	vret
+vecs:	.long	16 # vret	/ Interrupt vector table
 
 trapcode:.long	0
 

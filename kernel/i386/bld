@@ -26,7 +26,7 @@ CFLAGS=${CFLAGS-"-DTRACER -VPSTR"}
 CC=${CC-"exec /bin/cc"}
 
 OPTS="${K386OBJ}/tty.o ${K386OBJ}/pipe.o ${K386OBJ}/putchar.o"
-OPTS=${OPTS}" ${K386OBJ}/rm.o ${K386OBJ}/fl.o"
+OPTS=${OPTS}" ${K386OBJ}/rm.o ${K386OBJ}/fdc.o ${K386OBJ}/fl386.o"
 OPTS=${OPTS}" ${K386OBJ}/ipc.o"
 
 DEFAULT_KB=y
@@ -38,7 +38,7 @@ USE_LP=y
 USE_PTY=y
 USE_ASYNC=y
 MAKE_LIBS=y
-PATCH=
+PATCH="flCon=fl386con"
 KEROBJ=${K386LIB}/ker386.o
 TARGET=/at386.tst
 ASYNC=/etc/default/async
@@ -136,6 +136,10 @@ OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb_d.o"
 		DEFAULT_MM=n
 OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb_f.o"
 		;;
+	xl)
+		PATCH="${PATCH} ftCon=ftxlcon PHYS_MEM=589824"
+OPTS=${OPTS}" ${K386OBJ}/xlft.o ${K386OBJ}/xla.o ${K386OBJ}/xl_dec.o"
+		;;
 	-a)
 		shift
 		ASYNC=$1
@@ -154,7 +158,7 @@ OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb_f.o"
 	*)
 echo "Usage:  $0"
 echo "  {aha|al|asy|at|fha|fva|hs|inst|kb|kb_d|kb_f|nkb"
-echo "    |sc|ss|ticom|vt|vtkb|vtkb_d|vtkb_f}"
+echo "    |sc|ss|ticom|vt|vtkb|vtkb_d|vtkb_f|xl}"
 echo "  {-o target} {-a async_file} {-c cflags} {addr=value}..."
 		exit 1
 		;;

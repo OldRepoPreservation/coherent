@@ -1,3 +1,47 @@
+Changes to kernel and related files for version #78:
+
+NOTES:
+COH 386 apps using sys/timeb.h need to be recompiled.
+New libc.a needed for support of nap() and ftime() system calls.
+New kbmain.o is needed, (just recompile current kbmain.c) and new
+  /conf/kbd/us, etc as well, due to change in kb.h (or else you won't
+  be able to switch sessions with virtual consoles).
+New db needed from Steve since uproc.h changed.
+File name changes in kernel file set:
+  lp.c is replaced by lp386.c
+  fl.c is replaced by fdc.c, fl386.c, and <sys/fdc765.h>.
+
+06/14  msig.c: fix value passed to signal handler
+06/11  sys/timeb.h, var.c: add ftime system call
+06/11  sys5.c: uname returned 0, did not set u_error in several failure cases
+06/10  fl386.c: some open failures left diskette drive locked
+06/04  sys2.c, var.c: add nap() system call
+06/03  exec.c: vlad's fix - kernel blew up in pexece() when out of memory
+05/26  uproc.h: change u_error from char to int so errnos > 127 come out ok
+05/24  xl.h,xlfdc.h,xlft.h,xlft.c,xl_dec.c,xla.s: Archive floppy tape driver
+05/24  seg.h,shm0.c,shm1.c: vlad - allow deferred removal of live shm segments
+05/24  as.s: increase i/o map upper limit (3ff->1fff) for newer vga cards
+05/19  mmu.c: add getDmaMem for aligned contiguous memory allocation
+05/18  sig.c: patchable variable CATCH_SEGV for nonportable software
+05/18  sig.c: signal to traced process wrongly caused core dump
+05/14  sys3.c: read on file set for APPEND should not be forced to end
+05/14  mmu.c: growing segments beyond 4 megabytes caused a panic
+05/14  kb.h: Add lots more function keys; change vt keydefs. (mlk)
+05/11  sig.c, signal.h, msig.c: sigpause() and reliable signals
+05/11  sys1.c: upause() should set EINTR.
+05/11  sys1.c: part of waitpid(), done by Michael
+05/07  lp386.c: fix interrupt mask and wakeup problems
+05/07  tty.c: fix sign extension bug in vmin/vtime handling
+05/07  fl386.c: delete scratch_buffer code - had ugly bug [mlk found this]
+05/07  fl386.c,fdc.c,fdc765.h: split floppy driver for floppy tape
+05/03  ndp.c: delete "Bad Em write..." printf, just do SIGSEGV
+04/27  tty.c: change defer(wakeup,...) to wakeup(...) since all wakeups
+       are deferred.  This should cut down on defer overflows.
+04/27  sig.c: set SRFDUMP flag for all dumped segments
+04/27  move acct.h from /usr/include/ to /usr/include/sys
+04/26  reg.h,md.c: setivec return status added, for floppy tape support.
+04/20  fl.c: another FL_DSK_CH_PROB change from Michael
+
 Changes to kernel and related files for version #77:
 
 04/19  proc.h,sem.h,proc.c,sem386.c: sem_undo and other semaphore final test

@@ -12,7 +12,7 @@
 
 extern	CON	atcon[];
 extern	CON	ctcon[];		/* Console terminal */
-extern	CON	flcon[];
+extern	CON	fdccon[];
 extern	CON	iscon[];
 extern	CON	lpcon[];
 extern	CON	msgcon[];
@@ -27,7 +27,7 @@ extern	CON	shmcon[];
  */
 DRV	drvl[NDRV] = {
 	{nlcon},	{ctcon},	{iscon },	{NULL },     /*  0- 3 */
-	{flcon },	{NULL },	{NULL },	{NULL },     /*  4- 7 */
+	{fdccon },	{NULL },	{NULL },	{NULL },     /*  4- 7 */
 	{rmcon },	{NULL },	{NULL },	{NULL },     /*  8-11 */
 	{NULL },	{NULL },	{NULL },	{NULL },     /* 12-15 */
 	{NULL },	{NULL },	{NULL },	{NULL },     /* 16-19 */

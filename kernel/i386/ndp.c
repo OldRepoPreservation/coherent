@@ -4,6 +4,9 @@
  * Purpose:	all ndp-related functions, except for assembler routines
  *
  * $Log:	ndp.c,v $
+ * Revision 1.2  93/04/14  10:27:57  root
+ * r75
+ * 
  * Revision 1.1  92/11/09  17:09:23  root
  * Just before adding vio segs.
  * 
@@ -603,8 +606,10 @@ int len;
 	int ret = useracc(cp, len, 1);
 
 	if (!ret) {
+#if 0
 		printf("Bad Em write, base=%x, len=%x, r.a.=%x",
 			cp, len, *(int *)((&cp) - 1));
+#endif
 		sendsig(SIGSEGV, SELF);
 	}
 	return ret;

@@ -122,7 +122,8 @@
 	.set	PX_OPND,	0x66	/ register values & immediates
 	.set	R_USR,		3	/ user level ring number
 	.set	SBASE,		0xFFC00
-	.set	TSS_IOMAP,	0x68	/ offset of io bitmap in tss
+	.set	TSS_IOMAP_LEN,	0x1A40	/ number of port addresses mapped
+	.set	TSS_IOMAP_OFF,	0x68	/ byte offset of io bitmap in tss
 	.set	VIDEO,		0x10	/ Video BIOS interrupt for early debugging.
 
 	.set	LPSTAT,		LPDATA+1
