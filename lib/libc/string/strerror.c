@@ -46,10 +46,16 @@ static char *_errors[] = {
 	"Domain error",				/* EDOM		*/
 	"Result too large",			/* ERANGE	*/
 	"Out of kernel space",			/* EKSPACE	*/
+#if	_I386
+	"IPC object removed",			/* EIDRM	*/
+#else
 	"Driver not loaded",			/* ENOLOAD	*/
+#endif
 	"Bad format",				/* EBADFMT	*/
 	"Device needs attention",		/* EDATTN	*/
-	"Device busy"				/* EDBUSY	*/
+	"Device busy",				/* EDBUSY	*/
+	"Deadlock",				/* EDEADLK	*/
+	"No lock available"			/* ENOLCK	*/
 };
 #endif
 
