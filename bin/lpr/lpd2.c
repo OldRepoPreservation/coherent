@@ -121,12 +121,17 @@ FILE *fp;
 	register char *s;
 
 	for (i=0; i!=9; i++) {
-		for (s=line; *s!='\0'; s++)
-			for (j=0200; j!=0; j>>=1)
+		for (s=line; *s!='\0'; s++) {
+			for (j=0200; j!=0; j>>=1) {
 				if(BAS<=*s && *s<=0177 && font[*s-BAS][i]&j)
-					putc(FILL, fp); else
+					putc(FILL, fp);
+				else
 					putc(' ', fp);
+			}
+		}
+		putc('\r', fp);
 		putc('\n', fp);
 	}
+	putc('\r', fp);
 	putc('\n', fp);
 }
