@@ -2,6 +2,8 @@
  * 	COHERENT Driver Kit Version 1.1.0
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
+ *
+ *	$Header: /usr/src/sys/i8086/drv/RCS/hs.c,v 1.2 91/02/13 15:54:29 root Exp $
  -lgl) */
 /*
  * Polled Serial Port Device Driver.
@@ -34,11 +36,16 @@
  *   polled port;  note that "speed" is NOT the actual baud rate, but
  *   the value of the symbol for that baud rate as defined in
  *   /usr/include/sgtty.h
+ *
+ * "PORT" is a macro yielding the 8250 base address, given the "tp" pointer.
+ * "PORT_NUM" is a macro yielding the port index (0..MAX_HSNUM-1) given "tp".
  */
 #define	HSBAUD	9600
 #define	HS_HZ	(HSBAUD/6)
 #define MAX_HSNUM	8
-#define	PORT	((int)(tp->t_ddp))
+#define	PORT		(HS_PORTS[(int)(tp->t_ddp)].addr)
+#define	PORT_NUM	((int)(tp->t_ddp))
+#define MSR_DELTAS	(MS_DCTS | MS_DDSR | MS_TERI | MS_DRLSD)
 struct port_config {
 	int	addr;	/* base address of the 8250-family UART */
 	int	speed;	/* B0..B19200 */
@@ -59,6 +66,12 @@ struct port_config HS_PORTS[MAX_HSNUM] = {
 	{ 0x2E8, B9600 }
 };
 
+/*
+ * 8250's MSR delta bits are cleared each time the MSR is read.
+ * But different parts of the driver look for deltas of different bits.
+ * Array msr[] saves delta bits until they are needed.
+ */
+static char msr[MAX_HSNUM];
 /*
  * Export Functions.
  */
@@ -197,7 +210,7 @@ static hsload()
 		tp->t_param   = hsparam;
 		tp->t_sgttyb.sg_ospeed = tp->t_sgttyb.sg_ispeed = 
 		tp->t_dispeed = tp->t_dospeed = HS_PORTS[i].speed;
-		tp->t_ddp     = port;
+		tp->t_ddp     = i;
 
 		b = timeconst[ tp->t_sgttyb.sg_ospeed ];
 		outb( port+LCR, LC_DLAB );
@@ -222,14 +235,31 @@ hsopen( dev, mode )
 dev_t dev;
 {
 	register TTY * tp = &hstty[ dev & 15 ];
-	register int b;
+	int port = PORT;
 	int s;
-
+	char msr_ch;
+printf("hsopen #%d: enter, count=%d\n", PORT_NUM, tp->t_open);
 	/*
 	 * Verify hardware exists.
 	 */
-	if ( (PORT == 0) || (inb(PORT+IER) & ~IE_TxI) ) {
+	if ( (port == 0) || (inb(port+IER) & ~IE_TxI) ) {
 		u.u_error = ENXIO;
+		return;
+	}
+	
+	/*
+	 * Don't allow open if flagged for exclusive use and not super-user.
+	 */
+	if ((tp->t_flags & T_EXCL) && !super()) {
+		u.u_error = ENODEV;
+		return;
+	}
+
+	/*
+	 * Don't open if modem is settling from previous close.
+	 */
+	if (drvl[major(dev)].d_time != 0) {	/* Modem settling */
+		u.u_error = EDBUSY;
 		return;
 	}
 
@@ -244,26 +274,48 @@ dev_t dev;
 	/*
 	 * Initialize if not already open.
 	 */
-	if ( ++tp->t_open == 1 ) {
+	if ( tp->t_open++ == 0 ) {
+		hscycle( tp );
+		/*
+		 * ttopen() will call hsparam()
+		 * hsparam() asserts DTR and RTS and sets polling rate
+		 */
 		ttopen( tp );
 
-		if ( dev & 0x80 ) {
+		if (dev & 0x80) { /* if modem control... */
 			s = sphi();
-			b = inb(PORT+MSR);
-			tp->t_flags |= T_MODC + T_STOP;
-			if ( b & MS_CTS )
+			tp->t_flags |= T_MODC + T_STOP + T_HOPEN;
+			/*
+			 * Sleep while waiting for carrier.
+			 */
+			while(1) {
+				msr_ch = inb(port + MSR);
+				msr[PORT_NUM] |= msr_ch & MSR_DELTAS; 
+				if (msr_ch & MS_RLSD)
+					break;
+	   	  		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
+					SVTTOUT);	/* wait for carrier */
+		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
+					outb(port+MCR, 0);  /* kill RTS/DTR */
+					u.u_error = EINTR;
+					spl(s);
+					tp->t_open = 0;
+					return;
+				}
+			}
+			tp->t_flags &= ~T_HOPEN; /* no longer hanging in open */
+			msr_ch = inb(port + MSR);
+			msr[PORT_NUM] |= msr_ch & MSR_DELTAS; 
+			if (msr_ch & MS_CTS)
 				tp->t_flags &= ~T_STOP;
-			if ( b & MS_DSR )
-				tp->t_flags |=  T_CARR;
 			spl( s );
 		} else  {
 			tp->t_flags &= ~T_MODC;
 			tp->t_flags |=  T_CARR;
 		}
-		hscycle( tp );
 	}
 	ttsetgrp( tp, dev );
-	set_poll_rate();
+printf("hsopen #%d: leave, count=%d\n", PORT_NUM, tp->t_open);
 }
 
 /*
@@ -273,14 +325,43 @@ hsclose( dev )
 dev_t dev;
 {
 	register TTY * tp = &hstty[ dev & 15 ];
-
+printf("hsclose #%d: enter, count=%d\n", PORT_NUM, tp->t_open);
 	/*
 	 * Reset if last close.
 	 */
 	if ( tp->t_open == 1 ) {
 		int state;
+		int holdflags = tp->t_flags;	/* save flags */
+		int port = PORT;
 
-		ttclose( tp );
+		ttclose( tp );			/* clears flags */
+
+		if (holdflags & T_HOPEN) {  /* if waiting for RLSD... */
+			/*
+			 * Flags for first open
+			 * (clear T_HPCL)
+			 */
+			tp->t_flags = T_MODC | T_HOPEN;
+		}
+
+		/*
+		 * If hupcls
+		 */
+		if (holdflags & T_HPCL) {
+			int maj;
+			/*
+			 * Hangup port
+			 */
+			outb(port+MCR, 0);
+			/*
+			 * Hold dtr low for timeout
+			 */
+			maj = major(dev);
+			drvl[maj].d_time = 1;
+			sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT);
+			drvl[maj].d_time = 0;
+		}
+		
 		/*
 		 * ttclose() only emptied the output queue tp->t_oq;
 		 * now wait 0.1 sec for the silo tp->rawout to empty
@@ -301,6 +382,7 @@ dev_t dev;
 
 	--tp->t_open;
 	set_poll_rate();
+printf("hsclose #%d: leave, count=%d\n", PORT_NUM, tp->t_open);
 }
 
 /*
@@ -355,6 +437,47 @@ register TTY * tp;
 {
 	register int resid;
 	register int c;
+	int msr_ch;
+
+	/*
+	 * Check modem status every clock tick.
+	 */
+	if ( tp->t_flags & T_MODC ) {
+		/*
+		 * Get status
+		 */
+		msr_ch = inb(PORT + MSR);
+		msr[PORT_NUM] |= msr_ch & MSR_DELTAS; 
+
+		/*
+		 * Carrier changed.
+		 */
+		if ( msr[PORT_NUM] & MS_DRLSD ) {
+			if (msr_ch & MS_RLSD)
+				tp->t_flags |= T_CARR;  /* carrier on */
+			else
+				tp->t_flags &= ~T_CARR; /* no carrier */
+
+			msr[PORT_NUM] &= ~MS_DRLSD;
+			/*
+			 * wakeup open
+			 */
+			if ( tp->t_open == 0 ) {
+				wakeup((char *)(&tp->t_open));
+			}
+
+			/*
+			 * carrier off?
+			 */
+			else if ( (msr_ch & MS_RLSD) == 0 ) {
+				/*
+				 * clear carrier flag; send hangup signal
+				 */
+				tp->t_rawin.si_ox = tp->t_rawin.si_ix;
+				tthup( tp );
+			}
+		}
+	}
 
 	/*
 	 * Process rawin buf.
@@ -408,8 +531,11 @@ hsintr()
 {
 	register TTY * tp = &hstty[0];
 	register int b;
+	char msr_ch;
 
 	do {
+		int port = PORT, port_num = PORT_NUM;	/* for speed */
+
 		if ( tp->t_open == 0 )
 			continue;
 
@@ -418,28 +544,19 @@ hsintr()
 		 */
 		if ( tp->t_flags & T_MODC ) {
 
-			b = inb( PORT+MSR );
+			msr_ch = inb(port + MSR);
+			msr[port_num] |= msr_ch & MSR_DELTAS; 
 
-			if ( b & (MS_DCTS|MS_DDSR) ) {
-
-				if ( b & MS_DCTS ) {
-					if ( b & MS_CTS )
-						tp->t_flags &= ~T_STOP;
-					else
-						tp->t_flags |=  T_STOP;
-				}
-				if ( b & MS_DDSR ) {
-					if ( b & MS_DSR )
-						tp->t_flags |=  T_CARR;
-					else {
-						tp->t_flags &= ~T_CARR;
-						tthup( tp );
-					}
-				}
+			if ( msr[port_num] & MS_DCTS ) {
+				msr[port_num] &= ~MS_DCTS;
+				if ( msr_ch & MS_CTS )
+					tp->t_flags &= ~T_STOP;
+				else
+					tp->t_flags |=  T_STOP;
 			}
 		}
 
-		b = inb( PORT+LSR );
+		b = inb( port+LSR );
 
 		if ( (b & LS_BREAK) && (tp->t_flags & T_CARR) )
 			ttsignal( tp, SIGINT );
@@ -449,7 +566,7 @@ hsintr()
 		 */
 		if ( b & LS_RxRDY ) {
 
-			tp->t_rawin.si_buf[tp->t_rawin.si_ix] = inb(PORT+DREG);
+			tp->t_rawin.si_buf[tp->t_rawin.si_ix] = inb(port+DREG);
 
 			if ( tp->t_flags & T_CARR ) {
 
@@ -465,7 +582,7 @@ hsintr()
 		if ( (b & LS_TxRDY) && ((tp->t_flags & T_STOP) == 0)
 		  && (tp->t_rawout.si_ix != tp->t_rawout.si_ox) ) {
 
-			outb(	PORT+DREG,
+			outb(port+DREG,
 				tp->t_rawout.si_buf[ tp->t_rawout.si_ox ] );
 
 			if ( ++(tp->t_rawout.si_ox) >=
@@ -571,6 +688,7 @@ static int hsclk()
 static set_poll_rate()
 {
 	int port_num, max_rate, port_rate;
+printf("set_poll_rate()\n");
 
 	/*
 	 * If another driver has the polling clock, do nothing.
@@ -585,6 +703,7 @@ static set_poll_rate()
 	for (port_num = 0; port_num < HSNUM; port_num++) {
 		if (hstty[port_num].t_open) {
 		  port_rate = poll_hz[hstty[port_num].t_sgttyb.sg_ispeed];
+printf("port %d  rate=%d\n", port_num, port_rate);		  
 		  if (max_rate < port_rate)
 			max_rate = port_rate;
 		}
@@ -596,9 +715,11 @@ static set_poll_rate()
 		poll_rate = max_rate;
 		poll_divisor = poll_rate/HZ;  /* used in hsclk() */
 		altclk_out();		/* stop previous polling */
+printf("altclk_out()\n");		
 		poll_owner &= ~POLL_HS;
 		if (max_rate) {	/* resume polling at new rate if needed */
 			altclk_in(poll_rate, hsclk);
+printf("altclk_in(%d, hsclk)\n", poll_rate);			
 			poll_owner |= POLL_HS;
 		}
 	}
