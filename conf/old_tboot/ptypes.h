@@ -15,7 +15,7 @@ typedef unsigned char uint8;
 typedef short int16;
 #define MAXINT16	((int16) 32767)
 typedef unsigned short uint16;
-#define MAXUINT16	((uint16) 65535)
+#define MAXUINT16	((uint16) 65535L)
 typedef long int32;
 #define MAXINT32	((int32) 2^31 - 1)
 typedef unsigned long uint32;
