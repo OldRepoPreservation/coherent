@@ -135,7 +135,6 @@ print_m()
 	if (!total_shmids) 
 		return;
 	printf("T  ID         KEY  MODE  OWNER  GROUP");
-
 	if (cflag) 
 		printf(" CREATOR CGROUP");
 	
@@ -144,7 +143,6 @@ print_m()
 
 	if (bflag) 
 		printf(" SEGSZ");
-
 	if (pflag) 
 		printf("  CPID LPID");
 
@@ -158,7 +156,7 @@ print_m()
 		if (!valid_shmid[x])
 			continue;
 		/* id, mode & key */
-		printf("m%4d%12d 0%o", x, shmid[x].shm_perm.key,
+		printf("m%4d%12d  0%o", x, shmid[x].shm_perm.key,
 					shmid[x].shm_perm.mode & 0777);
 		/* get owner's name from /etc/passwd */
 		if ((pstp = getpwuid(shmid[x].shm_perm.uid)) == NULL) {
@@ -225,7 +223,6 @@ print_m()
 		printf("\n");
 	}	
 	printf("\n");
-			
 }
 
 /* 
@@ -238,69 +235,70 @@ print_s()
 
 	printf("SEMAPHORES:\n");
 
-	if (total_sems)	{
-		printf("T  ID\tKEY\tMODE\tOWNER\tGROUP\t");
+	if (!total_sems)
+		return;
 
-		if(cflag){
-			printf("CREATOR\tCGROUP\t");
+	printf("T  ID         KEY MODE  OWNER  GROUP");
+	if (cflag) {
+		printf(" CREATOR CGROUP");
+	}
+
+	if (bflag) {
+		printf(" NSEMS");
+	}
+
+	if (tflag) {
+		printf("    OTIME");
+	}
+	printf("\n");
+
+	for (x = 0; x < SEMMNI; x++) {
+		if (!valid_semid[x])
+			continue;
+
+		printf("s%4d%12d 0%o",x,  /* mode and key */
+			semid[x].sem_perm.key,
+			semid[x].sem_perm.mode & 0777);
+
+		/* get owner's name from /etc/passwd */
+		if((pstp = getpwuid(semid[x].sem_perm.uid)) == NULL){
+			printf("Error reading password file!\n");
+			exit(1);
+		}
+		printf("%7s",pstp->pw_name);
+	
+		/* get group name of owner */
+	
+		if((grp = getgrgid(semid[x].sem_perm.gid)) == NULL){
+			printf("Error reading group file!\n");
+			exit(1);
+		}
+		printf("%7s",grp->gr_name);
+
+		if (cflag) {
+		/* get creator's name from /etc/passwd */
+			if((pstp = getpwuid(semid[x].sem_perm.cuid)) == NULL){
+				printf("Error reading password file!\n");
+				exit(1);
+			}
+			printf("%8s",pstp->pw_name);
+
+			/* get group name of creator */
+			if((grp = getgrgid(semid[x].sem_perm.cgid)) == NULL){
+				printf("Error reading group file!\n");
+				exit(1);
+			}
+			printf("%7s",grp->gr_name);
 		}
 
-		if(bflag){
-			printf("NSEMS\t");
+		if (bflag) {	/* number of semaphore elements */	
+				printf("%6d",semid[x].sem_nsems);
 		}
 
-		if(tflag){
-			printf("OTIME");
+		if(tflag) {	/* time of last semop */
+			sprintf(date,"%s", ctime(&semid[x].sem_ctime));
+			printf(" %.8s",date + 11);
 		}
 		printf("\n");
-
-		for(x = NSEMID -1; x >= 0 ; x-- ){
-			if(valid_semid[x]){
- 				printf("s\t%d\t%d\t0%o\t",x,  /* mode and key */
-					semid[x].sem_perm.key,
-					semid[x].sem_perm.mode & 0777);
-
-			/* get owner's name from /etc/passwd */
-				if((pstp = getpwuid(semid[x].sem_perm.uid)) == NULL){
-					printf("Error reading password file!\n");
-					exit(1);
-				}
-				printf("%s\t",pstp->pw_name);
-	
-			/* get group name of owner */
-	
-				if((grp = getgrgid(semid[x].sem_perm.gid)) == NULL){
-					printf("Error reading group file!\n");
-					exit(1);
-				}
-				printf("%s\t",grp->gr_name);
-
-				if(cflag){
-				/* get creator's name from /etc/passwd */
-					if((pstp = getpwuid(semid[x].sem_perm.cuid)) == NULL){
-						printf("Error reading password file!\n");
-						exit(1);
-					}
-					printf("%s\t",pstp->pw_name);
-	
-				/* get group name of creator */
-					if((grp = getgrgid(semid[x].sem_perm.cgid)) == NULL){
-						printf("Error reading group file!\n");
-						exit(1);
-					}
-					printf("%s\t",grp->gr_name);
-				}
-
-				if(bflag){	/* number of semaphore elements */	
-					printf("%d\t",semid[x].sem_nsems);
-				}
-
-				if(tflag){	/* time of last semop */
-					sprintf(date,"%s", ctime(&semid[x].sem_ctime));
-					printf("%.5s",date + 11);
-				}
-			}
-		}
-		printf("\n");	
 	}
 }
