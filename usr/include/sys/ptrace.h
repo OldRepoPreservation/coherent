@@ -56,27 +56,57 @@ struct ptrace {
  *   greater than or equal to this value are not valid in ptrace
  *   read/write of USR segment.
  */
-#define	PTRACE_UEND	80	/* Offsets >= UEND are not valid */
-#define	PTRACE_SIG	76
-#define	PTRACE_SS	72
-#define	PTRACE_UESP	68
-#define	PTRACE_EFL	64
-#define	PTRACE_CS	60
-#define	PTRACE_EIP	56
-#define	PTRACE_ERR	52
-#define PTRACE_TRAPNO	48
-#define	PTRACE_EAX	44
-#define	PTRACE_ECX	40
-#define	PTRACE_EDX	36
-#define	PTRACE_EBX	32
-#define	PTRACE_ESP	28
-#define	PTRACE_EBP	24
-#define	PTRACE_ESI	20
-#define	PTRACE_EDI	16
-#define	PTRACE_DS	12
-#define	PTRACE_ES	8
-#define	PTRACE_FS	4
+/* CPU trap frame - see sys/reg.h and ieeefp.h (struct _fpstackframe) */
 #define	PTRACE_GS	0
+#define	PTRACE_FS	4
+#define	PTRACE_ES	8
+#define	PTRACE_DS	12
+#define	PTRACE_EDI	16
+#define	PTRACE_ESI	20
+#define	PTRACE_EBP	24
+#define	PTRACE_ESP	28
+#define	PTRACE_EBX	32
+#define	PTRACE_EDX	36
+#define	PTRACE_ECX	40
+#define	PTRACE_EAX	44
+#define PTRACE_TRAPNO	48
+#define	PTRACE_ERR	52
+#define	PTRACE_EIP	56
+#define	PTRACE_CS	60
+#define	PTRACE_EFL	64
+#define	PTRACE_UESP	68
+#define	PTRACE_SS	72
+#define	PTRACE_SIG	76
+
+/* NDP context - see ieeefp.h (struct _fpstate) */
+#define	PTRACE_FP_CW	80
+#define	PTRACE_FP_SW	84
+#define	PTRACE_FP_TAG	88
+#define	PTRACE_FP_EIP	92
+#define	PTRACE_FP_CS	96
+#define	PTRACE_FP_FOO	100
+#define	PTRACE_FP_FS	104
+#define	PTRACE_FP_ST0	108
+#define	PTRACE_FP_ST1	118
+#define	PTRACE_FP_ST2	128
+#define	PTRACE_FP_ST3	138
+#define	PTRACE_FP_ST4	148
+#define	PTRACE_FP_ST5	158
+#define	PTRACE_FP_ST6	168
+#define	PTRACE_FP_ST7	178
+#define	PTRACE_FP_STAT	188
+
+/* Debug context */
+#define	PTRACE_DR0	192
+#define	PTRACE_DR1	196
+#define	PTRACE_DR2	200
+#define	PTRACE_DR3	204
+#define	PTRACE_DR4	208
+#define	PTRACE_DR5	212
+#define	PTRACE_DR6	216
+#define	PTRACE_DR7	220
+
+#define	PTRACE_UEND	224	/* Offsets >= UEND are not valid */
 
 #ifdef KERNEL
 /*

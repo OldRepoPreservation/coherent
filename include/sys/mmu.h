@@ -29,9 +29,16 @@
 #define	SEG_RW		0x07	/* Read/Write by anybody.	*/
 #define	SEG_ACD		0x20	/* Page has been accessed.	*/
 #define	SEG_UPD		0x40	/* Page has been updated.	*/
+/*
+ * SEG_NPL is for pages which are not from the sysmem pool.
+ * This includes pages representing video memory attached to
+ * user data.
+ * The SEG_NPL bit is not a real page table entry flag, and so is
+ * masked out when CPU page tables are loaded from process data.
+ */
+#define	SEG_NPL		0x80	/* Page is not in sysmem pool.	*/
 
 #define	DIR_RW		0x07 /* us=us0|us1; rw=rw0&rw1; Intel's sOOO logical*/
-
 
 #define	SEG_386_UI	0x08	/* [ 0000 0000 .. FFFF FFFF ]		*/
 #define	SEG_386_UD	0x10
@@ -47,7 +54,7 @@
 #define	SEG_386_ID	0x60
 #define	SEG_286_UII	0x68		/* UI -i */
 #define	SEG_LDT		0x70
-#define SEG_RNG0_STK	0x78	/* lower limit of 0xFFFFE000		*/
+#define SEG_RNG0_STK	0x78	/* lower limit of 0xFFFFF000		*/
 #define SEG_RNG0_TXT	0x80
 #define SEG_RNG1_STK	0x88
 
