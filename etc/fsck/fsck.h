@@ -12,6 +12,12 @@
 #include <sys/types.h>
 #include <time.h>
 
+#if _I386
+#define SMALLMODEL 0
+#else
+#define SMALLMODEL 1
+#endif
+
 #if HPCOHERENT
 typedef long fsize_t;
 #endif

@@ -4,7 +4,7 @@
 #	others		: CFLAGS =
 #
 
-CFLAGS = -OA -DSMALLMODEL=0
+CFLAGS = -OA
 #
 #	for PDP-11 and IBM PC:	LFLAGS = -i
 #	for Z8000	     :	LFLAGS =
