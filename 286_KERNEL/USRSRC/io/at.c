@@ -3,7 +3,10 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/at.c,v $
+ * $Log:	at.c,v $
+ * Revision 1.5  91/05/22  15:06:59  hal
+ * Don't force 8's bit of control byte.
+ * 
  * Revision 1.4	91/03/14  14:22:32	hal
  *
  -lgl) */
@@ -14,11 +17,12 @@
  * Reads drive characteristics from ROM (thru interrupt vector 0x41 and 0x46).
  * Reads partition information from disk.
  */
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>
+#include	<sys/devices.h>
 #include	<sys/stat.h>
 #include	<sys/uproc.h>
 #include	<errno.h>
@@ -28,7 +32,6 @@ extern	saddr_t	sds;		/* System Data Selector */
 /*
  * Configurable parameters
  */
-#define	HDMAJOR	11			/* Major Device Number */
 #define	HDIRQ	14			/* Level 14 */
 #define	HDBASE	0x01F0			/* Port base */
 #define NDRIVE	2			/* only two drives supported */
@@ -65,7 +68,7 @@ int	nonedev();
 
 CON	atcon	= {
 	DFBLK|DFCHR,			/* Flags */
-	HDMAJOR,			/* Major index */
+	AT_MAJOR,			/* Major index */
 	atopen,				/* Open */
 	nulldev,			/* Close */
 	atblock,			/* Block */
@@ -548,7 +551,7 @@ char * vec;
  * void
  * atwatch()		- guard against lost interrupt
  *
- *	Action:	If drvl[HDMAJOR] is greater than zero, decrement it.
+ *	Action:	If drvl[AT_MAJOR] is greater than zero, decrement it.
  *		If it decrements to zero, simulate a hardware interrupt.
  */
 static void
@@ -558,7 +561,7 @@ atwatch()
 	register int s;
 
 	s = sphi();
-	if ( --drvl[HDMAJOR].d_time > 0 ) {
+	if ( --drvl[AT_MAJOR].d_time > 0 ) {
 		spl(s);
 		return;
 	}
@@ -813,7 +816,7 @@ atstart()
 		outb( CSR_REG, READ_CMD );
 		at.at_state = SREAD;
 	}
-	drvl[HDMAJOR].d_time = 2;
+	drvl[AT_MAJOR].d_time = 2;
 }
 
 /**
@@ -1082,7 +1085,7 @@ atrecov()
 	 * Retry operation [after repositioning head]
 	 */
 	if ( at.at_tries < HARDLIM ) {
-		drvl[HDMAJOR].d_time = (cmd == RESTORE(0)) ? 5 : 2;
+		drvl[AT_MAJOR].d_time = (cmd == RESTORE(0)) ? 5 : 2;
 		outb( LCYL_REG, cyl );
 		outb( HCYL_REG, cyl >> 8 );
 		outb( HDRV_REG, (at.at_drv << 4) + 0xA0 );
@@ -1118,7 +1121,7 @@ static void
 atdone( bp )
 register BUF * bp;
 {
-	drvl[HDMAJOR].d_time = 0;
+	drvl[AT_MAJOR].d_time = 0;
 	at.at_state = SIDLE;
 	at.at_actf  = bp->b_actf;
 	bdone(bp);
