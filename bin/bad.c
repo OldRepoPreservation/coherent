@@ -1,15 +1,25 @@
 /*
- * For manipulating bad blocks.
+ * bad.c
+ * 2/16/91
+ * Usage: bad option filesystem [ block ... ]
+ * Manipulate bad block list.
  */
+
 #include <stdio.h>
 #include <canon.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 
-/*
- * For the C compiler.
- */
+#define	USAGE	"\
+Usage:	bad option filesystem [ block ... ]\n\
+Options:\n\
+	a	Add blocks\n\
+	c	Clear bad-block list\n\
+	d	Delete blocks\n\
+	l	List blocks\n"
+
+/* Forward. */
 int	addlist();
 long	atol();
 char	*bread();
@@ -19,9 +29,7 @@ char	*realloc();
 daddr_t	balloc();
 int	dellist();
 
-/*
- * Variables.
- */
+/* Globals. */
 struct	filsys supb;			/* Super block */
 INODE	inol;				/* Bad block inode */
 char	bufl[1+NI][BSIZE];		/* Buffers for bread */
@@ -39,10 +47,10 @@ char *argv[];
 	if (argc < 3)
 		usage();
 	if ((filf=open(argv[2], 2)) < 0)
-		panic("Cannot open %s", argv[2]);
+		panic("cannot open \"%s\"", argv[2]);
 	badm = 64;
 	if ((badl=malloc(badm*sizeof(*badl))) == NULL)
-		panic("No memory");
+		panic("out of memory");
 	switch (argv[1][0]) {
 	case 'a':
 		gather();
@@ -73,7 +81,8 @@ char *argv[];
  */
 usage()
 {
-	panic("Usage: bad [acdl] <filesystem> <bad block list>");
+	fprintf(stderr, USAGE);
+	exit(1);
 }
 
 /*
@@ -168,11 +177,11 @@ daddr_t b;
 	if (badn >= badm) {
 		badm *= 2;
 		if ((badl=realloc(badl, badm*sizeof(*badl))) == NULL)
-			panic("Out of memory");
+			panic("out of memory");
 	}
 	for (i=0; i<badn; i++) {
 		if (b == badl[i])
-			panic("Duplicate bad block %ld", b);
+			panic("duplicate bad block %ld", b);
 		if (b < badl[i])
 			break;
 	}
@@ -197,7 +206,7 @@ daddr_t b;
 			return;
 		}
 	}
-	panic("Cannot find block %ld", b);
+	panic("cannot find block %ld", b);
 }
 
 /*
@@ -358,7 +367,7 @@ register daddr_t b;
 		bwrite(bp, pb);
 		return;
 	}
-	panic("Bad block file too large");
+	panic("bad block file too large");
 }
 
 /*
@@ -373,7 +382,7 @@ balloc()
 
 next:
 	if (supb.s_tfree==0 || (b=supb.s_free[--supb.s_nfree])==0)
-		panic("Out of space on filesystem");
+		panic("out of space on filesystem");
 	if (supb.s_nfree == 0) {
 		fbp = (struct fblk *)bread(0, b);
 		supb.s_nfree = fbp->df_nfree;
@@ -385,7 +394,7 @@ next:
 	}
 	--supb.s_tfree;
 	if (b>=supb.s_fsize || b<supb.s_isize)
-		panic("Bad block %u (alloc)", (unsigned)b);
+		panic("bad block %u (alloc)", (unsigned)b);
 	for (i=0; i<badn; i++)
 		if (b == badl[i])
 			goto next;
@@ -423,7 +432,7 @@ daddr_t b;
 	if (b != bnol[l]) {
 		lseek(filf, (long)b*BSIZE, 0);
 		if (read(filf, bp, BSIZE) != BSIZE)
-			panic("Read error on block %ld", b);
+			panic("read error on block %ld", b);
 		bnol[l] = b;
 	}
 	return (bp);
@@ -439,7 +448,7 @@ daddr_t b;
 
 	lseek(filf, (long)b*BSIZE, 0);
 	if (write(filf, bp, BSIZE) != BSIZE)
-		panic("Write error on block %ld", b);
+		panic("write error on block %ld", b);
 }
 
 /*
@@ -460,10 +469,12 @@ register unsigned n;
 /*
  * Print out an error message and exit.
  */
+/* VARARGS */
 panic(a1)
 char *a1;
 {
-	fprintf(stderr, "%r", &a1);
-	fprintf(stderr, "\n");
+	fprintf(stderr, "bad: %r\n", &a1);
 	exit(1);
 }
+
+/* end of bad.c */
