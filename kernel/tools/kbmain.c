@@ -190,7 +190,8 @@ register int n;
 		for (i = BASE; i <= ALT_GR; ++i) {
 			kval = kbtbl[n].k_val[i];
 			if (kval != none)
-				if (kval >= numfun && !VTKEY(kval)) {
+				if (kval >= numfun
+				  && !VTKEY(kval)  && kval != fgk) {
 					printf("val=%d\n", kval);
 					err("bad function key entry K_%d",
 					    key);
