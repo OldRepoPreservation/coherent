@@ -8,7 +8,7 @@
 
 #define	NWORD	400		/* Longest word or identifier in yylex */
 #define	NCSET	256		/* Size of character set (ascii + top bit) */
-#define	MAXRECORD 400		/* Longest input record */
+#define	MAXRECORD 2048		/* Longest input record */
 #define	NBPC	8		/* Bytes in a char */
 #define	NHASH	64		/* Number of symbol table hash buckets */
 #define	NSBRK	256		/* Amount sbroken per call in `xalloc' */
