@@ -279,6 +279,7 @@ print8(my_int)
 
 __cinit()
 {
+#ifdef SERIAL_CONSOLE
 	register rate;
 
 #if	BAUD
@@ -295,6 +296,7 @@ __cinit()
 	outb(MCR, 0x03);
 	__putchar('\007');
 	__putchar('G');
+#endif
 }
 #define CTLQ	0021
 #define CTLS	0023
