@@ -1,6 +1,6 @@
 /*
  * install.c
- * 10/25/90
+ * 12/20/90
  * Install COHERENT disks on a system.
  * This is the back end of the initial COHERENT installation procedure;
  * the first part is in build.c.
@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.9"
+#define	VERSION		"1.10"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
@@ -135,8 +135,9 @@ main(argc, argv) int argc; char *argv[];
 void
 config()
 {
-	register int port, i, polled;
+	register int port, i, polled, parallel;
 	char device[6+1];		/* e.g. "com1pr" */
+	char rdevice[7+1];
 
 	cls(1);
 	if (yes_no("Does your computer system have a modem")) {
@@ -159,14 +160,14 @@ config()
 		printf("\n");
 	}
 	if (yes_no("Does your computer system have a printer")) {
-again:
 		printf(
 "Your printer is connected to your computer system either through a\n"
 "parallel port or through a serial port; most printers are connected\n"
 "through parallel port LPT1.\n"
 			);
-		if (yes_no("Is your printer connected through a parallel port")) {
-			
+again:
+		parallel = yes_no("Is your printer connected through a parallel port");
+		if (parallel) {
 			port = get_int(1, 3, "Enter 1, 2 or 3 for port LPT1, LPT2 or LPT3:");
 			sprintf(device, "lpt%d", port);
 		} else {
@@ -182,6 +183,12 @@ again:
 			if (yes_no("Does your device use a different baud rate"))
 				setbaud(port);
 		}
+		printf(
+"Because many users are not sure about which port their printer uses,\n"
+"Mark Williams strongly recommends that you test your printer configuration.\n"
+"If you test your printer configuration and see no output on your printer,\n"
+"you can try a different configuration.\n"
+			);
 		if (yes_no("Do you want to test whether your printer configuration is correct")) {
 			/* The command below is backgrounded in case it hangs. */
 			printf("Testing /dev/%s: process ", device);
@@ -190,8 +197,10 @@ again:
 "/bin/echo -n 'This is printing on device /dev/%s.\r\n\014' >/dev/%s&",
 				device, device);	/* 014 is formfeed */
 			sys(cmd, S_IGNORE);
-			if (!yes_no("\nDid output appear on your printer"))
+			if (!yes_no("\nDid output appear on your printer")) {
+				printf("Now try specifying a different port for your printer.\n");
 				goto again;
+			}
 		}
 		sprintf(cmd, "/bin/ln -f /dev/%s /dev/lp", device);
 		if (sys(cmd, S_NONFATAL) == 0)
@@ -200,6 +209,10 @@ again:
 			sprintf(cmd, "/bin/ln -f /dev/%s /dev/hp", device);
 			if (sys(cmd, S_NONFATAL) == 0)
 				printf("/dev/hp is now linked to /dev/%s.\n", device);
+			sprintf(rdevice, "%s%s", (parallel) ? "r" : "", device);
+			sprintf(cmd, "/bin/ln -f /dev/%s /dev/rhp", rdevice);
+			if (sys(cmd, S_NONFATAL) == 0)
+				printf("/dev/rhp is now linked to /dev/%s.\n", rdevice);
 		}
 		printf("\n");
 	}
