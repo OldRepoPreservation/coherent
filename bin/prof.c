@@ -1,6 +1,6 @@
 /*
  * /usr/src/cmd/prof.c
- * 7/16/92
+ * 3/4/93
  * prof interprets the mon.out files produced by the runtime profiling option,
  * i.e. by programs compiled with the cc option -p (a.k.a. -VPROF).
  * This version understands both COH286 l.out and COH386 COFF executables,
@@ -74,7 +74,11 @@ int		cflag	= FALSE;	/* dump call info		*/
 SYMBOL		**dict;			/* NULL-terminated SYMBOL list	*/
 int		dsize;			/* number of symbols		*/
 int		iscoff	= FALSE;	/* COFF executable (not l.out)	*/
+#if	_I386
+char		*lout	= "a.out";	/* executable file name		*/
+#else
 char		*lout	= "l.out";	/* executable file name		*/
+#endif
 vaddr_t		lowpc;			/* lowest pc profiled		*/
 char		*monout	= "mon.out";	/* monitor file name		*/
 char		name[CSYMLEN+1];	/* symbol name buffer		*/
