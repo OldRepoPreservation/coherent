@@ -38,7 +38,7 @@ STATIC short	ly, lx;
 
 STATIC bool	curwin;
 
-WINDOW	*_win = NULL;
+WINDOW	*_win;
 
 wrefresh(win)
 reg WINDOW	*win;
