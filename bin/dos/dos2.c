@@ -77,7 +77,13 @@ creatdir(name) char *name;
 
 	if ((mdp = find(name, root, &dp)) != NULL) {
 		if (!isdir(mdp))
-			fatal("\"%s\" is an MS-DOS file, not a subdirectory", name);
+		{
+			if (mdp->m_attr & MVOLUME)
+				fatal("\"%s\" is the volume name, not a subdirectory", name);
+			else
+				fatal("\"%s\" is an MS-DOS file, not a subdirectory", name);
+		}
+
 		return dp;
 	}
 
@@ -222,6 +228,12 @@ void
 deletefile(mdp, dp) MDIR *mdp; DIR *dp;
 {
 	register unsigned short n, next;
+
+	if ((mdp->m_attr & MRONLY) && !fflag)
+	{
+		nonfatal("cannot delete %s\n", cohn(mdp->m_name));
+		return;
+	}
 
 	dp->d_dirflag = 1;
 	mdp->m_name[0] = MEMPTY;		/* zap the MDIR entry */
@@ -432,6 +444,9 @@ extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 	long size;
 	FILE *ofp;
 	char *tmp, tmp2[6], *mcohfile;
+
+	if (mdp->m_attr & MVOLUME)
+		return;
 
 	tmp = &(mdp->m_name[8]);
 	if (!oldstyle) {

@@ -2,6 +2,7 @@
 
 #include "dos1.h"
 #include <access.h>
+#include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <sys/devices.h>
@@ -51,10 +52,12 @@
 "       Delete:      dosdel src         or   dosrm src\n"\
 "       Format:      dosformat dest [boot block]\n"\
 "       Label:       doslabel dest \"label\"\n\n"\
-"Options:	a or m	ASCII copies - always convert CRLF to LF\n"\
+"Options:\n"\
+"	a or m	ASCII copies - always convert CRLF to LF\n"\
 "	b or r	Binary copies - never convert CRLF to LF\n"\
 "	k	Keep mtime on copies		(default: current time)\n"\
 "	n	Newest files first in list	(default: alphabetized)\n"\
+"	f	force removal of readonly files\n"\
 "	v	Verbose\n\n"\
 "       See also /etc/default/msdos\n\n"
 /*
@@ -109,6 +112,7 @@ extern	char *		dest;
 extern	short		oldstyle;
 extern	short		aflag;
 extern	short		bflag;
+extern	short		fflag;
 extern	unsigned char	cohfile[NAMEMAX];
 extern	unsigned char	cmd[6 + NAMEMAX];
 extern	char *		device;
