@@ -110,6 +110,8 @@ static TTY *hstty;
 static TTY *hslimtty;
 static TIM hstim;
 static int poll_divisor;	/* used in hsclk() and set_poll_rate() */
+static int iocbaud[MAX_HSNUM];
+static char ioclcr[MAX_HSNUM];
 
 /*
  * Time constant table.
@@ -186,10 +188,10 @@ static hsload()
 		port = HS_PORTS[i].addr;
 		tp = hstty + i;
 
-		outb( port+MCR, 0 );
-		outb( port+IER, 0 );
+		outb(port+MCR, 0);
+		outb(port+IER, 0);
 
-		if ( inb( port+IER ) )
+		if (inb(port+IER))
 			break;
 
 		tp->t_cs_sel  = cs_sel();
@@ -200,10 +202,10 @@ static hsload()
 		tp->t_ddp     = port;
 
 		b = timeconst[ tp->t_sgttyb.sg_ospeed ];
-		outb( port+LCR, LC_DLAB );
-		outb( port+DLL, b );
-		outb( port+DLH, b >> 8);
-		outb( port+LCR, LC_CS8);
+		outb(port+LCR, LC_DLAB);
+		outb(port+DLL, b);
+		outb(port+DLH, b >> 8);
+		outb(port+LCR, LC_CS8);
 
 		hslimtty = tp;
 	}
@@ -218,7 +220,7 @@ static hsunload()
 /*
  * Open Routine.
  */
-hsopen( dev, mode )
+hsopen(dev, mode)
 dev_t dev;
 {
 	register TTY * tp = &hstty[ dev & 15 ];
@@ -228,7 +230,7 @@ dev_t dev;
 	/*
 	 * Verify hardware exists.
 	 */
-	if ( (PORT == 0) || (inb(PORT+IER) & ~IE_TxI) ) {
+	if ((PORT == 0) || (inb(PORT+IER) & ~IE_TxI)) {
 		u.u_error = ENXIO;
 		return;
 	}
@@ -244,32 +246,32 @@ dev_t dev;
 	/*
 	 * Initialize if not already open.
 	 */
-	if ( ++tp->t_open == 1 ) {
-		ttopen( tp );
+	if (++tp->t_open == 1) {
+		ttopen(tp);
 
-		if ( dev & 0x80 ) {
+		if (dev & 0x80) {
 			s = sphi();
 			b = inb(PORT+MSR);
 			tp->t_flags |= T_MODC + T_STOP;
-			if ( b & MS_CTS )
+			if (b & MS_CTS)
 				tp->t_flags &= ~T_STOP;
-			if ( b & MS_DSR )
+			if (b & MS_DSR)
 				tp->t_flags |=  T_CARR;
-			spl( s );
+			spl(s);
 		} else  {
 			tp->t_flags &= ~T_MODC;
 			tp->t_flags |=  T_CARR;
 		}
-		hscycle( tp );
+		hscycle(tp);
 	}
-	ttsetgrp( tp, dev );
+	ttsetgrp(tp, dev);
 	set_poll_rate();
 }
 
 /*
  * Close Routine.
  */
-hsclose( dev )
+hsclose(dev)
 dev_t dev;
 {
 	register TTY * tp = &hstty[ dev & 15 ];
@@ -277,10 +279,10 @@ dev_t dev;
 	/*
 	 * Reset if last close.
 	 */
-	if ( tp->t_open == 1 ) {
+	if (tp->t_open == 1) {
 		int state;
 
-		ttclose( tp );
+		ttclose(tp);
 		/*
 		 * ttclose() only emptied the output queue tp->t_oq;
 		 * now wait 0.1 sec for the silo tp->rawout to empty
@@ -306,43 +308,43 @@ dev_t dev;
 /*
  * Read Routine.
  */
-hsread( dev, iop )
+hsread(dev, iop)
 dev_t dev;
 register IO * iop;
 {
-	ttread( &hstty[ dev & 15 ], iop, 0 );
+	ttread(&hstty[ dev & 15 ], iop);
 }
 
 /*
  * Write Routine.
  */
-hswrite( dev, iop )
+hswrite(dev, iop)
 dev_t dev;
 register IO * iop;
 {
-	ttwrite( &hstty[ dev & 15 ], iop, 0 );
+	ttwrite(&hstty[ dev & 15 ], iop);
 }
 
 /*
  * Ioctl Routine.
  */
-hsioctl( dev, com, vec )
+hsioctl(dev, com, vec)
 dev_t dev;
 int com;
 struct sgttyb * vec;
 {
-	ttioctl( &hstty[ dev & 15 ], com, vec );
+	ttioctl(&hstty[ dev & 15 ], com, vec);
 }
 
 /*
  * Polling Routine.
  */
-hspoll( dev, ev, msec )
+hspoll(dev, ev, msec)
 dev_t dev;
 int ev;
 int msec;
 {
-	return ttpoll( &hstty[ dev & 15 ], ev, msec );
+	return ttpoll(&hstty[ dev & 15 ], ev, msec);
 }
 
 /*
@@ -350,7 +352,7 @@ int msec;
  *
  *	Notes:	Invoked 10 times per second.
  */
-hscycle( tp )
+hscycle(tp)
 register TTY * tp;
 {
 	register int resid;
@@ -359,11 +361,11 @@ register TTY * tp;
 	/*
 	 * Process rawin buf.
 	 */
-	while ( tp->t_rawin.si_ix != tp->t_rawin.si_ox ) {
+	while (tp->t_rawin.si_ix != tp->t_rawin.si_ox) {
 
-		ttin( tp, tp->t_rawin.si_buf[ tp->t_rawin.si_ox ] );
+		ttin(tp, tp->t_rawin.si_buf[ tp->t_rawin.si_ox ]);
 
-		if ( tp->t_rawin.si_ox >= sizeof(tp->t_rawin.si_buf) - 1 )
+		if (tp->t_rawin.si_ox >= sizeof(tp->t_rawin.si_buf) - 1)
 			tp->t_rawin.si_ox = 0;
 		else
 			tp->t_rawin.si_ox++;
@@ -379,11 +381,11 @@ register TTY * tp;
 	/*
 	 * Fill raw output buffer.
 	 */
-	while ( (--resid >= 0) && ((c = ttout(tp)) >= 0) ) {
+	while ((--resid >= 0) && ((c = ttout(tp)) >= 0)) {
 
 		tp->t_rawout.si_buf[ tp->t_rawout.si_ix ] = c;
 
-		if ( tp->t_rawout.si_ix >= sizeof(tp->t_rawout.si_buf) - 1 )
+		if (tp->t_rawout.si_ix >= sizeof(tp->t_rawout.si_buf) - 1)
 			tp->t_rawout.si_ix = 0;
 		else
 			tp->t_rawout.si_ix++;
@@ -392,13 +394,13 @@ register TTY * tp;
 	/*
 	 * (Re)start output, waking processes waiting to output, etc.
 	 */
-	ttstart( tp );
+	ttstart(tp);
 
 	/*
 	 * Schedule next cycle.
 	 */
-	if ( tp->t_open != 0 )
-		timeout( &tp->t_rawtim, HZ/10, hscycle, tp );
+	if (tp->t_open != 0)
+		timeout(&tp->t_rawtim, HZ/10, hscycle, tp);
 }
 
 /*
@@ -410,51 +412,51 @@ hsintr()
 	register int b;
 
 	do {
-		if ( tp->t_open == 0 )
+		if (tp->t_open == 0)
 			continue;
 
 		/*
 		 * Check modem status if modem control is enabled.
 		 */
-		if ( tp->t_flags & T_MODC ) {
+		if (tp->t_flags & T_MODC) {
 
-			b = inb( PORT+MSR );
+			b = inb(PORT+MSR);
 
-			if ( b & (MS_DCTS|MS_DDSR) ) {
+			if (b & (MS_DCTS|MS_DDSR)) {
 
-				if ( b & MS_DCTS ) {
-					if ( b & MS_CTS )
+				if (b & MS_DCTS) {
+					if (b & MS_CTS)
 						tp->t_flags &= ~T_STOP;
 					else
 						tp->t_flags |=  T_STOP;
 				}
-				if ( b & MS_DDSR ) {
-					if ( b & MS_DSR )
+				if (b & MS_DDSR) {
+					if (b & MS_DSR)
 						tp->t_flags |=  T_CARR;
 					else {
 						tp->t_flags &= ~T_CARR;
-						tthup( tp );
+						tthup(tp);
 					}
 				}
 			}
 		}
 
-		b = inb( PORT+LSR );
+		b = inb(PORT+LSR);
 
-		if ( (b & LS_BREAK) && (tp->t_flags & T_CARR) )
-			ttsignal( tp, SIGINT );
+		if ((b & LS_BREAK) && (tp->t_flags & T_CARR))
+			ttsignal(tp, SIGINT);
 
 		/*
 		 * Receive ready.
 		 */
-		if ( b & LS_RxRDY ) {
+		if (b & LS_RxRDY) {
 
 			tp->t_rawin.si_buf[tp->t_rawin.si_ix] = inb(PORT+DREG);
 
-			if ( tp->t_flags & T_CARR ) {
+			if (tp->t_flags & T_CARR) {
 
-				if ( ++(tp->t_rawin.si_ix) >=
-						sizeof(tp->t_rawin.si_buf) )
+				if (++(tp->t_rawin.si_ix) >=
+						sizeof(tp->t_rawin.si_buf))
 					tp->t_rawin.si_ix = 0;
 			}
 		}
@@ -462,61 +464,88 @@ hsintr()
 		/*
 		 * Transmit ready and raw output data exists.
 		 */
-		if ( (b & LS_TxRDY) && ((tp->t_flags & T_STOP) == 0)
-		  && (tp->t_rawout.si_ix != tp->t_rawout.si_ox) ) {
+		if ((b & LS_TxRDY) && ((tp->t_flags & T_STOP) == 0)
+		  && (tp->t_rawout.si_ix != tp->t_rawout.si_ox)) {
 
 			outb(	PORT+DREG,
-				tp->t_rawout.si_buf[ tp->t_rawout.si_ox ] );
+				tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
 
-			if ( ++(tp->t_rawout.si_ox) >=
-					sizeof(tp->t_rawout.si_buf) )
+			if (++(tp->t_rawout.si_ox) >=
+					sizeof(tp->t_rawout.si_buf))
 				tp->t_rawout.si_ox = 0;
 		}
 
-	} while ( ++tp <= hslimtty );
+	} while (++tp <= hslimtty);
 }
 
 /*
  * Set hardware parameters.
  */
-hsparam( tp )
+hsparam(tp)
 register TTY * tp;
 {
 	register int b;
 	int s;
+	int hnum;
+	int newbaud;
+	char newlcr;
+	int write_baud = 1, write_lcr = 1;
+
+	newbaud = timeconst[tp->t_sgttyb.sg_ospeed];
+
+	switch (tp->t_sgttyb.sg_flags & (EVENP|ODDP|RAW)) {
+	case ODDP:
+		newlcr = LC_CS7|LC_PARENB;
+		break;
+	case EVENP:
+		newlcr = LC_CS7|LC_PARENB|LC_PAREVEN;
+		break;
+	default:
+		newlcr = LC_CS8;
+		break;
+	}
+	
+	hnum = tp - hstty;
+	if (hnum >= 0 && hnum < HSNUM) {
+		if (newbaud == iocbaud[hnum]) {
+			write_baud = 0;
+			if (newlcr == ioclcr[hnum]) {
+				write_lcr = 0;
+			}
+		}
+		iocbaud[hnum] = newbaud;
+		ioclcr[hnum] = newlcr;
+	}
 
 	s = sphi();
 	/*
 	 * Assert required modem control lines (DTR, RTS).
 	 */
-	b = 0;
-	if ( tp->t_sgttyb.sg_ospeed != B0 )
-		b |=  MC_DTR | MC_RTS;
-	outb( PORT+MCR, b );
+	if (tp->t_sgttyb.sg_ospeed == B0) {
+		outb(PORT+MCR, 0);
+	} else {
+		outb(PORT+MCR, MC_DTR | MC_RTS);
+	}
 
 	/*
 	 * Program baud rate.
 	 */
-	if (b = timeconst[ tp->t_sgttyb.sg_ospeed ]) {
-		outb( PORT+LCR, LC_DLAB );
-		outb( PORT+DLL, b );
-		outb( PORT+DLH, b >> 8 );
+	if (write_baud) {
+		outb(PORT+LCR, LC_DLAB);
+		outb(PORT+DLL, newbaud);
+		outb(PORT+DLH, newbaud >> 8);
 	}
 
 	/*
 	 * Program character size, parity.
 	 */
-	switch ( tp->t_sgttyb.sg_flags & (EVENP|ODDP|RAW) ) {
-	case ODDP:		b = LC_CS7|LC_PARENB;		 break;
-	case EVENP:		b = LC_CS7|LC_PARENB|LC_PAREVEN; break;
-	default:		b = LC_CS8;			 break;
-	}
-	outb( PORT+LCR, b );
+	if (write_lcr)
+		outb(PORT+LCR, newlcr);
 
 	/*
 	 * Enable Transmit Buffer Empty Interrupts.
 	 */
-	outb( PORT+IER, IE_TxI );
+	outb(PORT+IER, IE_TxI);
 
 	spl(s);
 	set_poll_rate();
@@ -525,7 +554,7 @@ register TTY * tp;
 /*
  * Start Routine.
  */
-hsstart( tp )
+hsstart(tp)
 register TTY * tp;
 {
 	register int s;
@@ -534,18 +563,18 @@ register TTY * tp;
 	 * Transmit buffer is empty, and raw output buffer is not.
 	 */
 	s = sphi();
-	if ( (inb( PORT+LSR ) & LS_TxRDY)
-	  && (tp->t_rawout.si_ix != tp->t_rawout.si_ox) ) {
+	if ((inb(PORT+LSR) & LS_TxRDY)
+	  && (tp->t_rawout.si_ix != tp->t_rawout.si_ox)) {
 
 		/*
 		 * Send next char from raw output buffer.
 		 */
-		outb( PORT+DREG, tp->t_rawout.si_buf[ tp->t_rawout.si_ox ] );
+		outb(PORT+DREG, tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
 
-		if ( ++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf) )
+		if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
 			tp->t_rawout.si_ox = 0;
 	}
-	spl( s );
+	spl(s);
 }
 
 /*
