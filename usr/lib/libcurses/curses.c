@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)curses.c	5.5 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)curses.c	5.5 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -25,14 +25,14 @@ static char sccsid[] = "@(#)curses.c	5.5 (Berkeley) 6/30/88";
  * Define global variables
  *
  */
-# include	"curses.h"
+#include	"curses.h"
 
 bool	_echoit		= TRUE,	/* set if stty indicates ECHO		*/
 	_rawmode	= FALSE,/* set if stty indicates RAW mode	*/
 	My_term		= FALSE,/* set if user specifies terminal type	*/
 	_endwin		= FALSE;/* set if endwin has been called	*/
 
-char	ttytype[50],		/* long name of tty			*/
+uchar	ttytype[50],		/* long name of tty			*/
 	*Def_term	= "unknown";	/* default terminal type	*/
 
 int	_tty_ch		= 1,	/* file channel which is a tty		*/
@@ -55,7 +55,7 @@ SGTTY	_tty;			/* tty modes				*/
 
 bool		AM, BS, CA, DA, DB, EO, HC, HZ, IN, MI, MS, NC, NS, OS, UL,
 		XB, XN, XT, XS, XX;
-char		*AL,
+uchar		*AL,
 		*BC, *BT,
 		*CD, *CE, *CL, *CM, *CR, *CS,
 		*DC, *DL, *DM, *DO,
@@ -72,7 +72,7 @@ char		*AL,
 		*UC, *UE, *UP, *US,
 		*AL_PARM, *DL_PARM, *UP_PARM, *DOWN_PARM,
 		*LEFT_PARM, *RIGHT_PARM;
-char		PC;
+uchar		PC;
 
 /*
  * Capabilities added by INETCO to termcap.
@@ -81,7 +81,7 @@ char		PC;
  */
 int		magic_cookie_glitch;
 
-char		*bell,
+uchar		*bell,
 		*cursor_invisible, *cursor_normal, *cursor_visible,
 		*enter_am_mode, *enter_bold_mode, *enter_blink_mode,
 		*enter_delete_mode, *enter_dim_mode, *enter_protected_mode,
