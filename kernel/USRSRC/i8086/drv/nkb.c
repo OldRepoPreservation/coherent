@@ -4,15 +4,15 @@
  */
 #include <coherent.h>
 #include <i8086.h>
-#include <con.h>
+#include <sys/con.h>
 #include <errno.h>
-#include <stat.h>
-#include <tty.h>
-#include <uproc.h>
+#include <sys/stat.h>
+#include <sys/tty.h>
+#include <sys/uproc.h>
 #include <signal.h>
 #include <sys/timeout.h>
 #include <sys/seg.h>
-#include <sched.h>
+#include <sys/sched.h>
 #include <sys/kb.h>
 
 #define	ISMAJ		2		/* Keyboard major device */

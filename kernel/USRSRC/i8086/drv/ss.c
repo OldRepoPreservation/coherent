@@ -8,42 +8,12 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
- * Revision 2.12  91/05/31  13:18:39  hal
- * Force parity on as Conner drives act dead without it.
- * Slow down data in phase in local_info_xfer() for 486 + Conner.
+ * Revision 3.1  91/06/17  07:43:25  hal
+ * Add TMC-840 code.
  * 
- * Revision 2.11  91/05/30  15:43:17  hal
- * Add SS_DELAY and slow down delays for 486.
+ * Revision 1.1  91/06/17  07:42:27  hal
+ * Add TMC-840 code.
  * 
- * Revision 2.10  91/05/29  11:14:24  hal
- * Send MSG_NOP's for slow machines.  More debug output.
- * 
- * Revision 2.9  91/05/22  01:38:55  hal
- * Overlapping disconnects give bad reads.
- * 
- * Revision 2.8  91/05/21  23:13:15  hal
- * Round robin scheduler.  HDSETA.  Bump MAX_AVL_COUNT.
- * 
- * Revision 2.7  91/05/21  19:10:43  hal
- * Balance host_claimed - needs debugging.
- * 
- * Revision 2.6  91/05/21  13:53:22  root
- * Patch NSDRIVE for Future Domain.  Call per/id queue fns.
- * 
- * Revision 2.5  91/05/20  18:02:52  root
- * Remove test code.
- * 
- * Revision 2.4	91/05/20  17:22:06	root
- * Not using ss_put() any more.
- * 
- * Revision 2.3	91/05/20  16:20:33	root
- * Call to ss_putc() now works.
- * 
- * Revision 2.2	91/05/20  10:23:58	root
- * Modify ss_get/ss_put calls for Future Domain & drop 3rd arg.
- * 
- * Revision 2.1	91/05/17  14:26:12	root
- * Debug level up to 4 tracking write problem.
  * 
  */
 
@@ -135,7 +105,6 @@ static int s_id;
 #define RS_MESSAGE  	0x02
 #define RS_BUSY  	0x01
 
-
 #define DEV_SCSI_ID(dev)	((dev >> 4) & 0x0007)
 #define DEV_LUN(dev)		((dev >> 2) & 0x0003)
 #define DEV_DRIVE(dev)		((dev >> 2) & 0x001F)
@@ -146,11 +115,12 @@ static int s_id;
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
 #define RESET_TICKS	50	/* # of clock ticks for reset settling */
+#define LOAD_DELAY	10000	/* Loop counter during ssload() only */
 
 #define BUS_FREE	((ffbyte(ss_csr) & (RS_BUSY | RS_SELECT)) == 0)
 #define TGT_RSEL	\
 	(  (ffbyte(ss_csr) & (RS_SELECT |  RS_I_O   )) \
-	&& (ffbyte(ss_dat) & (SS_HOST   | (1<<s_id) )) )
+	&& (ffbyte(ss_dat) & (host_id   | (1<<s_id) )) )
 
 #define DELAY_ARB	10	/* delays units are 10 msec (clock ticks) */
 #define DELAY_BDR	30
@@ -162,6 +132,8 @@ static int s_id;
 #define MAX_BDR_COUNT	3
 #define MAX_BSY_COUNT	3
 #define MAX_TRY_COUNT	10
+#define INL_MAX_REQ_POLL	100000L
+#define WKG_MAX_REQ_POLL	5000L
 
 typedef unsigned char	uchar;
 typedef unsigned int	uint;
@@ -274,6 +246,7 @@ static int	ssinit();
 static void	ssintr();
 static int	start_arb();
 static void	stop_timeout();
+static uchar	xpmod();
 
 /*
  * Global Data.
@@ -299,24 +272,18 @@ CON	sscon	= {
 
 	/* Patch these Export Variables to configure the driver. */
 /*
- * Two test drives in use:
- *
- * ST1126N, SCSI 0  LUN 0  (Unit 0)
- * ST1201N, SCSI 1  LUN 0  (Unit 1)
+ * In the low byte of NSDRIVE, bit n is 1 if SCSI ID n is an installed target.
+ * The high byte indicates which type of host adapter:
+ *   00 - ST01/ST02
+ *   80 - TMC-845/850/860/875/885
+ *   40 - TMC-840/841/880/881
  */
-int	NSDRIVE = 0x0000;	/* Bitmap of attached SCSI drives. */
-				/* Set NSDRIVE highest bit for Future Domain */
-int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
-int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
-int	SS_DELAY = 10000;	/* Loop counter during ssload() only */
-int	SS_HOST = 0x80;		/* Host is SCSI ID #7 for Seagate, 6 for FD */
+uint	NSDRIVE = 0x0000;
+uint	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
+uint	SS_BASE = 0xCA00;	/* Segment addr of ST0x communication area */
 
 /* ncyl, nhead, nspt */
-drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
-#if 0
-	{ 987, 20, 17},		/* Unit 0 */
-	{ 1004, 4, 52},		/* Unit 1 */
-#endif
+drv_parm_type drv_parm[MAX_SCSI_ID] = {
 	{ 0, 0, 0},
 	{ 0, 0, 0},
 	{ 0, 0, 0},
@@ -338,8 +305,13 @@ static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static int	do_sst_op;	/* 1 when state machine iteration continues */
 static int	ss_expired;	/* 1 after local timeout */
 
+static uint	max_req_poll;	/* this changes after initialization */
+
+static uchar	host_id;	/* Host is SCSI ID #7 for Seagate, 6 for FD */
+static uchar	swap_status_bits;
+
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
-static ss_type  *ss[MAX_SCSI_ID-1];
+static ss_type  *ss[MAX_SCSI_ID];
 
 /*
  * host_claimed is -1 if host is available, else it's the SCSI id of the
@@ -378,14 +350,6 @@ static void ssload()
 
 	ss_ram = ss_fp + SS_RAM;
 
-	if (NSDRIVE & 0x8000) { /* Future Domain */
-		ss_csr = ss_fp + FD_CSR;
-		ss_dat = ss_fp + FD_DAT;
-	} else { /* Seagate */
-		ss_csr = ss_fp + SS_CSR;
-		ss_dat = ss_fp + SS_DAT;
-	}
-
 	/*
 	 * Primitive test of ST0x RAM.
 	 */
@@ -397,9 +361,32 @@ static void ssload()
 	||  ffword(ss_ram + 2) != 0x3CC3
 	||  ffword(ss_ram + SS_RAM_LEN - 4) != 0xA55A
 	||  ffword(ss_ram + SS_RAM_LEN - 2) != 0x3CC3) {
-		printf("Error - ST0x failed memory test\n");
+		printf("Error - host failed memory test\n");
 		erf = 1;
 	}
+
+	/*
+	 * Set host-dependent constants.
+	 */
+	switch(NSDRIVE >> 8) {
+	case 0x00:	/* ST01/ST02 */
+		ss_csr = ss_fp + SS_CSR;
+		ss_dat = ss_fp + SS_DAT;
+		host_id = 0x80;		/* host is id #7 */
+		break;
+	case 0x80:	/* TMC-845/850/860/875/885 */
+		ss_csr = ss_fp + FD_CSR;
+		ss_dat = ss_fp + FD_DAT;
+		host_id = 0x40;		/* host is id #6 */
+		break;
+	case 0x40:	/* TMC-840/841/880/881 */
+		ss_csr = ss_fp + SS_CSR;
+		ss_dat = ss_fp + SS_DAT;
+		host_id = 0x40;		/* host is id #6 */
+		swap_status_bits = 1;
+		break;
+	}
+	NSDRIVE &= ~(uint)host_id;
 
 	/*
 	 * Allocate drive structs.
@@ -410,7 +397,7 @@ static void ssload()
 	 * First allocate and clear storage.  Then hook up the pointers.
 	 */
 	if (!erf) {
-		for (i = 0; i < MAX_SCSI_ID -1; i++)
+		for (i = 0; i < MAX_SCSI_ID; i++)
 			if ((NSDRIVE >> i) & 1) {
 				max_id = i;
 				num_drives++;
@@ -428,7 +415,7 @@ static void ssload()
 	if (!erf) {
 		ss_type *foo = ss_tbl;
 
-		for (i = 0; i < MAX_SCSI_ID -1; i++)
+		for (i = 0; i < MAX_SCSI_ID; i++)
 			if ((NSDRIVE >> i) & 1)
 				ss[i] = foo++;
 	}
@@ -443,11 +430,13 @@ static void ssload()
 	 */
 	host_claimed = -1;
 	bufq_init(max_id + 1);
+	max_req_poll = INL_MAX_REQ_POLL;
 	if (!erf) {
-		for (i = 0; i < MAX_SCSI_ID -1; i++)
+		for (i = 0; i < MAX_SCSI_ID; i++)
 			if ((NSDRIVE >> i) & 1)
 				ssinit(i);
 	}
+	max_req_poll = WKG_MAX_REQ_POLL;
 }
 
 /*
@@ -486,15 +475,14 @@ static void ssopen(dev, mode)
 register dev_t	dev;
 {
 	int drive, partn;
-	int valid_open;
 	struct	fdisk_s	*fdp;
 	ss_type * ssp;
 	int s_id;
+	uchar * msg;
 
 	/*
 	 * Set up local variables.
 	 */
-	valid_open = 1;
 	drive = DEV_SCSI_ID(dev);
 	partn = DEV_PARTN(dev);
 	s_id = DEV_SCSI_ID(dev);
@@ -510,32 +498,33 @@ devmsg(dev, "ssopen");
 	 * SCSI id must have corresponding 1 in NSDRIVE bitmapped variable.
 	 */
 	if (DEV_LUN(dev) != 0 || ((1 << drive) & NSDRIVE) == 0) {
-PR1("bad LUN or SCSI id");
+		msg = "bad LUN or SCSI id";
 		u.u_error = ENXIO;
-		valid_open = 0;
+		goto bad_open;
 	}
 
 	/*
 	 * If "special" bit is set, partition field must be zero.
 	 */
-	if (valid_open && DEV_SPECIAL(dev) && partn != 0) {
-PR1("bad special partition");
+	if (DEV_SPECIAL(dev) && partn != 0) {
+		msg = "bad special partition";
 		u.u_error = ENXIO;
-		valid_open = 0;
+		goto bad_open;
 	}
 
 	/*
 	 * Subscripting gimmick for partition table.
 	 */
-	if (valid_open && dev & SDEV)
+	if (dev & SDEV)
 		partn = WHOLE_DRIVE;
+
 	/*
 	 * If not accessing whole drive and the partition table has not
 	 * been read yet, try to read it now.
 	 * Do this by calling fdisk() with partition table device on the drive
 	 * that is being accessed.
 	 */
-	if (valid_open && partn != WHOLE_DRIVE && !(ssp->ptab_read)) {
+	if (partn != WHOLE_DRIVE && !(ssp->ptab_read)) {
 		int fdisk_dev;
 
 		fdisk_dev = (dev | SDEV) & 0xfff0;
@@ -554,7 +543,7 @@ PR1("bad special partition");
 		} else {
 			printf("fdisk() failed\n");
 			u.u_error = ENXIO;
-			valid_open = 0;
+			goto bad_open;
 		}
 #else
 		if (fdisk(fdisk_dev, fdp)) {
@@ -562,9 +551,9 @@ PR1("bad special partition");
 			fdp[WHOLE_DRIVE].p_base = 0;
 			ssp->ptab_read = 1;
 		} else {
-PR1("bad partition table");
+			msg = "bad partition table";
 			u.u_error = ENXIO;
-			valid_open = 0;
+			goto bad_open;
 		}
 #endif
 
@@ -573,27 +562,31 @@ PR1("bad partition table");
 	/*
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
-	if (valid_open && partn != WHOLE_DRIVE
+	if (partn != WHOLE_DRIVE
 	&& (fdp[partn].p_base+fdp[partn].p_size) > fdp[WHOLE_DRIVE].p_size) {
-PR1("partition overrun");
+		msg = "partition exceeds drive capacity";
 		u.u_error = EBADFMT;
-		valid_open = 0;
+		goto bad_open;
 	}
 
-	if (valid_open && partn != WHOLE_DRIVE && fdp[partn].p_size == 0) {
-PR1("partition not found");
+	if (partn != WHOLE_DRIVE && fdp[partn].p_size == 0) {
+		msg = "partition not found";
 		u.u_error = ENODEV;
-		valid_open = 0;
+		goto bad_open;
 	}
 
 	/*
 	 * OK to open the device.
 	 * Start watchdog timer (if not already started) for the host adapter.
 	 */
-	if (valid_open) {
-		++drvl[SCSI_MAJOR].d_time;
-		++ssp->dr_watch;
-	}
+	++drvl[SCSI_MAJOR].d_time;
+	++ssp->dr_watch;
+	goto end_open;
+
+bad_open:
+	devmsg(dev, msg);
+end_open:
+	return;
 }
 
 /*
@@ -758,12 +751,12 @@ if (bp->b_count != BSIZE)
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
 				msg = "invalid request";
 				bp->b_flag |= BFERR;
-				goto bad_open;
+				goto bad_blk;
 			}
 		} else {
 			msg = "no partition table";
 			bp->b_flag |= BFERR;
-			goto bad_open;
+			goto bad_blk;
 		}
 	}
 
@@ -772,7 +765,7 @@ if (bp->b_count != BSIZE)
 	 * (Need to return with b_resid = BSIZE to signal end of volume.)
 	 */
 	else if ((bp->b_req == BREAD) && (bp->b_bno == fdp[partition].p_size)) {
-		goto bad_open;
+		goto bad_blk;
 	}
 
 	/*
@@ -782,7 +775,7 @@ if (bp->b_count != BSIZE)
 	> fdp[partition].p_size ) {
 		msg = "partition overrun";
 		bp->b_flag |= BFERR;
-		goto bad_open;
+		goto bad_blk;
 	}
 
 	/*
@@ -791,7 +784,7 @@ if (bp->b_count != BSIZE)
 	if ((bp->b_count % BSIZE) || bp->b_count == 0) {
 		msg = "invalid byte count";
 		bp->b_flag |= BFERR;
-		goto bad_open;
+		goto bad_blk;
 	}
 
 	/*
@@ -800,18 +793,18 @@ if (bp->b_count != BSIZE)
 	 */
 	bufq_wr_tail(s_id, bp);
 	ss_mach(s_id);
-	goto end_open;
+	goto end_blk;
 
 	/*
 	 * Operation cannot be done.  Release the kernel buffer structure.
 	 * Value of "bp->b_flag" tells caller if error occurred.
 	 */
-bad_open:
+bad_blk:
 	if (msg)
 		devmsg(dev, msg);
 	bdone(bp);
 
-end_open:
+end_blk:
 	return;
 }
 
@@ -865,7 +858,7 @@ PR1("DUM");
 	s = sphi();
 	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-		switch (phase_type) {
+		switch (xpmod(phase_type)) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
@@ -910,7 +903,7 @@ static void sswatch()
 	int s_id;
 	ss_type * ssp;
 
-	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++) {
+	for (s_id = 0; s_id < MAX_SCSI_ID; s_id++) {
 		ssp = ss[s_id];
 		if (ssp && ssp->dr_watch)
 			defer(ss_mach, s_id);
@@ -1084,7 +1077,7 @@ int block_done=0;
 			s = sphi();
 			irpts_masked = 1;
 		}
-		switch (phase_type) {
+		switch (xpmod(phase_type)) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
@@ -1259,12 +1252,13 @@ printf("putb=%d ", putbval);
 static int req_wait(to_ptr)
 int *to_ptr;
 {
-	int req_found, i;
+	int req_found;
 	unsigned char status;
+	ulong poll_ct;
 
 	*to_ptr = 1;
 	req_found = 0;
-	for (i = 0; i < HIPRI_RETRIES; i++) {
+	for (poll_ct = 0L; poll_ct < max_req_poll; poll_ct++) {
 		status = ffbyte(ss_csr);
 		if (status & RS_REQUEST) {
 			req_found = 1;
@@ -1481,7 +1475,7 @@ PR1("BDR");
 		 * Start arbitration.
 		 */
 		sfbyte(ss_csr, WC_ENABLE_PRTY);
-		sfbyte(ss_dat, SS_HOST);
+		sfbyte(ss_dat, host_id);
 		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);
 
 		/*
@@ -1497,7 +1491,7 @@ PR1("BDR");
 	 * Arbitration complete.  Now select, with ATN to allow messages.
 	 */
 	if (bdr_ok) {
-		sfbyte(ss_dat, SS_HOST | (1 << s_id));	/* Write both SCSI id's */
+		sfbyte(ss_dat, host_id | (1 << s_id));	/* Write both SCSI id's */
 		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
 		if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
@@ -1540,8 +1534,8 @@ static int chk_reconn()
 	csr = ffbyte(ss_csr);
 	if (csr & (RS_SELECT | RS_I_O)) {
 		dat = ffbyte(ss_dat);
-		if ((dat & SS_HOST) && (dat & NSDRIVE)) {
-			dat &= ~SS_HOST;
+		if ((dat & host_id) && (dat & NSDRIVE)) {
+			dat &= ~host_id;
 			s_id = 0;
 			while (dat >>=1)
 				s_id++;
@@ -1771,22 +1765,31 @@ PR3("XRFF");
  */
 static int start_arb()
 {
-	int ret;
+	int ret = 0;
+	int poll_ct;
 
 	sfbyte(ss_csr, WC_ENABLE_PRTY);
-	sfbyte(ss_dat, SS_HOST);
+	sfbyte(ss_dat, host_id);
 	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);
 
 	/*
 	 * SCSI spec says there is "no maximum" to the wait for arbitration
 	 * complete.
 	 */
-	if (bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL))
-		ret = 1;
-	else {
-		ret = 0;
-PR1("oSA");
+	for (poll_ct = 0; poll_ct < HIPRI_RETRIES; poll_ct++) {
+		if (ffbyte(ss_csr) & RS_ARBIT_COMPL) {
+			ret = 1;
+			break;
+		} else if (chk_reconn() != -1) {
+			sfbyte(ss_csr, WC_ENABLE_PRTY);
+			break;
+		}
 	}
+#if (DEBUG >= 1)
+if (!ret)
+	PR1("oSA");
+#endif
+	return ret;
 }
 
 /*
@@ -1806,7 +1809,7 @@ int disconnect;
 	/*
 	 * Arbitration complete.  Now select, with ATN to allow messages.
 	 */
-	sfbyte(ss_dat, SS_HOST | (1 << s_id));	/* Write both SCSI id's */
+	sfbyte(ss_dat, host_id | (1 << s_id));	/* Write both SCSI id's */
 	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
 	if (bus_wait(RS_BUSY << 8 | RS_BUSY)) {
@@ -2063,7 +2066,7 @@ int s_id;
 
 	while (1) {
 		next_id++;
-		if (next_id >= MAX_SCSI_ID - 1)
+		if (next_id >= MAX_SCSI_ID)
 			next_id = 0;
 		if (ss[next_id]
 		&& (ss[next_id]->state != SST_DEQUEUE || bufq_rd_head(next_id))) {
@@ -2145,7 +2148,7 @@ uchar xch[100];
 if (xct < 100)
 	xch[xct++]=phase_type;
 #endif
-		switch (phase_type) {
+		switch (xpmod(phase_type)) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
@@ -2262,11 +2265,10 @@ printf("scsireset ");
 /*
  * ssdelay()
  *
- * Delay for some number of clock ticks.
- * 286/386 kernel ticks are at 100Hz
+ * Delay for some number of arbitrary ticks.
  *
- * WARNING:  Since this routine uses sleep(), it is callable ONLY from
- * ssload()/ssunload()/ssopen()/ssclose().
+ * Using sleep() causes a panic if this driver is linked to the kernel,
+ * even though this routine is called only via ssload().
  */
 static void ssdelay(ticks)
 int ticks;
@@ -2278,7 +2280,7 @@ int ticks;
 	int i, j;
 
 	for (i = 0; i < ticks; i++)
-		for (j = 0; j < SS_DELAY; j++);
+		for (j = 0; j < LOAD_DELAY; j++);
 #endif
 }
 
@@ -2324,3 +2326,24 @@ init_call_done:
 spl(s);
 	return ret;
 }
+
+/*
+ * xpmod()
+ *
+ * Command/Data and Message bits are swapped on-board (outside the chip)
+ * on older Future Domain host boards.
+ */
+static uchar xpmod(oldphase)
+uchar oldphase;
+{
+	uchar ret = oldphase;
+
+	if (swap_status_bits) {
+		ret &= ~(RS_CTRL_DATA | RS_MESSAGE);
+		if (oldphase & RS_MESSAGE)
+			ret |= RS_CTRL_DATA;
+		if (oldphase & RS_CTRL_DATA)
+			ret |= RS_MESSAGE;
+	}
+	return ret;
+} 
