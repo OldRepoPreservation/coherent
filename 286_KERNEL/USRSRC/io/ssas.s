@@ -3,6 +3,9 @@
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
 / $Log:	/usr/src/sys/i8086/drv/RCS/ssas.s,v $
+/ Revision 1.4	91/05/20  16:21:35	root
+/ Call to ss_putc() now works.
+/ 
 / Revision 1.3	91/05/20  10:23:13	root
 / Drop 3rd arg.  Same code for Seagate & Future Domain.
 / 
@@ -27,8 +30,7 @@
 /
 ////////
 	.globl	ss_get_
-	.globl	ss_put_
-	.globl	req_waitA_	/ temporary!
+/	.globl	ss_put_
 
 ////////
 /
@@ -56,6 +58,8 @@
 / faddr_t ss_dat_fp, buf_fp;
 /
 / Fetch input bytes from host adapter and store at buffer address.
+/ (Also used conversely - this routine should be called "ff_bcopy()"
+/ for "far-to-far block copy".)
 /
 / Here is the stack after initial "push bp":
 /
@@ -89,6 +93,8 @@ ss_get_:
 	pop	bp
 	ret
 
+/ THE FOLLOWING ROUTINE APPEARS TO BE UNNECESSARY, SO IS COMMENTED OUT.
+
 ////////
 /
 / int ss_put(ss_dat_fp, buf_fp)
@@ -109,92 +115,37 @@ ss_get_:
 /
 ////////
 
-ss_put_:
-	push	bp
-	mov	bp, sp
-	push	es
-	push	di
-	push	ds
-	push	si 
-	lds	si, 8(bp)	/ buf_fp to DS:SI
-	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
-	mov	bx, di		/ .. and to ES:BX
-	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
-	mov	cx, $BSIZE	/ count to CX
-
-P01:				/ start outer loop - writing bytes to SCSI
-	mov	ax, $REQ_LIM	/ max # of times to look for REQ
-P02:				/ start inner loop - polling for REQ
-	movb	dl, es:(bx)
-	testb	dl, $RS_REQUEST
-	jne	P03
-	dec	ax
-	jnz	P02
-	jmp	P04
-
-P03:				/ got REQ - ok to write a byte
-	movsb
-	loop	P01
-P04:				/ all done - now restore registers
-	mov	ax, cx
-	pop	si
-	pop	ds
-	pop	di
-	pop	es
-	pop	bp
-	ret
-
-////////
+/ss_put_:
+/	push	bp
+/	mov	bp, sp
+/	push	es
+/	push	di
+/	push	ds
+/	push	si 
+/	lds	si, 8(bp)	/ buf_fp to DS:SI
+/	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
+/	mov	bx, di		/ .. and to ES:BX
+/	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
+/	mov	cx, $BSIZE	/ count to CX
 /
-/ int req_waitA(ss_dat_fp, buf_fp)
-/ faddr_t ss_dat_fp, buf_fp;
+/P01:				/ start outer loop - writing bytes to SCSI
+/	mov	ax, $REQ_LIM	/ max # of times to look for REQ
+/P02:				/ start inner loop - polling for REQ
+/	movb	dl, es:(bx)
+/	testb	dl, $RS_REQUEST
+/	jne	P03
+/	dec	ax
+/	jnz	P02
+/	jmp	P04
 /
-/ Return when REQ is true or timeout.
-/
-/ Return 1 if REQ received, 0 if timeout.
-/
-/ Here is the stack after initial "push bp":
-/
-/	10(bp)	FP_SEL(buf_fp)
-/	8(bp)	FP_OFF(buf_fp)
-/	6(bp)	FP_SEL(ss_dat_fp)
-/	4(bp)	FP_OFF(ss_dat_fp)
-/	2(bp)	return IP
-/	0(bp)	old bp
-/
-////////
-
-req_waitA_:
-	push	bp
-	mov	bp, sp
-	push	es
-	push	di
-	push	ds
-	push	si 
-	lds	si, 8(bp)	/ buf_fp to DS:SI
-	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
-	mov	bx, di		/ .. and to ES:BX
-	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
-	mov	cx, $BSIZE	/ count to CX
-
-Q01:				/ start outer loop - writing bytes to SCSI
-	mov	ax, $REQ_LIM	/ max # of times to look for REQ
-Q02:				/ start inner loop - polling for REQ
-	movb	dl, es:(bx)
-	testb	dl, $RS_REQUEST
-	jne	Q03
-	dec	ax
-	jnz	Q02
-	xor	ax, ax		/ timeout - return 0
-	jmp	Q04
-
-Q03:				/ got REQ
-	mov	ax, $1		/ return 1
-Q04:				/ all done - now restore registers
-	movb	dh, $0xEE
-	pop	si
-	pop	ds
-	pop	di
-	pop	es
-	pop	bp
-	ret
+/P03:				/ got REQ - ok to write a byte
+/	movsb
+/	loop	P01
+/P04:				/ all done - now restore registers
+/	mov	ax, cx
+/	pop	si
+/	pop	ds
+/	pop	di
+/	pop	es
+/	pop	bp
+/	ret

@@ -1,3 +1,4 @@
+static int rwhi;
 #define FUT_DOM 0
 /*
  * Device driver for Seagate ST01/ST02 scsi host adapters.
@@ -15,6 +16,9 @@
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 2.3	91/05/20  16:20:33	root
+ * Call to ss_putc() now works.
+ * 
  * Revision 2.2	91/05/20  10:23:58	root
  * Modify ss_get/ss_put calls for Future Domain & drop 3rd arg.
  * 
@@ -308,35 +312,6 @@ static int	ss_expired;	/* 1 after local timeout */
 
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
 static ss_type  *ss[MAX_SCSI_ID-1];
-
-/*
- *
- * ss_putC()
- *
- * return # of bytes remaining to be sent from current block
- * - should be 0
- *
- * temporary C code
- */
-int ss_putC(ss_dat_fp, buf_fp)
-faddr_t ss_dat_fp, buf_fp;
-{
-	uchar dat;
-	int i, junk;
-#if 0
-	faddr_t req_waitA();
-	printf("ss_stat=%x ", ffbyte(ss_csr));
-	printf("ss_datA=%lx ", req_waitA(ss_dat_fp, buf_fp));
-#endif
-	for (i = 0; i < BSIZE; i++) {
-/*		if (!req_wait(&junk)) */
-		if (!req_waitA(ss_dat_fp, buf_fp))
-			break;
-		dat = ffbyte(buf_fp + i);
-		sfbyte(ss_dat_fp, dat);
-	}
-	return BSIZE - i;
-}
 
 /*
  * ssload()	- load routine.
@@ -937,15 +912,29 @@ int s_id;
 	int xfer_count = bp->b_count - bp->b_resid;
 	int irpts_masked;
 int block_done=0;
-int i=0;
+uchar lphase=0xff;
 
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
-	s = sphi();
-	irpts_masked = 1;
 
+#if (DEBUG >= 2)
+	rwhi=0;
+#endif
+
+	irpts_masked = 0;
 	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+#if (DEBUG >= 2)
+if (rwhi) {
+	rwhi=0;
+	printf("lp=%x cp=%x\n", (int)lphase, (int)phase_type);
+}
+lphase=phase_type;
+#endif
+		if (!irpts_masked) {
+			s = sphi();
+			irpts_masked = 1;
+		}
 		switch (phase_type) {
 		case XP_MSG_IN:
 PR4("MI");
@@ -1008,8 +997,10 @@ PR4("SI ");
 				if (bytes_to_send == 1) {
 PR4("CO ");
 					if (bp->b_req == BREAD) {
-						spl(s);
-						s = sphi();
+						if (irpts_masked) {
+							spl(s);
+							irpts_masked = 0;
+						}
 					}
 				}
 			} else {	/* This case should not happen. */
@@ -1036,12 +1027,13 @@ block_done=1;
 			 */
 			if (bp->b_req == BWRITE) {
 #if 1
-				int res;
+				int res=0;
 PR4("DO ");
 if (block_done)
 	printf("Data out overrun ");
 block_done=1;
-				res=ss_put(ss_dat, bp->b_faddr + xfer_count);
+/*				res=ss_put(ss_dat, bp->b_faddr + xfer_count);*/
+				ss_get(bp->b_faddr + xfer_count, ss_dat);
 				if (irpts_masked) {
 					spl(s);
 					irpts_masked = 0;
@@ -1134,8 +1126,10 @@ int *to_ptr;
 #endif
 
 #if (DEBUG >= 2)
-if (i>100)
+if (i>100) {
 	printf("rw=%d ", i);
+	rwhi=i;
+}
 #endif
 
 	return req_found;
@@ -1408,17 +1402,17 @@ PR3("PBI ");
 					host_claimed = s_id;
 					ssp->waiting = 0;
 					init_pointers(s_id);
-					s=sphi();
+/*					s=sphi();*/
 					if (start_arb()) {
 						if (host_ident(s_id, 1)) {
 							do_connect(s_id);
-							spl(s);
+/*							spl(s);*/
 						} else {
-							spl(s);
+/*							spl(s);*/
 							recover(s_id, RV_P_TIMEOUT);
 						}
 					} else {
-						spl(s);
+/*						spl(s);*/
 						ssp->state = SST_POLL_ARBITN;
 						set_timeout(s_id, DELAY_ARB);
 					}
@@ -1435,12 +1429,12 @@ PR3("PBI ");
 PR3("PR ");
 			if (TGT_RSEL) {
 				ssp->waiting = 0;
-				s=sphi();
+/*				s=sphi();*/
 				if (rsel_handshake()) {
 					do_connect(s_id);
-					spl(s);
+/*					spl(s);*/
 				} else {
-					spl(s);
+/*					spl(s);*/
 					recover(s_id, RV_P_TIMEOUT);
 				}
 			} else  { /* Reselect poll is negative */
