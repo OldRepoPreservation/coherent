@@ -176,3 +176,82 @@ long l;
 		l >>= 3;
 	return ((exp<<13) | l);
 }
+
+/*
+ * Given a port number and a bit value, write the bit value into
+ * the tss iomap.
+ *
+ * Bit value of 0 enables user I/O for that port.
+ * Bit value of 1 disables user I/O for that port.
+ *
+ * Return 1 if port number is valid for the bitmap, else 0.
+ */
+int
+kiopriv(port, bit)
+unsigned int port, bit;
+{
+	extern int tssIoMap;
+	extern int tssIoEnd;
+	int ret = 0;
+	int * ip;
+	unsigned int offset = port >> 5;
+	int shift = port & 0x1f;
+	int mask = 1 << shift;
+	int val = (bit & 1) << shift;
+
+	if (offset >= 0 && offset < (&tssIoEnd - &tssIoMap)) {
+		ip = (& tssIoMap) + offset;
+		*ip &= ~mask;		/* clear old bit value */
+		*ip |= val;		/* or in desired new bit value */
+		ret = 1;
+	}
+	return ret;
+}
+
+/*
+ * Given a 32 bit mask and a word offset into the tss io map,
+ * bitwise or the mask into the map.
+ * Offset of 0 covers ports 0..31, offset of 1 covers ports 32..63, etc.
+ * Current valid range for offset is 0..63, covering ports 0..7ff.
+ *
+ * Return the new map word.
+ */
+int
+iomapOr(val, offset)
+int val, offset;
+{
+	extern int tssIoMap;
+	extern int tssIoEnd;
+	int ret;
+	int * ip;
+
+	if (offset >= 0 && offset < (&tssIoEnd - &tssIoMap)) {
+		ip = (& tssIoMap) + offset;
+		ret = *ip |= val;
+	}
+	return ret;
+}
+
+/*
+ * Given a 32 bit mask and a word offset into the tss io map,
+ * bitwise and the mask into the map.
+ * Offset of 0 covers ports 0..31, offset of 1 covers ports 32..63, etc.
+ * Current valid range for offset is 0..63, covering ports 0..7ff.
+ *
+ * Return the new map word.
+ */
+int
+iomapAnd(val, offset)
+int val, offset;
+{
+	extern int tssIoMap;
+	extern int tssIoEnd;
+	int ret;
+	int * ip;
+
+	if (offset >= 0 && offset < (&tssIoEnd - &tssIoMap)) {
+		ip = (& tssIoMap) + offset;
+		ret = *ip &= val;
+	}
+	return ret;
+}
