@@ -15,6 +15,7 @@
 
 MBLOCK	*__a_scanp = NULL;		/* start search here */
 MBLOCK	*__a_first = NULL;		/* first arena */
+MBLOCK	*__a_top = NULL;		/* top of arena */
 unsigned __a_count = 0;			/* number of blocks */
 
 /*
@@ -29,7 +30,6 @@ newarena(size) unsigned size;
 {
 	register MBLOCK *mp, *pmp, *linkmp;
 	register unsigned len;
-	static MBLOCK *__a_top = NULL;
 	static char failed = 0;
 
 	if (failed)			/* no more room */
