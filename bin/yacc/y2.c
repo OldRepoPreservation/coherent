@@ -6,7 +6,7 @@
  *       - copy anything complicated to the output
  */
 #include "yacc.h"
-#include "action.h"
+#include <action.h>
 
 struct sym *defsym(), *elook();
 YYSTYPE yylval;
@@ -452,7 +452,7 @@ wrtnames()
 	register char *sp;
 
 	fprintf(tabout, "#ifdef YYTNAMES\n");
-	fprintf(tabout, "readonly struct yytname yytnames[%d] =\n{\n", nterm+1);
+	fprintf(tabout, "struct yytname yytnames[%d] =\n{\n", nterm+1);
 	for(i=0; i<nterm; i++) {
 		fprintf(tabout, "\t\"");
 		sp = trmptr[i]->s_name;

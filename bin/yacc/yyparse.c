@@ -1,17 +1,27 @@
-#define YYNOCHAR (-1000)
-#define	yyerrok	yyerrflag=0
-#define	yyclearin	yylval=YYNOCHAR
-int yystack[YYMAXDEPTH];
-YYSTYPE yyvstack[YYMAXDEPTH], *yyv;
-int yychar;
+/* (-lgl
+ * 	COHERENT Version 3.2.2
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+/*
+ * /lib/yyparse.c
+ */
 
-#ifdef YYDEBUG
-int yydebug = 1;	/* No sir, not in the BSS */
+#define	YYNOCHAR	(-1000)
+#define	yyerrok		yyerrflag=0
+#define	yyclearin	yylval=YYNOCHAR
+
+int	yychar;
+short	yyerrflag;
+int	*yys;
+int	yystack[YYMAXDEPTH];
+YYSTYPE	yyvstack[YYMAXDEPTH];
+YYSTYPE	*yyv;
+
+#ifdef	YYDEBUG
+int	yydebug = 1;	/* No sir, not in the BSS */
 #include <stdio.h>
 #endif
-
-short yyerrflag;
-int *yys;
 
 yyparse()
 {
@@ -19,6 +29,7 @@ yyparse()
 	int act;
 	register unsigned *ip, yystate;
 	int pno;
+
 	yystate = 0;
 	yychar = YYNOCHAR;
 	yyv = &yyvstack[-1];
@@ -139,6 +150,4 @@ $A
 	}
 }
 
-
-
-
+/* end of /lib/yyparse.c */
