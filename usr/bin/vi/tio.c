@@ -360,6 +360,7 @@ void beep()
 /* This function replaces a "rawin" character sequence with the "cooked" version,
  * by modifying the internal type-ahead buffer.
  */
+
 void execmap(rawlen, cookedstr, visual)
 	int	rawlen;		/* length of rawin text -- string to delete */
 	char	*cookedstr;	/* the cooked text -- string to insert */
@@ -724,9 +725,12 @@ int getabkey(when, word, wlen)
 			} while (matches > 1 && fillkeybuf(when, *o_keytime) > 0);
 			if (matches == 1)
 			{
-				execmap(match->len, match->cooked,
-					(match->flags & WHEN_INMV) != 0 
-					 && (when & (WHEN_VIINP|WHEN_VIREP)) != 0);
+				if (match) {
+					execmap(match->len, match->cooked,
+					  (match->flags & WHEN_INMV) != 0 
+					  && (when & (WHEN_VIINP|WHEN_VIREP)) != 0);
+				} else
+					matches = 0;
 			}
 		} while (*o_remap && matches == 1);
 	}
