@@ -636,6 +636,16 @@ int msec;
 				goto remember;
 			}
 
+#if 1
+			/*
+			 * Ignore file descriptors that are too large.
+			 */
+			if (fd >= NOFILE) {
+				rev = 0;
+				goto remember;
+			}
+#else
+/* For now, msg polling is deleted. */
 			/*
 			 * Poll message queue.
 			 */
@@ -643,6 +653,7 @@ int msec;
 				rev = msgpoll(fd, getusd(&pollp->events), msec);
 				goto remember;
 			}
+#endif
 
 			/*
 			 * Validate file descriptor.
@@ -677,7 +688,7 @@ remember:
 			/*
 			 * Record number of non-zero responses.
 			 */
-			if (rev != 0) {
+			if (rev) {
 				msec = 0;
 				nev++;
 			}
