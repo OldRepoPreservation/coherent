@@ -11,23 +11,31 @@ if [ $LOBJ ]
 then
 DRIVERS="rm fl lp mm"
 COH_TYPE=fl
+BOOTDEV="fha0"
 HD=""
 KB=nkb
 for ARG
 do
 	case $ARG in
-	at|aha|ss)
+	at)
+		BOOTDEV="at0a"
 		HD=$ARG
-		if [ $HD = "aha" ]
-		then
-			HD=aha154x
-		fi
+		COH_TYPE=$ARG
+		;;
+	aha)
+		BOOTDEV="sd0a"
+		HD=aha154x
+		COH_TYPE=$ARG
+		;;
+	ss)
+		BOOTDEV="sd0a"
+		HD=$ARG
 		COH_TYPE=$ARG
 		;;
 	kb|nkb|kb_d|kb_f)
 		KB=$ARG
 		;;
-	*)	echo "Usage: $0 { at | ss | aha } { kb | nkb | kb_d | kb_f }"
+	*)	echo "Usage: $0 { at | ss | aha | fl } { kb | nkb | kb_d | kb_f }"
 		exit 0
 		;;
 	esac
@@ -36,9 +44,6 @@ DRIVERS="$KB $HD $DRIVERS"
 echo "Kernel:    /coh.$COH_TYPE"
 echo "Version:   `version ID`"
 echo "Devices:   $DRIVERS"
-
-: default root/pipe device
-BOOTDEV="fva0"
 echo "Default root/pipe device is $BOOTDEV."
 
 ( cd $USRSRC/ldrv; make ld_support )			|| exit 1
