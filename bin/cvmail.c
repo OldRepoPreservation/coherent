@@ -24,6 +24,7 @@ char msgline [MAXLEN];
 int counter = 1;
 typedef short int bool;
 bool justsep;
+char systemcmd [76];
 
 	if(argc == 1){
 		printf("mailbox to convert? ");
@@ -112,10 +113,14 @@ bool justsep;
 	}
 
 	/* copy new mailbox to old */
+
 	if( 0 != link(TEMPFILE, fullname)){
-		printf("Could not copy new format to old mailbox. The ");
-		printf("new mailbox is at %s\n",TEMPFILE);
-		exit(1);
+		sprintf(systemcmd,"/bin/cp %s %s",TEMPFILE, fullname);
+		if ( system(systemcmd) == -1){
+				printf("Could not copy converted mailbox to destination. The ");
+				printf("new mailbox is at %s\n",TEMPFILE);
+				exit(1);
+		}
 	}
 
 	/* delete temporary mailbox */
