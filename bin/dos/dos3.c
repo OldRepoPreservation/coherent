@@ -129,10 +129,9 @@ register char *sp;
 	short c2;
 	register short c1;
 	
-/*
- 	if (*sp == '.')
+ 	if ((*sp == '.') && ((sp[1] == '.') || (sp[1] == '\0')))
  		return 0;
-*/
+
 	if ((strcspn(pp, " ") == 0) && (strcspn(sp, " ") == 0))
 		return 1;
 	while ((c1=*pp++)) {

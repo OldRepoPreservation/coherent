@@ -129,7 +129,7 @@ readmdir(dp) register DIR *dp;
 void
 replace(nargs, args) short nargs; char *args[];
 {
-	register char **ap, *tmp;
+	register char **ap;
 	struct stat s;
 
 	if ((clbuf = malloc(clsize * ssize)) == NULL)
@@ -273,17 +273,41 @@ replacefile(file) char *file;
 char * makef(name, cr) char * name; short cr;
 {
 	static char tname[80];
-	register char  *t = tname;
+	register char  *t = tname, *h;
+	struct stat s;
+	int done = 0;
+	register MDIR *mdp;
 
 	if (base1) {
 		strcpy(t, base1);
 		t += strlen(base1);
-		*t++ = '/';
 	}
-	strcpy(t, fequiv(name));
+
+ 	if (cr) {
+		if ((stat(base1, &s) == -1) || !(s.st_mode & S_IFDIR)) {
+			done = 1;
+			if (strcspn(base, "*?") != strlen(base))
+				fatal("Cannot copy multiple sources to a file\n");
+		}
+	}
+	else {
+ 		if (((mdp = find(base1, root, NULL)) == NULL) || !isdir(mdp)){
+			done = 1;
+			if (numargs > 1)
+				fatal("Cannot copy multiple sources to a file\n");
+		}
+	}
+
+	if (!done) {
+		if ((h = fequiv(name)) != NULL) {
+			*t++ = '/';
+			strcpy(t, h);
+		}
+	}
+
 	if (cr)
 		maketree(tname);
-/* printf("base = <%s>, base1 = <%s>, tname = <%s>\n", base, base1, tname); */
+dbprintf(("base = <%s>, base1 = <%s>, tname = <%s>\n", base, base1, tname));
 	return tname;
 }
 

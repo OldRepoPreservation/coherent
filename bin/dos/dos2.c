@@ -194,8 +194,8 @@ deletedir(mdp, dp, name) MDIR *mdp; DIR *dp; char *name;
 	/* Make sure subdirectory is empty. */
 	for (mdp2 = dp->d_dir; mdp2 < dp->d_edp; mdp2++)
 		if ((c = mdp2->m_name[0])!=MFREE && c!=MEMPTY && c!=MMDIR) {
-			nonfatal("delete: subdirectory \"%s\" not empty", name);
-			return;
+		       nonfatal("delete: subdirectory \"%s\" not empty",name);
+		       return;
 		}
 
 	/* Delete the subdirectory entry and free its MDIR. */
