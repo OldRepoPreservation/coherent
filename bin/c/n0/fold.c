@@ -149,12 +149,21 @@ fold0(op, lp, rp) int op; TREE *lp, *rp;
 	case NOT:	bool = !lv;		break;
 	case EQ:	bool = lv == rv;	break;
 	case NE:	bool = lv != rv;	break;
-	case LT:	bool = lv <  rv;	break;
-	case LE:	bool = lv <= rv;	break;
-	case GT:	bool = lv >  rv;	break;
-	case GE:	bool = lv >= rv;	break;
 	case ANDAND:	bool = (lv && rv);	break;
 	case OROR:	bool = (lv || rv);	break;
+	/* Nonequality relations are different for signed and unsigned cases. */
+	case LT:
+		bool = (uflag) ? ((ulval_t)lv <  (ulval_t)rv) : (lv <  rv);
+		break;
+	case LE:
+		bool = (uflag) ? ((ulval_t)lv <= (ulval_t)rv) : (lv <= rv);
+		break;
+	case GT:
+		bool = (uflag) ? ((ulval_t)lv >  (ulval_t)rv) : (lv >  rv);
+		break;
+	case GE:
+		bool = (uflag) ? ((ulval_t)lv >= (ulval_t)rv) : (lv >= rv);
+		break;
 
 	default:		/* shouldn't happen if opdope is right */
 		return NULL;
