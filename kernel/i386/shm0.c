@@ -1,9 +1,9 @@
 /*
- * File:	shm0.c
+ * i386/shm0.c
  *
- * Purpose:	Shared memory - memory management interface
+ * Shared memory - memory management interface
  *
- * $Log$
+ * Revised: Thu May 27 08:09:19 1993 CDT
  */
 
 /*
@@ -21,9 +21,6 @@
  *	Typedefs.
  *	Enums.
  */
-#define DISP_VAR(v)	{ strchirp("  "#v"="); print32(v); }
-#define DV(v)		T_PIGGY(0x400, DISP_VAR(v))
-
 #define SHMMAX	0x100000	/* one meg limit on shm seg size */
 
 /*
@@ -210,15 +207,27 @@ PROC *pp;
 	srp = pp->p_shmsr + shm_ix;
 	segp = srp->sr_segp;
 
+	if (segp) {
+		segp->s_urefc--;
+		segp->s_lrefc--;
+
+		/* We have to set detach time and decrement attachment
+		 * count.
+		 */
+		shmSetDs(segp);	/* shm1.c */
+
+		/* If it was last attachment and segment was marked to be
+		 * removed, remove it.
+		 */
+		if ((segp->s_flags & SRFBERM)
+		  && segp->s_urefc == 1 && segp->s_lrefc == 1)
+			shmFree(segp);
+	}
 	srp->sr_base = 0;
 	srp->sr_flag = 0;
 	srp->sr_size = 0;
 	srp->sr_segp = 0;
 
-	if (segp) {
-		segp->s_urefc--;
-		segp->s_lrefc--;
-	}
 	if (pp == SELF)
 		shmLoad();
 }

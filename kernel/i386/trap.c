@@ -782,8 +782,10 @@ char *eip;
 			} else {
 				printf("&uesp=>");
 				SDUMP(&uesp);
+#if 0
 				printf("*(&uesp + 2)=>");
 				SDUMP(*((&uesp) + 2));
+#endif
 				printf("cr2=%x", cr2);
 				RDUMP();
 				panic("Kernel Page Fault");

@@ -115,7 +115,10 @@ OPTS =\
 	$(K386OBJ)/vtkb.o \
 	$(K386OBJ)/vtkb_d.o \
 	$(K386OBJ)/vtkb_f.o \
-	$(K386OBJ)/vtnkb.o 
+	$(K386OBJ)/vtnkb.o \
+	$(K386OBJ)/xlft.o \
+	$(K386OBJ)/xla.o \
+	$(K386OBJ)/xl_dec.o 
 
 # LIBLIST is the .a files needed for 386 installation.
 # k386.a is an aggregate used since 92/11/11 for driver kit kernel links.
@@ -196,7 +199,8 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/albaud.o \
 	$(K386OBJ)/asy.o \
 	$(K386OBJ)/at.o \
-	$(K386OBJ)/fl.o \
+	$(K386OBJ)/fdc.o \
+	$(K386OBJ)/fl386.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/lp.o \
 	$(K386OBJ)/msg.o \
@@ -209,6 +213,9 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/shm1.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
+	$(K386OBJ)/xlft.o \
+	$(K386OBJ)/xla.o \
+	$(K386OBJ)/xl_dec.o \
 	$(K386OBJ)/memcpy.o \
 	$(K386OBJ)/memset.o
 	rm -f $@
@@ -222,9 +229,6 @@ coh:
 
 io:
 	cd ../io.386; make "CFLAGS=$(CFLAGS)" "CC=$(CC)"
-
-ver:
-	newversion < version
 
 libs:	$(LIBLIST)
 	@/bin/echo "Installation libraries up to date."
@@ -307,7 +311,7 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
-		$(USRINC)/acct.h	\
+		$(SYSINC)/acct.h	\
 		$(SYSINC)/buf.h		\
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
@@ -323,7 +327,7 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/reg.h		\
 		$(SYSINC)/systab.h	\
 		$(SYSINC)/oldstat.h	\
-		$(SYSINC)/oldtimeb.h	\
+		$(SYSINC)/timeb.h	\
 		$(SYSINC)/fd.h		\
 		$(USRINC)/sgtty.h
 	$(CC) $(CFLAGS) -c -o $@ sys1632.c

@@ -1,12 +1,9 @@
 /*
- * File:	msig.c
+ * i386/msig.c
  *
- * Purpose:	signal handler start and return
+ * signal handler start and return
  *
- * $Log:	msig.c,v $
- * Revision 1.1  93/01/13  15:47:36  root
- * Initial revision
- * 
+ * Revised: Tue May 11 14:24:00 1993 CDT
  */
 
 /*
@@ -85,9 +82,16 @@ msigstart(signum, func)
 	int sigArea;	/* number of bytes written to user's stack */
 	struct _fpstate * fpsp;
 
-	--signum;	/* convert to zero-based signal number */
-	if (SELF->p_dsig & (1<<signum))
-		SELF->p_hsig |= 1 << signum;
+	/*
+	 * If signal handler was attached with sigset(), temporarily
+	 * hold further instances of the same signal.
+	 * Otherwise, signal handler was attached with signal(), so
+	 * unless at a breakpoint, we detach it and restore SIG_DFL handling.
+	 */
+	if (sigSet(signum))
+		sigHold(signum);
+	else if (signum != SIGTRAP)
+		sigDefault(signum);
 
 	/*
 	 * Will copy at least u_sigreturn, _fpstackframe, and ndpFlags.
@@ -139,18 +143,11 @@ msigstart(signum, func)
 	putuwd(uesp + (SS+4) * sizeof(long), 0);
 
 	kucopy(u.u_regl, uesp + 2*sizeof(long), (SS+1) * sizeof(long));
-	putuwd(uesp+sizeof(long), signum+1);
+	putuwd(uesp+sizeof(long), signum);
 	putuwd(uesp, u.u_sigreturn);
 	u.u_regl[EFL] &= ~MFTTB;
 	u.u_regl[EIP] = func;
 	u.u_regl[UESP] = uesp;
-
-	/* Unhook the signal handler. */
-	if (signum+1 != SIGTRAP) {
-		u.u_sfunc[signum] = SIG_DFL;
-		SELF->p_dfsig |= (1 << signum);
-	}
-
 
 	/*
 	 * We are about to enter a signal handling function for the process.
@@ -214,7 +211,7 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 	 * might get a signal hit between the first and second instructions.
 	 * This will clobber the value being fetched to signo.
 	 */
-	signo = getuwd(uesp-sizeof(long)) - 1; 
+	signo = getuwd(uesp-sizeof(long)); 
 
 	savedNdpFlags = getuwd(uesp + (SS+3) * sizeof(long));
 
@@ -254,11 +251,9 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 
 	/*
 	 * If the signal has been sigset simulate a sigrelse(signal).
+	 *
+	 * As per S5, if the user's signal handler tries to do a sighold,
+	 * it will be ignored.
 	 */
-	if (pp->p_hsig & 1<<signo) {
-		pp->p_hsig &= ~(1 << signo);
-		if (nondsig()) {
-			actvsig();
-		}
-	}
+	sigRelease(signo);
 }

@@ -60,7 +60,8 @@ static int defqix, defqox, defcnt;
 #if DEFDBG
 static int deftag[DEFLIM];
 
-void defer0(f,a,t)
+void
+defer0(f,a,t)
 void (*f)();
 int a;
 int t;

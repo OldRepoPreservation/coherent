@@ -149,8 +149,9 @@ gdt:
 	MEM_SEG	0,0xF,0x3,DPL_3,0x8
 
 	/ segment 0038 - SEG_TSS
-	/ limit is 0x68 + (number of bytes in iomap) -1
-	TSS_SEG	0xFFC00000,0x16B,0
+	/ limit is 0x68 + (number of bytes in iomap)
+	/ This allows the required filler byte beyond desired addressing.
+	TSS_SEG	0xFFC00000,TSS_IOMAP_OFF+[TSS_IOMAP_LEN .div 8]+3,0
 
 	/ segment 0040 - SEG_ROM
 	MEM_SEG	0xFFFC0000,0xF,0x3,DPL_0,0x8

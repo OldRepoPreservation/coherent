@@ -42,26 +42,34 @@ caddr_t ip;
 }
 
 /*
- * Set an interrupt vector.
- * Make an entry in the "vecs" table, for
- * use by the assist. Make sure that the channel
- * on the 8259 is armed.
- * Note that interrupt vectors 2 and 9 are mapped into channel 9.
+ * Given an irq level (1..15) and an irq function pointer, try to hook the
+ * function into the desired interrupt.  Do not allow resetting of the
+ * clock interrupt, irq 0.
+ *
+ * On success, return 1.
+ * If the level number is invalid or the interrupt is already in use,
+ * do nothing but return 0.
+ *
+ * Make an entry in the "vecs" table, for use by the assist.
+ * Make sure that the channel on the 8259 is armed.
+ * Interrupt vectors 2 and 9 are mapped into channel 9.
  */
+int
 setivec(level, fun)
-register int	level;
+unsigned int	level;
 int		(*fun)();
 {
 	register int	picm;
 	extern	 int	(*vecs[])();
 	extern	 int	vret();
 
-	if ((level &= 0x0F) == 2)
+	if (level >= NUM_IRQ_LEVELS)
+		return 0;
+	if (level == 2)
 		level = 9;
-	if (level==0 || vecs[level]!=&vret) {
-		u.u_error = EBUSY;
-		return;
-	}
+	if (level==0 || vecs[level]!=&vret)
+		return 0;
+
 	vecs[level] = fun;
 
 	/*
@@ -69,33 +77,34 @@ int		(*fun)();
 	 * takes pains to correctly manipulate the slave PIC chain mask bit in
 	 * the master PIC. This is redundant, and unnecessarily complex, so I
 	 * have removed it to aid the process of adding a more rational system
-	 * of interrupt handling for the DDI/DDK.
+	 * of interrupt handling for the DDI/DKI.
 	 *
 	 * Now the slave PIC chain mask bit is enabled (via a modification to
 	 * code in "i386/as.s") at startup, and it should never be disabled.
 	 *
 	 * The rational interrupt scheme requires that the implementations of
-	 * the DDI/DDK functions know the base-level mask value so that they
+	 * the DDI/DKI functions know the base-level mask value so that they
 	 * can correctly (and quickly) manipulate masks to raise and lower
 	 * priority levels even when deeply nested inside interrupts (see the
 	 * implementations of those functions for a deeper discussion of the
 	 * issues involved). This function cooperates with the new system via
 	 * the DDI_BASE_..._MASK () macro, which either manipulates the mask
 	 * register as the old code did or passes responsibility over to the
-	 * new DDI/DDK scheme if it has been enabled.
+	 * new DDI/DKI scheme if it has been enabled.
 	 *
 	 * The new macro-calls are defined in <sys/reg.h>
 	 */
 
-	if ( level >= 8 ) {
+	if ( level >= LOWEST_SLAVE_IRQ ) {
 		picm = inb(SPICM);
-		picm &= ~(0x01 << (level-8));
+		picm &= ~(0x01 << (level-LOWEST_SLAVE_IRQ));
 		DDI_BASE_SLAVE_MASK (picm);
 	} else {
 		picm = inb(PICM);
 		picm &= ~(0x01 << level);
 		DDI_BASE_MASTER_MASK (picm);
 	}
+	return 1;
 }
 
 /*
@@ -111,7 +120,7 @@ register int	level;
 	if ((level &= 0x0F) == 2)
 		level = 9;
 	if (level == 0)
-		panic("clrivec: level=%d", level);
+		printf("clrivec: level=%d", level);
 	vecs[level] = &vret;
 
 	/*
@@ -119,9 +128,9 @@ register int	level;
 	 * setivec () routine above. See the comment there for details.
 	 */
 
-	if (level >= 8) {
+	if (level >= LOWEST_SLAVE_IRQ) {
 		picm = inb(SPICM);
-		picm |= (0x01 << (level-8));
+		picm |= (0x01 << (level-LOWEST_SLAVE_IRQ));
 		DDI_BASE_SLAVE_MASK (picm);
 	} else {
 		picm = inb(PICM);
