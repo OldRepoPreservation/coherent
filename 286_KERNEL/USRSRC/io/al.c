@@ -1,18 +1,7 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Device Driver Kit version 1.2.0
+ * 	Copyright (c) 1982, 1991 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
- *
- * $Log:	al.c,v $
- * Revision 1.4  91/07/31  16:06:33  hal
- * Change include usage.  Use AL[01]_MAJOR.
- * 
- * Revision 1.2	91/02/21  11:21:28	hal
- * Used in COH Release 3.1.0 - add COM3/COM4 and polling
- * 
- * Revision 1.1	91/02/21  11:07:36	hal
- * Used in COH Release 3.0.0 - no COM3/COM4
- * 
  -lgl) */
 /*
  * Driver for an IBM PC asyncronous
@@ -32,7 +21,7 @@
 #include <sys/al.h>
 #include <sys/devices.h>
 
-#define	minor_st(dev)	(dev & 0x3f)
+#define	minor_st(dev)	(dev & 0x0f)	/* up to 16 ports per driver */
 #define	DEV_TTY		(alttab[minor_st(dev)])
 #define ALPORT		(((COM_DDP *)(DEV_TTY.t_ddp))->port)
 
@@ -148,7 +137,7 @@ alload()
 	extern int albaud[];
 	int port, i;
 
-	if (init == 0
+	if ( init == 0
 	  && (alttab = (TTY *)kalloc(ALCNT * sizeof(TTY)))
 	  && (ddp = (COM_DDP *)kalloc(ALCNT * sizeof(COM_DDP)))) {
 		kclear(alttab, ALCNT*sizeof(TTY));
@@ -170,18 +159,18 @@ alload()
 			ddp[1].com_num = ALNUMb;
 		}
 
-		for (i = 0;  i < ALCNT; i++) {
+		for ( i = 0;  i < ALCNT; i++ ) {
 			int speed = alttab[i].t_dospeed;
 
 			/* port = base I/O address */
 			port = ((COM_DDP *)(alttab[i].t_ddp))->port;
 			outb(port+IER, 0);	/* disable port interrupts */
-			if (inb(port+IER) == 0) {
+			if ( inb(port+IER) == 0 ) {
 				outb(port+MCR, 0);  /* hangup port */
 				outb(port+LCR, LC_DLAB);
-				outb(port+DLL, albaud[speed]);
-				outb(port+DLH, albaud[speed] >> 8);
-				outb(port+LCR, LC_CS8);
+				outb(port+DLL, albaud[speed] );
+				outb(port+DLH, albaud[speed] >> 8 );
+				outb(port+LCR, LC_CS8 );
 			}
 			alttab[i].t_start = alxstart;
 			alttab[i].t_param = alxparam;
@@ -189,7 +178,7 @@ alload()
 		}
 
 		setivec(ALINT, alintr);     /* set interrupt vector */
-		spl(s);
+		spl( s );
 	}
 }
 
@@ -198,13 +187,13 @@ alunload()
 {
 	int port, i;
 
-	for (i = 0;  i < ALCNT; i++) {
+	for ( i = 0;  i < ALCNT; i++ ) {
 		port = ((COM_DDP *)(alttab[i].t_ddp))->port;
 		outb(port+IER, 0);	/* disable port interrupts */
 		outb(port+MCR, 0);	/* hangup port */
 		timeout(alttab[i].t_rawtim, 0, NULL, 0);/* cancel timer */
 	}
-	clrivec(ALINT);			/* release interrupt vector */
+	clrivec( ALINT );			/* release interrupt vector */
 	kfree(alttab);
 	kfree(ddp);
 }
@@ -216,8 +205,8 @@ int	mode;
 {
 	if (minor_st(dev) < ALCNT) {
 		alload();
-		alxcycle(&DEV_TTY);
-		alxopen(dev, mode, &DEV_TTY, &irqtty);
+		alxcycle( &DEV_TTY );
+		alxopen( dev, mode, &DEV_TTY, &irqtty);
 	} else
 		u.u_error = ENXIO;
 }
@@ -231,7 +220,7 @@ int	mode;
 
 	if (--DEV_TTY.t_open == 0) {	/* Last open */
 		s = sphi();
-		alxclose(dev, mode, &DEV_TTY);
+		alxclose( dev, mode, &DEV_TTY );
 		spl(s);
 	}
 }
@@ -241,7 +230,7 @@ alread(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	ttread(&DEV_TTY, iop);
+	ttread(&DEV_TTY, iop, 0);
 }
 
 static
@@ -254,29 +243,29 @@ register IO	*iop;
 	/*
 	 * Treat user writes through tty driver.
 	 */
-	if (iop->io_seg != IOSYS) {
-		ttwrite(&DEV_TTY, iop);
+	if ( iop->io_seg != IOSYS ) {
+		ttwrite( &DEV_TTY, iop, 0 );
 		return;
 	}
 
 	/*
 	 * Treat kernel writes by blocking on transmit buffer.
 	 */
-	while ((c = iogetc(iop)) >= 0) {
+	while ( (c = iogetc(iop)) >= 0 ) {
 		/*
 		 * Wait until transmit buffer is empty.
 		 * Check twice to prevent critical race with interrupt handler.
 		 */
 		for (;;) {
-			if (inb(ALPORT+LSR) & LS_TxRDY)
-				if (inb(ALPORT+LSR) & LS_TxRDY)
+			if ( inb(ALPORT+LSR) & LS_TxRDY )
+				if ( inb(ALPORT+LSR) & LS_TxRDY )
 					break;
 		}
 
 		/*
 		 * Output the next character.
 		 */
-		outb(ALPORT+DREG, c);
+		outb( ALPORT+DREG, c );
 	}
 }
 
@@ -289,12 +278,12 @@ struct sgttyb *vec;
 }
 
 static
-alpoll(dev, ev, msec)
+alpoll( dev, ev, msec )
 dev_t dev;
 int ev;
 int msec;
 {
-	return ttpoll(&DEV_TTY, ev, msec);
+	return ttpoll( &DEV_TTY, ev, msec );
 }
 
 static
