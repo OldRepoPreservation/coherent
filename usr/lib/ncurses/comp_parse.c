@@ -28,6 +28,9 @@
  *			etc.
  *
  *   $Log:	comp_parse.c,v $
+ * Revision 1.11  93/04/12  14:13:03  bin
+ * Udo: third color update
+ * 
  * Revision 1.5  92/06/02  12:04:31  bin
  * *** empty log message ***
  * 
@@ -60,7 +63,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/comp_parse.c,v 1.5 92/06/02 12:04:31 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_parse.c,v 1.11 93/04/12 14:13:03 bin Exp Locker: bin $";
 #endif
 
 #include <sys/types.h>

@@ -28,6 +28,9 @@
 **	The routine wgetstr().
 **
 ** $Log:	lib_getstr.c,v $
+ * Revision 1.8  93/04/12  14:13:42  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:37:34  bin
  * update by vlad
  * 
@@ -45,7 +48,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_getstr.c,v 1.2 92/04/13 14:37:34 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_getstr.c,v 1.8 93/04/12 14:13:42 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

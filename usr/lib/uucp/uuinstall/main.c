@@ -1,9 +1,5 @@
 
-#include <stdio.h>
-#include <fcntl.h>
-#include <curses.h>
 #include "uuinstall.h"
-
 
 main()
 {
@@ -14,6 +10,7 @@ main()
 
 	umask(0177);
 	init_curses();			/* initialize our curses stuff */
+
 
 	do{
 		dialflag = 0;		/* set our flags to a default condition */
@@ -119,6 +116,17 @@ init_curses()
 	initscr();
 	raw();
 	noecho();
+
+	if(!has_colors()){
+		use_colors = 0;
+
+	}else{
+		use_colors = 1;
+		start_color();
+		init_pair(1,COLOR_BLUE, COLOR_WHITE);
+		wattron(stdscr,COLOR_PAIR(1));
+	}
+
 	clear();
 	refresh();
 }
@@ -145,9 +153,19 @@ open_menu()
 {
 
 	move(3,25);
-	standout();
+
+	if(use_colors){
+		init_pair(1,COLOR_WHITE, COLOR_RED);
+	}else{
+		standout(); 
+	}
+
 	printw("UUCP Configuration: Main menu");
-	standend();
+
+	if(use_colors) 
+		init_pair(1,COLOR_BLUE, COLOR_WHITE); 
+	else
+		standend();
 
 	move(SYSLINE,5);
 	printw("<s>ys file		Configuration information for specific systems");

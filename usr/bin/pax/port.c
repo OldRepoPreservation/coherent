@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/port.c,v $
+/* $Source: /src386/usr/bin/pax/port.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * port.c - These are routines not available in all environments. 
  *
@@ -32,7 +32,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/port.c,v $
+ * $Log:	port.c,v $
+ * Revision 1.1  92/08/28  08:02:56  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:48:39  jep
  * Initial revision
  * 
@@ -42,7 +45,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: port.c,v 1.2 89/02/12 10:05:35 mark Exp $";
+static char *ident = "$Id: port.c,v 1.1 92/08/28 08:02:56 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

@@ -100,6 +100,7 @@ int insert_flag;				/* insert a modified entry? */
 /* if edit, get the EDITOR environment variable. If there is none, use emacs */
 
 	if (insert_flag){
+		fputs("\n",newfd);
 		fclose(newfd);
 
 		/* build system command to edit temp editfile */

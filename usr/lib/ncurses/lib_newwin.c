@@ -28,6 +28,9 @@
 **	The routines newwin(), subwin() and their dependent
 **
 ** $Log:	lib_newwin.c,v $
+ * Revision 1.12  93/04/12  14:13:55  bin
+ * Udo: third color update
+ * 
  * Revision 2.3  92/11/08  15:33:25  munk
  * Correct definition of calloc() and malloc()
  * and usage of cast operator
@@ -52,7 +55,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_newwin.v  Revision 2.3  92/11/08  15:46:35  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_newwin.c,v 1.12 93/04/12 14:13:55 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"

@@ -23,7 +23,10 @@
 **
 **	Set up the alternate character set map for the terminal
 **
-** $Log:	RCS/lib_set_term.v $
+** $Log:	lib_setacs.c,v $
+ * Revision 1.6  93/04/12  14:14:06  bin
+ * Udo: third color update
+ * 
  * Revision 1.0  92/10/26  22:35:55  munk
  * Initial version
  * 
@@ -32,7 +35,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_setacs.v  Revision 1.0  92/10/26  22:35:55  munk  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_setacs.c,v 1.6 93/04/12 14:14:06 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

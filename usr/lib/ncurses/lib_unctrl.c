@@ -26,6 +26,9 @@
  * define unctrl codes for each character
  *
  *  $Log:	lib_unctrl.c,v $
+ * Revision 1.8  93/04/12  14:14:39  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:38:51  bin
  * update by vlad
  * 
@@ -49,7 +52,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_unctrl.c,v 1.2 92/04/13 14:38:51 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_unctrl.c,v 1.8 93/04/12 14:14:39 bin Exp Locker: bin $";
 #endif
 
 /* LINTLIBRARY */

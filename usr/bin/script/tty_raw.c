@@ -3,7 +3,10 @@
  *
  * Purpose:	put a tty device into raw mode, and restore its old mode later
  *
- * $Log$
+ * $Log:	tty_raw.c,v $
+ * Revision 1.2  92/06/15  10:04:59  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

@@ -37,8 +37,8 @@
  */
 
 #include <stdio.h>
-#include <access.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static char *gen_res_name();
 
@@ -97,7 +97,7 @@ int pid;
 	char pidstring[PIDLEN];
 
 	sprintf(lockfn, "%s/%s%.*s", LOCKDIR, LOCKPRE, LOCKSIG, resource);
-	if ( (access(lockfn, AEXISTS) == 0) ||
+	if ( (access(lockfn, F_OK) == 0) ||
 	     ((lockfd=creat(lockfn, 0644)) == -1) ) {
 #ifdef UUCP
 		printmsg(M_DEBUG, "Can't lock: %s", lockfn);
@@ -248,7 +248,7 @@ char	*resource;
 		return(0);
 	sprintf(lockfn, "%s/%s%.*s", LOCKDIR, LOCKPRE, LOCKSIG, resource);
 
-	return (!access(lockfn, AEXISTS));
+	return (!access(lockfn, F_OK));
 } /* lockexist() */
 
 

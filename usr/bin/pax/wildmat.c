@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/wildmat.c,v $
+/* $Source: /src386/usr/bin/pax/wildmat.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * wildmat.c - simple regular expression pattern matching routines 
  *
@@ -35,7 +35,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/wildmat.c,v $
+ * $Log:	wildmat.c,v $
+ * Revision 1.1  92/08/28  08:03:16  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:48:52  jep
  * Initial revision
  * 
@@ -45,7 +48,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: wildmat.c,v 1.2 89/02/12 10:06:20 mark Exp $";
+static char *ident = "$Id: wildmat.c,v 1.1 92/08/28 08:03:16 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

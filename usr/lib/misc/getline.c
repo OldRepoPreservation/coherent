@@ -8,8 +8,8 @@
  * be incremented by the number of lines in the previous call.
  * Thus lineno will be the number of the line just gotten.
  *
- * # to end of line is passed.
- * \ whitespace through end of line is passed.
+ * # to end of line is ignored.
+ * \ whitespace through end of line is ignored.
  * \n newline
  * \p #
  * \b backspace
@@ -101,8 +101,16 @@ int *lineno;
 			case '\\':
 				break;
 
+			case 'p':
+				c = '#';
+				break;
+
 			case 'f':
 				c = '\f';
+				break;
+
+			case 'a':
+				c = '\a';
 				break;
 
 			case 'r':
@@ -115,14 +123,6 @@ int *lineno;
 
 			case 'n':
 				c = '\n';
-				break;
-
-			case 'a':
-				c = '\a';
-				break;
-
-			case 'p':
-				c = '#';
 				break;
 
 			case ' ':
@@ -179,7 +179,7 @@ main()
 	for (;;) {
 		if (NULL == (got = getline(stdin, &line)))
 			exit(0);
-		printf("%d - %s\n", line, got);
+		printf("%d: %s\n", line, got);
 	}
 }
 #endif

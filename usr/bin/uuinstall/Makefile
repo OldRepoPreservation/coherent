@@ -1,60 +1,42 @@
-O =lsys1.o uuin.o uunam.o helpscn.o devices.o permis.o \
-  comment.o choices.o choices1.o choices2.o getline.o escapes.o
-CFLAGS = -I. -A
-L = -lscn  -lcurses -lterm -lmisc
+OBJECTS = main.o port.o globals.o lite.o get_entry.o get_data.o add_port.o \
+	  add_dial.o add_sys.o display_rec.o delete.o
 
-uuinstall : $O uuinstall.o /usr/lib/libscn.a
-	cc -o uuinstall uuinstall.o $O $L
+CFLAGS = -v -c
 
-install : uuinstall
-	strip uuinstall
-	su root cp -d uuinstall /bin
-	su root chmog 500 root root /bin/uuinstall
+LIBS = -lcurses -lmisc
 
-uuinstall.o : uuinstall.c
+uuinstall:	$(OBJECTS)
+	cc -v $(OBJECTS) -o $@ $(LIBS)
 
-comment.c : comment
-	scn $<
+globals.o:	globals.c
+	cc $(CFLAGS) $<
 
-choices.c : choices
-	scn $<
+main.o:	main.c
+	cc $(CFLAGS) $<
 
-choices1.c : choices1
-	scn $<
+port.o:	port.c
+	cc $(CFLAGS) $<
 
-escapes.c : escapes
-	scn $<
+lite.o:	lite.c
+	cc $(CFLAGS) $<
 
-choices2.c : choices2
-	scn $<
+get_entry.o:	get_entry.c
+	cc $(CFLAGS) $<
 
-uunam.c : uunam
-	scn $<
+get_data.o:	get_data.c
+	cc $(CFLAGS) $<
 
-lsys1.c : lsys1
-	scn $<
+add_port.o:	add_port.c
+	cc $(CFLAGS) $<
 
-uuin.c : uuin
-	scn $<
+add_dial.o:	add_dial.c
+	cc $(CFLAGS) $<
 
-helpscn.c : helpscn
-	scn $<
+add_sys.o:	add_sys.c
+	cc $(CFLAGS) $<
 
-devices.c : devices
-	scn $<
+display_rec.o:	display_rec.c
+	cc $(CFLAGS) $<
 
-permis.c : permis
-	scn $<
-
-comment.o : comment.c
-devices.o : devices.c
-permis.o : permis.c
-choices.o : choices.c
-choices1.o : choices1.c
-choices2.o : choices2.c
-escapes.o : escapes.c
-lsys1.o : lsys1.c
-uuin.o : uuin.c
-uunam.o : uunam.c
-helpscn.o : helpscn.c
-getline.o : getline.c
+delete.o:	delete.c
+	cc $(CFLAGS) $<

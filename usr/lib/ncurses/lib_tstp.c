@@ -28,6 +28,9 @@
 **	The routine tstp().
 **
 ** $Log:	lib_tstp.c,v $
+ * Revision 1.8  93/04/12  14:14:38  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:38:48  bin
  * update by vlad
  * 
@@ -42,7 +45,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_tstp.c,v 1.2 92/04/13 14:38:48 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_tstp.c,v 1.8 93/04/12 14:14:38 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"

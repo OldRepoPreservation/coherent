@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_tport_rcsid[] = "$Id: tport.c,v 1.5 1992/07/25 20:44:25 ian Rel $";
+const char _uuconf_tport_rcsid[] = "$Id: tport.c,v 1.1 93/07/30 08:08:02 bin Exp Locker: bin $";
 #endif
 
 #include <errno.h>

@@ -25,9 +25,12 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header:   RCS/curses.v  Revision 2.1  82/10/25  14:46:08  pavel  Exp$
+ *  $Header: /src386/usr/bin/infocmp/RCS/curses.h,v 1.1 92/03/13 10:21:14 bin Exp $
  *
- *  $Log:	RCS/curses.v $
+ *  $Log:	curses.h,v $
+ * Revision 1.1  92/03/13  10:21:14  bin
+ * Initial revision
+ * 
 Revision 2.1  82/10/25  14:46:08  pavel
 Added Copyright Notice
 

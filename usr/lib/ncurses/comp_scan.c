@@ -26,6 +26,9 @@
  *	comp_scan.c --- Lexical scanner for terminfo compiler.
  *
  *   $Log:	comp_scan.c,v $
+ * Revision 1.8  93/04/12  14:13:10  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:36:34  bin
  * update by vlad
  * 
@@ -49,7 +52,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/comp_scan.c,v 1.2 92/04/13 14:36:34 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_scan.c,v 1.8 93/04/12 14:13:10 bin Exp Locker: bin $";
 #endif
 
 #include <stdio.h>

@@ -27,6 +27,9 @@
  *		 human-readable format.
  *
  *  $Log:	dump.c,v $
+ * Revision 1.10  93/04/12  14:13:14  bin
+ * Udo: third color update
+ * 
  * Revision 1.4  92/06/02  12:04:49  bin
  * *** empty log message ***
  * 
@@ -56,7 +59,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/dump.c,v 1.4 92/06/02 12:04:49 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/dump.c,v 1.10 93/04/12 14:13:14 bin Exp Locker: bin $";
 #endif
 
 #include "compiler.h"

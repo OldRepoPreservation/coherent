@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/create.c,v $
+/* $Source: /src386/usr/bin/pax/create.c,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * create.c - Create a tape archive. 
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/create.c,v $
+ * $Log:	create.c,v $
+ * Revision 1.1  92/08/28  08:02:01  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:47:48  jep
  * Initial revision
  * 
@@ -39,7 +42,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: create.c,v 1.3 89/02/12 10:29:37 mark Exp Locker: mark $";
+static char *ident = "$Id: create.c,v 1.1 92/08/28 08:02:01 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

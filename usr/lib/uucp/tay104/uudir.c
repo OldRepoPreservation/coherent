@@ -24,7 +24,7 @@
    */
 
 #if USE_RCS_ID
-const char uudir_rcsid[] = "$Id: uudir.c,v 1.3 1992/08/24 04:58:40 ian Rel $";
+const char uudir_rcsid[] = "$Id: uudir.c,v 1.1 93/07/30 07:59:03 bin Exp Locker: bin $";
 #endif
 
 #include "sysdep.h"

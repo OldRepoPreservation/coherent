@@ -26,9 +26,12 @@
  *	compiler.h - Global variables and structures for the terminfo
  *			compiler.
  *
- *  $Header:   RCS/compiler.v  Revision 2.1  82/10/25  14:46:04  pavel  Exp$
+ *  $Header: /src386/usr/bin/tic/RCS/compiler.h,v 1.1 92/03/13 10:45:54 bin Exp $
  *
- *  $Log:	RCS/compiler.v $
+ *  $Log:	compiler.h,v $
+ * Revision 1.1  92/03/13  10:45:54  bin
+ * Initial revision
+ * 
 Revision 2.1  82/10/25  14:46:04  pavel
 Added Copyright Notice
 

@@ -1,5 +1,5 @@
 OBJECTS = main.o port.o globals.o lite.o get_entry.o get_data.o add_port.o \
-	  add_dial.o add_sys.o display_rec.o delete.o verify_speed.o
+	  add_dial.o add_sys.o display_rec.o delete.o verify_speed.o 
 
 CFLAGS = -c -O
 
@@ -43,3 +43,4 @@ delete.o:	delete.c
 
 verify_speed.o:	verify_speed.c
 	cc $(CFLAGS) $<
+

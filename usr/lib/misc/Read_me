@@ -43,6 +43,18 @@ void fatal(msg, ...) char *msg;
 	any trailing arguments.  This is proceeded by
 	"\nfatal".  fatal() then calls exit(1).
 
+getargs(argc, argv, optstring) int argc; char *argv[]; char *optstring;
+	This is an improved form of getopt. If an option is followed
+	by an ! it has an optional argument.
+		while(EOF != (c = getargs(argc, argv, "xyf:g!")))
+	Is a call of getargs from its test section. The x and y
+	options take no arguments. The f option takes a mandidory
+	argument, -f arg, and -farg, are both legal forms. The g option
+	takes an optional argument which if present must be connected
+	-garg. Additional arguments are returned as if they were preceeded
+	by an option of '\0'. This allows programs such as ld and as to
+	process mixed options and file names.
+
 char * getline(ifp, lineno) FILE *ifp; int *lineno;
 	Get lines from an input file.  Returns the address of the line,
 	or NULL for eof.
@@ -65,12 +77,27 @@ char * getline(ifp, lineno) FILE *ifp; int *lineno;
 	\ddd octal number
 	all other \ sequences are errors and reported on stderr.
 
+int  getpseudotty(char *newtty, char *newpty) char *newtty, *newpty;
+	Claim a pseudo-tty.
+	Takes pointers to buffers for the names of the newly claimed pair
+	and returns a file descriptor on the open pty.
+
+	Returns -1 on any sort of failure.  errno will be set to ENXIO
+	if there were no more ptys.
+
+int select(nfd, *rfds, *wfds, *xfds, *to)
+	int nfd, fd_set *rfds, *wfds, *xfds, struct timeval *to
+	Simulate BSD select() system call with poll().
+
 void splitter(ofp, line, limit) FILE *ofp; char *line; int limit;
 	Output line to ofp, splitting it into chunks less than
 	limit. Inserts \ between chunks and attempts to do this
 	on whitespace boundaries.  splitter produces a long line
 	rather than split on non-whitespace. If line does not end in
 	\n, splitter adds one.
+
+int if_COHERENT();
+	Returns 1 if Coherent else 0.
 
 int is_fs(special) char *special;
 	Checks if a special file is a well-formed file system.
@@ -330,59 +357,3 @@ char *vfind(vid, disp, dirty) unsigned vid, dirty; unsigned long disp;
 	that the block will be written back before it is read over.
 	Blocks are 512 bytes long so int's or long's can be read
 	or written without multiple accesses to vfind.
-
-libmisc holds a number of routines with which you can lock and
-unlock files and devices. It is adapted from the mechanism used by the
-COHERENT implementation of UUCP.
-Lock files are created in $SPOOLDIR. A lock file is given the name
-LCK.resource. The lock file contains a decimal representation of the
-process identifier of the process that created the lock.
-
-It is possible to provide an alternate pid by using one of the "n"
-routines. The unlocking routines regard a pid of zero as an override --
-they remove the lock regardless of which process created the lock.
-
-For a tty device, the resource is a string that consists of a decimal
-representation of its major number, a decimal point, and the lower five
-bits of its minor number. This conversion is done by function
-gen_res_name().
-
-Each routine takes a string that names a resource to be locked or unlocked.
-The tty routines want the base name of the tty to be locked (without the
-``/dev/'' part).
-
-With the exception of gen_res_name(), all lock routines all return zero on
-failure and one on success.
-
-char *gen_res_name(tty) char *tty;
-	Generate a resource name for a tty.
-
-lockit(resource) char *resource;
-	Use a resource string to lock a tty.
-
-lockexist(resource) char *resource;
-	Check whether a lock file exists for the tty with resource.
-
-locknrm(resource, pid) char *resource; int	pid;
-	Remove a lock file for a tty owned by process pid.
-
-lockrm(resource) char *resource;
-	Remove a lock file for tty with resource.
-
-lockntty(tty, pid) char *tty; int pid;
-	Lock a tty for process pid.
-
-locktty(tty) char *tty;
-	Lock a tty.
-
-lockttyexist(tty) char *tty;
-	Check whether a given tty is locked.
-
-unlockntty(tty, pid) char *tty; int pid;
-	Unlock a tty for process pid.
-
-unlocktty(tty) char *tty;
-	Unlock a tty that the current process owns.
-
-unlockit(resource, pid) char *resource; int pid;
-	Unlock something for process pid.

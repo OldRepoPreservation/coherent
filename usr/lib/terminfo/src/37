@@ -1,3 +1,0 @@
-37|tty37|model 37 teletype,
-	hc, os, bel=^G, cr=^M, cud1=^J, cub1=^H, cuu1=\E7, hd=\E9, ind=^J, 
-	hu=\E8, 

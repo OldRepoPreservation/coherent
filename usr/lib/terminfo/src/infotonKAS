@@ -1,3 +1,0 @@
-infotonKAS,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, ed=^K, cud1=^J, 
-	cub1=^Z, cuf1=^Y, ll=^H^\, cuu1=^\, ind=^J, 

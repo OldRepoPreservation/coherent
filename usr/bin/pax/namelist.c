@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/namelist.c,v $
+/* $Source: /src386/usr/bin/pax/namelist.c,v $
  *
- * $Revision: 1.6 $
+ * $Revision: 1.1 $
  *
  * namelist.c - track filenames given as arguments to tar/cpio/pax
  *
@@ -30,7 +30,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/namelist.c,v $
+ * $Log:	namelist.c,v $
+ * Revision 1.1  92/08/28  08:02:19  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:48:02  jep
  * Initial revision
  * 
@@ -40,7 +43,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: namelist.c,v 1.6 89/02/13 09:14:48 mark Exp $";
+static char *ident = "$Id: namelist.c,v 1.1 92/08/28 08:02:19 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

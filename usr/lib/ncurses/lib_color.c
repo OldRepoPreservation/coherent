@@ -23,7 +23,10 @@
 **
 **	The color system of SV.3
 **
-** $Log:	RCS/lib_color.v $
+** $Log:	lib_color.c,v $
+ * Revision 1.3  93/04/12  14:13:28  bin
+ * Udo: third color update
+ * 
  * Revision 1.0  93/02/16  17:47:46  munk
  * Initial version
  * 
@@ -32,7 +35,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_color.v  Revision 1.0  93/02/16  17:47:46  munk  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_color.c,v 1.3 93/04/12 14:13:28 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

@@ -1,4 +1,0 @@
-tek4023|4023|tex|tektronix 4023,
-	am, cols#80, lines#24, vt#4, bel=^G, cr=^M, clear=\E^L$<4>, 
-	cup=^\%p2%' '%+%c%p1%' '%+%c, cud1=^J, cub1=^H, cuf1=^I, smso=^_P, 
-	rmso=^_@, ind=^J, 

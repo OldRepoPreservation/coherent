@@ -325,7 +325,9 @@ extern long lseek();
 # endif
 # if COHERENT
 #  ifndef REDIRECT
-#   define REDIRECT	">"		/* Coherent CC writes errors to stdout */
+#   ifndef _I386
+#    define REDIRECT	">"		/* Coherent CC writes errors to stdout */
+#   endif
 #  endif
 # endif
 #endif

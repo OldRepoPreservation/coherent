@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/extract.c,v $
+/* $Source: /src386/usr/bin/pax/extract.c,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * extract.c - Extract files from a tar archive. 
  *
@@ -26,7 +26,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/extract.c,v $
+ * $Log:	extract.c,v $
+ * Revision 1.1  92/08/28  08:02:02  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:47:51  jep
  * Initial revision
  * 
@@ -36,7 +39,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: extract.c,v 1.3 89/02/12 10:29:43 mark Exp Locker: mark $";
+static char *ident = "$Id: extract.c,v 1.1 92/08/28 08:02:02 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

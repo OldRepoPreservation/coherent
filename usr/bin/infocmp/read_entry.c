@@ -26,6 +26,9 @@
  *	read_entry.c -- Routine for reading in a compiled terminfo file
  *
  *  $Log:	read_entry.c,v $
+ * Revision 1.1  92/03/13  10:21:11  bin
+ * Initial revision
+ * 
  * Revision 3.2  91/07/28  14:12:20  munk
  * Made the large arrays static
  *
@@ -52,7 +55,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header: read_entry.c,v 3.2 91/07/28 14:12:20 munk Exp $";
+	"$Header: /src386/usr/bin/infocmp/RCS/read_entry.c,v 1.1 92/03/13 10:21:11 bin Exp $";
 #endif
 
 #include <sys/types.h>

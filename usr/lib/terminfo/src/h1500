@@ -1,4 +1,0 @@
-h1500|hazeltine 1500,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=~^\, el=~^O, ed=~^X$<10>, 
-	cup=~^Q%p2%c%p1%c, cud1=~^K, cub1=^H, cuf1=^P, cuu1=~^L, 
-	dl1=~^S$<40>, il1=~^Z$<40>, ind=^J, 

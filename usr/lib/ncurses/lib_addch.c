@@ -28,6 +28,9 @@
 **	The routine waddch().
 **
 ** $Log:	lib_addch.c,v $
+ * Revision 1.8  93/04/12  14:13:19  bin
+ * Udo: third color update
+ * 
  * Revision 2.3  92/11/01  15:55:32  munk
  * Second parameter is a chtype now
  *
@@ -48,7 +51,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_addch.c,v 1.2 92/04/13 14:36:58 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_addch.c,v 1.8 93/04/12 14:13:19 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

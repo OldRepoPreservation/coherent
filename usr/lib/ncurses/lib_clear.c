@@ -28,6 +28,9 @@
 **	The routine wclear().
 **
 ** $Log:	lib_clear.c,v $
+ * Revision 1.8  93/04/12  14:13:24  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:37:10  bin
  * update by vlad
  * 
@@ -42,7 +45,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_clear.c,v 1.2 92/04/13 14:37:10 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_clear.c,v 1.8 93/04/12 14:13:24 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

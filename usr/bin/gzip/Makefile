@@ -146,8 +146,8 @@ default:  all
 all:	gzip$X zcmp zdiff zmore znew zforce gzexe
 	cp gzip $(DESTDIR)
 	chmog 511 bin bin $(DESTDIR)gzip
-	ln $(DESTDIR)gzip $(DESTDIR)gunzip
-	ln $(DESTDIR)gzip $(DESTDIR)unpack
+	ln -f $(DESTDIR)gzip $(DESTDIR)gunzip
+	ln -f $(DESTDIR)gzip $(DESTDIR)unpack
 
 force:
 

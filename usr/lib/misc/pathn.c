@@ -8,6 +8,7 @@
  */
 #include <stdio.h>
 #include <path.h>
+#include <unistd.h>
 
 #define PATHSIZE 64
 
@@ -23,7 +24,7 @@ char *name, *envpath, *deflpath, *acs;
 		pathptr = deflpath;
 
 	if (NULL == strchr(acs, 'w')) {
-		if ((pathptr = path(pathptr, name, AREAD)) == NULL)
+		if ((pathptr = path(pathptr, name, R_OK)) == NULL)
 			return (name);
 		else
 			return (pathptr);
@@ -32,7 +33,7 @@ char *name, *envpath, *deflpath, *acs;
 		register char *p, c;
 		static char fullname[PATHSIZE];
 
-		if ((p = path(pathptr, name, AWRITE)) == NULL) {
+		if ((p = path(pathptr, name, W_OK)) == NULL) {
 			for (p = fullname; (c = *pathptr++) && c != LISTSEP;)
 				*p++ = c;
 			*p++ = PATHSEP;

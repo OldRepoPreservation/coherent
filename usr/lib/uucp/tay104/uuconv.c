@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char uuconv_rcsid[] = "$Id: uuconv.c,v 1.11 1992/12/30 05:07:59 ian Rel $";
+const char uuconv_rcsid[] = "$Id: uuconv.c,v 1.1 93/07/30 07:58:14 bin Exp Locker: bin $";
 #endif
 
 #include "getopt.h"

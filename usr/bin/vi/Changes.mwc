@@ -86,6 +86,9 @@ Added in 1.6:
 
 12. Now that VMIN/VTIME are working, use the version of ttyread() in
     unix.c that uses these.  This improves response time to ESC markedly!
+
+13. config.h - COH 386 cc now sends error output to stderr, so avoid
+    special REDIRECT.
 --
 -Hal Snyder, M.D.-      Mark Williams Company     (708)-291-6700 (voice)
 hal@mwc.com                Technical Staff          (708)-291-6750 (fax)

@@ -1,7 +1,7 @@
 #include <poll.h>
-#include <sys/param.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <kernel/param.h>
 
 #if (NOFILE < FD_SETSIZE)
 #define FD_MAX	NOFILE
