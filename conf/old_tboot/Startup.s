@@ -2,10 +2,14 @@
 /
 / La Monte H. Yarroll <piggy@mwc.com>, September 1991
 /
-	RBOOTS	= 0x2060		/ New segement for boot program.
+
+/ RBOOTS is set exactly 128K above the load base of the 386 kernel.
+/ One day, RBOOTS should be dynamicly determined based on the size of
+/ available memory.
+	RBOOTS	= 0x2200		/ New segement for boot program.
 	JMPF	= 0xEA			/ jump far, direct
 	SEGSIZ	= 0xffff		/ Size of a whole segment.
-	NSTK	= 0x8000		/ # of bytes of stack.
+	NSTK	= 0x2000		/ # of bytes of stack.
 	BLOCK	= 0x200			/ # of bytes in a disk block
 	DIRSIZE	= 14			/ Size of a file name.
 	SIZEOFSDAT = 23			/ sizeof(seconddat)
