@@ -1,4 +1,6 @@
 /*
+ * ls.c
+ * 3/7/91
  * List structure
  */
 
@@ -10,7 +12,7 @@
 #include <pwd.h>
 #include <grp.h>
 
-#define	BSIZE	BUFSIZ		/* Disc blocking factor for `-s' */
+#define	BSIZE	BUFSIZ		/* Disc blocking factor for '-s' */
 #define	NBN	128		/* Number of blocks in an indirect block */
 #define	ND	10		/* Number of direct blocks */
 #define	NI	1		/* Number of indirect blocks */
@@ -21,52 +23,87 @@
 #define	ATIME	1		/* Use access time */
 #define	CTIME	2		/* Use create time */
 
+#define	GAP	1		/* Space between Multi-column entries 	*/
+#define	MAXLEN	78		/* Maximum line length			*/
+#define MAXARG	512		/* Maximum # of args stored for -C sort */
+#define MAXDIR	128		/* Maximum # of subdirectories for -R	*/
+#define MAXWID	12		/* Default max width for columns	*/
+#define	MAXNBUF	80		/* Maximum namebuf length		*/
+
 #define	OLD	(60L*60*24*365)	/* old form of dates (seconds) */
 
+
 int	aflag;			/* List all entries (including "." & "..") */
+int	bflag;			/* Print non-raphic chars in octal */
+int	Cflag;			/* Multicolumn, sorted down the columns */
 int	dflag;			/* Treat directories like files */
 int	fflag;			/* Force something to look like a directory */
+int	Fflag;			/* Print / after dirs, * after executables */
 int	gflag;			/* Print gid vs. uid */
 int	iflag;			/* Give i-number */
 int	lflag;			/* Longer format */
+int	mflag;			/* Stream format output */
+int	nflag;			/* Same as -l except GID and UID are #s */
+int	oflag;			/* Same as -l except group is not printed */
+int	pflag;			/* Print a / after directories */
+int	qflag;			/* Force non-graphic chars into ? mode */
+int	Rflag;			/* List directories recursively */
 int	rflag;			/* Reverse order of sort */
 int	sflag;			/* Print size in bytes */
 int	tflag = MTIME;		/* Which time to display and sort on */
+int	xflag;			/* Multicolumn, sort across the columns */
 int	sortflg;		/* On for sort by time, 0 for by name */
 int	myuid;			/* User id for selecting .* suppression */
 
+int	linesiz = 0;		/* Keep track of how much printed for -m */
+int	first 	= 1;		/* First in stream format?		*/
+int	maxwidth = MAXWID;	/* Longest string in multi-column format  */
+int	ncols	= 1;		/* Number of columns */
+int	nrows	= 1;		/* Number of rows */
+int	offset	= 0;		/* How far to move pointer to print next entry*/
+int	nlast	= 0;		/* Number of cols in last row */
+int	ccol	= 0;		/* Current Column	*/
 time_t	curtime;
 
 char	obuf[BUFSIZ];
-char	namebuf[200];		/* Buffer for constructing names */
-char	dirbuf[BSIZE];		/* Buffer for reading directories */
+
 char	*deflist[] = {
 	".",
 	NULL
 };
 
-struct	ls {
+char	*namelist[MAXARG];	/* store file names for column output */
+
+typedef	struct	dlist{			
+	char *name;
+	fsize_t	size;
+} DLIST;
+
+typedef	struct	ls {
 	char	ls_dname[DIRSIZ+1];
 	char	*ls_name;
+	char	*ck_name;
 	ino_t	ls_ino;
 	short	ls_mode;
-	short	ls_uid;			/* Uid or gid */
+	short	ls_uid;
+	short	ls_gid;
 	short	ls_nlink;
 	fsize_t	ls_size;
 	dev_t	ls_rdev;		/* Real device */
 	time_t	ls_time;		/* One of atime, mtime, ctime */
-};
-
-struct	ls	*saved;		/* Array of saved info */
-struct	ls	*savep;
-struct	ls	*asavep;	/* Pointer for argument storage */
-fsize_t	dirsize;			/* Size of directory */
+} LS;
 
 int	(*qcomp)();
 int	qtcomp();
 int	qncomp();
 int	qdncomp();
+
+char	*alloc();
+void	fatal();
 char	*getuname();
+char	*getgname();
+char	*getname();
+char	*getflag();
 
 main(argc, argv)
 char *argv[];
@@ -82,17 +119,28 @@ char *argv[];
 				aflag = 1;
 				break;
 
+			case 'b':
+				bflag = 1;
+				break;
+
 			case 'c':
 				tflag = CTIME;
+				break;
+
+			case 'C':
+				Cflag = 1;
 				break;
 
 			case 'd':
 				dflag = 1;
 				break;
 
+			case 'F':
+				Fflag = 1;
+				break;
+
 			case 'f':
 				aflag = fflag = 1;
-				lflag = sflag = 0;
 				break;
 
 			case 'g':
@@ -107,8 +155,32 @@ char *argv[];
 				lflag = 1;
 				break;
 
+			case 'm':
+				mflag = 1;
+				break;
+
+			case 'n':
+				nflag = 1;
+				break;
+
+			case 'o':
+				oflag = 1;
+				break;
+
+			case 'p':
+				pflag = 1;
+				break;
+
+			case 'q':
+				qflag = 1;
+				break;
+
 			case 'r':
 				rflag = 1;
+				break;
+
+			case 'R':
+				Rflag = 1;
 				break;
 
 			case 's':
@@ -123,43 +195,44 @@ char *argv[];
 				tflag = ATIME;
 				break;
 
+			case 'x':
+				xflag = 1;
+				break;
+
 			default:
 				usage();
 			}
 		argc--;
 		argv++;
 	}
+	if (xflag || mflag)
+		lflag = oflag = nflag = 0;
+	if (fflag)
+		lflag = sflag = 0;
 	time(&curtime);
 	myuid = getuid();
-	if (sortflg)
-		qcomp = qtcomp; else
-		qcomp = qncomp;
-	if (argc > 1)
-		es = ls(argv+1, argc-1); else
-		es = ls(deflist, 1);
+	qcomp = (sortflg) ? qtcomp : qncomp;
+	es = (argc > 1) ? ls(argv+1, argc-1) : ls(deflist, 1);
 	exit(es);
 }
 
 /*
- * Do `ls' on one file or
- * directory.
- * `narg' is the number of names
- * in `flist' to determine special
- * output format.
+ * Do 'ls' on one file or directory.
+ * 'narg' is the number of names in 'flist'
+ * to determine special output format.
  */
 ls(flist, narg)
 register char **flist;
 int narg;
 {
 	register int estat = 0;
-	register struct ls *lsp;
-	register struct ls *arena;
+	register LS *lsp;
+	register LS *arena;
+	LS *asavep;
+	int Cargs = 0;
 	struct stat sb;
 
-	if ((arena = (struct ls *)malloc(narg*sizeof(struct ls))) == NULL) {
-		fprintf(stderr, "ls: out of memory for arguments\n");
-		exit(1);
-	}
+	arena = (LS *)alloc(narg*sizeof(LS),"arena");
 	asavep = arena;
 	for ( ; *flist!=NULL; flist++) {
 		if (stat(*flist, &sb) < 0) {
@@ -167,32 +240,53 @@ int narg;
 			estat = 1;
 			continue;
 		}
-		astore(*flist, &sb);
+		astore(*flist, &sb, asavep++);
 	}
-	qsort(arena, asavep-arena, sizeof(struct ls), qcomp);
+	qsort(arena, asavep-arena, sizeof(LS), qcomp);
 	if (qcomp == qncomp)
 		qcomp = qdncomp;
+	if (xflag || Cflag)
+		ncols = MAXLEN/(maxwidth+GAP);
+
 	for (lsp = arena; lsp < asavep; lsp++) {
 		if (fflag)
 			continue;
-		if ((lsp->ls_mode&S_IFMT)==S_IFDIR && !dflag)
+		if ((lsp->ls_mode & S_IFMT) == S_IFDIR && !dflag)
 			continue;
-		prstuff(lsp->ls_name, lsp);
+		if (Cflag)
+			svname(lsp->ck_name,Cargs++);
+		else if (xflag)
+			prcolh(lsp->ck_name);
+		else
+			prstuff(lsp->ls_name, lsp);
 	}
+	if (Cflag && Cargs)
+		prnames(Cargs);
+	maxwidth = MAXWID;
+	linesiz = 0;
 	for (lsp = arena; lsp < asavep; lsp++) {
 		if (dflag || (lsp->ls_mode&S_IFMT)!=S_IFDIR)
 			continue;
-		dirsize = lsp->ls_size;
 		if (narg > 1)
 			printf("\n%s:\n", lsp->ls_name);
-		lsdir(lsp->ls_name);
+		lsdir(lsp->ls_name,lsp->ls_size);
+		freename(lsp);
 	}
-	return (estat);
+	free(arena);
+	if ((mflag && linesiz) || ((Cflag || xflag) && ccol)){
+		putchar('\n');
+		ccol = 0;
+		linesiz = 0;
+	}
+	return estat;
 }
 
+/*
+ * Print for all options except -C and -x
+ */
 prstuff(file, lsp)
 char *file;
-register struct ls *lsp;
+register LS *lsp;
 {
 	register char *cp;
 	register spcl = 0;
@@ -203,7 +297,7 @@ register struct ls *lsp;
 		prsize(lsp);
 		putchar(' ');
 	}
-	if (lflag) {
+	if (lflag || oflag || nflag) {
 		switch (lsp->ls_mode & S_IFMT) {
 		case S_IFREG:
 			putchar('-');
@@ -240,13 +334,30 @@ register struct ls *lsp;
 		prmode((lsp->ls_mode>>3)&07, lsp->ls_mode&S_ISGID);
 		prmode(lsp->ls_mode&07, 0);
 		if (lsp->ls_mode & S_ISVTX)
-			putchar('t'); else
+			putchar('t');
+		else
 			putchar(' ');
 		printf("%2d ", lsp->ls_nlink);
-		cp = getuname(lsp->ls_uid);
-		if (cp == NULL)
-			printf("%-8d ", lsp->ls_uid); else
-			printf("%-8s ", cp);
+		if (!gflag){
+			if (!nflag){
+				cp = getuname(lsp->ls_uid);
+				if (cp == NULL)
+					printf("%-10d ", lsp->ls_uid); 
+				else
+					printf("%-10s ", cp);
+			} else
+				printf("%-10d ", lsp->ls_uid); 
+		}
+		if (!oflag){
+			if (!nflag){
+				cp = getgname(lsp->ls_gid);
+				if (cp == NULL)
+					printf("%-10d ", lsp->ls_gid); 
+				else
+					printf("%-10s ", cp);
+			} else
+				printf("%-10d ", lsp->ls_gid); 
+		}
 		if (!spcl)
 			printf("%7ld", lsp->ls_size);
 		else
@@ -254,8 +365,13 @@ register struct ls *lsp;
 			    minor(lsp->ls_rdev));
 		prtime(&lsp->ls_time);
 	}
-	printf("%s", file);
-	putchar('\n');
+	if (!mflag ){
+		prname(file);
+		prflag(lsp->ls_mode);
+		putchar('\n');
+	}
+	else
+		prstream(file,lsp->ls_mode);
 }
 
 /*
@@ -265,7 +381,7 @@ register struct ls *lsp;
  * However this should be done in a more general manner.
  */
 prsize(lsp)
-register struct ls *lsp;
+register LS *lsp;
 {
 	long blocks, size;
 	register ftype;
@@ -284,7 +400,7 @@ register struct ls *lsp;
 		}
 	}
 	printf("%4ld", size);
-	return (size);
+	return size;
 }
 
 /*
@@ -331,64 +447,89 @@ int suid;
 /*
  * Get a user name.  Either look
  * in password or group file depending
- * on `gflag'.
+ * on 'gflag'.
  */
 char *
 getuname(uid)
 short uid;
 {
 	register struct passwd	*pwp;
+	static		id	= -1;
+	static char	*name;
+
+	if (uid == id)
+		return name;
+	id = uid;
+	name = NULL;
+	if ((pwp=getpwuid( uid)) != NULL)
+		name = pwp->pw_name;
+	return name;
+}
+
+/*
+ * Get group name.
+ * Look in group file .
+ */
+char *
+getgname(uid)
+short uid;
+{
 	register struct group	*grp;
 	static		id	= -1;
 	static char	*name;
 
 	if (uid == id)
-		return (name);
+		return name;
 	id = uid;
 	name = NULL;
-	if (gflag) {
-		if ((grp=getgrgid( uid)) != NULL)
-			name = grp->gr_name;
-	}
-	else {
-		if ((pwp=getpwuid( uid)) != NULL)
-			name = pwp->pw_name;
-	}
-	return (name);
+	if ((grp=getgrgid( uid)) != NULL)
+		name = grp->gr_name;
+	return name;
 }
 
 /*
  * List out the files in a directory
- * If ``fflag'' is set, it may not be
+ * If 'fflag' is set, it may not be
  * but consider it one anyway.
  */
-lsdir(dir)
+lsdir(dir,dirsize)
 char *dir;
+fsize_t dirsize;
 {
-	int fd;
+	int fd, Cargs = 0, Rargs = 0;
 	struct stat sb;
-	struct ls ls;
+	LS *lsp;
 	register char *np1, *np2;
 	register int n;
 	register struct direct *dp;
 	register int nb;
-	char curname[DIRSIZ+1];
 	unsigned size;
+	char 	*curname;
+	char	*namebuf;		/* Buffer for constructing names */
+	char	*dirbuf;		/* Buffer for reading directories */
+	DLIST **dirlist;
+	LS *dsaved;
+	LS *dsavep;
 
 	if ((fd = open(dir, 0)) < 0) {
 		fprintf(stderr, "%s: cannot read\n", dir);
 		return;
 	}
 	if (!fflag) {
-		size = dirsize/sizeof (struct direct) * sizeof (struct ls);
-		if ((saved = malloc(size)) == NULL) {
-			fprintf(stderr, "Out of memory\n");
-			exit (1);
-		}
-		savep = saved;
+		size = dirsize/sizeof (struct direct) * sizeof (LS);
+		dsaved = alloc(size,"dsaved");
+		dsavep = dsaved;
 	}
-	while ((nb = read(fd, dirbuf, sizeof (dirbuf))) > 0)
-	for (dp=dirbuf; dp<&dirbuf[nb]; dp++) {
+	if (Rflag)
+		dirlist = (char **)alloc(MAXDIR * sizeof(char *));
+	dirbuf = alloc(BSIZE,"dirbuf");
+	namebuf = alloc(MAXNBUF,"namebuf");
+	curname = alloc(DIRSIZ+1,"curname");
+	lsp = alloc(sizeof(LS),"lsp");
+	if (mflag)
+		first = 1;		/* For stream option */
+	while ((nb = read(fd, dirbuf, BSIZE )) > 0)
+	for (dp=dirbuf; dp<(dirbuf+nb); dp++) {
 		if (dp->d_ino == 0)
 			continue;
 		np1 = dp->d_name;
@@ -409,13 +550,15 @@ char *dir;
 			*np2++ = *np1++;
 		} while (--n);
 		*np2 = '\0';
-		if (lflag || sflag || tflag || sortflg) {
+		if (lflag || xflag || Cflag || sflag || tflag || Rflag ||
+		           sortflg || pflag || Fflag || oflag || nflag) {
 			np2 = namebuf;
 			np1 = dir;
 			while (*np2++ = *np1++)
 				;
-			--np2;
-			*np2++ = '/';
+			np2-=2;
+			if (*np2++ != '/')
+				*np2++ = '/';
 			np1 = curname;
 			while (*np2++ = *np1++)
 				;
@@ -424,49 +567,104 @@ char *dir;
 				continue;
 			}
 		}
-		if (fflag) {
-			convert(&sb, &ls);
-			prstuff(curname, &ls);
-		} else
-			store(curname, &sb);
+		convert(&sb, lsp);
+		if (Rflag
+		 && ((lsp->ls_mode & S_IFMT) == S_IFDIR)
+		 && strcmp(curname, ".") != 0
+		 && strcmp(curname, "..") != 0 ) {
+			if (Rargs >= MAXDIR)
+				fatal("too many subdirectories");
+			dirlist[Rargs] = alloc(sizeof(DLIST),"dirlist");
+			dirlist[Rargs]->name = alloc(strlen(namebuf) + 1,"name");
+			strcpy(dirlist[Rargs]->name,namebuf);
+			dirlist[Rargs++]->size = lsp->ls_size;
+		} else if (fflag) {
+			ncols = MAXLEN/(maxwidth+GAP);
+			if (Cflag)
+				svname(curname, Cargs++);
+			else if (xflag)
+				prcolh(curname);
+			else
+				prstuff(curname, lsp);
+		} else {
+			store(curname, &sb,dsavep++);
+		}
+	}
+	free(lsp);
+	free(curname);
+	free(namebuf);
+	free(dirbuf);
+	if (!fflag) {
+		ncols = MAXLEN/(maxwidth+GAP);
+		output(dsaved,dsavep);
+	} else if (Cflag && Cargs)
+		prnames(Cargs);
+	if (!fflag)
+		for (lsp = dsaved; lsp < dsavep; lsp++)
+			freename(lsp);
+	if ((mflag && linesiz) || ((Cflag || xflag) && ccol)){
+		putchar('\n');
+		ccol = 0;
+		linesiz = 0;
 	}
 	if (!fflag)
-		output();
+		free(dsaved);
 	close(fd);
+	maxwidth = MAXWID;
+	if (Rflag && Rargs){
+		for(n=0;n<Rargs;n++){
+			putchar('\n');
+			printf("%s:\n",dirlist[n]->name);
+			lsdir(dirlist[n]->name,dirlist[n]->size);
+			free(dirlist[n]->name);
+		}
+		for(n=0;n<Rargs;n++)
+			free(dirlist[n]);
+	}
+	if (Rflag)
+		free(dirlist);
 }
 
 /*
  * Store data away for intra-directory
  * sorting.
  */
-store(name, sbp)
+store(name, sbp,lsp)
 char *name;
 register struct stat *sbp;
+register LS *lsp;
 {
-	register struct ls *lsp;
-
-	lsp = savep++;
-	strncpy(lsp->ls_dname, name, DIRSIZ+1);
 	convert(sbp, lsp);
+	if (xflag || Cflag)
+		cstore(lsp,name);
+	strncpy(lsp->ls_dname, name, DIRSIZ+1);
 }
 
 /*
- * Store each argument away for inter-directory
- * sorting.
+ * Store each argument away for inter-directory sorting.
+ * Sets lsp->ls_name to allocated name.
  */
-astore(name, sbp)
+astore(name, sbp,lsp)
 char *name;
 register struct stat *sbp;
+register LS *lsp;
 {
-	register struct ls *lsp;
-
-	lsp = asavep++;
-	if ((lsp->ls_name = malloc(strlen(name)+sizeof(char))) == NULL) {
-		fprintf(stderr, "ls: out of space for argument names\n");
-		exit(1);
-	}
-	strcpy(lsp->ls_name, name);
 	convert(sbp, lsp);
+	if (xflag || Cflag)
+		cstore(lsp,name);
+	lsp->ls_name = alloc(strlen(name)+1,"ls->name");
+	strcpy(lsp->ls_name, name);
+}
+
+/*
+ * Free allocated name fields.
+ */
+freename(lsp) register LS *lsp;
+{
+	if (lsp->ls_name != NULL)
+		free(lsp->ls_name);
+	if (lsp->ck_name != NULL)
+		free(lsp->ck_name);
 }
 
 /*
@@ -475,12 +673,13 @@ register struct stat *sbp;
  */
 convert(sbp, lsp)
 register struct stat *sbp;
-register struct ls *lsp;
+register LS *lsp;
 {
 	lsp->ls_ino = sbp->st_ino;
 	lsp->ls_mode = sbp->st_mode;
 	lsp->ls_nlink = sbp->st_nlink;
-	lsp->ls_uid = gflag ? sbp->st_gid : sbp->st_uid;
+	lsp->ls_uid = sbp->st_uid;
+	lsp->ls_gid = sbp->st_gid;
 	lsp->ls_size = sbp->st_size;
 	lsp->ls_rdev = sbp->st_rdev;
 	if (tflag == CTIME)
@@ -495,23 +694,31 @@ register struct ls *lsp;
  * Sort, output and free up space from
  * the current directory being considered.
  */
-output()
+output(start,stop)
+LS *start;
+LS *stop;
 {
-	register struct ls *lsp, *lse;
+	register LS *lsp, *lse;
 	register unsigned nel;
-
-	nel = savep-saved;
-	qsort(saved, nel, sizeof (struct ls), qcomp);
-	for (lsp=saved, lse=savep; lsp < lse; lsp++)
-		prstuff(lsp->ls_dname, lsp);
-	free(saved);
+	int Cargs = 0;
+	nel = stop - start;
+	qsort(start, nel, sizeof (LS), qcomp);
+	for (lsp=start, lse=stop; lsp < lse; lsp++){
+		if (Cflag)
+			svname(lsp->ck_name,Cargs++);
+		else if (xflag)
+			prcolh(lsp->ck_name);
+		else
+			prstuff(lsp->ls_dname, lsp);
+	}
+	if (Cflag && Cargs)
+		prnames(Cargs);
 }
 
 /*
- * The following are the two qsort comparison
- * routines -- one for sorting by times, one for
- * sorting by names.  They can be used in both
- * the argument sort and each directory sort.
+ * The following are the three qsort comparison routines:
+ * sort by time, sort by directory name, sort by full pathname.
+ * They can be used both in the argument sort and in each directory sort.
  */
 
 /*
@@ -519,7 +726,7 @@ output()
  * (forward or backward).
  */
 qtcomp(lsp1, lsp2)
-register struct ls *lsp1, *lsp2;
+register LS *lsp1, *lsp2;
 {
 	register int rval = 0;
 
@@ -527,9 +734,7 @@ register struct ls *lsp1, *lsp2;
 		rval++;
 	else if (lsp1->ls_time > lsp2->ls_time)
 		rval--;
-	if (rflag)
-		return (-rval);
-	return (rval);
+	return (rflag) ? -rval : rval;
 }
 
 /*
@@ -537,14 +742,12 @@ register struct ls *lsp1, *lsp2;
  * (forward or reverse).
  */
 qdncomp(lsp1, lsp2)
-struct ls *lsp1, *lsp2;
+LS *lsp1, *lsp2;
 {
 	register int rval;
 
 	rval = strncmp(lsp1->ls_dname, lsp2->ls_dname, DIRSIZ);
-	if (rflag)
-		return (-rval);
-	return (rval);
+	return (rflag) ? -rval : rval;
 }
 
 /*
@@ -552,18 +755,328 @@ struct ls *lsp1, *lsp2;
  * (forward or reverse).
  */
 qncomp(lsp1, lsp2)
-struct ls *lsp1, *lsp2;
+LS *lsp1, *lsp2;
 {
 	register int rval;
 
 	rval = strcmp(lsp1->ls_name, lsp2->ls_name);
-	if (rflag)
-		return (-rval);
-	return (rval);
+	return (rflag) ? -rval : rval;
 }
 
 usage()
 {
-	fprintf(stderr, "Usage: ls [-acdfgilrstu] [files ...]\n");
+	fprintf(stderr, "Usage: ls [-abcCdfFgilmnopqrRstux] [files ...]\n");
 	exit(1);
 }
+
+is_x(m)
+int m;
+{
+	m <<= 6;
+	return m&S_IEXEC;
+}
+
+/*
+ * Print non-graphic chars in octal or '?' format 
+ * or as they are depending on which flag is set.
+ */
+prname(s)
+char *s;
+{
+	if (bflag) {
+		while ( *s != '\0')
+			if ( *s >= ' ' && *s <= '~')
+				putchar(*s++);
+			else
+				printf("\\0%o",*s++);
+	} else if (qflag) {
+		while ( *s != '\0')
+			if ( *s >= ' ' && *s <= '~')
+				putchar(*s++);
+			else {
+				putchar('?');
+				*s++;
+			}
+	} else
+		printf(s);
+}
+
+/*
+ *  Print in stream format for -m option
+ */
+prstream(s,m)
+char *s;
+short m;
+{
+	register int sl;
+
+	sl = strlen(s);
+	if ( (linesiz + sl) > MAXLEN ){
+		putchar(',');
+		putchar('\n');
+		prname(s);
+		linesiz = sl + prflag(m) + 1;
+	}
+	else if (!first) {
+		printf(", ");
+		prname(s);
+		linesiz += sl + prflag(m) + 2;
+	} else {
+		first = 0;
+		prname(s);
+		linesiz = sl + prflag(m);
+	}
+}
+
+/*
+ * Prints flag if executable or directory and -F or -p flsg is set.
+ */
+prflag(m)
+short m;
+{
+	if (pflag)
+		if((m & S_IFMT) == S_IFDIR){
+			putchar('/');
+			return 1;
+		}
+	if (Fflag) {
+		if((m & S_IFMT) == S_IFDIR) {
+			putchar('/');
+			return 1;
+		} else if (is_x(m>>6 & 07) ) {
+			putchar('*');
+			return 1;
+		} else if( is_x(m>>3 & 07) ) {
+			putchar('*');
+			return 1;
+		} else if( is_x(m & 07) ){
+			putchar('*');
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Returns flag if executable or directory and -F or -p flsg is set.
+ */
+char *
+getflag(m)
+short m;
+{
+	if (pflag) {
+		if((m & S_IFMT) == S_IFDIR)
+			return "/";
+	}
+	if (Fflag) {
+		if((m & S_IFMT) == S_IFDIR)
+			return "/";
+		else if( is_x(m>>6 & 07) )
+			return "*";
+		else if( is_x(m>>3 & 07) )
+			return "*";
+		else if( is_x(m & 07) )
+			return "*";
+	}
+	return "";
+}
+
+/*
+ * Returns file name with non-graphic chars in octal or '?' format 
+ * or as they are depending on which flag is set.
+ */
+char *
+getname(s)
+char *s;
+{
+	char tmp[30];
+	char *t;
+	int i = 0;
+	char buf[5];
+
+	t = tmp;
+	if (bflag){
+		while ( *s != '\0'){
+			if ( *s >= ' ' && *s <= '~') {
+				*t++ = *s++;
+			} else {
+				sprintf(buf,"\\0%o",*s++);
+				while(buf[i] != '\0'){
+					*t++ = buf[i];
+					buf[i++] = '\0';
+				}
+				i=0;
+			}
+		}
+		*t = '\0';
+	} else if (qflag){
+		while ( *s != '\0')
+			if ( *s >= ' ' && *s <= '~')
+				*t++ = *s++;
+			else{
+				*t++ = '?';
+				*s++;
+			}
+		*t = '\0';
+	} else
+		strcpy(tmp,s);
+	return tmp;
+}
+
+/*
+ * Prints name in multi-column format across the screen (-x option).
+ */
+prcolh(name)
+char *name;
+{	
+	if ( ccol < ncols)
+		printf(name);
+	if ( ++ccol <  ncols)
+		printf("%*s",maxwidth - strlen(name) + GAP,"");
+	else {
+		ccol = 0;
+		putchar('\n');
+	}
+}
+
+/*
+ * Sets chars in buffer to NULs.
+ */
+clear(s)
+char *s;
+{
+	while (*s != '\0')
+		*s++ = '\0';
+}
+
+/*
+ * Adds whatever information to file name as indicated by flags
+ * (i.e. iflag, sflag, bflag) and stores it in ck_name so its
+ * entire length can be recorded.  Used for -x and -C.
+ * Sets lsp->ls_name to allocated name.
+*/
+cstore(lsp,name)
+LS *lsp;
+char *name;
+{
+	register int sl;
+	char buf[50],tmp[10],tmp2[20];
+
+	clear(buf); clear(tmp); clear(tmp2);
+	if ( sflag)
+		sprintf(buf,"%3d",getsize(lsp));
+	if (iflag){
+		sprintf(tmp,"%5u ", lsp->ls_ino);
+  		strcat(buf,tmp);
+	}
+	strcpy(tmp2,getname(name));
+	strcat(buf,tmp2);
+	if ( Fflag || pflag)
+		strcat(buf,getflag(lsp->ls_mode));
+	sl = strlen(buf);
+	if (maxwidth < sl)
+		maxwidth = sl;
+	lsp->ck_name = alloc(sl+1, "ck_name");
+	strcpy(lsp->ck_name,buf);
+}
+
+/*
+ * Returns size of file.  see prsize.
+ */
+getsize(lsp)
+register LS *lsp;
+{
+	long blocks, size;
+	register ftype;
+
+	size = 0;
+	ftype = lsp->ls_mode & S_IFMT;
+	if (ftype==S_IFREG || ftype==S_IFDIR || ftype==S_IFPIP) {
+		size = blocks = (lsp->ls_size+BSIZE-1)/BSIZE;
+		if (blocks > ND) {
+			size++;
+			blocks -= ND;
+			if (blocks > NBN*NI) {
+				blocks -= NBN*NI;
+				size += 2 + blocks/NBN;
+			}
+		}
+	}
+	return size;
+}
+
+/*
+ * Save file name for -C option.
+ * This allocates namelist[i], prnames() eventually frees it.
+ */
+svname(name,i)
+char *name;
+int i;
+{
+	if (i >= MAXARG)
+		fatal("more than %d files with -C option", MAXARG);
+	namelist[i] = alloc(strlen(name)+1,"svname");
+	strcpy(namelist[i],name);
+}
+
+/*
+ * Print names in multi-column format going down the screen (-C option).
+ * Free the namelist members allocated by svname.
+ */
+prnames(Cargs)
+int Cargs;
+{
+	register int nc, i, j, nl;
+
+	ncols = MAXLEN/(maxwidth+GAP);
+	nc = ncols;
+	nlast = Cargs % ncols;
+	nrows = Cargs/ncols + (nlast ? 1 : 0);
+	offset = nrows -1;
+
+	if (nlast == 0)
+		nlast = ncols;
+	nl = nlast;	
+	for(i=0; i < offset; i++){
+		for(j = i; j < Cargs;j+=offset+ (nl-- >0) )
+			prcolh(namelist[j]);
+		nl = nlast;
+	}
+	while (nlast--){
+		prcolh(namelist[i]);
+		i += nrows;
+	}
+	if (ccol){
+		putchar('\n');
+		ccol = 0;
+	}
+	for (i = 0; i < Cargs; i++)
+		free(namelist[i]);
+}
+
+/*
+ * Put message and die.
+ */
+/* VARARGS */
+void
+fatal(s) char *s;
+{
+	fprintf(stderr, "\nls: fatal: %r\n", &s);
+	exit(1);
+}
+
+/*
+ * Get space or die.
+ */
+char *
+alloc(n, msg) register int n; char *msg;
+{
+	extern char *calloc();
+	register char *cp;
+
+	if ((cp = calloc(n, 1)) == NULL)
+		fatal("out of space: %s", msg);
+	return cp;
+}
+
+/* end of ls.c */
