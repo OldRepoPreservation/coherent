@@ -138,6 +138,8 @@ setdates()
 	gmt = gmtime(&now);
 	loc = localtime(&now);
 /*	(void) strcpy(arpanows, nows); */
+	error_log("NOWS is");
+	error_log(nows);
 	(void) strcpy(arpanows, arpadate(nows)); 
 }
 
@@ -210,6 +212,9 @@ arpadate(ud)
 	**  Crack the UNIX date line in a singularly unoriginal way.
 	*/
 
+	error_log("UD is");
+	error_log(ud);
+
 	q = b;
 
 	p = &ud[8];		/* 16 */
@@ -244,16 +249,36 @@ arpadate(ud)
 	if (p[3] != '\0')
 	{
 		/* hours from GMT */
-		p += 3;
-		*q++ = *p++;
-		if (p[1] == ':')
-			*q++ = '0';
-		else
-			*q++ = *p++;
-		*q++ = *p++;
-		p++;		/* skip ``:'' */
-		*q++ = *p++;
-		*q++ = *p++;
+/*
+ *		p += 3;
+ *		*q++ = *p++;
+ *		if (p[1] == ':')
+ *			*q++ = '0';
+ *		else
+ *			*q++ = *p++;
+ *		*q++ = *p++;
+ *		p++;		 skip ``:'' 
+ *		*q++ = *p++;
+ *		*q++ = *p++;
+ */
+
+	/* this short section of code replaces the above commented code. The
+	 * reason for this is because the above code wasn't correctly parsing
+	 * out the hours from GMT returned by the p=tzname... code above. The
+	 * old code skipped the first 3 characters (example +0800), leaving
+	 * only the last 2 characters to be added to the string we are building.
+	 *
+	 * The real question at this point should be 'is this the right format?'
+	 * Sorry, no docs available at this time.
+	 *
+	 * bob h: 05/11/93.
+	 */
+		*q++ = ' ';
+		do{
+			*q++ = *p;
+		}
+		while(*p++!= '\0');
+
 	}
 	else
 	{
