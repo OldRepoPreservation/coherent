@@ -77,7 +77,7 @@ struct sym *sp;
 			outrb(&e1, 0);
 			break;
 		}
-		aerr();
+		aerr("expected constant");
 		break;
 
 	case S_OVER:
@@ -85,7 +85,7 @@ struct sym *sp;
 			out3(SEGPFX, rof(e1));
 			break;
 		}
-		aerr();
+		aerr("segment override by non-segment register");
 		break;
 
 	case S_RET:
@@ -106,7 +106,7 @@ struct sym *sp;
 				out3(PUSHSR, rn);
 			else {
 				if (e1.e_mode == CS)	/* No pop CS */
-					aerr();
+					aerr("no 'pop CS' instruction");
 				out3(POPSR, rn);
 			}
 			break;
@@ -116,6 +116,19 @@ struct sym *sp;
 				outab(PUSHR | rn);
 			else
 				outab(POPR  | rn);
+			break;
+		}
+		if ( m1 == IM ) {
+			if ( (e1.e_type == E_ACON)
+			  && (  ((e1.e_addr & 0xFF80) == 0xFF80)
+			     || ((e1.e_addr & 0xFF80) == 0x0000) ) ) {
+				outab( PUSHIB );
+				outab( e1.e_addr );
+			}
+			else {
+				outab( PUSHIW );
+				outrw(&e1, 0);
+			}
 			break;
 		}
 		outgen(op, ((op==PUSH) ? 6 : 0), &e1);
@@ -131,7 +144,7 @@ struct sym *sp;
 		else if (m1 == BR && rof(e1) == reg(AL))
 			op &= ~W;
 		else {
-			aerr();
+			aerr("(in|out)(b|) must use AX or AL");
 			break;
 		}
 		if (m2 == WR && rof(e2) == DX) {
@@ -142,7 +155,7 @@ struct sym *sp;
 			outrb(&e2, 0);
 			break;
 		}
-		aerr();
+		aerr("(in|out)(b|) must use DX or constant");
 		break;
 
 	case S_OUT:
@@ -162,14 +175,20 @@ struct sym *sp;
 		bytecheck(ob, m1, NONE);
 		if (m2 == BR && e2.e_addr == CL)
 			ob |= V;
-		else if (m2!=IM || !isabsn(&e2, 1))
-			aerr();
+		else if ( (m2 == IM) && (e2.e_type == E_ACON) ) {
+			if ( e2.e_addr != 1 )
+				ob = (ob & W) ? (SHLI|W) : SHLI;
+		}
+		else
+			aerr("Improper shift amount");
 		outgen(ob, op, &e1);
+		if ( (ob & ~W) == SHLI )
+			outab( e2.e_addr );
 		break;
 
 	case S_JMP:
 		if (addr(&e1) != DIR)
-			aerr();
+			aerr("jmp must be direct address");
 		if (pass == 0) {
 			dot->s_addr += 3;
 			if (op != JMP)
@@ -215,10 +234,10 @@ struct sym *sp;
 		if (addr(&e1) != DIR
 		||  e1.e_type != E_DIR
 		||  e1.e_base.e_lp != dot->s_base.s_lp)
-			aerr();
+			aerr("not a direct address in this segment");
 		disp = e1.e_addr - dot->s_addr - 2;
 		if (disp<-128 || disp>127)
-			aerr();
+			aerr("address out of range");
 		outab(op);
 		outab(disp);
 		break;
@@ -230,7 +249,7 @@ struct sym *sp;
 
 	case S_CALL:
 		if (addr(&e1) != DIR)
-			aerr();
+			aerr("not a direct address");
 		outab(DCALL);
 		outrw(&e1, 1);
 		break;
@@ -307,7 +326,7 @@ struct sym *sp;
 			outgen(op, rof(e2), &e1);
 			break;
 		}
-		aerr();
+		aerr("improper operand pair");
 		break;
 
 	case S_SOP:
@@ -333,8 +352,10 @@ struct sym *sp;
 		m1 = addr(&e1);
 		comma();
 		m2 = addr(&e2);
-		if (m1!=WR || (m2!=DIR && m2!=X))
-			aerr();
+		if (m1!=WR)
+			aerr("must load address into register");
+		if(m2!=DIR && m2!=X)
+			aerr("must load direct address");
 		outgen(op, rof(e1), &e2);
 		break;
 
@@ -393,9 +414,117 @@ struct sym *sp;
 		bytecheck(ob, m1, NONE);
 		outgen(ob, op, &e1);
 		break;
+	case S_PROT0:
+	case S_PROT1:
+		/*
+		 * Protection control.
+		 */
+		m1 = addr(&e1);
+		if ( (m1 != WR) && (m1 != DIR) && (m1 != X) )
+			aerr();
+		outab( 0x0F );
+		outgen( (sp->s_kind == S_PROT0) ? 0x00 : 0x01, op, &e1 );
+		break;
+
+	case S_PROTR:
+		/*
+		 * Protection control to register.
+		 */
+		if ( op == ARPL ) {
+			m2 = addr(&e2);
+			comma();
+			m1 = addr(&e1 );
+		}
+		else if ( op == CLTS ) {
+			outab( 0x0F );
+			outab( op );
+			break;
+		}
+		else {
+			m1 = addr(&e1);
+			comma();
+			m2 = addr(&e2);
+		}
+		if (m1!=WR || (m2!=WR &&m2!=DIR && m2!=X))
+			aerr("Improper operand");
+		if ( op != ARPL )
+			outab( 0x0F );
+		outgen(op, rof(e1), &e2);
+		break;
+
+	case S_ENTER:
+		m1 = addr(&e1);
+		comma();
+		m2 = addr(&e2);
+		if ( (m1 != DIR) || (e1.e_type != E_ACON)
+		  || (m2 != DIR) || (e2.e_type != E_ACON) )
+			aerr();
+		outab( op );
+		outrw( &e1, 0);
+		outrb( &e2, 0 );
+		break;
+
+	/* Floating point operations. */
+	/* No operands. */
+	case S_FP_F:
+		outab((sp->s_flag==S_NW) ? FNOP : FWAIT);
+		outab(BYTE1(op));
+		outab(BYTE2(op));
+		break;
+	/* Memory operand. */
+	case S_FP_M:
+		outab((sp->s_flag==S_NW) ? FNOP : FWAIT);
+		m1 = addr(&e1);
+		if (m1 != DIR && m1 != X)
+			qerr("invalid operand type");
+		outgen(BYTE1(op), BYTE2(op), &e1);
+		break;
+	/* Two optional fp stack operands. */
+	/* The opcode in the table is for the format "f<op> st<n>,st". */
+	/* Some nasty fudging here;  thanks again, Intel. */
+	case S_FP_S:
+		outab(FWAIT);
+		if (fp_reg2(&e1, &e2)) {
+			if (e1.e_mode == ST) {
+				/* "f<op> st,st<n>". */
+				/* Change BYTE1 from 0xDC to 0xD8. */
+				outab(BYTE1(op)^4);
+				if (sp->s_flag == S_FIX)
+					outab((BYTE2(op)^8)|rof(e2));
+				else
+					outab(BYTE2(op)|rof(e2));
+			}
+			else {
+				/* "f<op> st<n>,st". */
+				outab(BYTE1(op));
+				outab(BYTE2(op)|rof(e1));
+			}
+		}
+		else {	/* No args supplied; "f<op>" means "f<op>p st1,st". */
+			/* Change BYTE1 from 0xDC to 0xDE. */
+			outab(BYTE1(op)|2);
+			outab(BYTE2(op)|1);
+		}
+		break;
+	/* Two optional fp stack operands. */
+	case S_FP_SP:
+		fp_reg2(&e1, &e2);
+		if (e2.e_mode != ST)
+			qerr("invalid operand type");
+		outab(FWAIT);
+		outab(BYTE1(op));
+		outab((BYTE2(op))|rof(e1));
+		break;
+	/* One optional fp stack operand (default: ST). */
+	case S_FP_S1:
+		fp_reg(&e1);
+		outab(FWAIT);
+		outab(BYTE1(op));
+		outab(BYTE2(op)|rof(e1));
+		break;
 
 	default:
-		err('o');
+		err('o', "unknown operator");
 	}
 }
 
@@ -407,7 +536,7 @@ struct sym *sp;
 comma()
 {
 	if (getnb() != ',')
-		qerr();
+		qerr("expected comma");
 }
 
 /*
@@ -428,7 +557,7 @@ register struct expr *esp;
 	mode = esp->e_mode & MMASK;
 	regm = esp->e_mode & RMASK;
 	if (mode==IDX || mode==ICL || mode==IM || mode==SEGR) {
-		aerr();
+		aerr("invalid operand");
 		return;
 	}
 	if (mode==BR || mode==WR) {
@@ -503,7 +632,7 @@ register op, m1, m2;
 			++bad;
 	}
 	if (bad)
-		aerr();
+		aerr("invalid operand");
 }
 
 /*
@@ -665,6 +794,6 @@ char *cp;
 	sp = lookup(id, 1);
 	sp->s_kind = S_LOC;
 	sp->s_flag = 0;
-	sp->s_addr = lp;
+	sp->s_addr = (address)lp;
 	return (lp);
 }
