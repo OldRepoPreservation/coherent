@@ -1,3 +1,11 @@
+/*
+ * /usr/include/sys/wait.h
+ *
+ * Support for wait() and waitpid() system calls.
+ *
+ * Revised Mon Mar 22 13:10:53 1993 CST
+ */
+
 #ifndef	__SYS_WAIT_H__
 #define	__SYS_WAIT_H__
 
