@@ -1,6 +1,6 @@
 /*
  * /usr/src/cmd/prof.c
- * 7/15/92
+ * 7/16/92
  * prof interprets the mon.out files produced by the runtime profiling option,
  * i.e. by programs compiled with the cc option -p (a.k.a. -VPROF).
  * This version understands both COH286 l.out and COH386 COFF executables,
@@ -12,8 +12,6 @@
  *	-b	print all bin information (to detect hot spots)
  *	-c	print all call information
  *	-s	print stack depth information
- *
- * UNDONE: COFF version truncates symbols at NCPLN characters.
  */
 
 #include <stdio.h>
@@ -39,29 +37,29 @@
  * there reguarding PSCALE and HZ.
  */
 #define PSCALE	((long)100)		/* pc count scale factor	*/
-#define	SWIDTH	10			/* default printf symbol width	*/
+#define	CSYMLEN	255			/* maximum COFF symbol length	*/
+#define	SYMWMAX	32			/* maximum symbol printf width	*/
 #define	TRUE	(0 == 0)
 #define	FALSE	(0 != 0)
 
-/* This should be modified to allow arbitrary length symbols for COFF... */
 typedef struct	symbol {
-	char		name[NCPLN];
-	vaddr_t		addr;
-	long		pcount;		/* pc count, scaled by PSCALE */
+	vaddr_t		addr;		/* address			*/
+	long		pcount;		/* pc count, scaled by PSCALE	*/
 	long		ccount;		/* number of times routine called */
-}	symbol;
+	char		name[];		/* name				*/
+}	SYMBOL;
 
 /* Forward. */
 char	*alloc();
 void	centi();
 int	cmpdata();
 int	cmpsym();
-symbol	**credit();
+SYMBOL	**credit();
 void	fatal();
 void	getcdata();
 void	getdata();
 void	getpdata();
-char	*getstring();
+void	getstring();
 void	getsyms();
 void	putdata();
 void	readcoffsyms();
@@ -70,21 +68,23 @@ void	usage();
 void	warning();
 
 /* Globals. */
-int		aflag	= FALSE;	/* iff we use all symbols	*/
-int		bflag	= FALSE;	/* iff we should dump bin info	*/
-int		cflag	= FALSE;	/* iff we should dump call info	*/
-symbol		**dict;			/* NULL terminated list of symbols */
+int		aflag	= FALSE;	/* use all symbols		*/
+int		bflag	= FALSE;	/* dump bin info		*/
+int		cflag	= FALSE;	/* dump call info		*/
+SYMBOL		**dict;			/* NULL-terminated SYMBOL list	*/
 int		dsize;			/* number of symbols		*/
 int		iscoff	= FALSE;	/* COFF executable (not l.out)	*/
 char		*lout	= "l.out";	/* executable file name		*/
 vaddr_t		lowpc;			/* lowest pc profiled		*/
 char		*monout	= "mon.out";	/* monitor file name		*/
-int		sflag	= FALSE;	/* iff we should dump low stack mark */
+char		name[CSYMLEN+1];	/* symbol name buffer		*/
+unsigned int	scaler;			/* scale factor			*/
+int		sflag	= FALSE;	/* dump low stack mark		*/
 vaddr_t		stksz;			/* stack size			*/
 long		strtable;		/* COFF string table offset	*/
+int		symwidth = NCPLN;	/* printf symbol field width	*/
 long		tcalls;			/* total number of calls	*/
 long		tticks;			/* total number of clock ticks	*/
-unsigned int	scaler;
 
 main(argc, argv) int argc; register char *argv[];
 {
@@ -149,9 +149,9 @@ centi(num, den, width) long num, den; int width;
  * If it is negative, 'sp1' should occur first.
  */
 int
-cmpdata(sp1, sp2) symbol **sp1, **sp2;
+cmpdata(sp1, sp2) SYMBOL **sp1, **sp2;
 {
-	register symbol *adr1, *adr2;
+	register SYMBOL *adr1, *adr2;
 	long rel;
 
 	adr1 = *sp1;
@@ -164,15 +164,15 @@ cmpdata(sp1, sp2) symbol **sp1, **sp2;
 	else if (rel < 0)
 		return -1;
 	else
-		return strncmp(adr1->name, adr2->name, NCPLN);
+		return strcmp(adr1->name, adr2->name);
 }
 
 /*
- * Compare the two symbols 'sp1' and 'sp2' and return an
+ * Compare the two SYMBOLs 'sp1' and 'sp2' and return an
  * int corresponding to the relative order of the address fields.
  */
 int
-cmpsym(sp1, sp2) symbol **sp1, **sp2;
+cmpsym(sp1, sp2) SYMBOL **sp1, **sp2;
 {
 	register vaddr_t adr1, adr2;
 
@@ -189,17 +189,17 @@ cmpsym(sp1, sp2) symbol **sp1, **sp2;
 /*
  * Account for tick information.
  */
-symbol	**
-credit(tick, low, high, dpp) int tick; vaddr_t low, high; symbol **dpp;
+SYMBOL	**
+credit(tick, low, high, dpp) int tick; vaddr_t low, high; SYMBOL **dpp;
 {
 	register unsigned	overlap;
-	register symbol		*cur, *nxt;
+	register SYMBOL		*cur, *nxt;
 	unsigned		binlen;
 
 	dbprintf(("credit(%d, %x, %x, %s)\n", tick, low, high, (*dpp)->name));
 	binlen = high - low;
-if (binlen == 0) binlen = 1; /* ??? */
-printf("binlen=%d\n", binlen);
+	if (binlen == 0)
+		binlen = 1;		/* avoid 0-divide below */
 
 	nxt = *dpp;
 	if (nxt == NULL  ||  nxt->addr >= high) {
@@ -212,7 +212,7 @@ printf("binlen=%d\n", binlen);
 		nxt = *++dpp;
 	} while (nxt != NULL  &&  nxt->addr <= low);
 	if (bflag)
-		printf("%3d %*.*s+%-4u ", tick, SWIDTH, NCPLN, cur->name,
+		printf("%3d %*s+%-4u ", tick, symwidth, cur->name,
 			low - cur->addr);
 	do {
 		if (nxt != NULL  &&  nxt->addr < high)
@@ -229,7 +229,7 @@ printf("binlen=%d\n", binlen);
 	} while (cur != NULL && cur->addr < high);
 	dpp -= 2;
 	if (bflag)
-		printf("%*.*s+%u\n", SWIDTH, NCPLN, dpp[0]->name,
+		printf("%*s+%u\n", symwidth, dpp[0]->name,
 			high - 1 - dpp[0]->addr);
 	return dpp;
 }
@@ -250,7 +250,7 @@ fatal(str) char *str;
 void
 getcdata(fp, nfnc) FILE *fp; register unsigned nfnc;
 {
-	register symbol	**dpp, *dp;
+	register SYMBOL	**dpp, *dp;
 	struct m_func	buf;
 #if	_I386
 	struct	old_m_func obuf;
@@ -272,7 +272,7 @@ getcdata(fp, nfnc) FILE *fp; register unsigned nfnc;
 			;
 		dp = dpp[-1];
 		if (cflag)
-			printf("%4ld %*.*s+%u\n", buf.m_ncalls, SWIDTH, NCPLN,
+			printf("%4ld %*s+%u\n", buf.m_ncalls, symwidth,
 				dp->name, buf.m_addr - dp->addr);
 		tcalls += buf.m_ncalls;
 		dp->ccount += buf.m_ncalls;
@@ -317,11 +317,18 @@ getdata()
 		scaler++;
 	lowpc = hdr.m_lowpc;
 	stksz = hdr.m_hisp - hdr.m_lowsp;
-	dbprintf((" scaler=%d lowpc=%x stksz=%x\n", scaler, lowpc, stksz));
+	dbprintf((" lowpc=%x hisp=%x lowsp=%x\n", lowpc, hdr.m_hisp, hdr.m_lowsp));
+	dbprintf((" scaler=%d stksz=%x\n", scaler, stksz));
+
+	/* Read call data or skip over it. */
 	if (cflag || !bflag)
 		getcdata(fp, hdr.m_nfuncs);
-	else
+	else if (iscoff)
 		fseek(fp, hdr.m_nfuncs * (long)sizeof (struct m_func), SEEK_CUR);
+	else
+		fseek(fp, hdr.m_nfuncs * (long)sizeof (struct old_m_func), SEEK_CUR);
+
+	/* Read clock tick profil data. */
 	if (bflag || !cflag)
 		getpdata(fp, hdr.m_nbins);
 	fclose(fp);
@@ -331,16 +338,8 @@ getdata()
  * Reads in the profiling data and increment the corresponding
  * symbols' pcount fields.
  * N.B. the global scale must contain the mon.out scale divided by 2.
- */
-void
-getpdata(fp, nbins) FILE *fp; unsigned nbins;
-{
-	register symbol	**dpp;
-	vaddr_t		high, low;
-	int		highr, inc, incr;
-	short		tick;
-/*
- *	scale		text bytes covered per bin
+ *
+ *	scale		.text bytes per bin
  *	0x10000		2
  *	0xFFFF		2	(for historical reasons)
  *	0x8000		4
@@ -348,12 +347,20 @@ getpdata(fp, nbins) FILE *fp; unsigned nbins;
  *	0x4000		8
  *	...		...
  *	0x0002		65536
+ *
  */
+void
+getpdata(fp, nbins) FILE *fp; unsigned nbins;
+{
+	register SYMBOL	**dpp;
+	vaddr_t		high, low;
+	int		highr, inc, incr;
+	short		tick;
 
 	dbprintf(("getpdata(): nbins=%d\n", nbins));
 	high = lowpc;
 	highr = 0;
-#if 1
+#if	1
 	inc = ((long)1<<17) / scaler;
 	incr = ((long)1<<17) % scaler;
 	if (incr) {
@@ -361,7 +368,7 @@ getpdata(fp, nbins) FILE *fp; unsigned nbins;
 		incr -= scaler;
 	}
 #else
-	inc = 131072/scaler;
+	inc = 131072L/scaler;
 #endif
 	dbprintf((" inc=%d incr=%d scale=%d\n", inc, incr, scaler));
 	for (dpp=dict; nbins > 0; --nbins) {
@@ -385,14 +392,12 @@ getpdata(fp, nbins) FILE *fp; unsigned nbins;
 
 /*
  * Read a NUL-terminated string from offset 'loc' (in COFF string table)
- * in fp into a static buffer.
- * For now, symbols longer than NCPLN are truncated!
+ * in fp into name[].
+ * Symbols longer than CSYMLEN are truncated.
  */
-#define	NBUF	(NCPLN+1)
-char *
+void
 getstring(fp, loc) FILE *fp; long loc;
 {
-	static char buf[NBUF];
 	register long sav;
 	register char *cp;
 	register int c;
@@ -400,15 +405,14 @@ getstring(fp, loc) FILE *fp; long loc;
 	sav = ftell(fp);
 	if (fseek(fp, strtable+loc, SEEK_SET) == -1L)
 		fatal("seek failed");
-	for (cp = buf; cp < &buf[NBUF-1]; *cp++ = c)
+	for (cp = name; cp < &name[CSYMLEN]; *cp++ = c)
 		if ((c = fgetc(fp)) == '\0' || c == EOF)
 			break;
 	*cp = '\0';
 	if (c != '\0' && fgetc(fp) != '\0')
-		warning("symbol truncated to %s", buf);
+		warning("symbol truncated to %s", name);
 	if (fseek(fp, sav, SEEK_SET) == -1L)
 		fatal("seek failed");
-	return buf;
 }
 
 /*
@@ -454,6 +458,9 @@ getsyms()
 		fseek(fp, skip, SEEK_CUR);
 		readsyms((int)(hdr.l_ssize[L_SYM]/sizeof (struct ldsym)), fp);
 	}
+	if (dsize == 0)
+		fatal("no symbols found in \"%s\"", lout);
+	dict = (SYMBOL *)realloc(dict, (dsize + 1) * sizeof *dict);
 	qsort(dict, dsize, sizeof *dict, cmpsym);
 	fclose(fp);
 }
@@ -464,14 +471,14 @@ getsyms()
 void
 putdata()
 {
-	register symbol	**dpp, *dp;
+	register SYMBOL	**dpp, *dp;
 
 	dbprintf(("putdata():\n"));
 	qsort(dict, dsize, sizeof *dict, cmpdata);
 	for (dpp=dict; (dp=*dpp++) != NULL;) {
 		if (dp->pcount == 0 && dp->ccount == 0)
 			continue;
-		printf("%-*.*s", SWIDTH, NCPLN, dp->name);
+		printf("%-*s", symwidth, dp->name);
 		if (tticks != 0) {
 			centi(dp->pcount, (PSCALE * tticks)/100, 2);
 			putchar('%');
@@ -493,34 +500,40 @@ putdata()
 void
 readcoffsyms(nsyms, fp) register long nsyms; FILE *fp;
 {
-	register symbol **dpp, *dp;
-	char name[NCPLN];
+	register SYMBOL **dpp, *dp;
 	SYMENT sym;
+	int len, maxlen;
 
 	dbprintf(("readcoffsyms(): nsyms=%ld\n", nsyms));
-	dict = dpp = (symbol **)alloc((nsyms + 1) * sizeof *dpp);
-	name[8] = '\0';
+	dict = dpp = (SYMBOL **)alloc((nsyms + 1) * sizeof *dpp);
+	maxlen = 0;
 	while (nsyms-- > 0) {
 		if (fread(&sym, sizeof sym, 1, fp) != 1)
 			fatal("symbol read failed");
 		if (sym.n_scnum != SCNUM_TEXT || sym.n_sclass != C_EXT)
 			continue;		/* ignore all but .text */
-		dp = (symbol *)alloc(sizeof *dp);
 		if (sym.n_zeroes == 0L)
-			strncpy(dp->name, getstring(fp, sym.n_offset), NCPLN);
+			getstring(fp, sym.n_offset);
 		else {
-			strncpy(dp->name, sym.n_name, 8);
-			dp->name[8] = '\0';
+			strncpy(name, sym.n_name, 8);
+			name[8] = '\0';
 		}
+		len = strlen(name);
+		dp = (SYMBOL *)alloc(sizeof *dp + len + 1);
+		strcpy(dp->name, name);
 		dp->addr = sym.n_value;
 		dp->pcount = dp->ccount = 0;
 		*dpp++ = dp;
+		if (len > maxlen)
+			maxlen = len;
 	}
 	*dpp = NULL;
 	dsize = dpp - dict;
-	if (dsize == 0)
-		fatal("no symbols found in \"%s\"", lout);
-	dict = (symbol *)realloc(dict, (dpp + 1 - dict) * sizeof *dpp);
+	if (maxlen > NCPLN) {
+		symwidth = maxlen;
+		if (symwidth > SYMWMAX)
+			symwidth = SYMWMAX;		/* for readability */
+	}
 }
 
 /*
@@ -530,11 +543,11 @@ readcoffsyms(nsyms, fp) register long nsyms; FILE *fp;
 void
 readsyms(nsyms, fp) register int nsyms; FILE *fp;
 {
-	register symbol	**dpp, *dp;
+	register SYMBOL	**dpp, *dp;
 	struct ldsym	lsym;
 
 	dbprintf(("readsyms(): nsyms=%d\n", nsyms));
-	dict = dpp = (symbol **)alloc((nsyms + 1) * sizeof *dpp);
+	dict = dpp = (SYMBOL **)alloc((nsyms + 1) * sizeof *dpp);
 	while (--nsyms >= 0) {
 		if (fread(&lsym, sizeof lsym, 1, fp) != 1)
 			fatal("unexpected end of file on \"%s\"", lout);
@@ -542,17 +555,16 @@ readsyms(nsyms, fp) register int nsyms; FILE *fp;
 			continue;
 		if ((lsym.ls_type & L_GLOBAL) == 0 && ! aflag)
 			continue;
-		dp = (symbol *)alloc(sizeof *dp);
-		strncpy(dp->name, lsym.ls_id, NCPLN);
+		strncpy(name, lsym.ls_id, NCPLN);
+		name[NCPLN] = '\0';
+		dp = (SYMBOL *)alloc(sizeof *dp + strlen(name) + 1);
+		strcpy(dp->name, lsym.ls_id);
 		dp->addr = lsym.ls_addr;
 		dp->pcount = dp->ccount = 0;
 		*dpp++ = dp;
 	}
 	*dpp = NULL;
 	dsize = dpp - dict;
-	if (dsize == 0)
-		fatal("no symbols found in \"%s\"", lout);
-	dict = (symbol *)realloc(dict, (dpp + 1 - dict) * sizeof *dpp);
 }
 
 /*
