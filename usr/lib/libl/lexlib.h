@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <sys/mdata.h>
 
-#define	YYTSIZE		255
+#define	YYTSIZE		4096
 #define	QSIZE		MAXUCHAR
 #define	qpt(q,c)	((++q.ll_qc),(q.ll_qs[q.ll_qi++&QSIZE]=(c)))
 #define	qug(q,c)	((++q.ll_qc),(q.ll_qs[--q.ll_qo&QSIZE]=(c)))
