@@ -146,7 +146,7 @@ dir()
 	struct direct dirent;
 
 	/* Open "/" and print out the direct block file entries.  */
-	iattach(&rootinode, (ino_t) 2);
+	iopen(&rootinode, (ino_t) 2);
 
 	/* Read each directory entry one at a time.  */
 	/* We are careful to print an even fraction of 80 for each
