@@ -90,8 +90,6 @@ UGE:
 / Floating point.
 //////////
 
-#ifndef	NDPDEF
-
 / DECVAX or IEEE software floating point.
 / Double :: double.
 / _dcmp(d) pops its argument before returning, so it need not be done here.
@@ -104,10 +102,6 @@ UGE:
 			[ZCALL]	[GID _dcmp]
 			[REL0]	[LAB]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Hardware coprocessor (NDP) floating point.
 %	PREL|P_SLT|PNDP
 	*		*	FPAC	*	NONE
@@ -116,8 +110,6 @@ UGE:
 			[TR ZFCOMPD]	[AR]
 			[ZCALL]		[GID _cfcc]
 			[REL0]		[LAB]
-
-#endif
 
 //////////
 / end of n1/i386/tables/relop.t

@@ -14,9 +14,7 @@
 static	SYM	*countp;
 ival_t		framesize;
 PREGSET		usedregs;
-#if	NDP
 int		hasfloat;
-#endif
 
 /*
  * Generate code for the ALIGN operation.
@@ -61,9 +59,7 @@ genprolog()
 	register int	lab;
 	register SYM	*labp;
 
-#if	NDP
 	hasfloat = 0;
-#endif
 	if (isvariant(VASM)) {
 		/* Write assembler. */
 		if ((framesize == 0) || (framesize >= 65536L) || isvariant(VPROF)) {
@@ -158,15 +154,17 @@ genprolog()
 genepilog()
 {
 	if (isvariant(VASM)) {
-#if	NDP
-		if (hasfloat) {
+		if (isvariant(VNDP) && hasfloat) {
+#if	0
 			if (isvariant(VEMU87))
 				genone(ZCALL, A_GID|A_DIR, "emu87");
 			else {
-				bput(CODE); bput(ZFWAIT);
-			}
-		}
 #endif
+				bput(CODE); bput(ZFWAIT);
+#if	0
+			}
+#endif
+		}
 		if ((usedregs & BEBX) != 0)
 			genone(ZPOP, A_REBX);
 		if ((usedregs & BEDI) != 0)
@@ -176,14 +174,14 @@ genepilog()
 		bput(CODE); bput(ZLEAVE);
 		bput(CODE); bput(ZRET);
 	} else {
-#if	NDP
-		if (hasfloat) {
+		if (isvariant(VNDP) && hasfloat) {
+#if	0
 			if (isvariant(VEMU87))
 				outemucall();		/* call emu87 */
 			else
+#endif
 				outfb(0x9B);		/* fwait */
 		}
-#endif
 		if ((usedregs & BEBX) != 0)
 			outab(0x5B);			/* pop ebx */
 		if ((usedregs & BEDI) != 0)

@@ -98,19 +98,19 @@ modoper(tp, ac, ptp) register TREE *tp; int ac; TREE *ptp;
 	 * and all conversions from float to fixed
 	 * as calls of support routines.
 	 */
-#if	NDP
-	if (isflt(tt)) {
-		if (op==CONVERT || op==CAST) {
-			if ((lp->t_flag&T_REG) != 0
-			|| (lp->t_flag&T_LEAF) == 0
-			|| (lt!=S16 && lt!=S32 && lt!=F32))
-				return modxfun(tp);
-		}
-	} else if ((op>=GT && op<=LT) && isflt(lt))
-		tp->t_op += UGT-GT;
-	else if ((op==CONVERT || op==CAST) && isflt(lt))
-				return modxfun(tp);
-#endif
+	if (isvariant(VNDP)) {
+		if (isflt(tt)) {
+			if (op==CONVERT || op==CAST) {
+				if ((lp->t_flag&T_REG) != 0
+				|| (lp->t_flag&T_LEAF) == 0
+				|| (lt!=S16 && lt!=S32 && lt!=F32))
+					return modxfun(tp);
+			}
+		} else if ((op>=GT && op<=LT) && isflt(lt))
+			tp->t_op += UGT-GT;
+		else if ((op==CONVERT || op==CAST) && isflt(lt))
+			return modxfun(tp);
+	}
 	switch (op) {
 
 	case FIELD:
@@ -238,8 +238,6 @@ modargs(tp, ptp) register TREE *tp; TREE *ptp;
 	return modtree(tp, MFNARG, ptp);
 }
 
-#if	NDP
-
 static	char	modoptab[] = {
 	'i',	'u',		/* S8	U8		*/
 	'i',	'u',		/* S16	U16		*/
@@ -297,7 +295,6 @@ TREE *tp;
 	}
 	return tp;
 }
-#endif
 
 /*
  * Zap a DCON into a block of memory with a double in it.

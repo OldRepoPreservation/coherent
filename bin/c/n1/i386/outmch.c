@@ -101,11 +101,9 @@ register int	opcode;
 register TREE	*tp;
 {
 	int type, byteflag, wordflag, unsflag;
-#if	NDP
 	int fltflag;
 
 	fltflag = is_ndp_op(opcode);
-#endif
 	if (opvariant == M_TL)
 		tp = tp->t_lp;			/* use left type */
 	else if (opvariant == M_TR)
@@ -159,7 +157,6 @@ register TREE	*tp;
 		case ZMOVZX:	return ZMOV;
 		}
 	}
-#if	NDP
 	if (fltflag) {
 		/*
 		 * Replace opcode by type-dependent variant.
@@ -185,7 +182,6 @@ register TREE	*tp;
 			}
 		}
 	}
-#endif
 	return opcode;			/* return opcode unchanged */
 }
 

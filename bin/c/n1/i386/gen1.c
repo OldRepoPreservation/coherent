@@ -57,22 +57,36 @@ coderinit()
 	register PATFLAG *pfp;
 	register PATFLAG pflag;
 
+	/* Modify table entries in n1/i386/table1.c if NDP floating point. */
+	if (isvariant(VNDP)) {
+		reg[EDXEAX].r_rvalue = 0;
+		reg[FPAC].r_rvalue = KD;
+		pertype[F64].p_frreg = FPAC;
+	}
+
+	/* Zap inappropriate code table entries. */
 	for (pfp=patcache, i=0; i < patcsize; pfp++, i++) {
 		if (((pflag = *pfp) & MDPFLAGS) != 0) {
+			if (isvariant(VNDP)) {
+				/* NDP hardware fp, zap software fp entries. */
+				flag = ((pflag&PIEEE)!=0 || (pflag&PDECVAX)!=0)
+					&& (pflag&PNDP)==0;
+			} else {
+				/*
+				 * Software fp, zap NDP hardware fp entries
+				 * and entries for inappropriate fp format.
+				 */
 #if	DECVAX
-			flag = ((pflag&PIEEE)!=0 || (pflag&PNDP)!=0)
-				&& (pflag&PDECVAX)==0;
+				flag = ((pflag&PIEEE)!=0 || (pflag&PNDP)!=0)
+					&& (pflag&PDECVAX)==0;
 #endif
 #if	IEEE
-			flag = ((pflag&PDECVAX)!=0 || (pflag&PNDP)!=0)
-				&& (pflag&PIEEE)==0;
+				flag = ((pflag&PDECVAX)!=0 || (pflag&PNDP)!=0)
+					&& (pflag&PIEEE)==0;
 #endif
-#if	NDP
-			flag = ((pflag&PIEEE)!=0 || (pflag&PDECVAX)!=0)
-				&& (pflag&PNDP)==0;
-#endif
+			}
 			if (flag)
-				*pfp = 0;
+				*pfp = 0;	/* zero the pattern flags */
 		}
 	}
 }

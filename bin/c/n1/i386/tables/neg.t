@@ -22,8 +22,6 @@ NEG:
 / Floating point.
 //////////
 
-#ifndef	NDPDEF
-
 / DECVAX or IEEE software floating point.
 / Twiddle the sign bit directly.
 / N.B. this changes 0.0 to -0.0.
@@ -33,18 +31,12 @@ NEG:
 		*		*
 			[ZXOR]	[REGNO EDX],[CONST 0x80000000]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Hardware coprocessor (NDP) floating point.
 %	PVALUE|P_SLT|PNDP
 	FF64		FPAC	FPAC	*	FPAC
 		TREG		FF64
 		*		*
 			[ZFCHS]
-
-#endif
 
 //////////
 / end of n1/i386/tables/neg.t

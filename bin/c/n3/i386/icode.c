@@ -226,7 +226,7 @@ static struct ins {
 	"xlat",		0,	0,
 #endif
 
-#if	NDP
+#if	1
 	"faddl",	1,	0,
 	"fadds",	1,	0,
 	"fiaddl",	1,	0,

@@ -196,7 +196,7 @@ OPINFO	opinfo[]		= {
 	/* xlat	  */		0,	0,		0xD7,	OF_INH,
 #endif
 
-#if	NDP
+#if	1
 	/* faddd  */		1,	0,		0x04,	OF_FRM,
 	/* faddf  */		1,	0,		0x00,	OF_FRM,
 	/* faddl  */		1,	0,		0x02,	OF_FRM,

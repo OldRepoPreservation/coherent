@@ -69,8 +69,6 @@ AADD:
 / Floating point.
 //////////
 
-#ifndef	NDPDEF
-
 / IEEE or DECVAX software floating point.
 / Double op= double.
 %	PEFFECT|PVALUE|P_SRT|PDECVAX|PIEEE
@@ -96,10 +94,6 @@ AADD:
 			[ZMOV]	[AL], [LO R]
 		[IFV]	[ZCALL]	[GID _dfcvt]
 
-#endif
-
-#ifdef	NDPDEF
-
 / Hardware coprocessor (NDP) floating point.
 %	PEFFECT|PVALUE|PNDP
 	FLOAT		FPAC	*	FPAC	FPAC
@@ -108,8 +102,6 @@ AADD:
 			[TL ZFADDD]	[AL]
 		[IFV]	[TL ZFSTD]	[AL]
 		[IFE]	[TL ZFSTPD]	[AL]
-
-#endif
 
 //////////
 / end of n1/i386/tables/aadd.t

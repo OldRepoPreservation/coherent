@@ -22,9 +22,7 @@ static	ADDRESS	pcdot[NSEG];		/* Working copy of seg '.' fields */
 static	int	pcseg;			/* Current segment */
 static	int	pass;			/* Pass flag; only 1 emits code */
 
-#if	NDP
 extern	int	hasfloat;		/* function uses floating point */
-#endif
 
 /*
  * Driving routine.
@@ -605,7 +603,6 @@ assemble(ip1) register INS *ip1;
 				af_p(ip1, 1));
 			break;
 			
-#if	NDP
 		/*
 		 * 8087 or 80287 floating point operations.
 		 * See comments preceding "asmfwait()" below.
@@ -633,7 +630,7 @@ assemble(ip1) register INS *ip1;
 			asmfop(ESC | (opbits & 0x07), 0);
 			asmgen(-1, opbits&0x38, af_p(ip1, 0));
 			break;
-#endif
+
 		default:
 			cbotch("cannot assemble %d", opcode);
 		}
@@ -801,7 +798,6 @@ asmxl(afp, flag) register AFIELD *afp; int flag;
 	pc += 4;
 }
 
-#if	NDP
 /*
  * Notes on 8087 and 80287 opcode generation:
  * The 8086 does not check the coprocessor BUSY line when it encounters
@@ -836,10 +832,12 @@ asmxl(afp, flag) register AFIELD *afp; int flag;
 asmfwait()
 {
 	hasfloat = 1;
+#if	0
 	if (isvariant(VEMU87)) {
 		asmemucall();		/* call emu87 */
 		return;			/* and suppress the FWAIT */
 	}
+#endif
 	if (pass != 0) {
 		berr();
 		outfb(WAIT);
@@ -856,6 +854,7 @@ asmfwait()
 asmfop(op, prefix)
 {
 	hasfloat = 1;
+#if	0
 	if (isvariant(VEMU87)) {
 		asmemucall();		/* call emu87 */
 		if (pass != 0)
@@ -863,6 +862,7 @@ asmfop(op, prefix)
 		pc++;
 		return;
 	}
+#endif
 	if (pass != 0) {
 		berr();
 		outfb(op);	/* no FWAIT for 80x87 */
@@ -870,6 +870,7 @@ asmfop(op, prefix)
 	pc++;
 }
 
+#if	0
 /*
  * Assemble a call to the IEEE software floating point 8087 emulator.
  */
