@@ -4,8 +4,8 @@
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
-KERINC=/usr/src/sys/sys
-DRVINC=/usr/src/sys/i8086/sys
+KERINC=$(USRKER)/src/sys/sys
+DRVINC=$(USRKER)/src/sys/i8086/sys
 
 DEBUG=0
 AS=exec /bin/as
