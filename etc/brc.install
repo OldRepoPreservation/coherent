@@ -13,7 +13,7 @@
 
 : Trap in case interrupted.
 trap 'echo; echo Aborted...' 1 2 3
-if /etc/install -b Coh_310 /dev/fha0 4
+if /etc/install -b test_100 /dev/fva0 4
 then
 	/etc/coh_intro
 	echo You are now running single user COHERENT \(as root\).
