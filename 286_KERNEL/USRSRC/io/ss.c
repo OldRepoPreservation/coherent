@@ -8,6 +8,9 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 3.1  91/06/17  07:43:25  hal
+ * Add TMC-840 code.
+ * 
  * Revision 1.1  91/06/17  07:42:27  hal
  * Add TMC-840 code.
  * 
@@ -47,7 +50,7 @@ static int s_id;
 /*
  * Includes.
  */
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include	<sys/io.h>
 #include	<sys/sched.h>
 #include	<sys/uproc.h>
@@ -56,11 +59,10 @@ static int s_id;
 #include	<sys/stat.h>
 #include	<sys/devices.h>		/* SCSI_MAJOR */
 #include	<errno.h>
-
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
-#include	<scsiwork.h>
+#include	<sys/scsiwork.h>
 
 /*
  * Definitions.
@@ -97,18 +99,10 @@ static int s_id;
 #define RS_PRTY_ERROR	0x40
 #define RS_SELECT	0x20
 #define RS_REQUEST	0x10
-#define rs_ctrl_data	0x08
+#define RS_CTRL_DATA	0x08
 #define RS_I_O  	0x04
-#define rs_message  	0x02
+#define RS_MESSAGE  	0x02
 #define RS_BUSY  	0x01
-
-/*
- * Command/Data and Message bits are swapped on-board (outside the chip)
- * on older Future Domain host boards.
- */
-#define rs_ctrl_data_b	0x02
-#define rs_message_b 	0x08
-
 
 #define DEV_SCSI_ID(dev)	((dev >> 4) & 0x0007)
 #define DEV_LUN(dev)		((dev >> 2) & 0x0003)
@@ -251,6 +245,7 @@ static int	ssinit();
 static void	ssintr();
 static int	start_arb();
 static void	stop_timeout();
+static uchar	xpmod();
 
 /*
  * Global Data.
@@ -287,7 +282,7 @@ uint	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 uint	SS_BASE = 0xCA00;	/* Segment addr of ST0x communication area */
 
 /* ncyl, nhead, nspt */
-drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
+drv_parm_type drv_parm[MAX_SCSI_ID] = {
 	{ 0, 0, 0},
 	{ 0, 0, 0},
 	{ 0, 0, 0},
@@ -312,11 +307,10 @@ static int	ss_expired;	/* 1 after local timeout */
 static uint	max_req_poll;	/* this changes after initialization */
 
 static uchar	host_id;	/* Host is SCSI ID #7 for Seagate, 6 for FD */
-static uchar	RS_CTRL_DATA;
-static uchar	RS_MESSAGE;
+static uchar	swap_status_bits;
 
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
-static ss_type  *ss[MAX_SCSI_ID-1];
+static ss_type  *ss[MAX_SCSI_ID];
 
 /*
  * host_claimed is -1 if host is available, else it's the SCSI id of the
@@ -378,24 +372,20 @@ static void ssload()
 		ss_csr = ss_fp + SS_CSR;
 		ss_dat = ss_fp + SS_DAT;
 		host_id = 0x80;		/* host is id #7 */
-		RS_CTRL_DATA = rs_ctrl_data;
-		RS_MESSAGE = rs_message;
 		break;
 	case 0x80:	/* TMC-845/850/860/875/885 */
 		ss_csr = ss_fp + FD_CSR;
 		ss_dat = ss_fp + FD_DAT;
 		host_id = 0x40;		/* host is id #6 */
-		RS_CTRL_DATA = rs_ctrl_data;
-		RS_MESSAGE = rs_message;
 		break;
 	case 0x40:	/* TMC-840/841/880/881 */
 		ss_csr = ss_fp + SS_CSR;
 		ss_dat = ss_fp + SS_DAT;
 		host_id = 0x40;		/* host is id #6 */
-		RS_CTRL_DATA = rs_ctrl_data_b;
-		RS_MESSAGE = rs_message_b;
+		swap_status_bits = 1;
 		break;
 	}
+	NSDRIVE &= ~(uint)host_id;
 
 	/*
 	 * Allocate drive structs.
@@ -406,7 +396,7 @@ static void ssload()
 	 * First allocate and clear storage.  Then hook up the pointers.
 	 */
 	if (!erf) {
-		for (i = 0; i < MAX_SCSI_ID -1; i++)
+		for (i = 0; i < MAX_SCSI_ID; i++)
 			if ((NSDRIVE >> i) & 1) {
 				max_id = i;
 				num_drives++;
@@ -424,7 +414,7 @@ static void ssload()
 	if (!erf) {
 		ss_type *foo = ss_tbl;
 
-		for (i = 0; i < MAX_SCSI_ID -1; i++)
+		for (i = 0; i < MAX_SCSI_ID; i++)
 			if ((NSDRIVE >> i) & 1)
 				ss[i] = foo++;
 	}
@@ -441,7 +431,7 @@ static void ssload()
 	bufq_init(max_id + 1);
 	max_req_poll = INL_MAX_REQ_POLL;
 	if (!erf) {
-		for (i = 0; i < MAX_SCSI_ID -1; i++)
+		for (i = 0; i < MAX_SCSI_ID; i++)
 			if ((NSDRIVE >> i) & 1)
 				ssinit(i);
 	}
@@ -867,7 +857,7 @@ PR1("DUM");
 	s = sphi();
 	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-		switch (phase_type) {
+		switch (xpmod(phase_type)) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
@@ -912,7 +902,7 @@ static void sswatch()
 	int s_id;
 	ss_type * ssp;
 
-	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++) {
+	for (s_id = 0; s_id < MAX_SCSI_ID; s_id++) {
 		ssp = ss[s_id];
 		if (ssp && ssp->dr_watch)
 			defer(ss_mach, s_id);
@@ -1086,7 +1076,7 @@ int block_done=0;
 			s = sphi();
 			irpts_masked = 1;
 		}
-		switch (phase_type) {
+		switch (xpmod(phase_type)) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
@@ -2075,7 +2065,7 @@ int s_id;
 
 	while (1) {
 		next_id++;
-		if (next_id >= MAX_SCSI_ID - 1)
+		if (next_id >= MAX_SCSI_ID)
 			next_id = 0;
 		if (ss[next_id]
 		&& (ss[next_id]->state != SST_DEQUEUE || bufq_rd_head(next_id))) {
@@ -2157,7 +2147,7 @@ uchar xch[100];
 if (xct < 100)
 	xch[xct++]=phase_type;
 #endif
-		switch (phase_type) {
+		switch (xpmod(phase_type)) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
@@ -2335,3 +2325,24 @@ init_call_done:
 spl(s);
 	return ret;
 }
+
+/*
+ * xpmod()
+ *
+ * Command/Data and Message bits are swapped on-board (outside the chip)
+ * on older Future Domain host boards.
+ */
+static uchar xpmod(oldphase)
+uchar oldphase;
+{
+	uchar ret = oldphase;
+
+	if (swap_status_bits) {
+		ret &= ~(RS_CTRL_DATA | RS_MESSAGE);
+		if (oldphase & RS_MESSAGE)
+			ret |= RS_CTRL_DATA;
+		if (oldphase & RS_CTRL_DATA)
+			ret |= RS_MESSAGE;
+	}
+	return ret;
+} 
