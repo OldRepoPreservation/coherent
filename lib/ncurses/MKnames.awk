@@ -23,7 +23,7 @@
 #********************************************************************/
 
 #
-#  $Header:   RCS/MKnames.v  Revision 2.1  82/10/25  14:45:06  pavel  Exp$
+#  $Header: /src386/usr/lib/ncurses/RCS/MKnames.awk,v 1.1 92/03/26 11:44:27 bin Exp Locker: bin $
 #
 
 BEGIN		{
@@ -39,15 +39,15 @@ BEGIN		{
 			print  "char	*StrNames[] = {" > "strnames"
 		}
 
-$3 == "bool"	{
+$4 == "bool"	{
 			printf "\t\t%s,\n", $2 > "boolnames"
 		}
 
-$3 == "number"	{
+$4 == "number"	{
 			printf "\t\t%s,\n", $2 > "numnames"
 		}
 
-$3 == "str"	{
+$4 == "str"	{
 			printf "\t\t%s,\n", $2 > "strnames"
 		}
 
