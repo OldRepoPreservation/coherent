@@ -18,6 +18,8 @@ MBLOCK	*__a_first = NULL;		/* first arena */
 MBLOCK	*__a_top = NULL;		/* end of last sbrk */
 unsigned __a_count = 0;			/* number of blocks */
 
+extern char *sbrk();
+
 /*
  * Get a new arena from sbrk() and hook it to the old list.
  * Return 1 if there is any chance of malloc succeeding, else 0.
@@ -111,13 +113,14 @@ malloc(size) unsigned size;
 	    return NULL;
 
     do { /* until we find enough or newarena fails */
-	prevmp = NULL;
-	mp = __a_scanp;
-	for(counter = __a_count; counter--; ) {
-		if (!isfree(len = mp->blksize))	/* used block or pointer */
+	for (counter = __a_count, mp = __a_scanp, prevmp = NULL; counter--; ) {
+		if (!isfree(len = mp->blksize)) { /* used block or pointer */
+			mp = (len) ? bumpp(mp, len) : mp->uval.next;
 			prevmp = NULL;
-		else {
-			if (prevmp != NULL) {		/* consolidate free */
+			continue;
+		}
+
+		if (prevmp != NULL) {		/* consolidate free */
 #if	0
 /*
  * The following assumes adjacent free blocks can be consolidated without
@@ -130,35 +133,32 @@ malloc(size) unsigned size;
  * point to the same memory location) and newarena() leaves a 0 end marker
  * between the arenas.
  */
-				if (prevmp->blksize + realsize(len) > len) {
-					mp = prevmp;
-					len = (mp->blksize += realsize(len));
-					__a_count--;
-				}
-#else
-				mp = prevmp;
-				len = (mp->blksize += realsize(len));
+			if (prevmp->blksize + realsize(len) > len) {
+				len = ((mp = prevmp)->blksize += realsize(len));
 				__a_count--;
+			}
+#else
+			len = ((mp = prevmp)->blksize += realsize(len));
+			__a_count--;
 #endif
-			}
-			if (len < needed)
-				prevmp = mp;
-			else {		/* got one big enough */
-				if ((len -= needed) < LEASTFREE) {
-					/* grab the entire block */
-					mp->blksize=needed=realsize(mp->blksize);
-					__a_scanp = bumpp(mp, needed);
-				} else {
-					/* split into used and free portions */
-					mp->blksize = needed;
-					__a_scanp = bumpp(mp, needed);
-					__a_scanp->blksize = len;
-					__a_count++;
-				}
-				return mp->uval.usera;
-			}
 		}
-		mp = (len) ? bumpp(mp, realsize(len)) : mp->uval.next;
+
+		if (len < needed) {	/* free but too small */
+			mp = bumpp(prevmp = mp, realsize(len));
+			continue;
+		}
+
+		if ((len -= needed) < LEASTFREE)
+			/* grab the entire block */
+			__a_scanp = bumpp(mp, mp->blksize = needed = realsize(mp->blksize));
+		else {
+			/* split into used and free portions */
+			mp->blksize = needed;
+			__a_scanp = bumpp(mp, needed);
+			__a_scanp->blksize = len;
+			__a_count++;
+		}
+		return mp->uval.usera;
 	}
 
 	/*
@@ -190,7 +190,7 @@ free(cp) char *cp;
 
 	mp = mblockp(cp);
 	len = mp->blksize;
-	if (len < 2) {		/* length of 0 or 1 is wrong */
+	if (len < LEASTFREE) { /* This can't exist */
 		static char msg[] = "Bad pointer in free.\r\n";
 
 		write(2, msg, sizeof(msg) - 1);
@@ -199,10 +199,8 @@ free(cp) char *cp;
 	mp->blksize |= FREE;			/* mark free */
 
 	/*
-	 * If freed block precedes scan pointer or scan pointer is not free,
-	 * reset the scan pointer.
+	 * If freed block precedes scan pointer reset the scan pointer.
 	 */
-	if (bumpp(mp, realsize(len)) == __a_scanp
-	 || !isfree(__a_scanp->blksize))
+	if (bumpp(mp, realsize(len)) == __a_scanp)
 		__a_scanp = mp;
 }
