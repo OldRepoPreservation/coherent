@@ -11,6 +11,7 @@ extern	char	*strtok();
 FILE	*aliasfp;
 char	aliasbuf [BUFSIZ];
 static	char	**tolist;
+extern char BOBerrmsg[];
 
 extern	char	*temp;
 extern	int	myuid;		/* User-id of mail user */
@@ -61,56 +62,61 @@ int	asksubj;
 	senderr = 0;
 	temp = templ;
 
-	if ((tfp = fopen(temp, "w")) != NULL) {
-		fclose(tfp);
-		if ((tfp = fopen(temp, "r+w")) == NULL)
-			merr(toerr);
-	} else
+
+	/* open a temporary file that data from smail will be
+	 * written to. Abort on failure or interrupt signal.
+	 */
+
+	if ((tfp = fopen(temp, "w+")) == NULL){
 		merr(toerr);
-	chown(temp, myuid, mygid);
-	unlink(temp);
-	temp = NULL;
-	fseek(fp, start, 0);
-	end -= start;
-
-	if (intcheck()) {
-		fclose(tfp);
 		return(1);
-	}
+	}else{
+		chown(temp, myuid, mygid);
 
-	for (;;) {
+		if (intcheck()) {
+			fclose(tfp);
+			return(1);
+		}
+
+		fseek(fp, start, 0);
+		end -= start;
+
+		for(;;){
 		if (fgets(msgline, NLINE, fp) == NULL)
 			break;
 		fputs(msgline, tfp);
+		fflush(tfp);
 		if ( (end-=strlen(msgline)) <= 0 )
 			break;
+		}
+
+		if (intcheck()) {
+			fclose(tfp);
+			return(1);
+		}
+
+		/*
+		 * if empty message, bug out.
+		 */
+		if (ftell(tfp) == 0) {
+			fclose(tfp);
+			return(1);
+		}
+
+		/*
+		 * Now send the message.
+		 */
+
+		time(&curtime);
+		tp = localtime(&curtime);
+
+		usend(users, tfp);	/* temp file is closed in usend() */
+
+
+		unlink(temp);		/* delete temp file */
+		temp = NULL;
+
 	}
-
-	if (intcheck()) {
-		fclose(tfp);
-		return(1);
-	}
-
-	/*
-	 * if empty message, bug out.
-	 */
-
-	if (ftell(tfp) == 0) {
-		fclose(tfp);
-		return(1);
-	}
-
-	/*
-	 * Now send the message.
-	 */
-
-	time(&curtime);
-	tp = localtime(&curtime);
-
-	if (callmexmail)
-		xsend(users, tfp);
-	else
-		usend(users, tfp);
 
 	return( senderr );
 }
@@ -123,6 +129,8 @@ FILE *tfp;
 	char	*cp, *name;
 	char	**ulist;
 	register struct passwd *pwp;
+	int lockstat;			/* status of mlock */
+
 
 	for (ulist = users; (name=*ulist) != NULL; ulist++) {
 		rewind(tfp);
@@ -143,22 +151,36 @@ FILE *tfp;
 			}
 		}
 
-		mlock(pwp->pw_uid);
-		if ((xfp = fopen(boxname, "a")) == NULL) {
-			mmsg(nosend, name);
-			logdump(nosend, name);
+		lockstat = mlock(pwp->pw_uid);	/* lock mailbox */
+
+		if(lockstat == 0){		/* lock successful */
+			if ((xfp = fopen(boxname, "a")) == NULL) {
+				mmsg(nosend, name);
+				logdump(nosend, name);
+				senderr = 1;
+				munlock();
+				continue;
+			}else{
+
+				chown(boxname, pwp->pw_uid, pwp->pw_gid);
+				chmod(boxname, 0600);
+				fprintf(xfp, "\1\1\1\1\n");
+				fflush(xfp);
+			        mcopy(tfp, xfp, ftell(tfp), (fsize_t)MAXLONG, 0);
+				fprintf(xfp, "\n\1\1\1\1\n");
+				fflush(xfp);
+				sleep(1);
+				fclose(xfp);
+				munlock();
+				advise(name);
+			}
+		}else{		/* lock failed */
 			senderr = 1;
-			munlock();
+			sprintf(BOBerrmsg,"{%d} mailbox already locked!\n",getpid());
+			logdump(BOBerrmsg);
 			continue;
 		}
-		chown(boxname, pwp->pw_uid, pwp->pw_gid);
-		chmod(boxname, 0600);
-		fprintf(xfp, "\1\1\1\1\n");
-	        mcopy(tfp, xfp, ftell(tfp), (fsize_t)MAXLONG, 0);
-		fprintf(xfp, "\n\1\1\1\1\n");
-		fclose(xfp);
-		munlock();
-		advise(name);
+
 	}
 
 	if (senderr && callmermail) {
