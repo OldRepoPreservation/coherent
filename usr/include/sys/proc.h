@@ -5,7 +5,11 @@
  -lgl) */
 /*
  * /usr/include/sys/proc.h
- * Process information.
+ *
+ * Process information.  PROC structs, unlike UPROC structs, are visible
+ * whether the process is active or not.
+ *
+ * Revised: Mon Apr 19 13:49:40 1993 CDT
  */
 
 #ifndef __SYS_PROC_H__
@@ -84,9 +88,10 @@ typedef struct proc {
 	TIM	 p_polltim;		/* Poll  timer */
 	TIM	 p_alrmtim;		/* Alarm timer */
 #ifdef _I386
-	struct	 rlock	*p_prl;		/* Pending record lock */
+	struct	 rlock *p_prl;		/* Pending record lock */
 	struct	 sr p_shmsr[NSHMSEG];	/* Shared Memory Segments */
-	char	p_nigel[16];		/* He made me do it! -hws- */
+	struct   sem_undo *p_semu;	/* Sem. undo link list */
+	char     p_nigel[16];		/* He made me do it! -hws- */
 #endif
 } PROC;
 
