@@ -1,6 +1,6 @@
 /*
  * fdisk.c
- * 3/23/90
+ * 3/26/90
  * cc -o fdisk fdisk.c query.c -f
  * Change partitioning of IBM-XT or IBM-AT hard disk.
  * Usage: /etc/fdisk [ -rvx ] [ -b bootb ] [ device ... ]
@@ -11,9 +11,6 @@
  *	-x	Use devices /dev/xt[01]x instead of /dev/at[01]x
  * If no device argument is given, fdisk supplies "/dev/[ax]t[01]x"
  * as appropriate.
- *
- * UNDONE:
- *	dosshrink execution
  */
 
 #include <stdio.h>
@@ -21,32 +18,35 @@
 #include <sys/hdioctl.h>
 
 #define	USAGE	"Usage: /etc/fdisk [ -rvx ] [ -b mboot ] [ device ... ]\n"
-#define	VERSION	"2.1"
+#define	VERSION	"2.2"
+#define	CMDSIZE	128		/* max dosshrink command length */
+#define	SSIZE	512		/* Sector size. */
 
-/* Conversions. */
-/* Sector size. */
-#define	SSIZE	512
-/* c:h:s to (ulong) sectors. */
+/*
+ * Conversions.
+ * (unsigned) c:h:s to (ulong) sectors,
+ * (ulong) sectors to (unsigned) c:h:s.
+ */
 #define	chs_to_sec(c,h,s) ((((unsigned long)(c)*nheads) + (h)) * nspt + (s) - 1)
-/* Sectors to (double) megabytes. */
-#define	meg(sec)	(((double)(sec)) * SSIZE / 1000000L)
-/* Sectors to (unsigned) c:h:s. */
-#define	sec_to_c(sec)	((unsigned)((sec) / (nheads * nspt)))
+#define	sec_to_c(sec)	((unsigned)((sec) / cylsize))
 #define	sec_to_h(sec)	((unsigned)(((sec) / nspt) % nheads))
 #define	sec_to_s(sec)	((unsigned)(((sec) % nspt) + 1))
-/* Sectors to (unsigned) tracks, rounding up. */
-#define	sec_to_t(sec)	((unsigned)(((sec) + nspt - 1) / nspt))
+/* (ulong) Sectors to (double) megabytes. */
+#define	meg(sec)	(((double)(sec)) * SSIZE / 1000000L)
+/* (ulong) Sectors to (unsigned) cylinders and tracks, rounding up. */
+#define	sec_upto_c(sec)	(sec_to_c((sec) + nspt * nheads - 1))
+#define	sec_upto_t(sec)	((unsigned)(((sec) + nspt - 1) / nspt))
 
 /* Externals. */
 extern	long	lseek();
+extern	char	*malloc();
 extern	void	qsort();
 
 /* Functions. */
 void		change_active();
-void		change_logical();
 void		change_part();
 void		check_chs();
-void		consistency();
+void		dos_shrink();
 void		drive_info();
 void		fatal();
 void		fdisk();
@@ -61,14 +61,18 @@ void		unused();
 void		usage();
 
 /* Globals. */
+char		*argv0;		/* Command name, for error messages.	*/
 int		badflag;	/* Partition table is bad.		*/
+int		cylflag;	/* Specify base and size in cylinders.	*/
+unsigned int	cylsize;	/* Cylinder size in sectors.		*/
 unsigned char	*defargs[3] = { "/dev/at0x", "/dev/at1x", NULL };
-unsigned char	*device;	/* Device name.				*/
+unsigned char	*device;	/* Partition table device name.		*/
 unsigned char	*drivename;	/* Disk drive name.			*/
 int		freepart;	/* Free partition.			*/
 unsigned long	freesize;	/* Free size.				*/
 unsigned long	freestart;	/* First free sector.			*/
 HDISK_S		hd;		/* Structure to house boot block.	*/
+int		megflag;	/* Specify sizes in megabytes.		*/
 unsigned int	nspt;		/* Number of sectors per track.		*/
 unsigned int	ncyls;		/* Number of cylinders.			*/
 HDISK_S		newhd;		/* Structure to house new boot block.	*/
@@ -86,9 +90,9 @@ main(argc, argv) int argc; char *argv[];
 	int fd0, fd1;
 
 	/* Sanity check. */
+	argv0 = argv[0];
 	if (sizeof hd != SSIZE)
 		fatal("invalid HDISK_S size %u != %u", sizeof hd, SSIZE);
-
 	while (argc > 1 && **++argv == '-') {
 		--argc;
 		for (s = &argv[0][1]; *s; ++s) {
@@ -105,7 +109,7 @@ main(argc, argv) int argc; char *argv[];
 				++vflag;
 				break;
 			case 'V':
-				fprintf(stderr, "/etc/fdisk: V%s\n", VERSION);
+				fprintf(stderr, "%s: V%s\n", argv0, VERSION);
 				break;
 			case 'x':
 				argv[0][5] = argv[1][5] = 'x';
@@ -137,21 +141,15 @@ main(argc, argv) int argc; char *argv[];
 			fatal("cannot open default devices");
 	}
 	printf(
-		"This program lets you change hard disk partition information.\n"
+		"This program lets you change partition information for each disk drive.\n"
 		"A disk drive can be divided into one to four logical partitions.\n"
 		"You can change the active partition (the partition which your\n"
 		"system boots by default) or change the layout of logical partitions.\n"
-		"Logical partitions may be listed in a different order by\n"
-		"other programs which change hard disk partition information.\n"
+		"Other programs which change hard disk partition information\n"
+		"may list logical partitions in a different order.\n"
 		);
-	if (argc > 1) {
-		printf("Since your system includes %d hard disk drives,\n", argc);
-		printf("you can change the partition information for each drive.\n");
-	}
-	while (*argv != NULL) {
-		device = *argv++;
+	while ((device = *argv++) != NULL)
 		fdisk();
-	}
 	exit(0);
 }
 
@@ -180,41 +178,6 @@ change_active()
 }
 
 /*
- * Change logical partition information.
- */
-void
-change_logical()
-{
-	unsigned action, p;	
-
-	printf("Possible actions:\n");
-	printf("\t1 = Change attributes of one partition\n");
-	printf("\t2 = Change attributes of all partitions\n");	
-	printf("\t3 = Return to main menu\n");
-	action = 3;
-	get_uint("Action", &action, 1, 3);
-	printf("\n");
-	switch (action) {
-	case 1:
-		p = (freepart != -1) ? freepart : 0;
-		p += partbase;
-		get_uint("Which partition", &p, partbase, partbase + NPARTN - 1);
-		p -= partbase;
-		change_part(p);
-		break;
-	case 2:
-		for (p=0; p < NPARTN; ) {
-			change_part(p++);
-			if (p < NPARTN)
-				print_part();
-		}
-		break;
-	default:
-		break;
-	}
-}
-
-/*
  * Interactively change the table entry for logical partition n.
  * Grunge city.
  */
@@ -225,24 +188,30 @@ change_part(n) int n;
 	int sys, old, flag;
 	unsigned int c, h, s;
 	unsigned long size, osize, base, obase, end;
+	static int optflag;
 
+	/* Get options first time through. */
+	if (optflag == 0) {
+		++optflag;
+		printf(
+			"Existing data on a partition will be lost if you change the\n"
+			"base or the size of the partition.  Be sure you have backed up\n"
+			"all data from any partition which you are going to change.\n"
+			"\n"
+			"You may specify partition bases in cylinders or in tracks.\n"
+			);
+		flag = 'y';
+		queryc("Do you want to specify bases in cylinders", &flag);
+		cylflag = (flag == 'y');
+		printf("You may specify partition sizes in %s or in megabytes.\n",
+			cylflag ? "cylinders" : "tracks");
+		flag = 'n';
+		queryc("Do you want to specify sizes in megabytes", &flag);
+		megflag = (flag == 'y');
+	}
 	p = &hd.hd_partn[n];
 	printf("Partition %d:\n", n + partbase);
 	size = p->p_size;
-	if (size != 0L) {
-		/*
-		 * Display current base and size one more time.
-		 * The cylinder arithmetic is tricky because the partition base
-		 * need not fall on a cylinder boundary.
-		 */
-		c = bcyl(p);			/* starting cylinder */
-		printf("Partition %d currently begins at cylinder %u (track %u).\n",
-			n + partbase, c, nheads * c + bhd(p));
-		c = ecyl(p) - bcyl(p) + 1;	/* cylinders used */		
-		printf("Its current size is %u cylinders (%u tracks, %.2f megabytes).\n",
-			c, sec_to_t(size), meg(size));
-	} else
-		printf("Partition %d is currently empty.\n");
 			
 	/* Display possible system types. */
 	printf("Operating system types:\n");
@@ -269,44 +238,35 @@ getbase:
 	/* Default: old or first free or track 1. */
 	obase = p->p_base;
 	base = (size != 0L) ? obase : (freesize != 0) ? freestart : nspt;
-	if (size != 0L) {
-		flag = 'y';
-		queryc("Do you want to change the partition base", &flag);
-		if (flag == 'n')
-			goto checkbase;
-	}
-	printf("You may specify the partition base in cylinders or tracks.\n");
-	flag = 'y';
-	queryc("Do you want to specify the base in cylinders", &flag);
-	if (flag == 'y') {
+	if (cylflag) {				/* in cylinders */
 		base = sec_to_c(base);
 		get_ulong("Base cylinder", &base, 0L, (long) ncyls - 1);
 		if (base == 0)
 			base = nspt;		/* skip first track for cyl 0 */
 		else
 			base *= nspt * nheads;	/* cylinders to sectors */
-	} else {
-		base = sec_to_t(base);
+	} else {				/* in tracks */
+		base = sec_upto_t(base);
 		get_ulong("Base track", &base, 1L, (long)ncyls * nheads - 1);
 		base *= nspt;			/* tracks to sectors */
 	}
 
-checkbase:
-	/* Check that new base falls at a track boundary. */
+	/* Check that base falls at a track boundary. */
+	/* This should only happen if the disk was previously partitioned. */
 	c = sec_to_c(base);
 	h = sec_to_h(base);
 	s = sec_to_s(base);
 	if (s != 1) {
-		printf("For efficiency, partitions should begin at a track boundary.\n");
-		printf("The partition does not begin at a track boundary with the base you selected.\n");
-		printf("The next track boundary is at track %u\n", c * nheads + h + 1);
+		printf("Partitions should begin at a track boundary.\n");
+		printf("The partition does not begin at a track boundary with the selected base.\n");
+		printf("The next track boundary is at track %u\n", sec_upto_t(base));
 		flag = 'y';
 		queryc("Do you want to change the partition base", &flag);
 		if (flag == 'y')
 			goto getbase;
 	}
 
-	/* Update the partition table base. */
+	/* Update the partition table base and start information. */
 	if (base != obase) {
 		++nmods;
 		p->p_base = base;
@@ -318,47 +278,41 @@ checkbase:
 	/* Specify the partition size. */
 	/* Default size: free block size, old size, largest possible. */
 	osize = size;
-	if (size != 0L && base == obase) {
-		flag = 'y';
-		queryc("Do you want to change the partition size", &flag);
-		if (flag == 'n')
-			goto checksize;
-	}
 	size = (base == freestart) ? freesize : (size != 0L) ? size : nsectors - base;
-	printf("You may specify the partition size in cylinders, tracks or megabytes.\n");
-getsize:
-	flag = 'y';
-	queryc("Do you want to specify the size in cylinders", &flag);
-	if (flag == 'y') {
+	if (megflag) {				/* in megabytes */
+		size = meg(size);
+		if ((long)meg(nsectors - base) == 0) {
+			printf("Less than a megabyte of space remains.\n");
+			size = nsectors - base;
+		} else {
+			get_ulong("Partition size in megabytes", &size, 0L,
+				(long) meg(nsectors - base));
+			size *= 1000000L;	/* megabytes to bytes */
+			size /= SSIZE;		/* to sectors */
+			size = sec_upto_t(size); /* round up to tracks */
+			size *= nspt;		/* tracks to sectors */
+		}
+	} else if (cylflag) {			/* in cylinders */
 		/* Tricky stuff again. */
 		end = base + size - 1;
 		size = sec_to_c(end) - sec_to_c(base) + 1;
 		get_ulong("Partition size in cylinders", &size, 0L,
 			(long) ncyls - sec_to_c(base));
-		size *= nspt * nheads;	/* cylinders to sectors */
-	} else {
-		flag = 'y';
-		queryc("Do you want to specify the size in tracks", &flag);
-		if (flag == 'y') {
-			size = sec_to_t(size);
-			get_ulong("Partition size in tracks", &size, 0L,
-				(long) sec_to_t(nsectors - base));
-		} else {
-			size = meg(size);
-			if ((long)meg(nsectors - base) == 0) {
-				printf("Less than a megabyte of space remains.\n");
-				goto getsize;
-			}
-			get_ulong("Partition size in megabytes", &size, 0L,
-				(long) meg(nsectors - base));
-			size *= 1000000L;	/* megabytes to bytes */
-			size /= SSIZE;		/* to sectors */
-			size = sec_to_t(size);	/* round up to tracks */
-		}
+		size *= nspt * nheads;		/* cylinders to sectors */
+		/*
+		 * Adjust size to end at cylinder boundary
+		 * if it did not start at cylinder boundary.
+		 */
+		if (size != 0 && base % cylsize != 0)
+			size -= base % cylsize;
+	} else {				/* in tracks */
+		size = sec_upto_t(size);
+		get_ulong("Partition size in tracks", &size, 0L,
+			(long) sec_upto_t(nsectors - base));
 		size *= nspt;			/* tracks to sectors */
 	}
 
-checksize:
+	/* Check the size. */
 	if (base + size > nsectors)
 		size = nsectors - base;		/* roundup too big */
 	end = base + size - 1;
@@ -366,7 +320,7 @@ checksize:
 	h = sec_to_h(end);
 	s = sec_to_s(end);
 	if (s != nspt) {
-		printf("For efficiency, partitions should end at a track boundary.\n");
+		printf("Partitions should end at a track boundary.\n");
 		printf("A partition with %u more sectors would end at a track boundary.\n", nspt - s);
 		printf("Do you want to add %u sectors", nspt - s);
 		flag = 'y';
@@ -445,15 +399,52 @@ check_chs(p, flag) FDISK_S *p; int flag;
 }
 
 /*
- * Check the consistency of a partition table entry.
+ * Shrink an MS-DOS partition.
+ * PFM.
  */
 void
-consistency(p) FDISK_S *p;
+dos_shrink(fd, n) int fd, n;
 {
-	if (p->p_size == 0)
-		return;				/* empty entry */
-	check_chs(p, 1);
-	check_chs(p, 0);
+	int flag;
+	static char cmd[CMDSIZE];
+
+	printf(
+		"You can sometimes shrink an existing MS-DOS partition to make room for\n"
+		"a COHERENT partition if your disk is entirely allocated to MS-DOS.\n"
+		"This program will attempt to shrink the MS-DOS partition without destroying\n"
+		"the data on it.  However, you should BACK UP ALL DATA from the MS-DOS\n"
+		"partition to diskettes before you try to shrink it.\n"
+		);
+	if (freepart == -1) {
+		printf("%s", drivename);
+		printf(
+			" does not contain an unused partition.  Shrinking an MS-DOS\n"
+			"partition will create additional free space on the disk, but there\n"
+			"is currently no partition table entry available for the freed space.\n"
+			);
+		flag = 'n';
+		queryc("Do you want to shrink the MS-DOS partition anyway", &flag);
+		if (flag == 'n')
+			return;
+	}
+
+	/* Go for smoke. */
+	sprintf(cmd, "/etc/dosshrink %s %d %s\n", device, n, device);
+	cmd[strlen(cmd) - 2] = 'a' + n;
+	if (system(cmd) != 0) {
+		printf("Shrinking of MS-DOS partition failed.\n");
+		return;
+	}
+
+	/* Read the partition table again to get the changed entry. */
+	++nmods;
+	if (lseek(fd, 0L, 0) != 0L)
+		fatal("%s: seek failed", device);
+	else if (read(fd, &newhd, sizeof hd) != sizeof hd) {
+		close(fd);
+		fatal("%s: read error", device);
+	} else
+		memcpy(&hd.hd_partn[n], &newhd.hd_partn[n], sizeof(FDISK_S));
 }
 
 /*
@@ -466,7 +457,7 @@ drive_info()
 		drivename, ncyls, nheads, nspt);
 	printf("It contains:\n");
 	printf("\t%u cylinders of %lu bytes each,\n",
-		ncyls, (long)nheads * nspt * SSIZE);
+		ncyls, (long)cylsize * SSIZE);
 	printf("\t%u tracks of %lu bytes each,\n",
 		ncyls * nheads, (long)nspt * SSIZE);
 	printf("\t%lu sectors of %d bytes each,\n",
@@ -482,7 +473,7 @@ drive_info()
 void
 fatal(args) char *args;
 {
-	fprintf(stderr, "/etc/fdisk: %r\n", &args);
+	fprintf(stderr, "%s: %r\n", argv0, &args);
 	exit(1);
 }
 
@@ -493,7 +484,7 @@ void
 fdisk()
 {
 	hdparm_t	hdparms;
-	int 		fd, nfd;
+	int 		fd, nfd, p;
 	unsigned	action;
 	char		drive;
 
@@ -515,7 +506,8 @@ fdisk()
 	ncyls = (hdparms.ncyl[1] << 8) | hdparms.ncyl[0];
 	nheads = hdparms.nhead;
 	nspt = hdparms.nspt;
-	nsectors = (long)ncyls * nheads * nspt;
+	cylsize = nheads * nspt;
+	nsectors = (long)ncyls * cylsize;
 	drive = device[strlen(device) - 2];
 	partbase = 0;
 	if (drive == '0')
@@ -528,7 +520,7 @@ fdisk()
 
 	/* If no signature, zap the partition entries. */
 	if (hd.hd_sig != HDSIG) {
-		memset(hd.hd_partn, 0, sizeof hd.hd_partn);
+		memset(hd.hd_partn, 0, sizeof(FDISK_S));
 		hd.hd_sig = HDSIG;
 		nmods++;
 	}
@@ -543,13 +535,17 @@ fdisk()
 	/* Interactive input loop. */
 	for (;;) {
 		print_part();
-		printf("Possible actions:\n");
-		printf("\t1 = Change active partition\n");
-		printf("\t2 = Change logical partition attributes\n");
-		printf("\t3 = Display drive information\n");
-		printf("\t4 = Quit\n");
-		action = 4;
-		get_uint("Action", &action, 1, 4);
+		printf(
+			"Possible actions:\n"
+			"\t1 = Change active partition\n"
+			"\t2 = Change one logical partition\n"
+			"\t3 = Change all logical partitions\n"
+			"\t4 = Shrink an MS-DOS logical parition\n"
+			"\t5 = Display drive information\n"
+			"\t6 = Quit\n"
+			);
+		action = 6;
+		get_uint("Action", &action, 1, 6);
 
 		switch(action) {
 		case 1:
@@ -557,13 +553,28 @@ fdisk()
 			change_active();
 			continue;	
 		case 2:
-			printf("Change logical partition attributes:\n");
-			change_logical();
+		case 4:
+			p = (freepart != -1) ? freepart : 0;
+			p += partbase;
+			get_uint("Which partition", &p, partbase, partbase + NPARTN - 1);
+			p -= partbase;
+			if (action == 2)
+				change_part(p);
+			else
+				dos_shrink(fd, p);
 			continue;
 		case 3:
+			for (p=0; p < NPARTN; ) {
+				change_part(p++);
+				if (p < NPARTN)
+					print_part();
+			}
+			continue;
+
+		case 5:
 			drive_info();
 			continue;
-		case 4:
+		case 6:
 			if (quit(device, fd) == 1)
 				return;
 			continue;
@@ -623,7 +634,7 @@ get_ulong(prompt, dp, min, max) char *prompt; register unsigned long *dp; unsign
 	for (defval = *dp; ; *dp = defval) {
 		if (queryl(prompt, dp) >= 0 && *dp >= min && *dp <= max)
 			return;
-		printf("Value must be between %lu and %lu\n", min, max);
+		printf("Enter a value between %lu and %lu.\n", min, max);
 	}
 }
 
@@ -663,8 +674,8 @@ print_part()
 	unsigned long end;
 
 	printf("%s currently has the following logical partitions:\n", drivename);
-	printf("                Start   End        Start   End\n");
-	printf("Number      Type Cylr  Cylr Cylrs  Track Track Tracks Megabytes   Name\n");
+	printf("                     Cylinders             Tracks\n");
+	printf("Number     Type   Start  End  Size  Start    End   Size Megabytes  Name\n");
 	for (i = 0; i < NPARTN; ++i) {
 		p = &hd.hd_partn[i];
 		end = p->p_base + p->p_size - 1;
@@ -683,13 +694,13 @@ print_part()
 		if (s == NULL)
 			printf("%8u ", p->p_sys);
 		else
-			printf("%8s", s);
+			printf("%8s ", s);
 		printf("%5d ", sec_to_c(p->p_base));
 		printf("%5d ", sec_to_c(end));
-		printf("%5d ", sec_to_c(p->p_size + nspt * nheads - 1));
+		printf("%5d ", sec_upto_c(p->p_size));
 		printf("%6ld ", p->p_base / nspt);
 		printf("%6ld ", end / nspt);
-		printf("%6d ", sec_to_t(p->p_size));
+		printf("%6d ", sec_upto_t(p->p_size));
 		printf("%7.2f ", meg(p->p_size));
 		s = &device[strlen(device) - 1];
 		c = *s;
@@ -753,30 +764,33 @@ sanity()
 	unsigned long base, next, size;
 
 	badflag = 0;
-	for (i = 0; i < NPARTN; i++) {
-		p[i] = &hd.hd_partn[i];
-		consistency(p[i]);
-	}
-	qsort(p, NPARTN, sizeof p[0], pcompare);
 	freepart = -1;
 	freesize = freestart = 0;
+	for (i = 0; i < NPARTN; i++) {
+		p[i] = &hd.hd_partn[i];
+		if (p[i]->p_size != 0) {
+			check_chs(p[i], 1);	/* check start c:h:s */
+			check_chs(p[i], 0);	/* check end c:h:s */
+		} else if (freepart == -1)
+			freepart = i;		/* first free partition */
+	}
+	qsort(p, NPARTN, sizeof(FDISK_S *), pcompare);
 	next = 1;		/* next block available after boot sector */
 	for (i = 0; i < NPARTN; i++) {
 		base = p[i]->p_base;
 		size = p[i]->p_size;
-		if (size == 0) {
-			if (freepart == -1)
-				freepart  = i;
-			break;
-		}
+		if (size == 0)
+			break;			/* done when empty reached */
 		if (base < next) {
 			if (next == 1)
 				printf("Partition overlaps boot sector.\n");
+			else if (cylflag)
+				printf("Partitions overlap starting at cylinder %lu.\n", base / cylsize);
 			else
-				printf("Partitions overlap starting at track %u.\n", sec_to_t(base));
+				printf("Partitions overlap starting at track %lu.\n", base / nspt);
 			++badflag;
 		} else if (base != next) {
-			if (i == 0 && (base == nspt || base == nheads * nspt))
+			if (i == 0 && (base == nspt || base == cylsize))
 				;	/* first partition at 0:1:1 or 1:0:1 */
 			else
 				unused(base, next);
@@ -794,15 +808,29 @@ sanity()
 void
 unused(base, next) unsigned long base, next;
 {
-	register unsigned long n;
+	register unsigned long n, x, y;
+	register char *s;
 
 	n = base - next;
-	if (sec_to_t(n) > 0)
-		printf("%u tracks (%.2f megabytes) are unused starting at track %u.\n",
-			sec_to_t(n), meg(n), sec_to_t(next));
-	else
-		printf("%lu sectors (%.2f megabytes) are unused starting at sector %u.\n",
-			n, meg(n), next);
+	if (cylflag && n >= cylsize) {
+		s = "cylinder";
+		x = sec_to_c(n);
+		y = sec_upto_c(next);
+	} else if (n >= nspt) {
+		s = "track";
+		x = n / nspt;
+		y = sec_upto_t(next);
+	} else {
+		s = "sector";
+		x = n;
+		y = next;
+	}
+	if (x == 1)
+		printf("%lu %s (%.2f megabytes) is unused starting at %s %lu.\n",
+			x, s, meg(n), s, y);
+	else 
+		printf("%lu %ss (%.2f megabytes) are unused starting at %s %lu.\n",
+			x, s, meg(n), s, y);
 	if (freesize < n) {
 		freesize = n;
 		freestart = next;
