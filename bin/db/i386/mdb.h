@@ -3,7 +3,7 @@
  * A debugger.
  * i386-specific header.
  * i386/mdb.h contains definitions used by machine-independent code.
- * i386/mdbdefs.h defines externals referenced by machine-dependent code.
+ * i386/mdbdefs.h defines externals referenced by machine-independent code.
  * i386/i386db.h contains definitions used only by machine-dependent code.
  */
 
