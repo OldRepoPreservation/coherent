@@ -28,6 +28,7 @@ static TOK txtime=	{NULL,NULL};	static char cxtime[]=	"__TIME__";
  */
 static TOK txstdc=	{NULL,NULL};	static char cxstdc[]=	"__STDC__";
 #endif
+static TOK txbasefile=	{NULL,NULL};	static char cxbasefile[]="__BASE_FILE__";
 static TOK txudefined=	{NULL,NULL};	static char cxudefined[]="defined";
 static TOK txdefine=	{NULL,NULL};	static char cxdefine[]=	"#define";
 static TOK txinclude=	{NULL,NULL};	static char cxinclude[]="#include";
@@ -96,6 +97,7 @@ static KEYSYM ktab[] = {
 #if	0
 	NULL,	SL_CPP,		XUSTDC,
 #endif
+	NULL,	SL_CPP,		XUBASE,
 	NULL,	SL_CPP,		XDEFINED,
 	NULL,	SL_CPP,		XDEFINE,
 	NULL,	SL_CPP,		XINCLUDE,
@@ -164,6 +166,7 @@ static TOK *ktok[] = {
 #if	0
 	&txstdc,
 #endif
+	&txbasefile,
 	&txudefined,
 	&txdefine,
 	&txinclude,

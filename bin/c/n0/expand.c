@@ -353,6 +353,11 @@ expand(c) register int c;
 		dspush(DS_UFILE, file);
 		unget('"');
 		return 1;
+	case XUBASE:
+		unget('"');
+		dspush(DS_UFILE, basefile);
+		unget('"');
+		return 1;
 	case XULINE:
 		dspush(DS_STRNG, lineno);
 		sprintf(lineno, "%d", line);
