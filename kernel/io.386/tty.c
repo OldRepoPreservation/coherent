@@ -42,8 +42,8 @@
 /*
  * Includes.
  */
-#include <sys/clist.h>
 #include <sys/coherent.h>
+#include <sys/clist.h>
 #include <sys/con.h>
 #include <sys/deftty.h>
 #include <sys/io.h>
@@ -55,6 +55,7 @@
 #ifdef _I386
 #include <termio.h>
 #include <sys/inode.h>
+#include <sys/ascii.h>
 #else
 #define kucopyS(k, u, n)	kucopy(k, u, n)
 #define ukcopyS(u, k, n)	ukcopy(u, k, n)
@@ -170,7 +171,8 @@ register TTY *tp;
 
 #ifdef _I386
 	tp->t_termio.c_lflag |= ICANON;
-	tp->t_termio.c_cc[VEOL] = '\n';
+	tp->t_termio.c_cc[VEOL] = A_NL;
+	tp->t_termio.c_cc[VEOF] = A_EOT;
 	make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 	if (tp->t_flags & T_HPCL)
 		tp->t_termio.c_cflag |= HUPCL;
@@ -228,8 +230,13 @@ register TTY *tp;
 		s = sphi();
 		if (tp->t_oq.cq_cc) {
 			tp->t_flags |= T_DRAIN;
+#ifdef _I386
+			x_sleep((char *)&tp->t_oq, pritty, slpriSigCatch,
+			  "ttydrain");
+#else
 			v_sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT,
-				"ttydrain");
+			  "ttydrain");
+#endif
 			/* The line discipline is waiting for the tty to drain.  */
 		}
 		spl(s);
@@ -304,7 +311,7 @@ int (*func1)(), arg1, (*func2)(), arg2;
 #endif
 
 		o = sphi();
-		while ((c = getq(&tp->t_iq)) < 0) {
+		while ((c = cltgetq(&tp->t_iq)) < 0) {
 			if ((tp->t_flags & T_CARR) == 0) {
 			   u.u_error = EIO;  /* error since no carrier */
 				spl(o);
@@ -371,8 +378,13 @@ int (*func1)(), arg1, (*func2)(), arg2;
 				(*func1)(arg1);
 			if (func2)
 				(*func2)(arg2);
+#ifdef _I386
+			x_sleep((char *)&tp->t_iq, pritty, slpriSigLjmp,
+			  "ttywait");
+#else
 			v_sleep((char *)&tp->t_iq, CVTTIN, IVTTIN, SVTTIN,
-				"ttywait");
+			  "ttywait");
+#endif
 			/* The line discipline is waiting for more data.  */
 
 			if (SELF->p_ssig && nondsig()) {
@@ -394,7 +406,7 @@ int (*func1)(), arg1, (*func2)(), arg2;
 				tp->t_flags &= ~T_ISTOP;
 			if (ISTAND && (tp->t_flags&T_TSTOP)) {
 				tp->t_flags &= ~T_TSTOP;
-				while (putq(&tp->t_oq, startc) < 0) {
+				while (cltputq(&tp->t_oq, startc) < 0) {
 					ttstart(tp);
 					waitq();
 				}
@@ -484,8 +496,12 @@ int (*func1)(), arg1, (*func2)(), arg2;
 				(*func1)(arg1);
 			if (func2)
 				(*func2)(arg2);
+#ifdef _I386
+			x_sleep((char *)&tp->t_oq, pritty, slpriSigCatch, "ttyoq");
+#else
 			v_sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT,
 				"ttyoq");
+#endif
 			/*
 			 * The line discipline is waiting for an output
 			 * queue to drain.
@@ -496,7 +512,7 @@ int (*func1)(), arg1, (*func2)(), arg2;
 				return;
 			}
 		}
-		while (putq(&tp->t_oq, c) < 0) {
+		while (cltputq(&tp->t_oq, c) < 0) {
 			ttstart(tp);
 			waitq();
 		}
@@ -736,8 +752,13 @@ register struct sgttyb *vec;
 			s = sphi();
 			tp->t_flags |= T_DRAIN;
 			spl(s);
+#ifdef _I386
+			x_sleep((char *)&tp->t_oq, pritty, slpriSigCatch,
+			  "ttyiodrn");
+#else
 			v_sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT,
-				"ttyiodrn");
+			  "ttyiodrn");
+#endif
 			/* A TIOC has asked for tty output to drain.  */
 			if (SELF->p_ssig && nondsig())
 				break;
@@ -840,7 +861,7 @@ register TTY *tp;
 		tp->t_flags &= ~T_INL;
 		c = '\n';
 	} else {
-		if ((c=getq(&tp->t_oq)) < 0)
+		if ((c=cltgetq(&tp->t_oq)) < 0)
 			return -1;
 		if (!ISROUT) {
 			if (c=='\n' && ISONLCR) {
@@ -926,9 +947,9 @@ register int c;
 			}
 			if (ISECHO) {
 #if NOT_8_BIT
-				putq(&tp->t_oq, c&0177);
+				cltputq(&tp->t_oq, c&0177);
 #else
-				putq(&tp->t_oq, c); /* no strip for 8-bit */
+				cltputq(&tp->t_oq, c); /* no strip for 8-bit */
 #endif
 				ttstart(tp);
 			}
@@ -944,7 +965,7 @@ register int c;
 			dc = tp->t_ib[--tp->t_ibx];
 			if (ISECHO) {
 				if (!ISCRT)
-					putq(&tp->t_oq, c);
+					cltputq(&tp->t_oq, c);
 				/* don't erase for bell, null, or rubout */
 #if NOT_8_BIT
 				else if (((c = dc&0177) == '\007')
@@ -955,9 +976,9 @@ register int c;
 #endif
 				        goto ttin_ret;
 				else if (c != '\b' && c != '\t') {
-					putq(&tp->t_oq, '\b');
-					putq(&tp->t_oq,  ' ');
-					putq(&tp->t_oq, '\b');
+					cltputq(&tp->t_oq, '\b');
+					cltputq(&tp->t_oq,  ' ');
+					cltputq(&tp->t_oq, '\b');
 				} else if (c == '\t') {
 					n = tp->t_opos + tp->t_escape;
 					for (i=0; i<tp->t_ibx; ++i) {
@@ -977,14 +998,14 @@ register int c;
 						}
 					}
 					while (n++ < tp->t_hpos)
-						putq(&tp->t_oq, '\b');
+						cltputq(&tp->t_oq, '\b');
 				}
 #if NOT_8_BIT
 				if (dc & 0200) {
 					if ((dc&0177) != '\b')
-						putq(&tp->t_oq, '\b');
-					putq(&tp->t_oq,  ' ');
-					putq(&tp->t_oq, '\b');
+						cltputq(&tp->t_oq, '\b');
+					cltputq(&tp->t_oq,  ' ');
+					cltputq(&tp->t_oq, '\b');
 				}
 #endif
 				ttstart(tp);
@@ -996,18 +1017,18 @@ register int c;
 			tp->t_escape = 0;
 			if (ISECHO) {
 				if (c < 0x20) {
-					putq(&tp->t_oq, '^');
+					cltputq(&tp->t_oq, '^');
 					c += 0x40;
 				}
-				putq(&tp->t_oq, c);
-				putq(&tp->t_oq, '\n');
+				cltputq(&tp->t_oq, c);
+				cltputq(&tp->t_oq, '\n');
 				ttstart(tp);
 			}
 			goto ttin_ret;
 		}
 	}
 	if (ISBBYB) {
-		putq(&tp->t_iq, c);
+		cltputq(&tp->t_iq, c);
 		if (tp->t_flags & T_INPUT) {
 			s = sphi();
 			tp->t_flags &= ~T_INPUT;
@@ -1016,7 +1037,7 @@ register int c;
 		}
 		if (tp->t_ipolls.e_procp) {
 			tp->t_ipolls.e_procp = 0;
-			defer(pollwake, (char *) &tp->t_ipolls);
+			pollwake((char *) &tp->t_ipolls);
 		}
 	} else {
 		if (tp->t_ibx == 0)
@@ -1028,7 +1049,7 @@ register int c;
 	}
 	if (ISECHO) {
 		if (ISRIN || !ISEOF) {
-			putq(&tp->t_oq, c);
+			cltputq(&tp->t_oq, c);
 			ttstart(tp);
 		}
 	}
@@ -1040,7 +1061,7 @@ register int c;
 		s = sphi();
 		tp->t_flags |= T_TSTOP;
 		spl(s);
-		putq(&tp->t_oq, stopc);
+		cltputq(&tp->t_oq, stopc);
 		ttstart(tp);
 	}
 
@@ -1068,9 +1089,9 @@ register TTY *tp;
 		*p2++ = c;			/* Always room */
 		while (p1 < p2)
 #if NOT_8_BIT
-			putq(&tp->t_iq, (*p1++)&0177);
+			cltputq(&tp->t_iq, (*p1++)&0177);
 #else
-			putq(&tp->t_iq, (*p1++));
+			cltputq(&tp->t_iq, (*p1++));
 #endif
 		tp->t_ibx = 0;
 		tp->t_escape = 0;
@@ -1082,7 +1103,7 @@ register TTY *tp;
 
 		if (tp->t_ipolls.e_procp) {
 			tp->t_ipolls.e_procp = 0;
-			defer(pollwake, (char *) &tp->t_ipolls);
+			pollwake((char *) &tp->t_ipolls);
 		}
 
 	} else if (tp->t_ibx < NCIB-1)
@@ -1128,7 +1149,7 @@ register TTY *tp;
 
 	if (tp->t_opolls.e_procp) {
 		tp->t_opolls.e_procp = 0;
-		defer(pollwake, (char *) &tp->t_opolls);
+		pollwake((char *) &tp->t_opolls);
 	}
 stdone:
 	return;
@@ -1164,7 +1185,7 @@ register TTY *tp;
 
 	if (tp->t_ipolls.e_procp) {
 		tp->t_ipolls.e_procp = 0;
-		defer(pollwake, (char *) &tp->t_ipolls);
+		pollwake((char *) &tp->t_ipolls);
 	}
 
 	tp->t_ibx = 0;
@@ -1188,7 +1209,7 @@ register TTY *tp;
 
 	if (tp->t_opolls.e_procp) {
 		tp->t_opolls.e_procp = 0;
-		defer(pollwake, (char *) &tp->t_opolls);
+		pollwake((char *) &tp->t_opolls);
 	}
 }
 
@@ -1260,7 +1281,7 @@ struct termio * trp;
 	trp->c_cc[VERASE] = sgp->sg_erase;
 	trp->c_cc[VKILL ] = sgp->sg_kill;
 
-	trp->c_iflag = BRKINT | ISTRIP | IXON | IGNPAR | INPCK | ISTRIP;
+	trp->c_iflag = BRKINT | IXON | IGNPAR | INPCK;
 	trp->c_oflag = OPOST;
 	trp->c_cflag &= (CSIZE|HUPCL|CLOCAL|CREAD);
 	trp->c_lflag = ICANON | ISIG | ECHONL | ECHOK;
@@ -1405,9 +1426,9 @@ TTY * tp;
 		p2 = &tp->t_ib[tp->t_ibx];
 		while (p1 < p2) {
 #if NOT_8_BIT
-			putq(&tp->t_iq, (*p1++) & 0177);
+			cltputq(&tp->t_iq, (*p1++) & 0177);
 #else
-			putq(&tp->t_iq, (*p1++));
+			cltputq(&tp->t_iq, (*p1++));
 #endif
 		}
 		tp->t_ibx = 0;
