@@ -21,6 +21,9 @@
  *	backoff & retry when bdr or req sense needed
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.40	91/05/15  15:19:52	root
+ * First clean compile of state machine version.
+ * 
  * Revision 1.39	91/05/15  09:35:58	root
  * Code recover, do_connect, etc..
  * 
@@ -38,7 +41,7 @@
 /* TEMPORARY S**T */
 #define bufq_rd_head(s_id)	ssq_rd_head()
 #define bufq_rm_head(s_id)	ssq_rm_head()
-#define bufq_wr_tail(s_id, foo)	ssq_wr_head(foo)
+#define bufq_wr_tail(s_id, foo)	ssq_wr_tail(foo)
 
 /*
  * Includes.
@@ -1244,10 +1247,11 @@ void	ss_mach(s_id)
 int s_id;
 {
 	ss_type * ssp = ss[s_id];
-	BUF * bp = ssp->bp;
+	BUF * bp;
 
 	do_sst_op = 1; /* plan to run this routine again in most cases */
 	while (do_sst_op) {
+		bp = ssp->bp;
 		switch (ssp->state) {
 		/*
 		 * Polling states execute whether ssp->waiting or not.
