@@ -6,7 +6,6 @@
  * if it fits, which it will more often than not.
  */
 #include <stdio.h>
-#include "n.out.h"
 #include <ar.h>
 #include <canon.h>
 
@@ -75,7 +74,7 @@ char	*archive;
 		ldh.l_tbase = sizeof(ldh) - 2*sizeof(short);
 	else
 		canshort(ldh.l_tbase);
-	offset = ldh.l_tbase - sizeof(ldh);
+	offset = ldh.l_tbase - (fsize_t)sizeof(ldh);
 	for (seg=0; seg<L_SYM; seg++) {
 		if (seg==L_BSSI || seg==L_BSSD)
 			continue;
