@@ -1,7 +1,7 @@
 # lex/Makefile 2/6/91
 # Does not include header file dependencies.
-
-SRC=/usr.src/cmd/lex
+DESTDIR=/f1/bin/
+SRC=/newbits/bin/lex
 
 OBJ=\
 	lex0.o\
@@ -11,7 +11,7 @@ OBJ=\
 
 # Primary target.
 lex:	$(OBJ)
-	cc -o $@ $(OBJ)
+	cc -o $(DESTDIR)$@ $(OBJ)
 
 # Secondary targets.
 lex0.o:	$(SRC)/lex0.c

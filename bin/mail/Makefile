@@ -1,11 +1,12 @@
+DESTDIR=/f1/bin/
 O = send.o mail.o util.o
 S = send.c mail.c util.c mail.h Makefile
 
 mail : $O
-	cc -o mail $O
-	su root chown root mail
-	su root chgrp root mail
-	su root chmod 6511 mail
+	cc -o $(DESTDIR)mail $O
+	su root chown root $(DESTDIR)mail
+	su root chgrp root $(DESTDIR)mail
+	su root chmod 6511 $(DESTDIR)mail
 
 mail.a : $S
 	rm mail.a
