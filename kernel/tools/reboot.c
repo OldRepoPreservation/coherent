@@ -1,13 +1,7 @@
 /*
- * Here is the source for fixed reboot.c - it needs to be linked with
- * cohcall.o.
- */
-/*
  * reboot.c - command to reboot the system
  *
  * "-p" option prompts and will sync before rebooting.
- *
- * Revised: Fri May 14 08:57:34 1993 CDT
  */
 
 #include <stdio.h>
