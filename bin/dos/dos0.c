@@ -80,7 +80,7 @@ main(argc, argv) short argc; char *argv[];
 							break;
 					case '-':	break;
 					default:
-					fatal1("Invalid argument %c", c); 
+					fatal1("Invalid argument %c", c);
 								break;
 				}
 			}
@@ -277,7 +277,7 @@ char *tran_dev(arg) char *arg;
 }
 
 
-char *tran_file(arg) char *arg; 
+char *tran_file(arg) char *arg;
 {
 	char *t;
 
@@ -311,9 +311,19 @@ make_lock()
 		signal(i, die_signal);
 
 	sprintf(lockfn, "%s/%s%s", SPOOLDIR, LOCKPRE, tmp ? tmp : device);
-	if ( (access(lockfn, AEXISTS) == 0) ||
-	     ((lockfd=creat(lockfn, 0644)) == -1))
-		fatal1("Device %s is in use.\n", device);
+	if ((lockfd = open(lockfn, O_RDONLY)) != -1)
+	{
+		if ((read(lockfd, &i, sizeof(int)) != sizeof(int))
+		     || (kill(i, 0) == -1))
+		 {
+			 close(lockfd);
+		 }
+		 else
+			 fatal1("Device %s is in use.\n", device);
+	}
+	if((lockfd=creat(lockfn, 0644)) == -1)
+		fatal1("Cannot lock Device %s.\n", device);
+
 	sprintf(pidstring, "%d", getpid());
 	write(lockfd, pidstring, strlen(pidstring));
 	close(lockfd);
@@ -328,12 +338,11 @@ short die_signal(s) short s;
 rm_lock()
 {
 	short lockfd;	/* pointer to file to read */
-	short chars_read;	/* Number of characters read().  */
-
+	int chars_read;
 	char gotpid[7];	/* String of the PID that was in the lockfile */
-
+	
 	/* open the lock file for read, abort on failure */
-	if(-1 == (lockfd = (open(lockfn, 0)))) 
+	if(-1 == (lockfd = (open(lockfn, 0))))
 		fatal1("Error opening %s\n", argv0, lockfn);
 
 	/* read the contents of the file. Abort if empty */

@@ -1,4 +1,4 @@
-/* dos0.h */ 
+/* dos0.h */
 
 #include "dos1.h"
 #include <access.h>
@@ -7,6 +7,7 @@
 #include <sys/devices.h>
 #include <sys/dir.h>
 #include <sys/fdisk.h>
+#include <fcntl.h>
 #include <signal.h>
 #undef DIR
 #include <sys/stat.h>
