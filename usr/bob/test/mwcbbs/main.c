@@ -12,9 +12,11 @@ char *argv[];
 
 WINDOW *win1, *win2;		
 int x;
+char dummy[50];
 
 	printflag = 0;
-	if(argc > 2)
+	strcpy(recdir,RECEIVER);
+	if(argc > 3)
 		{
 		printf("Too many arguments!\n");
 		exit(1);
@@ -25,17 +27,40 @@ int x;
 	 * print a usage: message.
 	 */
 
-	if(argc==2)
+	if((argc==2)||(argc==3))
 		{
 		for(x=0;x<strlen(argv[1]);x++)
 			{
-			if((argv[1][x] == 112) || (argv[1][x] == 80))
+
+/* test for pP */	if((argv[1][x] == 112) || (argv[1][x] == 80))
 				break;
+
+/* test for dD */	if((argv[1][x] == 100) || (argv[1][x] == 68))
+				{
+				strcpy(dummy,argv[2]);
+				if(argc < 3)
+					{
+					printf("No directory specified!\n");
+					exit(1);
+					}
+				if (strlen(dummy) < 2)
+					{
+					printf("Invalid destination specified!\n");
+					exit(1);
+					}
+				strcpy(recdir," ");
+				strcat(recdir,dummy);
+				break;
+				}
+
 			if(argv[1][x] == '?')
 				{
-				printf("Usage:\tmwcbbs [options]\n");
+				printf("Usage:\tmwcbbs [options] directory\n");
+				printf("\tOptions:\n");
 				printf("\t -P:	print Contents files\n");
 				printf("\t -p:	print Contents files\n");
+				printf("\t -d:	specify destination directory\n");
+				printf("\t -D:	specify destination directory\n");
 				printf("\t -?:	usage message\n");
 				exit(1);
 				}
@@ -631,6 +656,6 @@ int x,y;
 		strcpy(getfiles[x],HOST);
 		record.pathname[y] = 97 + x;
 		strcat(getfiles[x],record.pathname);
-		strcat(getfiles[x],RECEIVER);
+		strcat(getfiles[x],recdir);
 		}
 }
