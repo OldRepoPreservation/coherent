@@ -6,9 +6,9 @@
 DESTDIR=/
 
 OBJECTS=Startup.o bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
-	l.out.o coff.o
+	l.out.o coff.o fifo.o
 SOURCES=Startup.s bootlib.s cbootlib.c diskio.c indirect.c intcall.m monitor.c \
-	l.out.c coff.c
+	l.out.c coff.c fifo.c
 LIBS=-lc
 LD=ld
 INCLUDE=-I/usr/include/coff
