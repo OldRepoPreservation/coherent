@@ -1340,11 +1340,13 @@ write_sym(sp, class) register SYM *sp;
 		write_string(&sym, sp->s_id);
 	}
 	sym.n_value = sp->s_value;
-	sym.n_sclass = class;
 	if (is_def(sp))
 		sym.n_scnum = sec_index[sp->s_seg] + 1;
 	else
 		sym.n_scnum = N_UNDEF;
+	sym.n_type = T_NULL;			/* no type */
+	sym.n_sclass = class;
+	sym.n_numaux = 0;			/* no aux entries */
 	owrite((char *)&sym, sizeof(sym));
 }
 
