@@ -49,3 +49,7 @@ char	*vifs = NULL;
 char	strt[STRSIZE];
 char	*strp;
 VAR	*varp = NULL;
+
+/* Directory stack. */
+char	*dstack[DSTACKN];		/* Directory stack */
+int	dstkp;				/* Directory stack pointer */
