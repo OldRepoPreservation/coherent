@@ -191,7 +191,7 @@ register int n;
 			kval = kbtbl[n].k_val[i];
 			if (kval != none)
 				if (kval >= numfun
-				  && !VTKEY(kval)  && kval != fgk) {
+				  && !VTKEY(kval) /* && kval != fgk*/) {
 					printf("val=%d\n", kval);
 					err("bad function key entry K_%d",
 					    key);
