@@ -108,3 +108,25 @@ Fri Apr  2 02:08:26 1993 PST
 
 Mon Apr  5 09:20:47 1993 PDT
 		V4.1.3:  More minor cleanup of segmentation code.
+
+Mon Apr  5 09:22:49 1993 PDT
+		Fixed rest_syscall() system call handling to work
+		correctly at sigreturn, where the system call does not return
+		to the following instruction.
+
+Thu Apr 15 13:39:58 1993 PDT
+i386/i386db3.c
+		Added i486 opcodes to disassembler.
+
+Tue Apr 20 14:50:32 1993 PDT
+db.h
+		V4.1.4: added OLD_CORE compilation switch to header.
+		hal improved the core file format 4/93 for COHERENT V4.0.1r75.
+		Compiling without -DOLD_CORE builds db which groks
+		only the new format.  Compiling with -DOLD_CORE builds db
+		which groks both old and new formats.
+		This should disappear when the old format becomes irrelevant.
+db1.c
+		Modified set_core to understand new core file format,
+		with or without dumped text segment.  Deciding if the text
+		segment is present is a kludge, since no flag is set.
