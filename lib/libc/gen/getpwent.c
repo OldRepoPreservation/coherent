@@ -68,6 +68,7 @@ getpwent()
 	field(xp);
 	pw.pw_gid = atoi(xp);
 	field(pw.pw_comment);
+	pw.pw_gecos = pw.pw_comment;
 	field(pw.pw_dir);
 	field(pw.pw_shell);
 	return &pw;
