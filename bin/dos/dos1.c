@@ -192,7 +192,7 @@ fatcread(n) register unsigned short n;
 	fatcmin = fatcfirst * FATCNPSEC;	/* min cluster in cache */
 	fatcmax = (fatcfirst + fatccount) * FATCNPSEC - 1;	/* max cl */
 /*
-printf("n=%d,fatbase=%d,fatcfirst=%d,(long)(fatbase+fatcfirst)=%d,fatccount=%d\n", 
+printf("n=%d,fatbase=%d,fatcfirst=%d,(long)(fatbase+fatcfirst)=%d,fatccount=%d\n",
 n,fatbase,fatcfirst,(long)(fatbase + fatcfirst),fatccount);
 */
 	diskread(fatcache, (long)(fatbase + fatcfirst),fatccount,"FAT cache");
@@ -284,7 +284,7 @@ readfat()
 		i = id[0];
 		if ((i!=0xFC && i!=0xFD && i!=0xFE && i!=0xFF)
 		  || id[1]!=0xFF || id[2]==0xFF)
-			fatal("unknown media descriptor 0x%02x", id[0]);
+			fatal("Probably not a DOS disk (media descriptor 0x%02x)", id[0]);
 		/* Known diskette format. */
 		s = "Known";
 		switch (i) {
