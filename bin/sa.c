@@ -326,11 +326,11 @@ saprint()
 			printf("%-*s", NCNAME, sp->s_comm);
 		printf(" %5d", sp->s_count);
 		if (lflag)
-			printf(" %5D %5D", units(sp->s_utime, sp),
+			printf(" %5ld %5ld", units(sp->s_utime, sp),
 			    units(sp->s_stime, sp));
 		else
-			printf(" %5D", units(sp->s_utime+sp->s_stime, sp));
-		printf(" %5D", units(sp->s_etime*HZ, sp));
+			printf(" %5ld", units(sp->s_utime+sp->s_stime, sp));
+		printf(" %5ld", units(sp->s_etime*HZ, sp));
 		if (cflag)
 			percent(sp->s_utime+sp->s_stime, tottime);
 		if (tflag) {
@@ -580,11 +580,11 @@ percent(t, total)
 time_t t, total;
 {
 	t *= 100;
-	printf("%3D.", t/total);
+	printf("%3ld.", t/total);
 	t %= total;
 	if (t < 0)
 		t = -t;
-	printf("%1D ", t*10/total);
+	printf("%1ld ", t*10/total);
 }
 
 usage()
