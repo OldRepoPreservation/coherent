@@ -80,6 +80,12 @@ Added in 1.6:
 10. Added coherent.rc file with colors for VGA coherent console, kp
     setting so shift-K gives you COHERENT library help on the word
     under the cursor.
+
+11. To allow work with preliminary X11, add code in curses.c to check
+    the environment for COLUMNS and LINES.
+
+12. Now that VMIN/VTIME are working, use the version of ttyread() in
+    unix.c that uses these.  This improves response time to ESC markedly!
 --
 -Hal Snyder, M.D.-      Mark Williams Company     (708)-291-6700 (voice)
 hal@mwc.com                Technical Staff          (708)-291-6750 (fax)
