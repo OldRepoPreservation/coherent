@@ -1,10 +1,10 @@
 /*
  * mkdev.c
- * 06/21/92
+ * 06/28/93
  *
  * Allow the user to configure devices requiring loadable drivers.
  * Uses common routines in build0.c: cc -o mkdev mkdev.c build0.c
- * Usage: mkdev [ -bdv ] { scsi | at } ...
+ * Usage: mkdev [ -bdv ] { scsi | at | floppytape } ...
  * Options:
  *	-b	Use special processing when invoked from /etc/build
  *	-d	Debug; echo commands without executing
@@ -35,8 +35,8 @@
 #include <sys/devices.h>
 #include "build0.h"
 
-#define	VERSION		"V3.0"		/* version number */
-#define	USAGEMSG	"Usage:\t/etc/mkdev [ -bdv ] [ scsi | at ] ...\n"
+#define	VERSION		"V3.1"		/* version number */
+#define	USAGEMSG	"Usage:\t/etc/mkdev [ -bdv ] [ scsi | at | floppytape ] ...\n"
 #define BUFLEN		50
 #define AHA_HDS		64
 #define AHA_DMA		5
@@ -44,9 +44,23 @@
 #define AHA_BASE	0x330
 #define TANDY_HDS	16
 
+/*
+ * calculate the minor number for the specified floppy tape device:
+ *	uu:	unit # (0-3)
+ *	vv:	brand of drive: 0=Archive/Mountain/Summit, 1=CMS, 2&3=rsvd
+ *	s:	select: 0=hard select, 1=soft select
+ *	r:	rewind: 0=no rewind on close, 1=rewind on close
+ */
+#define	FL_TAPE_MINOR(uu,vv,s,r)   ((1<<6)|((uu)<<4)|((s)<<3)|((r)<<2)|(vv))
+#define	FL_TAPE_HARD_SEL	0
+#define	FL_TAPE_SOFT_SEL	1
+#define	FL_TAPE_NOREW		0
+#define	FL_TAPE_REW		1
+
 /* Forward. */
 void	scsi();
 void	at();
+void	floppy_tape();
 
 /* Globals. */
 int	bflag;				/* Invoked from /etc/build. */
@@ -82,6 +96,8 @@ main(argc, argv) int argc; char *argv[];
 				scsi();
 			else if (streq(argv[1], "at"))
 				at();
+			else if (streq(argv[1], "floppytape"))
+				floppy_tape();
 			else
 				usage();
 			++argv;
@@ -104,6 +120,7 @@ scsi()
 	FILE *fp;
 	int aha_dev = 0, sd_hds = AHA_HDS, sd_dma = AHA_DMA;
 	int sd_irq = AHA_IRQ, sd_base = AHA_BASE;
+	int istape;		/* is a SCSI tape device */
 #if !_I386
 	rootflag = 0;
 #endif
@@ -286,17 +303,42 @@ sprintf(cmd, "/bin/echo /etc/drvld -r /drv/%s >> /tmp/drvld.all",
 
 	/* Make device nodes. */
 	cls(0);
-	printf(
+	if (aha_dev) {
+		printf(
+"You must specify a SCSI-ID (0 through 7) for each SCSI hard disk or tape\n"
+"device.  Each SCSI hard disk device can contain up to four partitions.\n"
+"Tape devices must be configured as logical unit number (LUN) 0.  All current\n"
+"SCSI tape drives with embedded SCSI controllers default to LUN 0.\n\n"
+			);
+	} else {
+		printf(
 "You must specify a SCSI-ID (0 through 7) for each SCSI hard disk device.\n"
 "Each SCSI hard disk device can contain up to four partitions.\n\n"
-		);
+			);
+	}
 
 newdev:
 	id = get_int(0, 7, "Enter the SCSI-ID:");
-#if	1
+
+	istape = 0;
+	if (aha_dev) {
+		printf(
+"\nPlease select the type of device from the following list:\n\n"
+"\t0) SCSI hard disk (fixed or removable media)\n"
+"\t1) SCSI tape drive\n"
+"\t2) Other SCSI peripheral\n\n"
+			);
+		istape = get_int(0, 2, "Enter device type:");
+		if (istape == 2) {
+			printf(
+"\nYou have specified a SCSI device which is currently unsupported.\n\n"
+				);
+			goto query_more_devices;
+		}
+	} /* aha_dev */
 	lun = 0;
 	nsdrive |= (1 << id);
-#else
+#if 0
 	lun = get_int(0, 3, "Enter the LUN:");
 #endif
 
@@ -309,41 +351,72 @@ newdev:
 	}
 	dev = (bflag) ? "/tmp/dev" : "/dev";
 
-	/* Make the cooked devices. */
-	for (i = 0; i < 4; i++) {
-		sprintf(cmd, "/etc/mknod -f %s/sd%d%c b %d %d",
-			dev, id, 'a'+i, SCSI_MAJOR, SCSI_minor(0, id, lun, i));
+	/*
+	 * If we are creating a SCSI tape device (Adaptec only),
+	 * create special raw device nodes and generate links
+	 * for /dev/tape and /dev/ntape to make it easy on the user.
+	 */
+	if (aha_dev && istape) {
+		sprintf(cmd, "/etc/mknod -f %s/rsd%d c %d %d",
+			dev, id, SCSI_MAJOR, SCSI_minor(1, id, lun, 3));
 		sys(cmd, S_NONFATAL);
-	}
-	sprintf(cmd, "/etc/mknod -f %s/sd%dx b %d %d",
-		dev, id, SCSI_MAJOR, SCSI_minor(1, id, lun, 0));
-	sys(cmd, S_NONFATAL);
-
-	/* Make the raw devices. */
-	for (i = 0; i < 4; i++) {
-		sprintf(cmd, "/etc/mknod -f %s/rsd%d%c c %d %d",
-			dev, id, 'a'+i, SCSI_MAJOR, SCSI_minor(0, id, lun, i));
+		sprintf(cmd, "/etc/mknod -f %s/rsd%dn c %d %d",
+			dev, id, SCSI_MAJOR, SCSI_minor(1, id, lun, 1));
 		sys(cmd, S_NONFATAL);
-	}
-	sprintf(cmd, "/etc/mknod -f %s/rsd%dx c %d %d",
-		dev, id, SCSI_MAJOR, SCSI_minor(1, id, lun, 0));
-	sys(cmd, S_NONFATAL);
+		sprintf(cmd, "/bin/ln -f %s/rsd%d %s/tape",
+			dev, id, dev);
+		sys(cmd, S_NONFATAL);
+		sprintf(cmd, "/bin/ln -f %s/rsd%dn %s/ntape",
+			dev, id, dev);
+		sys(cmd, S_NONFATAL);
 
-	/* Set the device permissions. */
-	sprintf(cmd, "/bin/chmog 600 sys sys %s/sd*[a-d] %s/rsd*[a-d]",dev,dev);
-	sys(cmd, S_NONFATAL);
-	sprintf(cmd, "/bin/chmog 600 root root %s/sd*x %s/rsd*x", dev, dev);
-	sys(cmd, S_NONFATAL);
+		/* set the device permissions. */
+		sprintf(cmd, "/bin/chmog 600 sys sys %s/rsd%d*", dev, id);
+		sys(cmd, S_NONFATAL);
+	} else {
+		/*
+		 * SCSI disk device:
+		 * Make the cooked devices.
+		 */
+		for (i = 0; i < 4; i++) {
+			sprintf(cmd, "/etc/mknod -f %s/sd%d%c b %d %d",
+				dev, id, 'a'+i, SCSI_MAJOR, SCSI_minor(0, id, lun, i));
+			sys(cmd, S_NONFATAL);
+		}
+		sprintf(cmd, "/etc/mknod -f %s/sd%dx b %d %d",
+			dev, id, SCSI_MAJOR, SCSI_minor(1, id, lun, 0));
+		sys(cmd, S_NONFATAL);
+		
+		/* make the raw devices. */
+		for (i = 0; i < 4; i++) {
+			sprintf(cmd, "/etc/mknod -f %s/rsd%d%c c %d %d",
+				dev, id, 'a'+i, SCSI_MAJOR, SCSI_minor(0, id, lun, i));
+			sys(cmd, S_NONFATAL);
+		}
+		sprintf(cmd, "/etc/mknod -f %s/rsd%dx c %d %d",
+			dev, id, SCSI_MAJOR, SCSI_minor(1, id, lun, 0));
+		sys(cmd, S_NONFATAL);
 
-	/* Append lines to /tmp/devices to pass device info to /etc/build. */
-	if (bflag) {
+		/* set the device permissions. */
+		sprintf(cmd, "/bin/chmog 600 sys sys %s/sd*[a-d] %s/rsd*[a-d]",dev,dev);
+		sys(cmd, S_NONFATAL);
+		sprintf(cmd, "/bin/chmog 600 root root %s/sd*x %s/rsd*x", dev, dev);
+		sys(cmd, S_NONFATAL);
+	} /* !(aha_dev && istape) */
+	
+	/* append lines to /tmp/devices to pass device info to /etc/build. */
+	if (bflag && !istape) {
 		for (i = 0; i < 4; i++) {
 			sprintf(cmd, "/bin/echo sd%dx sd%d%c %d %d >>/tmp/devices",
 				id, id, 'a'+i, SCSI_MAJOR, SCSI_minor(0, id, lun, i));
 			sys(cmd, S_NONFATAL);
 		}
 	}
-	if (yes_no("Do you have another SCSI hard disk device on this host adapter"))
+
+query_more_devices:
+	if (yes_no((aha_dev) ?
+"Do you have another SCSI disk or tape device on this host adapter" :
+"Do you have another SCSI hard disk device on this host adapter"))
 		goto newdev;
 
 	/*
@@ -485,8 +558,8 @@ at()
 {
 	unsigned char at_patch[80];
 	FILE *fp;
-	int i;
 #if !_I386
+	int i;
 	int rootflag = 0;
 #endif
 
@@ -555,4 +628,70 @@ at()
 		printf("Patched driver at /tmp/drv/at\n");
 #endif
 }
+
+/*
+ * floppy_tape:	add support for floppy tape (a really discusting device)
+ *
+ *	1) give user some info regarding COH support for floppy tape
+ *	2) display a list of supported drives
+ *	3) query the user for type of drive
+ *	4) create device nodes for specified drive
+ *	5) (optional) test for which unit number the drive is seen as
+ */
+void
+floppy_tape()
+{
+	int	brand;		/* which brand of drive (from menu) */
+	int	i;		/* loop counter */
+
+	cls(0);
+	printf(
+"The COHERENT system supports several brands of \"floppy tape backup\" drives,\n"
+"including QIC-40 and QIC-80 models from Archive, Colorado Memory Systems (CMS),\n"
+"Mountain, and Summit.\n\n"
+"Please specify the brand of floppy tape drive on this computer:\n\n"
+"\t0) Archive, Mountain, or Summit\n"
+"\t1) Colorado Memory Systems (CMS)\n"
+"\t2) Other\n\n"
+	);
+	brand = get_int(0, 2, "Enter drive type:");
+	if (brand == 2) {
+		printf(
+"\nYou have specified a brand of tape drive which is currently unsupported.\n"
+		);
+		return;
+	}
+	
+	/*
+	 * now create the following nodes for the specified drive brand:
+	 *	 Rewind		No Rewind	 Unit #
+	 *	--------	---------	---------
+	 *	DEV/rct0	DEV/nrct0	(unit #0)
+	 *	DEV/rct1	DEV/nrct1	(unit #1)
+	 *	DEV/rct2	DEV/nrct2	(unit #2)
+	 *	DEV/rct3	DEV/nrct3	(unit #3)
+	 *	DEV/rctss	DEV/nrctss	(soft select)
+	 *
+	 * where DEV is /mnt/dev if called from /etc/build and /dev otherwise.
+	 */
+	for (i = 0; i <= 3; ++i) {
+		sprintf(cmd, "/etc/mknod -f %s/rct%d c %d %d",
+			(bflag) ? "/mnt/dev" : "/dev", i, FL_MAJOR,
+			FL_TAPE_MINOR(i, brand, FL_TAPE_HARD_SEL, FL_TAPE_REW));
+		sys(cmd, S_NONFATAL);
+		sprintf(cmd, "/etc/mknod -f %s/nrct%d c %d %d",
+			(bflag) ? "/mnt/dev" : "/dev", i, FL_MAJOR,
+			FL_TAPE_MINOR(i, brand, FL_TAPE_HARD_SEL, FL_TAPE_NOREW));
+		sys(cmd, S_NONFATAL);
+	}
+	sprintf(cmd, "/etc/mknod -f %s/rctss c %d %d",
+		(bflag) ? "/mnt/dev" : "/dev", FL_MAJOR,
+		FL_TAPE_MINOR(0, brand, FL_TAPE_SOFT_SEL, FL_TAPE_REW));
+	sys(cmd, S_NONFATAL);
+	sprintf(cmd, "/etc/mknod -f %s/nrctss c %d %d",
+		(bflag) ? "/mnt/dev" : "/dev", FL_MAJOR,
+		FL_TAPE_MINOR(0, brand, FL_TAPE_SOFT_SEL, FL_TAPE_NOREW));
+	sys(cmd, S_NONFATAL);
+}
+
 /* end of mkdev.c */
