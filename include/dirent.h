@@ -3,16 +3,18 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-/*
- * POSIX (IEEE 1003.1) compatible dirent.h header file.
- */
 
 #ifndef DIRENT_H
 #define DIRENT_H 1
 
 #ifdef _I386
 
-#include <sys/dirent.h>
+struct dirent {
+	long	d_ino;	/* i-node number */
+	daddr_t	d_off;	/* offset in actual directory*/
+	unsigned short	d_reclen;  /*record length*/
+	char	d_name[1];
+};
 
 #define	MAXNAMLEN	14		/* maximum filename length */
 
@@ -27,13 +29,18 @@ typedef struct
 	char	*dd_buf;		/* -> directory block */
 	}	DIR;			/* stream data from opendir() */
 
-
 extern DIR		*opendir();
 extern struct dirent	*readdir();
 extern void		rewinddir();
 extern int		closedir();
 extern daddr_t		telldir();
 extern void		seekdir();
+
+#define DIRSIZ	14		/* Size of directory name */
+struct direct {
+	ino_t	 d_ino;			/* Inode number */
+	char	 d_name[DIRSIZ];	/* Name */
+};
 
 #else
 /*
@@ -43,7 +50,18 @@ extern void		seekdir();
  * Rely on COHERENT's sys/dir.h to define type DIR and structure direct with
  * fields d_ino of type ino_t and d_name of type char [].
  */
-#include <sys/dir.h>
+#include <sys/types.h>
+
+#define DIRSIZ	14		/* Size of directory name */
+#define	DIR	char *		/* Directory type */
+
+/*
+ * Directory entry structure.
+ */
+struct direct {
+	ino_t	 d_ino;			/* Inode number */
+	char	 d_name[DIRSIZ];	/* Name */
+};
 
 /*
  * Implement dirent as a macro, making struct dirent equivalent to COHERENT's 
