@@ -17,7 +17,7 @@
 */
 
 #ifndef VERSION
-#define	VERSION	"smail2.5.2-coh"
+#define	VERSION	_version
 #endif
 
 /* COHERENT is compiler a defined symbol.  */
