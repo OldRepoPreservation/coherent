@@ -54,7 +54,7 @@ main()
 	sys_base = DEF_SYS_BASE;
 	sys_base_set = FALSE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.3 alpha\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 1.0.4 alpha\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
@@ -107,7 +107,9 @@ main()
 		 * on the type of file we are loading.
 		 */
 		if (!sys_base_set) {
+#ifdef VERBOSE
 			puts("Assuming default sys_base.\r\n");
+#endif /* VERBOSE */
 			sys_base = object_sys_base(filemagic);
 		}
 
@@ -122,8 +124,8 @@ main()
 		}
 
 		if (imageok && (0 == strcmp(cmd_name, "autoboot"))) {
-			puts("Press any key to abort boot.\r\n");
-			imageok = !wait_for_keystroke(WAIT_DELAY);
+			puts("Press <SPACE> to abort boot.\r\n");
+			imageok = !wait_for_keystroke(WAIT_DELAY, (int) ' ');
 			if (!imageok) {
 				cmd_name[0] = '\0';
 			}
@@ -132,9 +134,11 @@ main()
 
 	/* ASSERTION: imageinode and imagetable describe a valid executable.  */
 
+#ifdef VERBOSE
 	puts("OK!  Loading ");
 	puts(cmd_name);
 	puts("...\r\n");
+#endif /* VERBOSE */
 
 	/* Now actually load everything into memory.  */
 	for (cur_segment = &imagetable[0]; cur_segment->valid; ++cur_segment) {
@@ -155,14 +159,18 @@ main()
 
 
 	if (0 != boot_value) {
+#ifdef VERBOSE
 		puts("Preparing arguments.\r\n");
+#endif /* VERBOSE */
 		/* Yes, this program can accept more information.  */
 		prepare_gift(data_seg, boot_value, cmd_line);
 	}
 
+#ifdef VERBOSE
 	puts("\r\nRunning ");
 	puts(cmd_name);
 	puts("...\r\n");
+#endif /* VERBOSE */
 
 	/* Run the image (the kernel).  */
 	gotoker(SYS_START, sys_base, data_seg);
