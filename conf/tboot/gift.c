@@ -41,8 +41,8 @@
  */
 #include <string.h>
 #include <sys/fdisk.h>
+#include <sys/typed.h>
 #include "tboot.h"
-#include "typed.h"
 
 
 #define GIFTBOX	4096 /* Size of the gift box (maximum size of gift.)  */
@@ -303,6 +303,7 @@ gift_rootdev(ffp)
 } /* gift_rootdev() */
 
 /* Dump the contents of boot_gift.  */
+void
 dump_gift()
 {
 	extern typed_space boot_gift;
@@ -312,6 +313,7 @@ dump_gift()
 }
 
 /* Dump the contents of a fifo.  */
+void
 dump_fifo(fifo)
 	typed_space *fifo;
 {
@@ -355,6 +357,8 @@ dump_fifo(fifo)
 
 } /* dump_gift() */
 
+/* Dump a T_BIOS_DISK typed_space.  */
+void
 dump_bios_disk(a_disk)
 	BIOS_DISK *a_disk;
 {
@@ -382,6 +386,8 @@ dump_bios_disk(a_disk)
 } /* dump_bios_disk() */
 
 
+/* Dump a T_BIOS_ROOTDEV typed_space.  */
+void
 dump_rootdev(a_rootdev)
 	BIOS_ROOTDEV *a_rootdev;
 {

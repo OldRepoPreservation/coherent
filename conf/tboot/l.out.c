@@ -114,6 +114,7 @@ lout2load(ip, table, data_seg)
  * Get entries from l.out name list.
  */
 
+void
 l_out_nlist(fn, nlp)
 char *fn;
 struct nlist *nlp;

@@ -55,6 +55,13 @@ interpret(command)
 	} else if ((0 == strcmp(command, "gift"))) {
 		dump_gift();	/* Dump boot_gift.  */
 		return(TRUE);
+	} else if ((0 == strcmp(command, "test arg"))) {
+		if (arg_exist("arg")) {
+			puts("Yep.\r\n");
+		} else {
+			puts("Nope.\r\n");
+		}
+		return(TRUE);
 	} else if ((0 == strcmp(command, "help")) ||
 		   (0 == strcmp(command, "?")) ) {
 		   puts("info          Print disk information.\r\n");
@@ -65,6 +72,7 @@ interpret(command)
 		   puts("UNSUPPORTED FEATURES:  (don't call :-)\r\n");
 		   puts("sys_base|scs  Print current load segment.\r\n");
 		   puts("sys_base=tttt Set current load segment to 0xtttt.\r\n");
+		   puts("test arg      Test for the presence of arg.\r\n");
 		   puts("monitor       Invoke the mini-monitor.\r\n");
 		   return(TRUE);
 	} else {

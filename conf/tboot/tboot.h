@@ -6,6 +6,9 @@
  * La Monte H. Yarroll <piggy@mwc.com>, September 1991
  */
 
+#ifndef TBOOT_H	/* Rest of file. */
+#define TBOOT_H
+
 #ifdef MAIN
 #define EXTERN
 #else
@@ -14,7 +17,7 @@
 
 #include <sys/types.h>
 #include <sys/buf.h>
-#include "ptypes.h"
+#include <sys/ptypes.h>
 
 #define TRUE	(1==1)
 #define FALSE	(1==2)
@@ -107,34 +110,60 @@ extern void reverse();	/* Reverse a string in place.  */
 extern void itoa();	/* Convert an integer to a decimal string.  */
 extern void itobase();	/* Convert an integer to an arbitrary base string.  */
 extern uint16 basetoi(); /* Convert an arbitrary base string to an integer.  */
-extern int abread();	/* Read a physical block into an unaligned buffer.  */
-extern ino_t namei();	/* Convert from a name to an inode.  */
-extern void iread();	/* Read from a file, given an inode.  */
-extern void ifread();	/* Read from a file into a far buffer, given an inode.  */
-extern daddr_t fbno2pbno();	/* Convert file block number to physical block number.  */
 extern daddr_t vmap();	/* Convert file block number to physical block number.  */
-extern int interpret();	/* Attempt to execute a builtin command.  */
-extern int coff2lout();	/* Generate an l.out header for a COFF file.  */
-extern void dpb();	/* Display parameters from bios.  */
-extern void dir();	/* List contents of /.  */
 extern char *lpad();	/* Pad a string on the left.  */
 extern uint16 object_nlist();	/* Look up a symbol in an object file.  */
 extern uint16 object_sys_base(); /* Generate a default sys_base.  */
 extern uint32 wrap_coffnlist();	/* Candy coated coff nlist().  */
 extern int wait_for_keystrok();	/* Wait a time delay for a keystroke.  */
 extern BUF *bread();		/* Read a disk block.  */
+extern BUF *xbread();		/* Read a disk block rel. to the whole disk.  */
 extern BUF *bclaim();		/* Claim a disk buffer.  */
 extern BUF *bpick();		/* Pick a buffer to trash.  */
 extern void bufinit();		/* Initialize disk buffers.  */
-extern int better_buf();	/* Compare the stealability of two buffers.  */
 extern void brelease();		/* Free a disk buffer.  */
 extern int gate_lock();		/* Attempt to lock a GATE.  */
 extern int gate_locked();	/* Check to see if a GATE is locked.  */
 extern void gate_unlock();	/* Unlock a GATE.  */
+extern void print8();		/* Print an 8 bit integer, base 16.  */
+extern void print16();		/* Print a 16 bit integer, base 16.  */
 extern void print32();		/* Print a 32 bit integer, base 16.  */
 extern void sanity_check();	/* Check for insane conditions.  */
 extern void seg_align();	/* Align a far address.  */
+extern int coff2load();		/* Convert COFF to load table.  */
+extern int coffnlist();		/* Search COFF file for symbols.  */
+extern void dump_bios_disk();	/* Dump a T_BIOS_DISK typed space.  */
+extern void dump_fifo();	/* Dump a T_FIFO* typed space.  */
+extern void dump_gift();	/* Dump the boot_gift typed space.  */
+extern void dump_rootdev();	/* Dump a T_BIOS_ROOTDEV typed space.  */
+extern int gift_argf();		/* Prepare a command line gift.  */
+extern int gift_drive_params();	/* Prepare a drive description from the BIOS.  */
+extern int gift_rootdev();	/* Indentify the boot partition to the kernel.  */
+extern void seginc();		/* Add an offset to a segment.  */
+extern void ffcopy();		/* Copy from one far address to another.  */
+extern int read();		/* Read from a file descriptor.  */
+extern int open();		/* Open a file descriptor.  */
+extern long lseek();		/* Set a read/write position in a file.  */
+extern int close();		/* Close a file descriptor.  */
+extern int object2load();	/* Extract information to load an executable.  */
+extern void monitor();		/* Mini-monitor for testing boot code.  */
+extern int lout2load();		/* Convert l.out to load table.  */
+extern void l_out_nlist();	/* Get entries from l.out name list.  */
+extern int iopen();		/* Open an inode for a file.  */
+extern ino_t namei();	/* Convert from a name to an inode.  */
+extern void iread();	/* Read from a file, given an inode.  */
+extern void ifread();	/* Read from a file into a far buffer, given an inode.  */
+extern daddr_t indirect();	/* Follow a block indirection out.  */
+extern daddr_t ind_lookup();	/* Look up a block in an indirection table.  */
+extern uint16 ind_index();	/* Calculate index into an indirection table.  */
+extern int get_num_of_drives();	/* Ask the BIOS how many drives are attached.  */
+extern int interpret();	/* Attempt to execute a builtin command.  */
+extern void dpb();	/* Display parameters from bios.  */
+extern void dir();	/* List contents of /.  */
+extern int fdisk();	/* Read fixed disk configuration.  */
 
 extern int errno;	/* Error number for "system" calls.  */
 EXTERN uint16 sys_base;	/* Segment into which to load the kernel.  */
 EXTERN int sys_base_set;	/* Has sys_base been explicitly set?  */
+
+#endif /* TBOOT_H */

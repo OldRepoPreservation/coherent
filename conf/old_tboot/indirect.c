@@ -14,7 +14,7 @@
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <canon.h>
-#include "ptypes.h"
+#include <sys/ptypes.h>
 
 extern BUF *bread();
 daddr_t vmap();
