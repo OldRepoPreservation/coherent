@@ -45,6 +45,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.17  92/12/08  16:43:10  root
+/ ker 70
+/ 
 / Revision 1.16  92/11/12  10:04:31  root
 / Ker #68
 / 
@@ -666,10 +669,11 @@ outl:	movl	4(%esp),%edx
 
 	.globl	atsend
 atsend:
+	enter	$0,$4	/ reserve 4 bytes (1 int) of local storage
 	push	%esi
 	push	%es
-	push	[PTABLE1_V<<BPCSHIFT]+WORK0
-	push	[PTABLE1_V<<BPCSHIFT]+WORK1
+	call	workAlloc	/ get a temp virt page
+	movl	%eax,-4(%ebp)	/ this is "work0" - a click number
 
 	movw	$SEG_386_KD,%ax
 	movw	%ax,%es			/ save = setspace(SEG_386_KD)
@@ -686,11 +690,13 @@ atsend:
 
 	lodsl				/ ptable1_V[WORK0] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
-	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK0
+	movl	-4(%ebp),%edx		/ work0
+	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
-	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK1
+	inc	%edx			/ work1
+	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
 	MMUUPD
 
@@ -698,7 +704,9 @@ atsend:
 
 	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
 	and	$NBPC-1,%esi		/ get click offset part of va
-	add	$WORK0<<BPC1SHIFT,%esi
+	movl	-4(%ebp),%edx		/ work0
+	shl	$BPCSHIFT,%edx		/ ctob(work0)
+	add	%edx,%esi
 
 	mov	$256, %ecx		/ copy one disk block
 	mov	$0x1F0, %edx
@@ -708,21 +716,23 @@ atsend:
 	rep
 	outsw
 
-	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
-	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-
 	MMUUPD
 
+	push	-4(%ebp)		/ workFree(work0)
+	call	workFree
+	pop	%edx
 	pop	%es			/ setspace(save) 
 	pop	%esi
+	leave
 	ret
 
 	.globl	atrecv
 atrecv:
+	enter	$0,$4	/ reserve 4 bytes (1 int) of local storage
 	push	%esi
 	push	%es
-	push	[PTABLE1_V<<BPCSHIFT]+WORK0
-	push	[PTABLE1_V<<BPCSHIFT]+WORK1
+	call	workAlloc	/ get a temp virt page
+	movl	%eax,-4(%ebp)	/ this is "work0" - a click number
 
 	movw	$SEG_386_KD,%ax
 	movw	%ax,%es			/ save = setspace(SEG_386_KD)
@@ -735,17 +745,21 @@ atrecv:
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
-	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK0
+	movl	-4(%ebp),%edx		/ work0
+	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
-	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK1
+	inc	%edx			/ work1
+	movl	%eax,[PTABLE1_V<<BPCSHIFT](%edx,4)
 
 	MMUUPD
 
 	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
 	and	$NBPC-1,%esi
-	add	$WORK0<<BPC1SHIFT,%esi
+	movl	-4(%ebp),%edx		/ work0
+	shl	$BPCSHIFT,%edx		/ ctob(work0)
+	add	%edx,%esi
 
 	mov	$256, %ecx		/ copy one disk block
 	mov	$0x1F0, %edx
@@ -755,13 +769,14 @@ atrecv:
 	insw	(%dx)			/ updated correctly
 	xchg	%esi,%edi		
 
-	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
-	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-
 	MMUUPD
 
+	push	-4(%ebp)		/ workFree(work0)
+	call	workFree
+	pop	%edx
 	pop	%es			/ setspace(save) 
 	pop	%esi
+	leave
 	ret
 
 ///////
@@ -1194,7 +1209,7 @@ __xtrap_break__:
 
 /	add	$16,%esp		/ pop error code, IP, CS, PSW
 /	movb	$EFAULT,%ss:u+U_ERROR	/ Bad parameter error
-	subl	%eax,%eax		/ Didn't copy anything
+	subl	%eax,%eax		/ Return 0 to indicate error condition.
 
 /	cleanup routine for n-byte copy
 
@@ -1464,10 +1479,10 @@ trap13:
 
 trap14:
 /	pop	%ss:trapcode		/ Get error code from stack
-	add	$4,%esp
-	push	$0x0E			/ Page Fault
+/	add	$4,%esp
+/	push	$0x0E			/ Page Fault
 	call	tsave
-	jmp	trap
+	jmp	pagefault
 
 trap16:
 	push	$0x10			/ Floating point error
