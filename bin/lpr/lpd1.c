@@ -19,10 +19,16 @@
 #define	SMALL	037		/* Set small characters -- paper tiger */
 #define	NORMAL	036		/* Set normal characters -- paper tiger */
 
+#ifdef LASER
+char	spooldir[] = "/usr/spool/hpd";
+char	*printer = "/dev/hp";
+#else
 char	spooldir[] = "/usr/spool/lpd";
-char	lockfile[] = "dpid";
 char	*printer = "/dev/lp";
+#endif
+char	lockfile[] = "dpid";
 
+char	*argv0;
 char	obuf[BUFSIZ];
 char	cfline[300];		/* Control file line */
 char	comment[300];		/* Comment line */
@@ -39,6 +45,7 @@ char *argv[];
 	int fd;
 	int pid;
 
+	argv0 = argv[0];
 	setuid(DAEMON);
 	if (chdir(spooldir) < 0)
 		lperr("spool directory botch");
@@ -101,7 +108,7 @@ register char *cfname;
 {
 	FILE *cfp;
 	char mbuf[MAXCOM+40];
-	char *message = "Listing complete: %.*s\n";
+	char *message = "%s: Listing complete: %.*s\n";
 	int state;	/* 0 to suppress header, 1 before first banner, 2 after */
 
 	if ((cfp = fopen(cfname, "r")) != NULL) {
@@ -109,7 +116,7 @@ again:
 		printing = state = 1;
 		while (lgets(cfline, sizeof cfline, cfp) != NULL) {
 			if (!printing)
-				message = "Listing killed by order: %.*s\n";
+				message = "%s: Listing killed by order: %.*s\n";
 			else if (printing < 0) {
 				rewind(cfp);
 				putc(FF, lp);
@@ -120,7 +127,7 @@ again:
 				if (state)
 					putc(FF, lp);	/* FF after banner */
 				if (print(cfline+1)) {
-					message = "Printer file error: %.*s\n";
+					message = "%s: Printer file error: %.*s\n";
 					strcpy(comment, cfline+1);
 				}
 				putc(FF, lp);		/* FF after file */
@@ -154,7 +161,7 @@ again:
 				break;
 
 			case 'M':
-				sprintf(mbuf, message, MAXCOM, comment);
+				sprintf(mbuf, message, argv0, MAXCOM, comment);
 				notify(cfline+1, mbuf);
 				break;
 
@@ -274,16 +281,17 @@ FILE *iop;
 /* VARARGS */
 lperr(x)
 {
-	fprintf(stderr, "lpd: %r", &x);
-	putc('\n', stderr);
+	fprintf(stderr, "%s: %r\n", argv0, &x);
 	rmexit(1);
 }
 
 /*
- * Remove lock file and exit
+ * Remove lock file and exit.
  */
 rmexit(s)
 {
 	unlink(lockfile);
+	if (lp != NULL)
+		fclose(lp);
 	exit(s);
 }
