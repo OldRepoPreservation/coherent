@@ -241,7 +241,7 @@ rmblock(bp) register BUF *bp;
 	paddr_t base;
 	register fsize_t asize, osize;
 #else
-	vaddr_t base;
+	caddr_t base;
 	register off_t asize, osize;
 #endif
 	dev_t dev;

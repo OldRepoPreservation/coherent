@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <sys/io.h>
 #include <sys/proc.h>
+#include <sys/sched.h>
 #include <sys/stat.h>
 
 /*
@@ -126,7 +127,7 @@ lpload()
 	 * Only initialize hardware on first invocation.
 	 * Necessary if used as console device [condev].
 	 */
-	if ( notfirst )
+	if (notfirst)
 		return;
 	notfirst = 1;
 
@@ -134,33 +135,33 @@ lpload()
 	 * Note: since some PC clones lp ports can't be read,
 	 * their lpflag field has to be patched to 'LPTHERE'.
 	 */
-	if ( LP0_OK & 1 )
+	if (LP0_OK & 1)
 		lpinfo[0].lpflag |= LPTHERE;
-	if ( LP0_OK & 2 )
+	if (LP0_OK & 2)
 		lpinfo[1].lpflag |= LPTHERE;
-	if ( LP0_OK & 4 )
+	if (LP0_OK & 4)
 		lpinfo[2].lpflag |= LPTHERE;
 
-	for ( p = lpinfo; p->lpbase ; ++p ) {
+	for (p = lpinfo; p->lpbase ; ++p) {
 
 		/*
 		 * Check printer port existence.
 		 */
-		if ( (p->lpflag & LPTHERE) == 0 ) {
-			outb( p->lpbase+LPDAT, 0xA5 );
+		if ((p->lpflag & LPTHERE) == 0) {
+			outb(p->lpbase+LPDAT, 0xA5);
 			delay = LPWAIT; do {
 			} while (--delay);
-			if ( inb(p->lpbase+LPDAT) == 0xA5 )
+			if (inb(p->lpbase+LPDAT) == 0xA5)
 				p->lpflag |= LPTHERE;
 		}
 
 		/*
 		 * Initialize and select printer.
 		 */
-		outb( p->lpbase+LPCSR, SEL );
+		outb(p->lpbase+LPCSR, SEL);
 		delay = LPWAIT; do {
 		} while (--delay);
-		outb( p->lpbase+LPCSR, SEL|NINIT );
+		outb(p->lpbase+LPCSR, SEL|NINIT);
 	}
 }
 
@@ -188,7 +189,7 @@ dev_t	dev;
 	/*
 	 * Illegal printer port.
 	 */
-	if ( (minor(dev) & ~LPRAW) >= NLP ) {
+	if ((minor(dev) & ~LPRAW) >= NLP) {
 		u.u_error = ENXIO;
 		return;
 	}
@@ -201,13 +202,13 @@ dev_t	dev;
 	/*
 	 * Attempt initialization if printer port not found.
 	 */
-	if ( (p->lpflag&LPTHERE) == 0 )
+	if ((p->lpflag&LPTHERE) == 0)
 		lpload();
 
 	/*
 	 * Printer port not found.
 	 */
-	if ( (p->lpflag&LPTHERE) == 0 ) {
+	if ((p->lpflag&LPTHERE) == 0) {
 		u.u_error = ENXIO;
 		return;
 	}
@@ -215,7 +216,7 @@ dev_t	dev;
 	/*
 	 * Printer port already open.
 	 */
-	if ( (p->lpflag&LPOPEN) != 0 ) {
+	if ((p->lpflag&LPOPEN) != 0) {
 #ifdef _I386
 		u.u_error = EBUSY;
 #else
@@ -245,7 +246,7 @@ dev_t	dev;
 	/*
 	 * Initiate periodic printer scan if user open.
 	 */
-	if ( (SELF != NULL) && (SELF->p_pid != 0) )
+	if ((SELF != NULL) && (SELF->p_pid != 0))
 		lptimer();
 }
 
@@ -267,7 +268,7 @@ dev_t	dev;
  * position of the print head.
  */
 static
-lpwrite( dev, iop )
+lpwrite(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
@@ -281,14 +282,14 @@ IO	*iop;
 	 */
 	if (iop->io_seg == IOSYS) {
 
-		while ( (c=iogetc(iop)) >= 0 ) {
+		while ((c=iogetc(iop)) >= 0) {
 
-			while ( (inb(p->lpbase+LPSTR) & IBMNBSY) == 0 )
+			while ((inb(p->lpbase+LPSTR) & IBMNBSY) == 0)
 				;
 
-			outb( p->lpbase+LPDAT, c );
-			outb( p->lpbase+LPCSR, SEL|NINIT|STROBE );
-			outb( p->lpbase+LPCSR, SEL|NINIT );
+			outb(p->lpbase+LPDAT, c);
+			outb(p->lpbase+LPCSR, SEL|NINIT|STROBE);
+			outb(p->lpbase+LPCSR, SEL|NINIT);
 		}
 		return;
 	}
@@ -296,20 +297,20 @@ IO	*iop;
 	/*
 	 * Writes from user are handled via lpchar() which uses timeouts.
 	 */
-	while ( (c=iogetc(iop)) >= 0 ) {
+	while ((c=iogetc(iop)) >= 0) {
 
-		if ( (p->lpflag&LPRAW) == 0 ) {
+		if ((p->lpflag&LPRAW) == 0) {
 
 			switch (c) {
 
 			case '\t':
 				do {
-					lpchar( p, ' ');
+					lpchar(p, ' ');
 				} while ((++p->lpcol&07) != 0);
 				continue;
 	
 			case '\n':
-				lpchar( p, '\r');
+				lpchar(p, '\r');
 				/* no break */
 
 			case '\r':
@@ -325,9 +326,9 @@ IO	*iop;
 				++p->lpcol;
 			}
 		}
-		lpchar( p, c );
+		lpchar(p, c);
 
-		if ( SELF->p_ssig!=0 && nondsig() ) {
+		if (SELF->p_ssig!=0 && nondsig()) {
 			u.u_error = EINTR;
 			break;
 		}
@@ -340,26 +341,30 @@ IO	*iop;
  * sleep for a while.
  */
 static
-lpchar( p, c )
+lpchar(p, c)
 register struct lpinfo *p;
 int c;
 {
 	register int	s;
 
 	s = LPWAIT;
-	while ( (inb(p->lpbase+LPSTR) & IBMNBSY) == 0 ) {
-		if ( --s == 0 ) {
+	while ((inb(p->lpbase+LPSTR) & IBMNBSY) == 0) {
+		if (--s == 0) {
 			s = sphi();
 			p->lpflag |= LPSLEEP;
-			sleep((char *)p, 0, 0, 0);
+#ifdef _I386
+			x_sleep((char *)p, pritty, slpriSigCatch, "lpchar");
+#else
+			v_sleep((char *)p, CVTTOUT, 0, 0, "lpchar");
+#endif
 			spl(s);
 			s = LPWAIT;
 		}
 	}
 
-	outb( p->lpbase+LPDAT, c );
-	outb( p->lpbase+LPCSR, SEL|NINIT|STROBE );
-	outb( p->lpbase+LPCSR, SEL|NINIT );
+	outb(p->lpbase+LPDAT, c);
+	outb(p->lpbase+LPCSR, SEL|NINIT|STROBE);
+	outb(p->lpbase+LPCSR, SEL|NINIT);
 }
 
 /*
@@ -376,12 +381,12 @@ lptimer()
 	/*
 	 * Scan all printers.
 	 */
-	for ( p = lpinfo; p->lpbase; ++p ) {
+	for (p = lpinfo; p->lpbase; ++p) {
 
 		/*
 		 * Ignore unopened printers.
 		 */
-		if ( (p->lpflag & LPOPEN) == 0 )
+		if ((p->lpflag & LPOPEN) == 0)
 			continue;
 
 		++isopen;
@@ -398,6 +403,6 @@ lptimer()
 	/*
 	 * Reschedule timer function if at least 1 printer is still open.
 	 */
-	if ( isopen )
-		timeout( &tim, LPTIME, lptimer, &tim );
+	if (isopen)
+		timeout(&tim, LPTIME, lptimer, &tim);
 }
