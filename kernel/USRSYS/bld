@@ -18,14 +18,18 @@ do
 	case $ARG in
 	at|aha|ss)
 		HD=$ARG
+		if [ $HD = "aha" ]
+		then
+			HD=aha154x
+		fi
 		COH_TYPE=$ARG
 		;;
-	kb|nkb|gkb)
+	kb|nkb|kb_d|kb_f)
 		KB=$ARG
 		;;
-	*)		echo "Usage: $0 { at | ss | aha } { kb | nkb | gkb }"
-			exit 0
-			;;
+	*)	echo "Usage: $0 { at | ss | aha } { kb | nkb | kb_d | kb_f }"
+		exit 0
+		;;
 	esac
 done
 DRIVERS="$KB $HD $DRIVERS"
@@ -40,7 +44,7 @@ echo "Default root/pipe device is $BOOTDEV."
 ( cd $USRSRC/ldrv; make ld_support )			|| exit 1
 ( cd $USRSRC/i8086/drv; make -f Mf.mwc install )	|| exit 1
 ( make kernel )						|| exit 1
-./config.mwc ibm-at $DRIVERS root=$BOOTDEV			|| exit 1
+./config.mwc ibm-at $DRIVERS root=$BOOTDEV		|| exit 1
 cp coherent /tmp/coh					|| exit 1
 strip /tmp/coh						|| exit 1
 set `ls -s /tmp/coh`
