@@ -7,7 +7,7 @@ CFLAGS	= -O -n
 # System V Release 2.0 sites can use -lmalloc for a faster malloc
 #
 # LIBS	=	-lmalloc
-
+LIBS=-lmisc
 OBJECTS =	main.o map.o resolve.o deliver.o misc.o alias.o pw.o headers.o getpath.o str.o getopt.o gethostname.o popen.o copyright.o
 
 all: smail svbinmail lcasep pathproc mkfnames nptx
