@@ -2,10 +2,10 @@
 
 #define	DOSSHRINK	0	/* punt dosshrink() for now	*/
 
-#define	USAGE	"Usage: /etc/fdisk [ -rvx ] [ -b mboot ] [ device ... ]\n"
-#define	VERSION	"2.5"
-#define	NBUF	256		/* buffer size			*/
-#define	SSIZE	512		/* sector size			*/
+#define	USAGE		"Usage: /etc/fdisk [ -crvx ] [ -b mboot ] [ device ... ]\n"
+#define	VERSION		"2.7"
+#define	NBUF		512	/* buffer size			*/
+#define	SSIZE		512	/* sector size			*/
 
 /*
  * Conversions.
@@ -29,6 +29,7 @@ extern	char	*malloc();
 extern	void	qsort();
 
 /* Functions. */
+void		atpatch();
 void		change_active();
 void		change_part();
 void		check_chs();
@@ -37,6 +38,7 @@ void		dos_shrink();
 void		drive_info();
 void		fatal();
 void		fdisk();
+void		fix_chs();
 int		get_boot();
 int		get_int();
 char *		get_line();
@@ -45,6 +47,7 @@ int		pcompare();
 void		print_part();
 int		quit();
 void		sanity();
+void		sys();
 char *		sys_type();
 void		unused();
 void		usage();
@@ -54,15 +57,20 @@ int		yes_no();
 extern	char		*argv0;
 extern	int		badflag;
 extern	char		buf[NBUF];
+extern	int		cfd;
+extern	int		cflag;
 extern	int		cylflag;
 extern	unsigned int	cylsize;
 extern	unsigned char	*defargs[3];
 extern	unsigned char	*device;
 extern	unsigned char	*drivename;
+extern	int		drivenum;
 extern	int		freepart;
 extern	unsigned long	freesize;
 extern	unsigned long	freestart;
 extern	HDISK_S		hd;
+extern	hdparm_t	hdparms;
+extern	int		isatflag;
 extern	int		megflag;
 extern	unsigned int	nspt;
 extern	unsigned int	ncyls;
