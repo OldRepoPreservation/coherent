@@ -65,6 +65,7 @@ struct flags {
 #define	M_XPAND		040		/* expand tabs */
 #define	M_REMOTE	0100		/* don't hold pages */
 #define	M_NUMBER	0200		/* number input lines */
+#define	M_ONEFILE	0400		/* If one file, don't stop at EOF */
 
 
 extern struct flags	flags;
@@ -109,8 +110,10 @@ unsigned	xcolumn;
 int		is_a_tty;
 int		ttyzapped;
 
-int	filecount;
+int		filecount = 0;
 
+char		*firstfile = NULL;
+struct flags	firstflags;
 
 main( argc, argv)
 argp_t	argv;
@@ -127,9 +130,8 @@ argp_t	argv;
 
 	process( av, &flgs, SCAT);
 	process( &argv[1], &flgs, SCAT);
-	if (filecount == 0)
-		scat( (char *)0, &flgs);
-
+	if (filecount <= 1)
+		scat( NULL, &flgs);
 	fflush( stdout);
 	finis( 0);
 }
@@ -187,7 +189,7 @@ argp_t	av;
 			if (fl)
 				break;
 			if (ap >= &av[NAV-1])
-				fatal( "too many env args", (char *)0);
+				fatal( "too many env args", NULL);
 			*ap++ = &p[-1];
 			++fl;
 			break;
@@ -245,6 +247,9 @@ register struct flags	*fp;
 		case 'n':
 			fp->f_modes |= M_NUMBER;
 			break;
+		case '1':
+			fp->f_modes |= M_ONEFILE;
+			break;
 		case 'l':
 			fp->f_length = atol( &av[0][2]);
 			break;
@@ -267,7 +272,7 @@ register struct flags	*fp;
 			if (fl != SCAT)
 				return (av);
 			if (pinvoke == &invoke[NINVOKE])
-				fatal( "too many invokes", (char *)0);
+				fatal( "too many invokes", NULL);
 			pinvoke->i_suffix = &av[0][1];
 			pinvoke->i_arglist = &av[1];
 			++pinvoke;
@@ -329,10 +334,27 @@ struct flags	*fp;
 	extern	errno;
 	int	(*puts)( );
 	char	c;
+	int	len;
+	static int norecurs = 0;
+
+	if ( (filecount == 0) && (file != NULL) ) {
+		firstfile = file;
+		firstflags = *fp;
+		return;
+	} else if ( (filecount == 1) && (norecurs == 0) ) {
+		norecurs = 1;
+		if ( file != NULL ) {
+			firstflags.f_modes &= ~M_ONEFILE;
+			fp->f_modes &= ~M_ONEFILE;
+		}
+		scat( firstfile, &firstflags);
+		if ( file == NULL )
+			return;
+	}
 
 	flags = *fp;
 
-	if (file) {
+	if (file != NULL) {
 		if (creopen( file) == NULL) {
 			p = "can't find ";
 			if (errno == EACCES)
@@ -358,7 +380,7 @@ struct flags	*fp;
 		flags.f_width -= 8;
 	flags.f_width += flags.f_inset;
 	if (flags.f_width-8 >= LBSIZE)
-		fatal( "page width don't jive", (char *)0);
+		fatal( "page width don't jive", NULL);
 	getline = getl1;
 	if (flags.f_modes & M_TRUNC)
 		getline = getl2;
@@ -376,7 +398,11 @@ struct flags	*fp;
 				return;
 
 	i = flags.f_length;
-	while (page( i, puts)) {
+	while (len=page( i, puts)) {
+		if ( (len < i) && (flags.f_modes&M_ONEFILE) ) {
+			putchar( NL);
+			break;
+		}
 		if (is_a_tty && (flags.f_modes&M_REMOTE)==0) {
 			fflush( stdout);
 			if (ttyzapped == 0) {
