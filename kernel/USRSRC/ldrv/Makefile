@@ -1,4 +1,4 @@
-# $Header: /usr/src/sys/ldrv/RCS/Makefile,v 1.5 89/06/30 16:31:48 src Exp $
+# $Header: /usr/src/sys/ldrv/RCS/Makefile,v 1.2 91/04/30 18:38:22 root Exp $
 #
 #	The  information  contained herein  is a trade secret  of INETCO
 #	Systems, Ltd, and is  confidential information.   It is provided
@@ -15,6 +15,9 @@
 # Loadable Drivers - Makefile
 #
 # $Log:	/usr/src/sys/ldrv/RCS/Makefile,v $
+# Revision 1.2	91/04/30  18:38:22	root
+# Changes to support polled async driver "hs"
+
 # Revision 1.5	89/06/30  16:31:48 	src
 # Bug:	Multiple simultaneous DMA transfers resulted in data being lost.
 # Fix:	Added DMA lock routines to ensure single simultaneous DMA
@@ -214,6 +217,7 @@ LIBOBJ2=objects/outb.o		\
 	objects/unlock.o	\
 	objects/upcopy.o	\
 	objects/urcopy.o	\
+	objects/vprint.o	\
 	objects/vrelse.o	\
 	objects/vremap.o	\
 	objects/vtop.o		\
@@ -618,6 +622,9 @@ objects/upcopy.o:
 	$(GEN_DRV) $*
 
 objects/urcopy.o:
+	$(GEN_DRV) $*
+
+objects/vprint.o:
 	$(GEN_DRV) $*
 
 objects/vrelse.o:
