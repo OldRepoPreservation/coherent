@@ -31,7 +31,7 @@ bread(blockno)
 	/* If not already aligned, align buffer on a 4K boundary.  */
 	if (NULL == lbuf) {
 		lbuf = bufspace + FOURK;
-		(short) lbuf &= FOURKBOUNDRY;
+		lbuf = (char *) (((unsigned short) lbuf) & FOURKBOUNDRY);
 	}
 
 	sanity_check("bread() entry");
@@ -330,7 +330,7 @@ xbread(blockno)
 	/* If not already aligned, align buffer on a 4K boundary.  */
 	if (NULL == lbuf) {
 		lbuf = bufspace + FOURK;
-		(short) lbuf &= FOURKBOUNDRY;
+		lbuf = (char *) (((unsigned short) lbuf) & FOURKBOUNDRY);
 	}
 
 	sanity_check("xbread() entry");
