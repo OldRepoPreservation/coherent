@@ -143,9 +143,9 @@ display_reg(flag) int flag;
 		opfirst = 0xD8 | ((fcs >> 24) & 7);
 		opsecond = fcs >> 16;
 #if	0
-		printx("cw=%04X\tsw=%04X\ttag=%04x\n",
+		printx("cw=%04X\tsw=%04X\ttag=%04X\n",
 		  fstp->cw&0xFFFF, fstp->sw&0xFFFF, fstp->tag&0xFFFF);
-		printx("op=%02X\t%02X\tfcs=%04X\tfip=%08X\tfos=%04X\tfoo=%08x\n",
+		printx("op=%02X\t%02X\tfcs=%04X\tfip=%08X\tfos=%04X\tfoo=%08X\n",
 		  opfirst, opsecond,
 		  fcs&0xFFFF, fstp->ipoff, fstp->datasel&0xFFFF, fstp->dataoff);
 #endif
@@ -155,7 +155,7 @@ display_reg(flag) int flag;
 			tagbits = (fstp->tag >> (((tos + i) & 7) * 2)) & 3;
 			printx("%%st%d=", i);
 #if	0
-			printx("(%d) at %08x ", tagbits, fstp->_st + i);
+			printx("(%d) at %08X ", tagbits, fstp->_st + i);
 #endif
 			switch(tagbits) {
 			case 0:			/* Normal */
@@ -163,8 +163,8 @@ display_reg(flag) int flag;
 				printx("%g", d);
 #if	0
 				for (j = 0; j < 4; j++)
-					printx("%04x ", fstp->_st[i].significand[j]);
-				printx(":%04x\n", fstp->_st[i].exponent);
+					printx("%04X ", fstp->_st[i].significand[j]);
+				printx(":%04X\n", fstp->_st[i].exponent);
 #endif
 				break;
 			case 1:			/* Zero */
@@ -218,8 +218,8 @@ find_seg(addr) register ADDR_T addr;
 	register int s;
 
 	if (IS_COFF)
-		return (addr < (ADDR_T)0x4000000) ? ISEG
-		     : (addr < (ADDR_T)0x8000000) ? DSEG
+		return (addr < (ADDR_T)0x00400000) ? ISEG
+		     : (addr < (ADDR_T)0x80000000) ? DSEG
 		     : SEG_NONE;
 	for (s = 0; s < NSEGS; s++)
 		if (map_addr(s, addr) != (MAP *)NULL)
@@ -398,7 +398,8 @@ is_reg(sp) SYM *sp;
 
 /*
  * Watch out for system calls if single stepping.
- * Set sys_in to the instruction replaced and *flagp to 2 if at system call.
+ * If at system call, save the address (sys_add) and the contents (sys_in)
+ * of the replaced instruction and set *flagp to 2.
  * Return 0 on error.
  */
 int
@@ -422,9 +423,10 @@ is_syscall(flagp) int *flagp;
 			return 1;	/* not at a system call */
 		add = get_pc() + 7;
 	}
+	sys_add = add;
 	if (getb(ISEG, (char *)sys_in, sizeof(sys_in)) == 0)
 		return printr("Cannot get breakpoint");
-	add -= sizeof(sys_in);
+	add = sys_add;
 	dbprintf(("is_syscall: set system call bpt at %X replacing %X\n", add, sys_in[0]));
 	if (putb(ISEG, (char *)bin, sizeof(bin)) == 0)
 		return printr("Cannot set breakpoint");
@@ -436,17 +438,16 @@ is_syscall(flagp) int *flagp;
  * Print an address as a constant.
  */
 void
-print_const(buf, addr) register char *buf; unsigned long addr;
+print_const(buf, addr) register char *buf; ADDR_T addr;
 {
-	if ((unsigned)addr < 0x10)
-		sprintf(buf, "%d", (int)addr);
-	else
-		sprintf(buf, "0x%lX", (long)addr);
+	sprintf(buf, (addr < (ADDR_T)0x10) ? "%ld" : "0x%lX", (long)addr);
 }
 
 /*
  * Restore after stepping past a system call.
  * This basically undoes what is_syscall() does.
+ * Note that the system call may not return where you would expect,
+ * e.g. for sigreturn!
  */
 int
 rest_syscall(flagp) int *flagp;
@@ -454,11 +455,12 @@ rest_syscall(flagp) int *flagp;
 	ADDR_T pc;
 
 	pc = get_pc() - sizeof(BIN);
-	set_pc(pc);			/* back up %eip */
-	dbprintf(("rest_syscall(): step_flag=%d pc=%X\n", *flagp, pc));
-	add = pc;			/* restore instruction */
+	if (pc == sys_add)
+		set_pc(pc);		/* back up %eip */
+	dbprintf(("rest_syscall(): step_flag=%d sys_add=%X pc=%X\n", *flagp, sys_add, pc));
+	add = sys_add;			/* restore instruction */
 	if (putb(ISEG, (char *)sys_in, sizeof(sys_in)) == 0)
-		return printr("Cannot set sys_in");
+		return printr("Cannot restore sys_in");
 	*flagp = 1;			/* restore step_mode==1 */
 	return 1;
 }
@@ -478,11 +480,12 @@ setcoffseg()
 	tbase = tsize = dbase = dsize = bbase = bsize = MIN_ADDR;
 	tsp = dsp = bsp = (off_t)0;
 	shp = (SCNHDR *)nalloc(coff_hdr.f_nscns*sizeof(SCNHDR), "COFF section headers");
-	fseek(lfp, (long)fbase, SEEK_SET);
+	if (fseek(lfp, (long)fbase, SEEK_SET) == -1)
+		panic("COFF header seek failed");
 	for (i = 0; i < coff_hdr.f_nscns; shp++, i++) {
 		/* Read a COFF section header. */
 		if (fread(shp, sizeof(SCNHDR), 1, lfp) != 1)
-			printr("Cannot read COFF section headers");
+			panic("Cannot read COFF section header");
 
 		/* Set base and size info according to flags. */
 		switch((int)shp->s_flags) {
