@@ -145,7 +145,7 @@ char *word;
 	if ((nignore && lookup(word)) || (nonly && !lookup(word)))
 		return;
 	if (dflag)
-		printf("%D\t", wordno);
+		printf("%ld\t", wordno);
 	printf("%s\n", wordbuf);
 }
 
