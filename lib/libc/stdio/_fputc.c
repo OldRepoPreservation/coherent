@@ -8,7 +8,7 @@
 
 int
 _fputc(c, fp)
-register unsigned char	c;
+register unsigned int	c;
 register FILE	*fp;
 {
 	char	s[1] = c;
@@ -18,7 +18,7 @@ register FILE	*fp;
 	if (fp->_ff&_FERR || _fpseek(fp)) {
 		return (EOF);
 	} else if (write(fileno(fp), s, 1) == 1) {
-		return (c);
+		return ((unsigned char)c);
 	} else {
 		if (errno != EINTR)
 			fp->_ff |= _FERR;
