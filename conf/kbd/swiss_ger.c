@@ -4,11 +4,11 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * Portuguese virtual console keyboard code table.
+ * Swiss German virtual console keyboard code table.
  *
  *	See header files for definitions and constants.
  *
- *	Version: 1.0, 07/08/91
+ *	Version: 1.0, 07/01/91
  *	Version: 1.1, 06/25/92
  *	Version: 1.2, 07/09/92
  *	Version: 1.5, 06/14/93
@@ -17,10 +17,10 @@
 #include <sys/kbscan.h>
 #include <sys/kb.h>
 
-char	tbl_name[] = "Portuguese virtual console keyboard table - V1.6";
+char	tbl_name[] = "Swiss German virtual console keyboard table - V1.6";
 
 #define A	0x80 |
-#define CSI	"\x1B"
+#define CSI	"\x1B["
 #define END	"\xFF"
 
 KBTBL	kbtbl[] = {
@@ -28,61 +28,61 @@ KBTBL	kbtbl[] = {
  *Phys                       Ctrl           Alt   Alt    Ctrl     Alt
  *Key#  Base   Shift  Ctrl   Shift  Alt    Shift  Ctrl   Shift  Graphic Flags
  *----  ----   -----  ----   -----  ---    -----  ----   -----  ------- -----*/
-{K_1,	'\\',  '|',   none,  none,  A'\\', A'|',  none,  none,  none,	O|T  },
-{K_2,	'1',   '!',   none,  none,  A'1',  A'!',  none,  none,  none,	O|T  },
+{K_1,	nak,   0xF8,  none,  none,  A nak, 0xF8,  none,  none,  none,	O|T  },
+{K_2,	'1',   '+',   none,  none,  A'1',  A'+',  A'|',  none,  '|',	O|T  },
 {K_3,	'2',   '"',   none,  none,  A'2',  A'"',  A'@',  none,  '@',	O|T  },
-{K_4,	'3',   '#',   none,  none,  A'3',  A'#',  0x9C,  none,  0x9C,	O|T  },
-{K_5,	'4',   '$',   none,  none,  A'4',  A'$',  0x15,  none,  0x15,	O|T  },
+{K_4,	'3',   '*',   none,  none,  A'3',  A'*',  A'#',  none,  '#',	O|T  },
+{K_5,	'4',   0x87,  none,  none,  '4',   0x87,  none,  none,  none,	O|T  },
 {K_6,	'5',   '%',   none,  none,  A'5',  A'%',  none,  none,  none,	O|T  },
 {K_7,	'6',   '&',   none,  none,  A'6',  A'&',  none,  none,  none,	O|T  },
-{K_8,	'7',   '/',   none,  none,  A'7',  A'/',  A'{',  none,  '{',	O|T  },
-{K_9,	'8',   '(',   none,  none,  A'8',  A'(',  A'[',  none,  '[',	O|T  },
-{K_10,	'9',   ')',   none,  none,  A'9',  A')',  A']',  none,  ']',	O|T  },
-{K_11,	'0',   '=',   none,  none,  A'0',  A'=',  A'}',  none,  '}',	O|T  },
-{K_12,	'\'',  '?',   none,  none,  A'\'', A'?',  none,  none,  none,	O|T  },
-{K_13,	0xAE,  0xAF,  none,  none,  0xAE,  0xAF,  none,  none,  none,	O|T  },
+{K_8,	'7',   '/',   none,  none,  A'7',  A'/',  none,  none,  none,	O|T  },
+{K_9,	'8',   '(',   none,  none,  A'8',  A'(',  none,  none,  none,	O|T  },
+{K_10,	'9',   ')',   none,  none,  A'9',  A')',  none,  none,  none,	O|T  },
+{K_11,	'0',   '=',   none,  none,  A'0',  A'=',  none,  none,  none,	O|T  },
+{K_12,	'`',   '?',   none,  none,  A'`',  A'?',  A'\'',  none,  '\'',	O|T  },
+{K_13,	'^',   '`',   none,  none,  A'^',  A'`',  A'~',   none,  '~',	O|T  },
 /* key 14 undefined */
-{K_15,	bs,    bs,    del,   del,   A bs,  A bs,  A del, A del, none,	O|T  },
+{K_15,	bs,    bs,    del,   del,   A bs,  A bs,  none,  A del, none,	O|T  },
 {K_16,	f42,   f43,   none,  none,  f42,   f43,   none,  none,  none,   F|T  },
-{K_17,	'q',   'Q',   dc1,   dc1,   A'q',  A'Q',  none,  none,  none,   C|T  },
-{K_18,	'w',   'W',   etb,   etb,   A'w',  A'W',  none,  none,  none,   C|T  },
-{K_19,	'e',   'E',   enq,   enq,   A'e',  A'E',  none,  none,  none,   C|T  },
-{K_20,	'r',   'R',   dc2,   dc2,   A'r',  A'R',  none,  none,  none,   C|T  },
-{K_21,	't',   'T',   dc4,   dc4,   A't',  A'T',  none,  none,  none,   C|T  },
-{K_22,	'y',   'Y',   em,    em,    A'y',  A'Y',  none,  none,  none,   C|T  },
-{K_23,	'u',   'U',   nak,   nak,   A'u',  A'U',  none,  none,  none,   C|T  },
-{K_24,	'i',   'I',   ht,    ht,    A'i',  A'I',  none,  none,  none,   C|T  },
-{K_25,	'o',   'O',   si,    si,    A'o',  A'O',  none,  none,  none,   C|T  },
-{K_26,	'p',   'P',   dle,   dle,   A'p',  A'P',  none,  none,  none,   C|T  },
-{K_27,	'+',   '*',   none,  none,  A'+',  A'*',  0xB1,  none,  0xB1,	O|T  },
-{K_28,	'\'',  '`',   none,  none,  A'\'', A'`',  none,  none,  none,	O|T  },
+{K_17,	'q',   'Q',   dc1,   dc1,   A'q',  A'Q',  A'@',  A nul, '@',    C|T  },
+{K_18,	'w',   'W',   etb,   etb,   A'w',  A'W',  none,  A etb, none,   C|T  },
+{K_19,	'e',   'E',   enq,   enq,   A'e',  A'E',  none,  A enq, none,   C|T  },
+{K_20,	'r',   'R',   dc2,   dc2,   A'r',  A'R',  none,  A dc2, none,   C|T  },
+{K_21,	't',   'T',   dc4,   dc4,   A't',  A'T',  none,  A dc4, none,   C|T  },
+{K_22,	'z',   'Z',   sub,   sub,   A'z',  A'Z',  none,  A sub, none,   C|T  },
+{K_23,	'u',   'U',   nak,   nak,   A'u',  A'U',  none,  A nak, none,   C|T  },
+{K_24,	'i',   'I',   ht,    ht,    A'i',  A'I',  none,  A ht,  none,   C|T  },
+{K_25,	'o',   'O',   si,    si,    A'o',  A'O',  none,  A si,  none,   C|T  },
+{K_26,	'p',   'P',   dle,   dle,   A'p',  A'P',  none,  A dle, none,   C|T  },
+{K_27,	0x81,  0x8A,  none,  none,  0x81,  0x8A,  A'[',  none,  '[',	O|T  },
+{K_28,	0xB1,  '!',   none,  none,  0xB1,  A'!',  A']',  none,  ']',	O|T  },
 {K_29,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|T  },
 {K_30,	caps,  caps,  caps,  caps,  caps,  caps,  caps,  caps,  caps,   S|M  },
-{K_31,	'a',   'A',   soh,   soh,   A'a',  A'A',  none,  none,  none,   C|T  },
-{K_32,	's',   'S',   dc3,   dc3,   A's',  A'S',  none,  none,  none,   C|T  },
-{K_33,	'd',   'D',   eot,   eot,   A'd',  A'D',  none,  none,  none,   C|T  },
-{K_34,	'f',   'F',   ack,   ack,   A'f',  A'F',  none,  none,  none,   C|T  },
-{K_35,	'g',   'G',   bel,   bel,   A'g',  A'G',  none,  none,  none,   C|T  },
-{K_36,	'h',   'H',   bs,    bs,    A'h',  A'H',  none,  none,  none,   C|T  },
-{K_37,	'j',   'J',   nl,    nl,    A'j',  A'J',  none,  none,  none,   C|T  },
-{K_38,	'k',   'K',   vt,    vt,    A'k',  A'K',  none,  none,  none,   C|T  },
-{K_39,	'l',   'L',   ff,    ff,    A'l',  A'L',  none,  none,  none,   C|T  },
-{K_40,	0x87,  0x80,  none,  none,  0x87,  0x80,  none,  none,  none,	C|T  },
-{K_41,	0xA7,  0xA6,  none,  none,  0xA7,  0xA6,  none,  none,  none,	O|T  },
-{K_42,	'~',   '^',   none,  rs,    A'~',  A'^',  none,  none,  none,   O|T  },
+{K_31,	'a',   'A',   soh,   soh,   A'a',  A'A',  none,  A soh, none,   C|T  },
+{K_32,	's',   'S',   dc3,   dc3,   A's',  A'S',  none,  A dc3, none,   C|T  },
+{K_33,	'd',   'D',   eot,   eot,   A'd',  A'D',  none,  A eot, none,   C|T  },
+{K_34,	'f',   'F',   ack,   ack,   A'f',  A'F',  none,  A ack, none,   C|T  },
+{K_35,	'g',   'G',   bel,   bel,   A'g',  A'G',  none,  A bel, none,   C|T  },
+{K_36,	'h',   'H',   bs,    bs,    A'h',  A'H',  none,  A bs,  none,   C|T  },
+{K_37,	'j',   'J',   nl,    nl,    A'j',  A'J',  none,  A nl,  none,   C|T  },
+{K_38,	'k',   'K',   vt,    vt,    A'k',  A'K',  none,  A vt,  none,   C|T  },
+{K_39,	'l',   'L',   ff,    ff,    A'l',  A'L',  none,  A ff,  none,   C|T  },
+{K_40,	0x94,  0x82,  none,  none,  0x94,  0x82,  none,  none,  none,   O|T  },
+{K_41,	0x84,  0x85,  none,  none,  0x84,  0x85,  A'{',  none,  '{',	O|T  },
+{K_42,	'$',   '#',   none,  none,  A'$',  A'#',  A'}',  none,  '}',	O|T  },
 {K_43,	cr,    cr,    nl,    nl,    A cr,  A cr,  A nl,  A nl,  none,   O|T  },
 {K_44,	lshift,lshift,lshift,lshift,lshift,lshift,lshift,lshift,lshift, S|MB },
-{K_45,	'<',   '>',   none,  none,  A'<',  A'>',  none,  none,  none,   O|T  },
-{K_46,	'z',   'Z',   sub,   sub,   A'z',  A'Z',  none,  none,  none,   C|T  },
-{K_47,	'x',   'X',   can,   can,   A'x',  A'X',  none,  none,  none,   C|T  },
-{K_48,	'c',   'C',   etx,   etx,   A'c',  A'C',  none,  none,  none,   C|T  },
-{K_49,	'v',   'V',   syn,   syn,   A'v',  A'V',  none,  none,  none,   C|T  },
-{K_50,	'b',   'B',   stx,   stx,   A'b',  A'B',  none,  none,  none,   C|T  },
-{K_51,	'n',   'N',   so,    so,    A'n',  A'N',  none,  none,  none,   C|T  },
-{K_52,	'm',   'M',   cr,    cr,    A'm',  A'M',  none,  none,  none,   C|T  },
+{K_45,	'<',   '>',   none,  none,  A'<',  A'>',  A'\\', none,  '\\',	O|T  },
+{K_46,	'y',   'Y',   em,    em,    A'y',  A'Y',  none,  A em,  none,   C|T  },
+{K_47,	'x',   'X',   can,   can,   A'x',  A'X',  none,  A can, none,   C|T  },
+{K_48,	'c',   'C',   etx,   etx,   A'c',  A'C',  none,  A etx, none,   C|T  },
+{K_49,	'v',   'V',   syn,   syn,   A'v',  A'V',  none,  A syn, none,   C|T  },
+{K_50,	'b',   'B',   stx,   stx,   A'b',  A'B',  none,  A stx, none,   C|T  },
+{K_51,	'n',   'N',   so,    so,    A'n',  A'N',  none,  A so,  none,   C|T  },
+{K_52,	'm',   'M',   cr,    cr,    A'm',  A'M',  none,  A cr,  none,	C|T  },
 {K_53,	',',   ';',   none,  none,  A',',  A';',  none,  none,  none,   O|T  },
 {K_54,	'.',   ':',   none,  none,  A'.',  A':',  none,  none,  none,   O|T  },
-{K_55,	'-',   '_',   none,  none,  A'-',  A'_',  none,  none,  none,   O|T  },
+{K_55,	'-',   '_',   us,    us,    A'-',  A'_',  none,  A us,  none,   O|T  },
 /* key 56 undefined */
 {K_57,	rshift,rshift,rshift,rshift,rshift,rshift,rshift,rshift,rshift, S|MB },
 {K_58,	lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl,  S|MB },
@@ -93,16 +93,16 @@ KBTBL	kbtbl[] = {
 /* key 63 undefined */
 {K_64,	rctrl, rctrl, rctrl, rctrl, rctrl, rctrl, rctrl, rctrl, rctrl,  S|MB },
 /* keys 65 through 74 could be functional keys on XT type keyboard */
-{K_65,	f2,    f14,   f26,   f71,   vt1,   none,  none,  none,  none,   F|M  },
-{K_66,	f4,    f16,   f28,   f73,   vt3,   none,  none,  none,  none,   F|M  },
-{K_67,	f6,    f18,   f30,   f75,   vt5,   none,  none,  none,  none,   F|M  },
-{K_68,	f8,    f20,   f65,   f77,   vt7,   none,  none,  none,  none,   F|M  },
-{K_69,	f10,   f22,   f67,   f79,   vtn,   none,  none,  none,  none,   F|M  },
-{K_70,	f1,    f13,   f25,   f70,   vt0,   none,  none,  none,  none,   F|M  },
-{K_71,	f3,    f15,   f27,   f72,   vt2,   none,  none,  none,  none,   F|M  },
-{K_72,	f5,    f17,   f29,   f74,   vt4,   none,  none,  none,  none,   F|M  },
-{K_73,	f7,    f19,   f64,   f76,   vt6,   none,  none,  none,  none,   F|M  },
-{K_74,	f9,    f21,   f66,   f78,   none,  none,  none,  none,  none,   F|M  },
+{K_65,	f2,    f14,   f26,    f71,   vt1,   none,  none,  none,  none,   F|M  },
+{K_66,	f4,    f16,   f28,    f73,   vt3,   none,  none,  none,  none,   F|M  },
+{K_67,	f6,    f18,   f30,    f75,   vt5,   none,  none,  none,  none,   F|M  },
+{K_68,	f8,    f20,   f65,    f77,   vt7,   none,  none,  none,  none,   F|M  },
+{K_69,	f10,   f22,   f67,    f79,   vtn,   none,  none,  none,  none,   F|M  },
+{K_70,	f1,    f13,   f25,    f70,   vt0,   none,  none,  none,  none,   F|M  },
+{K_71,	f3,    f15,   f27,    f72,   vt2,   none,  none,  none,  none,   F|M  },
+{K_72,	f5,    f17,   f29,    f74,   vt4,   none,  none,  none,  none,   F|M  },
+{K_73,	f7,    f19,   f64,    f76,   vt6,   none,  none,  none,  none,   F|M  },
+{K_74,	f9,    f21,   f66,    f78,   none,   none,  none,  none,  none,   F|M  },
 {K_75,	f40,   f40,   f40,   f40,   f40,   f40,   f40,   f40,   f40,    F|M  },
 {K_76,	f41,   f41,   f41,   f41,   f41,   f41,   reboot,f41,   f41,    F|M  },
 /* keys 77 and 78 undefined */
@@ -248,8 +248,10 @@ unsigned char	*funkey[] = {
 /* 77 */	CSI"]" END,		/* c-s-F8 */
 /* 78 */	CSI"^" END,		/* c-s-F9 */
 /* 79 */	CSI"_" END		/* c-s-F10 */
+
 };
 
 int	numfun	= sizeof(funkey) / sizeof(funkey[0]);	/* # of Fn keys */
 int	numkey	= sizeof(kbtbl) / sizeof(kbtbl[0]);	/* # of actual keys */
-/* end of portuguese.c */
+/* end of swiss_german.c */
+
