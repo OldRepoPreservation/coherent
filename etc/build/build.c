@@ -1,9 +1,10 @@
 /*
  * build.c
- * 3/30/90
+ * 4/4/90
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
- * Requires floating point output: cc build.c -f
+ * Uses common routines in build0.c.
+ * Requires floating point output: cc build.c build0.c -f
  * Usage: build [ -dvx ]
  * Options:
  *	-d	Debug, echo commands without executing
@@ -28,21 +29,16 @@
 #include <string.h>
 #include <sys/fdisk.h>
 #include <sys/filsys.h>
+#include "build0.h"
 
-#define	VERSION		"1.3"
-#define	USAGE		"Usage: build [ -dvx ]\n"
+#define	VERSION		"1.4"
+#define	USAGE		"Usage: /etc/build [ -dvx ]\n"
 #define	AINDEX		5		/* index of 'a' in "/dev/at0x"	*/
 #define	BSIZE		512		/* sector size			*/
-#define	MINSIZE		5		/* minimum root size in MB	*/
-#define	NBUF		256		/* buffer size			*/
+#define	MINSIZE		7		/* minimum root size in MB	*/
 #define	NDEV		(NPARTN+NPARTN)	/* number of devices		*/
 #define	NSIZE		10		/* strlen("/dev/at0x") + 1	*/
 #define	MAJOR		11		/* AT device major number	*/
-
-/* Flags for sys(). */
-#define	S_IGNORE	1
-#define	S_NONFATAL	2
-#define	S_FATAL		3
 
 /* (unsigned long) sectors to (double) megabytes. */
 #define	meg(sec)	((double)sec * BSIZE / 1000000.)
@@ -87,30 +83,21 @@ extern	long	lseek();
 /* Forward. */
 void	badscan();
 int	check_special();
-void	cls();
 void	copy();
 void	done();
-int	exists();
 void	fdisk();
-void	fatal();
-char	*get_line();
+void	get_timezone();
 void	mkfs();
-void	nonfatal();
-int	sys();
-void	usage();
+void	set_date();
 void	user_devices();
-int	yes_no();
 
 /* Globals. */
 int	active = -1;			/* active partition	*/
-char	*argv0;				/* for error messages	*/
-char	buf[NBUF];			/* input buffer		*/
-char	cmd[NBUF];			/* command buffer	*/
-int	dflag;				/* debug		*/
+char	*activeos;			/* active partition OS	*/
 HDISK_S	hd;				/* hard disk boot block	*/
 int	ndevices;			/* number of COH devices */
 int	root;				/* root partition	*/
-int	vflag;				/* verbose		*/
+char	*timezone;			/* timezone		*/
 char	*xdev[2] = { "/dev/at0x", "/dev/at1x" };
 int	xflag;				/* use XT not AT	*/
 
@@ -120,8 +107,8 @@ main(argc, argv) int argc; char *argv[];
 	register char *s;
 
 	argv0 = argv[0];
+	usagemsg = USAGE;
 	if (argc > 1 && argv[1][0] == '-') {
-		--argc;
 		for (s = &argv[1][1]; *s; ++s) {
 			switch(*s) {
 			case 'd':	++dflag;	break;
@@ -133,6 +120,8 @@ main(argc, argv) int argc; char *argv[];
 			default:	usage();	break;
 			}
 		}
+		--argc;
+		++argv;
 	}
 	if (argc != 1)
 		usage();
@@ -143,14 +132,20 @@ main(argc, argv) int argc; char *argv[];
 			pp->d_name[AINDEX] = pp->d_rname[AINDEX] = pp->d_pname[AINDEX] = 'x';
 	}
 
+	set_date();
 	fdisk();
 	badscan();
 	mkfs();
 	copy();
-	if (ndevices > 1)
-		user_devices();
+	user_devices();
 	done();
 	sync();
+	printf("Hit <Enter>, then remove the floppy disk when the screen goes blank.\n");
+	if (root != active)
+		printf("You MUST type %d during the boot to boot the COHERENT operating system.\n",
+			root);
+	get_line("");
+	sys("/etc/reboot", S_IGNORE);
 	exit(0);
 }
 
@@ -200,7 +195,7 @@ badscan()
  * Here the check that "special" is a block special file is eliminated.
  */
 int
-check_special(special) char *special;
+check_special(special, size) char *special; unsigned long size;
 {
 	static struct filsys f;
 	register int fd;
@@ -230,6 +225,8 @@ check_special(special) char *special;
 	canino(fp->s_tinode);
 
 	/* Test for rationality. */
+	if (fp->s_fsize != (daddr_t)size)
+		return 0;
 	maxinode = (fp->s_isize - INODEI) * INOPB + 1;
 	if (fp->s_isize >= fp->s_fsize)
 		return 0;
@@ -248,32 +245,17 @@ check_special(special) char *special;
 }
 
 /*
- * Clear the IBM AT console screen.
- * Prompt for <Enter> if the flag is true or if dflag.
- */
-void
-cls(flag) register int flag;
-{
-	if (flag || dflag)
-		get_line("\nType <Enter> to continue...");
-	putchar(0x1B);		/* ESC */
-	putchar('c');
-	fflush(stdout);
-}
-
-/*
  * Patch /coherent, mount the root filesystem, copy files to it.
  */
 void
 copy()
 {
 	FILE *fp;
-	register int i;
 
 	cls(0);
 	printf(
-"The next step is to copy some COHERENT files from the diskette to\n"
-"the root partition of your hard disk.  This will take a few minutes.\n"
+"The next step is to copy some COHERENT files from the diskette to the\n"
+"root filesystem of your hard disk.  This will take a few minutes...\n"
 		);
 
 	/* Mount the filesystem and copy the boot floppy to it. */
@@ -281,15 +263,18 @@ copy()
 	sys(cmd, S_FATAL);
 	sprintf(cmd, "/bin/cpdir -d%s -smnt -sbegin / /mnt", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
-	sys("/bin/mkdir /mnt/mnt", S_FATAL);
+	if (!exists("/mnt/mnt"))
+		sys("/bin/mkdir /mnt/mnt", S_FATAL);
+	sys("/bin/rm /mnt/tmp/*", S_IGNORE);
 
-	/*
-	 * Patch the /coherent image on the hard disk.
-	 * The parameters are straight from the Inetco version, for now.
-	 */
-	sprintf(cmd, "/conf/patch /mnt/coherent ALLSIZE_=16384 NBUF_=32 NCLIST_=24 rootdev_=makedev\\(%d,%d\\) pipedev_=makedev\\(%d,%d\\)",
+	/* Patch the /coherent image on the hard disk. */
+	sprintf(cmd, "/conf/patch /mnt/coherent rootdev_=makedev\\(%d,%d\\) pipedev_=makedev\\(%d,%d\\)",
 		MAJOR, root, MAJOR, root);
 	sys(cmd, S_FATAL);
+
+	/* Grow /lost+found to make room for files. */
+	sys("cd /lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
+		S_IGNORE);
 
 	/* Create /autoboot. */
 	sys("/bin/ln -f /mnt/coherent /mnt/autoboot", S_FATAL);
@@ -299,20 +284,18 @@ copy()
 	sys("/bin/ln -f /mnt/etc/brc.install /mnt/etc/brc", S_FATAL);
 
 	/* Link root device to /dev/root. */
-	sprintf(cmd, "/bin/ln /mnt%s /mnt/dev/root", device[root].d_name);
-	sys(cmd, S_NONFATAL);
+	sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/root", device[root].d_name);
+	sys(cmd, S_FATAL);
 
-	/* Create /etc/checklist. */
+	/* Write the timezone to /etc/timezone. */
 	if (dflag)
 		fp = NULL;
-	else if ((fp = fopen("/mnt/etc/checklist", "w")) != NULL) {
-		for (i = NDEV - 1; i >= 0; i--)
-			if (isflag(i, F_COH) && isflag(i, F_FS) && notflag(i, F_ROOT))
-				fprintf(fp, "%s\n", device[i].d_rname);
-		fprintf(fp, "%s\n", device[root].d_name);
+	else if ((fp = fopen("/mnt/etc/timezone", "w")) == NULL)
+		nonfatal("/mnt/etc/timezone: open failed");
+	else {
+		fprintf(fp, "export TIMEZONE=\"%s\"\n", timezone);
 		fclose(fp);
-	} else
-		nonfatal("/mnt/etc/checklist: open failed");
+	}
 }
 
 /*
@@ -329,9 +312,9 @@ done()
 "you must boot the COHERENT system from the hard disk.  It will prompt\n"
 "you to install the remaining diskettes in the installation kit.\n"
 "\n"
-"After you finish reading this information, type <Enter>.\n"
-"Your system will automatically reboot.  When the screen goes blank,\n"
-"remove the floppy disk from the disk drive.\n"
+"After you finish reading this information,\n"
+"hit <Enter> and your system will automatically reboot.\n"
+"Remove the floppy disk from the drive when the screen goes blank.\n"
 "\n"
 "If you type a partition number (0 to 7) while\n"
 "the boot procedure is trying to read the floppy disk,\n"
@@ -341,38 +324,14 @@ done()
 		printf("If you type nothing, your system will boot ");
 		if (active == root)
 			printf("COHERENT (partition %d).\n", active);
-		else
-			printf("active partition %d.\n", active);
+		else {
+			printf("active partition %d", active);
+			if (activeos != NULL)
+				printf(" (%s)", activeos);
+			printf(".\n", active);
+		}
 	}
-	if (root != active)
-		printf("\nYou MUST type %d during the boot to boot the COHERENT operating system.\n",
-			root);
 	printf("\n");
-}
-
-/*
- * Print a fatal error message.
- */
-void
-fatal(s) char *s;
-{
-	fprintf(stderr, "%s: %r\nInstallation aborted before completion.\n",
-		argv0, &s);
-	exit(1);
-}
-
-/*
- * Return 1 if file exists, 0 if not.
- */
-int
-exists(file) register char *file;
-{
-	register int fd;
-
-	if ((fd = open(file, 0)) < 0)
-		return 0;
-	close(fd);
-	return 1;
 }
 
 /*
@@ -381,7 +340,7 @@ exists(file) register char *file;
 void
 fdisk()
 {
-	register int fd, drive, i, j, opened;
+	register int fd, drive, i, j, opened, cohpart;
 	char *fname, *s;
 
 	cls(0);
@@ -399,7 +358,7 @@ fdisk()
 "after installing COHERENT, you must leave the first physical partition\n"
 "free for MS-DOS.\n"
 "\n"
-"The first part of the installation procedure will let you change the\n"
+"The next part of the installation procedure will let you change the\n"
 "partitions on your hard disk.  Data on unchanged hard disk partitions\n"
 "will not be changed.  However, data already on your hard disk may be\n"
 "destroyed if you change the base or the size of a logical partition,\n"
@@ -427,6 +386,23 @@ fdisk()
 			if (hd.hd_partn[i].p_boot != 0) {
 				setflag(j, F_BOOT);
 				active = j;
+				switch(hd.hd_partn[i].p_sys) {
+				case SYS_COH:
+					activeos = "COHERENT";
+					break;
+				case SYS_DOS_12:
+				case SYS_DOS_16:
+				case SYS_DOS_XP:
+				case SYS_DOS_LARGE:
+					activeos = "MS-DOS";
+					break;
+				case SYS_XENIX:
+					activeos = "Xenix";
+					break;
+				default:
+					activeos = NULL;
+					break;
+				}
 			}
 			if (hd.hd_partn[i].p_sys != SYS_COH)
 				continue;
@@ -446,9 +422,9 @@ fdisk()
 			/* OK, set flags in the device table. */
 			++ndevices;
 			setflag(j, F_COH);
-			if (check_special(s))
-				setflag(j, F_FS);
 			device[j].d_size = hd.hd_partn[i].p_size;
+			if (check_special(s, device[j].d_size))
+				setflag(j, F_FS);
 
 			/* Make sure the device is not mounted. */
 			sprintf(cmd, "/etc/umount %s 2>/dev/null", s);
@@ -464,9 +440,16 @@ fdisk()
 		ndevices, (ndevices == 1) ? "" : "s");
 	printf("Drive Partition\t  Device\tMegabytes\n");
 	for (i = 0; i < NDEV; i++)
-		if (isflag(i, F_COH))
+		if (isflag(i, F_COH)) {
+			cohpart = i;
 			printf("%3d\t%3d\t%s\t%.2f\n",
 				i/4, i, device[i].d_name, meg(device[i].d_size));
+		}
+	if (ndevices == 1) {
+		root = cohpart;
+		setflag(root, F_ROOT);
+		return;
+	}
 	printf(
 "You must specify one COHERENT partition as the root filesystem.\n"
 "The root filesystem contains the files normally used by COHERENT.\n"
@@ -495,21 +478,34 @@ again:
 }
 
 /*
- * Print the args and get a line from the user to buf[].
- * Strip the trailing newline and return a pointer to the first non-space.
+ * Set up a nonstandard timezone.
  */
-char *
-get_line(args) char *args;
+void
+get_timezone(dstflag) int dstflag;
 {
+	static char tz[NBUF];
 	register char *s;
 
-	printf("%r ", &args);
-	fflush(stdout);
-	fgets(buf, sizeof buf, stdin);
-	buf[strlen(buf) - 1] = '\0';
-	for (s = buf; ; ++s)
-		if (*s != ' ' && *s != '\t')
-			return s;
+	timezone = tz;
+	printf(
+"You need to specify an abbreviation for your timezone,\n"
+"whether you are east or west of Greenwich, England,\n"
+"and the difference in minutes between your timezone\n"
+"and Greenwich Time (called UT or GMT).  For example,\n"
+"Germany is 60 minutes of time east of Greenwich.\n"
+		);
+	s = get_line("Abbreviation for your timezone?");
+	sprintf(tz, "%s:", s);
+	if (yes_no("Is your timezone east of Greenwich"))
+		strcat(tz, "-");
+	s = get_line("Difference in minutes from GMT?");
+	strcat(tz, s);
+	strcat(tz, ":");
+	if (!dstflag)
+		return;
+	s = get_line("Abbreviation for your daylight savings timezone?");
+	strcat(tz, s);
+	strcat(tz, ":1.1.4");
 }
 
 /*
@@ -558,7 +554,10 @@ again:
 				if (sys(cmd, S_NONFATAL))
 					continue;
 				sprintf(cmd, "/bin/mkdir /mnt/lost+found");
-				sys(cmd, S_NONFATAL);
+				if (sys(cmd, S_NONFATAL) == 0)
+					sys(
+"cd /mnt/lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
+						S_IGNORE);
 				sprintf(cmd, "/etc/umount %s", name);
 				sys(cmd, S_NONFATAL);
 			} else if (i == root)
@@ -571,73 +570,129 @@ again:
 }
 
 /*
- * Print a nonfatal error message.
+ * Date and time.
  */
 void
-nonfatal(s) char *s;
+set_date()
 {
-	fprintf(stderr, "%s: %r\n", argv0, &s);
-}
+	register char *s;
+	int dstflag;
+	char *mytz;
 
-/*
- * Execute the given command and return its exit status.
- * The flag tells what to do if the command returns an error status:
- *	S_IGNORE	ignore it
- *	S_NONFATAL		report it
- *	S_FATAL		report it and die
- */
-int
-sys(command, flag) char *command; int flag;
-{
-	register int status;
+	cls(0);
 
-	if (dflag || vflag)
-		printf("%s\n", command);
-	if (dflag)
-		return 0;
-	if ((status = system(command)) != 0) {
-		if (flag == S_NONFATAL)
-			nonfatal("command \"%s\" failed", command);
-		else if (flag == S_FATAL)
-			fatal("command \"%s\" failed", command);
+	/*
+	 * Local time.
+	 * The brc sets the COHERENT date from the system clock.
+	 */
+	printf(
+"It is important for the COHERENT system to know the correct date and time.\n"
+"You must provide information about your timezone and daylight savings time.\n"
+"\n"
+"You can run COHERENT with or without daylight savings time conversion.\n"
+"You should normally run with daylight savings time conversion.\n"
+"However, if you are going to use both COHERENT and MS-DOS\n"
+"and you choose to run with daylight savings time conversion,\n"
+"your time will be wrong (by one hour) during daylight savings time\n"
+"while you are running under MS-DOS.\n"
+		);
+	dstflag = yes_no("Do you want COHERENT to use daylight savings time conversion");
+	if (dstflag)
+		printf(
+"By default, COHERENT assumes daylight savings time begins on the\n"
+"first Sunday in April and ends on the last Sunday in October.\n"
+"If you want to change the defaults, edit the file \"/etc/timezone\"\n"
+"after you finish installing COHERENT.\n"
+			);
+	mytz = (dstflag) ? "TIMEZONE='standard time:0:daylight time:1.1.4'"
+			 : "TIMEZONE=";
+	printf(
+"\n"
+"According to your computer system clock, your current local date and time are:\n"
+		);
+	sprintf(cmd, "%s /bin/date", mytz);
+	sys(cmd, S_NONFATAL);
+	if (!yes_no("Is this correct")) {
+		do {
+			if (dstflag)
+				printf(
+"Subtract one hour from the time you enter if daylight savings time is in effect.\n"
+					);
+			s = get_line(
+				"Enter the correct date and time in the form YYMMDDHHMM.SS:"
+				);
+			sprintf(cmd, "/etc/ATclock %s >/dev/null", s);
+			if (sys(cmd, S_NONFATAL) != 0)
+				continue;
+			sprintf(cmd, "%s /bin/date `/etc/ATclock`", mytz);
+		} while (sys(cmd, S_NONFATAL) != 0);
 	}
-	return status;
-}
 
-/*
- * Print a usage message and die.
- */
-void
-usage()
-{
-	fprintf(stderr, USAGE);
-	exit(1);
+	/* Timezone */
+	printf(
+"Please choose one of the following timezones:\n"
+"\t1\tAtlantic Time\n"
+"\t2\tEastern Time\n"
+"\t3\tCentral Time\n"
+"\t4\tMountain Time\n"
+"\t5\tPacific Time\n"
+"\t6\tOther\n"
+		);
+	do {
+		s = get_line("Timezone code:");
+	} while (*s < '1' || *s > '6' || *(s+1) != '\0');
+	switch (*s) {
+	case '1':	timezone = "AST:240:ADT:1.1.4";	break;
+	case '2':	timezone = "EST:300:EDT:1.1.4";	break;
+	case '3':	timezone = "CST:360:CDT:1.1.4";	break;
+	case '4':	timezone = "MST:420:MDT:1.1.4";	break;
+	case '5':	timezone = "PST:480:PDT:1.1.4";	break;
+	case '6':	timezone = NULL;		break;
+	}
+
+	if (timezone == NULL)
+		get_timezone(dstflag);
+	else if (!dstflag)
+		timezone[8] = '\0';
 }
 
 /*
  * Configure user devices.
  * Assumes hard disk filesystem mounted on /mnt.
- * Append lines to /etc/rc to mount the user devices.
+ * Wrtie lines to /etc/mount.all, /etc/umount.all to [u]mount the user devices.
  */
 void
 user_devices()
 {
-	FILE *fp;
-	register int i;
+	FILE *mfp, *ufp, *checkfp;
+	register int i, status;
 	register char *s, *s2, *name;
+	char fakename[NBUF];
+
+	/* Create /etc/checklist. */
+	if (dflag)
+		checkfp = NULL;
+	else if ((checkfp = fopen("/mnt/etc/checklist", "w")) == NULL)
+		nonfatal("/mnt/etc/checklist: open failed");
 
 	/* Create user device names. */
 	cls(0);
 	if (dflag)
-		fp = NULL;
-	else if ((fp = fopen("/mnt/etc/rc", "a")) == NULL)
-		nonfatal("/mnt/etc/rc: open failed");
+		mfp = NULL;
+	else if ((mfp = fopen("/mnt/etc/mount.all", "w")) == NULL)
+		nonfatal("/mnt/etc/mount.all: open failed");
+	chmod("/mnt/etc/mount.all", 0555);
+	if (dflag)
+		ufp = NULL;
+	else if ((ufp = fopen("/mnt/etc/umount.all", "w")) == NULL)
+		nonfatal("/mnt/etc/umount.all: open failed");
+	chmod("/mnt/etc/umount.all", 0555);
 	printf(
 "Your system includes %d partition%s in addition to the root partition.\n"
 "These partitions are usually mounted on directories in the COHERENT\n"
-"filesystem when the system goes into multiuser mode.\n"
-"For example, /dev/at0b (partition 1) might be mounted on\n"
-"directory \"/u\", /dev/at0c (partition 2) on \"/v\", and so on.\n"
+"root filesystem when the system goes into multiuser mode.\n"
+"For example, one non-root partition might be mounted on\n"
+"directory \"/u\", another on \"/v\", and so on.\n"
 "You now may specify where you want each partition mounted.\n",
 		ndevices - 1, ndevices == 2 ? "" : "s");
 	for (i = 0; i < NDEV; i++) {
@@ -654,10 +709,14 @@ again:
 				goto again;
 			} else if ((s2 = strchr(s, ' ')) != NULL)
 				*s2 = '\0';
-			if (exists(s)) {
+			sprintf(cmd, "/mnt/%s", s);
+			if (exists(cmd)) {
+				strcpy(cmd, s);
 				printf("Directory %s already exists.\n", s);
-				if (!yes_no("Are you sure you want %s mounted on %s\n", name, s))
+				if (!yes_no("Are you sure you want %s mounted on %s", name, s))
 					goto again;
+				s = buf;
+				strcpy(s, cmd);
 			} else {
 				/* Make the target directory, uid=bin, gid=bin. */
 				sprintf(cmd, "/bin/mkdir /mnt%s", s);
@@ -669,38 +728,61 @@ again:
 				sys(cmd, S_NONFATAL);
 			}
 
-			/* Change e.g. /usr/src to .usr.src */
-			while ((s2 = strchr(s, '/')) != NULL)
-				*s2 = '.';
+			/* Change e.g. /usr/src to usr_src */
+			strcpy(fakename, &s[1]);
+			while ((s2 = strchr(fakename, '/')) != NULL)
+				*s2 = '_';
 
-			/* Make link to pseudo-device, e.g. "/dev/usr.src". */
-			sprintf(cmd, "/bin/ln /mnt%s /mnt/dev%s", name, ++s);
-			sys(cmd, S_NONFATAL);
-			if (fp != NULL)
-				fprintf(fp, "/etc/mount %s %s\n", name, s);
-		}
+			/* Make link to pseudo-device, e.g. "/dev/usr_src". */
+			sprintf(cmd, "/mnt/dev/%s", fakename);
+			if (exists(cmd))
+				status = 1;		/* use normal name */
+			else {
+				sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/%s",
+					name, fakename);
+				status = sys(cmd, S_NONFATAL);
+			}
+			if (mfp != NULL) {
+				if (status == 0)
+					fprintf(mfp, "/etc/mount /dev/%s %s\n",
+						fakename, s);
+				else
+					fprintf(mfp, "/etc/mount %s %s\n",
+						name, s);
+			}
+			if (ufp != NULL) {
+				if (status == 0)
+					fprintf(ufp, "/etc/umount /dev/%s\n",
+						fakename);
+				else
+					fprintf(ufp, "/etc/umount %s\n",
+						name);
+			}
+			/* And again, for the raw device. */
+			sprintf(cmd, "/mnt/dev/r%s", fakename);
+			if (exists(cmd))
+				status = 1;
+			else {
+				sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/r%s",
+					device[i].d_rname, fakename);
+				status = sys(cmd, S_NONFATAL);
+			}
+			if (checkfp != NULL) {
+				if (status == 0)
+					fprintf(checkfp, "/dev/r%s\n", fakename);
+				else
+					fprintf(checkfp, "%s\n", device[i].d_rname);
+			}
+		} else if (checkfp != NULL)
+			fprintf(checkfp, "%s\n", device[i].d_rname);
 	}
-	if (fp != NULL)
-		fclose(fp);
-}
-
-/*
- * Get the answer to a yes/no question.
- * Return 1 for yes, 0 for no.
- */
-int
-yes_no(args) char *args;
-{
-	register char *s;
-
-	for (;;) {
-		printf("%r", &args);
-		s = get_line(" [y or n]?");
-		if (*s == 'y')
-			return 1;
-		else if (*s == 'n')
-			return 0;
-	}
+	fprintf(checkfp, "/dev/root\n");
+	if (checkfp != NULL)
+		fclose(checkfp);
+	if (mfp != NULL)
+		fclose(mfp);
+	if (ufp != NULL)
+		fclose(ufp);
 }
 
 /* end of build.c */
