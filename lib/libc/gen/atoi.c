@@ -1,27 +1,37 @@
 /*
- * Non-floating ASCII to int conversion
- * int atoi(cp)
- * char *cp;
+ * C general utilities library.
+ * atoi()
+ * ANSI 4.10.1.2.
+ * Convert ASCII to int (the old fashioned way).
  */
 
-atoi(cp)
-register char *cp;
+#include <stdlib.h>
+#include <ctype.h>
+
+int
+atoi(nptr) register char *nptr;
 {
-	register val;
-	register c;
-	register sign;
+	register int	val;
+	register int	c;
+	register int	sign;
 
 	val = sign = 0;
-	while ((c = *cp)==' ' || c=='\t')
-		cp++;
+
+	/* Leading whitespace. */
+	while (isspace(c = *nptr++))
+		;
+
+	/* Optional sign. */
 	if (c == '-') {
 		sign = 1;
-		cp++;
+		c = *nptr++;
 	} else if (c == '+')
-		cp++;
-	while ((c = *cp++)>='0' && c<='9')
-		val = val*10 - (c-'0');
-	if (!sign)
-		val = -val;
-	return (val);
+		c = *nptr++;
+
+	/* Process digit string. */
+	for ( ; isdigit(c); c = *nptr++)
+		val = val * 10 + c - '0';
+	return (sign ? -val : val);
 }
+
+/* end of atoi.c */
