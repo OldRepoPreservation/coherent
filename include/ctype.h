@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.1.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -65,7 +65,7 @@ extern	unsigned char _ctype[_CTYPEN];	/* Type table			*/
 #define	isxdigit(c)	(_ctype[(c)+1]&_X)
 
 /* Macros covering non-ANSI Standard functions. */
-#define	isascii(c)	(((c)&0x80)==0)
+#define	isascii(c)	(((c)&~0x7F)==0)
 #define	toascii(c)	((c)&0x7F)
 #define	_tolower(c)	((c)|('a'-'A'))
 #define	_toupper(c)	((c)&~('a'-'A'))
