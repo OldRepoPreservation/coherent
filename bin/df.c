@@ -99,11 +99,11 @@ char *argv[];
 			estat = dfmtab();
 		else {
 			noarg = 1;
-			estat = df(".");
+			estat = df(".", NULL);
                 }
 	} else {
 		for (i = 1; i < argc; i++)
-			estat |= df(argv[i]);
+			estat |= df(argv[i], NULL);
 		if (aflag)
 			estat |= dfmtab();
 	}
@@ -125,7 +125,7 @@ dfmtab()
 		if (mp->mt_dev[0]=='\0' || mp->mt_filsys[0]=='\0')
 			continue;
 		sprintf(name, "/dev/%s", mp->mt_filsys);
-		estat |= df(name);
+		estat |= df(name, mp->mt_dev);
 	}
 	return (estat);
 }
@@ -134,8 +134,8 @@ dfmtab()
  * Look at the file system
  * and find out free space.
  */
-df(fs)
-register char *fs;
+df(fs, name)
+register char *fs, *name;
 {
 	register struct filsys *sbp;
 	struct stat sb;
@@ -199,7 +199,7 @@ register char *fs;
 
         if (!oflag)
 	{
-		printf("%-12s   (%-20s): ", fs, nfs);
+		printf("%-12s   (%-20s): ", name == NULL ? fs : name, nfs);
 		if (vflag)
 		{
                 	percent = ((btotal - bfree) * 1000L) / btotal;
@@ -384,7 +384,11 @@ char *arg;
 usage(str)
 char *str;
 {
-	fprintf(stderr, "Usage: df [-ait] [directory ...] [filesystem ...]\n");
+
+	if (oflag)
+		fprintf(stderr, "Usage: df [-ait] [directory ...] [filesystem ...]\n");
+	else
+		fprintf(stderr, "Usage: df [-fitv] [directory ...] [filesystem ...]\n");
        	fprintf(stderr, "\ndf: %s\n", str);
 	exit(1);
 }
