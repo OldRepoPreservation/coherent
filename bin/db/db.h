@@ -4,7 +4,7 @@
  * Header file.
  */
 
-#define	VERSION	"4.1.5"			/* Version number		*/
+#define	VERSION	"4.1.9"			/* Version number		*/
 
 /* Use or ignore function prototypes. */
 #ifdef	PROTO_OK
@@ -215,7 +215,7 @@ extern	char	*conform	__((char *sp, int s, int t1, int t2));
 extern	int	display		__((int s, int n));
 extern	void	execute		__((char *cmd));
 extern	void	flushb		__((ADDR_T addr));
-extern	void	helpinfo	__((void));
+extern	void	helpinfo	__((int flag));
 extern	char	*gettime	__((char *sp, int s));
 extern	char	*printable	__((char *sp, int c));
 extern	void	process		__((void));
