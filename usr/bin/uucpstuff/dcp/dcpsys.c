@@ -250,9 +250,10 @@ startup()
 		open_the_logfile("uucico");
 		plog(M_CALL, "Call received from %s {%d} (V%s)",
 						rmtname, processid, version);
+		plog(M_CALL,"Locking remote site %s",rmtname);
 		if ( lockit(rmtname) < 0 ) {
 			leavelock = 1;
-			FAIL2("Incoming site locked: %s", rmtname);
+			FAIL2("Incoming site %s already locked", rmtname);
 		}
 
 		if ( !checkrmt() )
@@ -264,7 +265,7 @@ startup()
 
 	/* The incoming device will already have been locked by login.  */
 		if (MASTER == role) { 
-			if ( lockit(rdevname) < 0 ) {
+			if ( locktty(rdevname) < 0 ) {
 				cp = rdevname;
 				rdevname = NULL;
 				FAIL2("Incoming device locked: %s", cp);
@@ -493,13 +494,42 @@ calluperr:
 
 sysend()
 {
-	if ( lockexist(rdevname) ) {
-		if ( role == MASTER )
+
+	/* We may have a problem here. Someone else may be removing the remote
+	 * device lock file before we call unlocktty. Tests have shown this to
+	 * be unimportant because the lock file IS being removed. A warning
+	 * will be printed to the log files for users to check for locks.
+	 * Hopefully, this isn't going to be a bug.  Bob H. 11/22/91.
+	 */
+
+	/* December 4, 1991: Problem solved(?). When we are in master mode,
+	 * we call dcpundial, which calls the hangup, which, in turn, calls
+	 * undial. Undial removes the locks on the device. Thie following
+	 * code USED to call dcpundial if in master mode, and THEN continued
+	 * to call the unlocktty function, which had previously been called
+	 * by dcpundial. I snuck in an 'else' statement to get around this.
+	 * Tests show that this solves the problem described above, but who
+	 * knows if this will cause problems when we are NOT in master mode.
+	 */
+
+	if ( lockttyexist(rdevname) ) {
+		if ( role == MASTER ){
+			printmsg(M_DEBUG,"Sysend: calling undial and hangup routines.");
 			dcpundial();
-		lockrm(rdevname);
+		}else{
+			plog(M_CALL,"Sysend: Removing remote device lock file.");
+			if(unlocktty(rdevname) != 0){
+				plog(M_CALL,"sysend: Possible lock file removal failure.");
+			}
+		}
 	}
-	if ( !leavelock && lockexist(rmtname) )
-		lockrm(rmtname);
+	if ( !leavelock && lockexist(rmtname) ){
+		plog(M_CALL,"Removing remote site lock");
+		if(lockrm(rmtname) != 0){
+			printmsg(M_LOG,"sysend: Remote site Lock file removal failed!");
+			plog(M_CALL,"sysend: Remote site lock file removal failed!");
+		}
+	}
 	plog(M_CALL, terminatelevel ?
 		"Abnormal completion {%d}" :
 		"Call completing normally {%d}", processid);
