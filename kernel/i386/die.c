@@ -5,6 +5,7 @@
 
 #include <sys/coherent.h>
 #include <sys/mmu.h>
+#include <ctype.h>
 
 #define COLOR	((char *) (0x0000B0000 + ctob(SBASE-PBASE)))
 #define MONO	((char *) (0x0000B8000 + ctob(SBASE-PBASE)))
@@ -116,3 +117,118 @@ die(c)
 		halt();
 	}
 }
+
+#define LINESIZE 80
+
+/*
+ * puts() -- put a NUL terminated string.
+ * Takes one argument--a pointer to a NUL terminated character string.
+ * Does no error checking.  Calls the assembly language routine putc().
+ */
+void
+puts(s)
+	register char *s;
+{
+	while (*s != '\0') {
+		mchirp(*s++);
+	}
+
+} /* puts() */
+
+
+#define BS '\010'
+#define DEL '\0'	/* This is really what getchar() returns!  */
+#define NAK '\025'
+
+/*
+ * Reverse string s in place.
+ * Straight from K&R.
+ */
+void
+reverse(s)
+	char s[];
+{
+	int c, i, j;
+
+	for (j = 0; s[j] != '\0'; ++j) {
+		/* This is strlen(s).  */
+	}
+	--j;	/* strlen(s) - 1 */
+
+	for (i = 0; i < j; i++, j--) {
+		c = s[i];
+		s[i] = s[j];
+		s[j] = c;
+	}
+} /* reverse() */
+
+#define BASE16 16
+/*
+ * Convert n to digits in s, base base.
+ * Works for any base from 2 to 36.
+ * Modified itoa() from K&R.
+ */
+void
+itobase(n, s, base)
+	unsigned long n;
+	char s[];
+	int base;
+{
+	unsigned short i;
+
+	i = 0;
+	do {	/* Generate digits in reverse order.  */
+		s[i] = n % base + '0';	/* Get next digit.  */
+		/* Adjust for the gap between '9' and 'A'.  */
+		if (s[i] > '9') {
+			s[i] += ('A' - '9') - 1;
+		}
+		++i;
+	} while ((n /= base) > 0); /* Delete it.  */
+	
+	s[i] = '\0';
+	reverse(s);
+} /* itobase() */
+
+#define BITS_PER_INT16		16	/* Number of bits in an int16.  */
+#define DIGITS_PER_INT16	4	/* Maximum hex digits in a 16 bit number.  */
+#define DIGITS_PER_INT8		2	/* Maximum hex digits in an 8 bit number.  */
+/*
+ * Print a 32 bit integer in hexadecimal.
+ */
+void
+print32(my_int)
+	unsigned long my_int;
+{
+	static char buffer[sizeof("ffffffff")];
+
+	itobase(my_int, buffer, BASE16);
+	puts(buffer);
+}
+
+/*
+ * Print a 16 bit integer in hexadecimal.
+ */
+void
+print16(my_int)
+	unsigned short my_int;
+{
+	static char buffer[sizeof("ffff")];
+
+	itobase((unsigned long) my_int, buffer, BASE16);
+	puts(buffer);
+}
+
+/*
+ * Print an 8 bit integer in hexadecimal.
+ */
+void
+print8(my_int)
+	unsigned char my_int;
+{
+	static char buffer[sizeof("ff")];
+
+	itobase((unsigned long) my_int, buffer, BASE16);
+	puts(buffer);
+}
+
