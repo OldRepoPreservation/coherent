@@ -24,7 +24,7 @@ typedef	char	SECNAME[9];	/* NUL-terminated 8 character section name */
 
 /* Some shortcut display stuff. */
 #define showFlag(flag, msg) if (fh.f_flags & flag) printf("\t" msg "\n");
-#define showCase(x) case x: printf(#x); break;
+#define showCase(x) showDesc(x, #x)
 #define showDesc(x, d) case x: printf(d); break;
 #define showValue(x) case x: printf(#x "\tvalue=%ld ", se->n_value); break;
 #define showHexVal(x) case x: printf(#x "\tvalue=0x%lx ", se->n_value); break;
@@ -119,22 +119,35 @@ checkStr(s) unsigned char *s;
  * Process optional file header.
  */
 void
-optHeader()
+optHeader(size)
+int size;
 {
-	AOUTHDR	oh;
+	register AOUTHDR *oh;
+	int tail;
 
-	if (1 != fread(&oh, sizeof(oh), 1, fp))
+	if (0 > (tail = size - sizeof(*oh)))
+		fatal("optional header too small -- %d bytes", size);
+
+	oh = alloc(size);
+
+	if (1 != fread(oh, size, 1, fp))
 		fatal("error reading optional header");
 
 	printf("\nOPTIONAL HEADER VALUES\n");
-	printf("magic            = 0x%x\n",	oh.magic);
-	printf("version stamp    = %d\n",	oh.vstamp);
-	printf("text size        = 0x%lx\n",	oh.tsize);
-	printf("init data size   = 0x%lx\n",	oh.dsize);
-	printf("uninit data size = 0x%lx\n",	oh.bsize);
-	printf("entry point      = 0x%lx\n",	oh.entry);
-	printf("text start       = 0x%lx\n",	oh.text_start);
-	printf("data start       = 0x%lx\n",	oh.data_start);
+	printf("magic            = 0x%x\n",	oh->magic);
+	printf("version stamp    = %d\n",	oh->vstamp);
+	printf("text size        = 0x%lx\n",	oh->tsize);
+	printf("init data size   = 0x%lx\n",	oh->dsize);
+	printf("uninit data size = 0x%lx\n",	oh->bsize);
+	printf("entry point      = 0x%lx\n",	oh->entry);
+	printf("text start       = 0x%lx\n",	oh->text_start);
+	printf("data start       = 0x%lx\n",	oh->data_start);
+
+	if (tail) {
+		printf("\n EXTRA OPTIONAL HEADER INFO\n");
+		dump(oh + 1, tail);
+	}
+	free(oh);
 }
 
 /*
@@ -172,7 +185,7 @@ readHeaders(fn) char *fn;
 		sec_name = (SECNAME *)alloc(((int)num_sections) * (sizeof(SECNAME)));
 
 	if (fh.f_opthdr)
-		optHeader();			/* optional header */
+		optHeader(fh.f_opthdr);			/* optional header */
 	section_seek = sizeof(FILEHDR) + fh.f_opthdr;
 }
 
@@ -457,27 +470,24 @@ print_aux(n, sep) int n; register SYMENT *sep;
 		++has_fcn;
 	}
 
+#define showNe(x, d) if(l = ae.x) printf("\t" d "=%ld", l);
+
 	/* Print tag index. */
-	if (l = ae.ae_tagndx)
-		printf("\ttag=%ld", l);
+	showNe(ae_tagndx, "tag")
 
 	/* Print fsize or lnsz info. */
 	if (has_fsize) {
-		if (l = ae.ae_fsize)
-			printf("\tfsize=%ld", l);
+		showNe(ae_fsize, "size")
 	} else {
-		if (i = ae.ae_lnno)
-			printf("\tlnno=%d", i);
-		if (i = ae.ae_size)
-			printf("\tsize=%d", i);
+		showNe(ae_lnno, "lnno")
+		showNe(ae_size, "size")
 	}
 
 	/* Print fcn or ary info. */
 	if (has_fcn) {
 		if (l = ae.ae_lnnoptr)
 			printf("\tlnnoptr=0x%lx", l);
-		if (l = ae.ae_endndx)
-			printf("\tend=%ld", l);
+		showNe(ae_endndx, "end")
 	} else {
 		sp = ae.ae_dimen;
 		if (*sp != 0) {
@@ -489,9 +499,8 @@ print_aux(n, sep) int n; register SYMENT *sep;
 	}
 
 	/* Print tv index. */
-	if (l = ae.ae_tvndx)
-		printf("\ttv=%ld", l);
-
+	showNe(ae_tvndx, "ttv")
+#undef showNe
 	putchar('\n');
 }
 
