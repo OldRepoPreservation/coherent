@@ -1,13 +1,15 @@
-# /usr/src/cmd0/sh/Makefile 2/19/91
-DESTDIR=/interim/bin/
-# Version number compiled into var.o.
-VERSION=3.1.1
+# /usr/src/cmd0/sh/Makefile 10/2/92
 
-# For i8086 compile with -VSINU.
-# Define VERSION for var.c.
-CFLAGS= -O -VSINU -DVERSION='"VERSION=V$(VERSION)"'
+# Version number for var.c.
+VERSION=3.4.0
+# Parsing stack depth for y.tab.c.
+YYMAXDEPTH=300
+
+DESTDIR=/bin386/bin/
+
+CFLAGS= -O -I$(SRCPATH)
 # Undefine _copyright_ to pull in libc.a/copyright.o.
-LDFLAGS= -n -i -u _copyright_
+LDFLAGS= -n -i -u _copyright
 # Don't bind shared on the PDP-11.
 # LDFLAGS= -i
 
@@ -46,14 +48,11 @@ SRCS=\
 
 # Primary target.
 sh: $(OBJ)
-	cc $(LDFLAGS) -o $(DESTDIR)sh $(OBJ)
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-	mv *.o objects/
+	$(CC) $(LDFLAGS) -o $(DESTDIR)sh $(OBJ)
+	chmog 511 bin bin $(DESTDIR)sh
 
 psh: $(OBJ)
-	cc -n -o psh -O -DPARANOID $(OBJ)
+	$(CC) -n -o psh -O -DPARANOID $(OBJ)
 
 # Secondary targets.
 alloc.o:	sh.h alloc.c
@@ -68,13 +67,15 @@ lex.o:		sh.h lex.c y.tab.o
 main.o:		sh.h main.c
 tab.o:		sh.h tab.c
 trap.o:		sh.h trap.c
-var.o:		sh.h var.c
+var.o:		var.c sh.h
+	$(CC) -c $(CFLAGS) -DVERSION='"VERSION=V$(VERSION)"' $<
 y.tab.c:	sh.y
-	yacc sh.y
-y.tab.o:	sh.h y.tab.c
+	yacc $<
+y.tab.o:	y.tab.c sh.h
+	$(CC) -c $(CFLAGS) -DYYMAXDEPTH=$(YYMAXDEPTH) $<
 
 # Etc.
 clean:
-	mv *.o objects/
+	rm $(OBJ)
 
 # end of /usr/src/cmd0/sh/Makefile
