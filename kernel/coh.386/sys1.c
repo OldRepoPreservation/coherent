@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys1.c,v 1.8 92/10/06 23:48:55 root Exp $ */
+/* $Header: /y/coh.386/RCS/sys1.c,v 1.9 92/11/09 17:11:01 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * General system calls.
  *
  * $Log:	sys1.c,v $
+ * Revision 1.9  92/11/09  17:11:01  root
+ * Just before adding vio segs.
+ * 
  * Revision 1.8  92/10/06  23:48:55  root
  * Ker #64
  * 
@@ -573,7 +576,7 @@ struct tms *tp;
 	tbuffer.tms_cutime = pp->p_cutime;
 	tbuffer.tms_cstime = pp->p_cstime;
 	kucopy(&tbuffer, tp, sizeof(tbuffer));
-	return 0;
+	return lbolt;
 }
 
 /*
