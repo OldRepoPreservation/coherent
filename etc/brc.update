@@ -1,9 +1,10 @@
-# /etc/brc.install
-# Mon May 23 16:50:50 1994 CDT
+# /etc/brc.update
+# Mon May 23 16:50:52 1994 CDT
 
-# Template file Mon May  2 08:26:35 1994 CDT
+# Template file Mon May  2 08:26:51 1994 CDT
 
-# COHERENT executes this script when it boots.
+# COHERENT executes this script when it boots
+# after installing the first update disk.
 # If the exit status is 0, it goes multiuser immediately.
 # This version invokes /etc/install
 # to complete the installation of COHERENT.
@@ -13,18 +14,39 @@
 # /etc/mount /dev/ram1 /tmp.pipe
 
 # Set the date from the system clock.
-
 . /etc/timezone
 /bin/date -s `/etc/ATclock` >/dev/null
 
-# Load keyboard table, if necessary.
-
+# Load loadable drivers.
 /etc/drvld.all
 
 # Trap in case interrupted.
-
 trap 'echo; echo Aborted...; exit 1' 1 2 3
-if /etc/install -b Coh_420 /dev/fva0 4
+
+# Move any files named in /conf/upd_mv from root to /old_coh
+
+if [ -f /conf/upd_mv ]; then
+
+	if [ ! -d /old_coh ]; then
+		mkdir /old_coh
+	fi
+
+	cat /conf/upd_mv | while read MOVE_ME; do
+		case "$MOVE_ME" in
+		"#*"|"")
+			continue
+			;;
+		*)
+			if [ -f "/$MOVE_ME" ]; then
+				mv /$MOVE_ME /old_coh/$MOVE_ME
+			fi
+			;;
+		esac
+	done
+fi
+
+# Run install binary.
+if /etc/install -u Coh_420 /dev/fva0 4
 then
 	sync
 	/etc/coh_intro
