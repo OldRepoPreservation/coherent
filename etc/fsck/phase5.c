@@ -21,7 +21,7 @@ phase5()
 #if SMALLMODEL
 	copyV(size);
 #else
-	memcpy(blockPtr, dupPtr, size);
+	memcpy(dupPtr, blockPtr, size);
 #endif
 	badcnt = dupcnt = 0;
 	badflag = FALSE;
