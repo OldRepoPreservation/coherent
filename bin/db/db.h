@@ -4,7 +4,7 @@
  * Header file.
  */
 
-#define	VERSION	"4.1.3"			/* Version number		*/
+#define	VERSION	"4.1.4"			/* Version number		*/
 
 /* Use or ignore function prototypes. */
 #ifdef	PROTO_OK
@@ -40,6 +40,8 @@
 #if	DBPTRACE
 #define	ptrace(cmd, id, loc, val)	dbptrace((cmd), (id), (loc), (val))
 #endif
+
+#define	OLD_CORE	1	/* Support both core formats, just for now */
 
 #define	PROMPT	"db: "			/* default interactive prompt	*/
 

@@ -217,7 +217,7 @@ waitc()
 #if	DBPTRACE
 #undef	ptrace
 int
-dbptrace(cmd, pid, loc, val) int cmd, pid, *loc, val;
+dbptrace(cmd, pid, loc, val) int cmd, pid, loc, val;
 {
 	register int n;
 

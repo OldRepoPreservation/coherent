@@ -638,7 +638,7 @@ top:
 				step_mode = SCALL;
 		} else
 			step_flag = 0;
-	
+
 		/* Place all breakpoints. */
 		if (reg_flag != R_INVALID)
 			pc = get_pc();
@@ -773,6 +773,7 @@ top:
 		 * t
 		 */
 		if (bp == (BPT *)NULL) {
+			dbprintf(("step_mode=%d step_flag=%d bpt_next=%d\n", step_mode, step_flag, bpt_next));
 			if (step_flag == 0 || bpt_next) {
 				printf("Unexpected ");
 				execute(fxcmd);
