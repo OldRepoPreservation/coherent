@@ -2,6 +2,11 @@
  * Reboot the processor by transferring to the reset vector of the 8088.
  *
  * $Log:	/usr/src.inetco/etc/reboot.c,v $
+ * Revision 1.2	90/04/17  14:48:29 	root
+ * steve 4/17/90
+ * Added "-p" option to prompt user to hit <Enter> before rebooting,
+ * for use during installation.
+ * 
  * Revision 1.1	90/04/17  14:34:11 	root
  * Initial revision
  * 
@@ -27,6 +32,7 @@ main (argc, argv) int argc; char *argv[];
 		/* Prompt before reboot. */
 		printf("Hit <Enter> and your system will reboot automatically... ");
 		fflush(stdout);
+		sync();
 		fgets(buf, sizeof buf, stdin);
 	}
 		
