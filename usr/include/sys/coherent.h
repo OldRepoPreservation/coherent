@@ -3,7 +3,7 @@
  *
  * Coherent-specific definitions, for linking kernels and related bits.
  *
- * Revised: Wed Apr  7 15:07:47 1993 CDT
+ * Revised: Thu May 27 08:07:17 1993 CDT
  */
 #ifndef	__SYS_COHERENT_H__
 #define	__SYS_COHERENT_H__
@@ -34,6 +34,7 @@
 #define T_VLAD(f,c)
 #define T_CON(f,c)
 #define T_MSGQ(f,c)
+#define DV(v)
 #endif /* TRACER */
 
 #ifdef _I386

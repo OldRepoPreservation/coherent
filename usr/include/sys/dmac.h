@@ -3,6 +3,14 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
+/*
+ * /usr/include/sys/dmac.h
+ *
+ * Constants for the 8237 DMA controller.
+ *
+ * Revised: Mon May 24 18:10:51 1993 CDT
+ */
 #ifndef	__SYS_DMAC_H__
 #define	__SYS_DMAC_H__
 
@@ -16,6 +24,24 @@
 #define	WRMEM	0x44			/* Mode, write memory */
 #define	MASKOFF	0x00			/* Mask bit off */
 #define	MASKON	0x04			/* Mask bit on */
+
+#if 1
+/* For compatibility with other DDK's. */
+#define DMA_Wrmode      0x48    /* single, read, increment, no auto-init */
+#define DMA_Rdmode      0x44    /* single, write, increment, no auto-init */
+
+/* Channels 0-3 are for 8-bit transfers. */
+#define DMA_CH0		0
+#define DMA_CH1		1
+#define DMA_CH2		2
+#define DMA_CH3		3
+
+/* Channels 4-7 are for 8-bit transfers. */
+#define DMA_CH4		4
+#define DMA_CH5		5
+#define DMA_CH6		6
+#define DMA_CH7		7
+#endif
 
 #ifdef _I386
 #define DMASEG_SIZE	NBPC		/* Size of a DMA segment.  */

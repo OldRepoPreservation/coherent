@@ -3,11 +3,15 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * /usr/include/sys/con.h
+ *
+ * CON struct for device drivers.
+ *
+ * Revised: Tue May 25 13:36:42 1993 CDT
+ */
 #ifndef	__SYS_CON_H__
 #define	__SYS_CON_H__
-/*
- * Device driver configuration.
- */
 
 #include <sys/types.h>
 #include <sys/ksynch.h>
@@ -49,11 +53,10 @@ typedef struct con {
 /*
  * Flags.
  */
-#define	DFBLK	0000001			/* Block device */
-#define	DFCHR	0000002			/* Character device */
-#define DFTAP	0000004			/* Tape */
-#define	DFPOL	0000010			/* Pollable device */
-#define	DFERR	0100000			/* Error */
+#define	DFBLK	0x01			/* Block device */
+#define	DFCHR	0x02			/* Character device */
+#define DFTAP	0x04			/* Tape */
+#define	DFPOL	0x08			/* Pollable device */
 
 #ifdef KERNEL
 /*

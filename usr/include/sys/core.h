@@ -3,7 +3,7 @@
  *
  * Core file header struct.
  *
- * Revised: Thu Apr  8 12:04:29 1993 CDT
+ * Revised: Tue Jun  8 08:00:35 1993 CDT
  *
  * ch_magic		should be CORE_MAGIC - see below
  * ch_info_len		number of bytes in "ch_info" header (in case of change)
@@ -17,14 +17,20 @@
  * SISTACK	3			Stack segment
  * SIAUXIL	4			Auxiliary segment
  *
- * Since it is already available, the following segment is omitted:
+ * Since it is already available in the executable file, the following
+ * segment is usually omitted:
  *
  * SISTEXT	1			Shared text segment
  *
+ * Any segment appearing in the core file will have its u.u_segl[].sr_flag
+ * SRFDUMP bit set to 1.  Patchable kernel variable DUMP_LIM is used to
+ * keep core files from getting out of hand.  Any segment whose size in
+ * bytes is larger than DUMP_LIM will not be dumped, and its SRFDUMP
+ * flag in the core file will be zero.
+ *
  * Sizes and virtual addresses for each segment are available from the
  * u_segl field of the uproc struct.  Shared memory segments, and possibly
- * interesting parts of the proc struct, do not occur in the core file as
- * of this writing. -hws-
+ * interesting parts of the proc struct, do not occur in the core file.
  */
 #ifndef __SYS_CORE_H__
 #define __SYS_CORE_H__
