@@ -180,23 +180,24 @@ int na;
 		awkerr("Split not given an array");
 	if (na >= 3)
 		fsmapinit(evalstring(fargn(np, 3)));
-	for (cp = string; ;) {
-		while (FSMAP[*cp])
-			cp++;
-		if (*cp == '\0')
-			break;
-		scp = cp;
-		while ((c = *cp++)!='\0' && !FSMAP[c])
+
+	for (cp = string; *cp;) {
+		for (scp = cp; (c = *cp) && !FSMAP[c]; cp++) /* find the end */
 			;
-		cp--;
-		acp = string = xalloc(cp-scp + sizeof(CHAR));
-		while (scp < cp)
+		acp = string = xalloc(1 + cp - scp); /* get space to store */
+		while (scp < cp)		     /* copy */
 			*acp++ = *scp++;
 		*acp = '\0';
 		index->t_INT++;
 		xassign(xarray(array, index), snode(string, T_ALLOC));
+
 		if (c == '\0')
 			break;
+
+		cp++;
+		if (whitesw)	/* pass further the delimeters */
+			while (FSMAP[*cp])
+				cp++;
 	}
 	fsmapinit(FS);
 	return (index);
