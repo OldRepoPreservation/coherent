@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/namelist.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/namelist.c,v $
  *
- * $Revision: 1.6 $
+ * $Revision: 1.1 $
  *
  * namelist.c - track filenames given as arguments to tar/cpio/pax
  *
@@ -30,7 +30,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	namelist.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/namelist.c,v $
+ * Revision 1.1	91/02/05  11:57:17 	bin
+ * Initial revision
+ * 
  * Revision 1.6  89/02/13  09:14:48  mark
  * Fixed problem with directory errors
  * 
@@ -61,6 +64,8 @@ static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserv
 
 #include "pax.h"
 
+
+#define FNLENGTH	14	/* Length of the file name. Vlad 11-8-91 */
 
 /* Type Definitions */
 
@@ -358,7 +363,8 @@ Stat           *statbuf;
 			continue;
 		    }
 		    strcpy(name, curr_dir->dirname);
-		    strcat(name, d->d_name);
+		    strncat(name, d->d_name, (strlen(d->d_name) > FNLENGTH) ? 
+					FNLENGTH : strlen(d->d_name));
 		} else {
 		    closedir(dirp);
 		    in_subdir--;
