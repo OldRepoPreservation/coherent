@@ -62,6 +62,7 @@ typedef struct typed_space_struct {
 /* IBM PC BIOS derived structures */
 #define T_BIOS		(space_type)0x200
 #define T_BIOS_DISK	T_BIOS+1  /* Disk geometry information.  */
+#define T_BIOS_ROOTDEV	T_BIOS+2  /* Information on boot disk.  */
 
 /* String based structures */
 #define	T_STR		(space_type)0x300
@@ -104,6 +105,11 @@ typedef struct bios_disk {
 	uint16 dp_heads;		/* Number of heads.		*/
 	uint16 dp_sectors;		/* Sectors per track.		*/
 } BIOS_DISK;
+
+/* Describe the partition we are booting off of.  */
+typedef struct bios_rootdev {
+	uint8 rd_partition;	/* Partition number.  */
+} BIOS_ROOTDEV;
 
 /* FUNCTION DECLARATIONS (these should one day be prototypes.)  */
 
