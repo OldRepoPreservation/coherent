@@ -1,6 +1,6 @@
-/* $Source: /newbits/usr/bin/pax/shipping/cpio.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/RCS/cpio.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * cpio.c - Cpio specific functions for archive handling
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/newbits/usr/bin/pax/shipping/cpio.c,v $
+ * $Log:	cpio.c,v $
+ * Revision 1.2  91/06/19  09:55:20  bin
+ * udated by vlad for restoring ownership/permissions 
+ * 
  * Revision 1.1	91/02/05  11:55:26 	bin
  * Initial revision
  * 
@@ -42,7 +45,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: cpio.c,v 1.2 89/02/12 10:04:13 mark Exp $";
+static char *ident = "$Id: cpio.c,v 1.2 91/06/19 09:55:20 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 
@@ -116,6 +119,7 @@ char          **argv;
 	    break;
 	case 'p':
 	    f_pass = 1;
+	    f_owner = 1;
 	    dirname = argv[--argc];
 
 	    /* check to make sure that the argument is a directory */
