@@ -1,9 +1,8 @@
-# /usr/src/libc/crt/i386/Makefile 4/29/92
+# /usr/src/libc/crt/i386/Makefile 7/16/92
 
 CRTI386=\
 	_fxam.o \
 	_modf.o \
-	_prof.o \
 	daddsub.o \
 	dcmp.o \
 	ddiv.o \
@@ -31,7 +30,6 @@ CRTI386:	$(CRTI386)
 # Secondary targets.
 _fxam.o:	_fxam.s
 _modf.o:	_modf.s
-_prof.o:	_prof.c
 daddsub.o:	daddsub.s
 dcmp.o:		dcmp.s
 ddiv.o:		ddiv.s
