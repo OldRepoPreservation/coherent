@@ -4,6 +4,13 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 2.6  91/12/26  16:52:05  hal
+ * Flags left in bad state if open r-device got killed.
+ * 
+ * Revision 2.5  91/12/20  14:08:27  hal
+ * Add static alx_send().
+ * From alxstart(), don't toggle Tx interrupts - call alx_send().
+ * 
  * Revision 2.4  91/12/10  08:04:13  hal
  * Make interrupt routine clear all UART irq conditions if it gets an
  * interrupt without an argument telling which port interrupted.
@@ -136,12 +143,12 @@ int alp_rate[] ={			/* baud/6 or zero */
 /*
  *	the following is for debug only
  */
-#define DEBUG 0
 #if DEBUG
-#define CDUMP(text)	cdump(text);
+#define CDUMP(text, tp)	cdump(text, tp);
 
-cdump(message)
+cdump(message, tp)
 char *message;
+TTY *tp;
 {
 	int i, b;
 
@@ -151,9 +158,20 @@ char *message;
 	}
 	printf("poll=%d ", poll_rate);
 	printf("%s\n", message);
+	if (tp) {
+		printf("#%d f=%x ", AL_NUM, tp->t_flags);
+		printf("in_use=%d irq=%d has_irq=%d ",
+		  com_usage[AL_NUM].in_use,
+		  com_usage[AL_NUM].irq,
+		  com_usage[AL_NUM].has_irq);
+		printf("poll=%d hcls=%d ohlt=%d\n",
+		  com_usage[AL_NUM].poll,
+		  com_usage[AL_NUM].hcls,
+		  com_usage[AL_NUM].ohlt);
+	}
 }
 #else
-#define CDUMP(text)
+#define CDUMP(text, tp)
 #endif
 
 /*
@@ -261,8 +279,14 @@ register TTY	*tp, **irqtty;
 		 * Wait for pending last close (if any) to finish.
 		 */
 		while (com_usage[AL_NUM].hcls) {
+#if DEBUG
+printf("S1 ");
+#endif		
    	  		sleep((char *)(com_usage+AL_NUM), CVTTOUT, IVTTOUT,
 				SVTTOUT);
+#if DEBUG
+printf("x ");
+#endif		
 		}
 		s = sphi();
 		/*
@@ -296,12 +320,19 @@ register TTY	*tp, **irqtty;
 						goto already_open;
 				}
 
+#if DEBUG
+printf("S2 ");
+#endif		
 	   	  		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
 					SVTTOUT);	/* wait for carrier */
+#if DEBUG
+printf("x ");
+#endif		
 		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 					outb(b+MCR, 0);
 			    		outb(b+IER, 0);
 					u.u_error = EINTR;
+					tp->t_flags &= ~(T_HOPEN | T_STOP);
 					spl(s);
 					if (--com_usage[AL_NUM].in_use == 0)
 						com_usage[AL_NUM].has_irq = 0;
@@ -346,7 +377,7 @@ already_open:
 		set_poll_rate();
 	}
 
-	CDUMP((dev&CPOLL)?"open polled":"open irq")
+	CDUMP((dev&CPOLL)?"open polled":"open irq", tp)
 	return;
 bad_open:
 	return;
@@ -380,7 +411,13 @@ TTY	*tp;
 	 */
 	while ((tp->t_rawout.si_ix != tp->t_rawout.si_ox)
 	  || !(inb(b+LSR) & LS_TxIDLE)) {
+#if DEBUG
+printf("S3 ");
+#endif		
 		sleep((char *)&tp->t_rawout, CVTTOUT, IVTTOUT, SVTTOUT);
+#if DEBUG
+printf("x ");
+#endif		
 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			RAWOUT_FLUSH(tp);
 			break;
@@ -412,7 +449,13 @@ TTY	*tp;
 		 */
 		maj = major(dev);
 		drvl[maj].d_time = 1;
+#if DEBUG
+printf("S4 ");
+#endif		
 		sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT);
+#if DEBUG
+printf("x ");
+#endif		
 		drvl[maj].d_time = 0;
 	}
 	com_usage[AL_NUM].poll = 0;
@@ -422,7 +465,7 @@ TTY	*tp;
 		com_usage[AL_NUM].has_irq = 0;
 	com_usage[AL_NUM].hcls = 0;	/* allow reopen - done closing */
 	wakeup((char *)com_usage+AL_NUM);
-	CDUMP("closed")
+	CDUMP("closed", tp)
 }
 
 /*
@@ -743,7 +786,6 @@ register TTY * tp;
 	int s;
 	extern alxbreak();
 	int need_xmit = 1;	/* True if should start sending data now. */
-	unsigned char ier_stat;
 
 	/*
 	 * Read line status register AFTER disabling interrupts.
@@ -1001,7 +1043,7 @@ static set_poll_rate()
 			poll_owner |= POLL_AL;
 			altclk_in(poll_rate, alxclk);
 		}
-		CDUMP("new rate")
+		CDUMP("new rate", 0)
 	}
 }
 
