@@ -70,6 +70,11 @@
  * -R Replaces all occurances of the pattern with a new after the following
  *    substitutions. & is the whole pattern found. \1 is the first
  *    parenthesized subexpression, \2 the second etc.
+ *
+ * -d token. Take following string and comment. For documentation extraction.
+ *    use the first char of the token as an output delimeter.
+ *
+ * -C token. Use token as delimeter -c option.
  */
 #include <ctype.h>
 #include <stdio.h>
@@ -391,7 +396,7 @@ char *p;
 }
 
 /*
- * print a hit for options -s or -c.
+ * print a hit for options -s or -c. Option -d creates -s and -c.
  */
 static void
 printx(s, sw)
@@ -674,8 +679,8 @@ register char **argv;
 		case 'c':
 			cswitch = 1;	/* comments only */
 			break;
-		case 'd':
-			dswitch = *optarg;	/* report following string & comment */
+		case 'd': /* report following string & comment */
+			dswitch = *optarg;
 			break;
 		case 's':
 			sswitch = 1;	/* strings only */
