@@ -1,6 +1,6 @@
 /*
  * coh_intro.c
- * 10/20/90
+ * 11/9/90
  * Usage: coh_intro
  * Uses routines in build0.c: cc -o coh_intro coh_intro.c build0.c
  */
@@ -8,24 +8,55 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION	"1.2"
+#define	VERSION	"1.3"
 
 /* Forward. */
+int	lcdir();
+void	mycls();
 void	tour();
+
+/* Global. */
+int	ttyflag;
 
 main(argc, argv) int argc; char *argv[];
 {
 	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'V')
 		fprintf(stderr, "%s: V%s\n", argv[0], VERSION);
-	if (yes_no("Would you like an introductory tour of COHERENT"))
+	ttyflag = isatty(fileno(stdout));
+	if (!ttyflag || yes_no("Would you like an introductory tour of COHERENT"))
 		tour();
 	exit(0);
 }
 
+/*
+ * List the contents of a directory.
+ * Flush stdout in case output is redirected.
+ */
+int
+lcdir(dir, msg) char *dir, *msg;
+{
+	mycls(1);
+	printf(msg);
+	fflush(stdout);
+	sprintf(cmd, "lc %s", dir);
+	return sys(cmd, S_IGNORE);
+}
+
+/* Print newlines if stdout is redirected; otherwise, clear the screen. */
+void
+mycls(flag)
+{
+	if (ttyflag)
+		cls(flag);
+	else
+		printf("\n\n");
+}
+
+/* Take a walk on the Boardwalk... */
 void
 tour()
 {
-	cls(0);
+	mycls(0);
 	/* Startup and shutdown. */
 	printf(
 "When you boot your computer system (by turning on the power,\n"
@@ -52,10 +83,10 @@ tour()
 		);
 
 	/* Root. */
-	cls(1);
-	printf("Now we will take a quick tour of your COHERENT filesystem.\n");
-	printf("The root directory / contains:\n\n");
-	sys("lc /", S_IGNORE);
+	lcdir("/", 
+"Now we will take a quick tour of your COHERENT filesystem.\n"
+"The root directory / contains:\n\n"
+		);
 	printf(
 "\n"
 "COHERENT executes file /.profile when the superuser root logs in.\n"
@@ -70,7 +101,7 @@ tour()
 		);
 
 	/* /bin. */
-	cls(1);
+	mycls(1);
 	printf(
 "Directory /bin contains executable programs (commands).\n"
 "Some of the most commonly used commands are:\n"
@@ -96,19 +127,14 @@ tour()
 "\twc\tcount words, lines, characters in a file\n"
 "The next screen lists all the commands in /bin.\n"
 		);
-	cls(1);
-	sys("lc /bin", S_IGNORE);
+	lcdir("/bin", "");
 
 	/* /conf. */
-	cls(1);
-	printf("Directory /conf contains:\n\n");
-	sys("lc /conf", S_IGNORE);
+	lcdir("/conf", "Directory /conf contains:\n\n");
 	printf("\n");
 
 	/* /dev. */
-	cls(1);
-	printf("Directory /dev contains COHERENT devices:\n\n");
-	sys("lc /dev", S_IGNORE);
+	lcdir("/dev", "Directory /dev contains COHERENT devices:\n\n");
 	printf(
 "\n"
 "Some important devices are:\n"
@@ -124,15 +150,11 @@ tour()
 		);
 
 	/* /drv. */
-	cls(1);
-	printf("Directory /drv contains loadable device drivers:\n\n");
-	sys("lc /drv", S_IGNORE);
+	lcdir("/drv", "Directory /drv contains loadable device drivers:\n\n");
 	printf("\n");
 
 	/* /etc. */
-	cls(1);
-	printf("Directory /etc contains files and program used in system administration:\n\n");
-	sys("lc /etc", S_IGNORE);
+	lcdir("/etc", "Directory /etc contains files and program used in system administration:\n\n");
 	printf(
 "\n"
 "Files of particular interest in /etc include:\n"
@@ -146,15 +168,11 @@ tour()
 		);
 
 	/* /lib. */
-	cls(1);
-	printf("Directory /lib contains libraries and C compiler phases:\n\n");
-	sys("lc /lib", S_IGNORE);
+	lcdir("/lib", "Directory /lib contains libraries and C compiler phases:\n\n");
 	printf("\n");
 
 	/* /usr. */
-	cls(1);
-	printf("Directory /usr contains a number of subdirectories:\n\n");
-	sys("lc /usr", S_IGNORE);
+	lcdir("/usr", "Directory /usr contains a number of subdirectories:\n\n");
 	printf(
 "\n"
 "\t/usr/adm\tSystem administration files\n"
@@ -172,7 +190,7 @@ tour()
 		);
 
 	/* File types. */
-	cls(1);
+	mycls(1);
 	printf(
 "COHERENT filenames often contain an extension following '.' which\n"
 "indicates the contents of the file.  Some common extensions are:\n"
@@ -196,7 +214,7 @@ tour()
 	);
 
 	/* Diskettes. */
-	cls(1);
+	mycls(1);
 	printf(
 "Some commonly used diskette device names and formats are:\n"
 "\tDevice name  Sectors/track  Heads  Sectors  Bytes   Format\n"
@@ -207,7 +225,7 @@ tour()
 "Device names ending in '0' and '1' indicate drives A: and B:.\n"
 "\n"
 		);
-	cls(1);
+	mycls(1);
 	printf(
 "To use a floppy disk with COHERENT, you must:\n"
 "\t(1) format it with /etc/fdformat,\n"
@@ -229,10 +247,11 @@ tour()
 		);
 
 	/* Done. */
-	cls(1);
+	mycls(1);
 	printf(
 "This concludes your brief introduction to COHERENT.\n"
 "To see this introduction again, type \"/etc/coh_intro\".\n"
+"To create a file with this information, type \"/etc/coh_intro >/tmp/tour\".\n"
 "\n"
 		);
 }
