@@ -26,7 +26,7 @@ static char *_errors[] = {
 	"Permission denied",			/* EACCES	*/
 	"Bad system call argument address",	/* EFAULT	*/
 	"Block device required (mount)",	/* ENOTBLK	*/
-	"Device busy (mount)",			/* EBUSY	*/
+	"Device busy",				/* EBUSY	*/
 	"File already exists",			/* EEXIST	*/
 	"Cross device link",			/* EXDEV	*/
 	"No such device",			/* ENODEV	*/
@@ -47,7 +47,7 @@ static char *_errors[] = {
 	"Result too large",			/* ERANGE	*/
 	"Out of kernel space",			/* EKSPACE	*/
 #if	_I386
-	"IPC object removed",			/* EIDRM	*/
+	"Identifier removed",			/* EIDRM	*/
 #else
 	"Driver not loaded",			/* ENOLOAD	*/
 #endif
