@@ -139,12 +139,12 @@ char *argv[];
 	if (wrfd && (wrbuff = malloc(fkind.fd_tsz)) == NULL)
 		xxerror("cannot allocate copy buffer", 1);
 
-	for (head = 0; head < fkind.fd_heads; head += 1)
-	for (i = 0; i < fkind.fd_tracks; i += 1) {
+	for (i = 0; i < fkind.fd_tracks; i += 1)
+	for (head = 0; head < fkind.fd_heads; head += 1) {
 		retry = 0;
 		makeform(i, head, offset, interleave);
 		if (aflag) {
-			printf("hd=%d cyl=%2d\r", head, i);
+			printf("cyl=%2d hd=%d\r", i, head);
 			fflush(stdout);
 		}
 		do
