@@ -1,4 +1,4 @@
-# /usr/src/libc/gen/Makefile 6/19/92
+# /usr/src/libc/gen/Makefile 11/13/92
 
 OBJ=\
 	_addargs.o\
@@ -49,7 +49,6 @@ OBJ=\
 	sys_err.o\
 	system.o\
 	tempnam.o\
-	tmpnam.o\
 	ttyname.o\
 	ttyslot.o
 
@@ -117,7 +116,6 @@ swab.o:		swab.c
 sys_err.o:	sys_err.c
 system.o:	system.c
 tempnam.o:	tempnam.c
-tmpnam.o:	tmpnam.c
 # N.B. ttyname compilation requires -DNEWTTYS=1, now #defined in the source.
 ttyname.o:	ttyname.c
 ttyslot.o:	ttyslot.c
