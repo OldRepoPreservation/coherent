@@ -1,18 +1,22 @@
 /*
- * The function of the compiler may be modified by the high/low
- *	setting of variant bits.
+ * h/var.h
+ * Machine-independent variant bits.
+ *
+ * The function of the compiler may be modified
+ * by the high/low setting of variant bits.
  * This header file defines:
  *	the machine independent variant bits,
  *	the base of the machine dependent variant bits,
  *	the maximum number of variant bits,
  *	the typedef of the variant array,
  *	and a macro to access the variant bits.
- * The variants are passed to the compiler phases as a string of
- *	hexidecimal digits.
+ * The variants are passed to the compiler phases as a string of hex digits.
  */
+
 #ifndef	YATC
 #define YATC	0
 #endif
+
 #define VMBASE	33		/* Base of machine dependent variants */
 #define VMAXIM	48		/* Least non-inclusive upper bound */
 #define VGRANU	8		/* 8 bits per slot */
@@ -59,9 +63,11 @@ extern VARIANT variant;
 #define VSINU	25		/* Implement struct-in-union rules, not UCB 
 				 * member resolution rules. */
 #define VNOOPT	26		/* Preserve code order in optimization */
-#define VCHASM	27		/* C style assembler */
-#define VCPPE	28		/* run cpp in -E mode */
-#define VCPP	29		/* run cpp */
-#define VCPPC	30		/* run cpp  in -C mode */
-#define VTPROF	31		/* generate code table profiling */
-#define V3GRAPH 32		/* translate tri-graphs */
+#define VCPLUS	27		/* Ignore C++ style online comments */
+#define VCPPE	28		/* Run cpp in -E mode */
+#define VCPP	29		/* Run cpp */
+#define VCPPC	30		/* Run cpp  in -C mode */
+#define VTPROF	31		/* Generate code table profiling */
+#define V3GRAPH 32		/* Translate tri-graphs */
+
+/* end of h/var.h */
