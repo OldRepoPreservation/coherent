@@ -15,14 +15,17 @@ char * args;
 {
 	errCount++;
 	printf("%s: %r\n", argv0, &args);
+	fflush(stdout);
 }
 
 void
 w_message(args)
 char * args;
 {
-	if (watch)
+	if (watch) {
 		printf("%s: %r\n", argv0, &args);
+		fflush(stdout);
+	}
 }
 
 /*
@@ -102,6 +105,16 @@ mod_t * mp;
 char  * args;
 {
 	modmsg(mp->fname, mp->mname, "%r", &args);
+}
+
+/*
+ * Module is corrupt message.
+ */
+corrupt(mp)
+{
+	mpmsg(mp, "is corrupt");
+	/* This does not make sense as an object module. */
+	exit (1);
 }
 
 /*
