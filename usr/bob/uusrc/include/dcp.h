@@ -15,10 +15,12 @@
  *  Various definitions of Global Strings and Values
  */
 
-#define	VERSION		"3.2.22"
+#define	VERSION		"3.2.23"
 
 #define PUBDIR		"/usr/spool/uucppublic"
 #define SPOOLDIR	"/usr/spool/uucp"
+
+#define TRACE	printf
 
 #define SITELEN		DIRSIZ	/* Max number of Characters in Sitename	*/
 #define	SITESIG		7	/* Significant Characters of Sitename	*/
