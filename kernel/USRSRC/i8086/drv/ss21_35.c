@@ -9,57 +9,8 @@ int busted;
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
- * Revision 1.19	91/03/26  23:15:47	root
- * Reads partition table in prototype code
- * 
- * Revision 1.18	91/03/25  20:11:30	root
- * first raw read - disconnects
- * 
- * Revision 1.17	91/03/25  19:06:36	root
- * calls ssqueue functions - need real i/o
- * 
- * Revision 1.16	91/03/22  17:40:03	root
- * Need to do more with ss_start()
- * 
- * Revision 1.15	91/03/21  16:44:03	root
- * getting ready to call fdisk - finish ss_start next
- * 
- * Revision 1.14	91/03/20  17:25:14	root
- * Inquiry and Read Capacity working
- * 
- * Revision 1.13	91/03/18  17:43:18	root
- * add retry logic to scsicmd(); general cleanup
- * 
- * Revision 1.12	91/03/14  17:22:28	root
- * Test Ready now works, including Req Sense
- * 
- * Revision 1.11	91/03/14  15:45:12	root
- * has trouble with Test Ready using bus_info_xfer fsa
- * 
- * Revision 1.10	91/03/13  17:08:03	root
- * still more to do on bus_info_xfer
- * 
- * Revision 1.9	91/03/12  16:08:23	root
- * need to finish bus_info_xfer()
- * 
- * Revision 1.8	91/03/11  17:41:10	root
- * started ssopen()/wrote stub for ssinit()
- * 
- * Revision 1.7	91/03/08  17:07:28	root
- * Does Test Read and Request Sense properly.
- * 
- * Revision 1.6	91/03/07  16:41:31	root
- * sends Test Ready, Starts to Request Sense
- * 
- * Revision 1.5	91/03/07  11:48:39	root
- * Now sends Identify and Abort messages & completes a SCSI bus cycle
- *
- * Revision 1.4	91/03/06  16:31:45	root
- * tried to send Identify message - get status 0x40 & fail
- *
- * Revision 1.3	91/03/05  17:03:43	root
- * Goes thru arbitration (sans IRQ) successfully
- *
+ * Revision 1.20	91/04/09  14:23:49	root
+ * Reads boot sector 100 times using IRQ on reconnect
  */
 
 /*
@@ -71,73 +22,16 @@ int busted;
 #define DEV_PARTN(dev)		(dev & 0x0003)
 #define DEV_SPECIAL(dev)	(dev & 0x0080)
 
-#define SS_RAM		0x1800	/* Offset of parameter RAM */
-#define SS_CSR		0x1A00	/* Offset of control/status register */
-#define SS_DAT		0x1C00	/* Offset of data port */
-
-#define SS_RAM_LEN	128	/* ST0x has 128 bytes of RAM */
-#define SS_DAT_LEN	0x400	/* Byte range mapped to data port */
-#define SS_SEL_LEN	0x2000	/* Total size of memory-mapped area */
-
-#define WC_ENABLE_SCSI	0x80	/* Write Control (WC) register bits */
-#define WC_ENABLE_IRPT	0x40
-#define WC_ENABLE_PRTY	0x20
-#define WC_ARBITRATE	0x10
-#define WC_ATTENTION	0x08
-#define WC_BUSY  	0x04
-#define WC_SELECT  	0x02
-#define WC_SCSI_RESET  	0x01
-
-#define RS_ARBIT_COMPL	0x80	/* Read STATUS (RS) register bits */
-#define RS_PRTY_ERROR	0x40
-#define RS_SELECT	0x20
-#define RS_REQUEST	0x10
-#define RS_CTRL_DATA	0x08
-#define RS_I_O  	0x04
-#define RS_MESSAGE  	0x02
-#define RS_BUSY  	0x01
-
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
 #define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
-
-#define G0CMDLEN	6	/* Group 0 commands are 6 bytes long  */
-#define G1CMDLEN	10	/* Group 1 commands are 10 bytes long */
-#define SENSELEN	22	/* number of bytes returned w/ req sense */
-#define INQUIRYLEN	54	/* number of bytes returned w/ inquiry */
-
-				/* Message types */
-#define MSG_CMD_CMPLT	0x00	/* Command Complete */
-#define MSG_SAVE_DPTR	0x02	/* Save SCSI data pointer */
-#define MSG_RSTOR_DPTR	0x03	/* Restore SCSI pointers */
-#define MSG_DISCONNECT	0x04	/* Target is about to disconnect */
-#define MSG_ABORT	0x06	/* End the current SCSI bus cycle */
-#define MSG_DEV_RESET	0x0C	/* Bus Device Reset */
-#define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
-
-#define CS_GOOD		0x00	/* Command Status from the drive */
-#define CS_CHECK	0x02
-#define CS_BUSY		0x08
-#define CS_RESERVED	0x18
 
 				/* Device States */
 #define	SIDLE		0	/* controller idle */
 #define	SRETRY		1	/* seeking */
 #define	SREAD		2	/* reading */
 #define	SWRITE		3	/* writing */
-
-/*
- * Information Transfer Phase masks -
- * setting of RS_MESSAGE, RS_I_O, and RS_CTRL_DATA determines which of six
- * possible info transfer phases is occurring.
- */
-#define XP_MSG_IN	(RS_MESSAGE | RS_I_O | RS_CTRL_DATA)
-#define XP_MSG_OUT	(RS_MESSAGE          | RS_CTRL_DATA)
-#define XP_STAT_IN	(             RS_I_O | RS_CTRL_DATA)
-#define XP_CMD_OUT	(                      RS_CTRL_DATA)
-#define XP_DATA_IN	(             RS_I_O               )
-#define XP_DATA_OUT	(                                 0)
 
 #define DEBUG	1
 #if DEBUG
@@ -173,8 +67,9 @@ int stats[100], statsptr;
 #include	<sys/proc.h>
 #include	<sys/con.h>
 #include	<sys/stat.h>
-#include	<devices.h>		/* SCSI_MAJOR */
+#include	<sys/devices.h>		/* SCSI_MAJOR */
 #include	<errno.h>
+#include	<ss.h>
 
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
@@ -206,31 +101,32 @@ extern scsi_work_t * ssq_rm_head();
 /*
  * Local Functions.
  */
-static void	ssload();
-static void	ssunload();
-static void	ssopen();
+static void	ssopen();		/* CON functions */
 static void	ssclose();
+static void	ssblock();
 static void	ssread();
 static void	sswrite();
 static int	ssioctl();
 static void	sswatch();
-static void	ssblock();
-static int	ssinit();
-static int	scsicmd();
-static void	scsireset();
-static void	ssdelay();
-static int	bus_pre_xfer();
+static void	ssload();
+static void	ssunload();
+
+static void	bus_dev_reset();	/* additional support functions */
 static int	bus_info_xfer();
-static void	ss_start_timing();
-static void	ss_stop_timing();
-static int	req_sense();
+static int	bus_pre_xfer();
+static void	do_ss();
 static int	inquiry();
 static int	read_cap();
-static void	ssintr();
-static void	ss_start();
+static int	req_sense();
+static int	scsicmd();
+static void	scsireset();
 static void	ss_done();
-static void	do_ss();
-static void	bus_dev_reset();
+static void	ss_start();
+static void	ss_start_timing();
+static void	ss_stop_timing();
+static void	ssdelay();
+static int	ssinit();
+static void	ssintr();
 
 /*
  * Local Variables.
@@ -536,6 +432,9 @@ register BUF	*bp;
 	int partition, drive, s_id;
 	dev_t dev;
 	struct ss * ssp;
+	int valid_op = 1;
+
+	bp->b_resid = bp->b_count;
 
 	/*
 	 * Set up local variables.
@@ -545,11 +444,8 @@ register BUF	*bp;
 	drive = DEV_DRIVE(dev);
 	s_id = DEV_SCSI_ID(dev);
 	ssp = ss[s_id];
-
 	if (dev & SDEV)
 		partition = WHOLE_DRIVE;
-	bp->b_resid = bp->b_count;
-	
 	fdp = ssp->parmp;
 
 	/*
@@ -559,14 +455,12 @@ register BUF	*bp;
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
 				bp->b_flag |= BFERR;
-				bdone(bp);
-				return;
+				valid_op = 0;
 			}
 		} else {
 			devmsg(dev, "no partition table");
 			bp->b_flag |= BFERR;
-			bdone(bp);
-			return;
+			valid_op = 0;
 		}
 	}
 	/*
@@ -574,8 +468,7 @@ register BUF	*bp;
 	 * (Need to return with b_resid = BSIZE to signal end of volume.)
 	 */
 	else if ((bp->b_req == BREAD) && (bp->b_bno == fdp[partition].p_size)) {
-		bdone(bp);
-		return;
+		valid_op = 0;
 	}
 	/*
 	 * Check for read past end of partition.
@@ -583,43 +476,53 @@ register BUF	*bp;
 	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
 		bp->b_flag |= BFERR;
-		bdone(bp);
-		return;
+		valid_op = 0;
 	}
 
-	bp->b_actf = NULL;
-	sw = (scsi_work_t *)kalloc( sizeof(*sw) );
-	if (sw == NULL) {
-		devmsg(dev, "out of kernel memory");
-		bp->b_flag |= BFERR;
-		bdone(bp);
-		return;
+	/*
+	 * See if we can allocate a request node for this operation.
+	 */
+	if (valid_op) {
+		bp->b_actf = NULL;
+		sw = (scsi_work_t *)kalloc( sizeof(*sw) );
+		if (sw == NULL) {
+			devmsg(dev, "out of kernel memory");
+			bp->b_flag |= BFERR;
+			valid_op = 0;
+		}
 	}
-	sw->sw_bp = bp;
-	sw->sw_drv = drive;
-	if (partition != WHOLE_DRIVE)
-		sw->sw_bno = fdp[partition].p_base + bp->b_bno;
-	else
-		sw->sw_bno = bp->b_bno;
-	sw->sw_retry = 1;
+
+	/*
+	 * Operation appears valid and we have a node for it.
+	 * Fill fields in the node and queue the request.
+	 */
+	if (valid_op) {
+		sw->sw_bp = bp;
+		sw->sw_drv = drive;
+		if (partition != WHOLE_DRIVE)
+			sw->sw_bno = fdp[partition].p_base + bp->b_bno;
+		else
+			sw->sw_bno = bp->b_bno;
+		sw->sw_retry = 1;
 
 printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
 	drive, (long)sw->sw_bno, bp, bp->b_flag);
 
-	ssq_wr_tail(sw);
-	if (ss_state == SIDLE)
-		ss_start();
+		ssq_wr_tail(sw);
+		if (ss_state == SIDLE)
+			ss_start();
+	/*
+	 * Operation cannot be done.  Release the kernel buffer structure.
+	 * Value of "bp->b_flag" tells caller if error occurred.
+	 */
+	} else { 	/* "valid_op" is FALSE */
+		bdone(bp);
+	}
 }
 
 /*
  * ssintr()	- Interrupt routine.
  */
-#if 0
-static int irpted;
-static long x;
-for (x = 0, irpted = 0; x < 100000L; x++)  if (irpted) break;
-#endif
-
 static void ssintr()
 {
 	printf("@");
@@ -678,22 +581,6 @@ unsigned short flags;
  * Assume only one drive per SCSI id, having LUN = 0.
  * 
  * Return 1 if success, 0 if failure.
- *
- * Pseudocode:
- *
- * retval = 0
- * if Test Unit Ready command fails, even after SCSI reset and retry
- *   print "Test Unit Ready fails"
- * else if Request Sense command fails
- *   print "Request Sense fails"
- * else if Read Capacity command succeeds
- *   print "Read Capacity fails"
- * else if partition table can't be read
- *   print "can't get partition table"
- * else
- *   print "SCSI id #n initialized"
- *   retval = 1
- * return retval
  */
 static int ssinit(s_id)
 int s_id;
@@ -701,6 +588,10 @@ int s_id;
 	int retval = 0;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
+	/*
+	 * Try Test Unit Ready command.
+	 * If it fails, reset SCSI bus and target device, and try again.
+	 */
 	if (testready(s_id))
 		retval = 1;
 	else {
@@ -777,6 +668,8 @@ printf("%d read_pt's\n",foo);
 }
 
 /*
+ * testready()
+ *
  * Send Test Unit Ready command.
  * Retry after bus reset if necessary.
  *
@@ -890,15 +783,13 @@ printf("Select deasserted by target\n");
  * Each tick is 10 msec.
  */
 #define RESET_TICKS	40
-int RESET_ON_TICKS = 40;
-int RESET_OFF_TICKS = 40;
 static void scsireset()
 {
 printf("scsireset\n");
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
-	ssdelay(RESET_ON_TICKS);
+	ssdelay(RESET_TICKS);
 	sfbyte(ss_csr, 0);
-	ssdelay(RESET_OFF_TICKS);
+	ssdelay(RESET_TICKS);
 }
 
 /*
@@ -1047,12 +938,7 @@ struct ss *ssp;
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
-			/*
-			 * Only pay attention to first msg byte in.
-			 * Don't care about extended messages.
-			 */
 			msg_in = ffbyte(ss_dat);
-printf("msg_in = %x\n", msg_in);
 			switch(msg_in){
 			case MSG_CMD_CMPLT:
 				ssp->msg_in = msg_in;
