@@ -94,20 +94,19 @@ int FT_ACKBLAB = 0;
  */
 #define FT_MAX_NBUF	150	/* NBUF patch value is limited to this.	*/
 
-#define	FT_BFRSZ	0x8000		/* 32k, size of QIC-80 segment	*/
-#define	FT_BLKSZ	0x0400		/* 1k, size of QIC-80 block	*/
-#define	FT_BLK_PER_SEG	(FT_BFRSZ / FT_BLKSZ)
-					/* 32 blocks per segment	*/
+#define	FT_BFRSZ	32768		/* 32k, size of QIC-80 segment	*/
+#define	FT_BLKSZ	1024		/* 1k, size of QIC-80 block	*/
+#define	FT_BLK_PER_SEG	32		/* 32 blocks per segment	*/
 #define FT_NUM_ECC_BLKS 3		/* 3 ECC blocks per segment	*/
 
 #define FT_ACK_TRIES	20	/* max # of tries for ACK to QIC rpt cmd*/
 #define FT_CAL_TRIES	2	/* max # of tries for seek load point	*/
 
-#define FT_CAL_TIME	120	/* max # seconds for seek load point	*/
-#define FT_PAUSE_TIME	15	/* max # seconds for pause		*/
-#define FT_RDY_TIME	120	/* max # seconds for drive ready	*/
-#define FT_SEEK_TIME	15	/* max # seconds for seek head to track	*/
-#define FT_WIND_TIME	180	/* max # seconds for wind or rewind	*/
+#define FT_CAL_SECS	120	/* max # seconds for seek load point	*/
+#define FT_PAUSE_SECS	15	/* max # seconds for pause		*/
+#define FT_RDY_SECS	120	/* max # seconds for drive ready	*/
+#define FT_SEEK_SECS	15	/* max # seconds for seek head to track	*/
+#define FT_WIND_SECS	180	/* max # seconds for wind or rewind	*/
 
 #define FT_INITIAL_TRACK	0
 #define FT_INITIAL_PHY_SEG	3	/* Skip 2 format headers + VTBL	*/
@@ -296,16 +295,23 @@ static struct FtParm	ftParm[] = {
  *     successfully read.  These blocks are contiguous, aligned at the start
  *     of segment buffer s.
  *   ftBadBlkCt[s] says how many blocks in segment s of ftBigBuf could not be
- *     read.  This number is for ecc, and only counts blocks which should
- *     have been written.  Do not even try to read blocks mapped out via the
- *     bad block table, because the writer should not have tried to use them.
+ *     read due to FDC error. This number is in the range (0..2) =
+ *     (0..FT_NUM_ECC_BLKS).  It gives a count of blocks that should have
+ *     been read (i.e., not listed in the bad block table) and that may be
+ *     recovered using ecc.
  *   ftBadBlk[s][e] is the block number in segment s where read error
  *     number e (0..2) occurred.
+ *   ftSegCt is the number of segment buffers in ftBigBuf which have data.
+ *   ftCurrentSeg is the segment number being read, < ftSegCt.
+ *   ftOffset is byte offset within current segment for next access.
  */
 static unchar * ftBigBuf;
 static unchar	ftBufBlks[FT_MAX_NBUF];
 static unchar	ftBadBlkCt[FT_MAX_NBUF];
 static unchar	ftBadBlk[FT_MAX_NBUF][FT_NUM_ECC_BLKS];
+static int	ftSegCt;
+static int	ftCurrentSeg;
+static int	ftOffset;
 
 /* Strings where multibyte FDC commands are built. */
 
@@ -478,7 +484,7 @@ int mode;
 		FT_OPEN_ERR("get drive status failed ");
 
 	/* Wait for drive to be ready, or give up. */
-	if(ftReadyWait(FT_RDY_TIME))
+	if(ftReadyWait(FT_RDY_SECS))
 		FT_OPEN_ERR("Tape Drive Not Ready");
 
 	/* Need Cartridge Present to be true. */
@@ -530,10 +536,9 @@ IO * iop;
 {
 	unchar	drvStatus;
 	uint	calTries;
-	int	segCt;
+	int	segsWanted;
 	unchar	* bufPtr;
 	int	i;
-	int	segsRead;
 	int	bytesInBuffer;
 	int	dataBlksPerSeg;
 	int	dataBytesPerSeg;
@@ -549,7 +554,7 @@ IO * iop;
 	 */
 	if ((drvStatus & QIC_STAT_REFD) == 0) {
 		ftCmd(QIC_CMD_CAL);
-		if (ftReadyWait(FT_CAL_TIME))
+		if (ftReadyWait(FT_CAL_SECS))
 			FT_READ_ERR("seek load point failed");
 
 		/* Again, has reference burst been seen? */
@@ -575,46 +580,64 @@ IO * iop;
 		dataBlksPerSeg -= FT_NUM_ECC_BLKS;
 	dataBytesPerSeg = dataBlksPerSeg * FT_BLKSZ;
 
-	/* While there is input needed... */
+	/*
+	 * While there is input needed
+	 *   If DMA buffer is used up
+	 *     Load DMA buffer area from tape.
+	 *     Update DMA buffer stats:
+	 *       Number of valid segments = number of segments read
+	 *       Current segment and current offset both = 0
+	 *   Transfer data:
+	 *     Source is DMA buffer, current segment and offset.
+	 *     Destination is IO struct.
+	 *     Update DMA buffer current segment and offset.
+	 */
 	while (iop->io_ioc) {
 
-		/* Estimate how many segments will need to be read. */
-		segCt = FT_DIV_RU(iop->io_ioc, dataBytesPerSeg);
+		/* Do we need to fill DMA buffer from tape? */
+		if (ftCurrentSeg >= ftSegCt) {
 
-		/* Try to fill DMA buffer area. */
-		segsRead = ftReadSegs(segCt);
+			/* Estimate how many segments will need to be read. */
+			segsWanted = FT_DIV_RU(iop->io_ioc, dataBytesPerSeg);
 
-		/* Abort read if something went wrong. */
-		if (segsRead == -1)
-			FT_READ_ERR("ftBufRead failed");
+			/* Try to fill DMA buffer area. */
+			ftSegCt = ftReadSegs(segsWanted);
 
-		/* Terminate read if at end of tape. */
-		if (segsRead == 0)
-			break;
-		/*
-		 * Send input data back to user program.
-		 * For each segment buffer read into, copy all valid
-		 * blocks into user area.
-		 */
-		for (i = 0, bufPtr = ftBigBuf;
-		  bufPtr += FT_BFRSZ, i < segsRead; i++) {
-			/*
-			 * HERE is where ecc will be done.
-			 * If using ecc
-			 *   Try to apply ecc
-			 *   If ecc succeeds
-			 *     Decrement # of good blocks by 3
-			 *   Else
-			 *     Abort read with I/O error
-			 */
+			/* Update current DMA data pointer. */
+			ftCurrentSeg = 0;
+			ftOffset = 0;
+
+			/* Abort read if something went wrong. */
+			if (ftSegCt == -1)
+				FT_READ_ERR("ftBufRead failed");
+
+			/* Terminate read if at end of tape. */
+			if (ftSegCt == 0)
+				break;
+
+			/* HERE is where ecc will be done. */
+			/* This will involve decrementing ftBufBlks[?] by 3. */
+		}
+
+XXX
+		/* Transfer data from DMA buffer to IO area. */
+		while
+		for (i = 0, bufPtr = ftCurrentSeg;
+		  bufPtr += FT_BFRSZ, i < ftSegCt; i++) {
+
 			bytesInBuffer = ftBufBlks[i] * FT_BLKSZ;
-			if (bytesInBuffer == 0)
-				continue;
+			if (bytesInBuffer != 0) {
+
+				int transferCount = iop->io_ioc;
+
+				if (transferCount > bytesInBuffer)
+					transferCount = bytesInBuffer;
 
 			/* May transfer less than a segment. */
 			if (bytesInBuffer > iop->io_ioc)
 				bytesInBuffer = iop->io_ioc;
 			iowrite(iop, bufPtr, bytesInBuffer);
+			}
 		}
 	}
 
@@ -1391,7 +1414,7 @@ ftStartTape()
 
 	ftCmd(QIC_CMD_SEEK);
 	ftCmdArg(2);
-	if(ftReadyWait(FT_SEEK_TIME))
+	if(ftReadyWait(FT_SEEK_SECS))
 		return -1;
 
 	if (ft.ft_phySeg == 0) {
@@ -1399,12 +1422,12 @@ ftStartTape()
 			ftCmd(QIC_CMD_BOT);
 		else
 			ftCmd(QIC_CMD_EOT);
-		if(ftReadyWait(FT_WIND_TIME))
+		if(ftReadyWait(FT_WIND_SECS))
 			return -1;
 		ftCmd(QIC_CMD_FWD);
 	} else {
 		ftCmd(QIC_CMD_PAUS);
-		if(ftReadyWait(FT_PAUSE_TIME))
+		if(ftReadyWait(FT_PAUSE_SECS))
 			return -1;
 
 		notInPlace = 1;
