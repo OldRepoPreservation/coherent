@@ -67,6 +67,7 @@ msigsin()
 	u.u_regl[EFL] |= MFTTB;
 }
 
+#if 0
 /*
  * Idle kernel process.
  */
@@ -77,6 +78,7 @@ idle()
 		_idle();
 	}
 }
+#endif
 
 int nirqslave;
 /*
