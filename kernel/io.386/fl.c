@@ -739,6 +739,7 @@ again:
 	switch (fl.fl_state) {
 
 	case SIDLE:
+T_HAL(0x40000, printf("SIDLE "));
 		drvl[ FL_MAJOR ].d_time = 1;
 
 		if ( bp == NULL )
@@ -800,6 +801,7 @@ bp->b_count );
 		/* no break */
 
 	case SSEEK:
+T_HAL(0x40000, printf("SSEEK "));
 		fldrvselect();			/* Keep drive turned on */
 
 		/*
@@ -848,6 +850,7 @@ bp->b_count );
 		} else goto Recalibrated;
 
 	case SRECAL1:
+T_HAL(0x40000, printf("SRECAL1 "));
 		/*
 		 * If the recalibrate had to step more than 77 cylinders
 		 * it will fail.  We must check for this condition and
@@ -865,11 +868,13 @@ bp->b_count );
 			break;
 		} else goto RecalibrateOK;
 	case SRECAL2:
+T_HAL(0x40000, printf("SRECAL2 "));
 		flput(CMDRCAL);
 		flput(fl.fl_unit);
 		fl.fl_state = SRECAL3;
 		break;
 	case SRECAL3:
+T_HAL(0x40000, printf("SRECAL3 "));
 		if ( ( fl.fl_nintstat != 2 )
 		  || ( (fl.fl_intstat[0] & (ST0_IC | ST0_SE)) != ST0_SE ) ) {
 RecalFailed:
@@ -885,6 +890,7 @@ RecalibrateOK:
 		break;				/* controllers.  <sigh>  We */
 						/* use cyl 2 since all for- */
 	case SGOTO2:				/* matted disks will have a */
+T_HAL(0x40000, printf("SGOTO2 "));
 		if ( ( fl.fl_nintstat != 2 )	/* track here.		    */
 		  || ( (fl.fl_intstat[0] & (ST0_IC | ST0_SE)) != ST0_SE ) )
 			goto RecalFailed;
@@ -953,6 +959,7 @@ GetNextID:
 		break;				/* Wait for ID to arrive. */
 
 	case SRDID:
+T_HAL(0x40000, printf("SRDID "));
 
 		if ( (fl.fl_ncmdstat < 7)	/* Did we get an ID? */
 		  || ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT)  ) {
@@ -1052,6 +1059,7 @@ GetNextID:
 		break;
 
 	case SSIDTST:				/* If we succeeded, we have */
+T_HAL(0x40000, printf("SSIDTST "));
 						/* 2 sides, else we have 1. */
 		fl.fl_fd[ fl.fl_unit ].fd_nhds = ( (fl.fl_ncmdstat < 7)
 			  || ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT)  ) ? 1 : 2;
@@ -1152,6 +1160,7 @@ RateKnown:
 		break;
 
 	case SHDLY:
+T_HAL(0x40000, printf("SHDLY "));
 		/*
 		 * Delay for minimum 15 milliseconds after seek before w/fmt.
 		 * 2 clock ticks would give 10-20 millisecond (100 Hz clock).
@@ -1165,6 +1174,7 @@ RateKnown:
 		/* no break */
 
 	case SRDWR:
+T_HAL(0x40000, printf("SRDWR "));
 Suck:
 		/*
 		 * Disable watchdog timer while waiting to lock DMA controller.
@@ -1183,6 +1193,7 @@ Suck:
 			return;
 
 	case SLOCK:
+T_HAL(0x40000, printf("SLOCK "));
 		/*
 		 * Reset watchdog timer to restart timeout sequence.
 		 */
@@ -1256,6 +1267,7 @@ command:
 		break;
 
 	case SENDIO:
+T_HAL(0x40000, printf("SENDIO "));
 		fl.fl_time[ fl.fl_unit ] = 0;
 		dmaoff(2);
 		dmaunlock( &fldmalck );
@@ -1273,14 +1285,13 @@ command:
 		 * We recalibrate for all other errors.
 		 */
 		if ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT) {
-			if (++fl.fl_nerr < 9) {
+			if (++fl.fl_nerr < 5) {
 				if ( fl.fl_cmdstat[2] & ST2_DD ) {
 					if ( fl.fl_nerr & 1 )
 					  goto SetSEEKState;
 					else
 					  goto Ask4Recal;
 				} else {
-					fl.fl_nerr = (fl.fl_nerr=2) & 0xFE;
 Ask4Recal:
 					fl.fl_incal[ fl.fl_unit ] = -1;
 SetSEEKState:
@@ -1316,6 +1327,7 @@ SetSEEKState:
 		goto again;
 
 	case SDELAY:
+T_HAL(0x40000, printf("SDELAY "));
 		/*
 		 * Ignore interrupts until timeout occurs.
 		 */
