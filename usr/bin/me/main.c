@@ -352,63 +352,38 @@ getkey()
 		if ((c = tgetc()) == METACH) {	/* Apply M- prefix	*/
 			if ((c = tgetc()) == '[') { /* Arrow keys.	*/
 				switch (tgetc()) {
-				case 'A':
+				case 'A':	/* up arrow */
 					return (OBND | CTRL | 'P');
-				case 'B':
+				case 'B':	/* down arrow */
 					return (OBND | CTRL | 'N');
-				case 'C':
+				case 'C':	/* right arrow */
 					return (OBND | CTRL | 'F');
-				case 'D':
+				case 'D':	/* left arrow */
 					return (OBND | CTRL | 'B');
-				case 'P':
-					return (OBND | CTRL | 'D');  /* DEL key */
-				case 'H':
-					return (OBND | CTRL | 'A');  /* HOME key */
-				case '1':
-					switch (tgetc()) {
-					case 'x':
-						return (OBND | META | '?'); /* F1 help C/ASM word */
-					case 'y':
-						return (OBND | PFX1 | '2'); /* Alt-F1 open 2nd window */
-					}
-				case '2':
-					switch (tgetc()) {
-					case '4': 
-						if ((tgetc()) == 'H')
-							return (OBND | CTRL | 'E');  /* END key */
-					case 'x': 						
-							return (OBND | PFX1 | CTRL | 'V'); /*  new file F2 */
-					}
-				case 'V':
-					return (OBND | META | 'V');     /* PGUP key */
-				case 'U':
-					return (OBND | CTRL | 'V');     /* PGDN key */
-				case '3':
-					switch (tgetc()) {
-					case 'x':
-						return (OBND | META | 'S');  /* F3 search forward */
-					case 'y':
-						return (OBND | META | '/');  /* ALT-F3 cont search */
-					}
-				case '4':
-					tgetc();
-					return (OBND | META | 'R');  /* F4 search backward */
-				case '5':
-					tgetc();
-					return (OBND | META | '%');  /* F5 search & replace */
-				case '6':				
-					tgetc();
-					return (OBND | PFX1 | 'N');  /* F6 next window */
-				case '8':
-					tgetc();
-					return (OBND | CTRL | 'Z'); /* F8 save/exit */
-				case '0':
-					switch (tgetc()) {
-					case 'x':
-						return (OBND | PFX1 | '1');  /* F10 close other wndws */
-					case 'y':
-						return (OBND | META | 'J');
-					}
+				case 'F':	/* END key */
+					return (OBND | CTRL | 'E');  
+				case 'H':	/* home key */
+					return (OBND | CTRL | 'A');
+				case 'M':	/* F1 key, help */
+					return (OBND | META | '?');
+				case 'N':	/* F2 key, newfile */
+					return (OBND | PFX1 | CTRL | 'V');
+				case 'I':	/* PGUP key */
+					return (OBND | META | 'V');     
+				case 'G':	/* PGDN key */
+					return (OBND | CTRL | 'V');     
+				case 'O':	/* F3 search forward */
+					return (OBND | META | 'S');  
+				case 'P':	/* F4 search backward */
+					return (OBND | META | 'R'); 
+				case 'Q':	/* F5 search & replace */
+					return (OBND | META | '%'); 
+				case 'R':	/* F6 next window */
+					return (OBND | PFX1 | 'N');
+				case 'T':	/* F8 save/exit */
+					return (OBND | CTRL | 'Z');
+				case 'V':	/* F10 close other wndws */
+					return (OBND | PFX1 | '1');
 				}
 				continue;
 			}
@@ -438,10 +413,12 @@ getkey()
 		return (OBND | CTRL | 'J');
 	if (c >= 0x00 && c <= 0x1F)			/* C0 control -> C-	*/
 		return (CTRL | '@' | c);
+	if (c == 127)
+		return (OBND | CTRL | 'D');
 	return (c);
 }
 
-/*
+/*			
  * Apply control modifications to a key
  */
 toCtl(c)
