@@ -84,7 +84,7 @@ get_sem_stats()
 int id;
 	total_sems = 0;
 
-	for (id = NSEMID -1 ; id >= 0 ; id--){
+	for (id = SEMMNI - 1; id >= 0 ; id--) {
 		if( -1 != (semctl(id, 0 , IPC_STAT, &semid[id]))){
 			valid_semid[id] = 1;
 			total_sems++;

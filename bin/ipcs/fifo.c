@@ -4,6 +4,9 @@
  * Purpose:	allow kernel to fetch data from real-mode bootstrap data area
  *
  * $Log:	fifo.c,v $
+ * Revision 1.1  92/10/05  13:10:43  bin
+ * Initial revision
+ * 
  * Revision 1.5  92/09/18  09:42:03  bin
  * version 210 fom piggy
  * 
@@ -17,6 +20,10 @@
  */
 #define KERNEL
 #include <sys/typed.h>
+
+#ifndef T_NULL
+#define T_NULL ((char *)0)
+#endif
 
 /*
  * Definitions.
