@@ -32,7 +32,7 @@ main()
 	want_monitor = FALSE;	/* Don't invoke mini-monitor before execution.  */
 	verbose_flag = FALSE;	/* Don't be verbose.  */
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.2\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 1.2.1\r\n");
 
 	/*
 	 * If autoboot exists, give the user a chance to abort and then
