@@ -8,6 +8,9 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 3.2  91/06/20  17:10:32  hal
+ * First version for TMC-881.
+ * 
  * Revision 3.1  91/06/17  07:43:25  hal
  * Add TMC-840 code.
  * 
@@ -114,7 +117,7 @@ static int s_id;
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
 #define RESET_TICKS	50	/* # of clock ticks for reset settling */
-#define LOAD_DELAY	10000	/* Loop counter during ssload() only */
+#define LOAD_DELAY	30000	/* Loop counter during ssload() only */
 
 #define BUS_FREE	((ffbyte(ss_csr) & (RS_BUSY | RS_SELECT)) == 0)
 #define TGT_RSEL	\
@@ -131,8 +134,8 @@ static int s_id;
 #define MAX_BDR_COUNT	3
 #define MAX_BSY_COUNT	3
 #define MAX_TRY_COUNT	10
-#define INL_MAX_REQ_POLL	100000L
-#define WKG_MAX_REQ_POLL	5000L
+#define INL_MAX_REQ_POLL	800000L
+#define WKG_MAX_REQ_POLL	20000L
 
 typedef unsigned char	uchar;
 typedef unsigned int	uint;
@@ -604,7 +607,7 @@ dev_t dev;
 	 * Decrement the number of watchdog timer requests open for host
 	 * adapter and for target.
 	 */
-	--drvl[SCSI_MAJOR].d_time;	
+	--drvl[SCSI_MAJOR].d_time;
 	--ssp->dr_watch;
 
 #if (DEBUG >= 3)
@@ -1254,7 +1257,10 @@ int *to_ptr;
 	int req_found;
 	unsigned char status;
 	ulong poll_ct;
+	ulong oldlbolt=lbolt;
+	int s;
 
+	s = splo();
 	*to_ptr = 1;
 	req_found = 0;
 	for (poll_ct = 0L; poll_ct < max_req_poll; poll_ct++) {
@@ -1267,6 +1273,10 @@ int *to_ptr;
 			*to_ptr = 0;
 			break;
 		}
+		if (oldlbolt != lbolt) {
+			printf("lbolt = %ld\n", lbolt);
+			oldlbolt = lbolt;
+		}
 	}
 
 #if (DEBUG >= 1)
@@ -1275,6 +1285,7 @@ int *to_ptr;
 	}
 #endif
 
+	spl(s);
 	return req_found;
 }
 
@@ -1554,7 +1565,6 @@ int s_id;
 {
 	ss_type * ssp = ss[s_id];
 	BUF * bp;
-	int s;
 
 	do_sst_op = 1; /* plan to run this routine again in most cases */
 	while (do_sst_op) {
@@ -2252,13 +2262,17 @@ if (!ret) {
  */
 static void scsireset()
 {
+	int s;
+
 #if (DEBUG >= 1)
 printf("scsireset ");
 #endif
+	s = splo();
 	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_SCSI_RESET);
 	ssdelay(RESET_TICKS);
 	sfbyte(ss_csr, WC_ENABLE_PRTY);
 	ssdelay(RESET_TICKS);
+	spl(s);
 }
 
 /*
@@ -2279,7 +2293,8 @@ int ticks;
 	int i, j;
 
 	for (i = 0; i < ticks; i++)
-		for (j = 0; j < LOAD_DELAY; j++);
+		for (j = 0; j < LOAD_DELAY; j++)
+			;
 #endif
 }
 
@@ -2303,6 +2318,10 @@ s=sphi();
 		o_id = chk_reconn();
 		if (o_id != -1)
 			dummy_reconn(s_id);
+		if ((*fn)(s_id, buf))
+			goto init_call_done;
+
+		req_sense(s_id);
 		if ((*fn)(s_id, buf))
 			goto init_call_done;
 
