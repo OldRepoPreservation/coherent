@@ -1,11 +1,12 @@
-sys 20 verify nonNull help "sitename of remote system"
+sys 20 verify nonNull help "Sitename of remote system."
 
-Line 7 verify checkLine help "ACU, None or a DIR line in devices"
+Line 7 verify checkLine \
+ help "ACU, None or a DIR line (2nd entry) in devices."
 
 baudRate 6 verify numeric help "110, 300, 600, 1200, 2400, 4800, 9600 or 19200"
 
 phoneNo 14 verify noWhite \
-	help "must be in the format understood by your dialer"
+	help "Must be in the format understood by your dialer."
 
 do 7
 	day 15 verify checkDay skip group \
@@ -16,8 +17,8 @@ do 7
 done
 
 do 8
-	expect 28 long verify noWhite help "Expected message from remote site"
-	send 28 long verify noWhite help "Reply"
+	expect 28 long verify noWhite help "Expected message from remote site."
+	send 28 long verify noWhite help "Reply to remote site."
 done
 %%
 		Connected system list
