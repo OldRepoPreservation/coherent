@@ -1,61 +1,140 @@
 /*
- * Make a special file
+ * mknod -- make a special file or named pipe
+ * Usage: /etc/mknod filename type major minor
+ *        /etc/mknod filename p
+ * The 'type' is 'b' for block special or 'c' for character special;
+ * 'major' and 'minor' are numbers.
+ * The second form creates a pipe with the given filename.
  */
-#include <stdio.h>
-#include <sys/ino.h>
+
 #include <sys/stat.h>
-#include <errno.h>
 
-extern int errno;
+#define	NMAJOR	256
+#define	NMINOR	256
 
-main(argc, argv)
+int force;
+struct stat sb;
+
+main( argc, argv )
+
+int argc;
 register char **argv;
-{
-	register int mode;
-	register int addr;
 
-	if (argc < 3)
+{
+	register unsigned mode;
+	unsigned maj, min;
+	dev_t dev;
+
+	if ( argc >= 2 && strcmp( argv[1], "-f" ) == 0 ) {
+		++force;
+		++argv;
+		--argc;
+	}
+
+	if ( argc < 3 )
 		usage();
-	switch (argv[2][0]) {
-	case 'b':
-		if (argc != 5)
+
+	if ( strlen( argv[2] ) != 1 )
+		usage();
+
+	switch ( argc ) {
+
+	case 3:
+		if ( argv[2][0] != 'p' )
 			usage();
-		mode = IFBLK;
-		addr = makedev(atoi(argv[3]), atoi(argv[4]));
+
+		mode = S_IFPIP;
+		dev = 0;
 		break;
-	case 'c':
-		if (argc != 5)
+
+	case 5:	
+		if ( getuid() != 0 )
+			fatal( "not superuser\n", 0 );
+
+		switch ( argv[2][0] ) {
+		
+		case 'c':			/* mknod name c major minor */
+			mode = S_IFCHR;
+			break;
+
+		case 'b':			/* mknod name b major minor */
+			mode = S_IFBLK;
+			break;
+
+		default:
 			usage();
-		mode = IFCHR;
-		addr = makedev(atoi(argv[3]), atoi(argv[4]));
-		break;
-	case 'p':
-		if (argc != 3)
+		}
+
+		if ((maj = atoi(argv[3])) >= NMAJOR)
 			usage();
-		mode = IFPIPE;
-		addr = 0;
+
+		if ((min = atoi(argv[4])) >= NMINOR)
+			usage();
+
+		dev = makedev( maj, min );
 		break;
+
 	default:
 		usage();
 	}
-	mode |= 0666;
-	if (mknod(argv[1], mode, addr) < 0) {
-		if (errno == EEXIST)
-			fprintf(stderr, "mknod: node %s already exists\n",
-			   argv[1]);
-		else
-			fprintf(stderr, "mknod: cannot create node %s\n",
-			   argv[1]);
-		return (1);
+
+	if ( (stat( argv[1], &sb )) >= 0 ) {
+
+		if ((sb.st_mode & S_IFMT) == S_IFDIR)
+			usage();
+
+		if (force)
+			unlink( argv[1] );
 	}
-	return (0);
+
+	if ( mknod( argv[1], mode | 0777, dev ) < 0 )
+		fatal( "can't mknod: ", argv[1] );
+
+	exit( 0 );
+}
+
+usage()
+{
+	fatal( "\
+Usage: mknod [-f] filename b major minor\n\
+       mknod [-f] filename c major minor\n\
+       mknod [-f] filename p", 0 );
+}
+
+fatal( mesg, file )
+register char *mesg, *file;
+{
+	write( 2, mesg, strlen(mesg) );
+	if (file)
+		write( 2, file, strlen(file) );
+	write( 2, "\n", 1 );
+	exit( 1 );
 }
 
 /*
- * Print out a usage message.
+ * atoi ( s )
+ *
+ *	Input:	s = numeric string to evaluate.
+ *
+ *	Action:	Convert numeric string into a positive integer.
+ *
+ *	Return:	-1 = invalid character(s) encountered.
+ *		*  = numeric equivalent.
  */
-usage()
+
+atoi( s )
+register char *s;
 {
-	fprintf(stderr, "usage: mknod <name> [bcp] <major> <minor>\n");
-	exit(1);
+	register int n = 0;
+
+	while ( *s ) {
+
+		if ( ('0' <= *s) && (*s <= '9') ) {
+			n *= 10;
+			n += *s++ - '0';
+		}
+		else
+			return -1;
+	}
+	return n;
 }
