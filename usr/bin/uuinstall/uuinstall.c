@@ -1,12 +1,14 @@
 /*
  * Create /usr/lib/uucp/L.sys file
  */
-#include "misc.h"
 #include <curses.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "choices.h"	/* include files from various screens */
 #include "choices1.h"
+#include "choices2.h"
+#include "escapes.h"
 #include "lsys1.h"
 #include "uuin.h"
 #include "uunam.h"
@@ -14,6 +16,9 @@
 #include "permis.h"
 #include "helpscn.h"
 #include "comment.h"
+
+#define SENDPAIRS 6
+#define TIMEPAIRS 7
 
 #define UUNAME  fileList[0]
 #define DOMAIN  fileList[1]
@@ -40,8 +45,6 @@ static char *realFiles[] = { /* the real files */
 
 static char nameMod, lsysMod, devicesMod, permisMod;
 
-#define lump(x) (x[0] ? x : "\"\"")
-
 static char buf[1024];
 static char work[80];
 static char schedule[80];
@@ -57,24 +60,50 @@ struct line {
 
 static line *sysRoot, *devRoot, *permRoot;
 
-extern char *strtok(), *strstr(), *strchr(), *strrchr();
-
 #define Trace showError
+#undef strlcpy
+#define strlcpy(to, from) cplim((to), (from), sizeof(to))
+
+/*
+ * Copy for limit if source not null.
+ */
+static char *
+cplim(to, from, len)
+char *to, *from;
+{
+	if (NULL == from)
+		return (memchr(to, '\0', len));
+
+	return (memcpy(to, from, len));
+}
+
+/*
+ * do "" for null.
+ */
+static char *
+lump(x)
+char *x;
+{
+	return(*x ? x : "\"\"");
+}
 
 /*
  * Read a 1 line file into a string.
  */
 void
-getLine(fn, s)
+shortFile(fn, s)
 char *fn, *s;
 {
 	FILE *ifp;
 
-	if(NULL == (ifp = fopen(fn, "r")))
-		s[0] = '\0';
+	if (NULL == (ifp = fopen(fn, "r"))) {
+		if (yn("Cannot open %s continue", fn))
+			s[0] = '\0';
+		exit(1);
+	}
 	else {
 		fgets(s, 64, ifp);
-		if(NULL != (s = strchr(s, '\n')))
+		if (NULL != (s = strchr(s, '\n')))
 			*s = '\0';
 	}
 	fclose(ifp);
@@ -90,25 +119,24 @@ char *fn;
 	line *this, *last, *root = NULL;
 	FILE *ifp;
 	char *s;
-	int i;
+	int lineNo;
 
-	if(NULL == (ifp = fopen(fn, "r")))
-		return(NULL);
+	if (NULL == (ifp = fopen(fn, "r"))) {
+		if (yn("Cannot open %s continue", fn))
+			return (NULL);
+		exit(1);
+	}
 	
-	for(s = buf; NULL != fgets(s, sizeof(buf), ifp); ) {
-		if(!strcmp((s = strchr(s, 0)) - 2, "\\\n"))
-			continue;
-		if((i = strlen(s = buf)) > sizeof(buf))
-			fatal("Buffer overflow on %s", fn);
-		this = alloc(i + sizeof(line));
-		if(NULL == root)
+	for (lineNo = 1; NULL != (s = getline(ifp, &lineNo)); ) {
+		this = (line *)alloc(strlen(s) + sizeof(line));
+		if (NULL == root)
 			last = root = this;
 		else
 			last = last->next = this;
-		strcpy(this->str, buf);
+		strcpy(this->str, s);
 	}
 	fclose(ifp);
-	return(root);
+	return (root);
 }
 
 /*
@@ -120,10 +148,13 @@ zeroLsys()
 	register int i;
 
 	code[0] = sys[0] = Line[0] = baudRate[0] = phoneNo[0] = 0;
-	for(i = 0; i < 7; i++)
+	for (i = 0; i < TIMEPAIRS; i++)
 		day[i][0] = timeFrom[i][0] = timeTo[i][0] = 0;
-	for(i = 0; i < 3; i++)
-		expect[i][0] = send[i][0] = 0;
+	for (i = 0; i < SENDPAIRS; i++) {
+		free(expect[i]);
+		free(send[i]);
+		expect[i] = send[i] = NULL;
+	}
 }
 static void
 zeroDev()
@@ -134,8 +165,10 @@ zeroDev()
 
 zeroPerm()
 {
-	perSite[0] = perLogn[0] = perComm[0] = perRead[0] =
-	code1[0] = perNoRead[0] = perWrite[0] = perNoWrite[0] = 
+	perNoWrite = perComm = perRead =
+	perNoRead = perWrite = NULL;
+
+	perSite[0] = perMyName[0] = perLogn[0] = code[0] = 
 	perCallIn[1] = perSendFiles[1] = perRequest[1] = 0;
 }
 
@@ -146,7 +179,7 @@ static void
 showComment(l)
 register line *l;
 {
-	if(strlen(l->str) > sizeof(comment))
+	if (strlen(l->str) > sizeof(comment))
 		strcpy(comment, "Comment too long to show.");
 	else
 		strcpy(comment, l->str + 1);
@@ -161,7 +194,7 @@ static void
 showPerm(l)
 register line *l;
 {
-	if('#' == l->str[0]) {
+	if ('#' == l->str[0]) {
 		showComment(l);
 		return;
 	}
@@ -171,12 +204,13 @@ register line *l;
 	grabKey("MACHINE=", perSite);
 
 	strcpy(perCallIn, (grabKey("LOGNAME=", perLogn) ? "y" : "n"));
-
-	grabKey("COMMANDS=", perComm);
-	grabKey("READ=", perRead);
-	grabKey("NOREAD=", perNoRead);
-	grabKey("WRITE=", perWrite);
-	grabKey("NOWRITE=", perNoWrite);
+	if (!grabKey("MYNAME=", perMyName)) /* MYNAME defaults to MACHINE */
+		strcpy(perMyName, perSite);
+	lgrabKey("COMMANDS=", &perComm);
+	lgrabKey("READ=", &perRead);
+	lgrabKey("NOREAD=", &perNoRead);
+	lgrabKey("WRITE=", &perWrite);
+	lgrabKey("NOWRITE=", &perNoWrite);
 	grabYn("SENDFILES=", perSendFiles, 'y');
 	grabYn("REQUEST=", perRequest, 'y');
 	clear();
@@ -194,7 +228,7 @@ register line *l;
 	int j, k;
 	static char timeErr[] = "Invalid time field in file";
 
-	if('#' == l->str[0]) {
+	if ('#' == l->str[0]) {
 		showComment(l);
 		return;
 	}
@@ -203,33 +237,33 @@ register line *l;
 	strcpy(buf, l->str);
 	strlcpy(sys, strtok(buf, seps));
 	strlcpy(work, strtok(NULL, seps));
-	for((w = work), (k = 0); *w && (k < 7); k++) {
-		if(!isalpha(*w)) {
+	for ((w = work), (k = 0); *w && (k < TIMEPAIRS); k++) {
+		if (!isalpha(*w)) {
 			showError(timeErr);
 			break;
 		}
-		for(j = 0; isalpha(*w) && (j < (sizeof(day[0]) - 1)); j++, w++)
+		for (j = 0; isalpha(*w) && (j < (sizeof(day[0]) - 1)); j++, w++)
 			day[k][j] = *w;
 		day[k][j] = '\0';
 		j = 4;
-		while(isdigit(*w)) {	/* time field exists */
-			for(j = 0;
+		while (isdigit(*w)) {	/* time field exists */
+			for (j = 0;
 			    isdigit(*w) && (j < (sizeof(timeFrom[0]) - 1));
 			    j++, w++)
 				timeFrom[k][j] = *w;
 			timeFrom[k][j] = '\0';
-			if((j != 4) || (*w++ != '-')) {
+			if ((j != 4) || (*w++ != '-')) {
 				showError(timeErr);
-				k = 7;
+				k = TIMEPAIRS;
 				break;
 			}
-			for(j = 0;
+			for (j = 0;
 			    isdigit(*w) && (j < (sizeof(timeTo[0]) - 1));
 			    j++, w++)
 				timeTo[k][j] = *w;
 			timeTo[k][j] = '\0';
 		}
-		if((j != 4) || (*w && (*w++ != ','))) {
+		if ((j != 4) || (*w && (*w++ != ','))) {
 			showError(timeErr);
 			break;
 		}
@@ -238,14 +272,17 @@ register line *l;
 	strlcpy(Line, strtok(NULL, seps));
 	strlcpy(baudRate, strtok(NULL, seps));
 	strlcpy(phoneNo, strtok(NULL, seps));
-	for(k = 0; k < 3; k++) {
-		strlcpy(expect[k], strtok(NULL, seps));
-		if(!expect[k])
+
+	for (j = 0; j < SENDPAIRS; j++) {
+		free(expect[j]);
+		free(send[j]);
+		send[j] = NULL;
+		if (NULL == (expect[j] = newcpy(strtok(NULL, seps))))
 			break;
-		strlcpy(send[k], strtok(NULL, seps));
-		if(!send[k])
+		if (NULL == (send[j] = newcpy(strtok(NULL, seps))))
 			break;
 	}
+
 	clear();
 	showDefs(lsys1_data, lsys1_locs);
 }
@@ -257,7 +294,7 @@ static void
 showDev(l)
 register line *l;
 {
-	if('#' == l->str[0]) {
+	if ('#' == l->str[0]) {
 		showComment(l);
 		return;
 	}
@@ -280,12 +317,32 @@ char *key, *to;
 {
 	register char *p, c;
 
-	if(NULL == (p = strstr(buf, key)))
-		return(to[0] = 0);
-	for(p += strlen(key); (' ' != (c = *p)) && ('\n' != c); p++)
+	if (NULL == (p = strstr(buf, key)))
+		return (to[0] = 0);
+	for (p += strlen(key); (c = *p++) && !isspace(c); )
 		*to++ = c;
 	*to = '\0';
-	return(1);
+	return (1);
+}
+
+/*
+ * Find a key on a buffer. For long field.
+ */
+lgrabKey(key, to)
+char *key, **to;
+{
+	register char *q, *p, c;
+	int len;
+
+	free(*to);
+	*to = NULL;
+	if (NULL == (p = strstr(buf, key)))
+		return;
+	for (len = 0, q = p += strlen(key); (c = *p++) && !isspace(c); )
+		len++;
+	*to = alloc(len + 1);
+	memcpy(*to, q, len);
+	return;
 }
 
 /*
@@ -297,13 +354,12 @@ char *key, *to;
 	register char *p;
 
 	to[1] = '\0';
-	if(NULL == (p = strstr(buf, key))) {
+	if (NULL == (p = strstr(buf, key))) {
 		to[0] = def;
-		return(0);
+		return (0);
 	}
-	p += strlen(key);
-	to[0] = *p;
-	return(1);
+	to[0] = p[strlen(key)];
+	return (1);
 }
 
 /*
@@ -313,10 +369,10 @@ checkList(field, list)
 register char *field;
 register char **list;
 {
-	for(; NULL != *list; list++)
-		if(!strcmp(field, *list))
-			return(1);
-	return(0);
+	for (; NULL != *list; list++)
+		if (!strcmp(field, *list))
+			return (1);
+	return (0);
 }
 
 /*
@@ -326,13 +382,13 @@ yesNoCall(s)
 register char *s;
 {
 	*s = tolower(*s);
-	switch(*s) {
+	switch (*s) {
 	case 'y':
 	case 'n':
 	case 'c':
-		return(1);
+		return (1);
 	}
-	return(0);
+	return (0);
 }
 
 /*
@@ -341,13 +397,13 @@ register char *s;
 vSite(s)
 register char *s;
 {
-	if(!s[0]) {
+	if (!s[0]) {
 		showError("There must be a site name");
-		return(0);
+		return (0);
 	}
 	sprintf(perLogn, "u%s", s);
 	putField(permis_locs, perLogn);
-	return(1);
+	return (1);
 }
 
 /*
@@ -363,28 +419,28 @@ char *s;
 		"Wk", "Any", "Never", NULL
 	};
 
-	if(!s[0]) {
-		if(s == day)
-			return(0);	/* must have first day field */
+	if (!s[0]) {
+		if (s == day)
+			return (0);	/* must have first day field */
 		else
-			return(-1);	/* skip remainder */
+			return (-1);	/* skip remainder */
 	}
 
-	for(p = s; c = *p; ) {
-		if(!isupper(c)) {
+	for (p = s; c = *p; ) {
+		if (!isupper(c)) {
 			showError("All day field Names start upper case");
-			return(0);
+			return (0);
 		}
 		work[0] = c;
-		for((w = work + 1), p++; islower(c = *p) ; p++)
+		for ((w = work + 1), p++; islower(c = *p) ; p++)
 			*w++ = c;
 		*w = '\0';
-		if(!checkList(work, dayList)) {
+		if (!checkList(work, dayList)) {
 			showError("Invalid day field %s", w);
-			return(0);
+			return (0);
 		}
 	}
-	return(1);
+	return (1);
 }
 
 /*
@@ -395,19 +451,19 @@ char *s;
 {
 	register line *l;
 
-	if(!strcmp(s, "ACU") || !strcmp(s, "None"))
-		return(1);
-	for(l = devRoot; NULL != l; l = l->next) {
-		if('#' == l->str[0])
+	if (!strcmp(s, "ACU") || !strcmp(s, "None"))
+		return (1);
+	for (l = devRoot; NULL != l; l = l->next) {
+		if ('#' == l->str[0])
 			continue;
 		strcpy(buf, l->str);
-		if(strcmp("DIR", strtok(buf, seps)))
+		if (strcmp("DIR", strtok(buf, seps)))
 			continue;
-		if(!strcmp(s, strtok(NULL, seps)))
-			return(1);
+		if (!strcmp(s, strtok(NULL, seps)))
+			return (1);
 	}
 	showError("Line must be ACU, None or DIR line in %s", DEVFILE);
-	return(0);
+	return (0);
 }
 
 /*
@@ -418,9 +474,9 @@ register char *s;
 {
 	register t;
 
-	if(!s[0])
-		return(-1);	/* skip fields */
-	return(numeric(s) && ((t = atoi(s)) >= 0) && (t <= 2400));
+	if (!s[0])
+		return (-1);	/* skip fields */
+	return (numeric(s) && ((t = atoi(s)) >= 0) && (t <= 2400));
 }
 
 /*
@@ -433,10 +489,10 @@ register line *l;
 {
 	FILE *ofp;
 
-	if(!modsw)
+	if (!modsw)
 		return;
 	ofp = xopen(fn, "w");
-	for(; NULL != l; l = l->next)
+	for (; NULL != l; l = l->next)
 		fputs(l->str, ofp);
 	fclose(ofp);
 }
@@ -460,7 +516,7 @@ char *fn, *s;
 deleteEntry(root, l)
 line **root, *l;
 {
-	for(; *root != l; root = (line **)root->next)
+	for (; *root != l; root = (line **)root->next)
 		;
 	*root = l->next;
 	free(l);		
@@ -487,22 +543,29 @@ line **root;
 clumpLsys()
 {
 	int i;
+	register char *s;
 
-	for(schedule[0] = i = 0; (i < 7) && day[i][0]; i++) {
-		if(i)
+	for (schedule[0] = i = 0; (i < TIMEPAIRS) && day[i][0]; i++) {
+		if (i)
 			strcat(schedule, ",");
 		strcat(schedule, day[i]);
-		if(timeFrom[i][0]) {
+		if (timeFrom[i][0]) {
 			strcat(schedule, timeFrom[i]);
 			strcat(schedule, "-");
 			strcat(schedule, timeTo[i]);
 		}
 	}
-		
-	sprintf(buf, "%s %s %s %s %s %s %s %s %s %s %s\n",
-		sys, schedule, Line, lump(baudRate), lump(phoneNo),
-		lump(expect[0]), lump(send[0]), lump(expect[1]),
-		lump(send[1]), lump(expect[2]), lump(send[2]));
+
+	sprintf(buf, "%s %s %s %s %s",
+		sys, schedule, Line, lump(baudRate), lump(phoneNo));
+
+	for (s = buf, i = 0;
+	     (i < SENDPAIRS) && (expect[i][0] || send[i][0]);
+	     i++) {
+		s = strchr(s, '\0');
+		sprintf(s, " %s %s", lump(expect[i]), lump(send[i]));
+	}
+	strcat(s, "\n");
 
 	addLine(&sysRoot);
 }
@@ -522,29 +585,33 @@ clumpDev()
  */
 clumpPerm()
 {
-	if('y' == perCallIn[0])
+	if ('y' == perCallIn[0])
 		sprintf(buf, "MACHINE=%s LOGNAME=%s \\\n",
 			perSite, perLogn);
 	else
 		sprintf(buf, "MACHINE=%s \\\n", perSite);
 
-	if(perComm[0]) {
+	if (perMyName[0] && strcmp(perSite, perMyName)) {
+		sprintf(work, "\tMYNAME=%s \\\n", perMyName);
+		strcat(buf, work);
+	}
+	if (perComm[0]) {
 		sprintf(work, "\tCOMMANDS=%s \\\n", perComm);
 		strcat(buf, work);
 	}
-	if(perRead[0]) {
+	if (perRead[0]) {
 		sprintf(work, "\tREAD=%s \\\n", perRead);
 		strcat(buf, work);
 	}
-	if(perNoRead[0]) {
+	if (perNoRead[0]) {
 		sprintf(work, "\tNOREAD=%s \\\n", perNoRead);
 		strcat(buf, work);
 	}
-	if(perWrite[0]) {
+	if (perWrite[0]) {
 		sprintf(work, "\tWRITE=%s \\\n", perWrite);
 		strcat(buf, work);
 	}
-	if(perNoWrite[0]) {
+	if (perNoWrite[0]) {
 		sprintf(work, "\tNOWRITE=%s \\\n", perNoWrite);
 		strcat(buf, work);
 	}
@@ -578,17 +645,17 @@ fixCode(c, l)
 line *l;
 {
 	c = tolower(c);
-	if(NULL == l) {	/* avoid modify etc with no data on file */
-		switch(c) {
+	if (NULL == l) {	/* avoid modify etc with no data on file */
+		switch (c) {
 		case 'm':
 		case 'n':
 		case 'p':
 		case 'd':
 			showError("No data yet on file");
-			return(0);
+			return (0);
 		}
 	}
-	return(c);
+	return (c);
 }
 
 /*
@@ -601,22 +668,22 @@ getLsys1()
 
 	l = sysRoot;
 	clear();
-	for(;;) {
-		if((NULL != l) && (onDisp != l))
+	for (;;) {
+		if ((NULL != l) && (onDisp != l))
 			showLsys(onDisp = l);
-		showBak(choices_data);
-		getField(choices_locs, code);
-		switch(fixCode(code[0], l)) {
+		showBak(choices2_data);
+		getField(choices2_locs, code);
+		switch (fixCode(code[0], l)) {
 		case 'm':
 			lsysMod = 1;
-			clearBak(choices_data, choices_locs);
+			clearBak(choices2_data, choices2_locs);
 			getAll(lsys1_locs);
 			clumpLsys();
 			deleteEntry(&sysRoot, l);
 			l = sysRoot;
 			break;
 		case 'n':
-			if(NULL == l->next)
+			if (NULL == l->next)
 				showError("No more entrys in file");
 			else
 				l = l->next;
@@ -624,12 +691,12 @@ getLsys1()
 		case 'p': {
 			line *p;
 
-			if(l == sysRoot) {
+			if (l == sysRoot) {
 				showError("No previous entrys on file");
 				break;
 			}
-			for(p = sysRoot; p != NULL; p = p->next)
-				if(p->next == l) {
+			for (p = sysRoot; p != NULL; p = p->next)
+				if (p->next == l) {
 					l = p;
 					break;
 				}
@@ -654,6 +721,11 @@ getLsys1()
 			Query("Any key to continue");
 			onDisp = NULL;
 			break;
+		case 'e':
+			showBak(escapes_data);
+			Query("Any key to continue");
+			onDisp = NULL;
+			break;
 		case 'd':
 			lsysMod = 1;
 			deleteEntry(&sysRoot, l);
@@ -673,16 +745,16 @@ register char *s;
 {
 	register c;
 
-	if(!*s) {
+	if (!*s) {
 		showError("Field must have some data");
-		return(0);
+		return (0);
 	}
-	while(c = *s++)
-		if(!isalnum(c)) {
+	while (c = *s++)
+		if (!isalnum(c)) {
 			showError("Field must be alphanumeric");
-			return(0);
+			return (0);
 		}
-	return(1);
+	return (1);
 }
 
 /*
@@ -693,16 +765,16 @@ register char *s;
 {
 	register c;
 
-	if(!*s) {
+	if (!*s) {
 		showError("Field must have some data");
-		return(0);
+		return (0);
 	}
-	while(c = *s++)
-		if((c < ' ') || (c > '~')) {
+	while (c = *s++)
+		if ((c < ' ') || (c > '~')) {
 			showError("Field must be all printable");
-			return(0);
+			return (0);
 		}
-	return(1);
+	return (1);
 }
 
 /*
@@ -728,12 +800,12 @@ getDevices()
 
 	l = devRoot;
 	clear();
-	for(;;) {
-		if((NULL != l) && (onDisp != l))
+	for (;;) {
+		if ((NULL != l) && (onDisp != l))
 			showDev(onDisp = l);
 		showBak(choices_data);
 		getField(choices_locs, code);
-		switch(fixCode(code[0], l)) {
+		switch (fixCode(code[0], l)) {
 		case 'm':
 			devicesMod = 1;
 			clearBak(choices_data, choices_locs);
@@ -743,7 +815,7 @@ getDevices()
 			l = devRoot;
 			break;
 		case 'n':
-			if(NULL == l->next)
+			if (NULL == l->next)
 				showError("No more entrys in file");
 			else
 				l = l->next;
@@ -751,12 +823,12 @@ getDevices()
 		case 'p': {
 			line *p;
 
-			if(l == devRoot) {
+			if (l == devRoot) {
 				showError("No previous entrys on file");
 				break;
 			}
-			for(p = devRoot; p != NULL; p = p->next)
-				if(p->next == l) {
+			for (p = devRoot; p != NULL; p = p->next)
+				if (p->next == l) {
 					l = p;
 					break;
 				}
@@ -802,12 +874,12 @@ getPerm()
 
 	l = permRoot;
 	clear();
-	for(;;) {
-		if((NULL != l) && (onDisp != l))
+	for (;;) {
+		if ((NULL != l) && (onDisp != l))
 			showPerm(onDisp = l);
 		showBak(choices1_data);
-		getField(choices1_locs, code1);
-		switch(fixCode(code1[0], l)) {
+		getField(choices1_locs, code);
+		switch (fixCode(code[0], l)) {
 		case 'm':
 			permisMod = 1;
 			clearBak(choices1_data, choices1_locs);
@@ -817,7 +889,7 @@ getPerm()
 			l = permRoot;
 			break;
 		case 'n':
-			if(NULL == l->next)
+			if (NULL == l->next)
 				showError("No more entrys in file");
 			else
 				l = l->next;
@@ -825,12 +897,12 @@ getPerm()
 		case 'p': {
 			line *p;
 
-			if(l == permRoot) {
+			if (l == permRoot) {
 				showError("No previous entrys on file");
 				break;
 			}
-			for(p = permRoot; p != NULL; p = p->next)
-				if(p->next == l) {
+			for (p = permRoot; p != NULL; p = p->next)
+				if (p->next == l) {
 					l = p;
 					break;
 				}
@@ -872,11 +944,11 @@ getPerm()
 uuinstall()
 {
 	clear();
-	for(;;) {
+	for (;;) {
 		clear();
 		showBak(uuin_data);
 		getField(uuin_locs, ucode);
-		switch(tolower(ucode[0])) {
+		switch (tolower(ucode[0])) {
 		case 'h':
 			clear();
 			showBak(helpscn_data);
@@ -895,16 +967,16 @@ uuinstall()
 			getPerm();
 			break;
 		case 'x':
-			for(;;) {
+			for (;;) {
 				char ans;
 
 				ans = Query("Save changes <y/n> ");
-				switch(tolower(ans)) {
+				switch (tolower(ans)) {
 				case 'y':
 					saveAll(DEVFILE, devRoot, devicesMod);
 					saveAll(SYSFILE, sysRoot, lsysMod);
 					saveAll(PERMISS, permRoot, permisMod);
-					if(nameMod) {
+					if (nameMod) {
 						saveLine(UUNAME, uuname);
 						saveLine(DOMAIN, uudomain);
 					}
@@ -925,13 +997,13 @@ char **argv[];
 	fileList = ((NULL != argv[1]) && !strcmp("-d", argv[1])) ?
 		testFiles : realFiles;
 
-	setUpScreen(2, 22); /* set up screen 3 lines for error at line 22 */
-
 	sysRoot = inhale(SYSFILE);	/* load files */
 	devRoot = inhale(DEVFILE);
 	permRoot = inhale(PERMISS);
-	getLine(UUNAME, uuname);
-	getLine(DOMAIN, uudomain);
+	shortFile(UUNAME, uuname);
+	shortFile(DOMAIN, uudomain);
+
+	setUpScreen(2, 22); /* set up screen 2 lines for error at line 22 */
 
 	uuinstall();
 
