@@ -978,7 +978,7 @@ int chan;
 {
 	asy1_t	*a1 = asy1 + chan;
 
-	a1->a_brk = 1;
+	a1->a_brk = 0;
 	wakeup(a1);
 }
 #endif

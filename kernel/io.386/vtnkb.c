@@ -1,4 +1,6 @@
 #define SWANFIX 1
+#define GREEKFIX 1
+
 /*
  * User configurable AT keyboard/display driver.
  * 286/386 AT COHERENT
@@ -158,6 +160,12 @@ CON iscon ={
 */
 #if SWANFIX
 int VTSWAN = 0;		/* patch to 1 for epstein's fix for Swan keyboard */
+#endif
+
+#if GREEKFIX
+static void ToggleGreek();
+static int ToGreek();
+int VTGREEK = 1;	/* patch to 1 for TECOP Greek mod */
 #endif
 
 HWentry	VTVGA =		{ 4, 0, VT_VGAPORT, { 0, VT_VGABASE }, { 25, 80 } };
@@ -929,6 +937,12 @@ int	 up;
 		/* If the tty is not open, ignore it */
 		if( !tp->t_open )
 			return;
+#if GREEKFIX
+		if (VTGREEK && val == fgk) {
+			ToggleGreek();
+			return;
+		}
+#endif /* GREEKFIX */
 		if (val == 0 && !up && KBBOOT)
 			boot();
 		if (!fk_loaded || val >= fnkeys->k_nfkeys)
@@ -944,8 +958,17 @@ int	 up;
 	 * Normal key processing.
 	 */
 	/* If the tty is not open, ignore it */
+#if GREEKFIX
+	if( tp->t_open )
+		if (VTGREEK) {
+			if (ToGreek(&val))
+				isin(val);
+		} else
+			isin(val);
+#else
 	if( tp->t_open )
 		isin(val);		 /* send the char */
+#endif /* GREEKFIX */
 }
 
 /**
@@ -1599,4 +1622,91 @@ int fnum;
 	printf("vtkey_to_dev(%d)! ", fnum);
 	return 0;
 }
+
+#if GREEKFIX
+/*
+ * ToggleGreek() must be called every time Alt+Enter is pressed.
+ * It toggles the "InGreek" flag and resets all others.
+ *
+ * ToGreek(unsigned *) returns FALSE if val is a dead key (Greek
+ * accent key) that must NOT be processed, TRUE otherwise.
+*/	
+
+static int	InGreek=0;
+static int	Tonos=0;
+static int	Dialytika=0;
+
+static int	UpperG[26] = {
+  128,129,150,131,132,148,130,134,136,141,137,138,139,
+  140,142,143,58,144,145,146,135,151,145,149,147,133};
+
+static int	LowerG[26] = {
+  152,153,175,155,156,173,154,158,160,165,161,162,163,
+  164,166,167,59,168,169,171,159,224,170,174,172,157};
+
+static int	VoyelG[7] = {152,156,158,160,166,172,224};
+static int	TonedG[7] = {225,226,227,229,230,231,233};
+
+void
+ToggleGreek()
+{
+	InGreek 	^= 1;
+	Tonos		 = 0;
+	Dialytika	 = 0;
+	return;
+}
+
+int
+ToGreek(ip)
+unsigned	*ip;
+{
+	unsigned	i,j;
+
+	i = *ip;
+
+	/*	If Not Greek exit			*/
+	if(!InGreek)
+		return 1;
+
+	/*	Capture dead keys			*/
+	if(i == ';') {
+		Tonos ^= 1;
+		return 0;
+	}	
+
+	if(i == ':') {
+		Dialytika ^= 1;
+		return 0;
+	}	
+
+	/*	Check if character translation needed	*/
+	if ((i >= 'A') && (i <= 'Z'))
+		i = UpperG[i - 'A'];
+	else if	((i >= 'a') && (i <= 'z'))
+		i = LowerG[i - 'a'];
+	else
+		return 1;
+
+	/*	Check if any accent has to be added	*/
+	if (Tonos) {
+		Tonos = 0;
+		for(j = 0;j < 7;j++)
+		if (i == VoyelG[j]) {
+			i = TonedG[j];
+			break;
+		}
+	} else if (Dialytika) {
+		Dialytika=0;
+		if (i == 160)
+			i = 228;
+		else if (i == 172)
+			i = 232;
+	}
+
+	/*	Exit point for translated characters	*/
+	*(ip) = i;
+	return 1;
+}
+
+#endif /* GREEKFIX */
 /* End of nkb.c */
