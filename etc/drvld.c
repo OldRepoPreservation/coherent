@@ -1,7 +1,19 @@
 /*
  * INETCO Coherent Driver Load Program
  *
- * $Log:	/usr/src/cmd/etc/RCS/drvld.c,v $
+ * $Log:	/usr/src/inetco/etc/drvld.c,v $
+ * Revision 1.3	91/07/31  13:44:11 	bin
+ * steve 7/31/91
+ * Corrected additional fatal error message.
+ * 
+ * Revision 1.2	91/07/31  13:40:09 	bin
+ * steve 7/31/91
+ * In warn(), added line to print "/etc/drvld: " preceding warnings
+ * or fatal error messages.
+ * 
+ * Revision 1.1	91/07/31  13:38:11 	bin
+ * Initial revision
+ * 
  * Revision 1.2	88/07/07  09:30:37	src
  * Bug:	Drivers whose prefix consisted had a numeric third character
  * 	were not recognized by the drvld(1M) command.
@@ -134,7 +146,7 @@ register char ** argv;
 	 * Only super-use can load drivers.
 	 */
 	if ( getuid() != 0 )
-		fatal( "drvld", ": not super-user" );
+		fatal( "not super-user", "" );
 
 	/*
 	 * Trap non-ignored signals.
@@ -361,6 +373,7 @@ char * s2;
 	fflush( stderr );
 #endif
 
+	write( 2, "/etc/drvld: ", 12);
 	write( 2, s1, strlen(s1) );
 	write( 2, s2, strlen(s2) );
 	write( 2, "\n", 1 );
