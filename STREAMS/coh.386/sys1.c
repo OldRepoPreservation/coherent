@@ -20,6 +20,7 @@
  * Revised: Tue May 11 11:12:03 1993 CDT
  */
 
+#include <common/_gregset.h>
 #include <kernel/sigproc.h>
 #include <sys/coherent.h>
 #include <sys/acct.h>
@@ -39,7 +40,7 @@
 sigalrm(pp)
 register PROC * pp;
 {
-	sendsig(SIGALRM, pp);
+	sendsig (SIGALRM, pp);
 }
 
 /*
@@ -61,12 +62,12 @@ unsigned n;
 	/*
 	 * Cancel previous alarm [if any], start new alarm [if n != 0].
 	 */
-	timeout2(&pp->p_alrmtim, (long) n * HZ, sigalrm, pp);
+	timeout2 (& pp->p_alrmtim, (long) n * HZ, sigalrm, pp);
 
 	/*
 	 * Return time left before previous alarm timeout.
 	 */
-	return(s);
+	return s;
 }
 
 
@@ -82,25 +83,25 @@ caddr_t cp;
 	register SR	*stack_sr;
 	caddr_t top_of_stack;
 
-	T_HAL(0x8000, printf("%s:ubrk(%x) ", u.u_comm, cp));
+	T_HAL (0x8000, printf ("%s:ubrk(%x) ", u.u_comm, cp));
 
 	/*
 	 * Pick up the segment handle for our data segment.
 	 */
-	sp = SELF->p_segp[SIPDATA];
+	sp = SELF->p_segp [SIPDATA];
 
 	/*
 	 * Extract the starting virtual address for our data segment,
 	 * as it is currently mapped into the memory space.
 	 */
-	sb = u.u_segl[SIPDATA].sr_base;
+	sb = u.u_segl [SIPDATA].sr_base;
 
 	/*
 	 * We can not move the top of the data segment below the
 	 * start of the data segment.
 	 */
 	if (cp < sb) {
-		SET_U_ERROR(ENOMEM,
+		SET_U_ERROR (ENOMEM,
 		    "Requested brk address is below start of data segment.");
 		return 0;
 	}
@@ -110,11 +111,12 @@ caddr_t cp;
 	 *
 	 * Since the stack grows downward, its top is below its base :-).
 	 */
-	stack_sr = &u.u_segl[SISTACK];
-	top_of_stack = (stack_sr->sr_base) - (stack_sr->sr_size);
 
-	if (btoc(cp) >= btoc(top_of_stack)) {
-		SET_U_ERROR(ENOMEM,
+	stack_sr = & u.u_segl [SISTACK];
+	top_of_stack = stack_sr->sr_base - stack_sr->sr_size;
+
+	if (btoc (cp) >= btoc (top_of_stack)) {
+		SET_U_ERROR (ENOMEM,
 		    "Requested brk address would collide with stack segment.");
  		return 0;
 	}
@@ -122,63 +124,79 @@ caddr_t cp;
 	/*
 	 * Attempt to establish the segment with the newly requested size.
 	 */
-	segsize(sp, (cp - sb));
+	segsize (sp, cp - sb);
 
 	/*
 	 * Be sure to return the true new top of data segment.
 	 */
 	sb += sp->s_size;
 
-	T_HAL(0x8000, printf("=%x ", sb));
+	T_HAL (0x8000, printf ("=%x ", sb));
 	return sb;
 }
 
+
 /*
- * Execute a l.out.
+ * Execute an l.out or COFF file.
  */
-uexece(np, argp, envp)
-char *np;
-char *argp[];
-char *envp[];
+
+int
+uexece (np, argp, envp, regsetp)
+char	      *	np;
+char	      *	argp [];
+char	      *	envp [];
+gregset_t     *	regsetp;
 {
-	pexece(np, argp, envp);
+	pexece (np, argp, envp, regsetp);
 }
+
 
 /*
  * Exit.
  */
-uexit(s)
+
+uexit (s)
+unsigned	s;
 {
-	pexit(s<<8);
+	pexit ((s & 0xFF) << 8);
 }
+
 
 /*
  * Fork.
  */
-ufork()
+
+pid_t
+ufork ()
 {
-	return (pfork());
+	return pfork ();
 }
 
 /*
  * Get group id.
  * Get effective group id.
  */
-ugetgid()
+
+gid_t
+ugetgid ()
 {
 	u.u_rval2 = u.u_gid;
 	return u.u_rgid;
 }
 
+
 /*
  * Get user id.
  * Get effective user id.
  */
-ugetuid()
+
+uid_t
+ugetuid ()
 {
 	u.u_rval2 = u.u_uid;
 	return u.u_ruid;
 }
+
 
 /*
  * Get process group.
@@ -188,7 +206,9 @@ ugetuid()
  * Set process group equal to process id (make process its own group leader).
  * If process was NOT already a group leader, lose its controlling terminal.
  */
-upgrp(fl)
+
+int
+upgrp (fl)
 {
 	register PROC * pp = SELF;
 	
@@ -200,20 +220,24 @@ upgrp(fl)
 	return pp->p_group;
 }
 
+
 /*
  * Get process id.
  */
+
+pid_t
 ugetpid()
 {
-	register PROC *pp = SELF;
-
-	u.u_rval2 = pp->p_ppid;
-	return pp->p_pid;
+	u.u_rval2 = SELF->p_ppid;
+	return SELF->p_pid;
 }
+
 
 /*
  * Send the signal `sig' to the process with id `pid'.
  */
+
+int
 ukill(pid, sig)
 int pid;
 register unsigned sig;
@@ -225,53 +249,52 @@ register unsigned sig;
 		u.u_error = EINVAL;
 		return;
 	}
+
 	sigflag = 0;
-	lock(pnxgate);
+	lock (pnxgate);
+
 	if (pid > 0) {	/* send to matching process */
-		for (pp=procq.p_nforw; pp != &procq; pp=pp->p_nforw) {
+		for (pp = procq.p_nforw ; pp != & procq ; pp = pp->p_nforw) {
 			if (pp->p_state == PSDEAD)
 				continue;
 			if (pp->p_pid == pid) {
 				sigflag = 1;
 				if (sig) {
-					if (sigperm(sig, pp))
-						sendsig(sig, pp);
+					if (sigperm (sig, pp))
+						sendsig (sig, pp);
 					else
 						u.u_error = EPERM;
 				}
 				break;
 			}
 		}
-	}
-	else if (pid < -1) {
+	} else if (pid < -1) {
 		pid = -pid;
-		for (pp=procq.p_nforw; pp != &procq; pp=pp->p_nforw) {
+		for (pp = procq.p_nforw ; pp != & procq ; pp = pp->p_nforw) {
 			if (pp->p_state == PSDEAD)
 				continue;
 			if (pp->p_group == pid) {
 				sigflag = 1;
 				if (sig) {
-					if (sigperm(sig, pp))
-						sendsig(sig,pp);
+					if (sigperm (sig, pp))
+						sendsig (sig,pp);
 					else
 						u.u_error = EPERM;
 				}
 			}
 		}
-	}
-	else if (pid == 0) {
-		for (pp=procq.p_nforw; pp != &procq; pp=pp->p_nforw) {
+	} else if (pid == 0) {
+		for (pp = procq.p_nforw ; pp != & procq ; pp = pp->p_nforw) {
 			if (pp->p_state == PSDEAD)
 				continue;
 			if (pp->p_group == SELF->p_group) {
 				sigflag = 1;
-				if (sig && sigperm(sig, pp))
-					sendsig(sig, pp);
+				if (sig && sigperm (sig, pp))
+					sendsig (sig, pp);
 			}
 		}
-	}
-	else if (pid == -1) {
-		for (pp=procq.p_nforw; pp != &procq; pp=pp->p_nforw) {
+	} else if (pid == -1) {
+		for (pp = procq.p_nforw ; pp != & procq ; pp = pp->p_nforw) {
 			if (pp->p_state == PSDEAD)
 				continue;
 			if (pp->p_pid == 0)
@@ -281,13 +304,15 @@ register unsigned sig;
 			if (pp->p_flags & PFKERN)
 				continue;
 			sigflag = 1;
-			if (sig && super())
-				sendsig(sig, pp);
+			if (sig && super ())
+				sendsig (sig, pp);
 		}
 	}
-	unlock(pnxgate);
+
+	unlock (pnxgate);
 	if (sigflag == 0)
 		u.u_error = ESRCH;
+
 	return 0;
 }
 
@@ -298,17 +323,15 @@ sigperm(sig, pp)
 register PROC *pp;
 {
 	if (u.u_uid == pp->p_uid)
-		return (1);
-	if (u.u_ruid == pp->p_ruid) {
-		if (sig == SIGHUP
-		||  sig == SIGINT
-		||  sig == SIGQUIT
-		||  sig == SIGTERM)
-			return (1);
-	}
+		return 1;
+
+	if (u.u_ruid == pp->p_ruid && (sig == SIGHUP || sig == SIGINT ||
+				       sig == SIGQUIT || sig == SIGTERM)) 
+		return 1;
+
 	if (u.u_uid == 0) {
 		u.u_flag |= ASU;
-		return (1);
+		return 1;
 	}
 	return 0;
 }
@@ -318,7 +341,7 @@ register PROC *pp;
  */
 ulock(f)
 {
-	if (super() == 0)
+	if (super () == 0)
 		return;
 	if (f)
 		SELF->p_flags |= PFLOCK;
@@ -338,7 +361,7 @@ register int n;
 		n = MINNICE;
 	if (n > MAXNICE)
 		n = MAXNICE;
-	if (n<SELF->p_nice && super()==0)
+	if (n < SELF->p_nice && super () == 0)
 		return;
 	SELF->p_nice = n;
 	return 0;
@@ -404,7 +427,7 @@ int bufsiz, offset, scale;
 
 	/* round up kluge - see above */
 	if ((scale & 0xfff) == 0xfff)
-		u.u_pscale++;
+		u.u_pscale ++;
 }
 
 /*
@@ -419,7 +442,7 @@ int *add;
 	int readChild = 0;	/* for debug, true if reading child memory */
 
 	if (t_hal & 0x10000) {
-		switch(req) {
+		switch (req) {
 		case 0:	/* init called by child */
 			printf("PSetup: child=%d  ", SELF->p_pid);
 			break;
@@ -461,7 +484,7 @@ int *add;
 		SELF->p_flags |= PFTRAC;
 		ret = 0;
 	} else
-		ret = ptset(req, pid, add, data);
+		ret = ptset (req, pid, add, data);
 
 #ifdef TRACER
 	if (t_hal & 0x10000) {
@@ -485,19 +508,20 @@ int *add;
  * else if saved effective gid is same as "gid"
  *	set effective gid to "gid"
  */
+
 usetgid(gid)
 register int gid;
 {
-	if (super()) {
+	if (super ()) {
 		u.u_gid = u.u_rgid = u.u_egid = gid;
 		SELF->p_rgid = gid;
 	} else {
 		u.u_error = 0;  /* super() sets u_error when it fails */
-		if (u.u_rgid == gid || u.u_egid == gid) {
+
+		if (u.u_rgid == gid || u.u_egid == gid)
 			u.u_gid = gid;
-		} else {
-			SET_U_ERROR(EPERM, "Illegal gid");
-		}
+		else
+			SET_U_ERROR (EPERM, "Illegal gid");
 	}
 	return 0;
 }
@@ -514,19 +538,20 @@ register int gid;
  * else if saved effective uid is same as "uid"
  *	set effective uid to "uid"
  */
+
 usetuid(uid)
 register int uid;
 {
-	if (super()) {
+	if (super ()) {
 		u.u_uid = u.u_ruid = u.u_euid = uid;
 		SELF->p_uid = SELF->p_ruid = uid;
 	} else {
 		u.u_error = 0;  /* super() sets u_error when it fails */
-		if (u.u_ruid == uid || u.u_euid == uid) {
+
+		if (u.u_ruid == uid || u.u_euid == uid)
 			SELF->p_uid = u.u_uid = uid;
-		} else {
+		else
 			SET_U_ERROR(EPERM, "Illegal uid");
-		}
 	}
 	return 0;
 }
@@ -537,7 +562,7 @@ register int uid;
 usload(np)
 char *np;
 {
-	return pload(np);
+	return pload (np);
 }
 
 /*
@@ -553,13 +578,12 @@ time_t newtime;
 {
 	register int s;
 
-	if (super() == 0) {
+	if (super () == 0)
 		return;
-	}
 
-	s = sphi();
+	s = sphi ();
 	timer.t_time = newtime;
-	spl(s);
+	spl (s);
 	return 0;
 }
 
@@ -578,7 +602,7 @@ struct tms *tp;
 		tbuffer.tms_stime = pp->p_stime;
 		tbuffer.tms_cutime = pp->p_cutime;
 		tbuffer.tms_cstime = pp->p_cstime;
-		kucopyS(&tbuffer, tp, sizeof(tbuffer));
+		kucopyS (& tbuffer, tp, sizeof (tbuffer));
 	}
 	return lbolt;
 }
@@ -589,48 +613,42 @@ struct tms *tp;
 usuload(m)
 register int m;
 {
-	if (super() == 0)
+	if (super () == 0)
 		return;
-	puload(m);
+	puload (m);
 	return 0;
 }
 
 /*
- * Wait for a child to terminate.
+ * Wait for a child to terminate. If this function is called from i286 code,
+ * then we will have a "statp" argument, where we stash the exit status, but
+ * for the i386 code we put a value in u.u_rval2.
  *
- * iBCS2 says the same system call number is wait() and waitpid(), the
- * distinction being in how the psw is set on entry.
- *
- * iBCS2 fails to mention that when wait() or waitpid() report status
- * by writing into the pointer supplied, the status is put into %edx by
- * the kernel, and moved from there into user space by the function in
- * libc.a.  uwait() and uwaitpid() specify a value for %edx by writing
- * to u.u_rval2.
- *
- * Do wait() unless (ZF|PF|SF|OF) (=WPMASK) are set in psw.
+ * NIGEL: The idiom for looping over the process table must be changed to
+ * work right ASAP.
  */
-#define	WPMASK	0x8C4
 
-uwait(arg1, arg2, arg3)
+int
+uwait (statp)
+short	      *	statp;
 {
 	register PROC *pp;
 	register PROC *ppp;
 	register PROC *cpp;
 	register int pid;
 
-	if ((u.u_regl[EFL] & WPMASK) == WPMASK)
-		return uwaitpid(arg1, arg2, arg3);
-
 	/* Wait for a child to stop or die. */
-	T_HAL(8, printf("[%d]waits ", SELF->p_pid));
+
+	T_HAL (8, printf ("[%d]waits ", SELF->p_pid));
 	ppp = SELF;
+
 	for (;;) {
 		/* Look at all processes. */
 again:
-		lock(pnxgate);
+		lock (pnxgate);
 		cpp = NULL;
-		pp = &procq;
-		while ((pp=pp->p_nforw) != &procq) {
+		pp = & procq;
+		while ((pp = pp->p_nforw) != &procq) {
 
 			/* Ignore the current process. */
 			if (pp == ppp)
@@ -639,13 +657,12 @@ again:
 			 * Ignore processes that aren't children of the
 			 * current one.
 			 */
-			if (pp->p_ppid != ppp->p_pid)
-				continue;
-			if (pp->p_flags&PFSTOP)
+			if (pp->p_ppid != ppp->p_pid ||
+			    (pp->p_flags & PFSTOP) != 0)
 				continue;
 
 			/* Here is a child that hit a breakpoint. */
-			if (pp->p_flags&PFWAIT) {
+			if (pp->p_flags & PFWAIT) {
 				int work;	/* virtual click number */
 				int childUseg;	/* system global addr */
 				UPROC * uprc;
@@ -657,46 +674,54 @@ again:
 				/* fetch u.u_signo from the child */
 
 				/* Find u area for child process pp */
-				sp = pp->p_segp[SIUSERP];
-				childUseg = MAPIO(sp->s_vmem, U_OFFSET);
-				work = workAlloc();
-				ptable1_v[work] =
-				  sysmem.u.pbase[btocrd(childUseg)] | SEG_RW;
-#if	_NIGEL_MM_HACK
-				mmuupd();
-#endif
-				uprc = (UPROC *) (ctob(work) + U_OFFSET);
-				u.u_rval2 = ((uprc->u_signo)<<8) | 0177;
+				sp = pp->p_segp [SIUSERP];
+				childUseg = MAPIO (sp->s_vmem, U_OFFSET);
+				work = workAlloc ();
+				ptable1_v [work] =
+				  sysmem.u.pbase [btocrd (childUseg)] | SEG_RW;
+				uprc = (UPROC *) (ctob (work) + U_OFFSET);
 
-				workFree(work);
+				if (statp != NULL)
+					putusd (statp, (uprc->u_signo << 8) |
+							__WSTOPFLG);
+				else
+					u.u_rval2 = (uprc->u_signo << 8) |
+							__WSTOPFLG;
 
-				unlock(pnxgate);
-				T_HAL(8, printf("[%d]ends waiting, %d stopped ",
-				  SELF->p_pid, pid));
+				workFree (work);
+
+				unlock (pnxgate);
+				T_HAL (8,
+				       printf ("[%d]ends waiting, %d stopped ",
+					       SELF->p_pid, pid));
 				return pp->p_pid;
 			}
 			if (pp->p_state == PSDEAD) {
 				ppp->p_cutime += pp->p_utime + pp->p_cutime;
 				ppp->p_cstime += pp->p_stime + pp->p_cstime;
-				u.u_rval2 = pp->p_exit;
+
+				if (statp != NULL)
+					putusd (statp, pp->p_exit);
+				else
+					u.u_rval2 = pp->p_exit;
 				pid = pp->p_pid;
-				unlock(pnxgate);
-				relproc(pp);
+				unlock (pnxgate);
+				relproc (pp);
 
 				if ((proc_signal_misc (ppp) &
 				     __SF_NOCLDWAIT) != 0)
 					goto again;
 
-				T_HAL(8, printf("[%d]ends waiting,"
-					  " %d died ", SELF->p_pid, pid));
+				T_HAL (8, printf ("[%d]ends waiting, %d died ",
+						  SELF->p_pid, pid));
 				return pid;
 			}
 			cpp = pp;
 		}
-		unlock(pnxgate);
+		unlock (pnxgate);
 		if (cpp == NULL) {
-			T_HAL(8, printf("[%d]ends waiting, no children ",
-			  SELF->p_pid));
+			T_HAL (8, printf ("[%d]ends waiting, no children ",
+					  SELF->p_pid));
 			u.u_error = ECHILD;
 			return;
 		}
@@ -739,9 +764,9 @@ int	*stat_loc, options;
 	for (;;) {
 		/* Look at all processes. */
 again:
-		lock(pnxgate);
+		lock (pnxgate);
 		cpp = NULL;
-		pp = &procq;
+		pp = & procq;
 		while ((pp=pp->p_nforw) != &procq) {
 
 			/* Ignore the current process. */
@@ -751,28 +776,22 @@ again:
 			 * Ignore processes that aren't children of the
 			 * current one.
 			 */
-			if (pp->p_ppid != ppp->p_pid)
-				continue;
-
-			if (pp->p_flags&PFSTOP)
+			if (pp->p_ppid != ppp->p_pid ||
+			    (pp->p_flags & PFSTOP) != 0)
 				continue;
 
 			/* If opid == 0 we want to match gids */
-			if ((opid == 0) && (pp->p_group != ppp->p_group))
-				continue;
-
 			/* If opid>0, want to match opid to child pid */
-			else if ((opid > 0) && (opid != pp->p_pid))
-				continue;
-
 			/* If opid<-1, want to match -opid to child gid */
-			else if ((opid < -1) && ((-opid) != pp->p_group))
+			if ((opid == 0 && pp->p_group != ppp->p_group) ||
+			    (opid > 0 && opid != pp->p_pid) ||
+			    (opid < -1 && - opid != pp->p_group))
 				continue;
 
 			/* if opid == -1, then any child is acceptable */
 
 			/* Here is an acceptable child that hit a breakpoint. */
-			if (pp->p_flags&PFWAIT) {
+			if (pp->p_flags & PFWAIT) {
 				int work;	/* virtual click number */
 				int childUseg;	/* system global addr */
 				UPROC * uprc;
@@ -784,17 +803,17 @@ again:
 				/* fetch u.u_signo from the child */
 
 				/* Find u area for child process pp */
-				sp = pp->p_segp[SIUSERP];
-				childUseg = MAPIO(sp->s_vmem, U_OFFSET);
-				work = workAlloc();
-				ptable1_v[work] =
-				  sysmem.u.pbase[btocrd(childUseg)] | SEG_RW;
-				mmuupd();
-				uprc = (UPROC *) (ctob(work) + U_OFFSET);
-				u.u_rval2 = ((uprc->u_signo)<<8) | 0177;
-				workFree(work);
+				sp = pp->p_segp [SIUSERP];
+				childUseg = MAPIO (sp->s_vmem, U_OFFSET);
+				work = workAlloc ();
+				ptable1_v [work] =
+				  sysmem.u.pbase [btocrd (childUseg)] | SEG_RW;
+				mmuupd ();
+				uprc = (UPROC *) (ctob (work) + U_OFFSET);
+				u.u_rval2 = (uprc->u_signo << 8) | __WSTOPFLG;
+				workFree (work);
 
-				unlock(pnxgate);
+				unlock (pnxgate);
 				return pp->p_pid;
 			}
 
@@ -804,8 +823,8 @@ again:
 				ppp->p_cstime += pp->p_stime + pp->p_cstime;
 				u.u_rval2 = pp->p_exit;
 				pid = pp->p_pid;
-				unlock(pnxgate);
-				relproc(pp);
+				unlock (pnxgate);
+				relproc (pp);
 
 				if ((proc_signal_misc (ppp) &
 				     __SF_NOCLDWAIT) != 0)
@@ -815,7 +834,7 @@ again:
 			}
 			cpp = pp;
 		}
-		unlock(pnxgate);
+		unlock (pnxgate);
 		if (cpp == NULL) {
 			u.u_error = ECHILD;
 			return;
@@ -831,3 +850,30 @@ again:
 				"waitpid");
 	}
 }
+
+/*
+ * Wait for a child to terminate.
+ *
+ * iBCS2 says the same system call number is wait() and waitpid(), the
+ * distinction being in how the psw is set on entry.
+ *
+ * iBCS2 fails to mention that when wait() or waitpid() report status
+ * by writing into the pointer supplied, the status is put into %edx by
+ * the kernel, and moved from there into user space by the function in
+ * libc.a.  uwait() and uwaitpid() specify a value for %edx by writing
+ * to u.u_rval2.
+ *
+ * Do wait() unless (ZF|PF|SF|OF) (=WPMASK) are set in psw.
+ */
+#define	WPMASK	0x8C4
+
+uwait386(arg1, arg2, arg3, regsetp)
+unsigned long	arg1;
+unsigned long	arg2;
+unsigned long	arg3;
+gregset_t     *	regsetp;
+{
+	return (regsetp->_i386._eflags & WPMASK) == WPMASK ?
+			uwaitpid (arg1, arg2, arg3) : uwait (NULL);
+}
+

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/null.c,v 1.7 93/04/14 10:06:37 root Exp $ */
+/* $Header: /ker/coh.386/RCS/null.c,v 2.2 93/07/26 14:28:57 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -25,6 +25,9 @@
  *  Minor device 11 is /dev/idle
  *
  * $Log:	null.c,v $
+ * Revision 2.2  93/07/26  14:28:57  nigel
+ * Nigel's R80
+ * 
  * Revision 1.7  93/04/14  10:06:37  root
  * r75
  * 
@@ -51,11 +54,12 @@
 #endif
 #define IDLE_DEV
 
+#include <kernel/typed.h>
+
 #include <sys/coherent.h>
 #include <sys/con.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
-#include <sys/typed.h>
 #include <sys/inode.h>
 #include <sys/seg.h>
 #include <sys/coh_ps.h>
@@ -204,7 +208,7 @@ register IO *iop;
 	unsigned char 		read_cmos();
 	extern typed_space 	boot_gift;
 
-	switch (minor(dev)) {
+	switch (minor (dev)) {
 	case DEV_NULL:
 		/*
 		 * Read nothing.
@@ -222,7 +226,8 @@ register IO *iop;
 			if (numBytes > iop->io_ioc)
 				numBytes = iop->io_ioc;
 
-			bytesRead = pxcopy(src, dest, numBytes, SEG_386_UD);
+			bytesRead = pxcopy (src, dest, numBytes,
+					    SEG_386_UD | R_USR);
 			src += bytesRead;
 			dest += bytesRead;
 			iop->io_ioc -= bytesRead;
@@ -235,7 +240,7 @@ register IO *iop;
 	}
 
 	case DEV_KMEM:
-		iowrite(iop, iop->io_seek, iop->io_ioc);
+		iowrite (iop, iop->io_seek, iop->io_ioc);
 		if (u.u_error == EFAULT)
 			u.u_error = 0;
 		break;
@@ -250,8 +255,9 @@ register IO *iop;
 		/*
 		 * Lock the clock before any reading.
 		 */
-		if (lock_clock() == 0) {
-			SET_U_ERROR(EIO, "RT clock will not settle.");
+
+		if (lock_clock () == 0) {
+			SET_U_ERROR (EIO, "RT clock will not settle.");
 			break;
 		}
 
@@ -292,26 +298,25 @@ register IO *iop;
 		 */
 		if (iop->io_seek < BG_LEN) {
 			bytesRead = iop->io_ioc;
+
 			/*
 			 * Copy no more than to the end of boot_gift.
 			 */
-			if (iop->io_seek + bytesRead > BG_LEN) {
-				bytesRead = BG_LEN - (iop->io_seek);
-			}
+			if (iop->io_seek + bytesRead > BG_LEN)
+				bytesRead = BG_LEN - iop->io_seek;
 
-			iowrite(iop,
-				(char *)(&boot_gift) + iop->io_seek,
-				bytesRead);
+			iowrite (iop, (char *) (& boot_gift) + iop->io_seek,
+				 bytesRead);
 		}
 		break;
 
 	case DEV_PS:
 		/* Lock the process table. It allows to have an atomic ps. */
-		lock(pnxgate);
+		lock (pnxgate);
 		/* Main driver loop. Go through all processes. Fill struct PS
 		 * and send put to user buffer.
 		 */
-		for (pp1 = &procq; (pp1=pp1->p_nforw) != &procq; ) {
+		for (pp1 = & procq; (pp1 = pp1->p_nforw) != & procq; ) {
 			register int		i;	/* loop index */
 			register unsigned	uLen, 	/* Process size */
 						uLenR;	/* Real process size */
@@ -319,13 +324,13 @@ register IO *iop;
 			int work;	/* virtual click number */
 
 			/* Check if driver can send next proc data */ 
-			if ( iop->io_ioc < sizeof(stMonitor)) 
+			if (iop->io_ioc < sizeof (stMonitor)) 
 				break;
 				
 			/* Calculate the size of process. */
 			uLen = uLenR = 0;
-			for (i = 0; i < NUSEG; i++) {
-				if ((sp=pp1->p_segp[i]) == NULL)
+			for (i = 0 ; i < NUSEG ; i++) {
+				if ((sp = pp1->p_segp [i]) == NULL)
 					continue;
 				uLenR += sp->s_size;
 				if (i == SIUSERP || i == SIAUXIL)
@@ -335,22 +340,23 @@ register IO *iop;
 			} 
 
 			/* Find u area for process pp1 */
-			sp = pp1->p_segp[SIUSERP];
-			ndpUseg = MAPIO(sp->s_vmem, U_OFFSET);
-			work = workAlloc();
-			ptable1_v[work] = 
-				   sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
-			uprc = (UPROC *) (ctob(work) + U_OFFSET);
-			kkcopy(uprc->u_comm, psData.u_comm, ARGSZ);
-			kkcopy(uprc->u_sleep, psData.u_sleep, U_SLEEP_LEN);
-			workFree(work);
+			sp = pp1->p_segp [SIUSERP];
+			ndpUseg = MAPIO (sp->s_vmem, U_OFFSET);
+			work = workAlloc ();
+			ptable1_v [work] = 
+				   sysmem.u.pbase [btocrd (ndpUseg)] | SEG_RW;
+			uprc = (UPROC *) (ctob (work) + U_OFFSET);
+			memcpy (psData.u_comm, uprc->u_comm, ARGSZ);
+			memcpy (psData.u_sleep, uprc->u_sleep, U_SLEEP_LEN);
+			workFree (work);
 
 #ifdef	TRACER
 			if (strncmp (psData.u_sleep, "lock",
 				     U_SLEEP_LEN) == 0) {
-				printf ("[%d] locked at %x lock = %x\n",
-					pp1->p_pid, pp1->p_event,
-					pp1->p_event [0]);
+				GATE	      *	g = pp1->p_event;
+				printf ("[%d] locked at %x lock %s (%d) = %x\n",
+					pp1->p_pid, g, g->_name, g->_count,
+					g->_lock [0]);
 			}
 			if (strncmp (psData.u_sleep, "bpwait",
 				     U_SLEEP_LEN) == 0) {
@@ -372,24 +378,28 @@ register IO *iop;
 			psData.p_event = pp1->p_event;
 			psData.p_ttdev = pp1->p_ttdev;
 			psData.p_nice = pp1->p_nice;
-			psData.size = (short) (uLen>>10);
-			psData.rsize = (short) (uLenR>>10);
+			psData.size = (short) (uLen >> 10);
+			psData.rsize = (short) (uLenR >> 10);
 			psData.p_schedPri = pp1->p_schedPri;
 			psData.p_utime = pp1->p_utime;
 			psData.p_stime = pp1->p_stime;
-			kkcopy(psBuf, psData.pr_argv, ARGSZ);
+
+			memcpy (psData.pr_argv, psBuf, ARGSZ);
+
 			/* send data to user */
-			iowrite(iop, (char *) &psData, sizeof(stMonitor));
+			iowrite (iop, (char *) & psData, sizeof (stMonitor));
 		}
-		unlock(pnxgate);
+		unlock (pnxgate);
 		break;
+
 	case DEV_KMEMHI:
-		iowrite(iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
+		iowrite (iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
 		if (u.u_error == EFAULT)
 			u.u_error = 0;
 		break;
+
 	default:
-		SET_U_ERROR(ENXIO, "nlread(): illegal minor device for null");
+		SET_U_ERROR (ENXIO, "nlread(): illegal minor device for null");
 	}
 	return;
 }
@@ -407,7 +417,7 @@ register IO *iop;
 	unsigned seek;
 	int	ch;
 
-	switch (minor(dev)) {
+	switch (minor (dev)) {
 	case DEV_NULL:
 		/*
 		 * Tell caller all bytes were written.
@@ -416,14 +426,15 @@ register IO *iop;
 		break;
 
 	case DEV_MEM:
-		while(iop->io_ioc) {
+		while (iop->io_ioc) {
 			int src = iop->io.pbase;
 			int dest = iop->io_seek;
 			int numBytes = PXCOPY_LIM;
 			if (numBytes > iop->io_ioc)
 				numBytes = iop->io_ioc;
 
-			bytesWrit = xpcopy(src, dest, numBytes, SEG_386_UD);
+			bytesWrit = xpcopy (src, dest, numBytes,
+					    SEG_386_UD | R_USR);
 			src += bytesWrit;
 			dest += bytesWrit;
 			iop->io_ioc -= bytesWrit;
@@ -435,7 +446,7 @@ register IO *iop;
 		break;
 
 	case DEV_KMEM:
-		ioread(iop, iop->io_seek, iop->io_ioc);
+		ioread (iop, iop->io_seek, iop->io_ioc);
 		break;
 
 	case DEV_CLOCK:
@@ -448,25 +459,26 @@ register IO *iop;
 		/*
 		 * Lock the clock before any writing.
 		 */
-		if (lock_clock() == 0) {
-			SET_U_ERROR(EIO, "RT clock will not settle.");
+		if (lock_clock () == 0) {
+			SET_U_ERROR (EIO, "RT clock will not settle.");
 			break;
 		}
 
 		/*
 		 * Write the requested data into the CMOS.
 		 */
-		for (seek = iop->io_seek; seek < CLOCK_LEN; seek++) {
-			if((ch = iogetc(iop)) == -1)
+
+		for (seek = iop->io_seek ; seek < CLOCK_LEN ; seek ++) {
+			if ((ch = iogetc (iop)) == -1)
 				break;
-			write_cmos(seek, ch);
+			write_cmos (seek, ch);
 		}
 
 		/*
 		 * Now that we are done writing the CMOS, let
 		 * the clock loose.
 		 */
-		unlock_clock();
+		unlock_clock ();
 		break;
 
 	case DEV_CMOS:
@@ -479,10 +491,10 @@ register IO *iop;
 		/*
 		 * Write the requested data into the CMOS.
 		 */
-		for (seek = iop->io_seek; seek < CMOS_LEN; seek++) {
-			if((ch = iogetc(iop)) == -1)
+		for (seek = iop->io_seek ; seek < CMOS_LEN ; seek ++) {
+			if ((ch = iogetc (iop)) == -1)
 				break;
-			write_cmos(seek, ch);
+			write_cmos (seek, ch);
 		}
 		break;
 
@@ -493,17 +505,18 @@ register IO *iop;
 		break;
 
 	case DEV_PS:
-		/* We should not be able to open /dev/ps to write.
+		/*
+		 * We should not be able to open /dev/ps to write.
 		 * Just paranoya.
 		 */
 		break;
 
 	case DEV_KMEMHI:
-		ioread(iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
+		ioread (iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
 		break;
 
 	default:
-		SET_U_ERROR(ENXIO,
+		SET_U_ERROR (ENXIO,
 			     "nlwrite(): illegal minor device for null");
 	}
 	return;
@@ -521,54 +534,56 @@ nlioctl(dev, cmd, vec)
 	char * vec;
 {
 	/* Only /dev/kmem and /dev/idle have an ioctl.  */
-	switch (minor(dev)) {
+	switch (minor (dev)) {
 #ifdef NULL_IOCTL
 	case DEV_KMEM:
 		switch (cmd) {
 #ifdef DANGEROUS
 		case NLCALL:	/* Call a function.  */
-		return docall(vec);
+		return docall (vec);
 #endif /* DANGEROUS */
 		default:
-			SET_U_ERROR(EINVAL,
+			SET_U_ERROR (EINVAL,
 				     "nioctl(): illegal command for kmem");
-			return(-1);
+			return -1;
 		}
 #endif /* NULL_IOCTL */
 #ifdef IDLE_DEV
 	case DEV_IDLE:
-	if (cmd != NLIDLE) { 
-		SET_U_ERROR(EINVAL,
-                        "nioctl(): illegal command for idle");
-                return(-1);
-	}
-        else {
-                register PROC *pp;
-                register int *mem = vec;
+		if (cmd != NLIDLE) { 
+			SET_U_ERROR (EINVAL,
+				     "nioctl(): illegal command for idle");
+			return -1;
+		} else {
+			register PROC *pp;
+			register int *mem = vec;
 
-                pp = &procq;                      /* point to process queue */
-                if (pp->p_pid != 0) {
-                    while ((pp = pp->p_nforw) != &procq)
-                        if (pp->p_pid == 0)       /* idle process ? */
-                                break;
-                }
 
-           /*
-            * At this point, pp->p_utime and pp->p_stime contain the idle
-            * time of the system process
-            */
-                if (pp->p_pid != 0)
-                        putuwd(mem++, 0);
-                else
-                        putuwd(mem++, pp->p_utime+pp->p_stime);
-                putuwd(mem,   lbolt);
-                return 1; 
-        }
+			pp = & procq;	/* point to process queue */
+
+			if (pp->p_pid != 0) {
+				while ((pp = pp->p_nforw) != &procq)
+					if (pp->p_pid == 0)       /* idle process ? */
+						break;
+			}
+
+			/*
+			 * At this point, pp->p_utime and pp->p_stime contain
+			 * the idle time of the system process
+			 */
+
+			if (pp->p_pid != 0)
+				putuwd (mem ++, 0);
+			else
+				putuwd (mem ++, pp->p_utime + pp->p_stime);
+			putuwd (mem, lbolt);
+			return 1; 
+		}
 
 #endif /* IDLE_DEV */
 	default:
 		SET_U_ERROR(EINVAL, "illegal minor device for null ioctl");
-		return (-1);
+		return -1;
 	} /* switch on minor device */
 
 } /* nlioctl() */
@@ -600,25 +615,24 @@ docall(uvec)
 	printf("NLCALL security hole.\n");
 
 	/* Fetch the first element of vec.  */
-	ukcopy(uvec, kvec, sizeof(unsigned));
+	ukcopy (uvec, kvec, sizeof (unsigned));
 
-	if ((kvec[0] < 2) || (kvec[0] > 7)) {
+	if (kvec [0] < 2 || kvec[0] > 7) {
 		/* Invalid number of elements in uvec.  */
-		SET_U_ERROR(EINVAL, "Invalid number of elements in uvec");
-		return(-1);
+		SET_U_ERROR (EINVAL, "Invalid number of elements in uvec");
+		return -1;
 	}
 	
 	/* Fetch the whole vector.  */
-	ukcopy(uvec, kvec, kvec[0] * sizeof(unsigned));
+	ukcopy (uvec, kvec, kvec [0] * sizeof (unsigned));
 
 	/* Extract the function.  */
-	func = (int (*)()) kvec[1];
+	func = (int (*)()) kvec [1];
 
 	/* Call the function with all arguments.  */
-	retval = (*func)(kvec[2], kvec[3], kvec[4], kvec[5], kvec[6]);
+	retval = (* func) (kvec [2], kvec [3], kvec [4], kvec [5], kvec [6]);
 
-	kucopy(&retval, uvec, sizeof(unsigned));
-
+	kucopy (& retval, uvec, sizeof (unsigned));
 } /* docall() */
 
 #endif /* DANGEROUS */
@@ -637,9 +651,10 @@ lock_clock()
 	 * Wait for the clock to settle.  If it does not settle in
 	 * a reasonable amount of time, give up.
 	 */
+
 	i = 65536;	/* Loop for a longish time.  */
-	while (--i > 0) {
-		if (0 == (UIP & read_cmos(SRA))) {
+	while (-- i > 0) {
+		if (0 == (UIP & read_cmos (SRA))) {
 			break;	/* Break if there is no update in progress.  */
 		}
 	}
@@ -660,8 +675,7 @@ lock_clock()
 	 * Lock out updates.
 	 * We set the No Updates bit in Clock Status Register B.
 	 */
-	write_cmos(SRB, (NO_UPD | read_cmos(SRB)));
-
+	write_cmos (SRB, read_cmos (SRB) | NO_UPD);
 	return 1;
 } /* lock_clock() */
 
@@ -674,5 +688,5 @@ unlock_clock()
 	/*
 	 * We clear the No Updates bit in Clock Status Register B.
 	 */
-	write_cmos(SRB, ((~ NO_UPD) & read_cmos(SRB)));
+	write_cmos (SRB, read_cmos(SRB) & ~ NO_UPD);
 } /* unlock_clock() */

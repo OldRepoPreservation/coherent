@@ -580,9 +580,9 @@ register struct sgttyb *vec;
 	 * TIOCSETC writes new t_chars and converts so as to update termio.
 	 */
 	switch (com) {
-#ifdef _I386
+#if	_I386
 	case TCGETA:
-		if (!kucopyS(&tp->t_termio, vec, sizeof(struct termio)))
+		if (! kucopyS (& tp->t_termio, vec, sizeof (struct termio)))
 			return;
 		break;
 
@@ -625,22 +625,24 @@ register struct sgttyb *vec;
 		break;
 
 	case TIOCGETP:
-		if (XMODE_386 && ! useracc (vec, sizeof (struct sgttyb), 1)) {
-			u.u_error = EFAULT;
-			return;
-		}
+		/*
+		 * The addressability checking for this is carried out at
+		 * a higher level in order to support i286 Coherent binaries.
+		 */
 		kucopy (& tp->t_sgttyb, vec, SGTTY_CPY_LEN);
 		break;
 
 	case TIOCSETP:
-		if (XMODE_386 && ! useracc(vec, sizeof (struct sgttyb), 0)) {
-			u.u_error = EFAULT;
-			return;
-		}
 		DUMPSGTTY (& tp->t_sgttyb);
 		++ inFlush;	/* flush input */
 		++ outDrain;	/* delay for output */
 		++ rload;
+
+		/*
+		 * The addressability checking for this is carried out at
+		 * a higher level in order to support i286 Coherent binaries.
+		 */
+
 		ukcopy (vec, & tp->t_sgttyb, SGTTY_CPY_LEN);
 		make_termio (& tp->t_sgttyb, & tp->t_tchars, & tp->t_termio);
 		break;
@@ -649,12 +651,15 @@ register struct sgttyb *vec;
 		was_bbyb = ! _IS_CANON_MODE (tp);	/* previous mode */
 		DUMPSGTTY (& tp->t_sgttyb);
 		++ rload;
-		if (XMODE_386 && ! useracc(vec, sizeof(struct sgttyb), 0)) {
-			u.u_error = EFAULT;
-			return;
-		}
+
+		/*
+		 * The addressability checking for this is carried out at
+		 * a higher level in order to support i286 Coherent binaries.
+		 */
+
 		ukcopy(vec, & tp->t_sgttyb, SGTTY_CPY_LEN);
 		make_termio (& tp->t_sgttyb, & tp->t_tchars, & tp->t_termio);
+
 		if (! was_bbyb && ! _IS_CANON_MODE (tp))
 			ttrtp (tp);
 		break;
@@ -672,19 +677,19 @@ register struct sgttyb *vec;
 		break;
 
 	case TIOCEXCL:
-		prev_pl = sphi();
+		prev_pl = sphi ();
 		tp->t_flags |= T_EXCL;
 		spl (prev_pl);
 		break;
 
 	case TIOCNXCL:
-		prev_pl = sphi();
+		prev_pl = sphi ();
 		tp->t_flags &= ~T_EXCL;
 		spl (prev_pl);
 		break;
 
 	case TIOCHPCL:		/* set hangup on last close */
-		prev_pl = sphi();
+		prev_pl = sphi ();
 		tp->t_flags |= T_HPCL;
 		spl (prev_pl);
 #ifdef _I386
@@ -711,7 +716,7 @@ register struct sgttyb *vec;
 
 #ifdef _I386
 	case TCFLSH:
-		switch ((int)vec) {
+		switch ((int) vec) {
 		case 0:  inFlush ++;  break;
 		case 1:  outFlush ++;  break;
 		case 2:  inFlush ++; outFlush ++;  break;
@@ -1013,7 +1018,7 @@ register int c;
 				goto ttin_ret;
 			dc = tp->t_ib [-- tp->t_ibx];
 			if (_IS_ECHO_MODE (tp)) {
-				if (!_IS_CRT_MODE (tp))
+				if (! _IS_CRT_MODE (tp))
 					cltputq (& tp->t_oq, c);
 				/* don't erase for bell, null, or rubout */
 #if NOT_8_BIT
@@ -1302,7 +1307,7 @@ register TTY *tp;
 	ttsignal (tp, SIGHUP);
 }
 
-#ifdef _I386
+#if	_I386
 /*
  * Convert from sgttyb and tchars structs to termio.
  */
@@ -1403,8 +1408,8 @@ struct termio * trp;
 struct sgttyb * sgp;
 struct tchars * tcp;
 {
-	T_HAL(1, { printf("T:%x:%x:%x:%x ", trp->c_iflag, trp->c_oflag, \
-	  trp->c_cflag, trp->c_lflag);});
+	T_HAL(1, printf("T:%x:%x:%x:%x ", trp->c_iflag, trp->c_oflag,
+	  trp->c_cflag, trp->c_lflag));
 	tcp->t_intrc = trp->c_cc [VINTR];
 	tcp->t_quitc = trp->c_cc [VQUIT];
 	tcp->t_startc= __CTRL ('Q');
@@ -1413,7 +1418,7 @@ struct tchars * tcp;
 	tcp->t_brkc  = -1;
 
 	sgp->sg_erase  = trp->c_cc [VERASE];
-	sgp->sg_kill   = trp->c_cc [VKILL ];
+	sgp->sg_kill   = trp->c_cc [VKILL];
 	sgp->sg_ispeed = trp->c_cflag & CBAUD;
 	sgp->sg_ospeed = sgp->sg_ispeed;
 	sgp->sg_flags  = RAWIN | RAWOUT | CBREAK;

@@ -1,15 +1,9 @@
 /*
- * File:	ndp.c
+ * ker/i386/ndp.c
  *
- * Purpose:	all ndp-related functions, except for assembler routines
+ * All ndp-related functions, except for assembler routines
  *
- * $Log:	ndp.c,v $
- * Revision 1.2  93/04/14  10:27:57  root
- * r75
- * 
- * Revision 1.1  92/11/09  17:09:23  root
- * Just before adding vio segs.
- * 
+ * Revised: Mon Aug  2 02:44:03 1993 CDT
  */
 
 /*
@@ -21,6 +15,7 @@
 
 #include <sys/coherent.h>
 #include <sys/errno.h>
+#include <sys/ndp.h>
 #include <sys/seg.h>
 
 /*
@@ -31,20 +26,7 @@
  *	Typedefs.
  *	Enums.
  */
-/* bit positions in u.u_ndpFlags */
-#define NF_NDP_USER	1	/* this process has used the ndp */
-#define NF_NDP_SAVED	2	/* ndp status is saved in u area */
-#define NF_EM_TRAPPED	4	/* no ndp, em trap has occurred */
 
-/* supported coprocessor types - will autosense if initially unpatched */
-#define NDP_TYPE_UNPATCHED	0
-#define NDP_TYPE_NONE		1
-#define NDP_TYPE_287		2
-#define NDP_TYPE_387		3
-#define NDP_TYPE_486		4
-
-#define NDP_IRQ		13	/* 387 uses Irq for unmasked exceptions */
-#define NDP_PORT	0xF0	/* 387 uses this port to clear exception */
 /*
  * ----------------------------------------------------------------------
  * Functions.
@@ -99,16 +81,16 @@ void	wrNdpUser();
  *   0000 : 00 10 : 0 1 1 1 : 0 0 1 0 = 0x0272
  */
 
-/* Patchable ndp-related variables. */
-short	ndpCW = 0x0272;	/* NDP Control Word at start of each NDP process. */
-short	ndpDump = 0;	/* Patch to 1 for NDP register dump on FP exceptions. */
-short	ndpType = NDP_TYPE_UNPATCHED;	/* Patch overrides NDP type sensing. */
-int	ndpEmSig = SIGFPE;	/* signal sent on receiving emulator traps */
+/* Configurable ndp-related variables. */
+extern short	ndpCW;
+extern short	ndpDump;
+extern short	ndpType;
+extern int	ndpEmSig;
 
 /* Patchable emulator-related function pointers. */
-int	(*ndpEmFn)() = 0;
-int	(*ndpKfsave)() = 0;
-int	(*ndpKfrstor)() = 0;
+extern int	(*ndpEmFn)();
+extern int	(*ndpKfsave)();
+extern int	(*ndpKfrstor)();
 
 static int	kerEm = 1;	/* RAM copy of CR0 EM bit */
 static int	ndpUseg;	/* system global address of U segment */
@@ -466,7 +448,7 @@ ndpMine()
 void
 senseNdp()
 {
-	if (ndpType == NDP_TYPE_UNPATCHED) {
+	if (ndpType == NDP_TYPE_AUTO) {
 		ndpEmTraps (0);		/* Will need to do some FP code. */
 		ndpType = ndpSense ();	/* Rely on assembler tricks now. */
 		ndpEmTraps (1);

@@ -1,5 +1,38 @@
 Changes to kernel and related files for version #80:
 
+NOTE: The SCSI-problems reported by Nigel in R79 seem to be related to
+hardware problems on his 486, as the HAI driver fails similarly on that
+hardware, and the AHA drivers works fine everywhere else.
+
+The following headers have been deleted:
+	access.h, action.h, disp.h, ebcdic.h, larges.h, timef.h
+	sys/ascii.h, sys/fun.h, sys/chars.h, sys/dir.h sys/malloc.h
+
+The following headers have been moved to /usr/include/kernel, and are no
+longer accessible to user-level code (more will follow):
+	sys/alloc.h, sys/const.h, sys/fakeff.h, sys/machine.h, sys/param.h,
+	sys/reg.h, sys/typed.h
+
+The above header changes plus the following changes from Nigel have required
+global modification to almost every single kernel module.
+	The global u.u_regl in the U area has been removed, requiring vast
+	changes to system-call handling, signalling, and subtle changes to
+	much system-call code, in addition to changing the U area.
+
+	The stack-access constants from <kernel/reg.h> moved to <ieeefp.h>,
+	and are no longer used in the kernel.
+
+	The u.u_args global was removed from the U area, requiring further
+	changes to system calls and signalling.
+
+	The u.u_direct and u.u_io global structures removed from the U area,
+	requiring changes to all filesystem-related system calls, and
+	considerably changing the calling protocol of ftoi ().
+
+08/01	curses.h: Colour modifications.
+08/01	sys/patch.h: Added, ioctl () interface to patch driver.
+
+Before R80 was turned over to Nigel:
 07/19  haiscsi.h,haiinst.h,hai154x.c,haicfg.c,haict.c,haisd.c,haiscsi.c:
        revision 2 from Chris Hilton
 07/19  rlock.c: return EACCES, not EAGAIN when locking fails.

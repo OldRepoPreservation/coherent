@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/clist.c,v 1.4 93/04/14 10:06:18 root Exp $ */
+/* $Header: /ker/coh.386/RCS/clist.c,v 2.1 93/07/07 10:45:36 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -84,7 +84,7 @@ register CQUEUE *cqp;
 			wakeup((char *)&cltwant);
 		}
 #ifdef TRACER
-		T_HAL(0x0040, {nclfree++; printf("F%d ", nclfree);});
+		T_HAL(0x0040, (nclfree++, printf("F%d ", nclfree)));
 #endif
 	}
 	spl(s);
@@ -117,7 +117,7 @@ register CQUEUE *cqp;
 			cvirt(np)->cl_fp = ip;
 		}
 		cqp->cq_ip = ip;
-		T_HAL(0x0040, { nclfree--; printf("f%d ", nclfree);});
+		T_HAL(0x0040, (nclfree--, printf("f%d ", nclfree)));
 	}
 	cvirt(ip)->cl_ch[ix] = c;
 	if (++cqp->cq_ix == NCPCL)

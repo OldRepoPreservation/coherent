@@ -1,4 +1,4 @@
-/* $Header: /y/i386/RCS/dmalock.c,v 1.1 93/04/14 10:26:34 root Exp $
+/* $Header: /ker/i386/RCS/dmalock.c,v 2.2 93/07/26 13:55:59 nigel Exp $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, Ltd, and is  confidential information.   It is provided
@@ -15,11 +15,14 @@
  * $Description: $
  *	Routines to lock/unlock the DMA controller chip.
  *
- * $Author: root $
+ * $Author: nigel $
  *
  * $Creation: June 21, 1989 $
  *
  * $Log:	dmalock.c,v $
+ * Revision 2.2  93/07/26  13:55:59  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  93/04/14  10:26:34  root
  * r75
  * 
@@ -28,8 +31,7 @@
  * 
  */
 
-#define	__KERNEL__	1
-#include <sys/timeout.h>
+#include <kernel/timeout.h>
 
 typedef void (* vfp_t)();		/* Void function pointer type.	     */
 

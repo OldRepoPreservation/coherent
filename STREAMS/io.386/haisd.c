@@ -7,18 +7,20 @@
  *
  *  Copyright (c) 1993, Christopher Sean Hilton. All rights reserved.
  *
- *  Last Modified: Thu Jun 24 22:51:19 1993 by [chris]
+ *  Last Modified: Mon Jul 26 17:16:43 1993 by [chris]
  *
  *  This code assumes BSIZE == (1 << 9).
  *
  *  $Id: haisd.c,v 1.0 93/06/27 18:24:26 chris Exp Locker: chris $
+ *
+ *  $Log$
  */
 
 #include <stddef.h>
 #include <sys/fdisk.h>
 #include <sys/coherent.h>
 #include <sys/buf.h>
-#include <sys/file.h>
+#include <sys/inode.h>
 #include <sys/stat.h>
 #include <sys/sched.h>
 #include <sys/sdioctl.h>    /* This is not the Coherent sdioctl.h */
@@ -27,49 +29,48 @@
 
 #include <sys/haiscsi.h>
 
-unsigned SDS_HDS = 64;
+#define REMOVABLE_MEDIA 0       /* Support Removable media? */
 
-#define REMOVABLE_MEDIA 0	/* Support Removable media? */
+#define INQBUFSZ        64
 
-#define INQBUFSZ	64
+#define SDIDLE          0
+#define SDINIT          1
+#define SDIO            2
+#define SDSENSE         3
+#define SDIOCTL         4
 
-#define SDIDLE		0
-#define SDINIT		1
-#define SDIO		2
-#define SDSENSE 	3
-
-#define INQUIRY 	0x12
-#define GETCAPACITY	0x25
-#define REQSENSE	0x03
-#define G1READ		0x28
-#define G1WRITE 	0x2a
+#define INQUIRY         0x12
+#define GETCAPACITY     0x25
+#define REQSENSE        0x03
+#define G1READ          0x28
+#define G1WRITE         0x2a
 
 typedef struct partlim_s *partlim_p;
 
 typedef struct partlim_s {
-	unsigned long	base;	/* base of the partition (blocks) */
-	unsigned long	size;	/* size of the partition (blocks) */
+    unsigned long   base;       /* base of the partition (blocks) */
+    unsigned long   size;       /* size of the partition (blocks) */
 } partlim_t;
 
 typedef struct sdctrl_s *sdctrl_p;
 
 typedef struct sdctrl_s {
-	unsigned short	state;
-	unsigned short	lastclose;
-	BUF 		*actf,
-			*actl;
-	srb_t		srb;
-	partlim_t	plim[1 + 4];	/* special device (1) + all partitions (4) */
-	BUF 		buf;
+    unsigned short  state;
+    unsigned short  lastclose;
+    BUF             *actf,
+                    *actl;
+    srb_t           srb;
+    partlim_t       plim[1 + 4];    /* special device (1) + all partitions (4) */
+    BUF             buf;
 } sdctrl_t;
 
-static int sdload();	/* Initialize a SCSI device at (id) */
-static void sdopen();	/* Open SCSI DASD at (dev) */
-static void sdclose();	/* Close SCSI DASD at (dev) */
-static void sdblock();	/* Block Entry Point */
-static void sdread();	/* Read SCSI DASD at (dev) */
-static void sdwrite();	/* Write SCSI DASD at (dev) */
-static void sdioctl();	/* I/O Control for DASD. */
+static int sdload();            /* Initialize a SCSI device at (id) */
+static void sdopen();           /* Open SCSI DASD at (dev) */
+static void sdclose();          /* Close SCSI DASD at (dev) */
+static void sdblock();          /* Block Entry Point */
+static void sdread();           /* Read SCSI DASD at (dev) */
+static void sdwrite();          /* Write SCSI DASD at (dev) */
+static void sdioctl();          /* I/O Control for DASD. */
 
 extern int nulldev();
 extern int nonedev();
@@ -77,33 +78,33 @@ extern int nonedev();
 static void sdstart();
 static void sdfinish();
 
-#define partindex(d)	((((d) & (SPECIAL | PARTMASK)) == 0x80) ? 0 : ((d) & PARTMASK) + 1)
+#define partindex(d)    ((((d) & (SPECIAL | PARTMASK)) == 0x80) ? 0 : ((d) & PARTMASK) + 1)
 
 dca_t sddca = {
-	sdopen, 	/* Open */
-	sdclose,	/* Close */
-	sdblock,	/* Block */
-	sdread, 	/* Read */
-	sdwrite,	/* Write */
-	sdioctl,	/* Ioctl */
-	sdload, 	/* Load */
-	nulldev,	/* Unload */
-	nulldev 	/* Poll */
+    sdopen,         /* Open */
+    sdclose,        /* Close */
+    sdblock,        /* Block */
+    sdread,         /* Read */
+    sdwrite,        /* Write */
+    sdioctl,        /* Ioctl */
+    sdload,         /* Load */
+    nulldev,        /* Unload */
+    nulldev         /* Poll */
 };
 
 #if REMOVABLE_MEDIA
-static int rmsdload();	/* Removable Media Disks */
+static int rmsdload();          /* Removable Media Disks */
 
 dca_t rmsddca = {
-	sdopen, 	/* Open */
-	sdclose,	/* Close */
-	sdblock,	/* Block */
-	sdread, 	/* Read */
-	sdwrite,	/* Write */
-	sdioctl,	/* Ioctl */
-	rmsdload,	/* Load */
-	nulldev,	/* Unload */
-	nulldev 	/* Poll */
+    sdopen,         /* Open */
+    sdclose,        /* Close */
+    sdblock,        /* Block */
+    sdread,         /* Read */
+    sdwrite,        /* Write */
+    sdioctl,        /* Ioctl */
+    rmsdload,       /* Load */
+    nulldev,        /* Unload */
+    nulldev         /* Poll */
 };
 #endif
 
@@ -122,211 +123,212 @@ static sdctrl_p sddevs[MAXDEVS];
 static int sdload(id)
 register int id;
 {
-	register sdctrl_p	c;
-	register srb_p		r;
-	int 			timeout;
-	char			inqbuf[INQBUFSZ];
-	long			diskcap[2];
+    register sdctrl_p c;
+    register srb_p r;
+    int timeout;
+    char inqbuf[INQBUFSZ];
+    long diskcap[2];
 
-	c = kalloc(sizeof(sdctrl_t));
-	if (!c) {
-		printf("\tout of memory in sdload(): ");
-		return 0;
-	}
+	_CHIRP('Q', 143);
+    c = kalloc(sizeof(sdctrl_t));
+    if (!c) {
+        printf("\tout of memory in sdload(): ");
+        return 0;
+    }
 
-	memset(c, 0, sizeof(sdctrl_t));
-	c->state = SDINIT;
-	r = &(c->srb);
-	r->dev = makedev(SCSIMAJOR, SPECIAL | (id << 4));
-	r->target = id;
-	r->lun = 0;
-	r->timeout = 0;
-	r->cleanup = NULL;
-	r->xferdir = DMAREAD;
+    memset(c, 0, sizeof(sdctrl_t));
+    c->state = SDINIT;
+    r = &(c->srb);
+    r->dev = makedev(SCSIMAJOR, SPECIAL | (id << 4));
+    r->target = id;
+    r->lun = 0;
+    r->timeout = 0;
+    r->cleanup = NULL;
+    r->xferdir = DMAREAD;
 
-	/* Request Sense to clear reset condition. */
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) r->sensebuf;
-	r->buf. size = sizeof(r->sensebuf);
-	memset(&(r->cdb), 0, sizeof(cdb_t));
-	r->cdb. g0. opcode = REQSENSE;
-	r->cdb. g0. xfr_len = sizeof(r->sensebuf);
-	startscsi(r);
-	timeout = 1000000L;
-	while (r->status == ST_PENDING && --timeout > 0L)
-		;
+    /* Request Sense to clear reset condition. */
+    r->buf. space = KRNL_ADDR;
+    r->buf. addr. caddr = (caddr_t) r->sensebuf;
+    r->buf. size = sizeof(r->sensebuf);
+    memset(&(r->cdb), 0, sizeof(cdb_t));
+    r->cdb. g0. opcode = REQSENSE;
+    r->cdb. g0. xfr_len = sizeof(r->sensebuf);
+    startscsi(r);
+    timeout = 1000000L;
+    while (r->status == ST_PENDING && --timeout > 0L)
+        ;
 
-	if (r->status != ST_GOOD) {
-		printf("\tRequest sense failed: status (0x%x)\n", r->status);
-		kfree(c);
-		return 0;
-	}
+    if (r->status != ST_GOOD) {
+        printf("\tRequest sense failed: status (0x%x)\n", r->status);
+        kfree(c);
+        return 0;
+    }
 
-	/* Inquiry to make sure that this is a disk drive */
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) inqbuf;
-	r->buf. size = sizeof(inqbuf);
-	memset(&(r->cdb), 0, sizeof(cdb_t));
-	r->cdb. g0. opcode = INQUIRY;
-	r->cdb. g0. xfr_len = sizeof(inqbuf);
-	startscsi(r);
-	timeout = 1000000L;
-	while (r->status == ST_PENDING && --timeout > 0L)
-		;
+    /* Inquiry to make sure that this is a disk drive */
+    r->buf. space = KRNL_ADDR;
+    r->buf. addr. caddr = (caddr_t) inqbuf;
+    r->buf. size = sizeof(inqbuf);
+    memset(&(r->cdb), 0, sizeof(cdb_t));
+    r->cdb. g0. opcode = INQUIRY;
+    r->cdb. g0. xfr_len = sizeof(inqbuf);
+    startscsi(r);
+    timeout = 1000000L;
+    while (r->status == ST_PENDING && --timeout > 0L)
+        ;
 
-	if (r->status != ST_GOOD) {
-		printf("\tInquiry failed status: (0x%x)\n", r->status);
-		kfree(c);
-		return 0;
-	}
-	if (inqbuf[0] != 0) {
-		printf("\tDevice type byte: (0x%x) - not a DASD\n", inqbuf[0]);
-		kfree(c);
-		return 0;
-	}
-	else if (inqbuf[1] & 0x80) {
-		printf("\tRemovable Media Not supported yet.\n");
-		kfree(c);
-		return 0;
-	}
+    if (r->status != ST_GOOD) {
+        printf("\tInquiry failed status: (0x%x)\n", r->status);
+        kfree(c);
+        return 0;
+    }
+    if (inqbuf[0] != 0) {
+        printf("\tDevice type byte: (0x%x) - not a DASD\n", inqbuf[0]);
+        kfree(c);
+        return 0;
+    }
+    else if (inqbuf[1] & 0x80) {
+        printf("\tRemovable Media Not supported yet.\n");
+        kfree(c);
+        return 0;
+    }
 
-	/* Get Capacity to set up the drive for use */
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) diskcap;
-	r->buf. size = sizeof(diskcap);
-	diskcap[0] = diskcap[1] = 0;
-	memset(&r->cdb, 0, sizeof(cdb_t));
-	r->cdb. g1. opcode = GETCAPACITY;
-	startscsi(r);
-	timeout = 1000000L;
-	while (r->status == ST_PENDING && --timeout > 0L)
-		;
+    /* Get Capacity to set up the drive for use */
+    r->buf. space = KRNL_ADDR;
+    r->buf. addr. caddr = (caddr_t) diskcap;
+    r->buf. size = sizeof(diskcap);
+    diskcap[0] = diskcap[1] = 0;
+    memset(&r->cdb, 0, sizeof(cdb_t));
+    r->cdb. g1. opcode = GETCAPACITY;
+    startscsi(r);
+    timeout = 1000000L;
+    while (r->status == ST_PENDING && --timeout > 0L)
+        ;
 
-	if (r->status != ST_GOOD) {
-		printf("\tGet Capacity Failed: 0x%x\n", r->status);
-		kfree(c);
-		return 0;
-	}
-	flip(diskcap[0]);
-	flip(diskcap[1]);
-	if (diskcap[1] != BSIZE) {
-		printf("\tInvalid Block Size %d Reformat with %d Bytes/Block\n", diskcap[1], BSIZE);
-		kfree(c);
-		return 0;
-	}
+    if (r->status != ST_GOOD) {
+        printf("\tGet Capacity Failed: 0x%x\n", r->status);
+        kfree(c);
+        return 0;
+    }
+    flip(diskcap[0]);
+    flip(diskcap[1]);
+    if (diskcap[1] != BSIZE) {
+        printf("\tInvalid Block Size %d Reformat with %d Bytes/Block\n", diskcap[1], BSIZE);
+        kfree(c);
+        return 0;
+    }
 
-	inqbuf[36] = '\0';
-	printf("\t%s %d MB\n", (inqbuf + 8), (diskcap[0] + bit(10)) >> 11);
-	sddevs[id] = c;
-	sddevs[id]->state = SDIDLE;
-	sddevs[id]->plim[0]. base = 0;
-	sddevs[id]->plim[0]. size = diskcap[0];
-	sddevs[id]->actf = sddevs[id]->actl = NULL;
-	return 1;
+    inqbuf[36] = '\0';
+    printf("\t%s %d MB\n", (inqbuf + 8), (diskcap[0] + bit(10)) >> 11);
+    sddevs[id] = c;
+    sddevs[id]->state = SDIDLE;
+    sddevs[id]->plim[0]. base = 0;
+    sddevs[id]->plim[0]. size = diskcap[0];
+    sddevs[id]->actf = sddevs[id]->actl = NULL;
+    return 1;
 }   /* sdload() */
 
 #if REMOVABLE_MEDIA
 static int rmsdload(id)
 register int id;
 {
-	register sdctrl_p c;
-	register srb_p r;
-	int timeout;
-	long diskcap[2];
+    register sdctrl_p c;
+    register srb_p r;
+    int timeout;
+    long diskcap[2];
 
-	c = kalloc(sizeof(sdctrl_t));
-	if (!c) {
-		printf("\tout of memory in rmsdload(): ");
-		return 0;
-	}
+    c = kalloc(sizeof(sdctrl_t));
+    if (!c) {
+        printf("\tout of memory in rmsdload(): ");
+        return 0;
+    }
 
-	memset(c, 0, sizeof(sdctrl_t));
-	c->state = SDINIT;
-	r = &(c->srb);
-	r->dev = makedev(SCSIMAJOR, SPECIAL | (id << 4));
-	r->target = id;
-	r->lun = 0;
-	r->timeout = 0;
-	r->cleanup = NULL;
-	r->xferdir = DMAREAD;
+    memset(c, 0, sizeof(sdctrl_t));
+    c->state = SDINIT;
+    r = &(c->srb);
+    r->dev = makedev(SCSIMAJOR, SPECIAL | (id << 4));
+    r->target = id;
+    r->lun = 0;
+    r->timeout = 0;
+    r->cleanup = NULL;
+    r->xferdir = DMAREAD;
 
-	/* Request Sense to clear reset condition. */
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) r->sensebuf;
-	r->buf. size = sizeof(r->sensebuf);
-	memset(&(r->cdb), 0, sizeof(cdb_t));
-	r->cdb. g0. opcode = REQSENSE;
-	r->cdb. g0. xfr_len = sizeof(r->sensebuf);
-	startscsi(r);
-	timeout = 1000000L;
-	while (r->status == ST_PENDING && --timeout > 0L)
-		;
+    /* Request Sense to clear reset condition. */
+    r->buf. space = KRNL_ADDR;
+    r->buf. addr. caddr = (caddr_t) r->sensebuf;
+    r->buf. size = sizeof(r->sensebuf);
+    memset(&(r->cdb), 0, sizeof(cdb_t));
+    r->cdb. g0. opcode = REQSENSE;
+    r->cdb. g0. xfr_len = sizeof(r->sensebuf);
+    startscsi(r);
+    timeout = 1000000L;
+    while (r->status == ST_PENDING && --timeout > 0L)
+        ;
 
-	if (r->status != ST_GOOD) {
-		printf("\tRequest sense failed: status (0x%x)\n", r->status);
-		kfree(c);
-		return 0;
-	}
+    if (r->status != ST_GOOD) {
+        printf("\tRequest sense failed: status (0x%x)\n", r->status);
+        kfree(c);
+        return 0;
+    }
 
-	/* Inquiry to make sure that this is a disk drive */
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) c->inqbuf;
-	r->buf. size = sizeof(c->inqbuf);
-	memset(&(r->cdb), 0, sizeof(cdb_t));
-	r->cdb. g0. opcode = INQUIRY;
-	r->cdb. g0. xfr_len = sizeof(c->inqbuf);
-	startscsi(r);
-	timeout = 1000000L;
-	while (r->status == ST_PENDING && --timeout > 0L)
-		;
+    /* Inquiry to make sure that this is a disk drive */
+    r->buf. space = KRNL_ADDR;
+    r->buf. addr. caddr = (caddr_t) c->inqbuf;
+    r->buf. size = sizeof(c->inqbuf);
+    memset(&(r->cdb), 0, sizeof(cdb_t));
+    r->cdb. g0. opcode = INQUIRY;
+    r->cdb. g0. xfr_len = sizeof(c->inqbuf);
+    startscsi(r);
+    timeout = 1000000L;
+    while (r->status == ST_PENDING && --timeout > 0L)
+        ;
 
-	if (r->status != ST_GOOD) {
-		printf("\tInquiry failed status: (0x%x)\n", r->status);
-		kfree(c);
-		return 0;
-	}
-	if (c->inqbuf[0] != 0) {
-		printf("\tDevice type byte: (0x%x) - not a DASD\n", c->inqbuf[0]);
-		kfree(c);
-		return 0;
-	}
-	else if ((c->inqbuf[1] & 0x80) == 0)
-		printf("\tConfiguration error ID %d is fixed media.\n", id);
+    if (r->status != ST_GOOD) {
+        printf("\tInquiry failed status: (0x%x)\n", r->status);
+        kfree(c);
+        return 0;
+    }
+    if (c->inqbuf[0] != 0) {
+        printf("\tDevice type byte: (0x%x) - not a DASD\n", c->inqbuf[0]);
+        kfree(c);
+        return 0;
+    }
+    else if ((c->inqbuf[1] & 0x80) == 0)
+        printf("\tConfiguration error ID %d is fixed media.\n", id);
 
-	/* Get Capacity to set up the drive for use */
-	r->buf. space = KRNL_ADDR;
-	r->buf. addr. vaddr = (vaddr_t) diskcap;
-	r->buf. size = sizeof(diskcap);
-	diskcap[0] = diskcap[1] = 0;
-	memset(&r->cdb, 0, sizeof(cdb_t));
-	r->cdb. g1. opcode = GETCAPACITY;
-	startscsi(r);
-	timeout = 1000000L;
-	while (r->status == ST_PENDING && --timeout > 0L)
-		;
+    /* Get Capacity to set up the drive for use */
+    r->buf. space = KRNL_ADDR;
+    r->buf. addr. caddr = (caddr_t) diskcap;
+    r->buf. size = sizeof(diskcap);
+    diskcap[0] = diskcap[1] = 0;
+    memset(&r->cdb, 0, sizeof(cdb_t));
+    r->cdb. g1. opcode = GETCAPACITY;
+    startscsi(r);
+    timeout = 1000000L;
+    while (r->status == ST_PENDING && --timeout > 0L)
+        ;
 
-	if (r->status != ST_GOOD) {
-		printf("\tGet Capacity Failed: 0x%x\n", r->status);
-		kfree(c);
-		return 0;
-	}
-	flip(diskcap[0]);
-	flip(diskcap[1]);
-	printf("Get Capacity results count: %d, size %d\n", diskcap[0], diskcap[1]);
-/*        if (diskcap[1] != BSIZE) {
-                printf("\tInvalid Block Size %d Reformat with %d Bytes/Block\n", diskcap[1], BSIZE);
-                kfree(c);
-                return 0;
-        }
+    if (r->status != ST_GOOD) {
+        printf("\tGet Capacity Failed: 0x%x\n", r->status);
+        kfree(c);
+        return 0;
+    }
+    flip(diskcap[0]);
+    flip(diskcap[1]);
+    printf("Get Capacity results count: %d, size %d\n", diskcap[0], diskcap[1]);
+/*    if (diskcap[1] != BSIZE) {
+        printf("\tInvalid Block Size %d Reformat with %d Bytes/Block\n", diskcap[1], BSIZE);
+        kfree(c);
+        return 0;
+    }
 */
-	c->inqbuf[36] = '\0';
-	printf("\t%s %d MB\n", (c->inqbuf + 8), (diskcap[0] + bit(10)) >> 11);
-	sddevs[id] = c;
-	sddevs[id]->state = SDIDLE;
-	sddevs[id]->plim[0]. base = 0;
-	sddevs[id]->plim[0]. size = diskcap[0];
-	sddevs[id]->actf = sddevs[id]->actl = NULL;
-	return 1;
+    c->inqbuf[36] = '\0';
+    printf("\t%s %d MB\n", (c->inqbuf + 8), (diskcap[0] + bit(10)) >> 11);
+    sddevs[id] = c;
+    sddevs[id]->state = SDIDLE;
+    sddevs[id]->plim[0]. base = 0;
+    sddevs[id]->plim[0]. size = diskcap[0];
+    sddevs[id]->actf = sddevs[id]->actl = NULL;
+    return 1;
 }   /* rmsdload() */
 #endif
 
@@ -340,10 +342,10 @@ register int id;
 static void sdunload(id)
 register int id;
 {
-	if (sddevs[id]) {
-		kfree(sddevs[id]);
-		sddevs[id] = NULL;
-	}
+    if (sddevs[id]) {
+        kfree(sddevs[id]);
+        sddevs[id] = NULL;
+    }
 }   /* sdunload() */
 #endif
 
@@ -356,26 +358,26 @@ register int id;
  */
 
 static int loadptable(dev)
-register dev_t	 dev;
+register dev_t   dev;
 {
-	struct fdisk_s		fp[4];
-	register sdctrl_p	c;
-	register int		i;
+    struct fdisk_s      fp[4];
+    register sdctrl_p   c;
+    register int        i;
 
-	if (!partindex(dev))
-		return 0;
+    if (!partindex(dev))
+        return 0;
 
-	if (fdisk(makedev(major(dev), (minor(dev) & ~PARTMASK) | SPECIAL), fp)) {
-		for (c = sddevs[tid(dev)], i = 1; i < 5; ++i) {
-			c->plim[i]. base = fp[i-1]. p_base;
-			c->plim[i]. size = fp[i-1]. p_size;
-		}
-		return 1;
-	}
-	else {
-		printf("fdisk failed\n");
-		return -1;
-	}
+    if (fdisk(makedev(major(dev), (minor(dev) & ~PARTMASK) | SPECIAL), fp)) {
+        for (c = sddevs[tid(dev)], i = 1; i < 5; ++i) {
+            c->plim[i]. base = fp[i-1]. p_base;
+            c->plim[i]. size = fp[i-1]. p_size;
+        }
+        return 1;
+    }
+    else {
+        printf("fdisk failed\n");
+        return -1;
+    }
 }   /* loadptable() */
 
 /***********************************************************************
@@ -385,18 +387,18 @@ register dev_t	 dev;
  */
 
 static void sdopen(dev /*, mode */)
-dev_t	dev;
+dev_t   dev;
 /* int     mode; */
 {
-	register sdctrl_p	c;
+    register sdctrl_p c;
 
-	c = sddevs[tid(dev)];
-	if (!c || loadptable(dev) == -1) {
-		u. u_error = ENXIO;
-		return;
-	}
-	++c->lastclose;
-	return;
+    c = sddevs[tid(dev)];
+    if (!c || loadptable(dev) == -1) {
+        u. u_error = ENXIO;
+        return;
+    }
+    ++c->lastclose;
+    return;
 }   /* sdopen() */
 
 /***********************************************************************
@@ -406,15 +408,15 @@ dev_t	dev;
  */
 
 static void sdclose(dev)
-dev_t	dev;
+dev_t   dev;
 {
-	register sdctrl_p	c;
+    register sdctrl_p c;
 
-	c = sddevs[tid(dev)];
-	if (!c)
-		u. u_error = ENXIO;
-	else if (c->lastclose)
-		--c->lastclose;
+    c = sddevs[tid(dev)];
+    if (!c)
+        u. u_error = ENXIO;
+    else if (c->lastclose)
+        --c->lastclose;
 }   /* sdclose() */
 
 /***********************************************************************
@@ -426,70 +428,70 @@ dev_t	dev;
 static void sdfinish(r)
 register srb_p r;
 {
-	register sdctrl_p	c;
-	register BUF		*bp;
-	extsense_p		e;
+    register sdctrl_p   c;
+    register BUF        *bp;
+    extsense_p          e;
 
-	c = sddevs[r->target];
-	bp = c->actf;
-	switch (c->state) {
-	case SDIO:
-		switch (r->status) {
-		case ST_GOOD:
-			bp->b_resid = bp->b_count - r->buf. size;
-			break;
-		case ST_CHKCOND:
-			r->timeout = 4;
-			r->buf. space = KRNL_ADDR;
-			r->buf. addr. vaddr = (vaddr_t) r->sensebuf;
-			r->buf. size = sizeof(r->sensebuf);
-			r->xferdir = DMAREAD;
-			memset(&(r->cdb), 0, sizeof(cdb_t));
-			r->cdb. g0. opcode = REQSENSE;
-			r->cdb. g0. lun_lba = (r->lun << 5);
-			r->cdb. g0. xfr_len = r->buf. size;
-			if (startscsi(r))
-				c->state = SDSENSE;
-			return;
-		default:
-			devmsg(r->dev,
-				   "%s failed at block %d: status (0x%x)",
-				   (bp->b_req == BREAD) ? "Read" : "Write",
-				   bp->b_bno,
-				   r->status);
-			bp->b_resid = bp->b_count;
-			bp->b_flag |= BFERR;
-			break;
-		}
-		break;
-	case SDSENSE:
-		if (r->status != ST_GOOD)
-			devmsg(r->dev, "%s sense failed at block %d",
-					   (bp->b_req == BREAD) ? "Read" : "Write",
-					   bp->b_bno);
-		else {
-			e = r->sensebuf;
-			printsense(r->dev,
-					   (bp->b_req == BREAD) ? "Read failed" : "Write failed",
-					   e);
-			if ((e->errorcode & 0x70) == 0x70 && (e->sensekey & 0x0f) == 0x01)
-				bp->b_resid = bp->b_count - r->buf. size;
-			else {
-				bp->b_resid = bp->b_count;
-				bp->b_flag |= BFERR;
-			}
-		}
-		break;
-	default:
-		bp->b_resid = bp->b_count;
-		bp->b_flag |= BFERR;
-		break;
-	}
-	c->actf = c->actf->b_actf;
-	bdone(bp);
-	c->state = SDIDLE;
-	sdstart(c);
-	return;
+    c = sddevs[r->target];
+    bp = c->actf;
+    switch (c->state) {
+    case SDIO:
+        switch (r->status) {
+        case ST_GOOD:
+            bp->b_resid = bp->b_count - r->buf. size;
+            break;
+        case ST_CHKCOND:
+            r->timeout = 4;
+            r->buf. space = KRNL_ADDR;
+            r->buf. addr. caddr = (caddr_t) r->sensebuf;
+            r->buf. size = sizeof(r->sensebuf);
+            r->xferdir = DMAREAD;
+            memset(&(r->cdb), 0, sizeof(cdb_t));
+            r->cdb. g0. opcode = REQSENSE;
+            r->cdb. g0. lun_lba = (r->lun << 5);
+            r->cdb. g0. xfr_len = r->buf. size;
+            if (startscsi(r))
+                c->state = SDSENSE;
+            return;
+        default:
+            devmsg(r->dev,
+                   "%s failed at block %d: status (0x%x)",
+                   (bp->b_req == BREAD) ? "Read" : "Write",
+                   bp->b_bno,
+                   r->status);
+            bp->b_resid = bp->b_count;
+            bp->b_flag |= BFERR;
+            break;
+        }
+        break;
+    case SDSENSE:
+        if (r->status != ST_GOOD)
+            devmsg(r->dev, "%s sense failed at block %d",
+                       (bp->b_req == BREAD) ? "Read" : "Write",
+                       bp->b_bno);
+        else {
+            e = r->sensebuf;
+            printsense(r->dev,
+                       (bp->b_req == BREAD) ? "Read failed" : "Write failed",
+                       e);
+            if ((e->errorcode & 0x70) == 0x70 && (e->sensekey & 0x0f) == 0x01)
+                bp->b_resid = bp->b_count - r->buf. size;
+            else {
+                bp->b_resid = bp->b_count;
+                bp->b_flag |= BFERR;
+            }
+        }
+        break;
+    default:
+        bp->b_resid = bp->b_count;
+        bp->b_flag |= BFERR;
+        break;
+    }
+    c->actf = c->actf->b_actf;
+    bdone(bp);
+    c->state = SDIDLE;
+    sdstart(c);
+    return;
 }   /* sdfinish() */
 
 /***********************************************************************
@@ -501,39 +503,39 @@ register srb_p r;
 static void sdstart(c)
 sdctrl_p c;
 {
-	register BUF		*bp;
-	register g1cmd_p	g1;
-	register srb_p		r = &(c->srb);
-	unsigned long		blkcnt;
-	int 			i;
+    register BUF        *bp;
+    register g1cmd_p    g1;
+    register srb_p  r = &(c->srb);
+    unsigned long       blkcnt;
+    int                 i;
 
-	if (!(bp = c->actf) || c->state != SDIDLE)
-		return;
+    if (!(bp = c->actf) || c->state != SDIDLE)
+        return;
 
-	i = partindex(bp->b_dev);
-	blkcnt = bp->b_count >> 9;
-	if (bp->b_bno + blkcnt > c->plim[i]. size)
-		blkcnt = c->plim[i]. size - bp->b_bno;
+    i = partindex(bp->b_dev);
+    blkcnt = bp->b_count >> 9;
+    if (bp->b_bno + blkcnt > c->plim[i]. size)
+        blkcnt = c->plim[i]. size - bp->b_bno;
 
-	r->dev = bp->b_dev;
-	r->target = tid(bp->b_dev);
-	r->lun = lun(bp->b_dev);
-	r->timeout = 4;
-	r->buf. space = SYSGLBL_ADDR;
-	r->buf. addr. paddr = bp->b_paddr;
-	r->buf. size = (blkcnt << 9);
-	r->xferdir = (bp->b_req == BREAD) ? DMAREAD : DMAWRITE;
-	r->cleanup = &sdfinish;
-	g1 = &(r->cdb. g1);
-	memset(g1, 0, sizeof(cdb_t));
-	g1->opcode = (bp->b_req == BREAD) ? G1READ : G1WRITE;
-	g1->lun = (r->lun << 5);
-	g1->lba = c->plim[i]. base + bp->b_bno;
-	flip(g1->lba);
-	g1->xfr_len = blkcnt;
-	flip(g1->xfr_len);
-	if (startscsi(r))
-		c->state = SDIO;
+    r->dev = bp->b_dev;
+    r->target = tid(bp->b_dev);
+    r->lun = lun(bp->b_dev);
+    r->timeout = 4;
+    r->buf. space = SYSGLBL_ADDR;
+    r->buf. addr. paddr = bp->b_paddr;
+    r->buf. size = (blkcnt << 9);
+    r->xferdir = (bp->b_req == BREAD) ? DMAREAD : DMAWRITE;
+    r->cleanup = &sdfinish;
+    g1 = &(r->cdb. g1);
+    memset(g1, 0, sizeof(cdb_t));
+    g1->opcode = (bp->b_req == BREAD) ? G1READ : G1WRITE;
+    g1->lun = (r->lun << 5);
+    g1->lba = c->plim[i]. base + bp->b_bno;
+    flip(g1->lba);
+    g1->xfr_len = blkcnt;
+    flip(g1->xfr_len);
+    if (startscsi(r))
+        c->state = SDIO;
 }   /* sdstart() */
 
 /***********************************************************************
@@ -543,38 +545,38 @@ sdctrl_p c;
  */
 
 static void sdblock(bp)
-register BUF	*bp;
+register BUF    *bp;
 {
-	int			i, s;
-	register sdctrl_p	c;
+    int i, s;
+    register sdctrl_p c;
 
-	c = sddevs[tid(bp->b_dev)];
-	i = partindex(bp->b_dev);
+    c = sddevs[tid(bp->b_dev)];
+    i = partindex(bp->b_dev);
 
-	bp->b_resid = bp->b_count;
-	if (bp->b_bno > c->plim[i]. size || (bp->b_count & (BSIZE-1)) != 0) {
-		bp->b_flag |= BFERR;
-		bdone(bp);
-		return;
-	}
+    bp->b_resid = bp->b_count;
+    if (bp->b_bno > c->plim[i]. size || (bp->b_count & (BSIZE-1)) != 0) {
+        bp->b_flag |= BFERR;
+        bdone(bp);
+        return;
+    }
 
-	if (bp->b_bno == c->plim[i]. size) {
-		if (bp->b_req != BREAD)
-			bp->b_flag |= BFERR;
-		bdone(bp);
-		return;
-	}
+    if (bp->b_bno == c->plim[i]. size) {
+        if (bp->b_req != BREAD)
+            bp->b_flag |= BFERR;
+        bdone(bp);
+        return;
+    }
 
-	s = sphi();
-	bp->b_actf = NULL;
-	if (!c->actf)
-		c->actf = bp;
-	else
-		c->actl->b_actf = bp;
-	c->actl = bp;
-	while (c->state == SDIDLE && c->actf)
-		sdstart(c);
-	spl(s);
+    s = sphi();
+    bp->b_actf = NULL;
+    if (!c->actf)
+        c->actf = bp;
+    else
+        c->actl->b_actf = bp;
+    c->actl = bp;
+    while (c->state == SDIDLE && c->actf)
+        sdstart(c);
+    spl(s);
 }   /* sdblock() */
 
 /***********************************************************************
@@ -584,13 +586,13 @@ register BUF	*bp;
  */
 
 static void sdread(dev, iop)
-dev_t	    dev;
+dev_t       dev;
 register IO *iop;
 {
-	register sdctrl_p	c;
+    register sdctrl_p c;
 
-	c = sddevs[tid(dev)];
-	ioreq(&(c->buf), iop, dev, BREAD, BFIOC | BFRAW);
+    c = sddevs[tid(dev)];
+    ioreq(&(c->buf), iop, dev, BREAD, BFIOC | BFRAW);
 }   /* sdread() */
 
 /***********************************************************************
@@ -600,70 +602,14 @@ register IO *iop;
  */
 
 static void sdwrite(dev, iop)
-dev_t	    dev;
+dev_t       dev;
 register IO *iop;
 {
-	register sdctrl_p c;
+    register sdctrl_p c;
 
-	c = sddevs[tid(dev)];
-	ioreq(&(c->buf), iop, dev, BWRITE, BFIOC | BFRAW);
+    c = sddevs[tid(dev)];
+    ioreq(&(c->buf), iop, dev, BWRITE, BFIOC | BFRAW);
 }   /* sdwrite() */
-
-/***********************************************************************
- *  getdparms() --  Get disk driver paramters.
- *
- *  SCSI Disks don't have to have fixed parameters but fdisk cannot
- *  figure out how to set up the disk without them so we have to fake
- *  this.  There is a bug generated here and I don't really know how
- *  best to handle it.  The problem is that we have to tell fdisk the
- *  disk parameters.  Fdisk will assume that the disk has the same
- *  number of sector geometry regardless of track. This isn't really
- *  true any longer.  Most IDE and probably all SCSI disks use zone
- *  bit recording.  The rub is that the SCSI get capacity command will
- *  doesn't care about this and will report the number of sectors on
- *  the disk.  There may or may not be a complete last cylinder to
- *  report.  Right now we'll just fake it by rounding down.  The upshot
- *  is that some people may not be able to fully utilize their disk...
- *
- *  Flame on (PG version)...
- *  Fdisk support is a pain in the neck:  Every host adapter is going to
- *  have a different way up support MS-DOG through its evil twin brother,
- *  the PC's BIOS.  Logical operating systems really don't need this but
- *  the world must be backwards compatible to the bastard son of CP/M.
- *  The upshot of this is that...
- *  Flame off (Useful information begins again).
- *
- *  ...every different host adapter is going to need a different routine to
- *  getdparms so this code will have to be moved into the host adapter
- *  module.  I just don't have time to do this right now.  P.S.  why does the
- *  Seagate st01/02 insist on treating a nice SCSI Disk which can find
- *  logical blocks on its own thank you like a stupid MFM disk?
- */
-
-static void getdparms(c, vec)
-register sdctrl_p c;
-register char *vec;
-{
-	unsigned char	nhead = SDS_HDS,
-			nspt = 32;
-	unsigned short	ncyl = (unsigned short) (c->plim[0]. size / (nhead * nspt)),
-			landc = ncyl,
-			rwccp = 0xffff,
-			wpcc = 0xffff;
-	hdparm_t	hdp;
-
-	memset(&hdp, 0, sizeof(hdparm_t));
-	*((unsigned short *) hdp. ncyl) = ncyl;
-	*((unsigned short *) hdp. rwccp) = rwccp;
-	*((unsigned short *) hdp. wpcc) = wpcc;
-	*((unsigned short *) hdp. landc) = landc;
-
-	hdp. nhead = nhead;
-	if (hdp. nhead > 8)
-		hdp. ctrl |= 8;
-	hdp. nspt = nspt;
-	kucopy(&hdp, vec, sizeof(hdparm_t));
-}   /* getdparms() */
 
 /***********************************************************************
  *  sdioctl()
@@ -673,22 +619,42 @@ register char *vec;
  */
 
 static void sdioctl(dev, cmd, vec)
-register dev_t	dev;
-register int	cmd;
-char		*vec;
+register dev_t  dev;
+register int    cmd;
+char            *vec;
 {
-	register sdctrl_p c = sddevs[tid(dev)];
+    register sdctrl_p   c = sddevs[tid(dev)];
+    int                 s;
+    hdparm_t            hdp;
 
-	switch (cmd) {
-	case HDGETA:
-		getdparms(c, vec);
-		break;
-	case HDSETA:
-		break;
-	default:
-		u. u_error = EINVAL;
-		break;
-	}
+    switch (cmd) {
+    case HDGETA:
+        haihdgeta(&hdp, c->plim[0]. size);
+        kucopy(&hdp, vec, sizeof(hdparm_t));
+        break;
+    case HDSETA:
+        if (ukcopy(vec, &hdp, sizeof(hdparm_t)))
+            haihdseta(&hdp);
+        break;
+    default:
+        if (c->lastclose > 1) {
+            u. u_error = EACCES;    /* Only one open on this device */
+            return;
+        }
+
+        s = sphi();
+        while (c->state != SDIDLE)
+            /* Where is the wakeup for this sleep? */
+            if (x_sleep(&(c->state), pridisk, slpriSigCatch, "sdioctl")) {
+                u. u_error = EINTR;
+                return;
+            }
+        c->state = SDIOCTL;
+        haiioctl(&(c->srb), cmd, vec);
+        c->state = SDIDLE;
+        spl(s);
+        break;
+    }
 }   /* sdioctl() */
 
 /* End of file */

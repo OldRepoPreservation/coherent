@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/alloc.c,v 1.4 93/04/14 10:06:13 root Exp $ */
+/* $Header: /ker/coh.386/RCS/alloc.c,v 2.2 93/07/26 14:28:19 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Storage allocator.
  *
  * $Log:	alloc.c,v $
+ * Revision 2.2  93/07/26  14:28:19  nigel
+ * Nigel's R80
+ * 
  * Revision 1.4  93/04/14  10:06:13  root
  * r75
  * 
@@ -31,13 +34,14 @@
 #include <common/ccompat.h>
 #include <common/__parith.h>
 #include <common/_tricks.h>
+#include <kernel/param.h>
 #include <sys/debug.h>
 
 #include <sys/coherent.h>
-#include <sys/alloc.h>
 #include <sys/errno.h>
 #include <sys/proc.h>
-#include <sys/param.h>
+
+#include <kernel/alloc.h>
 
 /*
  * Alloc definitions. These used to be in <sys/machine.h> for some unknown
@@ -334,25 +338,22 @@ palloc(size)
 	VOID *boundry;		/* Next click boundry above local_arena.  */
 	VOID *retval;		/* What we give back to our caller.  */
 
-	if (size > NBPC) {
+	if (size > NBPC)
 		panic("palloc(%x): can not palloc more than 1 click.", size);
-	}
 
 	/* Fetch twice as much space as requested, plus a pointer.  */
-	if ( NULL == (local_arena =
-		(VOID *)kalloc(sizeof(VOID *) + (2 * size)))) {
+	if ((local_arena = (VOID *) kalloc (sizeof (VOID *) + (2 * size)))
+	    == NULL)
 		return NULL;
-	}
-
 	
-	boundry = (VOID *) c_boundry(local_arena);
+	boundry = (VOID *) c_boundry (local_arena);
 
-	T_PIGGY(0x2000, printf("b: %x ", boundry); );
+	T_PIGGY(0x2000, printf("b: %x ", boundry));
 
 	/* First case:  enough space before the boundry.  */
 	if ( (boundry - local_arena) >= (size + sizeof(VOID *)) ) {
 
-		T_PIGGY(0x2000, printf("c1 "); );
+		T_PIGGY(0x2000, printf("c1 "));
 
 		* (VOID **)local_arena = local_arena;
 		retval = local_arena + sizeof(VOID *);
@@ -361,33 +362,40 @@ palloc(size)
 		 * Second case: There is not enough space before the
 		 * boundry for the whole pointer.
 		 */
-		T_PIGGY(0x2000, printf("c2 "); );
+		T_PIGGY(0x2000, printf("c2 "));
 
 		* (VOID **)local_arena = local_arena;
 		retval = local_arena + sizeof(VOID *);
 	} else {
 
-		T_PIGGY(0x2000, printf("c3: %x ", (boundry - local_arena)); );
+		T_PIGGY(0x2000, printf("c3: %x ", (boundry - local_arena)));
 
 		* (VOID **)(boundry - sizeof(VOID *)) = local_arena;
 		retval = boundry;
 	}
 
-	T_PIGGY( 0x2000, {
+	T_PIGGY( 0x2000,
 		printf("palloc(%x) = %x:%x (was %x:%x), ",
 			size, retval, (retval+size)-1,
-			local_arena, (local_arena+(2*size)+sizeof(VOID *))-1);
-	} );
+			local_arena, (local_arena+(2*size)+sizeof(VOID *))-1)
+	);
 
-	T_PIGGY( 0x2000, {
+#if	0
+	/*
+	 * NIGEL: Things in trace macros must now be expressions. These ones
+	 * weren't worth cleaning up.
+	 */
+	T_PIGGY( 0x2000,
 		if ((retval+size)-1 > (local_arena+(2*size)+sizeof(VOID *))-1) {
 			printf("\npalloc() overrun\n");
 		}
 		if (retval < local_arena) {
 			printf("\npalloc() underrun\n");
 		}
-	} );
-	return((VOID *)retval);
+	);
+#endif
+
+	return (VOID *) retval;
 } /* palloc() */
 
 /*
@@ -404,7 +412,7 @@ void
 pfree(ptr)
 	VOID *ptr[];
 {
-	T_PIGGY(0x2000, { printf("pfree(%x):kfree(%x), ", ptr, *(ptr-1)); } );
+	T_PIGGY(0x2000, printf("pfree(%x):kfree(%x), ", ptr, *(ptr-1)));
 	kfree(*(ptr-1));
 } /* pfree() */
 

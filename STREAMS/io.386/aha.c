@@ -3,6 +3,9 @@
  * Adaptec AHA154x driver.
  *
  * $Log:	aha.c,v $
+ * Revision 2.2  93/07/26  15:27:47  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  93/03/18  10:31:13  root
  * r74
  * 
@@ -238,19 +241,17 @@ short port;
 #endif
 
 #ifdef TRACER
-#define	SETMSG(msg)	aha_err_msg = msg
+#define	SETMSG(msg)	((void) (aha_err_msg = msg))
 
 static char *
 aha_last_msg()
 {
-	T_PIGGY(0x8000, return aha_err_msg;);
-
-	return "error messages not verbose";
+	return aha_err_msg;
 }
 
 #else /* TRACER */
 
-#define	SETMSG(msg)
+#define	SETMSG(msg)	((void) 0)
 static char *
 aha_last_msg()
 {

@@ -16,6 +16,9 @@
  * -----------------------------------------------------------------
  * Includes.
  */
+
+#include	<kernel/typed.h>
+
 #include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
@@ -23,7 +26,6 @@
 #include	<sys/con.h>
 #include	<sys/devices.h>
 #include	<sys/stat.h>
-#include	<sys/typed.h>
 #include	<sys/errno.h>
 
 /*
@@ -39,7 +41,6 @@
  */
 #define	HDIRQ	14			/* Level 14 */
 #define	HDBASE	0x01F0			/* Port base */
-#define NDRIVE	2			/* only two drives supported */
 #define	SOFTLIM	6			/*  (7) num of retries before diag */
 #define	HARDLIM	8			/* number of retries before fail */
 #define	BADLIM	100			/* num to stop recov if flagged bad */
@@ -159,9 +160,9 @@ static void	atdone();
  *	Local Variables.
  */
 extern typed_space	boot_gift;
-extern short		n_atdr;
+extern short		at_drive_ct;
 
-#ifndef _I386
+#if	! _I386
 extern saddr_t		sds;
 #endif
 
@@ -181,49 +182,30 @@ CON	atcon	= {
 };
 
 /*
- * Patchable variables.
+ * Configurable variables - see /etc/conf/at/Space.c
  *	ATSECS is number of seconds to wait for an expected interrupt.
  *	ATSREG needs to be 3F6 for most new IDE drives;  needs to be
  *		1F7 for Perstor controllers and some old IDE drives.
  *		Either value works with most drives.
+ *	atparm - drive parameters.  If initialized zero, try to use ROM values.
  */
-int	ATSECS = 6;
-int	ATSREG = 0x3F6;
 
-/*
- * Drive Parameters - copied from ROM.
- * If patched, use the given values instead of reading from the ROM.
- * NOTE: Exactly duplicates hdparm_s struct.
- */
-struct dparm_s {
-	unsigned short	d_ncyl;		/* number of cylinders */
-	unsigned char	d_nhead;	/* number of heads */
-#pragma align 1
-	unsigned short	d_rwcc;		/* reduced write current cyl */
-	unsigned short	d_wpcc;		/* write pre-compensation cyl */
-#pragma align
-	unsigned char	d_eccl;		/* max ecc data length */
-	unsigned char	d_ctrl;		/* control byte */
-	unsigned char	d_fill2[3];
-	unsigned short	d_landc;	/* landing zone cylinder */
-	unsigned char	d_nspt;		/* number of sectors per track */
-	unsigned char	d_fill3;
-
-}	atparm[ NDRIVE ] = {
-	0				/* Initialized to allow patching */
-};
+extern int		ATSECS;
+extern int		ATSREG;
+extern struct hdparm_s	atparm[];
 
 /*
  * Partition Parameters - copied from disk.
  *
- *	There are NDRIVE * NPARTN positions for the user partitions,
- *	plus NDRIVE additional partitions to span each drive.
+ *	There are N_ATDRV * NPARTN positions for the user partitions,
+ *	plus N_ATDRV additional partitions to span each drive.
  *
  *	Aligning partitions on cylinder boundaries:
  *	Optimal partition size: 2 * 3 * 4 * 5 * 7 * 17 = 14280 blocks
  *	Acceptable partition size:  3 * 4 * 5 * 7 * 17 =  7140 blocks
  */
-static struct fdisk_s pparm[NDRIVE*NPARTN + NDRIVE];
+
+static struct fdisk_s pparm [N_ATDRV * NPARTN + N_ATDRV];
 
 /*
  * Per disk controller data.
@@ -244,14 +226,14 @@ static struct	at	{
 	unsigned	at_cyl;
 	unsigned	at_sec;
 	unsigned	at_partn;
-	unsigned char	at_dtype[ NDRIVE ];	/* drive type, 0 if unused */
+	unsigned char	at_dtype [N_ATDRV];	/* drive type, 0 if unused */
 	unsigned char	at_tries;
 	unsigned char	at_state;
 	unsigned char	at_caching;		/* caching in progress */
 #if	ATCACHE > 0
-	unsigned char	at_cdrv[ ATCACHE ];	/* cached drive */
-	daddr_t		at_cbno[ ATCACHE ];	/* cached block number */
-	unsigned char *	at_cbuf[ ATCACHE ];	/* cached block */
+	unsigned char	at_cdrv [ATCACHE];	/* cached drive */
+	daddr_t		at_cbno [ATCACHE];	/* cached block number */
+	unsigned char *	at_cbuf [ATCACHE];	/* cached block */
 #endif
 	unsigned	at_bad_drv;
 	unsigned	at_bad_head;
@@ -260,7 +242,7 @@ static struct	at	{
 
 static BUF	dbuf;			/* For raw I/O */
 
-static char timeout_msg[] = "at%d: TO\n";
+static char timeout_msg [] = "at%d: TO\n";
 
 /**
  *
@@ -271,18 +253,18 @@ static char timeout_msg[] = "at%d: TO\n";
  *		The drive characteristics are set up at this time.
  */
 static void
-atload()
+atload ()
 {
 	register unsigned int u;
-	register struct dparm_s * dp;
+	register struct hdparm_s * dp;
 	struct { unsigned short off, seg; } p;
 
-	if (n_atdr <= 0)
+	if (at_drive_ct <= 0)
 		return;
 
 	/* Flag drives 0, 1 as present or not. */
 	at.at_dtype[0] = 1;
-	at.at_dtype[1] = n_atdr > 1 ? 1 : 0;
+	at.at_dtype[1] = at_drive_ct > 1 ? 1 : 0;
 
 #if 0
 /* hex dump boot gift */
@@ -299,10 +281,11 @@ for (bgi = 0; bgi < 80; bgi++) {
 	/*
 	 * Obtain Drive Characteristics.
 	 */
-	for (u = 0, dp = &atparm[0]; u < n_atdr; ++dp, ++u) {
-		struct dparm_s int_dp;
+	for (u = 0, dp = atparm; u < at_drive_ct; ++dp, ++u) {
+		struct hdparm_s int_dp;
+		unsigned short ncyl = _CHAR2_TO_USHORT(dp->ncyl);
 
-		if (dp->d_ncyl == 0) {
+		if (ncyl == 0) {
 			/*
 			 * Not patched.
 			 *
@@ -333,13 +316,15 @@ if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 				if ((T_BIOS_DISK == tp->ts_type) &&
 				    (u == bdp->dp_drive) ) {
 					found = 1;
-					dp->d_ncyl = bdp->dp_cylinders;
-					dp->d_nhead = bdp->dp_heads;
-					dp->d_nspt = bdp->dp_sectors;
-					dp->d_wpcc = 0xffff;
-					dp->d_landc = dp->d_ncyl;
-					if (dp->d_nhead > 8)
-						dp->d_ctrl |= 8;
+					_NUM_TO_CHAR2(dp->ncyl,
+					  bdp->dp_cylinders);
+					dp->nhead = bdp->dp_heads;
+					dp->nspt = bdp->dp_sectors;
+					_NUM_TO_CHAR2(dp->wpcc, 0xffff);
+					_NUM_TO_CHAR2(dp->landc,
+					  bdp->dp_cylinders);
+					if (dp->nhead > 8)
+						dp->ctrl |= 8;
 				}
 			}
 			fifo_close(ffp);
@@ -359,8 +344,8 @@ if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 				&int_dp, sizeof(int_dp));
 #endif
 			if (!found || 
-			    (dp->d_nhead == int_dp.d_nhead
-			     && dp->d_nspt == int_dp.d_nspt)) {
+			    (dp->nhead == int_dp.nhead
+			     && dp->nspt == int_dp.nspt)) {
 			     *dp = int_dp;
 				printf("Using INT 0x%x",parm_int);
 			} else
@@ -372,11 +357,11 @@ if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 			 */
 			if (at.at_dtype[u] == 0)
 				at.at_dtype[u] = 1;
-			if (dp->d_nspt == 0)
-				dp->d_nspt = 17;
+			if (dp->nspt == 0)
+				dp->nspt = 17;
 #if FORCE_CTRL_8
-			if (dp->d_nhead > 8)
-				dp->d_ctrl |= 8;
+			if (dp->nhead > 8)
+				dp->ctrl |= 8;
 #endif
 
 		}
@@ -385,22 +370,24 @@ if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 
 	/* intersegment printf only gets 6 words of arguments */	
 	printf( "at%d: ncyl=%d nhead=%d wpcc=%d ",
-	  u, dp->d_ncyl, dp->d_nhead, dp->d_wpcc);
+	  u, _CHAR2_TO_USHORT(dp->ncyl), dp->nhead,
+	  _CHAR2_TO_USHORT(dp->wpcc));
 	printf(" eccl=%d ctrl=%d landc=%d nspt=%d\n",
-	  dp->d_eccl, dp->d_ctrl, dp->d_landc, dp->d_nspt);
+	  dp->eccl, dp->ctrl, _CHAR2_TO_USHORT(dp->landc), dp->nspt);
 #endif
 	}
 
 	/*
 	 * Initialize Drive Size.
 	 */
-	for (u = 0, dp = &atparm[0]; u < n_atdr; ++dp, ++u) {
+	for (u = 0, dp = atparm; u < at_drive_ct; ++dp, ++u) {
 
-		if (at.at_dtype[u] == 0)
+		if (at.at_dtype [u] == 0)
 			continue;
 
-		pparm[NDRIVE*NPARTN + u].p_size =
-			(long) dp->d_ncyl * dp->d_nhead * dp->d_nspt;
+		pparm [N_ATDRV * NPARTN + u].p_size =
+			(long) _CHAR2_TO_USHORT (dp->ncyl) * dp->nhead *
+				dp->nspt;
 	}
 
 	/*
@@ -431,7 +418,7 @@ if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 static void
 atunload()
 {
-	clrivec(HDIRQ);
+	clrivec (HDIRQ);
 }
 
 /**
@@ -443,17 +430,17 @@ static void
 atreset()
 {
 	register int u;
-	register struct dparm_s * dp;
+	register struct hdparm_s * dp;
 
 	/*
 	 * Reset controller for a minimum of 4.8 microseconds.
 	 */
-	outb(HF_REG, 4);
+	outb (HF_REG, 4);
 	for (u = 100; --u != 0;)
 		;
-	outb(HF_REG, atparm[0].d_ctrl & 0x0F);
-	myatbsyw(0);
-	if (inb(AUX_REG) != 0x01) {
+	outb (HF_REG, atparm[0].ctrl & 0x0F);
+	myatbsyw (0);
+	if (inb (AUX_REG) != 0x01) {
 		/*
 		 * Some IDE drives always timeout on initial reset.
 		 * So don't report first timeout.
@@ -469,38 +456,31 @@ atreset()
 	/*
 	 * Initialize drive parameters.
 	 */
-	for (u = 0, dp = &atparm[0]; u < n_atdr; ++dp, ++u) {
+	for (u = 0, dp = atparm; u < at_drive_ct; ++dp, ++u) {
 
-		if (at.at_dtype[u] == 0)
+		if (at.at_dtype [u] == 0)
 			continue;
 
-		myatbsyw(u);
+		myatbsyw (u);
 
 		/*
 		 * Set drive characteristics.
-		 * 0x1F1 - AUX_REG
-		 * 0x1F2 - NSEC_REG
-		 * 0x1F3 - SEC_REG
-		 * 0x1F4 - LCYL_REG
-		 * 0x1F5 - HCYL_REG
-		 * 0x1F6 - HDRV_REG
-		 * 0x1F7 - CSR_REG
 		 */
-		outb(HF_REG,	dp->d_ctrl);
-		outb(AUX_REG,  dp->d_wpcc / 4);
-		outb(NSEC_REG, dp->d_nspt);
-		outb(SEC_REG, 0x01);
-		outb(LCYL_REG, (char)(dp->d_ncyl));
-		outb(HCYL_REG, (char)(dp->d_ncyl >> 8));
-		outb(HDRV_REG, 0xA0 + (u<<4) + dp->d_nhead - 1);
-		outb(CSR_REG,  SETPARM_CMD);
-		myatbsyw(u);
+		outb (HF_REG, dp->ctrl);
+		outb (AUX_REG, _CHAR2_TO_USHORT (dp->wpcc) / 4);
+		outb (NSEC_REG, dp->nspt);
+		outb (SEC_REG, 0x01);
+		outb (LCYL_REG, dp->ncyl [0]);
+		outb (HCYL_REG, dp->ncyl [1]);
+		outb (HDRV_REG, 0xA0 + (u << 4) + dp->nhead - 1);
+		outb (CSR_REG, SETPARM_CMD);
+		myatbsyw (u);
 
 		/*
 		 * Restore heads.
 		 */
-		outb(CSR_REG, RESTORE(0));
-		myatbsyw(u);
+		outb (CSR_REG, RESTORE (0));
+		myatbsyw (u);
 	}
 }
 
@@ -518,49 +498,48 @@ atreset()
  *		Update the paritition table if necessary.
  */
 static void
-atopen(dev, mode)
+atopen (dev, mode)
 register dev_t	dev;
 {
 	register int d;		/* drive */
 	register int p;		/* partition */
 
-	p = minor(dev) % (NDRIVE*NPARTN);
+	p = minor (dev) % (N_ATDRV * NPARTN);
 
-	if (minor(dev) & SDEV) {
-		d = minor(dev) % NDRIVE;
-		p += NDRIVE * NPARTN;
-	}
-	else
-		d = minor(dev) / NPARTN;
+	if (minor (dev) & SDEV) {
+		d = minor (dev) % N_ATDRV;
+		p += N_ATDRV * NPARTN;
+	} else
+		d = minor (dev) / NPARTN;
 
-	if ((d >= NDRIVE) || (at.at_dtype[d] == 0)) {
-printf("atopen: drive not present ");
+	if (d >= N_ATDRV || at.at_dtype [d] == 0) {
+		printf ("atopen: drive %d not present ", d);
 		u.u_error = ENXIO;
 		return;
 	}
 
-	if (minor(dev) & SDEV) {
+	if (minor (dev) & SDEV)
 		return;
-	}
 
 	/*
 	 * If partition not defined read partition characteristics.
 	 */
-	if (pparm[p].p_size == 0)
-		fdisk(makedev(major(dev), SDEV + d), &pparm[ d * NPARTN ]);
+	if (pparm [p].p_size == 0)
+		fdisk (makedev (major (dev), SDEV + d), & pparm [d * NPARTN]);
 
 	/*
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
-	if ((pparm[p].p_base+pparm[p].p_size) > pparm[d+NDRIVE*NPARTN].p_size) {
-#ifdef _I386
-printf("atopen: p_size too big ");
+	if (pparm [p].p_base + pparm [p].p_size >
+	    pparm [d + N_ATDRV * NPARTN].p_size) {
+#if	_I386
+		printf ("atopen: p_size too big ");
 		u.u_error = EINVAL;
 #else
 		u.u_error = EBADFMT;
 #endif
 	} else if (pparm[p].p_size == 0) {
-printf("atopen: p_size zero ");
+		printf ("atopen: p_size zero ");
 		u.u_error = ENODEV;
 	}
 }
@@ -632,7 +611,7 @@ char * vec;
 	 * Identify drive number.
 	 */
 	if (minor(dev) & SDEV)
-		d = minor(dev) % NDRIVE;
+		d = minor(dev) % N_ATDRV;
 	else
 		d = minor(dev) / NPARTN;
 
@@ -645,15 +624,16 @@ char * vec;
 		/*
 		 * Get hard disk attributes.
 		 */
-		kucopy(&atparm[d], vec, sizeof(atparm[0]));
+		kucopy(atparm + d, vec, sizeof(atparm[0]));
 		return(0);
 
 	case HDSETA:
 		/* Set hard disk attributes. */
-		ukcopy(vec, &atparm[d], sizeof(atparm[0]));
+		ukcopy(vec, atparm + d, sizeof(atparm[0]));
 		at.at_dtype[d] = 1;		/* set drive type nonzero */
-		pparm[NDRIVE * NPARTN + d].p_size =
-			(long) atparm[d].d_ncyl * atparm[d].d_nhead * atparm[d].d_nspt;
+		pparm[N_ATDRV * NPARTN + d].p_size =
+		  (long) _CHAR2_TO_USHORT(atparm[d].ncyl) *
+		  atparm[d].nhead * atparm[d].nspt;
 		atreset();
 		return 0;
 
@@ -716,12 +696,12 @@ atblock(bp)
 register BUF	*bp;
 {
 	register struct fdisk_s *pp;
-	int partn = minor(bp->b_dev) % (NDRIVE*NPARTN);
+	int partn = minor(bp->b_dev) % (N_ATDRV*NPARTN);
 
 	bp->b_resid = bp->b_count;
 
 	if (minor(bp->b_dev) & SDEV)
-		partn += NDRIVE * NPARTN;
+		partn += N_ATDRV * NPARTN;
 
 	pp = &pparm[ partn ];
 
@@ -779,15 +759,15 @@ atdequeue()
 		if ((bp = at.at_actf) == NULL)
 			return (0);
 
-		at.at_partn = minor(bp->b_dev) % (NDRIVE*NPARTN);
+		at.at_partn = minor(bp->b_dev) % (N_ATDRV*NPARTN);
 
 		if (minor(bp->b_dev) & SDEV) {
-			at.at_partn += (NDRIVE*NPARTN);
-			at.at_drv  = minor(bp->b_dev) % NDRIVE;
+			at.at_partn += (N_ATDRV*NPARTN);
+			at.at_drv  = minor(bp->b_dev) % N_ATDRV;
 		}
 		else
 			at.at_drv = minor(bp->b_dev) / NPARTN;
-		nspt = atparm[at.at_drv].d_nspt;
+		nspt = atparm[at.at_drv].nspt;
 
 		pp = &pparm[ at.at_partn ];
 		at.at_bno   = pp->p_base + bp->b_bno;
@@ -893,13 +873,13 @@ atdequeue()
 static void
 atstart()
 {
-	register struct dparm_s *dp;
+	register struct hdparm_s *dp;
 
-	dp = &atparm[ at.at_drv ];
+	dp = atparm + at.at_drv;
 
-	at.at_cyl  = (at.at_bno / dp->d_nspt) / dp->d_nhead;
-	at.at_head = (at.at_bno / dp->d_nspt) % dp->d_nhead;
-	at.at_sec  = (at.at_bno % dp->d_nspt) + 1;
+	at.at_cyl  = (at.at_bno / dp->nspt) / dp->nhead;
+	at.at_head = (at.at_bno / dp->nspt) % dp->nhead;
+	at.at_sec  = (at.at_bno % dp->nspt) + 1;
 
 	/*
 	 * Check for repeated access to most recently identified bad track.
@@ -921,8 +901,8 @@ atstart()
 
 	myatbsyw(at.at_drv);
 
-	outb(HF_REG,   dp->d_ctrl);
-	outb(AUX_REG,  dp->d_wpcc / 4);
+	outb(HF_REG,   dp->ctrl);
+	outb(AUX_REG,  _CHAR2_TO_USHORT(dp->wpcc) / 4);
 	outb(NSEC_REG, at.at_nsec);
 	outb(SEC_REG,  at.at_sec);
 	outb(LCYL_REG, at.at_cyl);
@@ -1200,7 +1180,7 @@ atrecov()
 		/*
 		 * Move out 1 cylinder, then retry operation
 		 */
-		if (++cyl >= atparm[ at.at_drv ].d_ncyl)
+		if (++cyl >= _CHAR2_TO_USHORT(atparm[ at.at_drv ].ncyl))
 			cyl -= 2;
 		break;
 

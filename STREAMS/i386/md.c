@@ -19,8 +19,10 @@
  * Machine dependent stuff.
  *
  */
+
+#include <kernel/reg.h>
+
 #include <sys/coherent.h>
-#include <sys/reg.h>
 #include <sys/clist.h>
 #include <sys/errno.h>
 #include <sys/inode.h>
@@ -29,17 +31,6 @@
 #include <signal.h>
 #include <sys/uproc.h>
 #include <sys/buf.h>
-
-/*
- * Set up a new process.
- */
-msetusr(ip, sp)
-caddr_t sp;
-caddr_t ip;
-{
-	u.u_regl[EIP] = ip;
-	u.u_regl[UESP] = sp;
-}
 
 /*
  * Given an irq level (1..15) and an irq function pointer, try to hook the
@@ -92,7 +83,7 @@ int		(*fun)();
 	 * register as the old code did or passes responsibility over to the
 	 * new DDI/DKI scheme if it has been enabled.
 	 *
-	 * The new macro-calls are defined in <sys/reg.h>
+	 * The new macro-calls are defined in <kernel/reg.h>
 	 */
 
 	if ( level >= LOWEST_SLAVE_IRQ ) {

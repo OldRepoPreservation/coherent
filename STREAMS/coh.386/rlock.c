@@ -11,12 +11,13 @@
 #include <fcntl.h>
 #include <sys/fd.h>
 #include <sys/proc.h>
-#include <sys/rlock.h>
 #include <sys/sched.h>
 #include <sys/file.h>
 #include <sys/inode.h>
 #include <sys/uproc.h>
 #include <unistd.h>
+
+#include <kernel/rlock.h>
 
 /* Globals. */
 RLOCK	*freerl;

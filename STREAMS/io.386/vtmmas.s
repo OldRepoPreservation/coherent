@@ -93,7 +93,7 @@ POS	.define	%edi	/* currently active display address */
 	.set	MM_SIZE,	108	//
 
 	.globl	VIDSLOW		/ Patchable kernel variable.
-	.globl	mminit
+	.globl	vtmminit
 
 	.data
 VIDSLOW:.long	0
@@ -113,8 +113,9 @@ LXXX:	.long	10		/ constant (imull)
 
 	.set	FRAME,32		/ ra, bx, si, di, ds, es, fs, bp
 
-	.globl	mmgo
-mmgo:
+	.globl	vtmmgo
+
+vtmmgo:
 	push	%ebx
 	push	%esi
 	push	%edi
@@ -207,7 +208,7 @@ exit0:
 	add	$4,%edx
 	movb	$0x29,%al
 	outb	(%dx)
-	mov	$600,%fs:mmvcnt		/ 600 seconds before video disabled
+	mov	$600,%fs:vtmmvcnt	/ 600 seconds before video disabled
 exit1:
 	mov	FRAME(%esp),%ebx	/ iop
 	mov	%ecx,%eax
@@ -230,7 +231,7 @@ exit1:
 / mminit - initialize screen
 /
 ////////
-mminit:
+vtmminit:
 	movw	%fs:MM_BASE(%ebp), %es
 	movb	$0x63,%fs:MM_ESC(%ebp)		/ schedule keyboard initialization
 
@@ -296,7 +297,7 @@ mmspec:	movb	%al,%fs:MM_ESC(%ebp)
 /
 ////////
 
-mmbell:	movb	$-1,%fs:mmbeeps
+mmbell:	movb	$-1,%fs:vtmmbeeps
 	jmp	eval
 
 ////////
@@ -649,7 +650,7 @@ loc17:	jmp	repos			/ reposition cursor
 
 mm_cgh:	cmpb	$13,%fs:MM_N1(%ebp)
 	jne	loc18
-	movl	$1,%fs:mmcrtsav
+	movl	$1,%fs:vtmmcrtsav
 loc18:	jmp	eval
 
 ////////
@@ -662,7 +663,7 @@ loc18:	jmp	eval
 
 mm_cgl:	cmpb	$13,%fs:MM_N1(%ebp)
 	jne	loc19
-	movl	$0,%fs:mmcrtsav
+	movl	$0,%fs:vtmmcrtsav
 loc19:	jmp	eval
 
 ////////
@@ -1485,7 +1486,7 @@ esctab:	.long	mmputc,	mmputc,	mmputc,	mmputc	/* NUL  SOH  STX  ETX  */
 	.long	eval,	eval,	eval,	eval	/* T U V W \124 - \127 */
 	.long	eval,	eval,	eval,	csi_n1	/* X Y Z [ \130 - \133 */
 	.long	eval,	eval,	eval,	eval	/* \ ] ^ _ \134 - \137 */
-	.long	mm_dmi,	eval,	mm_emi,	mminit	/* ` a b c \140 - \143 */
+	.long	mm_dmi,	eval,	mm_emi,	vtmminit /* ` a b c \140 - \143 */
 	.long	eval,	eval,	eval,	eval	/* d e f g \144 - \147 */
 	.long	eval,	eval,	eval,	eval	/* h i j k \150 - \153 */
 	.long	eval,	eval,	eval,	eval	/* l m n o \154 - \157 */
@@ -1596,8 +1597,8 @@ bcolor:	.byte	0x00, 0x40, 0x20, 0x60, 0x10, 0x50, 0x30, 0x70
 / mm_voff()	-- turn video display off
 /
 ////////
-	.globl	mm_voff
-mm_voff:
+	.globl	vtmm_voff
+vtmm_voff:
 	push	%ebp
 	mov	%esp, %ebp
 	mov	8(%ebp), %ebp		/ VTERM *
@@ -1614,8 +1615,8 @@ mm_voff:
 / mm_von( vp )	-- turn video display on
 / VTDATA *vp;
 ////////
-	.globl	mm_von
-mm_von:
+	.globl	vtmm_von
+vtmm_von:
 	push	%ebp
 	mov	%esp, %ebp
 	mov	8(%ebp), %ebp		/ VTERM *
@@ -1624,12 +1625,12 @@ mm_von:
 	add	$4,%edx
 	movb	$0x29,%al
 	outb	(%dx)
-	mov	$900,mmvcnt		/ 900 seconds before video disabled
+	mov	$900,vtmmvcnt		/ 900 seconds before video disabled
 	pop	%ebp
 	ret
 
-	.globl	ds_sel
-ds_sel:
+	.globl	vtds_sel
+vtds_sel:
 	mov	$0, %eax
 	mov	%ds, %ax
 	ret

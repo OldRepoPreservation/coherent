@@ -18,29 +18,31 @@ extern unsigned t_piggy;
 /*
  * Make sure we are the super user.
  */
+
 super()
 {
 	if (u.u_uid) {
 		u.u_error = EPERM;
-		return (0);
+		return 0;
 	}
 	u.u_flag |= ASU;
-	return (1);
+	return 1;
 }
 
 /*
  * Make sure we are the gived `uid' or the super user.
  */
+
 owner(uid)
 {
 	if (u.u_uid == uid)
-		return (1);
+		return 1;
 	if (u.u_uid == 0) {
 		u.u_flag |= ASU;
-		return (1);
+		return 1;
 	}
 	u.u_error = EPERM;
-	return (0);
+	return 0;
 }
 
 /*
@@ -68,43 +70,45 @@ panic(a1)
 char *a1;
 {
 	static panflag;
-	sphi();
+
+	sphi ();
 
 #ifdef TRACER
-	if ( t_piggy & 0x80 ) {
-		if (panflag++ == 0) {
-			printf("Panic: %r", &a1);
-			putchar('\n');
-			usync();
+	if (t_piggy & 0x80) {
+		if (panflag ++ == 0) {
+			printf ("Panic: %r", &a1);
+			putchar ('\n');
+			usync ();
 		}
-		printf("relax! It really isn't so bad.\n");
+		printf ("relax! It really isn't so bad.\n");
 	} else {
-		if (panflag++ == 0) {
-			if (paging()) {
-				printf("Panic: %r", &a1);
-				putchar('\n');
+		if (panflag ++ == 0) {
+			if (paging ()) {
+				printf ("Panic: %r", &a1);
+				putchar ('\n');
 			} else {
-				strchirp("Panic: ");
-				strchirp(a1);
+				strchirp ("Panic: ");
+				strchirp (a1);
 			}
 			backtrace (0);
-			curr_register_dump (u.u_regl);
-			for (;;);
-			usync();
+			for (;;)
+				/* DO NOTHING */ ;
+			usync ();
 		}
-		halt();
+		halt ();
 	}
 #else
-	if (panflag++ == 0) {
-		printf("Panic: %r", &a1);
-		putchar('\n');
-		for (;;);
-		usync();
+	if (panflag ++ == 0) {
+		printf ("Panic: %r", &a1);
+		putchar ('\n');
+		for (;;)
+			/* DO NOTHING */ ;
+		usync ();
 	}
-	halt();
+	halt ();
 #endif /* TRACER */
 
-	--panflag;
+	-- panflag;
 }
 
 /*
@@ -114,8 +118,8 @@ devmsg(dev, a1)
 dev_t dev;
 char *a1;
 {
-	printf("(%d,%d): %r", major(dev), minor(dev), &a1);
-	printf("\n");
+	printf ("(%d,%d): %r", major(dev), minor(dev), &a1);
+	printf ("\n");
 }
 
 /*
@@ -144,23 +148,23 @@ int ticks;
 
 	int tickCt = 0;
 	int flips = 0;
-	int p0 = (read_t0() < THRESH)?0:1;
+	int p0 = read_t0 () < THRESH ? 0 : 1;
 	int p1;
 
 	for (;;) {
-		if (fn && (*fn)())
+		if (fn && (* fn) ())
 			return 1;
 
 		/* did we change halves of counter cycle? */
-		p1 = (read_t0() < THRESH)?0:1;
+		p1 = read_t0 () < THRESH ? 0 : 1;
 		if (p0 != p1) {
 			p0 = p1;
-			flips++;
+			flips ++;
 
 			/* two phase flips make a tick */
 			if (flips >= 2) {
 				flips = 0;
-				tickCt++;
+				tickCt ++;
 				if (tickCt > ticks)
 					return 0;
 			}
@@ -183,7 +187,7 @@ int ticks;
  */
 
 int
-busyWait2(fn, counts)
+busyWait2 (fn, counts)
 int (*fn)();
 unsigned int counts;
 {
@@ -193,14 +197,14 @@ unsigned int counts;
 	 */
 
 	unsigned int totCt = 0;
-	unsigned int ct0 = read_t0();
+	unsigned int ct0 = read_t0 ();
 	unsigned int ct1;
 
 	for (;;) {
-		if (fn && (*fn)())
+		if (fn && (* fn) ())
 			return 1;
 
-		ct1 = read_t0();
+		ct1 = read_t0 ();
 		if (ct1 > ct0) {
 			/* no timer 0 rollover */
 			totCt += ct1 - ct0;

@@ -1,8 +1,16 @@
+/* $Header: /ker/coh.386/RCS/ker_data.c,v 2.2 93/07/26 14:55:28 nigel Exp $ */
 /*
  * This file contains definitions for the functions which support the Coherent
  * internal binary-compatibility scheme. We select _SYSV3 to get some old
  * definitions like makedev () visible.
  */
+/*
+ * $Log:	ker_data.c,v $
+ * Revision 2.2  93/07/26  14:55:28  nigel
+ * Nigel's R80
+ * 
+ */
+
 #define	_SYSV3		1
 
 #include <common/ccompat.h>
@@ -603,24 +611,7 @@ curr_register_dump (regsetp)
 gregset_t     *	regsetp;
 #endif
 {
-	printf ("\n");
-
-	if (regsetp->_i386._ebp > regsetp->_i386._esp) {
-		/*
-		 * This register set is indicating something that happened in
-		 * the kernel, so do a call backtrace.
-		 */
-
-		__ulong_t     *	ebp = (__ulong_t *) regsetp->_i386._ebp;
-
-		while (ebp != NULL) {
-			printf (" -> %x", * (ebp + 1));
-			ebp = (__ulong_t *) * ebp;
-		}
-		printf ("\n");
-	}
-
-	printf ("eax=%x  ebx=%x  ecx=%x  edx=%x\n", regsetp->_i386._eax,
+	printf ("\neax=%x  ebx=%x  ecx=%x  edx=%x\n", regsetp->_i386._eax,
 		regsetp->_i386._ebx, regsetp->_i386._ecx, regsetp->_i386._edx);
 	printf ("esi=%x  edi=%x  ebp=%x  esp=%x\n", regsetp->_i386._esi,
 		regsetp->_i386._edi, regsetp->_i386._ebp, regsetp->_i386._esp);
@@ -630,5 +621,23 @@ gregset_t     *	regsetp;
 	printf ("err #%d eip=%x  uesp=%x  cmd=%s\n", regsetp->_i386._err,
 		regsetp->_i386._eip, regsetp->_i386._uesp, u.u_comm);
 	printf ("efl=%x  ", regsetp->_i386._eflags);
+
+	if ((regsetp->_i386._cs & R_USR) != R_USR) {
+		/*
+		 * This register set is indicating something that happened in
+		 * the kernel, so do a call backtrace. To make this a little
+		 * more robust, we only go upwards in the stack from the frame
+		 * where we are, so that a smashed %ebp or frame causes no
+		 * problems.
+		 */
+
+		__ulong_t     *	ebp = (__ulong_t *) regsetp->_i386._ebp;
+		__ulong_t     *	prev = & regsetp->_i386._ebp;
+		while (ebp > prev) {
+			printf (" -> %x", * (ebp + 1));
+			ebp = (__ulong_t *) * (prev = ebp);
+		}
+		printf ("\n");
+	}
 }
 

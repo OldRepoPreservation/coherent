@@ -5,7 +5,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/seg.h>
-#include <sys/fakeff.h>
+#include <kernel/fakeff.h>
 
 extern SR allocp;
 
@@ -128,9 +128,9 @@ caddr_t vaddr;
 		}
 	}
 
-	T_PIGGY( 0x10, printf("vtop(%x)=%x, ", vaddr, retval); );
+	T_PIGGY( 0x10, printf("vtop(%x)=%x, ", vaddr, retval));
 
-	return(retval);
+	return retval;
 } /* vtop() */	
 
 /*
@@ -146,14 +146,14 @@ paddr_t vpaddr;
 	paddr_t	retval;
 	cseg_t pte;	/* Page table entry from sysmem.u.pbase[].  */
 
-	T_PIGGY( 0x10, printf("vptop(%x)=", vpaddr); );
+	T_PIGGY( 0x10, printf("vptop(%x)=", vpaddr));
 
 	pte = sysmem.u.pbase[btocrd(vpaddr)];
 	pte &= ~(NBPC - 1);	/* Strip off the non-address information.  */
 
 	retval = pte | (vpaddr & (NBPC - 1));
 
-	T_PIGGY( 0x10, printf("%x,", retval); );
+	T_PIGGY( 0x10, printf("%x,", retval));
 
 	return(retval);
 } /* vptop() */
@@ -170,11 +170,11 @@ caddr_t vaddr;
 {
 	paddr_t	retval;
 
-	T_PIGGY( 0x10, printf("vtopvp(%x)=", vaddr); );
+	T_PIGGY( 0x10, printf("vtopvp(%x)=", vaddr));
 
 	retval = MAPIO((allocp.sr_segp->s_vmem), (vaddr - allocp.sr_base));
 
-	T_PIGGY( 0x10, printf("%x, ", retval); );
+	T_PIGGY( 0x10, printf("%x, ", retval));
 
-	return( retval );
+	return retval;
 }

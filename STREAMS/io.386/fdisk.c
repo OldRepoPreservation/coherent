@@ -37,7 +37,7 @@ register struct fdisk_s *fp;
 
 	if (u.u_error == 0) {		/* special device now open */
 
-		if (bp = bread(dev, (daddr_t) 0, 1)) {	/* data read */
+		if (bp = bread(dev, (daddr_t) 0, BUF_SYNC)) {	/* data read */
 
 			/* buffer cache is in kernel data space */
 #ifdef _I386

@@ -1,3 +1,4 @@
+/* $Header: /ker/coh.386/RCS/clocked.c,v 2.2 93/07/26 15:22:04 nigel Exp $ */
 /*
  * clocked.c - support routines for alternate clock rate
  *
@@ -15,14 +16,19 @@
  *  History:
  *    90/08/08 hws	initial version, works with hs.c modified for com[1-4]
  *    90/08/14 hws	make it more like a Unix system call
+ *
+ * $Log:	clocked.c,v $
+ * Revision 2.2  93/07/26  15:22:04  nigel
+ * Nigel's R80
+ * 
  */
 
 #include	<sys/coherent.h>		/* altclk */
 
 #ifdef _I386
-#include	<sys/param.h>		/* HZ */
+#include	<kernel/param.h>		/* HZ */
 #else
-#include	<sys/const.h>		/* HZ */
+#include	<kernel/const.h>		/* HZ */
 #endif
 
 #define	PIT	0x40		/* 8253 port */

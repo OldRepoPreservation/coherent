@@ -1,3 +1,4 @@
+/* $Header: /ker/coh.386/RCS/proc.c,v 2.2 93/07/26 15:53:52 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,6 +14,11 @@
  -lgl) */
 /*
  * Process handling and scheduling.
+ *
+ * $Log:	proc.c,v $
+ * Revision 2.2  93/07/26  15:53:52  nigel
+ * Nigel's R80
+ * 
  */
 
 #include <common/_wait.h>
@@ -20,6 +26,7 @@
 #include <kernel/ker_data.h>
 #include <kernel/sigproc.h>
 #include <sys/wait.h>
+#include <stddef.h>
 
 #include <sys/coherent.h>
 #include <sys/acct.h>
@@ -46,7 +53,7 @@ pcsinit()
 	 * normally inherited.
 	 */
 
-	pp = &procq;
+	pp = & procq;
 	procq.p_nforw = pp;
 	procq.p_nback = pp;
 	procq.p_lforw = pp;
@@ -57,7 +64,7 @@ pcsinit()
 
 	PROC_INIT (& procq);
 
-	for (lp=&linkq[0]; lp<&linkq[NHPLINK]; lp++) {
+	for (lp = linkq ; lp < linkq + NHPLINK ; lp ++) {
 		lp->p_lforw = lp;
 		lp->p_lback = lp;
 	}
@@ -84,21 +91,23 @@ process ()
 
 	PROC_INIT (pp);
 
-	lock(pnxgate);
+	lock (pnxgate);
 next:
 
 	/*
 	 * Pick the next process id.
 	 */
-	if (++cpid >= NPID)
+	if (++ cpid >= NPID)
 		cpid = 2;
 	pp->p_pid = cpid;
+
 
 	/*
 	 * Make sure that process id is not in use.
 	 */
-	pp1 = &procq;
-	while ((pp1=pp1->p_nforw) != &procq) {
+
+	pp1 = & procq;
+	while ((pp1 = pp1->p_nforw) != & procq) {
 		if (pp1->p_pid < pp->p_pid)
 			break;
 		if (pp1->p_pid == pp->p_pid)
@@ -109,11 +118,12 @@ next:
 	 * We've got a valid pid, so let's put this process into
 	 * the process table.
 	 */
+
 	pp->p_nback = pp1->p_nback;
 	pp1->p_nback->p_nforw = pp;
 	pp->p_nforw = pp1;
 	pp1->p_nback = pp;
-	unlock(pnxgate);
+	unlock (pnxgate);
 	return pp;
 }
 
@@ -210,7 +220,7 @@ pfork()
 		segfinm (cpp->p_segp [SIUSERP]);
 		dmaout (sizeof (mcon),
 			MAPIO (cpp->p_segp [SIUSERP]->s_vmem,
-			       U_OFFSET + offset (uproc, u_syscon)),
+			       U_OFFSET + offsetof (struct uproc, u_syscon)),
 			(char *) & mcon);
 		s = sphi ();
 		setrun (cpp);
@@ -249,7 +259,7 @@ pexit(s)
 	PROC	      *	parent = NULL;
 
 	pp = SELF;
-	T_PIGGY( 0x1, printf("%s:pexit(%x)", u.u_comm, s); );
+	T_PIGGY( 0x1, printf("%s:pexit(%x)", u.u_comm, s));
 
 	ndpEndProc ();
 
@@ -594,18 +604,19 @@ register GATE g;
 {
 	register int s;
 
-	s = sphi();
-	while (g[0]) {
+	s = sphi ();
+	while (g->_lock [0]) {
 #ifdef	TRACER
-		if (g [0] != 1)
+		if (g->_lock [0] != 1)
 			panic ("Uninitialised gate");
 #endif
-		g[1] = 1;
-		x_sleep((char *)g, primed, slpriNoSig, "lock");
+		g->_lock [1] = 1;
+		x_sleep ((char *) g, primed, slpriNoSig, "lock");
 		/* Waiting for a gate to unlock.  */
 	}
-	g[0] = 1;
-	spl(s);
+	g->_lock [0] = 1;
+	__GATE_LOCK_COUNT (g);
+	spl (s);
 }
 
 /*
@@ -615,17 +626,17 @@ unlock(g)
 register GATE g;
 {
 #ifdef	TRACER
-	if (g [0] == 0)
+	if (g->_lock [0] == 0)
 		panic ("Gate not locked!");
 #endif
-	g[0] = 0;
-	if (g[1]) {
+	g->_lock [0] = 0;
+	if (g->_lock [1]) {
 #ifdef	TRACER
-		if (g [1] != 1)
+		if (g->_lock [1] != 1)
 			panic ("Uninitialised gate");
 #endif
-		g[1] = 0;
+		g->_lock [1] = 0;
 		disflag = 1;
-		wakeup((char *)g);
+		wakeup ((char *)g);
 	}
 }

@@ -1,4 +1,4 @@
-/* $Header: /v4a/io/RCS/ct.c,v 1.2 92/01/06 12:26:48 hal Exp $ */
+/* $Header: /ker/io.386/RCS/ct.c,v 2.2 93/07/26 15:28:02 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Console terminal driver.
  *
  * $Log:	ct.c,v $
+ * Revision 2.2  93/07/26  15:28:02  nigel
+ * Nigel's R80
+ * 
  * Revision 1.2  92/01/06  12:26:48  hal
  * Compile with cc.mwc.
  * 
@@ -110,16 +113,19 @@ IO *iop;
 /*
  * Ioctl.
  */
-ctioctl(dev, com, vec)
+
+ctioctl(dev, com, vec, mode)
 dev_t dev;
 struct sgttyb *vec;
 {
-	dioctl(SELF->p_ttdev, com, vec);
+	dioctl (SELF->p_ttdev, com, vec, mode, NULL);
 }
+
 
 /*
  * Poll.
  */
+
 ctpoll(dev, ev)
 dev_t dev;
 int ev;

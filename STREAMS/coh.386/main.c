@@ -5,14 +5,15 @@
 /*
  * Includes.
  */
+#include <kernel/param.h>
+#include <kernel/typed.h>
+
 #include <sys/coherent.h>
 #include <sys/devices.h>
 #include <sys/fdisk.h>
 #include <sys/proc.h>
 #include <sys/seg.h>
 #include <sys/stat.h>
-#include <sys/typed.h>
-#include <sys/param.h>
 
 /*
  * Definitions.
@@ -36,7 +37,7 @@
  */
 int read_cmos();
 
-static void atcount();
+static void set_at_drive_ct();
 static void rpdev();
 
 /*
@@ -45,40 +46,73 @@ static void rpdev();
  *	Export Variables.
  *	Local Variables.
  */
+
+/*
+ * Configurable variables - see ker/conf/cohmain/Space.c
+ *
+ * at_drive_ct must be initialized at the number of "at" drives for PS1
+ * and ValuePoint systems as the number of hard drives is not in CMOS.
+ */
+extern short at_drive_ct;
+
 extern dev_t rootdev;
 extern dev_t pipedev;
 extern int ronflag;
 extern int PHYS_MEM;
+extern unsigned long _entry;		/* really the serial number */
+extern unsigned long _bar;		/* really the serial number also */
 
-/*
- * Patchable variable.
- *
- * PS1DRIVES is the number of PS1 type drives in the system. It is 0 unless you
- *     are actually on a PS1.
- */
-int 	PS1DRIVES = 0;
+/* End of configurable variables. */
 
-short n_atdr;
 char version[] = VERSION;
 char release[] = RELEASE;
 char copyright[] = "Copyright 1982,1993 Mark Williams Company\n";
 
-unsigned long	_entry = 0;		/* really the serial number */
-unsigned long	__ = 0;			/* really the serial number also */
+#ifdef	TRACER
+
+/*
+ * Take a checksum of the kernel text.
+ */
+static unsigned		theSum;
+
+static unsigned
+checkSum ()
+{
+	extern	char	stext [], __end_text [];
+	char	      *	tmp = stext;
+	unsigned	sum = 0;
+	while (tmp != __end_text)
+		sum = sum * 5 + * tmp ++;
+	return sum;
+}
+
+/*
+ * Check the current kernel text segment against the boot checksum
+ */
+
+int
+checkTheSum ()
+{
+	unsigned	newSum;
+	
+	if ((newSum = checkSum ()) != theSum)
+		panic ("Kernel checksum failure, %x vs %x", theSum, newSum);
+	return 0;
+}
+#endif	/* defined (TRACER) */
+
 
 main()
 {
-	register SEG *sp;
-#ifdef _I386
 	extern int BPFMAX;
-	int speed1, speed2;
 	char * ndpTypeName();
 	extern int (*ndpEmFn)();
 	extern short ndpType;
-#else
-	extern int realmode;
-#endif
 
+#ifdef	TRACER
+	theSum = checkSum ();
+#endif
+	
 	CHIRP('a');
 	while (& u + 1 < & u) {
 		_CHIRP ('t', 8);
@@ -88,7 +122,7 @@ main()
 		_CHIRP ('p', 0);
 	}
 
-#ifdef _I386
+#if	_I386
 	wrNdpUser(0);
 	wrNdpSaved(0);
 	u.u_bpfmax = BPFMAX;
@@ -102,13 +136,12 @@ main()
 	_CHIRP('2', 156);
 	seginit();
 	_CHIRP('3', 156);
-	atcount();
+	set_at_drive_ct();
 	_CHIRP('4', 156);
 	rpdev();
 	_CHIRP('5', 156);
 	devinit();
 	_CHIRP('6', 156);
-#ifdef _I386
 	rlinit();
 	_CHIRP('7', 156);
 
@@ -116,50 +149,35 @@ main()
 	_CHIRP('8', 156);
 	printf("*** COHERENT Version %s - 386 Mode.  %uKB free memory. ***\n",
 		release, ctob(allocno())/1024);
-	if ((int11() & 0x30) == 0x30)
-		printf("Monochrome.  ");
+
+	/* Print default display type, based on BIOS int11h call. */
+	if ((int11 () & 0x30) == 0x30)
+		printf ("Monochrome.  ");
 	else
-		printf("Color.  ");
+		printf ("Color.  ");
+
+	/* Display FP coprocessor/emulation setting. */
 	senseNdp ();
 	printf (ndpTypeName ());
 	if (ndpType <= 1 && ndpEmFn)
-		printf("FP Emulation.  ");
-#if 0
-	if (int11() & 2)
-		printf("x87.  ");
-	else
-		printf("No x87.  ");
-#endif
-#else
-	printf("*** COHERENT Version %s - %s Mode.  %uKB free memory. ***\n",
-		release, (realmode ? "Real" : "Protected"), msize);
-#endif
-	printf( "%u buffers.  %u clists.\n", NBUF, NCLIST);
-	printf( "%uKB kalloc pool.  %u KB phys pool.\n",
-	  ALLSIZE/1024, PHYS_MEM/1024);
-	printf(copyright);
+		printf ("FP Emulation.  ");
 
-#ifdef _I386
-	/*
-	 * Make sure that we get a speed rating that does not cross 0.
-	 */
-	do {
-		speed1 = read_t0();
-		speed2 = read_t0();
-	} while (speed1 < speed2);
-
-	T_PIGGY(0x400,printf("CPU snail rating: %d\n", speed1 - speed2));
-#endif /* _I386 */
+	/* Display general system configuration parameters. */
+	printf ("%u buffers.  %u buckets.  %u clists.\n",
+	  NBUF, NHASH, NCLIST);
+	printf ("%uKB kalloc pool.  %u KB phys pool.\n",
+	  ALLSIZE / 1024, PHYS_MEM / 1024);
+	printf (copyright);
 
 	if (_entry) {
-		printf("Serial Number ");
-		printf("%lu\n", _entry);
+		printf ("Serial Number ");
+		printf ("%lu\n", _entry);
 	}
 
 	/*
 	 * Verify correct serial number
 	 */
-	if (_entry != __)
+	if (_entry != _bar)
 panic("Verification error - call Mark Williams Company at +1-708-291-6700\n");
 
 	/*
@@ -167,7 +185,7 @@ panic("Verification error - call Mark Williams Company at +1-708-291-6700\n");
 	 * and return.
 	 */
 	batflag = 1;
-#ifdef _I386
+
 	iprocp = SELF;
 	CHIRP('b');
 	if (pfork()) {
@@ -180,31 +198,25 @@ panic("Verification error - call Mark Williams Company at +1-708-291-6700\n");
 		eveinit();
 		CHIRP('=');
 	}
-#else
-	if ((sp=salloc((fsize_t)UPASIZE, SFNCLR|SFNSWP)) == NULL)
-		panic("Cannot allocate user area");
-	if ((iprocp=process(idle))==NULL || (eprocp=process(NULL))==NULL)
-		panic("Cannot create process");
-	eveinit(sp);
-	fsminit();
+
+#ifdef	TRACER
+	checkTheSum ();
 #endif
-	CHIRP('c');
+	CHIRP ('c');
 }
 
 /*
- * atcount()
+ * set_at_drive_ct()
  *
- * Read CMOS and return 0,1, or 2 as number of installed "at" drives.
+ * If "at_drive_ct" is already nonzero, don't change it.
+ * Else, read CMOS and return 0,1, or 2 as number of installed "at" drives.
  */
 void
-atcount()
+set_at_drive_ct()
 {
 	int u;
-	n_atdr = 0;
 
-        if (PS1DRIVES > 0)
-		n_atdr = PS1DRIVES;
-	else {
+        if (at_drive_ct <= 0) {
 		/*
 		 * Count nonzero drive types.
 		 *
@@ -213,9 +225,9 @@ atcount()
 		 */
 		u = read_cmos(0x12);
 		if (u & 0x00F0)
-			n_atdr++;
+			at_drive_ct++;
 		if (u & 0x000F)
-			n_atdr++;
+			at_drive_ct++;
 	}
 }
 
@@ -224,7 +236,7 @@ atcount()
  *
  * If rootdev is zero, try to use data from tboot to set it.
  * If pipedev is zero, make it 0x883 if ronflag == 1, else make it rootdev.
- * Call rpdev() AFTER calling atcount().
+ * Call rpdev() AFTER calling set_at_drive_ct().
  */
 static void rpdev()
 {
@@ -259,17 +271,18 @@ static void rpdev()
 			 */
 			root_drv = root_ptn/NPARTN;
 			root_ptn %= NPARTN;
-			if (n_atdr > root_drv) {
+			if (at_drive_ct > root_drv) {
 				root_maj = AT_MAJOR;
 				root_min = root_drv*NPARTN + root_ptn;
 			} else { /* root on SCSI device */
 				root_maj = SCSI_MAJOR;
-				root_min = (root_drv-n_atdr)*16 + root_ptn;
+				root_min = (root_drv-at_drive_ct)*16 + root_ptn;
 			}
 			rootdev = makedev(root_maj, root_min);
 			printf("rootdev=(%d,%d)\n", root_maj, root_min);
 		}
 	}
+
 	if (pipedev == makedev(0,0)) {
 		if (ronflag)
 			pipedev = makedev(RM_MAJOR, 0x83);

@@ -1,22 +1,25 @@
+/* $Header: /ker/coh.386/RCS/fifo.c,v 2.3 93/07/26 14:59:42 nigel Exp $ */
 /*
  * File:	fifo.c
  *
  * Purpose:	allow kernel to fetch data from real-mode bootstrap data area
  *
  * $Log:	fifo.c,v $
+ * Revision 2.3  93/07/26  14:59:42  nigel
+ * Nigel's R80
+ * 
  * Revision 1.3  93/04/14  10:06:27  root
  * r75
  * 
  * Revision 1.2  92/01/06  11:59:11  hal
  * Compile with cc.mwc.
- * 
  */
 
 /*
  * Includes.
  */
-#define KERNEL
-#include <sys/typed.h>
+
+#include <kernel/typed.h>
 
 /*
  * Definitions.

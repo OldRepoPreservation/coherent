@@ -115,9 +115,15 @@ CON	fdccon	= {
 };
 
 /*
+ * Configured in "fl/Space.c"
+ */
+
+extern	CON * flCon;
+
+/*
  * Two patchable pointers, for enabling diskette and/or tape device control.
  */
-CON * flCon = NULL;
+
 CON * ftCon = NULL;
 
 /* Global struct "fdc" passes FDC status to diskette and tape drivers. */

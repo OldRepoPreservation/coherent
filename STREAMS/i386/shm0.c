@@ -10,8 +10,10 @@
  * ----------------------------------------------------------------------
  * Includes.
  */
+
+#include <kernel/reg.h>
+
 #include <sys/coherent.h>
-#include <sys/reg.h>
 #include <sys/shm.h>
 
 /*
@@ -126,14 +128,14 @@ shmAllocDone:
  * Return 0 in case of failure, else nonzero.
  */
 int
-shmAtt(shm_ix, base, segp, ronflag)
+shmAtt(shm_ix, base, segp, shm_readonly)
 unsigned int shm_ix;
 caddr_t base;
 SEG * segp;
-int ronflag;
+int shm_readonly;
 {
 	int numBytes = segp->s_size;
-	return shmAttach(shm_ix, numBytes, base, segp, ronflag);
+	return shmAttach(shm_ix, numBytes, base, segp, shm_readonly);
 }
 
 /*
@@ -150,12 +152,12 @@ int ronflag;
  * Return 0 in case of failure, else nonzero.
  */
 int
-shmAttach(shm_ix, numBytes, base, segp, ronflag)
+shmAttach(shm_ix, numBytes, base, segp, shm_readonly)
 unsigned int shm_ix;
 off_t numBytes;
 caddr_t base;
 SEG * segp;
-int ronflag;
+int shm_readonly;
 {
 	SR * srp;
 
@@ -175,7 +177,7 @@ int ronflag;
 	srp = SELF->p_shmsr + shm_ix;
 	srp->sr_base = base;
 	srp->sr_flag = (SRFDUMP | SRFDATA);
-	if (ronflag)
+	if (shm_readonly)
 		srp->sr_flag |= SRFRODT;
 	srp->sr_size = numBytes;
 	srp->sr_segp = segp;

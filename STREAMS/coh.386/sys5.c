@@ -47,28 +47,30 @@ usysi86(f, arg1)
 
 	switch (f) {
 	case SYI86UNEEK:
-		if ((mp=getment(rootdev, 1)) == NULL)
+		if ((mp = getment (rootdev, 1)) == NULL)
 			return;
-		fsp = &mp->m_super;
+		fsp = & mp->m_super;
 		fsp->s_fmod = 1;
-		return (++fsp->s_unique);
+		return ++ fsp->s_unique;
+
 	case SI86FPHW:
 		/* 
 		 * 2's bit: floating point ndp is present (80287/80387/80486dx)
 		 * 1's bit (when 2's bit = 1): 80387/486dx is present
 		 */
-		if (!useracc(arg1, sizeof(int), 1)) {
-			SET_U_ERROR(EFAULT, "sysi386:SI86FPHW");
+
+		if (! useracc (arg1, sizeof (int), 1)) {
+			SET_U_ERROR (EFAULT, "sysi386:SI86FPHW");
 			return;
 		}
 		if (ndpType <= 1) { /* no ndp */
 			fpval = (ndpEmFn) ? FP_SW : FP_NO;
-		} else {
+		} else
 			fpval = (ndpType > 2) ? FP_387 : FP_287;
-		}
-		putuwd(arg1, fpval);
+
+		putuwd (arg1, fpval);
 		return 0;
-		break;
+
 	}
 }
 
@@ -76,11 +78,11 @@ ushmsys(func, arg1, arg2, arg3)
 int func, arg1, arg2, arg3;
 {
 	switch(func){
-		case 0: return ushmat(arg1, arg2, arg3);
-		case 1: return ushmctl(arg1, arg2, arg3);
-		case 2: return ushmdt(arg1);
-		case 3: return ushmget(arg1, arg2, arg3);
-		default: u.u_error = EINVAL;
+	case 0: return ushmat(arg1, arg2, arg3);
+	case 1: return ushmctl(arg1, arg2, arg3);
+	case 2: return ushmdt(arg1);
+	case 3: return ushmget(arg1, arg2, arg3);
+	default: u.u_error = EINVAL;
 	}
 }
 
@@ -133,70 +135,87 @@ struct utsname	*name;
 	int		fl;			/* File length*/
 
 	/* Check if *name is an available user area */
-	if (!useracc((char *) name, sizeof(struct utsname), 1)) {
+	if (! useracc ((char *) name, sizeof (struct utsname), 1)) {
 		u.u_error = EFAULT;
-		return(0);
+		return 0;
 	}
 	/* Find the size of the version number */
 	for (rcp = version, i = 0; *rcp != '\0' && i < SYS_NMLN; i++, rcp++)
-			;
+		/* DO NOTHING */ ;
+
 	/* Write version number to user area */
-	if (!kucopy(version, name->version, i))
-		return(0);
+	if (! kucopy (version, name->version, i))
+		return 0;
+
 	/* Find the size of the release number */
-	for (rcp = release, i = 0; *rcp != '\0' && i < SYS_NMLN; i++, rcp++)
-			;
+	for (rcp = release, i = 0 ; * rcp != '\0' && i < SYS_NMLN ;
+	     i ++, rcp ++)
+		/* DO NOTHING */ ;
+
 	/* Write release number to user area */
-	if (!kucopy(release, name->release, i))
+	if (! kucopy (release, name->release, i))
 		return;
+
 	/* Write "machine" to user area */
-	if (!kucopy("i386", name->machine, 4))
+	if (! kucopy ("i386", name->machine, 4))
 		return;
 	/*
 	 * We supposed that system name and nodename are in /etc/uucpname
 	 * NIGEL: Set the global io segment to IOSYS so that ftoi () will use
 	 * the right method of getting at the argument passed to it.
 	 */
-	u.u_io.io_seg = IOSYS;
-	if (ftoi("/etc/uucpname", 'r') != 0)
-		return(sys_unknown(name));
+
+	{
+		IO		io;
+		struct direct	dir;
+
+		io.io_seg = IOSYS;
+		if (ftoi ("/etc/uucpname", 'r', & io, & dir) != 0)
+			return sys_unknown (name);
+	}
+
 	ip = u.u_cdiri;
 	if ((fl = ip->i_size) == 0) {
-		idetach(ip);
-		return(sys_unknown(name));
+		idetach (ip);
+		return sys_unknown (name);
 	}
-	if (iaccess(ip, IPR) == 0) {
-		idetach(ip);
-		return;
-	}
-	if ((bp = vread(ip, (daddr_t) 0)) == NULL) {
-		brelease(bp);
-		idetach(ip);
-		return;
-	}
-	/* namebuf should be not more than SYS_NMLN - 1 characters long */
-	fl = (fl > SYS_NMLN) ? SYS_NMLN : fl;
-	kkcopy(bp->b_vaddr, namebuf, fl);
-	brelease(bp);
-	idetach(ip);
 
-	if (fl == 1 && namebuf[0] == '\n')
-		return(sys_unknown(name));
-	for (rcp = namebuf, i = 0; i < fl; rcp++) {
-		i++;
-		if (*rcp == '\n') {
-			*rcp = '\0';
+	if (iaccess (ip, IPR) == 0) {
+		idetach (ip);
+		return;
+	}
+	if ((bp = vread (ip, (daddr_t) 0)) == NULL) {
+		brelease (bp);
+		idetach (ip);
+		return;
+	}
+
+	/* namebuf should be not more than SYS_NMLN - 1 characters long */
+	fl = fl > SYS_NMLN ? SYS_NMLN : fl;
+	memcpy (namebuf, bp->b_vaddr, fl);
+
+	brelease (bp);
+	idetach (ip);
+
+	if (fl == 1 && namebuf [0] == '\n')
+		return sys_unknown (name);
+
+	for (rcp = namebuf, i = 0 ; i < fl ; rcp ++) {
+		i ++;
+		if (* rcp == '\n') {
+			* rcp = '\0';
 			break;
 		}
 	}
 	namebuf[i - 1] = '\0';
-	/* Write system name to user area */
-	if (!kucopy(namebuf, name->sysname, i))
-		return(0);
 
 	/* Write system name to user area */
-	if (!kucopy(namebuf, name->nodename, i))
-		return(0);
+	if (! kucopy (namebuf, name->sysname, i))
+		return 0;
+
+	/* Write system name to user area */
+	if (! kucopy (namebuf, name->nodename, i))
+		return 0;
 	return 0;
 }
 
@@ -207,15 +226,16 @@ char	unknown[] = "UNKNOWN";
 sys_unknown(name)
 struct utsname	*name;
 {
-	if (!kucopy(unknown, name->sysname, sizeof(unknown)))
+	if (! kucopy (unknown, name->sysname, sizeof (unknown)))
 		return;
-	if (!kucopy(unknown, name->nodename, sizeof(unknown)))
+	if (! kucopy (unknown, name->nodename, sizeof (unknown)))
 		return;
 }
 
 /* 
  * u_ustat - get file system statistics. (Name ustat in use for stat s.c.)
  */
+
 u_ustat(dev, buf)
 dev_t	dev;
 struct ustat	*buf;
@@ -224,15 +244,16 @@ struct ustat	*buf;
 
 	/* Check if buf is an available user area. */
 	/* B_READ | B_WRITE is not implemented yet. */
-	if (!useracc((char *) buf, sizeof(struct ustat), 1)) {
+	if (! useracc ((char *) buf, sizeof (struct ustat), 1)) {
 		u.u_error = EFAULT;
 		return;
 	}
 
 	/* Take mount filesystem, check if dev is mounted device */
-	for (mp = mountp; mp != NULL; mp = mp->m_next)
+	for (mp = mountp ; mp != NULL ; mp = mp->m_next)
 		if (mp->m_dev == dev)
 			break;
+
 	if (mp == NULL) {
 		u.u_error = EINVAL;
 		return;
@@ -240,30 +261,33 @@ struct ustat	*buf;
 
 	/* Pickup information from superblock */
 	/* Number of free blocks */
-	if (!kucopy(&(mp->m_super.s_tfree), &(buf->f_tfree),  
-						sizeof(mp->m_super.s_tfree)))
+	if (! kucopy (& mp->m_super.s_tfree, & buf->f_tfree,
+		     sizeof (mp->m_super.s_tfree)))
 		return;
+
 	/* Number of free inodes */
-	if (!kucopy(&(mp->m_super.s_tinode), &(buf->f_tinode),  
-						sizeof(mp->m_super.s_tinode)))
+	if (! kucopy (& mp->m_super.s_tinode, & buf->f_tinode,
+		      sizeof (mp->m_super.s_tinode)))
 		return;
+
 	/* File system name */
-	if (!kucopy(mp->m_super.s_fname, buf->f_fname,  
-						sizeof(mp->m_super.s_fname)))
+	if (! kucopy (mp->m_super.s_fname, buf->f_fname,  
+		      sizeof (mp->m_super.s_fname)))
 		return;
+
 	/* File system pack name */
-	if (!kucopy(mp->m_super.s_fpack, buf->f_fpack,  
-						sizeof(mp->m_super.s_fpack)))
+	if (! kucopy (mp->m_super.s_fpack, buf->f_fpack,  
+		      sizeof (mp->m_super.s_fpack)))
 		return;
 }
 
 umsgsys(func, arg1, arg2, arg3, arg4, arg5)
 {
 	switch (func) {
-	case 0: return umsgget(arg1, arg2);
-	case 1: return umsgctl(arg1, arg2, arg3);
-	case 2: return umsgrcv(arg1, arg2, arg3, arg4, arg5);
-	case 3:	return umsgsnd(arg1, arg2, arg3, arg4);
+	case 0: return umsgget (arg1, arg2);
+	case 1: return umsgctl (arg1, arg2, arg3);
+	case 2: return umsgrcv (arg1, arg2, arg3, arg4, arg5);
+	case 3:	return umsgsnd (arg1, arg2, arg3, arg4);
 	default:u.u_error = EINVAL;
 	}
 }
@@ -279,27 +303,30 @@ uulimit(cmd, newlimit)
 	case UL_GETFSIZE:	/* Get max # of 512-byte blocks per file. */
 		return u.u_bpfmax;
 		break;
+
 	case UL_SETFSIZE: /* Set max # of 512-byte blocks per file. */
 		/* (only superuser may increase this) */
-		if (newlimit <= u.u_bpfmax || super()) {
+		if (newlimit <= u.u_bpfmax || super ()) {
 			u.u_bpfmax = newlimit;
 			return 0;
 		}
 		/* else super() will have set u.u_error to EPERM */
 		break;
+
 	case UL_GMEMLIM: /* Get max break value. */
 		/* return (current brk value) + (amount of free space) */
 		/* Don't report all free clicks - leave a cushion. */
-		freeClicks = allocno() - BRK_CUSHION;
+		freeClicks = allocno () - BRK_CUSHION;
 		if (freeClicks < 0)
 			freeClicks = 0;
-		return u.u_segl[SIPDATA].sr_base
-		  + SELF->p_segp[SIPDATA]->s_size + NBPC * freeClicks;
-		break;
+		return u.u_segl [SIPDATA].sr_base +
+			SELF->p_segp [SIPDATA]->s_size + NBPC * freeClicks;
+
 	case UL_GDESLIM:
 		/* Return configured number of open files per process. */
 		return NOFILE;
 		break;
+
 	default:
 		u.u_error = EINVAL;
 	}
@@ -315,60 +342,67 @@ register long size;
 	FD *fdp;
 	register INODE *ip;
 
-	if ( size < 0 ) {
+	if (size < 0) {
 		u.u_error = EINVAL;
 		return -1;
 	}
-	if ( ((fdp=fdget(fd))==NULL) || ((fdp->f_flag&IPW)==0) ) {
+	if ((fdp = fdget (fd))==NULL || (fdp->f_flag & IPW) == 0) {
 		u.u_error = EBADF;
 		return -1;
 	}
+
 	ip = fdp->f_ip;
-	switch ( ip->i_mode&IFMT ) {
+	switch (ip->i_mode & IFMT) {
 	case IFREG:
-		if ( size > (((long) u.u_bpfmax) * BSIZE) ) {
+		if (size > (long) u.u_bpfmax * BSIZE) {
 			u.u_error = EFBIG;
 			return -1;
 		}
-		if ( size == ip->i_size )
+		if (size == ip->i_size)
 			break;
-		ilock(ip);
-		if ( size < ip->i_size )
-			blclear(ip, (ip->i_size+BSIZE-1)/BSIZE);
+		ilock (ip);
+		if (size < ip->i_size)
+			blclear (ip, __DIVIDE_ROUNDUP (ip->i_size, BSIZE));
 		ip->i_size = size;
-		imod(ip);
-		icrt(ip);
-		iunlock(ip);
+		imod (ip);
+		icrt (ip);
+		iunlock (ip);
 		break;
+
 	case IFPIPE:
-		if ( size > PIPSIZE ) {
+		if (size > PIPSIZE) {
 			u.u_error = EFBIG;
 			return -1;
 		}
+
 		ilock(ip);
-		if ( !ip->i_par && !ip->i_psr ) {
+
+		if (! ip->i_par && ! ip->i_psr) {
 			u.u_error = EPIPE;
-			sendsig(SIGPIPE, SELF);
-			iunlock(ip);
+			sendsig (SIGPIPE, SELF);
+			iunlock (ip);
 			return -1;
 		}
 		ip->i_pwx += (size - ip->i_pnc);
-		if ( size > ip->i_pnc ) {
-			if ( ip->i_pwx >= PIPSIZE )
+		if (size > ip->i_pnc) {
+			if (ip->i_pwx >= PIPSIZE)
 				ip->i_pwx -= PIPSIZE;
-		} else if ( size < ip->i_pnc ) {
-			if ( ip->i_pwx < 0 )
+		} else if (size < ip->i_pnc) {
+			if (ip->i_pwx < 0)
 				ip->i_pwx += PIPSIZE;
 		}
+
 		ip->i_pnc = size;
-		imod(ip);
-		icrt(ip);
-		if ( size > 0 )
-			pwake(ip, 2);	/* 2==IFWFW, see pipe.c	*/
-		if ( size < PIPSIZE )
-			pwake(ip, 1);	/* 1==IFWFR, see pipe.c	*/
-		iunlock(ip);
+		imod (ip);
+		icrt (ip);
+
+		if (size > 0)
+			pwake (ip, 2);	/* 2==IFWFW, see pipe.c	*/
+		if (size < PIPSIZE)
+			pwake (ip, 1);	/* 1==IFWFR, see pipe.c	*/
+		iunlock (ip);
 		break;
+
 	default:
 		u.u_error = EBADF;
 		return -1;
@@ -379,46 +413,44 @@ register long size;
 /*
  * Remove a directory.
  */
+
 urmdir(path)
 char	*path;
 {
 	register INODE	*ip;
-	int		ioType;		/* type of I/O operation */
 	int		iPathLen;	/* Size of the string */
 	int 		isdirempty();
 	extern int	strUserAcc();
+	IO		io;
+	struct direct	dir;
 	
-	ioType = u.u_io.io_seg;
-
 	/* Check if path points to a valid user buffer.*/
-	if ((iPathLen = strUserAcc(path, 0)) < 0) {
+	if ((iPathLen = strUserAcc (path, 0)) < 0) {
 		u.u_error = EFAULT;
 		return;
 	}
-	u.u_io.io_seg = IOUSR;
 
-	if (ftoi(path, 'r') != 0) {
-		u.u_io.io_seg = ioType;
+	io.io_seg = IOUSR;
+	if (ftoi (path, 'r', & io, & dir) != 0)
 		return;
-	}
-	u.u_io.io_seg = ioType;
 
 	ip = u.u_cdiri;
 
 	/* Check if path is a directory */
 	if ((ip->i_mode & IFMT) != IFDIR) {
 		SET_U_ERROR(ENOTDIR, "rmdir: no such directory");
-		idetach(ip);
+		idetach (ip);
 		return;
 	}
+
 	/* We have to check if directory is empty */
-	if (!isdirempty(ip)) {
-		SET_U_ERROR(EEXIST, "rmdir: directory is not empty");
-		idetach(ip);
+	if (! isdirempty (ip)) {
+		SET_U_ERROR (EEXIST, "rmdir: directory is not empty");
+		idetach (ip);
 		return;
 	}
-	idetach(ip);
-	removedir(path, iPathLen);
+	idetach (ip);
+	removedir (path, iPathLen);
 	return 0;
 }
 
@@ -426,6 +458,7 @@ char	*path;
  * Remove a directory.
  * path is a pointer to user area.
  */
+
 removedir(path, iPathLen)
 char	*path;	/* Directory name */
 int	iPathLen;	/* Path length */
@@ -433,93 +466,93 @@ int	iPathLen;	/* Path length */
 	char		*buf;
 	char		*cpbuf,		/* internal file_name buffer */
 			*cppath;	/* user file_name buffer */
-	int		ioType;		/* Type of I/O */
 
-	/* Allocate kernel buffer. We need extra space for '/', '.', '..' 
+	/*
+	 * Allocate kernel buffer. We need extra space for '/', '.', '..' 
 	 * and '\0'
 	 */
-	if ((buf = kalloc(iPathLen + 4)) == NULL) {
-		SET_U_ERROR(ENOSPC, "rmdir: out of kernel space");
+
+	if ((buf = kalloc (iPathLen + 4)) == NULL) {
+		SET_U_ERROR (ENOSPC, "rmdir: out of kernel space");
 		return;
 	}
 	cpbuf = buf;
 	cppath = path;
 
 	/* Copy path to the kernel buffer. */
-	while ((*cpbuf = getubd(cppath)) != '\0') {
-		cppath++;
-		cpbuf++;
+	while ((* cpbuf = getubd (cppath)) != '\0') {
+		cppath ++;
+		cpbuf ++;
 	}
-	*cpbuf++ = '/';
-	*cpbuf++ = '.';
-	*cpbuf = '\0';
-	ioType = u.u_io.io_seg;
-	u.u_io.io_seg = IOSYS;
+	* cpbuf++ = '/';
+	* cpbuf++ = '.';
+	* cpbuf = '\0';
 
-	dunlink(buf);
+	dunlink (buf);
 	if (u.u_error) {
-		kfree(buf);
-		u.u_io.io_seg = ioType;
+		kfree (buf);
 		return;
 	}
 
-	*cpbuf++ = '.';
-	*cpbuf = '\0';
+	* cpbuf ++ = '.';
+	* cpbuf = '\0';
 
-	dunlink(buf);
+	dunlink (buf);
 	if (u.u_error) {
-	/* We have to link '.' back here. */
-		kfree(buf);
-		u.u_io.io_seg = ioType;
+		/* We have to link '.' back here. */
+		kfree (buf);
 		return;
 	}
 
-	buf[iPathLen] = '\0';
+	buf [iPathLen] = '\0';
 
-	dunlink(buf);
+	dunlink (buf);
 	if (u.u_error) {
-	/* We have to link '.' and '..' back here. */
-		kfree(buf);
-		u.u_io.io_seg = ioType;
+		/* We have to link '.' and '..' back here. */
+		kfree (buf);
 		return;
 	}
 	kfree(buf);
-	u.u_io.io_seg = ioType;
 	return;
 }
+
 
 /*
  * Unlink the given directory.
  */
-dunlink(np)
+
+dunlink (np)
 char *np;
 {
 	register INODE *ip;
 	register dev_t dev;
+	IO		io;
+	struct direct	dir;
 
-	if (file_to_inode(np, 'u', 1) != 0)
+	io.io_seg = IOSYS;
+	if (file_to_inode (np, 'u', 1, & io, & dir) != 0)
 		return;
  
 	ip = u.u_pdiri;
-	if (iaccess(ip, IPW) == 0) {
+	if (iaccess (ip, IPW) == 0)
 		goto err;
-	}
 
 	dev = ip->i_dev;
-	if (diucheck(dev, u.u_cdirn) == 0)
+	if (diucheck (dev, u.u_cdirn) == 0)
 		goto err;
-	idirent(0);
-	idetach(ip);
 
-	if ((ip=iattach(dev, u.u_cdirn)) == NULL)
+	idirent (0, & io, & dir);
+	idetach (ip);
+
+	if ((ip = iattach (dev, u.u_cdirn)) == NULL)
 		return;
 
 	if (ip->i_nlink > 0)
-		--ip->i_nlink;
-	icrt(ip);	/* unlink - ctime */
+		-- ip->i_nlink;
+	icrt (ip);	/* unlink - ctime */
 
 err:
-	idetach(ip);
+	idetach (ip);
 	return;
 }
 
@@ -527,56 +560,62 @@ err:
  * This is a copy of iucheck. The only one difference is that that allows
  * to remove a directory to a regular user.
  */
-diucheck(dev, ino)
+
+diucheck (dev, ino)
 register dev_t dev;
 register ino_t ino;
 {
 	register INODE *ip;
 	INODE inode;
 
-	for (ip=&inodep[NINODE-1]; ip>=inodep; --ip) {
-		if (ip->i_ino==ino && ip->i_dev==dev)
+	for (ip = & inodep [NINODE - 1] ; ip >= inodep ; -- ip) {
+		if (ip->i_ino == ino && ip->i_dev == dev)
 			break;
 	}
+
 	if (ip < inodep) {
-		ip = &inode;
+		ip = & inode;
 		ip->i_dev = dev;
 		ip->i_ino = ino;
-		if (icopydm(ip) == 0)
-			return (0);
+		if (icopydm (ip) == 0)
+			return 0;
 	}
-	return (1);
+	return 1;
 }
 
 /* 
  * Check if directory is empty.
  */
-int isdirempty(ip)
+int isdirempty (ip)
 register INODE	*ip;
 {
 	register char	*cp;
 	int		count;
 	BUF		*bp;
 
-	for (count = 0; count < ip->i_size; count += 512) {
-		if ((bp = vread(ip, count)) == NULL) 
+	for (count = 0 ; count < ip->i_size ; count += 512) {
+		if ((bp = vread (ip, count)) == NULL) 
 			break;
-		for (cp = (char *) bp->b_vaddr; 
-				cp < (char *) bp->b_vaddr + BSIZE; cp += 16) {
-			if (*cp == '\0' && *(cp + 1) == '\0') 
+
+		for (cp = (char *) bp->b_vaddr ; 
+		     cp < (char *) bp->b_vaddr + BSIZE ; cp += 16) {
+
+			if (cp == '\0' && cp [1] == '\0') 
 				continue;
-			if (*(cp + 2) != '.')
+			if (cp [2] != '.')
 				goto bad;
-			if (*(cp + 3) == '\0')
+			if (cp [3] == '\0')
 				continue;
-			if (*(cp + 3) != '.' || *(cp + 4) != '\0')
+			if (cp [3] != '.' || cp [4] != '\0')
 				goto bad;
 		}
-		brelease(bp);
+
+		brelease (bp);
 	}
 	return 1;
+
 bad:
-	brelease(bp);
+	brelease (bp);
 	return 0;
 }
 
@@ -590,6 +629,7 @@ bad:
  *	This system call was implemented in very press time.
  * 	Vlad 6-04-92
  */
+
 umkdir(path, mode)
 char	*path;
 int	mode;
@@ -606,10 +646,9 @@ int	mode;
 			bufdotdot[512],
 			bufparent[512];
 	int		uid;
-	int		error;
 
 	/* Check if path points to a valid user buffer.*/
-	if (strUserAcc(path, 0) < 0) {
+	if (strUserAcc (path, 0) < 0) {
 		u.u_error = EFAULT;
 		return;
 	}
@@ -627,69 +666,63 @@ int	mode;
 	cp_dotdot = bufdotdot;
 	cp_parent = bufparent;
 
-	while ((*cpb_path = getubd(cp_path)) != '\0') {
-		*cp_dot++ = *cp_dotdot++ = *cp_parent++ = *cpb_path;
-		++cp_path;
-		if (++cpb_path >= &bufpath[sizeof(bufpath) - 3]) {
-			SET_U_ERROR(ENOENT, "sys5: mkdir: path too long");
+	while ((* cpb_path = getubd (cp_path)) != '\0') {
+		* cp_dot ++ = * cp_dotdot ++ = * cp_parent ++ = * cpb_path;
+		++ cp_path;
+		if (++ cpb_path >= & bufpath [sizeof (bufpath) - 3]) {
+			SET_U_ERROR (ENOENT, "sys5: mkdir: path too long");
 			return;
 		}
 	}
-	while (--cp_parent >= bufparent) {
-		if (*cp_parent == '/') {
-			*++cp_parent = '\0';
+
+	while (-- cp_parent >= bufparent) {
+		if (* cp_parent == '/') {
+			* ++ cp_parent = '\0';
 			break;
 		}
 	}
+
 	if (cp_parent < bufparent) {
-		*++cp_parent = '.';
-		*++cp_parent = '\0';
+		* ++ cp_parent = '.';
+		* ++ cp_parent = '\0';
 	}
 	
-	*cp_dotdot++ = *cp_dot++ = '/';
-	*cp_dotdot++ = *cp_dot++ = '.';
-	*cp_dotdot++ = '.';
-	*cp_dotdot = *cp_dot = '\0';
+	* cp_dotdot ++ = * cp_dot++ = '/';
+	* cp_dotdot ++ = * cp_dot++ = '.';
+	* cp_dotdot ++ = '.';
+	* cp_dotdot = * cp_dot = '\0';
 
-	u.u_io.io_seg = IOSYS;
-
-	u.u_io.io_seg = IOUSR;
-	if ((pip = dmknod(path, mode)) == NULL) {
+	if ((pip = dmknod (path, mode, IOUSR)) == NULL)
 		return;
-	}
-	u.u_io.io_seg = IOSYS;
-	/* Now we can switch our id to root. It allows to use existing
+
+	/*
+	 * Now we can switch our id to root. It allows to use existing
          * functions.
 	 */
+
 	uid = u.u_uid;
 	u.u_uid = 0;
-	ulink(bufpath, bufdot);
+
+	do_link (bufpath, bufdot, IOSYS);
+
 	if (u.u_error) {
-		error = u.u_error;
-		u.u_error = 0;
-		uunlink(bufpath);
-		u.u_error = 0;
-		u.u_io.io_seg = IOUSR;
+		u.u_error = do_unlink (bufpath, IOSYS);
+
 		u.u_uid = uid;
-		u.u_error = error;
 		return;
 	}
-	ulink(bufparent, bufdotdot);
+
+	do_link (bufparent, bufdotdot, IOSYS);
+
 	if (u.u_error) {
-		error = u.u_error;
-		u.u_error = 0;
-		uunlink(bufdot);
-		u.u_error = 0;
-		uunlink(bufpath);
-		u.u_uid = uid;
-		u.u_io.io_seg = IOUSR;
-		u.u_error = error;
-		return;
+		u.u_error = do_unlink (bufdot, IOSYS);
+		u.u_error = do_unlink (bufpath, IOSYS);
 	}
-	u.u_io.io_seg = IOUSR;
+
 	u.u_uid = uid;
 	return 0;
 }
+
 
 /*
  * Create a directory.
@@ -697,35 +730,42 @@ int	mode;
  * We cannot use original ulink because it makes the directories only
  * for superuser.
  */
+
 INODE *
-dmknod(np, mode)
+dmknod (np, mode, space)
 char	*np;	/* Direcotory name */
 int	mode;
+int		space;
 {
 	register INODE *ip, *pip;
 	register int type;
+	IO		io;
+	struct direct	dir;
 
 	type = (mode & ~IFMT);
 	type |= S_IFDIR;
 
 	/* If ftoi returns nonzero, u.u_error has been set. */
-	if (ftoi(np, 'c') != 0)
+	io.io_seg = space;
+	if (ftoi (np, 'c', & io, & dir) != 0)
 		return NULL;
 
-	if ((ip=u.u_cdiri) != NULL) {
-		SET_U_ERROR(EEXIST, "dmknod: path already exists")
-		idetach(ip);
+	if ((ip = u.u_cdiri) != NULL) {
+		SET_U_ERROR (EEXIST, "dmknod: path already exists");
+		idetach (ip);
 		return NULL;
 	}
-	if ((ip=imake(type, (dev_t) 0)) != NULL)
-		idetach(ip);
+	if ((ip = imake (type, (dev_t) 0, & io, & dir)) != NULL)
+		idetach (ip);
 	pip = u.u_pdiri;	/* grab ptr to parent inode */
 	return pip;
 }
 
+
 /*
  * Get directory entry in file system independent format.
  */
+
 ugetdents(fd, bp, n)
 int 		fd;	/* File descriptor to an open directory */
 char 		*bp;	/* Buffer where entries should be read */
@@ -746,63 +786,75 @@ unsigned 	n;	/* Number of bytes to be read */
 
 	cw = bp;
 
-	ofnm = sizeof(sd.d_ino) + sizeof(sd.d_off) + sizeof(sd.d_reclen);
+	ofnm = sizeof (sd.d_ino) + sizeof (sd.d_off) + sizeof (sd.d_reclen);
 
-	/* Find minimum possible size of bp. It should be enough to contain the
-	 * header of dirent, file name + '\0', and be on a sizeof(long)
+	/*
+	 * Find minimum possible size of bp. It should be enough to contain
+	 * the header of dirent, file name + '\0', and be on a sizeof(long)
 	 * boundary.
 	 */
+
 	entry = ofnm + DIRSIZ + 1;
 	mod = entry % sizeof(long);
 	minbuf = entry + (mod ? sizeof(long) - mod : 0); 
 
 	/* Is user buffer available? */
-	if (!useracc(bp, n, 1) || n < minbuf) {
+	if (! useracc (bp, n, 1) || n < minbuf) {
 		u.u_error = EFAULT;
-		return(0);
+		return 0;
 	}
 
 	while(n - (cw - bp) >= minbuf) {
-		/* Read next entry from the directory. 
+		/*
+		 * Read next entry from the directory. 
 		 * inode == 0 for rm(ed) entries 
 		 */
+
 		do {
-			if ((bytes = dirio(fd, &r_dir, sizeof(struct direct), 
-							&sd.d_off)) == 0) {
-				return(total);
-			}
+			if ((bytes = dirio (fd, & r_dir,
+					    sizeof (struct direct), 
+					    & sd.d_off)) == 0)
+				return total;
+
 			inode = r_dir.d_ino;
-		} while (!inode);
+		} while (! inode);
 
 		/* Find the size of file name */
-		for (cr = r_dir.d_name, i = 0; *cr != '\0' && i < DIRSIZ; 
-						i++, cr++)
-			;
+		for (cr = r_dir.d_name, i = 0 ; * cr != '\0' && i < DIRSIZ ; 
+		     i ++, cr ++)
+			/* DO NOTHING */ ;
 
 		/* Copy file name */
-		if (!kucopy(r_dir.d_name, cw + ofnm, i))
-			return(0);
+		if (! kucopy (r_dir.d_name, cw + ofnm, i))
+			return 0;
+
 		/* Write '\0' */
-		putubd(cw + ofnm + i++, '\0');
+		putubd (cw + ofnm + i ++, '\0');
+
 		/* Round up to long boundary */
 		if (mod = (ofnm + i) % sizeof(long))
-			if (!kucopy(ends, cw + ofnm + i, sizeof(long) - mod))
-				return(0);
+			if (! kucopy (ends, cw + ofnm + i, sizeof
+				      (long) - mod))
+				return 0;
+
 		sd.d_ino = r_dir.d_ino;
 		sd.d_reclen = ofnm + i;		/* Size of directory entry */
 		if (mod)
-			sd.d_reclen += sizeof(long) - mod;
-		if (!kucopy(&sd, cw, ofnm))
-			return(0);
+			sd.d_reclen += sizeof (long) - mod;
+
+		if (! kucopy(& sd, cw, ofnm))
+			return 0;
+
 		total += sd.d_reclen;
 		cw += sd.d_reclen;
 	}
-	return(total);
+	return total;
 }
 
 /*
  * Read `n' bytes from the directory `fd' using the buffer `bp'.
  */
+
 dirio(fd, bp, n, offset)
 struct direct	*bp;
 unsigned 	n;
@@ -810,46 +862,46 @@ off_t		*offset;
 {
 	register FD *fdp;
 	register INODE *ip;
+	IO		io;
 
 	/* Check file descriptor */
-	if ((fdp = fdget(fd)) == NULL)
-		return (0);
-	if (((fdp->f_flag & IPR)) == 0) {
+	if ((fdp = fdget (fd)) == NULL)
+		return 0;
+
+	if ((fdp->f_flag & IPR) == 0) {
 		u.u_error = EBADF;
-		return (0);
+		return 0;
 	}
+
 	ip = fdp->f_ip;
 	if ((ip->i_mode & IFMT) != IFDIR) {
 		u.u_error = EBADF;
-		return(0);
+		return 0;
 	}
 
-	ilock(ip);	/* We do not want file changes during the read */
+	ilock (ip);	/* We do not want file changes during the read */
 
-	/*
-	 * NIGEL: The initialization of io_seg was missing up until r79+.
-	 */
-	u.u_io.io_seg = IOSYS;
+	io.io_seg = IOSYS;
+	io.io_seek = fdp->f_seek;
+	io.io.vbase = bp;
+	io.io_ioc  = n;
+	io.io_flag = 0;
 
-	u.u_io.io_seek = fdp->f_seek;
-	u.u_io.io.vbase = bp;
-	u.u_io.io_ioc  = n;
-	u.u_io.io_flag = 0;
 	if ((fdp->f_flag & IPNDLY) != 0)
-		u.u_io.io_flag |= IONDLY;
+		io.io_flag |= IONDLY;
+
 	if ((fdp->f_flag & IPNONBLOCK) != 0)
-		u.u_io.io_flag |= IONONBLOCK;
+		io.io_flag |= IONONBLOCK;
 
-	iread(ip, &u.u_io);
-	iacc(ip);		/* read - atime */
+	iread (ip, & io);
+	iacc (ip);		/* read - atime */
 
-	n -= u.u_io.io_ioc;
-	*offset = fdp->f_seek;
+	n -= io.io_ioc;
+	* offset = fdp->f_seek;
 	fdp->f_seek += n;
 
-	iunlock(ip);
-
-	return (n);
+	iunlock (ip);
+	return n;
 }
 
 /* 
@@ -870,47 +922,47 @@ int		fstyp;	/* File system type */
 	long		frsize = 0;	/* Fragment size */
 
 	/* Check if stfs is an available user area. */
-	if (!useracc((char *) stfs, len, 1)) {
-		SET_U_ERROR(EFAULT, "ustatfs 0");
+	if (! useracc ((char *) stfs, len, 1)) {
+		SET_U_ERROR (EFAULT, "ustatfs 0");
 		return;
 	}
 
 	/* Filesystem type is 1 for 512 bytes blocks. */
-	count += sizeof(systype);
+	count += sizeof (systype);
 	if (count > len) {
-		SET_U_ERROR(EFAULT, "ustatfs 1");
+		SET_U_ERROR (EFAULT, "ustatfs 1");
 		return;
 	}
-	if (!kucopy(&(systype), &(stfs->f_fstyp), sizeof(systype)))
+	if (! kucopy (& systype, & stfs->f_fstyp, sizeof (systype)))
 		return;
 	
 	/* Block size */
-	count += sizeof(bsize);
+	count += sizeof (bsize);
 	if (count > len) {
-		SET_U_ERROR(EFAULT, "ustatfs 2");
+		SET_U_ERROR (EFAULT, "ustatfs 2");
 		return;
 	}
-	if (!kucopy(&(bsize), &(stfs->f_bsize), sizeof(bsize)))
+	if (! kucopy (& bsize, & stfs->f_bsize, sizeof (bsize)))
 		return;
 
 	/* Fragment size. */
-	count += sizeof(int);
+	count += sizeof (int);
 	if (count > len) {
-		SET_U_ERROR(EFAULT, "ustatfs 3");
+		SET_U_ERROR (EFAULT, "ustatfs 3");
 		return;
 	}
-	if (!kucopy(&(frsize), &(stfs->f_frsize), sizeof(frsize)))
+	if (! kucopy (& frsize, & stfs->f_frsize, sizeof (frsize)))
 		return;
 
-	if (!fstyp) {
-		if ((sb = statmount(-1, path)) == NULL)
+	if (! fstyp) {
+		if ((sb = statmount (-1, path)) == NULL)
 			return;
-		devinfo(sb, stfs, len, &count);
+		devinfo (sb, stfs, len, & count);
 	} else {
-		if ((sb = statunmount(-1, path)) == NULL)
+		if ((sb = statunmount (-1, path)) == NULL)
 			return;
-		devinfo(sb, stfs, len, &count);
-		kfree(sb);
+		devinfo (sb, stfs, len, & count);
+		kfree (sb);
 	}
 	return 0;
 }
@@ -930,7 +982,11 @@ char	*path;
 
 	/* Find the device */
 	if (path) {	/* Find ip by file name */
-		if (ftoi(path, 'r')) {
+		IO		io;
+		struct direct	dir;
+
+		io.io_seg = IOUSR;
+		if (ftoi (path, 'r', & io, & dir)) {
 			/* If ftoi returned nonzero, it also set u.u_error. */
 			return NULL;
 		}
@@ -938,24 +994,26 @@ char	*path;
 		device = ip->i_dev;
 		idetach(ip);
 	} else {		/* Find ip by file descriptor */
-		if ((fdp = fdget(fd)) == NULL)
+		if ((fdp = fdget (fd)) == NULL)
 			return NULL;
-		if (((fdp->f_flag & IPR)) == 0) {
-			SET_U_ERROR(EBADF, "statmount 1");
+		if ((fdp->f_flag & IPR) == 0) {
+			SET_U_ERROR (EBADF, "statmount 1");
 			return NULL;
 		}
 		ip = fdp->f_ip;
 		device = ip->i_dev;
 	}	
+
 	/* Take mount filesystem, check if dev is mounted device */
 	for (mp = mountp; mp != NULL; mp = mp->m_next)
 		if (mp->m_dev == device)
 			break;
+
 	if (mp == NULL) {
 		u.u_error = EINVAL;
 		return NULL;
 	}
-	return &mp->m_super;
+	return & mp->m_super;
 }
 
 /*
@@ -970,51 +1028,49 @@ int		*count;
 	long		inode;
 
 	/* Total number of blocks */
-	*count += sizeof(sb->s_fsize);
-	if (*count > len)
+	* count += sizeof (sb->s_fsize);
+	if (* count > len)
 		return;
-	if (!kucopy(&(sb->s_fsize), &(stfs->f_blocks), 
-					sizeof(sb->s_fsize)))
+
+	if (! kucopy (& sb->s_fsize, & stfs->f_blocks, sizeof (sb->s_fsize)))
 		return;
 
 	/* Count of free blocks */
-	*count += sizeof(sb->s_tfree);
-	if (*count > len)
+	* count += sizeof (sb->s_tfree);
+	if (* count > len)
 		return;
-	if (!kucopy(&(sb->s_tfree), &(stfs->f_bfree),
-					sizeof(sb->s_tfree)))
+	if (! kucopy (& sb->s_tfree, & stfs->f_bfree, sizeof (sb->s_tfree)))
 		return;
 
 	/* Total number of file inodes */
-	*count += sizeof(inode);
-	if (*count > len)
+	* count += sizeof (inode);
+	if (* count > len)
 		return;
+
 	inode = (long) (sb->s_isize - INODEI) * INOPB;
-	if (!kucopy(&inode, &(stfs->f_files), sizeof(inode)))
+	if (! kucopy (& inode, & stfs->f_files, sizeof (inode)))
 		return;
 
 	/* Number of free inodes */
-	*count += sizeof(inode);
-	if (*count > len)
+	* count += sizeof(inode);
+	if (* count > len)
 		return;
 	inode = sb->s_tinode;
-	if (!kucopy(&inode, &(stfs->f_ffree), sizeof(inode)))
+	if (! kucopy (& inode, & stfs->f_ffree, sizeof (inode)))
 		return;
 
 	/* Volume name */
-	*count += sizeof(sb->s_fname);
-	if (*count > len)
+	* count += sizeof (sb->s_fname);
+	if (* count > len)
 		return;
-	if (!kucopy(sb->s_fname, stfs->f_fname, 
-					sizeof(sb->s_fpack)))
+	if (! kucopy (sb->s_fname, stfs->f_fname, sizeof (sb->s_fpack)))
 		return;
 
 	/* Pack name */
-	*count += sizeof(sb->s_fpack);
-	if (*count > len)
+	* count += sizeof(sb->s_fpack);
+	if (* count > len)
 		return;
-	if (!kucopy(sb->s_fpack, stfs->f_fpack, 
-					sizeof(sb->s_fpack)))
+	if (! kucopy (sb->s_fpack, stfs->f_fpack, sizeof (sb->s_fpack)))
 		return;
 }
 
@@ -1036,24 +1092,27 @@ char	*path;	/* File name */
 
 	/* Find the device */
 	if (path) {	/* Find ip by file name */
-		if (ftoi(path, 'r')) 
+		IO		io;
+		struct direct	dir;
+
+		if (ftoi (path, 'r', & io, & dir)) 
 			return NULL;
 		ip = u.u_cdiri;
 		mode = ip->i_mode;
 		rdev = ip->i_a.i_rdev;
-		idetach(ip);
+		idetach (ip);
 	} else {		/* Find ip by file descriptor */
 		if ((fdp = fdget(fd)) == NULL)
 			return NULL;
-		if (((fdp->f_flag & IPR)) == 0) {
+		if ((fdp->f_flag & IPR) == 0) {
 			u.u_error = EBADF;
 			return NULL;
 		}
 		ip = fdp->f_ip;
-		ilock(ip);
+		ilock (ip);
 		mode = ip->i_mode;
 		rdev = ip->i_a.i_rdev;
-		iunlock(ip);
+		iunlock (ip);
 	}	
 
 	/* Check for block special device */
@@ -1069,7 +1128,8 @@ char	*path;	/* File name */
 			return NULL;
 		}
 	}
-	dopen(rdev, IPR, DFBLK);
+
+	dopen (rdev, IPR, DFBLK);
 	if (u.u_error) 
 		return NULL;
 	
@@ -1077,24 +1137,25 @@ char	*path;	/* File name */
  	 * NIGEL: Modified for new dclose ().
 	 */
 
-	bp = bread(rdev, (daddr_t) SUPERI, 1);
+	bp = bread (rdev, (daddr_t) SUPERI, BUF_SYNC);
 	dclose (rdev, IPR, DFBLK);
 
 	if (bp == NULL)
 		return NULL;
 
-	if ((sb = kalloc(sizeof(struct filsys))) == NULL)
-		return (NULL);
+	if ((sb = kalloc (sizeof (struct filsys))) == NULL)
+		return NULL;
 
-	kkcopy(bp->b_vaddr, sb, sizeof(struct filsys));
-	brelease(bp);
-	cansuper(sb);		/* canonicalize supperblock */
-	if (tstf(sb) == 0) {	/* check for consistency */
-		kfree(sb);
+	memcpy (sb, bp->b_vaddr, sizeof (struct filsys));
+	brelease (bp);
+
+	cansuper (sb);		/* canonicalize superblock */
+	if (tstf (sb) == 0) {	/* check for consistency */
+		kfree (sb);
 		u.u_error = EINVAL;
-		return(NULL);
+		return NULL;
 	}
-	return(sb);
+	return sb;
 }
 
 /* 
@@ -1115,47 +1176,47 @@ int		fstyp;	/* File system type */
 	long		frsize = 0;	/* Fragment size */
 
 	/* Check if stfs is an available user area. */
-	if (!useracc((char *) stfs, len)) {
+	if (! useracc ((char *) stfs, len)) {
 		u.u_error = EFAULT;
 		return;
 	}
 
 	/* Filesystem type is 1 for 512 bytes blocks. */
-	count += sizeof(systype);
+	count += sizeof (systype);
 	if (count > len) {
-		SET_U_ERROR(EFAULT, "ufstatfs 0");
+		SET_U_ERROR (EFAULT, "ufstatfs 0");
 		return;
 	}
-	if (!kucopy(&(systype), &(stfs->f_fstyp), sizeof(systype)))
+	if (! kucopy (& systype, & stfs->f_fstyp, sizeof (systype)))
 		return;
 	
 	/* Block size */
-	count += sizeof(bsize);
+	count += sizeof (bsize);
 	if (count > len) {
-		SET_U_ERROR(EFAULT, "ufstatfs 1");
+		SET_U_ERROR (EFAULT, "ufstatfs 1");
 		return;
 	}
-	if (!kucopy(&(bsize), &(stfs->f_bsize), sizeof(bsize)))
+	if (! kucopy (& bsize, & stfs->f_bsize, sizeof (bsize)))
 		return;
 
 	/* Fragment size. */
-	count += sizeof(int);
+	count += sizeof (int);
 	if (count > len) {
-		SET_U_ERROR(EFAULT, "ufstatfs 2");
+		SET_U_ERROR (EFAULT, "ufstatfs 2");
 		return;
 	}
-	if (!kucopy(&(frsize), &(stfs->f_frsize), sizeof(frsize)))
+	if (! kucopy (& frsize, & stfs->f_frsize, sizeof (frsize)))
 		return;
 
-	if (!fstyp) {
-		if ((sb = statmount(fildes, NULL)) == NULL)
+	if (! fstyp) {
+		if ((sb = statmount (fildes, NULL)) == NULL)
 			return;
-		devinfo(sb, stfs, len, &count);
+		devinfo (sb, stfs, len, & count);
 	} else {
-		if ((sb = statunmount(fildes, NULL)) == NULL)
+		if ((sb = statunmount (fildes, NULL)) == NULL)
 			return;
-		devinfo(sb, stfs, len, &count);
-		kfree(sb);
+		devinfo (sb, stfs, len, & count);
+		kfree (sb);
 	}
 	return 0;
 }
@@ -1163,6 +1224,7 @@ int		fstyp;	/* File system type */
 /*
  * Check superblock for consistency.
  */
+
 tstf(fp)
 register struct filsys *fp;
 {
@@ -1172,20 +1234,21 @@ register struct filsys *fp;
 
 	maxinode = (fp->s_isize - INODEI) * INOPB + 1;
 	if (fp->s_isize >= fp->s_fsize)
-		return (0);
-	if (fp->s_tfree < fp->s_nfree
-	 || fp->s_tfree >= fp->s_fsize - fp->s_isize + 1)
-		return (0);
-	if (fp->s_tinode < fp->s_ninode
-	 || fp->s_tinode >= maxinode-1)
-		return (0);
-	for (dp = &fp->s_free[0]; dp < &fp->s_free[fp->s_nfree]; dp += 1)
-		if (*dp < fp->s_isize || *dp >= fp->s_fsize)
-			return (0);
-	for (ip = &fp->s_inode[0]; ip < &fp->s_inode[fp->s_ninode]; ip += 1)
-		if (*ip < 1 || *ip > maxinode)
-			return (0);
-	return (1);
+		return 0;
+	if (fp->s_tfree < fp->s_nfree ||
+	    fp->s_tfree >= fp->s_fsize - fp->s_isize + 1)
+		return 0;
+	if (fp->s_tinode < fp->s_ninode || fp->s_tinode >= maxinode - 1)
+		return 0;
+
+	for (dp = fp->s_free ; dp < fp->s_free + fp->s_nfree ; dp += 1)
+		if (* dp < fp->s_isize || * dp >= fp->s_fsize)
+			return 0;
+
+	for (ip = fp->s_inode ; ip < fp->s_inode + fp->s_ninode ; ip += 1)
+		if (* ip < 1 || * ip > maxinode)
+			return 0;
+	return 1;
 }
 
 /* the following calls are not in the BCS */

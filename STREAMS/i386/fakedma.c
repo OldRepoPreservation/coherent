@@ -6,9 +6,9 @@
  */
 
 #include <sys/debug.h>
+#include <kernel/reg.h>
 
 #include <sys/coherent.h>
-#include <sys/reg.h>
 #include <sys/clist.h>
 #include <sys/errno.h>
 #include <sys/inode.h>
@@ -62,12 +62,12 @@ paddr_t	to;
 	unsigned off;
 	int	n;
 	cseg_t *base;
-	int work = workAlloc();	/* Get a virtual click pair. */
+	int work = workAlloc ();	/* Get a virtual click pair. */
 
-	off = to & (NBPC-1);
-	base = &sysmem.u.pbase[btocrd(to)];
-	n = min(nbytes, NBPC-off);
-	ptable1_v[work] = *base++ | SEG_SRW;
+	off = to & (NBPC - 1);
+	base = & sysmem.u.pbase [btocrd (to)];
+	n = min (nbytes, NBPC - off);
+	ptable1_v [work] = * base ++ | SEG_SRW;
 
 	memset (ctob (work) + off, 0, n);
 	nbytes -= n;
@@ -98,13 +98,13 @@ caddr_t	vaddr;
 	unsigned off;
 	unsigned	n, n1;
 	cseg_t* base;
-	int work = workAlloc();	/* Get a virtual click pair. */
+	int work = workAlloc ();	/* Get a virtual click pair. */
 
-	off = to & (NBPC-1);
-	base = &sysmem.u.pbase[btocrd(to)];
+	off = to & (NBPC - 1);
+	base = & sysmem.u.pbase [btocrd (to)];
 
-	n = min(nbytes, NBPC-off);
-	ptable1_v[work] = *base++ | SEG_SRW;
+	n = min (nbytes, NBPC - off);
+	ptable1_v [work] = * base ++ | SEG_SRW;
 
 	memcpy (vaddr, ctob (work) + off, n);
 	vaddr += n;
@@ -120,7 +120,7 @@ caddr_t	vaddr;
 		nbytes -= n;
 	}
 
-	workFree(work);
+	workFree (work);
 }
 
 /*
@@ -137,13 +137,13 @@ caddr_t	vaddr;
 	unsigned off;
 	unsigned	n, n1;
 	cseg_t *base;
-	int work = workAlloc();	/* Get a virtual click pair. */
+	int work = workAlloc ();	/* Get a virtual click pair. */
 
-	off = to & (NBPC-1);
-	base = &sysmem.u.pbase[btocrd(to)];
+	off = to & (NBPC - 1);
+	base = & sysmem.u.pbase [btocrd (to)];
 
-	n = min(nbytes, NBPC-off);
-	ptable1_v[work] = *base++ | SEG_SRW;
+	n = min (nbytes, NBPC - off);
+	ptable1_v [work] = * base ++ | SEG_SRW;
 
 	memcpy (ctob (work) + off, vaddr, n);
 	vaddr += n;
@@ -175,15 +175,15 @@ paddr_t	to;
 	unsigned off;
 	int	n;
 	cseg_t *base;
-	int work = workAlloc();	/* Get a virtual click pair. */
+	int work = workAlloc ();	/* Get a virtual click pair. */
 
-	off = to & (NBPC-1);
-	base = &sysmem.u.pbase[btocrd(to)];
+	off = to & (NBPC - 1);
+	base = & sysmem.u.pbase [btocrd (to)];
 
-	n = min(nbytes, NBPC-off);
-	ptable1_v[work] = *base++ | SEG_SRW;
+	n = min (nbytes, NBPC - off);
+	ptable1_v [work] = * base ++ | SEG_SRW;
 	
-	io2seg(n, ctob(work)+off, port);
+	io2seg (n, ctob (work) + off, port);
 	nbytes -= n;
 
 	while (nbytes > 0) {
@@ -210,15 +210,15 @@ paddr_t	to;
 	unsigned off;
 	int	n;
 	cseg_t *base;
-	int work = workAlloc();	/* Get a virtual click pair. */
+	int work = workAlloc ();	/* Get a virtual click pair. */
 
-	off = to & (NBPC-1);
-	base = &sysmem.u.pbase[btocrd(to)];
+	off = to & (NBPC - 1);
+	base = & sysmem.u.pbase [btocrd (to)];
 
-	n = min(nbytes, NBPC-off);
-	ptable1_v[work] = *base++ | SEG_SRW;
+	n = min (nbytes, NBPC - off);
+	ptable1_v [work] = * base ++ | SEG_SRW;
 	
-	seg2io(n, ctob(work)+off, port);
+	seg2io (n, ctob (work) + off, port);
 	nbytes -= n;
 
 	while (nbytes > 0) {
@@ -236,9 +236,9 @@ paddr_t	to;
  * pxcopy()
  *
  * copy "n" bytes of data at kernel address "v" from address "uo" in:
- * 	system global address space		(space&SEG_VIRT)
- * 	physical memory				!(space&SEG_VIRT)
- * Rights are determined by (space&~SEG_VIRT):
+ * 	system global address space		(space & SEG_VIRT)
+ * 	physical memory				! (space & SEG_VIRT)
+ * Rights are determined by (space & ~ SEG_VIRT):
  * 	"v" can be anywhere in kernel address space	SEG_386_KD
  * 	"v" must be an address accessible to the user	SEG_386_UD
  * Up to one click of data can be copied. No alignment restrictions
@@ -249,31 +249,34 @@ unsigned	uo;
 char	*v;
 register int n;
 {
-	cseg_t *base;
-	register	int save, err;
-	int work;
+	cseg_t	      *	base;
+	int		save;
+	int		err;
+	int		work;
 
 	if (n > NBPC)
 		return 0;
 
-	work = workAlloc();
+	work = workAlloc ();
+
 	if (space & SEG_VIRT) {
-		space &= ~SEG_VIRT;
-		base = &sysmem.u.pbase[btocrd(uo)];
-		ptable1_v[work] = *base++ | SEG_SRW;
-		ptable1_v[work + 1] = *base++ | SEG_SRW;
+		space &= ~ SEG_VIRT;
+		base = & sysmem.u.pbase [btocrd (uo)];
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		ptable1_v [work + 1] = * base ++ | SEG_SRW;
 	} else {
-		ptable1_v[work] = (uo&~(NBPC-1)) + SEG_SRW;
-		ptable1_v[work + 1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
+		ptable1_v [work] = (uo & ~ (NBPC - 1)) + SEG_SRW;
+		ptable1_v [work + 1] = (uo & ~ (NBPC - 1)) + NBPC + SEG_SRW;
 	}
 
-	save = setspace(space);
-	err = ukcopy(ctob(work) + (uo&(NBPC-1)), v, n);
-	setspace(save);
+	save = setspace (space);
+	err = kucopy (ctob (work) + (uo & (NBPC - 1)), v, n);
+	setspace (save);
 
-	workFree(work);
+	workFree (work);
 	return err;
 }
+
 
 /*
  * xpcopy()
@@ -287,33 +290,36 @@ register int n;
  * Up to one click of data can be copied. No alignment restrictions on "uo"
  * apply.
  */
+
 xpcopy(v, uo, n, space)
 char	*v;
 unsigned uo;
 register int n;
 {
-	register cseg_t *base;
-	register	int save, err;
-	int work;
+	cseg_t	      *	base;
+	int		save;
+	int		err;
+	int		work;
 
 	if (n > NBPC)
 		return 0;
 
-	work = workAlloc();
+	work = workAlloc ();
+
 	if (space & SEG_VIRT) {
-		space &= ~SEG_VIRT;
-		base = &sysmem.u.pbase[btocrd(uo)];
-		ptable1_v[work] = *base++ | SEG_SRW;
-		ptable1_v[work + 1] = *base++ | SEG_SRW;
+		space &= ~ SEG_VIRT;
+		base = & sysmem.u.pbase [btocrd (uo)];
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		ptable1_v [work + 1] = * base ++ | SEG_SRW;
 	} else {
-		ptable1_v[work] = (uo&~(NBPC-1)) + SEG_SRW;
-		ptable1_v[work + 1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
+		ptable1_v [work] = (uo & ~ (NBPC - 1)) + SEG_SRW;
+		ptable1_v [work + 1] = (uo & ~ (NBPC - 1)) + NBPC + SEG_SRW;
 	}
 
-	save = setspace(space);
-	err = kucopy(v, ctob(work) + (uo&(NBPC-1)), n);
-	setspace(save);
+	save = setspace (space);
+	err = ukcopy (v, ctob (work) + (uo & (NBPC - 1)), n);
+	setspace (save);
 
-	workFree(work);
+	workFree (work);
 	return err;
 }

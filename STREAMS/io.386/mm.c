@@ -5,17 +5,22 @@
  * High level output routines.
  *
  * $Log:	mm.c,v $
+ * Revision 2.2  93/07/26  15:32:02  nigel
+ * Nigel's R80
+ * 
  * Revision 1.4  92/04/09  10:25:38  hal
  * Call mmgo() from mmstart() at low priority.
  * 
  */
+
+#include <kernel/timeout.h>
+
 #include <sys/coherent.h>
 #include <sys/sched.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/io.h>
 #include <sys/tty.h>
-#include <sys/timeout.h>
 
 /* For beeper */
 #define	TIMCTL	0x43			/* Timer control port */

@@ -99,8 +99,8 @@ strncmp:
 		orb	%al, %al		/ %al == 0 ?
 		loopne	?strncmp_loop
 
-/ Because %al == 0, we know at this point that %eax == 0, so just return
-
+/ Either %al == 0 or %ecx == 0, and we have a match. Zero %eax
+		xorl	%eax, %eax
 		popl	%edi			/ Restore %edi
 		movl	%edx, %esi		/ Restore %esi
 		ret
