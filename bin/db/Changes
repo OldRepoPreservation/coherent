@@ -130,3 +130,12 @@ db1.c
 		Modified set_core to understand new core file format,
 		with or without dumped text segment.  Deciding if the text
 		segment is present is a kludge, since no flag is set.
+
+Tue Apr 20 14:55:31 1993 PDT
+		V4.1.5: Changed "%x" to "%X" in format strings.
+		Changed default format for COFF data and user segments
+		from "w" to "l".  Added sample invocations to usage message.
+		Fixed bug reported by hal: "0x400000?" gave bogus "addressing
+		error".  Added "clearerr()" call in getputb() on failure,
+		to prevent bogus "addressing error" on subsequent calls.
+		Added failure checks to fseek() calls.
