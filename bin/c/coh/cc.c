@@ -381,6 +381,7 @@ char *argv[];
 					continue;
 				case 2:
 					ccvariant ^= op->o_bits;
+					p += strlen(op->o_name);
 					/* Set strict */
 					if ((ccvariant&VS) != 0) {
 						for (op = &option[0];; op += 1)
@@ -401,7 +402,6 @@ char *argv[];
 							op += 1;
 						}
 					}
-					p += strlen(op->o_name);
 					continue;
 				case 12:
 					ccvariant |= op->o_bits;
