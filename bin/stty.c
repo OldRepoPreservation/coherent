@@ -482,7 +482,11 @@ dump_brief()
 	lbuf[0] = '\0';
 	strcat(lbuf, (f&BRKINT)?"brkint\t":"-brkint\t");
 	strcat(lbuf, (f&INPCK)?"inpck\t":"-inpck\t");
-	strcat(lbuf, (f&ICRNL)?"icrnl\n":"-icrnl\n");
+	strcat(lbuf, (f&ICRNL)?"icrnl\t":"-icrnl\t");
+
+	f = t.c_oflag;
+	strcat(lbuf, (f&OPOST)?"opost\t":"-opost\t");
+	strcat(lbuf, (f&ONLCR)?"onlcr\n":"-onlcr\n");
 	fputs(lbuf, stdout);
 
 
@@ -641,6 +645,7 @@ char * opt;
 	}
 	if (strcmp(opt, "evenp") == 0) {
 		simple("parenb", c_list, &t.c_cflag);
+		simple("-parodd", c_list, &t.c_cflag);
 		simple("cs7", c_list, &t.c_cflag);
 		goto combo_done;
 	}
