@@ -1,9 +1,45 @@
 /*
- * Rec'd from Lauren Weinstein, 7-16-84.
- * Mod by rec 84.08.21: added gflag for group identification
+ *	Modifications copyright INETCO Systems Ltd.
  *
  * Print out process statuses.
+ *
+ * $Log:	/usr/src/cmd/i8086/ps.c,v $
+ * Revision 1.2	91/07/17  09:40:13 	bin
+ * steve 7/17/91
+ * Inetco ps source, believed to correspond to MWC V300 executable.
+ * 
+ * Revision 1.2	89/06/12  15:15:22 	src
+ * Bug:	A directory at the end of the '/dev' directory would cause 'ps'
+ * 	to crash with the message "Cannot open <dir> in /dev".
+ * Fix:	A stat was being done without the return code being checked. (ART)
+ * 
+ * Revision 1.1	89/06/12  14:42:24 	src
+ * Initial revision
+ * 
+ * 88/02/15	Allan Cornish	/usr/src/cmd/cmd/ps.c
+ * Kernel processes are now displayed regardless of -ax flags.
+ *
+ * 87/11/25	Allan Cornish	/usr/src/cmd/cmd/ps.c
+ * Debug flag now -D.  Drivers now displayed by -d flag.
+ *
+ * 87/11/12	Allan Cornish	/usr/src/cmd/cmd/ps.c
+ * Modified to support Coherent 9.0 [protected mode] segmentation.
+ *
+ * 87/10/20	Allan Cornish	/usr/src/cmd/cmd/ps.c
+ * Now extracts cmd name from u_comm field in uproc struct for kernel procs.
+ * Kernel processes only displayed if -d [debug] flag given.
+ *
+ * 87/09/28	Phil Selby	/usr/src/cmd/cmd/ps.c
+ * Altered so that the terminal name rather than major and minor
+ * device number is printed out
+ *
+ * 84/08/21	Rec
+ * Added gflag for group identification.
+ *
+ * 84/07/16	Lauren Weinstein
+ * Initial version.
  */
+
 #include <stdio.h>
 #include <ctype.h>
 #include <sys/const.h>
@@ -11,6 +47,7 @@
 #include <pwd.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
+#include <sys/dir.h>
 #include <sys/seg.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
@@ -22,6 +59,16 @@
  */
 #undef	SISTACK
 #define	SISTACK	SIPDATA
+
+/*
+ *	Terminal information stored in memory for use by ps in TTY field
+ */
+
+struct handle {
+	dev_t	dnum;		/* device number */
+	char dname[DIRSIZ];	/* device name */
+	struct handle *nptr;	/* pointer to next */
+} *fptr, *lptr;
 
 /*
  * Maximum sizes.
@@ -48,7 +95,8 @@
  * Variables.
  */
 int	aflag;				/* All processes */
-int	dflag;				/* Debug flag */
+int	dflag;				/* Driver flag */
+int	dbflag;				/* Debug flag */
 int	fflag;				/* Print out all fields */
 int	gflag;				/* Print out process groups */
 int	lflag;				/* Long format */
@@ -111,6 +159,9 @@ char *argv[];
 				continue;
 			case 'd':
 				dflag++;
+				continue;
+			case 'D':
+				dbflag++;
 				continue;
 			case 'f':
 				fflag++;
@@ -179,7 +230,7 @@ initialise()
  */
 usage()
 {
-	panic("Usage: ps [-acdklmnrtwx]");
+	panic("Usage: ps [-][acdfgklmnrtwx]");
 }
 
 /*
@@ -197,17 +248,24 @@ execute()
 		panic("Cannot open %s", mfile);
 	if ((kfd = open(kfile, 0)) < 0)
 		panic("Cannot open %s", kfile);
-	if ((dfd=open(dfile, 0)) < 0)
-		panic("Cannot open %s", dfile);
+
+	/*
+	 * Open swap device if it exists
+	 */
+	dfd = open(dfile, 0);
+
 	kread((long)aasize, &casize, sizeof (casize));
 	kread((long)aprocq, &cprocq, sizeof (cprocq));
+
 	if ((allp=malloc(casize)) == NULL)
-		panic("Out of core");
+		panic( "Out of core or invalid kernel specified" );
+
 	kread((long)aend, allp, casize);
 	kread((long)autime, &cutime, sizeof (cutime));
 	settdev();
+	fttys( "/dev");	/* load all the devices in dev */
 	l = 9;
-	if (dflag)
+	if (dbflag)
 		l += 7;
 	if (gflag)
 		l += 6;
@@ -218,9 +276,9 @@ execute()
 	if (tflag)
 		l += 12;
 	if (nflag == 0) {
-		if (dflag)
+		if (dbflag)
 			printf("       ");
-		printf("TTY   PID");
+		printf("TTY       PID");
 		if (gflag)
 			printf(" GROUP");
 		if (lflag)
@@ -234,14 +292,36 @@ execute()
 	}
 	pp1 = &cprocq;
 	while ((pp2=pp1->p_nback) != aprocq) {
+
 		if (range((char *)pp2) == 0)
 			panic("Fragmented list");
 		pp1 = (PROC *) map(pp2);
-		if (xflag==0 && pp1->p_ttdev==NODEV)
-			continue;
-		if (aflag==0 && pp1->p_ttdev!=ttdev)
-			continue;
-		if (dflag)
+
+		/*
+		 * Kernel process - display only if '-d' argument given.
+		 */
+		if ( pp1->p_flags & PFKERN ) {
+			if ( dflag == 0 )
+				continue;
+		}
+
+		/*
+		 * Unattached process - display only if '-x' argument given.
+		 */
+		else if ( pp1->p_ttdev == NODEV ) {
+			if ( xflag == 0 )
+				continue;
+		}
+
+		/*
+		 * Attached to other terminal - display only if '-a' arg given.
+		 */
+		else if ( pp1->p_ttdev != ttdev ) {
+			if ( aflag == 0 )
+				continue;
+		}
+
+		if (dbflag)
 			printf("%06o ", pp2);
 		ptty(pp1);
 		printf(" %5d", pp1->p_pid);
@@ -277,6 +357,7 @@ execute()
 		putchar('\n');
 		fflush(stdout);
 	}
+	rttys();	/* release all alloced space */
 }
 
 /*
@@ -302,18 +383,142 @@ settdev()
 }
 
 /*
- * Print out a terminal name.
+ *	Finds all special file in the specified directory (e.g. /dev)
  */
-ptty(pp)
+
+fttys( dirname)
+
+char *dirname;
+
+{
+	int filein;		/* directory file descriptor */
+	struct stat sbuf;	/* stat structure */
+	struct direct dbuf;	/* directory buffer structure */
+	
+	/* move to the appropriate directory and open file for reading */
+	
+	chdir( dirname );
+
+	if( ( filein = open( ".", 0) ) < 0 ) {
+		fprintf( stderr, "Cannot open '%s' in /dev\n", dirname );
+		exit( 1 );
+	}
+
+	read( filein, &dbuf, sizeof(dbuf) );	/* read . */
+	read( filein, &dbuf, sizeof(dbuf) );	/* read .. */
+
+	while( read( filein, &dbuf, sizeof(dbuf) ) ) {
+		if( stat( dbuf.d_name, &sbuf ) < 0 )
+			continue;
+
+		if( sbuf.st_mode & S_IFCHR )
+			addname( dbuf.d_name, sbuf.st_rdev );
+
+		else if( sbuf.st_mode & S_IFDIR )
+			fttys( dbuf.d_name );
+	}
+
+	close( filein );
+	chdir( ".." );
+}
+
+/*
+ *	Adds a name and and device number of type handle
+ */
+
+addname( devname, devnum )
+
+char *devname;
+dev_t devnum;
+
+{
+	extern struct handle *fptr;
+	extern struct handle *lptr;
+	
+	if( fptr == (struct handle *) NULL ) {
+		if( (fptr=(struct handle *) malloc( sizeof(struct handle))) ==
+				(struct handle *) NULL ) {
+			fprintf( stderr, "Out of memory\n");
+			exit( 1 );
+		}
+
+		fptr->nptr = (struct handle *) NULL;
+		strcpy( fptr->dname, devname);
+		fptr->dnum = devnum;
+	}
+
+	else {
+		lptr = fptr;
+
+		while( ( lptr->nptr != (struct handle *) NULL ) &&
+			( lptr->dnum != devnum ) ) lptr = lptr->nptr;
+
+		if( lptr->dnum == devnum )
+			return;
+
+		if( (lptr->nptr=(struct handle *)malloc(sizeof(struct handle)))
+				== (struct handle *) NULL ) {
+			fprintf( stderr, "Out of memory\n");
+			exit( 1 );
+		}
+
+		lptr = lptr->nptr;
+		lptr->nptr = (struct handle *) NULL;
+		strcpy( lptr->dname, devname);
+		lptr->dnum = devnum;
+	}
+}
+
+/*
+ *	Release allocated space on exit (default action anyway)
+ */
+
+rttys()
+{
+	/* release allocated space */
+	
+	lptr = fptr;
+	while( lptr->nptr != (struct handle *) NULL ) {
+		fptr = lptr;
+		lptr = fptr->nptr;
+		free( fptr);
+	}
+	free( lptr);
+}
+
+/*
+ *	Print the controlling terminal name.  If not found it prints the
+ *	major and minor device numbers.  If no controlling terminal on the
+ *	process than '--------' is printed.
+ */
+
+ptty( pp )
 register PROC *pp;
 {
 	register int d;
 
-	if ((d=pp->p_ttdev) == NODEV) {
-		printf("??:");
+	/* when supplied with a device number, look for the name
+	   of the special file from the dev directory */
+	   
+	if( ( d = pp->p_ttdev ) == NODEV ) {
+		printf( "-------");
 		return;
 	}
-	printf("%o0:", major(d));
+
+	lptr = fptr;
+	while( lptr->nptr != (struct handle *) NULL ) {
+		if( lptr->dnum == d ) {
+			printf( "%-7.7s", lptr->dname);
+			return;
+		}
+		lptr = lptr->nptr;
+	}
+	if( lptr->dnum == d ) {
+		printf( "%-7.7s", lptr->dname);
+		return;
+	}
+	printf( "%3d %3d", major( d ), minor( d ) );
+	return;
 }
 
 /*
@@ -383,7 +588,7 @@ register PROC *pp;
 			return;
 		}
 		sp = (SEG *) map(sp);
-		l += ctob(sp->s_size);
+		l += sp->s_size;
 	}
 	if (l != 0)
 		printf("%4ldK", l/1024);
@@ -457,20 +662,29 @@ register PROC *pp;
 		printf("<idle>");
 		return;
 	}
-	if (pp->p_event == astime) {
-		printf("<swap>");
-		return;
-	}
 	if (segread(pp->p_segp[SIUSERP], 0, &u, sizeof (u)) == 0)
 		return;
+
+	/*
+	 * Handle kernel processes.
+	 */
+	if ( pp->p_flags & PFKERN ) {
+		printf("<%.*s>",sizeof(u.u_comm), u.u_comm[0] ? u.u_comm : "");
+		return;
+	}
+
 	n = segread(pp->p_segp[SISTACK], (u.u_argp-u.u_segl[SISTACK].sr_base),
 		argp, sizeof (argp));
+
 	if (n == 0)
 		return;
+
 	if ((argc=u.u_argc) <= 0)
 		return;
+
 	m -= 2;
 	cp = argp;
+
 	while (argc--) {
 		while ((c=*cp++) != '\0') {
 			if (!isascii(c) || !isprint(c))
@@ -491,19 +705,26 @@ register PROC *pp;
  * `s', read `n' bytes from the segment into the buffer `bp'.
  */
 segread(sp, s, bp, n)
+
 SEG *sp;
 vaddr_t s;
 char *bp;
+
 {
 	register SEG *sp1;
 
 	if (range((char *)sp) == 0)
 		return (0);
+
 	sp1 = (SEG *) map(sp);
+
 	if ((sp1->s_flags&SFCORE) != 0)
-		mread(ctob((long)sp1->s_mbase) + s, bp, n);
+		mread( sp1->s_paddr + s, bp, n );
+
 	else
-		dread((long)sp1->s_dbase*BSIZE + s, bp, n);
+		if( dread( (long)sp1->s_daddr*BSIZE + s, bp, n ) < 0 )
+			return( 0 );
+
 	return (1);
 }
 
@@ -538,9 +759,19 @@ long s;
 dread(s, bp, n)
 long s;
 {
-	lseek(dfd, (long)s, 0);
-	if (read(dfd, bp, n) != n)
-		panic("Swap read error");
+	/*
+	 * If swap device exists go look at it
+	 */
+	if( dfd > 0 ) {
+		lseek(dfd, (long)s, 0);
+
+		if (read(dfd, bp, n) != n)
+			panic("Swap read error");
+
+		return( 1 );
+	}
+
+	return( 0 );
 }
 
 /*
