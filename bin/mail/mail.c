@@ -1,6 +1,6 @@
 static	char	*rcsrev = "$Revision: 1.2 $";
 static	char	*rcshdr =
-	"$Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $";
+"$Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $";
 /*
  * $Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $
  * $Log:	mail.c,v $
@@ -544,13 +544,39 @@ readmail()
 	static long m_last_end;
 	int datasw;
 	bool newmsg;
+	static bool checked_format;
 	static fsize_t original_box_size;
+	char convert_cmd[65];
 
 	if (m_first == NULL) {
 		if (stat(mailbox, &sb) < 0)
 			merr(nombox, mailbox);
 		if (sb.st_size == 0)
 			merr(nomail);
+
+		/* the following will open the mailbox and read the first
+		 * line. If it is not a MSGSEP, then a message will be printed
+		 * to run cvmail and exit.
+		 */
+
+		if(!checked_format){
+			if ((mfp = fopen(mailbox, "r")) == NULL)
+				merr(moerr, mailbox);
+			if(fgets(msgline, sizeof msgline, mfp) == NULL){
+				printf("Can not determine mailbox format\n");
+				exit(1);
+			}
+			fclose(mfp);
+			checked_format = TRUE;
+			if(strcmp(MSGSEP, msgline)){
+				printf("You're mailbox or mailfile needs to be converted to the proper format.\n");
+				strcpy(convert_cmd, "/bin/cvmail ");
+				strcat(convert_cmd, mailbox);
+				printf("\nTo manually convert your mailbox, run: %s\n\n", convert_cmd);
+				exit(1);
+			}
+		}
+
 		original_box_size = sb.st_size;
 		if (access(mailbox, AREAD) < 0)
 			merr(noperm, mailbox);
