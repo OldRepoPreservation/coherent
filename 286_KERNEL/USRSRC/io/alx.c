@@ -4,20 +4,26 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 2.9  92/01/13  08:38:24  hal
+ * Rearrange alxopen() to deal with ill-behaved daemons.
+ * 
+ * Revision 2.8  92/01/12  19:23:50  hal
+ * Tracking nasty Kelly bug.
+ * 
  * Revision 2.6  91/12/26  16:52:05  hal
  * Flags left in bad state if open r-device got killed.
- * 
+ *
  * Revision 2.5  91/12/20  14:08:27  hal
  * Add static alx_send().
  * From alxstart(), don't toggle Tx interrupts - call alx_send().
- * 
+ *
  * Revision 2.4  91/12/10  08:04:13  hal
  * Make interrupt routine clear all UART irq conditions if it gets an
  * interrupt without an argument telling which port interrupted.
- * 
+ *
  * Revision 2.3  91/12/05  09:35:06  hal
  * Working 16550A code.  Nfg on GeeSee.
- * 
+ *
  * Revision 2.2  91/12/02  19:21:45  hal
  * Last version before FIFO testing.
  *
@@ -66,7 +72,7 @@
 
 int	al_sg_set = 0;
 int	al_sg_clr = 0;
-static int poll_divisor;  /* set by set_poll_rate(), read by alxclk() */
+static	int poll_divisor;  /* set by set_poll_rate(), read by alxclk() */
 
 /*
  * functions herein
@@ -151,15 +157,20 @@ char *message;
 TTY *tp;
 {
 	int i, b;
+	char cmd[11];
 
 	for (i = 0; i < NUM_AL_PORTS; i++) {
 		b = ((COM_DDP *)(tp_table[i]->t_ddp))->port;
 		printf("%x:%x:%x:%x ", i+1, b, inb(b+MCR), inb(b+IER));
 	}
-	printf("poll=%d ", poll_rate);
+	for (i = 0; i < 10; i++) {
+		cmd[i] = u.u_comm[i];
+	}
+	cmd[10] = '\0';
+	printf("poll=%d cmd=%s pid=%d ", poll_rate, cmd, SELF->p_pid);
 	printf("%s\n", message);
 	if (tp) {
-		printf("#%d f=%x ", AL_NUM, tp->t_flags);
+		printf("#%d f=%x op=%d ", AL_NUM, tp->t_flags, tp->t_open);
 		printf("in_use=%d irq=%d has_irq=%d ",
 		  com_usage[AL_NUM].in_use,
 		  com_usage[AL_NUM].irq,
@@ -186,7 +197,6 @@ register TTY	*tp, **irqtty;
 	int	b;
 	int	minor_h;  /* minor device number including high bit */
 	unsigned char	msr;
-	int	my_t_flags;
 
 	minor_h = minor(dev);     /* complete minor number */
 	b = ALPORT;
@@ -248,46 +258,88 @@ register TTY	*tp, **irqtty;
 		}
 	}
 
+	/*
+	 * Sleep here if another process is opening or closing the port.
+	 * This can happen if:
+	 *   another process is trying a first open and awaiting CD;
+	 *   another process is closing the port after losing CD;
+	 *   a remote process opened the port, spawned a daemon,
+	 *     and disconnected, and the daemon ignored SIGHUP and is
+	 *     improperly keeping the port open.
+	 * Don't try to set tp->t_flags before this sleep!  During
+	 *   the sleep, ttclose() may be called and clear the flags.
+	 */
+	while (com_usage[AL_NUM].in_use &&
+	  (com_usage[AL_NUM].hcls ||
+	  ((minor_h & NMODC) == 0 && (inb(b+MSR) & MS_RLSD) == 0))) {
+CDUMP("slp lst cls", tp)
+		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT, SVTTOUT);
+#if DEBUG
+printf("x1 ");
+#endif
+		if (SELF->p_ssig && nondsig()) {  /* signal? */
+			u.u_error = EINTR;
+			goto bad_open;
+		}
+	}
+
+	/*
+	 * If port already in use, are new and old open modes compatible?
+	 * If not in use, mark it as such.
+	 */
+	if (com_usage[AL_NUM].in_use) {
+		int oldmode = 0, newmode = 0; /* mctl:1 poll:2 flow:4 */
+
+		if (tp->t_flags & T_MODC)
+			oldmode += 1;
+		if (com_usage[AL_NUM].irq == 0)
+			oldmode += 2;
+		if (tp->t_flags & T_CFLOW)
+			oldmode += 4;
+		if ((minor_h & NMODC) == 0)
+			newmode += 1;
+		if (dev & CPOLL)
+			newmode += 2;
+		if (minor_h & CFLOW)
+			newmode += 4;
+		if (oldmode != newmode) {
+			u.u_error = EDBUSY;
+			goto bad_open;
+		}
+	} else {
+		/*
+		 * Save modes for this open attempt to avoid future conflicts.
+		 * Then start alxcycle() for this port.
+		 */
+		if (dev & CPOLL)
+			com_usage[AL_NUM].irq = 0;
+		else
+			com_usage[AL_NUM].irq = 1;
+		if (minor_h & CFLOW)
+			tp->t_flags |= T_CFLOW;
+		else
+			tp->t_flags &= ~T_CFLOW;
+		if (minor_h & NMODC)
+			tp->t_flags &= ~T_MODC;
+		else
+			tp->t_flags |= T_MODC;
+	}
+	com_usage[AL_NUM].in_use++;
+	/*
+	 * From here, error exit is bad_open_u.
+	 */
+
 	if (tp->t_open == 0) {        /* not already open */
 		if (!(dev & CPOLL)) {
 			*irqtty = tp_table[AL_NUM];
 			com_usage[AL_NUM].has_irq = 1;
 		}
-			
-		/*
-		 * Save modes for this open attempt to avoid future conflicts.
-		 * Then start alxcycle() for this port.
-		 */
-		if (com_usage[AL_NUM].in_use == 0) {
-			if (dev & CPOLL)
-				com_usage[AL_NUM].irq = 0;
-			else
-				com_usage[AL_NUM].irq = 1;
-			if (minor_h & CFLOW)
-				tp->t_flags |= T_CFLOW;
-			else
-				tp->t_flags &= ~T_CFLOW;
-			if (minor_h & NMODC)
-				tp->t_flags &= ~T_MODC;
-			else
-				tp->t_flags |= T_MODC;
-		}
-		com_usage[AL_NUM].in_use++;
-		alxcycle(tp);
 
 		/*
-		 * Wait for pending last close (if any) to finish.
+		 * Need to start cycling to scan for CD.
 		 */
-		while (com_usage[AL_NUM].hcls) {
-#if DEBUG
-printf("S1 ");
-#endif		
-   	  		sleep((char *)(com_usage+AL_NUM), CVTTOUT, IVTTOUT,
-				SVTTOUT);
-#if DEBUG
-printf("x ");
-#endif		
-		}
+		alxcycle(tp);
+
 		s = sphi();
 		/*
 		 * Raise basic modem control lines even if modem
@@ -303,8 +355,8 @@ printf("x ");
 		}
 
 		if ((minor_h & NMODC) == 0) {	/* want modem control? */
-			my_t_flags = tp->t_flags |= T_HOPEN | T_STOP;
-			while (1) {	/* wait for carrier */
+			tp->t_flags |= T_HOPEN | T_STOP;
+			for (;;) {	/* wait for carrier */
 				msr = inb(b+MSR);
 				/*
 				 * If carrier detect present
@@ -313,46 +365,40 @@ printf("x ");
 				 *   else
 				 *     do second (or third, etc.) open
 				 */
-				if (msr & MS_RLSD) {
-					if (tp->t_open == 0)
-						break;
-					else
-						goto already_open;
-				}
-
-#if DEBUG
-printf("S2 ");
-#endif		
+				if (msr & MS_RLSD)
+					break;
+CDUMP("slp 1st CD", tp)
 	   	  		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
 					SVTTOUT);	/* wait for carrier */
 #if DEBUG
-printf("x ");
-#endif		
+printf("x2 ");
+#endif
 		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 					outb(b+MCR, 0);
 			    		outb(b+IER, 0);
 					u.u_error = EINTR;
 					tp->t_flags &= ~(T_HOPEN | T_STOP);
 					spl(s);
-					if (--com_usage[AL_NUM].in_use == 0)
-						com_usage[AL_NUM].has_irq = 0;
-					goto bad_open;
+					goto bad_open_u;
 				}
 			}
+
 			/*
-			 * Restore flags in case something else
-			 * opened the port and closed it while we slept.
-			 * And mark that we are no longer hanging in open.
+			 * Mark that we are no longer hanging in open.
 			 * Allow output over the port unless hardware flow
 			 * control says not to.
 			 */
-			tp->t_flags = my_t_flags;
 			tp->t_flags &= ~T_HOPEN;
 			tp->t_flags &= ~T_STOP;
 			if (!(tp->t_flags & T_CFLOW) || (msr & MS_CTS))
 				com_usage[AL_NUM].ohlt = 0;
 			else
 				com_usage[AL_NUM].ohlt = 1;
+
+			/*
+			 * Awaken any other opens on same device.
+			 */
+			wakeup((char *)(&tp->t_open));
 		}
 		tp->t_flags |= T_CARR;
 		ttopen(tp);				/* stty inits */
@@ -362,10 +408,11 @@ printf("x ");
 		 */
 		tp->t_sgttyb.sg_flags |=  al_sg_set;
 		tp->t_sgttyb.sg_flags &= ~al_sg_clr;
+
 		alxparam(tp);
 		spl(s);
-	}
-already_open:
+	} /* end of first-open case */
+
 	tp->t_open++;
 	ttsetgrp(tp, dev);
 
@@ -379,6 +426,10 @@ already_open:
 
 	CDUMP((dev&CPOLL)?"open polled":"open irq", tp)
 	return;
+
+bad_open_u:
+	--com_usage[AL_NUM].in_use;
+	wakeup((char *)(&tp->t_open));
 bad_open:
 	return;
 }
@@ -386,7 +437,7 @@ bad_open:
 /*
  * alxclose()
  *
- *	Called at high priority on last close for the device.
+ *	Called whenever kernel closes a com port.
  */
 alxclose(dev, mode, tp)
 dev_t	dev;
@@ -396,6 +447,11 @@ TTY	*tp;
 	register int b;
 	int maj;
 	int flags;
+	int s;
+
+	if (--tp->t_open)
+		goto closed;
+	s = sphi();
 
 	/*
 	 * Called at high priority by alclose after al_buff is drained
@@ -411,13 +467,11 @@ TTY	*tp;
 	 */
 	while ((tp->t_rawout.si_ix != tp->t_rawout.si_ox)
 	  || !(inb(b+LSR) & LS_TxIDLE)) {
-#if DEBUG
-printf("S3 ");
-#endif		
+CDUMP("slp cls", tp)
 		sleep((char *)&tp->t_rawout, CVTTOUT, IVTTOUT, SVTTOUT);
 #if DEBUG
-printf("x ");
-#endif		
+printf("x3 ");
+#endif
 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			RAWOUT_FLUSH(tp);
 			break;
@@ -449,22 +503,22 @@ printf("x ");
 		 */
 		maj = major(dev);
 		drvl[maj].d_time = 1;
-#if DEBUG
-printf("S4 ");
-#endif		
+CDUMP("slp DTR", tp)
 		sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT);
 #if DEBUG
-printf("x ");
-#endif		
+printf("x4 ");
+#endif
 		drvl[maj].d_time = 0;
 	}
 	com_usage[AL_NUM].poll = 0;
 	set_poll_rate();
 	RAWIN_FLUSH(tp);
-	if (--com_usage[AL_NUM].in_use == 0)
-		com_usage[AL_NUM].has_irq = 0;
 	com_usage[AL_NUM].hcls = 0;	/* allow reopen - done closing */
-	wakeup((char *)com_usage+AL_NUM);
+	wakeup((char *)(&tp->t_open));
+	spl(s);
+closed:;
+	--com_usage[AL_NUM].in_use;
+	wakeup((char *)(&tp->t_open));
 	CDUMP("closed", tp)
 }
 
@@ -590,7 +644,7 @@ TTY	*tp;
 			break;
 		}
 		if (com_usage[AL_NUM].uart_type == US_16550A)
-			outb(b+FCR, FC_ENABLE | FC_Rx_08);
+			outb(b+FCR, FC_ENABLE | FC_Rx_RST | FC_Rx_08);
 		outb(b+IER, ier_save);
 		spl(s);
 	}
@@ -637,9 +691,7 @@ register TTY * tp;
 			s = sphi();
 			tp->t_flags |= T_CARR;
 			spl(s);
-			if (tp->t_open == 0) {
-				wakeup((char *)(&tp->t_open));
-			}
+			wakeup((char *)(&tp->t_open));
 		}
 
 		if (!(msr & MS_RLSD) && (tp->t_flags & T_CARR)) {
