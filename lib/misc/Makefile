@@ -10,13 +10,16 @@ O = \
 	copyd.o \
 	crc16.o \
 	fatal.o \
+	fifo.o \
+	fifo_b.o \
 	flatten.o \
+	getargs.o \
 	getline.o \
+	getpty.o \
+	ifcoh.o \
 	is_fs.o \
-	jdtoti.o \
-	jdtotm.o \
+	kernelName.o \
 	lcase.o \
-	lock.o \
 	match.o \
 	metaphone.o \
 	newcpy.o \
@@ -27,6 +30,7 @@ O = \
 	regexp.o \
 	regsub.o \
 	regerror.o \
+	select.o \
 	showflag.o \
 	skip.o \
 	span.o \
@@ -36,6 +40,8 @@ O = \
 	strdlen.o \
 	titojd.o \
 	tmtojd.o \
+	jdtoti.o \
+	jdtotm.o \
 	tocont.o \
 	trim.o \
 	ucase.o \
@@ -51,8 +57,7 @@ libmisc.a: $O
 	ar crs libmisc.a $O
 
 install: libmisc.a
-	su root cp -d libmisc.a /usr/lib
-	su root cp -d `srcpath *.h`  /usr/include
+	su root `srcpath installer`
 
 picture: picture.c
 	$(CC) -f -DTEST $< -lm
