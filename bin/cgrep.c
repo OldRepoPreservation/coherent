@@ -104,6 +104,7 @@ enum fstate {	/* lexical processing state */
 	start,
 	slash,		/* slash encountered in normal state */
 	comment,	/* in comment */
+	cppcom,		/* in cpp comment */
 	star,		/* * in comment */
 	bsl,		/* back slash */
 	dquote,		/* double quote */
@@ -536,12 +537,35 @@ isstart:		state = start;
 					gota(other, NULL);
 			}
 			break;
+
 		case slash:
-			if ('*' != c)
+			switch (c) {
+			case '*':
+				state = comment;
+				w = line + i + 1;
+				break;
+			case '/':
+				state = cppcom;
+				w = line + i + 1;
+				break;
+			default:
 				goto isstart;
-			w = line + i + 1;
-			state = comment;
+			}
 			break;
+
+		case cppcom:
+			if ('\n' == c) {
+				if (cswitch) { /* report comment */
+					if (dswitch)
+						cswitch = 0;
+					line[i] = '\0';
+					printx(w, 0);
+					line[i] = '\n';
+				}
+				state = start;
+			}				
+			break;
+
 		case star:
 			if ('/' == c) {
 				if (cswitch) { /* report comment */
