@@ -1,8 +1,3 @@
-/* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
  * This is a driver for PC parallel printers.
  * It has been tested on an EPSON MX-80, Printronix P300, HP LaserJet II.
@@ -26,10 +21,12 @@
  *	LP0_OK specifies whether LP0 is always THERE.
  *	LPTIME specifies number of ticks between polls.
  *	LPWAIT specifies loop counter to wait in poll.
+ *	LPTEST specifies whether or not to test for on-line conditition.
  */
-int LP0_OK = 0;
-int LPTIME = 4;
-int LPWAIT = 400;
+int	LP0_OK = 0;
+int	LPTIME = 4;
+int	LPWAIT = 400;
+int	LPTEST = 1;
 
 /*
  * Driver configuration.
@@ -225,7 +222,7 @@ dev_t	dev;
 	/*
 	 * Printer powered off or off-line
 	 */
-	if ((inb(p->lpbase+LPSTR) & ONLINE) == 0) {
+	if (LPTEST && !(inb(p->lpbase+LPSTR) & ONLINE)) {
 		u.u_error = EDATTN;
 		return;
 	}
