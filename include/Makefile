@@ -1,5 +1,7 @@
-DESTDIR=/bin386/usr/include/
-DESTDIR2=/bin386/usr/include/sys/
+#DESTDIR=/bin386/usr/include/
+#DESTDIR2=/bin386/usr/include/sys/
+DESTDIR=/usr/include/
+DESTDIR2=/usr/include/sys/
 
 INCLUDE=a.out.h access.h acct.h action.h ar.h arcoff.h \
         assert.h canon.h coff.h ctype.h curses.h dirent.h \
