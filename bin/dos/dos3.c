@@ -24,26 +24,26 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 	char *tname;
 
 	dbprintf(("find(%s)\n", name));
-	if ((s = strchr(name, '/')) == NULL) 
+	if ((s = strchr(name, '/')) == NULL)
 	{
 		/* No pathname, look for name in the directory. */
 		tname = trim(name);
 		cp = dosname(tname);
-		for (mdp = dp->d_dir; mdp < dp->d_edp; mdp++) 
+		for (mdp = dp->d_dir; mdp < dp->d_edp; mdp++)
 		{
 			s = mdp->m_name;
 			if ((*s == MEMPTY) || (*s == MFREE))
 				continue;
- 			dbprintf(("lmatch(%s,%s) = %d\n", tname, cohn(s), 
+ 			dbprintf(("lmatch(%s,%s) = %d\n", tname, cohn(s),
 						    lmatch(tname, cohn(s))));
-			if (lmatch(tname, cohn(s)) == 1) 
+			if (lmatch(tname, cohn(s)) == 1)
 			{
 				if((strncmp (s, cp, 11) ==0) && isdir(mdp))
 				{
 					/* Subdirectory, find its DIR. */
-					for (dp = dp->d_child; dp != NULL; 
+					for (dp = dp->d_child; dp != NULL;
 							   dp = dp->d_sibling)
-						if (strncmp(dp->d_dname, cp, 
+						if (strncmp(dp->d_dname, cp,
 								    11) == 0)
 							break;
 					if (dp == NULL)
@@ -58,11 +58,11 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 				scp = cp;
 				sdp = dp;
 				sname = name;
-				return mdp; 
+				return mdp;
 			}
 		}
 		return NULL;
-	} 
+	}
 	else if (s == name)
 		return find(++s, dp, dpp);   /* "/foo" means look for "foo" */
 	/* Explicit pathname, find the directory and recur. */
@@ -88,18 +88,18 @@ findnext(dpp) DIR **dpp;
 	register DIR *dp = sdp;
 
 	dbprintf(("findnext(%s)\n", sname));
-	for (; mdp < dp->d_edp; mdp++) 
+	for (; mdp < dp->d_edp; mdp++)
 	{
 		s = mdp->m_name;
 		if ((*s == MEMPTY) || (*s == MFREE))
 			continue;
 		dbprintf(("lmatch(%s,%s) = %d\n", sname, cohn(s), lmatch(sname, cohn(s))));
- 		if (lmatch(sname, cohn(s)) == 1) 
+ 		if (lmatch(sname, cohn(s)) == 1)
 		{
-			if ((strncmp (s, cp, 11) ==0) && isdir(mdp)) 
+			if ((strncmp (s, cp, 11) ==0) && isdir(mdp))
 			{
 				/* Subdirectory, find its DIR. */
-				for (dp = dp->d_child; dp != NULL; 
+				for (dp = dp->d_child; dp != NULL;
 							dp = dp->d_sibling)
 				if (strncmp(dp->d_dname, cp, 11) == 0)
 					break;
@@ -307,7 +307,7 @@ format(nargs, args) short nargs; char *args[];
 	printf("Are you sure you want to build an MS-DOS filesystem on device %s? ", device);
 	fflush(stdout);
 	c = getchar();
-	while ((i = getchar()) != '\n' && i != EOF)
+	while (c != '\n' && (i = getchar()) != '\n' && i != EOF)
 		;
 	if (c != 'y' && c != 'Y') {
 		rm_lock();
