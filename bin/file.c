@@ -1,4 +1,4 @@
-char _version[] = "Version 1.1";
+char _version[] = "Version 1.3";
 /*
  * Look at a file and try to
  * figure out its type. Knows about the various
@@ -7,17 +7,18 @@ char _version[] = "Version 1.1";
  * of text formatter, etc.
  */
 #include <stdio.h>
-#include <ctype.h>
 #include <sys/coherent.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
 #include <n.out.h>
+#include <coff.h>
 #include <canon.h>
+#include <ar.h>
 
 /* UNIX archive magic numbers */
 #define COFFARMAG	"!<arch>\n"
 #define COFFARMAG_RAN	"!<arch>\n/"
-#define ARMAG	0177535		/* n.out archives */
 #define	UARMAG	0177545		/* UNIX v7 archives */
 #define	OUARMAG	0177555		/* UNIX v6 and previous archives */
 
@@ -41,36 +42,6 @@ struct  th_info {
 		th_pad[255];
 };
 
-
-/* Cheezy hack: coff.h defines some symbols that conflict with n.out.h, so
- * we just define the structures and symbols we need here.
- */
-
-/* COFF File header. */
-typedef	struct	filehdr	{
-	unsigned short	f_magic;		/* Magic number		*/
-	unsigned short	f_nscns;		/* Number of sections	*/
-	long		f_timdat;		/* Time and date	*/
-	long		f_symptr;		/* Seek to symbol table	*/
-	long		f_nsyms;		/* Number of symbols	*/
-	unsigned short	f_opthdr;		/* Optional header size	*/
-	unsigned short	f_flags;		/* Flags		*/
-}	FILEHDR;
-
-/* Magic number. */
-#define	C_386_MAGIC	0x14C			/* Intel iAPX 80386	*/
-
-/* Flags for f_flags field. */
-#define	F_RELFLG	0x0001			/* No relocation info	*/
-#define	F_EXEC		0x0002			/* Executable		*/
-#define	F_LNNO		0x0004			/* No line numbers	*/
-#define	F_LSYMS		0x0008			/* No local symbols	*/
-#define F_MINMAL	0x0010			/* product of strip	*/
-#define	F_AR32WR	0x0100			/* i80x86 byte order	*/
-#define F_KER		0x0800			/* Loadable driver	*/
-
-#define ISCOFF(x)	((x) == C_386_MAGIC)
-
 /*
  * The first BUFSIZ bytes of the
  * file in question are read into this
@@ -84,7 +55,7 @@ union	iobuf
 	struct	ldheader u_lout;	/* L.out object file header */
 	struct	filehdr u_coff;		/* COFF object file header */
 	UPROC	u_u;			/* core file header */
-	unsigned short u_armag;		/* Archive number */
+	int	u_armag;		/* Archive number */
 	struct	th_info u_tar;		/* Tar header  */
 };
 
@@ -169,6 +140,8 @@ char *fn;
 	if ((fd = open(fn, 0)) < 0)
 		return ("unreadable");
 	if ((nb = read(fd, (char *) &iobuf, sizeof(iobuf))) < 0) {
+		extern int errno;
+		printf("nb: %d, errno: %d ", nb, errno );
 		close(fd);
 		return ("read error");
 	}
@@ -228,37 +201,16 @@ char *fn;
 		} /* if looks like a tar header.  */
 	}
 
-	/* core file?
-	 * This is pure heuristic.  If the last signal number was legal
-	 * (a 13/256 random chance) and if the command string is NUL
-	 * terminated (about 1/5 random chance) and at least one long,
-	 * and if all of the
-	 * characters are printable (~ (96/256)^4), we assume it really
-	 * is a core file.  (Pardon the crude statistics.)
-	 * That all adds up to a less than 0.1% chance of incorrectly
-	 * classifying a random binary file.
+	/*
+	 * core file?
 	 */
 	if (nb >= sizeof(UPROC)) {
-		if ((iobuf.u_u.u_signo < NSIG) &&	/* Legal signal? */
-		    (iobuf.u_u.u_comm[9] == '\0') ) {  /* Terminated command?  */
-			char *comm;
-			int i;
-			int len;
-			
-			/* Check to see if the command is printable.  */
-			comm = iobuf.u_u.u_comm;
-			len = strlen(comm);
-
-			for (i=0; isprint(comm[i]) && (i < len); i++) {
-				/* Do nothing.  */
-			}
-			/* If we go to the end, probably a core file.  */
-			if (len == i && len > 0) {
-				type = malloc(64);
-				sprintf(type, "core file from \"%s\"", comm);
-				return(type);
-			}
-					
+		magic = iobuf.u_u.u_version;
+		if ( UPROC_VERSION == magic ) {
+			type = malloc(64);
+			sprintf(type, "core file from \"%.10s\"",
+					iobuf.u_u.u_comm );
+			return(type);
 		}
 	}
 
@@ -267,7 +219,7 @@ char *fn;
 		magic = iobuf.u_armag;
 		canint(magic);
 		if (magic == ARMAG)
-			return ("n.out archive");
+			return ("l.out archive");
 		if (magic == UARMAG)
 			return ("seventh edition archive");
 		if (magic == OUARMAG)
@@ -484,6 +436,19 @@ register struct filehdr *chp;
 	sprintf(type, "COFF ");
 	if ((chp->f_flags&F_MINMAL) != 0)
 		strcat(type, "minimal ");
+#ifdef COFF_H_FIXED
+	if ((chp->f_flags&F_UPDATE) != 0)
+		strcat(type, "update ");
+	if ((chp->f_flags&F_SWABD) != 0)
+		strcat(type, "swapped bytes ");
+	if ((chp->f_flags&F_PATCH) != 0)
+		strcat(type, "patch ");
+	if ((chp->f_flags&F_NODF) != 0)
+		strcat(type, "no decision ");
+#else /* COFF_H_FIXED */
+	if ((chp->f_flags&F_AR32WR) != 0)
+		strcat(type, "i80x86 byte order ");
+#endif /* COFF_H_FIXED */
 	if ((chp->f_flags&F_EXEC) != 0){
 		if ((chp->f_flags&F_LSYMS) != 0)
 			strcat(type, "stripped ");
@@ -517,59 +482,39 @@ coffmtype(magic)
 {
 	switch ((unsigned) magic) {
 
-#ifdef IAPX16
+#ifdef COFF_H_FIXED
 	case IAPX16:
 	case IAPX16TV:
 	case IAPX20:
 	case IAPX20TV:
 		return("iAPX");
-#endif
 
-#ifdef B16MAGIC
 	case B16MAGIC:
 	case BTVMAGIC:
 		return("Intel Basic-16");
-#endif
 
-#ifdef X86MAGIC
 	case X86MAGIC:
 	case XTVMAGIC:
 		return("Intel x86");
-#endif
 
-#ifdef I286SMAGIC
 	case I286SMAGIC:
 		return("Intel 286");
-#endif
 
-#ifdef I386MAGIC
 	case I386MAGIC:
 		return("Intel 386");
-#endif
 
-#ifdef C_386_MAGIC
-	case C_386_MAGIC:
-		return("Intel 386");
-#endif
-
-#ifdef N3BMAGIC
 	case N3BMAGIC:
 	case NTVMAGIC:
 		return("New 3B");
-#endif
 
-#ifdef WE32MAGIC
 	case WE32MAGIC:
 	case RBOMAGIC:
 	case MTVMAGIC:
 		return("MAC-32, 3515, 3B5");
-#endif
 
-#ifdef VAXWRMAGIC
 	case VAXWRMAGIC:
 	case VAXROMAGIC:
 		return("VAX 11/780 or /750");
-#endif
 
 	case 0401:
 	case 0405:
@@ -579,31 +524,29 @@ coffmtype(magic)
 	case 0437:
 		return("pdp11");
 
-#ifdef MC68MAGIC
 	case MC68MAGIC:
 	case MC68TVMAGIC:
 	case M68MAGIC:
 	case M68TVMAGIC:
 		return("Motorola 680xx");
-#endif
 
 	/* case I286LMAGIC: */
-#ifdef MC68KPGMAGIC
 	case MC68KPGMAGIC:
 		return("UNIX PC or iAPX 286");
-#endif
 
-#ifdef U370WRMAGIC
 	case U370WRMAGIC:
 	case U370ROMAGIC:
 		return("IBM 370");
-#endif
 
-#ifdef AMDWRMAGIC
 	case AMDWRMAGIC:
 	case AMDROMAGIC:
 		return("Amdahl 470/580");
-#endif
+
+#else /* COFF_H_FIXED */
+	case C_386_MAGIC:
+		return("Intel 386");
+#endif /* COFF_H_FIXED */
+
 	default:
 		return(NULL);
 
