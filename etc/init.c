@@ -82,7 +82,7 @@ char	*defenv0[] = {		/* Default environment for super user */
 /*
  * Variables.
  */
-static char _version[]="init version 3.2.1";
+static char _version[]="init version 4.0";
 struct	tty *ttyp;			/* Terminal list */
 int	hangflag;			/* Go to single user */
 int	quitflag;			/* Scan tty file */
@@ -128,11 +128,21 @@ dbmsg(("CREATED boottime ", NULL));
 dbmsg(("About to putwtmp  ", NULL));
 	putwtmp("~", "");
 
-	/* Ignore all possible signals.  We do not want to be able to
+	/*
+	 * Ignore all possible signals.  We do not want to be able to
 	 * accidentally kill init.
 	 */
 	for (i=1; i<=NSIG; i++)
 		signal(i, SIG_IGN);
+
+	/*
+	 * We MUST NOT ignore SIGCHLD--we care deeply about our children.
+	 */
+
+#if _I386
+dbmsg(("About to default for SIGCHLD  ", NULL));
+	signal(SIGCHLD, SIG_DFL);
+#endif
 
 dbmsg(("About to trap for SIGHUP  ", NULL));
 	signal(SIGHUP, sighang);
@@ -356,6 +366,9 @@ scantty()
 	extern char *sbrk();
 
 	dbmsg(("Rescan", NULL));
+
+	unlockntty("console", 0);	/* Wipe out locks on the console.  */
+	
 	if ((fd=open("/etc/ttys", 0)) < 0)
 		return;
 	while (readtty(&tty, fd) != 0) {
@@ -369,16 +382,21 @@ scantty()
 			continue;
 		}
 
-		/* If /etc/ttys has changed for this tty,
+		/*
+		 * If /etc/ttys has changed for this tty,
 		 * adjust the in-memory version to the desired state.
 		 */
 		if (tp->t_flag != tty.t_flag
 		 || tp->t_baud[0] != tty.t_baud[0]
 		 || tp->t_linetype != tty.t_linetype) {
-			/* If this tty is locked, and we want to start a
+			/*
+			 * If this tty is locked, and we want to start a
 			 * getty, do not do it until the lock goes away.
+			 *
+			 * Ignore locks on the console.
 			 */
-			if (lockttyexist(strrchr(tty.t_tty, '/')+1) &&
+			if ((0 != strcmp(tty.t_tty, "/dev/console")) &&
+			    lockttyexist(strrchr(tty.t_tty, '/')+1) &&
 			    0 != tty.t_flag) {
 				dbmsg(("Setting an alarm", NULL));
 				/* Check again in a few seconds.  */
