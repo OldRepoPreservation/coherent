@@ -84,9 +84,22 @@ int	fl_hlt = 1;	/* Floppy head load time, in unit 4 millisec */
 int	fl_hut = 0xF;	/* Floppy head unload time, in unit 32 millisec */
 int	fl_disp = 0;	/* If nonzero, print drive parameters on screen */
 
-int 	DSKCHPROB = 0;  /* This is set for machines that always have the disk
-			   changed line turned on. Currently only some PS1s
-                           seem to have this problem.                        */
+/*
+ * Patchable variables for compatibility with IBM products:
+ *
+ * FL_DSK_CH_PROB - some machines always have the disk changed line turned on.
+ * Currently some PS/1's (Consultant, Professional - possibly most of them)
+ * have this problem, so the default value of zero assumes normal disk change
+ * line operation.
+ *
+ * FL_AUTO_PARM - Only try to autosense floppy parameters if this variable
+ * is nonzero.  The PS/2-L40 floppy controller apparently has trouble changing
+ * from low density to high density.  Missing address marks when reading
+ * a HD floppy are the symptom if FL_AUTO_PARM is set when it shouldn't be.
+ */
+int 	FL_DSK_CH_PROB = 0;
+int	FL_AUTO_PARM = 0;
+
 static int jopen;
 
 /*
@@ -98,12 +111,12 @@ one I could come up with. Basically, what I said was since we can't tell when
 the disk has changed, we will act as if it has changed every time we do an
 open or a reset. The code
 
-		if (DSKCHPROB)
+		if (FL_DSK_CH_PROB)
 			jopen = 2;
 
 indicates the need to pretend that the disk has changed. It is set to 2 since
 there are two parts to the change procedure. Additional code dependent on
-the value of DSKCHPROB says that if we have not just down an open, then
+the value of FL_DSK_CH_PROB says that if we have not just down an open, then
 we should skip the recal.  Otherwise, decrement the counter, and do the
 recal. - mlk */
 
@@ -347,6 +360,7 @@ static	char	fl_intlv_ct,	/* Counts sectors to find interleave.	 */
 		fl_hi_ID;	/* Highest sector ID read so far.	 */
 
 /*-------- DEBUG START ---------*/
+#define FL_DEBUG 1
 #if FL_DEBUG
 #define PUSH3(a,b,c)	push3(a,b,c)
 #define POP3()		pop3()
@@ -439,7 +453,7 @@ flload()
 		fl.fl_fd[s] = fdata[frates[t].dflt_kind];
 		if (t) fl.fl_ndsk = s + 1;	  /* Type 0 = no drive. */
 
-		if (DSKCHPROB)
+		if (FL_DSK_CH_PROB)
 			jopen = 2;
 	}
 
@@ -522,7 +536,7 @@ int	mode;
 		goto badFlopen;		/* status. */
 	}
 
-	if (DSKCHPROB)
+	if (FL_DSK_CH_PROB)
 		jopen = 2;
 
 	/*
@@ -588,7 +602,7 @@ int	mode;
 			fl.fl_incal[unit_number] = -1;
 			fl.fl_dsk_chngd[unit_number] = 1;
 
-			if (DSKCHPROB)
+			if (FL_DSK_CH_PROB)
 				jopen = 2;
 		}
 	}	/* end of first open stuff */
@@ -888,8 +902,8 @@ T_HAL(0x40000, printf("SSEEK "));
 		if ((frates[fl.fl_type[fl.fl_unit]].fl_hi_rate != -1)
 		&&   (inb(FDCCHGL) & DSKCHGD)
 		&&   (fl_clrng_cd == 0)) {
-			/* See note at def of DSKCHPROB above */
-			if (DSKCHPROB) {
+			/* See note at def of FL_DSK_CH_PROB above */
+			if (FL_DSK_CH_PROB) {
 				if (jopen) {
 					jopen--;
 					fl.fl_dsk_chngd[fl.fl_unit] = 1;
@@ -1006,21 +1020,36 @@ Recalibrated:
 							/* the disk parameters*/
 							/* and the alternate  */
 							/* values.	      */
-		if (i == frates[fl.fl_type[fl.fl_unit]].fl_hi_rate) {
+		if (i == frates[fl.fl_type[fl.fl_unit]].fl_hi_rate){
 
 			fl.fl_fd[fl.fl_unit] =
 			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_hi_kind];
-			fl_alt_kind =
+                        if (FL_AUTO_PARM) {
+				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_lo_kind;
-			fl_alt_rate =
+				fl_alt_rate =
 				  frates[fl.fl_type[fl.fl_unit]].fl_lo_rate;
+			}
+			else {
+				fl_alt_kind =
+				  frates[fl.fl_type[fl.fl_unit]].fl_hi_kind;
+				fl_alt_rate =
+				    frates[fl.fl_type[fl.fl_unit]].fl_hi_rate;
+			}
 		} else {
 			fl.fl_fd[fl.fl_unit] =
 			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_lo_kind];
-			fl_alt_kind =
+                        if (FL_AUTO_PARM) {
+				fl_alt_kind =
 				  frates[fl.fl_type[fl.fl_unit]].fl_hi_kind;
-			fl_alt_rate =
-				  frates[fl.fl_type[fl.fl_unit]].fl_hi_rate;
+				fl_alt_rate =
+				    frates[fl.fl_type[fl.fl_unit]].fl_hi_rate;
+			} else {
+				fl_alt_kind =
+				  frates[fl.fl_type[fl.fl_unit]].fl_lo_kind;
+				fl_alt_rate =
+				  frates[fl.fl_type[fl.fl_unit]].fl_lo_rate;
+			}
 		}
 
 		fl.fl_state  = SRDID;		/* Set up to read sector IDs. */
@@ -1205,8 +1234,8 @@ DiskEstablished:
 		  && (inb(FDCCHGL) & DSKCHGD)) {
 			dods = 1;
 
-			/* See note at def of DSKCHPROB above */
-			if (DSKCHPROB) {
+			/* See note at def of FL_DSK_CH_PROB above */
+			if (FL_DSK_CH_PROB) {
 				if (jopen) {
 					jopen--;
 				} else
@@ -1613,7 +1642,7 @@ flrecov()
 {
 	register int	x;
 
-	if (DSKCHPROB)
+	if (FL_DSK_CH_PROB)
 		jopen = 2;
 
 	/*
