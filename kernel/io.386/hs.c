@@ -75,7 +75,6 @@ int	hswrite();
 int	hsunload();
 int	hspoll();
 
-static void hsioctl0();
 static void hsioctl();
 
 int	hscycle();
@@ -102,11 +101,7 @@ CON hscon ={
 	nulldev,			/* Block */
 	hsread,				/* Read */
 	hswrite,			/* Write */
-#ifdef _I386
-	hsioctl0,			/* Ioctl */
-#else
 	hsioctl,			/* Ioctl */
-#endif
 	nulldev,			/* Powerfail */
 	nulldev,			/* Timeout */
 	hsload,				/* Load */
@@ -301,17 +296,6 @@ register IO * iop;
 /*
  * Ioctl Routine.
  */
-#ifdef _I386
-static void
-hsioctl0(dev, com, vec)
-dev_t dev;
-int com;
-struct sgttyb *vec;
-{
-	tioc286(dev, com, vec, hsioctl);
-}
-#endif
-
 static void
 hsioctl(dev, com, vec)
 dev_t	dev;

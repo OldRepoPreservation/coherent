@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.7  92/07/27  18:16:05  hal
+ * Kernel #59
+ * 
  * Revision 1.6  92/04/30  08:59:22  hal
  * Add asy.  Remove silos from tty struct.
  * 
@@ -119,7 +122,6 @@ int	alpoll();
 int	nulldev();
 int	nonedev();
 static int alioctl();
-static int alioctl0();
 
 /*
  * Configuration table.
@@ -132,11 +134,7 @@ CON ALNAME ={
 	nulldev,			/* Block */
 	alread,				/* Read */
 	alwrite,			/* Write */
-#ifdef _I386
-	alioctl0,			/* Ioctl */
-#else
 	alioctl,			/* Ioctl */
-#endif
 	nulldev,			/* Powerfail */
 	alxtimer,			/* Timeout */
 	alload,				/* Load */
@@ -320,16 +318,6 @@ register IO	*iop;
 		outb(ALPORT+DREG, c);
 	}
 }
-
-#ifdef _I386
-static int
-alioctl0(dev, com, vec)
-dev_t dev;
-struct sgttyb *vec;
-{
-	tioc286(dev, com, vec, alioctl);
-}
-#endif
 
 static int
 alioctl(dev, com, vec)

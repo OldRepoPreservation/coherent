@@ -11,6 +11,9 @@
  *		...x xxxx	channel number - 0..31
  *
  * $Log:	asy.c,v $
+ * Revision 1.7  92/07/16  16:34:44  hal
+ * Kernel #58
+ * 
  * Revision 1.6  92/07/07  09:04:30  root
  * Allow up to 16 slots per group.
  * Support Digiboard as fourth group type.
@@ -109,7 +112,6 @@ void asy_putchar();
  */
 static void asyclose();
 static void asyioctl();
-static void asyioctl0();
 static void asyload();
 static void asyopen();
 static void asyread();
@@ -205,11 +207,7 @@ CON asycon ={
 	nulldev,			/* Block */
 	asyread,			/* Read */
 	asywrite,			/* Write */
-#ifdef _I386
-	asyioctl0,			/* Ioctl */
-#else
 	asyioctl,			/* Ioctl */
-#endif
 	nulldev,			/* Powerfail */
 	asytimer,			/* Timeout */
 	asyload,			/* Load */
@@ -798,17 +796,6 @@ register IO * iop;
 /*
  * asyioctl()
  */
-#ifdef _I386
-static void
-asyioctl0(dev, com, vec)
-dev_t dev;
-int com;
-struct sgttyb *vec;
-{
-	tioc286(dev, com, vec, asyioctl);
-}
-#endif
-
 static void
 asyioctl(dev, com, vec)
 dev_t	dev;
