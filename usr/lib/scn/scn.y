@@ -27,6 +27,7 @@ genname()
 %token	<string> NAME
 %token  <string> STRING
 %token  <val>	 NUMBER
+
 %token EXT	/* external field do not define */
 %token RONLY	/* readonly field */
 %token LONG	/* long field */
@@ -44,13 +45,15 @@ genname()
 
 file : line | file line | /* nothing */ ;
 
-line	: command NL 
+line	: command NL
 	| NL 
 	| error NL {
 		yyerrok; 
 	};
 
 command	: NAME NUMBER {
+		if (0 >= $2)
+			yyerror("Invalid field size");
 		this = alloc(sizeof(*this));
 		if (NULL == locs)
 			last = locs = this;
@@ -73,6 +76,8 @@ command	: NAME NUMBER {
 	| DO NUMBER {
 		if (NULL != thisc)
 			yyerror("Nested do statements");
+		if (0 >= $2)
+			yyerror("Invalid repeat count");
 
 		thisc = alloc(sizeof(*thisc));
 		if (NULL == clumps)
@@ -95,28 +100,44 @@ option	: LONG	{ this->flags |= LONGFIELD; }
 	| RONLY	{ this->flags |= READONLY; }
 	| EXT	{ this->flags |= EXTERNAL; }
 	| DEFAULT STRING {
+		if (NULL != this->Default)
+			yyerror("Default already set");
 		this->Default = genname();
 		fprintf(ofp, "static char %s[] = %s;\n", this->Default, $2);
 		}
 	| DEFAULT NAME {
+		if (NULL != this->Default)
+			yyerror("Default already set");
 		this->Default = $2;
 		}
 	| HELP STRING {
+		if (NULL != this->help)
+			yyerror("Help already set");
 		this->help = genname();
 		fprintf(ofp, "static char %s[] = %s;\n", this->help, $2);
 		}
 	| HELP NAME {
+		if (NULL != this->help)
+			yyerror("Help already set");
 		this->help = $2;
 		}
 	| SKIP NUMBER {
+		if (0 >= $2)
+			yyerror("Invalid skip number");
+		if (this->skipf)
+			yyerror("Skip factor already set");
 		this->skipf = $2;
 		}
+	| VERIFY NAME {
+		if (NULL != this->verify)
+			yyerror("Verify already set");
+		this->verify = $2;
+	}
 	| SKIP GROUP {
+		if (this->skipf)
+			yyerror("Skip factor already set");
 		if (NULL == thisc)
 			yyerror("group must be in do");
 		else
 			this->skipf = 255;
-		}
-	| VERIFY NAME {
-		this->verify = $2;
-	};
+		};
