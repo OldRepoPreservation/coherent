@@ -1,17 +1,3 @@
-/* $Header: /usr/src/sys/ttydrv/RCS/tty.c,v 1.2 89/07/17 11:51:20 src Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- -lgl) */
 /*	     
  * This is the common part of
  * typewriter service. It handles all
@@ -19,6 +5,9 @@
  * a typewriter, including tandem flow
  * control, erase and kill, stop and
  * start and common ioctl functions.
+ *
+ * Bug: no support for 8-bit characters.
+ * Fix: don't strip keyboard input. 01/22/91.  norm
  *
  * Bug: setting speed to default in ttopen() was conditioned to
  *      use hard constants.  90/08/28.  hws
@@ -52,7 +41,6 @@
  * made ttclose() interruptible.
  */
 #include <coherent.h>
-#include <al.h>
 #include <clist.h>
 #include <proc.h>
 #include <uproc.h>
@@ -64,14 +52,9 @@
 #include <stat.h>
 #include <con.h>
 
-/* the following are shared by loadable serial drivers */
-/*   (see al.h and poll_clk.h) */
-int	com_usage[NUM_COM_PORTS];	/* COM_UNUSED/COM_IRQ/COM_POLLED */
-int	poll_rate;
-int	poll_owner;
-TTY	*(tp_table[NUM_COM_PORTS]);	/* table of pointers for polling */
-
-/* NEAR_OR_FAR_CALL is for invoking t_param and t_start */
+/*
+ * NEAR_OR_FAR_CALL is for invoking t_param and t_start
+ */
 #define	 NEAR_OR_FAR_CALL(tp_fn)  {\
 	if (tp->t_cs_sel) \
 		ld_call(tp->t_cs_sel, tp->tp_fn, tp); \
@@ -485,7 +468,7 @@ register TTY *tp;
 			tp->t_hpos = 0;
 		else if (c == '\t')
 			tp->t_hpos = (tp->t_hpos|07) + 1;
-		else if (c>=' ' && c<='~')
+		else if ((c >= ' ' && c <= '~') || c >= 0200)
 			++tp->t_hpos;
 	}
 	return (c);
@@ -507,7 +490,6 @@ register c;
 	int dc, i, n;
 
 	if (!ISRIN) {
-		c &= 0177;
 		if (ISINTR) {
 			ttsignal(tp, SIGINT);
 			return;
@@ -536,10 +518,12 @@ register c;
 			if (c == ESC)
 				++tp->t_escape;
 			else {
+#if 0
 				if (ISERASE || ISKILL) {
 					c |= 0200;
 					--tp->t_escape;
 				}
+#endif
 				while (tp->t_escape!=0 && tp->t_ibx<NCIB-1) {
 					tp->t_ib[tp->t_ibx++] = ESC;
 					--tp->t_escape;
@@ -547,7 +531,7 @@ register c;
 				ttstash(tp, c);
 			}
 			if (ISECHO) {
-				putq(&tp->t_oq, c&0177);
+				putq(&tp->t_oq, c);	/* not stripped */
 				ttstart(tp);
 			}
 			return;
@@ -564,8 +548,8 @@ register c;
 				if (!ISCRT)
 					putq(&tp->t_oq, c);
 				/* don't erase for bell, null, or rubout */
-				else if (((c = dc&0177) == '\007')
-					|| c == 0 || c == 0177)
+				else if (((c = dc) == '\007')
+					|| c == 0 || c == 0177 || c == 0377)
 				        return;
 				else if (c != '\b' && c != '\t') {
 					putq(&tp->t_oq, '\b');
@@ -575,10 +559,12 @@ register c;
 					n = tp->t_opos + tp->t_escape;
 					for (i=0; i<tp->t_ibx; ++i) {
 						c = tp->t_ib[i];
+#if 0
 						if ((c&0200) != 0) {
 							++n;
 							c &= 0177;
 						}
+#endif
 						if (c == '\b')
 							--n;
 						else {
@@ -590,12 +576,14 @@ register c;
 					while (n++ < tp->t_hpos)
 						putq(&tp->t_oq, '\b');
 				}
+#if 0
 				if ((dc&0200) != 0) {
 					if ((dc&0177) != '\b')
 						putq(&tp->t_oq, '\b');
 					putq(&tp->t_oq,  ' ');
 					putq(&tp->t_oq, '\b');
 				}
+#endif
 				ttstart(tp);
 			}
 			return;
@@ -665,7 +653,7 @@ register TTY *tp;
 		p2 = &tp->t_ib[tp->t_ibx];
 		*p2++ = c;			/* Always room */
 		while (p1 < p2)
-			putq(&tp->t_iq, (*p1++)&0177);
+			putq(&tp->t_iq, (*p1++));
 		tp->t_ibx = 0;
 		tp->t_escape = 0;
 
