@@ -66,6 +66,33 @@ long size;
 	}
 }
 # endif
+# ifdef LOG
+void
+error_log(message)
+char *message;
+{
+	int fd;
+	char *logtime, tbuf[50];
+	char buff[2*MAXCLEN];
+	int cmask;
+
+	logtime = strcpy(tbuf, nows);
+	logtime[16] = '\0';
+	logtime += 4;
+
+	cmask = umask(0);
+	fd = open(LOG, 1); /* Open for writing.  */
+	lseek(fd, 0L, 2); /* Seek to the end of file.  */
+	(void) umask(cmask);
+
+	if (fd != -1) {
+		(void) sprintf(buff, "%s\tpid:%d\t%s\n",
+			logtime, getpid(), message);
+		(void) write(fd, buff, strlen(buff));
+		(void) close(fd);
+	}
+}
+# endif
 
 # ifdef RECORD
 FILE *
@@ -334,6 +361,15 @@ getmynames()
 #ifdef MYDOM
 	if (!*hostdomain)
 		(void) strcat(strcpy(hostdomain, hostname), MYDOM);
+#endif
+#ifdef GETDOMAIN
+	if (!*hostdomain){
+		unsigned char temp[SMLBUF];
+
+		getdomain(temp, SMLBUF - 1);
+		(void) strcat(strcpy(hostdomain, hostname), ".");
+		(void) strcat(hostdomain, temp);
+	}
 #endif
 	if (!*hostdomain)
 		(void) strcpy(hostdomain, hostname);
