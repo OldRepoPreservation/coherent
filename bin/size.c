@@ -22,11 +22,7 @@ static char cfile[100];
 fatal(s)
 char *s;
 {
-	int save = errno;
-
-	fprintf(stderr, "size: %s %r\n", cfile, &s);
-	if (0 != (errno = save))
-		perror("errno reports");
+	fprintf(stderr, "size: %s: %r\n", cfile, &s);
 	longjmp(env, 1);
 }
 
@@ -179,8 +175,8 @@ char *argv[];
 			}
 			continue;
 		}
-		strcpy(cfile, filen);
-		ifp = xopen(filen = argv[i], "rb");
+		strcpy(cfile, filen = argv[i]);
+		ifp = xopen(filen, "rb");
 
 		namesw = argc > 2;
 

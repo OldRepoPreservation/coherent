@@ -7,6 +7,8 @@
 #include <setjmp.h>
 #include <sys/stat.h>
 
+extern char *alloca();
+
 static jmp_buf env;	/* setjmp longjmp buffer */
 static char *filen;	/* current file in process */
 static int errCt;
@@ -28,28 +30,25 @@ char *s;
 strip()
 {
 	register SCNHDR *sh;
-	static FILEHDR *fh = NULL;	
-	static FILE *fp = NULL;
+	register FILEHDR *fh;	
+	int fd, rv;
 	long i, top, hi;
 	struct stat sb;
 
-	if (stat(filen, &sb))
-		fatal("Can't locate");
-
 	/* inhale input file */
-	if (NULL != fp)
-		fclose(fp);
-	fp = xopen(filen, "rb");
+	if (-1 == (fd = open(filen, 0)))
+		fatal("Can't open for read");
 
-	if (NULL != fh)
-		free(fh);
-	fh = alloc(sb.st_size);
+	if (-1 == fstat(fd, &sb))
+		fatal("Can't find file attributes");
 
-	if (1 != fread(fh, sb.st_size, 1, fp))
+	fh = alloca(sb.st_size);	/* get space to inhale file */
+
+	rv = read(fd, fh, sb.st_size);
+	close(fd);
+
+	if (-1 == rv)
 		fatal("Error in read");
-
-	fclose(fp);
-	fp = NULL;
 
 	if ((fh->f_magic != C_386_MAGIC) ||
 	    !fh->f_opthdr ||
@@ -75,10 +74,15 @@ strip()
 	if (top > sb.st_size)
 		fatal("Corrupt file");
 
-	if (top < sb.st_size) {
+	if (top < sb.st_size) {	/* file not already stripped */
 		/* exhale stripped file */
-		fp = xopen(filen, "wb");
-		if (1 != fwrite(fh, top, 1, fp))
+		if (-1 == (fd = creat(filen, sb.st_mode)))
+			fatal("Can't create new copy of file");
+
+		rv = write(fd, fh, top);
+		close(fd);
+
+		if (-1 == rv)
 			fatal("Error in write");
 	}
 }
