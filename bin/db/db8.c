@@ -209,7 +209,7 @@ waitc()
 	}
 	if ((s & 0xff) != 0x7f) {
 		execflag = 0;
-		return printr("Child process terminated (%x)", (s >> 8) & 0xFF );
+		return printr("Child process terminated (0x%X)", (s >> 8) & 0xFF );
 	}
 	return 1;
 }
