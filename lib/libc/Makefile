@@ -1,4 +1,4 @@
-# /usr/src/libc/Makefile 1/9/92
+# /usr/src/libc/Makefile 5/12/92
 # Assumes $(SRCPATH) defines root libc source directory, e.g. /usr/src/libc.
 # Assumes $(MCH) defines target machine, e.g. i8086 or i386.
 # Assumes $(AR), $(AS), $(AFLAGS), $(CC), $(CFLAGS) defined appropriately.
@@ -15,7 +15,7 @@ OBJ=\
 # dstdio must be the last target, because it plays tricks to reduce size
 # of executable if stdio is not required.
 # dgen is next to last because e.g. perror() references stdio.
-all:	ROOT dcrt dstring dsys dgen dstdio
+all:	ROOT dcrt dndir dstring dsys dgen dstdio
 	: libc done.
 
 # Pseudotargets.
@@ -29,6 +29,8 @@ dcrt:
 	SRCPATH=$(SRCPATH)/crt make -e
 dgen:
 	SRCPATH=$(SRCPATH)/gen make -e
+dndir:
+	SRCPATH=$(SRCPATH)/ndir make -e
 dstdio:
 	SRCPATH=$(SRCPATH)/stdio make -e
 dstring:
