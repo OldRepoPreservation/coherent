@@ -91,12 +91,16 @@ atrecv_:
 ////////
 
 atbsyw_:
-	mov	cx, $-1
 	mov	dx, $CSR_REG
-0:	inb	al, dx
+	mov	bx, $4		/ add another layer of iteration for 486's
+0:	mov	cx, $-1
+1:	inb	al, dx
 	testb	al, $BSY_ST
-	loopne	0b
-	mov	ax, cx
+	loopne	1b
+	je	2f		/ not busy - return nonzero value
+	dec	bx
+	jne	0b
+2:	mov	ax, cx
 	ret
 
 ////////
@@ -109,10 +113,14 @@ atbsyw_:
 ////////
 
 atdrqw_:
-	mov	cx, $-1
 	mov	dx, $CSR_REG
-0:	inb	al, dx
+	mov	bx, $4
+0:	mov	cx, $-1
+1:	inb	al, dx
 	testb	al, $DRQ_ST
-	loope	0b
-	mov	ax, cx
+	loope	1b
+	jne	2f		/ not busy - return nonzero value
+	dec	bx
+	jne	0b
+2:	mov	ax, cx
 	ret
