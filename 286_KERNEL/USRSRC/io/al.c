@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/al.c,v $
+ * Revision 1.2	91/02/21  11:21:28	hal
+ * Used in COH Release 3.1.0 - add COM3/COM4 and polling
+ * 
  * Revision 1.1	91/02/21  11:07:36	hal
  * Used in COH Release 3.0.0 - no COM3/COM4
  * 
@@ -293,5 +296,5 @@ int msec;
 static
 alintr()
 {
-	alxintr(irqtty);
+	alxintr(irqtty, 1);
 }
