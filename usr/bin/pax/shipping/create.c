@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/create.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/create.c,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * create.c - Create a tape archive. 
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	create.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/create.c,v $
+ * Revision 1.1	91/02/05  11:55:38 	bin
+ * Initial revision
+ * 
  * Revision 1.3  89/02/12  10:29:37  mark
  * Fixed misspelling of Replstr
  * 
@@ -124,6 +127,20 @@ int create_archive()
 	    linkto(name, &sb);
 	}
 	if (ar_format == TAR) {
+	    /* SV tar does not understand POSIX tar header.
+	     * Trailing '/' in directory name alows SV tar to unarchive
+	     * POSIX tar archive. So, we add '/' to the "name" if it is
+	     * a directory name.
+	     * SV tar will produce error messages, but
+	     * will do the job. Vlad 11-8-91
+	     */
+	    if ((sb.sb_stat.st_mode & S_IFMT) == S_IFDIR) {
+		int	il;
+		
+		il = strlen(name);
+		name[il++] = '/';
+		name[il] = 0;
+	    }
 	    writetar(name, &sb);
 	} else {
 	    writecpio(name, &sb);
