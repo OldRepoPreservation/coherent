@@ -3,6 +3,9 @@
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
 / $Log:	/usr/src/sys/i8086/drv/RCS/ssas.s,v $
+/ Revision 1.2	91/05/17  00:24:17	root
+/ Code ss_put - use REQ handshake.
+/ 
 / Revision 1.1	91/05/16  14:16:21	root
 / Initial version - no code yet for ss_put().
 / 
@@ -26,33 +29,36 @@
 ////////
 /
 / Constants
-/	Also defined in /usr/src/sys/i8086/sys/ss.h:
-/		SS_CSR  SS_DAT  RS_REQUEST
+/
+/	Relative to the RAM base address of the host adapter, offsets
+/	for Control/Status Register (CSR) and Data Port (DAT) differ
+/	between Seagate and Future Domain as follows:
+/			Seagate		Future Domain
+/		SS_CSR	0x1A00		0x1C00
+/		SS_DAT	0x1C00		0x1E00
+/	The difference between these (CSR_OFF) is 0x200 in either case.
 /
 ////////
 
-	SS_CSR	= 0x1A00
-	SS_DAT	= 0x1C00
+	BSIZE	= 0x200		/ Disk block size in bytes
+	CSR_OFF	= 0x200
 
 	REQ_LIM = 200
 	RS_REQUEST = 0x10
 
 ////////
 /
-/ ss_get(ss_fp, buf_fp, count)
-/ faddr_t ss_fp, buf_fp;
-/ int count;
+/ ss_get(ss_dat_fp, buf_fp)
+/ faddr_t ss_dat_fp, buf_fp;
 /
 / Fetch input bytes from host adapter and store at buffer address.
-/ Count must be <= SS_RAM_LEN (0x400).
 /
 / Here is the stack after initial "push bp":
 /
-/	12(bp)	count
 /	10(bp)	FP_SEL(buf_fp)
 /	8(bp)	FP_OFF(buf_fp)
-/	6(bp)	FP_SEL(ss_fp)
-/	4(bp)	FP_OFF(ss_fp)
+/	6(bp)	FP_SEL(ss_dat_fp)
+/	4(bp)	FP_OFF(ss_dat_fp)
 /	2(bp)	return IP
 /	0(bp)	old bp
 /
@@ -66,10 +72,9 @@ ss_get_:
 	push	ds
 	push	si
 
-	lds	si, 4(bp)	/ ss_fp  to DS:SI
-	add	si, $SS_DAT	/ ss_dat to DS:SI
+	lds	si, 4(bp)	/ ss_dat_fp  to DS:SI
 	les	di, 8(bp)	/ buf_fp to ES:DI
-	mov	cx, 12(bp)	/ count to CX
+	mov	cx, $BSIZE	/ rep count to CX
 	rep
 	movsb
 
@@ -82,22 +87,19 @@ ss_get_:
 
 ////////
 /
-/ int ss_put(ss_fp, buf_fp, count)
-/ faddr_t ss_fp, buf_fp;
-/ int count;
+/ int ss_put(ss_dat_fp, buf_fp)
+/ faddr_t ss_dat_fp, buf_fp;
 /
 / Write output bytes to host adapter from buffer address.
-/ Count must be <= SS_RAM_LEN (0x400).
 /
-/ Return 0 if timeout occurred, otherwise nonzero.
+/ Return the number of bytes remaining to be sent (should be 0).
 /
 / Here is the stack after initial "push bp":
 /
-/	12(bp)	count
 /	10(bp)	FP_SEL(buf_fp)
 /	8(bp)	FP_OFF(buf_fp)
-/	6(bp)	FP_SEL(ss_fp)
-/	4(bp)	FP_OFF(ss_fp)
+/	6(bp)	FP_SEL(ss_dat_fp)
+/	4(bp)	FP_OFF(ss_dat_fp)
 /	2(bp)	return IP
 /	0(bp)	old bp
 /
@@ -111,24 +113,26 @@ ss_put_:
 	push	ds
 	push	si 
 	lds	si, 8(bp)	/ buf_fp to DS:SI
-	les	di, 4(bp)	/ ss_fp  to ES:DI
+	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
 	mov	bx, di		/ .. and to ES:BX
-	add	di, $SS_DAT	/ ss_dat to ES:DI
-	add	bx, $SS_CSR	/ ss_csr to ES:BX
-	mov	cx, 12(bp)	/ count to CX
+	sub	bx, CSR_OFF	/ ss_csr to ES:BX
+	mov	cx, $BSIZE	/ count to CX
 
-P01:				/ start of 2 loops
+P01:				/ start outer loop - writing bytes to SCSI
 	mov	ax, $REQ_LIM	/ max # of times to look for REQ
-	testb	es:(bx), $RS_REQUEST
-	jne	P02
+P02:				/ start inner loop - polling for REQ
+	movb	dl, es:(bx)
+	testb	dl, $RS_REQUEST
+	jne	P03
 	dec	ax
-	jnz	P01
-	jmp	P03
+	jnz	P02
+	jmp	P04
 
-P02:				/ got REQ - ok to write a byte
+P03:				/ got REQ - ok to write a byte
 	movsb
 	loop	P01
-P03:				/ all done - now restore registers
+P04:				/ all done - now restore registers
+	mov	ax, cx
 	pop	si
 	pop	ds
 	pop	di
