@@ -1,6 +1,6 @@
 /*
  * /usr/src/cmd/prof.c
- * 3/4/93
+ * 6/23/93
  * prof interprets the mon.out files produced by the runtime profiling option,
  * i.e. by programs compiled with the cc option -p (a.k.a. -VPROF).
  * This version understands both COH286 l.out and COH386 COFF executables,
@@ -43,7 +43,7 @@
 #define	FALSE	(0 != 0)
 
 typedef struct	symbol {
-	vaddr_t		addr;		/* address			*/
+	off_t		addr;		/* address			*/
 	long		pcount;		/* pc count, scaled by PSCALE	*/
 	long		ccount;		/* number of times routine called */
 	char		name[];		/* name				*/
@@ -79,12 +79,12 @@ char		*lout	= "a.out";	/* executable file name		*/
 #else
 char		*lout	= "l.out";	/* executable file name		*/
 #endif
-vaddr_t		lowpc;			/* lowest pc profiled		*/
+caddr_t		lowpc;			/* lowest pc profiled		*/
 char		*monout	= "mon.out";	/* monitor file name		*/
 char		name[CSYMLEN+1];	/* symbol name buffer		*/
 unsigned int	scaler;			/* scale factor			*/
 int		sflag	= FALSE;	/* dump low stack mark		*/
-vaddr_t		stksz;			/* stack size			*/
+off_t		stksz;			/* stack size			*/
 long		strtable;		/* COFF string table offset	*/
 int		symwidth = NCPLN;	/* printf symbol field width	*/
 long		tcalls;			/* total number of calls	*/
@@ -178,7 +178,7 @@ cmpdata(sp1, sp2) SYMBOL **sp1, **sp2;
 int
 cmpsym(sp1, sp2) SYMBOL **sp1, **sp2;
 {
-	register vaddr_t adr1, adr2;
+	register off_t adr1, adr2;
 
 	adr1 = (*sp1)->addr;
 	adr2 = (*sp2)->addr;
@@ -194,7 +194,7 @@ cmpsym(sp1, sp2) SYMBOL **sp1, **sp2;
  * Account for tick information.
  */
 SYMBOL	**
-credit(tick, low, high, dpp) int tick; vaddr_t low, high; SYMBOL **dpp;
+credit(tick, low, high, dpp) int tick; off_t low, high; SYMBOL **dpp;
 {
 	register unsigned	overlap;
 	register SYMBOL		*cur, *nxt;
@@ -266,13 +266,13 @@ getcdata(fp, nfnc) FILE *fp; register unsigned nfnc;
 		if (!iscoff) {
 			if (fread(&obuf, sizeof obuf, 1, fp) != 1)
 				fatal("unexpected end of file on \"%s\"", monout);
-			buf.m_addr = obuf.m_addr;
+			buf.m_addr = (caddr_t)obuf.m_addr;
 			buf.m_ncalls = obuf.m_ncalls;
 		} else
 #endif
 		if (fread(&buf, sizeof buf, 1, fp) != 1)
 			fatal("unexpected end of file on \"%s\"", monout);
-		for (dpp=dict; (dp=*++dpp) != NULL && dp->addr <= buf.m_addr;)
+		for (dpp=dict; (dp=*++dpp) != NULL && dp->addr <= (off_t)buf.m_addr;)
 			;
 		dp = dpp[-1];
 		if (cflag)
@@ -308,9 +308,9 @@ getdata()
 		hdr.m_nbins = ohdr.m_nbins;
 		hdr.m_scale = ohdr.m_scale;
 		hdr.m_nfuncs = ohdr.m_nfuncs;
-		hdr.m_lowpc = ohdr.m_lowpc;
-		hdr.m_lowsp = ohdr.m_lowsp;
-		hdr.m_hisp = ohdr.m_hisp;
+		hdr.m_lowpc = (caddr_t)ohdr.m_lowpc;
+		hdr.m_lowsp = (caddr_t)ohdr.m_lowsp;
+		hdr.m_hisp = (caddr_t)ohdr.m_hisp;
 	} else
 #endif
 	if (fread(&hdr, sizeof hdr, 1, fp) != 1)
@@ -357,12 +357,12 @@ void
 getpdata(fp, nbins) FILE *fp; unsigned nbins;
 {
 	register SYMBOL	**dpp;
-	vaddr_t		high, low;
+	off_t		high, low;
 	int		highr, inc, incr;
 	short		tick;
 
 	dbprintf(("getpdata(): nbins=%d\n", nbins));
-	high = lowpc;
+	high = (off_t)lowpc;
 	highr = 0;
 #if	1
 	inc = ((long)1<<17) / scaler;
