@@ -50,8 +50,11 @@
 #define	NTRK	40			/ # of tracks on floppy.
 #endif
 
-NSTK	=	256			/ # of bytes of stack.
-BS	=	0x08			/ BS character.
+PX_OPND =	0x66		/ register values & immediates
+				/ and value of jump instruction
+PX_ADDR =	0x67		/ displacements
+
+NSTK	=	512			/ # of bytes of stack.
 CR	=	0x0D			/ CR character.
 LF	=	0x0A			/ LF character.
 SP	=	0x20			/ Backspace character.
@@ -87,7 +90,7 @@ LPRVD	=	26			/ Offset of "l_ssize[PRVD]"
 LBSSD	=	30			/ Offset of "l_ssize[BSSD]"
 LFMAG	=	0x0107			/ Magic number.
 LFSEP	=	0x02			/ Sep I/D flag bit.
-SYSBASE =	0x0060			/ System load base paragraph.
+SYSBASE =	0x0200			/ System load base paragraph.
 FIRST	=	8			/ relative start of partition
 
 ////////
@@ -334,18 +337,6 @@ input:	mov	di, $nbuf		/ di=name buffer pointer
 1:	movb	ah, $0			/ Get ASCII opcode.
 	int	KEYBD			/ Read keyboard ROM call.
 
-	cmpb	al, $BS			/ BS ?
-	jne	2f			/
-	cmpb	cl, $DIRSIZE		/ At start of buffer?
-	je	1b			/ Yup, ignore BS
-	call	putc			/ Output destructive backspace
-	movb	al, $SP
-	call	putc
-	movb	al, $BS
-	dec	di			/ Adjust pointer
-	inc	cx			/ and char count
-	jmp	0b			/ and continue.
-
 2:	cmpb	al, $CR 		/ CR ?
 	je	3f			/ Yup, do next thing
 
@@ -397,17 +388,21 @@ found:	call	igrab			/ read in inode and first block
 	cmp	LMAGIC(si),$LFMAG	/ Check the magic number.
 	jne	error			/ not Ok.
 
-/	push	LBSSD(si)		/ Push the uninitialized data size.
 	mov	ax, LSHRD(si)		/ Push the sum
 	add	ax, LPRVD(si)		/ of the shared and private
 	push	ax			/ [initialized] data sizes.
 	andb	LFLAG(si), $LFSEP	/ check image flags.
 	pushf				/ Push result of test.
-	mov	ax, LSHRI(si)		/ Get the sum of the
+	.byte	PX_OPND
+	mov	ax, LSHRI-2(si)		/ Get the sum of the
+	.byte	PX_OPND
+	ror	ax, $16
+	.byte	PX_OPND
 	add	ax, LPRVI(si)		/ shared and private code sizes.
 
 	mov	dx, $HDRSIZ2		/ Seek after header and
-	add	si, $HDRSIZE		/ set buffer pointer appropriately.
+	.byte	PX_OPND
+	lea	si, HDRSIZE(si)		/ set buffer pointer appropriately.
 	mov	es, 1f			/ Set ES:DI to point to the load
 	sub	di, di			/ base of the new system.
 
@@ -416,20 +411,15 @@ found:	call	igrab			/ read in inode and first block
 	popf				/ Pop sep I/D flag test
 	jz	0f			/ Not sep.
 
-	add	di, $15 		/ Round up the system code
-	movb	cl, $4			/ size to 16 byte
-	shr	di, cl			/ paragraphs.
-	mov	ax, es			/ fetch program base
-	add	ax, di			/ Compute the data base and
-	mov	es, ax			/ set up ES:DI to point
-	sub	di, di			/ at it.
+	or	di, di
+	jz	2f
+	mov	ax, es
+	inc	ax
+	mov	es, ax
+2:	sub	di,di
 
 0:	pop	ax			/ Pop off initialized data size and
 	call	load			/ load the image.
-
-/	pop	cx			/ Pop off uninitialized data size and
-/	rep				/ clear it.
-/	stosb
 
 	.byte	JMPF			/ Jump to offset
 	.word	0x0100			/ 0x0100 (after base) in system
@@ -447,10 +437,12 @@ found:	call	igrab			/ read in inode and first block
 /
 ////////
 
-load:	or	ax, ax			/ Any left ?
+load:	.byte	PX_OPND
+	or	ax, ax			/ Any left ?
 	jz	return			/ Jump if all loaded.
 
-	mov	cx, $bbuf+BUFSIZE	/ Compute the number of bytes
+	.byte	PX_OPND
+	lea	cx, bbuf+BUFSIZE
 	sub	cx, si			/ remaining in the block.
 	jnz	0f			/ Jump if some.
 
@@ -459,15 +451,24 @@ load:	or	ax, ax			/ Any left ?
 	pop	ax			/ of the file.
 	mov	cx, $BUFSIZE		/ We now have a full block.
 
-0:	cmp	cx, ax			/ More than we need ?
+0:	.byte	PX_OPND
+	cmp	cx, ax			/ More than we need ?
 	jbe	1f			/ Nope.
 	mov	cx, ax			/ Only take what we need.
 
-1:	sub	ax, cx			/ Fix up the count
+1:	.byte	PX_OPND
+	sub	ax, cx			/ Fix up the count
 	shr	cx, $1			/
 	add	dx, cx			/ Fix up the seek [word] address, then
-	rep				/ copy the words from the block
-	movsw				/ buffer to the load point and
+
+2:	movsw				/ copy the words from the block
+	cmp	di, $0x10		/ buffer to the load point and
+	jnz	3f
+	mov	di,es			/	push	es	
+	inc	di			/	.byte	0xff,0x04,0x24
+	mov	es,di			/	pop	es
+	sub	di,di
+3:	loop	2b
 	jmp	load			/ loop until done.
 
 ////////
@@ -482,17 +483,13 @@ load:	or	ax, ax			/ Any left ?
 /
 ////////
 
-putc:	push	si			/ Save registers.
-	push	di
-	push	bp
+putc:	pusha			/ Save registers.
 
 	mov	bx, $0x0007		/ Page 0, white on black
 	movb	ah, $0x0E		/ Write TTY.
 	int	0x10			/ Call video I/O in ROM.
 
-	pop	bp			/ Restore registers.
-	pop	di
-	pop	si
+	popa
 return: ret				/ Return
 
 ////////
@@ -517,9 +514,12 @@ drive:	.byte	0
 first:	.word	0
 	.word	0
 
-msg00:	.ascii	"AT boot"
+msg00:	.ascii	"386 boot"
 crlf:	.byte	CR, LF
 
+	.even
+	.byte	0x55,0xAA
+	.byte	0x55,0xAA
 	.byte	0x55,0xAA
 
 	.bssd
