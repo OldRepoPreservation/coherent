@@ -5,9 +5,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <signal.h>
-#include <types.h>
+#include <sys/types.h>
 #include <sys/stat.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <ctype.h>
 #include <access.h>
 #include <canon.h>
@@ -73,6 +73,7 @@ LINK		*srctab[HASHSIZE];
 LINK		*tgttab[HASHSIZE];
 STR		*strtab[HASHSIZE];
 
+bool	aflag;
 bool	dflag;
 bool	eflag;
 bool	sflag;
@@ -113,6 +114,7 @@ char	*source;
 char	*dot =		".";
 char	*dotdot =	"..";
 char	*fmt1 =		"%s\n";
+char	*fmt1a =	"%-72s\r";
 char	*fmt2 =		"%s: %s\n";
 char	*fmt3 =		"%s: %s%s\n";
 char	*fmt4 =		"%s: %s%s%s\n";
@@ -161,6 +163,8 @@ char *av[];
 	init();
 	cpdir();
 	report();
+	if (aflag)
+		printf("%72s\r", "");
 	return (exitval);
 }
 
@@ -178,6 +182,9 @@ register char *av[];
 			break;
 		while (*cp)
 			switch (*cp++) {
+			case 'a':
+				aflag = TRUE;
+				break;
 			case 'd':
 				dflag = TRUE;
 				break;
@@ -437,8 +444,7 @@ cpdir()
 	close(fd);
 
 	OUT:
-	if (vflag)
-		printf(fmt1, target);
+	vprintf();
 	srcstat = locsrcstat;
 	tgtstat = loctgtstat;
 	tgt_dev = tdev;
@@ -488,8 +494,7 @@ cpfile()
 			return;
 
 	if (tflag) {
-		if (vflag)
-			printf(fmt1, target);
+		vprintf();
 		return;
 	}
 
@@ -574,8 +579,7 @@ cpfile()
 
 	if (n < 0)
 		errprint(fmt2, source, readerr);
-	else if (vflag)
-		printf(fmt1, target);
+	else vprintf();
 	return;
 }
 
@@ -603,6 +607,8 @@ cpnode()
 	}
 	if (vflag)
 		printf(fmt2, target, "copied node");
+	else if (aflag)
+		printf(fmt1a, target);
 	return;
 }
 
@@ -933,14 +939,12 @@ linkattempt()
 			ret = FALSE;
 		}
 		else {
-			if (vflag)
-				printf(fmt1, target);
+			vprintf();
 			ret = TRUE;
 		}
 	}
 	else if (link(cp, target) == 0) {
-		if (vflag)
-			printf(fmt1, target);
+		vprintf();
 		ret = TRUE;
 	}
 	else {
@@ -1104,3 +1108,12 @@ catch( sig)
 		signal( sig, onintr);
 }
 
+vprintf()
+{
+	if (vflag)
+		printf(fmt1, target);
+	else if (aflag) {
+		printf(fmt1a, target);
+		fflush(stdout);
+	}
+}
