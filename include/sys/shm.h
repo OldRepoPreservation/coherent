@@ -3,18 +3,16 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef SHM_H
-#define	SHM_H
+#ifndef _SHM_H
+#define	_SHM_H
 /*
 **	IPC Shared Memory Facility.
 */
-
+#ifndef _IPC_H
 #include <sys/ipc.h>
-#include <sys/types.h>
-
+#endif
 
 extern int shmfd;		/* file descriptor to access shared memory */
-
 
 /*
 **	Permission Definitions.

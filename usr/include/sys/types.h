@@ -7,8 +7,8 @@
  * Machine dependent types.
  */
 
-#ifndef TYPES_H
-#define TYPES_H	TYPES_H
+#ifndef _TYPES_H
+#define _TYPES_H
 
 /*
  * Mapping types.
@@ -29,6 +29,7 @@ typedef	long		daddr_t;	/* Disk address			*/
 typedef	unsigned short	dev_t;		/* Device			*/
 typedef	long	 	fsize_t;	/* Lengths (same as off_t)	*/
 typedef	unsigned short	ino_t;		/* Inode number			*/
+typedef long		key_t;		/* For IPC			*/
 typedef	long	 	off_t;		/* Lengths			*/
 typedef	long	 	paddr_t;	/* Physical memory address	*/
 typedef	long	 	sig_t;		/* Signal bits			*/

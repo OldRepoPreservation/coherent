@@ -23,26 +23,6 @@
 #else
 #include <sys/machine.h>
 #endif
-/*
- * Open segment structure.
- */
-typedef struct sr {
-	int	 sr_flag;		/* Flags for this reference */
-	vaddr_t	 sr_base;		/* Virtual address base */
-#ifdef _I386
-	off_t	 sr_size;		/* Mapped in window size */
-#else
-	vaddr_t	 sr_size;		/* Mapped in window size */
-#endif
-	struct	 seg *sr_segp;		/* Segment pointer */
-} SR;
-
-/*
- * Flags (sr_flag).
- */
-#define SRFPMAP	01			/* Segment is mapped in process */
-#define SRFDUMP	02			/* Dump segment */
-#define	SRFDATA	04			/* Data segment */
 
 /*
  * User process structure.
@@ -140,6 +120,7 @@ typedef struct uproc {
 	void	(*u_sigreturn)();
 	struct _fpstate	u_ndpCon;	/* ndp state */
 	int	u_ndpFlags;
+	int	u_bpfmax;		/* max blocks per file */
 #endif
 } UPROC;
 
