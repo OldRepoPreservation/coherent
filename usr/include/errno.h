@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.0.2
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,8 +8,8 @@
  * Error codes.
  */
 
-#ifndef	ERRNO_H
-#define	ERRNO_H	ERRNO_H
+#ifndef	_ERRNO_H
+#define	_ERRNO_H
 
 #define	EPERM	1		/* Not super user */
 #define	ENOENT	2		/* No such file or directory */
@@ -46,7 +46,11 @@
 #define	EDOM	33		/* Domain error */
 #define	ERANGE	34		/* Result too large */
 #define	EKSPACE	35		/* Out of kernel space */
+#if	_I386
+#define	EIDRM	36		/* Identifier removed */
+#else
 #define	ENOLOAD	36		/* Driver not loaded */
+#endif
 #define	EBADFMT	37		/* Bad format */
 #ifdef _I386
 #define EDATTN	199		/* Device needs attention do not use !! */
