@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/stat.h>
+#include <sys/ino.h>
 #include <errno.h>
 
 #define	DIOSIZ	(BUFSIZ/8)	/* Size of directory i/o, until stacks grow */
@@ -30,6 +31,16 @@ char	toodeep[] = "directory structure too deep to traverse";
 
 struct	stat	sb;
 
+/*
+ * indirect block overhead based upon size of file
+ */
+long	ranges[] = {
+	ND,				/* direct blocks */
+	ND + NBN,			/* single indirect */
+	ND + NBN*NBN,			/* double indirect */
+	ND + NBN*NBN*NBN		/* tripple indirect */
+};
+	
 long	duentry();
 long	dufork();
 long	dusize();
@@ -211,18 +222,24 @@ struct stat *sbp;
 
 /*
  * Do a du on a single file.
- * (BUG: This must be made to account
- * for indirect blocks).
+ * Now takes into account indirect blocks.
  */
 long
 dusize(sbp)
 struct stat *sbp;
 {
+	register int i;
+	register long blocks;
+
 	if ((sbp->st_mode & S_IFMT) != S_IFDIR
 	 && sbp->st_nlink > 1
 	 && addlink(sbp->st_dev, sbp->st_ino))
 		return (0);
-	return ((sbp->st_size+BUFSIZ-1)/BUFSIZ);
+	blocks = (sbp->st_size+BUFSIZ-1) / BUFSIZ;
+	for (i = 0; i < sizeof(ranges)/sizeof(ranges[0]); ++i)
+		if (blocks <= ranges[i])
+			break;
+	return (blocks + i);
 }
 
 /*
