@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	COHERENT Version 4.0.2
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -13,6 +13,7 @@
 #define	_STDLIB_H
 
 /* Macros. */
+#define	_ATEXITN	32		/* number of atexit()-registered fns */
 #define	EXIT_FAILURE	1
 #define	EXIT_SUCCESS	0
 #define	MB_CUR_MAX	1
@@ -43,6 +44,7 @@ typedef	char		wchar_t;	/* extended character set type	*/
  */
 extern	void	abort(		/* void */				);
 extern	int	abs(		/* int j */				);
+extern	int	atexit(		/* void (*func)(void) */		);
 extern	double	atof(		/* const char *nptr */			);
 extern	int	atoi(		/* const char *nptr */			);
 extern	long int atol(		/* const char *nptr */			);
@@ -73,7 +75,6 @@ extern	int	system(		/* const char *string */		);
 /*
  * Functions in ANSI <stdlib.h> not currently implemented in COHERENT libc.a.
  */
-extern	int	atexit(	/* void (*func)(void) */			);
 extern	int	mblen(	/* const char *s, size_t n */			);
 extern	int	mbtowc(	/* wchar_t *pwc, const char *s, size_t n */	);
 extern	size_t	mbstowcs(/* wchar_t *pwcs, const char *s, size_t n */	);
@@ -81,7 +82,9 @@ extern	size_t	wcstombs(/* char *s, const wchar_t *pwcs, size_t n */	);
 extern	int	wctomb(	/* char *s, wchar_t wchar */			);
 #endif
 
-/* Internal function. */
+/* Internal data and functions. */
+extern	int		_atexitn;
+extern	void		(**_atexitfp)();
 extern	double		_pow10	   ();
 
 #endif
