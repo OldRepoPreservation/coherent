@@ -127,13 +127,22 @@ FILE *tfp;
 	for (ulist = users; (name=*ulist) != NULL; ulist++) {
 		rewind(tfp);
 
+
 		sprintf(boxname, "%s%s", SPOOLDIR, name);
 		if ((pwp = getpwnam(name)) == NULL) {
-			mmsg(nosend, name);
-			logdump(nosend, name);
-			senderr = 1;
-			continue;
+			/* RFC 822 (Internet) addresses are case independent,
+			 * so valid local addresses must should be lower case.
+			 */
+			lcase(name);
+			sprintf(boxname, "%s%s", SPOOLDIR, name);
+			if ((pwp = getpwnam(name)) == NULL) {
+				mmsg(nosend, name);
+				logdump(nosend, name);
+				senderr = 1;
+				continue;
+			}
 		}
+
 		mlock(pwp->pw_uid);
 		if ((xfp = fopen(boxname, "a")) == NULL) {
 			mmsg(nosend, name);
