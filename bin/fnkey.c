@@ -1,79 +1,130 @@
-/*
- * fnkey.c
- * 3/4/87
- * Usage: fnkey [ -n ] [ keyname newvalue ] ...
- * Reassign special function keys under MS-DOS.
- * Assumes device ANSI.SYS installed.
- * References: DOS Technical Reference, pp. 2-11, 2-12; DOS BASIC, p. G-6.
- * This could easily recognize e.g. "\n" and "^Z" but currently does not.
- * It could also remap other keys but currently does not.
+/*	fnkey.c
+ *	6/10/91
+ *	Usage:  fnkey [ n [ string ] ]
+ *	Sets/prints IBM AT console function keys.
+ *	Revised for COHERENT 3.2
  */
-
 #include <stdio.h>
-#define	ESCAPE	0x1B			/* ASCII ESCape */
+#include <sgtty.h>
+#include <ctype.h>
+#include <sys/kb.h>
+#include <errno.h>
 
-/* Key names and representations as ASCII digit sequences. */
-struct key {
-	char	*key_name;
-	char	*key_value;
-} keys[] = {
-	{ "F1",		"59"	},
-	{ "F2",		"60"	},
-	{ "F3",		"61"	},
-	{ "F4",		"62"	},
-	{ "F5",		"63"	},
-	{ "F6",		"64"	},
-	{ "F7",		"65"	},
-	{ "F8",		"66"	},
-	{ "F9",		"67"	},
-	{ "F10",	"68"	},
-	{ "HOME",	"71"	},
-	{ "UP",		"72"	},
-	{ "PGUP",	"73"	},
-	{ "LEFT",	"75"	},
-	{ "RIGHT",	"77"	},
-	{ "END",	"79"	},
-	{ "DOWN",	"80"	},
-	{ "PGDN",	"81"	},
-	{ "DEL",	"83"	},
-	{ "CPRTSC",	"114"	},
-	{ "CLEFT",	"115"	},
-	{ "CRIGHT",	"116"	},
-	{ "CEND",	"117"	},
-	{ "CHOME",	"119"	}
-};
-#define	NKEYS	(sizeof(keys) / sizeof(struct key))
+#define	VERSION	"2.0"			/* version number */
 
-main(argc, argv) int argc; char *argv[];
+FNKEY	*okeys;				/* old key bindings */
+FNKEY	*nkeys;				/* new key bindings */
+
+main(argc, argv)
+int argc;
+char **argv;
 {
-	register struct key *kp;
-	register char *name, *value;
-	char *nflag;
+	unsigned c;
+	register int i;
+	register unsigned char *cp, *ncp;
+	int n, fd;
 
-	if (argc > 1 && strcmp(*++argv, "-n") == 0) {
-		nflag = "";
-		++argv;
+	fd = open("/dev/console", 2);
+	if (fd == -1)
+		fatal("cannot open /dev/console");
+	okeys = (FNKEY *) malloc(sizeof(FNKEY) + MAX_FCHAR);
+	nkeys = (FNKEY *) malloc(sizeof(FNKEY) + MAX_FCHAR);
+	if (okeys == (FNKEY *)0 || nkeys == (FNKEY *)0)
+		fatal("out of memory");
+	cp =  &okeys->k_fnval[0];
+	ncp = &nkeys->k_fnval[0];
+
+	/* Print version number if -V. */
+	if (*++argv != NULL && strcmp(*argv, "-V") == 0) {
 		--argc;
+		++argv;
+		fprintf(stderr, "fnkey:  V%s\n", VERSION);
 	}
-	else
-		nflag = ";13";
-	if (argc % 2 == 0) {
-		fprintf(stderr, "Usage: fnkey [ -v ] [ keyname value ] ...\n");
-		exit(1);
-	}
-	while ((name = *argv++) != NULL && (value = *argv++) != NULL) {
-		for (kp = &keys[0]; kp < &keys[NKEYS]; kp++)
-			if (strcmp(name, kp->key_name) == 0) {
-				printf("%c[0;%s;\"%s\"%sp",
-					ESCAPE, kp->key_value, value, nflag);
-				break;
+	if (argc > 3)
+		usage();
+
+	ioctl(fd, TIOCGETF, okeys);		/* get current key bindings */
+	if (errno)
+		fatal("couldn't read current function key settings");
+
+	/* Print current values if no args. */
+	if (*argv == NULL ) {
+		for (i=0; i<okeys->k_nfkeys && cp<&okeys->k_fnval[MAX_FCHAR]; i++)  {
+			if ((c = *cp) == DELIM) {
+				cp++;
+				continue;
 			}
-		if (kp == &keys[NKEYS]) {
-			fprintf(stderr, "fnkey: unrecognized key name \"%s\"\n", name);
-			exit(1);
+			printf ("F%d:  ", i);
+			while ((c = *cp++)!=DELIM && cp<&okeys->k_fnval[MAX_FCHAR]) 
+				printchar(c);
+			putchar('\n');
 		}
+		exit(0);
 	}
+
+	/* First arg must be digit. */
+	if (!isdigit(**argv))
+		usage();
+	if ((n = atoi(*argv++)) >= MAX_FKEYS)
+		usage();
+
+	/* Set Fn to given value. */
+	for (i = 0; i < MAX_FKEYS; i++) {
+		if (i == n) {
+			if (*argv != NULL)
+				while (c = *(*argv)++)
+					if (ncp < &nkeys->k_fnval[MAX_FCHAR]-1)
+						*ncp++ = c;
+			while ((c = *cp++)!=DELIM && cp < &okeys->k_fnval[MAX_FCHAR])
+				;
+		} else {
+			while ((c = *cp++)!=DELIM && cp < &okeys->k_fnval[MAX_FCHAR])
+				if (ncp < &nkeys->k_fnval[MAX_FCHAR]-1)
+					*ncp++ = c;
+		}
+		*ncp++ = DELIM;
+		if (ncp >= &nkeys->k_fnval[MAX_FCHAR])
+			break;
+	}
+	nkeys->k_nfkeys = i;
+	ioctl(fd, TIOCSETF, nkeys);
+	if (errno)
+		fatal("couldn't set function keys");
+
 	exit(0);
 }
 
+printchar(c)
+register unsigned c;
+{
+	if (c == '\\')
+		printf("\\\\");
+	else if ((c >= ' ' && c <= '~') || c >= 0200)
+		putchar(c);
+	else switch (c) {
+	case '\n':	printf("\\n");
+			break;
+	case '\t':	printf("\\t");
+			break;
+	case '\b':	printf("\\b");
+			break;
+	case '\r':	printf("\\r");
+			break;
+	default:	printf("\\%03o", c);
+			break;
+	}
+}
+
+usage()
+{
+	fprintf(stderr, "Usage:	fnkey [ n [ string ] ]\n");
+	exit(1);
+}
+
+fatal(arg)
+char	*arg;
+{
+	fprintf(stderr, "fnkey:\t%r\n", &arg);
+	exit(1);
+}
 /* end of fnkey.c */
