@@ -3,6 +3,9 @@
  * Adaptec AHA154x host adaptor driver for the AT.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/scsi.c,v $
+ * Revision 1.3	91/05/08  11:00:30	root
+ * Make number of heads - SD_HDS - patchable for Tandy.
+ * 
  * Revision 1.2	91/05/01  04:50:11	root
  * Debug code and d_time/sw_active imbalance fixed.
  * 
@@ -35,10 +38,10 @@ int SD_HDS = 16;
 #else
 int SD_HDS = 64;
 #endif
+int SD_SPT = 32;
 
 #define NDRIVE	(8 * 4)			/* 8 SCSI ids and 4 LUNs */
 #define	SDMAJOR	13			/* Major Device Number */
-#define	NSEC	32			/* controller fakes this value */
 #define	SDDMA	5			/* Used for first party DMA */
 
 /*
@@ -384,10 +387,23 @@ char * vec;
 		fdp = (struct fdisk_s *) pparmp[d];
 		*(short *)&hdparm.landc[0] =
 		*(short *)&hdparm.ncyl[0] = fdp[WHOLE_DRIVE].p_size
-						/ (SD_HDS * NSEC);
+						/ (SD_HDS * SD_SPT);
 		hdparm.nhead = SD_HDS;
-		hdparm.nspt = NSEC;
+		hdparm.nspt = SD_SPT;
 		kucopy( &hdparm, vec, sizeof hdparm );
+		return 0;
+	case HDSETA:
+		/*
+		 * Set hard disk attributes.
+		 */
+		fdp = (struct fdisk_s *) pparmp[d];
+		ukcopy(vec, &hdparm, sizeof hdparm);
+		SD_HDS = hdparm.nhead;
+		SD_SPT = hdparm.nspt;
+		fdp[WHOLE_DRIVE].p_size =
+			(long)(*(short *)&hdparm.ncyl[0])
+			* (long)SD_HDS * (long)SD_SPT;
+
 		return 0;
 	case SCSI_HA_CMD:
 		return aha_ioctl( cmd, vec );
