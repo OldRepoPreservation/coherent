@@ -450,7 +450,7 @@ struct term
    char		 *Strings[355];
 };
 
-struct term	_first_term;
+extern struct term _first_term;
 struct term	*cur_term;
 
 #define BOOLCOUNT 37

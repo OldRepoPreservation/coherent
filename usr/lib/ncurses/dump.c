@@ -26,7 +26,10 @@
  *	dump.c - dump the contents of a compiled terminfo file in a
  *		 human-readable format.
  *
- *  $Log:	RCS/dump.v $
+ *  $Log:	dump.c,v $
+ * Revision 1.2  92/04/13  14:36:41  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/07/28  14:03:30  munk
  * Made the large arrays static
 
@@ -50,14 +53,14 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/dump.v  Revision 2.2  91/07/28  14:03:30  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/dump.c,v 1.2 92/04/13 14:36:41 bin Exp Locker: bin $";
 #endif
 
 #include "compiler.h"
 #include "term.h"
 
 extern char *BoolNames[BOOLCOUNT], *NumNames[NUMCOUNT], *StrNames[STRCOUNT];
-
+struct term _first_term;
 
 main(argc, argv)
 int	argc;
