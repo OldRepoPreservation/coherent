@@ -1,5 +1,5 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
-static char version[] =	"patch version 2.1 for COHERENT v.4.0";
+static char version[] =	"patch version 2.2 for COHERENT v.4.0";
 
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
@@ -300,6 +300,7 @@ getone(i, np)
 			} else
 				d2 = 0;
 			pl[i].p_rval = makedev(d1, d2);
+			pl[i].p_type = 's';
 			if (np == NULL)
 				np = "";
 			else
