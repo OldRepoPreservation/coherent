@@ -2,10 +2,10 @@
  * Virtual memory for fsck. Uses hash algorithm
  * rather than LRU to get it up fast.
  */
+#include "assert.h"	/* special copy with printf() not fprintf() */
+#include <sys/stat.h>
 #include "fsck.h"
 #if SMALLMODEL
-#include <assert.h>
-#include <sys/stat.h>
 
 #define VBLKB 9			/* bytes in virtual block as power of 2 */
 #define VBLK (1 << VBLKB)	/* bytes in a virtual block */
@@ -250,7 +250,7 @@ unsigned size;
 fatal(s)
 char *s;
 {
-	fprintf(stderr, "%s\n", s);
+	printf("%s\n", s);
 	exit(1);
 }
 

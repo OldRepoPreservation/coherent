@@ -10,11 +10,11 @@ CFLAGS = -OA
 #	for Z8000	     :	LFLAGS =
 #
 LFLAGS =
-OBJ=main.o init.o phase1.o phase1b.o phase2.o phase3.o phase4.o phase5.o\
-	phase6.o cleanup.o util.o printf.o link.o virtual.o is_fs.o
+OBJ=main.o init.o phase1.o phase1b.o phase2.o phase3.o phase4.o phase5.o \
+	phase6.o cleanup.o util.o link.o virtual.o is_fs.o printf.o
 
 fsck:	$(OBJ)
-	$(CC) $(CFLAGS) $(LFLAGS) -so fsck $(OBJ)
+	$(CC) $(CFLAGS) $(LFLAGS) -s -o fsck $(OBJ)
 
 install: fsck
 	su root cp fsck /etc/fsck
