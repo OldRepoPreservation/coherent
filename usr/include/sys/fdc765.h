@@ -154,12 +154,15 @@ void		fdcCmdStatus	__PROTO ((void));
 void		fdcDrvSelect	__PROTO ((int drive, int motorOn));
 void		fdcDrvStatus	__PROTO ((int drive, int head));
 void		fdcIntStatus	__PROTO ((void));
+int		fdcPutStr	__PROTO ((unsigned char * cmdStr,
+				  unsigned int len));
 void		fdcRate		__PROTO ((int rate));
 void		fdcReadID	__PROTO ((int drive, int head));
 void		fdcRecal	__PROTO ((int drive));
 void		fdcResetSel	__PROTO ((int drive, int motorOn));
 void		fdcSeek		__PROTO ((int drive, int head, int cyl));
 void		fdcSpecify	__PROTO ((int srt, int hut, int hlt));
+void		fdcStatus	__PROTO ((void));
 int		setFtIntr	__PROTO ((int sw));
 
 struct	FDC	{
