@@ -34,7 +34,7 @@
  * functions are defined in <sys/inline.h>
  */
 
-#if	defined (__GNUC__) && defined (i386)	/* 80386 with GNU CC */
+#if	__GNUC__ && (defined (i386) || _I386)	/* 80386 with GNU CC */
 
 
 /*
@@ -59,7 +59,7 @@ __LOCAL__ __INLINE__ __ulong_t __inl (int _port) {
 __LOCAL__ __INLINE__ __ushort_t __inw (int _port) {
 	__ushort_t	_result;
 	__NON_ISO (asm) volatile ("in %1,%0" :
-				  "=a" (_result) : "d" ((ushort_t) _port));
+				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 

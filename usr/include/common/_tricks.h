@@ -33,6 +33,31 @@
 #include <common/_limits.h>
 
 /*
+ * Since many of these hacks only work for special operand ranges, we allow
+ * users the ability to selectively enable paranoid debugging; if a macro with
+ * the name _TRICKS_ASSERT () is defined, we call it up with an argument that
+ * is a predicate we insist on being true; don't forget that like the real-
+ * life assert () in <assert.h>, this must evaluate to a void expression!
+ */
+
+#ifndef	_TRICKS_ASSERT
+# define	_TRICKS_ASSERT(pred)	((void) 0)
+#endif
+
+
+/*
+ * Many versions of Coherent 'cc' will refuse 0, 6 as a constant expression;
+ * with this compiler, you lose assertions.
+ */
+
+#if	__COHERENT__
+# define	__DANGER_WILL_ROBINSON(p)
+#else
+# define	__DANGER_WILL_ROBINSON(p)	_TRICKS_ASSERT(p),
+#endif
+
+
+/*
  * Is a number a power of two? This macro determines this, and should work
  * for numbers of any unsigned type. Users are cautioned to avoid passing
  * values of signed type to this macro, because then the result may depend
@@ -59,7 +84,8 @@
  */
 
 #define	__DIVIDE_ROUNDUP(numerator,denominator) \
-	(((numerator) - 1U + (denominator)) / (denominator))
+	(__DANGER_WILL_ROBINSON ((numerator) - 1U + (denominator)  >= (numerator)) \
+	 ((numerator) - 1U + (denominator)) / (denominator))
 
 
 /*
@@ -71,43 +97,141 @@
  *
  * Since these macros involve lots of fixed constants, we provide a version
  * parameterised for each unsigned type.
+ *
+ * Note that for the portable versions, extra bits outside the defined size
+ * are not considered; be warned that this is not part of the specification,
+ * so our paranoia checks look to see that the extra bits are all zero, so
+ * that maximum freedom is given to the assembly-language versions to be
+ * fast.
  */
 
 #define	__LEAST_BIT_8(bit_mask)	\
-	((((bit_mask) & 0x0FU) == 0 ? 4 : 0) + \
+	(__DANGER_WILL_ROBINSON (((bit_mask) & 0xFFU) != 0) \
+	 __DANGER_WILL_ROBINSON (((bit_mask) & ~ 0xFFU) == 0) \
+	 (((bit_mask) & 0x0FU) == 0 ? 4 : 0) + \
 	 (((bit_mask) & 0x33U) == 0 ? 2 : 0) + \
 	 (((bit_mask) & 0x55U) == 0 ? 1 : 0))
 
 #define	__LEAST_BIT_16(bit_mask)	\
-	((((bit_mask) & 0x00FFU) == 0 ? 8 : 0) + \
+	(__DANGER_WILL_ROBINSON (((bit_mask) & 0xFFFFU) != 0) \
+	 __DANGER_WILL_ROBINSON (((bit_mask) & ~ 0xFFFFU) == 0) \
+	 (((bit_mask) & 0x00FFU) == 0 ? 8 : 0) + \
 	 (((bit_mask) & 0x0F0FU) == 0 ? 4 : 0) + \
 	 (((bit_mask) & 0x3333U) == 0 ? 2 : 0) + \
 	 (((bit_mask) & 0x5555U) == 0 ? 1 : 0))
 
 #define	__LEAST_BIT_32(bit_mask)	\
-	((((bit_mask) & 0x0000FFFFUL) == 0 ? 16 : 0) + \
+	(__DANGER_WILL_ROBINSON ((bit_mask) != 0) \
+	 (((bit_mask) & 0x0000FFFFUL) == 0 ? 16 : 0) + \
 	 (((bit_mask) & 0x00FF00FFUL) == 0 ? 8 : 0) + \
 	 (((bit_mask) & 0x0F0F0F0FUL) == 0 ? 4 : 0) + \
 	 (((bit_mask) & 0x33333333UL) == 0 ? 2 : 0) + \
 	 (((bit_mask) & 0x55555555UL) == 0 ? 1 : 0))
   
 #define	__MOST_BIT_8(bit_mask)	\
-	((((bit_mask) & 0xF0U) != 0 ? 4 : 0) + \
+	(__DANGER_WILL_ROBINSON (((bit_mask) & 0xFFU) != 0) \
+	 __DANGER_WILL_ROBINSON (((bit_mask) & ~ 0xFFU) == 0) \
+	 (((bit_mask) & 0xF0U) != 0 ? 4 : 0) + \
 	 (((bit_mask) & 0xCCU) != 0 ? 2 : 0) + \
 	 (((bit_mask) & 0xAAU) != 0 ? 1 : 0))
 
 #define	__MOST_BIT_16(bit_mask)	\
-	((((bit_mask) & 0xFF00U) != 0 ? 8 : 0) + \
+	(__DANGER_WILL_ROBINSON (((bit_mask) & 0xFFFFU) != 0) \
+	 __DANGER_WILL_ROBINSON (((bit_mask) & ~ 0xFFFFU) == 0) \
+	 (((bit_mask) & 0xFF00U) != 0 ? 8 : 0) + \
 	 (((bit_mask) & 0xF0F0U) != 0 ? 4 : 0) + \
 	 (((bit_mask) & 0xCCCCU) != 0 ? 2 : 0) + \
 	 (((bit_mask) & 0xAAAAU) != 0 ? 1 : 0))
 
 #define	__MOST_BIT_32(bit_mask)	\
-	((((bit_mask) & 0xFFFF0000UL) != 0 ? 16 : 0) + \
+	(__DANGER_WILL_ROBINSON ((bit_mask) != 0) \
+	 (((bit_mask) & 0xFFFF0000UL) != 0 ? 16 : 0) + \
 	 (((bit_mask) & 0xFF00FF00UL) != 0 ? 8 : 0) + \
 	 (((bit_mask) & 0xF0F0F0F0UL) != 0 ? 4 : 0) + \
 	 (((bit_mask) & 0xCCCCCCCCUL) != 0 ? 2 : 0) + \
 	 (((bit_mask) & 0xAAAAAAAAUL) != 0 ? 1 : 0))
+
+#if	__GNUC__ && (defined (i386) || _I386)
+
+/*
+ * For the speed-obsessed, here are in-line versions for GCC on Intel i386/
+ * i486 processors.
+ */
+
+#if	__CHAR_BIT != 8 || __SHRT_BIT != 16 || __LONG_BIT != 32
+# error	Do you *really* have an i386/i486 system?
+#endif
+
+#include <common/ccompat.h>
+#include <common/xdebug.h>
+#include <common/__types.h>
+
+__LOCAL__ __INLINE__ __uint_t (__LEAST_BIT_8) (__ulong_t _bit_mask) {
+	int		_result;
+	_TRICKS_ASSERT ((_bit_mask & 0xFFU) != 0); 
+	_TRICKS_ASSERT ((_bit_mask & ~ 0xFFU) == 0); 
+	__NON_ISO (asm) volatile ("bsf %1,%0" : "=r" (_result) :
+				  "g" (_bit_mask));
+	return _result;
+}
+
+__LOCAL__ __INLINE__ __uint_t (__LEAST_BIT_16) (__ulong_t _bit_mask) {
+	int		_result;
+	_TRICKS_ASSERT ((_bit_mask & 0xFFFFU) != 0);
+	_TRICKS_ASSERT ((_bit_mask & ~ 0xFFFFU) == 0);
+	__NON_ISO (asm) volatile ("bsf %1,%0" : "=r" (_result) :
+				  "g" (_bit_mask));
+	return _result;
+}
+
+__LOCAL__ __INLINE__ __uint_t (__LEAST_BIT_32) (__ulong_t _bit_mask) {
+	int		_result;
+	_TRICKS_ASSERT (_bit_mask != 0);
+	__NON_ISO (asm) volatile ("bsf %1,%0" : "=r" (_result) :
+				  "g" (_bit_mask));
+	return _result;
+}
+
+__LOCAL__ __INLINE__ __uint_t (__MOST_BIT_8) (__ulong_t _bit_mask) {
+	int		_result;
+	_TRICKS_ASSERT ((_bit_mask & 0xFFU) != 0);
+	_TRICKS_ASSERT ((_bit_mask & ~ 0xFFU) == 0);
+	__NON_ISO (asm) volatile ("bsr %1,%0" : "=r" (_result) :
+				  "g" (_bit_mask));
+	return _result;
+}
+
+__LOCAL__ __INLINE__ __uint_t (__MOST_BIT_16) (__ulong_t _bit_mask) {
+	int		_result;
+	_TRICKS_ASSERT ((_bit_mask & 0xFFFFU) != 0);
+	_TRICKS_ASSERT ((_bit_mask & ~ 0xFFFFU) == 0);
+	__NON_ISO (asm) volatile ("bsr %1,%0" : "=r" (_result) :
+				  "g" (_bit_mask));
+	return _result;
+}
+
+__LOCAL__ __INLINE__ __uint_t (__MOST_BIT_32) (__ulong_t _bit_mask) {
+	int		_result;
+	_TRICKS_ASSERT (_bit_mask != 0);
+	__NON_ISO (asm) volatile ("bsr %1,%0" : "=r" (_result) :
+				  "g" (_bit_mask));
+	return _result;
+}
+
+/*
+ * Make the portable versions go away... we leave them around up to this point
+ * for those people that want to check that the fast versions really work :-)
+ */
+
+#undef	__LEAST_BIT_8
+#undef	__LEAST_BIT_16
+#undef	__LEAST_BIT_32
+#undef	__MOST_BIT_8
+#undef	__MOST_BIT_16
+#undef	__MOST_BIT_32
+
+#endif	/* __GNUC__ && defined (i386) */
+
 
 #if	__CHAR_BIT == 8
 # define	__LEAST_BIT_UCHAR(bit_mask)	__LEAST_BIT_8(bit_mask)

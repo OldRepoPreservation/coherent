@@ -86,16 +86,15 @@ union _gregset {
 		__ushort_t	_pad7;
 		__ushort_t	_bp;
 		__ushort_t	_pad8;
-		__ushort_t	_sp;
-		__ushort_t	_pad9;
+		__ulong_t	_esp;		/* kernel %esp */
 		__ushort_t	_bx;
-		__ushort_t	_pad10;
+		__ushort_t	_pad9;
 		__ushort_t	_dx;
-		__ushort_t	_pad11;
+		__ushort_t	_pad10;
 		__ushort_t	_cx;
-		__ushort_t	_pad12;
+		__ushort_t	_pad11;
 		__ushort_t	_ax;
-		__ushort_t	_pad13;
+		__ushort_t	_pad12;
 		/*
 		 * Created by the i386 when handling exceptions, or by the
 		 * trap code when handling software/hardware interrupts.
@@ -106,15 +105,15 @@ union _gregset {
 		 * General i386 inter-level interrupt return frame.
 		 */
 		__ushort_t	_ip;
-		__ushort_t	_pad14;
+		__ushort_t	_pad13;
 		__ushort_t	_cs;
-		__ushort_t	_pad15;
+		__ushort_t	_pad14;
 		__ushort_t	_flags;
-		__ushort_t	_pad16;
+		__ushort_t	_pad15;
 		__ushort_t	_usp;
-		__ushort_t	_pad17;
+		__ushort_t	_pad16;
 		__ushort_t	_ss;
-		__ushort_t	_pad18;
+		__ushort_t	_pad17;
 	} _i286;
 };
 
