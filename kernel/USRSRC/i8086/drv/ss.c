@@ -1,4 +1,3 @@
-static int rwhi;
 #define FUT_DOM 0
 /*
  * Device driver for Seagate ST01/ST02 scsi host adapters.
@@ -16,6 +15,9 @@ static int rwhi;
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 2.4	91/05/20  17:22:06	root
+ * Not using ss_put() any more.
+ * 
  * Revision 2.3	91/05/20  16:20:33	root
  * Call to ss_putc() now works.
  * 
@@ -912,25 +914,13 @@ int s_id;
 	int xfer_count = bp->b_count - bp->b_resid;
 	int irpts_masked;
 int block_done=0;
-uchar lphase=0xff;
 
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
 
-#if (DEBUG >= 2)
-	rwhi=0;
-#endif
-
 	irpts_masked = 0;
 	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-#if (DEBUG >= 2)
-if (rwhi) {
-	rwhi=0;
-	printf("lp=%x cp=%x\n", (int)lphase, (int)phase_type);
-}
-lphase=phase_type;
-#endif
 		if (!irpts_masked) {
 			s = sphi();
 			irpts_masked = 1;
@@ -1123,13 +1113,6 @@ int *to_ptr;
 	if (*to_ptr) {
 		printf("TX: s=%x ", status);
 	}
-#endif
-
-#if (DEBUG >= 2)
-if (i>100) {
-	printf("rw=%d ", i);
-	rwhi=i;
-}
 #endif
 
 	return req_found;
@@ -1402,17 +1385,13 @@ PR3("PBI ");
 					host_claimed = s_id;
 					ssp->waiting = 0;
 					init_pointers(s_id);
-/*					s=sphi();*/
 					if (start_arb()) {
 						if (host_ident(s_id, 1)) {
 							do_connect(s_id);
-/*							spl(s);*/
 						} else {
-/*							spl(s);*/
 							recover(s_id, RV_P_TIMEOUT);
 						}
 					} else {
-/*						spl(s);*/
 						ssp->state = SST_POLL_ARBITN;
 						set_timeout(s_id, DELAY_ARB);
 					}
@@ -1429,12 +1408,9 @@ PR3("PBI ");
 PR3("PR ");
 			if (TGT_RSEL) {
 				ssp->waiting = 0;
-/*				s=sphi();*/
 				if (rsel_handshake()) {
 					do_connect(s_id);
-/*					spl(s);*/
 				} else {
-/*					spl(s);*/
 					recover(s_id, RV_P_TIMEOUT);
 				}
 			} else  { /* Reselect poll is negative */
