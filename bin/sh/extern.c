@@ -9,7 +9,7 @@
 /* Set time, run time, and internal flags */
 /* See exec3.c/set before you move these around */
 char shflags [] = {
-	0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 1 , 0 , 0 , 0
+	 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 1 , 0 , 0 , 0
 };
 char shfnams [] = {
 	'e','k','n','p','t','u','v','x','c','i','r','s','-', 0 , 0 , 0 , 0 , 0

@@ -1,7 +1,9 @@
 /*
+ * sh/exec2.c
  * Bourne shell.
  * System part of execution.
  */
+
 #include "sh.h"
 #include <errno.h>
 #include <sys/param.h>
@@ -67,7 +69,7 @@ int pid;
 				slret = ECHILD;
 			break;
 		} else {
-			panic();
+			panic(6);
 			NOTREACHED;
 		}
 	}
@@ -175,7 +177,7 @@ char **iovp;
 				break;
 		if (*io++ == '&') {
 			if (op != 1 && op != -1) {
-				panic();
+				panic(7);
 				NOTREACHED;
 			}
 			u2 = *io++;
@@ -221,7 +223,7 @@ char **iovp;
 			close(u2);
 			continue;
 		default:
-			panic();
+			panic(8);
 			NOTREACHED;
 		}
 	}
@@ -362,3 +364,4 @@ checkmail()
 	}
 }
 
+/* end of sh/exec2.c */

@@ -1,7 +1,9 @@
 /*
+ * sh/main.c
  * The Bourne shell.
  * Main program, initialization and miscellaneous routines.
  */
+
 #include <sys/param.h>
 #include "sh.h"
 
@@ -170,7 +172,8 @@ register char *p;
 			recover(IRDY);
 			freebuf(s.s_bpp);
 			s.s_bpp = savebuf();
-			yyparse();
+			if (yyparse() != 0)
+				syntax();
 		case REOF:
 			recover(IRDY);
 			break;
@@ -302,7 +305,7 @@ char *a1;
  * Make a core dump in /tmp and longjmp back to session -
  *	there's a possibility we'll die horribly.
  */
-panic()
+panic(i) register int i;
 {
 #ifdef PARANOID
 	register int f;
@@ -313,7 +316,7 @@ panic()
 	}
 	waitc(f);
 #endif
-	printe("Internal shell assertion failed");
+	printe("Internal shell assertion %d failed", i);
 	reset(RNOWAY);
 	NOTREACHED;
 }
@@ -368,8 +371,13 @@ char *vps;
  */
 syntax()
 {
-	if (sesp->s_type == SFILE)
-		printe("%s: Syntax error in line %d", sesp->s_strp, yyline);
-	else
+	if (sesp->s_type == SFILE) {
+		if (feof(sesp->s_ifp))
+			printe("%s: Syntax error at EOF", sesp->s_strp);
+		else
+			printe("%s: Syntax error in line %d", sesp->s_strp, yyline);
+	} else
 		printe("Syntax error");
 }
+
+/* end of sh/main.c */

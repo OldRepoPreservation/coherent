@@ -111,6 +111,12 @@ evalvar()
 		return;
 	} else {
 		/* c == '{' */
+		if (index("#?$!-@*0123456789", arcp[0]) != NULL && arcp[1] == '}') {
+			/* Allow specials of the form "${?}" etc. */
+			specvar(arcp[0]);
+			arcp += 2;
+			return;
+		}
 		while (index("}-=?+", c=*arcp++) == NULL)
 			*cp++ = c;
 		if (c != '}') {

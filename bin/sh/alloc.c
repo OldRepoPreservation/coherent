@@ -1,4 +1,8 @@
+/* sh/alloc.c */
+
 #include "sh.h"
+
+extern	char	*malloc();
 
 /*
  * Externals.
@@ -7,10 +11,8 @@ BUF	*bufap = NULL;			/* Head of allocation list */
 BUF	*buffp = NULL;			/* Tail of free list */
 BUF	**bufapp = &bufap;		/* Tail of allocation list */
 
-char	*malloc();
-
 /*
- * Given a string, return a pointer to a copy of it.  If `f'
+ * Given a string, return a pointer to a copy of it.  If 'f'
  * is set, don't add it onto the free list.
  */
 char *
@@ -98,8 +100,8 @@ register char **bpp;
 }
 
 /*
- * Allocate a buffer `n' bytes long.  Add it onto the
- * allocated buffer list.
+ * Allocate a buffer 'n' bytes long.
+ * Add it onto the allocated buffer list.
  */
 char *
 balloc(n)
@@ -126,7 +128,7 @@ balloc(n)
 }
 
 /*
- * Allocate `n' bytes.
+ * Allocate 'n' bytes.
  */
 char *
 salloc(n)
@@ -143,7 +145,7 @@ salloc(n)
 }
 
 /*
- * Free something possibly allocated by `salloc'.
+ * Free something possibly allocated by 'salloc'.
  *	notmem is part of our customised malloc package which
  *	prevents freeing of static strings and automatic variables.
  */
@@ -184,3 +186,4 @@ char **vecp;
 	return (nvp);
 }
 
+/* end of sh/alloc.c */

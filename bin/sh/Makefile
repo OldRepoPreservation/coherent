@@ -1,7 +1,7 @@
-# /usr/src/cmd0/sh/Makefile 10/2/92
+# /usr/src/cmd0/sh/Makefile 1/11/93
 
 # Version number for var.c.
-VERSION=3.4.0
+VERSION=V3.4.3
 # Parsing stack depth for y.tab.c.
 YYMAXDEPTH=300
 
@@ -68,7 +68,7 @@ main.o:		sh.h main.c
 tab.o:		sh.h tab.c
 trap.o:		sh.h trap.c
 var.o:		var.c sh.h
-	$(CC) -c $(CFLAGS) -DVERSION='"VERSION=V$(VERSION)"' $<
+	$(CC) -c $(CFLAGS) -DVERSION=\"$(VERSION)\" $<
 y.tab.c:	sh.y
 	yacc $<
 y.tab.o:	y.tab.c sh.h
