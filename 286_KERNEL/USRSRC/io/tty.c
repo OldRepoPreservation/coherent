@@ -15,7 +15,10 @@
  * Bug: setting speed to default in ttopen() was conditioned to
  *      use hard constants.  90/08/28.  hws
  *
- * $Log:	/usr/src/sys/ttydrv/RCS/tty.c,v $
+ * $Log:	tty.c,v $
+ * Revision 1.5  91/06/06  18:28:53  norm
+ * Restore 8-bit fix.
+ * 
  * Revision 1.2	89/07/17  11:51:20 	src
  * Bug:	Terminal could lock up when setting it to RAWIN mode, if
  * 	output was suspended due to X-OFF, and output data was present.
@@ -43,17 +46,17 @@
  * 85/03/01	Allan Cornish
  * made ttclose() interruptible.
  */
-#include <coherent.h>
-#include <clist.h>
-#include <proc.h>
-#include <uproc.h>
+#include <sys/coherent.h>
+#include <sys/clist.h>
+#include <sys/proc.h>
+#include <sys/uproc.h>
 #include <errno.h>
-#include <sched.h>
-#include <io.h>
-#include <tty.h>
-#include <deftty.h>
-#include <stat.h>
-#include <con.h>
+#include <sys/sched.h>
+#include <sys/io.h>
+#include <sys/tty.h>
+#include <sys/deftty.h>
+#include <sys/stat.h>
+#include <sys/con.h>
 
 /*
  * NEAR_OR_FAR_CALL is for invoking t_param and t_start
