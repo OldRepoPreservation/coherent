@@ -136,6 +136,7 @@ LIBOBJ2=$(LOBJ)/outbL.o		\
 	$(LOBJ)/timeoutL.o	\
 	$(LOBJ)/ttcloseL.o	\
 	$(LOBJ)/tthupL.o	\
+	$(LOBJ)/ttflushL.o	\
 	$(LOBJ)/ttinL.o		\
 	$(LOBJ)/ttioctlL.o	\
 	$(LOBJ)/ttopenL.o	\
@@ -478,6 +479,9 @@ $(LOBJ)/timeoutL.o:	timeout.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(LOBJ)/ttcloseL.o:
+	$(MKSTUB)
+
+$(LOBJ)/ttflushL.o:
 	$(MKSTUB)
 
 $(LOBJ)/tthupL.o:
