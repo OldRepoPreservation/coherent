@@ -53,6 +53,7 @@ static char RCSid[] =
 
 #include "curses.h"
 #include "curses.priv.h"
+#include "terminfo.h"
 #include "unctrl.h"
 
 
@@ -65,7 +66,7 @@ chtype	ch;
 
 #ifdef TRACE
 	if (_tracing)
-	    _tracef("waddch(%o,%c) called", win, ch);
+	    _tracef("waddch(%o,%o) called", win, ch);
 #endif
 
 	x = win->_curx;
@@ -74,7 +75,7 @@ chtype	ch;
 	if (y > win->_maxy  ||  x > win->_maxx  ||  y < 0  ||  x < 0)
 	    return(ERR);
 
-	switch (ch)
+	switch (ch & A_CHARTEXT)
 	{
 	    case '\t':
 		for (newx = x + (8 - (x & 07)); x < newx; x++)
@@ -98,10 +99,12 @@ chtype	ch;
 		break;
 
 	    default:
-		if (ch < ' ')
+		if ((ch & A_CHARTEXT) < ' ')
 		    return(waddstr(win, unctrl(ch)));
 
-		ch |= win->_attrs;
+		ch |= (ch & A_COLOR) ? (win->_attrs & ~A_COLOR) : win->_attrs;
+
+/*		ch |= win->_attrs; */
 
 		if (win->_line[y][x] != ch)
 		{

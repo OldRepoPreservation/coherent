@@ -39,25 +39,25 @@ static char RCSid[] =
 #include "curses.priv.h"
 #include "term.h"
 
-short __pairs__[2][64];
-
 start_color()
 {
 	register int i;
 
-	for (i = 0; i < 63; i++) {
-		__pairs__[0][i] = -1;
-		__pairs__[1][i] = -1;
-	}
+	for (i = 1; i < 63; i++)
+		__pairs__[0][i] = __pairs__[1][i] = -1;
+
+	__pairs__[0][0] = COLOR_WHITE;
+	__pairs__[1][0] = COLOR_BLACK;
+	__pair_changed__ = FALSE;
 
 	COLORS = max_colors;
 	COLOR_PAIRS = max_pairs;
 
 	if ((COLORS > 0) && (COLOR_PAIRS > 0)) {
-		color = TRUE;
+		__color__ = TRUE;
 		return(OK);
 	} else {
-		color = FALSE;
+		__color__ = FALSE;
 		return(ERR);
 	}
 }
@@ -78,25 +78,25 @@ can_change_color()
 		return(FALSE);
 }
 
-init_color(color, r, g, b)
-int color, r, g, b;
+init_color(new_color, r, g, b)
+short new_color, r, g, b;
 {
 	return(ERR);
 }
 
-color_content(color, r, g, b)
-int color, *r, *g, *b;
+color_content(the_color, r, g, b)
+short the_color, *r, *g, *b;
 {
 	return(ERR);
 }
 
 init_pair(pair, f, b)
-int pair, f, b;
+short pair, f, b;
 {
 	short pair_changed = 0;
 	register int i, j;
 
-	if (!color)
+	if (!__color__)
 		return(ERR);
 	if ((pair > 63) || (pair < 0))
 		return(ERR);
@@ -107,6 +107,8 @@ int pair, f, b;
 	if ((b >= COLORS) || (b < 0))
 		return(ERR);
 
+	__pair_changed__ = TRUE;
+
 	pair_changed = __pairs__[0][pair];
 	__pairs__[0][pair] = f;
 	__pairs__[1][pair] = b;
@@ -115,7 +117,7 @@ int pair, f, b;
 		for (i = 0; i < LINES; i++) {
 			for (j = 0; j < COLS; j++) {
 				if (PAIR_NUMBER(curscr->_line[i][j]) == pair) {
-					stdscr->_line[i][j] = ' ';
+					curscr->_line[i][j] = ' ';
 				}
 			}
 		}
@@ -126,9 +128,9 @@ int pair, f, b;
 }
 
 pair_content(pair, f, b)
-int pair, *f, *b;
+short pair, *f, *b;
 {
-	if (!color)
+	if (!__color__)
 		return(ERR);
 	if ((pair > 63) || (pair < 0))
 		return(ERR);
