@@ -6,7 +6,7 @@
  */
 
 #include <stdio.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <pwd.h>
 #include <sgtty.h>
 #include <signal.h>
@@ -28,7 +28,7 @@ char	*printer = "/dev/lp";
 #endif
 char	lockfile[] = "dpid";
 
-char *argv0;
+char	*argv0;
 char	obuf[BUFSIZ];
 char	cfline[300];		/* Control file line */
 char	comment[300];		/* Comment line */
@@ -133,7 +133,7 @@ again:
 			switch (cfline[0]) {
 			case 'A':
 				if (print(cfline+1)) {
-				   message = "%s: Printer file error: %.*s\n";
+					message = "%s: Printer file error: %.*s\n";
 					strcpy(comment, cfline+1);
 				}
 				break;
@@ -279,16 +279,17 @@ FILE *iop;
 /* VARARGS */
 lperr(x)
 {
-	fprintf(stderr, "%s: %r", argv0, &x);
-	putc('\n', stderr);
+	fprintf(stderr, "%s: %r\n", argv0, &x);
 	rmexit(1);
 }
 
 /*
- * Remove lock file and exit
+ * Remove lock file and exit.
  */
 rmexit(s)
 {
 	unlink(lockfile);
+	if (lp != NULL)
+		fclose(lp);
 	exit(s);
 }
