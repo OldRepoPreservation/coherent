@@ -897,7 +897,7 @@ uuinstall()
 			break;
 		case 'x':
 			if (!(nameMod | lsys.mod | dev.mod | permis.mod))
-				return;
+				return(1);
 			for (;;) {
 				switch (Query("Save changes <y/n> ")) {
 				case 'Y':
@@ -909,9 +909,10 @@ uuinstall()
 						saveLine(UUNAME, uuname);
 						saveLine(DOMAIN, uudomain);
 					}
+					return(0);
 				case 'N':
 				case 'n':
-					return;
+					return(1);
 				}
 			}
 		}
@@ -924,6 +925,8 @@ uuinstall()
 main(argc, argv)
 char **argv[];
 {
+	int rc;
+
 	fileList = ((1 < argc) && !strcmp("-d", argv[1])) ?
 		testFiles : realFiles;
 
@@ -935,7 +938,9 @@ char **argv[];
 
 	setUpScreen(2, 22); /* set up screen 2 lines for error at line 22 */
 
-	uuinstall();
+	rc = uuinstall();
 
 	closeUp();
+	
+	exit(rc);
 }
