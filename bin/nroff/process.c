@@ -1,55 +1,56 @@
 /*
- * Nroff/Troff.
+ * process.c
+ * nroff/Troff.
  * Formatting.
  */
-#include <stdio.h>
+
 #include <ctype.h>
+#include <ascii.h>
 #include "roff.h"
-#include "char.h"
-#include "code.h"
-#include "div.h"
-#include "env.h"
-#include "esc.h"
-#include "hyphen.h"
-#include "reg.h"
-#include "font.h"
-#include "codebug.h"
 
-extern	char *realloc(), *malloc();
+#define	CHYPHEN	'-'			/* hyphenation character */
 #define	MAXTRNB	256			/* Maximum transparent buffer sz. */
-
-#if	(DDEBUG & DBGCALL)
-/* This allows tracing back from panic to find where things happened.	*/
 
 /*
  * Make sure there is space to add another command.
  */
-#undef	chkcode
-chkcode() {
+chkcode()
+{
 	if (nlinptr >= &linebuf[LINSIZE])
-		panic(lbomsg);
+		panic("line buffer overflow");
 }
+
 /*
  * Add a character given the font number and width.
  */
-#undef	addchar
-addchar(f, w) {
+addchar(f, w)
+{
 	chkcode();
-	nlinptr->c_code = f;
-	nlinptr->c_csp = 0;
-	nlinptr++->c_move = w;
+	nlinptr->c_arg.c_code = f & 0xFF;
+	nlinptr->c_arg.c_char = 0;
+	nlinptr++->c_arg.c_move = w;
 }
+
 /*
  * Add a directive which takes an integer argument.
  */
-#undef	addidir
-addidir(d, i) {
+addidir(d, i)
+{
 	chkcode();
-	nlinptr->c_code = d;
-	nlinptr++->c_iarg = i;
+	nlinptr->l_arg.c_code = d;
+	nlinptr++->l_arg.c_iarg = i;
 }
 
-#endif
+/*
+ * Add a transparent buffer directive (dag).
+ */
+addtrab(bp) char *bp;
+{
+	chkcode();
+	nlinptr->b_arg.c_code = DTRAB;
+	nlinptr++->b_arg.c_bufp = bp;
+}
+
 /*
  * Process input, formatting text.
  */
@@ -57,7 +58,7 @@ process()
 {
 	REG *rp;
 	int lastc, n;
-	register int c, f, w;
+	register int c, w;
 	char charbuf[CBFSIZE], name[2];
 
 	c = '\n';
@@ -71,19 +72,19 @@ process()
 			return;
 		case EESC:		/* Printable version of escape */
 			dprintd(DBGPROC, ".printable escape\n");
-			character(asctab[esc]);
+			character(esc);
 			continue;
 		case EACA:		/* Acute accent */
 			dprintd(DBGPROC, ".acute accent\n");
-			character(CACUTE);
+			character('\'');
 			continue;
 		case EGRA:		/* Grave accent */
 			dprintd(DBGPROC, ".grave accent\n");
-			character(CGRAVE);
+			character('`');
 			continue;
 		case EMIN:		/* Minus sign */
 			dprintd(DBGPROC, ".minus sign\n");
-			character(CMINUS);
+			character('-');
 			continue;
 		case EUNP:		/* Unpaddable space */
 			dprintd(DBGPROC, ".unpaddable space\n");
@@ -102,7 +103,6 @@ process()
 			continue;
 		case ETLI:		/* Transparent line indicator */
 			{
-				char *almsg = "can't allocate";
 				char *tb, *tp;
 				int i=0;
 				int j=MAXTRNB;
@@ -110,8 +110,7 @@ process()
 				    j /= 2;
 				    if ((tb = malloc(j)) == NULL) {
 					j /= 2;
-					if ((tb = malloc(j)) == NULL)
-					    panic(almsg);
+					tb = nalloc(j);
 				    }
 				}
 				tp = tb;
@@ -120,8 +119,7 @@ process()
 				    if (++i >= MAXTRNB) {
 					*tp = '\0';
 					addtrab(tb);
-					if ((tb = malloc(j)) == NULL)
-						panic(almsg);
+					tb = nalloc(j);
 					tp = tb;
 					i = 0;
 				    }
@@ -130,7 +128,8 @@ process()
 					tp -= 2;
 				}
 				*tp = '\0';
-				tb = realloc(tb, i+1);
+				if(NULL == (tb = realloc(tb, i+1)))
+					nalloc(i + 1); /* should force crash */
 				addtrab(tb);
 			}
 			c = '\n';	/* Last character was eol... */
@@ -141,15 +140,13 @@ process()
 			continue;
 		case ECHR:		/* Special character indicator */
 			dprintd(DBGPROC, ".special char\n");
-/*	special character indicator	$TO_DO$	*/
-			printu("Special char indicator");
-			getf();
-			getf();
+			printu("special char indicator");	/* $$TO_DO$$ */
+			getf(0);
+			getf(0);
 			continue;
 		case EBRA:		/* Bracket building function */
 			dprintd(DBGPROC, ".bracket building\n");
-/*	bracket building		$TO_DO$	*/
-			printu("Bracket building");
+			printu("bracket building");		/* $$TO_DO$$ */
 			continue;
 		case EINT:		/* Interrupt text processing */
 			dprintd(DBGPROC, ".interrupt proc\n");
@@ -183,7 +180,7 @@ process()
 			name[1] = '\0';
 			dprint3(DBGPROC, ".mark horizontal input in %c at %d\n", c, nlinsiz);
 			rp = getnreg(name);
-			rp->r_nval = nlinsiz;
+			rp->n_reg.r_nval = nlinsiz;
 			continue;
 		case EHLF:		/* Horizontal line drawing function */
 			/*
@@ -192,43 +189,44 @@ process()
 			 */
 			n = 0;
 			if (scandel(charbuf, CBFSIZE))
-				n = number(charbuf, (long)1, (long)1, 0, 0, 0);
+				n = number(charbuf, 1L, 1L, 0, 0, 0);
 			dprint2(DBGPROC, ".horiz line %d\n", n);
 			if (n < 0) {
 				hormove(n);
 				n = -n;
 			}
-			f = asctab['_'];
-			w = fonwidt[f];
+			c = fontype;			/* dag */
+			devfont(ufn);			/* dag */
+			w = fonwidt['_'];
 			w = unit(swdmul*w*psz, swddiv);	/* I guess */
 			if (n < w) {
 				hormove(- ((w-n)/2));
-				addchar(f, n + w/2);
+				addchar('_', n + w/2);
 				nlindir++;
 				nlinsiz += n + w/2;
+				devfont(c);		/* dag */
 				continue;
 			}
 			if (n % w != 0) {
-				addchar(f, n%w);
+				addchar('_', n%w);
 				nlindir++;
 				nlinsiz += n%w;
 			}
 			n /= w;
 			while (n-- != 0) {
-				addchar(f, w);
+				addchar('_', w);
 				nlindir++;
 				nlinsiz += w;
 			}
+			devfont(c);			/* dag */
 			continue;
 		case EVLF:		/* Vertical line drawing function */
 			dprintd(DBGPROC, ".vertical line\n");
-/* vertical line drawing		$TO_DO$	*/
-			printu("Vertical line drawing");
+			printu("vertical line drawing");	/* $$TO_DO$$ */
 			continue;
 		case EOVS:		/* Overstrike */
 			dprintd(DBGPROC, ".overstrike\n");
-/* overstrike				$TO_DO$	*/
-			printu("Overstrike");
+			printu("overstrike");			/* $$TO_DO$$ */
 			continue;
 		case ESPR:		/* Break and spread output line */
 			dprintd(DBGPROC, ".break and spread\n");
@@ -241,8 +239,12 @@ process()
 			continue;
 		case EPSZ:		/* Change pointsize */
 			dprintd(DBGPROC, ".pointsize change\n");
-/* change pointsize			$TO_DO$	*/
-			printu("Pointsize change");
+			if (scandel(charbuf, CBFSIZE)) {
+				n = number(charbuf, SMPOIN, SDPOIN, psz, 0, oldpsz);
+				if (n == 0)
+					n = oldpsz;
+				newpsze(n);
+			}
 			continue;
 		case EVRN:		/* Reverse 1 en vertically */
 			dprintd(DBGPROC, ".reverse 1 en vert\n");
@@ -270,25 +272,25 @@ process()
 			continue;
 		case EZWD:		/* Print character with zero width */
 			dprintd(DBGPROC, ".print with zero width\n");
-/* zero width character			$TO_DO$	*/
-			printu("Zero width character");
+			printu("zero width character");		/* $$TO_DO$$ */
 			continue;
 		case ECOD:		/* Processed text */
 			dprintd(DBGPROC, ".processed text\n");
 			c = diverse();
 			lastc = '\n';
 			goto next;
-		case SOH:
-			dprintd(DBGPROC, ".SOH\n");
+		case ELDR:
+			dprintd(DBGPROC, ".leader character\n");
 			wordbreak(DHMOV);
 			movetab(ldc);
 			continue;
 		case '\t':
+		case ETAB:
 			dprintd(DBGPROC, ".tab\n");
-			if ((llinptr->c_code == -7) || (llinptr->c_code == -1))
+			if ((llinptr->l_arg.c_code == -7) || (llinptr->l_arg.c_code == -1))
 				if (spcnt <
 					((ctabptr + 1)->t_pos - ctabptr->t_pos))
-					llinptr->c_csp = spcnt;
+					llinptr->l_arg.c_csp = spcnt;
 			spcnt = 0;
 			wordbreak(DHMOV);
 			movetab(tbc);
@@ -305,11 +307,11 @@ process()
 			case '.':
 			case '!':
 			case '?':
-				llinptr->c_iarg += 2*mws;
+				llinptr->l_arg.c_iarg += 2*mws;
 				nlinsiz += 2*mws;
 				break;
 			default:
-				llinptr->c_iarg += mws;
+				llinptr->l_arg.c_iarg += mws;
 				nlinsiz += mws;
 			}
 			if (fil==0 || cec) {
@@ -333,14 +335,14 @@ process()
 				wordbreak(DPADC);
 
 			if(is_varspace(fontype) || fil) {
-				llinptr->c_iarg += mws;
+				llinptr->l_arg.c_iarg += mws;
 				nlinsiz += mws;
 				spcnt += mws;
 				continue;
 			}
 		case EDWS:		/* Digit width space */
 			dprintd(DBGPROC, ".digit width space\n");
-			w = fonwidt[asctab['0']];
+			w = fonwidt['0'];
 			hormove(unit(swdmul*w*psz, swddiv));
 			continue;
 		default:
@@ -357,10 +359,12 @@ process()
 					continue;
 				}
 			}
+#if	0
+			/* Ignore non-ASCII characters. */
 			if (!isascii(c))
 				continue;
-			f = asctab[trantab[c]];
-			character(f);
+#endif
+			character(trantab[c]);
 		}
 	}
 }
@@ -389,43 +393,52 @@ int	n;
 /*
  * Character code.
  */
-character(f)
-int	f;
+character(f) register int f;
 {
-	int	w;
-	if (f == CNULL)
-		return;
-	if (fontype != newfont || fontype != curfont)
-		addidir(DFONT, curfont = fontype = newfont);
-	if (psz != newpsz || psz != curpsz)
-		addidir(DPSZE, curpsz = psz = newpsz);
-	w = fonwidt[f];
+	register int w;
+	CODE *cp;
+
+	/* Should this complain about 0-width characters?  Silent for now. */
+	w = fonwidt[f];				/* raw width */
 	dprint3(DBGCHAR, "** char ='%c', width = %d\n", f, w);
-	w = unit(swdmul*w*psz, swddiv);
-	if (csz!=0 && csz!=w) {
-		w = (csz-w) / 2;
-		addidir(DHMOV, w);
-		w = csz - w;
+	w = unit(swdmul*w*psz, swddiv);		/* scaled width */
+	if (csz != 0 && csz != w) {
+		/*
+		 * Constant width desired.
+		 * Adjust previous character width so this character
+		 * ends up centered in the constant width space.
+		 */
+		w = (csz-w) / 2;		/* previous char width adjust */
+		cp = llinptr - 1;
+		if (cp >= linebuf && ifcchar(cp->c_arg.c_code))
+			cp->c_arg.c_move += w;
+		else
+			hormove(w);
+		w = csz - w;			/* current char width adjust */
 	}
-	addchar(f, w);
+	addchar(f, w);				/* output a character */
 	nlindir++;
 	nlinsiz += w;
 }
 
 /*
+ * Read text from a diversion.
  * Whoever thought up the way diversions work in NROFF/TROFF
  * should have done something else.
  */
 int
 diverse()
 {
-	int	c,
-		lastcode;
+	register int code, arg;
+	int c, lastcode;
 
+	lastcode = codeval.l_arg.c_code;	/* by cef */
 	for (c = ECOD;  c == ECOD;  c = getf(1)) {
-		switch (codeval.c_code) {
+		code = codeval.l_arg.c_code;
+		arg = codeval.l_arg.c_iarg;
+		switch (code) {
 		case DSPAR:
-			if (codeval.c_iarg==0) {
+			if (arg==0) {
 				break;	/* discard empty newline codes */
 			} else if (fil) {
 				wordbreak(DPADC);
@@ -439,7 +452,7 @@ diverse()
 				linebreak();
 				spcnt = 0;
 				vls = cvls, lsp = clsp;
-				sspace(codeval.c_iarg);
+				sspace(arg);
 			}
 			if (inpltrc && --inpltrc == 0)
 				execute(inptrap);
@@ -449,8 +462,8 @@ diverse()
 			if (fil) {
 				padspace(lastcode);
 			} else {
-				llinptr->c_iarg += codeval.c_iarg;
-				nlinsiz += codeval.c_iarg;
+				llinptr->l_arg.c_iarg += arg;
+				nlinsiz += arg;
 			}
 			break;
 		case DHYPC:
@@ -459,53 +472,53 @@ diverse()
 	
 				addidir(DHYPH, 0);
 				while ((c=getf(0))==ECOD
-				 && codeval.c_code==DSPAR
-				 && codeval.c_iarg==0 )
+				 && codeval.l_arg.c_code==DSPAR
+				 && codeval.l_arg.c_iarg==0 )
 					;
-				if (c!=ECOD || codeval.c_code!=DSPAR)
-					panic("Cannot dehyphenate");
+				if (c!=ECOD || codeval.l_arg.c_code!=DSPAR)
+					panic("cannot dehyphenate");
 			} else {
 				nlindir++;
-				nlinsiz += codeval.c_iarg;
-				addidir(codeval.c_code, codeval.c_iarg);
+				nlinsiz += arg;
+				addidir(code, arg);
 			}
 			break;
 		case DHMOV:
-			nlinsiz += codeval.c_iarg;
+			nlinsiz += arg;
 		case DNULL:
 		case DVMOV:
 		case DHYPH:
-			addidir(codeval.c_code, codeval.c_iarg);
+			addidir(code, arg);
 			break;
 		case DFONT:
-			addidir(codeval.c_code, curfont = codeval.c_iarg);
+			devfont(arg);
 			break;
 		case DPSZE:
-			addidir(codeval.c_code, curpsz = codeval.c_iarg);
+			devpsze(arg);
 			break;
 		default:
 			nlindir++;
-			nlinsiz += codeval.c_move;
-			addchar(codeval.c_code, codeval.c_move);
+			nlinsiz += codeval.c_arg.c_move;
+			addchar(code, codeval.c_arg.c_move);
 			break;
 		}
-		lastcode = codeval.c_code;
+		lastcode = code;
 	}
-	return (c);
+	return c;
 }
 
 padspace(lastcode)
 int	lastcode;
 {
 	switch (lastcode) {
-	case CEXCLAM:
-	case CQUEST:
-	case CDOT:
-		llinptr->c_iarg += 2*mws;
+	case '!':
+	case '?':
+	case '.':
+		llinptr->l_arg.c_iarg += 2*mws;
 		nlinsiz += 2*mws;
 		break;
 	default:
-		llinptr->c_iarg += mws;
+		llinptr->l_arg.c_iarg += mws;
 		nlinsiz += mws;
 	}
 }
@@ -530,7 +543,7 @@ setbreak()
  * End the current word.  The given directive type is added onto
  * the end of the line.
  */
-wordbreak(dir)
+wordbreak(dir) int dir;
 {
 	int n, s, d;
 
@@ -541,12 +554,12 @@ wordbreak(dir)
 	else {
 		if (fil!=0 && nlinsiz>lln) {
 			n = nlinptr - (llinptr+1);
-			s = nlinsiz - llinsiz - llinptr->c_iarg;
+			s = nlinsiz - llinsiz - llinptr->l_arg.c_iarg;
 			d = nlindir - llindir;
 			if (hyp==0 || (hypf = fitword(&n, &s, &d))==0)
 				copystr(wordbuf, llinptr+1, sizeof (CODE), n);
 			if (n > WORSIZE)
-				panic("Word buffer overflow");
+				panic("word buffer overflow");
 			linebreak();
 			hypf = 0;
 			copystr(nlinptr, wordbuf, sizeof (CODE), n);
@@ -556,6 +569,8 @@ wordbreak(dir)
 			setwork();
 		}
 	}
+	if (mrc != '\0')		/* Added by dag	*/
+		mrch = mrc;
 	llinptr = nlinptr;
 	llinsiz = nlinsiz;
 	llindir = nlindir;
@@ -571,7 +586,7 @@ setwork()
 		tif = 0;
 	else
 		tin = ind;
-	linebuf[0].c_iarg += tin;
+	linebuf[0].l_arg.c_iarg += tin;
 	llinsiz += tin;
 	nlinsiz += tin;
 	tlinsiz += tin;
@@ -579,13 +594,10 @@ setwork()
 
 /*
  * Try to hyphenate and fit the last word in a line.
- * This routine is really part of the routine `wordbreak'.
- * The arguments are pointers to variables in `wordbreak'.
+ * This routine is really part of the routine 'wordbreak'.
+ * The arguments are pointers to variables in 'wordbreak'.
  */
-fitword(np, sp, dp)
-int *dp;
-int *sp;
-int *np;
+fitword(np, sp, dp) int *dp; int *sp; int *np;
 {
 	CODE *wp;
 	int hflag, b1, b2, h, d, s, n;
@@ -606,7 +618,7 @@ int *np;
 	for (;;) {
 		if (--cp < wp)
 			return (0);
-		c = cp->c_code;
+		c = cp->l_arg.c_code;
 		if (cp>wp && c==CHYPHEN && s>=b1) {
 			hflag = 0;
 			break;
@@ -619,11 +631,11 @@ int *np;
 		}
 		if (ifcchar(c)) {
 			d++;
-			s += cp->c_move;
+			s += cp->c_arg.c_move;
 			continue;
 		}
 		if (c==DHMOV || c==DPADC) {
-			s += cp->c_iarg;
+			s += cp->l_arg.c_iarg;
 			continue;
 		}
 	}
@@ -655,21 +667,44 @@ linebreak()
 		return;
 	movetab(EOF);
 	justify();
+	if (mrch != '\0' && llinsiz != 0) {
+		int w;
+		int slsiz = nlinsiz;
+		int sldir = nlindir;
+		CODE *slptr = nlinptr;
+		nlinsiz = llinsiz;
+		nlinptr = llinptr;
+		nlindir = llindir;
+#if	0
+		/* Debug print-out to stderr */
+		fprintf(stderr, "margin char %c %d %d %d %d\n",
+			mrch, mar, lln, llinsiz, (lln-llinsiz) + mar);
+#endif
+		hormove((lln - llinsiz) + mar);
+		character(mrch);
+		llinsiz = nlinsiz;
+		llindir = nlindir;
+		llinptr = nlinptr;
+		nlinsiz = slsiz;
+		nlindir = sldir;
+		nlinptr = slptr;
+		mrch = '\0';
+	}
 	if (llinsiz > cdivp->d_maxw)
 		cdivp->d_maxw = llinsiz;
 	sspace(preexls);
 	spcnt = 0;
 	if (cdivp == mdivp) {
-		nrorval = llinsiz - linebuf[0].c_iarg;
-		linebuf[0].c_iarg += pof;
+		n_reg = llinsiz - linebuf[0].l_arg.c_iarg;
+		linebuf[0].l_arg.c_iarg += pof;
 		flushl(linebuf, llinptr);
 		nsm = 0;
 	} else
 		flushd(linebuf, llinptr);
-	arorval = posexls;
+	a_reg = posexls;
 	setline();
 	lspace(vls+posexls);
-	nrnlreg->r_nval = mdivp->d_rpos;
+	nrnlreg->n_reg.r_nval = mdivp->d_rpos;
 	sspace((lsp-1)*vls);
 }
 
@@ -678,7 +713,7 @@ linebreak()
  */
 justify()
 {
-	register CODE *cp;
+	register CODE *cp, *cp0;
 	int t;
 	register int n, r;
 
@@ -695,23 +730,34 @@ justify()
 		break;
 	case FJUS:
 		r = 0;
-		for (cp=linebuf; cp<llinptr; cp++)
-			if (cp->c_code == DPADC)
-				r++;
-		n = lln - llinsiz;
-		t = n%r;
-		n = 1 + n/r;
-		r = t;
-		for (cp=linebuf; cp<llinptr; cp++) {
-			if (cp->c_code != DPADC)
+		/*
+		 * Walk backward through the line looking for horizontal move.
+		 * If found, do not pad characters to its left.
+		 */
+		for (cp0 = llinptr-1; cp0 > linebuf; cp0--)
+			 if (cp0->l_arg.c_code == DHMOV)
+				break;
+		for (cp = cp0; cp < llinptr; cp++)
+			if (cp->l_arg.c_code == DPADC)
+				r++;		/* paddable character count */
+		if (r == 0)
+			return;			/* no paddable characters */
+		n = lln - llinsiz;		/* padding required */
+		t = n%r;			/* padding remainder */
+		n = 1 + n/r;			/* starting pad amount */
+		r = t;				/* to do before decrementing */
+		for (cp = cp0; cp < llinptr; cp++) {
+			if (cp->l_arg.c_code != DPADC)
 				continue;
 			if (r-- == 0)
-				--n;
-			cp->c_iarg += n;
+				--n;		/* decrement padding amount */
+			cp->l_arg.c_iarg += n;	/* pad by n */
 		}
+		llinsiz = lln;			/* dag for mrc/mrch */
 		return;
 	}
-	linebuf[0].c_iarg += n;
+	llinsiz += n;				/* dag for mrc/mrch */
+	linebuf[0].l_arg.c_iarg += n;
 }
 
 /*
@@ -724,7 +770,7 @@ justify()
 movetab(c)
 {
 	register TAB *tp;
-	int n, f, w, d2;
+	int n, w, d2;
 	register int d, d1;
 	register int pos;
 
@@ -734,7 +780,7 @@ movetab(c)
 	case LJUS:
 		d = pos - tlinsiz;
 		/*
-		tlinptr->c_iarg -= d;
+		tlinptr->l_arg.c_iarg -= d;
 		nlinsiz = llinsiz -= d;
 		*/
 		break;
@@ -745,32 +791,34 @@ movetab(c)
 		d = pos - llinsiz;
 		break;
 	case NJUS:
-		llinptr->c_iarg += mws;
+		llinptr->l_arg.c_iarg += mws;
 		return;
 	}
-	if ((f=asctab[ltabchr]) == 0) {			/* Blank tabs	*/
-		tlinptr->c_iarg += d;
-		llinptr->c_iarg -= llinptr->c_csp;
-		llinptr->c_csp = 0;
+	if (ltabchr == 0) {			/* Blank tabs	*/
+		tlinptr->l_arg.c_iarg += d;
+		llinptr->l_arg.c_iarg -= llinptr->l_arg.c_csp;
+		llinptr->l_arg.c_csp = 0;
 	} else {					/* Leader dots... */
 		if ((w = ldrspc) == 0) {
-			w = fonwidt[f];
+			w = fonwidt[ltabchr];
 			w = unit(swdmul*w*psz, swddiv);
 		}
 		if ((n=nlinptr-(tlinptr+1)) > WORSIZE)
-			panic("Word buffer overflow");
+			panic("word buffer overflow");
 		copystr(wordbuf, tlinptr+1, sizeof (CODE), n);
 		nlinptr = tlinptr + 1;
+		addidir(DFONT, ldf);			/* dag */
 		if ((d2=(d1=tlinsiz)%w) != 0) {
 			d1 += w-d2;
-			tlinptr->c_iarg += w-d2;
+			tlinptr->l_arg.c_iarg += w-d2;
 		}
 		d2 = tlinsiz + d;
 		while ((d1+=w) <= d2)
-			addchar(f, w);
+			addchar(ltabchr, w);
 		addidir(DHMOV, d2-(d1-w));
+		addidir(DFONT, fontype);		/* dag */
 		if (nlinptr+n >= &linebuf[LINSIZE])
-			panic("Line buffer overflow");
+			panic("line buffer overflow");
 		copystr(nlinptr, wordbuf, sizeof (CODE), n);
 		llinptr = nlinptr += n;
 		--llinptr;
@@ -783,7 +831,7 @@ movetab(c)
 		;
 	/*
 	if (tp->t_jus == LJUS) {
-		tlinptr->c_iarg += d = tp->t_pos+tin - tlinsiz;
+		tlinptr->l_arg.c_iarg += d = tp->t_pos+tin - tlinsiz;
 		nlinsiz = llinsiz += d;
 	}
 	*/
@@ -792,7 +840,7 @@ movetab(c)
 }
 
 /*
- * Initialise line data for a new line.
+ * Initialize line data for a new line.
  */
 setline()
 {
@@ -806,3 +854,5 @@ setline()
 	posexls = 0;
 	addidir(DHMOV, 0);
 }
+
+/* end of process.c */
