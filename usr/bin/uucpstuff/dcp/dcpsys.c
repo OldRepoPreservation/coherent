@@ -525,7 +525,15 @@ sysend()
 			}
 		}
 	}
+
+	/* May 05, 1992 (Bob H.) problems communicating with a 386 based bbs
+	 * and a customer complaint from Germany lead to the discovery of a
+	 * condition where undial() was never called, which meant that cicio
+	 * NEVER hung up the phone! Adding the dcpundial() in the following
+	 * if... resolves this.
+	 */
 	if ( !leavelock && lockexist(rmtname) ){
+		dcpundial();
 		plog(M_CALL,"Removing remote site lock");
 		if(lockrm(rmtname) != 0){
 			printmsg(M_LOG,"sysend: Remote site Lock file removal failed!");
