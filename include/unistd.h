@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,8 +8,8 @@
  * Cf. Intel iBSC2, pp. 6-82, 6-83.
  */
 
-#ifndef	_UNISTD_H
-#define	_UNISTD_H
+#ifndef	__UNISTD_H__
+#define	__UNISTD_H__
 
 /* Access modes. */
 #define	F_OK	0

@@ -8,8 +8,8 @@
  * Common Object File Format (COFF) header for COHERENT.
  */
 
-#ifndef _COFF_H
-#define _COFF_H
+#ifndef __COFF_H__
+#define __COFF_H__
 
 /* File header. */
 typedef	struct	filehdr	{

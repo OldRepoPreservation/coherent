@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2.1
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1983, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -11,8 +11,8 @@
  * i386:		saves 6 dwords (EBP, ESP, return PC, ESI, EDI, EBX).
  */
 
-#ifndef	SETJMP_H
-#define	SETJMP_H	SETJMP_H
+#ifndef	__SETJMP_H__
+#define	__SETJMP_H__
 
 #if	_I386
 typedef	int	jmp_buf[6];

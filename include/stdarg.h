@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -9,8 +9,8 @@
  * Draft Proposed ANSI C Standard, Section 4.8, 12/7/88 draft.
  */
 
-#ifndef	_STDARG_H
-#define	_STDARG_H
+#ifndef	__STDARG_H__
+#define	__STDARG_H__
 
 /* Type. */
 #if	__STDC__

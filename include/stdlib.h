@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -9,8 +9,8 @@
  * Draft Proposed ANSI C Standard, Section 4.10, 12/7/88 draft.
  */
 
-#ifndef	_STDLIB_H
-#define	_STDLIB_H
+#ifndef	__STDLIB_H__
+#define	__STDLIB_H__
 
 /* Macros. */
 #define	_ATEXITN	32		/* number of atexit()-registered fns */
@@ -32,8 +32,9 @@ typedef	char		wchar_t;	/* extended character set type	*/
 #endif
 #define	Void	char		/* Use "Void *" as generic pointer type	*/
 #define	const			/* Ignore type modifier "const"		*/
-#include <sys/_null.h>
-
+#ifndef	NULL
+#define	NULL	((char *)0)		/* null pointer constant	*/
+#endif
 
 /*
  * Functions in /lib/libc.a corresponding to ANSI <stdlib.h>.

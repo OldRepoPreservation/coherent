@@ -8,8 +8,8 @@
  * system call.
  */
 
-#ifndef ACCESS_H
-#define	ACCESS_H	ACCESS_H
+#ifndef __ACCESS_H__
+#define	__ACCESS_H__
 
 #define	AREAD	04		/* Test for read */
 #define	AWRITE	02		/* Test for write */

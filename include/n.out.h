@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1983, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -9,8 +9,8 @@
  * (for assembler, linkage editor, and compiler).
  * It also has the namelist structure for the nlist routine.
  */
-#ifndef	 L_OUT_H
-#define	 L_OUT_H
+#ifndef	 __L_OUT_H__
+#define	 __L_OUT_H__
 
 #include <sys/types.h>
 

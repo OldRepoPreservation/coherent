@@ -1,3 +1,8 @@
+/* (-lgl
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1983, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
  * Machine types.
  *
@@ -7,8 +12,8 @@
  * 
  */
 
-#ifndef	 MTYPE_H
-#define	 MTYPE_H	MTYPE_H
+#ifndef	 __MTYPE_H__
+#define	 __MTYPE_H__
 
 /*
  * Type definitions.

@@ -1,14 +1,14 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
  * Floating Point Exception codes for SIGFPE handlers
  */
 
-#ifndef	FPERR_H
-#define	FPERR_H	FPERR_H
+#ifndef	__FPERR_H__
+#define	__FPERR_H__
 
 enum	fperr	{
 	FPE_DV0,		/* divide by 0 */

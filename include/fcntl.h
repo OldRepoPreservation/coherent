@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,8 +8,8 @@
  * Cf. Intel iBCS2, pp. 6-35, 6-36.
  */
 
-#ifndef	_FCNTL_H
-#define	_FCNTL_H
+#ifndef	__FCNTL_H__
+#define	__FCNTL_H__
 
 /*
  * Flag values accessible to open() and fcntl()
@@ -43,6 +43,8 @@
 #define	F_SETLK		6	/* set or remove lock, return if blocked */
 #define	F_SETLKW	7	/* set or remove lock, sleep if blocked	*/
 
+#endif
+
 /* Locking command/return structure. */
 typedef struct flock {
 	short	l_type;		/* F_RDLCK, F_WRLCK, or F_UNLCK		*/
@@ -61,5 +63,4 @@ typedef struct flock {
 /* Close on exec bit for struct fd member f_flags2. */
 #define	FD_CLOEXEC	1	/* close fd on exec			*/
 
-#endif /* _FCNTL_H */
 /* end of fcntl.h */

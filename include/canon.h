@@ -8,8 +8,8 @@
  * Canonical conversion routines for the Intel 8086.
  */
 
-#ifndef	CANON_H
-#define	CANON_H	CANON_H
+#ifndef	__CANON_H__
+#define	__CANON_H__
 
 long	_canl();
 

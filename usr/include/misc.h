@@ -1,8 +1,17 @@
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+
 /*
  * misc.h
  * Miscellaneous useful user functions.
  * Sugggestions and additions are welcome.
  */
+#ifndef __MISC_H__
+#define __MISC_H__
+
 #ifndef OFFSETOF
 
 /* Handy defines */
@@ -147,4 +156,6 @@ extern void regerror();
  * number; the start node begins in the second byte.
  */
 #define	REG_MAGIC	(char)0234
+#endif
+
 #endif

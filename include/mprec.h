@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,8 +8,8 @@
  *	not-int returning functions.
  */
 
-#ifndef	MPREC_H
-#define	MPREC_H	MPREC_H
+#ifndef	__MPREC_H__
+#define	__MPREC_H__
 
 #ifndef NULL
 #define	NULL		((char *)0)

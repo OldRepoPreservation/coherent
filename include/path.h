@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -14,6 +14,9 @@
  * NULL is returned if either pointer argument is NULL,
  * or if the search failed.
  */
+#ifndef __PATH_H__
+#define __PATH_H__
+
 #include <access.h>
 #if COHERENT
 #define PATHSEP		'/'	/* Path name component separator */
@@ -41,3 +44,5 @@
 #endif
 #define MAXPATH	128		/* Size of static pathname buffer */
 extern char *path();		/* (char *path, *file; int mode) */
+
+#endif

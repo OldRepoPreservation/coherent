@@ -8,8 +8,8 @@
  * Error codes.
  */
 
-#ifndef	_ERRNO_H
-#define	_ERRNO_H
+#ifndef	__ERRNO_H__
+#define	__ERRNO_H__
 
 #define	EPERM	1		/* Not super user */
 #define	ENOENT	2		/* No such file or directory */

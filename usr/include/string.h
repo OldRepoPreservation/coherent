@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -9,8 +9,8 @@
  * Draft Proposed ANSI C Standard, Section 4.11, 5/13/88 draft.
  */
 
-#ifndef	_STRING_H
-#define	_STRING_H
+#ifndef	__STRING_H__
+#define	__STRING_H__
 
 #ifndef	_SIZE_T
 #define	_SIZE_T

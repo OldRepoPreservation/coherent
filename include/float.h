@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.1.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -10,10 +10,10 @@
  * Sections 2.2.4.2, 4.1.4.
  */
 
-#ifndef	_FLOAT_H
-#define	_FLOAT_H
+#ifndef	__FLOAT_H__
+#define	__FLOAT_H__
 
-#if	_DECVAX
+#if	__DECVAX__
 /*
  * DECVAX format.
  * Double:	1 sign +  8 exponent + 56 mantissa, bias  129.
@@ -51,7 +51,7 @@
 #define	LDBL_MIN_10_EXP	DBL_MIN_10_EXP
 #endif
 
-#if	_IEEE
+#if	__IEEE__
 /*
  * IEEE format.
  * Double:	1 sign + 11 exponent + 53 mantissa, bias 1023.

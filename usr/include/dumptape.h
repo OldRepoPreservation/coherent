@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -12,6 +12,8 @@
  * arrays of dumpdata records. The map comes first,
  * then all the directories, then all the files.
  */
+#ifndef __DUMPTAPE_H__
+#define __DUMPTAPE_H__
 
 #include <sys/types.h>
 #include <sys/dir.h>
@@ -99,3 +101,5 @@ struct	idates {
 #define	DDATE	"/etc/ddate"		/* Date file name */
 #define	DTAPE	"/dev/dump"		/* Default dump tape */
 #define	DFSYS	""			/* No default file system */
+
+#endif

@@ -5,8 +5,8 @@
  * 
  */
 
-#ifndef	DIAL_H
-#define	DIAL_H	DIAL_H
+#ifndef	__DIAL_H__
+#define	__DIAL_H__
 
 #include <termio.h>
 

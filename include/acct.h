@@ -6,10 +6,14 @@
 /*
  * Accounting structure.
  */
-#ifndef	 ACCT_H
-#define	 ACCT_H	ACCT_H
+#ifndef	 __ACCT_H__
+#define	 __ACCT_H__
 
 #include <sys/types.h>
+#include <sys/_time.h>
+
+typedef	unsigned short	comp_t;
+
 
 struct acct {
 	char	ac_comm[10];		/* Command name */

@@ -1,8 +1,8 @@
 /*
- * For the benefit of user programmes.
+ * /usr/include/signal.h
  */
-#ifndef	 SIGNAL_H
-#define	 SIGNAL_H	SIGNAL_H
+#ifndef	 __SIGNAL_H__
+#define	 __SIGNAL_H__
 
 #ifdef _I386
 extern void	(*signal())();
@@ -26,7 +26,7 @@ extern void	(*sigset())();
 #define SIGTERM	15			/* Software termination signal */
 #define	SIGUSR1	16
 #define	SIGUSR2	17
-#define	SIGCLD	18			/* Death of a child - not done yet */
+#define	SIGCLD	18			/* Death of a child */
 #define	SIGCHLD	18			/* Death of a child - not done yet */
 #define SIGPWR	19			/* Restart */
 #define	SIGWINCH 20			/* window change */

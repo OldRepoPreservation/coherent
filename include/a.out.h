@@ -1,4 +1,11 @@
+/* (-lgl
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /* COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90 */
+#ifndef __A_OUT_H__
+#define __A_OUT_H__
 
 struct	filehdr {
 	unsigned short	f_magic;	/* I386MAGIC */
@@ -82,3 +89,5 @@ struct	xechdr {
 };
 
 #define	XMAGIC(a, b)	((a<< 16) | b)
+
+#endif
