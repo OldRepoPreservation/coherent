@@ -1,6 +1,10 @@
-/*
- * asy.h - support for 8250-family serial devices
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef __SYS_ASY_H__
 #define __SYS_ASY_H__
 
@@ -9,15 +13,9 @@
 extern int ASY_NUM;		/* patched to number of ports		*/
 extern int ASYGP_NUM;		/* patched to number of port groups	*/
 
-#ifdef _I386
 #define MAX_ASY		32	/* maximum number of ports per driver	*/
 #define MAX_ASYGP	4	/* maximum number of port groups	*/
 #define MAX_SLOTS	16	/* maximum number of ports per group	*/
-#else
-#define MAX_ASY		8	/* maximum number of ports per driver	*/
-#define MAX_ASYGP	2	/* maximum number of port groups	*/
-#define MAX_SLOTS	8	/* maximum number of ports per group	*/
-#endif
 #define ASY_VERSION	4	/* driver and asypatch check this	*/
 
 #define NO_ASYGP	99
@@ -30,10 +28,12 @@ extern int ASYGP_NUM;		/* patched to number of port groups	*/
 #define PT_DIGI		4
 #define PT_MAX		5	/* one more than highest PT value used	*/
 
+
 /*
  * Fields that need to be patched during installation.
  * These structs must be static.
  */
+
 typedef struct asy0 {
 	short	a_port;		/* i/o address of uart			*/
 	char	a_irqno;	/* irq number, if any			*/
@@ -51,10 +51,12 @@ typedef struct asy_gp {
 	char	chan_list[MAX_SLOTS];
 } asy_gp_t;
 
+
 /*
  * Fields that do not require patched initial values.
  * This struct can be dynamically allocated.
  */
+
 typedef struct asy1 {
 	silo_t	a_in;		/* raw input fifo			*/
 	silo_t	a_out;		/* raw output fifo			*/
@@ -74,10 +76,12 @@ typedef struct asy1 {
 	int	a_brk:1;	/* sending 2.5-second break		*/
 } asy1_t;
 
+
 /*
  * Each irq number has a linked list.
  * There is one node for each i/o port triggering the given irq number.
  */
+
 struct irqnode {
 	struct irqnode	*next;
 	struct irqnode	*next_actv;
@@ -85,4 +89,4 @@ struct irqnode {
 	int		arg;
 };
 
-#endif
+#endif	/* ! defined (__SYS_ASY_H__) */

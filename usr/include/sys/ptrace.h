@@ -1,32 +1,20 @@
-/*
- * Coherent.
- * Process trace.
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	 __SYS_PTRACE_H__
 #define	 __SYS_PTRACE_H__
 
 #include <common/feature.h>
-#include <sys/types.h>
 #include <sys/ksynch.h>
-
-/*
- * Structure used for communication between parent and child.
- */
-struct ptrace {
-	int	 pt_req;		/* Request */
-	int	 pt_pid;		/* Process id */
-	caddr_t	 pt_addr;		/* Address */
-	int	 pt_data;		/* Data */
-	int	 pt_errs;		/* Error status */
-	int	 pt_rval;		/* Return value */
-	int	 pt_busy;		/* In use */
-	GATE	 pt_gate;		/* Gate */
-};
-
 
 /*
  * Commands for ptrace() system call.  First argument is one of these.
  */
+
 #define PTRACE_SETUP	0	/* init called by child */
 #define PTRACE_RD_TXT	1	/* parent reads child text */
 #define PTRACE_RD_DAT	2	/* parent reads child data */
@@ -37,6 +25,7 @@ struct ptrace {
 #define PTRACE_RESUME	7	/* resume child, maybe fake signal to child */
 #define PTRACE_TERM	8	/* terminate child */
 #define PTRACE_SSTEP	9	/* single-step child, maybe fake sig to child */
+
 
 /*
  * Pseudo offsets of registers in USR segment.
@@ -59,7 +48,9 @@ struct ptrace {
  *   greater than or equal to this value are not valid in ptrace
  *   read/write of USR segment.
  */
+
 /* CPU trap frame - see sys/reg.h and ieeefp.h (struct _fpstackframe) */
+
 #define	PTRACE_GS	0
 #define	PTRACE_FS	4
 #define	PTRACE_ES	8
@@ -81,25 +72,29 @@ struct ptrace {
 #define	PTRACE_SS	72
 #define	PTRACE_SIG	76
 
+
 /* NDP context - see ieeefp.h (struct _fpstate) */
-#define	PTRACE_FP_CW	80
+
+#define PTRACE_FP_CW	80
 #define	PTRACE_FP_SW	84
-#define	PTRACE_FP_TAG	88
+#define PTRACE_FP_TAG	88
 #define	PTRACE_FP_EIP	92
-#define	PTRACE_FP_CS	96
+#define PTRACE_FP_CS	96
 #define	PTRACE_FP_FOO	100
-#define	PTRACE_FP_FS	104
+#define PTRACE_FP_FS	104
 #define	PTRACE_FP_ST0	108
-#define	PTRACE_FP_ST1	118
+#define PTRACE_FP_ST1	118
 #define	PTRACE_FP_ST2	128
-#define	PTRACE_FP_ST3	138
+#define PTRACE_FP_ST3	138
 #define	PTRACE_FP_ST4	148
-#define	PTRACE_FP_ST5	158
+#define PTRACE_FP_ST5	158
 #define	PTRACE_FP_ST6	168
-#define	PTRACE_FP_ST7	178
+#define PTRACE_FP_ST7	178
 #define	PTRACE_FP_STAT	188
 
+
 /* Debug context */
+
 #define	PTRACE_DR0	192
 #define	PTRACE_DR1	196
 #define	PTRACE_DR2	200
@@ -110,13 +105,5 @@ struct ptrace {
 #define	PTRACE_DR7	220
 
 #define	PTRACE_UEND	224	/* Offsets >= UEND are not valid */
-
-#if	__KERNEL__
-/*
- * Global variables.
- */
-extern	struct	ptrace pts;			/* Ptrace structure */
-
-#endif	/* __KERNEL__ */
 
 #endif	/* ! defined (__SYS_PTRACE_H__) */

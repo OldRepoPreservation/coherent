@@ -1,22 +1,18 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * /usr/include/sys/fd.h
- * Open file descriptors.
- */ 
 
 #ifndef	 __SYS_FD_H__
 #define	 __SYS_FD_H__
 
 #include <common/feature.h>
 #include <common/ccompat.h>
-#include <sys/types.h>
-#include <sys/inode.h>
+#include <common/__fsize.h>
 
-#if	! __KERNEL__
+#if	! (_KERNEL || _DDI_DKI_IMPL)
 # error	You must be compiling the kernel to use this header
 #endif
 
@@ -36,23 +32,26 @@
 
 typedef	struct __tagged_fd    *	tagfd_t;
 
-/*
- * We complete this type to work around a Coherent 'cc' bug.
- */
+
+#if	__MWC__
 struct __tagged_fd {
-	char	_bogus;
+	char		_bogus;		/* bug in MWC 'cc' */
 };
+#endif
+
 
 /*
  * File descriptor structure.
  */
 
-typedef struct fd {
-	short	 f_flag;		/* Flags */
-	short	 f_refc;		/* Reference count */
-	fsize_t	 f_seek;		/* Seek pointer */
-	struct	 inode *f_ip;		/* Pointer to inode */
-} FD;
+typedef	struct fd	__fd_t;
+
+struct fd {
+	short		f_flag;		/* Flags */
+	short		f_refc;		/* Reference count */
+	__fsize_t	f_seek;		/* Seek pointer */
+	struct inode  *	f_ip;		/* Pointer to inode */
+};
 
 typedef	unsigned	fd_t;
 
@@ -60,19 +59,22 @@ typedef	unsigned	fd_t;
 
 __EXTERN_C_BEGIN__
 
-FD	      *	fdget		__PROTO ((fd_t _fd));
-int		fdgetflags	__PROTO ((fd_t _fd));
-int		fdsetflags	__PROTO ((fd_t _fd, int _flags));
+__fd_t	      *	fd_get		__PROTO ((fd_t _fd));
+int		fd_get_flags	__PROTO ((fd_t _fd));
+int		fd_set_flags	__PROTO ((fd_t _fd, int _flags));
 
-fd_t		fddup		__PROTO ((fd_t _old, fd_t _base));
-fd_t		fdalloc		__PROTO ((void));
-int		fdinit		__PROTO ((fd_t _fd, INODE * _ip, int _mode));
-fd_t		fdfinish	__PROTO ((fd_t _fd));
-fd_t		fdopen		__PROTO ((INODE * _ip, int _mode));
-void		fdclose		__PROTO ((fd_t _fd));
+fd_t		fd_dup		__PROTO ((fd_t _old, fd_t _base));
+int		fd_recv		__PROTO ((fd_t fd, __fd_t * _fdp));
+fd_t		fd_get_free	__PROTO ((void));
+fd_t		fd_alloc	__PROTO ((void));
+int		fd_init		__PROTO ((fd_t _fd, struct inode * _ip,
+					  int _mode));
+fd_t		fd_finish	__PROTO ((fd_t _fd));
+fd_t		fd_open		__PROTO ((struct inode * _ip, int _mode));
+void		fd_close	__PROTO ((fd_t _fd));
 
-void		fdadupl		__PROTO ((void));
-void		fdaclose	__PROTO ((void));
+void		fd_dup_all	__PROTO ((void));
+void		fd_close_all	__PROTO ((void));
 
 __EXTERN_C_END__
 

@@ -1,22 +1,30 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__COMMON___CLOCK_H__
 #define	__COMMON___CLOCK_H__
 
 /*
- * This internal header file is intended as the sole point of definition for
- * the internal data type "__clock_t", exactly like the ISO C data type
- * "clock_t" but with an internal same so that headers which define function
- * prototypes needing this type need not actually import the type into the
- * user's namespace.
+ * This internal header file define the internal data type "__clock_t".
+ * It resembles the ISO C data type "clock_t", but with an internal name,
+ * so that headers that need this type need not import it into the user's
+ * namespace.
  *
- * Several specifications including iBCS2 and the System V ABI define the
- * "clock_t" type as an unsigned long, although POSIX.1 and the C standard
- * permit the use of an unsigned type (which dramatically extends the range
- * of times that can be represented).
+ * Several specifications  - including iBCS2 and the System V ABI - define
+ * "clock_t" as an unsigned long; POSIX.1 and the C standard permit the use
+ * of an unsigned type (which dramatically extends the range of times that
+ * can be represented).
  *
- * Accordingly, we select the type here on the basis of feature-test macros.
+ * Therefore, we select the type here on the basis of feature-test macros.
  */
 
-#if	_POSIX_SOURCE || _STDC_SOURCE || _DDI_DKI
+#include <common/feature.h>
+
+#if	_POSIX_C_SOURCE || _STDC_SOURCE || _DDI_DKI
 
 typedef	unsigned long	__clock_t;
 

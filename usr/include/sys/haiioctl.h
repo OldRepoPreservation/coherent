@@ -1,3 +1,9 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
 /***********************************************************************
  *  Module: haiioctl.h
  *  
@@ -5,16 +11,10 @@
  *  call.
  *  
  *  Copyright (c) 1993 Christopher Sean Hilton All rights reserved.
- *
- *  Last Modified: Sat Jul 24 08:08:06 1993 by [chris]
- *
- *  $Id$
- *
- *  $Log$
  */
 
-#ifndef _HAIIOCTL_H_
-#define _HAIIOCTL_H_
+#ifndef __HAIIOCTL_H__
+#define __HAIIOCTL_H__
 
 #include <sys/haiscsi.h>
  
@@ -36,14 +36,14 @@
 typedef struct haiusercdb_s *haiusercdb_p;
 
 typedef struct haiusercdb_s {
-	cdb_t		cdb;			/* CDB you want to run */
-	char		sensebuf[SENSELEN];	/* Sensebuf for returned errors */
-	unsigned short	timeout,		/* Time to live */
-			xferdir;		/* Transfer direction */
-	size_t		buflen;			/* Buffer length */
-	char		buf[0];			/* Start of buffer (C++ okay!?) */
+	cdb_t		cdb;		/* CDB you want to run */
+	char		sensebuf[SENSELEN]; /* Sensebuf for returned errors */
+	unsigned short	status;		/* Device Status after command */
+	unsigned short	hastat;		/* Host Adapter Status after command */
+	unsigned short	timeout;	/* Time to live */
+	unsigned short	xferdir;	/* Transfer direction */
+	size_t		buflen;		/* Buffer length */
+	char		buf[0];		/* Start of buffer (C++ okay!?) */
 } haiusercdb_t;
 
-#endif	/* _HAIIOCTL_H_ */
-
-/* End of file */
+#endif	/* ! defined (__HAIIOCTL_H__) */
