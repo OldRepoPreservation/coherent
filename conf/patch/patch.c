@@ -1,5 +1,5 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
-static char version[] =	"patch version 2.0 for COHERENT v.4.0";
+static char version[] =	"patch version 2.1 for COHERENT v.4.0";
 
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
@@ -94,40 +94,48 @@ main(argc, argv)
 	char *argv[];
 {
 	static char obuf[BUFSIZ];
+	int c;			/* For reading options from getopt().  */
+	int num_patches;	/* Number of patches to make on this file.  */
+
+	extern int optind;
+	extern char *optarg;
 
 	/*
 	 * Enable output buffering.
 	 */
 	setbuf( stdout, obuf );
 
-	while ((argc > 1) && ('-' == argv[1][0])) {
-		if (strcmp(argv[1], "-k") == 0) {
-			hotpatch += 1;
-			argv += 1;
-			argc -= 1;
-			continue;
+	while ((c = getopt(argc, argv, "kpv?")) != EOF) {
+		switch (c) {
+		case 'k':
+			hotpatch++;
+			break;
+		case 'p':
+			peek++;
+			break;
+		case 'v':
+			verbose++;
+			break;
+		case '?':
+		default:
+			usage(); /* Does not return.  */
 		}
-		if (strcmp(argv[1], "-v") == 0) {
-			verbose += 1;
-			argv += 1;
-			argc -= 1;
-			continue;
-		}
-		if (strcmp(argv[1], "-p") == 0) {
-			peek += 1;
-			argv += 1;
-			argc -= 1;
-			continue;
-		}
+	}
+	 /*
+	  * There must be at least 2 arguments left.
+	  */
+	if (argc - optind < 2) {
+		fprintf(stderr, "Missing arguments.\n");
 		usage();	/* Does not return */
 	}
-	if (argc < 3)
-		usage();	/* Does not return */
-	namep = argv[1];
-	if (getnames(argc-2, &argv[2]) == 0) {
-		setfile(namep, argc-2, pl);
+	
+	namep = argv[optind++];	/* Fetch the name of the file to patch.  */
+
+	num_patches = (argc - optind);
+	if (getnames(num_patches, &(argv[optind])) == 0) {
+		setfile(namep, num_patches, pl);
 		if (hotpatch)
-			setkmem(argc-2);
+			setkmem(num_patches);
 		exit(0);
 	}
 	exit(1);
@@ -209,7 +217,7 @@ badsym(offset)
 	long offset;
 {
 	fprintf(stderr, "%s not found in %s\n",
-		symbols[offset - sizeof(long)], namep);
+		&(symbols[offset - sizeof(long)]), namep);
 }
 
 /*
@@ -304,8 +312,8 @@ getone(i, np)
 			nl[nnls].n_type = 0xffff;  /* Mark as not yet found.  */
 
 			/* Point at offset into 'symbols' for new name.  */
-			nl[nnls]._n._n_n._n_zeroes = 0;
-			nl[nnls]._n._n_n._n_offset = sizeof(long) + sym_len;
+			nl[nnls].n_zeroes = 0;
+			nl[nnls].n_offset = sizeof(long) + sym_len;
 	
 			/* Figure out how big the symbol is by looking for
 			 * a non-alphanumeric or _ character.
@@ -325,7 +333,7 @@ getone(i, np)
 			}
 			symbols = nsym;	/* The realloc() worked.  */
 			/* Copy the new symbol in place.  */
-			cp = symbols + sym_len - (n + sizeof('\0'));
+			cp = &(symbols[sym_len - (n + sizeof('\0'))]);
 			strncpy(cp, np, n);
 			cp[n] = '\0';
 
@@ -361,6 +369,7 @@ setkmem(n)
 {
 	int u;
 	register int i;
+	char *symname;	/* Name of symbol in LHS being patched.  */
 
 	/* Open up live memory for patching.  */
 	if ((u=open("/dev/kmem", 2)) < 0) {
@@ -371,7 +380,8 @@ setkmem(n)
 	/* Walk through pl[] blasting the new values into live memory.  */
 	for (i = 0; i < n; i += 1) {
 		lseek(u, pl[i].p_lval, 0);
-		if (patch(u, &pl[i]) < 0)
+		symname = &(symbols[pl[i].p_lvnp->n_offset - sizeof(long)]);
+		if (patch(u, &pl[i], "/dev/kmem", symname) < 0)
 			fprintf(stderr, "Write error in /dev/kmem\n");
 	}
 	close(u);
@@ -384,9 +394,12 @@ setkmem(n)
  * Returns 0 on success, -1 otherwise.  errno will be set on error.
  */
 int
-patch(fd, p)
+patch(fd, p, file, sym)
 	int fd;
 	PLIST *p;
+	/* These two args are only for information.  */
+	char *file;	/* Name of the file being patched.  */
+	char *sym;	/* Name of the LHS symbol being patched.  */
 {
 	register char *bp;
 	register int nc;
@@ -411,21 +424,36 @@ patch(fd, p)
 	    if (read(fd, &old_val, nc) != nc) {
 	    	fprintf(stderr, "Can't read old value.\n");
 	    } else {
-		printf("old value: ");
+
+		printf("%s: ", file);
+
+		if (verbose) printf("old value of ");
+
+		printf("%s: ", sym);
 	    	switch (p->p_type) {
-		case 'c':	printf("0x%x\n", old_val.p_char);	break;
-		case 's':	printf("0x%x\n", old_val.p_short);	break;
-		case 'i':	printf("0x%x\n", old_val.p_int);	break;
-		case 'l':	printf("0x%x\n", old_val.p_long);	break;
+		case 'c':	printf("0x%x", old_val.p_char);	break;
+		case 's':	printf("0x%x", old_val.p_short);	break;
+		case 'i':	printf("0x%x", old_val.p_int);	break;
+		case 'l':	printf("0x%x", old_val.p_long);	break;
 		} /* switch */
 
-		printf("new value: ");
-	    	switch (p->p_type) {
-		case 'c':	printf("0x%x\n", p->p_val.p_char);	break;
-		case 's':	printf("0x%x\n", p->p_val.p_short);	break;
-		case 'i':	printf("0x%x\n", p->p_val.p_int);	break;
-		case 'l':	printf("0x%x\n", p->p_val.p_long);	break;
-		} /* switch */
+		printf("\n");
+
+		if (!peek) {	/* If only peeking, there is no new value.  */
+			printf("%s: new value: ", file);
+		    	switch (p->p_type) {
+			case 'c':	printf("0x%x", p->p_val.p_char);
+					break;
+			case 's':	printf("0x%x", p->p_val.p_short);
+					break;
+			case 'i':	printf("0x%x", p->p_val.p_int);
+					break;
+			case 'l':	printf("0x%x", p->p_val.p_long);
+					break;
+			} /* switch */
+
+			printf("\n");
+		} /* if (verbose) */
 
 		/* Go back for the write.  */
 		lseek(fd, (long) (-nc), 1);
@@ -434,7 +462,9 @@ patch(fd, p)
 	} /* if (verbose || peek) */
 
 	if (peek) {
-		printf("Just peeking, no write.\n");
+		if (verbose) {
+			printf("Just peeking, no write.\n");
+		}
 	} else if (write(fd, bp, nc) != nc) {
 		return (-1);
 	}
