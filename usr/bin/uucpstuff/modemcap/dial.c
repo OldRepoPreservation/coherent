@@ -107,9 +107,12 @@ int	fd;
 	if ((enableme[0] != '\0') && (lockttyexist(rdevname) == 0)){
 		plog(M_CALL, "Enabling tty line %s", enableme);
 		exec_stat("enable", enableme);
+		strcpy(enableme, "");
 	}else{
+		if(enableme[0] != '\0'){
 		printmsg(M_DEBUG,"Undial: Can not re-enable port due to tty lock file.");
 		plog(M_CALL,"Undial: Could not re-enable port due to tty lock file.");
+		}
 	}
 	rdevname = NULL;
 }
