@@ -11,7 +11,9 @@ main()
 	for (i = 0; i < NOFILE; i++) {
 		if ((fd = getpseudotty(master, slave)) != -1)
 			printf("fd=%d  m=%s  s=%s\n", fd, master, slave);
-		else
+		else {
+			printf("No more pty's\n");
 			break;
+		}
 	}
 }
