@@ -38,7 +38,7 @@ tanh:
 	fsub	%st, %st(1)	/ 1 - exp(2 * d), exp(2 * d)
 	fld1			/ 1, 1 - exp(2 * d), exp(2 * d)
 	faddp	%st(2), %st	/ 1 - exp(2 * d), 1 + exp(2 * d)
-	fdivr			/ (1 -  exp(2 * d)) / (1 + exp(2 * d))
+	fdiv			/ (1 -  exp(2 * d)) / (1 + exp(2 * d))
 	popf			/ Restore the flags.
 	ja	?1		/ d was positive, done.
 	fchs			/ d was negative, flip result sign.

@@ -27,7 +27,7 @@ acos:
 	fldpi			/ pi, -1, asin(d)
 	fscale			/ pi/2, -1, asin(d)
 	fstp	%st(1)		/ pi/2, asin(d)
-	fsubr			/ acos(d) = pi/2 - asin(d)
+	fsub			/ acos(d) = pi/2 - asin(d)
 
 ?0:
 	ret
