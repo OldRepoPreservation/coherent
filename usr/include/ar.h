@@ -36,9 +36,10 @@ struct	old_ar_hdr {
  * Header module is list of all global defined symbols
  * in all load modules
  */
-#ifndef	L_OUT_H
+#ifndef	__L_OUT_H__
 #include <n.out.h>
 #endif
+
 typedef	struct	ar_sym {
 	char	ar_id[NCPLN];		/* symbol name */
 	fsize_t	ar_off;			/* offset of load module */

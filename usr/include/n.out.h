@@ -59,7 +59,7 @@ struct	ldheader {
 #define	AFMT	"%08lx"		/* Address			*/
 
 /* Machines. */
-#ifndef	MTYPE_H
+#ifndef	__MTYPE_H__
 #include <mtype.h>
 #endif
 

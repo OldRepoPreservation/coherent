@@ -20,22 +20,19 @@
 #define	__MON_H__
 
 #include <sys/types.h>
-
-#ifndef NULL
-#define	NULL	((char *)0)
-#endif
+#include <sys/_null.h>
 
 struct	m_hdr	{
 	unsigned short	m_nbins;	/* number of bins		*/
 	unsigned short	m_scale;	/* scale factor			*/
 	unsigned short	m_nfuncs;	/* number of function counts	*/
-	vaddr_t		m_lowpc;	/* lowest pc to monitor		*/
-	vaddr_t		m_lowsp;	/* lowest sp in scount		*/
-	vaddr_t		m_hisp;		/* highest sp in scount		*/
+	caddr_t		m_lowpc;	/* lowest pc to monitor		*/
+	caddr_t		m_lowsp;	/* lowest sp in scount		*/
+	caddr_t		m_hisp;		/* highest sp in scount		*/
 };
 
 struct	m_func	{
-	vaddr_t		m_addr;		/* address in function		*/
+	caddr_t		m_addr;		/* address in function		*/
 	long		m_ncalls;	/* number of times function called */
 };
 
