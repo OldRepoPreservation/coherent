@@ -555,25 +555,21 @@ extern	struct direct *readdir();
 
 scandir()
 {
-	char cpref[SITESIG+3];
 	char fn[DIRSIZ+1];
 	char dirname[CTLFLEN];
-	int len;
 	DIR *dirp;
 	struct dirent *dp;
 
-	sprintf(dirname, "%s/%s", SPOOLDIR, rmtname);
+	sprintf(dirname, "%s/%s", SPOOLDIR, rmtname); /* build spool dir name */
 	printmsg(M_INFO, "Scandir: %s", dirname);
 
-	if ((dirp=opendir(dirname)) == NULL)
+	if ((dirp=opendir(dirname)) == NULL)	/* open spool dir */
 		return('Q');
 
-	sprintf(cpref, "C.%.*s", SITESIG, rmtname);
-	len = strlen(cpref);
 	fn[0] = fn[DIRSIZ] = '\0';
 	while ( (dp=readdir(dirp)) != NULL ) {
 		printmsg(M_DEBUG, "Scandir: %s", dp->d_name);
-		if ( strncmp(cpref, dp->d_name, len) )
+		if ( strncmp("C.", dp->d_name, 2) )	/* is this a C. file? */
 			continue;
 		if ( (fn[0] == '\0') || (strncmp(dp->d_name, fn, DIRSIZ) < 0) )
 			strncpy(fn, dp->d_name, DIRSIZ);
