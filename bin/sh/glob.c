@@ -4,9 +4,9 @@
  */
 #include "sh.h"
 
-#include <types.h>
-#include <dir.h>
-#include <stat.h>
+#include <sys/types.h>
+#include <sys/dir.h>
+#include <sys/stat.h>
 
 #define isdir(s)	(((s)->st_mode&S_IFMT)==S_IFDIR)
 
