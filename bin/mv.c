@@ -2,6 +2,11 @@
  * Move (rename) files.
  * Usage: mv file1 file2
  *	  mv file ... directory
+ *	  mvdir olddir newdir
+ *
+ * When using mvdir, "olddir" must be a directory.
+ * For both commands, if "directory" or "newdir" contain a trailing '/'
+ * character, verify that the target exists and is a directory (BSD-like).
  * Define SLOW for block at a time copying (not recommended).
  */
 
@@ -19,14 +24,18 @@ char	buf[50*BUFSIZ];
 char	buf[BUFSIZ];
 #endif
 
-char	*usage = "\
+char	*mvusage = "\
 Usage:	mv [-f] file1 file2\n\
 	mv [-f] file ... directory\n\
 ";
+char	*mvdirusage = "\
+Usage:	mvdir olddir newdir\n\
+";
+
 char	*nowrite = "unwritable: %s";
 char	*nolink = "link %s %s failed";
 char	*nounlink = "unlink %s failed";
-char	*cmd = "mv: ";		/* for error routines */
+char	*cmd;
 int	myuid;
 int	mygid;
 int	newid;
@@ -39,6 +48,7 @@ char	*concat(),
 	*strcpy(),
 	*strcat(),
 	*strncpy(),
+	*strrchr(),
 	*getparent(),
 	*getchild();
 long	lseek();
@@ -47,17 +57,38 @@ main(argc, argv)
 char *argv[];
 {
 	register int i;
+	struct stat sb;
 
-	if (argc>1 && *argv[1]=='-')
+	cmd = strrchr(argv[0], '/');
+	if (cmd == NULL)
+		cmd = argv[0];
+	else
+		++cmd;
+	if (streq(cmd, "mvdir")) {
+		if (argc != 3) {
+			fputs(mvdirusage, stderr);
+			exit(EINVAL);
+			NOTREACHED;
+		}
+		if (stat(argv[1], &sb) < 0) {
+			fatal(ENOENT, argv[1]);
+			NOTREACHED;
+		}
+		if ((sb.st_mode&S_IFMT) != S_IFDIR) {
+			fatal(ENOTDIR, argv[1]);
+			NOTREACHED;
+		}
+	} else if (argc > 1 && *argv[1] == '-') {
 		if (argv[1][1] == 'f' && argv[1][2] == '\0') {
 			fflag = 1;
 			argc--;
 			argv++;
 		} else {
-			fputs(usage, stderr);
+			fputs(mvusage, stderr);
 			exit(EINVAL);
 			NOTREACHED;
 		}
+	}
 
 	catch(SIGINT);
 	catch(SIGHUP);
@@ -67,17 +98,27 @@ char *argv[];
 	mygid = getgid();
 
 	if (--argc >= 2
-	 && stat(argv[argc], &sb2) >= 0
-	 && (sb2.st_mode&S_IFMT) == S_IFDIR)
+	  && stat(argv[argc], &sb2) >= 0
+	  && (sb2.st_mode&S_IFMT) == S_IFDIR) {
 		for (i = 1; i < argc && !interrupted; i += 1) {
 			child = getchild(argv[i]);
 			mv(argv[i], concat(0, argv[argc], child));
 		}
-	else if (argc == 2) {
+	} else if (argc == 2) {
+		if (argv[2][strlen(argv[2])-1] == '/') {
+			if (stat(argv[2], &sb) < 0) {
+				fatal(ENOENT, argv[2]);
+				NOTREACHED;
+			}
+			if ((sb.st_mode&S_IFMT) != S_IFDIR) {
+				fatal(ENOTDIR, argv[2]);
+				NOTREACHED;
+			}
+		}
 		child = getchild(argv[1]);
 		mv(argv[1], argv[2]);
 	} else {
-		fputs(usage, stderr);
+		fputs(streq(cmd, "mvdir") ? mvdirusage : mvusage, stderr);
 		exit(EINVAL);
 		NOTREACHED;
 	}
@@ -283,7 +324,7 @@ warn(err, arg1)
 int err;
 char *arg1;
 {
-	fprintf(stderr, "%s%r", cmd, &arg1);
+	fprintf(stderr, "%s: %r", cmd, &arg1);
 	if (err > 0 && err < sys_nerr)
 		fprintf(stderr, " %s", sys_errlist[err]);
 	fputs("\n", stderr);
@@ -385,6 +426,7 @@ unsigned int err;
 char *arg1;
 {
 	fputs(cmd, stderr);
+	fputs(": ", stderr);
 	if (err < sys_nerr) {
 		fputs(sys_errlist[err], stderr);
 		fputs(": ", stderr);
