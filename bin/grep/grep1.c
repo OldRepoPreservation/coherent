@@ -122,6 +122,7 @@ char *argv[];
 				break;
 
 			case 'y':
+			case 'i':
 				redual = 1;
 				yflag = 1;
 				break;
