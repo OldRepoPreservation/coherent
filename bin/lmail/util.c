@@ -104,12 +104,16 @@ fsize_t start, end;
 	fseek(ifp, start, 0);
 	end -= start;
 	if (intstop)
-		while (!intcheck() && end-- > 0  &&  (c = getc(ifp))!=EOF)
+		while (!intcheck() && end-- > 0  &&  (c = getc(ifp))!=EOF){
 			putc(c, ofp);
+			fflush(ofp);
+		}
 	else
-		while (end-- > 0  &&  (c = getc(ifp))!=EOF)
+		while (end-- > 0  &&  (c = getc(ifp))!=EOF){
 			putc(c, ofp);
-	fflush(ofp);
+			fflush(ofp);
+		}
+
 	if (ferror(ofp))
 		return (1);
 	return (0);
@@ -190,6 +194,8 @@ logclose()
 
 logdump(x)
 {
-	if ( logfp != NULL )
+	if ( logfp != NULL ){
 		fprintf(logfp, "%r", &x);
+		fflush(logfp);
+	}
 }
