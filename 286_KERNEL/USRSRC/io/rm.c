@@ -8,6 +8,7 @@
 #include	<sys/uproc.h>
 #include	<sys/seg.h>
 #include	<sys/con.h>
+#include	<sys/devices.h>
 #include	<sys/inode.h>
 #include	<sys/stat.h>
 
@@ -19,7 +20,6 @@
 #define	rm_drive(dev)	(minor(dev) >> 7)
 #define	rm_asize(dev)	(minor(dev) & 0x7F)
 #define	ASIZE		128	/* allocation chunk size in blocks (64KB) */
-#define	RMMAJ		8	/* major # for driver */
 #define NUM_RM		2	/* number of ram disks */
 				/* - tied to dev encoding (see above) */
 
@@ -35,7 +35,7 @@ int	rmblock();
 
 CON	rmcon	= {
 	DFBLK|DFCHR,
-	RMMAJ,
+	RM_MAJOR,
 	rmopen,			/* Open */
 	rmclose,		/* Close */
 	rmblock,		/* Block */
