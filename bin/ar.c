@@ -85,14 +85,42 @@ int	pos	 = NONE;
 int	(*ffp)() = usage;
 FILE *makeh();
 
-char	state[] = "%s: stat error";
+char	state[] = "'%s' file not found";
+
+/*
+ * ar called as ranlib.
+ */
+ranlib(argv)
+char *argv[];
+{
+	int rfunc();
+
+	ffp = rfunc;
+	++sflag;
+	anp = argv[1];
+	(*ffp)();
+	delexit(xstat);
+}
 
 main(argc, argv)
 char *argv[];
 {
 	register i;
+	char *p;
 	int usage(), rfunc();
 
+	if (NULL == (p = strrchr(argv[0], SLASH)))
+		p = argv[0];
+	else
+		p++;
+
+	if (!strcmp(p, "ranlib"))
+		ranlib(argv);
+
+	if (strcmp(p, "ar"))
+		diag(1, "called as %s, expecting ar, or ranlib", p);
+
+	_addargs("AR", &argc, &argv);
 	if (argc < 2)
 		usage();
 	key(argv[1]);
@@ -231,7 +259,7 @@ rfunc()
 	register i, nef;
 	FILE *qfp;
 
-	if (nname == 0)
+	if (nname == 0 && sflag == 0)
 		diag(1, nwork);
 	aopen(RW);	/* open archive */
 	ropen();	/* maybe open ranlib */
@@ -749,6 +777,7 @@ geth()
 {
 #if PORTAR
 	struct ar_hdr hdr;
+	int uid, gid, mode;
 	register char *p;
 
 	if (fread(&hdr, sizeof(hdr), 1, afp) != 1) {
@@ -761,9 +790,11 @@ geth()
 	if (NULL != (p = strchr(ahb.ar_name, '/')))
 		*p = '\0';
 
-	sscanf(hdr.ar_date, "%ld %d %d %o %ld",
-		&ahb.ar_date, &ahb.ar_uid,
-		&ahb.ar_gid, &ahb.ar_mode, &ahb.ar_size);
+	sscanf(hdr.ar_date, "%d %d %d %o %d",
+		&ahb.ar_date, &uid, &gid, &mode, &ahb.ar_size);
+	ahb.ar_uid  = uid;	/* use intermediate fields for shorts */
+	ahb.ar_gid  = gid;
+	ahb.ar_mode = mode;
 
 #else
 	if (fread(&ahb, sizeof(ahb), 1, afp) != 1) {
@@ -957,8 +988,7 @@ tacopy()
  */
 diag(f, a)
 {
-	fprintf(stderr, "%r", &a);
-	fprintf(stderr, ".\n");
+	fprintf(stderr, "%r.\n", &a);
 	if (f)
 		delexit(ERROR);
 	xstat = NOTALL;

@@ -2,7 +2,6 @@
  * Reads and list COFF files.
  */
 #include <misc.h>	/* misc usefull stuff */
-#include <time.h>
 #include <coff.h>
 #include <errno.h>
 
@@ -19,9 +18,8 @@ long	symptr;			/* File pointer to symbol table entrys */
 long	num_symbols;		/* Number of symbols */
 char	*str_tab;		/* String char array */
 unsigned long str_length;	/* length in bytes of string array. */
-long	tot;			/* position in data */
 FILE *fd;			/* COFF file descriptor */
-static char dswitch, rswitch, lswitch, sswitch, aswitch, errflg;
+static char dswitch, rswitch, lswitch, sswitch, aswitch, uswitch;
 extern char *optarg;
 extern int optind;
 
@@ -129,6 +127,39 @@ char *fn;
 }
 
 /*
+ * Process Shared library.
+ */
+shrLib()
+{
+	long i;
+	char *pathn;
+	SHRLIB shr;
+
+	if (1 != fread(&shr, sizeof(shr), 1, fd))
+		fatal("Error reading Library Section");
+
+	if (shr.pathndx -= 2) {
+		long j;
+		char	buf[VHSZ];	/* buffer for hex dump */
+		printf("\nExtra Library info");
+
+		for (j = shr.pathndx * 4;
+		     j && (i = fread(buf, 1, ((j > VHSZ) ? VHSZ : (int)j), fd));
+		     j -= i) {
+			if (!i)
+				fatal("Unexpected EOF in .lib data");
+			dump(buf, (int)i);
+		}
+		putchar('\n');
+	}
+
+	pathn = alloc(i = (shr.entsz - 2) * 4);
+	if (1 != fread(pathn, i, 1, fd))
+		fatal("Error reading Library name");
+	printf("\nReferences %s\n", pathn);
+}
+
+/*
  * Process sections.
  */
 readSections()
@@ -141,8 +172,9 @@ readSections()
 		fatal("Error reading section header");
 
 	section_seek += sizeof(SCNHDR);
+	fseek(fd, sh.s_scnptr, 0);
 
-	printf("\n %s - SECTION HEADER -\n", checkStr(sh.s_name));
+	printf("\n %.8s - SECTION HEADER -\n", checkStr(sh.s_name));
 	printf("physical address   = 0x%lx\n", sh.s_paddr);
 	printf("virtual address    = 0x%lx\n", sh.s_vaddr);
 	printf("section size       = 0x%lx\n", sh.s_size);
@@ -163,19 +195,27 @@ readSections()
 		printf("copy section"); break;
 	case STYP_INFO:
 		printf("comment section"); break;
-	case STYP_LIB:
-		printf("for .lib section"); break;
 	case STYP_OVER:
 		printf("overlay section"); break;
 #endif
+	case STYP_LIB:
+		printf(".lib section\n");
+		shrLib();
+		return;
+
 	case STYP_TEXT:
 		printf("text only"); break;
+
 	case STYP_DATA:
 		printf("data only"); break;
+
 	case STYP_BSS:
 		printf("bss only"); break;
+
 	default:
 		printf("unrecognized section");
+		if (uswitch)
+			dswitch = 0;
 	}
 	putchar('\n');
 
@@ -186,11 +226,11 @@ readSections()
 		fseek(fd, sh.s_scnptr, 0);
 		printf("\nRAW DATA");
 
-		for (tot = 0, j = sh.s_size;
+		for (j = sh.s_size;
 		     j && (i = fread(buf, 1, ((j > VHSZ) ? VHSZ : (int)j), fd));
-		     tot += i, j -= i) {
+		     j -= i) {
 			if (!i)
-				fatal("Unexpected EOF in %s data",
+				fatal("Unexpected EOF in %.8s data",
 				      checkStr(sh.s_name));
 			dump(buf, (int)i);
 		}
@@ -295,7 +335,8 @@ readSymbols()
 		if (1 != fread(&se, SYMESZ, 1, fd))
 			fatal("Error reading symbol entry");
 
-		printf("%ld\t", i);
+		if (!lswitch)
+			printf("%4ld\t", i);
 		print_se(&se);
 
 		for (j = 0; j < se.n_numaux; j++) {
@@ -307,7 +348,8 @@ readSymbols()
 
 			if (aswitch)
 				continue;
-			printf("\n%ld\t", ++i);
+			if (!lswitch)
+				printf("\n%4ld\t", ++i);
 			switch (se.n_sclass) {
 			case C_EXT:
 				if (ISFCN(se.n_type)) {
@@ -321,7 +363,7 @@ readSymbols()
 					ae.x_sym.x_misc.x_lnsz.x_lnno);
 				continue;
 			case C_FILE:
-				printf("file name %s\n",
+				printf("file name %.8s\n",
 					checkStr(ae.x_file.x_fname));
 				continue;
 			case C_STAT:
@@ -334,7 +376,6 @@ readSymbols()
 					continue;
 				}
 			}
-			tot = -1;
 			printf("AUX ENTRY DUMP");
 			dump(&ae, sizeof(ae));
 			putchar('\n');
@@ -434,7 +475,6 @@ SYMENT *se;
 
 	if (1 == flag) {
 		printf("*** Bad data in name **\n");
-		tot = 0;
 		dump(se, SYMESZ);
 	}
 }
@@ -445,19 +485,16 @@ int p; /* p is the number of bytes to dump */
 {
 	register int i;
 
-	if (-1 == tot)
-		printf("\n\n     ");
-	else
-		printf ("\n\n%4x ", tot);
+	printf ("\n\n%6x ", ftell(fd) - p);
 
 	for (i = 0; i < p; i++ )
 		outc(clean(buf[i]), i, ' ');
 
-	printf("\n     ");
+	printf("\n       ");
 	for (i = 0; i < p; i++)
 		outc(hex((buf[i] >> 4) & 0x0f), i, '.');
 
-	printf("\n     ");
+	printf("\n       ");
 	for (i = 0; i < p; i++)
 		outc(hex(buf[i]& 0x0f), i, '.');
 
@@ -498,46 +535,50 @@ char *argv[];
 {
 	int i, c;
 
-	while (EOF != (c = getopt(argc, argv, "drlsa?"))) {
+	while (EOF != (c = getargs(argc, argv, "drlsau?"))) {
 		switch (c) {
+		case 0:
+			readHeaders(optarg);
+
+			for (i = 0; i < num_sections; i++)
+				readSections();
+			if (num_symbols) {
+				readStrings();
+				readSymbols();
+			}
+
+			fclose(fd);
+			break;
+
+		case 'u':
+			uswitch++; break;
+
 		case 'd':
 			dswitch++; break;
+
 		case 'r':
 			rswitch++; break;
+
 		case 'l':
 			lswitch++; break;
+
 		case 's':
 			sswitch++; break;
+
 		case 'a':
 			aswitch++; break;
+
 		case '?':
 		default:
-			errflg++;
+			fprintf(stderr, "usage: cdump -drlsa filename ...\n");
+			fprintf(stderr, "-d supress data dumps\n");
+			fprintf(stderr, "-r supress relocation entries\n");
+			fprintf(stderr, "-l supress line numbers\n");
+			fprintf(stderr, "-s supress symbol entries\n");
+			fprintf(stderr, "-a supress aux symbol entries\n");
+			exit(1);
 		}
 	}
 
-	if (errflg) {
-		fprintf(stderr, "usage: cdump -drlsa filename ...\n");
-		fprintf(stderr, "-d supress data dumps\n");
-		fprintf(stderr, "-r supress relocation entries\n");
-		fprintf(stderr, "-l supress line numbers\n");
-		fprintf(stderr, "-s supress symbol entries\n");
-		fprintf(stderr, "-a supress aux symbol entries\n");
-		exit(1);
-	}
-
-	for (; optind < argc; optind++) {
-		readHeaders(argv[optind]);
-
-		for (i = 0; i < num_sections; i++)
-			readSections();
-		if (num_symbols) {
-			readStrings();
-			readSymbols();
-		}
-
-		fclose(fd);
-	}
-
-	exit(0);
+	return (0);
 }

@@ -7,18 +7,9 @@
 #include <setjmp.h>
 #include <sys/stat.h>
 
-static FILE *ifp = NULL, *ofp = NULL;
-static jmp_buf env;
-static char *tfile = NULL, *filen;
-static struct stat sb;
-
-#define xread(x, m) if(1 != fread(&x, sizeof(x), 1, ifp)) fatal(rmsg, m);
-#define xwrite(x, m) if(1 != fwrite(&x, sizeof(x), 1, ofp)) fatal(wmsg, m);
-static char rmsg[] = "Error reading %s";
-static char wmsg[] = "Error writing %s";
-
-#define SLASH '/'
-extern char *strrchr();
+static jmp_buf env;	/* setjmp longjmp buffer */
+static char *filen;	/* current file in process */
+static int errCt;
 
 /*
  * Put message and longjmp to next file.
@@ -26,33 +17,9 @@ extern char *strrchr();
 fatal(s)
 char *s;
 {
-	int save = errno;
-
-	fprintf(stderr, "strip: %s %r\n", filen, &s);
-	if (0 != (errno = save))
-		perror("errno reports");
+	fprintf(stderr, "strip: %s %r.\n", filen, &s);
+	errCt++;
 	longjmp(env, 1);
-}
-
-/*
- * Copy ifp to ofp
- */
-fcopy(len)
-long len;
-{
-	char buf[BUFSIZ];
-	int i;
-
-	/* align on BUFSIZ boundary then copy buffers */
-	for (i = ftell(ifp) % BUFSIZ; len; (len -= i), (i = 0)) {
-		if ((i = BUFSIZ - i) > len)
-			i = len;
-
-		if (1 != fread(buf, i, 1, ifp))
-			fatal(rmsg, "text");
-		if (1 != fwrite(buf, i, 1, ofp))
-			fatal(wmsg, "text");
-	}
 }
 
 /*
@@ -60,99 +27,76 @@ long len;
  */
 strip()
 {
-	FILEHDR fh;
+	register SCNHDR *sh;
+	static FILEHDR *fh = NULL;	
+	static FILE *fp = NULL;
 	long i, top, hi;
+	struct stat sb;
 
-	xread(fh, "file header");
-	if (fh.f_magic != C_386_MAGIC)
-		fatal("Wrong magic number %x", fh.f_magic);
-	if (!fh.f_opthdr || !(fh.f_flags & F_EXEC))
-		fatal("Not executable");
+	if (stat(filen, &sb))
+		fatal("Can't locate");
 
-	fh.f_symptr = fh.f_nsyms = 0;
-	fh.f_flags |= F_RELFLG | F_LNNO | F_LSYMS;
-	xwrite(fh, "file header");
-	fcopy((long)fh.f_opthdr); /* copy to section headers */
+	/* inhale input file */
+	if (NULL != fp)
+		fclose(fp);
+	fp = xopen(filen, "rb");
 
-	for (top = i = 0; i < fh.f_nscns; i++) {
-		SCNHDR sh;
+	if (NULL != fh)
+		free(fh);
+	fh = alloc(sb.st_size);
 
-		xread(sh, "sector");
+	if (1 != fread(fh, sb.st_size, 1, fp))
+		fatal("Error in read");
 
+	fclose(fp);
+	fp = NULL;
+
+	if ((fh->f_magic != C_386_MAGIC) ||
+	    !fh->f_opthdr ||
+	    !(fh->f_flags & F_EXEC))
+		fatal("Not COFF executable");
+
+	fh->f_symptr = fh->f_nsyms = 0;
+	fh->f_flags |= F_RELFLG | F_LNNO | F_LSYMS;
+
+	/* pass segments and find top address */
+	sh = ((char *)fh) + fh->f_opthdr + sizeof(*fh);
+	top = (long)(sh + fh->f_nscns);
+	for (top = i = 0; i < fh->f_nscns; i++, sh++) {
 		/* find top of sector data */
-		if (sh.s_scnptr && (sh.s_flags != STYP_BSS)) {
-			hi = sh.s_size + sh.s_scnptr;
+		if (sh->s_scnptr && (sh->s_flags != STYP_BSS)) {
+			hi = sh->s_size + sh->s_scnptr;
 			if (top < hi)
 				top = hi;
 		}
-
-		sh.s_relptr = sh.s_lnnoptr = sh.s_nreloc = sh.s_nlnno = 0;
-		xwrite(sh, "sector");
+		sh->s_relptr = sh->s_lnnoptr = sh->s_nreloc = sh->s_nlnno = 0;
 	}
 
-	fcopy(top - ftell(ifp));
+	if (top > sb.st_size)
+		fatal("Corrupt file");
+
+	if (top < sb.st_size) {
+		/* exhale stripped file */
+		fp = xopen(filen, "wb");
+		if (1 != fwrite(fh, top, 1, fp))
+			fatal("Error in write");
+	}
 }
 
 main(argc, argv)
 char *argv[];
 {
-	int i;
-	char *p, *cmd;
-	extern char *tempnam();
+	register int i;
 
 	for (i = 1; i < argc; i++) {
-		/* fatal errors longjmp to here for next file */
-		if (setjmp(env)) {
-			if (NULL != ifp) {
-				fclose(ifp);
-				ifp = NULL;
-			}
-			if (NULL != ofp) {
-				fclose(ofp);
-				ofp = NULL;
-			}
-			if (NULL != tfile) {
-				unlink(tfile);
-				free(tfile);
-				tfile = NULL;
-			}
-			continue;
-		}
-
-		if (stat(filen = argv[i], &sb))
-			fatal("Can't find %s", filen);
-
-		/* open input file */
-		ifp = xopen(filen, "rb");
-
-		if (NULL != (p = strrchr(filen, SLASH))) {
-			*p = '\0';
-			tfile = tempnam(filen, NULL);
-			*p = SLASH;
-		}
-		else
-			tfile = tempnam(".", NULL);
-
-		ofp = xopen(tfile, "wb");
-
-		strip();
-
-		if (NULL != ifp) {
-			fclose(ifp);
-			ifp = NULL;
-		}
-		if (NULL != ofp) {
-			fclose(ofp);
-			ofp = NULL;
-		}
-
-		cmd = alloc(strlen(filen) + strlen(tfile) + 6);
-		sprintf(cmd, "mv %s %s", tfile, filen);
-		system(cmd);
-		chmod(filen, sb.st_mode);
-		free(cmd);
-		free(tfile);
-		tfile = NULL;
+		filen = argv[i];
+		if (!setjmp(env))
+			strip();
 	}
-	exit(0);
+
+	if(!errCt)
+		return (0);
+
+	fprintf(stderr, "%d error(s) flagged\n", errCt);
+	return (1);
 }
