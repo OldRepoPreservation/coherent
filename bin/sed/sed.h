@@ -35,7 +35,11 @@
  * A function for finding whether a character is a letter and a
  * function to switch case (lower to upper and vice versa).
  */
+#ifdef _I386
+#define isallet(c)	(_ctype[(c)+1]&(_L|_N))
+#else
 #define isallet(c)	(_ctype[(c)+1]&(_L|_D))
+#endif
 #define toother(c)	((c)^040)
 
 /*
