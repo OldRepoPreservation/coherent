@@ -15,7 +15,7 @@
  *  Various definitions of Global Strings and Values
  */
 
-#define	VERSION		"3.2.3"
+#define	VERSION		"3.2.8"
 
 #define PUBDIR		"/usr/spool/uucppublic"
 #define SPOOLDIR	"/usr/spool/uucp"
@@ -70,6 +70,7 @@ extern	char *index(), *rindex();
  */
 
 extern	int	abort_cico;	/* Indicates Process Abort Signalled	*/
+extern	int	sysended;	/* Indicates sysend() was called	*/
 extern	int	processid;	/* Currect Process Id (uucico)		*/
 extern	int	debuglevel;	/* User specified Debug Level		*/
 extern	int	fpfd;		/* File Decriptor used for send&receive	*/
