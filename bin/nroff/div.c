@@ -190,6 +190,9 @@ register DIV *dp;
 	register TPL *tp;
 	char *s;
 
+#if	0
+	fprintf(stderr, "scroll(..., %d)\n", n);
+#endif
 	code[0].l_arg.c_code = DSPAR;
 	code[0].l_arg.c_iarg = n;
 	if (dp == mdivp)
@@ -200,7 +203,10 @@ register DIV *dp;
 		cdivp->d_maxh = cdivp->d_rpos;
 	while (cdivp->d_rpos >= pgl) {
 		if (byeflag) {
-			s = (lflag) ? ".post_land" : ".post";
+#if	ZKLUDGE
+			dev_close();
+#endif
+			s = (lflag) ? POST_L : POST_P;
 			if (lib_file(s, 0) == 0 & ntroff == TROFF)
 				printe("file \"%s\" not found", s);
 			leave(0);
