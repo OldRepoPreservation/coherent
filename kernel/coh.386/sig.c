@@ -25,6 +25,7 @@
 #include <sys/sched.h>
 #include <sys/seg.h>
 #include <signal.h>
+#include <sys/core.h>
 
 void sendsig();
 
@@ -333,6 +334,7 @@ sigdump()
 	register int n;
 	register paddr_t ssize;
 	extern	int	DUMP_LIM;
+	struct ch_info chInfo;
 
 	if (SELF->p_flags&PFNDMP)
 		return (0);
@@ -362,6 +364,21 @@ sigdump()
 	schizo();
 	u.u_error = 0;
 	u.u_io.io_seek = 0;
+
+	/* Write core file header */
+	chInfo.ch_magic = CORE_MAGIC;
+	chInfo.ch_info_len = sizeof(chInfo);
+	chInfo.ch_uproc_offset = U_OFFSET;
+
+	u.u_io.io_seg = IOSYS;
+	u.u_io.io.vbase = &chInfo;
+	u.u_io.io_ioc = sizeof(chInfo);
+	u.u_io.io_flag = 0;
+
+	sp->s_lrefc++;
+	iwrite(ip, &u.u_io);
+	sp->s_lrefc--;
+
 	for (srp=u.u_segl; u.u_error==0 && srp<&u.u_segl[NUSEG]; srp++) {
 		if ((sp = srp->sr_segp)==NULL || (srp->sr_flag&SRFDUMP)==0)
 			continue;
