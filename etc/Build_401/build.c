@@ -1,6 +1,6 @@
 /*
  * build.c
- * 07/27/92	COH 386 release
+ * 07/01/93	COH 386 release
  *
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
@@ -42,7 +42,7 @@
 #define	DOSSHRINK	0		/* punt dosshrink for now	*/
 
 /* Manifest constants. */
-#define	VERSION		"4.2"
+#define	VERSION		"4.3"
 #define	USAGE		"Usage: /etc/build [ -dv ]\n"
 #define	ATDEVS		(NPARTN+NPARTN)	/* number of AT disk devices	*/
 #define	BSIZE		512		/* sector size			*/
@@ -198,7 +198,7 @@ main(argc, argv) int argc; char *argv[];
 		user_devices();
 	uucp();
 	rootpatch();
-	sys("/conf/ldker", S_FATAL);
+/*	sys("/conf/ldker", S_FATAL); */
 	patches();
 	sys("/bin/echo /etc/build: success >>/mnt/etc/install.log", S_NONFATAL);
 	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
@@ -356,9 +356,9 @@ copy()
 	sys("/bin/cat /tmp/ttys >>/mnt/etc/ttys", S_NONFATAL);
 
 	/* Grow /lost+found to make room for files. */
-	sys("cd /mnt/lost+found; "
-	    "/bin/touch a b c d e f g h i j k l m n o p q r s t u v w x y z; "
-	    "/bin/rm [a-z]", S_IGNORE);
+	sys("cd /mnt/lost+found \n"
+	    "/bin/touch `/bin/from 1 to 200` \n"
+	    "/bin/rm *", S_IGNORE);
 
 	/* Create /autoboot. */
 	sys("/bin/ln -f /mnt/coherent /mnt/autoboot", S_FATAL);
@@ -929,9 +929,9 @@ again:
 				sprintf(cmd, "/bin/mkdir /mnt/lost+found");
 				if (sys(cmd, S_NONFATAL) == 0)
 					sys(
-"cd /mnt/lost+found; "
-"/bin/touch a b c d e f g h i j k l m n o p q r s t u v w x y z; "
-"/bin/rm [a-z]",
+"cd /mnt/lost+found \n"
+"/bin/touch `/bin/from 1 to 200` \n"
+"/bin/rm *",
 						S_IGNORE);
 				sprintf(cmd, "/etc/umount %s", name);
 				sys(cmd, S_NONFATAL);
@@ -1016,6 +1016,10 @@ int	type;			/* 'd' == domain, 'u' == uucpname/site */
  */
 void patches()
 {
+	printf("The kernel on your hard drive will now be patched to run on your system. You\n");
+	printf("may see some messages indicating that certain symbols are not present in the\n");
+	printf("kernel. You should note them, but otherwise ignore them. Install will use these\n");
+	printf("values after all of the diskettes have been copied to the hard drive.\n\n");
 	if (access(PATCHFILE, AREAD) == 0) {
 		sprintf(cmd, "/bin/sh %s", PATCHFILE);
 		sys(cmd, S_NONFATAL);

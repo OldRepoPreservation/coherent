@@ -445,7 +445,10 @@ query_more_devices:
 			fp = fopen(LDKERFILE, "a");
 			fprintf(fp, "HD=\"${HD} ss.a\"\n");
 			fprintf(fp, "HDUNDEF=\"${HDUNDEF} -u sscon\"\n");
-			fprintf(fp, "HDPATCH=\"${HDPATCH} drvl+260=sscon\"\n");
+			fprintf(fp, "HDPATCH=\"${HDPATCH} drvl+260=sscon \n");
+			fclose(fp);
+			fp = fopen(PATCHFILE,"a");
+			fprintf(fp, "/conf/patch /mnt/coherent drvl+260=sscon \n");
 			fclose(fp);
 			sys("/conf/start_dev ss", S_FATAL);
 #else /* 286 */
@@ -518,6 +521,9 @@ query_more_devices:
 			fprintf(fp, "HD=\"${HD} aha154x.a\"\n");
 			fprintf(fp, "HDUNDEF=\"${HDUNDEF} -u sdcon\"\n");
 			fprintf(fp, "HDPATCH=\"${HDPATCH} drvl+260=sdcon\"\n");
+			fclose(fp);
+			fp = fopen(PATCHFILE,"a");
+			fprintf(fp, "/conf/patch /mnt/coherent drvl+260=sdcon \n");
 			fclose(fp);
 			sys("/conf/start_dev aha", S_FATAL);
 #else /* 286 */
@@ -610,6 +616,9 @@ at()
 		fprintf(fp, "HD=\"${HD} at.a\"\n");
 		fprintf(fp, "HDUNDEF=\"${HDUNDEF} -u atcon\"\n");
 		fprintf(fp, "HDPATCH=\"${HDPATCH} drvl+220=atcon\"\n");
+		fclose(fp);
+		fp = fopen(PATCHFILE,"a");
+		fprintf(fp, "/conf/patch /mnt/coherent drvl+220=atcon \n");
 		fclose(fp);
 		sys("/conf/start_dev at", S_FATAL);
 #endif
