@@ -1,6 +1,7 @@
 /*
  * coh_intro.c
  * 06/29/92	COHERENT 386
+ * 06/22/93	COHERENT 4.2
  * Usage: coh_intro
  * Uses routines in build0.c: cc -o coh_intro coh_intro.c build0.c
  */
@@ -8,7 +9,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"2.1"
+#define	VERSION		"2.2"
 #define	DEFPAGER	"exec more -d"
 
 /* External. */
@@ -205,6 +206,7 @@ tour()
 "\t/etc/profile\tExecuted for each shell\n"
 "\t/etc/rc\t\tExecuted when the system comes up multi-user\n"
 "\t/etc/ttys\tDefines status of terminals attached to system\n"
+"\t/etc/ttytype\tDefines the types of terminals attached to system\n"
 "\t/etc/uucpname\tDefines the system name for use with UUCP\n"
 "\n"
 		);
@@ -247,6 +249,15 @@ tour()
 "\n"
 		);
 
+	/* Shells */
+	mycls(1);
+	printf(
+"The COHERENT system includes the following shells (command interpreters):\n\n"
+"\t/usr/bin/vsh\tThe COHERENT visual (full screen) shell\n"
+"\t/usr/bin/ksh\tThe Korn shell\n"
+"\t/bin/sh\t\tThe Bourne shell\n"
+"\n"
+		);
 	/* File types. */
 	mycls(1);
 	printf(
@@ -274,7 +285,7 @@ tour()
 	/* Diskettes. */
 	mycls(1);
 	printf(
-"Some commonly used diskette device names and formats are:\n"
+"Some commonly used diskette device names and formats are:\n\n"
 "\tDevice name  Sectors/track  Heads  Sectors  Bytes   Format\n"
 "\t/dev/f9a0          9          2      720    360 KB   5.25\"\n"
 "\t/dev/fqa0          9          2     1440    720 KB   3.5\"\n"
@@ -287,19 +298,19 @@ tour()
 		);
 	mycls(1);
 	printf(
-"To use a floppy disk filesystem with COHERENT, you must:\n"
+"To use a floppy disk filesystem with COHERENT, you must:\n\n"
 "\t(1) format and verify it with /etc/fdformat,\n"
 "\t(2) build an empty filesystem on it with /etc/mkfs,\n"
 "\t(3) mount it with /bin/mount or /etc/mount,\n"
 "\t(4) copy files to or from it, e.g. with /bin/cp or /bin/cpdir,\n"
 "and\t(5) unmount it with /bin/umount or /etc/umount.\n"
 "\n"
-"For example, to copy directory /dir to a 5.25\" high density diskette in A:\n"
+"For example, to copy directory /dir to a 5.25\" high density diskette in A:\n\n"
 "\t/etc/fdformat -av /dev/rfha0\n"
 "\t/etc/mkfs /dev/fha0 2400\n"
 "\t/etc/mount /dev/fha0 /f0\n"
 "\tcpdir -vd /dir /f0/dir\n"
-"\t/etc/umount /dev/fha0\n"
+"\t/etc/umount /dev/fha0\n\n"
 "/bin/mount and /bin/umount provide handy abbreviations for \"mount\" commands.\n"
 "\n"
 		);
