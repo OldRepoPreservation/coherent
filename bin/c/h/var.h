@@ -55,9 +55,9 @@ extern VARIANT variant;
 #define VTYPES	19		/* Type items */
 #define VDEBUG	20		/* Static and local symbols */
 #define VDSYMB	20		/* Preferred synonym for VDEBUG */
-#define VCALLS	21		/* Parameter types - UNIMPLEMENTED */
-#define	VLIB	22		/* Suppress typedefs in debug info */
+#define	VLIB	21		/* Suppress typedefs in debug info */
 
+#define VNOWARN	22		/* Suppress warning messages */
 #define	VPROF	23		/* Profile on */
 #define VALIEN	24		/* Allow calls to/from alien conventions */
 #define VSINU	25		/* Implement struct-in-union rules, not UCB 
