@@ -1,25 +1,15 @@
-/*
- * /usr/include/sys/fdc765.h
- *
- * Support 765-style controller for diskette and floppy tape
- *
- * Revised: Thu Jun 17 13:01:39 1993 CDT
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef __SYS_FDC765_H__
 #define __SYS_FDC765_H__
 
 /*
- * ----------------------------------------------------------------------
- * Includes.
- */
-
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
+ * Support 765-style controller for diskette and floppy tape
  */
 
 /* Port addresses */
@@ -52,9 +42,12 @@
 #define FDC_RATE_300K	1
 #define FDC_RATE_250K	2
 #define FDC_RATE_1MEG	3
+
+
 /*
  * Status Register 0 - Bit Definitions.
  */
+
 #define	ST0_US0	0x01			/* Unit Select 0 */
 #define	ST0_US1	0x02			/* Unit Select 1 */
 #define	ST0_HD	0x04			/* Head Address */
@@ -64,9 +57,11 @@
 #define	ST0_IC	0xC0			/* Interrupt code */
 #define	ST0_NT	0x00			/* Normal Termination */
 
+
 /*
  * Status Register 1 - Bit Definitions.
  */
+
 #define	ST1_MA	0x01			/* Missing Address Mark */
 #define	ST1_NW	0x02			/* Not writeable */
 #define	ST1_ND	0x04			/* No Data */
@@ -76,9 +71,11 @@
 	/*	0x40 */			/* Not used - always 0 */
 #define	ST1_EN	0x80			/* End of Cylinder */
 
+
 /*
  * Status Register 2 - Bit Definitions.
  */
+
 #define	ST2_MD	0x01			/* Missing Address Mark in Data Field */
 #define	ST2_BC	0x02			/* Bad Cylinder */
 #define	ST2_SN	0x04			/* Scan Not Satisfied */
@@ -88,9 +85,11 @@
 #define	ST2_CM	0x40			/* Control Mark */
 	/*	0x80 */			/* Not used - always 0 */
 
+
 /*
  * Status Register 3 - Bit Definitions.
  */
+
 #define	ST3_US0	0x01			/* Unit Select 0 */
 #define	ST3_US1	0x02			/* Unit Select 1 */
 #define	ST3_HD	0x04			/* Head Address */
@@ -100,9 +99,11 @@
 #define ST3_WP	0x40			/* Write Protected */
 #define	ST3_FT	0x80			/* Fault */
 
+
 /*
  * Controller Commands.
  */
+
 #define	FDC_CMD_SPEC	0x03		/* Specify */
 #define FDC_CMD_SDRV	0x04		/* Sense drive status */
 #define	FDC_CMD_RCAL	0x07		/* Recal */
@@ -117,11 +118,14 @@
 #define FDC_DISKETTE(dev)	(((dev) & 0xC0) == 0)
 #define FDC_TAPE(dev)		(((dev) & 0xC0) == 0x40)
 
+
 /*
  * See if Read/Write command is in progress.
  * If so, may not send another command yet.
  */
+
 #define FDC_BUSY()	(inb(FDCMSR) & MSRCB)
+
 
 /*
  * These definitions are out of the usual order because they are for
@@ -140,6 +144,24 @@ enum {
 	FDC_HEAD_1 = 1
 };
 
+#if	_KERNEL
+
+#include <common/ccompat.h>
+
+/* Externals from fdc.c */
+
+void		fdcCmdStatus	__PROTO ((void));
+void		fdcDrvSelect	__PROTO ((int drive, int motorOn));
+void		fdcDrvStatus	__PROTO ((int drive, int head));
+void		fdcIntStatus	__PROTO ((void));
+void		fdcRate		__PROTO ((int rate));
+void		fdcReadID	__PROTO ((int drive, int head));
+void		fdcRecal	__PROTO ((int drive));
+void		fdcResetSel	__PROTO ((int drive, int motorOn));
+void		fdcSeek		__PROTO ((int drive, int head, int cyl));
+void		fdcSpecify	__PROTO ((int srt, int hut, int hlt));
+int		setFtIntr	__PROTO ((int sw));
+
 struct	FDC	{
 	/* Command status buffer, and how many valid entries contained. */
 	int		fdc_ncmdstat;
@@ -150,24 +172,11 @@ struct	FDC	{
 	unsigned char	fdc_intstat[FDC_NUM_INT_STAT];
 };
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 extern struct FDC	fdc;
 
 extern void		(*ftIntr)();
 extern void		(*flIntr)();
 
-#endif /*__SYS_FDC765_H__*/
+#endif	/* _KERNEL */
+
+#endif /* ! defined (__SYS_FDC765_H__) */
