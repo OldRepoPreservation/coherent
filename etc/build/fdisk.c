@@ -1,10 +1,11 @@
 /*
  * fdisk.c
- * 11/2/90
+ * 6/10/91
  * cc -o fdisk fdisk.c -f
  * Change partitioning IBM-AT (or other type) hard disk.
- * Usage: /etc/fdisk [ -crvx ] [ -b bootb ] [ device ... ]
+ * Usage: /etc/fdisk [ -crvxB ] [ -b bootb ] [ device ... ]
  * Options:
+ *	-B	Invoked during installation
  *	-b	Add master boot block code from "bootb"
  *	-c	Configure hard disk geometry
  *	-r	Read only
@@ -15,6 +16,7 @@
  */
 
 #include <stdio.h>
+#include <l.out.h>
 #include <setjmp.h>
 #include <sys/devices.h>
 #include <sys/fdisk.h>
@@ -23,6 +25,7 @@
 #include "fdisk0.h"
 
 /* Globals. */
+int		Bflag;		/* special patching during installation */
 char		*argv0;		/* Command name, for error messages.	*/
 int		badflag;	/* Partition table is bad.		*/
 char		buf[NBUF];	/* Input buffer.			*/
@@ -41,6 +44,7 @@ HDISK_S		hd;		/* Structure to house boot block.	*/
 hdparm_t	hdparms;	/* Hard disk parameter block.		*/
 int		isatflag;	/* Device is an AT-type disk.		*/
 jmp_buf		loop;		/* Interactive input loop entry point.	*/
+char		*mboot;		/* Name of new master boot file.	*/
 int		megflag;	/* Specify sizes in megabytes.		*/
 unsigned int	nspt;		/* Number of sectors per track.		*/
 unsigned int	ncyls;		/* Number of cylinders.			*/
@@ -48,9 +52,9 @@ HDISK_S		newhd;		/* Structure to house new boot block.	*/
 unsigned int	nheads;		/* Number of heads per track.		*/
 int		nmods;		/* Modifications to the table.		*/
 unsigned long	nsectors;	/* Total sectors.			*/
-char		*mboot;		/* Name of new master boot file.	*/
 int		openmode = 2;	/* Default open mode: read/write.	*/
 int		partbase;	/* Partition number base (0 or 4).	*/
+int		qflag;		/* Quit.				*/
 int		rflag;		/* Readonly.				*/
 int		vflag;		/* Print c:h:s start and end values.	*/
 
@@ -68,6 +72,9 @@ main(argc, argv) int argc; char *argv[];
 		--argc;
 		for (s = &argv[0][1]; *s; ++s) {
 			switch(*s) {
+			case 'B':
+				++Bflag;
+				break;
 			case 'b':
 				if (argc-- < 2)
 					usage();
@@ -125,6 +132,7 @@ main(argc, argv) int argc; char *argv[];
 		"may list logical partitions in a different order.\n"
 		"Hit <Esc><Enter> to return to the main menu at any time.\n"
 		);
+	get_line("Now hit <Enter>.");
 	for (i = 0; (device = *argv++) != NULL; ++i) {
 		/*
 		 * Set the drive number, drive name, partition base.
@@ -159,7 +167,9 @@ main(argc, argv) int argc; char *argv[];
 		}
 
 		/* Do it. */
-		fdisk();
+		fdisk(*argv == NULL);
+		if (qflag)
+			break;
 	}
 	exit(0);
 }
@@ -167,16 +177,18 @@ main(argc, argv) int argc; char *argv[];
 /*
  * Copy /coherent to /tmp/coherent and
  * patch /tmp/coherent disk parameters "atparms" with hdparms.
- * Patch /conf/pboot to /tmp/pboot.[01].
+ * [Primary/secondary patch stuff disappears with COH 3.2.1.]
  */
 void
 atpatch()
 {
-	register int	i, fd;
+	register int	i;
 	int		dbase;
-	unsigned char	*cp, *hdp;
-	static int	patched;
+	unsigned char	*hdp;
+	FILE *fp;
 
+	if (!Bflag)
+		return;
 	if (drivenum == 0)
 		dbase = 0;
 	else if (drivenum == 1)
@@ -184,45 +196,21 @@ atpatch()
 	else
 		fatal("unrecognized drive number");
 
-	/* Copy /coherent to /tmp/coherent and patch appropriately. */
-	/* Not pretty, but better than what's coming next. */
-	if (!patched)
-		sys("/bin/cp -d /coherent /tmp/coherent");
-	sprintf(buf, "/conf/patch /tmp/coherent ");
+	/*
+	 * Write commands to patchfile - they run after kernel is linked.
+	 */
+	fp = fopen(PATCHFILE, "a");
+	fprintf(fp,  "/conf/patch /mnt/drv/at \\\n");
 	for (i = 0, hdp = (char *)&hdparms; i < sizeof hdparms; i++, hdp++) {
-		if (*hdp != 0) {
-			cp = &buf[strlen(buf)];
-			sprintf(cp, "atparm_+%d=%u:c ", dbase + i, *hdp);
-		}
+		fprintf(fp, "  atparm_+%d=%u:c \\\n", dbase + i, *hdp);
 	}
-	sys(buf);
-
-	/* Copy /conf/pboot to /tmp/pboot.[01], patched appropriately. */
-	if ((fd = open("/conf/pboot", 0)) < 0)
-		fatal("cannot open /conf/pboot");
-	else if (read(fd, buf, NBUF) != NBUF)
-		fatal("read error on /conf/pboot");
-	else
-		close(fd);
-	/* Hot patch; if the boot changes this will go down in flames. */
-	cp = &buf[0x1F0];
-	*cp++ = ncyls & 0xFF;		/* traks lo */
-	*cp++ = ncyls >> 8;		/* traks hi */
-	*cp++ = nspt;			/* sects */
-	*cp++ = nheads;			/* heads */
-	*cp++ = hdparms.ctrl;		/* control byte */
-	*cp++ = hdparms.wpcc[0];	/* wpcc lo */
-	*cp++ = hdparms.wpcc[1];	/* wpcc hi */
-	*cp++ = drivenum;		/* drive number */
-	if ((fd = creat("/tmp/pboot", 0644)) < 0)
-		fatal("cannot create /tmp/pboot");
-	else if (write(fd, buf, NBUF) != NBUF)
-		fatal("write error on /tmp/pboot");
-	else
-		close(fd);
-	sprintf(buf, "/bin/mv /tmp/pboot /tmp/pboot.%d", drivenum);
-	sys(buf);
-	++patched;
+	fprintf(fp, "\n");
+	fprintf(fp,  "/conf/patch /mnt/coherent >/dev/null \\\n");
+	for (i = 0, hdp = (char *)&hdparms; i < sizeof hdparms; i++, hdp++) {
+		fprintf(fp, "  atparm_+%d=%u:c \\\n", dbase + i, *hdp);
+	}
+	fprintf(fp, "\n");
+	fclose(fp);
 }
 
 /*
@@ -312,10 +300,23 @@ again:
 		goto again;
 	}
 	if (sys != old) {
-		++nmods;
 		p->p_sys = sys;
+		++nmods;
 	}
-
+	if (sys == SYS_EMPTY) {
+		printf(
+"For you convenience in partitioning your hard disk, this program\n"
+"lets you create unused partitions with nonzero base and size.\n"
+"However, other disk partitioning software may not work correctly\n"
+"unless unused partitions have base and size zero.\n"
+		);
+		if (yes_no("Do you want to zero the partition base and size")) {
+			memset(p, 0, sizeof(FDISK_S));
+			nmods++;
+			printf("\n");
+			return;
+		}
+	}
 getbase:
 	/* Specify the base. */
 	/* Default: old or first free or track 1. */
@@ -471,10 +472,10 @@ again:
 				ncyls, nheads, nspt);
 			if (!cflag) {
 				printf(
-"If you think the above values are wrong, invoke this program again\n"
-"using the \"-c\" option to correct them.  Because changing these values\n"
-"is dangerous and you have not specified the \"-c\" option, this program\n"
-"will now terminate.\n"
+"If you think the disk geometry values above are wrong, invoke this program\n"
+"again using the \"-c\" option to correct them.  Because changing these\n"
+"values is dangerous and you have not specified the \"-c\" option, this\n"
+"program will now terminate.\n"
 					);
 				exit(1);
 			}
@@ -484,7 +485,7 @@ again:
 "values for the disk geometry (number of cylinders, heads and sectors) or by\n"
 "making the partition table entry consistent with the given values.\n"
 					);
-				if (yes_no("Do you think the above values are wrong")) {
+				if (yes_no("Do you think the above disk geometry values are wrong")) {
 					fix_chs();
 					goto again;
 				}
@@ -609,12 +610,14 @@ fatal(args) char *args;
 
 /*
  * Print/change configuration for given device.
+ * The 'lastflag' is true if the current device is the last one.
  */
 void
-fdisk()
+fdisk(lastflag) int lastflag;
 {
 	int 		nfd, p, flag;
 	unsigned	action;
+	static int	firstflag = 1;
 
 	nmods = 0;
 	if ((cfd = open(device, openmode)) < 0)
@@ -651,7 +654,34 @@ fdisk()
 
 	/* Read the current boot block. */
 	cfd = get_boot(device, openmode, &hd);		/* read boot */
-	if (mboot != NULL) {
+	if (cflag)
+		saveboot();
+
+	/* Check for Ontrack Disk Manager. */
+	if (*(unsigned short *)(&hd.hd_boot[0xFC]) == HDSIG) {
+		printf(
+"\n"
+"Your hard disk appears to include Disk Manager software.  Disk Manager can\n"
+"partition your disk into more than four partitions, but COHERENT only\n"
+"understands the first four partitions.  If you have more than four\n"
+"partitions on your disk, you will not see information about the additional\n"
+"partitions, so proceed with extreme caution.\n"
+"To install COHERENT while leaving Disk Manager intact, you must\n"
+"remove all data from one of the first four disk partitions.\n"
+			);
+		if (firstflag && mboot != NULL)
+			printf(
+"\n"
+"If you use the COHERENT master bootstrap and you have more than four\n"
+"Disk Manager partitions, ALL data in any Disk Manager partition\n"
+"other than the first four partitions WILL BE LOST!\n"
+				);
+		if (!yes_no("Do you want to continue partitioning your disk"))
+			exit(1);
+	}
+
+	/* Read master boot if desired. */
+	if (firstflag && mboot != NULL) {
 		nfd = get_boot(mboot, 0, &newhd);	/* read new boot */
 		close(nfd);
 		if (newhd.hd_sig != HDSIG)
@@ -659,10 +689,18 @@ fdisk()
 		memcpy(hd.hd_boot, newhd.hd_boot, sizeof hd.hd_boot);
 		nmods++;
 	}
+	firstflag = 0;		/* replace mboot only on first device */
 
 	/* If no signature, zap the partition entries. */
 	if (hd.hd_sig != HDSIG) {
-		memset(hd.hd_partn, 0, sizeof(FDISK_S));
+		printf(
+"The boot block on this disk drive does not contain a valid partition table.\n"
+"This program will now create a valid partition table with zeroed entries.\n"
+"Exit from this program immediately if you do not want to zero the entries.\n"
+			);
+		if (yes_no("Do you want to exit instead of zeroing the partition table"))
+			exit(1);
+		memset(hd.hd_partn, 0, NPARTN * sizeof(FDISK_S));
 		hd.hd_sig = HDSIG;
 		nmods++;
 	}
@@ -681,42 +719,38 @@ fdisk()
 		flag = 0;
 		printf(
 			"Possible actions:\n"
+			"\t0 = Quit\n"
 			"\t1 = Change active partition (or make no partition active)\n"
 			"\t2 = Change one logical partition\n"
 			"\t3 = Change all logical partitions\n"
-#if	DOSSHRINK
-#define	NACTIONS	6
-			"\t4 = Shrink an MS-DOS logical parition\n"
-			"\t5 = Display drive information\n"
-			"\t6 = Quit\n"
-#else
-#define	NACTIONS	5
-			"\t4 = Display drive information\n"
-			"\t5 = Quit\n"
-#endif
+			"\t4 = Delete one logical partition\n"
+			"\t5 = Change drive characteristics\n"
+			"\t6 = Display drive information\n"
 			);
-		action = get_int("Action", NACTIONS, 1, NACTIONS);
+		if (lastflag)
+			action = get_int("Action", 0, 0, 6);
+		else {
+			printf("\t7 = Proceed with next drive\n");
+			action = get_int("Action", 7, 0, 7);
+		}
 
 		switch(action) {
+		case 0:
+			if (quit(device, cfd) == 1) {
+				qflag = 1;
+				return;
+			}
+			continue;
 		case 1:
 			printf("Change active partition:\n");
 			change_active();
 			continue;
 		case 2:
-#if	DOSSHRINK
-		case 4:
-#endif
 			p = (freepart != -1) ? freepart : 0;
 			p = get_int("Which partition", p + partbase, partbase, partbase + NPARTN - 1);
 			p -= partbase;
 			if (action == 2)
 				change_part(p);
-#if	DOSSHRINK
-			else {
-				dos_shrink(cfd, p);
-				flag = 1;
-			}
-#endif
 			continue;
 		case 3:
 			for (p=0; p < NPARTN; ) {
@@ -725,13 +759,25 @@ fdisk()
 					print_part(0);
 			}
 			continue;
-
-		case NACTIONS-1:
+		case 4:
+			p = get_int("Which partition", partbase, partbase, partbase + NPARTN - 1);
+			p -= partbase;
+			memset(&hd.hd_partn[p], 0, sizeof(FDISK_S));
+			nmods++;
+			continue;
+		case 5:
+			cls(0);
+			printf("According to your computer system:\n");
+			drive_info();
+			if (!yes_no("Do you think the above values are correct"))
+				fix_chs();
+			continue;
+		case 6:
 			cls(0);
 			drive_info();
 			flag = 1;
 			continue;
-		case NACTIONS:
+		case 7:
 			if (quit(device, cfd) == 1)
 				return;
 			continue;
@@ -759,11 +805,19 @@ fix_chs()
 		);
 	if (!yes_no("Are you sure you want to change the disk parameter values"))
 		return;
+
+	/*
+	 * Modify current values before displaying them as defaults.
+	 */
+	i = (hdparms.wpcc[1] << 8) | (hdparms.wpcc[0]);
+	if (i < -1 || i >= ncyls)
+		i = -1;
+	hdparms.ctrl &= 0x0f;
+ 
 	ncyls = get_int("Number of cylinders", ncyls, 1, 1024);
 	nheads = get_int("Number of heads", nheads, 1, 255);
 	nspt = get_int("Number of sectors per track", nspt, 1, 255);
 	hdparms.ctrl = get_int("Control byte", hdparms.ctrl, 0, 255);
-	i = (hdparms.wpcc[1] << 8) | (hdparms.wpcc[0]);
 	i = get_int("Write pre-compensation cylinder", i, -1, ncyls+1);
 	hdparms.wpcc[1] = i >> 8;
 	hdparms.wpcc[0] = i & 0xFF;
@@ -775,7 +829,8 @@ fix_chs()
 	hdparms.nspt = nspt;
 	if (ioctl(cfd, HDSETA, (char *)&hdparms) == -1)
 		fatal("cannot set \"%s\" drive characteristics", device);
-	atpatch();
+	if (isatflag)
+		atpatch();
 }
 
 /*
@@ -901,7 +956,7 @@ print_part(flag) int flag;
 	cls(flag);
 	printf("%s currently has the following logical partitions:\n", drivename);
 	printf("                  [ In Cylinders ]  [    In Tracks    ]\n");
-	printf("Number     Type   Start  End  Size  Start    End   Size Megabytes  Name\n");
+	printf("Number     Type   Start  End  Size  Start    End   Size Mbytes Blocks Name\n");
 	for (i = 0; i < NPARTN; ++i) {
 		p = &hd.hd_partn[i];
 		if (p->p_size == 0L)
@@ -917,17 +972,18 @@ print_part(flag) int flag;
 		printf("%6lu ", p->p_base / nspt);
 		printf("%6lu ", end / nspt);
 		printf("%6u ", sec_upto_t(p->p_size));
-		printf("%7.2f ", meg(p->p_size));
+		printf("%6.2f ", meg(p->p_size));
+		printf("%6lu ", p->p_size);
 		dname = device;
 		if (strncmp(dname, "/tmp", 4) == 0)
 			dname += 4;
 		s = &dname[strlen(dname) - 1];
 		c = *s;
 		*s = 'a' + i;
-		printf("%10s ", dname);
+		printf("%s", dname);
 		*s = c;
 		if (vflag) {
-			printf("%3u:%u:%u ", bcyl(p), bhd(p), bsec(p));
+			printf("\n\t%3u:%u:%u ", bcyl(p), bhd(p), bsec(p));
 			printf("%3u:%u:%u ", ecyl(p), ehd(p), esec(p));
 		}
 		printf("\n");
@@ -1029,6 +1085,98 @@ sanity()
 "the last cylinder in a disk partition.  Mark Williams strongly recommends\n"
 "that you change the partitioning to avoid using the last cylinder.\n"
 			);
+}
+
+struct nlist nl[2] = {
+	{ "rootdev_", 0, 0 },
+	{ "", 0, 0 }
+};
+
+/*
+ * Save/restore a copy of boot block to/from floppy.
+ * Some fuss required to find the name of the root device.
+ */
+void
+saveboot()
+{
+	register int fd;
+	dev_t dev;
+	char *floppy;
+
+	/* Open kernel memory and read value of rootdev_. */
+	if ((fd = open(KMEM, 0)) < 0)
+		return;
+	nlist(COH, nl);
+	if (lseek(fd, (long)nl[0].n_value, 0) == -1L)
+		return;
+	if (read(fd, &dev, sizeof(dev_t)) != sizeof(dev_t))
+		return;
+	close(fd);
+
+	/*
+	 * Bail out if not running floppy-based COHERENT
+	 * or if floppy open fails.
+	 */
+	if (dev == makedev(FL_MAJOR, 14))
+		floppy = "/dev/rfha0";
+	else if (dev == makedev(FL_MAJOR, 15))
+		floppy = "/dev/rfva0";
+	else
+		return;			/* not running from floppy */
+	if ((fd = open(floppy, 2)) == -1)
+		return;			/* open failed, bag out */
+
+	cls(0);
+	sync();
+	printf(
+"If you are installing COHERENT on your hard disk for the first time and you\n"
+"want to use your drive with other operating systems, we recommend that you\n"
+"save a copy of the current boot block (which includes the partition table)\n"
+"to a diskette.  You can restore the original boot block from the diskette\n"
+"if your COHERENT installation fails or if you are subsequently unable to run\n"
+"another operating system on the drive.\n"
+"\n"
+"You will be asked about saving and restoring the boot block once for each\n"
+"hard drive you are using.  Use a separate diskette for each hard drive.\n"
+		);
+	if (yes_no("Do you want to save the original boot block")) {
+		printf(
+"\n"
+"Remove the COHERENT boot diskette, insert a formatted blank diskette,\n"
+			);
+		get_line("then hit <Enter>.");
+		if (write(fd, &hd, sizeof hd) != sizeof hd)
+			fprintf(stderr, "fdisk: write error on \"%s\"\n", floppy);
+		else
+			printf(
+"\n"
+"Remove the diskette containing the original boot block.\n"
+"Label it and file it with your COHERENT installation disks.\n"
+				);
+	} else if (yes_no("Do you want to restore a previously saved boot block")) {
+		printf(
+"\n"
+"WARNING: This step will overwrite your hard disk partition table\n"
+"with the previously saved copy from the diskette in drive A:.\n"
+"Type <Ctrl-C> if you do not want to overwrite the existing partition table.\n"
+"\n"
+"Remove the COHERENT boot diskette,\n"
+"insert the diskette containing the saved boot block,\n"
+			);
+		get_line("then hit <Enter>.");
+		if (read(fd, &hd, sizeof hd) != sizeof hd)
+			fprintf(stderr, "fdisk: read error on \"%s\"\n", floppy);
+		else if (lseek(cfd, 0L, 0) != 0L)
+			fatal("seek failed on \"%s\"", device);
+		else if (write(cfd, &hd, sizeof hd) != sizeof hd)
+			fatal("write error on \"%s\"", device);
+	} else {
+		close(fd);
+		return;
+	}
+	close(fd);
+	sync();
+	get_line("\nReplace the COHERENT boot diskette, then hit <Enter>.");
 }
 
 /*
