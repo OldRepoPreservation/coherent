@@ -47,7 +47,7 @@ int	fd;
 	extern	long	lseek();
 	register long	off;
 
-	if ((off=lseek(fd, 0L, 1))==-1L)
+	if ((off=lseek(fd, 0L, SEEK_CUR))==-1L)
 		return (0);
 	else
 		return ((unsigned)off%BUFSIZ);
