@@ -17,7 +17,7 @@
 #define YATC	0
 #endif
 
-#define VMBASE	33		/* Base of machine dependent variants */
+#define VMBASE	34		/* Base of machine dependent variants */
 #define VMAXIM	48		/* Least non-inclusive upper bound */
 #define VGRANU	8		/* 8 bits per slot */
 #define isvariant(x)	((variant[(x)/VGRANU]&(1<<((x)%VGRANU))) != 0)
@@ -60,14 +60,15 @@ extern VARIANT variant;
 #define VNOWARN	22		/* Suppress warning messages */
 #define	VPROF	23		/* Profile on */
 #define VALIEN	24		/* Allow calls to/from alien conventions */
-#define VSINU	25		/* Implement struct-in-union rules, not UCB 
+#define VREADONLY	25	/* Recognize READONLY keyword, like const */
+#define VSINU	26		/* Implement struct-in-union rules, not UCB 
 				 * member resolution rules. */
-#define VNOOPT	26		/* Preserve code order in optimization */
-#define VCPLUS	27		/* Ignore C++ style online comments */
-#define VCPPE	28		/* Run cpp in -E mode */
-#define VCPP	29		/* Run cpp */
-#define VCPPC	30		/* Run cpp  in -C mode */
-#define VTPROF	31		/* Generate code table profiling */
-#define V3GRAPH 32		/* Translate tri-graphs */
+#define VNOOPT	27		/* Preserve code order in optimization */
+#define VCPLUS	28		/* Ignore C++ style online comments */
+#define VCPPE	29		/* Run cpp in -E mode */
+#define VCPP	30		/* Run cpp */
+#define VCPPC	31		/* Run cpp  in -C mode */
+#define VTPROF	32		/* Generate code table profiling */
+#define V3GRAPH 33		/* Translate tri-graphs */
 
 /* end of h/var.h */

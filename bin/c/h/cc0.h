@@ -62,6 +62,7 @@
 #define XUDATE	4	/* Macro __DATE__			*/
 #define XUTIME	5	/* Macro __TIME__			*/
 #define XUSTDC	6	/* Macro __STDC__			*/
+#define	XUBASE	7	/* Macro __BASE_FILE__			*/
 #define XDEFINED 8	/* User macro defined()			*/
 #define	XDEFINE	9	/* #define				*/
 #define	XINCLUDE 10	/* #include				*/
@@ -565,6 +566,7 @@ extern	dval_t	dval;
 extern	short	tval;
 extern	int	line;
 extern	char	file[];
+extern	char	basefile[];
 extern	TOK	*tfile;
 extern unsigned char ct[];
 extern	int	nerr;
