@@ -7,11 +7,12 @@
  * The user process area.
  */
 
-#ifndef	 UPROC_H
-#define	 UPROC_H	UPROC_H
+#ifndef	 __SYS_UPROC_H__
+#define	 __SYS_UPROC_H__
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/_time.h>
 #include <dirent.h>
 #include <sys/io.h>
 #include <sys/proc.h>
@@ -34,6 +35,7 @@
  */
 #define U_OFFSET	0xC00
 #define U_COMM_LEN	10
+#define U_SLEEP_LEN	10
 
 typedef struct uproc {
 #ifdef _I386
@@ -88,7 +90,7 @@ typedef struct uproc {
 	 */
 	char	 u_comm[U_COMM_LEN];	/* Command name */
 #ifdef _I386
-	char	 u_sleep[10];		/* Reason for sleeping */
+	char	 u_sleep[U_SLEEP_LEN];	/* Reason for sleeping */
 #endif
 	time_t	 u_btime;		/* Beginning time of process */
 	int	 u_memuse;		/* Average memory usage */
@@ -97,9 +99,9 @@ typedef struct uproc {
 	/*
 	 * Profiler fields.
 	 */
-	vaddr_t  u_ppc;			/* Profile pc from clock */
-	vaddr_t	 u_pbase;		/* Profiler base */
-	vaddr_t	 u_pbend;		/* Profiler base end */
+	caddr_t  u_ppc;			/* Profile pc from clock */
+	caddr_t	 u_pbase;		/* Profiler base */
+	caddr_t	 u_pbend;		/* Profiler base end */
 #ifdef _I386
 	off_t	 u_pofft;		/* Offset from base */
 	off_t	 u_pscale;		/* Scaling factor */

@@ -8,10 +8,13 @@
  * Memory resident inodes.
  */
 
-#ifndef	_INODE_H
-#define	_INODE_H
+#ifndef	__SYS_INODE_H__
+#define	__SYS_INODE_H__
 
 #include <sys/types.h>
+#include <sys/ksynch.h>
+#include <sys/_time.h>
+
 
 /*
  * Size of pipe buffer.

@@ -8,8 +8,10 @@
  * Record locking.
  */
 
-#ifndef _RLOCK_H
-#define _RLOCK_H
+#ifndef __SYS_RLOCK_H__
+#define __SYS_RLOCK_H__
+
+#include <sys/ksynch.h>
 
 /*
  * Internal record lock.

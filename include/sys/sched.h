@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 5.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,9 +8,60 @@
  * These are identical to the pdp11 parameters except that there is no MAP
  * parameter for claiming the unibus map.
  */
-#ifndef	 SCHED_H
-#define	SCHED_H SCHED_H
+#ifndef	__SYS_SCHED_H__
+#define	__SYS_SCHED_H__
 
+#if _I386
+#include <sys/ksynch.h>
+
+/*
+ * scheduler priorities for sleeping processes
+ */
+enum {
+	prilo	= 3,			/* low priority */
+	pritape	= 10,			/* appropriate for tape driver */
+	primed	= 17,			/* medium priority */
+	pritty	= 24,			/* appropriate for terminal driver */
+	pridisk = 31,			/* appropriate for disk driver */
+	prinet	= 38,			/* appropriate for network driver */
+	prihi	= 45			/* high priority */
+};
+
+/*
+ * sleep priorities
+ */
+enum {
+	slpriNoSig = 0,		/* signals may not interrupt sleep	*/
+	slpriSigLjmp = 1,	/* signals cause longjmp (EINTR)	*/
+	slpriSigCatch = 2	/* signals are caught			*/
+};
+
+/*
+ * Update parameters.  All values are in ticks.  The processor value
+ * update interval is always 1.
+ */
+#define	NCRTICK	(HZ/10)		/* Processor time slice */
+
+/*
+ * Values.
+ */
+#define CVNOSIG	256		/* Lower priorities can interrupt */
+#define CVCLOCK	1		/* Core value update */
+
+#define CVCHILD	32767		/* Initial child core value		*/
+#define	CVSWAP	256		/* Swapper.				*/
+#define CVBLKIO	32767 		/* Waiting for block I/O to complete.	*/
+#define	CVGATE	16384		/* Waiting for a gate to open.		*/
+#define	CVTTOUT	256		/* Terminal output.			*/
+#define CVCLIST	256		/* Waiting for free clists.		*/
+#define CVPTSET	256		/* Process trace.			*/
+#define CVPTRET	256		/* Process trace stop.			*/
+#define CVPIPE	256		/* Waiting for a pipe.			*/
+#define CVTTIN	255		/* Terminal input.			*/
+#define CVPAUSE	0		/* Pause.				*/
+#define CVWAIT	128		/* Wait.				*/
+
+#else
 /*
  * Update parameters.  All values are in ticks.  The processor value
  * update interval is always 1.
@@ -111,4 +162,5 @@
 #define IVWAIT	-128
 #define SVWAIT	4096
 
-#endif
+#endif _I386
+#endif _SYS_SCHED_H

@@ -1,14 +1,14 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
  * Coherent.  Some useful functions.
  */
 
-#ifndef	FUN_H
-#define	FUN_H	FUN_H
+#ifndef	__SYS_FUN_H__
+#define	__SYS_FUN_H__
 
 /*
  * Number of elements in a structure.

@@ -7,11 +7,13 @@
  * Mount table.
  */
 
-#ifndef	 MOUNT_H
-#define	 MOUNT_H
+#ifndef	 __SYS_MOUNT_H__
+#define	 __SYS_MOUNT_H__
 
 #include <sys/types.h>
 #include <sys/filsys.h>
+#include <sys/ksynch.h>
+
 
 /*
  * Mount table structure.

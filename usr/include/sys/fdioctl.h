@@ -1,13 +1,15 @@
 /* (-lgl
- * 	COHERENT Version 4.0
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /*
- * Floppy io control commands.
+ * Floppy I/O control commands.
  */
 
-#ifndef FDIOCTL_H
-#define FDIOCTL_H	FDIOCTL_H
+#ifndef __SYS_FDIOCTL_H__
+#define __SYS_FDIOCTL_H__
 
 #define FDIOC		('F'<<8)
 #define FDFORMAT	(FDIOC|1)	/* Format diskette track */

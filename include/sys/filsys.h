@@ -7,11 +7,13 @@
  * Super block.
  */
 
-#ifndef	 FILSYS_H
-#define  FILSYS_H	FILSYS_H
+#ifndef	 __SYS_FILSYS_H__
+#define  __SYS_FILSYS_H__
 
 #include <sys/types.h>
 #include <sys/fblk.h>
+#include <sys/_time.h>
+
 
 /*
  * Size definitions.

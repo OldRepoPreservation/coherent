@@ -7,8 +7,8 @@
  * Machine dependent signals.
  */
 
-#ifndef	MSIG_H
-#define	MSIG_H	MSIG_H
+#ifndef	__SYS_MSIG_H__
+#define	__SYS_MSIG_H__
 
 #define	SIGDIVE	12			/* Divide error */
 #define SIGOVFL	13			/* Overflow */

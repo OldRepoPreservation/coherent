@@ -1,10 +1,15 @@
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
  * ss.h
  *
  * Header for Seagate ST01/ST02 and Future Domain SCSI host adapters.
- *
- * $Log
  */
+#ifndef __SYS_SS_H__
+#define __SYS_SS_H__
 
 /*
  * Constants.
@@ -47,3 +52,5 @@ extern BUF * ssq_rm_head();
 /* functions from ssas.s */
 extern void ss_get();
 extern int ss_put();
+
+#endif

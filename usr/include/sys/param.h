@@ -1,10 +1,10 @@
 /* (-lgl
  * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef PARAM_H
-#define	PARAM_H
+#ifndef __SYS_PARAM_H__
+#define	__SYS_PARAM_H__
 
 /* WARNING!  Fix references to dev_loaded if ever NDRV > 8*sizeof(int) */
 #define NDRV	32			/* Number of major device entries */
@@ -40,6 +40,7 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 #define MADSIZE		32767		/* Maximum addressable segment size */
 #define SMICALL		0		/* Start of independent system calls */
 #define NMICALL		88		/* Machine independent system calls */
+#define H28CALL		0x0F		/* # system calls of form 0x??28 */
 #define COHCALL		500		/* Number of COH system call */
 #define SMDCALL		128		/* Start of dependent system calls */
 #define NMDCALL		0		/* Machine dependent system calls */

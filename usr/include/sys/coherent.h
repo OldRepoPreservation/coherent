@@ -1,17 +1,20 @@
 /*
  * Some useful and miscellaneous things.
  */
-#ifndef	COHERENT_H
-#define	COHERENT_H	COHERENT_H
+#ifndef	__SYS_COHERENT_H__
+#define	__SYS_COHERENT_H__
 
 #define	 KERNEL
+#define	__KERNEL__
 #include <sys/types.h>
+#include <sys/_time.h>
 #include <sys/param.h>
 #include <sys/fun.h>
 #include <sys/mmu.h>
 #include <sys/uproc.h>
 #ifdef _I386
 #include <sys/reg.h>
+#define v_sleep(a1,a2,a3,a4,a5)		w_sleep(a1,a2,a5)
 #else
 #include <sys/machine.h>
 #define v_sleep(a1,a2,a3,a4,a5)		sleep(a1,a2,a3,a4)
@@ -63,12 +66,13 @@ extern	char		*alloc();
 /*
  * Time of day structure.
  */
-typedef struct TIME {
+
+extern struct _TIME_OF_DAY {
 	time_t	t_time;			/* Time and date */
 	int	t_tick;			/* Clock ticks into this second */
 	int	t_zone;			/* Time zone */
 	int	t_dstf;			/* Daylight saving time used */
-} TIME;
+} timer;
 
 /*
  * General global variables.
@@ -83,7 +87,6 @@ extern	long	 lbolt;			/* Clock ticks since system startup */
 extern	TIM	stimer;			/* Swap timer */
 extern	unsigned msize;			/* Memory size in K */
 extern	unsigned asize;			/* Alloc size in bytes */
-extern	TIME	 timer;			/* Current time */
 extern	char	 *icodep;		/* Init code start */
 extern	int	 icodes;		/* Init code size */
 extern	dev_t	 rootdev;		/* Root device */

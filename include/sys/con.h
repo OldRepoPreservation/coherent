@@ -3,21 +3,26 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	CON_H
-#define	CON_H
+#ifndef	__SYS_CON_H__
+#define	__SYS_CON_H__
 /*
  * Device driver configuration.
  */
 
 #include <sys/types.h>
+#include <sys/ksynch.h>
 
 /*
  * Device driver table.
  */
 typedef struct drv {
 	struct	 con *d_conp;		/* Pointer to configuration */
+#if	_I386
+	int	foo [2];		/* not used */
+#else
 	struct	 seg *d_segp;		/* Segmentation containing driver */
 	dmap_t	 d_map;			/* Segmentation map */
+#endif
 	int	 d_time;		/* Timeout is active */
 	GATE	 d_gate;		/* Gate for loading */
 } DRV;
@@ -62,6 +67,27 @@ extern	CON	*drvmap();		/* bio.c */
 extern	int	drvn;			/* Number of entries in table */
 extern	DRV	drvl[];			/* Driver table */
 
-#endif
+#ifdef	ENABLE_STREAMS
+/*
+ * NIGEL: This seems like the easiest place to define the hooks into STREAMS
+ * that I have inserted calls to in various key places, including "bio.c" and
+ * "clock.c".
+ */
+
+void		STREAMS_TIMEOUT ();
+void		STREAMS_SCHEDULER ();
+void		STREAMS_INIT ();
+CON	      *	STREAMS_GETCON ();
+
+#else
+
+#define		STREAMS_TIMEOUT()
+#define		STREAMS_SCHEDULER()
+#define		STREAMS_INIT()
+#define		STREAMS_GETCON(dev)	NULL
+
+#endif		/* ! defined (ENABLE_STREAMS) */
+
+#endif		/* ! defined (KERNEL) */
 
 #endif

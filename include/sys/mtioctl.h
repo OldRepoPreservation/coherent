@@ -1,13 +1,14 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /*
  * Magnetic tape ioctl commands.
  */
-#ifndef	 MTIOCTL_H
-#define	 MTIOCTL_H
+#ifndef	 __SYS_MTIOCTL_H__
+#define	 __SYS_MTIOCTL_H__
 
 #define MTIOC		('M'<<8)
 #define MTREWIND 	(MTIOC|1)	/* Rewind */

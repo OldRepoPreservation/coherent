@@ -7,8 +7,8 @@
  * Structure returned by the `times' system call.
  */
 
-#ifndef	 TIMES_H
-#define	 TIMES_H	TIMES_H
+#ifndef	 __SYS_TIMES_H__
+#define	 __SYS_TIMES_H__
 
 #ifdef _I386
 struct tms {

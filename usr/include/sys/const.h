@@ -8,8 +8,8 @@
  * Intel 8086/8088 machines.
  */
 
-#ifndef	CONST_H
-#define	CONST_H	CONST_H
+#ifndef	__SYS_CONST_H__
+#define	__SYS_CONST_H__
 
 #define	MSASIZE		14		/* Space reserved for sys args */
 #define	ISTVIRT		0		/* Stack virtual base for sys exec */

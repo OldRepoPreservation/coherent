@@ -7,8 +7,8 @@
  * Time buffer.
  */
 
-#ifndef	 TIMEB_H
-#define	 TIMEB_H	TIMEB_H
+#ifndef	 __SYS_OLDTIMEB_H__
+#define	 __SYS_OLDTIMEB_H__
 
 #include <sys/types.h>
 

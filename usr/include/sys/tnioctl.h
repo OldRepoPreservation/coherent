@@ -1,6 +1,10 @@
-/* $Header: $ */
-#ifndef	TNIOCTL_H
-#define	TNIOCTL_H
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+#ifndef	__SYS_TNIOCTL_H__
+#define	__SYS_TNIOCTL_H__
 
 #define	TNIOC	('N' << 8)
 #define	TNGETA	(TNIOC|1)	/* Get node attributes */

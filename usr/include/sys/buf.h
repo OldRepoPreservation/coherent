@@ -6,10 +6,11 @@
 /*
  * Buffer header.
  */
-#ifndef  BUF_H
-#define  BUF_H
+#ifndef  __SYS_BUF_H__
+#define  __SYS_BUF_H__
 
 #include <sys/types.h>
+#include <sys/ksynch.h>
 
 typedef struct buf {
 	struct	 buf *b_actf;		/* First in queue */
@@ -21,8 +22,8 @@ typedef struct buf {
 	char	 b_req;			/* I/O type */
 	char	 b_err;			/* Error */
 	unsigned b_seqn;		/* Buffer sequence number */
-	bold_t	 b_map;			/* Old map */
 #ifndef _I386
+	bold_t	 b_map;			/* Old map */
 	vaddr_t  b_count;		/* Size of I/O */
 	vaddr_t  b_resid;		/* Driver returns count here */
 	faddr_t	 b_faddr;		/* Far Virtual address */
@@ -31,7 +32,7 @@ typedef struct buf {
 	off_t	 b_count;		/* Size of I/O */
 	off_t	 b_resid;		/* Driver returns count here */
 	paddr_t	 b_paddr;		/* 	physical  address (bytes) */
-	vaddr_t	 b_vaddr;		/* kernel virtual address (bytes) */
+	caddr_t	 b_vaddr;		/* kernel virtual address (bytes) */
 	unsigned long b_hashval;	/* used to index into hasharray[] */
 	struct	 buf *b_LRUf;		/* Next (older) in LRU chain */
 	struct	 buf *b_LRUb;		/* Previous (newer) in LRU chain */

@@ -1,10 +1,15 @@
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
  * fakeff.h
  * Include file to simulate all the far memory calls from COH 286.
  * Far pointers are simulated with virtual addresses.
  */
-#ifndef FAKEFF_H	/* Rest of file.  */
-#define FAKEFF_H
+#ifndef __SYS_FAKEFF_H__
+#define __SYS_FAKEFF_H__
 
 typedef	unsigned long	faddr_t;
 

@@ -8,13 +8,23 @@
  * Process information.
  */
 
-#ifndef _PROC_H
-#define	_PROC_H
+#ifndef __SYS_PROC_H__
+#define	__SYS_PROC_H__
 
 #include <sys/types.h>
 #include <poll.h>
 #include <sys/timeout.h>
 #include <sys/seg.h>
+
+#include <sys/ksynch.h>
+
+/*
+ * NIGEL: For some reason, the "sig_t" type was defined in <sys/types.h>
+ * instead of here where it belongs.
+ */
+
+typedef	long		sig_t;
+
 
 /*
  * Number of user segments.
@@ -56,10 +66,14 @@ typedef struct proc {
 	unsigned p_group;		/* Process group */
 	dev_t	 p_ttdev;		/* Controlling terminal */
 	unsigned p_nice;		/* Nice value */
+#ifdef _I386
+	int	 p_schedPri;		/* will index into table in sys/ts.h */
+#else
 	unsigned p_cval;		/* Cpu schedule value */
 	unsigned p_sval;		/* Swap schedule value */
 	int	 p_ival;		/* Importance value */
 	unsigned p_rval;		/* Response value */
+#endif
 	unsigned p_lctim;		/* Last time cval was updated */
 	long	 p_utime;		/* User time (HZ) */
 	long	 p_stime;		/* System time */
@@ -72,6 +86,7 @@ typedef struct proc {
 #ifdef _I386
 	struct	 rlock	*p_prl;		/* Pending record lock */
 	struct	 sr p_shmsr[NSHMSEG];	/* Shared Memory Segments */
+	char	p_nigel[16];		/* He made me do it! -hws- */
 #endif
 } PROC;
 
@@ -98,9 +113,12 @@ typedef struct proc {
 /*
  * Status of process (p_state).
  */
-#define PSSLEEP	1			/* Sleeping */
-#define PSRUN	2			/* Running */
-#define PSDEAD	3			/* Process is exiting */
+#define PSSLEEP	1	/* Sleeping, signals do not interrupt	*/
+#define PSRUN	2	/* Running				*/
+#define PSDEAD	3	/* Exiting				*/
+#define PSSLSIG	4	/* Sleeping, signals interrupt		*/
+
+#define ASLEEP(pp)	(pp->p_state == PSSLEEP || pp->p_state == PSSLSIG)
 
 /*
  * Flags (p_flags).

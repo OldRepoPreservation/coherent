@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- *	Copyright 1989 by Inetco Systems, Ltd.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -10,8 +10,8 @@
  * should contain a fixed disk boot record (HDISK_S).
  */
 
-#ifndef	FDISK_H
-#define	FDISK_H
+#ifndef	__SYS_FDISK_H__
+#define	__SYS_FDISK_H__
 
 #define	NPARTN	4			/* Partitions per drive	 */
 #define	HDSIG	0xAA55			/* Signature word	 */

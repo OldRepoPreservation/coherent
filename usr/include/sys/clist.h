@@ -1,14 +1,22 @@
 /*
  * Character list.
  */
-#ifndef	 CLIST_H
-#define	 CLIST_H
+#ifndef	 __SYS_CLIST_H__
+#define	 __SYS_CLIST_H__
 #include <sys/types.h>
 #ifdef _I386
 #include <sys/reg.h>
 #else
 #include <sys/machine.h>
 #endif
+
+/*
+ * NIGEL: Whatever a "cmap_t" is, the definition belongs here, not in
+ * <sys/types.h>
+ */
+
+typedef	unsigned int	cmap_t;
+
 
 /*
  * Character list structure.

@@ -7,8 +7,8 @@
  * I/O template.
  */
 
-#ifndef	 IO_H
-#define	 IO_H	IO_H
+#ifndef	 __SYS_IO_H__
+#define	 __SYS_IO_H__
 
 #include <sys/types.h>
 
@@ -21,7 +21,7 @@ typedef struct io {
 #ifdef _I386
 	off_t	 io_seek;		/* Seek posiion */
 	union {
-		vaddr_t	vbase;		/* Virtual base */
+		caddr_t	vbase;		/* Virtual base */
 		paddr_t	pbase;		/* Physical base */
 	} io;
 #else

@@ -7,10 +7,12 @@
  * Disk inode.
  */
 
-#ifndef	 INO_H
-#define	 INO_H	INO_H
+#ifndef	 __SYS_INO_H__
+#define	 __SYS_INO_H__
 
 #include <sys/types.h>
+#include <sys/_time.h>
+
 
 /*
  * Structure of inode as it appears on disk.

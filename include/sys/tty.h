@@ -7,8 +7,8 @@
  * TTY flag defines
  */
 
-#ifndef	TTY_H
-#define	TTY_H	TTY_H
+#ifndef	__SYS_TTY_H__
+#define	__SYS_TTY_H__
 
 #define	T_HILIM	0x0001		/* Hi water mark wait */
 #define	T_DRAIN	0x0002		/* Drain wait */

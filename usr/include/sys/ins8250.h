@@ -1,22 +1,13 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
- *
- * $Log:	ins8250.h,v $
- * Revision 1.2  91/12/10  07:59:06  hal
- * Add FIFO registers and constants.
- * Add uart type constants.
- * 
- * Revision 1.1  91/11/16  16:31:59  hal
- * Used thru COHERENT 3.2.0.
- *
  -lgl) */
 /*
  * INS 8250 ACIA Register Definitions
  */
-#ifndef INS8250_H
-#define	INS8250_H
+#ifndef __SYS_INS8250_H__
+#define	__SYS_INS8250_H__
 
 /*
  * Register Offsets

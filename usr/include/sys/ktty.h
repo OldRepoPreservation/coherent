@@ -1,8 +1,9 @@
 /*
  * Kernel portion of typewriter structure.
  */
-#ifndef	 KTTY_H
-#define	 KTTY_H
+#ifndef	 __SYS_KTTY_H__
+#define	 __SYS_KTTY_H__
+
 #include <sys/types.h>
 #include <poll.h>
 #include <sys/clist.h>

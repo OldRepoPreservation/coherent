@@ -1,8 +1,8 @@
 /*
  * asy.h - support for 8250-family serial devices
  */
-#ifndef ASY_H
-#define ASY_H
+#ifndef __SYS_ASY_H__
+#define __SYS_ASY_H__
 
 #include <sys/silo.h>
 

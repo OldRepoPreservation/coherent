@@ -6,8 +6,9 @@
 /*
  * Timeout queue header.
  */
-#ifndef	 TIMEOUT_H
-#define	 TIMEOUT_H
+#ifndef	 __SYS_TIMEOUT_H__
+#define	 __SYS_TIMEOUT_H__
+
 #include <sys/types.h>
 #ifdef _I386
 #include <sys/reg.h>

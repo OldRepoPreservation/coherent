@@ -2,9 +2,12 @@
  * Coherent.
  * Process trace.
  */
-#ifndef	 PTRACE_H
-#define	 PTRACE_H
+#ifndef	 __SYS_PTRACE_H__
+#define	 __SYS_PTRACE_H__
+
 #include <sys/types.h>
+#include <sys/ksynch.h>
+
 
 /*
  * Structure used for communication between parent and child.
@@ -12,7 +15,7 @@
 struct ptrace {
 	int	 pt_req;		/* Request */
 	int	 pt_pid;		/* Process id */
-	vaddr_t	 pt_addr;		/* Address */
+	caddr_t	 pt_addr;		/* Address */
 	int	 pt_data;		/* Data */
 	int	 pt_errs;		/* Error status */
 	int	 pt_rval;		/* Return value */

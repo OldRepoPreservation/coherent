@@ -6,8 +6,8 @@
 /*
  * Allocator.
  */
-#ifndef	 ALLOC_H
-#define	 ALLOC_H
+#ifndef	 __SYS_ALLOC_H__
+#define	 __SYS_ALLOC_H__
 
 /*
  * Structure for allocator.
