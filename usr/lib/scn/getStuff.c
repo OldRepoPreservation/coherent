@@ -1,58 +1,238 @@
 /*
- * Screen driver functions connected with getLoc().
+ * Screen driver functions connected with wgetLoc().
  */
 #include <scn.h>
+#include <longfield.h>
 
 #define CTRL(c) (c - '@')
 WINDOW *errWindow = NULL;
+static int errSw;	/* clear errWindow at next stdscn input */
+static	needsTouch;	/* needs touchwin at next stdscn input */
+static  savC;	/* exit char for recursion */
 
 /*
- * Get a field given it's loc pointer. if (sw) display the
- * default and return (0); Return the last character entered.
+ * loc.field may be a char * or a char **
+ * return the char *.
+ */
+static char *
+fieldPtr(f) register loc *f;
+{
+	return ((f->flags & LONGFIELD) ? *((char **)f->field) : f->field);
+}
+
+static void
+longField(f) loc *f;
+{
+	register loc *l;	/* tmp area pointer */
+	register char *q, *new;
+	WINDOW	*w;
+	char	**p, **d;
+	int	j, len, same;
+
+	if (NULL == (w = newwin(8, 80, 0, 0)))
+		fatal("Cannot open subwindow");
+
+	touchwin(w);
+	p = (char **)f->field;
+	d = (char **)f->Default;
+	same = (*p == *d);	/* is field == default */
+
+	/* zero work fields */
+	for (l = longfield_locs; NULL != (q = l->field); l++) {
+		l->help = f->help;
+		memset(q, '\0', l->len);
+	}
+
+	/* move in defaults */
+	if (NULL != (new = *d)) {
+		for (l = longfield_locs; NULL != (q = l->field); l++) {
+			for (j = 0; *new && (j < l->len); j++)
+				*q++ = *new++;
+		}
+		free(*p);
+	}
+
+	wscnDriv(w, longfield_data, longfield_locs);
+
+	for (len = 1, l = longfield_locs; NULL != (q = l->field); l++)
+		len += strlen(q);
+
+	*p = new = alloc(len);
+	if (same)
+		*d = new;
+
+	for (l = longfield_locs; NULL != (q = l->field); l++)
+		strcat(new, q);
+
+	delwin(w);
+}
+
+/*
+ * Show any error.
+ */
+void
+showError(s)
+char *s;
+{
+	char work[80];
+
+	if (NULL == errWindow)
+		fatal("No error window");
+	sprintf(work, "Error: %r", &s);
+	wmove(errWindow, 0, 0);
+	wstandout(errWindow);
+	waddstr(errWindow, work);
+	wstandend(errWindow);
+	wrefresh(errWindow);
+	errSw = 1;
+}
+
+/*
+ * Show a help message if one exists.
+ */
+showHelp(msg)
+char *msg;
+{
+	if (NULL != errWindow) {
+		wmove(errWindow, 1, 0);
+		wclrtoeol(errWindow);
+		if (NULL != msg) {
+			wmove(errWindow, 1, 0);
+			waddstr(errWindow, msg);
+		}
+		wrefresh(errWindow);
+	}
+}
+
+/*
+ * Get a char from screen, Erase error window if not clear.
  */
 static
-getLoc(f, sw) register loc *f; int sw;
+wgetChr(w) register WINDOW *w;
+{
+	register c;
+
+	if (needsTouch) {
+		needsTouch = 0;
+		if (stdscr == w) {
+			touchwin(w);
+			wrefresh(w);
+		}
+	}
+
+	c = wgetch(w);
+
+	if (errSw) {
+		wmove(errWindow, 0, 0);
+		wclrtoeol(errWindow);
+		wrefresh(errWindow);
+		errSw = 0;
+	}
+	return (c);
+}
+
+
+/*
+ * if sw == 0: Display a fields default copy to field, then get it.
+ * if sw == 1: Display field's default.
+ * if sw == 2: Display field.
+ */
+static
+wgetLoc(w, f, sw) register WINDOW *w; register loc *f; int sw;
 {
 	int	got,	/* number of chars processed */
 		c,	/* current char */
 		y, x,	/* cursor loc */
 		i,	/* pos in Default field */
-		state,	/* 1 == ESC sequence in process */
-		len;	/* field length */
+		state;	/* 1 == ESC sequence in process */
+	char	*field, *def;
 
-	move(y = f->row, x = f->col);
+	wmove(w, y = f->row, x = f->col);
 
-	len = f->len ? f->len : f->skipf;
-	/* copy Default into field and zero fill field */
-	for (got = i = 0; got < len; got++) {
-		if (c = f->Default[i]) {
+	/*
+	 * LONGFIELD is defined as 4
+	 */
+	switch ((f->flags & LONGFIELD) | sw) {
+	case 6:	/* display long field */
+		def   = *((char **)f->field); /* we have ptr to ptr */
+		break;
+
+	case 4:	/* get long field */
+		standout();	/* remind user which */
+
+	case 5:	/* display long field default */
+		def   = *((char **)f->Default); /* we have ptr to ptr */
+		break;
+
+	case 2:	/* display short field */
+		def = f->field;
+		break;		
+
+	case 1: /* display short field default */
+		def = f->Default;
+		break;
+
+	case 0:	/* get short field */
+		def   = f->Default;
+		field = f->field;
+	
+		/* copy Default into field and zero fill */
+		for (got = i = 0; got <= f->len; got++) {
+			if (c = def[i])
+				i++;
+			field[got] = c;
+		}
+	}
+
+	/* display whatever */
+	if (NULL == def)
+		def = "";
+	for (got = i = 0; got < f->len; got++) {
+		if (c = def[i]) {
 			i++;
-			addch(c);
+			waddch(w, c);
 		}
 		else
-			addch(' ');
-		f->field[got] = c;
+			waddch(w, ' ');
 	}
-	f->field[got] = '\0';
-	refresh();
+	wrefresh(w);
 
-	if (sw || !f->len)
+	if (sw || (f->flags & READONLY))  /* display or read only */
 		return (0);
 
-	if (NULL != errWindow) {
-		wmove(errWindow, 1, 0);
-		wclrtoeol(errWindow);
-		if (NULL != f->help) {
-			wmove(errWindow, 1, 0);
-			waddstr(errWindow, f->help);
+	if (f->flags & LONGFIELD) {
+		standend();
+
+		longField(f);	/* this calls wgetLoc indirectly */
+
+		wmove(w, y, x);
+		field = *((char **)f->field);
+		for (got = 0; got < f->len; got++) {
+			if (c = *field) {
+				field++;
+				waddch(w, c);
+			}
+			else
+				waddch(w, ' ');
 		}
-		wrefresh(errWindow);
+
+		/*
+		 * Doing touchwin here makes a wierd flashing
+		 * when there are many long fields.
+		 * Set a switch instead.
+		 */
+		needsTouch = 1;
+		wrefresh(w);
+		return(savC);	/* return the last thing returned by wgetLoc */
 	}
-	move(y, x);
+
+	showHelp(f->help);
+
+	wmove(w, y, x);
 
 	for (state = got = 0; got < f->len; ) {
-		refresh();
-		c = getChr();
+		wrefresh(w);
+		c = wgetChr(w);
 		/*
  		 * Up Arrow key is esc [ A
 		 * on some systems and
@@ -77,52 +257,53 @@ getLoc(f, sw) register loc *f; int sw;
 			}
 			state = 0;
 		}
+
 		switch (c) {
 		case CTRL('['):
 			state = 1;
 			continue;
 		case '\r':	/* close out line */
 		case '\n':
-			f->field[got] = '\0';
+			field[got] = '\0';
 			for (; got < f->len; got++)
-				addch(' ');
+				waddch(w, ' ');
 			continue;
 		case '\b':	/* backspace */
 			if (!got)
 				continue;
 			got--;
-			move(y, --x);
+			wmove(w, y, --x);
 		case CTRL('D'):
 		case 127:	/* delete key */
-			if (!f->field[got])
+			if (!field[got])
 				continue;
-			for (i = got; c = f->field[i] = f->field[i + 1]; i++)
-				addch(c);
-			addch(' ');
+			for (i = got; c = field[i] = field[i + 1]; i++)
+				waddch(w, c);
+			waddch(w, ' ');
 
-			move(y, x);
+			wmove(w, y, x);
 			continue;
 		case CTRL('B'):		/* back one char */
 			if (!got)
 				continue;
-			move(y, --x);
+			wmove(w, y, --x);
 			got--;
 			continue;
+		case CTRL('P'):		/* go to previous field */
 		case '\t':		/* go to next field with verify */
 		case CTRL('N'):		/* go to next field */
-		case CTRL('P'):		/* go to previous field */
 		case CTRL('Z'):		/* end of screen */
-			refresh();
+			wrefresh(w);
 			return (c);
 		case CTRL('C'):		/* Give user a chance to kill */
 			userCtlc();
 			continue;
 		case CTRL('A'):		/* beginning of line */
-			move(y = f->row, x = f->col);
+			wmove(w, y = f->row, x = f->col);
 			got = 0;
 			continue;
 		case CTRL('E'):		/* end of line */
-			while (f->field[got]) {
+			while (field[got]) {
 				got++;
 				x++;
 			}
@@ -130,19 +311,20 @@ getLoc(f, sw) register loc *f; int sw;
 				got--;
 				x--;
 			}
-			move(y, x);
+			wmove(w, y, x);
 			continue;
 		case CTRL('F'):		/* forward one char */
-			if (!(c = f->field[got]))
+			if (!(c = field[got]))
 				continue;
 		default:
-			addch(c);
+			waddch(w, c);
 			x++;
-			f->field[got++] = c;
+			field[got++] = c;
+			c = 0;
 		}
 	}
-	f->field[got] = '\0';
-	refresh();
+	field[got] = '\0';
+	wrefresh(w);
 	return (c);
 }
 
@@ -150,24 +332,25 @@ getLoc(f, sw) register loc *f; int sw;
  * Show all default items.
  */
 void
-showDefs(data, fields) backGrnd *data; loc *fields;
+wshowDefs(w, data, fields) WINDOW *w; backGrnd *data; loc *fields;
 {
 	register loc *f;
 
-	showBak(data);
+	wshowBak(w, data);
 
 	for (f = fields; NULL != f->field; f++)
-		getLoc(f, 1);
+		wgetLoc(w, f, 1);
 }
+
 /*
  * Print background and get all fields.
  */
 void
-scnDriv(data, fields) backGrnd *data; loc *fields;
+wscnDriv(w, data, fields) WINDOW *w; backGrnd *data; loc *fields;
 {
-	clear();
-	showBak(data);
-	getAll(fields);
+	wclear(w);
+	wshowBak(w, data);
+	wgetAll(w, fields);
 }
 
 /*
@@ -175,39 +358,56 @@ scnDriv(data, fields) backGrnd *data; loc *fields;
  * allow emacs style navagation.
  */
 void
-getAll(fields) loc *fields;
+wgetAll(w, fields) WINDOW *w; loc *fields;
 {
 	register loc *f;
 	char c;
 
 	for (c = 0; c != CTRL('Z'); ) {	
 		for (f = fields; (c != CTRL('Z')) && (NULL != f->field); f++) {
-			switch (c = getLoc(f, 0)) {
+			switch (c = wgetLoc(w, f, 0)) {
+			case CTRL('Z'):
+				if (w != stdscr) {
+					savC = c;
+					return;
+				}
+				break;
+			case CTRL('N'):
+				/* at end down with true field */
+				if ((f[1].field == NULL) && (w != stdscr)) {
+					savC = c;
+					return;
+				}
+				break;
 			case CTRL('P'):
 				for (;;) {
-					if (f == fields) /* wrap */
+					if (f == fields) { /* wrap */
+						/* back out of true field */
+						if (w != stdscr) {
+							savC = c;
+							return;
+						}
 						while (NULL != f->field)
 							f++;
-					if ((--f)->len) {
-						f--;
-						break;
 					}
+					if (!((--f)->flags & READONLY))
+						--f;
+					break;
 				}
-			case CTRL('Z'):
-			case CTRL('N'):
 				break;
 			default:
-				if (NULL != f->verify) {
-					switch ((*f->verify)(f->field)) {
-					case -1:
-						if (f->skipf) {
-							f += f->skipf;
-							break;
-						}
-					case 0:
-						f--;
+				switch ((*f->verify)(fieldPtr(f))) {
+				case -2:
+					savC = ' ';
+					return;
+				case -1:
+					if (f->skipf) {
+						f += f->skipf;
 						break;
 					}
+				case 0:
+					f--;
+					break;
 				}
 			}
 		}
@@ -215,18 +415,18 @@ getAll(fields) loc *fields;
 
 	/* verify all fields */
 	for (f = fields; NULL != f->field; f++) {
-		if (NULL != f->verify) {
-			switch ((*f->verify)(f->field)) {
-			case -1:
-				if (f->skipf) {
-					f += f->skipf;
-					break;
-				}
-			case 0:
-				getLoc(f, 0);
-				f--;
+		switch ((*f->verify)(fieldPtr(f))) {
+		case -2:
+			return;
+		case -1:
+			if (f->skipf) {
+				f += f->skipf;
 				break;
 			}
+		case 0:
+			c = wgetLoc(w, f, 0);
+			f--;
+			break;
 		}
 	}
 }
@@ -234,13 +434,13 @@ getAll(fields) loc *fields;
 /*
  * Get a field by field location.
  */
-getField(table, field) loc  *table; char *field;
+wgetField(w, table, field) WINDOW *w; loc  *table; char *field;
 {
 	register loc *f;
 
 	for (f = table; NULL != f->field; f++)
-		if (field == f->field)
-			return (getLoc(f, 0));
+		if (field == fieldPtr(f))
+			return (wgetLoc(w, f, 0));
 	fatal("Invalid use of getField");
 }
 
@@ -248,13 +448,13 @@ getField(table, field) loc  *table; char *field;
  * Put a field by field location.
  */
 void
-putField(table, field) loc  *table; char *field;
+wputField(w, table, field) WINDOW *w; loc  *table; char *field;
 {
 	register loc *f;
 
 	for (f = table; NULL != f->field; f++)
-		if (field == f->field) {
-			getLoc(f, 1);
+		if (field == fieldPtr(f)) {
+			wgetLoc(w, f, 2);
 			return;
 		}
 	fatal("Invalid use of putField");
