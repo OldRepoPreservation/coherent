@@ -98,8 +98,8 @@ register char **bpp;
 }
 
 /*
- * Allocate a buffer `n' bytes long.  Add it onto the
- * allocated buffer list.
+ * Allocate a buffer `n' bytes long.
+ * Add it onto the allocated buffer list.
  */
 char *
 balloc(n)

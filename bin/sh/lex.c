@@ -5,7 +5,7 @@
  */
 
 #include "sh.h"
-#include "y.tab.h"
+#include <y.tab.h>
 
 /*
  * Local externals.
@@ -43,6 +43,7 @@ KEY keytab[] ={
 	_FOR,	"for",
 	_IF,	"if",
 	_IN,	"in",
+	_RET,	"return",
 	_THEN,	"then",
 	_UNTIL,	"until",
 	_WHILE,	"while",
@@ -60,9 +61,12 @@ yylex()
 again:
 	while ((c=getn())==' '  ||  c=='\t') ;
 	strp = strt;
-	if ((c == '#' || c == ':') && readflag == 0) {
+	if (c == '#' && readflag == 0) {
 		/*
-		 * Ignore a comment line.
+		 * Ignore a '#'-delimited comment line.
+		 * Lines which begin with a ':' token are lexed as usual;
+		 * the built-in function s_colon() executes (i.e. ignores)
+		 * lines starting with ':', while other ':' tokens get passed.
 		 * The built-in "read" does not ignore comment lines.
 		 */
 		do
@@ -114,6 +118,9 @@ again:
 #ifdef NAMEPIPE
 	case '(':
 		return isnext('|', _NOPEN);
+#else
+	case '(':
+		return isnext(')', _PARENS);
 #endif
 	default:
 		if (hereeof != NULL) {

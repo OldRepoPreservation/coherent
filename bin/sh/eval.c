@@ -1,9 +1,11 @@
-#include "sh.h"
-
 /*
+ * sh/eval.c
+ * Bourne shell.
  * Evaluation of parameter substitution, command substitution,
- *  blank interpretation, and file name generation.
+ * blank interpretation, and file name generation.
  */
+
+#include "sh.h"
 
 char	*arcp;		/* character position in argument */
 int	argf = 1;	/* First argument flag */
@@ -79,16 +81,15 @@ char *cp;
 }
 
 /*
- * Read the name of a shell variable and perform the appropriate
- * substitution.
+ * Read the name of a shell variable and perform the appropriate substitution.
  * Doesn't check for end of buffer.
  */
 evalvar()
 {
 	VAR *vp;
 	int s;
-	char *wp;
-	register int c;
+	char *wp, *sav;
+	register int c, count, quote;
 	register char *cp, *pp;
 
 	cp = strp;
@@ -97,21 +98,56 @@ evalvar()
 	if (class(c, MSVAR)) {
 		specvar(c);
 		return;
-	} else if (c != '{') {
+	} else if (class(c, MRVAR)) {
 		while (class(c, MRVAR)) {
 			*cp++ = c;
 			c = *arcp++;
 		}
 		--arcp;
+	} else if (c != '{') {
+		/* Not a legal variable name, put it back. */
+		breakup('$');
+		breakup(c);
+		return;
 	} else {
+		/* c == '{' */
 		while (index("}-=?+", c=*arcp++) == NULL)
 			*cp++ = c;
 		if (c != '}') {
+			/* ${VAR [-=?+] token} */
 			s = c;
 			*cp++ = '=';
 			wp = cp;
-			while ((c=*arcp++) != '}')
+			if ((quote = *arcp) == '"' || quote =='\'')
+				++arcp;
+			else
+				quote = 0;
+			for (count = 1; ; ) {
+				c = *arcp++;
+				if (c == '}' && count-- == 1)
+					break;
+				else if (c == '$' && quote != '\'') {
+/*
+ * steve 6/24/92
+ * This truly sleazy hack handles e.g. "${V1-$V2}", oy.
+ * It doesn't do it very well, paying no attention to quotes (for example).
+ * The recursive call to evalvar() should be straightforward but is not,
+ * the hacky way this module uses globals like strp requires the save/restore.
+ */
+					sav = strp;
+					strp = cp;
+					evalvar();
+					cp = strp;
+					strp = sav;
+					continue;
+				} else if (c == '{')
+					++count;
+				else if (quote != 0 && c == quote) {
+					quote = 0;
+					continue;
+				}
 				*cp++ = c;
+			}
 		}
 	}
 	*cp++ = '\0';
@@ -365,13 +401,13 @@ evalhere(u2)
 	tmp = shtmp();
 	if ((u1=creat(tmp, 0666))<0) {
 		ecantmake(tmp);
-		return (-1);
+		return -1;
 	}
 	if ((f2=fdopen(u2, "r"))==NULL) {
 		ecantfdop();
 		close(u1);
 		close(u2);
-		return (-1);
+		return -1;
 	}
 	while (fgets(buf, 128, f2) != NULL) {
 		eval(buf, EHERE);
@@ -384,6 +420,7 @@ evalhere(u2)
 		u2 = -1;
 	}
 	unlink(tmp);
-	return (u2);
+	return u2;
 }
 
+/* end of sh/eval.c */

@@ -1,3 +1,9 @@
+/*
+ * sh/var.c
+ * Bourne shell.
+ * Variables.
+ */
+
 #include "sh.h"
 
 VAR *vnode();
@@ -59,8 +65,8 @@ char **envp;
 		flagvar(lasterror, VEXP);
 	if (findvar("CWD") == NULL)
 		flagvar("CWD", VEXP);
-	if ((wd = getwd()) == NULL)
-		wd = ".";			/* getwd() failed */
+	if ((wd = _getwd()) == NULL)
+		wd = ".";			/* _getwd() failed */
 	dstack[dstkp] = wd = duplstr(wd, 1);	/* to dstack */
 	assnvar("CWD", wd);			/* and to $CWD */
 }
@@ -310,3 +316,5 @@ VAR *n;
 	vp->v_next = n;
 	return (vp);
 }
+
+/* end of sh/var.c */
