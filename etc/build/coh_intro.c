@@ -1,6 +1,6 @@
 /*
  * coh_intro.c
- * 4/19/90
+ * 5/10/90
  * Usage: coh_intro
  * Uses routines in build0.c: cc -o coh_intro coh_intro.c build0.c
  */
@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION	"1.0"
+#define	VERSION	"1.1"
 
 /* Forward. */
 void	tour();
@@ -116,10 +116,17 @@ tour()
 "\t/dev/com*\tSerial port devices (COM1 and COM2)\n"
 "\t/dev/console\tConsole terminal\n"
 "\t/dev/f*\t\tFloppy disk devices\n"
+"\t/dev/lpt*\tParallel port devices (LPT1, LPT2 and LPT3)\n"
 "\t/dev/null\tBit bucket\n"
 "\t/dev/rat*\tRaw (character-by-character) hard disk partitions\n"
 "\n"
 		);
+
+	/* /drv. */
+	cls(1);
+	printf("Directory /drv contains loadable device drivers:\n\n");
+	sys("lc /drv", S_IGNORE);
+	printf("\n");
 
 	/* /etc. */
 	cls(1);
@@ -163,6 +170,30 @@ tour()
 "\n"
 		);
 
+	/* File types. */
+	cls(1);
+	printf(
+"COHERENT filenames often contain an extension following '.' which\n"
+"indicates the contents of the file.  Some common extensions are:\n"
+"\n"
+"\t.a\tarchive (or library) in ar format\n"
+"\t.b\tbc source\n"
+"\t.c\tC source\n"
+"\t.h\tC header\n"
+"\t.i\tC intermediate file (cpp output)\n"
+"\t.l\tlex source\n"
+"\t.m\tmacro assembler source\n"
+"\t.o\tobject file (unlinked)\n"
+"\t.r\tnroff or troff input\n"
+"\t.s\tassembler source\n"
+"\t.tar\tarchive in tar format\n"
+"\t.tar.Z\tcompressed tar-format archive, cf. tar, compress\n"
+"\t.tmp\ttemporary file\n"
+"\t.y\tyacc source\n"
+"\t.Z\tcompressed file, cf. compress/uncompress\n"
+"\n"
+	);
+
 	/* Diskettes. */
 	cls(1);
 	printf(
@@ -173,14 +204,15 @@ tour()
 "\t(4) copy files to or from it, e.g. with /bin/cp or /bin/cpdir,\n"
 "and\t(5) unmount it with /bin/umount or /etc/umount.\n"
 "\n"
-"Some commonly diskette device names and formats are:\n"
-"\tDevice name  Sectors/track  Heads  Sectors  Format\n"
-"\t/dev/f9a0          9          2      720    5.25\"\n"
-"\t/dev/fqa0          9          2     1440    3.5\"\n"
-"\t/dev/fha0         15          2     2400    5.25\"\n"
+"Some commonly used diskette device names and formats are:\n"
+"\tDevice name  Sectors/track  Heads  Sectors  Bytes   Format\n"
+"\t/dev/f9a0          9          2      720    360 KB   5.25\"\n"
+"\t/dev/fqa0          9          2     1440    720 KB   3.5\"\n"
+"\t/dev/fha0         15          2     2400    1.2 MB   5.25\"\n"
+"\t/dev/fva0         18          2     2880    1.44 MB  3.5\"\n"
 "Device names ending in '0' and '1' indicate drives A: and B:.\n"
 "\n"
-"For example, to copy directory /dir to a 5.25\" high density diskette:\n"
+"For example, to copy directory /dir to a 5.25\" high density diskette in A:\n"
 "\t/etc/fdformat /dev/fha0\n"
 "\t/etc/mkfs /dev/fha0 2400\n"
 "\t/etc/mount /dev/fha0 /f0\n"
