@@ -6,7 +6,8 @@
 char recdir[50];
 char selection[15];
 char filenames [MAXRECORDS][15];
-char workfile[15];
+char workfile[60];
+char find_workfile[47];
 char workstring[80];
 char getfiles[26][115];
 int place[MAXRECORDS];

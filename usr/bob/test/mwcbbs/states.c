@@ -47,11 +47,11 @@ FILE *infp;
 int x=2;
 int y=0;
 
-	if ((infp=fopen(MAILFILE,"r")) == NULL)
+	if ((infp=fopen(workfile,"r")) == NULL)
 		{
 		noraw();
 		endwin();
-		printf("Error opening MAIL file for input!\n");
+		printf("Error opening %s for input!\n", workfile);
 		exit(1);
 		}
 
