@@ -79,7 +79,7 @@ mod_t	*mp;
 }
 
 /*
- * Return reference to given symbol if any
+ * Return undefined reference to given symbol if any.
  */
 sym_t *
 symref(name)
@@ -101,42 +101,44 @@ char *name;
 /*
  * Read input files.
  */
-readFile(fn, loadsw)
+readFile(fn, loadsw, p)
 char *fn;	/* file name */
 int  loadsw;	/* 1 = load this file, 0 = use its symbol table */
+register char *p;
 {
-	register char *p;
 	struct stat st;
 
 	fname = fn;
-	/*
-	 * Look for rename entrys.
-	 * con=atcon
-	 * is not a filename with an =
-	 * it means rename con to atcon.
-	 * This is a drvld requirment.
-	 */
-	if (NULL != (p = strchr(fname, '='))) {
-		ren_t	*new;
 
-		new = alloc(sizeof(*new));
-		new->next = rhead;
-		rhead = new;
-		new->from = fname;
-		*p = '\0';
-		new->to = p + 1;
-		return;
+	if (NULL == p) {	/* not forced */
+		/*
+		 * Look for rename entrys.
+		 * con=atcon
+		 * is not a filename with an =
+		 * it means rename con to atcon.
+		 * This is a drvld requirment.
+		 */
+		if (NULL != (p = strchr(fname, '='))) {
+			ren_t	*new;
+	
+			new = alloc(sizeof(*new));
+			new->next = rhead;
+			rhead = new;
+			new->from = fname;
+			*p = '\0';
+			new->to = p + 1;
+			return;
+		}
+
+		/* all names must be *.[ao] */
+		if (NULL == (p = strrchr(fname, '.')) || p[2])
+			p = ".?";
+		if (!loadsw)	/* drvld's read of the system */
+			p = "_s.o" + 2;
+		/* shared libs have names like libc_s.a */
+		if ((p[-2] == '_') && (p[-1] == 's'))
+			loadsw = 0;
 	}
-
-	/* all names must be *.[ao] */
-	if (NULL == (p = strrchr(fname, '.')) || p[2])
-		p = ".?";
-	if (!loadsw)	/* drvld's read of the system */
-		p = "_s.o" + 2;
-	/* shared libs have names like libc_s.a */
-	if ((p[-2] == '_') && (p[-1] == 's'))
-		loadsw = 0;
-
 #ifdef GEMDOS
 	stat(fname, &st);
 	ifd = qopen(fname, 0);
@@ -218,6 +220,7 @@ mod_t *mp;
 	}
 
 	name = symName(s, w1);
+
 	/* check rename entrys */
 	for (ren = rhead; NULL != ren; ren = ren->next) {
 		if (!strcmp(ren->from, name)) {
@@ -451,17 +454,41 @@ long size;
 		tst(s_lnnoptr);
 #undef tst
 
-		for (k = 0; k < osegs; k++)
-			if (!strncmp(secth[k].s_name, s->s_name, 8))
+		for (k = 0; k < osegs; k++) {
+			if (!strncmp(secth[k].s_name, s->s_name, 8)) {
+				s->s_paddr = k;	/* remember outseg number */
 				break;
+			}
+		}
 
 		if ((k == osegs) && loadsw) {	/* New segment */
+			if (++osegs == MAXSEG)
+			   fatal("Max segment limit of %s exceeded", MAXSEG);
 			w_message("adding segment '%s'", s->s_name);
-			if (NULL == (secth = 
-			    realloc(secth, ++osegs * sizeof(*secth))))
-				fatal("out of space"); /* NODOC */
 			memcpy(secth + k, s, sizeof(*s));
+			s->s_paddr = k;
 			secth[k].s_size = secth[k].s_nreloc = 0;
+
+			/* extra segments go to four places */
+			switch(s->s_flags) {
+			case STYP_TEXT:
+				segMap[k] = S_TEXT;
+				break;
+			case STYP_DATA:
+				segMap[k] = S_DATA;
+				break;
+			case STYP_BSS:
+				segMap[k] = S_BSSD;
+				break;
+			case STYP_INFO:
+				segMap[k] = S_COMM;
+				break;
+			default:
+				segMap[k] = S_COMM;
+				fprintf(stderr, 
+			"warning: segment '%s' treated as comment\n",
+					s->s_name);
+			}
 		}
 	}
 
@@ -559,6 +586,8 @@ archive(loadsw)
 		fatal("archive '%s' is corrupt", fname); /* NODOC */
 	names = alloca(i);
 	xread(names, i);
+
+	w_message("reading archive '%s' nundef %d", fname, nundef);
 
 	/* search symbol table unitl nothing found */
 	do {

@@ -9,25 +9,6 @@
 
 extern char *memset();
 
-void
-message(args)
-char * args;
-{
-	errCount++;
-	if (Qflag)
-		return;
-	printf("%s: %r\n", argv0, &args);
-	fflush(stdout);
-}
-
-void
-watch_message(args)
-char * args;
-{
-	printf("%s: %r\n", argv0, &args);
-	fflush(stdout);
-}
-
 /*
  * Fatal error; print message and exit
  */
@@ -36,8 +17,25 @@ fatal(args)
 char *args;
 {
 	if (!Qflag)
-		printf("%s: %r\n", argv0, &args);
+		fprintf(stderr, "%s: %r\n", argv0, &args);
 	exit(1);
+}
+
+void
+message(args)
+char * args;
+{
+	errCount++;
+	if (Qflag)
+		return;
+	fprintf(stderr, "%s: %r\n", argv0, &args);
+}
+
+void
+watch_message(args)
+char * args;
+{
+	fprintf(stderr, "%s: %r\n", argv0, &args);
 }
 
 /*
