@@ -40,6 +40,7 @@
  *	  
  */
 #include <string.h>
+#include <sys/fdisk.h>
 #include "tboot.h"
 #include "typed.h"
 
@@ -103,7 +104,8 @@ prepare_gift(data_seg, offset, cmd_line)
 	/* FILL THE BOX.  */
 	/* Stop filling in if we run out of space.  */
 	if ((0 == gift_drive_params(ffp)) ||
-	    (0 == gift_argf(ffp, cmd_line))
+	    (0 == gift_argf(ffp, cmd_line)) ||
+	    (0 == gift_rootdev(ffp))
 	   ) {
 	   	puts("prepare_gift(): WARNING: not enough room for all arguments.\r\n");
 		puts("Only ");
@@ -236,6 +238,55 @@ gift_argf(ffp, cmd_line)
 
 	return(1);
 } /* gift_argf() */
+
+/* Write a structure describing the boot partition into a fifo.
+ * Returns 1 on success, 0 if it runs out of space, or 2 if it
+ * can't read the boot block.
+ */
+int
+gift_rootdev(ffp)
+	FIFO *ffp;
+{
+#define	NOPARTITION	255	/* Convenient illegal partition number.  */
+
+	BIOS_ROOTDEV myrootdev;	/* Build the data to be passed here.  */
+	FDISK_S fp[NPARTN];	/* Room for a partition table from disk.  */
+	int8 i;
+
+	extern uint8 drive;
+	extern uint32 first;
+	
+
+	
+	/* Fetch the partition table from disk.  */
+	if (0 == fdisk(fp)) {
+		puts("gift_rootdev() WARNING: invalid boot block.\r\n");
+		return(2);
+	}
+
+
+	myrootdev.rd_partition = NOPARTITION; /* Mark an invalid partition.  */
+
+	/* Look for the current partition in the table.  */
+	for (i=0; i < NPARTN; ++i) {
+		if (first == fp[NPARTN].p_base) {
+			myrootdev.rd_partition = i;
+			break;
+		}
+	}
+
+	if (NOPARTITION == myrootdev.rd_partition) {
+		puts("gift_rootdev() WARNING: Can't find my partition.\r\n");
+		return(2);
+	}
+
+	if (T_NULL == fifo_write_untyped(ffp, &myrootdev, sizeof(BIOS_ROOTDEV),
+					T_BIOS_ROOTDEV)) {
+		return(0);
+	} else {
+		return(1);
+	}
+} /* gift_rootdev() */
 
 /* Dump the contents of boot_gift.  */
 dump_gift()
