@@ -329,7 +329,7 @@ extern char *malloc();
 #endif
 
 #ifndef REDIRECT
-# define REDIRECT	"2>"
+# define REDIRECT	"1>"
 #endif
 
 #ifndef MAXMAPS
