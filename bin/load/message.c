@@ -1,28 +1,6 @@
-/* $Header: /usr/src/cmd/ld/RCS/message.c,v 1.1 89/07/21 15:52:19 src Exp $
- *
- * 	The information contained herein is a trade secret of Mark Williams
- * 	Company, and  is confidential information.  It is provided  under a
- * 	license agreement,  and may be  copied or disclosed  only under the
- * 	terms of  that agreement.  Any  reproduction or disclosure  of this
- * 	material without the express written authorization of Mark Williams
- * 	Company or persuant to the license agreement is unlawful.
- * 
- * 	Coherent Version 2.3.38
- * 	Copyright (c) 1982, 1983, 1984.
- * 	An unpublished work by Mark Williams Company, Chicago.
- * 	All rights reserved.
- *
- *	Modifications Copyright INETCO Systems Ltd.
- */
 /*
- * Print messages of various origins
- *
- * $Log:	/usr/src/cmd/ld/RCS/message.c,v $
- * Revision 1.1	89/07/21  15:52:19 	src
- * Initial revision
- * 
- * 87/10/04	Allan Cornish	/usr/src/cmd/ld/message.c
- * Comments extended.
+ * ld/message.c
+ * Print messages of various origins.
  */
 
 #include "data.h"

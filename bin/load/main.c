@@ -1,20 +1,4 @@
-/*
- * $Log:	/usr/src/cmd/ld/RCS/main.c,v $
- * Revision 1.1	89/07/21  15:52:14 	src
- * Initial revision
- * 
- * 87/12/07	Allan Cornish	/usr/src/cmd/ld/main.c
- * '-r' flag now disables the default '-i' flag.
- *
- * 87/11/28	Angus Telfer	/usr/src/cmd/ld/main.c
- * '-C' flag now forces combined code and data.
- *
- * 87/10/04	Allan Cornish	/usr/src/cmd/ld/main.c
- * Comments extended.
- *
- * 86/02/11	Allan Cornish	/usr/src/cmd/ld/main.c
- * '-e' flag now forces entry symbol into table as undefined symbol.
- */
+/* ld/main.c */
 
 #include "data.h"
 
@@ -317,6 +301,26 @@ char	*argv[];
 	 */
 	baseall( oseg, &oldh );
 
+#ifdef IAPX86
+	if ( oldh.l_machine == M_8086 ) {
+		if ( (oseg[L_SHRI].size +
+		      oseg[L_PRVI].size +
+		      oseg[L_BSSI].size) >= MAXSEG86 )
+			fatal("FATAL: code segment too large");
+
+		if ( (oseg[L_SHRD].size +
+		      oseg[L_PRVD].size +
+		      oseg[L_BSSD].size) >= (MAXSEG86 - DEFSTACK) )
+			fatal("FATAL: data segment too large");
+
+		if ( (oseg[L_SHRD].size +
+		      oseg[L_PRVD].size +
+		      oseg[L_BSSD].size) >= (MAXSEG86 - DEFSTACK - WARNSIZE) )
+			message(
+			   "Warning: data segment may be too large to execute");
+	}
+#endif
+
 	/*
 	 * Open output file
 	 */
@@ -459,7 +463,6 @@ char	*argv[];
 	oldh.l_entry = (entrys != NULL)
 			? lentry(entrys)
 			: (oldh.l_flag & LF_KER) ? drvbase[oldh.l_machine] : 0;
-
 	/*
 	 * Pass 2
 	 */

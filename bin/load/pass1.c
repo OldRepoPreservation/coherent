@@ -1,33 +1,6 @@
-/* $Header: /usr/src/cmd/ld/RCS/pass1.c,v 1.1 89/07/21 15:52:21 src Exp $
- *
- * 	The information contained herein is a trade secret of Mark Williams
- * 	Company, and  is confidential information.  It is provided  under a
- * 	license agreement,  and may be  copied or disclosed  only under the
- * 	terms of  that agreement.  Any  reproduction or disclosure  of this
- * 	material without the express written authorization of Mark Williams
- * 	Company or persuant to the license agreement is unlawful.
- * 
- * 	Coherent Version 2.3.38
- * 	Copyright (c) 1982, 1983, 1984.
- * 	An unpublished work by Mark Williams Company, Chicago.
- * 	All rights reserved.
- *
- *	Modifications Copyright INETCO Systems Ltd.
- */
+/* ld/pass1.c */
 
 #include "data.h"
-
-/*
- * Pass 1
- *
- * $Log:	/usr/src/cmd/ld/RCS/pass1.c,v $
- * Revision 1.1	89/07/21  15:52:21 	src
- * Initial revision
- * 
- * 87/10/04	Allan Cornish	/usr/src/cmd/ld/pass1.c
- * Function eq(s1,s2) converted into a macro.
- * Comments extended.
- */
 
 /*
  * Read input file
@@ -112,7 +85,7 @@ char  * fname;
 					if (fread(&ars,sizeof(ars),1,xfp) != 1)
 						break;
 
-					if ( symref( &ars ) == NULL )
+					if ( symref( &ars ) == NULL ) 
 						continue;
 
 					cansize( ars.ar_off );
@@ -362,9 +335,7 @@ char	*fname, mname[];
 			modmsg( fname, mname, "bad symbol segment" );
 			mp->nsym = i;
 			break;
-		}
-
-		else {
+		} else {
 			canint( lds.ls_type );
 			canvaddr( lds.ls_addr );
 			segn = lds.ls_type & ~L_GLOBAL;
@@ -376,14 +347,12 @@ char	*fname, mname[];
 				lds.ls_addr += oseg[segn].size
 						- mp->seg[segn].vbase;
 
-			if( mdisk ) {
+			if ( mdisk ) {
 				tmsym = addsym( &lds, mp );
 
 				if ( fwrite(&tmsym,sizeof(tmsym),1,mfp) != 1 )
 badisk:					fatal("disk error");
-			}
-
-			else
+			} else
 				mp->sym[i] = addsym( &lds, mp );
 		}
 	}
