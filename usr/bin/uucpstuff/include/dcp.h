@@ -15,14 +15,14 @@
  *  Various definitions of Global Strings and Values
  */
 
-#define	VERSION		"3.2.16"
+#define	VERSION		"3.2.17"
 
 #define PUBDIR		"/usr/spool/uucppublic"
 #define SPOOLDIR	"/usr/spool/uucp"
 
 #define SITELEN		DIRSIZ	/* Max number of Characters in Sitename	*/
 #define	SITESIG		7	/* Significant Characters of Sitename	*/
-#define	LOCKSIG		7	/* Signific Chars of Lockable Resource	*/
+#define	LOCKSIG		9	/* Signific Chars of Lockable Resource	*/
 #define	CTLFLEN		64	/* Max Length of UUCP Control File Name	*/
 #define LOGFLEN		64	/* Max Length of UUCP Log File Name	*/
 #define	LOKFLEN		64	/* Max Length of UUCP Lock File Name	*/
