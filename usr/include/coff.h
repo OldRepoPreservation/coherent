@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 4.0.1
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.1.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -226,13 +226,13 @@ typedef	struct	syment	{
 #define N_BTMASK	0x0F			/* Mask for basic type	*/
 #define N_TMASK 	0x30			/* Derived type mask	*/
 #define N_TSHIFT	2			/* Shift for more derived bits */
-#define N_BTSHFT	4			/* Shift for first derived */
- 
+#define	N_BTSHFT	4			/* Shift for derived type */
+
 /* Type processing macros. */
-#define BTYPE(x)  ((x) & N_BTMASK)		/* Base type	*/
-#define ISPTR(x)  ((DT_PTR<<N_BTSHFT) == ((x) & N_TMASK)) /* Pointer?	*/
-#define ISFCN(x)  ((DT_FCN<<N_BTSHFT) == ((x) & N_TMASK)) /* Function?	*/
-#define ISARY(x)  ((DT_ARY<<N_BTSHFT) == ((x) & N_TMASK)) /* Array?	*/
+#define BTYPE(x)  ((x) & N_BTMASK)		/* Base type		*/
+#define ISPTR(x)  ((DT_PTR<<N_BTSHFT)==((x)&N_TMASK))	/* Pointer?	*/
+#define ISFCN(x)  ((DT_FCN<<N_BTSHFT)==((x)&N_TMASK))	/* Function?	*/
+#define ISARY(x)  ((DT_ARY<<N_BTSHFT)==((x)&N_TMASK))	/* Array?	*/
 #define INCREF(x) ((((x)&~N_BTMASK)<<N_TSHIFT)|(DT_PTR<<N_BTSHFT)|((x)&N_BTMASK))
 #define DECREF(x) ((((x)>>N_TSHIFT)&~N_BTMASK)|((x)&N_BTMASK))
 
