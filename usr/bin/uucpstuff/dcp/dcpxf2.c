@@ -1,6 +1,9 @@
 /*
- * $Header: /u/uucp/dcpxf2.c,v 1.6 90/03/29 10:54:13 wgl Exp $
- * $Log:	/u/uucp/dcpxf2.c,v $
+ * $Header: /newbits/usr/lib/uucp/dcp/RCS/dcpxf2.c,v 1.4 91/08/15 13:24:56 bin Exp Locker: bin $
+ * $Log:	dcpxf2.c,v $
+ * Revision 1.4  91/08/15  13:24:56  bin
+ * changes by epstein for 7bit sites
+ * 
  * Revision 1.6	90/03/29  10:54:13 	wgl
  * Add check of the -d option and fail to create directory if option absent.
  * 
@@ -222,6 +225,7 @@ char	*destfile;
 	struct	passwd	*pwp;
 	struct	stat	statbuf;
 	char	*cp;
+	char spooldir_name [32]; /* used to test for spool directory */
 
 	if (*destfile == '~') {
 		if (*(destfile + 1) == '/')
@@ -238,10 +242,34 @@ char	*destfile;
 				cp = "";
 			sprintf(tmpfilename, "%s/%s", pwp->pw_dir, cp);
 		}
-	} else if (*destfile == '/')
-		sprintf(tmpfilename, "%s", destfile);
-	else
-		sprintf(tmpfilename, "%s/%s/%s", SPOOLDIR, rmtname, destfile);
+	} else{ if (*destfile == '/')
+			sprintf(tmpfilename, "%s", destfile);
+		else{
+			sprintf(tmpfilename, "%s/%s/%s", SPOOLDIR, rmtname, destfile);
+
+#ifdef _I386
+
+			/* test for existence of spool directory and create
+			 * one if necessary.
+			 */
+
+			/* build spooldir name */
+			sprintf(spooldir_name,"%s/%s", SPOOLDIR, rmtname);
+
+			if (stat(spooldir_name, & statbuf)){
+				/* spooldir doesn't exist, build a mkdir
+				 * command to pass to system. We use
+				 * a mkdir() system call, to ensure that we
+				 * get useable permissions
+				 */
+				plog (M_CALL,"Spool directory %s missing...", spooldir_name);
+				plog (M_CALL,"Creating missing spool directory.");
+				mkdir(spooldir_name, 0744);
+#endif /* _I386 */
+			}
+		}
+	}				
+			
 	if ((cp = index(tmpfilename, '\n')) != NULL)
 		*cp = '\0';
 	if (((stat(tmpfilename, &statbuf) != -1) &&
