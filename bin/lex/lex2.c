@@ -312,53 +312,88 @@ outlnum(i)
 
 /*
  * copy a user-specified action to the output
- * make an attempt at keeping track of single quotes,
- * double quotes, and braces.
- * these items inside comments will blow us away
  */
 getactn()
 {
-	register c, bct, quot;
+	enum cstate { /* states of c source */
+		start, slash, comment, star, bsl, dquote, squote
+	} pstate;
+	register enum cstate state;
+	register c;
+	int bct;
 
-	bct = quot = 0;
-	for (;;) {
-		if ((c=next()) == EOF)
+	for (state = start, bct = 0;;) {
+		if (EOF == (c = next()))
 			error(eoferr);
 		putc(c, fileout);
-		switch (c) {
-		case '\\':
-			if ((c=next()) == EOF)
-				error(eoferr);
-			putc(c, fileout);
-			break;
-		case '\'':
-			if (quot>-1)
-				quot= 1-quot;
-			break;
-		case '"':
-			if (quot< 1)
-				quot=-1-quot;
-			break;
-		case '{':
-			if (!quot)
-				++bct;
-			break;
-		case '}':
-			if (!quot)
-				if (bct==0)
+
+		switch (state) {
+		case slash:	/* maybe a comment */
+			if ('*' == c) {
+				state = comment;
+				break;
+			}
+			state = start;
+		case start:	/* normal text state */
+			switch (c) {
+			case '/':
+				state = slash;
+				break;
+			case '\\':
+				pstate = state;
+				state = bsl;
+				break;
+			case '"':
+				state = dquote;
+				break;
+			case '\'':
+				state = squote;
+				break;
+			case '{':
+				bct++;
+				break;
+			case '}':
+				if (--bct < 0)
 					error(actsyn);
-				else
-					--bct;
+				break;
+			case '\n':
+				if (!bct) {
+					setltype();
+					return;
+				}
+			}
 			break;
-		case '\n':
-			setltype();
-			if (bct==0)
-				return;
-			if (ltype != LN_LSPC)
-				if ('#' == look(0))
-					ltype = LN_LSPC;
-				else
-					error(actsyn);
+		case star:	/* saw * in comment */
+			if ('/' == c) {
+				state = start;
+				break;
+			}
+			state = comment;
+		case comment:	/* in comment */
+			if ('*' == c)
+				state = star;
+			break;
+		case bsl:	/* char after backslash */
+			state = pstate;
+			break;
+		case dquote:	/* in double quoted string */
+		case squote:	/* in single quoted string */
+			switch (c) {
+			case '"':
+				if (dquote == state)
+					state = start;
+				break;
+			case '\'':
+				if (squote == state)
+					state = start;
+				break;
+			case '\n':
+				error(actsyn);
+				break;
+			case '\\':
+				pstate = state;
+				state = bsl;
+			}
 		}
 	}
 }

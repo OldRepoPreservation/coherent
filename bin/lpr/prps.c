@@ -1,6 +1,6 @@
 /*
  * prps.c
- * 1/22/91
+ * 2/14/91
  * Produce PostScript pages containing input files.
  * By default, each page has a header line and text enclosed in a box.
  * See usage() for usage and options.
@@ -13,7 +13,7 @@
 #endif
 
 /* Manifest constants. */
-#define	VERSION		"1.4"
+#define	VERSION		"1.5"
 #define	DEFFONT		"Courier"	/* default font			*/
 #define	DEFFONTB	"-Bold"		/* default boldface font suffix	*/
 #define	DEFFONTI	"-Oblique"	/* default italic font suffix	*/
@@ -54,6 +54,7 @@ int	lflag;				/* Landscape mode.		*/
 int	nlines;				/* Lines per page.		*/
 int	ptsize;				/* Point size.			*/
 int	rhpage;				/* Right-hand page flag.	*/
+int	skip;				/* Output pages to skip.	*/
 int	tab = DEFTAB;			/* Tab setting.			*/
 
 /*
@@ -87,8 +88,14 @@ main(argc, argv) int argc; char *argv[];
 
 	/* Process command line options. */
 	argv0 = argv[0];
-	while (argc > 1 && argv[1][0] == '-') {
+	while (argc > 1 && (argv[1][0] == '-' || argv[1][0] == '+')) {
 		s = &argv[1][1];
+		if (argv[1][0] == '+') {
+			skip = atoi(s);
+			--argc;
+			++argv;
+			continue;
+		}
 		while ((c = *s++) != '\0') {
 			switch(c) {
 			case 'b':
@@ -207,8 +214,15 @@ file(name) char *name;
 	}
 
 	/* Process the file. */
+	if (skip) {
+		if (lflag == 2)
+			skip &= ~1;		/* round down to even */
+		for (line = 0; line < skip * nlines; line++)
+			if (fgets(buf, NBUF, fp) == NULL)
+				break;
+	}
 	line = 0;
-	page = 1;
+	page = skip + 1;
 	while (fgets(buf, NBUF, fp) != NULL) {
 		if (line++ == 0) {
 			/* Start of page. */
@@ -519,7 +533,8 @@ usage()
 	fprintf(stderr,
 "Usage: prps [ options ] [ file ... ]\n"
 "Options:\n"
-"\t-ptsize\tUse ptsize as the point size (default: 10).\n"
+"\t+n\tSkip first n pages of output.\n"
+"\t-n\tUse point size n (default: 10).\n"
 "\t-b\tSuppress the box around the page text.\n"
 "\t-ffont\tUse the given font name (default: Courier).\n"
 "\t-FX\tUse font X, which must be [ABHNPST].\n"
