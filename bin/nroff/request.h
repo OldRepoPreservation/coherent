@@ -15,8 +15,8 @@ typedef struct {
  * The V7 "Nroff/Troff User's Manual" describes 83 requests.
  * Of these, 9 are currently unimplemented in COHERENT [nt]roff:
  *	.bd, .dt, .fc, .hc, .hw, .hy, .nm, .nn, .pi.
- * The 92 requests below also include 9 requests which are not in V7:
- *	.bo, .co, .fb, .fd, .lf, .nb, .rb, .rf, .rp.
+ * The 92 requests below also include 10 requests which are not in V7:
+ *	.bo, .co, .dc, .fb, .fd, .lf, .nb, .rb, .rf, .rp.
  */
 /* req1.c */
 extern	int	req_ab();
@@ -36,6 +36,7 @@ extern	int	req_co();	/* !V7 */
 extern	int	req_cs();
 extern	int	req_cu();
 extern	int	req_da();
+extern	int	req_dc();	/* !V7 */
 extern	int	req_de();
 extern	int	req_di();
 extern	int	req_ds();
