@@ -1,6 +1,6 @@
 /*
  * qfind.c
- * 3/18/91
+ * 3/21/91
  * Find files with given name in filesystem using file database.
  * Usage: qfind [ -adp ] name ...
  * 	  qfind -b[v]
@@ -12,7 +12,7 @@
  *	-v	Verbose information.
  * Run as root when using -b to find everything.
  * Uses find, sed, sort.
- * To fix: ordinary qfind does not work while qfind -b is running.
+ * Does not ignore SIG_INT, so "qfind -b&" aborts if <Ctrl-C> typed.
  */
 
 #include <stdio.h>
@@ -20,12 +20,13 @@
 
 extern	char	*mktemp();
 
-#define	VERSION	"1.5"
+#define	VERSION	"1.6"
 #define	USAGE	"Usage:\tqfind [ -adp ] name ...\n\tqfind -b[v]\n"
 #define	MINSEEK	512			/* binary search threshold */
 #define	NBUF	512			/* buffer size		*/
 #define	NCHARS	128			/* first characters	*/
 #define	QFFILES	"/usr/adm/qffiles"	/* database filename	*/
+#define	QFNEW	"/usr/adm/qffiles.new"	/* new database filename */
 #define	QFTMP	"/tmp/qfXXXXXX"		/* tmpname prototype	*/
 
 /* Forward. */
@@ -118,23 +119,23 @@ build()
 		tmpname);
 
 	/* Create data file containing an empty seek table. */
-	if ((fp = fopen(QFFILES, "w")) == NULL)
-		fatal("cannot open \"%s\"", QFFILES);
+	if ((fp = fopen(QFNEW, "w")) == NULL)
+		fatal("cannot open \"%s\"", QFNEW);
 	else if (fwrite(seektab, sizeof(seektab), 1, fp) != 1)
-		fatal("write error on \"%s\"", QFFILES);
+		fatal("write error on \"%s\"", QFNEW);
 	else if (fclose(fp) == EOF)
-		fatal("cannot close \"%s\"", QFFILES);
+		fatal("cannot close \"%s\"", QFNEW);
 
 	/* Sort tempfile and append to new data file. */
-	sys("sort %s >>%s", tmpname, QFFILES);
+	sys("sort %s >>%s", tmpname, QFNEW);
 	if (unlink(tmpname) == -1)
 		fatal("cannot unlink temp file");
 
 	/* Initialize the seek table. */
 	lastseek = (long)sizeof(seektab);
 	last = -1;
-	if ((fp = fopen(QFFILES, "rw")) == NULL)
-		fatal("cannot open \"%s\"", QFFILES);
+	if ((fp = fopen(QFNEW, "rw")) == NULL)
+		fatal("cannot open \"%s\"", QFNEW);
 	fpseek(fp, lastseek, SEEK_SET);
 	for (nfiles = 0; fgets(buf, sizeof(buf)-1, fp) != NULL; ++nfiles) {
 		if (*buf != last) {
@@ -149,9 +150,16 @@ build()
 	/* Rewrite the seek table in the data file. */
 	fpseek(fp, 0L, SEEK_SET);
 	if (fwrite(seektab, sizeof(seektab), 1, fp) != 1)
-		fatal("write error on \"%s\"", QFFILES);
+		fatal("write error on \"%s\"", QFNEW);
 	else if (fclose(fp) == EOF)
-		fatal("cannot close \"%s\"", QFFILES);
+		fatal("cannot close \"%s\"", QFNEW);
+
+	/* Remove old if it exists, rename new accordingly. */
+	unlink(QFFILES);		/* may not exist */
+	if (link(QFNEW, QFFILES) == -1)
+		fatal("cannot link \"%s\" to \"%s\"", QFNEW, QFFILES);
+	else if (unlink(QFNEW))
+		fatal("cannoot unlink \"%s\"", QFNEW);
 	return 0;
 }
 
@@ -166,7 +174,7 @@ fatal(s) char *s;
 	if (tmpname != NULL)
 		unlink(tmpname);
 	if (bflag)
-		unlink(QFFILES);
+		unlink(QFNEW);
 	exit(1);
 }
 

@@ -12,6 +12,7 @@
 #include <access.h>
 #include <canon.h>
 
+#define	VERSION		"1.1"
 #define	CPBUFSIZ	(50*BUFSIZ)			/* copy buffer */
 #define	SDSIZ		(sizeof(struct direct))
 #define	MAXINT		32767
@@ -151,12 +152,7 @@ bool	tgtunlink();
 LINK	*linklocate();
 LINK	*linkinstall();
 
-
-
-
-main(ac, av)
-int ac;
-char *av[];
+main(ac, av) int ac; char *av[];
 {
 	ac = 0;
 	aarghh(av);
@@ -214,6 +210,9 @@ register char *av[];
 				break;
 			case 'v':
 				vflag = wflag = TRUE;
+				break;
+			case 'V':
+				fprintf(stderr, "cpdir: V%s\n", VERSION);
 				break;
 			default:
 				errprint(fmt1, usage);
@@ -474,6 +473,7 @@ cpfile()
 #else
 	static char buf[BUFSIZ];
 #endif
+	int intflag, hupflag;
 
 	if (access(source, AREAD) < 0) {
 		errprint(fmt2, source, noopen);
@@ -498,8 +498,8 @@ cpfile()
 		return;
 	}
 
-	catch(SIGINT);
-	catch(SIGHUP);
+	intflag = catch(SIGINT);
+	hupflag = catch(SIGHUP);
 	if ((fd1 = open(source, 0)) < 0) {
 		errprint(fmt2, source, noopen);
 		return;
@@ -572,8 +572,10 @@ cpfile()
 	close(fd1);
 	close(fd2);
 	adjust();
-	signal(SIGINT, SIG_DFL);
-	signal(SIGHUP, SIG_DFL);
+	if (intflag)
+		signal(SIGINT, SIG_DFL);
+	if (hupflag)
+		signal(SIGHUP, SIG_DFL);
 	if (interrupted)
 		exit(1);
 
@@ -1092,20 +1094,33 @@ register char *cp;
 	return (TRUE);
 }
 
-onintr( )
+/*
+ * Routine exectuted when SIGINT or SIGHUP caught.
+ * Set the interrupted flag.
+ */
+onintr()
 {
-
-	signal( SIGINT, SIG_IGN);
-	signal( SIGHUP, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGHUP, SIG_IGN);
 	++interrupted;
 }
 
-
-catch( sig)
+/*
+ * If sig's handler is currently SIG_DFL,
+ * catch it with onintr and return 1.
+ * If not, leave its handler unchanged and return 0.
+ */
+int
+catch(sig) int sig;
 {
+	int (*old)();
 
-	if( signal( sig, SIG_IGN) == SIG_DFL)
-		signal( sig, onintr);
+	if ((old = signal(sig, SIG_IGN)) == SIG_DFL) {
+		signal(sig, onintr);
+		return 1;
+	}
+	signal(sig, old);
+	return 0;
 }
 
 vprintf()
