@@ -129,6 +129,17 @@ noeffect(ip) register INS *ip;
 		return afcompare(A_EA, afp0, afp1);
 	else if (ip->i_op == ZMOV)
 		return (MOD(afp0)==A_DR && afcompare(0, afp0, afp1));
+	if (ip->i_fp->i_type == EPILOG && (usedregs & (BESI|BEDI|BEBX)) == 0) {
+		/*
+		 * "add %esp, $n" or "pop %ecx" before "leave" has no effect.
+		 * Watch out for functions which restore register variables,
+		 * the stack adjust is required before the restores.
+		 * This knows the details of i386/emit1.c/genepilog()
+		 * code generation.
+		 */
+		return ((ip->i_op == ZADD && afp0->a_mode == A_RESP)
+		     || (ip->i_op == ZPOP && afp0->a_mode == A_RECX));
+	}
 	return 0;
 }
 
