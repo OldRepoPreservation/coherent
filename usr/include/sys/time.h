@@ -4,8 +4,8 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 
-#ifndef	_TIME_H
-#define	_TIME_H
+#ifndef	__SYS_TIME_H__
+#define	__SYS_TIME_H__
 
 struct timeval {
 	long tv_sec;

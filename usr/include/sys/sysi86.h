@@ -1,5 +1,11 @@
-#ifndef _SYSI86_H
-#define _SYSI86_H
+/* (-lgl
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+
+#ifndef __SYS_SYSI86_H__
+#define __SYS_SYSI86_H__
 
 #define SI86FPHW	40
 
