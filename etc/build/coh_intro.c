@@ -1,6 +1,6 @@
 /*
  * coh_intro.c
- * 5/10/90
+ * 10/20/90
  * Usage: coh_intro
  * Uses routines in build0.c: cc -o coh_intro coh_intro.c build0.c
  */
@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION	"1.1"
+#define	VERSION	"1.2"
 
 /* Forward. */
 void	tour();
@@ -113,12 +113,13 @@ tour()
 "\n"
 "Some important devices are:\n"
 "\t/dev/at*\tCooked (block-by-block) hard disk partitions\n"
-"\t/dev/com*\tSerial port devices (COM1 and COM2)\n"
+"\t/dev/com*\tSerial port devices (COM1, COM2, COM3, COM4)\n"
 "\t/dev/console\tConsole terminal\n"
 "\t/dev/f*\t\tFloppy disk devices\n"
 "\t/dev/lpt*\tParallel port devices (LPT1, LPT2 and LPT3)\n"
 "\t/dev/null\tBit bucket\n"
 "\t/dev/rat*\tRaw (character-by-character) hard disk partitions\n"
+"\t/dev/rf*\tRaw (character-by-character) floppy disk devices\n"
 "\n"
 		);
 
@@ -197,13 +198,6 @@ tour()
 	/* Diskettes. */
 	cls(1);
 	printf(
-"To use a floppy disk with COHERENT, you must:\n"
-"\t(1) format it with /etc/fdformat,\n"
-"\t(2) build an empty filesystem on it with /etc/mkfs,\n"
-"\t(3) mount it with /bin/mount or /etc/mount,\n"
-"\t(4) copy files to or from it, e.g. with /bin/cp or /bin/cpdir,\n"
-"and\t(5) unmount it with /bin/umount or /etc/umount.\n"
-"\n"
 "Some commonly used diskette device names and formats are:\n"
 "\tDevice name  Sectors/track  Heads  Sectors  Bytes   Format\n"
 "\t/dev/f9a0          9          2      720    360 KB   5.25\"\n"
@@ -212,9 +206,21 @@ tour()
 "\t/dev/fva0         18          2     2880    1.44 MB  3.5\"\n"
 "Device names ending in '0' and '1' indicate drives A: and B:.\n"
 "\n"
+		);
+	cls(1);
+	printf(
+"To use a floppy disk with COHERENT, you must:\n"
+"\t(1) format it with /etc/fdformat,\n"
+"\t(2) check it for bad blocks with /etc/badscan,\n"
+"\t(3) build an empty filesystem on it with /etc/mkfs,\n"
+"\t(4) mount it with /bin/mount or /etc/mount,\n"
+"\t(5) copy files to or from it, e.g. with /bin/cp or /bin/cpdir,\n"
+"and\t(6) unmount it with /bin/umount or /etc/umount.\n"
+"\n"
 "For example, to copy directory /dir to a 5.25\" high density diskette in A:\n"
 "\t/etc/fdformat /dev/fha0\n"
-"\t/etc/mkfs /dev/fha0 2400\n"
+"\t/etc/badscan -o /tmp/proto /dev/fha0 2400\n"
+"\t/etc/mkfs /dev/fha0 /tmp/proto\n"
 "\t/etc/mount /dev/fha0 /f0\n"
 "\tcpdir -vd /dir /f0/dir\n"
 "\t/etc/umount /dev/fha0\n"
@@ -224,7 +230,11 @@ tour()
 
 	/* Done. */
 	cls(1);
-	printf("This concludes your brief introduction to COHERENT.\n");
+	printf(
+"This concludes your brief introduction to COHERENT.\n"
+"To see this introduction again, type \"/etc/coh_intro\".\n"
+"\n"
+		);
 }
 
 /* end of coh_intro.c */
