@@ -287,18 +287,18 @@ STRING asval;
 	}
 	if (i < 0)
 		if ((i += (int)NF + 1) == 0)
-	for (;;) {
-		while (FSMAP[*s1])
+			i = -1;
+	do {
+		if (whitesw)
+			while (FSMAP[*s1])
+				s1++;
+		else
+			if (FSMAP[*s1])
+				s1++;
+		if (!*s1 || --i==0)
+			break;
 		while ((c = *s1) && !FSMAP[c])
-		if (*s1=='\0' || --i==0)
-			break;
-		while ((c = *s1++)!='\0' && !FSMAP[c])
-			;
-		if (c == '\0') {
-			s1--;
-			break;
-		}
-	}
+			s1++;
 	} while(c);
 	s2 = s1;
 	nb = sizeof(CHAR);
@@ -526,7 +526,6 @@ int op;
 NODE *
 xassign(l, r)
 register NODE *l, *r;
-
 {
 	if (l->t_op == AFIELD)
 		return (xfield((int)evalint(l->n_O1), evalstring(r)));

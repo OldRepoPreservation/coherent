@@ -76,13 +76,17 @@ register FILE *fp;
 	ret = c==EOF && s==as ? NULL : as;
 	s = as;
 	for (;;) {
-		while (FSMAP[*s])
-			s++;
+		if (whitesw)
+			while (FSMAP[*s])
+				s++;
+		else
+			if (FSMAP[*s])
+				s++;
 		if (*s == '\0')
 			break;
 		nf++;
-		while ((c = *s++)!='\0' && !FSMAP[c])
-			;
+		while ((c = *s) != '\0' && !FSMAP[c])
+			s++;
 		if (c == '\0')
 			break;
 	}
