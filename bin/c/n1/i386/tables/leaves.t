@@ -48,6 +48,11 @@ LEAF:
 		*		*
 			[ZLEA]	[R],[NSE AL]
 
+/ For the word and byte patterns below,
+/ if [AL] is register, e.g. EAX (meaning word AX or byte AL),
+/ the generated ZMOV looks wrong (using EAX rather than AX or AL),
+/ but it gets cleaned up ex post facto by n2/i386/asm.c/asm().
+/ This is a kludge but at the moment I see no way around it.
 / Load a dword.
 %	PVALUE
 	DWORD		ANYR	*	*	TEMP
