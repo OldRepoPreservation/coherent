@@ -4,70 +4,81 @@
  * Main program, initialization and miscellaneous routines.
  */
 
-/* #include <sys/param.h> */
+#include <assert.h>
 #include <stdarg.h>
 #include "sh.h"
 
+void		fakearg		();
+void		reset		();
+void		ecantopen	();
+void		panic		();
+void		printe		();
+void		syntax		();
+
+
+int
 main(argc, argv, envp)
 char *argv[];
 char *envp[];
 {
 
-	sarg0 = argc>0 ? argv[0] : "";
-	fakearg(0, argc, argv, envp);
-	if (argc>0 && argv[0][0]=='-') {
-		lgnflag = 1;
-		umask(ufmask=022);
-	} else if (argc>0 && argv[0][0]=='+') {
-		lgnflag = 2;
-		umask(ufmask=022);
-	} else {
-		umask(ufmask=umask(ufmask));
-	}
+	sarg0 = argc > 0 ? argv [0] : "";
+	fakearg (0, argc, argv, envp);
 
-	if (setjmp(restart) != 0) {
+	if (argc > 0 && argv [0][0] == '-') {
+		lgnflag = 1;
+		umask (ufmask = 022);
+	} else if (argc > 0 && argv [0][0] == '+') {
+		lgnflag = 2;
+		umask (ufmask = 022);
+	} else
+		umask (ufmask = umask (ufmask));
+
+	if (setjmp (restart) != 0) {
 		/* reentry for shell command file execution */
-		fakearg(1, nargc, nargv, nenvp);
+		fakearg (1, nargc, nargv, nenvp);
 		argc = nargc;
 		argv = nargv;
 		envp = nenvp;
-		cmdflag++;
+		cmdflag ++;
 		nllflag = 0;
 	}
 
-	shpid = getpid();
-	initvar(envp);
-#if 0
-	cleanup(1, NULL);
-#endif
-	if (set(argc, argv, 1))
-		return(1);
+	shpid = getpid ();
+	initvar (envp);
+
+	if (set (argc, argv, 1))
+		return 1;
+
 	if (cflag) {
-		if (sargp[0]==NULL) {
-			printe("No string for -c?");
-			return(1);
+		if (sargp [0] == NULL) {
+			printe ("No string for -c?");
+			return 1;
 		}
-		--sargc;
-		session(SARGS, *sargp++);
-	} else if (!sflag && !iflag && sargc!=0) {
-		sarg0 = *sargp++;
+		-- sargc;
+		session (SARGS, * sargp ++);
+	} else if (! sflag && ! iflag && sargc != 0) {
+		sarg0 = * sargp ++;
 		--sargc;
 		if (scmdp == NULL)
 			scmdp = sarg0;
-		session(SFILE, scmdp);
-	} else {
-		session(SSTR, stdin);
-	}
+		session (SFILE, scmdp);
+	} else
+		session (SSTR, stdin);
+
 	cleanup_shell_fns ();
 	unlink_temp (capture_temp ());
-	return (slret);
+	return slret;
 }
+
 
 /*
  * Make the arg listing of ps come out right.
  *	f == 0, first entry, determine buffer limits.
  *	f != 0, later entry, fill buffer with lies.
  */
+
+void
 fakearg(f, argc, argv, envp)
 int f, argc;
 char **argv, **envp;
@@ -77,173 +88,228 @@ char **argv, **envp;
 	register int n;
 
 	if (f == 0) {
-		fbuf = argv[0];
+		fbuf = argv [0];
 		nbuf = 0;
-		if (envp != NULL && envp[0] != NULL) {
-			while (envp[1] != NULL)
+		if (envp != NULL && envp [0] != NULL) {
+			while (envp [1] != NULL)
 				envp += 1;
-			nbuf = envp[0] - fbuf + strlen(envp[0]) - 1;
+			nbuf = envp [0] - fbuf + strlen (envp [0]) - 1;
 		} else if (argc > 0)
-			nbuf = argv[argc-1] - fbuf + strlen(argv[argc-1]) - 1;
+			nbuf = argv [argc - 1] - fbuf +
+				strlen (argv [argc - 1]) - 1;
 	} else {
 		if (fbuf == NULL || nbuf == 0)
 			return;
 		n = 0;
-		fbuf[0] = 0;
-		while (--argc > 0) {
+		fbuf [0] = 0;
+		while (-- argc > 0) {
 			argv += 1;
-			n += strlen(argv[0]) + 1;
+			n += strlen (argv [0]) + 1;
 			if (n >= nbuf)
 				break;
-			strcat(fbuf, argv[0]);
-			strcat(fbuf, " ");
+			strcat (fbuf, argv [0]);
+			strcat (fbuf, " ");
 		}
-		strcat(fbuf, "\1");	/* non-ascii terminator */
+		strcat (fbuf, "\1");	/* non-ascii terminator */
 	}
 }
+
+
+/*
+ * Push a session of the indicated type. A non-zero return value is the
+ * appropriate return value for the session, but offset by one.
+ */
+
+int
+push_session (type, info, session)
+int		type;
+__VOID__      *	info;
+SES	      *	session;
+{
+	session->s_next = sesp;
+	sesp = session;
+	session->s_bpp = savebuf ();
+
+	switch (session->s_type = type) {
+	case SARGS:
+		session->s_strp = (char *) info;
+		session->s_flag = 0;
+		break;
+
+	case SARGV:
+		session->s_argv = (char **) info;
+		if ((session->s_strp = session->s_argv [0]) == NULL)
+			return 1;
+		session->s_flag = 0;
+		break;
+
+	case SFILE:
+		session->s_strp = (char *) info;
+		if ((session->s_ifp = fopen (session->s_strp, "r")) == NULL) {
+			ecantopen (session->s_strp);
+			return 2;
+		}
+		session->s_flag = isatty (fileno (session->s_ifp)) &&
+					  isatty (2);
+		break;
+
+	case SSTR:
+		session->s_strp = NULL;
+		session->s_ifp = (FILE *) info;
+		session->s_flag = isatty (fileno (session->s_ifp)) &&
+					  isatty (2);
+		break;
+	}
+
+	return 0;
+}
+
+
+/*
+ * Pop the passed-in session, which must be the current session.
+ */
+
+void
+pop_session (session)
+SES	      *	session;
+{
+	assert (sesp == session);
+
+	freebuf (session->s_bpp);
+
+	if (session->s_type == SFILE)
+		fclose (session->s_ifp);
+
+	if (session->s_next == NULL) {
+		sigintr (0);
+		recover (IRDY);
+	}
+
+	sesp = session->s_next;
+}
+
 
 /*
  * Loop on input.
  */
+
+int
 session(t, p)
 register char *p;
 {
 	SES s;
 	register int rcode;
 
-	s.s_next = sesp;
-	sesp = &s;
-	s.s_bpp = savebuf();
-
-	switch (s.s_type = t) {
-	case SARGS:
-		s.s_strp = p;
-		s.s_flag = 0;
-		break;
-	case SARGV:
-		s.s_argv = (char **) p;
-		if ((s.s_strp = s.s_argv[0]) == NULL)
-			return (0);
-		s.s_flag = 0;
-		break;
-	case SFILE:
-		s.s_strp = p;
-		if ((s.s_ifp = fopen(s.s_strp, "r")) == NULL) {
-			ecantopen(s.s_strp);
-			return (1);
-		}
-		s.s_flag = isatty(fileno(s.s_ifp)) && isatty(2);
-		break;
-	case SSTR:
-		s.s_strp = NULL;
-		s.s_ifp = (FILE *) p;
-		s.s_flag = isatty(fileno(s.s_ifp)) && isatty(2);
-		break;
-	}
+	if ((rcode = push_session (t, p, & s)) > 0)
+		return rcode - 1;
 
 	if (s.s_next == NULL) {		/* Initial entry */
 		if (iflag)
 			s.s_flag = iflag;
 		else
 			iflag = s.s_flag;
-		dflttrp(IRDY);
+		dflttrp (IRDY);
 	}
 
 	/* Loop on input */
 	for (;;) {
 		unlink_temp (capture_temp ());
 
-		rcode = setjmp(s.s_envl);
+		rcode = setjmp (s.s_envl);
 		switch (rcode) {
 		case RSET:	/* initial setjmp call */
 			switch (lgnflag) {
 			case 1:		/* - sign invocation */
 				lgnflag = 0;
-				if (ffind("/etc", "profile", 4))
-					session(SFILE, duplstr(strt, 0));
-				recover(IPROF);
-				if (*vhome && ffind(vhome, ".profile", 4))
-					session(SFILE, duplstr(strt, 0));
+				if (ffind ("/etc", "profile", 4))
+					session (SFILE, duplstr (strt, 0));
+				recover (IPROF);
+				if (* vhome && ffind (vhome, ".profile", 4))
+					session (SFILE, duplstr (strt, 0));
 				break;
+
 			case 2:		/* + sign invocation */
 				lgnflag = 0;
-				if (ffind("/etc", "profile", 4))
-					session(SFILE, duplstr(strt, 0));
-				recover(IPROF);
-				return exshell( findvar("SHELL") );
+				if (ffind ("/etc", "profile", 4))
+					session (SFILE, duplstr (strt, 0));
+				recover (IPROF);
+				return exshell (findvar ("SHELL"));
 			}
-			checkmail();
+			checkmail ();
 			comflag = 1;
 			errflag = 0;
-			recover(IRDY);
-			freebuf(s.s_bpp);
-			s.s_bpp = savebuf();
-			if (yyparse() != 0)
-				syntax();
+			recover (IRDY);
+			freebuf (s.s_bpp);
+			s.s_bpp = savebuf ();
+			if (yyparse () != 0)
+				syntax ();
+
 		case REOF:
-			recover(IRDY);
+			recover (IRDY);
 			break;
+
 		case RCMD:
-			recover(IRDY);
+			recover (IRDY);
 			s.s_con = NULL;
-			command(s.s_node);
-			if ((tflag && tflag++ >= 2))
+			command (s.s_node);
+			if (tflag && tflag ++ >= 2)
 				break;
 			continue;
+
 		case RERR:
-			recover(IRDY);
-			if ( ! errflag)
-				syntax();
-			if ( ! iflag || (tflag && tflag++ >= 2))
+			recover( IRDY);
+			if (! errflag)
+				syntax ();
+			if (! iflag || (tflag && tflag ++ >= 2))
 				break;
 			continue;
+
 		case RINT:
 			if (s.s_next != NULL) {
 				sesp = s.s_next;
-				reset(RINT);
+				reset (RINT);
 				NOTREACHED;
 			}
 			prpflag = 2;
-			if ( ! iflag || (tflag && tflag++ >= 2))
+			if (! iflag || (tflag && tflag ++ >= 2))
 				break;
 			continue;
+
 		case RUEXITS:
 		case RUABORT:
 			if (s.s_next != NULL) {
 				sesp = s.s_next;
-				reset(rcode);
+				reset (rcode);
 				NOTREACHED;
 			}
-			if (rcode == RUEXITS || !iflag || (tflag && tflag++ >= 2))
+			if (rcode == RUEXITS || ! iflag ||
+			    (tflag && tflag ++ >= 2))
 				break;
 			continue;
+
 		case RNOSBRK:
 		case RSYSER:
 		case RBRKCON:
 		case RNOWAY:
 		default:
-			if (s.s_next!=NULL)
+			if (s.s_next != NULL)
 				break;
-			if ( ! iflag || (tflag && tflag++ >= 2))
+			if (! iflag || (tflag && tflag ++ >= 2))
 				break;
 			continue;
 		}
 		break;
 	}
-	freebuf(s.s_bpp);
-	if (s.s_type == SFILE)
-		fclose(s.s_ifp);
-	if (s.s_next == NULL) {
-		sigintr(0);
-		recover(IRDY);
-	}
-	sesp = s.s_next;
+
+	pop_session (& s);
 	return (slret);
 }
 
+
+void
 reset(f)
 {
-	longjmp(sesp->s_envl, f);
+	longjmp (sesp->s_envl, f);
 	NOTREACHED;
 }
 
@@ -260,7 +326,8 @@ ALLOC_COUNT (temp)
  * Remember the name of a temporary file.
  */
 
-void remember_temp (filename)
+void
+remember_temp (filename)
 char * filename;
 {
 	TEMP_FILE     *	temp = (TEMP_FILE *) salloc (sizeof (* temp));
@@ -278,7 +345,8 @@ char * filename;
  * the global pointer to that list.
  */
 
-TEMP_FILE * capture_temp ()
+TEMP_FILE *
+capture_temp ()
 {
 	TEMP_FILE     *	temp = temp_list;
 
@@ -291,7 +359,8 @@ TEMP_FILE * capture_temp ()
  * Deallocate a list of temporary files.
  */
 
-void forget_temp (templist)
+void
+forget_temp (templist)
 TEMP_FILE     *	templist;
 {
 	TEMP_FILE     *	temp;
@@ -312,7 +381,8 @@ TEMP_FILE     *	templist;
  * the list nodes.
  */
 
-void unlink_temp (templist)
+void
+unlink_temp (templist)
 TEMP_FILE     *	templist;
 {
 	TEMP_FILE     *	temp;
@@ -332,20 +402,25 @@ TEMP_FILE     *	templist;
 /*
  * Make a temp file name.
  */
+
 char *
-shtmp()
+shtmp ()
 {
-	static char tmpfile[] = "/tmp/shXXXXXX";
+	static char tmpfile [] = "/tmp/shXXXXXXX";
 	static int tmpflag = 0;
 
-	sprintf(tmpfile+6, "%05d%c", shpid, (tmpflag++%26) + 'a');
-	return (tmpfile);
+	tmpflag ++;
+	sprintf (tmpfile + 6, "%05d%c%c", shpid, tmpflag % 26 + 'a',
+		 (tmpflag / 26) % 26 + 'a');
+	return tmpfile;
 }
+
 
 /*
  * Print formatted.
  */
 
+void
 prints (format /* , ... */)
 char * format;
 {
@@ -356,29 +431,36 @@ char * format;
 	va_end (args);
 }
 
+
 /*
  * Make a core dump in /tmp and longjmp back to session -
  *	there's a possibility we'll die horribly.
  */
-panic(i) register int i;
+
+void
+panic (i)
+int i;
 {
 #ifdef PARANOID
 	register int f;
 
-	if ((f=fork())==0) {
-		abort();
+	if ((f = fork ()) == 0) {
+		abort ();
 		NOTREACHED;
 	}
-	waitc(f);
+	waitc (f);
 #endif
-	printe("Internal shell assertion %d failed", i);
-	reset(RNOWAY);
+	printe ("Internal shell assertion %d failed", i);
+	reset (RNOWAY);
 	NOTREACHED;
 }
+
 
 /*
  * Print out an error message.
  */
+
+void
 printe (format /* , ... */)
 char * format;
 {
@@ -396,52 +478,63 @@ char * format;
 /*
  * Some familiar errors.
  */
-ecantopen(s) char *s; { printe("Cannot open %s", s); }
-ecantfind(s) char *s; { printe("Cannot find %s", s); }
-e2big(s) char *s; { printe("File to big to execute: %s", s); }
-ecantmake(s) char *s; { printe("Cannot create %s", s); }
-emisschar(c) { printe("Missing `%c'", c); }
-ecantfdop() { printe("Fdopen failed"); }
-enotdef(s) char *s; { printe("Cannot find variable %s", s); }
-eillvar(s) char *s; { printe("Illegal variable name: %s", s); }
-eredir() { printe("Illegal redirection"); }
-etoolong() { printe("Argument too long: %.*s", STRSIZE, strt); }
-eredirundo() {
+
+void	ecantopen(s) char *s; { printe ("Cannot open %s", s); }
+void	ecantfind(s) char *s; { printe ("Cannot find %s", s); }
+void	e2big(s) char *s; { printe ("File to big to execute: %s", s); }
+void	ecantmake(s) char *s; { printe ("Cannot create %s", s); }
+void	emisschar(c) { printe ("Missing `%c'", c); }
+void	ecantfdop() { printe ("Fdopen failed"); }
+void	enotdef(s) char *s; { printe ("Cannot find variable %s", s); }
+void	eillvar(s) char *s; { printe ("Illegal variable name: %s", s); }
+void	eredir() { printe ("Illegal redirection"); }
+void	etoolong(s) char *s; {
+	printe ("Argument too long %s: %.*s", s, STRSIZE, strt);
+}
+void	eredirundo() {
   printe ("Unable to preserve redirection state when redirecting builtin");
 }
+
 
 /*
  * Don't print out an error message.
  */
+
+void
 yyerror()
 {
 }
 
+
 /*
  * print out the prompt given the prompt to write
  */
+
+void
 prompt(vps)
 char *vps;
 {
-	prints("%s", vps);
+	prints ("%s", vps);
 #if RSX
-	fflush(stdout);
+	fflush (stdout);
 #endif
 }
+
 
 /*
  * Syntax error message - print line number and file if
  *	not interactive.
  */
+
+void
 syntax()
 {
 	if (sesp->s_type == SFILE) {
-		if (feof(sesp->s_ifp))
-			printe("%s: Syntax error at EOF", sesp->s_strp);
+		if (feof (sesp->s_ifp))
+			printe ("%s: Syntax error at EOF", sesp->s_strp);
 		else
-			printe("%s: Syntax error in line %d", sesp->s_strp, yyline);
+			printe ("%s: Syntax error in line %d", sesp->s_strp,
+				yyline);
 	} else
-		printe("Syntax error");
+		printe ("Syntax error");
 }
-
-/* end of sh/main.c */

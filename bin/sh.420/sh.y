@@ -63,18 +63,13 @@ extern	NODE	*node();
 %%
 
 session:
-	session cmd_line
-|
-;
-
-cmd_line:
 	'\n' {
 		sesp->s_node = NULL;
 		reset(RCMD);
 		NOTREACHED;
 	}
 |
-	cmd_list '\n' {
+	cmd_list {
 		sesp->s_node = $1;
 		reset(errflag ? RERR : RCMD);
 		NOTREACHED;
@@ -85,6 +80,7 @@ cmd_line:
 		reset(RERR);
 		NOTREACHED;
 	}
+|
 ;
 
 if:	_IF optnls ;
@@ -220,10 +216,30 @@ redirect_list:
 
 simple_command:
 	cmd_prefix cmd_word cmd_suffix {
-		(($$ = $1)->n_next = $2)->n_next = $3;
+		NODE	      *	tmp = $1;
+		/*
+		 * NIGEL: The structure of the nodes that have to be generated
+		 * is flat, but now the grammar is structured; deal with this.
+		 */
+
+		while (tmp->n_next)
+			tmp = tmp->n_next;
+
+		(tmp->n_next = $2)->n_next = $3;
+		$$ = $1;
 	}
 |	cmd_prefix cmd_word {
-		($$ = $1)->n_next = $2;
+		NODE	      *	tmp = $1;
+		/*
+		 * NIGEL: The structure of the nodes that have to be generated
+		 * is flat, but now the grammar is structured; deal with this.
+		 */
+
+		while (tmp->n_next)
+			tmp = tmp->n_next;
+
+		tmp->n_next = $2;
+		$$ = $1;
 	}
 |	cmd_prefix {
 		$$ = $1;
@@ -623,6 +639,9 @@ nopen:	_NOPEN optnls ;
 		$$ = node(NRPIPE, $2, NULL);
 	}
 |	oparen pipe_cmd _NCLOSE {
+		$$ = node(NWPIPE, $2, NULL);
+	}
+CLOSE {
 		$$ = node(NWPIPE, $2, NULL);
 	}
  *

@@ -5,303 +5,402 @@
  * blank interpretation, and file name generation.
  */
 
+#include <sys/compat.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "sh.h"
 
-char	*arcp;		/* character position in argument */
-int	argf = 1;	/* First character of argument flag */
-int	argg = 0;	/* Glob seek, escape quoted glob chars */
-int	argq = 0;	/* Quotation flag, no blanks or glob */
+struct eval_context {
+	char	* arcp;		/* character position in argument */
+	int	argf;		/* First character of argument flag */
+	int	argg;		/* Glob seek, escape quoted glob chars */
+	int	argq;		/* Quotation flag, no blanks or glob */
+} _eval [1];
+
+LOCAL	void	variable	();
+LOCAL	void	special		();
+LOCAL	void	graves		();
+
+LOCAL	void	add_char	();
+LOCAL	void	add_quoted	();
+LOCAL	void	add_arg		();
+LOCAL	void	end_arg		();
+
+#define	EVAL_NO_QUOTE			0
+#define	EVAL_QUOTED			1
+#define	EVAL_FORCE_QUOTE		2
+
+#define	EVAL_INPUT_SOURCE(eval,cp)	(void) ((eval)->arcp = (cp))
+#define	EVAL_NEXT_CHAR(eval)		(* (eval)->arcp ++)
+#define	EVAL_UNGET_CHAR(eval,ch)	(void) ((eval)->arcp --)
+
+#define	EVAL_SET_QUOTING(eval,q)	(void) ((eval)->argq = (q))
+#define	EVAL_ADD_QUOTE(eval,q)	\
+		(void) ((eval)->argq = ((eval)->argq & ~ EVAL_QUOTED)  | (q))
+#define	EVAL_IS_QUOTED(eval)		((eval)->argq)
+
+#define	EVAL_SET_GLOB(eval,g)		(void) ((eval)->argg = (g))
+#define	EVAL_IS_GLOBSEEK(eval)		((eval)->argg != 0)
+
+#define	EVAL_MADE_ARGUMENT(eval)	(void) ((eval)->argf = 0)
+#define	EVAL_ARGUMENT_IF_QUOTED(eval)	(void) ((eval)->argf &= \
+						~ (eval)->argq)
+#define	EVAL_NO_ARGUMENT(eval)		(void) ((eval)->argf = 1, strp = strt)
+#define	EVAL_IS_NO_ARGUMENT(eval)	((eval)->argf != 0)
+
 
 /*
  * Evaluate a string.
  */
+
+void
 eval(cp, f)
 char *cp;
 {
 	register int m, c;
 
-	strp = strt;
-	arcp = cp;
-	argf = 1;
-	if (f==EHERE) {
+	EVAL_INPUT_SOURCE (_eval, cp);
+	EVAL_NO_ARGUMENT (_eval);
+
+	if (f == EHERE) {
 		m = MHERE;
-		argq = 2;
-	} else if (f==EWORD) {
+		EVAL_SET_QUOTING (_eval, EVAL_FORCE_QUOTE);
+	} else if (f == EWORD) {
 		m = MNQUO;
-		argq = 2;
+		EVAL_SET_QUOTING (_eval, EVAL_FORCE_QUOTE);
 	} else {
 		m = MNQUO;
-		argq = 0;
+		EVAL_SET_QUOTING (_eval, EVAL_NO_QUOTE);
 	}
-	argg = (f==EARGS || f==EPATT);
+	EVAL_SET_GLOB (_eval, f == EARGS || f == EPATT);
 
-	while ((c = *arcp++) != '\0') {
-		if (!class(c, m)) {
-			add_char(c);
+	while ((c = EVAL_NEXT_CHAR (_eval)) != '\0') {
+		if (! class (c, m)) {
+			add_char (c);
 			continue;
 		}
 		switch (c) {
 		case '"':	/* m == MNQUO || m == MDQUO */
-			m = ((argq ^= 1) & 1) ? MDQUO : MNQUO;
-			/*
-			 * POSIX.2 says: If there are no positional
-			 * parameters, the expansion of $@ shall generate
-			 * zero fields, even when double-quoted.
-			 */
-#if 1
-			if (m == MDQUO && strcmp (arcp, "\"") == 0)
-				argf = 0;
-#else
-			if (m==MDQUO && strcmp(arcp, "$@\"")!=0)
-				argf = 0;
-#endif
-			continue;
-		case '\'':	/* m == MNQUO */
-			while ((c = *arcp++) != '\'')
-				add_quoted(c);
-			argf = 0;
-			continue;
-		case '\\':	/* m == MDQUO || m == MNQUO */
-			c = *arcp++;
-			if (m != MNQUO && ! class(c, m)) {
-				add_char('\\');
-				add_char(c);
+			if ((m ^= (MDQUO ^ MNQUO)) == MDQUO) {
+
+				EVAL_ADD_QUOTE (_eval, EVAL_QUOTED);
+
+				if ((c = EVAL_NEXT_CHAR (_eval)) == '\"')
+					EVAL_MADE_ARGUMENT (_eval);
+
+				EVAL_UNGET_CHAR (_eval, c);
 			} else
-				add_quoted(c);
-			argf = 0;
+				EVAL_ADD_QUOTE (_eval, 0);
 			continue;
+
+		case '\'':	/* m == MNQUO */
+			while ((c = EVAL_NEXT_CHAR (_eval)) != '\'' && c != 0)
+				add_quoted (c);
+			EVAL_MADE_ARGUMENT (_eval);
+			continue;
+
+		case '\\':	/* m == MDQUO || m == MNQUO */
+			c = EVAL_NEXT_CHAR (_eval);
+			if (m != MNQUO && ! class (c, m)) {
+				add_char ('\\');
+				add_char (c);
+			} else
+				add_quoted (c);
+			EVAL_MADE_ARGUMENT (_eval);
+			continue;
+
 		case '$':	/* m == MNQUO || m = MDQUO */
-			variable();
+			variable ();
 			continue;
+
 		case '`':	/* m == MNQUO || m = MDQUO */
 			graves (m);
 			continue;
+
 		default:
-			add_char(c);
+			add_char (c);
 			continue;
 		}
 	}
-	if (f==EARGS)
-		end_arg();
+
+	if (f == EARGS)
+		end_arg ();
 	else
-		*strp++ = '\0';
+		* strp ++ = '\0';
 }
+
 
 /*
  * Read the name of a shell variable and perform the appropriate substitution.
- * Doesn't check for end of buffer.
  */
+
+LOCAL void
 variable()
 {
 	VAR *vp;
 	int s;
-	char *wp, *sav;
+	char *sav;
 	register int c, count, quote;
-	register char *cp, *pp;
+	register char * pp;
+	char	      *	name_start = strp;
+	char	      *	alternate_value;
+	int		colon_test = 0;
 
-	cp = strp;
 	s = '\0';
-	c = *arcp++;
-	if (class(c, MSVAR)) {
-		special(c);
+	c = EVAL_NEXT_CHAR (_eval);
+
+	if (strchr (SPECIAL_VAR_CHARS, c) != 0) {
+		special (c);
 		return;
-	} else if (class(c, MRVAR)) {
-		while (class(c, MRVAR)) {
-			*cp++ = c;
-			c = *arcp++;
-		}
-		--arcp;
+	} else if (class (c, MRVAR)) {
+		do {
+			add_arg (c);
+			c = EVAL_NEXT_CHAR (_eval);
+		} while (class (c, MRVAR));
+
+		EVAL_UNGET_CHAR (_eval, c);
 	} else if (c != '{') {
 		/* Not a legal variable name, put it back. */
-		add_char('$');
-		add_char(c);
+		add_char ('$');
+		add_char (c);
 		return;
 	} else {
 		/* c == '{' */
-		if (index("#?$!-@*0123456789", arcp[0]) != NULL && arcp[1] == '}') {
-			/* Allow specials of the form "${?}" etc. */
-			special(arcp[0]);
-			arcp += 2;
-			return;
+
+		c = EVAL_NEXT_CHAR (_eval);
+
+		if (strchr (SPECIAL_VAR_CHARS, c) != NULL) {
+			int		peek;
+
+			if ((peek = EVAL_NEXT_CHAR (_eval)) == '}') {
+
+				/* Allow specials of the form "${?}" etc. */
+				special (c);
+				return;
+			}
+			EVAL_UNGET_CHAR (_eval, peek);
 		}
-		while (index("}-=?+", c = *arcp++) == NULL)
-			*cp++ = c;
-		if (c != '}') {
-			/* ${VAR [-=?+] token} */
+
+		for (;;) {
+			if (! class (c, MRVAR))
+				break;
+			add_arg (c);
+			c = EVAL_NEXT_CHAR (_eval);
+		}
+
+		if ((colon_test = c == ':') != 0)
+			c = EVAL_NEXT_CHAR (_eval);
+
+		if (strchr ("-=?+", c) != NULL) {
+			/*
+			 * ${VAR [-=?+] word}
+			 * Stash away the value of the intemediate character
+			 * and store a '=' character to stroke the variable-
+			 * storage machinery.
+			 */
+
 			s = c;
-			if (cp[-1] == ':')
-				--cp;		/* allow e.g. ${VAR:=foo} */
-			*cp++ = '=';
-			wp = cp;
-			if ((quote = *arcp) == '"' || quote =='\'')
-				++arcp;
-			else
+			add_arg ('=');
+			alternate_value = strp;
+			if ((quote = EVAL_NEXT_CHAR (_eval)) != '"' &&
+			    quote != '\'') {
+
+				EVAL_UNGET_CHAR (_eval, quote);
 				quote = 0;
+			}
+
 			for (count = 1; ; ) {
-				c = *arcp++;
-				if (c == '}' && count-- == 1)
+				c = EVAL_NEXT_CHAR (_eval);
+				if (c == '}' && count -- == 1)
 					break;
 				else if (c == '$' && quote != '\'') {
 /*
  * steve 6/24/92
  * This truly sleazy hack handles e.g. "${V1-$V2}", oy.
  * It doesn't do it very well, paying no attention to quotes (for example).
- * The recursive call to variable() should be straightforward but is not,
- * the hacky way this module uses globals like strp requires the save/restore.
  */
-					sav = strp;
-					strp = cp;
-					variable();
-					cp = strp;
-					strp = sav;
+					variable ();
 					continue;
 				} else if (c == '{')
-					++count;
+					++ count;
 				else if (quote != 0 && c == quote) {
 					quote = 0;
 					continue;
 				}
-				*cp++ = c;
+				add_arg (c);
 			}
+		} else if (colon_test || c != '}') {
+			eillvar (strp = name_start);
+			return;
 		}
 	}
-	*cp++ = '\0';
-	if (class((c = *strp), MDIGI)) {
+	add_arg ('\0');
+
+	c = * name_start;
+
+	if (class (c, MDIGI)) {
 		if ((c -= '1') >= sargc)
 			pp = NULL;
 		else
-			pp = sargp[c];
-	} else if (namevar(strp) == 0) {
-		eillvar(strp);
+			pp = sargp [c];
+	} else if (namevar (name_start) == 0) {
+		eillvar (strp = name_start);
 		return;
 	} else {
 		pp = NULL;
-		if ((vp=findvar(strp)) != NULL) {
-			pp = convvar(vp);
-			if (*pp == '\0')
+		if ((vp = findvar (name_start)) != NULL) {
+			pp = convvar (vp);
+			if (* pp == '\0' && colon_test)
 				pp = NULL;	/* regard value "" as not set */
 		}
 	}
+
 	switch (s) {
 	case '\0':
-		if (uflag!=0 && pp==NULL)
-			enotdef(strp);
+		if (uflag != 0 && pp == NULL)
+			enotdef (name_start);
 		break;
+
 	case '-':
 		if (pp == NULL)
-			pp = wp;
+			pp = alternate_value;
 		break;
+
 	case '=':
 		if (pp == NULL) {
-			pp = wp;
-			if (class(*strp, MDIGI)) {
-				printe("Illegal substitution");
+			if (class (* name_start, MDIGI) ||
+			    strchr (SPECIAL_VAR_CHARS,
+				    * name_start) != NULL) {
+
+				printe ("Illegal substitution");
+				strp = name_start;
 				return;
 			}
-			setsvar(strp);
+			setsvar (name_start);
+			pp = alternate_value;
 		}
 		break;
+
 	case '?':
 		if (pp != NULL)
 			break;
-		if (*wp != '\0')
-			prints("%s\n", wp);
+		if (* alternate_value != '\0')
+			prints ("%s\n", alternate_value);
 		else {
-			*--wp = '\0';
-			enotdef(strp);
+			alternate_value [-1] = '\0';
+			enotdef (name_start);
 		}
-		reset(RUABORT);
+		reset (RUABORT);
 		NOTREACHED;
+
 	case '+':
 		if (pp != NULL)
-			pp = wp;
+			pp = alternate_value;
 		break;
 	}
+
+	strp = name_start;
+
 	if (pp != NULL)
-		while ((c = *pp++) != '\0')
-			add_char(c);
-	argf &= ~ argq;
+		while ((c = * pp ++) != '\0')
+			add_char (c);
+
+	EVAL_ARGUMENT_IF_QUOTED (_eval);
 }
+
 
 /*
  * Return the value of the special shell variables.
  * No check for end of buffer.
  */
-special(n)
-register int n;
-{
-	register char *sp;
-	register int flag;
 
-	sp = strp;
+LOCAL void
+special(n)
+int		n;
+{
+	int		flag;
+	char	      *	sp;
+
 	switch (n) {
 	case '#':
 		n = sargc;
 		goto maked;
+
 	case '?':
 		n = slret;
 		goto maked;
+
 	case '$':
 		n = shpid;
 		goto maked;
+
 	case '!':
 		n = sback;
 		goto maked;
+
 	maked:
-		sprintf(sp, "%d", n);
+		sprintf (strp, "%d", n);
+		sp = strp;
 		break;
+
 	case '-':
-		for (sp = &eflag; sp <= &xflag; sp += 1)
-			if (*sp)
-				add_char(*sp);
-		argf &= ~ argq;
+
+		for (sp = & eflag; sp <= & xflag ; sp ++)
+			if (* sp)
+				add_char (* sp);
+
+		EVAL_ARGUMENT_IF_QUOTED (_eval);
 		return;
+
 	case '@':
 	case '*':
-		flag = (argq == 1 && n == '@');
+		flag = EVAL_IS_QUOTED (_eval) == EVAL_QUOTED && n == '@';
 		for (n = 0; n < sargc; n++) {
 			if (n) {
-				argq ^= flag;
-				add_char(' ');
-				argq ^= flag;
+				if (flag)
+					end_arg ();
+				else
+					add_char (' ');
 			}
-			sp = sargp[n];
-			while (*sp)
-				add_char(*sp++);
+
+			sp = sargp [n];
+			while (* sp)
+				add_char (* sp ++);
+
 			/*
 			 * Make sure that arguments like "" get handled
 			 * properly when expanding "$@"
 			 */
+
 			if (flag)
-				argf &= ~ argq;
+				EVAL_ARGUMENT_IF_QUOTED (_eval);
 		}
 		return;
+
 	case '0':
 		sp = sarg0;
 		break;
+
 	default:
-		if ((n-='1') >= sargc) {
+		if (n - '1' >= sargc) {
 			if (uflag)
-				printe("Unset parameter: %c", n+'1');
-			argf &= ~ argq;
+				printe ("Unset parameter: %c", n);
+			EVAL_ARGUMENT_IF_QUOTED (_eval);
 			return;
 		}
-		sp = sargp[n];
+		sp = sargp [n - '1'];
 		break;
 	}
-	while (*sp)
-		add_char(*sp++);
-	argf &= ~ argq;
+
+	while (* sp)
+		add_char (* sp ++);
+
+	EVAL_ARGUMENT_IF_QUOTED (_eval);
 }
+
 
 /*
  * Read and evaluate a command found between graves.
- *
- * NB : The code below relating to saving/restoring the global variable
- * "argf" has been removed; it was not clear what the intended effect was,
- * but it caused expansions into single words (eg, "echo `pwd`") to vanish
- * and caused the word-break algorithm to perform in an unintuitive (and
- * incorrect according to POSIX.2) manner.
  *
  * NB : Backslash-quoting inside graves was not supported properly before,
  * and I'm not sure that I've got it right. The idea is that before passing
@@ -316,70 +415,69 @@ register int n;
  * a temporary buffer. We append our work onto the global "strp" buffer and
  * cut it back once we have finished.
  */
+
+LOCAL void
 graves (quotemode)
 int		quotemode;
 {
 	int pipev[2], f, oslret;
-	int oargf;
 	char	      *	ostrp;
 	register FILE *fp;
 	register int c;
 	register int nnl;
-	char *cmdp;
 
-	oargf = argf;
 	ostrp = strp;
 	oslret = slret;
 
-	cmdp = strp;
-	while ((c = *arcp++) != '`') {
+	while ((c = EVAL_NEXT_CHAR (_eval)) != '`') {
 		if (c != '\\') {
 			add_arg (c);
 			continue;
 		}
-		c = * arcp ++;
+		c = EVAL_NEXT_CHAR (_eval);
 
 		if (! (quotemode == MDQUO && class (c, MDQUO)) &&
 		    (c != '$' && c != '\\' && c != '`'))
 			add_arg ('\\');
+
 		add_arg (c);
 	}
 	* strp = 0;
 
-	if ((f = pipeline(pipev)) == 0) {
+	if ((f = pipeline (pipev)) == 0) {
 		slret = oslret;		/* in case grave command uses $? */
-		dup2(pipev[1], 1);
-		close(pipev[0]);
-		close(pipev[1]);
-		exit(session(SARGS, cmdp));
+		dup2 (pipev [1], 1);
+		close (pipev [0]);
+		close (pipev [1]);
+		exit (session (SARGS, ostrp));
 		NOTREACHED;
 	}
 
-	close(pipev[1]);
-	if ((fp=fdopen(pipev[0], "r")) == NULL) {
-		close(pipev[0]);
-		ecantfdop();
+	close (pipev [1]);
+	if ((fp = fdopen (pipev [0], "r")) == NULL) {
+		close (pipev [0]);
+		ecantfdop ();
 		return;
 	}
 	strp = ostrp;
-	argf = oargf;
 	nnl = 0;
-	while ((c=getc(fp)) != EOF) {
-		if ( ! recover(IEVAL)) {
+
+	while ((c = getc (fp)) != EOF) {
+		if (! recover (IEVAL)) {
 #ifdef VERBOSE
-			if (xflag) prints("Interrupt in eval\n");
+			if (xflag) prints ("Interrupt in eval\n");
 #endif
-			errflag++;
+			errflag ++;
 			break;
 		}
-		if (c=='\n')
-			++nnl;
+		if (c == '\n')
+			++ nnl;
 		else {
 			while (nnl) {
-				nnl--;
-				add_char('\n');
+				nnl --;
+				add_char ('\n');
 			}
-			add_char(c);
+			add_char (c);
 		}
 	}
 
@@ -389,83 +487,97 @@ int		quotemode;
 	 * before.
 	 */
 
-	if (argf)
-		argf = argq ? 0 : oargf;
-
-	fclose(fp);
-	waitc(f);
+	EVAL_ARGUMENT_IF_QUOTED (_eval);
+	fclose (fp);
+	waitc (f);
 }
+
 
 /*
  * Add a character to the current argument.
  * If no quotation is set, pick off blanks and globs.
  */
+
+LOCAL void
 add_char(c)
 register int c;
 {
-	if (argq==0) {
-		if (index(vifs, c) != NULL) {
-			end_arg();
+	if (EVAL_IS_QUOTED (_eval) == 0) {
+		if (strchr (vifs, c) != NULL) {
+			end_arg ();
 			return;
 		}
-		if (argg && class(c, MGLOB)) {
-			add_arg(c);
+		if (EVAL_IS_GLOBSEEK (_eval) && class (c, MGLOB)) {
+			add_arg (c);
+			EVAL_MADE_ARGUMENT (_eval);
 			return;
 		}
 	}
-	add_quoted(c);
+	add_quoted (c);
 }
+
 
 /*
  * Add a quoted character to the current argument.
  * if argg is set, then glob characters are quoted with a \,
  * as well as \ itself.
  */
+
+LOCAL void
 add_quoted(c) register int c;
 {
-	if (argg && (class(c, MGLOB) || c == '\\'))
-		add_arg('\\');
-	add_arg(c);
+	if (EVAL_IS_GLOBSEEK (_eval) && (class (c, MGLOB) || c == '\\'))
+		add_arg ('\\');
+
+	add_arg (c);
+	EVAL_MADE_ARGUMENT (_eval);
 }
+
 
 /*
  * Add a character to the current argument
  * and check for end of buffer.
  */
-add_arg(c) register int c;
+
+LOCAL void
+add_arg (c) register int c;
 {
-	if (strp >= &strt[STRSIZE])	/* Should do more */
-		etoolong();
+	if (strp >= strt + STRSIZE)	/* Should do more */
+		etoolong ("in add_arg ()");
 	else
-		*strp++ = c;
-	argf = 0;
+		* strp ++ = c;
 }
+
 
 /*
  * Terminate the current argument if it is non-empty.
  * If argg is set, then glob the argument to expand globs
  * or to simply remove any quotes.
  */
-end_arg()
+
+LOCAL void
+end_arg ()
 {
-	if (argf != 0)
+	if (EVAL_IS_NO_ARGUMENT (_eval))
 		return;
-	*strp++ = '\0';
-	if (argg)
-		glob1(duplstr(strt, 0));
+
+	* strp ++ = '\0';
+	if (EVAL_IS_GLOBSEEK (_eval))
+		glob1 (duplstr (strt, 0));
 	else {
-		nargv = addargl(nargv, duplstr(strt, 0));
+		nargv = addargl (nargv, duplstr (strt, 0));
 		nargc += 1;
 	}
-	strp = strt;
-	argf = 1;
-	return;
+
+	EVAL_NO_ARGUMENT (_eval);
 }
+
 
 /*
  * Evaluate a here document.
- * Unevaluated document is on u2, put the evaluated document there, too.
  */
+
+int
 evalhere(u2)
 {
 	register int u1;
@@ -473,29 +585,27 @@ evalhere(u2)
 	char buf[128];
 	char *tmp;
 
-	tmp = shtmp();
-	if ((u1=creat(tmp, 0666))<0) {
-		ecantmake(tmp);
+	tmp = shtmp ();
+	if ((u1 = creat (tmp, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)) < 0) {
+		ecantmake (tmp);
 		return -1;
 	}
-	if ((f2=fdopen(u2, "r"))==NULL) {
-		ecantfdop();
-		close(u1);
-		close(u2);
+	if ((f2 = fdopen (u2, "r")) == NULL) {
+		ecantfdop ();
+		close (u1);
+		close (u2);
 		return -1;
 	}
-	while (fgets(buf, 128, f2) != NULL) {
-		eval(buf, EHERE);
-		write(u1, strt, strp-1-strt);
+	while (fgets (buf, sizeof (buf), f2) != NULL) {
+		eval (buf, EHERE);
+		write (u1, strt, strp - 1 - strt);
 	}
-	close(u1);
-	fclose(f2);
-	if ((u2 = open(tmp, 0))<0) {
-		ecantopen(tmp);
+	close (u1);
+	fclose (f2);
+	if ((u2 = open (tmp, O_RDONLY)) < 0) {
+		ecantopen (tmp);
 		u2 = -1;
 	}
-	unlink(tmp);
+	unlink (tmp);
 	return u2;
 }
-
-/* end of sh/eval.c */
