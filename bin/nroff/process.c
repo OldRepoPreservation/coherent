@@ -8,7 +8,9 @@
 #include <ascii.h>
 #include "roff.h"
 
-#define	CHYPHEN	'-'			/* hyphenation character */
+#define	vermove(d)	addidir(DVMOV, (d))	/* vertical movement */
+
+#define	CHYPHEN	'-'				/* hyphenation character */
 
 /*
  * Make sure there is space to add another command.
@@ -27,10 +29,6 @@ addchar(f, w) int f; register int w;
 {
 	chkcode();
 	nlinptr->c_arg.c_code = f & 0xFF;
-#if	0
-	/* Special chars not implemented yet, c_char field not required... */
-	nlinptr->c_arg.c_char = 0;
-#endif
 	nlinptr++->c_arg.c_move = w;
 	nlindir++;
 	nlinsiz += w;
@@ -77,6 +75,9 @@ process()
 		case EOF:		/* End of file */
 			dprintd(DBGFILE|DBGPROC, ".end of file\n");
 			return;
+		case EBEG:		/* Open brace \{ */
+		case EEND:		/* Close brace \} */
+			continue;	/* ignore braces in plain text */
 		case EESC:		/* Printable version of escape */
 			dprintd(DBGPROC, ".printable escape\n");
 			character(esc);
@@ -109,6 +110,7 @@ process()
 			dprintd(DBGPROC, ".zero width character\n");
 			continue;
 		case ETLI:		/* Transparent line indicator */
+			dprintd(DBGPROC, ".transparent line indicator\n");
 			for (cp = charbuf; ; c = *cp++ = getl(0)) {
 				if (c == '\n' || cp == &charbuf[CBFSIZE-1]) {
 					*cp = '\0';
@@ -123,16 +125,32 @@ process()
 			dprintd(DBGPROC, ".hyphen break\n");
 			addidir(DHYPH, 0);
 			continue;
-		case ECHR:		/* Special character indicator */
-			dprintd(DBGPROC, ".special char\n");
-			printu("special char indicator");	/* $$TO_DO$$ */
-			getf(0);
-			getf(0);
-			continue;
 		case EBRA:		/* Bracket building function */
 			dprintd(DBGPROC, ".bracket building\n");
+#if	1
 			printu("bracket building");		/* $$TO_DO$$ */
 			continue;
+#else
+			/*
+			 * The following does not work with special characters
+			 * which include font escape sequences.
+			 */
+			scandel(charbuf, CBFSIZE);
+			for (w = 0, cp = charbuf; *cp; cp++) {
+				n = width(trantab[*cp]);
+				if (n > w)
+					w = n;			/* max width */
+			}
+			n = cp - charbuf;			/* count */
+			vermove(unit(-SMVEMS * (n - 1), SDVEMS * 2));
+			for (cp = charbuf; *cp; cp++) {
+				addchar(trantab[*cp], 0);
+				vermove(unit(SMVEMS, SDVEMS));
+			}
+			vermove(unit(-SMVEMS * (n + 1), SDVEMS * 2));
+			hormove(w);
+			continue;
+#endif
 		case EINT:		/* Interrupt text processing */
 			dprintd(DBGPROC, ".interrupt proc\n");
 			if ((c=getf(0)) != '\n')
@@ -140,7 +158,7 @@ process()
 			continue;
 		case EVNF:		/* 1/2 em vertical motion */
 			dprintd(DBGPROC, ".half vertical\n");
-			addidir(DVMOV, unit(SMVEMS, SDVEMS*2));
+			vermove(unit(SMVEMS, SDVEMS*2));
 			continue;
 		case EFON:		/* Change font */
 			if ((c=getf(0)) != '(') {
@@ -154,9 +172,7 @@ process()
 			setfont(name, 1);
 			continue;
 		case EHMT:		/* Local horizontal motion */
-			n = 0;
-			if (scandel(charbuf, CBFSIZE))
-				n = numb(charbuf, SMUNIT, SDUNIT);
+			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, SMUNIT, SDUNIT) : 0;
 			dprint2(DBGPROC, ".local horiz motion = %d\n", n);
 			hormove(n);
 			continue;
@@ -172,21 +188,22 @@ process()
 			 * This still does not handle line drawing with
 			 * characters other than under-bar.
 			 */
-			n = 0;
-			if (scandel(charbuf, CBFSIZE))
-				n = numb(charbuf, 1L, 1L);
+			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, 1L, 1L) : 0;
 			dprint2(DBGPROC, ".horiz line %d\n", n);
-			if (n < 0) {
+			if (n == 0)
+				continue;
+			else if (n < 0) {
 				hormove(n);
 				n = -n;
 			}
-			c = fontype;
-			devfont(ufn);
+			c = curfont;
+			dev_font(ufn);
 			w = width('_');
 			if (n < w) {
+				/* Line length less than '_' width. */
 				hormove(- ((w-n)/2));
 				addchar('_', n + w/2);
-				devfont(c);
+				dev_font(c);
 				continue;
 			}
 			if (n % w != 0)
@@ -194,12 +211,45 @@ process()
 			n /= w;
 			while (n-- != 0)
 				addchar('_', w);
-			devfont(c);
+			dev_font(c);
 			continue;
 		case EVLF:		/* Vertical line drawing function */
 			dprintd(DBGPROC, ".vertical line\n");
+#if	1
 			printu("vertical line drawing");	/* $$TO_DO$$ */
 			continue;
+#else
+			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, 1L, 1L) : 0;
+			dprint2(DBGPROC, ".vert line %d\n", n);
+			if (n == 0)
+				continue;
+			else if (n < 0) {
+				vermove(n);
+				n = -n;
+			}
+			c = curfont;
+			dev_font(ufn);
+			w = unit(SMVEMS, SDVEMS);
+			if (n < w) {
+				/* Line length less than '_' width. */
+				vermove(-((w-n)/2));
+				addchar('|', 0);
+				vermove(((w-n)/2));
+				dev_font(c);
+				continue;
+			}
+			if (n % w != 0) {
+				addchar('|', 0);
+				vermove(n%w);
+			}
+			n /= w;
+			while (n-- != 0) {
+				addchar('|', 0);
+				vermove(w);
+			}
+			dev_font(c);
+			continue;
+#endif
 		case EOVS:		/* Overstrike */
 			dprintd(DBGPROC, ".overstrike\n");
 			scandel(charbuf, CBFSIZE);
@@ -223,7 +273,7 @@ process()
 			continue;
 		case EVRM:		/* Reverse 1 em vertically */
 			dprintd(DBGPROC, ".reverse vertical\n");
-			addidir(DVMOV, unit(-SMVEMS, SDVEMS));
+			vermove(unit(-SMVEMS, SDVEMS));
 			continue;
 		case EPSZ:		/* Change pointsize */
 			dprintd(DBGPROC, ".pointsize change\n");
@@ -236,19 +286,15 @@ process()
 			continue;
 		case EVRN:		/* Reverse 1 en vertically */
 			dprintd(DBGPROC, ".reverse 1 en vert\n");
-			addidir(DVMOV, unit(-SMVEMS, SDVEMS*2));
+			vermove(unit(-SMVEMS, SDVEMS*2));
 			continue;
 		case EVMT:		/* Local vertical motion */
-			n = 0;
-			if (scandel(charbuf, CBFSIZE))
-				n = number(charbuf, SMUNIT, SDUNIT, 0, 1, 0);
+			n = scandel(charbuf, CBFSIZE) ? number(charbuf, SMUNIT, SDUNIT, 0, 1, 0) : 0;
 			dprint2(DBGPROC, ".local vert move %d\n", n);
-			addidir(DVMOV, n);
+			vermove(n);
 			continue;
 		case EXLS:		/* Extra line spacing */
-			n = 0;
-			if (scandel(charbuf, CBFSIZE))
-				n = number(charbuf, SMUNIT, SDUNIT, 0, 1, 0);
+			n = scandel(charbuf, CBFSIZE) ? number(charbuf, SMUNIT, SDUNIT, 0, 1, 0) : 0;
 			dprint2(DBGPROC, ".extra line space %d\n", n);
 			if (n < 0) {
 				if (-n > preexls)
@@ -304,10 +350,6 @@ process()
 			}
 			if (fill==0 || cec) {
 				spcnt = 0;
-				if (nlinptr != llinptr) {
-					nlindir++;
-					wordbreak(DNULL);
-				}
 				linebreak();
 			}
 			if (cec)
@@ -316,9 +358,10 @@ process()
 				if (--ulc == 0)
 					setfontnum(ufp, 1);
 			}
-			if (inpltrc)
+			if (inpltrc) {
 				if (--inpltrc == 0)
 					execute(inptrap);
+			}
 			continue;
 		case ' ':
 			if (lastc == '\n')
@@ -468,10 +511,10 @@ diverse()
 			addidir(code, arg);
 			break;
 		case DFONT:
-			devfont(arg);
+			dev_font(arg);
 			break;
 		case DPSZE:
-			devpsze(arg);
+			dev_ps(arg);
 			break;
 		case DTRAB:
 			tp = codeval.b_arg.c_bufp;
@@ -514,6 +557,9 @@ setbreak()
 {
 	register int savfill;
 
+#if	0
+	fprintf(stderr, "setbreak()\n");
+#endif
 	if (nbrflag)
 		return;
 	wordbreak(DNULL);
@@ -655,10 +701,13 @@ linebreak()
 	CODE *slptr;
 
 #if	0
-	fprintf(stderr, "linebreak()\n");
+	fprintf(stderr, "linebreak() llindir=%d\n", llindir);
 #endif
-	if (llindir == 0)
+	if (llindir == 0) {
+		if (nlinptr != llinptr)
+			lineflush();
 		return;
+	}
 	movetab(EOF);
 	justify();
 	if (mrch != '\0' && llinsiz != 0) {
@@ -696,11 +745,36 @@ linebreak()
 		nsm = 0;
 	} else
 		flushd(linebuf, llinptr);
+	if (nlinptr != llinptr)
+		lineflush();
 	a_reg = posexls;
 	setline();
 	lspace(vls+posexls);
 	nrnlreg->n_reg.r_nval = mdivp->d_rpos;
 	sspace((lsp-1)*vls);
+}
+
+/*
+ * The unflushed part of a buffered line can contain significant directives,
+ * notably pointsize and font changes.
+ * This flushes directives which would otherwise get ignored.
+ * There must be a better way...
+ */
+lineflush()
+{
+	register CODE *cp;
+
+	for (cp = llinptr; cp < nlinptr; cp++) {
+		switch(cp->l_arg.c_code) {
+		case DFONT:	break;
+		case DPSZE:	break;
+		default:	continue;
+		}
+		if (cdivp == mdivp)
+			flushl(cp, cp+1);
+		else
+			flushd(cp, cp+1);
+	}
 }
 
 /*
@@ -802,8 +876,8 @@ movetab(c)
 			panic("word buffer overflow");
 		copystr(wordbuf, tlinptr+1, sizeof (CODE), n);	/* save */
 		nlinptr = tlinptr + 1;
-		savfont = fontype;
-		devfont(tbf);				/* tab font */
+		savfont = curfont;
+		dev_font(tfn);				/* tab font */
 		if ((w = tbs) == 0)
 			w = width(ltabchr);		/* tab char width */
 		if ((d2 = (d1 = tlinsiz) % w) != 0) {
@@ -815,7 +889,7 @@ movetab(c)
 		while ((d1 += w) <= d2)
 			addchar(ltabchr, w);		/* write a tab char */
 		addidir(DHMOV, d2-(d1-w));		/* skip remaining space */
-		devfont(savfont);			/* restore font */
+		dev_font(savfont);			/* restore font */
 		if (nlinptr+n >= &linebuf[LINSIZE])
 			panic("line buffer overflow");
 		copystr(nlinptr, wordbuf, sizeof (CODE), n);	/* restore */

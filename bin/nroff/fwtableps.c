@@ -1,6 +1,6 @@
 /*
  * fwtableps.c
- * 4/9/91
+ * 5/3/91
  * Build troff font width table from PostScript AFM file.
  * Used to be stand-alone, now part of fwtable,
  * conditionalized accordingly (hack, hack...).
@@ -342,15 +342,9 @@ output()
 	/* Descriptive name. */
 	if (cflag) {
 		fprintf(ofp, "{\n\t\"%s", fullname);
-		if (Weight != NULL)
-			fprintf(ofp, " %s", Weight);
 		fprintf(ofp, "\",\n");
 	} else {
 		fputs(fullname, ofp);
-		if (Weight != NULL) {
-			fputc(' ', ofp);
-			fputs(Weight, ofp);
-		}
 		fputc(0, ofp);
 	}
 

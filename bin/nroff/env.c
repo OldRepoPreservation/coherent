@@ -10,18 +10,22 @@
  * Initialize the current environment.
  * The new environment inherits the values of all
  * environmental variables which are not initialized here:
- * this includes fcsz, fpsz, tbf, ufn, ufp.
+ * this includes fcsz, fpsz, tfn, ufn, ufp.
  */
-setenvr()
+envset()
 {
 	register int inc, i, n;
 
-	/* Set output line, default font, pointsize, vertical spacing. */
+	/* Set output line, default font and pointsize, vertical spacing. */
 	tln = lln = (lflag) ? unit(9*SMINCH, SDINCH) : unit(13*SMINCH, 2*SDINCH);
 	setline();
-	setfont("R", 1);
-	devpsze(unit(10*SMPOIN, SDPOIN));
-	devvlsp(psz+10);		/* default leading is 11 on 10 */
+	curfont = 0;
+	fon[0] = 'R';
+	fon[1] = '\0';
+	if (ntroff == TROFF) {
+		psz = unit(10*SMPOIN, SDPOIN);	/* default point size = 10pt */
+		vls = unit(11*SMPOIN, SDPOIN);	/* default leading 11 on 10 */
+	}
 
 	/* Set default tab stops. */
 	tab[0].t_pos = 0;
@@ -50,19 +54,21 @@ setenvr()
 	inpltrc = 0;
 	inptrap[0] = '\0';
 	ldc = '.';
-	lgm = 0;
+	lgm = (ntroff == NROFF) ? 0 : 1;
 	lmn = 0;
 	lni = 0;
 	lnn = 0;
 	lns = 0;
 	lsp = 1;
-	mar = ssz = (ntroff == NROFF) ? unit(SMENSP, SDENSP)
-				      : unit(SMEMSP * 12, SDEMSP * 36);
+	mar = unit(SMEMSP, SDEMSP);
 	mrc = '\0';
 	mrch = '\0';
 	nbc = '\'';
 	nnc = 0;
 	spcnt = 0;
+	ssz = sszmul = (ntroff == NROFF) ? unit(SMEMSP, SDEMSP)
+					 : unit(SMEMSP * 12, SDEMSP * 36);
+	sszdiv = psz;	
 	tbc = '\0';
 	tbs = 0;
 	tif = 0;
@@ -74,8 +80,6 @@ setenvr()
 	oldind = ind;
 	oldlln = lln;
 	oldlsp = lsp;
-	oldmar = mar;
-	oldssz = ssz;
 	oldpsz = psz;
 	oldtln = tln;
 	oldvls = vls;
@@ -101,7 +105,7 @@ envload(n) int n;
 	lseek(fileno(tmp), (long) n * sizeof (ENV), 0);
 	if (read(fileno(tmp), &env, sizeof (env)) != sizeof (env))
 		panic("cannot read environment");
-	devfont(fontype);
+	dev_font(curfont);
 }
 
 /* end of env.c */

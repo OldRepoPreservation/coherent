@@ -31,12 +31,12 @@ char esctab[ASCSIZE] ={
 /*
  * Map numeric font index 0-9 to font name.
  */
-char *mapfont[10] = { "P", "R", "I", "B", "\0", "\0", "\0", "\0", "\0", "\0" };
+char *mapfont[10] = { "P", "R", "B", "I", "\0", "\0", "\0", "\0", "\0", "\0" };
 
 /*
- * Translate table.
+ * Translation table, initialized in main.c.
  */
-char trantab[NWIDTH];			/* initialized in main.c */
+char trantab[NWIDTH];
 
 /*
  * For forming registers containing requests.
@@ -59,6 +59,7 @@ REQ reqtab[] ={
 	'c', 's', req_cs,
 	'c', 'u', req_cu,
 	'd', 'a', req_da,
+	'd', 'c', req_dc,
 	'd', 'e', req_de,
 	'd', 'i', req_di,
 	'd', 's', req_ds,

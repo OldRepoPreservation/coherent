@@ -13,32 +13,11 @@ extern	char	*fontname();
 extern	char	*ndiv10();
 
 /* HP LaserJet PCL. */
-/* Printer initialization string:
- *	reset printer
- *	clear margins
- *	0 top margin
- *	move to horizontal 0
- *	move to vertical 0
- * Font selection happens later.
- */
-#define	HPLJINIT	\
-"\033E"\
-"\0339"\
-"\033&l0E"\
-"\033&a0H"\
-"\033&a0V"
-#define	HPLJLINIT	"\033&l1O"	/* landscape orientation	*/
 #define	HPLJEJECT	"\033&l0H"	/* page eject			*/
-#define HPLJRESET	"\033E"		/* reset	 		*/
 
 /* PostScript. */
-#define	PSINIT	\
-"/state save def\n"\
-"/S { show } bind def\n"\
-"/M { moveto } bind def\n"
 #define	PSLINIT	"90 rotate\n0 -612 translate\n"
 #define	PSEJECT	"\nshowpage\n"
-#define	PSRESET	"\nstate restore\n"
 
 /*
  * Device parameters.
@@ -72,28 +51,9 @@ static	int	inword;			/* in word flag for PostScript	*/
 
 /*
  * Initialize the device.
- * Select the default font.
  */
-devinit()
+dev_init()
 {
-	register int i;
-
-	for (i = 0; i < nfonts; i++) {
-		fpsz[i] = fwptab[i]->f_psz;	/* init. env pointsize */
-		fcsz[i] = 0;			/* init. env const. char size */
-	}
-	if (pflag) {
-		/* Load PostScript font width tables for default fonts. */
-		load_font("R", "/usr/lib/roff/fwt/PS/Times_R.fwt");
-		load_font("I", "/usr/lib/roff/fwt/PS/Times_I.fwt");
-		load_font("B", "/usr/lib/roff/fwt/PS/Times_B.fwt");
-		printf(PSINIT);
-	} else {
-		/* PCL. */
-		printf(HPLJINIT);
-		if (lflag)
-			printf(HPLJLINIT);
-	}
 }
 
 /*
@@ -105,21 +65,21 @@ width(c) register int c;
 {
 	register long l;
 
-	l = swdmul * fonwidt[c] * psz;
+	/* Watch out for sign-extension of argument! */
+	l = swdmul * fonwidt[c & 0xFF] * psz;
 	return (swddiv == 1) ? (int)l : (int)(l/swddiv);
 }
 
 /*
  * Given a font number, change to the given font.
  */
-devfont(n) register int n;
+dev_font(n) register int n;
 {
 	register FWTAB	*fp;
 
 	if (n >= nfonts)
-		panic("bad font %d at devfont, nfonts=%d", n, nfonts);
-	fontype = n;
-	nlindir++;
+		panic("bad font %d at dev_font, nfonts=%d", n, nfonts);
+	curfont = n;
 	addidir(DFONT, n);
 	fp = fwptab[n];
 	csz = fcsz[n];
@@ -127,7 +87,7 @@ devfont(n) register int n;
 	swddiv = (long)fp->f_den;
 	fonwidt = fp->f_width;
 	varsp = fp->f_spacing;
-	devpsze(fpsz[n]);
+	dev_ps(fpsz[n]);
 }
 
 /*
@@ -145,17 +105,15 @@ devfont(n) register int n;
  * Changing pointsize with a .ps directive or \s escape
  * changes fpsz[] for each font.
  */
-devpsze(n) register int n;
+dev_ps(n) register int n;
 {
-	if (psz != n && psz != 0) {
-		/* Scale space size and margin width for pointsize change. */
-		mar = mar * n / psz;
-		ssz = ssz * n / psz;
-	}
 	oldpsz = psz;
 	psz = n;
-	nlindir++;
 	addidir(DPSZE, n);
+
+	/* Scale space width for pointsize change. */
+	if (psz != oldpsz && sszdiv != 0)
+		ssz = (int)((long)sszmul * psz / sszdiv);
 }
 
 /*
@@ -165,8 +123,8 @@ dev_fz(n, s) register int n; char *s;
 {
 	fwptab[n]->f_flags |= F_FIXED;
 	fpsz[n] = number(s, SMPOIN, SDPOIN, fpsz[n], 0, fpsz[n]);
-	if (n == fontype)
-		devpsze(fpsz[n]);
+	if (n == curfont)
+		dev_ps(fpsz[n]);
 }
 
 /*
@@ -175,7 +133,7 @@ dev_fz(n, s) register int n; char *s;
 dev_cs(n, size) register int n, size;
 {
 	fcsz[n] = size;
-	if (n == fontype)
+	if (n == curfont)
 		csz = size;
 }
 
@@ -190,15 +148,7 @@ newpsze(n) register int n;
 	for (i = 0; i < nfonts; i++)
 		if (((fwptab[i]->f_flags) & F_FIXED) == 0)
 			fpsz[i] = n;
-	devpsze(n);
-}
-
-/*
- * Change the vertical spacing.
- */
-devvlsp(psize) int psize;
-{
-	vls = psize;
+	dev_ps(n);
 }
 
 /*
@@ -207,7 +157,7 @@ devvlsp(psize) int psize;
  * print the buffer.
  * The output writer maintains its own notion of current font and pointsize
  * because [nt]roff buffers output and then flushes at the end of a line;
- * the environment "fontype" is the current font for input stream processing,
+ * the environment "curfont" is the current font for input stream processing,
  * the output writer "font" is the current output stream font.
  * The font change is implicit until a character is written in the new font.
  */
@@ -281,11 +231,7 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 					lastfont = -1;
 					fp->f_flags &= ~F_USED;
 				} else {
-					/*
-					 * PCL font scaling is untested!
-					 * This is a guess...
-					 */
-					printf("\033(s%dV", wpsz);
+					printf("\033(s%sV", ndiv10(wpsz));
 				}
 			}
 			continue;
@@ -362,36 +308,6 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 }
 
 /*
- * Print proper escape sequence to reset the laser printer so that the
- * last page is ejected.
- *
- */
-void
-resetdev()
-{
-	printf((pflag) ? PSRESET : HPLJRESET);
-}
-
-/*
- * List all the font names and descriptions in this version.
- */
-void
-font_display()
-{
-	register FTB *p;
-	register int a, b;
-
-	fprintf(stderr, "Fonts available in this version:\n");
-	for (p = fontab; p < &fontab[NFNAMES]; p++) {
-		if ((a = p->f_name[0]) == 0)
-			break;
-		if ((b = p->f_name[1]) == 0)
-			b = ' ';
-		fprintf(stderr," %c%c %s\n", a, b, fwptab[p->f_font]->f_descr);
-	}
-}
-
-/*
  * Move horizontally and/or vertically.
  * This used to shift PCL output right to avoid printing at left border;
  * that responsibility is now left to the user.
@@ -439,7 +355,8 @@ selectfont(font, ptsize) int font, ptsize;
 		return;
 	}
 	/* Select font via PostScript. */
-	s = fontname(font);
+	if ((s = fontname(font)) == NULL)
+		panic("botch: fontname(%d)", font);
 	endword();
 	if ((fp->f_flags & F_USED) == 0) {
 		fp->f_flags |= F_USED;
@@ -451,29 +368,6 @@ selectfont(font, ptsize) int font, ptsize;
 			s, s);
 	}
 	printf(" f%s", s);
-}
-
-/*
- * Return fontname associated with font number n.
- * Because the mapping is many->one, the user might have
- * specified the font with a different name.
- * The returned value points to a statically allocated buffer.
- */
-char *
-fontname(n) register int n;
-{
-	static char buf[3];
-	register FTB *p;
-
-	for (p = fontab; p < &fontab[NFNAMES]; p++) {
-		if (p->f_font == n) {
-			buf[0] = p->f_name[0];
-			buf[1] = p->f_name[1];
-			buf[2] = '\0';
-			return buf;
-		}
-	}
-	return NULL;
 }
 
 /*
@@ -494,12 +388,18 @@ ndiv10(n) register int n;
 
 /*
  * Output a character.
- * If writing PostScript output, watch out for "()\\".
+ * If writing PostScript output, watch out for "()\\"
+ * and expand high-bit characters to octal escapes.
  */
 outchar(n) register int n;
 {
-	if (pflag && (n == '(' || n == ')' || n == '\\'))
-		putchar('\\');
+	if (pflag) {
+		if (n >= 128) {
+			printf("\\%03o", n);
+			return;
+		} else if (n == '(' || n == ')' || n == '\\')
+			putchar('\\');
+	}
 	putchar(n);
 }
 

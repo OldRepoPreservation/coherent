@@ -18,6 +18,7 @@ getf(flags)
 {
 	register REG *rp;
 	register int c, n;
+	SPECIAL *sp;
 	char charbuf[CBFSIZE], name[2];
 
 	escflag = 0;
@@ -58,6 +59,12 @@ getf(flags)
 			if ((rp=findreg(name, RTEXT)))
 				adstreg(rp);
 			continue;
+		case ECHR:
+			name[0] = getf(0);
+			name[1] = getf(0);
+			if ((sp = spc_find(name)) != NULL)
+				adscore(sp->spc_val);
+			continue;
 		case ENUM:
 			n = 0;
 			if ((c=getf(0)) == '+') {
@@ -92,19 +99,16 @@ getf(flags)
 		case EBEG:
 			if (flags&2)
 				return c;
-			if (ifeflag != 0) {
-				++ifeflag;	/* skip nested \{ \} */
-				continue;
-			}
-			return c;		/* return \{ in true condition */
+			++bracelevel;
+			return c;
 		case EEND:
 			if (flags&2)
 				return c;
-			if (ifeflag == 0)
-				continue;	/* ignore \} in true condition */
-			else if (--ifeflag == 0)
-				return c;	/* closing \} of false condition */
-			continue;		/* keep scanning in false */
+			if (bracelevel == 0)
+				printe("\\} without matching \\{");
+			else
+				--bracelevel;
+			return c;
 		case EHEX:
 			n = hexdigit(getf(0)) * 0x10;
 			n += hexdigit(getf(0));
@@ -313,7 +317,7 @@ char *file;
 	register FILE *fp;
 
 	if ((fp=fopen(file, "r")) == NULL) {
-		printe("cannot open %s", file);
+		printe("cannot open file \"%s\"", file);
 		return 0;
 	}
 	sp = allstr(SFILE);
