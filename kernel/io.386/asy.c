@@ -1590,18 +1590,25 @@ rescan:
 		 */
 		if (ISIXON) {
 			/*
+			 * XON.
+			 */
+#if _I386
+			if (ISSTART || (ISIXANY && ISXSTOP)) {
+				tp->t_flags &= ~(T_STOP | T_XSTOP);
+				goto rescan;
+			}
+#else
+			if (ISSTART) {
+				tp->t_flags &= ~T_STOP;
+				goto rescan;
+			}
+#endif
+
+			/*
 			 * XOFF.
 			 */
 			if (ISSTOP) {
 				tp->t_flags |= T_STOP;
-				goto rescan;
-			}
-
-			/*
-			 * XON.
-			 */
-			if (ISSTART) {
-				tp->t_flags &= ~T_STOP;
 				goto rescan;
 			}
 		}
