@@ -21,6 +21,7 @@
  *	 8-Feb-91	steve: fix comment handling, allow "\#", allow ${VAR}.
  *			Add docmd0() to make $< and $* work in Makefiles.
  *	12-Feb-91	steve: add $SRCPATH source path searching.
+ *	 1-Nov-91	steve: fix bug in nextc() to handle "\n\t\n" correctly
  */
 
 #include	"make.h"
@@ -219,6 +220,7 @@ Again:
 		while (c != '\n' && c != EOF);
 	}
 	if (c == '\n') {
+Again2:
 		if ((c = readc()) != ' ' && c != '\t') {
 			putback(c);
 			if (c == '#')
@@ -228,6 +230,8 @@ Again:
 		do
 			c = readc();
 		while (c == ' ' || c == '\t');	/* skip whitespace */
+		if (c == '\n')
+			goto Again2;		/* "\n\t\n" */
 		putback(c);
 		if (c == '#')
 			goto Again;		/* "\n\t# comment" */
@@ -558,7 +562,7 @@ fpath(name) char *name;
 	register char *s;
 
 	if (fexists(name)
-	 || *name == '/'
+	 || *name == PATHSEP
 	 || srcpath == NULL
 	 || (s = path(srcpath, name, AREAD)) == NULL)
 		return name;
