@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <sys/mdata.h>
 #include <ctype.h>
+
 /* Avoid calling the new style toupper() function on MSDOS and GEMDOS */
 #ifdef _toupper
 #define toupper(c) _toupper(c)
@@ -23,7 +24,6 @@ union	alltypes {
 	double	d;
 	char	*s;
 };
-
 
 #define	bump(p,s)	(p+=sizeof(s)/sizeof(int))
 
@@ -185,9 +185,8 @@ union alltypes *argp;
 		case 'e':
 		case 'f':
 		case 'g':
-			elem.d = *(double *) iap;
+			cbp = _dtefg(c, iap, prec, cbp);
 			bump(iap, double);
-			cbp = _dtefg(c, elem.d, prec, cbp);
 			break;
 
 		case 's':
