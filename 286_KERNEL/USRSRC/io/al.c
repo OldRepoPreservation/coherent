@@ -4,6 +4,12 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.11  92/01/13  08:37:52  hal
+ * alclose() - decrement open count in alx.c
+ * 
+ * Revision 1.10  91/12/20  14:09:50  hal
+ * Don't use loopback during chip sense.
+ * 
  * Revision 1.9  91/12/10  08:01:11  hal
  * Set ALCNT automatically.
  * Set interrupt vector before calling uart_sense().
@@ -248,13 +254,10 @@ alclose(dev, mode)
 dev_t	dev;
 int	mode;
 {
-	register int s;
-
-	if (--DEV_TTY.t_open == 0) {	/* Last open */
-		s = sphi();
-		alxclose(dev, mode, &DEV_TTY);
-		spl(s);
-	}
+	/*
+	 * The real work is in alx.c.
+	 */
+	alxclose(dev, mode, &DEV_TTY);
 }
 
 static
