@@ -104,7 +104,9 @@ char *resource;
  *  Open the lock file for read operations to try to read the PID
  *  stored in the file. If the open fails, abort. If the read fails, 
  *  abort. If the read PID does not match our PID, abort. We will only
- *  remove the lock if the passed matches the PID written to the file.
+ *  remove the lock if the passed matches the PID written to the file,
+ *  or if the pid we are passed was 0.
+ *
  */
 
 locknrm(resource, pid)
@@ -149,7 +151,7 @@ locknrm(resource, pid)
 	}
 
 	gotpid[chars_read] = '\0';	/* NUL terminate the string.  */
-	if (atoi(gotpid) != pid){
+	if ( (0 != pid) && (atoi(gotpid) != pid) ){
 #ifdef UUCP
 		printmsg(M_DEBUG, "Lockrm: PID verify failed. PID read was %s.", 
 			gotpid);
@@ -157,7 +159,7 @@ locknrm(resource, pid)
 #endif /* UUCP */
 		close(lockfd);
 		return(-1);
-	}else{
+	} else {
 #ifdef UUCP
 		printmsg(M_DEBUG, "Lockrm: PID verify successful, removing lock.");
 		plog(M_CALL, "Lockrm: PID verify successful, removing lock.");
