@@ -2,7 +2,8 @@
 
 # CFLAGS for PDP11
 CFLAGS= -O
-DESTDIR= /f1/bin/
+DESTDIR= /interim/bin/
+DESTDIR2 = /interim/etc/
 UTILS=\
 	check\
 	clri\
@@ -26,10 +27,10 @@ check:	check.o
 	su root chgrp bin $(DESTDIR)check
 	su root chmod 511 $(DESTDIR)check
 clri:	clri.o
-	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
-	su root chown bin $(DESTDIR)clri
-	su root chgrp bin $(DESTDIR)clri
-	su root chmod 511 $(DESTDIR)clri
+	$(CC) $(LDFLAGS) -o $(DESTDIR2)$@ $<
+	su root chown bin $(DESTDIR2)clri
+	su root chgrp bin $(DESTDIR2)clri
+	su root chmod 511 $(DESTDIR2)clri
 
 dcheck:	dcheck.o
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
