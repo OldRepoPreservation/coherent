@@ -1,4 +1,5 @@
-/* Test program for "patch" to work on.
+/*
+ * Test program for "patch" to work on.
  */
 #include <stdio.h>
 #define MY_DEFAULT 17

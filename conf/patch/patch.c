@@ -1,5 +1,5 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
-static char version[] =	"patch version 2.2 for COHERENT v.4.0";
+static char version[] =	"patch version 2.5 for COHERENT v.4.0";
 
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
@@ -31,13 +31,17 @@ static char version[] =	"patch version 2.2 for COHERENT v.4.0";
  * main() now enables buffering on standard output.
  *
  */
-char helpmessage[] = "\
+char short_helpmessage[] = "\
 patch -- alter COFF binary image\n\
 Usage:	patch [ -v ][ -p ][ -k ] imagename symbol=value [ ... ]\n\
+";
+
+char helpmessage[] = "\
 Options:\n\
 	-v	Verbose mode--print what's being done.\n\
 	-p	Peek only--do not write.\n\
 	-k	Patch running system via /dev/kmem.\n\
+	-K	Like -k but do not alter imagename.\n\
 Patch alters the value of 'symbol' to 'value' in the binary 'imagename'.\n\
 Both 'symbol' and 'value' may be composed of a decimal numeric constant\n\
 or of a symbol in the image's symbol table, trailing '_' is significant,\n\
@@ -71,6 +75,7 @@ char	*symbols=NULL;
 PLIST pl[NNLS];
 
 char *namep;		/* Name of object file to patch.  */
+int nobin = 0;		/* Should we not patch the image?  */
 int hotpatch = 0;	/* Are we patching /dev/kmem?  */
 int verbose = 0;	/* Are we printing feedback?  */
 int peek = 0;		/* Just peek--don't actually do the patch.  */
@@ -105,8 +110,11 @@ main(argc, argv)
 	 */
 	setbuf( stdout, obuf );
 
-	while ((c = getopt(argc, argv, "kpv?")) != EOF) {
+	while ((c = getopt(argc, argv, "Kkpv?")) != EOF) {
 		switch (c) {
+		case 'K':
+			hotpatch++;
+			nobin++;
 		case 'k':
 			hotpatch++;
 			break;
@@ -117,25 +125,31 @@ main(argc, argv)
 			verbose++;
 			break;
 		case '?':
+			fprintf(stderr, "%s\n", version);
+			usage(TRUE);	/* Does not return.  */
 		default:
-			usage(); /* Does not return.  */
+			usage(FALSE);	/* Does not return.  */
 		}
 	}
-	 /*
-	  * There must be at least 2 arguments left.
-	  */
+
+	/*
+	 * There must be at least 2 arguments left.
+	 */
 	if (argc - optind < 2) {
 		fprintf(stderr, "Missing arguments.\n");
-		usage();	/* Does not return */
+		usage(FALSE);	/* Does not return */
 	}
 	
 	namep = argv[optind++];	/* Fetch the name of the file to patch.  */
 
 	num_patches = (argc - optind);
 	if (getnames(num_patches, &(argv[optind])) == 0) {
-		setfile(namep, num_patches, pl);
-		if (hotpatch)
+		if (!nobin) {
+			setfile(namep, num_patches, pl);
+		}
+		if (hotpatch) {
 			setkmem(num_patches);
+		}
 		exit(0);
 	}
 	exit(1);
@@ -238,6 +252,13 @@ getone(i, np)
 	pl[i].p_rvnp = NULL;
 	pl[i].p_rval = 0;
 	pl[i].p_type = 'i';
+
+	/*
+	 * If there is a type indicator, get it now.
+	 */
+	if (NULL != (cp = index(np, ':'))) {
+		pl[i].p_type = cp[1];
+	}
 
 	/* Pull apart LHS of assignment.  */
 	if (isalpha(*np) || *np == '_') {
@@ -351,12 +372,9 @@ getone(i, np)
 			np += 1;
 		/* Fetch a possible literal number.  */
 		pl[i].p_rval = myatol(np);
-tail:
-		/* Pull off a trailing type indicator.  */
-		np = index(np, ':');
-		if (np != NULL)
-			pl[i].p_type = np[1];
 	}
+tail:
+	return;
 }
 
 /*
@@ -561,8 +579,12 @@ myatol( s )
  * Print out an usage message.
  */
 void
-usage()
+usage(verbose)
+	int verbose;
 {
-	fprintf(stderr, helpmessage);
+	fprintf(stderr, short_helpmessage);
+	if (verbose) {
+		fprintf(stderr, helpmessage);
+	}
 	exit(1);
 }

@@ -20,6 +20,12 @@ typedef struct plist {
 	} p_val;
 } PLIST;
 
+#if !defined(TRUE) || !defined(FALSE)
+#undef TRUE
+#undef FALSE
+#define TRUE (1==1)
+#define FALSE (1==2)
+#endif
 
 void main();
 int getnames();
