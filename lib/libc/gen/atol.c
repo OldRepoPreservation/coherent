@@ -1,29 +1,37 @@
 /*
- * Non-floating ASCII to long conversion
- *
- * long atol(cp)
- * char *cp;
+ * C general utilities library.
+ * atol()
+ * ANSI 4.10.1.3.
+ * Convert ASCII to long (the old fashioned way).
  */
 
+#include <stdlib.h>
+#include <ctype.h>
+
 long
-atol(cp)
-register char *cp;
+atol(nptr) register char *nptr;
 {
-	register long val;
-	register c;
-	register sign;
+	register long	val;
+	register int	c;
+	register int	sign;
 
 	val = sign = 0;
-	while ((c = *cp)==' ' || c=='\t')
-		cp++;
+
+	/* Leading whitespace. */
+	while (isspace(c = *nptr++))
+		;
+
+	/* Optional sign. */
 	if (c == '-') {
 		sign = 1;
-		cp++;
+		c = *nptr++;
 	} else if (c == '+')
-		cp++;
-	while ((c = *cp++)>='0' && c<='9')
-		val = val*10 - c + '0';
-	if (!sign)
-		val = -val;
-	return (val);
+		c = *nptr++;
+
+	/* Process digit string. */
+	for ( ; isdigit(c); c = *nptr++)
+		val = val * 10 + c - '0';
+	return (sign ? -val : val);
 }
+
+/* end of atol.c */
