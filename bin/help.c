@@ -1,6 +1,6 @@
 /*
  * help.c
- * 6/5/91
+ * 10/7/91
  * Usage: help [ -dc ] [ -ffile ] [ -ifile] [ -r ] [ topic ] ...
  * Options:
  *	-dc	Use c as delimiter character (default: '#')
@@ -19,7 +19,7 @@
 char	*getenv();
 
 /* Manifest constants. */
-#define	VERSION		"1.2"			/* Version number	*/
+#define	VERSION		"1.3"			/* Version number	*/
 #define	NLINE		512			/* Longest helpfile line */
 #define	DELIM		'#'			/* Default delimiter	*/
 #define	HELPFILE	"/etc/helpfile"		/* Default helpfile	*/
@@ -216,9 +216,9 @@ lookup(cmd, fp, ind) register char *cmd; FILE *fp; char *ind;
 {
 	if (fp == NULL)
 		return 1;
-	if (fastlook(cmd, fp, ind))
+	if (ind != NULL && fastlook(cmd, fp, ind))
 		return 1;
-	while (fgets(helpline, NLINE, fp) != NULL)
+	while (fgets(helpline, NLINE, fp) != NULL) {
 		if (helpline[0] == delim) {
 			helpline[strlen(helpline)-1] = '\0';
 			if (strcmp(cmd, helpline+1) == 0) {
@@ -230,6 +230,7 @@ lookup(cmd, fp, ind) register char *cmd; FILE *fp; char *ind;
 				return 0;
 			}
 		}
+	}
 	return 1;
 }
 
