@@ -67,6 +67,14 @@ pmake(mode)
 		ip->i_paw =
 		ip->i_psr =
 		ip->i_psw = 0;
+		ip->i_iev.e_pnext =
+		ip->i_iev.e_dnext =
+		ip->i_iev.e_dlast =
+		ip->i_iev.e_procp =
+		ip->i_oev.e_pnext =
+		ip->i_oev.e_dnext =
+		ip->i_oev.e_dlast =
+		ip->i_oev.e_procp = NULL;
 	}
 	return(ip);
 }
@@ -161,6 +169,9 @@ register INODE *ip;
 	if ( mode & IPW )
 		if ( --ip->i_paw < 0 )
 			panic("Out of sync IPW in pclose");
+
+	if ( !ip->i_paw && !ip->i_psw && !ip->i_par && !ip->i_psr )
+		iclear(ip);
 }
 
 
@@ -343,14 +354,53 @@ register INODE *ip;
 	case IFWFW:
 		if ( ip->i_psr )
 			wakeup((char *)&ip->i_psw);
+		if ( ip->i_pnc > 0 )
+			pollwake(&ip->i_iev);
 		break;
 	case IFWFR:
 		if ( ip->i_psw )
 			wakeup((char *)&ip->i_psr);
+		if ( (ip->i_pnc<PIPSIZE) && (ip->i_par || ip->i_psr) )
+			pollwake(&ip->i_oev);
 		break;
 	}
 }
 
+
+/*
+ *  ppoll(ip, ev)  --  Poll the given pipe inode.
+ *  INODE *ip  --  The inode in question.
+ *  int ev     --  The event bit field.
+ *  int msec   --  Number of msecs to wait.
+ *  Returns or'ed bits according to the following rules:
+ *  POLLIN:  indicates input is available for reading, notice it is possible
+ *	     to read even if there are no more writers anywhere!
+ *  POLLOUT: indicates room in pipe for new output, notice it is not possible
+ *	     to write unless there is a reader attached!
+ *
+ *  No priority polls are supported.
+ */
+
+ppoll(ip, ev, msec)
+register INODE *ip;
+int ev, msec;
+{
+	register int rval = 0;
+
+	if ( ev & POLLIN ) {
+		if ( ip->i_pnc > 0 )
+			rval |= POLLIN;
+		else if ( msec != 0 )
+			pollopen(&ip->i_iev);
+	}
+	if ( ev & POLLOUT ) {
+		if ( (ip->i_pnc<PIPSIZE) && (ip->i_par || ip->i_psr) )
+			rval |= POLLOUT;
+		else if ( msec != 0 )
+			pollopen(&ip->i_oev);
+	}
+	return( rval );
+}
 
 #if 0
 /*

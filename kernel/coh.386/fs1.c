@@ -222,15 +222,15 @@ struct direct *dp;
 	register unsigned n;
 
 	if (dp->d_ino == 0)
-		return (0);
+		return 0;
 	cp1 = dp->d_name;
 	cp2 = u.u_direct.d_name;
 	n = DIRSIZ;
 	do {
 		if (*cp1++ != *cp2++)
-			return (0);
+			return 0;
 	} while (--n);
-	return (1);
+	return 1;
 }
 
 /*
@@ -339,7 +339,7 @@ iattach(dev, ino)
 			continue;
 		}
 		if (ip->i_refc < 0)
-			panic("ialloc(%x)", ip);
+			panic("iattach(%x)", ip);
 		ip->i_refc++;
 		ip->i_lrt = timer.t_time;
 		return (ip);
@@ -400,13 +400,13 @@ register ino_t ino;
 		ip->i_dev = dev;
 		ip->i_ino = ino;
 		if (icopydm(ip) == 0)
-			return (0);
+			return 0;
 	}
 	if ((ip->i_mode&IFMT) == IFDIR) {
 		if (super() == 0)
-			return (0);
+			return 0;
 	}
-	return (1);
+	return 1;
 }
 
 /*
@@ -425,7 +425,7 @@ register INODE *ip;
 	ino = ip->i_ino;
 
 	if ((bp=bread(ip->i_dev, (daddr_t)iblockn(ino), 1)) == NULL)
-		return (0);
+		return 0;
 
 	dip = &dinode;
 	v = (char *)((struct dinode *)bp->b_vaddr + iblocko(ino));
@@ -455,11 +455,11 @@ register INODE *ip;
 	case IFPIPE:
 		l3tol(ip->i_pipe, dip->di_addp, ND);
 		ip->i_pnc = dip->di_pnc;
-		canint(ip->i_pnc);
+		canshort(ip->i_pnc);
 		ip->i_prx = dip->di_prx;
-		canint(ip->i_prx);
+		canshort(ip->i_prx);
 		ip->i_pwx = dip->di_pwx;
-		canint(ip->i_pwx);
+		canshort(ip->i_pwx);
 		break;
 	default:
 		kclear(&ip->i_a, sizeof(ip->i_a));
@@ -473,7 +473,7 @@ register INODE *ip;
 	ip->i_ctime = dip->di_ctime;
 	cantime(ip->i_ctime);
 	ip->i_rl = NULL;
-	return (1);
+	return 1;
 }
 
 /*
@@ -656,13 +656,13 @@ register int mode;
 {
 	if ((imode(ip, u.u_uid, u.u_gid)&mode) != mode) {
 		u.u_error = EACCES;
-		return (0);
+		return 0;
 	}
-	if ((mode&IPW) != 0 && ip->i_refc > 1 && sbusy(ip)) {
+	if ((mode & IPW) && ip->i_refc > 1 && sbusy(ip)) {
 		u.u_error = ETXTBSY;
-		return (0);
+		return 0;
 	}
-	return (1);
+	return 1;
 }
 
 /*
@@ -674,8 +674,8 @@ register INODE *ip;
 	if (uid == 0)
 		return (IPR|IPW|IPE);
 	if (uid == ip->i_uid)
-		return ((ip->i_mode>>6)&07);
+		return ((ip->i_mode>>6) & 07);
 	if (gid == ip->i_gid)
-		return ((ip->i_mode>>3)&07);
-	return (ip->i_mode&07);
+		return ((ip->i_mode>>3) & 07);
+	return (ip->i_mode & 07);
 }
