@@ -16,8 +16,7 @@
 #include <sys/io.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
-#include <sys/dirent.h>
+#include <dirent.h>
 #include <sys/utsname.h>
 #include <sys/mount.h>
 #include <ustat.h>
@@ -480,7 +479,6 @@ int	mode;
 	*cp_dotdot = *cp_dot = '\0';
 
 	u.u_io.io_seg = IOSYS;
-	
 
 	u.u_io.io_seg = IOUSR;
 	if ((pip = dmknod(path, mode)) == NULL) {
@@ -508,10 +506,8 @@ int	mode;
 		error = u.u_error;
 		u.u_error = 0;
 		uunlink(bufdot);
-		printf("unlink %s errno is %d\n", bufdot, u.u_error);
 		u.u_error = 0;
 		uunlink(bufpath);
-		printf("unlink %s errno is %d\n", bufpath, u.u_error);
 		u.u_uid = uid;
 		u.u_io.io_seg = IOUSR;
 		u.u_error = error;
@@ -519,7 +515,7 @@ int	mode;
 	}
 	u.u_io.io_seg = IOUSR;
 	u.u_uid = uid;
-	return(0);
+	return 0;
 }
 
 /*

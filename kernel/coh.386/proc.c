@@ -315,14 +315,6 @@ pfork()
 	if ((pp = SELF) != cpp) {
 		segfinm(cpp->p_segp[SIUSERP]);
 #ifdef _I386
-#if 0
-		printf("dmaout(%d,0x%x,0x%x) ", 
-		  sizeof(mcon), 
-		  MAPIO(cpp->p_segp[SIUSERP]->s_vmem,
-		  U_OFFSET + offset(uproc,u_syscon)),
-		  (char *)&mcon);
-		printf("mc_sp=%x ", mcon.mc_sp);
-#endif
 		dmaout(sizeof(mcon), 
 		  MAPIO(cpp->p_segp[SIUSERP]->s_vmem,
 		  U_OFFSET + offset(uproc,u_syscon)),
@@ -376,8 +368,10 @@ pexit(s)
 	PROC *parent;
 
 	pp = SELF;
-
 	T_PIGGY( 0x1, printf("%s:pexit(%x)", u.u_comm, s); );
+
+	ndpEndProc();
+
 	/*
 	 * Cancel alarm and poll timers [if any].
 	 */
@@ -557,11 +551,11 @@ char *e;
 	pp->p_ival = 0;
 	pp->p_rval = 0;
 
+#ifdef _I386
 	/*
 	 * Since we are no longer asleep, we no longer need 
 	 * to publish a reason for sleeping.
 	 */
-#ifdef _I386
 	u.u_sleep[0] = '\0';
 #endif
 
@@ -686,32 +680,17 @@ dispatch()
 		SELF = pp1;
 		if (consave(&u.u_syscon) == 0) {
 #ifdef _I386
-#if 0
-printf("after consave proc %d mc_sp=%x\n", pp1->p_pid, u.u_syscon.mc_sp);
-printf("before conrest(%x,%x)\n", *pp1->p_segp[SIUSERP]->s_vmem, &u.u_syscon);
-{
-	int sg_addr;
-	MCON mcon;
-
-	sg_addr = MAPIO(pp1->p_segp[SIUSERP]->s_vmem,
-	  U_OFFSET + offset(uproc,u_syscon));
-	printf("sg_addr = %x = MAPIO(%x,%x)\n", sg_addr,
-	  pp1->p_segp[SIUSERP]->s_vmem,
-	  U_OFFSET + offset(uproc,u_syscon));
-	printf("before pxcopy(0x%x, 0x%x, %d)\n",
-	  sg_addr, &mcon, sizeof(mcon));
-	pxcopy(sg_addr, &mcon, sizeof(mcon), SEG_386_KD|SEG_VIRT);
-	printf("after pxcopy(0x%x, 0x%x, %d) mc_sp=%x\n",
-	  sg_addr, &mcon, sizeof(mcon), mcon.mc_sp);
-}
-#endif
 			conrest(*pp1->p_segp[SIUSERP]->s_vmem, &u.u_syscon);
 #else
 			conrest(
 			  FP_SEL(pp1->p_u->s_faddr), offset(uproc,u_syscon));
 #endif
 		}
-		if (SELF->p_pid) {
+
+		if (SELF->p_pid) {	/* init is special! */
+#ifdef _I386
+			ndpConRest();
+#endif
 			segload();
 		}
 		spl(s);

@@ -1,28 +1,5 @@
 /*
  * File:	main.c
- *
- * Purpose:	part of COHERENT kernel
- *
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- * $Log:	main.c,v $
- * Revision 1.11  92/07/27  18:15:32  hal
- * Kernel #59
- * 
- * Revision 1.10  92/06/09  20:32:11  root
- * Ker #55
- * 
- * Revision 1.9  92/06/09  07:13:42  hal
- * Just before record locking.
- * 
- * Revision 1.8  92/06/02  16:29:31  root
- * RELEASE mods - 386 uname will say "COHERENT"
- * 
  */
 
 /*
@@ -71,6 +48,7 @@ static void rpdev();
 extern dev_t rootdev;
 extern dev_t pipedev;
 extern int ronflag;
+extern int PHYS_MEM;
 
 short n_atdr;
 char version[] = VERSION;
@@ -91,6 +69,10 @@ main()
 
 	CHIRP('a');
 
+#ifdef _I386
+	wrNdpUser(0);
+	wrNdpSaved(0);
+#endif
 	u.u_error = 0;
 	bufinit();
 	_CHIRP('0', 156);
@@ -130,8 +112,9 @@ main()
 	printf("*** COHERENT Version %s - %s Mode.  %uKB free memory. ***\n",
 		release, (realmode ? "Real" : "Protected"), msize);
 #endif
-	printf( "%u buffers.  %u clists.  %uKB kalloc pool.\n",
-		NBUF, NCLIST, ALLSIZE/1024);
+	printf( "%u buffers.  %u clists.\n", NBUF, NCLIST);
+	printf( "%uKB kalloc pool.  %u KB phys pool.\n",
+	  ALLSIZE/1024, PHYS_MEM/1024);
 	printf(copyright);
 
 #ifdef _I386

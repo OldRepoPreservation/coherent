@@ -1,21 +1,7 @@
-/* $Header: /y/coh.386/RCS/var.c,v 1.3 92/03/12 11:26:41 hal Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- -lgl) */
 /*
- * Coherent.
- * Variables.
+ * var.c
  *
+ * Coherent global variables.
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
@@ -62,6 +48,7 @@ cmap_t	cltfree;			/* clist.h */
 INODE	*inodep;			/* inode.h */
 INODE	*acctip;			/* inode.h */
 
+SYSMEM	sysmem;				/* mmu.h */
 MOUNT	*mountp;			/* mount.h */
 
 #ifdef TRACER				/* mwc_coherent.h */
@@ -70,6 +57,7 @@ unsigned t_hal = 0;
 unsigned t_piggy = 0;
 unsigned t_vlad =0;
 unsigned t_con =0;
+unsigned t_msgq =0;
 #endif /* TRACER */
 
 int	ISTSIZE	= 2048;			/* sys/param.h */
@@ -98,7 +86,6 @@ SEG	segswap;			/* seg.h */
 SEG	segmq;				/* seg.h */
 SEG	segdq;				/* seg.h */
 SEG	segiom;				/* seg.h */
-SYSMEM	sysmem;				/* mmu.h */
 
 extern vaddr_t	aicodep;
 extern vaddr_t	aicodes;

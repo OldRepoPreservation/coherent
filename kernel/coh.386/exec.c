@@ -215,6 +215,9 @@ u.u_error = 0;
 	idetach(ip);
 	msetusr(head.entry, head.initsp);
 
+	/* initialize u area ndp fields */
+	ndpNewProc();
+
 	segload();
 	goto done;
 
