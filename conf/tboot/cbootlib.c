@@ -367,7 +367,7 @@ seg_align(offset, segment)
 	*offset = new_offset;
 } /* seg_align() */
 /*
- * wait_for_keystroke() -- wait for a keystroke.
+ * wait_for_keystroke() -- wait for a specific keystroke.
  */
 
 /* Location of BIOS-run timer.  */
@@ -377,18 +377,24 @@ seg_align(offset, segment)
 #define MIDNIGHT	(((uint32) 24) << 16)
 
 /*
- * Waits delay ticks for a keystroke.  Returns TRUE if keystroke came,
- * FALSE if delay runs out.
+ * Waits delay ticks for the requested keystroke.  Returns TRUE if
+ * keystroke came, FALSE if delay runs out.
+ * If key == -1, accept ANY keystroke.
  */
 int
-wait_for_keystroke(delay)
+wait_for_keystroke(delay, key)
 	int delay;
+	int key;
 {
 	extern uint16 myds;	/* My Data Segment, defined in Statup.s.  */
 	uint32 end_time;		/* Return when time reaches this.  */
 	uint32 current_time;	/* Current value of timer list.  */
-	int retval;
+	int my_key_found;
 	
+	while (iskey()) {
+		getchar();	/* Eat all pending characters.  */
+	}
+
 	/* Calculate the terminating time.  */
 	ffcopy(&end_time, myds, TIMER_OFF, TIMER_SEG, sizeof(int32));
 	end_time += (int32) delay;
@@ -403,13 +409,19 @@ wait_for_keystroke(delay)
 
 	/* Busy wait keystrokes and time delay.  */
 
+	my_key_found = FALSE;
 	do {
 		ffcopy(&current_time, myds, TIMER_OFF, TIMER_SEG,sizeof(int32));
-	} while (!(retval = iskey()) && (current_time < end_time));
+		if (iskey()) {
+			/* The order of evaluation here is important.
+			 * getchar() MUST be called to clean out the
+			 * pending character.
+			 */
+			if (((int) getchar() == key) || (-1 == key)) {
+				my_key_found = TRUE;
+			}
+		}
+	} while (!my_key_found && (current_time < end_time));
 
-	if (retval) {
-		getchar();	/* Eat the keystroke.  */
-	}
-
-	return(retval);
+	return(my_key_found);
 } /* wait_for_keystrok() */
