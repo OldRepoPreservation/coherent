@@ -3,16 +3,19 @@
 
 /*
  * This file provides glue to export the system-private compatibility
- * definitions from <sys/ccompat.h> with names that it is valid for user-level
+ * definitions from <common/ccompat.h> with names that it is valid for user-level
  * code to use.
  */
 
-#include <sys/ccompat.h>
+#include <common/ccompat.h>
 
-#ifdef	__USE_PROTO__
+#if	__USE_PROTO__
 # define	USE_PROTO	__USE_PROTO__
 #endif
 
+# define	STRING(x)	__STRING (x)
+# define	CONCAT(x,y)	__CONCAT (x,y)
+# define	CONCAT3(x,y,z)	__CONCAT3 (x,y,z)
 # define	PROTO(p)	__PROTO (p)
 # define	CONST		__CONST__
 # define	VOLATILE	__VOLATILE__
@@ -24,13 +27,12 @@
 # define	EXTERN_C_END	__EXTERN_C_END__
 # define	NON_ISO(k)	__NON_ISO(k)
 
-
-#ifdef	__NO_INLINE__
-# define	NO_INLINE
+#if	__USE_INLINE__
+# define	USE_INLINE	__USE_INLINE__
 #endif
 
-# ifdef	__NO_INLINEL__
-#  define	NO_INLINEL
+#if	__USE_INLINEL__
+# define	USE_INLINEL	__USE_INLINEL__
 #endif
 
 # define	INLINE		__INLINE__

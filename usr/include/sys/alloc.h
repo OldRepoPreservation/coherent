@@ -4,47 +4,35 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * Allocator.
+ * Kernel memory allocator.
  */
+
 #ifndef	 __SYS_ALLOC_H__
 #define	 __SYS_ALLOC_H__
+
+#include <common/feature.h>
+#include <common/ccompat.h>
+#include <common/__size.h>
+#include <common/__parith.h>
+
+#if	! __KERNEL__
+# error	You must be compiling the kernel to use this header
+#endif
 
 /*
  * Structure for allocator.
  */
-typedef struct all {
-	union all_u {
-		char	*au_link;
-		char	au_free[2];
-	}	a_union;
-	char	a_data[];
+
+typedef union all_u {
+	__ptr_arith_t	a_link;
 } ALL;
 
-/*
- * Macros to transparently access allocator union.
- */
-#define	a_link	a_union.au_link
-#define	a_free	a_union.au_free
 
-#if 0
-/*
- * Portable defines for the allocator.
- */
-#define align(p)	((ALL *)NULL + ((p) - (ALL *)NULL))
-#define link(p)		(align((p)->a_link))
-#define	tstfree(p)	((p)->a_link == (char *) link(p))
-#define setfree(p)	((p)->a_link = (char *) link(p))
-#define setused(p)	((p)->a_link = (char *) link(p) + 1)
+__EXTERN_C_BEGIN__
 
-#endif
+ALL	      *	setarena	__PROTO ((__VOID__ * _base, __size_t _size));
+__VOID__      *	alloc		__PROTO ((ALL * _arena, __size_t _size));
 
-#ifdef	KERNEL
-/*
- * Functions and externals.
- */
-extern	char	*alloc();
-extern	ALL	*setarena();
+__EXTERN_C_END__
 
-#endif
-
-#endif
+#endif	/* ! defined (__SYS_ALLOC_H__) */

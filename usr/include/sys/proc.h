@@ -15,29 +15,32 @@
 #ifndef __SYS_PROC_H__
 #define	__SYS_PROC_H__
 
+#include <common/feature.h>
+#include <sys/poll.h>
 #include <sys/types.h>
-#include <poll.h>
 #include <sys/timeout.h>
 #include <sys/seg.h>
-
 #include <sys/ksynch.h>
+#include <sys/signal.h>
 
-/*
- * NIGEL: For some reason, the "sig_t" type was defined in <sys/types.h>
- * instead of here where it belongs.
- */
-
-typedef	long		sig_t;
+#if	! __KERNEL__
+# error	You must be compiling the kernel to use this header
+#endif
 
 
 /*
  * Number of user segments.
  */
-#ifdef _I386
+
+#if	_I386
+
 #define NUSEG	4
 #define NSHMSEG	6
+
 #else
+
 #define NUSEG	6
+
 #endif
 
 /*
@@ -50,7 +53,15 @@ typedef struct proc {
 	struct	 proc *p_lback;		/* Working backward pointer */
 	struct	 proc *p_nforw;		/* Next forward pointer */
 	struct	 proc *p_nback;		/* Next backward pointer */
+#if	1
+	/*
+	 * NIGEL: What is the +1 for ? Who can tell, but it is never, ever,
+	 * actually used.
+	 */
+	struct seg    *	p_segp [NUSEG];	/* Segments */
+#else
 	struct	 seg  *p_segp[NUSEG+1];	/* Segments */
+#endif
 	unsigned p_pid;			/* Process id */
 	unsigned p_ppid;		/* Process id of parent */
 	unsigned p_uid;			/* Effective uid */
@@ -58,31 +69,30 @@ typedef struct proc {
 	unsigned p_rgid;		/* Real gid */
 	unsigned p_state;		/* Scheduling state */
 	unsigned p_flags;		/* Flags */
-	sig_t	 p_ssig;		/* Signals which have been sent */
 
-/* bit fields p_dfsig and p_isig are redundant with u.u_sfunc, but
-   appear in PROC data for visibility across processes. */
+/*
+ * NIGEL: New deal for signals; the old stuff appears lower in the file.
+ */
+	__sigset_t	p_pending_signals;
+	__sigset_t	p_ignored_signals;
+	__sigset_t	p_signal_mask;
+	__sigset_t	p_queued_signals;
+	__sigmiscfl_t	p_sigflags;	/* General signal flags */
 
-#ifdef _I386
-	sig_t	 p_dfsig;		/* Signals which are defaulted */
-	sig_t	 p_hsig;		/* Signals which are held */
-	sig_t	 p_dsig;		/* Signals which are sigset */
-#endif
-	sig_t	 p_isig;		/* Signals which are being ignored */
 	char	 *p_event;		/* Wakeup event channel */
 	unsigned p_alarm;		/* Timer for alarms */
 	unsigned p_group;		/* Process group */
 	dev_t	 p_ttdev;		/* Controlling terminal */
 	unsigned p_nice;		/* Nice value */
-#ifdef _I386
+#if	_I386
 	int	 p_schedPri;		/* will index into table in sys/ts.h */
 #else
 	unsigned p_cval;		/* Cpu schedule value */
 	unsigned p_sval;		/* Swap schedule value */
 	int	 p_ival;		/* Importance value */
 	unsigned p_rval;		/* Response value */
-#endif
 	unsigned p_lctim;		/* Last time cval was updated */
+#endif
 	long	 p_utime;		/* User time (HZ) */
 	long	 p_stime;		/* System time */
 	long	 p_cutime;		/* Sum of childs user time */
@@ -91,25 +101,29 @@ typedef struct proc {
 	event_t *p_polls;		/* Enabled polls */
 	TIM	 p_polltim;		/* Poll  timer */
 	TIM	 p_alrmtim;		/* Alarm timer */
-#ifdef _I386
+#if	_I386
 	struct	 rlock *p_prl;		/* Pending record lock */
 	struct	 sr p_shmsr[NSHMSEG];	/* Shared Memory Segments */
 	struct   sem_undo *p_semu;	/* Sem. undo link list */
-	char     p_nigel[16];		/* He made me do it! -hws- */
+	char     p_nigel [32];		/* He made me do it! -hws- */
 #endif
 } PROC;
 
 /*
  * Segment indices.
  */
-#ifdef _I386
+
+#if	_I386
+
 #define SIUSERP	0			/* User area segment */
 #define	SISTEXT	1			/* Shared text segment */
 #define SIPDATA	2			/* Private data segment */
 #define SISTACK	3			/* Stack segment */
 #define SIAUXIL	4			/* Auxiliary segment */
 #define	SIBSS	0			/* overlay of SIUSERP [coh/exec.c] */
+
 #else
+
 #define SIUSERP	0			/* User area segment */
 #define SISTACK	1			/* Stack segment */
 #define	SISTEXT	2			/* Shared text segment */
@@ -117,7 +131,8 @@ typedef struct proc {
 #define SISDATA	4			/* Shared data segment */
 #define SIPDATA	5			/* Private data segment */
 #define SIAUXIL	6			/* Auxiliary segment */
-#endif
+
+#endif	/* ! _I386 */
 
 /*
  * Status of process (p_state).
@@ -160,7 +175,8 @@ extern	int	ntowake;		/* Wakeup pending */
 /*
  * Number of entries in sleep/wakeup queue.
  */
-#ifdef _I386
+
+#if	_I386
 #define	NHPLINK	97
 #else
 #define	NHPLINK	32
@@ -173,21 +189,24 @@ typedef struct plink {
 	struct	 proc *p_lforw;		/* Working forward pointer */
 	struct	 proc *p_lback;		/* Working backward pointer */
 } PLINK;
-#endif
 
-#ifdef KERNEL
+#if	__KERNEL__
 
 #define SELF		cprocp
 #define locked(gate)	((gate)[0])
-#ifndef _I386
+
+#if	! _I386
 #define p_u		p_segp[SIUSERP]
 #endif
+
 /*
  * Functions.
  */
 extern	int	idle();
-extern	PROC	*process();
 extern	int	wakeup();
+#if	! _I386
+extern	PROC	*process();
+#endif
 
 /*
  * Global variables.
@@ -211,11 +230,13 @@ extern	int	swmflag;		/* Monitor swapper */
  * Function to hash a wakeup channel.
  * Most channels are even.
  */
-#ifdef _I386
+
+#if	_I386
 #define hash(e)	((unsigned)(e) % NHPLINK)
 #else
 #define hash(e)	((((unsigned)(e))>>1)%NHPLINK)
 #endif
-#endif
 
-/* end of sys/proc.h */
+#endif	/* __KERNEL__ */
+
+#endif	/* ! defined (__SYS_PROC_H__) */

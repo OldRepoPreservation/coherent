@@ -5,9 +5,9 @@
 #ifndef	 __SYS_PTRACE_H__
 #define	 __SYS_PTRACE_H__
 
+#include <common/feature.h>
 #include <sys/types.h>
 #include <sys/ksynch.h>
-
 
 /*
  * Structure used for communication between parent and child.
@@ -111,12 +111,12 @@ struct ptrace {
 
 #define	PTRACE_UEND	224	/* Offsets >= UEND are not valid */
 
-#ifdef KERNEL
+#if	__KERNEL__
 /*
  * Global variables.
  */
 extern	struct	ptrace pts;			/* Ptrace structure */
 
-#endif
+#endif	/* __KERNEL__ */
 
-#endif
+#endif	/* ! defined (__SYS_PTRACE_H__) */

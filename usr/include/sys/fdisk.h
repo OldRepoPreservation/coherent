@@ -69,15 +69,4 @@ typedef	struct	hdisk_s {
 } HDISK_S;
 #pragma align
 
-#ifdef INKERNEL
-/*
- * fdisk(dev_t sdev, FDISK_S pp[])
- * Read partition info from first block of a special device.
- * If valid, update partition array and return 1.
- */
-extern	int	fdisk();
-#endif
-
-#endif
-
-/* end of fdisk.h */
+#endif	/* ! defined (__SYS_FDISK_H__) */

@@ -41,7 +41,7 @@ typedef	struct	mblock	{
 	unsigned blksize;
 	union {
 		char	 *next;
-		unsigned usera[];
+		unsigned usera [1];
 	} uval;
 } MBLOCK;
 
@@ -49,6 +49,5 @@ typedef	struct	mblock	{
 extern	unsigned __a_count;
 extern	MBLOCK	*__a_scanp, *__a_first, *__a_top;
 
-#endif
+#endif	/* ! defined (__SYS_MALLOC_H__) */
 
-/* end of /usr/include/sys/malloc.h */

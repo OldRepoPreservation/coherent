@@ -13,9 +13,14 @@
 #ifndef  __SYS_BUF_H__
 #define  __SYS_BUF_H__
 
-#include <sys/__paddr.h>
+#include <common/feature.h>
+#include <common/__paddr.h>
 #include <sys/types.h>
 #include <sys/ksynch.h>
+
+#if	! __KERNEL__
+# error	You must be compiling the kernel to use this header!
+#endif
 
 typedef struct buf {
 	struct	 buf *b_actf;		/* First in queue */
@@ -27,13 +32,13 @@ typedef struct buf {
 	char	 b_req;			/* I/O type */
 	char	 b_err;			/* Error */
 	unsigned b_seqn;		/* Buffer sequence number */
-#ifndef _I386
+#if	! _I386
 	bold_t	 b_map;			/* Old map */
 	vaddr_t  b_count;		/* Size of I/O */
 	vaddr_t  b_resid;		/* Driver returns count here */
 	faddr_t	 b_faddr;		/* Far Virtual address */
 	__paddr_t	 b_paddr;	/* Physical address */
-#else
+#else	/* if _I386 */
 	off_t	 b_count;		/* Size of I/O */
 	off_t	 b_resid;		/* Driver returns count here */
 	__paddr_t	 b_paddr;	/* 	physical  address (bytes) */
@@ -43,7 +48,7 @@ typedef struct buf {
 	struct	 buf *b_LRUb;		/* Previous (newer) in LRU chain */
 	struct	 buf *b_hashf;		/* Next in this hash chain */
 	struct	 buf *b_hashb;		/* Previous in this hash chain */
-#endif /* _I386 */
+#endif	/* _I386 */
 } BUF;
 
 /*
@@ -72,7 +77,6 @@ typedef struct buf {
 
 #define	BNULL	((BUF *)0)
 
-#ifdef KERNEL
 /*
  * Functions.
  */
@@ -90,6 +94,5 @@ extern	unsigned bufseqn;		/* Buffer sequencer */
 extern	int	 bufneed;		/* Buffer is needed */
 extern	BUF	 swapbuf;		/* Buffer for swap I/O */
 extern	BUF	 *bufl;			/* Buffer headers */
-#endif /* KERNEL */
 
-#endif /* BUF_H */
+#endif	/* ! defined (__SYS_BUF_H__) */

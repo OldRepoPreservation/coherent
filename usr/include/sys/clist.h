@@ -3,11 +3,17 @@
  */
 #ifndef	 __SYS_CLIST_H__
 #define	 __SYS_CLIST_H__
+
+#include <common/feature.h>
 #include <sys/types.h>
-#ifdef _I386
+#if	_I386
 #include <sys/reg.h>
 #else
 #include <sys/machine.h>
+#endif
+
+#if	! __KERNEL__
+# error	You must be compiling the kernel to use this header
 #endif
 
 /*
@@ -37,10 +43,11 @@ typedef struct cqueue {
 	int	cq_ox;			/* Output index */
 } CQUEUE;
 
-#ifdef KERNEL
+#if	__KERNEL__
+
 extern	int	cltwant;		/* A wanted flag */
 extern	cmap_t	cltfree;		/* Character free list */
 
-#endif
+#endif	/* __KERNEL__ */
 
-#endif
+#endif	/* ! defined (__SYS_CLIST_H__) */

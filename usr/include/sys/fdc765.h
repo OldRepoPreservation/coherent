@@ -3,7 +3,7 @@
  *
  * Support 765-style controller for diskette and floppy tape
  *
- * Revised: Mon Jun 14 07:15:35 1993 CDT
+ * Revised: Thu Jun 17 13:01:39 1993 CDT
  */
 #ifndef __SYS_FDC765_H__
 #define __SYS_FDC765_H__
@@ -103,15 +103,15 @@
 /*
  * Controller Commands.
  */
-#define	CMDSPEC	0x03			/* Specify */
-#define CMDSDRV 0x04			/* Sense drive status */
-#define	CMDRCAL	0x07			/* Recal */
-#define CMDSINT 0x08			/* Sense interrupt status */
-#define	CMDSEEK	0x0F			/* Seek */
-#define	CMDWDAT	0x45			/* Write data */
-#define CMDRDID 0x4A			/* Read ID */
-#define	CMDFMT	0x4D			/* Format track */
-#define	CMDRDAT	0x66			/* Read data */
+#define	FDC_CMD_SPEC	0x03		/* Specify */
+#define FDC_CMD_SDRV	0x04		/* Sense drive status */
+#define	FDC_CMD_RCAL	0x07		/* Recal */
+#define FDC_CMD_SINT	0x08		/* Sense interrupt status */
+#define	FDC_CMD_SEEK	0x0F		/* Seek */
+#define	FDC_CMD_WDAT	0x45		/* Write data */
+#define FDC_CMD_RDID	0x4A		/* Read ID */
+#define	FDC_CMD_FMT	0x4D		/* Format track */
+#define	FDC_CMD_RDAT	0x66		/* Read data */
 
 /* Look at minor # to see if target device is diskette or floppy tape. */
 #define FDC_DISKETTE(dev)	(((dev) & 0xC0) == 0)

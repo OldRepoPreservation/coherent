@@ -9,7 +9,7 @@
 **	IPC Message Facility.
 */
 #include <sys/ipc.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 
 /*
 **	Permission Definitions.
@@ -73,7 +73,7 @@ struct msqid_ds {
 struct msgbuf {
 
 	long		mtype;		/* message type */
-	char		mtext[];	/* message text */
+	char		mtext [1];	/* message text */
 };
 
 /*

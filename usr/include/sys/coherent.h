@@ -8,16 +8,20 @@
 #ifndef	__SYS_COHERENT_H__
 #define	__SYS_COHERENT_H__
 
-#define	 KERNEL
-#define	__KERNEL__
-#include <sys/__paddr.h>
+#define	__KERNEL__	1
+
+#include <common/feature.h>
+#include <common/__paddr.h>
+#include <common/_null.h>
+#include <common/_time.h>
+#include <kernel/_sleep.h>
 #include <sys/types.h>
-#include <sys/_time.h>
 #include <sys/param.h>
 #include <sys/fun.h>
 #include <sys/mmu.h>
 #include <sys/uproc.h>
-#ifdef _I386
+#include <sys/alloc.h>
+#if	_I386
 #include <sys/reg.h>
 #define v_sleep(a1,a2,a3,a4,a5)		w_sleep(a1,a2,a5)
 #else
@@ -37,29 +41,24 @@
 #define DV(v)
 #endif /* TRACER */
 
-#ifdef _I386
+#if	_I386
+
 #define CHIRP(ch)		chirp(ch)
 #define _CHIRP(ch, locn)	_chirp(ch, locn)
-#if 1
 #define kclear(buf, nbytes)		memset(buf, 0, nbytes)
 #define kkcopy(src, dest, nbytes)	(memcpy(dest, src, nbytes),nbytes)
-#endif
+
 #else
+
 #define CHIRP(ch)
 #define _CHIRP(ch, locn)
-#endif
 
-/*
- * Null
- */
-#ifndef	NULL		/* machine.h doesn't have any ideas */
-#define NULL	0
-#endif
+#endif	/* ! _I386 */
 
 /*
  * Storage management functions.
  */
-extern	char		*alloc();
+
 #define	kalloc(n)	alloc(allkp, n)
 #define kfree(p)	free(p)
 
@@ -105,14 +104,14 @@ extern	__paddr_t	 holetop;	/* Top of I/O memory */
 extern	daddr_t	 swapbot;		/* Bottom of swap */
 extern	daddr_t	 swaptop;		/* Top of swap */
 extern	__paddr_t	 clistp;	/* Base of clists */
-extern	struct	 all *allkp;		/* Alloc space */
+extern	ALL	 *allkp;		/* Alloc space */
 extern	int	 NSLOT;			/* Num of loadable driver data slots */
 extern	int	 slotsz;		/* Size of loadable driver data slot */
 extern	int *	 slotp;			/* Loadable driver pids/data space */
 extern	int	 (*altclk)();		/* hook for polled devices */
 extern	UPROC	 u;			/* Current user area. */
 
-#ifdef _I386
+#if	_I386
 
 extern	unsigned total_mem;		/* Total physical memory in bytes.  */
 extern	SR	blockp;			/* Base of buffers */
@@ -130,5 +129,6 @@ extern	int	 altsel;		/* for far polling, this is selector */
 					/* ... this is zero */
 extern	int 	is_ps;			/* 1 if running on a PS/2            */	
 
-#endif
-#endif /* COHERENT_H */
+#endif	/* ! _I386 */
+
+#endif	/* ! defined (__SYS_COHERENT_H__) */

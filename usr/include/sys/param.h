@@ -1,34 +1,33 @@
-/* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
-
 /*
  * /usr/include/sys/param.h
  *
  * Parameters specific to this port of COHERENT.
  *
- * Revised: Wed May  5 16:52:17 1993 CDT
+ * Revised: Thu Jul 15 14:20:24 1993 CDT
  */
 #ifndef __SYS_PARAM_H__
 #define	__SYS_PARAM_H__
+
+#include <common/feature.h>
 
 /* WARNING!  Fix references to dev_loaded if ever NDRV > 8*sizeof(int) */
 #define NDRV	32			/* Number of major device entries */
 #define NOFILE	60			/* Number of user open files */
 #define	NEXREAD	6			/* Read ahead */
 
-#ifdef KERNEL			/* These set in *con.c */
+#if	__KERNEL__			/* These set in *con.c */
+
 extern	int	NBUF;			/* Now an adjustable parameter */
 extern	int	NHASH;			/* Now an adjustable parameter */
 extern	int	NINODE;			/* Now an adjustable parameter */
 extern	int	NCLIST;			/* Now an adjustable parameter */
 extern	int	ALLSIZE;		/* Now an adjustable paramenter */
 extern	int	ISTSIZE;		/* Initial stack size (bytes) */
-#endif
 
-#ifdef _I386
+#endif	/* __KERNEL__ */
+
+#if	_I386
+
 #define	BPCSHIFT	12
 #define	BPC1SHIFT	10
 #define	BPSSHIFT	22
@@ -48,7 +47,7 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 #define MADSIZE		32767		/* Maximum addressable segment size */
 #define SMICALL		0		/* Start of independent system calls */
 #define NMICALL		88		/* Machine independent system calls */
-#define H28CALL		0x0F		/* # system calls of form 0x??28 */
+#define H28CALL		0x31		/* # system calls of form 0x??28 */
 #define COHCALL		500		/* Number of COH system call */
 #define SMDCALL		128		/* Start of dependent system calls */
 #define NMDCALL		0		/* Machine dependent system calls */
@@ -69,12 +68,15 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 #define COH_VIO		7
 #define COH_SHM		8
 #define COH_WTEXT	9
+#define COH_GETINT11	10	/* returns hardware word as recorded
+				 * at boot time 
+				 */
 
 #define	HZ	100	/* Number of clock ticks per second.		*/
 #define T0_RATE	11932	/* Number of timer 0 counts per clock tick.	*/
 /* convert microseconds to timer 0 counts - roughly multiply by 1.1932	*/
 #define USEC_TO_COUNTS(usec)	((usec)+(((usec)*3)/16))
 
-#endif
+#endif	/* _I386 */
 
-#endif
+#endif	/* ! defined (__SYS_PARAM_H__) */

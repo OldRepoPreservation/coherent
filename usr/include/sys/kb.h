@@ -10,8 +10,11 @@
  *
  * Revised: Wed Apr  7 17:15:34 1993 CDT
  */
+
 #ifndef	__SYS_KB_H__
 #define	__SYS_KB_H__
+
+#include <common/feature.h>
 
 /*
  * ASCII Macro Definitions - stolen from <ascii.h>
@@ -254,13 +257,12 @@ typedef	struct	{
 /*
  * function key definitions
  *
- * Struct member k_fnval contains the actual function key values.
+ * After this structure are the actual function key text strings.
  * Entries are delimited by DELIM (0xFF or '\377') to allow NUL characters to
  * be embedded in function strings.
  */
 typedef	struct	{
 	unsigned char	k_nfkeys;	/* number of function keys */
-	unsigned char	k_fnval[];	/* linear array of values */
 } FNKEY;
 
 #define	MAX_KEYS	256		/* all that can fit in a char */
@@ -269,10 +271,6 @@ typedef	struct	{
 #define	MAX_FCHAR	2048		/* default Fn key arena size */
 #define	DELIM		0xFF		/* function key delimiter */
 
-/*
-================================================================================
-================================================================================
-*/
 
 /*
  * Virtual terminal key definitions.
@@ -367,7 +365,8 @@ typedef	struct	{
 
 #define	VNKB_FALSE	0
 #define	VNKB_TRUE	1
-#ifdef	KERNEL
+
+#if	__KERNEL__
 
 /*
  * patchable params for non-standard keyboards
@@ -391,11 +390,6 @@ extern	Ksetivec(), Kisrint();
 extern	Kclrivec();
 #endif
 
-#endif	/* KERNEL */
-/*
-================================================================================
-================================================================================
-*/
+#endif	/* __KERNEL__ */
 
-#endif	/* KB_H */
-/* end of kb.h */
+#endif	/* ! defined (__SYS_KB_H__) */
