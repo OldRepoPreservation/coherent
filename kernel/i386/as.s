@@ -43,6 +43,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.13  92/10/06  23:47:48  root
+/ Ker #64
+/ 
 / Revision 1.12  92/10/06  20:45:40  root
 / Ker #63d
 / 
@@ -610,8 +613,8 @@ __halt__
 / int	outw(port, data);
 
 / Long I/O (32 bits)
-/ int	ind(port);
-/ int	outd(port, data);
+/ int	inl(port);
+/ int	outl(port, data);
 
 ///////
 
@@ -961,7 +964,17 @@ selkcopy:
 
 ///////
 
+/	.globl	udat
 kucopy:
+/	mov	8(%esp),%eax		/ verify user address
+/	push	%eax
+/	call	udat
+/	cmp	$0,%eax
+/	pop	%eax
+/	jne	xx00
+/	ret
+/xx00:
+
 	call	start_copy
 
 	movl	4(%edx),%esi		/ esi
@@ -1171,10 +1184,9 @@ start_copy:
 / a bounds error on a user address.
 
 ///////
-/loc10:
 __xtrap_break__:
 
-	add	$16,%esp		/ pop error code, IP, CS, PSW
+/	add	$16,%esp		/ pop error code, IP, CS, PSW
 /	movb	$EFAULT,%ss:u+U_ERROR	/ Bad parameter error
 	subl	%eax,%eax		/ Didn't copy anything
 
