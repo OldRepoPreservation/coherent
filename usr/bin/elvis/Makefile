@@ -36,72 +36,6 @@
 #	DUMMY	usually nothing, but OS9 needs "dummy"
 #	DOC	name of "doc" directory, with a trailing slash
 
-#---- These settings are recommended for System-V UNIX and SCO XENIX-386 ----
-#O=	.o
-#E=
-#EXTRA=
-#EXTRA2=
-#LIBS=	-ltermcap
-#BIN=	/usr/local/bin
-#CFLAGS=	-DM_SYSV -O
-#OF=	-o 
-#RF=	-c
-#DATE=	-DDATE=\'\"`date`\"\'
-#EVAL=	eval 
-#PROGS=	elvis$E ctags$E ref$E virec$E refont$E
-#CHMEM=	
-#SORT=	-DSORT
-#INST=	inst.unix
-#RM=	rm -f
-#PR1=	refont -c
-#PR2=	| lp
-#DUMMY=
-#DOC=	doc/
-
-#---- These settings are recommended for SCO XENIX-286 ----
-#O=	.o
-#E=
-#EXTRA=
-#EXTRA2=
-#LIBS=	-ltermcap
-#BIN=	/usr/local/bin
-#CC=	cc -M2s -i
-#CFLAGS=	-DM_SYSV -Ox -DCS_IBMPC
-#OF=	-o 
-#RF=	-c
-#DATE=	-DDATE=\'\"`date`\"\'
-#EVAL=	eval 
-#PROGS=	elvis$E ctags$E ref$E virec$E refont$E
-#CHMEM=	
-#SORT=	-DSORT
-#INST=	inst.unix
-#RM=	rm -f
-#PR1=	refont -c
-#PR2=	| lp
-#DUMMY=
-#DOC=	doc/
-
-#---- These settings are recommended for BSD 4.3 UNIX ----
-#O=	.o
-#E=
-#EXTRA=
-#EXTRA2=
-#LIBS=	-ltermcap
-#BIN=	/usr/local/bin
-#CFLAGS=	-Dbsd -O
-#OF=	-o 
-#RF=	-c
-#DATE=	-DDATE=\'\"`date`\"\'
-#EVAL=	eval 
-#PROGS=	elvis$E ctags$E ref$E virec$E refont$E
-#CHMEM=	
-#SORT=	-DSORT
-#INST=	inst.unix
-#RM=	rm -f
-#PR1=	refont -c
-#PR2=	| lpr
-#DUMMY=
-#DOC=	doc/
 
 #---- These settings are recommended for Coherent ----
 O=.o
@@ -118,7 +52,7 @@ RF=	-c
 DATE=	-DDATE=\'\"`date`\"\'
 EVAL=	eval
 PROGS=	elvis$E ctags$E ref$E virec$E refont$E
-CHMEM=	fixstack 2000 elvis$E
+CHMEM=	fixstack 2000 $(DESTDIR)elvis$E
 SORT=
 INST=	inst.unix
 RM=	rm -f
@@ -126,125 +60,8 @@ PR1=	refont -b
 PR2=	>Elvis.doc
 DUMMY=
 DOC=	doc/
+DESTDIR= /interim/usr/bin/
 
-#---- These settings are recommended for Minix-ST ----
-#O=	.o
-#E=
-#EXTRA=
-#EXTRA2=
-#LIBS=
-#BIN=	/usr/bin
-#CC=	cc
-#CFLAGS=
-#OF=	-o 
-#RF=	-c
-#DATE=	-DDATE=\'\"`date`\"\'
-#EVAL=	eval 
-#PROGS=	elvis$E ctags$E ref$E virec$E refont$E
-#CHMEM=	chmem =18000 elvis
-#SORT=
-#INST=	inst.unix
-#RM=	rm -f
-#PR1=	lpr
-#PR2=
-#DUMMY=
-#DOC=	doc/
-
-#---- These settings are recommended for Minix-PC ----
-#O=	.s
-#E=
-#EXTRA=	tinytcap$O
-#EXTRA2=
-#LIBS=
-#BIN=	/usr/bin
-#CC=	cc -i
-#CFLAGS=	-O -DCRUNCH -DNO_MKEXRC -DNO_CURSORSHAPE -DNO_CHARATTR \
-#	-DNO_SHOWMODE -DNO_MODELINE -DNO_OPTCOLS -DNO_DIGRAPH -DNO_ABBR \
-#	-DNO_AT -DNO_SENTENCE -DNO_ERRLIST
-#### (all but -DNO_EXTENSIONS, -DNO_RECYCLE, -DNO_MAGIC, and -DNO_CHARSEARCH)
-#OF=	-o 
-#RF=	-c
-#DATE=	-DDATE=\'\"`date`\"\'
-#EVAL=	eval 
-#PROGS=	elvis$E ctags$E ref$E virec$E refont$E
-#CHMEM=
-#SORT=
-#INST=	inst.unix
-#RM=	rm -f
-#PR1=	lpr
-#PR2=	
-#DUMMY=
-#DOC=	doc/
-
-#---- These settings are recommended for MS-DOS + MS-C + NDMAKE ----
-#O=	.obj
-#E=	.exe
-#EXTRA=	pc$O sysdos$O tinytcap$O
-#EXTRA2=
-#LIBS=
-#BIN=	c:\dos
-#CC=	cl /M2m
-#CFLAGS=	-O -DCS_IBMPC
-#OF=	-o 
-#RF=	-c
-#DATE=
-#EVAL=
-#PROGS=	elvis$E ex$E ctags$E ref$E virec$E wildcard$E refont$E
-#CHMEM=	
-#SORT=
-#INST=	inst.dos
-#RM=	del
-#PR1=	refont -c
-#PR2=	>PRN
-#DUMMY=
-#DOC=	doc\
-
-#---- These settings are recommended for Atari TOS + Mark Williams C ----
-#O=	.o
-#E=	.ttp
-#EXTRA=	sysdos$O tinytcap$O
-#EXTRA2=	atari$O
-#LIBS=
-#BIN=	c:\
-#CC=	cc -VPEEP
-#CFLAGS=	-O
-#OF=	-o 
-#RF=	-c
-#DATE=
-#EVAL=
-#PROGS=	elvis$E ex$E ctags$E ref$E virec$E wildcard$E shell$E refont$E
-#CHMEM=	
-#SORT=
-#INST=	inst.dos
-#RM=	rm -f
-#PR1=	refont -e
-#PR2=	>PRT:
-#DUMMY=
-#DOC=	doc\
-
-#---- These settings are recommended for OS-9/68K V2.3 ----
-#O=	.r
-#E=
-#EXTRA=	date$O
-#EXTRA2=	osk$O 
-#LIBS=	-l=/dd/lib/termlib.l
-#BIN=	/dd/usr/cmds
-#CC=	cc
-#ODIR=	/dd/usr/src/elvis
-#CFLAGS=	-gq -m=2
-#OF=	-f=$(ODIR)/
-#RF=	-r
-#DATE=
-#EVAL=
-#PROGS=	elvis$E vi$E view$E input$E ctags$E ref$E virec$E refont$E
-#CHMEM=	touch date.r
-#SORT=
-#INST=	inst.os9
-#RM=	del *.stb *.dbg
-#PR1=	refont -b
-#PR2=	>/p
-#DUMMY=	dummy
-#DOC=	doc/
 
 ###########################################################################
 ###########################################################################
@@ -286,35 +103,42 @@ all: $(PROGS)
 	@echo done.
 
 elvis$E: $(OBJS) $(EXTRA) $(EXTRA2)
-	$(CC) $(CFLAGS) $(OF)elvis$E $(OBJS) $(EXTRA) $(EXTRA2) $(LIBS)
+	$(CC) $(CFLAGS) $(OF) $(DESTDIR)elvis$E $(OBJS) $(EXTRA) $(EXTRA2) $(LIBS)
 	-$(CHMEM)
+	su root chown bin $(DESTDIR)elvis
+	su root chgrp bin $(DESTDIR)elvis
+	su root chmod 755 $(DESTDIR)elvis
+	su root ln -f $(DESTDIR)elvis $(DESTDIR)vi
+	su root ln -f $(DESTDIR)elvis $(DESTDIR)ex
+	su root ln -f $(DESTDIR)elvis $(DESTDIR)view
+	su root ln -f $(DESTDIR)elvis $(DESTDIR)input
 
 ctags$E: ctags.c
-	$(CC) $(CFLAGS) $(SORT) $(OF)ctags$E ctags.c
+	$(CC) $(CFLAGS) $(SORT) $(OF) $(DESTDIR)ctags$E ctags.c
 
 ref$E: ref.c
-	$(CC) $(CFLAGS) $(OF)ref$E ref.c
+	$(CC) $(CFLAGS) $(OF) $(DESTDIR)ref$E ref.c
 
 virec$E: virec.c
-	$(CC) $(CFLAGS) $(OF)virec$E virec.c $(EXTRA2)
+	$(CC) $(CFLAGS) $(OF) $(DESTDIR)virec$E virec.c $(EXTRA2)
 
 view$E: $(ALIAS)
-	$(CC) $(CFLAGS) $(OF)view$E $(ALIAS)
+	$(CC) $(CFLAGS) $(OF) view$E $(ALIAS)
 
 ex$E: $(ALIAS)
-	$(CC) $(CFLAGS) $(OF)ex$E $(ALIAS)
+	$(CC) $(CFLAGS) $(OF) ex$E $(ALIAS)
 
 vi$E: $(ALIAS)
-	$(CC) $(CFLAGS) $(OF)vi$E $(ALIAS)
+	$(CC) $(CFLAGS) $(OF) vi$E $(ALIAS)
 
 input$E: $(ALIAS)
-	$(CC) $(CFLAGS) $(OF)input$E $(ALIAS)
+	$(CC) $(CFLAGS) $(OF) input$E $(ALIAS)
 
 wildcard$E: wildcard.c
-	$(CC) $(CFLAGS) $(OF)wildcard$E wildcard.c
+	$(CC) $(CFLAGS) $(OF) wildcard$E wildcard.c
 
 refont$E: refont.c
-	$(CC) $(CFLAGS) $(OF)refont$E refont.c $(EXTRA2)
+	$(CC) $(CFLAGS) $(OF) refont$E refont.c $(EXTRA2)
 
 ##############################################################################
 
@@ -341,13 +165,13 @@ install: $(INST)
 	@echo Installation complete.
 
 inst.unix: $(DUMMY)
-	cp $(PROGS) $(BIN)
-	(cd $(BIN); chmod 755 $(PROGS))
-	(cd $(BIN); chown bin $(PROGS))
-	-ln $(BIN)/elvis $(BIN)/vi
-	-ln $(BIN)/elvis $(BIN)/ex
-	-ln $(BIN)/elvis $(BIN)/view
-	-ln $(BIN)/elvis $(BIN)/input
+	su root chown bin $(DESTDIR)elvis
+	su root chgrp bin $(DESTDIR)elvis
+	su root chmod 755 $(DESTDIR)elvis
+	su root ln $(DESTDIR)elvis $(DESTDIR)vi
+	su root ln $(DESTDIR)elvis $(DESTDIR)ex
+	su root ln $(DESTDIR)elvis $(DESTDIR)view
+	su root ln $(DESTDIR)elvis $(DESTDIR)input
 
 inst.dos: $(DUMMY)
 	copy $(PROGS) $(BIN)
