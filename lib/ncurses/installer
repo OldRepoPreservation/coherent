@@ -1,0 +1,6 @@
+cp `srcpath curses.h` /usr/include/curses.h
+cp `srcpath terminfo.h` /usr/include/terminfo.h
+cp `srcpath unctrl.h` /usr/include/unctrl.h
+cp tic /usr/lib/terminfo
+cp infocmp /usr/lib/terminfo
+cp libcurses.a /usr/lib/libcurses.a
