@@ -23,6 +23,7 @@ int fd, baud;
 		return( M_ILL_BD );
 	ttyb.sg_ospeed = ttyb.sg_ispeed;
 	ttyb.sg_flags = CBREAK;
+	stripflg = 1;
 	ttyb.sg_erase = -1;
 	ttyb.sg_kill = -1;
 	if ( stty(fd, &ttyb) == -1 )
@@ -37,6 +38,7 @@ int fd;
 	stty(fd, &save);
 	sleep(2);
 	stty(fd, &save);
+	stripflg = 0;
 }
 
 
@@ -55,6 +57,7 @@ int fd, baud;
 	ioctl(fd, TCGETA, &tio);
 	save = tio;
 	tio.c_iflag = ISTRIP;
+	stripflg = 1;
 	tio.c_oflag = 0;
 	tio.c_cflag &= ~(CBAUD|CSIZE|PARENB);
 	if ( (tmp=findspeed(baud)) == 0 )
@@ -73,6 +76,7 @@ int fd;
 	ioctl(fd, TCSETA, &save);
 	sleep (2);
 	ioctl(fd, TCSETA, &save);
+	stripflg = 0;
 }
 
 #endif
