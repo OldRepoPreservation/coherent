@@ -455,12 +455,12 @@ struct adata {		/* Storage for arg and env data */
 SEG *
 exstack(xhp, argp, envp, wdin)
 register struct xechdr *xhp;
-vaddr_t	argp, envp;
+caddr_t	argp, envp;
 {
 	register SEG *sp;		/* Stack segment pointer */
 	struct sdata {		/* To keep segment pointers */
-		vaddr_t	vp;		/* Argv[i], envp[i] pointer */
-		vaddr_t	cp;		/* Argv[i][j], envp[i][j] pointer */
+		caddr_t	vp;		/* Argv[i], envp[i] pointer */
+		caddr_t	cp;		/* Argv[i][j], envp[i][j] pointer */
 	} stk;
 	struct adata arg, env;
 	int	chrsz, vecsz, stksz, wdmask, wdout, stkoff, stktop;
@@ -534,10 +534,10 @@ vaddr_t	argp, envp;
 }
 
 exarg(out, in)
-vaddr_t	in, out;
+caddr_t	in, out;
 {
 	char 	c;
-	vaddr_t	init_in;
+	caddr_t	init_in;
 
 	init_in = in;
 	do {
@@ -553,10 +553,10 @@ vaddr_t	in, out;
  * in the arguments
  */
 excount(usrvp, adp, wdin)
-register vaddr_t usrvp;
+register caddr_t usrvp;
 struct adata *adp;
 {
-	register vaddr_t	usrcp;
+	register caddr_t	usrcp;
 	register int c;
 	register unsigned nb;
 	register unsigned na;

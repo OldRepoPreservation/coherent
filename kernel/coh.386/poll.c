@@ -15,10 +15,10 @@
 /*
  * [Stream] Polling.
  *
- *	void pollinit( ) -- allocate polling buffers
+ *	void pollinit() -- allocate polling buffers
  *	int pollopen(qp) -- enable polling  by current process  on given queue
  *	int pollwake(qp) -- wake all processes waiting for poll on given queue
- *	int pollexit(  ) -- terminate all polls enabled by current process
+ *	int pollexit() -- terminate all polls enabled by current process
  *	event_t * ep;
  *
  * $Log:	poll.c,v $
@@ -61,8 +61,8 @@ pollinit()
 	 * If dynamically growing event pool is specified [NPOLL == 0],
 	 * try to allocate an additional cluster of 32 on each call.
 	 */
-	if ( NPOLL == 0 ) {
-		if ( ep = kalloc( 32 * sizeof(event_t) ) )
+	if (NPOLL == 0) {
+		if (ep = kalloc(32 * sizeof(event_t)))
 			ap = ep + 32;
 	}
 
@@ -70,20 +70,20 @@ pollinit()
 	 * If statically sized event pool is specified [NPOLL != 0],
 	 * try to allocate the pool on the first call.
 	 */
-	else if ( first ) {
+	else if (first) {
 		first = 0;
-		if ( ep = kalloc( NPOLL * sizeof(event_t) ) )
+		if (ep = kalloc(NPOLL * sizeof(event_t)))
 			ap = ep + NPOLL;
 	}
 
 	/*
 	 * If event cluster was allocated, insert into free event queue.
 	 */
-	if ( ep ) {
+	if (ep) {
 		do {
 			ep->e_pnext = efreep;
 			efreep = ep;
-		} while ( ++ep < ap );
+		} while (++ep < ap);
 	}
 
 	return efreep;
@@ -95,7 +95,7 @@ pollinit()
  * pollopen(qp) -- enable polling by current process on given event queue
  * event_t * qp;
  */
-pollopen( qp )
+pollopen(qp)
 register event_t * qp;
 {
 	register event_t * ep;
@@ -103,13 +103,13 @@ register event_t * qp;
 	/*
 	 * Initialize device queue if required.
 	 */
-	if ( qp->e_dnext == 0 )
+	if (qp->e_dnext == 0)
 		qp->e_dnext = qp->e_dlast = qp;
 
 	/*
 	 * Obtain a free event buffer, or return.
 	 */
-	if ( ((ep = efreep) == 0) && ((ep = pollinit()) == 0) ) {
+	if (((ep = efreep) == 0) && ((ep = pollinit()) == 0)) {
 		printf("out of poll buffers\n");
 		return;
 	}
@@ -147,10 +147,22 @@ register event_t * qp;
 /**
  *
  * int
- * pollwake( qp ) -- wake all processes waiting for poll on given queue
+ * pollwake(qp) -- wake all processes waiting for poll on given queue
  * event_t * qp;
+ *
+ * Go through extra step of deferring the pollwake to avoid race condition
+ * (in case interrupt handler does a pollwake() during upoll()).
  */
-pollwake( qp )
+pollwake(qp)
+event_t * qp;
+{
+	void dpollwake();
+
+	defer(dpollwake, qp);
+}
+
+void
+dpollwake(qp)
 event_t * qp;
 {
 	register event_t * ep = qp;
@@ -162,17 +174,17 @@ event_t * qp;
 	 */
 	qp->e_procp = 0;
 
-	if ( ep = qp->e_dnext ) {
+	if (ep = qp->e_dnext) {
 
 		/*
 		 * Service circularly-linked polls on device queue.
 		 */
-		while ( ep != qp ) {
+		while (ep != qp) {
 			/*
 			 * Wake process if it is sleeping.
 			 */
-			if ( (pp = ep->e_procp) && (pp->p_state == PSSLEEP) )
-				wakeup( &pp->p_polls );
+			if ((pp = ep->e_procp) && ASLEEP(pp))
+				wakeup(&pp->p_polls);
 
 			ep = ep->e_dnext;
 		}
@@ -193,7 +205,7 @@ pollexit()
 	/*
 	 * Service all polling event buffers enabled by current process.
 	 */
-	while ( ep = pp->p_polls ) {
+	while (ep = pp->p_polls) {
 
 		/*
 		 * Remove event buffer from circularly-linked device queue.

@@ -21,6 +21,7 @@ else
 	exit 1
 fi
 
+#CFLAGS=${CFLAGS-"-DTRACER -VPSTR -D__COHERENT__"}
 CFLAGS=${CFLAGS-"-DTRACER -VPSTR"}
 CC=${CC-"exec /bin/cc"}
 
@@ -37,9 +38,10 @@ USE_IPC=y
 USE_LP=y
 USE_PTY=y
 USE_ASYNC=y
+MAKE_LIBS=y
 PATCH=
 KEROBJ=${K386LIB}/ker386.o
-TARGET=/at386.test
+TARGET=/foobar
 ASYNC=/etc/default/async
 
 # Each drvl entry is 0x14, or 20 decimal, bytes.
@@ -103,6 +105,9 @@ PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 	kb|kb_d|kb_f|nkb)
 		OPTS=${OPTS}" ${K386OBJ}/$ARG.o"
 		DEFAULT_KB=n
+		;;
+	nl)
+		MAKE_LIBS=n
 		;;
 	sc)
 		CFLAGS=${CFLAGS}" -DSERIAL_CONSOLE"
@@ -199,7 +204,10 @@ then
 	OPTS=${OPTS}" ${K386OBJ}/mmas.o ${K386OBJ}/mm.o"
 fi
 make "CFLAGS=$CFLAGS" "CC=$CC" ${KEROBJ} 	|| exit 1
-make "CFLAGS=$CFLAGS" "CC=$CC" libs 	|| exit 1
+if [ ${MAKE_LIBS} = "y" ]
+then
+	make "CFLAGS=$CFLAGS" "CC=$CC" libs 	|| exit 1
+fi
 set -x
 
 #if [ -f $TARGET ]
@@ -214,5 +222,5 @@ then
 fi
 if [ ${USE_ASY} = "y" ]
 then
-	/conf/asypatch -v $TARGET < $ASYNC
+	su root /conf/asypatch -v $TARGET < $ASYNC
 fi

@@ -5,16 +5,8 @@
 # ndpEmFn:	becomes address of math_emulate()
 # ndpKfsave:	becomes address of kfsave()
 # ndpKfrstor:	becomes address of kfrstor()
-GREP=egrep
-
 KER=${1-/tx}
 echo "Enabling emulator in $KER"
 
-ADDR=`nm $KER | ${GREP} math_emulate | awk '{ print $2 }'`
-/conf/patch -v $KER "ndpEmFn=0x${ADDR}"
-
-ADDR=`nm $KER | ${GREP} kfsave | awk '{ print $2 }'`
-/conf/patch -v $KER "ndpKfsave=0x${ADDR}"
-
-ADDR=`nm $KER | ${GREP} kfrstor | awk '{ print $2 }'`
-/conf/patch -v $KER "ndpKfrstor=0x${ADDR}"
+/conf/patch -v $KER "ndpEmFn=math_emulate" "ndpKfsave=kfsave" \
+  "ndpKfrstor=kfrstor"
