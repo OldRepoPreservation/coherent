@@ -110,9 +110,9 @@ mmalloc(n) int n;
  */
 readc()
 {
-	if(nbackup!=0)
+	if (nbackup!=0)
 		return(backup[--nbackup]);
-	if(lastc=='\n')
+	if (lastc=='\n')
 		lineno++;
 	lastc=getc(fd);
 	return(lastc);
@@ -121,7 +121,7 @@ readc()
 /* put c into backup[] */
 putback(c)
 {
-	if(c==EOF)
+	if (c==EOF)
 		return;
 	if (nbackup == NBACKUP)
 		err("macro definition too long");
@@ -160,7 +160,7 @@ define(name, value, protected) register char *name, *value; int protected;
 {
 	register MACRO *i;
 
-	if(dflag)
+	if (dflag)
 		printf("define %s = %s\n", name, value);
 	for (i = macro; i != NULL; i=i->next)
 		if (Streq(name, i->name)) {
@@ -199,7 +199,7 @@ ismacro(c) register int c;
 nextc()
 {
 	register char *s;
-	register c;
+	register int c, endc;
 
 Again:
 	if ((c = readc()) == '\\') {
@@ -237,14 +237,15 @@ Again2:
 			goto Again;		/* "\n\t# comment" */
 		return '\n';			/* action follows */
 	}
-	if(!defining && c=='$'){
+	if (!defining && c=='$'){
 		c=readc();
-		if (c == '(') {
-			s=macroname;
-			while (' ' < (c = readc()) && c < 0177 && c != ')')
-				if(s!=&macroname[NMACRONAME])
+		if (c == '(' || c == '{') {
+			endc = (c == '(') ? ')' : '}';
+			s = macroname;
+			while (' ' < (c = readc()) && c < 0177 && c != endc)
+				if (s != &macroname[NMACRONAME])
 					*s++=c;
-			if (c != ')')
+			if (c != endc)
 				err(badmac);
 			*s++ = '\0';
 		} else if (ismacro(c)) {
@@ -252,7 +253,7 @@ Again2:
 			macroname[1]='\0';
 		} else
 			err(badmac);
-		if((s=mexists(macroname))!=NULL)
+		if ((s=mexists(macroname))!=NULL)
 			unreads(s);
 		goto Again;
 	}
@@ -298,7 +299,7 @@ starttoken()
  */
 addtoken(c)
 {
-	if(tokp==&tokbuf[NTOKBUF]){
+	if (tokp==&tokbuf[NTOKBUF]){
 		token=extend(token, toklen-NTOKBUF, tokbuf, NTOKBUF);
 		tokp=tokbuf;
 	}
@@ -326,7 +327,7 @@ listtoken(value, next) char *value; TOKEN *next;
 	t=(TOKEN *)mmalloc(sizeof *t);	/*Necessaire ou le contraire?*/
 	t->value=value;
 	t->next=NULL;
-	if(next==NULL)
+	if (next==NULL)
 		return(t);
 	for(p=next;p->next!=NULL;p=p->next);
 	p->next=t;
@@ -360,7 +361,7 @@ input(file) char *file;
 	char *action;
 	int twocolons;
 
-	if(file!=NULL && (fd=fopen(file, "r"))==NULL)
+	if (file!=NULL && (fd=fopen(file, "r"))==NULL)
 		die("cannot open %s", file);
 	lineno=1;
 	lastc=EOF;
@@ -369,7 +370,7 @@ input(file) char *file;
 		for(;;){
 			while(c==' ' || c=='\t')
 				c=nextc();
-			if(delim(c, "=:;\n"))
+			if (delim(c, "=:;\n"))
 				break;
 			starttoken();
 			while(!delim(c, " \t\n=:;")){
@@ -381,19 +382,19 @@ input(file) char *file;
 		}
 		switch(c){
 		case EOF:
-			if(tp!=NULL)
+			if (tp!=NULL)
 				err(incomp);
 			fclose(fd);
 			return;
 		case EOS:
-			if(tp==NULL)
+			if (tp==NULL)
 				break;
 		case '\n':
 			err("newline after target or macroname");
 		case ';':
 			err("; after target or macroname");
 		case '=':
-			if(tp==NULL || tp->next!=NULL)
+			if (tp==NULL || tp->next!=NULL)
 				err("= without macro name or in token list");
 			defining++;
 			while((c=nextc())==' ' || c=='\t');
@@ -407,10 +408,10 @@ input(file) char *file;
 			defining=0;
 			break;
 		case ':':
-			if(tp==NULL)
+			if (tp==NULL)
 				err(": without preceding target");
 			c=nextc();
-			if(c==':'){
+			if (c==':'){
 				twocolons=1;
 				c=nextc();
 			} else
@@ -418,7 +419,7 @@ input(file) char *file;
 			for(;;){
 				while(c==' ' || c=='\t')
 					c=nextc();
-				if(delim(c, "=:;\n"))
+				if (delim(c, "=:;\n"))
 					break;
 				starttoken();
 				while(!delim(c, TDELIM)){
@@ -582,7 +583,7 @@ sexists(name) register char *name;
 	register SYM *sp;
 
 	for(sp=sym;sp!=NULL;sp=sp->next)
-		if(Streq(name, sp->name))
+		if (Streq(name, sp->name))
 			return(sp);
 	return(NULL);
 }
@@ -613,7 +614,7 @@ lookup(name) char *name;
 {
 	register SYM *sp;
 
-	if((sp=sexists(name))!=NULL)
+	if ((sp=sexists(name))!=NULL)
 		return(sp);
 	sp = (SYM *)mmalloc(sizeof (*sp));	/*necessary?*/
 	sp->name=name;
@@ -641,9 +642,9 @@ adddep(name, action, next) char *name, *action; DEP *next;
 
 	s=lookup(name);
 	for(v=next;v!=NULL;v=v->next)
-		if(s==v->symbol){
+		if (s==v->symbol){
 			if (action != NULL) {
-				if(v->action!=NULL)
+				if (v->action!=NULL)
 					err("multiple detailed actions for %s",
 						s->name);
 				v->action=action;
@@ -654,7 +655,7 @@ adddep(name, action, next) char *name, *action; DEP *next;
 	v->symbol=s;
 	v->action=action;
 	v->next=NULL;
-	if(next==NULL)
+	if (next==NULL)
 		return(v);
 	for(dp=next;dp->next!=NULL;dp=dp->next);
 	dp->next=v;
@@ -673,9 +674,9 @@ install(cons, ante, action, twocolons) TOKEN *ante, *cons; char *action;
 	SYM *cp;
 	TOKEN *ap;
 
-	if(deftarget==NULL && cons->value[0]!='.')
+	if (deftarget==NULL && cons->value[0]!='.')
 		deftarget=cons->value;
-	if(dflag){
+	if (dflag){
 		printf("Ante:");
 		ap=ante;
 		while(ap!=NULL){
@@ -689,29 +690,29 @@ install(cons, ante, action, twocolons) TOKEN *ante, *cons; char *action;
 			ap=ap->next;
 		}
 		printf("\n");
-		if(action!=NULL)
+		if (action!=NULL)
 			printf("Action: '%s'\n", action);
-		if(twocolons)
+		if (twocolons)
 			printf("two colons\n");
 	}
 	for (; cons != NULL; cons = cons->next) {
 		cp=lookup(cons->value);
-		if(cp==suffixes && ante==NULL)
+		if (cp==suffixes && ante==NULL)
 			cp->deplist=NULL;
 		else{
-			if(twocolons){
-				if(cp->type==T_UNKNOWN)
+			if (twocolons){
+				if (cp->type==T_UNKNOWN)
 					cp->type=T_DETAIL;
-				else if(cp->type!=T_DETAIL)
+				else if (cp->type!=T_DETAIL)
 					err("'::' not allowed for %s",
 						cp->name);
 			} else {
-				if(cp->type==T_UNKNOWN)
+				if (cp->type==T_UNKNOWN)
 					cp->type=T_NODETAIL;
-				else if(cp->type!=T_NODETAIL)
+				else if (cp->type!=T_NODETAIL)
 					err("must use '::' for %s", cp->name);
 				if (action != NULL) {
-					if(cp->action != NULL)
+					if (cp->action != NULL)
 						err("multiple actions for %s",
 							cp->name);
 					cp->action = action;
@@ -737,10 +738,10 @@ make(s) register SYM *s;
 	int update;
 	int type;
 
-	if(s->type==T_DONE)
+	if (s->type==T_DONE)
 		return;
 	name = s->filename;
-	if(dflag) {
+	if (dflag) {
 		if (s->name == name)
 			printf("Making %s\n", name);
 		else
@@ -751,20 +752,20 @@ make(s) register SYM *s;
 	s->moddate=getmdate(name);
 	for(dep=s->deplist;dep!=NULL;dep=dep->next)
 		make(dep->symbol);
-	if(type==T_DETAIL){
+	if (type==T_DETAIL){
 		implicit(s, "", 0);
 		for(dep=s->deplist;dep!=NULL;dep=dep->next)
-			if(dep->symbol->moddate>s->moddate)
+			if (dep->symbol->moddate>s->moddate)
 				docmd0(s, dep->action, name, dep->symbol->filename);
 	} else {
 		update=0;
 		starttoken();
 		for(dep=s->deplist;dep!=NULL;dep=dep->next){
-			if(dflag)
+			if (dflag)
 				printf("%s time=%ld %s time=%ld\n",
 				    dep->symbol->filename, dep->symbol->moddate,
 				    name, s->moddate);
-			if(dep->symbol->moddate>s->moddate){
+			if (dep->symbol->moddate>s->moddate){
 				update++;
 				addtoken(' ');
 				for(t=dep->symbol->filename;*t;t++)
@@ -779,9 +780,9 @@ make(s) register SYM *s;
 				printf("'%s' made due to non-existence\n",
 					name);
 		}
-		if(s->action==NULL)
+		if (s->action==NULL)
 			implicit(s, t, update);
-		else if(update)
+		else if (update)
 			docmd0(s, s->action, name, t);
 		free(t);
 	}
@@ -794,29 +795,29 @@ expand(str) register char *str;
 {
 	register int c;
 	register char *p;
-	int end;
+	int endc;
 
 	while (c = *str++) {
 		if (c == '$') {
 			c = *str++;
 			switch (c) {
-			case 0: err(badmac);
-			case '$': addtoken(c); continue;
-			case '@': p = mvarval[0]; break;
-			case '?': p = mvarval[1]; break;
-			case '<': p = mvarval[2]; break;
-			case '*': p = mvarval[3]; break;
+			case '\0':	err(badmac);
+			case '$':	addtoken(c);	continue;
+			case '@':	p = mvarval[0]; break;
+			case '?':	p = mvarval[1]; break;
+			case '<':	p = mvarval[2]; break;
+			case '*':	p = mvarval[3]; break;
 			case '{':
 			case '(':
-				end = (c == '(') ? ')' : '}';
+				endc = (c == '(') ? ')' : '}';
 				c = '(';
 				p = str;
-				do c = *str++; while (c != 0 && c != end);
+				do c = *str++; while (c != 0 && c != endc);
 				if (c == 0)
 					err(badmac);
 				*--str = 0;
 				p = mexists(p);
-				*str++ = ')';
+				*str++ = endc;
 				break;
 			default:
 				if ( ! ismacro(c))
@@ -948,7 +949,7 @@ implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
 	SYM *rule;
 	SYM *subj;
 
-	if(dflag)
+	if (dflag)
 		printf("Implicit %s (%s)\n", obj->name, ques);
 	if ((suffix=rindex(obj->name, '.')) == NULL
 	 || suffix==obj->name) {
@@ -962,9 +963,9 @@ implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
 	endtoken();
 	prefix=token;
 	for(d=suffixes->deplist;d!=NULL;d=d->next)
-		if(Streq(suffix, d->symbol->name))
+		if (Streq(suffix, d->symbol->name))
 			break;
-	if(d==NULL){
+	if (d==NULL){
 		free(prefix);
 		if (definite)
 			defalt(obj, ques);
@@ -983,7 +984,7 @@ implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
 			file = s;
 		}
 		subj=NULL;
-		if(fexists(file) || (subj=dexists(file, obj->deplist))){
+		if (fexists(file) || (subj=dexists(file, obj->deplist))){
 			starttoken();
 			for(s=d->symbol->filename;*s!='\0';s++)
 				addtoken(*s);
@@ -991,14 +992,14 @@ implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
 				addtoken(*s);
 			endtoken();
 			rulename=token;
-			if((rule=sexists(rulename))!=NULL){
+			if ((rule=sexists(rulename))!=NULL){
 				if (subj != NULL || (subj=sexists(file))) {
 					free(file);
 					file=subj->name;
 				} else
 					subj=lookup(file);
 				make(subj);
-				if(definite || subj->moddate>obj->moddate)
+				if (definite || subj->moddate>obj->moddate)
 					docmd(obj, rule->action,
 						obj->name, ques, file, prefix);
 				free(prefix);
@@ -1111,27 +1112,27 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 	if (sexists(".SILENT") != NULL)
 		++sflag;
 	deflt = sexists(".DEFAULT");
-	if(pflag){
-		if(macro != NULL) {
+	if (pflag){
+		if (macro != NULL) {
 			printf("Macros:\n");
 			for (mp = macro; mp != NULL; mp=mp->next)
 				printf("%s=%s\n", mp->name, mp->value);
 		}
 		printf("Rules:\n");
 		for(sp=sym;sp!=NULL;sp=sp->next){
-			if(sp->type!=T_UNKNOWN){
+			if (sp->type!=T_UNKNOWN){
 				printf("%s:", sp->name);
-				if(sp->type==T_DETAIL)
+				if (sp->type==T_DETAIL)
 					putchar(':');
 				for(d=sp->deplist;d!=NULL;d=d->next)
 					printf(" %s", d->symbol->name);
 				printf("\n");
-				if(sp->action)
+				if (sp->action)
 					printf("\t%s\n", sp->action);
 			}
 		}
 	}
-	if(argc > 0){
+	if (argc > 0){
 		do{
 			make(lookup(*argv++));
 		} while (--argc > 0);
