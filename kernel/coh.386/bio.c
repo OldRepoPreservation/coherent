@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/bio.c,v 1.2 92/01/06 11:58:35 hal Exp $ */
+/* $Header: /y/coh.386/RCS/bio.c,v 1.6 92/07/27 18:15:08 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Buffered I/O.
  *
  * $Log:	bio.c,v $
+ * Revision 1.6  92/07/27  18:15:08  hal
+ * Kernel #59
+ * 
  * Revision 1.2  92/01/06  11:58:35  hal
  * Compile with cc.mwc.
  * 
@@ -855,7 +858,10 @@ union ioctl *vec;
 
 	if ((cp=drvmap(dev, &dold)) == NULL)
 		return;
-	(*cp->c_ioctl)(dev, com, vec);
+	if (XMODE_286)
+		tioc(dev, com, vec, cp->c_ioctl);
+	else
+		(*cp->c_ioctl)(dev, com, vec);
 	drest(dold);
 }
 
