@@ -35,6 +35,13 @@ char copyright[] = "\
 Copyright (c) 1982, 1991 by Mark Williams Company\n\
 ";
 
+#define	CMOSA	0x70		/* write cmos address to this port */
+#define	CMOSD	0x71		/* read cmos data through this port */
+
+short n_atdr;
+
+static void atcount();
+
 main()
 {
 	register SEG *sp;
@@ -45,6 +52,7 @@ main()
 	cltinit();
 	pcsinit();
 	seginit();
+	atcount();	/* count "at" drives; put into n_atdr */
 	devinit();
 	printf("\Mark Williams COHERENT Version %s - %s Mode (mem=%u Kbytes)\n",
 		version, (realmode ? "Real" : "Protected"), msize );
@@ -72,4 +80,29 @@ main()
 		panic("Cannot create process");
 	eveinit(sp);
 	fsminit();
+}
+
+/*
+ * atcount()
+ *
+ * Read CMOS and return 0,1, or 2 as number of installed "at" drives.
+ */
+static void atcount()
+{
+	int u;
+	n_atdr = 0;
+
+	/*
+	 * Count nonzero drive types.
+	 *
+	 *	High nibble of CMOS 0x12 is drive 0's type.
+	 *	Low  nibble of CMOS 0x12 is drive 1's type.
+	 */
+	outb(CMOSA, 0x12);
+	/* delay */
+	u = inb(CMOSD);
+	if (u & 0x00F0)
+		n_atdr++;
+	if (u & 0x000F)
+		n_atdr++;
 }
