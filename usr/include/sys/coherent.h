@@ -26,6 +26,7 @@
 #define T_PIGGY(f,c)
 #define T_VLAD(f,c)
 #define T_CON(f,c)
+#define T_MSGQ(f,c)
 #endif /* TRACER */
 
 #ifdef _I386
