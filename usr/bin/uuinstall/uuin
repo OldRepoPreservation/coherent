@@ -8,3 +8,14 @@ code 1 external default " "
 		D Devices
 		P Permissions
 		X eXit [!]
+
+
+Our new utility
+
+	uucheck
+
+will check the integrity of uucp directories and permissions
+
+	uucheck -f
+
+will check and fix.
