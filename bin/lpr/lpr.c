@@ -7,7 +7,7 @@
 #include <pwd.h>
 #include <signal.h>
 #ifndef	TYPES_H
-#include <types.h>
+#include <sys/types.h>
 #endif
 
 /* Schizo is missing so -r doesn't check access privileges */
@@ -27,6 +27,7 @@ char	spooldir[] = "/usr/spool/lpd";
 char	lpd[] = "/usr/lib/lpd";
 char	tmb[] = "Too many banners, `%s' ignored";
 
+int	Bflag;		/* Suppress banners */	
 int	cflag;		/* Generate a copy */
 int	mflag;		/* Send notification */
 int	rflag;		/* Remove when done */
@@ -53,6 +54,10 @@ char *argv[];
 			break;
 		for (ap = &argv[i][1]; *ap != '\0'; ap++)
 			switch (*ap) {
+			case 'B':
+				++Bflag;
+				break;
+
 			case 'b':
 				if (++i >= argc)
 					lperr("Missing banner");
@@ -83,6 +88,8 @@ char *argv[];
 			}
 	}
 	lprinit(argc, argv);
+	if (Bflag)
+		fprintf(cfp, "B\n");
 	for (j=i; j<argc; j++)
 		if (banno < NBAN)
 			banners[banno++] = argv[j];
