@@ -5,10 +5,12 @@
 #include <sys/coherent.h>
 #ifdef _I386
 #include <sys/reg.h>
+#else
+#include <sys/i8086.h>
 #endif
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <signal.h>
@@ -60,6 +62,11 @@
 #define	NFKEY	20			/* Number of settable functions */
 #define	NFCHAR	150			/* Number of characters settable */
 #define	NFBUF	(NFKEY*2+NFCHAR+1)	/* Size of buffer */
+
+
+#define	ESCAPE_CHAR	'\x1B'
+#define	ESCAPE_STRING	"\x1B"
+
 
 /*
  * Functions.
@@ -420,26 +427,26 @@ isuload()
  * Default function key strings (terminated by -1 [\377])
  */
 static char *deffuncs[] = {
-	"\33[1x\377",	/* F1 */
-	"\33[2x\377",	/* F2 */
-	"\33[3x\377",	/* F3 */
-	"\33[4x\377", 	/* F4 */
-	"\33[5x\377",	/* F5 */
-	"\33[6x\377",	/* F6 */
-	"\33[7x\377",	/* F7 */
-	"\33[8x\377",	/* F8 */
-	"\33[9x\377",	/* F9 */
-	"\33[0x\377",	/* F10 - historical value */
-	"\33[1y\377",	/* F11 */
-	"\33[2y\377",	/* F12 */
-	"\33[3y\377",	/* F13 */
-	"\33[4y\377", 	/* F14 */
-	"\33[5y\377",	/* F15 */
-	"\33[6y\377",	/* F16 */
-	"\33[7y\377",	/* F17 */
-	"\33[8y\377",	/* F18 */
-	"\33[9y\377",	/* F19 */
-	"\33[0y\377"	/* F20 */
+	ESCAPE_STRING "[1x\377",	/* F1 */
+	ESCAPE_STRING "[2x\377",	/* F2 */
+	ESCAPE_STRING "[3x\377",	/* F3 */
+	ESCAPE_STRING "[4x\377", 	/* F4 */
+	ESCAPE_STRING "[5x\377",	/* F5 */
+	ESCAPE_STRING "[6x\377",	/* F6 */
+	ESCAPE_STRING "[7x\377",	/* F7 */
+	ESCAPE_STRING "[8x\377",	/* F8 */
+	ESCAPE_STRING "[9x\377",	/* F9 */
+	ESCAPE_STRING "[0x\377",	/* F10 - historical value */
+	ESCAPE_STRING "[1y\377",	/* F11 */
+	ESCAPE_STRING "[2y\377",	/* F12 */
+	ESCAPE_STRING "[3y\377",	/* F13 */
+	ESCAPE_STRING "[4y\377", 	/* F14 */
+	ESCAPE_STRING "[5y\377",	/* F15 */
+	ESCAPE_STRING "[6y\377",	/* F16 */
+	ESCAPE_STRING "[7y\377",	/* F17 */
+	ESCAPE_STRING "[8y\377",	/* F18 */
+	ESCAPE_STRING "[9y\377",	/* F19 */
+	ESCAPE_STRING "[0y\377"	/* F20 */
 };
 
 /*
@@ -810,17 +817,17 @@ int	c;
  * and the third the alternate keypad sequence.
  */
 static char *keypad[][3] = {
-	{ "\33[H",  "7", "\33?w" },	/* 71 */
-	{ "\33[A",  "8", "\33?x" },	/* 72 */
-	{ "\33[V",  "9", "\33?y" },	/* 73 */
-	{ "\33[D",  "4", "\33?t" },	/* 75 */
-	{ "\0337",  "5", "\33?u" },	/* 76 */
-	{ "\33[C",  "6", "\33?v" },	/* 77 */
-	{ "\33[24H","1", "\33?q" },	/* 79 */
-	{ "\33[B",  "2", "\33?r" },	/* 80 */
-	{ "\33[U",  "3", "\33?s" },	/* 81 */
-	{ "\33[@",  "0", "\33?p" },	/* 82 */
-	{ "\33[P", ".",  "\33?n" }	/* 83 */
+	{ ESCAPE_STRING "[H",  "7", ESCAPE_STRING "?w" },	/* 71 */
+	{ ESCAPE_STRING "[A",  "8", ESCAPE_STRING "?x" },	/* 72 */
+	{ ESCAPE_STRING "[V",  "9", ESCAPE_STRING "?y" },	/* 73 */
+	{ ESCAPE_STRING "[D",  "4", ESCAPE_STRING "?t" },	/* 75 */
+	{ ESCAPE_STRING "7",   "5", ESCAPE_STRING "?u" },	/* 76 */
+	{ ESCAPE_STRING "[C",  "6", ESCAPE_STRING "?v" },	/* 77 */
+	{ ESCAPE_STRING "[24H","1", ESCAPE_STRING "?q" },	/* 79 */
+	{ ESCAPE_STRING "[B",  "2", ESCAPE_STRING "?r" },	/* 80 */
+	{ ESCAPE_STRING "[U",  "3", ESCAPE_STRING "?s" },	/* 81 */
+	{ ESCAPE_STRING "[@",  "0", ESCAPE_STRING "?p" },	/* 82 */
+	{ ESCAPE_STRING "[P", ".",  ESCAPE_STRING "?n" }	/* 83 */
 };
 
 isspecial(c)
@@ -966,26 +973,27 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (ISIXON) {
+	if (_IS_IXON_MODE (tp)) {
 #if _I386
-		if (ISSTART || (ISIXANY && ISXSTOP)) {
-			tp->t_flags &= ~(T_STOP | T_XSTOP);
-			ttstart(tp);
+		if (_IS_START_CHAR (tp, c) ||
+		    (_IS_IXANY_MODE (tp) && (tp->t_flags & T_STOP) != 0)) {
+			tp->t_flags &= ~ (T_STOP | T_XSTOP);
+			ttstart (tp);
 			cache_it = 0;
-		} else if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		} else if (_IS_STOP_CHAR (tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= (T_STOP | T_XSTOP);
 			cache_it = 0;
 		}
 #else
-		if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		if (_IS_STOP_CHAR (tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= T_STOP;
 			cache_it = 0;
 		}
-		if (ISSTART) {
-			tp->t_flags &= ~T_STOP;
-			ttstart(tp);
+		if (_IS_START_CHAR (tp, c)) {
+			tp->t_flags &= ~ T_STOP;
+			ttstart (tp);
 			cache_it = 0;
 		}
 #endif
@@ -994,7 +1002,7 @@ register int c;
 	 * If the tty is not open the character is
 	 * just tossed away.
 	 */
-	if (vttty[vtactive]->t_open == 0)
+	if (vttty [vtactive]->t_open == 0)
 		return;
 
 
@@ -1050,23 +1058,18 @@ register TTY * tp;
 		else
 			in_silo.si_ox++;
 
-		if ( (islock == 0) || ISINTR || ISQUIT ) {
-			ttin( tp, c );
-		}
-
-		else if ( (c == 'b') && (lastc == '\033') ) {
+		if (islock == 0 || _IS_INTERRUPT_CHAR (tp, c) ||
+		    _IS_QUIT_CHAR (tp, c)) {
+			ttin (tp, c);
+		} else if (c == 'b' && lastc == ESCAPE_CHAR) {
 			islock = 0;
-			ttin( tp, lastc );
-			ttin( tp, c );
-		}
-
-		else if ( (c == 'c') && (lastc == '\033') ) {
-			ttin( tp, lastc );
-			ttin( tp, c );
-		}
-
-		else
-			putchar('\007');
+			ttin (tp, lastc);
+			ttin (tp, c);
+		} else if (c == 'c' && lastc == ESCAPE_CHAR) {
+			ttin (tp, lastc);
+			ttin (tp, c);
+		} else
+			putchar ('\a');
 
 		lastc = c;
 	}
@@ -1298,8 +1301,8 @@ register VTDATA	*vp_new, *vp_old;
 	VTDATA	*vpi;
 
 	/* store old screen contents in memory segment */
-	FFCOPY( vp_old->vmm_voff, vp_old->vmm_vseg,
-		vp_old->vmm_moff, vp_old->vmm_mseg, TEXTBLOCK );
+	ffcopy (vp_old->vmm_voff, vp_old->vmm_vseg,
+		vp_old->vmm_moff, vp_old->vmm_mseg, TEXTBLOCK);
 
 	/*
 	 * if changing to another screen on same video board
@@ -1350,9 +1353,9 @@ VTDATA *vp;
 	 * copy from screen contents from heap segment to video memory 
 	 * only if necessary
 	 */
-	if ( vp->vmm_visible == VNKB_FALSE )
-		FFCOPY( vp->vmm_moff, vp->vmm_mseg,
-			vp->vmm_voff, vp->vmm_vseg, TEXTBLOCK );
+	if (vp->vmm_visible == VNKB_FALSE)
+		ffcopy (vp->vmm_moff, vp->vmm_mseg,
+			vp->vmm_voff, vp->vmm_vseg, TEXTBLOCK);
 
 	for (i = 0; i < vtcount; ++i) {
 		vpi = vtdata[i];
@@ -1361,10 +1364,10 @@ VTDATA *vp;
 			vpi->vmm_visible = VNKB_FALSE;
 			vpi->vmm_seg = vpi->vmm_mseg;
 			vpi->vmm_off = vpi->vmm_moff;
-			if( vpi->vmm_seg == 0 )
-				printf( "[2]vpi->vmm_seg = 0\n" );
-			PRINTV( "vt.back seg %x off %x\n",
-				vpi->vmm_seg, vpi->vmm_off );
+			if (vpi->vmm_seg == 0)
+				printf ("[2]vpi->vmm_seg = 0\n");
+			PRINTV ("vt.back seg %x off %x\n",
+				vpi->vmm_seg, vpi->vmm_off);
 		}		
 	}
 	/*
@@ -1374,8 +1377,8 @@ VTDATA *vp;
 	vp->vmm_visible = VNKB_TRUE;
 	vp->vmm_seg = vp->vmm_vseg;
 	vp->vmm_off = vp->vmm_voff;
-	if( vp->vmm_seg == 0 )
-		printf( "vp->vmm_seg = 0\n" );
+	if (vp->vmm_seg == 0)
+		printf ("vp->vmm_seg = 0\n");
 }
 
 /*
@@ -1386,69 +1389,6 @@ int index;
 {
 	updscreen(index);
 	updleds();
-}
-
-#undef	si
-asmdump( cs, ds, es, di, si, bp, sp, bx, dx, cx, i, ip, ax )
-int	cs, ds, es, di, si, bp, sp, bx, dx, cx, i, ip, ax;
-{
-	if( vt_verbose < 2 )
-		return;
-
-	printf( "asmdump %d: es %x, ds %x, cs:ip %x:%x\n", i, es, ds, cs, ip );
-	printf( "   ax %x, bx %x, cx %x, dx %x\n", ax, bx, cx, dx );
-	printf( "   di %x, si %x, bp %x, sp %d\n", di, si, bp, sp );
-#if	USING_RS232
-	if( vt_verbose > 2 )
-		getchar();
-#endif
-}
-
-vtdataprint( vp )
-register VTDATA *vp;
-{
-	if( vt_verbose < 2 )
-		return;
-
-	printf( "VTDATA:    @%x, esc %x, func %x()\n",
-		vp, vp->vmm_esc, vp->vmm_func );
-	printf( "       hw: port %x, seg %x, off %x\n",
-		vp->vmm_port, vp->vmm_vseg, vp->vmm_voff );
-	printf( "   memory: size %x, seg %x, off %x\n",
-		0/*vp->vmm_size*/, vp->vmm_mseg, vp->vmm_moff );
-	printf( "   cursor: seg %x, off %x, visible %d\n",
-		vp->vmm_seg, vp->vmm_off, !vp->vmm_invis );
-	printf( "           row %d, col %d = offset %d.\n",
-		vp->vmm_rowl, vp->vmm_col, vp->vmm_pos );
-	printf( "     saved row %d, col %d\n",
-		vp->vmm_srow, vp->vmm_scol );
-	printf( "   screen: visible %d, attr %x, wrap %d, slow %d\n",
-		vp->vmm_visible, vp->vmm_attr, vp->vmm_wrap, vp->vmm_slow );
-	printf( "           row base %d, end %d, limit %d\n",
-		vp->vmm_brow, vp->vmm_erow, vp->vmm_lrow ); 
-	printf( "           row initial base %d, initial end %d\n",
-		vp->vmm_ibrow, vp->vmm_ierow ); 
-#if	USING_RS232
-	if( vt_verbose > 2 )
-		getchar();
-#endif
-}
-
-FFCOPY( src_off, src_seg, dst_off, dst_seg, count )
-{
-	register i;
-
-#if	0
-	i = ffcopy( src_off, src_seg, dst_off, dst_seg, count );
-#else
-	for( i = 0; i < count; i += 2 ) {
-		register word = ffword( src_off, src_seg );
-		sfword( dst_off, dst_seg, word );
-		src_off += 2;
-		dst_off += 2;
-	}
-#endif
-	return i;	
 }
 
 /*
