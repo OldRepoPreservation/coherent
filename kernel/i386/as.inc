@@ -32,7 +32,6 @@
 	.globl	gdt
 	.globl	gdtinit
 	.globl	gdtmap
-	.globl	getq
 	.globl	getubd
 	.globl	getupd
 	.globl	getusd
@@ -52,7 +51,6 @@
 	.globl	mmuupdnR0
 	.globl	msysgen
 	.globl	outb
-	.globl	putq
 	.globl	putubd
 	.globl	putusd
 	.globl	putuwd

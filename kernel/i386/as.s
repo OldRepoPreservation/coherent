@@ -1,3 +1,4 @@
+	.unixorder
 	.llen	132
 	.include	as.inc
 
@@ -216,8 +217,20 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	movb	$0x01,%al	/ ICW4 - 8086 mode, master.
 	outb	$PICM
 	IODELAY
-	movb	$0xFE,%al	/ Disable interrupts from master PIC.
-	outb	$PICM		/ (except for clock interrupt).
+
+/ NIGEL: The original code here (and related code in "i386/md.c") turned off
+/ the chain bit in the first PIC by default (and at every subsequent
+/ opportunity) even though all the mask bits in the slave PIC are set to off.
+/ In order to support an enhanced interrupt architecture for the STREAMS and
+/ DDI/DDK subsystems I want to remove the state knowledge from the code in
+/ "i386/md.c" so that the chain bit is always left on.
+/ In order to do this, I have modified the startup code below so that the
+/ system by default allows the slave PIC to interrupt (of course, it still
+/ won't interrupt unless it is enabled to; the masking I have removed was
+/ totally redundant).
+
+	movb	$0xFA,%al	/ Disable interrupts from master PIC.
+	outb	$PICM		/ (except for clock and slave PIC interrupt).
 
 	movb	$0x11,%al	/ ICW1 - edge, ICW4
 	outb	$SPIC
@@ -2127,31 +2140,31 @@ read_psw:
 /	yy: isr
 /	zz: irr
 
-	.globl	mchirp
-FOO	.macro	ch
-	push	ch
-	call	mchirp
-	add	$4,%esp
-	.endm
+/	.globl	mchirp
+/FOO	.macro	ch
+/	push	ch
+/	call	mchirp
+/	add	$4,%esp
+/	.endm
 
-	.globl	rd_m_pic
-rd_m_pic:
-	pushfl
-	cli
-	sub	%eax,%eax
-	inb	$PICM		/ interrupt mask to %eax:16..23
-	shl	$8,%eax
-	movb	$0x0B,%al	/ OCW3 - read isr
-	outb	$PIC
-	IODELAY
-	inb	$PIC		/ in-service register to %eax:8..15
-	shl	$8,%eax
-	movb	$0x0A,%al	/ OCW3 - read irr
-	outb	$PIC
-	IODELAY
-	inb	$PIC		/ irpt request register to %eax:0..7
-	popfl
-	ret
+/	.globl	rd_m_pic
+/rd_m_pic:
+/	pushfl
+/	cli
+/	sub	%eax,%eax
+/	inb	$PICM		/ interrupt mask to %eax:16..23
+/	shl	$8,%eax
+/	movb	$0x0B,%al	/ OCW3 - read isr
+/	outb	$PIC
+/	IODELAY
+/	inb	$PIC		/ in-service register to %eax:8..15
+/	shl	$8,%eax
+/	movb	$0x0A,%al	/ OCW3 - read irr
+/	outb	$PIC
+/	IODELAY
+/	inb	$PIC		/ irpt request register to %eax:0..7
+/	popfl
+/	ret
 
 / Read slave PIC state
 / return 00:xx:yy:zz 4-byte int value
@@ -2159,24 +2172,24 @@ rd_m_pic:
 /	yy: isr
 /	zz: irr
 
-	.globl	rd_s_pic
-rd_s_pic:
-	pushfl
-	cli
-	sub	%eax,%eax
-	inb	$SPICM		/ interrupt mask to %eax:16..23
-	shl	$8,%eax
-	movb	$0x0B,%al	/ OCW3 - read isr
-	outb	$SPIC
-	IODELAY
-	inb	$SPIC		/ in-service register to %eax:8..15
-	shl	$8,%eax
-	movb	$0x0A,%al	/ OCW3 - read irr
-	outb	$SPIC
-	IODELAY
-	inb	$SPIC		/ irpt request register to %eax:0..7
-	popfl
-	ret
+/	.globl	rd_s_pic
+/rd_s_pic:
+/	pushfl
+/	cli
+/	sub	%eax,%eax
+/	inb	$SPICM		/ interrupt mask to %eax:16..23
+/	shl	$8,%eax
+/	movb	$0x0B,%al	/ OCW3 - read isr
+/	outb	$SPIC
+/	IODELAY
+/	inb	$SPIC		/ in-service register to %eax:8..15
+/	shl	$8,%eax
+/	movb	$0x0A,%al	/ OCW3 - read irr
+/	outb	$SPIC
+/	IODELAY
+/	inb	$SPIC		/ irpt request register to %eax:0..7
+/	popfl
+/	ret
 
 / return current contents of cr0
 	.globl	read_cr0
