@@ -41,7 +41,7 @@ cgrep: cgrep.c
 	su root chmod 511 $(DESTDIR)$@
 
 uuins:
-	cd uuinstall; make
+	cd uuinstall/objects ; export SRCPATH=.. ; make
 
 uuclean:
 	su root co $(DESTDIR)$@
