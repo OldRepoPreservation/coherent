@@ -7,8 +7,8 @@
  * Machine dependent definitions.
  * 80386 Coherent, IBM PC.
  */
-#ifndef	 MACHINE_H
-#define	MACHINE_H	MACHINE_H
+#ifndef	 _REG_H
+#define	_REG_H
 
 #include <sys/types.h>
 #include <sys/param.h>

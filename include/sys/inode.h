@@ -45,6 +45,8 @@ typedef struct inode {
 			short	ip_paw; /* Number Awake Writers */
 			short	ip_psr; /* Number Sleeping Readers */
 			short	ip_psw; /* Number Sleeping Writers */
+			event_t ip_iev;	/* Polling Input Event */
+			event_t ip_oev;	/* Polling Output Event */
 		}	i_p;
 	}	i_a;			/* Addresses */
 	time_t	i_atime;		/* Last access time */
@@ -66,6 +68,8 @@ typedef struct inode {
 #define i_paw	i_a.i_p.ip_paw
 #define i_psr	i_a.i_p.ip_psr
 #define i_psw	i_a.i_p.ip_psw
+#define i_iev	i_a.i_p.ip_iev
+#define i_oev	i_a.i_p.ip_oev
 
 /*
  * Flags.
