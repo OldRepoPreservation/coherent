@@ -1,15 +1,20 @@
 /*
- * Standard I/O Library
- * Put string to file
+ * C input/output library.
+ * fputs()
+ * ANSI 4.9.7.4.
+ * Write string s to stream.
  */
 
 #include <stdio.h>
 
-void
-fputs(s, fp)
-register char	*s;
-register FILE	*fp;
+/* Should be "const char * s". */
+int
+fputs(s, stream) register char *s; register FILE *stream;
 {
-	for (;  *s;  s++)
-		putc(*s, fp);
+	while (*s)
+		if (putc(*s++, stream) == EOF && ferror(stream))
+			return EOF;
+	return 1;
 }
+
+/* end of fputs.c */
