@@ -27,7 +27,7 @@
 "	r	Replace files			(default: all files in '.')\n"\
 "	t	Table of contents 		(default: all files)\n"\
 "	x	Extract specified files		(default: all files)\n"\
-"Flags:\n"\
+"Options:\n"\
 "	a	ASCII data extract/replace	(default: binary data)\n"\
 "	c	Check only; do not write changes to MS-DOS filesystem\n"\
 "	k	Keep mtime on extract/replace	(default: current time)\n"\
@@ -37,7 +37,8 @@
 "	v	Verbose\n"\
 "	[1-9]	Specify desired drive on extended MS-DOS partition\n"\
 "The default device is /dev/dos.\n\n"\
-"See also doscp, doscpdir, dosdel, dosdir, dosformat, doslabel.\n"
+"See also doscat, doscp, doscpdir, dosdel, dosdir, dosformat, doslabel,\n"\
+"         dosls, dosmkdir, dosrm, dosrmdir."
 
 #define	USAGE	\
 "Usage: Copy:        doscp [-abkmrv] src dest\n"\
@@ -49,7 +50,7 @@
 "       Delete:      dosdel src         or   dosrm src\n"\
 "       Format:      dosformat dest [boot block]\n"\
 "       Label:       doslabel dest \"label\"\n\n"\
-"Flags:	a or m	ASCII copies - always convert CRLF to LF\n"\
+"Options:	a or m	ASCII copies - always convert CRLF to LF\n"\
 "	b or r	Binary copies - never convert CRLF to LF\n"\
 "	k	Keep mtime on copies		(default: current time)\n"\
 "	n	Newest files first in list	(default: alphabetized)\n"\

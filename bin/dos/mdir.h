@@ -20,7 +20,7 @@ typedef	struct	mdir	{
 #pragma align
 #endif
 
-#define m_sec(z)	(unsigned short)((unsigned short)(z->m_time    ) & 0x1f)
+#define m_sec(z)	(unsigned short)((unsigned short)(z->m_time * 2) & 0x1f)
 #define m_min(z)	(unsigned short)((unsigned short)(z->m_time>>5)  & 0x3f)
 #define m_hour(z)	(unsigned short)((unsigned short)(z->m_time>>11) & 0x1f)
 
@@ -28,7 +28,7 @@ typedef	struct	mdir	{
 #define m_month(z)	(unsigned short)((unsigned short)(z->m_date>>5) &0xf)
 #define m_year(z)	(unsigned short)((unsigned short)(z->m_date>>9) &0x7f)
 
-#define c_sec(y)	(unsigned short)(y)
+#define c_sec(y)	(unsigned short)(y/2)
 #define c_min(y)	((unsigned short)(y)<<5)
 #define c_hour(y)	((unsigned short)(y)<<11)
 
