@@ -49,8 +49,6 @@ unsigned short sys_base;	/* Segment into which to load the kernel.  */
 
 main()
 {
-	int i;				/* A loop counter.  */
-
 	char imagename[5*DIRSIZ+1] = "autoboot";	/* File to boot.  */
 	ino_t imageinum;		/* inode number of the boot image.  */
 	struct inode imageinode;	/* Inode structure for the boot image.  */
@@ -61,8 +59,6 @@ main()
 	struct load_segment *cur_segment; /* Pointer for walking imagetable.  */ 
 
 	unsigned short data_seg;	/* Data segment register for image.  */
-	char outbuff[LINESIZE];		/* Place to build output messages.  */
-
 
 	sys_base = DEF_SYS_BASE;
 
