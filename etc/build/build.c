@@ -112,6 +112,7 @@ void	mkfs();
 void	patches();
 char	*protoname();
 char	*rawname();
+void	rootpatch();
 void	set_date();
 void	user_devices();
 void	welcome();
@@ -157,10 +158,12 @@ main(argc, argv) int argc; char *argv[];
 	set_date();
 	mkdev();
 	fdisk();
+	rootpatch();
 	badscan();
 	mkfs();
 	copy();
 	user_devices();
+	sys("/conf/ldker", S_FATAL);
 	patches();
 	sys("/bin/echo /etc/build: success >>/mnt/etc/install.log", S_NONFATAL);
 	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
@@ -270,6 +273,7 @@ copy()
 	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
 	sys(cmd, S_NONFATAL);
 
+#if 0
 	/* If /etc/fdisk created patched /tmp/coherent, replace /coherent. */
 	if (exists("/mnt/tmp/coherent")) {
 		sys("/bin/mv /mnt/tmp/coherent /mnt/coherent", S_FATAL);
@@ -277,6 +281,7 @@ copy()
 		sys("/bin/chown sys /mnt/coherent", S_NONFATAL);
 		sys("/bin/chgrp sys /mnt/coherent", S_NONFATAL);
 	}
+#endif
 
 	/* If /etc/mkdev created devices in /tmp/dev, copy them to /dev. */
 	/* Remove the copies in /tmp/dev on the hard disk. */
@@ -296,15 +301,6 @@ copy()
 	sys("/bin/chmod 0744 /mnt/etc/drvld.all", S_NONFATAL);
 	sys("/bin/chown root /mnt/etc/drvld.all", S_NONFATAL);
 	sys("/bin/chgrp root /mnt/etc/drvld.all", S_NONFATAL);
-
-	/* Patch the /coherent image on the hard disk. */
-	sprintf(cmd, "/conf/patch /mnt/coherent ronflag_=0 %s=%lu:l %s=%lu:l",
-		"___", atol(serialno), "_entry_", atol(serialno));
-	sys(cmd, S_FATAL);
-	sprintf(cmd, "/conf/patch /mnt/coherent rootdev_=makedev\\(%d,%d\\) pipedev_=makedev\\(%d,%d\\)",
-		devices[root].d_major, devices[root].d_minor,
-		devices[root].d_major, devices[root].d_minor);
-	sys(cmd, S_FATAL);
 
 	/* Grow /lost+found to make room for files. */
 	sys("cd /mnt/lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
@@ -715,14 +711,31 @@ is_fs(special, size) char *special; unsigned long size;
 void
 mkdev()
 {
+	int hdc = 0;
+
 	cls(0);
-	if (!yes_no("Does your computer system include a SCSI host adapter"))
-		return;
-	sprintf(cmd, "/etc/mkdev -b%s%s scsi",
-		(dflag) ? "d" : "",
-		(vflag) ? "v" : "");
-	sys(cmd, S_NONFATAL);
-	add_devices();
+get_hdc:	
+	if (yes_no(
+"Are you using an AT-type hard drive or compatible (IDE/MFM/RLL/ESDI)")) {
+		hdc = 1;
+		sprintf(cmd, "/etc/mkdev -b%s%s at",
+			(dflag) ? "d" : "",
+			(vflag) ? "v" : "");
+		sys(cmd, S_NONFATAL);
+		sys(cmd, S_NONFATAL);
+	}
+	if (yes_no("Does your computer system include a SCSI host adapter")) {
+		hdc = 1;
+		sprintf(cmd, "/etc/mkdev -b%s%s scsi",
+			(dflag) ? "d" : "",
+			(vflag) ? "v" : "");
+		sys(cmd, S_NONFATAL);
+		add_devices();
+	}
+	if (hdc == 0) {
+printf("\n\nYou need either an \"AT\"-compatible drive or a SCSI drive!\n\n");
+		goto get_hdc;
+	}
 }
 
 /*
@@ -841,6 +854,29 @@ rawname(i, flag) int i, flag;
 
 	sprintf(rname, "/tmp/dev/r%s", devices[i].d_dname);
 	return (flag && notflag(i,  F_ATDEV)) ? rname : rname+4;
+}
+/*
+ * Patches to be done to the kernel - but can't do them yet because
+ * kernel hasn't been linked.
+ */
+void
+rootpatch()
+{
+	/*
+	 * After fdisk() we know "root".  Write to PATCHFILE the patches
+	 * that will be needed when a new kernel is linked at /mnt/coherent.
+	 */
+	sprintf(cmd,
+	  "echo /conf/patch /mnt/coherent ronflag_=0 %s=%lu:l %s=%lu:l >> %s\n",
+	  "___", atol(serialno), "_entry_", atol(serialno), PATCHFILE);
+	sys(cmd, S_FATAL);
+	sprintf(cmd,
+	  "echo /conf/patch /mnt/coherent "
+	  "\\\"rootdev_\\=makedev\\(%d,%d\\)\\\" "
+	  "\\\"pipedev_\\=makedev\\(%d,%d\\)\\\" >> %s\n",
+	  devices[root].d_major, devices[root].d_minor,
+	  devices[root].d_major, devices[root].d_minor, PATCHFILE);
+	sys(cmd, S_FATAL);
 }
 
 /*
