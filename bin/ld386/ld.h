@@ -30,6 +30,8 @@
 #define undefined(s) ((C_EXT==(s)->n_sclass)&&!(s)->n_value&&!(s)->n_scnum)
 #define common(s)    ((C_EXT==(s)->n_sclass)&& (s)->n_value&&!(s)->n_scnum)
 
+#define w_message if (watch) watch_message
+
 typedef struct mod_t mod_t;
 typedef struct sym_t sym_t;
 typedef struct ren_t ren_t;
@@ -54,7 +56,7 @@ struct mod_t {
 struct sym_t {
 	sym_t		*next;	/* hash chain */
 	mod_t		*mod;	/* defining module */
-	unsigned 	symno;	/* output symbol number */
+	int	 	symno;	/* output symbol number */
 	SYMENT		sym;	/* constructed symbol */
 };
 
@@ -72,13 +74,13 @@ extern flag_t	reloc,	/* Combine input into a new .o not an executable */
 		watch,	/* Produce a trace */
 		nolcl,	/* Discard C local symbols */
 		noilcl,	/* Discard all local symbols */
-		qflag, /* No warn on commons of different length */
-		auxflg;	/* Pass through aux symbols */
+		qflag,	/* No warn on commons of different length */
+		Qflag,	/* Absolute silence */
+		debflg;	/* Pass through aux symbols */
 
 extern int	errCount;
 extern int	nundef;
 extern int	symno;			/* Output symbol count */
-extern long	daddr;			/* disk addr */
 extern mod_t	*head,			/* head of list of modules to load */
 		*tail,			/* tail or list of modules */
 		*xhead,			/* head of noload modules */
@@ -90,14 +92,15 @@ extern long comnb, comns, comnl;	/* common lengths */
 
 extern sym_t	*symtable[NHASH];	/* hashed symbol table */
 
-extern int osegs;			/* the number of output segments */
+extern unsigned short osegs;		/* the number of output segments */
 extern FILEHDR fileh;
 extern AOUTHDR aouth;
 extern SCNHDR  *secth;		/* output segments */
 extern char *argv0;		/* main(  , argv[0]) */
-extern char *mktemp(), *pathn(), *optarg;
+extern char *mktemp(), *optarg;
 extern int optix;
-extern char *strchr(), *realloc(), *strrchr();
-extern long ftell();
+extern char *strchr(), *realloc(), *strrchr(), *strcpy(), *alloca();
+extern void driver_fail(), spwarn(), showUndef();
+extern int driver_alloc();
 
 extern char *symName();

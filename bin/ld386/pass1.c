@@ -45,8 +45,14 @@ register char *work;
 	if (!sym->n_zeroes)		/* pointer to long symbol */
 		return ((char *)sym->n_offset);
 
-	/* name in record but may need terminator */
-	memcpy(work, sym->n_name, SYMNMLEN);
+	/*
+	 * Name in record may need terminator.
+	 * Profiling shows this gets used a lot so do it quick
+	 * even at the cost of some readability.
+	 */
+	((long *)work)[0] = sym->n_zeroes;
+	((long *)work)[1] = sym->n_offset;
+/*	memcpy(work, sym->n_name, SYMNMLEN); */
 	work[SYMNMLEN] = '\0';
 	return (work);
 }
@@ -185,6 +191,7 @@ mod_t *mp;
 		local, gdef, gref, comm
 	} new, old;
 	int h, sec;
+	char has_fsize, has_fcn, nodata;
 	char *name;
 	char w1[SYMNMLEN + 1], w2[SYMNMLEN + 1];
 
@@ -205,7 +212,9 @@ mod_t *mp;
 		new = local;
 		break;
 	default:
-		return;
+		if (!debflg)
+			return;
+		new = local;
 	}
 
 	name = symName(s, w1);
@@ -223,7 +232,7 @@ mod_t *mp;
 	/* Make symbols segment relative, if mp == NULL than sec == 0 */
 	if (sec > 0)
 		s->n_value += secth[sec - 1].s_size - mp->s[sec - 1].s_vaddr;
-		
+				
 	if (local == new && 
 	    (nolcl ||
 	     (noilcl && (name[0] == '.') && (name[1] == 'L'))))
@@ -255,7 +264,7 @@ mod_t *mp;
 			switch (old) {
 			case comm:
 				spwarn(sp,
-			"symbol defined as a common and a global");
+			"symbol defined as a common then a global");
 			/* A symbol was defined as a common and a globl, eg
 			 * .DM
 			 *	int x;		// a common in one module
@@ -265,6 +274,7 @@ mod_t *mp;
 			 * We redefined the common as an external to match
 			 * the UNIX linker, which fails to flag this.
 			 */
+				addComm(- sp->sym.n_value); /* zonk common */
 				memcpy(&(sp->sym), s, sizeof(*s));
 				sp->mod = mp;
 				s->n_offset = (long)sp;
@@ -321,10 +331,8 @@ mod_t *mp;
 				return;
 
 			case gdef:
-				addComm(- sp->sym.n_value);
-				spwarn(sp, "Defined as a common and a global");
+				spwarn(sp, "Defined as a global then a common");
 					/* NODOC */
-				sp->mod = mp;
 				s->n_offset = (long)sp;
 				s->n_zeroes = 1;
 				return;
@@ -346,6 +354,7 @@ mod_t *mp;
 	case gref:
 		nundef++;
 	}
+	
 	sp->mod = mp;
 	s->n_offset = (long)sp;
 	s->n_zeroes = 1;
@@ -355,13 +364,11 @@ mod_t *mp;
  * Read input file.
  */
 static void
-xread(to, len)
-char *to;
-int len;
+xread(loc, size)
+char *loc;
+unsigned size;
 {
-	int got;
-
-	if (len != (got = read(ifd, to, len)))
+	if (size != read(ifd, loc, size))
 		fatal("error reading '%s'", fname); /**/
 }
 
@@ -393,9 +400,7 @@ long size;
 		/* Coff headers are expected to start 0x14C,
 		 * which is called the magic number.
 		 * This started with the stated hex number. */
-		free(mp->f);
-		free(mp);
-		return;
+		exit(1);
 	}
 
 	mp->fname = newcpy(fname);
@@ -436,19 +441,18 @@ long size;
 	for (i = 0; i < mp->f->f_nscns; i++) {
 		s = mp->s + i;
 
-		if ((s->s_scnptr > size) ||
-		    (s->s_scnptr < 0)    ||
-		    (s->s_relptr > size) ||
-		    (s->s_relptr < 0)	 ||
-		    (s->s_lnnoptr > size) ||
-		    (s->s_lnnoptr < 0))
-			corrupt(mp);
-		s->s_scnptr += j;
-		s->s_relptr += j;
-		s->s_lnnoptr += j;
+		if (nosym && (STYP_INFO == s->s_flags))
+			continue;	/* -s strips comments */
+
+		/* Test disk pointers for sanity and make them char pointers */
+#define tst(x) if ((s->x > size) || (s->x < 0)) corrupt(mp); s->x += j;
+		tst(s_scnptr);
+		tst(s_relptr);
+		tst(s_lnnoptr);
+#undef tst
 
 		for (k = 0; k < osegs; k++)
-			if (!strcmp(secth[k].s_name, s->s_name))
+			if (!strncmp(secth[k].s_name, s->s_name, 8))
 				break;
 
 		if ((k == osegs) && loadsw) {	/* New segment */
@@ -477,11 +481,15 @@ long size;
 		for (i = 0; i < mp->f->f_nscns; i++) {
 			s = mp->s + i;
 
+			if (nosym && (STYP_INFO == s->s_flags))
+				continue;	/* -s strips comments */
+
 			for (k = 0; k < osegs; k++)
-				if (!strcmp(secth[k].s_name, s->s_name))
+				if (!strncmp(secth[k].s_name, s->s_name, 8))
 					break;
 
-			secth[k].s_size += s->s_size;
+			secth[k].s_size  += s->s_size;
+			secth[k].s_nlnno += s->s_nlnno;
 			if (reloc)
 				secth[k].s_nreloc += s->s_nreloc;
 		}
@@ -542,14 +550,14 @@ archive(loadsw)
 	if (i != size)
 		fatal("archive '%s' is corrupt", fname);
 		/* This file makes no sense as a COFF archive. */
-	ptrs = alloc(i);
+	ptrs = alloca(i);
 	xread(ptrs, i);
 
 	/* read symbol names corresponding to pointers */
 	i = size = arh.ar_size - size - sizeof(count);
 	if (i != size)
 		fatal("archive '%s' is corrupt", fname); /* NODOC */
-	names = alloc(i);
+	names = alloca(i);
 	xread(names, i);
 
 	/* search symbol table unitl nothing found */
@@ -580,7 +588,4 @@ archive(loadsw)
 			ptrs[i] = 0;	/* don't find this again */
 		}
 	} while (found);
-
-	free(ptrs);
-	free(names);
 }

@@ -14,27 +14,29 @@ message(args)
 char * args;
 {
 	errCount++;
+	if (Qflag)
+		return;
 	printf("%s: %r\n", argv0, &args);
 	fflush(stdout);
 }
 
 void
-w_message(args)
+watch_message(args)
 char * args;
 {
-	if (watch) {
-		printf("%s: %r\n", argv0, &args);
-		fflush(stdout);
-	}
+	printf("%s: %r\n", argv0, &args);
+	fflush(stdout);
 }
 
 /*
  * Fatal error; print message and exit
  */
+void
 fatal(args)
 char *args;
 {
-	printf("%s: %r\n", argv0, &args);
+	if (!Qflag)
+		printf("%s: %r\n", argv0, &args);
 	exit(1);
 }
 
@@ -85,7 +87,7 @@ char	*fname, *args;
 void
 modmsg(fname, mname, args)
 char * fname;
-char   mname[DIRSIZ];
+char * mname;
 char * args;
 {
 	if (mname[0] == 0)
@@ -110,6 +112,7 @@ char  * args;
 /*
  * Module is corrupt message.
  */
+void
 corrupt(mp)
 {
 	mpmsg(mp, "is corrupt");
