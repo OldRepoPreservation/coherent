@@ -371,7 +371,7 @@ newdev:
 			}
 			sys("/etc/drvld -r /tmp/drv/ss", S_FATAL);
 			fp = fopen(PATCHFILE, "a");
-			fprintf(fp, "/bin/cp /tmp/drv/ss /mnt/drv/ss\n");
+			fprintf(fp, "/conf/patch /mnt/drv/ss %s\n", ss_patch);
 			if (rootflag)
 				fprintf(fp,
 				  "/conf/patch /mnt/coherent %s\n", ss_patch);
@@ -417,7 +417,8 @@ newdev:
 			}
 			sys("/etc/drvld -r /tmp/drv/aha154x", S_FATAL);
 			fp = fopen(PATCHFILE, "a");
-			fprintf(fp, "/bin/cp /tmp/drv/aha154x /mnt/drv/aha154x\n");
+			fprintf(fp, "/conf/patch /mnt/drv/aha154x %s\n",
+			  ss_patch);
 			if (rootflag)
 				fprintf(fp,
 				  "/conf/patch /mnt/coherent %s\n", ss_patch);
@@ -437,7 +438,6 @@ at()
 {
 	unsigned char at_patch[80];
 	FILE *fp;
-	int patch_atsreg = 0;
 	int rootflag = 0;
 	int i;
 
@@ -450,32 +450,31 @@ at()
 	cls(0);
 	sys("/bin/cp /drv/at /tmp/drv/at", S_FATAL);
 	printf(
-"Most AT-compatible drives and controllers work with NORMAL polling.\n\n"
-"Some AT-style hard disk equipment, including most Perstor controllers and\n"
-"some older IDE hard drives, require ALTERNATE polling.  If you get\n"
-"\"Controller not found\" or \"at0:TO\" errors with normal polling, you\n"
-"should use alternate polling.\n\n");
+"Most AT-compatible controllers work with NORMAL polling.\n\n"
+"Perstor controllers and some IDE hard drives require ALTERNATE polling.\n\n"
+"If you get \"<Watchdog Timeout>\" or \"at0:TO\" errors with normal polling,\n"
+"use alternate polling.\n\n");
 
-	if (yes_no("Do you want ALTERNATE polling")) {
-		patch_atsreg = 1;
+	if (yes_no("Use ALTERNATE polling"))
 		strcpy(at_patch, "ATSREG_=0x1F7 ");
-		sprintf(cmd, "/conf/patch /tmp/drv/at %s", at_patch);
-		sys(cmd, S_FATAL);
-	}
+	else
+		strcpy(at_patch, "ATSREG_=0x3F6 ");
+	sprintf(cmd, "/conf/patch /tmp/drv/at %s", at_patch);
+	sys(cmd, S_FATAL);
+
 	if (bflag){
 		if (yes_no(
-		  "Will the COHERENT root partition be on an AT_style drive")) {
+"Will the COHERENT root partition be on an AT-type (non-SCSI) drive")) {
 			++rootflag;
 			fp = fopen(LDKERFILE, "a");
 			fprintf(fp, "HD=at.a\n");
 			fprintf(fp, "HDUNDEF=\"-u atcon_\"\n");
 			fprintf(fp, "HDPATCH=\"drvl_+110=atcon_\"\n");
 			fclose(fp);
-			
 		}
 		sys("/etc/drvld -r /tmp/drv/at", S_FATAL);
 		fp = fopen(PATCHFILE, "a");
-		fprintf(fp, "/bin/cp /tmp/drv/at /mnt/drv/at\n");
+		fprintf(fp, "/conf/patch /mnt/drv/at %s\n", at_patch);
 		if (rootflag)
 			fprintf(fp,
 			  "/conf/patch /mnt/coherent %s\n", at_patch);

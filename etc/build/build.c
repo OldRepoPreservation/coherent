@@ -404,7 +404,7 @@ fdisk()
 	register int fd, i, j, n, part, cohpart, flag;
 	char *fname, *s;
 
-	cls(0);
+	cls(1);
 	printf(
 "This installation procedure allows you to create one or more partitions\n"
 "on your hard disk to contain the COHERENT system and its files.\n"
@@ -413,11 +413,6 @@ fdisk()
 "have to overwrite at least one of them to install COHERENT.\n"
 "If your disk uses fewer than four partitions and has enough unused space\n"
 "for COHERENT (%d megabytes), you can install COHERENT into the unused space.\n"
-#if	DOSSHRINK
-"If it has fewer than four partitions but no unused space, you MAY be able\n"
-"to split an existing MS-DOS partition into two partitions to create a\n"
-"partition for COHERENT.\n"
-#endif
 "If you intend to install MS-DOS after installing COHERENT,\n"
 "you must leave the first physical partition free for MS-DOS.\n"
 "\n"
@@ -425,11 +420,7 @@ fdisk()
 "partitions on your hard disk.  Data on unchanged hard disk partitions\n"
 "will not be changed.  However, data already on your hard disk may be\n"
 "destroyed if you change the base or the size of a logical partition,\n"
-#if	DOSSHRINK
-"change the order of table entries, or try to shrink an MS-DOS partition.\n"
-#else
 "or if you change the order of the partition table entries.\n"
-#endif
 "If you need to back up existing data from the hard disk,\n"
 "type <Ctrl-C> now to interrupt COHERENT installation; then reboot your\n"
 "system and back up your hard disk data onto diskettes.\n"
@@ -455,7 +446,7 @@ fdisk()
 
 retry:
 	/* Construct an /etc/fdisk command with appropriate xdevice names. */
-	strcpy(cmd, "/etc/fdisk -c");
+	strcpy(cmd, "/etc/fdisk -cB");
 	if (mboot)
 		strcat(cmd, "b /conf/mboot");
 	for (i = 0; i < ndevices; i++) {
@@ -711,29 +702,27 @@ is_fs(special, size) char *special; unsigned long size;
 void
 mkdev()
 {
-	int hdc = 0;
+	int hdc;
 
 	cls(0);
-get_hdc:	
-	if (yes_no(
-"Is your hard drive AT-type or compatible (IDE/MFM/RLL/ESDI)")) {
-		hdc = 1;
+printf("Are you using:\n\n");
+printf("1.  AT-compatible hard drive controller (IDE/RLL/MFM/ESDI).\n");
+printf("2.  SCSI hard drive controller.\n");
+printf("3.  Both.\n\n");
+	hdc = get_int(1, 3, "Enter your choice:");
+
+	if (hdc == 1 || hdc == 3) {
 		sprintf(cmd, "/etc/mkdev -b%s%s at",
 			(dflag) ? "d" : "",
 			(vflag) ? "v" : "");
 		sys(cmd, S_NONFATAL);
 	}
-	if (yes_no("Does your computer system include a SCSI host adapter")) {
-		hdc = 1;
+	if (hdc == 2 || hdc == 3) {
 		sprintf(cmd, "/etc/mkdev -b%s%s scsi",
 			(dflag) ? "d" : "",
 			(vflag) ? "v" : "");
 		sys(cmd, S_NONFATAL);
 		add_devices();
-	}
-	if (hdc == 0) {
-printf("\n\nYou need either an \"AT\"-compatible drive or a SCSI drive!\n\n");
-		goto get_hdc;
 	}
 }
 
@@ -799,14 +788,6 @@ again:
 						S_IGNORE);
 				sprintf(cmd, "/etc/umount %s", name);
 				sys(cmd, S_NONFATAL);
-
-				/* Look for patched boot created by fdisk. */
-				sprintf(cmd, "/tmp/pboot.%d", i / NPARTN);
-				if (exists(cmd)) {
-					sprintf(cmd, "/bin/cp /tmp/pboot.%d %s",
-						i / NPARTN, name);
-					sys(cmd, S_NONFATAL);
-				}
 			} else if (i == root)
 				fatal("%s: root partition mkfs failed", name);
 		} else if (i == root && notflag(i, F_FS)) {
