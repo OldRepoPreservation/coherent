@@ -1,28 +1,21 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_INLINE_H__
 #define	__SYS_INLINE_H__
 
 /*
  * This header file exists for compatibility with the System V DDI/DKI.
- * This header defines some routines which are commonly kept inlined for
+ * It defines some routines which are commonly kept inlined for
  * efficiency reasons (although under the full DDI/DKI regime they are not
  * in fact inlined).
  */
 
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__PROTO ()
- *		__EXTERN_C_BEGIN__
- *		__EXTERN_C_END__
- *		__NON_ISO ()
- *	<common/xdebug.h>
- *		__LOCAL__
- *	<kernel/__pl.h>
- *		__pl_t
- *	<kernel/ddi_cpu.h>
- *		intmask_t
- */
-
+#include <common/feature.h>
 #include <common/ccompat.h>
 #include <common/xdebug.h>
 #include <kernel/__pl.h>
@@ -36,7 +29,7 @@
  * also need to be able to use the #include <sys/ddi.h> mechanism to force
  * all of these to be bound to regular C functions.
  *
- * In order to support this, the initial compiler-dependent part of the
+ * To support this, the initial compiler-dependent part of the
  * file performs feature tests and sets a __FORWARD_x__ macro for those
  * definitions that are to be "forwarded" via macro to a version whose name
  * has some additional leading underscores prepended.
@@ -51,8 +44,8 @@
  */
 
 /*
- * The 80x86 processor and the IBM PC have numerous design misfeatures when
- * it comes to the way interrupt priority works. Some are the result of using
+ * The 80x86 processor and the IBM PC have numerous design problems with
+ * regard to interrupt priority. Some are the result of using
  * external hardware to deal with interrupt priority level (not in itself a
  * big deal, but the 8259A on the PC ISA-bus is a problem). Others are a
  * result of the modality of the various processors in the 80x86 family and
@@ -69,8 +62,7 @@
  * hard-wired priority levels to be redefined by software.
  */
 
-
-#if	defined (__GNUC__) && defined (i386)	/* 80386 running GCC */
+#if	__GNUC__ && _I386	/* 80386 running GCC */
 
 #define __IBM_PC__
 #define	__PICC__	0x20
@@ -208,7 +200,7 @@ __LOCAL__ __INLINE__ __pl_t __splx (__pl_t _newpl) {
 	__pl_t		_prev_pl;
 	intmask_t	_mask = __GET_BASE_MASK () | _masktab [_newpl];
 
-	__OUT_IPL_MASK (mask);
+	__OUT_IPL_MASK (_mask);
 
 	_prev_pl = (__pl_t) ddi_cpu_data ()->dc_ipl;
 	ddi_cpu_data ()->dc_ipl = _newpl;
@@ -227,7 +219,7 @@ __LOCAL__ __INLINE__ __pl_t __splraise (__pl_t _newpl) {
 		intmask_t	_mask = __GET_BASE_MASK () |
 					_masktab [_newpl];
 
-		__OUT_IPL_MASK (mask);
+		__OUT_IPL_MASK (_mask);
 		ddi_cpu_data ()->dc_ipl = _newpl;
 	}
 
@@ -331,6 +323,5 @@ __EXTERN_C_END__
 #undef	__FORWARD_splx__
 #undef	__FORWARD_splcmp__
 #undef	__FORWARD_splraise__
-
 
 #endif	/* ! defined (__SYS_INLINE_H__) */

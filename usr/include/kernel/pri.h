@@ -1,15 +1,22 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__KERNEL_PRI_H__
 #define	__KERNEL_PRI_H__
 
 /*
- * The following abstract values are used in the DDI/DKI for specifying the
- * priority to be given to processes after awakening from kernel sleep.
+ * The following abstract values are used in the DDI/DKI to specify the
+ * priority to be given to a process after it awakens from kernel sleep.
  * Clients are permitted to specify a relative bias of up to +/- 3 from the
  * values specified below.
  *
- * The actual values chosen below are such that given the bias, abstract
+ * The values chosen below are such that given the bias, abstract
  * priorities can be mapped via a table into whatever concrete form is
- * desired by the scheduling algorithm. In particular, it is not possible for
+ * desired by the scheduling algorithm.  In particular, it is not possible for
  * clients to infer anything about the relative priorities of different levels
  * given the information below.
  */

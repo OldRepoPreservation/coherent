@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_FILE_H__
 #define	__SYS_FILE_H__
 
@@ -5,7 +12,7 @@
  * This file contains constants and definitions used by the System V DDI/DKI.
  *
  * Note that the information defined here has been compiled from published
- * information, so it is likely to be incomplete. Futhermore, the exact binary
+ * information, so it is likely to be incomplete. Furthermore, the exact binary
  * values of the constants are not defined in any currently published
  * documentation, so we have assigned values that will almost certainly not
  * match the System V definitions.
@@ -31,9 +38,8 @@ enum {
 
 #if	! _SYSV4 || _SYSV3
 /*
- * In order to be able to use old-style Coherent facilities without having to
- * try to use the old Coherent header files (it isn't worth it) we make some
- * funky random constants visible here.
+ * To use internal COHERENT facilities without using the COHERENT
+ * header files, we make some constants visible here.
  */
 
 /*
@@ -55,7 +61,9 @@ enum {
 	IPEXCL	 	= 0x40,
 	IPNOCTTY 	= 0x80,
 
-	IPNONBLOCK	= 0x100
+	IPNONBLOCK	= 0x100,
+
+	IPCLONE		= 0x200
 };
 
 #endif

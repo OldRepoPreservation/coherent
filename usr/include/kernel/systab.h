@@ -1,7 +1,8 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 /*
  * Header for system call table.
@@ -12,16 +13,11 @@
 
 #include <common/ccompat.h>
 #include <common/gregset.h>
-
-#if	_I386
 #include <kernel/param.h>
-#else
-#include <kernel/const.h>
-#endif
 
 /*
- * Type of a system call function; note that we prototype a function here that
- * takes 6 arguments plus a pointer to a register set. In fact, the calling
+ * Type of a system-call function.  Note that we prototype a function here that
+ * takes six arguments plus a pointer to a register set. In fact, the calling
  * sequence is different, but this seems more appropriate than "..." for an
  * argument list.
  *
@@ -65,13 +61,11 @@ enum {
  */
 
 struct systab {
-#if	_I386
 	unsigned char	s_nargs;		/* number of arguments */
-#else
-	char	s_alen;			/* Size of argument list */
-#endif
 	char		s_type;			/* Type returned by function */
 	__sysfunc_t	s_func;			/* Function */
+	char	      *	s_name;			/* Function name */
+	int		s_stat;			/* call count */
 };
 
 

@@ -1,15 +1,15 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_STRLOG_H__
 #define	__SYS_STRLOG_H__
 
 /*
  * Structures and constants for streams log driver log (7).
- */
-/*
- *-IMPORTS:
- *	<common/_clock.h>
- *		clock_t
- *	<common/_time.h>
- *		time_t
  */
 
 #include <common/_clock.h>
@@ -31,11 +31,10 @@
  * provide source-level compatibility.
  *
  * Field names whose names are known from publically available information are
- * given in that forms. Field names which we known exist, but for which we do
- * not know the names have been assigned names with a special prefix. The
- * data types of these values has been inferred from the published
- * descriptions, and thus may not match System V types, and also may be given
- * in a different order.
+ * given in that form.  Field names that we known exist but whose names we do
+ * not know been assigned names with a special prefix. The data types of
+ * these values has been inferred from the published descriptions, and thus
+ * may not match System V types, and also may be given in a different order.
  *
  * Caveat utilitor!
  */

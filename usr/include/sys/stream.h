@@ -1,3 +1,9 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
 #ifndef __SYS_STREAM_H__
 #define __SYS_STREAM_H__
 
@@ -8,28 +14,13 @@
  * by the inclusion of a header which reserves such classes of names.
  */
 
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__PROTO ()
- *		__EXTERN_C_BEGIN__
- *		__EXTERN_C_END__
- *		__VOID__
- *	<common/_cred.h>
- *		cred_t
- *	<kernel/_toid.h>
- *		toid_t
- *	<kernel/x86lock.h>
- *		atomic_uchar_t
- *	<sys/types.h>
- *		caddr_t
- */
-
 #include <common/ccompat.h>
-#include <common/_cred.h>
+#include <common/__cred.h>
+#include <common/__caddr.h>
+#include <common/__types.h>
+#include <kernel/__pl.h>
 #include <kernel/_toid.h>
 #include <kernel/x86lock.h>
-#include <sys/types.h>
 
 #include <common/_stream.h>
 
@@ -42,7 +33,6 @@
  * published in the System V, Release 4 STREAMS Programmer's Guide,
  * Appendices A and B.
  */
-
 
 /*
  * Message types. The particular values here may have some significance
@@ -144,6 +134,7 @@ struct queue {
 	unsigned char	q_lastband;	/* band of last retrieved message */
 	__str_lock_t	q_locked;	/* hack implementation of freezing */
 };
+
 
 /*
  * Hack around the union above. This field should only be referred to by some
@@ -255,8 +246,7 @@ typedef struct free_rtn frtn_t;
  * Data block descriptors - several mblk_t's may refer to the same section
  * of STREAMS buffer memory to avoid copying.
  *
- * Note that this data structure is NOT identical to it's System V
- * counterpart.
+ * Note that this data structure is NOT identical to its System V counterpart.
  */
 
 struct datab {
@@ -281,9 +271,9 @@ typedef	void (*	__srvp_t)		/* service procedure */
 			__PROTO ((queue_t * _q));
 typedef	int  (*	__qopen_t)		/* open procedure */
 			__PROTO ((queue_t * _q, n_dev_t * _devp, int _flag,
-				  int _sflag, cred_t * _credp));
+				  int _sflag, __cred_t * _credp));
 typedef	int  (*	__qclose_t)		/* called on last close/pop */
-			__PROTO ((queue_t * _q, int _flag, cred_t * _credp));
+			__PROTO ((queue_t * _q, int _flag, __cred_t * _credp));
 typedef	int  (*	__qadmin_t)		/* reserved for future use */
 			__PROTO ((void));
 
@@ -356,7 +346,7 @@ struct linkblk {
 
 /*
  * Stream head options control message format, used as the data part of an
- * M_SETOPTS message set from a driver or module to the stream head. The
+ * M_SETOPTS message set from a driver or module to the stream head.  The
  * values for the "so_readopt" member can be found in <stropts.h> as well
  * as below.
  */
@@ -409,7 +399,7 @@ struct stroptions {
 
 struct iocblk {
 	int             ioc_cmd;	/* ioctl () command type */
-	cred_t	      * ioc_cr;		/* user's full credentials */
+	__cred_t      * ioc_cr;		/* user's full credentials */
 	unsigned int	ioc_id;         /* M_IOCTL sequence number */
 	unsigned int	ioc_count;	/* bytes in data field */
 	int             ioc_error;	/* error code */
@@ -446,9 +436,9 @@ struct iocblk {
 
 struct copyreq {
 	int		cq_cmd;		/* ioctl command (from ioc_cmd) */
-	cred_t	      *	cq_cr;		/* full credentials (from ioc_cr) */
+	__cred_t      *	cq_cr;		/* full credentials (from ioc_cr) */
 	unsigned int	cq_id;		/* ioctl id (from ioc_id) */
-	caddr_t		cq_addr;	/* user address to copy data to/from */
+	__caddr_t	cq_addr;	/* user address to copy data to/from */
 	unsigned int	cq_size;	/* number of bytes to copy */
 	int		cq_flag;	/* flags, see below */
 	mblk_t	      *	cq_private;	/* private state information */
@@ -475,9 +465,9 @@ struct copyreq {
 
 struct copyresp {
 	int		cp_cmd;		/* ioctl command (from cq_cmd) */
-	cred_t	      *	cp_cr;		/* full credentials (from cq_cr) */
+	__cred_t      *	cp_cr;		/* full credentials (from cq_cr) */
 	unsigned int	cp_id;		/* ioctl id (from cq_id) */
-	caddr_t		cp_rval;	/* request status: 0 success, non-zero failure */
+	__caddr_t	cp_rval;	/* request status: 0 success, non-zero failure */
 	unsigned int	cp_pad1;	/* reserved */
 	unsigned int	cp_pad2;	/* reserved */
 	mblk_t	      * cp_private;	/* private state information */
@@ -554,13 +544,15 @@ typedef enum qfields {
 } qfields_t;
 
 
+#if	_DDI_DKI
+
 /*
  * External function definitions for the STREAMS library.
  *
  * Note that prototypes are also provided for those STREAMS functions that
  * are available as macros. This is since this header is a more appropriate
  * place to encode this knowledge than the DDI/DKI required header
- * <sys/ddi.h>
+ * <sys/ddi.h>.
  *
  * The System V Release 4 Multi-Processor DDI/DKI defines some extra versions
  * of some common STREAMS library functions so that STREAMS driver code does
@@ -595,7 +587,7 @@ toid_t		esbbcall	__PROTO ((int _pri, ...));
 void		flushband	__PROTO ((queue_t * _q, unsigned char _pri,
 					  int _flag));
 void		flushq		__PROTO ((queue_t * _q, int _flag));
-pl_t		freezestr	__PROTO ((queue_t * _q));
+__pl_t		freezestr	__PROTO ((queue_t * _q));
 void		freeb		__PROTO ((mblk_t * _bp));
 void		freemsg		__PROTO ((mblk_t * _mp));
 int	     (*	getadmin	__PROTO ((unsigned short _mid)))
@@ -609,7 +601,7 @@ int		msgdsize	__PROTO ((mblk_t * _mp));
 mblk_t	      *	msgpullup	__PROTO ((mblk_t * _mp, int _len));
 void		noenable	__PROTO ((queue_t * _q));
 queue_t	      *	OTHERQ		__PROTO ((queue_t * _q));
-int		pcmsg		__PROTO ((uchar_t _type));
+int		pcmsg		__PROTO ((__uchar_t _type));
 int		pullupmsg	__PROTO ((mblk_t * _mp, int _len));
 void		put		__PROTO ((queue_t * _q, mblk_t * _mp));
 int		putbq		__PROTO ((queue_t * _q, mblk_t * _mp));
@@ -638,7 +630,7 @@ int		strqset		__PROTO ((queue_t * _q, qfields_t _what,
 					  unsigned char _pri, long _val));
 int		testb		__PROTO ((int _size, int _pri));
 void		unbufcall	__PROTO ((toid_t _id));
-void		unfreezestr	__PROTO ((queue_t * _q, pl_t _pl));
+void		unfreezestr	__PROTO ((queue_t * _q, __pl_t _pl));
 mblk_t	      *	unlinkb		__PROTO ((mblk_t * _mp));
 queue_t	      *	WR		__PROTO ((queue_t * _q));
 
@@ -691,4 +683,6 @@ enum {
 #define	RD(q)	      __HACK (((q)->q_flag & QREADR) != 0 ? (q) : (q) - 1)
 #define	WR(q)	      __HACK (((q)->q_flag & QREADR) != 0 ? (q) + 1 : (q))
 
-#endif /* ! defined (__SYS_STREAM_H__) */
+#endif	/* _DDI_DKI */
+
+#endif	/* ! defined (__SYS_STREAM_H__) */
