@@ -5,7 +5,7 @@
  */
 
 #include "sh.h"
-#include <y.tab.h>
+#include "y.tab.h"
 
 /*
  * Local externals.
@@ -43,7 +43,6 @@ KEY keytab[] ={
 	_FOR,	"for",
 	_IF,	"if",
 	_IN,	"in",
-	_RET,	"return",
 	_THEN,	"then",
 	_UNTIL,	"until",
 	_WHILE,	"while",
@@ -118,9 +117,6 @@ again:
 #ifdef NAMEPIPE
 	case '(':
 		return isnext('|', _NOPEN);
-#else
-	case '(':
-		return isnext(')', _PARENS);
 #endif
 	default:
 		if (hereeof != NULL) {

@@ -16,9 +16,6 @@ char shfnams [] = {
 };
 /* Shell status housekeeping */
 jmp_buf	restart;
-SHFUNC	*sh_fnp = NULL;
-int	in_sh_fn = 0;
-int	ret_done = 0;
 int	sargc = 0;
 char	*sarg0 = NULL;
 char	**sargv = NULL;

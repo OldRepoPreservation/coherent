@@ -116,6 +116,8 @@ evalvar()
 		if (c != '}') {
 			/* ${VAR [-=?+] token} */
 			s = c;
+			if (cp[-1] == ':')
+				--cp;		/* allow e.g. ${VAR:=foo} */
 			*cp++ = '=';
 			wp = cp;
 			if ((quote = *arcp) == '"' || quote =='\'')
@@ -163,6 +165,8 @@ evalvar()
 		pp = NULL;
 		if ((vp=findvar(strp)) != NULL) {
 			pp = convvar(vp);
+			if (*pp == '\0')
+				pp = NULL;	/* regard value "" as not set */
 		}
 	}
 	switch (s) {

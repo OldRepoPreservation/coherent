@@ -59,24 +59,20 @@
 #define NCTRL	21			/* Control statement in list */
 #define NRPIPE	22			/* Named pipe for read */
 #define NWPIPE	23			/* Named pipe for write */
-#define	NFUNC	24			/* Shell function */
-#define	NRET	25			/* Return */
 
 /*
  * Node.
  */
-typedef	union	node {
-	struct {
-		int	n_type;		/* Type of node */
-		struct	node *n_next;	/* Pointer to next */
-		struct	node *n_auxp;	/* Auxiliary pointer */
-	};
-	struct {
-		int	n_type;		/* Type of node */
-		struct	node *n_next;	/* Pointer to next */
-		char	*n_strp;	/* Pointer to string */
-	};
+typedef	struct	node {
+	int	n_type;			/* Type of node */
+	struct	node *n_next;		/* Pointer to next */
+	union	{
+		struct	node *nu_auxp;	/* Auxiliary pointer */
+		char	*nu_strp;	/* Pointer to string */
+	} n_u;
 } NODE;
+#define	n_auxp	n_u.nu_auxp
+#define	n_strp	n_u.nu_strp
 
 /*
  * Flags in variables.
@@ -174,16 +170,6 @@ typedef struct ses {
 #define EPATT	3	/* Evaluate for pattern match */
 
 /*
- * Shell functions.
- */
-typedef struct shfunc {
-	struct	shfunc	*fn_link;
-	int		fn_hash;
-	char		*fn_name;
-	NODE		*fn_body;
-} SHFUNC;
-
-/*
  * Global variables.
  *	Run time and set time flags.
  */
@@ -212,9 +198,6 @@ extern	char	shfnams[];		/* Flag name array */
 
 /* Shell status housekeeping */
 extern	jmp_buf	restart;		/* Restart execution context */
-extern	SHFUNC	*sh_fnp;		/* User-defined shell function list */
-extern	int	in_sh_fn;		/* Executing shell function */
-extern	int	ret_done;		/* "return" executed */
 extern	int	sargc;			/* Argument count to shell */
 extern	char	*sarg0;			/* Name shell called with */
 extern	char	**sargv;		/* Argument vector to shell */
