@@ -97,7 +97,12 @@ char *inf, *outf;
 		cperr("%s: cannot open", inf);
 		return (FALSE);
 	}
-	if ((outfd = creat(outf, mode&0777)) < 0) {
+	/* Was changed from mode&0777 to mode & 06777 to preserve
+	 * set user id and set group id bits. cp does not preserve 
+	 * sticky bit because it can be used only by superuser. 
+	 * Vlad 12-27-91.
+	 */
+	if ((outfd = creat(outf, mode & 06777)) < 0) {
 	   if (errno == ETXTBSY)
 	      cperr("%s: cannot copy over busy shared text file", outf);
 	   else
@@ -243,4 +248,6 @@ register char *av[];
 		usage();
 	return (1);
 }
+
+
 
