@@ -3,51 +3,52 @@
  * CC command.
  * Compile, assemble and link edit C programs.
  * A lot of grunge.
- * Revised by rec may1987 to incorporate all
- * coherent and gemdos revisions to date.
+ * Revised by rec 5/87 to incorporate all
+ * COHERENT and GEMDOS revisions to date.
  * Revised by steve 3/92 to produce monolithic COHERENT compiler.
  *
- * Defining VeryVflag will produce very verbose output under -VSTAT
- *	option
+ * Compliing with -DVeryVflag produces very verbose output under -V option.
  *
  * C compiler/loader switch map.
  *	*7	marks a version seven documented option.
  *	*7d	marks a defunct version seven option.
  *	*7c	marks a changed version seven option.
- *	*u	marks an option unrecognized by cc, ie passed to linker
+ *	*u	marks an option unrecognized by cc, i.e. passed to loader
  *		with no interpretation or processing.
  *
  * Options still up for grabs:
- * [  C  FGH J       R    W Y ]
- * [ b     h j  m        v  yz]
+ * [  C  FGH J     P R    W Y ]
+ * [ b     h j  m           yz]
+ * Change the verbose usage() message below when options change!
  *
- *	A		run in auto edit mode
+ *	?		list available options, cf. usage(1) below
+ *	A		auto edit mode
  *7c	Bstring		use string to find compiler passes
  *7	Dname[=value]	preprocessor: #define
  *7	E		run preprocessor to stdout
  *7	Ipathname	preprocessor: #include search directory
- *	K		keep intermediate files in name.[P012so]
+ *	K		keep intermediate files
  *	Lpathname	loader: library directory specification
  *	Mstring		use string as cross-compiler prefix
  *	N[01ab2sdlrt]string	rename pass with string
  *7	O		run object code optimiser
  *7d	P		put preprocessor output into name.i; use -Kqp
  *	Q		be quiet, make no messages
- *7	S		make assembly language output in name.s
+ *7	S		make assembly language output
  *	T[value]	use in-memory tempfiles of size value (default: 64K)
  *7	Uname		preprocessor: #undef
  *	V		be verbose, report everything
  *	Vvariant	enable variant
- *	X		loader: remove c generated local symbols
+ *	X		loader: remove C-generated local symbols
  *	Z		(GEMDOS) floppy change prompts for phases
  *	a		do not implicit output file name to loader
  *7	c		compile but do not load
  *	d		loader: define common space
  *7	e name		loader: entry point specification
- *7c	f		fake floating point operations
+ *7c	f		load floating point output conversion routines
  *	g		generate debug info, same as -VDB
  *7u	i		loader: separate i and d spaces
- *	k[system]	loader: bind as kernel process
+ *	k system	loader: bind as kernel process [but ld doesn't grok it]
  *7c	lname		loader: library specification
  *7u	n		loader: shared instruction space
  *7	o name		loader: output file name
@@ -56,7 +57,8 @@
  *	r		loader: retain relocation in output
  *	s		loader: strip symbol table
  *7c	t[p012adlrt]	take specified passes from -Bdirectory
- *7	u name		loader: enter name into symbol table
+ *7	u name		loader: undefine name
+ *	v		verbose, same as V
  *	w		loader: watch
  *	x		loader: remove local symbols from symbol table
  */
@@ -208,7 +210,7 @@ struct option {			/* option table */
 	{ 0,	CCOPT,	"VDLINE",	VLINES	},
 	{ 0,	CCOPT,	"VDTYPE",	VTYPES	},
 	{ 0,	CCOPT,	"VDSYMB",	VDSYMB	},
-	{ 0,	CCOPT,	"VDCALL",	VCALLS	},
+
 /* Miscellaneous */
 	{ 0,	CCOPT,	"VSTAT",	VSTAT	},
 	{ 0,	CCOPT,	"VWIDEN",	VWIDEN	},
@@ -220,8 +222,10 @@ struct option {			/* option table */
 	{ 0,	CCOPT,	"VASM",		VASM	},
 
 	{ 0,	CCOPT,	"VLIB",		VLIB	},
+	{ 0,	CCOPT,	"VNOWARN",	VNOWARN	},
 	{ 0,	CCOPT,	"VPROF",	VPROF	},
 	{ 0,	CCOPT,	"VALIEN",	VALIEN	},
+	{ 0,	CCOPT,	"VREADONLY",	VREADONLY },
 	{ 0,	CCOPT,	"VSINU",	VSINU	},
 	{ 0,	CCOPT,	"VNOOPT",	VNOOPT	},
 	{ 0,	CCOPT,	"VCPLUS",	VCPLUS	},
@@ -235,12 +239,14 @@ struct option {			/* option table */
 	{ 0,	CCOPT,	"VSMALL",	VSMALL	},
 	{ 0,	CCOPT,	"VLARGE",	VLARGE	},
 	{ 0,	CCOPT,	"V8087",	V8087	},
+	{ 0,	CCOPT,	"VNDP",		VNDP	},
 	{ 0,	CCOPT,	"VRAM",		VRAM	},
 	{ 0,	CCOPT,	"VOMF",		VOMF	},
 	{ 0,	CCOPT,	"V80186",	V80186	},
 	{ 0,	CCOPT,	"V80287",	V80287	},
 	{ 0,	CCOPT,	"VALIGN",	VALIGN	},
 	{ 0,	CCOPT,	"VEMU87",	VEMU87	},
+	{ 0,	CCOPT,	"VXSTAT",	VXSTAT	},
 #endif
 #if	GEMDOS
 /* Motorola and Gemdos flags */
@@ -267,7 +273,8 @@ struct option {			/* option table */
 	{ 12,	CCOPT,	"VKEEP",	FLAG_K	},
 	{ 12,	CCOPT,	"K",		FLAG_K	},
 	{ 0,	CCOPT,	"Q",		VQUIET	},
-	{ 12,	CCOPT,	"V",		FLAG_V	},
+	{ 11,	CCOPT,	"VVERSION"		},
+	{ 12,	CCOPT,	"V",		FLAG_V	},	/* all -V* must precede this */
 	{ 12,	CCOPT,	"v",		FLAG_V	},
 /* Preprocessor options */
 	{ 3,	PPOPT,	"D"	},
@@ -299,7 +306,7 @@ struct option {			/* option table */
 	{ 9,	CCOPT,	"T"	},
 #endif
 	{ 8,	CCLIB,	"l"	},
-
+	{ 13,	CCOPT,	"?"	},
 	{ -1,	-1,	""	}
 };
 
@@ -373,10 +380,13 @@ unsigned int	tempsize = 65536;	/* memory buffer size	*/
 #endif
 
 #if	MONOLITHIC
+int		monolithic = 1;		/* set to 0 if phases needed	*/
+
 /* Information passed to phases through globals in monolithic compiler */
 jmp_buf		death;			/* for fatal error handling	*/
 int		dotseg;			/* current segment		*/
-char		file[NFNAME];		/* input file name buffer	*/
+char		file[NFNAME];		/* current input file name	*/
+char		basefile[NFNAME];	/* original input file name	*/
 char		id[NCSYMB];		/* global identifier buffer	*/
 FILE		*ifp;			/* input FILE			*/
 int		line;			/* line number			*/
@@ -403,7 +413,7 @@ main(argc, argv) int argc; char *argv[];
 {
 	register char *p;
 	register struct option *op;
-	int i, narg, c;
+	int i, narg, c, n;
 
 #if COHERENT
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
@@ -435,9 +445,13 @@ main(argc, argv) int argc; char *argv[];
 		narg = 1;
 		p = argv[i];
 		if (*p++ == '-') {
-			static char tppopt[64] = "-";
+			/*
+			 * Process an option argument.
+			 * This is particularly squirrly because it allows
+			 * several options to be combined in a single arg.
+			 */
+			char *ppopt = "";
 			static char tldopt[64] = "-";
-			char *tpp = &tppopt[1];
 			char *tlp = &tldopt[1];
 
 			if (*p == '\0') {
@@ -456,14 +470,17 @@ main(argc, argv) int argc; char *argv[];
 				argf[i] |= op->o_flag;
 				switch (op->o_kind) {
 				case 0:
+					/* Toggle variant. */
 					chgvariant(op->o_bits);
 					p += strlen(op->o_name);
 					continue;
 				case 10:
+					/* Set variant. */
 					setvariant(op->o_bits);
 					p += strlen(op->o_name);
 					continue;
 				case 2:
+					/* Toggle ccvariant. */
 					ccvariant ^= op->o_bits;
 					p += strlen(op->o_name);
 					/* Set strict */
@@ -488,14 +505,17 @@ main(argc, argv) int argc; char *argv[];
 					}
 					continue;
 				case 12:
+					/* Set ccvariant. */
 					ccvariant |= op->o_bits;
 					p += strlen(op->o_name);
 					continue;
 				case 3:
-					while (*tpp++ = *p)
-						p++;
+					/* Preprocessor options. */
+					ppopt = p;
+					p += strlen(p);
 					continue;
 				case 5:
+					/* ld options with file args */
 					if (*p == 'o') {
 						outf = argv[i+narg];
 					}
@@ -506,13 +526,18 @@ main(argc, argv) int argc; char *argv[];
 					argf[i+narg++] = LDOPT;
 					/* Fall through */
 				case 4:
+					/* ld options without args */
 					if (*p == 'r')
 						++partial;
+					n = strlen(op->o_name);
+					if (tlp + n >= &tldopt[64])
+						cquit("ld args too long");
 					strcpy(tlp, op->o_name);
-					tlp += strlen(op->o_name);
-					p += strlen(op->o_name);
+					tlp += n;
+					p += n;
 					continue;
 				case 6:
+					/* -q */
 					if ((c = p[1]) == '\0'
 					 || (c = getpsn(c)) < CPP)
 						goto badopt;
@@ -520,29 +545,69 @@ main(argc, argv) int argc; char *argv[];
 					p += 2;
 					continue;
 				case 7:
+					/* Pass renaming options -tBMN */
+#if	MONOLITHIC
+					monolithic = 0;		/* need phases */
+#if	TEMPBUF
+					tempsize = 0;		/* use disk temps */
+#endif
+#endif
 					c = p[0];
 					getpass(c, p+1);
 					p = dnul;
 					continue;
 				case 8:
+					/* -l */
 					p = dnul;
 					continue;
 #if	TEMPBUF
 				case 9:
+					/* -T */
 					tempsize = atoi(++p);
 					tempsize = (tempsize + 3) & ~3;
 					p = dnul;
 					continue;
 #endif
+				case 11:
+					/* -VVERSION */
+					p += strlen(op->o_name);
+					fprintf(stderr, "cc: "
+#if	COHERENT
+						"COHERENT "
+#endif
+#if	_I386
+						"i386 "
+#endif
+						"cc " VERSMWC "\n");
+					break;
+
+				case 13:
+					/* -? */
+					usage(1);
+					break;
 				default:
 					cquit("options");
 				}
 			}
 			if (((unsigned)argf[i]-1)&((unsigned)argf[i])) {
+				/*
+				 * Handle multiple arg types in a single arg
+				 * by writing the arg,
+				 * then the cpp form of the arg,
+				 * then the ld form of the arg.
+				 * runpp and runld understand how to grovel
+				 * for their args when this gets used,
+				 * undoing this braindamage.
+				 */
+				if (optp + strlen(argv[i]) + 1
+					 + 1 + strlen(ppopt) + 1
+					 + strlen(tldopt) + 1 >= &optb[NCMDB])
+					cquit("option buffer overflow");
 				strcpy(optp, argv[i]);
 				argv[i] = optp;
 				optp += strlen(optp)+1;
-				strcpy(optp, tppopt);
+				*optp++ = '-';
+				strcpy(optp, ppopt);
 				optp += strlen(optp)+1;
 				strcpy(optp, tldopt);
 				optp += strlen(optp)+1;
@@ -716,11 +781,8 @@ resolve()
 	}
 	nfile = ndotc + ndots + ndotm;
 	nname = nfile + ndoto + ndota;
-	if (nname == 0) {
-		fprintf(stderr,
-			"Usage: cc [ -o output ] [ options ] file [ ... ]\n");
-		exit(1);
-	}
+	if (nname == 0)
+		usage(0);
 	if (qpass < LD)
 		++nload;
 	if (Aflag)
@@ -875,11 +937,15 @@ runpp(argc, argv, var) int argc; register char *argv[]; char var[];
 
 	cp = cmda;
 #if	MONOLITHIC
-	nerr = 0;
-	*cp++ = "cc0";
-#else
-	p1 = cmdb;
-	p1 = makepass(CC0, *cp++ = p1, AEXEC);
+	if (monolithic) {
+		nerr = 0;
+		*cp++ = "cc0";
+	} else {
+#endif
+		p1 = cmdb;
+		p1 = makepass(CC0, *cp++ = p1, AEXEC);
+#if	MONOLITHIC
+	}
 #endif
 	*cp++ = var;
 	*cp++ = pass[CPP].p_ifn;
@@ -890,43 +956,44 @@ runpp(argc, argv, var) int argc; register char *argv[]; char var[];
 	for (i=1; i<argc; ++i) {
 		if ((argf[i]&PPOPT) != 0) {
 			*cp++ = argv[i];
-			if ((argf[i]&~PPOPT) != 0)
+			if ((argf[i]&~PPOPT) != 0)	/* see comment in main */
 				cp[-1] += strlen(cp[-1])+1;
 		}
 	}
 	*cp = 0;
 #if	MONOLITHIC
-	if ((ifp = fopen(pass[CPP].p_ifn, "r")) == NULL) {
-		fprintf(stderr, "cc: cannot open %s\n", pass[CPP].p_ifn);
-		return 1;
-	}
-	if (Eflag)
-		ofp = (strcmp(p1, "-") == 0) ? stdout : ccopen(p1, "w");
-	else
-		ofp = (*p1 == '\0') ? NULL : ccopen(p1, SWMODE);
-	argc = cp - cmda;
-	if (Vflag) {
-		for (i = 0; i < argc; i++)
-			printf("%s ", cmda[i]);
-		if (ofp == NULL)
-			printf("0x%x", outbuf);
-		printf("\n");
-	}
-	if (Aflag)
-		err_open();
-	status = cc0(argc, cmda);
-	if (Aflag)
-		err_close(status);
-	closeinout();
+	if (monolithic) {
+		if ((ifp = fopen(pass[CPP].p_ifn, "r")) == NULL) {
+			fprintf(stderr, "cc: cannot open %s\n", pass[CPP].p_ifn);
+			return 1;
+		}
+		if (Eflag)
+			ofp = (strcmp(p1, "-") == 0) ? stdout : ccopen(p1, "w");
+		else
+			ofp = (*p1 == '\0') ? NULL : ccopen(p1, SWMODE);
+		argc = cp - cmda;
+		if (Vflag) {
+			for (i = 0; i < argc; i++)
+				printf("%s ", cmda[i]);
+			if (ofp == NULL)
+				printf("0x%x", outbuf);
+			printf("\n");
+		}
+		if (Aflag)
+			err_open();
+		status = cc0(argc, cmda);
+		if (Aflag)
+			err_close(status);
+		closeinout();
 #if	0
-	printmem("after cc0");
+		printmem("after cc0");
 #endif
-	if (status)
-		xstat = 1;
-	return status;
-#else
+		if (status)
+			xstat = 1;
+		return status;
+	}
+#endif
 	return run(Aflag, 0);
-#endif
 }
 
 #if	MONOLITHIC
@@ -1045,38 +1112,39 @@ setinout(pn) register int pn;
 
 runcc(pn) register int pn;
 {
+	register char **cp;
 #if	MONOLITHIC
 	register int status;
 
-	setinout(pn);
-	switch(pn) {
-	case CC1:
-			status = cc1();
-			break;
-	case CC2:
-			if (status = cc2a())
-				 break;
-			if (!Sflag) {
-				closeinout();
-				setinout(CC2B);
-				status = cc2b();
-			}
-			break;
-	case CC3:
-			status = cc3();
-			break;
-	default:
-			cquit("bad pass number %d", pn);
-			break;
-	}
-	closeinout();
+	if (monolithic) {
+		setinout(pn);
+		switch(pn) {
+		case CC1:
+				status = cc1();
+				break;
+		case CC2:
+				if (status = cc2a())
+					 break;
+				if (!Sflag) {
+					closeinout();
+					setinout(CC2B);
+					status = cc2b();
+				}
+				break;
+		case CC3:
+				status = cc3();
+				break;
+		default:
+				cquit("bad pass number %d", pn);
+				break;
+		}
+		closeinout();
 #if	0
-	printmem((pn == CC1) ? "after cc1": (pn == CC2) ? "after cc2" : "after cc3");
+		printmem((pn == CC1) ? "after cc1": (pn == CC2) ? "after cc2" : "after cc3");
 #endif
-	return status;
-#else
-	register char **cp;
-
+		return status;
+	}
+#endif
 	cp = cmda;
 	makepass(pn, *cp++ = cmdb, AEXEC);
 	*cp++ = vstr;
@@ -1086,7 +1154,6 @@ runcc(pn) register int pn;
 		*cp++ = pass[CC2].p_sfn;
 	*cp = 0;
 	return run(0, 0);
-#endif
 }
 
 runas()
@@ -1140,11 +1207,26 @@ char *argv[];
 	if (Qflag)
 		*cp++ = "-Q";
 #endif
+	if (isvariant(VNDP)) {
+		/*
+		 * This gets libraries and rts from /lib/ndp on system
+		 * with both software fp and NDP libraries, hack hack...
+		 * It also puts /usr/lib/ndp in the ld library search path.
+		 */
+		pass[CRT].p_flag |= P_BACK;
+		pass[CRT].p_dir = "/lib/ndp";
+		*cp++ = "-L/lib/ndp";
+		*cp++ = "-L/usr/lib/ndp";
+	}
 	if (outf == NULL && !aflag) {
 		*cp++ = "-o";
 		if (partial || doutf == NULL) {
 #if	COHERENT
+#if	_I386
+			*cp++ = "a.out";
+#else
 			*cp++ = "l.out";
+#endif
 #endif
 #if	GEMDOS
 			*cp++ = "l.prg";
@@ -1160,7 +1242,7 @@ char *argv[];
 	for (i=1; i<argc; ++i) {
 		if ((argf[i]&LDOPT)!=0) {
 			*cp++ = argv[i];
-			if ((argf[i]&~LDOPT)!=0) {
+			if ((argf[i]&~LDOPT)!=0) {	/* see comment in main */
 				cp[-1] += strlen(cp[-1])+1;
 				cp[-1] += strlen(cp[-1])+1;
 			}
@@ -1290,18 +1372,18 @@ run(catch_errors, nofork) int catch_errors; int nofork;
 }
 
 /*
- * Routines to catch and release stdout for -A.
+ * Routines to catch and release stderr for -A.
  */
 int new_fd;
 int saved_fd;
 
 err_open()
 {
-	fflush(stdout);
-	saved_fd = dup(1);
+	fflush(stderr);
+	saved_fd = dup(2);
 	if ((new_fd = creat(tmp[6], 0644)) < 0)
 		cquit("%s: %s", tmp[6], sys_errlist[errno]);
-	if (dup2(new_fd, 1) < 0)
+	if (dup2(new_fd, 2) < 0)
 		cquit("dup2 failed");
 }
 
@@ -1310,15 +1392,15 @@ err_close(status) int status;
 	register int c;
 	register FILE *fp;
 
-	fflush(stdout);
-	if (dup2(saved_fd, 1) < 0)
+	fflush(stderr);
+	if (dup2(saved_fd, 2) < 0)
 		cquit("dup2 failed");
 	if (close(new_fd) < 0)
 		/* cquit("error on close") */ ;
 	if (status == 0 && (fp = fopen(tmp[6], "r")) != NULL) {
 		/* Copy warnings, otherwise they go down the rathole. */
 		while ((c = getc(fp)) != EOF)
-			putchar(c);
+			fputc(c, stderr);
 		fclose(fp);
 	}
 }
@@ -1484,7 +1566,7 @@ whatopt(s)
 char *s;
 {
 	fprintf(stderr, "cc: unrecognized option: %s\n", s);
-	exit(1);
+	usage(0);
 }
 
 cquit(s)
@@ -1665,6 +1747,135 @@ char *op, *ip, *ft;
 	ep = ft;
 	while (*tp++ = *ep++)
 		;
+}
+
+/*
+ * Print a terse or verbose usage message.
+ */
+usage(flag) register int flag;
+{
+	register FILE *ofp;
+
+	ofp = (flag) ? stdout : stderr;
+	fprintf(ofp, "Usage: cc [ option ... ] file ...\n");
+	if (flag == 0)
+		fprintf(ofp, "Type \"cc -?\" to list the available options.\n");
+	else
+		fprintf(ofp,	
+		"Options:\n"
+		"\t-A\t\tAuto edit mode\n"
+		"\t-Bpathname\tUse pathname to find substitute compiler passes\n"
+		"\t-Dname[=value]\tcpp: #define\n"
+		"\t-E\t\tExpand: run preprocessor to stdout\n"
+		"\t-Ipathname\tcpp: #include search directory\n"
+		"\t-K\t\tKeep intermediate files\n"
+		"\t-Lpathname\tld: library directory specification\n"
+		"\t-Mstring\t\tUse string as cross-compiler prefix\n"
+		"\t-N[01ab2sdlrt]string\tRename pass with string\n"
+		"\t-O\t\tOptimize: run object code optimizer\n"
+		"\t-Q\t\tQuiet: no error or warning messages\n"
+		"\t-S\t\tOutput assembly language\n"
+		"\t-T[value]\tTemp size for in-memory tempfiles (default: 64K)\n"
+		"\t-Uname\t\tcpp: #undef\n"
+		"\t-V\t\tVerbose: report everything\n"
+		"\t-Vvariant\tVariant enable/disable, see list below\n"
+		"\t-X\t\tld: remove C-generated local symbols\n"
+#if	GEMDOS
+		"\t-Z\t\t(GEMDOS) floppy change prompts for phases\n"
+#endif
+		"\t-a\t\tDo not use implicit output file name for loader\n"
+		"\t-c\t\tCompile only, do not load\n"
+		"\t-d\t\tld: define common space\n"
+		"\t-e name\t\tld: entry point specification\n"
+		"\t-f\t\tld: use floating point output conversion routines\n"
+		"\t-g\t\tGenerate debug information, same as -VDB\n"
+		"\t-i\t\tld: separate i and d spaces\n"
+		"\t-lname\t\tld: library specification\n"
+		"\t-n\t\tld: shared instruction space\n"
+		"\t-o name\t\tld: output file name\n"
+		"\t-p\t\tProfile: generate code to profile function calls\n"
+		"\t-q[p012s]\tQuit after specified pass\n"
+		"\t-r\t\tld: retain relocation information in output\n"
+		"\t-s\t\tld: strip symbol table\n"
+		"\t-t[p012adlrt]\ttake specified passes from -Bdirectory\n"
+		"\t-u name\t\tld: undefine name\n"
+		"\t-v\t\tVerbose: report everything, same as -V\n"
+		"\t-w\t\tld: watch\n"
+		"\t-x\t\tld: remove all local symbols from symbol table\n"
+		"Variant options:\n"
+		"\t-VASM\t\tAssembly language output, same as -S\n"
+		"\t-VCOMM\t\tCommon data items (default)\n"
+		"\t-VCPLUS\t\tIgnore C++ style online //-delimited comments\n"
+		"\t-VCPPE\t\tRun cpp in -E mode, same as -E\n"
+		"\t-VDB\t\tDebug: generate debug output, same as -g\n"
+		"\t-VFLOAT\t\tFloating point output conversion, same as -f\n"
+		"\t-VKEEP\t\tKeep intermediate files, same as -K\n"
+		"\t-VNDP\t\tUse hardware (80x87) floating point\n"
+		"\t-VNOOPT\t\tNo optimization\n"
+		"\t-VNOWARN\tNo warning messages\n"
+		"\t-VPEEP\t\tPeephole optimization (default)\n"
+		"\t-VPROF\t\tProfile: generate code to profile function calls\n"
+		"\t-VPSTR\t\tPure strings (default)\n"
+		"\t-VQUIET\t\tNo messages, same as -Q\n"
+		"\t-VREADONLY\tRecognize \"readonly\" keyword\n"
+		"\t-VS\t\tStrict: turn on all strict messages\n"
+		"\t-VSBOOK\t\tStrict: only constructs in K&R\n"
+		"\t-VSCCON\t\tStrict: constant conditional\n"
+		"\t-VSINU\t\tAllow struct-in-union constructs\n"
+		"\t-VSLCON\t\tStrict: long constant promotion (default)\n"
+		"\t-VSMEMB\t\tStrict: strict member checking (default)\n"
+		"\t-VSNREG\t\tStrict: declared register but allocated auto\n"
+		"\t-VSPVAL\t\tStrict: pointer value truncation (default)\n"
+		"\t-VSRTVC\t\tStrict: risky constructs in truth contexts\n"
+		"\t-VSTAT\t\tStatistics on optimization\n"
+		"\t-VSUREG\t\tStrict: unused registers\n"
+		"\t-VSUVAR\t\tStrict: unused variables (default)\n"
+		"\t-VVERSION\tPrint compiler version number\n"
+		"\t-VWIDEN\t\tWidening of parameter or function value warning\n"
+		"\t-VXSTAT\t\tWrite static external symbols\n"
+		"\t-V3GRAPH\tRecognize ANSI trigraphs\n"
+		);
+		exit(1);
+#if	0
+/*
+ * The following variants are not included in the usage(1) output above
+ * because they are useful primarily for MWC internal purposes
+ * or they are for machine models which are currently irrelevant
+ * or because I'm not sure what they do.
+ */
+/* Miscellaneous */
+/* ld does not grok -k, dunno why -k exists. */
+"\tk system\tld: bind as kernel process\n"
+VALIEN\t\tAlien (PL/M) calling conventions
+VALIGN\t\tAlign the stack (i8086)
+VTPROF\t\tCode table profiling
+VROM\t\tProduce ROMable code
+VLIB
+VCPPC\t
+VCPP\t
+/* Debug */
+VDEBUG\tDebug: 
+VDLINE\tDebug: 
+VDTYPE\tDebug: 
+VDSYMB\tDebug: 
+/* Intel */
+VSMALL
+VLARGE
+V8087
+VRAM
+VOMF
+V80186 (default)
+V80287
+VEMU87
+#if	GEMDOS
+/* Motorola and Gemdos */
+VGEMACC
+VGEMAPP
+VGEM
+VSPLIM
+VNOTRAPS
+#endif
+#endif
 }
 
 /* end of coh/cc.c */

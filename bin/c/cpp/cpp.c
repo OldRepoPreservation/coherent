@@ -191,10 +191,10 @@ usage()
 		"\t-Idirectory\t\tadd directory to #include file search list\n"
 		"\t-o outfile\t\twrite output to outfile [default=stdout]\n"
 		"\t-P\t\t\tstrip file line number information (same as -E)\n"
-		"\t-Q\t\t\tsupress all messages\n"
+		"\t-Q\t\t\tsuppress all messages\n"
 		"\t-Uvariable\t\tundefine variable\n"
 		"\t-V\t\t\tprint verbose information\n"
-		"\t-VCPLUS\t\t\tprocess C++ - style online comments\n"
+		"\t-VCPLUS\t\t\tsuppress C++ - style online comments\n"
 		);
 #endif
 	exit(1);
