@@ -24,7 +24,7 @@
  *	 1-Nov-91	steve: fix bug in nextc() to handle "\n\t\n" correctly
  *      29-Sep-92	michael: fix problem with defining a rule that also
  *				exists in the ACTIONFILE.	
- *      08-Oct-92	michael: fix problem with making targets with no 
+ *      08-Oct-92	michael: fix problem with making targets with no
  *				specified actions (empty productions).
  */
 
@@ -88,6 +88,7 @@ SYM	*sexists();
 /* VARARGS */
 die(s) char *s;
 {
+	fflush(stdout);
 	fprintf(stderr, "make: %r\n", &s);
 	exit(ERROR);
 }
@@ -151,8 +152,8 @@ mexists(s) register char *s;
 {
 	register MACRO *i;
 
-	for (i = macro; i != NULL; i=i->next) 
-		if (Streq(s, i->name)) 
+	for (i = macro; i != NULL; i=i->next)
+		if (Streq(s, i->name))
 			return (i->value);
 
 	return (NULL);
@@ -354,7 +355,7 @@ freetoken(t) register TOKEN *t;
 
 /* Read macros, dependencies, and actions from the file with name file, or
  * from whatever file is already open. The first string of tokens is saved
- * in a list pointed to by tp; if it was a macro, the definition goes in 
+ * in a list pointed to by tp; if it was a macro, the definition goes in
  * token, and we install it in macro[]; if tp points to a string of targets,
  * its depedencies go in a list pointed to by dp, and the action to recreate
  * it in token, and the whole shmear is installed.
@@ -499,11 +500,13 @@ inpath(file) char *file;
 time_t
 getmdate(name) char *name;
 {
-#if	COHERENT3 || GEMDOS
+#if	_I386
 	char	*subname;
 	char	*lwa;
-	int	fd;
-	int	magic;
+	int	fd, x;
+	char	magic[SARMAG];
+	int	size;
+
 	time_t	result;
 	struct ar_hdr	hdrbuf;
 #endif
@@ -512,7 +515,7 @@ getmdate(name) char *name;
 		return(statbuf.st_mtime);
 
 
-#if	COHERENT3 || GEMDOS
+#if	_I386
 	subname = index(name, '(');
 	if (subname == NULL)
 		return (0);
@@ -524,29 +527,29 @@ getmdate(name) char *name;
 	*subname++ = '(';
 	if (fd == EOF)
 		return (0);
-	if (read(fd, &magic, sizeof magic) != sizeof magic) {
+	if (read(fd, magic, SARMAG) != SARMAG)
+	{
 		close(fd);
 		return (0);
 	}
-	canint(magic);
-	if (magic != ARMAG) {
+	if (!strcmp(magic, ARMAG)) {
 		close(fd);
 		return (0);
 	}
 	*lwa = NUL;
 	result = 0;
 	while (read(fd, &hdrbuf, sizeof hdrbuf) == sizeof hdrbuf) {
-		if (strcmp(hdrbuf.ar_name, subname) == 0) {
- 			cantime(hdrbuf.ar_date); 
-			result = hdrbuf.ar_date;
-
+		if ((strncmp(hdrbuf.ar_name, subname, x = strlen(subname)) == 0)
+		    && (hdrbuf.ar_name[x] == '/'))
+		{
+			result = atoi(hdrbuf.ar_date);
 			break;
 		}
-		canlong(hdrbuf.ar_size);
-		lseek(fd, hdrbuf.ar_size, SEEK_CUR);
+		size = atoi(hdrbuf.ar_size);
+		lseek(fd, size, SEEK_CUR);
 	}
 	*lwa = ')';
-printf("%s %s\n", hdrbuf.ar_name, ctime(&hdrbuf.ar_date));
+
 	return (result);
 #else
 	return 0;
@@ -557,7 +560,12 @@ printf("%s %s\n", hdrbuf.ar_name, ctime(&hdrbuf.ar_date));
 /* Does file name exist? */
 fexists(name) char *name;
 {
-	return stat(name, &statbuf) >= 0;
+#if 0
+	if (dflag)
+		printf("fexists(%s) = %d getmdate(name) = %d\n", name,
+		getmdate(name) != 0, getmdate(name));
+#endif
+	return getmdate(name) != 0;
 }
 
 /*
@@ -637,9 +645,9 @@ lookup(name) char *name;
 	return(sp);
 }
 
-/* Install a dependency with symbol having name "name", action "action" in 
- * the end of the dependency list pointed to by next. If s has already 
- * been noted as a file in the dependency list, install action. Return a 
+/* Install a dependency with symbol having name "name", action "action" in
+ * the end of the dependency list pointed to by next. If s has already
+ * been noted as a file in the dependency list, install action. Return a
  * pointer to the beginning of the dependency list.
  */
 DEP *
@@ -671,10 +679,10 @@ adddep(name, action, next) char *name, *action; DEP *next;
 	return(next);
 }
 
-/* Do everything for a dependency with left-hand side cons, r.h.s. ante, 
+/* Do everything for a dependency with left-hand side cons, r.h.s. ante,
  * action "action", and one or two colons. If cons is the first target in the
  * file, it becomes the default target. Mark each target in cons as detailed
- * if twocolons, undetailed if not, and install action in the symbol table 
+ * if twocolons, undetailed if not, and install action in the symbol table
  * action slot for cons in the latter case. Call adddep() to actually create
  * the dependency list.
  */
@@ -740,8 +748,8 @@ install(cons, ante, action, twocolons) TOKEN *ante, *cons; char *action;
 
 /* Make s; first, make everything s depends on; if the target has detailed
  * actions, execute any implicit actions associated with it, then execute
- * the actions associated with the dependencies which are newer than s. 
- * Otherwise, put the dependencies that are newer than s in token ($?), 
+ * the actions associated with the dependencies which are newer than s.
+ * Otherwise, put the dependencies that are newer than s in token ($?),
  * make s if it doesn't exist, and call docmd.
  */
 make(s) register SYM *s;
@@ -947,11 +955,11 @@ doit(cmd) register char *cmd;
 }
 
 
-/* Find the implicit rule to generate obj and execute it. Put the name of 
- * obj up to '.' in prefix, and look for the rest in the dependency list 
+/* Find the implicit rule to generate obj and execute it. Put the name of
+ * obj up to '.' in prefix, and look for the rest in the dependency list
  * of .SUFFIXES. Find the file "prefix.foo" upon which obj depends, where
  * foo appears in the dependency list of suffixes after the suffix of obj.
- * Then make obj according to the rule from makeactions. If we can't find 
+ * Then make obj according to the rule from makeactions. If we can't find
  * any rules, use .DEFAULT, provided we're definite.
  */
 implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
@@ -1034,7 +1042,7 @@ implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
  */
 defalt(obj, ques) SYM *obj; char *ques;
 {
-	if (deflt == NULL) 
+	if (deflt == NULL)
 	{
 		if (obj->deplist == NULL)
 			die("do not know how to make %s", obj->name);
@@ -1049,17 +1057,21 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 	register char	*namesave;
 	register int c;
 	int	len, numtargets = 0;
-	char 	*dtarget[24];
+	char 	**dtarget;
 	TOKEN	*fp = NULL;
 	SYM	*sp;
 	DEP	*d;
 	MACRO	*mp;
 
+
+	if ((dtarget = malloc(argc * sizeof(char *))) == NULL)
+		err(nospace);
+
 	time(&now);
 	++argv;
 	--argc;
 
-	while (argc > 0) 
+	while (argc > 0)
 	{
 		if (argv[0][0] == '-')
 		{
@@ -1083,7 +1095,7 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 					Usage();
 				}
 		}
-		else if ((value = index(*argv, '=')) != NULL) 
+		else if ((value = index(*argv, '=')) != NULL)
 		{
 			s = *argv;
 			while (*s != ' ' && *s != '\t' && *s != '=')
@@ -1096,7 +1108,7 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 		{
 			dtarget[numtargets++] = *argv++;
 			--argc;
-		} 
+		}
 	}
 	while (*envp != NULL) {
 		if ((value = index(*envp, '=')) != NULL
