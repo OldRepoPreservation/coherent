@@ -95,17 +95,20 @@ register dev_t dev;
 	register MOUNT *mp;
 	register BUF *bp;
 
-	if ((mp=kalloc(sizeof(MOUNT))) == NULL)
-		return (NULL);
+	if ((mp=kalloc(sizeof(MOUNT))) == NULL) {
+		printf("fsmount(%x,%x): kalloc failed ", dev, f);
+		return NULL;
+	}
 	dopen(dev, (f?IPR:IPR|IPW), DFBLK);
-	if (u.u_error != 0) {
+	if (u.u_error) {
+		printf("fsmount(%x,%x): dopen failed ", dev, f);
 		kfree(mp);
-		return (NULL);
+		return NULL;
 	}
 	if ((bp=bread(dev, (daddr_t)SUPERI, 1)) == NULL) {
-		dclose(dev);
+		dclose(dev, (f?IPR:IPR|IPW), DFBLK);	/* NIGEL */
 		kfree(mp);
-		return (NULL);
+		return NULL;
 	}
 	kkcopy(bp->b_vaddr, &mp->m_super, sizeof(struct filsys));
 	brelease(bp);
@@ -183,7 +186,7 @@ register dev_t dev;
 		if ((mp->m_flag&MFRON) != 0) {
 			if (f != 0)
 				u.u_error = EROFS;
-			return (NULL);
+			return NULL;
 		}
 		return (mp);
 	}
@@ -210,7 +213,7 @@ unsigned mode;
 	register INODE *ip;
 
 	if ((mp=getment(dev, 1)) == NULL)
-		return (NULL);
+		return NULL;
 	sbp = &mp->m_super;
 	for (;;) {
 		lock(mp->m_ilock);
@@ -247,7 +250,7 @@ unsigned mode;
 				unlock(mp->m_ilock);
 				devmsg(dev, "Out of inodes");
 				u.u_error = ENOSPC;
-				return (NULL);
+				return NULL;
 			}
 		}
 		ino = sbp->s_inode[--sbp->s_ninode];
@@ -475,6 +478,28 @@ register int n;
 		candaddr(*dp);
 		dp++;
 	}
+}
+
+/*
+ * Convert long to comp_t style number.
+ * A comp_t contains 3 bits of base-8 exponent
+ * and a 13-bit mantissa.  Only unsigned
+ * numbers can be comp_t numbers.
+ */
+
+#define	MAXMANT		017777		/* 2^13-1 = largest mantissa */
+
+static comp_t
+ltoc(l)
+long l;
+{
+	register int exp;
+
+	if (l < 0)
+		return (0);
+	for (exp = 0; l > MAXMANT; exp++)
+		l >>= 3;
+	return ((exp<<13) | l);
 }
 
 /*

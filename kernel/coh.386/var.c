@@ -13,7 +13,9 @@
 #include <sys/seg.h>
 #include <sys/timeout.h>
 #include <sys/systab.h>	
-#include <sys/mmu.h>	
+#include <sys/mmu.h>
+#include <sys/clist.h>
+
 
 int	debflag = 0;			/* coherent.h */
 
@@ -87,8 +89,8 @@ SEG	segmq;				/* seg.h */
 SEG	segdq;				/* seg.h */
 SEG	segiom;				/* seg.h */
 
-extern vaddr_t	aicodep;
-extern vaddr_t	aicodes;
+extern caddr_t	aicodep;
+extern caddr_t	aicodes;
 
 char	 *icodep = (char *)&aicodep;	/* coherent.h */
 int	icodes = (int)&aicodes;	/* coherent.h */
@@ -275,5 +277,38 @@ struct systab sysitab[NMICALL] ={
 	0,  INT,	unone,			/* 86 = ??? */
 	3,  INT,        upoll,			/* 87 = poll */
 };
+
+/*
+ *  System Calls Numbers of the form 0x??28, where 0x?? >= 0x01
+ *  Assists the dispatching mechanism in i386/trap.c
+ */
+int	uchsize();
+struct systab h28itab[] = {
+	0,  INT,	unone,			/* 0x0128 = locking */
+	0,  INT,	unone,			/* 0x0228 = creatsem */
+	0,  INT,	unone,			/* 0x0328 = opensem */
+	0,  INT,	unone,			/* 0x0428 = sigsem */
+	0,  INT,	unone,			/* 0x0528 = waitsem */
+	0,  INT,	unone,			/* 0x0628 = nbwaitsem */
+	0,  INT,	unone,			/* 0x0728 = rdchk */
+	0,  INT,	unone,			/* 0x0828 = ??? */
+	0,  INT,	unone,			/* 0x0928 = ??? */
+	2,  INT,	uchsize,		/* 0x0A28 = chsize */
+	0,  INT,	unone,			/* 0x0B28 = ftime */
+	0,  INT,	unone,			/* 0x0C28 = nap */
+	0,  INT,	unone,			/* 0x0D28 = _sdget */
+	0,  INT,	unone,			/* 0x0E28 = sdfree */
+	0,  INT,	unone,			/* 0x0F28 = sdenter */
+	0,  INT,	unone,			/* 0x1028 = sdleave */
+	0,  INT,	unone,			/* 0x1128 = sdgetv */
+	0,  INT,	unone,			/* 0x1228 = sdwaitv */
+};
+/*
+ * Also
+ * 0x2028 = proctl
+ * 0x2128 = execseg
+ * 0x2228 = unexecseg
+ */
+
 extern	CON nlcon;
 int	(*altclk)();		/* hook for polled devices */

@@ -295,6 +295,77 @@ uulimit(cmd, newlimit)
 }
 
 /*
+ *  Change the size of a file.
+ */
+uchsize(fd, size)
+int fd;
+register long size;
+{
+	FD *fdp;
+	register INODE *ip;
+
+	if ( size < 0 ) {
+		u.u_error = EINVAL;
+		return -1;
+	}
+	if ( ((fdp=fdget(fd))==NULL) || ((fdp->f_flag&IPW)==0) ) {
+		u.u_error = EBADF;
+		return -1;
+	}
+	ip = fdp->f_ip;
+	switch ( ip->i_mode&IFMT ) {
+	case IFREG:
+		if ( size > (((long) u.u_bpfmax) * BSIZE) ) {
+			u.u_error = EFBIG;
+			return -1;
+		}
+		if ( size == ip->i_size )
+			break;
+		ilock(ip);
+		if ( size < ip->i_size )
+			blclear(ip, (ip->i_size+BSIZE-1)/BSIZE);
+		ip->i_size = size;
+		imod(ip);
+		icrt(ip);
+		iunlock(ip);
+		break;
+	case IFPIPE:
+		if ( size > PIPSIZE ) {
+			u.u_error = EFBIG;
+			return -1;
+		}
+		ilock(ip);
+		if ( !ip->i_par && !ip->i_psr ) {
+			u.u_error = EPIPE;
+			sendsig(SIGPIPE, SELF);
+			iunlock(ip);
+			return -1;
+		}
+		ip->i_pwx += (size - ip->i_pnc);
+		if ( size > ip->i_pnc ) {
+			if ( ip->i_pwx >= PIPSIZE )
+				ip->i_pwx -= PIPSIZE;
+		} else if ( size < ip->i_pnc ) {
+			if ( ip->i_pwx < 0 )
+				ip->i_pwx += PIPSIZE;
+		}
+		ip->i_pnc = size;
+		imod(ip);
+		icrt(ip);
+		if ( size > 0 )
+			pwake(ip, 2);	/* 2==IFWFW, see pipe.c	*/
+		if ( size < PIPSIZE )
+			pwake(ip, 1);	/* 1==IFWFR, see pipe.c	*/
+		iunlock(ip);
+		break;
+	default:
+		u.u_error = EBADF;
+		return -1;
+	}
+	return 0;
+}
+
+/*
  * Remove a directory.
  */
 urmdir(path)
@@ -689,7 +760,7 @@ off_t		*offset;
 	ilock(ip);	/* We do not want file changes during the read */
 
 	u.u_io.io_seek = fdp->f_seek;
-	u.u_io.io.vbase = (vaddr_t) bp;
+	u.u_io.io.vbase = bp;
 	u.u_io.io_ioc  = n;
 	u.u_io.io_flag = (fdp->f_flag & IPNDLY) ? IONDLY : 0;
 
@@ -926,11 +997,15 @@ char	*path;	/* File name */
 	if (u.u_error) 
 		return NULL;
 	
-	if ((bp = bread(rdev, (daddr_t) SUPERI, 1)) == NULL) {
-		dclose(rdev);
+	/*
+ 	 * NIGEL: Modified for new dclose ().
+	 */
+
+	bp = bread(rdev, (daddr_t) SUPERI, 1);
+	dclose (rdev, IPR, DFBLK);
+
+	if (bp == NULL)
 		return NULL;
-	}
-	dclose(rdev);
 
 	if ((sb = kalloc(sizeof(struct filsys))) == NULL)
 		return (NULL);

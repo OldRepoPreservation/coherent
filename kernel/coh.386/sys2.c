@@ -8,7 +8,7 @@
  *	Company or pursuant to the license agreement is unlawful.
  *
  *	COHERENT Version 4.0
- *	Copyright (c) 1982, 1992.
+ *	Copyright (c) 1982, 1993.
  *	All rights reserved.
  -lgl) */
 /*
@@ -560,15 +560,18 @@ int msec;
 	}
 
 	/*
-	 * Validate address of polling information.
+	 * If there are any fd's to poll
+	 *   validate address of polling information.
+	 * npoll of 0 is legal, allows user a short delay.
 	 */
-	if ((pollfds == NULL)
-	  || !useracc(pollfds, npoll*sizeof(struct pollfd), 1)) {
-		u.u_error = EFAULT;
-		goto poll_done;
-	}
+	if (npoll)
+		if ((pollfds == NULL)
+		  || !useracc(pollfds, npoll*sizeof(struct pollfd), 1)) {
+			u.u_error = EFAULT;
+			goto poll_done;
+		}
 
-	do {
+	for (;;) {
 		/*
 		 * Service each poll in turn.
 		 */
@@ -640,25 +643,24 @@ remember:
 			/*
 			 * Record number of non-zero responses.
 			 */
-			if (rev) {
-				msec = 0;
+			if (rev)
 				nev++;
-			}
 		}
 
 		/*
 		 * Non-blocking poll or poll response received.
 		 */
-		if (msec == 0) {
+		if ( (nev != 0) || (msec == 0) ) {
 			pollexit();
 			ret = nev;
 			goto poll_done;
 		}
 
 		/*
-		 * Schedule wakeup timer if positive delay interval given.
+		 * Schedule wakeup timer if positive delay interval given
+ 		 * and the timer is not currently set.
 		 */
-		if (msec > 0) {
+		if ( (msec > 0) && (cprocp->p_polltim.t_func == NULL) ) {
 			/*
 			 * Convert milliseconds to clock ticks.
 			 */
@@ -671,21 +673,13 @@ remember:
 		/*
 		 * Wake for polled event, poll timeout, or signal.
 		 */
-		v_sleep(&cprocp->p_polls, CVTTOUT, IVTTOUT, SVTTOUT, "poll");
-		/* Wake for polled event, poll timeout, or signal.  */
+		x_sleep(&cprocp->p_polls, pritty, slpriSigCatch, "poll");
+		/* Wakeup for polled event, poll timeout, or signal.  */
 
 		/*
 		 * Terminate event monitoring.
 		 */
 		pollexit();
-
-		/*
-		 * Perform non-blocking poll after first poll timeout.
-		 */
-		if (msec > 0) {
-			timeout(&cprocp->p_polltim, 0, NULL, NULL);
-			msec = 0;
-		}
 
 		/*
 		 * Signal woke us up.
@@ -694,11 +688,21 @@ remember:
 			u.u_error = EINTR;
 			goto poll_done;
 		}
-
-	} while (msec);
-
-	ret = 0;
+		/*
+ 		 * We were woken up by timeout wakeup.
+ 		 */
+		if ( (msec > 0) && (cprocp->p_polltim.t_lbolt <= lbolt) ) {
+			ret = 0;
+			goto poll_done;
+		}
+	}
 
 poll_done:
+	/*
+	 * Cancel timeout
+ 	 */
+	if ( (msec > 0) && (cprocp->p_polltim.t_func != NULL) )
+		timeout(&cprocp->p_polltim, 0, NULL, NULL);
+
 	return ret;
 }

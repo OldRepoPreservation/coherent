@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/timeout.c,v 1.2 92/01/06 12:01:05 hal Exp $ */
+/* $Header: /y/coh.386/RCS/timeout.c,v 1.3 92/07/16 16:33:38 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Timeout management.
  *
  * $Log:	timeout.c,v $
+ * Revision 1.3  92/07/16  16:33:38  hal
+ * Kernel #58
+ * 
  * Revision 1.2  92/01/06  12:01:05  hal
  * Compile with cc.mwc.
  * 
@@ -70,7 +73,7 @@ char *a;
 	}
 	spl( s );
 
-	if ( f == NULL )
+	if ( (tp->t_func = f) == NULL )
 		return;
 
 	/*
@@ -78,7 +81,6 @@ char *a;
 	 * Record function and argument to be invoked upon timeout.
 	 */
 	tp->t_lbolt = lbolt + n;
-	tp->t_func  = f;
 	tp->t_farg  = a;
 
 	/*
