@@ -14,7 +14,6 @@ TABLES=\
 	dutch \
 	french \
 	german \
-	greek \
 	italian \
 	latin_am \
 	norwegian \
@@ -25,7 +24,6 @@ TABLES=\
 	swiss_german \
 	uk \
 	us \
-	us_xt
 
 OBJS=\
 	belgian.o \
@@ -34,7 +32,6 @@ OBJS=\
 	dutch.o \
 	french.o \
 	german.o \
-	greek.o \
 	italian.o \
 	latin_am.o \
 	norwegian.o \
@@ -45,7 +42,7 @@ OBJS=\
 	swiss_german.o \
 	uk.o \
 	us.o \
-	us_xt.o
+
 SRCS=\
 	belgian.c \
 	canadian.c \
@@ -53,7 +50,6 @@ SRCS=\
 	dutch.c \
 	french.c \
 	german.c \
-	greek.c \
 	italian.c \
 	latin_am.c \
 	norwegian.c \
@@ -64,7 +60,6 @@ SRCS=\
 	swiss_german.c \
 	uk.c \
 	us.c \
-	us_xt.c
 
 HEADERS=\
 	kb.h \
@@ -86,19 +81,11 @@ us:	us.o $(LDLIBS)
 	$(CC) -o $@ $<
 	strip $@
 
-us_xt:	us_xt.o $(LDLIBS)
-	$(CC) -o $@ $<
-	strip $@
-
 uk:	uk.o $(LDLIBS)
 	$(CC) -o $@ $<
 	strip $@
 
 german:	german.o $(LDLIBS)
-	$(CC) -o $@ $<
-	strip $@
-
-greek:	greek.o $(LDLIBS)
 	$(CC) -o $@ $<
 	strip $@
 
