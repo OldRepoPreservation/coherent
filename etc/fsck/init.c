@@ -173,7 +173,9 @@ domount()
 	struct stat sbuf;
 	time_t boottime;
 	int nothing();
+	char devname[MNTNSIZ+6] = "/dev/";
 
+	mounted = FALSE;
 	name = fsname;				/* strip off all initial */
 	while (*name++ != '\0') ;		/* directories in fsname */
 	while ( (*--name != '/') && (name>fsname) ) ;
@@ -186,29 +188,31 @@ domount()
 				
 	if ( (fd=open(mnttab_name, 0)) != (-1) ) {
 		while ( read(fd, &mnttab, sizeof(mnttab))==sizeof(mnttab) ) 
-			if (mnttab.mt_dev[0] != '\0') 
-				if ( strcmp(name, mnttab.mt_filsys) == 0 ) {
-					statit(mnttab.mt_dev, nothing);
-					if (stats.st_dev == fsysrdev)
-						mounted = TRUE;
-					else
-						mounted = FALSE;
-					prmnttab(&mnttab, boottime);
-					return;
-				}
+			if ( mnttab.mt_dev[0] && mnttab.mt_filsys[0] ) {
+				strncpy(&devname[5], mnttab.mt_filsys, MNTNSIZ);
+				devname[MNTNSIZ+5] = '\0';
+				statit(devname, nothing);
+				if (stats.st_rdev != fsysrdev)
+					continue;
+				statit(mnttab.mt_dev, nothing);
+				mounted = (stats.st_dev == fsysrdev);
+				prmnttab(&mnttab, boottime);
+				return;
+			}
 	}
 	if ( (fd=open(mtab_name, 0)) != (-1) ) {
 		while ( read(fd, &mtab, sizeof(mtab))==sizeof(mtab) ) 
-			if (mtab.mt_name[0] != '\0')
-				if ( strcmp(name, mtab.mt_special) == 0 ) {
-					statit(mtab.mt_name, nothing);
-					if (stats.st_dev == fsysrdev)
-						mounted = TRUE;
-					else
-						mounted = FALSE;
-					prmtab(&mtab);
-					return;
-				}
+			if ( mtab.mt_name[0] && mtab.mt_special[0] ) {
+				strncpy(&devname[5], mtab.mt_special, MNAMSIZ);
+				devname[MNAMSIZ+5] = '\0';
+				statit(devname, nothing);
+				if (stats.st_rdev != fsysrdev)
+					continue;
+				statit(mtab.mt_name, nothing);
+				mounted = (stats.st_dev == fsysrdev);
+				prmtab(&mtab);
+				return;
+			}
 	}
 
 	if (fsysrdev == rootdev)
