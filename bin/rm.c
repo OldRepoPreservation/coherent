@@ -1,6 +1,6 @@
 /*
  * rm.c
- * 5/8/91
+ * 6/4/91
  * Remove files or directories and their contents.
  * Usage: rm [-firtv] file ...
  *
@@ -122,7 +122,7 @@ remove()
 	register int isdir;
 
 	if (stat(fname, &sb))
-		return (didnt(NULL));
+		return ((fflag) ? 0 : didnt(NULL));
 	if (isdir = ((sb.st_mode & S_IFMT) == S_IFDIR)) {
 		if (!rflag)
 			return (didnt("directory"));
@@ -337,7 +337,7 @@ usage()
 didnt(reason) char *reason;
 {
 	if (fflag)
-		return;
+		return -1;
 	if (reason == NULL)
  		lerror(fname);
 	else
