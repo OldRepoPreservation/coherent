@@ -4,6 +4,9 @@
  * Purpose:	Functions for the COHERENT-specific system call
  *
  * $Log:	syscoh.c,v $
+ * Revision 1.3  92/11/12  10:06:19  root
+ * Ker #68
+ * 
  * Revision 1.2  92/11/09  17:11:25  root
  * Just before adding vio segs.
  * 
@@ -92,11 +95,73 @@ ucohcall(a1,a2,a3,a4,a5,a6)
 	case	COH_VIO:
 		ret = vio(a2,a3,a4,a5);
 		break;
+	case	COH_SHM:
+		ret = coh_shm(a2,a3,a4,a5);
+		break;
+	case	COH_WTEXT:
+		ret = cohWtext(a2,a3,a4);
+		break;
 	default:
 		SET_U_ERROR(EINVAL, "bad COH function");
 	}
 ucc_done:
 	return ret;
+}
+
+/*
+ * Allow user to write to his own text segment.
+ */
+int
+cohWtext(dest,src,numBytes)
+{
+	if ((accdata(src, numBytes)
+	  || accstack(src, numBytes)
+	  || acctext(src, numBytes)
+	  || accShm(src, numBytes))
+	  && acctext(dest, numBytes)) {
+		memcpy(dest, src, numBytes);
+		return 0;
+	} else
+		u.u_error = EINVAL;
+}
+
+/*
+ * Test of shared memory support.
+ */
+int
+coh_shm(x1, x2, x3, x4)
+int x1, x2, x3, x4;
+{
+	int index, base;
+
+	switch (x1) {
+	case 0:
+		return shmAlloc(x2);
+		break;
+	case 1:
+		return shmFree(x2);
+		break;
+	case 2:
+		/* Since we are out of args, will use interface
+		 * cohcall(COH_SHM, 2, numBytes, base+index, segp)
+		 * to call shmAttach, using low bits of base to
+		 * carry the index into p_shmsr. */
+
+		base =  x3 & 0xFFFFF000;
+		index = x3 & 0x00000FFF;
+		if (index >= 0 && index < NSHMSEG) {
+			return shmAttach(index, x2, base, x4);
+		} else
+			SET_U_ERROR(EINVAL, "bad COH shm index");
+		break;
+	case 3:
+		return shmDetach(x2);
+		break;
+	default:
+		SET_U_ERROR(EINVAL, "bad COH shm function");
+		break;
+	}
+	return -1;
 }
 
 /*
