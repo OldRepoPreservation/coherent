@@ -1,10 +1,10 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1983, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	POLL_H
-#define	POLL_H
+#ifndef	__POLL_H__
+#define	__POLL_H__
 /*
  * This is a temporary file, and will NOT be binary compatible with System V.
  */

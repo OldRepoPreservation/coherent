@@ -1,8 +1,9 @@
 /* (-lgl
- * 	COHERENT Version 4.0
+ * 	COHERENT 386 Device Driver Kit release 2.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /*
  * limits.h
  * C numerical limits header.
@@ -15,8 +16,8 @@
  *	long	32 bits
  */
 
-#ifndef	_LIMITS_H
-#define	_LIMITS_H
+#ifndef	__LIMITS_H__
+#define	__LIMITS_H__
 
 #define	CHAR_BIT	8
 #define	CHAR_MAX	SCHAR_MAX

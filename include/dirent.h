@@ -1,11 +1,11 @@
 /* (-lgl
- * 	COHERENT Version 4.0
+ * 	COHERENT 386 Device Driver Kit release 2.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 
-#ifndef DIRENT_H
-#define DIRENT_H 1
+#ifndef __DIRENT_H__
+#define __DIRENT_H__
 
 #ifdef _I386
 

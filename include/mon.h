@@ -1,8 +1,9 @@
 /* (-lgl
- * 	COHERENT Version 4.0
+ * 	COHERENT 386 Device Driver Kit release 2.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /*
  * mon.h
  * Program profiling (monitor) header.
@@ -15,8 +16,8 @@
  *	bin number = (pc - low pc) * (scale/2) / (1<<16)
  */
 
-#ifndef	_MON_H
-#define	_MON_H
+#ifndef	__MON_H__
+#define	__MON_H__
 
 #include <sys/types.h>
 

@@ -1,14 +1,14 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
  * ebcdic.h
  */
 
-#ifndef	EBCDIC_H
-#define	EBCDIC_H
+#ifndef	__EBCDIC_H__
+#define	__EBCDIC_H__
 
 /*
  * EBCDIC Macro Definitions.

@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,8 +8,8 @@
  * Variable arguments.
  */
 
-#ifndef	_VARARGS_H
-#define	_VARARGS_H	_VARARGS_H
+#ifndef	__VARARGS_H__
+#define	__VARARGS_H__
 
 typedef	char *va_list;
 #define	va_dcl			int va_alist;

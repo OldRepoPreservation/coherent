@@ -1,14 +1,14 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
  * Structure for the /etc/group file.
  */
 
-#ifndef	GRP_H
-#define	GRP_H	GRP_H
+#ifndef	__GRP_H__
+#define	__GRP_H__
 
 struct group {
 	char	*gr_name;

@@ -1,10 +1,10 @@
 /* (-lgl
  * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	PWD_H
-#define	PWD_H	PWD_H
+#ifndef	__PWD_H__
+#define	__PWD_H__
 
 struct	passwd
 {

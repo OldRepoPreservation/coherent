@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 3.2.1
+ * 	COHERENT Version 4.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
@@ -10,8 +10,8 @@
  * Implemented by table lookup.
  */
 
-#ifndef	_CTYPE_X
-#define	_CTYPE_X
+#ifndef	__CTYPE_H__
+#define	__CTYPE_H__
 
 /* ANSI Standard functions. */
 extern	int	isalnum(/* int c */);	/* 4.3.1.1  */

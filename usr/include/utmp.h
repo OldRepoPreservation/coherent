@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -9,8 +9,8 @@
  * `/usr/adm/wtmp'.
  */
 
-#ifndef	UTMP_H
-#define	UTMP_H	UTMP_H
+#ifndef	__UTMP_H__
+#define	__UTMP_H__
 
 #ifndef DIRSIZ
 #define	DIRSIZ	14

@@ -1,13 +1,13 @@
 /* (-lgl
  * 	COHERENT Version 4.0
- *	Copyright 1991 by Mark Williams Company.
+ *	Copyright 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  *
  * 91/10/17 - Adapt for 386 COHERENT.
  *
  -lgl) */
-#ifndef _TERMIO_H
-#define _TERMIO_H
+#ifndef __TERMIO_H__
+#define __TERMIO_H__
 
 #if (defined _I386 || defined KERNEL)
 #define _COH_TERMIO

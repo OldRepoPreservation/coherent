@@ -7,8 +7,8 @@
  * Description of parsing action and goto tables.
  */
 
-#ifndef	ACTION_H
-#define	ACTION_H	ACTION_H
+#ifndef	__ACTION_H__
+#define	__ACTION_H__
 
 #define	YYACTSH	13
 #define	YYAMASK	017777

@@ -1,5 +1,5 @@
-#ifndef _IEEEFP_H
-#define _IEEEFP_H
+#ifndef __IEEEFP_H__
+#define __IEEEFP_H__
 
 /*
  * "fpem" objects are for floating point emulation.

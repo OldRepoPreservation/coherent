@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 4.0.2
+ * 	COHERENT Version 4.1.0
  * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
@@ -9,16 +9,16 @@
  * ANSI C Standard, section 4.5.
  */
 
-#ifndef	_MATH_H
-#define	_MATH_H
+#ifndef	__MATH_H__
+#define	__MATH_H__
 
 /* Manifest constants. */
-#if	_DECVAX
+#if	__DECVAX__
 #define HUGE_VAL	1e+37		/* Infinity		*/
 #define L2HUGE_VAL	127.0		/* log2(infinity)	*/
 #define L10P		17		/* log10(precision)	*/
 #define L2L2P		6		/* log2(log2(precision)) */
-#elif	_IEEE
+#elif	__IEEE__
 #define HUGE_VAL	1e+308		/* Infinity		*/
 #define L2HUGE_VAL	1023.0		/* log2(infinity)	*/
 #define L10P		16		/* log10(precision)	*/

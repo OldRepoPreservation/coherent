@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,10 +8,11 @@
  * COHERENT time function header.
  */
 
-#ifndef	TIME_H
-#define	TIME_H	TIME_H
+#ifndef	__TIME_H__
+#define	__TIME_H__
 
 #include <sys/types.h>
+#include <sys/_time.h>
 
 struct	tm	{
 	int	tm_sec;

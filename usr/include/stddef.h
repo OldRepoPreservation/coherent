@@ -1,17 +1,16 @@
 /* (-lgl
- * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 3.2
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
 /*
  * stddef.h
  * C common definition header.
  * Draft Proposed ANSI C Standard, Section 4.1.5, 5/13/88 draft.
  */
 
-#ifndef	_STDDEF_H
-#define	_STDDEF_H
+#ifndef	__STDDEF_H__
+#define	__STDDEF_H__
 
 /* Types. */
 #ifndef	_PTRDIFF_T
@@ -34,8 +33,9 @@ typedef	char		wchar_t;	/* extended character set type	*/
 #endif
 
 /* Macros. */
-#include <sys/_null.h>
-
+#ifndef	NULL
+#define	NULL	((char *)0)		/* null pointer constant	*/
+#endif
 #ifndef	Void
 #define	Void	char		/* Use "Void *" as generic pointer type	*/
 #endif

@@ -1,6 +1,6 @@
 /* (-lgl
  * 	COHERENT Version 4.0.2
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -9,10 +9,12 @@
  * ANSI C Standard, Section 4.9.
  */
 
-#ifndef	_STDIO_H
-#define	_STDIO_H
+#ifndef	__STDIO_H__
+#define	__STDIO_H__
 
-#include <sys/_null.h>
+#ifndef	NULL
+#define	NULL	((char *)0)
+#endif
 
 /* Macros. */
 #define	BUFSIZ		512		/* default buffer size	*/

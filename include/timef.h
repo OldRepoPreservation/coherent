@@ -3,8 +3,8 @@
  *	Copyright 1989 by Inetco Systems, Ltd.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	TIMEF_H
-#define	TIMEF_H
+#ifndef	__TIMEF_H__
+#define	__TIMEF_H__
 /*
  * User Level Timed Functions.
  */

@@ -1,12 +1,10 @@
-/*
- * $Log:	/usr/src/cmd/include/RCS/disp.h,v $
- * Revision 1.1	89/04/26  16:24:56 	root
- * Initial revision
- * 
- */
-
-#ifndef DISP_H
-#define DISP_H
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+#ifndef __DISP_H__
+#define __DISP_H__
 
 #define JUSTIFY		03	/* justify mask		*/
 #define JLEFT		00	/* left justify		*/

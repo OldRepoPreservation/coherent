@@ -6,8 +6,8 @@
 /* larges.h */
 /* Model-dependent definitions for i8086 assembler sources. */
 
-#ifndef	LARGES_H
-#define	LARGES_H
+#ifndef	__LARGES_H__
+#define	__LARGES_H__
 
 #if	LARGE
 #define	LARGECODE 1
