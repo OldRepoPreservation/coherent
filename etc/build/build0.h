@@ -11,6 +11,7 @@
 void	cls();
 int	exists();
 void	fatal();
+int	get_int();
 char	*get_line();
 int	is_dir();
 void	nonfatal();
@@ -19,11 +20,12 @@ void	usage();
 int	yes_no();
 
 /* Globals. */
-char	*argv0;				/* for error messages	*/
-char	buf[NBUF];			/* input buffer		*/
-char	cmd[NBUF];			/* command buffer	*/
-int	dflag;				/* debug		*/
-char	*usagemsg;			/* usage message	*/
-int	vflag;				/* verbose		*/
+extern	int	abortmsg;
+extern	char	*argv0;
+extern	char	buf[NBUF];
+extern	char	cmd[NBUF];
+extern	int	dflag;
+extern	char	*usagemsg;
+extern	int	vflag;
 
 /* end of build0.h */
