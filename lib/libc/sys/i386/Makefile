@@ -1,4 +1,4 @@
-# /usr/src/libc/sys/i386/Makefile 6/4/93
+# /usr/src/libc/sys/i386/Makefile 6/22/93
 
 ASFLAGS=-x
 
@@ -45,6 +45,7 @@ AUTOOBJ=\
 	fcntl.o\
 	fstat.o\
 	fstatfs.o\
+	ftime.o\
 	getegid.o\
 	geteuid.o\
 	getgid.o\
