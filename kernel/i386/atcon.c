@@ -65,3 +65,4 @@ int	ALLSIZE = 0;	/* main.c autosizes. Patching overrides autosize */
 int	NINODE	= 128;	/* More than enough so far */
 int	NBUF	= 0;	/* main.c autosizes. Patching overrides autosize */
 int	NHASH	= 1021;
+int	BPFMAX	= 1024*1024*2;	/* for ulimit - max # of blocks per file */
