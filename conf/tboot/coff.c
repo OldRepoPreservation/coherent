@@ -160,7 +160,7 @@ char *str_tab, *work;
  * Look up the value of a single data symbol in a coff file,
  * relative to the start of the data segment.
  *
- * We use the symbol "sdata" to find the start of the data segement--
+ * We use the symbol "sdata" to find the start of the data segment--
  * this works for 386 COHERENT kernels but will not work in general.
  * It should really fetch the address of the start of the data segment
  * from the data section header.
