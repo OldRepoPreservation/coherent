@@ -1,16 +1,26 @@
 	.llen	132
 	.include	as.inc
 
-MMUUPD	.macro
-	mov	%eax,%cr3
+IODELAY	.macro
+	jmp	.+2		/ DELAY
+	jmp	.+2		/ DELAY
 	.endm
+
+/ Most places where %cr3 is refreshed, it can be done through a Ring 0 gate.
+MMUUPD	.macro
+	pushfl
+	cli
+	lcall	$SEG_MMUUPD,$0	/ gate to mmuupdfR0
+	popfl
+	.endm
+
 /
 / USTART and ESP_START map kernel stack and u area within top 4k page
 / of virtual space.
 / See also U_OFFSET in mmu.h
 /
 	.set	USTART,0xFFFFFD00
-	.set	ESP0_START,0xFFFFFD00
+	.set	ESP0_START,0xFFFFF300
 	.set	ESP1_START,0xFFFFFD00
 	.set	u,USTART
 	.set	PSW_VAL,0x1200	/ set system IOPL to 1, enable IRQ
@@ -33,6 +43,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.12  92/10/06  20:45:40  root
+/ Ker #63d
+/ 
 / Revision 1.10  92/07/27  18:15:43  hal
 / Kernel #59
 / 
@@ -138,23 +151,21 @@ next:
 loc0:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	testb	$2,%al
 	loopne	loc0
-	jmp	.+2		/ DELAY
+	IODELAY
 
 	movb	$0xD1, %al 	/ Request next output byte to be
 	outb	$KBCTRL		/	sent to the 8042 output port.
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 
 	sub	%ecx, %ecx
 loc1:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	testb	$2, %al
 	loopne	loc1
-	jmp	.+2		/ DELAY
+	IODELAY
 
 	movb	$0xDF,%al	/ Enable A20 address line.
 	outb	$KBDATA		/ See Page 1-44, IBM-AT Tech Ref.
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 
 	sub	%ecx, %ecx
 loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
@@ -168,54 +179,43 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 
 	movb	$0x36,%al	/ Timer 0, LSB, MSB, mode 3
 	outb	$PIT+3
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x9C,%al	/ Lsb of 59659/5 = 11932
 	outb	$PIT
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x2E,%al	/ Msb of 59659/5 = 11932
 	outb	$PIT
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 
 / Reprogram the 1st programmable interrupt controller.
 / Its default vector table collides with iAPX 286 protection vectors.
 	movb	$0x11,%al	/ ICW1 - edge, ICW4
 	outb	$PIC
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x20,%al	/ ICW2 - Reserve 1st 32 vectors for 286
 	outb	$PICM
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x04,%al	/ ICW3 - master level 2
 	outb	$PICM
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x01,%al	/ ICW4 - 8086 mode, master.
 	outb	$PICM
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0xFE,%al	/ Disable interrupts from master PIC.
 	outb	$PICM		/ (except for clock interrupt).
 
 	movb	$0x11,%al	/ ICW1 - edge, ICW4
 	outb	$SPIC
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x70,%al	/ ICW2 - slave starts at 0x70th interrupt
 	outb	$SPICM
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x02,%al	/ ICW3 - master level 2
 	outb	$SPICM
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0x01,%al	/ ICW4 - 8086 mode.
 	outb	$SPICM
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	movb	$0xFF,%al
 	outb	$SPICM		/ Disable interrupts from slave PIC.
 /DEBUG
@@ -368,13 +368,7 @@ tsave0:					/ What level of interrupt ?
 
 	jmp	tsave0b
 
- //The following lines help find traps during startup.
-	BYPASS	mmuu0
-	BYPASS	mmuu1
-	BYPASS	mmuu2
-	BYPASS	mmuu3
-	BYPASS	mmuu4
-	BYPASS	mmuu5
+//The following lines help find traps during startup.
 	BYPASS	read_cr0
 	BYPASS	read_cr2
 	BYPASS	read_cr3
@@ -510,9 +504,10 @@ conrest:
 	mov	4(%esp),%eax		/ Fetch new u area saddr_t
 	orb	$SEG_SRW,%al
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+UADDR
-	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
-mmuu0:
-	MMUUPD
+
+	/ Will have let the GP fault handler do this one.
+
+	lcall	$SEG_MMUUPD,$0	/ gate to mmuupdfR0
 
 	/ Restore context
 
@@ -688,8 +683,6 @@ atsend:
 	or	$SEG_SRW,%eax
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK1
 
-	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
-mmuu1:
 	MMUUPD
 
 / Now that page boundaries are set, work on the offsets.
@@ -708,8 +701,9 @@ mmuu1:
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-mmuu2:
-	MMUUPD		/ mmuupd()
+
+	MMUUPD
+
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
@@ -737,8 +731,6 @@ atrecv:
 	or	$SEG_SRW,%eax
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK1
 
-	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
-mmuu3:
 	MMUUPD
 
 	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
@@ -755,8 +747,9 @@ mmuu3:
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-mmuu4:
-	MMUUPD		/ mmuupd()
+
+	MMUUPD
+
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
@@ -772,22 +765,33 @@ mmuu4:
 
 vret:	ret
 
+/ mmuupd() uses a call gate.
 mmuupd:
-	mov	$PTABLE0_P<<BPCSHIFT,%eax
-mmuu5:
-	MMUUPD
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	pushf
+	cli
+	lcall	$SEG_MMUUPD,$0	/ gates to mmuupdfR0
+	popf
 	ret
+
+/ Ring 0 far mmu update.  Called via a gate.  Uses %eax.
+/ Want interrupts off when we arrive since the interrupt gates
+/ lead into Ring 1.
+mmuupdfR0:
+	mov	$PTABLE0_P<<BPCSHIFT,%eax
+	mov	%eax,%cr3
+	lret
+
+/ Ring 0 near mmu update.  Called from ring 0 startup.  Uses %eax.
+mmuupdnR0:
+	mov	$PTABLE0_P<<BPCSHIFT,%eax
+	mov	%eax,%cr3
+	ret
+
 ///////
-
 / Get cs selector - return 0 if in kernel, CS if not in kernel.
-
 / This version is for resident drivers.
 / There is a different version (cs_self.s) for loadable drivers.
-
 / int	cs_sel();
-
 ///////
 
 cs_sel:
@@ -1603,11 +1607,10 @@ eoi2:
 	cli
 	movb	$0x20,%al	/ Send a non specific EOI
 	outb	$SPIC		/ to the slave PIC.
-	inb	$0xff
+	IODELAY
 	movb	$0x0B,%al	/ OCW3 - read isr
 	outb	$SPIC
-	inb	$0xff
-	jmp	.+2		/ DELAY
+	IODELAY
 /	inb	$SPIC		/ in-service register to %eax:8..15
 /	testb	%al,%al
 /	jnz	eoi2x		/ no EOI to master if slave isr nonzero
@@ -1615,7 +1618,7 @@ eoi:
 	cli
 	movb	$0x20,%al	/ Send a non specific EOI
 	outb	$PIC		/ to the master PIC.
-	inb	$0xff
+	IODELAY
 eoi2x:	ret			/ Done.
 
 ///////
@@ -1650,7 +1653,7 @@ boot:
 loc12:	inb	$KBCTRL			/ Wait for 8042 input buffer to empty.
 	testb	$2, %al
 	loopne	loc12
-	jmp	.+2			/ DELAY
+	IODELAY
 
 	movb	$0xFE,%al		/ Issue a shutdown command
 	outb	$KBCTRL			/ to the 8042 control port.
@@ -2021,7 +2024,7 @@ read_cmos:
 	push	%edi
         movb    12(%esp), %al	/ Fetch address from stack.
         outb    $CMOSA		/ Send address to CMOS.
-        jmp     .+2             / DELAY
+	IODELAY
 	sub	%eax, %eax	/ Zero out everything we don't want.
         inb     $CMOSD		/ Get Value from CMOS into al.
 	pop	%edi
@@ -2037,10 +2040,10 @@ write_cmos:
 	push	%edi
         movb    12(%esp), %al	/ Fetch address from stack.
         outb    $CMOSA		/ Send address to CMOS.
-        jmp     .+2             / DELAY
+	IODELAY
         movb    16(%esp), %al	/ Fetch address from stack.
         outb     $CMOSD		/ Get Value from CMOS into al.
-        jmp     .+2             / DELAY
+	IODELAY
 	pop	%edi
 	pop	%esi
         ret                     / Return from read_cmos().
@@ -2053,16 +2056,13 @@ read_t0:
 	cli
 	xorl	%eax,%eax	/ Counter latch timer 0 and clear return val
 	outb	$PIT+3
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	inb	$PIT		/ low byte of counter latch
+	IODELAY
 	movb	%al,%ah
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
 	inb	$PIT		/ high byte of counter latch
+	IODELAY
 	xchgb	%al,%ah
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
 	popfl
 	ret
 
@@ -2079,6 +2079,13 @@ read_psw:
 /	yy: isr
 /	zz: irr
 
+	.globl	mchirp
+FOO	.macro	ch
+	push	ch
+	call	mchirp
+	add	$4,%esp
+	.endm
+
 	.globl	rd_m_pic
 rd_m_pic:
 	pushfl
@@ -2088,16 +2095,12 @@ rd_m_pic:
 	shl	$8,%eax
 	movb	$0x0B,%al	/ OCW3 - read isr
 	outb	$PIC
-	inb	$0xff
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	inb	$PIC		/ in-service register to %eax:8..15
 	shl	$8,%eax
 	movb	$0x0A,%al	/ OCW3 - read irr
 	outb	$PIC
-	inb	$0xff
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	inb	$PIC		/ irpt request register to %eax:0..7
 	popfl
 	ret
@@ -2117,16 +2120,12 @@ rd_s_pic:
 	shl	$8,%eax
 	movb	$0x0B,%al	/ OCW3 - read isr
 	outb	$SPIC
-	inb	$0xff
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	inb	$SPIC		/ in-service register to %eax:8..15
 	shl	$8,%eax
 	movb	$0x0A,%al	/ OCW3 - read irr
 	outb	$SPIC
-	inb	$0xff
-	jmp	.+2		/ DELAY
-	jmp	.+2		/ DELAY
+	IODELAY
 	inb	$SPIC		/ irpt request register to %eax:0..7
 	popfl
 	ret
