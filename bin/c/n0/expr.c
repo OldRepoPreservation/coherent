@@ -20,8 +20,6 @@
 #define	issgnint(t)	((t)== T_CHAR || (t)== T_SHORT || (t)== T_INT || (t)== T_LONG)
 #define	isunsint(t)	((t)==T_UCHAR || (t)==T_USHORT || (t)==T_UINT || (t)==T_ULONG)
 
-static	char	csmsg1[] = "structure \"%s\" does not contain member \"%s\"";
-static	char	csmsg2[] = "union \"%s\" does not contain member \"%s\"";
 static	char	tclash[] = "type clash";
 
 /*
@@ -196,10 +194,13 @@ SYM	*sp;
 			if (i >= ip->i_nsp) {
 				tsp = taglookup(ip);
 				if (tsp != NULL) {
-					msg = csmsg1;
-					if (tsp->s_class == C_UTAG)
-						msg = csmsg2;
-					cstrict(msg, tsp->s_id, sp->s_id);
+					msg = (tsp->s_class == C_UTAG) ? "union" : "structure";
+					if (tsp->s_id[0] != '.')
+						cstrict("%s \"%s\" does not contain member \"%s\"",
+							msg, tsp->s_id, sp->s_id);
+					else
+						cstrict("%s does not contain member \"%s\"",
+							msg, sp->s_id);
 				}
 			}
 		}
