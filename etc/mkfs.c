@@ -165,15 +165,16 @@ magic()
 {
 	register char *p;
 	daddr_t fsize;
-	int nino;
+	unsigned long nino;
 	static char b[8];
+
 	fsize = atol(P.p_fsize);
 	if (fsize > 1000)
 		nino = fsize / 7;
 	else
 		nino = fsize / 5;
-	if (nino > MAXUINT-5)		/* must fit into a short! */
-		nino = MAXUINT - 5;
+	if (nino > 65000U)		/* must fit into a short! */
+		nino = 65000U;
 	p = b+8;
 	while (nino != 0) {
 		*--p = nino % 10 + '0';
