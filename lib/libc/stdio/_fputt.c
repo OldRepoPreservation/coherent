@@ -7,12 +7,12 @@
 
 int
 _fputt(c, fp)
-unsigned char	c;
+register unsigned int	c;
 register FILE	*fp;
 {
 	fp->_cc = 0;
 	if (fp->_cp==_ep(fp) && fflush(fp)
 	 || (*fp->_cp++ = c) == '\n' && fflush(fp))
 		return (EOF);
-	return (c);
+	return ((unsigned char)c);
 }
