@@ -1,10 +1,11 @@
 /*
- * $Header: $
- * $Log:	$
+ * $Header: /usr/src/cmd/mail.c,v 1.1 88/09/01 10:55:34 bin Exp $
+ * $Log:	/usr/src/cmd/mail.c,v $
+ * Revision 1.1	88/09/01  10:55:34	bin
+ * Initial revision
+ * 
  */
 static	char	*revision = "$Revision 1.1 $";
-static	char *header =
-	"$Header: /v/wgl/src.adm/hp/hpr/rcsmin.c,v 1.2 88/08/31 10:09:48 wgl Exp $";
 
 /*
  * The mail command.
