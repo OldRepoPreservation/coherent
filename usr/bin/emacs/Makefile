@@ -1,63 +1,50 @@
-# me/Makefile 3/14/90
+CC=cc
+CFLAGS = -O -I$(SRCPATH)
+#For the PDP-11, do not bind shared:
+LDFLAGS = -n
+LFLAGS = /usr/lib/libterm.a
+DESTDIR=/interim/usr/bin/
 
-SRC=.
-CFLAGS=-O -I$(SRC)
-LDFLAGS=-n -lterm
+OBJS=ansi.o basic.o buffer.o display.o error.o file.o fileio.o line.o main.o\
+	random.o region.o search.o spawn.o termio.o tcap.o window.o word.o\
+	vt52.o lookup.o helplib.o bracket.o comtab.o execute.o
 
-OBJS=\
-	ansi.o\
-	basic.o\
-	bracket.o\
-	buffer.o\
-	comtab.o\
-	display.o\
-	error.o\
-	execute.o\
-	file.o\
-	fileio.o\
-	helplib.o\
-	line.o\
-	lookup.o\
-	main.o\
-	random.o\
-	region.o\
-	search.o\
-	spawn.o\
-	tcap.o\
-	termio.o\
-	vt52.o\
-	window.o\
-	word.o
+SRCS=ansi.c basic.c buffer.c display.c error.c file.c fileio.c line.c\
+	main.c random.c region.c search.c spawn.c tcap.c termio.c\
+	vt52.c window.c word.c lookup.c helplib.c bracket.c ext.c execute.c\
+	ed.h Makefile
 
-# Primary target.
-me:	$(OBJS)
-	$(CC) -o me $(OBJS) $(LDFLAGS)
+me: 	$(OBJS)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJS) $(LFLAGS)
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
 
-# Secondary targets.
-comtab.c:	ext.c $(SRC)/ed.h
-	$(CC) ext.c
-	ext
+comtab.c : ext.o
+	$(CC) ext.o
+	./ext
+	rm ext
 
-ansi.o:		$(SRC)/ansi.c $(SRC)/ed.h
-basic.o:	$(SRC)/basic.c $(SRC)/ed.h
-bracket.o:	$(SRC)/bracket.c $(SRC)/ed.h
-buffer.o:	$(SRC)/buffer.c $(SRC)/ed.h
-comtab.o:	comtab.c $(SRC)/ed.h
-display.o:	$(SRC)/display.c $(SRC)/ed.h
-error.o:	$(SRC)/error.c $(SRC)/ed.h
-execute.o:	execute.c $(SRC)/ed.h
-file.o:		$(SRC)/file.c $(SRC)/ed.h
-fileio.o:	$(SRC)/fileio.c $(SRC)/ed.h
-helplib.o:	$(SRC)/helplib.c
-line.o:		$(SRC)/line.c $(SRC)/ed.h
-lookup.o:	$(SRC)/lookup.c
-main.o:		$(SRC)/main.c $(SRC)/ed.h
-random.o:	$(SRC)/random.c $(SRC)/ed.h
-region.o:	$(SRC)/region.c $(SRC)/ed.h
-search.o:	$(SRC)/search.c $(SRC)/ed.h
-spawn.o:	$(SRC)/spawn.c $(SRC)/ed.h
-tcap.o:		$(SRC)/tcap.c $(SRC)/ed.h
-termio.o:	$(SRC)/termio.c $(SRC)/ed.h
-vt52.o:		$(SRC)/vt52.c $(SRC)/ed.h
-window.o:	$(SRC)/window.c $(SRC)/ed.h
-word.o:		$(SRC)/word.c $(SRC)/ed.h
+ext.o: ext.c ed.h
+comtab.o: comtab.c ed.h
+execute.o: execute.c ed.h
+ansi.o: ansi.c ed.h
+basic.o: basic.c ed.h
+buffer.o: buffer.c ed.h
+display.o: display.c ed.h
+error.o: error.c ed.h
+file.o: file.c ed.h
+fileio.o: fileio.c ed.h
+line.o: line.c ed.h
+main.o: main.c ed.h
+random.o: random.c ed.h
+region.o: region.c ed.h
+search.o: search.c ed.h
+spawn.o: spawn.c ed.h
+tcap.o: tcap.c ed.h
+termio.o: termio.c ed.h
+vt52.o: vt52.c ed.h
+window.o: window.c ed.h
+word.o: word.c ed.h
+lookup.o: lookup.c
+helplib.o: helplib.c
