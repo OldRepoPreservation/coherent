@@ -4,7 +4,7 @@
  * Compile -s -n -i on machines other than pdp11
  * Slightly repaired by mike to correct the "kill -1 1" problem
  */
-#include <dir.h>
+#include <sys/dir.h>
 #include <signal.h>
 #include <utmp.h>
 #include <sgtty.h>
