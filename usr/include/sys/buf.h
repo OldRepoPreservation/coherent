@@ -84,6 +84,7 @@ struct buf {
 
 	__buf_t	      *	b_LRUf;		/* Next (older) in LRU chain */
 	__buf_t	      *	b_LRUb;		/* Previous (newer) in LRU chain */
+	__buf_t		*b_dynf;	/* Dynamic buffer list */
 
 	__DUMB_GATE	__b_gate;
 };
@@ -156,6 +157,8 @@ struct buf {
 #define BFASY	0x0800			/* Asynchrous */
 #define BFRAW	0x1000			/* Request is raw */
 #define BFTAP	0x2000			/* Request is to a tape */
+#define BFDYN	0x4000			/* Dynamically allocated buffer */
+#define BFNSY	0x8000			/* DO NOT SYNC this buffer */
 
 
 /*
