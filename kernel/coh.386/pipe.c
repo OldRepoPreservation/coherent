@@ -38,9 +38,21 @@
 #include <signal.h>
 
 /*
- * Create and return a locked pipe inode.  This is called from the
- * pipe system call.
+ *  These are nothing more than random different values at this point!
+ *  Historically, these were bit's or'ed into ip->i_flag, no more!
  */
+
+#define	IFWFR	1			/* Sleeping Waiting for a Reader */
+#define	IFWFW	2			/* Sleeping Waiting for a Writer */
+
+
+/*
+ *  pmake(mode)  --  called from the upipe() system call in sys3.c
+ *
+ *  Creates and returns a locked pipe inode with the given mode on
+ *  the pipedev.
+ */
+
 INODE *
 pmake(mode)
 {
@@ -48,214 +60,316 @@ pmake(mode)
 
 	if ((ip=ialloc(pipedev, IFPIPE|mode)) != NULL) {
 		iclear(ip);
-		ip->i_pnc = 0;
-		ip->i_prx = 0;
-		ip->i_pwx = 0;
+		ip->i_pnc =
+		ip->i_prx =
+		ip->i_pwx =
+		ip->i_par =
+		ip->i_paw =
+		ip->i_psr =
+		ip->i_psw = 0;
 	}
-	return (ip);
+	return(ip);
 }
 
+
 /*
- * Open a pipe given the inode pointer.
+ *  popen(ip, mode)  --  Opens a pipe inode, with the given mode.
+ *			 Note:  The inode is locked upon entry.
+ *
+ *  This routine follows the requirements concerning opening pipes.
+ *  Specifically, if opening readonly without O_NDELAY, then block
+ *  until we have a writer.  If opening readonly with O_NDELAY, then
+ *  return opened, no blocking.  If opening writeonly without O_NDELAY,
+ *  then block until we have a reader.  If opening writeonly with
+ *  O_NDELAY, then return an error, and set u.u_errno to ENXIO.
+ *  Beware of subtle race conditions!  Also notice, I followed hal's
+ *  style of no internal returns in a function.
+ *
+ *  Note: these pipe routines maintain the pipe counter variables:
+ *	  ip->i_par:  Number of Awake readers
+ *	  ip->i_paw:  Number of Awake writers
+ *	  ip->i_psr:  Number of Sleeping readers
+ *	  ip->i_psw:  Number of Sleeping writers
  */
+
 popen(ip, mode)
-{
-	T_HAL(0x10, printf("popen(%x,%x) ", ip, mode));
-}
-
-/*
- * Close a pipe inode.
- */
-pclose(ip)
 register INODE *ip;
 {
-	if (ip->i_refc == 2) {
-		pevent(ip);
-		ip->i_flag |= IFEOF;
+	switch ( mode&(IPR|IPW) ) {
+	case IPR:
+		++ip->i_par;
+		while ( !ip->i_paw && !ip->i_psw ) {
+			if ( mode & IPNDLY )
+				break;
+			else {
+				if ( psleep(ip, IFWFW) < 0 ) {
+					--ip->i_par;
+					goto popen_done;
+				}
+				if ( ip->i_pnc != 0 )
+					break;
+			}
+		}
+		pwake(ip, IFWFR);
+		break;
+	case IPW:
+		++ip->i_paw;
+		if ( !ip->i_par && !ip->i_psr ) {
+			if ( mode & IPNDLY ) {
+				u.u_error = ENXIO;
+				--ip->i_paw;
+				goto popen_done;
+			} else {
+				if ( psleep(ip, IFWFR) < 0 ) {
+					--ip->i_paw;
+					goto popen_done;
+				}
+			}
+		}
+		pwake(ip, IFWFW);
+		break;
+	case IPR|IPW:
+		++ip->i_par;
+		++ip->i_paw;
+		pwake(ip, IFWFW);
+		pwake(ip, IFWFR);
+		break;
 	}
+
+popen_done:
+	return;
 }
 
+
 /*
- * Only one end of the pipe is going to be left.
+ *  pclose(ip, mode)  --  Opens a pipe inode, with the given mode.
+ *			  Note:  The inode is locked upon entry.
+ *
+ *  This routine closes the given INODE with the given mode.  We
+ *  must have the mode correct to maintain counters properly.
+ *  Good thing that mode cannot be changed by fcntl()!
  */
-pevent(ip)
+
+pclose(ip, mode)
 register INODE *ip;
 {
-	if ((ip->i_flag&IFWFR) != 0) {
-		ip->i_flag &= ~IFWFR;
-		wakeup((char *)&ip->i_pwx);
-	}
-	if ((ip->i_flag&IFWFW) != 0) {
-		ip->i_flag &= ~IFWFW;
-		wakeup((char *)&ip->i_prx);
-	}
+	pwake(ip, IFWFR);
+	pwake(ip, IFWFW);
+	if ( mode & IPR )
+		if ( --ip->i_par < 0 )
+			panic("Out of sync IPR in pclose");
+	if ( mode & IPW )
+		if ( --ip->i_paw < 0 )
+			panic("Out of sync IPW in pclose");
 }
 
+
 /*
- * Read from a pipe.  The given inode is locked.
+ *  pread(ip, iop)  --  Reads from a pipe inode, accoring to the IO info.
+ *			Note:  The inode is locked upon entry.
+ *
+ *  This routine follows the requirements concerning reading from pipes.
+ *  Specifically, if there is no data in the pipe, then the read will
+ *  block waiting for data, unless you have IONDLY set in which case
+ *  it will simply return zero.  Notice, the traditional value returned
+ *  from uread() is the number of characters actually read.  This is
+ *  nothing more that iop->io_ioc on entry minus iop->io_ioc on exit.
+ *  This routine also works with the ring buffer in the inode maintained
+ *  by the variables ip->i_pnc:  Number of Characters in pipe.
+ *		     ip->i_prx:  Offset in pipe to begin reading.
+ *		     ip->i_pwx:  Offset in pipe to begin writing.
+ *  Notice: we do not unlock the inode when we call fread(), this is to
+ *  guarantee that we read all that is available even if we go to sleep.
+ *  Subtle race condition?  I don't think so, since if we go to sleep
+ *  in fread(), it's wrt a resource unrelated to this particular INODE.
  */
+
 pread(ip, iop)
 register INODE *ip;
 register IO *iop;
 {
 	register unsigned n;
 	register unsigned ioc;
-#ifdef TRACER
-	int old_ioc = iop->io_ioc;
-#endif /* TRACER */
 
 	while (ip->i_pnc == 0) {
-
-		/*
-		 * Logical End of File.
-		 */
-		if ((ip->i_flag&IFEOF) != 0) {
-			ip->i_flag &= ~IFEOF;
-			break;
-		}
-
-		/*
-		 * Nobody left to write.
-		 */
-		if (ip->i_nlink==0 && ip->i_refc<2)
-			break;
-
-		/*
-		 * Non-blocking read.
-		 */
-		if ( iop->io_flag & IONDLY ) {
-			u.u_error = EAGAIN;
+		if ( iop->io_flag & IONDLY )
 			goto pread_done;
-		}
-
-		/*
-		 * Wait for pipe data.
-		 */
-		ip->i_flag |= IFWFW;
-		iunlock(ip);
-		v_sleep((char *)&ip->i_prx, CVPIPE, IVPIPE, SVPIPE, "pipe data");
-		/* Wait for pipe data.  */
-		ilock(ip);
+		if ( !ip->i_paw && !ip->i_psw )
+			goto pread_done;
+		if ( psleep(ip, IFWFW) < 0 )
+			goto pread_done;
 	}
 
-	/*
-	 * Clear EOF flag.
-	 */
-	if ((ip->i_flag&IFEOF)!=0 && ip->i_pnc==0)
-		ip->i_flag &= ~IFEOF;
-
 	ioc = iop->io_ioc;
-	while (u.u_error==0 && ioc>0 && ip->i_pnc>0) {
-
-		/*
-		 * Calculate length of data to be read.
-		 */
-		if ((n=PIPSIZE-ip->i_prx) > ioc)
+	while ( !u.u_error && (ioc > 0) && (ip->i_pnc > 0) ) {
+		if ( (n = (PIPSIZE-ip->i_prx)) > ioc )
 			n = ioc;
-		if (n > ip->i_pnc)
+		if ( n > ip->i_pnc )
 			n = ip->i_pnc;
-
-		/*
-		 * Read data.
-		 */
 		iop->io_ioc = n;
 		iop->io_seek = ip->i_prx;
 		fread(ip, iop);
 		n -= iop->io_ioc;
-		if ((ip->i_prx+=n) == PIPSIZE)
+		if ( (ip->i_prx+=n) == PIPSIZE )
 			ip->i_prx = 0;
-		ip->i_pnc -= n;
+		if ( (ip->i_pnc-=n) == 0 ) {
+			ip->i_prx =
+			ip->i_pwx = 0;
+		}
 		ioc -= n;
 	}
 	iop->io_ioc = ioc;
 
-	/*
-	 * Wake processes waiting to write.
-	 */
-	if ((ip->i_flag&IFWFR)!=0 && ip->i_pnc<PIPSIZE) {
-		ip->i_flag &= ~IFWFR;
-		wakeup((char *)&ip->i_pwx);
-	}
+	if ( ip->i_pnc < PIPSIZE )
+		pwake(ip, IFWFR);
 
 pread_done:
-	T_HAL(0x10, printf("pread:%d ", old_ioc - iop->io_ioc));
 	return;
 }
 
+
 /*
- * Write to a pipe.  The given inode is locked.
+ *  pwrite(ip, iop)  --  Writes to a pipe inode, accoring to the IO info.
+ *			 Note:  The inode is locked upon entry.
+ *
+ *  This routine follows the requirements concerning writing to pipes.
+ *  Specifically, if the pipe is full, then the write will block waiting
+ *  for data to be consumed, unless you have IONDLY set in which case
+ *  it will simply return zero.  Notice, the traditional value returned
+ *  from uwrite() is the number of characters actually written.  This is
+ *  nothing more that iop->io_ioc on entry minus iop->io_ioc on exit.
+ *  In other words, iop->io_ioc had better be zero on exit.  The possibility
+ *  does exist if the number of characters to be written is larger than
+ *  PIPSIZE, and thus we do not guarantee atomic writes, that while the
+ *  process is sleeping waiting for a reader to consume data, that the
+ *  process will be woken from sleeping by a SIGNAL, thus causing a partial
+ *  write.  The return value will be the actual number of character written.
+ *  This routine also works with the ring buffer in the inode maintained
+ *  by the variables ip->i_pnc:  Number of Characters in pipe.
+ *		     ip->i_prx:  Offset in pipe to begin reading.
+ *		     ip->i_pwx:  Offset in pipe to begin writing.
+ *  Notice: we do not unlock the inode when we call fwrite(), this is to
+ *  guarantee that we have an atomic write for all writes of size less
+ *  than PIPSIZE, even if we go to sleep in the fwrite().  Subtle race
+ *  condition?  I don't think so, since if we go to sleep in fwrite(),
+ *  it's wrt a resource unrelated to this particular INODE.
  */
+
 pwrite(ip, iop)
 register INODE *ip;
 register IO *iop;
 {
 	register unsigned n;
 	register unsigned ioc;
-#ifdef TRACER
-	int old_ioc = iop->io_ioc;
-#endif /* TRACER */
 
 	ioc = iop->io_ioc;
-	while (u.u_error==0 && ioc>0) {
-
-		/*
-		 * Nobody left to read.
-		 */
-		if ( (ip->i_refc < 2) && (ip->i_nlink == 0) ) {
+	while ( !u.u_error && (ioc > 0) ) {
+		if ( !ip->i_par && !ip->i_psr ) {
 			u.u_error = EPIPE;
 			sendsig(SIGPIPE, SELF);
 			goto pwrite_done;
 		}
-
-		/*
-		 * Calculate free space in pipe.
-		 */
-		if ( (n=PIPSIZE-ip->i_pwx) > ioc )
+		if ( (n = (PIPSIZE-ip->i_pwx)) > ioc )
 			n = ioc;
-		if (n > PIPSIZE-ip->i_pnc)
+		if ( n > (PIPSIZE-ip->i_pnc) )
 			n = PIPSIZE - ip->i_pnc;
-
-		/*
-		 * Non-blocking write.
-		 */
-		if ( iop->io_flag & IONDLY ) {
-			if ( (n != ioc) || (ip->i_flag & IFEOF) ) {
-				u.u_error = EAGAIN;
+		if ( (n == 0) || ((ioc <= PIPSIZE) && (n != ioc)) ) {
+			if ( iop->io_flag & IONDLY )
 				goto pwrite_done;
-			}
-		}
-
-		/*
-		 * Insufficent space or EOF still pending.
-		 */
-		if (n==0 || (ip->i_flag&IFEOF)!=0) {
-			ip->i_flag |= IFWFR;
-			iunlock(ip);
-			v_sleep((char *)&ip->i_pwx, CVPIPE, IVPIPE, SVPIPE, "pwrite");
-			/* Insufficent space or EOF still pending.  */
-			ilock(ip);
+			if ( psleep(ip, IFWFR) < 0 )
+				goto pwrite_done;
 			continue;
 		}
 		iop->io_ioc = n;
 		iop->io_seek = ip->i_pwx;
 		fwrite(ip, iop);
 		n -= iop->io_ioc;
-		if ((ip->i_pwx+=n) == PIPSIZE)
+		if ( (ip->i_pwx+=n) == PIPSIZE )
 			ip->i_pwx = 0;
 		ip->i_pnc += n;
 		ioc -= n;
 
-		/*
-		 * Wait processes waiting to read.
-		 */
-		if ((ip->i_flag&IFWFW) && ip->i_pnc>0) {
-			ip->i_flag &= ~IFWFW;
-			wakeup((char *)&ip->i_prx);
-		}
+		if ( ip->i_pnc > 0 )
+			pwake(ip, IFWFW);
 	}
-	iop->io_ioc = ioc;
-
 pwrite_done:
-	T_HAL(0x10, printf("pwrite:%d ", old_ioc - iop->io_ioc));
-	return;
+	iop->io_ioc = ioc;
 }
+
+
+/*
+ *  psleep(ip, who)  --  go to sleep either waiting for a reader if (who==IFWFR)
+ *		         or waiting for a writer if (who==IFWFW).
+ *  Returns:  0  if woke up ok
+ *	     -1  if woke up by signal (e.g. SIGALRM, SIGKILL, etc.)
+ */
+
+psleep(ip, who)
+register INODE *ip;
+{
+	if ( (who!=IFWFW) && (who!=IFWFR) )
+		panic("psleep() internal error");
+	iunlock(ip);
+	switch ( who ) {
+	case IFWFW:
+		--ip->i_par;  ++ip->i_psr;
+		v_sleep((char *)&ip->i_psw, CVPIPE, IVPIPE, SVPIPE, "pipe wx");
+		++ip->i_par;  --ip->i_psr;
+		break;
+	case IFWFR:
+		--ip->i_paw;  ++ip->i_psw;
+		v_sleep((char *)&ip->i_psr, CVPIPE, IVPIPE, SVPIPE, "pipe rx");
+		++ip->i_paw;  --ip->i_psw;
+		break;
+	}
+	ilock(ip);
+	if ( SELF->p_ssig && nondsig() ) {
+		u.u_error = EINTR;
+		return(-1);
+	}
+	return(0);
+}
+
+
+/*
+ *  pwake(ip, who)  --  wake up processes which are waiting for a reader if
+ *		        (who==IFWFR) or waiting for a writer if (who==IFWFW).
+ */
+
+pwake(ip, who)
+register INODE *ip;
+{
+	switch ( who ) {
+	case IFWFW:
+		if ( ip->i_psr )
+			wakeup((char *)&ip->i_psw);
+		break;
+	case IFWFR:
+		if ( ip->i_psw )
+			wakeup((char *)&ip->i_psr);
+		break;
+	}
+}
+
+
+#if 0
+/*
+ *  pdump(loc, ip, mode)  --  A kernel debugging output line.
+ *  char *loc  --  prefix of line (two characters indicating where we are)
+ *  INODE *ip  --  The inode information to dump
+ *  int mode   --  The mode of the IO call, i.e. IPW, IPR, IPNDLY, ...
+ */
+
+pdump(loc, ip, mode)
+char *loc;
+register INODE *ip;
+int mode;
+{
+	printf("%s ip=%x mde=%x nlk=%x rf=%x nc=%x rx=%x wx=%x",
+		loc, ip, mode, ip->i_nlink, ip->i_refc,
+		ip->i_pnc, ip->i_prx, ip->i_pwx);
+
+	printf(" ar=%x aw=%x sr=%x sw=%x f=%x\n",
+		ip->i_par, ip->i_paw, ip->i_psr, ip->i_psw, ip->i_flag);
+}
+#endif
