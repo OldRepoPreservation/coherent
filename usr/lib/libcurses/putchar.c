@@ -17,15 +17,15 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)putchar.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)putchar.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
 # include	"curses.ext"
 
-char
+uchar
 _putchar(c)
-reg char	c; {
+reg uchar	c; {
 
 	putchar(c & 0177);
 #ifdef DEBUG

@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)refresh.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)refresh.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -152,7 +152,7 @@ makech(win, wy)
 reg WINDOW	*win;
 short		wy;
 {
-	reg char	*nsp, *csp, *ce;
+	reg uchar	*nsp, *csp, *ce;
 	reg short	wx, lch, y;
 	reg int		nlsp, clsp;	/* last space in lines		*/
 

@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)overlay.c	5.5 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)overlay.c	5.5 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -34,7 +34,7 @@ static char sccsid[] = "@(#)overlay.c	5.5 (Berkeley) 6/30/88";
 overlay(win1, win2)
 reg WINDOW	*win1, *win2; {
 
-	reg char	*sp, *end;
+	reg uchar	*sp, *end;
 	reg int		x, y, endy, endx, starty, startx;
 	reg int 	y1,y2;
 
