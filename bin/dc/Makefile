@@ -1,6 +1,6 @@
 # stevesf!bc/Makefile 3/29/90
 
-bc=/usr.src/cmd/bc
+bc=/newbits/bin/bc
 CFLAGS=-O -I$(bc)
 dco=dc.o dcsub.o undefined.o
 bco=bcmch.o bcmutil.o getnum.o globals.o output.o putnum.o
