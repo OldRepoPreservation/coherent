@@ -39,6 +39,8 @@ static char 	*sccsid="@(#)main.c	2.5 (smail) 9/15/87";
 #include	<ctype.h>
 #include	"defs.h"
 
+void close_fds();
+
 int exitstat = 0;		/* exit status, set by resolve, deliver	*/
 
 enum edebug debug     = NO;	/* set by -d or -v option		*/
@@ -57,6 +59,10 @@ char *aliasfile =
 		ALIAS;		/* or set by -a				*/
 #else
 		NULL;
+#endif
+
+#ifdef HOMEALIASES
+char *homealias;
 #endif
 
 char *fnlist    =
@@ -110,6 +116,11 @@ char *argv[];
 	char *optstr = "cdvArRlLH:h:p:u:q:a:n:m:f:F:";
 	extern char *optarg;
 	extern int optind;
+
+	/* Clean up any open file descriptors which may have been
+	   dumped on us.
+	*/
+	(void) close_fds();
 
 /*
 **  see if we aren't invoked as rmail
