@@ -701,7 +701,7 @@ char	*s;
 		printf ("\\\\");
 		break;
 	    case '^':
-		printf ("\\^");
+		printf ("\^");
 		break;
 	    case ':':
 		printf ("\\:");
