@@ -315,6 +315,10 @@ STRING asval;
 		if(0 < (i1 -= evalint(NFp))) {
 			if (whitesw && (i1 > 1))
 				awkwarn("Assignment to unbuildable field");
+			/* remove trailing delimeters */
+			while ((--s1 > inline) && FSMAP[*s1])
+				;
+			s2 = ++s1;
 			as = xalloc(strlen(asval) + i1 + 1);
 			strcpy(as + i1, asval);
 			memset(as, FS[0], i1);
