@@ -122,6 +122,7 @@ extern	MDIR *		volume;
 extern	short		xpart;
 extern	char		ext[];
 extern	short		sext;
+extern	short		numargs;
 extern	char 		adev[];
 
 /* Functions. */
