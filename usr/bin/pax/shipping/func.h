@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/func.h,v $
+/* $Source: /newbits/usr/bin/pax/shipping/func.h,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * func.h - function type and argument declarations
  *

@@ -178,6 +178,16 @@ char **brand;
 		exit(1);
 	}
 
+
+#ifndef _I386
+	if (locktty(l_lline) != 0){
+		plog(M_CALL,"Attempt to create lock file failed.");
+		if(lockexist(rmtname)){
+			lockrm(rmtname);
+		}
+		exit(1);
+	}
+#else
 	if (!locktty(l_lline)){
 		plog(M_CALL,"Attempt to create lock file failed.");
 		if(lockexist(rmtname)){
@@ -185,7 +195,7 @@ char **brand;
 		}
 		exit(1);
 	}
-		
+#endif		
 	enableme[0] = '\0';
 	if(strcmp(l_rline,"-") !=0){
 	/* Disable the remote device.

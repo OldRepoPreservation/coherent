@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/ld/RCS/pass2.c,v 1.1 89/07/21 15:52:26 src Exp $
+/* $Header: /newbits/bin/ld/RCS/pass2.sav,v 1.1 91/05/15 09:44:51 bin Exp $
  *
  * 	The information contained herein is a trade secret of Mark Williams
  * 	Company, and  is confidential information.  It is provided  under a
@@ -18,7 +18,10 @@
  * Pass 2
  * Read, relocate and output segments of module
  *
- * $Log:	/usr/src/cmd/ld/RCS/pass2.c,v $
+ * $Log:	/newbits/bin/ld/RCS/pass2.sav,v $
+ * Revision 1.1	91/05/15  09:44:51 	bin
+ * Initial revision
+ * 
  * Revision 1.1	89/07/21  15:52:26 	src
  * Initial revision
  * 

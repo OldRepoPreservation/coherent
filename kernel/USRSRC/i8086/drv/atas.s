@@ -8,6 +8,9 @@
 / AT Hard Disk Assembler Support
 /
 / $Log:	atas.s,v $
+/ Revision 1.3  91/10/30  08:07:49  bin
+/ updated by hal for 3203 kernel
+/ 
 /Revision 1.3  91/10/24  12:37:44  hal
 /COH 3.2.03k.
 /Poll HF_REG (3F6) rather than CSR_REG (1F7).

@@ -1,4 +1,4 @@
-# $Header: $(USRSRC)/ldrv/RCS/Makefile,v 1.2 91/04/30 18:38:22 root Exp $
+# $Header: /newbits/286_KERNEL/USRSRC/ldrv/RCS/Makefile,v 1.3 92/01/09 13:40:38 root Exp Locker: root $(USRSRC)/ldrv/RCS/Makefile,v 1.2 91/04/30 18:38:22 root Exp $
 
 # Loadable Drivers - Makefile
 #

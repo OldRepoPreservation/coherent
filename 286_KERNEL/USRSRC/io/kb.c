@@ -1,14 +1,6 @@
-/* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- *
- * $Log$
- *
- -lgl) */
 /*
- * Keyboard/display driver.
- * Coherent, IBM PC/XT/AT.
+ * Keyboard driver.
+ * Coherent, IBM PC/XT/AT (286 and 386)
  */
 #include <sys/coherent.h>
 #include <sys/i8086.h>
@@ -84,7 +76,7 @@ int	nonedev();
  */
 CON iscon ={
 	DFCHR|DFPOL,			/* Flags */
-	KB_MAJOR,				/* Major index */
+	KB_MAJOR,			/* Major index */
 	isopen,				/* Open */
 	isclose,			/* Close */
 	nulldev,			/* Block */

@@ -1,6 +1,6 @@
-/* $Source: /newbits/usr/bin/pax/shipping/ustar.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/RCS/ustar.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * ustar.c - tar specific functions for archive handling
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/newbits/usr/bin/pax/shipping/ustar.c,v $
+ * $Log:	ustar.c,v $
+ * Revision 1.2  91/06/19  09:57:37  bin
+ * udated by vlad for restoring ownership/permissions 
+ * 
  * Revision 1.1	91/02/05  11:59:47 	bin
  * Initial revision
  * 
@@ -42,7 +45,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: tar.c,v 1.2 89/02/12 10:06:05 mark Exp $";
+static char *ident = "$Id: ustar.c,v 1.2 91/06/19 09:57:37 bin Exp Locker: bin $";
 static char *copyright ="Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.";
 #endif /* not lint */
 

@@ -28,6 +28,7 @@
 #include	<sys/fdioctl.h>
 #include	<sys/sched.h>
 #include	<sys/dmac.h>
+#include	<sys/devices.h>
 
 #define		BIT(n)		(1 << (n))
 
@@ -54,11 +55,9 @@ int	fltimeout();
 int	nulldev();
 int	nonedev();
 
-#define	FDCMAJ	4			/* Major # */
-
 CON	flcon	= {
 	DFBLK|DFCHR,			/* Flags */
-	FDCMAJ,				/* Major index */
+	FL_MAJOR,				/* Major index */
 	flopen,				/* Open */
 	nulldev,			/* Close */
 	flblock,			/* Block */
@@ -331,7 +330,7 @@ flunload()
 	/*
 	 * Cancel periodic [1 second] invocation.
 	 */
-	drvl[FDCMAJ].d_time = 0;
+	drvl[FL_MAJOR].d_time = 0;
 
 	/*
 	 * Turn motors off.
@@ -530,7 +529,7 @@ again:
 	switch (fl.fl_state) {
 
 	case SIDLE:
-		drvl[FDCMAJ].d_time = 1;
+		drvl[FL_MAJOR].d_time = 1;
 
 		if ( bp == NULL )
 			break;
@@ -900,7 +899,7 @@ fltimeout()
 	 * Stop checking once all drives have been stopped.
 	 */
 	if ( fl.fl_mstatus == 0 )
-		drvl[FDCMAJ].d_time = 0;
+		drvl[FL_MAJOR].d_time = 0;
 
 	spl(s);
 }

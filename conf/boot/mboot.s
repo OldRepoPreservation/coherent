@@ -16,7 +16,10 @@
 /
 /	Author: Allan Cornish, INETCO Systems Ltd, April 23 1985
 /
-/ $Log:	/usr/src/sys/i8086/boot/RCS/mboot.s,v $
+/ $Log:	/newbits/conf/boot/RCS/mboot.s,v $
+/ Revision 1.1	91/05/29  08:30:28 	bin
+/ Initial revision
+/ 
 / Revision 1.1	88/03/24  16:44:18	src
 / Initial revision
 / 

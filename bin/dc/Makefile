@@ -2,7 +2,7 @@
 
 bc=/newbits/bin/bc
 CFLAGS=-O -I$(bc)
-DESTDIR= /f1/bin/
+DESTDIR= /interim/bin/
 dco=dc.o dcsub.o undefined.o
 bco=bcmch.o bcmutil.o getnum.o globals.o output.o putnum.o
 SRCS= dc.c dcsub.c undefined.c $(bc)/bcmch.c $(bc)/bcmutil.c $(bc)/getnum.c \

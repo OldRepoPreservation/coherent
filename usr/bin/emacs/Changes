@@ -67,3 +67,16 @@ ctl-q is displayed directly on the screen.
 
 The display mode switch is part of the emacs binding file so a user
 may set it for repeated use.
+---------------------------------------------------------------------
+When emacs was asked to read a file for which it had no read permissions
+it failed to give a proper warning message. Instead it gave the warning
+message for new file. It now gives a cannot read warning message.
+---------------------------------------------------------------------
+Emacs couldnt properly deal with the 60 line displays on att630 tmls
+this is now fixed.
+---------------------------------------------------------------------
+To protect the work of users a little more emacs now does a sync() after
+writing any file.
+---------------------------------------------------------------------
+tcap.c neglected to set the pad character and terminal output speed for
+termcap. This is fixed.

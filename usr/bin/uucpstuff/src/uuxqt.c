@@ -72,6 +72,7 @@ char *argv[], *envp[];
 	char xqtdir[LOGFLEN];
 	char ch;
 
+	umask(077);
 	while ( (ch=getopt(argc, argv, "x:vV")) != EOF ) {
 		switch (ch) {
 		case 'x':

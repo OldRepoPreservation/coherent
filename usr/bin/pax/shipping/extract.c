@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/extract.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/extract.c,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * extract.c - Extract files from a tar archive. 
  *
@@ -26,7 +26,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	extract.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/extract.c,v $
+ * Revision 1.1	91/02/05  11:55:52 	bin
+ * Initial revision
+ * 
  * Revision 1.3  89/02/12  10:29:43  mark
  * Fixed misspelling of Replstr
  * 

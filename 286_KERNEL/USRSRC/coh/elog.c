@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ker/RCS/elog.c,v 1.1 88/03/24 16:19:48 src Exp $ */
+/* $Header: /newbits/286_KERNEL/USRSRC/coh/RCS/elog.c,v 1.1 92/01/09 13:26:39 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -15,7 +15,10 @@
 /*
  * Coherent - event/error logging facility.
  *
- * $Log:	/usr/src/sys/ker/RCS/elog.c,v $
+ * $Log:	elog.c,v $
+ * Revision 1.1  92/01/09  13:26:39  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:19:48	src
  * Initial revision
  * 

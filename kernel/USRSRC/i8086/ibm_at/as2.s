@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/ibm_at/RCS/as2.s,v 1.3 88/08/05 15:37:32 src Exp $
+/ $Header: /usr/src/sys/i8086/ibm_at/RCS/as2.s,v 1.2 91/06/06 18:14:46 norm Exp $
 /
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -18,7 +18,10 @@
 / Machine language assist for
 / Coherent on the IBM personal computer.
 /
-/ $Log:	/usr/src/sys/i8086/ibm_at/RCS/as2.s,v $
+/ $Log:	as2.s,v $
+/ Revision 1.2  91/06/06  18:14:46  norm
+/ Get memory size by reading CMOS.
+
 / Revision 1.3	88/08/05  15:37:32	src
 / AMD 286 hardware specific fixes removed - hardware now correct.
 / Virtual Selector F000 initialized to access ROM at F0000.

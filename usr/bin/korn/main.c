@@ -2,7 +2,7 @@
  * startup, main loop, enviroments and error handling
  */
 
-static char *RCSid = "$Header: main.c,v 3.1 88/11/03 09:17:04 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/main.c,v 1.2 91/08/01 12:41:00 bin Exp Locker: bin $";
 
 #define	Extern				/* define Externs in sh.h */
 
@@ -11,7 +11,7 @@ static char *RCSid = "$Header: main.c,v 3.1 88/11/03 09:17:04 egisin Exp $";
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #include <signal.h>
 #include <errno.h>
 #include <setjmp.h>

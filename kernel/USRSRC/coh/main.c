@@ -2,6 +2,9 @@
  * Coherent.
  *
  * $Log:	main.c,v $
+ * Revision 1.5  91/11/12  07:51:59  bin
+ * 3204 kernel source for use with piggy's tboot code.
+ * 
  * Revision 1.2  91/11/11  12:27:07  hal
  * Add atcount & global n_atdr.
  * 

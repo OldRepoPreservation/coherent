@@ -1,6 +1,6 @@
 /* $Source: /newbits/usr/bin/pax/shipping/RCS/cpio.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.3 $
  *
  * cpio.c - Cpio specific functions for archive handling
  *
@@ -30,6 +30,9 @@
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
  * $Log:	cpio.c,v $
+ * Revision 1.3  92/05/12  07:29:10  bin
+ * Vlad fix to fix bug preserving ownership of files
+ * 
  * Revision 1.2  91/06/19  09:55:20  bin
  * udated by vlad for restoring ownership/permissions 
  * 
@@ -45,7 +48,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: cpio.c,v 1.2 91/06/19 09:55:20 bin Exp Locker: bin $";
+static char *ident = "$Id: cpio.c,v 1.3 92/05/12 07:29:10 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

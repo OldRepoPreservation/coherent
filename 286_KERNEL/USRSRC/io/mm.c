@@ -6,6 +6,8 @@
 /*
  * Memory Mapped Video
  * High level output routines.
+ *
+ * $Log$
  */
 #include <sys/coherent.h>
 #include <sys/sched.h>

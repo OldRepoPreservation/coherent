@@ -1,6 +1,16 @@
 /*
- * $Header: /usr/src/local/unmkfs.c,v 1.3 89/02/24 12:44:05 bin Exp $
- * $Log:	/usr/src/local/unmkfs.c,v $
+ * $Header: /usr.src/local/unmkfs.c,v 1.4 90/07/06 11:43:38 root Exp $
+ * $Log:	/usr.src/local/unmkfs.c,v $
+ * Revision 1.4	90/07/06  11:43:38 	root
+ * steve 7/6/90
+ * Changed usage to
+ * 	/etc/unmkfs [ -prefix ] directory nblocks [ file ]
+ * Corrected bug with 14-character filenames, which caused garbage in
+ * some lines (because of missing NUL terminator).  Changed error messages.
+ * Added forward declarations of all functions.
+ * This corresponds to V3.0.1 object.
+ * ,.
+ * 
  * Revision 1.3	89/02/24  12:44:05	bin
  * Defined realloc to remove integer pointer pun message.
  * 
@@ -14,7 +24,7 @@
  */
 static	char	*revision = "$Revision 1.1 $";
 static	char *header =
- 	"$Header: /usr/src/local/unmkfs.c,v 1.3 89/02/24 12:44:05 bin Exp $";
+ 	"$Header: /usr.src/local/unmkfs.c,v 1.4 90/07/06 11:43:38 root Exp $";
 
 /*
  * Given a directory tree root and a filesystem size,

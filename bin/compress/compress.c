@@ -171,7 +171,7 @@ char_type magic_header[] = { "\037\235" };	/* 1F 9D */
    a fourth header byte (for expansion).
 */
 #define INIT_BITS 9			/* initial number of bits/code */
-static char rcs_ident[] = "$Header: compress.c,v 4.1 85/12/05 09:00:00 kent Release $";
+static char rcs_ident[] = "$Header: /newbits/bin/compress/RCS/compress.c,v 1.3 91/09/17 06:34:57 bin Exp Locker: bin $";
 
 #include <stdio.h>
 #include <ctype.h>

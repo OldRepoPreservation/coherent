@@ -7,7 +7,10 @@
 #	 config [stand=fha0] [standard] [root=DRV] [DRV ...]
 #	 config [stand=fva0] [standard] [root=DRV] [DRV ...]
 #
-# $Log$
+# $Log:	config.mwc,v $
+# Revision 1.3  92/01/16  15:53:10  root
+# update by hal for 321 kernels
+# 
 
 #	initialize variables
 #

@@ -1,7 +1,6 @@
-# /usr/src/libc/sys/i8086/Makefile 9/28/92
+# /usr/src/libc/sys/i8086/Makefile 5/29/91
 
 OBJ=\
-	_execve.o\
 	access.o\
 	acct.o\
 	alarm.o\
@@ -14,8 +13,8 @@ OBJ=\
 	close.o\
 	creat.o\
 	dup.o\
-	dup2.o\
 	execk.o\
+	execve.o\
 	fcntl.o\
 	fork.o\
 	fstat.o\
@@ -33,7 +32,6 @@ OBJ=\
 	lseek.o\
 	mknod.o\
 	mount.o\
-	msgop.o\
 	nice.o\
 	open.o\
 	pause.o\
@@ -43,11 +41,9 @@ OBJ=\
 	ptrace.o\
 	read.o\
 	sbrk.o\
-	semop.o\
 	setgid.o\
 	setpgrp.o\
 	setuid.o\
-	shmop.o\
 	signal.o\
 	sload.o\
 	stat.o\
@@ -55,7 +51,6 @@ OBJ=\
 	suload.o\
 	sync.o\
 	tick.o\
-	time.o\
 	times.o\
 	umask.o\
 	umount.o\
@@ -79,8 +74,6 @@ SYSI8086:	$(OBJ)
 
 # Secondary targets.
 # The following are simple system traps.
-_execve.o:	_proto.m
-	cc -c -DNAME=_execve_  -DVALUE=11 -o $@ $<
 access.o:	_proto.m
 	cc -c -DNAME=access_  -DVALUE=33 -o $@ $<
 acct.o:		_proto.m
@@ -107,6 +100,8 @@ dup.o:		_proto.m
 	cc -c -DNAME=dup_     -DVALUE=41 -o $@ $<
 execk.o:	_proto.m
 	cc -c -DNAME=execk_   -DVALUE=62 -o $@ $<
+execve.o:	_proto.m
+	cc -c -DNAME=execve_  -DVALUE=11 -o $@ $<
 fcntl.o:	_proto.m
 	cc -c -DNAME=fcntl_   -DVALUE=66 -o $@ $<
 fork.o:		_proto.m
@@ -191,14 +186,9 @@ write.o:	_proto.m
 	cc -c -DNAME=write_   -DVALUE=4  -o $@ $<
 
 # The following are not just system traps.
-dup2.o:		dup2.c
 getpgrp.o:	getpgrp.s
-msgop.o:	msgop.c
 sbrk.o:		sbrk.c
-semop.o:	semop.c
-shmop.o:	shmop.c
 signal.o:	signal.s
-time.o:		time.c
 
 # Unused.
 _brk.o:		_proto.m

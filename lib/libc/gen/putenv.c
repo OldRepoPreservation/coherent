@@ -1,7 +1,10 @@
 /*
  * Change or add value to environment.
  *
- * $Log: $
+ * $Log:	/newbits/lib/libc/gen/RCS/putenv.c,v $
+ * Revision 1.1	91/04/22  13:14:00 	bin
+ * Initial revision
+ * 
  * 87/02/05	Allan Cornish
  * Initial revision.
  */

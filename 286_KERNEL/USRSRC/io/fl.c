@@ -1,10 +1,5 @@
-/* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
- * This is a driver for the IBM AT or PC/XT
+ * This is a driver for the IBM AT (286 and 386) and PC/XT
  * floppy, using interrupts and DMA on
  * the NEC 756 floppy chip. Ugh.
  * Handles single, double and quad
@@ -19,16 +14,20 @@
  */
 
 #include	<sys/coherent.h>
+#ifndef COH386
 #include	<sys/i8086.h>
+#else
+#include	<reg.h>
+#endif
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/stat.h>
 #include	<errno.h>
 #include	<sys/uproc.h>
+#include	<sys/timeout.h>
 #include	<sys/fdioctl.h>
 #include	<sys/sched.h>
 #include	<sys/dmac.h>
-#include	<sys/devices.h>
 
 #define		BIT(n)		(1 << (n))
 
@@ -55,9 +54,11 @@ int	fltimeout();
 int	nulldev();
 int	nonedev();
 
+#define	FDCMAJ	4			/* Major # */
+
 CON	flcon	= {
 	DFBLK|DFCHR,			/* Flags */
-	FL_MAJOR,				/* Major index */
+	FDCMAJ,				/* Major index */
 	flopen,				/* Open */
 	nulldev,			/* Close */
 	flblock,			/* Block */
@@ -330,7 +331,7 @@ flunload()
 	/*
 	 * Cancel periodic [1 second] invocation.
 	 */
-	drvl[FL_MAJOR].d_time = 0;
+	drvl[FDCMAJ].d_time = 0;
 
 	/*
 	 * Turn motors off.
@@ -446,7 +447,11 @@ char	*par;
 	s = fhbyh(dev) ? (cyl * fdp->fd_nhds + hd) : (hd * fdp->fd_trks + cyl);
 	s *= fdp->fd_nspt;
 	u.u_io.io_seek = ((long)s) * BSIZE;
+#ifndef COH386
 	u.u_io.io_base = par;
+#else
+	u.u_io.io.vbase = par;
+#endif
 	u.u_io.io_ioc = fdp->fd_nspt * 4;
 	dmareq(&flbuf, &u.u_io, dev, FDFORMAT);
 }
@@ -475,6 +480,7 @@ register BUF	*bp;
 		bdone(bp);
 		return;
 	}
+
 	if (bp->b_req != FDFORMAT && bno >= fdata[ fkind(bp->b_dev) ].fd_size) {
 		bp->b_resid = bp->b_count;
 		if (bp->b_flag & BFRAW)
@@ -529,7 +535,7 @@ again:
 	switch (fl.fl_state) {
 
 	case SIDLE:
-		drvl[FL_MAJOR].d_time = 1;
+		drvl[FDCMAJ].d_time = 1;
 
 		if ( bp == NULL )
 			break;
@@ -674,14 +680,22 @@ again:
 			fl.fl_wflag = 1;
 			flcmd = CMDFMT;
 
+#ifndef COH386
 			if(dmaon(2, fl.fl_addr, bp->b_count, fl.fl_wflag) == 0)
+#else
+			if(!dmaon(2, P2P(fl.fl_addr),bp->b_count,fl.fl_wflag))
+#endif
 				goto straddle;
 
 			else
 				goto command;
 		}
 
+#ifndef COH386
 		if (dmaon(2, fl.fl_addr, 512, fl.fl_wflag) == 0) {
+#else
+		if (dmaon(2, P2P(fl.fl_addr), 512, fl.fl_wflag) == 0) {
+#endif
 straddle:
 			devmsg(bp->b_dev, "fd: DMA page straddle at %x:%x",
 				fl.fl_addr);
@@ -899,7 +913,7 @@ fltimeout()
 	 * Stop checking once all drives have been stopped.
 	 */
 	if ( fl.fl_mstatus == 0 )
-		drvl[FL_MAJOR].d_time = 0;
+		drvl[FDCMAJ].d_time = 0;
 
 	spl(s);
 }

@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/warn.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/warn.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * warn.c - miscellaneous user warning routines 
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	warn.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/warn.c,v $
+ * Revision 1.1	91/02/05  12:00:04 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:06:15  mark
  * 1.2 release fixes
  * 

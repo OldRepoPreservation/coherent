@@ -2,8 +2,10 @@
 # Make normal and hp versions of the line printer daemon and spooler.
 # This also makes the hp filter,
 # for converting nroff output to HP LaserJet printer escape sequences (PCL).
-DESTDIR=/interim/usr/bin/
-DESTDIR2=/interim/usr/lib/
+#DESTDIR=/interim/bin/
+#DESTDIR2=/interim/usr/lib/
+DESTDIR=/bin386/bin/
+DESTDIR2=/bin386/usr/lib/
 
 ALL=\
 	hp\

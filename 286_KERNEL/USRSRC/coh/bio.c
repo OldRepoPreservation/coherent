@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/bio.c,v 1.1 88/03/24 16:13:29 src Exp $ */
+/* $Header: /x/usr/src/sys/coh/RCS/bio.c,v 1.1 91/11/08 12:46:39 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Buffered I/O.
  *
- * $Log:	/usr/src/sys/coh/RCS/bio.c,v $
+ * $Log:	bio.c,v $
+ * Revision 1.1  91/11/08  12:46:39  hal
+ * Used in COH 3.2.0
+ * 
  * Revision 1.1	88/03/24  16:13:29	src
  * Initial revision
  * 

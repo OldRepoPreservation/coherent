@@ -1,37 +1,11 @@
-/* $Header: /usr/src/cmd/ld/RCS/data.h,v 1.1 89/07/21 15:52:11 src Exp $
- *
- * 	The information contained herein is a trade secret of Mark Williams
- * 	Company, and  is confidential information.  It is provided  under a
- * 	license agreement,  and may be  copied or disclosed  only under the
- * 	terms of  that agreement.  Any  reproduction or disclosure  of this
- * 	material without the express written authorization of Mark Williams
- * 	Company or persuant to the license agreement is unlawful.
- * 
- * 	Coherent Version 2.3.38
- * 	Copyright (c) 1982, 1983, 1984.
- * 	An unpublished work by Mark Williams Company, Chicago.
- * 	All rights reserved.
- *
- *	Modifications Copyright INETCO Systems Ltd.
- */
 /*
  * General Loader-Binder
  *
  * Knows about FILE struct to the extent it is revealed in putc
  * if BREADBOX is non-zero
  *
- * $Log:	/usr/src/cmd/ld/RCS/data.h,v $
- * Revision 1.1	89/07/21  15:52:11 	src
- * Initial revision
- * 
- * 87/11/30	Allan Cornish	/usr/src/cmd/ld/data.h
- * u_addr_t now unsigned long instead of unsigned short.
- * This allows relocation to be performed past 64K code + data.
- *
- * 87/10/04	Allan Cornish	/usr/src/cmd/ld/data.h
- * Function eq(s1,s2) converted into a macro.
- * Comments extended.
  */
+
 #include <stdio.h>
 #include <canon.h>
 #include <l.out.h>
@@ -164,3 +138,11 @@ extern	uaddr_t	commons;		/* accumulate size of commons */
 extern	char	*outbuf;		/* buffer for in-memory load */
 extern	FILE	*outputf[NLSEG];	/* output ptrs (for each segment) */
 
+/*
+ *	Kludge for maximum size of a loadable data segment
+ *	for the 8086, used in both fixstack and ld
+ */
+
+#define	MAXSEG86	0x10000L	/* Maximum Segment Size		*/
+#define	DEFSTACK	0x1000		/* Initial Stack Size by Kernel	*/
+#define	WARNSIZE	0x1000		/* Warning Tolerance Distance	*/

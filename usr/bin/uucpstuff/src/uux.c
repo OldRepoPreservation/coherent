@@ -65,6 +65,7 @@ char *argv[];
 	char	*arg;
 	register int (*intfun)(), (*quitfun)();
 
+	umask(077);
 	strcpy(mysite, uucpname());
 	if (strlen(mysite) == 0) {
 		fprintf(stderr, "uux: can't get my own uucpname\n");
@@ -197,7 +198,7 @@ char *argv[];
 
 	if (local == 0) {
 		fprintf(commandfile,
-		"S D.%.*s%c%04d X.%.*s%c%04d %s - D.%.*s%c%04d 0666\n",
+		"S D.%.*s%c%04d X.%.*s%c%04d %s - D.%.*s%c%04d 0600\n",
 		SITESIG, mysite, 'X', seq, SITESIG, mysite, 'X', seq, luser,
 		SITESIG, mysite, 'X', seq);
 	}
@@ -293,7 +294,7 @@ dostdin()
 	fprintf(execfile, "F %s\nI %s\n", name, name);
 	if (local == 0)
 		fprintf(commandfile,
-		"S %s %s %s - %s 0666\n", name, name, luser, name);
+		"S %s %s %s - %s 0600\n", name, name, luser, name);
 }
 
 void doarg(arg)
@@ -343,7 +344,7 @@ char *arg;
 		}
 		if (local == 0)  {
 			fprintf(commandfile,
-			"S %s %s %s - %s 0666\n", filepath(arg), name,
+			"S %s %s %s - %s 0600\n", filepath(arg), name,
 			luser, name);
 		}
 		fprintf(execfile, "F %s %s\n", name, basename(filepath(arg)));

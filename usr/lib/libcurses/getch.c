@@ -21,7 +21,7 @@ static uchar sccsid[] = "@(#)getch.c	5.5 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
-# include	<sys/fcntl.h>
+# include	<fcntl.h>
 # include	"curses.ext"
 
 /*

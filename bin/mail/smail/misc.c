@@ -138,8 +138,6 @@ setdates()
 	gmt = gmtime(&now);
 	loc = localtime(&now);
 /*	(void) strcpy(arpanows, nows); */
-	error_log("NOWS is");
-	error_log(nows);
 	(void) strcpy(arpanows, arpadate(nows)); 
 }
 
@@ -211,9 +209,6 @@ arpadate(ud)
 	/*
 	**  Crack the UNIX date line in a singularly unoriginal way.
 	*/
-
-	error_log("UD is");
-	error_log(ud);
 
 	q = b;
 

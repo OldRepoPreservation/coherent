@@ -1,13 +1,12 @@
-# /usr/src/libc/string/Makefile 7/6/93
+# /usr/src/libc/string/Makefile 2/14/91
 
 OBJ=\
 	strcoll.o\
-	strdup.o\
 	strerror.o\
 	strtok.o\
 	strxfrm.o\
 
-# These C sources are unused, the assembler sources in $(MCH)
+# These C sources are unused, the assembler sources in i8086
 # are used instead for efficiency.
 UNUSED=\
 	_memxchg.c\
@@ -32,19 +31,18 @@ UNUSED=\
 	strstr.c\
 
 # Primary target.
-all:	STRING string$(MCH)
+all:	STRING stringi8086
 	: libc/string done
 
 # Pseudotargets.
 STRING:	$(OBJ)
-	$(AR) rkus libc.a $?
+	ar rkus libc.a $?
 	touch $@
-string$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
+stringi8086:
+	make SRCPATH=$(SRCPATH)/i8086
 
 # Secondary targets.
 strcoll.o:	strcoll.c
-strdup.o:	strdup.c
 strerror.o:	strerror.c
 strtok.o:	strtok.c
 strxfrm.o:	strxfrm.c

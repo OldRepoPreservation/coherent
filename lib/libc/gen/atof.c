@@ -1,5 +1,4 @@
 /*
- * /usr/src/libc/gen/atof.c
  * C general utilities library.
  * atof()
  * ANSI 4.10.1.1.
@@ -50,18 +49,6 @@ atof(nptr) register char *nptr;
 	for (; ; c = *nptr++) {
 		if (isdigit(c)) {
 			c -= '0';
-			if (c == 0 && (flag & DOT)) {
-				/* Check for trailing zeros to avoid imprecision. */
-				char *look, d;
-
-				for (look = nptr; (d = *look++) == '0'; )
-					;		/* skip a trailing zero */
-				if (!isdigit(d)) {	/* ignore zeroes */
-					nptr = look;
-					c = d;
-					break;
-				}			/* else don't ignore */
-			}
 #if	__STDC__
 			if (val > (ULONG_MAX-9) / 10) {
 #else
@@ -122,5 +109,3 @@ atof(nptr) register char *nptr;
 		d *= _pow10(exp);
 	return ((flag & NEG) ? -d : d);
 }
-
-/* end of libc/gen/atof.c */

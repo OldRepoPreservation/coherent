@@ -1,941 +1,508 @@
 /*
- * File:	stty.c
- *
- * Purpose:	COH 386 stty command, based on termio
- *	This version is more S5 compliant than COH 286's was.
- *	It gets status from stdin, and writes to stdout.
- *	Using -g flag reports termio contents as hex dump
- *	Input can be a string of 12 hex numbers separated by colons,
- *	  same as output using -g flag.
- *
- * $Log:	stty.c,v $
- * Revision 1.4  92/08/11  15:59:27  root
- * COH 4.0.1
- * 
+ * Set options for the current output terminal.
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
 #include <stdio.h>
-#include <termio.h>
+#include <sgtty.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-#define NAMELN		8
-#define OPTNAMELEN	16
+#define	ON	1
+#define	OFF	2
+#define	NONE	(-1)		/* Disabled character */
+#define	NEXT	(-2)		/* Get next arg */
+#define	DEL	0177		/* Del/rubout in ASCII */
 
-#define DEL	0x7F
-#define NUL	0
+/* Functions to set and reset parameters */
+int	smode();
+int	sspeed();
+int	sedit();
+int	stchars();
+int	sflag();
+int	sane();
 
-typedef unsigned char uchar;
-typedef unsigned int  uint;
-typedef unsigned long ulong;
-/*
- * For fields in c_[iocl]flag field in termio,
- *	optname is the name of the stty command switch
- *	mask has 1's where bits are modified
- *	val has the correct value at the bits in question
- */
-typedef struct {
-	char	optname[OPTNAMELEN];
-	short	mask;
-	short	val;
-} FLAG_OPT;
+struct	sgttyb	sgttyb;
+struct	tchars	tchars;
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-static void baudstr();
-static int c_opt();
-static int combo();
-static void dump_all();
-static void dump_brief();
-static void dump_cc();
-static void dump_ch();
-static void dump_cflag();
-static void dump_hex();
-static void dump_iflag();
-static void dump_lflag();
-static void dump_oflag();
-static int num_opt();
-static void panic();
-static int set_ch();
-static int set_num();
-static int set_speed();
-static void set_hex();
-static int simple();
+int	hupflag;		/* Set hangup on close mode */
+int	exclflag;		/* Set exclusive mode */
+int	allflag;		/* Display all modes */
+int	scmd = TIOCSETP;	/* Ordinary stty command */
+int	printflag;		/* On for printing modes */
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
-static int gflag;
-static int sflag;	/* true if setting termio rather than getting */
-static struct termio t;
+#define	NOPTS	(sizeof(sopts)/sizeof(struct sopts))
 
-int	g_argc;
-char	** g_argv;
-char	lbuf[200];
-
-FLAG_OPT i_list[] = {
-	{ "ignbrk", IGNBRK, IGNBRK },
-	{ "-ignbrk", IGNBRK, 0 },
-	{ "brkint", BRKINT, BRKINT },
-	{ "-brkint", BRKINT, 0 },
-	{ "ignpar", IGNPAR, IGNPAR },
-	{ "-ignpar", IGNPAR, 0 },
-	{ "parmrk", PARMRK, PARMRK },
-	{ "-parmrk", PARMRK, 0 },
-	{ "inpck", INPCK, INPCK },
-	{ "-inpck", INPCK, 0 },
-	{ "istrip", ISTRIP, ISTRIP },
-	{ "-istrip", ISTRIP, 0 },
-	{ "inlcr", INLCR, INLCR },
-	{ "-inlcr", INLCR, 0 },
-	{ "igncr", IGNCR, IGNCR },
-	{ "-igncr", IGNCR, 0 },
-	{ "icrnl", ICRNL, ICRNL },
-	{ "-icrnl", ICRNL, 0 },
-	{ "iuclc", IUCLC, IUCLC },
-	{ "-iuclc", IUCLC, 0 },
-	{ "ixon", IXON, IXON },
-	{ "-ixon", IXON, 0 },
-	{ "ixany", IXANY, IXANY },
-	{ "-ixany", IXANY, 0 },
-	{ "ixoff", IXOFF, IXOFF },
-	{ "-ixoff", IXOFF, 0 },
-	{ "", 0, 0 }
-};
-FLAG_OPT o_list[] = {
-	{ "opost", OPOST, OPOST },
-	{ "-opost", OPOST, 0 },
-	{ "olcuc", OLCUC, OLCUC },
-	{ "-olcuc", OLCUC, 0 },
-	{ "onlcr", ONLCR, ONLCR },
-	{ "-onlcr", ONLCR, 0 },
-	{ "ocrnl", OCRNL, OCRNL },
-	{ "-ocrnl", OCRNL, 0 },
-	{ "onocr", ONOCR, ONOCR },
-	{ "-onocr", ONOCR, 0 },
-	{ "onlret", ONLRET, ONLRET },
-	{ "-onlret", ONLRET, 0 },
-	{ "ofill", OFILL, OFILL },
-	{ "-ofill", OFILL, 0 },
-	{ "ofdel", OFDEL, OFDEL },
-	{ "-ofdel", OFDEL, 0 },
-	{ "nl0", NLDLY, NL0 },
-	{ "nl1", NLDLY, NL1 },
-	{ "cr0", CRDLY, CR0 },
-	{ "cr1", CRDLY, CR1 },
-	{ "cr2", CRDLY, CR2 },
-	{ "cr3", CRDLY, CR3 },
-	{ "tab0", TABDLY, TAB0 },
-	{ "tab1", TABDLY, TAB1 },
-	{ "tab2", TABDLY, TAB2 },
-	{ "tab3", TABDLY, TAB3 },
-	{ "bs0", BSDLY, BS0 },
-	{ "bs1", BSDLY, BS1 },
-	{ "vt0", VTDLY, VT0 },
-	{ "vt1", VTDLY, VT1 },
-	{ "ff0", FFDLY, FF0 },
-	{ "ff1", FFDLY, FF1 },
-	{ "", 0, 0 }
-};
-FLAG_OPT c_list[] = {
-	{ "0", CBAUD, B0 },
-	{ "50", CBAUD, B50 },
-	{ "75", CBAUD, B75 },
-	{ "110", CBAUD, B110 },
-	{ "134", CBAUD, B134 },
-	{ "150", CBAUD, B150 },
-	{ "200", CBAUD, B200 },
-	{ "300", CBAUD, B300 },
-	{ "600", CBAUD, B600 },
-	{ "1200", CBAUD, B1200 },
-	{ "1800", CBAUD, B1800 },
-	{ "2400", CBAUD, B2400 },
-	{ "4800", CBAUD, B4800 },
-	{ "9600", CBAUD, B9600 },
-	{ "19200", CBAUD, B19200 },
-	{ "38400", CBAUD, B38400 },
-	{ "cs5", CSIZE, CS5 },
-	{ "cs6", CSIZE, CS6 },
-	{ "cs7", CSIZE, CS7 },
-	{ "cs8", CSIZE, CS8 },
-	{ "cstopb", CSTOPB, CSTOPB },
-	{ "-cstopb", CSTOPB, 0 },
-	{ "cread", CREAD, CREAD },
-	{ "-cread", CREAD, 0 },
-	{ "parenb", PARENB, PARENB },
-	{ "-parenb", PARENB, 0 },
-	{ "parodd", PARODD, PARODD },
-	{ "-parodd", PARODD, 0 },
-	{ "hupcl", HUPCL, HUPCL },
-	{ "-hupcl", HUPCL, 0 },
-	{ "hup", HUPCL, HUPCL },
-	{ "-hup", HUPCL, 0 },
-	{ "clocal", CLOCAL, CLOCAL },
-	{ "-clocal", CLOCAL, 0 },
-	{ "", 0, 0 }
-};
-FLAG_OPT l_list[] = {
-	{ "isig", ISIG, ISIG },
-	{ "-isig", ISIG, 0 },
-	{ "icanon", ICANON, ICANON },
-	{ "-icanon", ICANON, 0 },
-	{ "xcase", XCASE, XCASE },
-	{ "-xcase", XCASE, 0 },
-	{ "echo", ECHO, ECHO },
-	{ "-echo", ECHO, 0 },
-	{ "echoe", ECHOE, ECHOE },
-	{ "-echoe", ECHOE, 0 },
-	{ "echok", ECHOK, ECHOK },
-	{ "-echok", ECHOK, 0 },
-	{ "echonl", ECHONL, ECHONL },
-	{ "-echonl", ECHONL, 0 },
-	{ "noflsh", NOFLSH, NOFLSH },
-	{ "-noflsh", NOFLSH, 0 },
-	{ "", 0, 0 }
-};
-
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
-
-main(argc, argv, envp)
-int argc;
-char ** argv, ** envp;
-{
-	int	argn;
-	int	want_ch = -1;
-	int	want_num = -1;
-	int	want_line = 0;
-	unsigned int	line;
-	char	* arg;
-	int	speed;
-
-	g_argc = argc;
-	g_argv = argv;
-
-	if (ioctl(0, TCGETA, &t) == -1)
-		panic("can't get terminal parameters for stdin");
-	/*
-	 * Decide which format the command line is:
-	 *	stty
-	 *	stty -a
-	 *	stty -g
-	 *	stty x:x:...:x  (12 hex values with colon separators)
-	 *	stty arglist...
-	 */
-	if (argc == 1) {
-		dump_brief();
-		goto stty_done;
-	}
-	if (argc == 2) {
-		if (strcmp(argv[1], "-a") == 0) {
-			dump_all();
-			goto stty_done;
-		}
-		if (strcmp(argv[1], "-g") == 0) {
-			dump_hex();
-			goto stty_done;
-		}
-		if (index(argv[1], ':')) {
-			set_hex();
-			goto stty_done;
-		}
-	}
-	
-	/*
-	 * Process an argument list.
-	 * Possible argument formats are:
-	 *	nnnn		(decimal baud rate)
-	 *	line nnnn	(line discipline spec)
-	 *	{intr|quit|erase|kill|eof|eol} {c|^c|^?|^-|0xnn}
-	 *	{min|time} {nnn}
-	 *	simple_option
-	 *	combined_option
-	 */
-	for (argn = 1; argn < argc; argn++) {
-		arg = argv[argn];
-		if (want_ch >= 0) {
-			if (!set_ch(want_ch, arg))
-				fprintf(stderr,
-				  "stty: invalid option %s %s\n",
-				  argv[argn-1], arg);
-			want_ch = -1;
-			continue;
-		}
-		if (want_num >= 0) {
-			if (!set_num(want_num, arg))
-				fprintf(stderr,
-				  "stty: invalid option %s %s\n",
-				  argv[argn-1], arg);
-			want_num = -1;
-			continue;
-		}
-		if (want_line) {
-			if (sscanf(arg, "%d", &line) == 1 && line < 128)
-				t.c_line = line;
-			else
-				fprintf(stderr,
-				  "stty: invalid option line %s\n", arg);
-			want_line = 0;
-			continue;
-		}
-#if 0
-		if (sscanf(arg, "%d", &speed) == 1) {
-			if (!set_speed(speed))
-				fprintf(stderr,
-				  "stty: invalid speed %d\n", speed);
-			continue;
-		}
+struct	sopts {
+	char	*s_opt;
+	int	(*s_func)();	/* Function takes arg1 & arg2 */
+	char	*s_arg1;
+	int	s_arg2;
+	int	s_arg3;
+}	sopts[] = {
+	"flush", sflag, &scmd, TIOCSETP, 0,
+	"-flush", sflag, &scmd, TIOCSETN, 0,
+	"even", smode, NULL, EVENP, 0,
+	"-even", smode, NULL, 0, EVENP,
+	"odd", smode, NULL, ODDP, 0,
+	"-odd", smode, NULL, 0, ODDP,
+	"raw", smode, NULL, RAW, 0,
+	"-raw", smode, NULL, 0, RAW,
+	"cooked", smode, NULL, 0, RAW,
+	"rawin", smode, NULL, RAWIN, 0,
+	"-rawin", smode, NULL, 0, RAWIN,
+	"rawout", smode, NULL, RAWOUT, 0,
+	"-rawout", smode, NULL, 0, RAWOUT,
+	"cbreak", smode, NULL, CBREAK, 0,
+	"-cbreak", smode, NULL, 0, CBREAK,
+	"-nl", smode, NULL, CRMOD, 0,
+	"nl", smode, NULL, 0, CRMOD,
+	"echo", smode, NULL, ECHO, 0,
+	"-echo", smode, NULL, 0, ECHO,
+	"lcase", smode, NULL, LCASE, 0,
+	"-lcase", smode, NULL, 0, LCASE,
+	"-tabs", smode, NULL, XTABS, 0,
+	"tabs", smode, NULL, 0, XTABS,
+	"tandem", smode, NULL, TANDEM, 0,
+	"-tandem", smode, NULL, 0, TANDEM,
+	"crt", smode, NULL, CRT, 0,
+	"-crt", smode, NULL, 0, CRT,
+	"ek", sedit, NULL, '#', '@',
+#if DELAY
+	"cr0", smode, NULL, CR0, CRDELAY,
+	"cr1", smode, NULL, CR1, CRDELAY,
+	"cr2", smode, NULL, CR2, CRDELAY,
+	"cr3", smode, NULL, CR3, CRDELAY,
+	"nl0", smode, NULL, NL0, NLDELAY,
+	"nl1", smode, NULL, NL1, NLDELAY,
+	"nl2", smode, NULL, NL2, NLDELAY,
+	"nl3", smode, NULL, NL3, NLDELAY,
+	"ff0", smode, NULL, FF0, VTDELAY,
+	"ff1", smode, NULL, FF1, VTDELAY,
+	"bs0", smode, NULL, BS0, BSDELAY,
+	"bs1", smode, NULL, BS1, BSDELAY,
+	"tab0", smode, NULL, TAB0, TBDELAY,
+	"tab1", smode, NULL, TAB1, TBDELAY,
+	"tab2", smode, NULL, TAB2, TBDELAY,
+	"tab3", smode, NULL, TAB3, TBDELAY,
 #endif
-		if (strcmp(arg, "line") == 0) {
-			want_line = 1;
-			continue;
+	"0", sspeed, NULL, B0, B0,
+	"50", sspeed, NULL, B50, B50,
+	"75", sspeed, NULL, B75, B75,
+	"110", sspeed, NULL, B110, B110,
+	"134", sspeed, NULL, B134, B134,
+	"134.5", sspeed, NULL, B134, B134,
+	"150", sspeed, NULL, B150, B150,
+	"200", sspeed, NULL, B200, B200,
+	"300", sspeed, NULL, B300, B300,
+	"600", sspeed, NULL, B600, B600,
+	"1200", sspeed, NULL, B1200, B1200,
+	"1800", sspeed, NULL, B1800, B1800,
+	"2000", sspeed, NULL, B2000, B2000,
+	"2400", sspeed, NULL, B2400, B2400,
+	"3600", sspeed, NULL, B3600, B3600,
+	"4800", sspeed, NULL, B4800, B4800,
+	"7200", sspeed, NULL, B7200, B7200,
+	"9600", sspeed, NULL, B9600, B9600,
+	"19200", sspeed, NULL, B19200, B19200,
+	"exta", sspeed, NULL, EXTA, EXTA,
+	"extb", sspeed, NULL, EXTB, EXTB,
+	"hup", sflag, &hupflag, TIOCHPCL, 0,
+	"-hup", sflag, &hupflag, TIOCCHPCL, 0,
+	"excl", sflag, &exclflag, TIOCEXCL, 0,
+	"-excl", sflag, &exclflag, TIOCNXCL, 0,
+	"print", sflag, &printflag, 1, 0,
+	"erase", sedit, NULL, NEXT, 0,
+	"kill", sedit, NULL, 0, NEXT,
+	"start", stchars, &tchars.t_startc, 0, 0,
+	"stop", stchars, &tchars.t_stopc, 0, 0,
+	"eof", stchars, &tchars.t_eofc, 0, 0,
+	"break", stchars, &tchars.t_brkc, 0, 0,
+	"quit", stchars, &tchars.t_quitc, 0, 0,
+	"intr", stchars, &tchars.t_intrc, 0, 0,		/* compatibility */
+	"int", stchars, &tchars.t_intrc, 0, 0,
+	"sane", sane, NULL, 0, 0
+};
+
+/*
+ * Names of the speeds
+ */
+char	*speeds[] = {
+	"(hang up line)",
+	"50 baud",
+	"75 baud",
+	"110 baud",
+	"134.5 baud",
+	"150 baud",
+	"200 baud",
+	"300 baud",
+	"600 baud",
+	"1200 baud",
+	"1800 baud",
+	"2000 baud",
+	"2400 baud",
+	"3600 baud",
+	"4800 baud",
+	"7200 baud",
+	"9600 baud",
+	"19.2 Kbaud",
+	"exta",
+	"extb",
+};
+
+int	sgtflag;		/* Says need sgtty */
+int	tcflag;			/* Set terminal characters */
+int	ttyfd;			/* Fd for setting attributes */
+
+int	gargc;
+char	**gargv;
+char	*argv0;			/* For usage() */
+
+/*
+ * Main routine reads options and
+ * calls appropriate mode setting routines.
+ */
+main(argc, argv)
+char *argv[];
+{
+	char ttyname[40];
+	register struct sopts *sp;
+	register char *ap;
+
+	ttyfd = fileno(stdout);
+	gargc = argc;
+	gargv = argv;
+	argv0 = argv[0];
+	while (argc > 1)  {
+		if (argv[1][0] == '-')  {
+			if (argv[1][1] == 't')  {
+				sprintf(ttyname, "/dev/%s", &argv[1][2]);
+				if ((ttyfd = open(ttyname, 1)) >= 0) {
+					argv++;
+					gargv++;
+					argc--;
+					gargc--;
+				} else {
+					ttyfd = fileno(stdout);
+					argv++;
+					argc--;
+				}
+			} else if (argv[1][1] == 'a')  {
+				allflag = 1;
+				argv++;
+				gargv++;
+				argc--;
+				gargc--;
+			} else {
+				argv++;
+				argc--;
+			}
+		} else {
+			argv++;
+			argc--;
 		}
-		if ((want_ch = c_opt(arg)) >= 0)
-			continue;
-		if ((want_num = num_opt(arg)) >= 0)
-			continue;
-		if (simple(arg, i_list, &t.c_iflag))
-			continue;
-		if (simple(arg, o_list, &t.c_oflag))
-			continue;
-		if (simple(arg, c_list, &t.c_cflag))
-			continue;
-		if (simple(arg, l_list, &t.c_lflag))
-			continue;
-		if (combo(arg))
-			continue;
-		fprintf(stderr, "stty: invalid option %s\n", arg);
 	}
-	if (ioctl(0, TCSETA, &t) == -1)
-		panic("can't set terminal parameters");
-	if (want_ch >= 0 || want_line)
-		fprintf(stderr, "stty: incomplete option %s\n", argv[argn-1]);
-stty_done:
+	getmodes();
+	if (gargc <= 1)
+		prmodes();
+	else
+		while (gargc-- > 1) {
+			ap = *++gargv;
+			for (sp = sopts; sp < &sopts[NOPTS]; sp++)
+				if (strcmp(sp->s_opt, ap) == 0) {
+					(*sp->s_func)(sp->s_arg1, sp->s_arg2,
+						sp->s_arg3);
+					break;
+				}
+			if (sp == &sopts[NOPTS])
+				sterr("bad mode `%s'", ap);
+		}
+	setmodes();
+	if (printflag)
+		prmodes();
 	exit(0);
 }
 
 /*
- * dump_all()
- *
- * Display all termio settings.
+ * smode - sets mode part of TIOCSETP structure.
+ * First clears out bits in `reset' and then
+ * sets bits in `set'.
  */
-void
-dump_all()
+smode(junkp, set, reset)
+char *junkp;
+int set, reset;
 {
-	dump_iflag();
-	dump_oflag();
-	dump_cflag();
-	dump_lflag();
-	printf("line=%d\n", t.c_line);
-	dump_cc();
+	sgtflag = 1;
+	sgttyb.sg_flags &= ~reset;
+	sgttyb.sg_flags |= set;
 }
 
-void
-dump_iflag()
+/*
+ * Set input and output speeds into sgttyb.
+ */
+sspeed(junkp, ispeed, ospeed)
+char *junkp;
+int ispeed, ospeed;
 {
-	short f = t.c_iflag;
-
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&IGNBRK)?"ignbrk\t":"-ignbrk\t");
-	strcat(lbuf, (f&BRKINT)?"brkint\t":"-brkint\t");
-	strcat(lbuf, (f&IGNPAR)?"ignpar\t":"-ignpar\t");
-	strcat(lbuf, (f&PARMRK)?"parmrk\t":"-parmrk\t");
-	strcat(lbuf, (f&INPCK)?"inpck\t":"-inpck\t");
-	strcat(lbuf, (f&ISTRIP)?"istrip\t":"-istrip\t");
-	strcat(lbuf, (f&INLCR)?"inlcr\t":"-inlcr\t");
-	strcat(lbuf, (f&IGNCR)?"igncr\n":"-igncr\n");
-	fputs(lbuf, stdout);
-
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&ICRNL)?"icrnl\t":"-icrnl\t");
-	strcat(lbuf, (f&IUCLC)?"iuclc\t":"-iuclc\t");
-	strcat(lbuf, (f&IXON)?"ixon\t":"-ixon\t");
-	strcat(lbuf, (f&IXANY)?"ixany\t":"-ixany\t");
-	strcat(lbuf, (f&IXOFF)?"ixoff\n":"-ixoff\n");
-	fputs(lbuf, stdout);
+	sgtflag = 1;
+	sgttyb.sg_ispeed = ispeed;
+	sgttyb.sg_ospeed = ospeed;
 }
 
-void
-dump_oflag()
+/*
+ * Set up erase and kill line editing
+ * characters.
+ */
+sedit(junkp, erase, kill)
+char *junkp;
+int erase, kill;
 {
-	short f = t.c_oflag;
-
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&OPOST)?"opost\t":"-opost\t");
-	strcat(lbuf, (f&OLCUC)?"olcuc\t":"-olcuc\t");
-	strcat(lbuf, (f&ONLCR)?"onlcr\t":"-onlcr\t");
-	strcat(lbuf, (f&OCRNL)?"ocrnl\t":"-ocrnl\t");
-	strcat(lbuf, (f&ONOCR)?"onocr\t":"-onocr\t");
-	strcat(lbuf, (f&ONLRET)?"onlret\t":"-onlret\t");
-	strcat(lbuf, (f&OFILL)?"ofill\t":"-ofill\t");
-	strcat(lbuf, (f&OFDEL)?"ofdel\n":"-ofdel\n");
-	fputs(lbuf, stdout);
-
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&NLDLY)?"nl1\t":"nl0\t");
-	switch(f&CRDLY) {
-	case 0x0000:  strcat(lbuf, "cr0\t");  break;
-	case 0x0200:  strcat(lbuf, "cr1\t");  break;
-	case 0x0400:  strcat(lbuf, "cr2\t");  break;
-	case 0x0600:  strcat(lbuf, "cr3\t");  break;
-	}
-	switch(f&TABDLY) {
-	case 0x0000:  strcat(lbuf, "tab0\t");  break;
-	case 0x0800:  strcat(lbuf, "tab1\t");  break;
-	case 0x1000:  strcat(lbuf, "tab2\t");  break;
-	case 0x1800:  strcat(lbuf, "tab3\t");  break;
-	}
-	strcat(lbuf, (f&BSDLY)?"bs1\t":"bs0\t");
-	strcat(lbuf, (f&VTDLY)?"vt1\t":"vt0\t");
-	strcat(lbuf, (f&FFDLY)?"ff1\n":"ff0\n");
-	fputs(lbuf, stdout);
+	sgtflag = 1;
+	if (erase != 0)
+		if (erase == NEXT)
+			sgttyb.sg_erase = cget(); else
+			sgttyb.sg_erase = erase;
+	if (kill != 0)
+		if (kill == NEXT)
+			sgttyb.sg_kill = cget(); else
+			sgttyb.sg_kill = kill;
 }
 
-void
-dump_cflag()
+/*
+ * set a flag
+ * (e.g. hup, excl, flush)
+ */
+sflag(flagp, val, junk)
+int *flagp;
+int val, junk;
 {
-	short f = t.c_cflag;
-
-	lbuf[0] = '\0';
-	baudstr(f);
-	switch(f&CSIZE) {
-	case 0x0000:  strcat(lbuf, "cs5\t");  break;
-	case 0x0010:  strcat(lbuf, "cs6\t");  break;
-	case 0x0020:  strcat(lbuf, "cs7\t");  break;
-	case 0x0030:  strcat(lbuf, "cs8\t");  break;
-	}
-	strcat(lbuf, (f&CSTOPB)?"cstopb\t":"-cstopb\t");
-	strcat(lbuf, (f&CREAD)?"cread\t":"-cread\t");
-	strcat(lbuf, (f&PARENB)?"parenb\t":"-parenb\t");
-	strcat(lbuf, (f&PARODD)?"parodd\t":"-parodd\t");
-	strcat(lbuf, (f&HUPCL)?"hupcl\t":"-hupcl\t");
-	strcat(lbuf, (f&CLOCAL)?"clocal\n":"-clocal\n");
-	fputs(lbuf, stdout);
+	*flagp = val;
 }
 
-void
-dump_lflag()
+/*
+ * Set one of the terminal chars.
+ */
+/* ARGSUSED */
+stchars(cp, junk, morejunk)
+char *cp;
+int junk, morejunk;
 {
-	short f = t.c_lflag;
-
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&ISIG)?"isig\t":"-isig\t");
-	strcat(lbuf, (f&ICANON)?"icanon\t":"-icanon\t");
-	strcat(lbuf, (f&XCASE)?"xcase\t":"-xcase\t");
-	strcat(lbuf, (f&ECHO)?"echo\t":"-echo\t");
-	strcat(lbuf, (f&ECHOE)?"echoe\t":"-echoe\t");
-	strcat(lbuf, (f&ECHOK)?"echok\t":"-echok\t");
-	strcat(lbuf, (f&ECHONL)?"echonl\t":"-echonl\t");
-	strcat(lbuf, (f&NOFLSH)?"noflsh\n":"-noflsh\n");
-	fputs(lbuf, stdout);
+	tcflag = 1;
+	*cp = cget();
 }
 
-void
-dump_cc()
+/*
+ * Print out the attributes
+ * of the terminal.
+ */
+prmodes()
 {
-	dump_ch("intr", t.c_cc[VINTR]);
-	dump_ch("quit", t.c_cc[VQUIT]);
-	dump_ch("erase", t.c_cc[VERASE]);
-	dump_ch("kill", t.c_cc[VKILL]);
-	if (t.c_lflag & ICANON) {
-		dump_ch("eof", t.c_cc[VEOF]);
-		dump_ch("eol", t.c_cc[VEOL]);
-		dump_ch("eol2", t.c_cc[VEOL2]);
-	} else {
-		printf("min=%d  time=%d  ", t.c_cc[VMIN], t.c_cc[VTIME]);
-		dump_ch("swtch", t.c_cc[VSWTCH]);
-	}
-	putchar('\n');
-}
-
-void
-dump_ch(tag, ch)
-char	* tag;
-unsigned char	ch;
-{
-	if (ch == '\0')
-		printf("%s=<undef>  ", tag);
-	else if (ch < 0x20)
-		printf("%s=^%c  ", tag, ch|0x60);
-#if 0
-	else if (ch > 0x7f)
-		printf("%s=%x  ", tag, ch);
-#endif
-	else if (ch != 0x7f)
-		printf("%s=%c  ", tag, ch);
+	prchar("Erase = ", sgttyb.sg_erase);
+	prchar(", kill = ", sgttyb.sg_kill);
+	putc('\n', stderr);
+	prchar("Interrupt = ", tchars.t_intrc);
+	prchar(", quit = ", tchars.t_quitc);
+	prchar(", break = ", tchars.t_brkc);
+	putc('\n', stderr);
+	prchar("Start = ", tchars.t_startc);
+	prchar(", stop = ", tchars.t_stopc);
+	prchar(", eof = ", tchars.t_eofc);
+	putc('\n', stderr);
+	if (sgttyb.sg_ispeed == sgttyb.sg_ospeed)
+		fprintf(stderr, "Speed: %s\n", speeds[sgttyb.sg_ispeed]);
 	else
-		printf("%s=DEL  ", tag);
-}
-
-/*
- * dump_brief()
- *
- * Display names for selected settings.
- */
-void
-dump_brief()
-{
-	short f;
-
-	f = t.c_iflag;
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&BRKINT)?"brkint\t":"-brkint\t");
-	strcat(lbuf, (f&INPCK)?"inpck\t":"-inpck\t");
-	strcat(lbuf, (f&ICRNL)?"icrnl\t":"-icrnl\t");
-
-	f = t.c_oflag;
-	strcat(lbuf, (f&OPOST)?"opost\t":"-opost\t");
-	strcat(lbuf, (f&ONLCR)?"onlcr\t":"-onlcr\t");
-	switch(f&TABDLY) {
-	case 0x0000:  strcat(lbuf, "tab0\n");  break;
-	case 0x0800:  strcat(lbuf, "tab1\n");  break;
-	case 0x1000:  strcat(lbuf, "tab2\n");  break;
-	case 0x1800:  strcat(lbuf, "tab3\n");  break;
+		fprintf(stderr, "Speed: %s (in), %s (out)\n",
+			speeds[sgttyb.sg_ispeed],
+			speeds[sgttyb.sg_ospeed]);
+	fprintf(stderr, "Modes:");
+	prflag(EVENP, "even", NULL);
+	prflag(ODDP, "odd", NULL);
+	prdelay(RAW, "rawin", "rawout", "raw");
+	if (allflag) {
+		prflag(CRMOD, "-nl", "nl");
+		prflag(ECHO, "echo", "-echo");
+		prflag(LCASE, "lcase", "-lcase");
+		prflag(CBREAK, "cbreak", "-cbreak");
+		prflag(TANDEM, "tandem", "-tandem");
+		prflag(CRT, "crt", "-crt");
+/* The following code gives misinformation.  Removed 91/11/17 - hws */
+#if 0
+		if (exclflag)
+			fprintf(stderr, " excl");
+		else
+			fprintf(stderr, " -excl");
+		if (hupflag)
+			fprintf(stderr, " hup");
+		else
+			fprintf(stderr, " -hup");
+#endif
+	} else {
+		prflag(CRMOD, NULL, "nl");
+		prflag(ECHO, "echo", NULL);
+		prflag(LCASE, "lcase", NULL);
+		prflag(CBREAK, "cbreak", NULL);
+		prflag(TANDEM, "tandem", NULL);
+		prflag(CRT, "crt", NULL);
 	}
-	fputs(lbuf, stdout);
-
-
-	f = t.c_cflag;
-	lbuf[0] = '\0';
-	baudstr(f);
-	strcat(lbuf, (f&PARENB)?"parenb\t":"-parenb\t");
-	strcat(lbuf, (f&PARODD)?"parodd\t":"-parodd\t");
-	strcat(lbuf, (f&HUPCL)?"hupcl\n":"-hupcl\n");
-	fputs(lbuf, stdout);
-
-	f = t.c_lflag;
-	lbuf[0] = '\0';
-	strcat(lbuf, (f&ICANON)?"icanon\t":"-icanon\t");
-	strcat(lbuf, (f&ECHO)?"echo\t":"-echo\t");
-	strcat(lbuf, (f&ECHOE)?"echoe\t":"-echoe\t");
-	strcat(lbuf, (f&ECHOK)?"echok\n":"-echok\n");
-	fputs(lbuf, stdout);
-
-	dump_ch("intr", t.c_cc[VINTR]);
-	dump_ch("quit", t.c_cc[VQUIT]);
-	dump_ch("erase", t.c_cc[VERASE]);
-	dump_ch("kill", t.c_cc[VKILL]);
-	putchar('\n');
+	/* Delays not supported but should be included here */
+	prflag(XTABS, "-tabs", "tabs");
+	putc('\n', stderr);
 }
 
 /*
- * set_hex()
- *
- * Copy sequence of 12 hex input values to termio struct
- * and send to device.
+ * Print out a single flag
  */
-void
-set_hex()
+prflag(mask, ons, offs)
+int mask;
+char *ons, *offs;
 {
-	int j[12];	/* need int size for %x input */
-
-	/*
-	 * Arg must be 12 hex numbers separated by colons.
-	 */
-	t.c_line = 0;
-	if (12 == sscanf(g_argv[1],
-	  "%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x",
-	  j,j+1,j+2,j+3,j+4,j+5,
-	  j+6,j+7,j+8,j+9,j+10,j+11)) { t.c_iflag = j[0];
-		t.c_oflag = j[1];
-		t.c_cflag = j[2];
-		t.c_lflag = j[3];
-		t.c_cc[0] = j[4];
-		t.c_cc[1] = j[5];
-		t.c_cc[2] = j[6];
-		t.c_cc[3] = j[7];
-		t.c_cc[4] = j[8];
-		t.c_cc[5] = j[9];
-		t.c_cc[6] = j[10];
-		t.c_cc[7] = j[11];
-		if (ioctl(0, TCSETA, &t) == -1)
-			panic("can't set terminal parameters");
+	if (sgttyb.sg_flags & mask) {
+		if (ons != NULL)
+			fprintf(stderr, " %s", ons);
 	} else
-		panic("bad argument - expected 12 hex values");
+		if (offs != NULL)
+			fprintf(stderr, " %s", offs);
 }
 
 /*
- * dump_hex()
- *
- * Dump hex contents of termio struct "t" to stdout.
+ * Print out a 4-value delay-type (or raw)
+ * flag.
  */
-void
-dump_hex()
+prdelay(mask, s1, s2, s3)
+register int mask;
+char *s1, *s2, *s3;
 {
-	printf("%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x\n",
-	  t.c_iflag, t.c_oflag, t.c_cflag, t.c_lflag,
-	  t.c_cc[0], t.c_cc[1], t.c_cc[2], t.c_cc[3],
-	  t.c_cc[4], t.c_cc[5], t.c_cc[6], t.c_cc[7]);
+	register int t;
+	register int mode;
+	register char *s = NULL;
+
+	mode = sgttyb.sg_flags;
+	while ((mask & 01) == 0) {
+		mask >>= 1;
+		mode >>= 1;
+	}
+	t = mode&mask;
+	if (t == 1)
+		s = s1;
+	else if (t == 2)
+		s = s2;
+	else if (t == 3)
+		s = s3;
+	if (s != NULL)
+		fprintf(stderr, " %s", s);
 }
 
 /*
- * panic()
- *
- * Display fatal error message and quit.
+ * Print out a character taking into
+ * account special characters.
  */
-void
-panic(s)
-char * s;
+prchar(s, c)
+char *s;
+register unsigned char c;
 {
-	fprintf(stderr, "stty: %s\n", s);
+	fprintf(stderr, "%s", s);
+	if (c == -1)
+		fprintf(stderr, "off");
+	else if (c == DEL)
+		fprintf(stderr, "DEL");
+	else if (c < ' ')
+		fprintf(stderr, "ctrl-%c", c+'A'-1);
+	else if (c > DEL)
+		fprintf(stderr, "'\\%3o'", c&0377);
+	else
+		fprintf(stderr, "'%c'", c);
+}
+
+/*
+ * Get the modes and tchars value.
+ */
+getmodes()
+{
+	if (ioctl(ttyfd, TIOCGETC, &tchars) < 0
+	 || ioctl(ttyfd, TIOCGETP, &sgttyb) < 0)
+		sterr("not a terminal");
+}
+
+/*
+ * Set the modes as appropriate
+ * for the commands given.
+ */
+setmodes()
+{
+	if (sgtflag)
+		ioctl(ttyfd, scmd, &sgttyb);
+	if (tcflag)
+		ioctl(ttyfd, TIOCSETC, &tchars);
+	if (hupflag)
+		ioctl(ttyfd, hupflag, 0);
+	if (exclflag)
+		ioctl(ttyfd, exclflag, 0);
+}
+
+/*
+ * Get another character from
+ * the command line (e.g. stty erase x)
+ */
+cget()
+{
+	register char *ap;
+
+	if (gargc < 2)
+		usage();
+	ap = gargv[1];
+	gargv++;
+	gargc--;
+	if (strcmp(ap, "off") == 0)
+		return (NONE);
+	if (strcmp(ap, "DEL") == 0)
+		return (DEL);
+	if (strncmp(ap, "ctrl-", 5)==0 && ap[5]!='\0' && ap[6]=='\0')
+		return (ap[5]&~0140);
+	if (*ap=='\\' && ap[1]>='0' && ap[1]<='7') {
+		register char *cp;
+		register int n;
+
+		n = 0;
+		cp = ap+1;
+		while (*cp>='0' && *cp<='7')
+			n = n*8 + *cp++-'0';
+		if (*cp == '\0')
+			return (n);
+	}
+	if (*ap=='^' && ap[1]!='\0') {
+		if (ap[2]=='\0' && ap[1]&0100)
+			return (ap[1]&~0140);
+	} else if (*ap!='\0' && ap[1]=='\0')
+		return (*ap);
+	sterr("Badly-formed character `%s'", ap);
+}
+
+/*
+ * Print out usage message
+ */
+usage()
+{
+	fprintf(stderr, "Usage: %s [-a] [-tttyname] [modes|speeds|chars|]\n",
+		argv0);
 	exit(1);
 }
 
 /*
- * baudstr()
- *
- * Append to lbuf the ASCII text for a given baud rate in f.
+ * Error messages with exit from stty.
  */
-void
-baudstr(f)
-int f;
+/* VARARGS */
+sterr(x)
 {
-	switch(f&CBAUD) {
-	case B0:  strcat(lbuf, "0\t");  break;
-	case B50:  strcat(lbuf, "50\t");  break;
-	case B75:  strcat(lbuf, "75\t");  break;
-	case B110:  strcat(lbuf, "110\t");  break;
-	case B134:  strcat(lbuf, "134\t");  break;
-	case B150:  strcat(lbuf, "150\t");  break;
-	case B200:  strcat(lbuf, "200\t");  break;
-	case B300:  strcat(lbuf, "300\t");  break;
-	case B600:  strcat(lbuf, "600\t");  break;
-	case B1200:  strcat(lbuf, "1200\t");  break;
-	case B1800:  strcat(lbuf, "1800\t");  break;
-	case B2400:  strcat(lbuf, "2400\t");  break;
-	case B4800:  strcat(lbuf, "4800\t");  break;
-	case B9600:  strcat(lbuf, "9600\t");  break;
-	case B19200:  strcat(lbuf, "19200\t");  break;
-	case B38400:  strcat(lbuf, "38400\t");  break;
-	}
-}
-
-int
-simple(opt, list, flagp)
-char		* opt;
-FLAG_OPT	* list;
-short		* flagp;
-{
-	int	ret = 0;
-	int	i;
-
-	for (i = 0; list[i].optname[0] && !ret; i++) {
-		if (strcmp(opt, list[i].optname) == 0) {
-			*flagp &= ~(list[i].mask);
-			*flagp |= list[i].val;
-			ret = 1;
-		}
-	}
-	return ret;
-}
-
-int
-combo(opt)
-char * opt;
-{
-	int	ret = 1;
-
-	if (strcmp(opt, "sane") == 0) {
-		simple("icrnl", c_list, &t.c_iflag);
-		simple("opost", o_list, &t.c_oflag);
-		simple("onlcr", o_list, &t.c_oflag);
-		simple("isig", l_list, &t.c_lflag);
-		simple("icanon", l_list, &t.c_lflag);
-		simple("-xcase", l_list, &t.c_lflag);
-		simple("echo", l_list, &t.c_lflag);
-		simple("echoe", l_list, &t.c_lflag);
-		simple("echok", l_list, &t.c_lflag);
-		t.c_cc[VERASE] = '\b';
-		goto combo_done;
-	}
-	if (strcmp(opt, "evenp") == 0) {
-		simple("parenb", c_list, &t.c_cflag);
-		simple("-parodd", c_list, &t.c_cflag);
-		simple("cs7", c_list, &t.c_cflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "parity") == 0) {
-		combo("evenp");
-		goto combo_done;
-	}
-	if (strcmp(opt, "oddp") == 0) {
-		simple("parenb", c_list, &t.c_cflag);
-		simple("parodd", c_list, &t.c_cflag);
-		simple("cs7", c_list, &t.c_cflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "-parity") == 0) {
-		simple("-parenb", c_list, &t.c_cflag);
-		simple("cs8", c_list, &t.c_cflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "-evenp") == 0) {
-		simple("-parenb", c_list, &t.c_cflag);
-		simple("cs8", c_list, &t.c_cflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "-oddp") == 0) {
-		simple("-parenb", c_list, &t.c_cflag);
-		simple("cs8", c_list, &t.c_cflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "raw") == 0) {
-		t.c_iflag = 0;
-		t.c_oflag &= ~OPOST;
-		t.c_cflag &= ~(PARODD|PARENB);
-		t.c_cflag |= (CS8|CREAD);
-		t.c_lflag &= ~(ECHONL|ISIG|ICANON|XCASE);
-		goto combo_done;
-	}
-	if (strcmp(opt, "-raw") == 0) {
-		t.c_iflag |= BRKINT|IGNPAR|ISTRIP|ICRNL|IXON;
-		t.c_oflag |= OPOST|ONLCR;
-		t.c_cflag |= (PARENB|CS7|CREAD);
-		t.c_iflag |= ISIG|ICANON;
-		goto combo_done;
-	}
-	if (strcmp(opt, "cooked") == 0) {
-		combo("-raw");
-		goto combo_done;
-	}
-	if (strcmp(opt, "nl") == 0) {
-		simple("-icrnl", i_list, &t.c_iflag);
-		simple("-onlcr", o_list, &t.c_oflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "-nl") == 0) {
-		simple("icrnl", i_list, &t.c_iflag);
-		simple("-inlcr", i_list, &t.c_iflag);
-		simple("-igncr", i_list, &t.c_iflag);
-		simple("onlcr", o_list, &t.c_oflag);
-		simple("-ocrnl", o_list, &t.c_oflag);
-		simple("-onlret", o_list, &t.c_oflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "lcase") == 0) {
-		t.c_lflag |= XCASE;
-		t.c_iflag |= IUCLC;
-		t.c_oflag |= OLCUC;
-		goto combo_done;
-	}
-	if (strcmp(opt, "-lcase") == 0) {
-		t.c_lflag &= ~XCASE;
-		t.c_iflag &= ~IUCLC;
-		t.c_oflag &= ~OLCUC;
-		goto combo_done;
-	}
-	if (strcmp(opt, "LCASE") == 0) {
-		combo("lcase");
-		goto combo_done;
-	}
-	if (strcmp(opt, "-LCASE") == 0) {
-		combo("-lcase");
-		goto combo_done;
-	}
-	if (strcmp(opt, "tabs") == 0) {
-		simple("tab0", o_list, &t.c_oflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "-tabs") == 0) {
-		simple("tab3", o_list, &t.c_oflag);
-		goto combo_done;
-	}
-	if (strcmp(opt, "ek") == 0) {
-		t.c_cc[VERASE] = '#';
-		t.c_cc[VKILL] = '@';
-		goto combo_done;
-	}
-
-	ret = 0;
-combo_done:
-	return ret;
+	if (isatty(fileno(stdout)))
+		fprintf(stderr, "stty: ");
+	fprintf(stderr, "%r", &x);
+	fprintf(stderr, "\n");
+	exit (1);
 }
 
 /*
- * See if current argument specifies a character option.
- * If so, return the index into the c_cc array.
- * Else, return -1.
+ * Set terminal parameters to something reasonable.
  */
-int
-c_opt(opt)
-char * opt;
+sane()
 {
-	int	ret = -1;
-	int	i;
-	static struct {
-		char	name[NAMELN];
-		int	index;
-	} vlist[] = {
-		{ "intr",	0},
-		{ "quit",	1},
-		{ "erase",	2},
-		{ "kill",	3},
-		{ "eof",	4},
-		{ "eol",	5},
-	};
-
-	for (i = 0; i < sizeof(vlist)/sizeof(vlist[0]); i++) {
-		if (strcmp(opt, vlist[i].name) == 0) {
-			ret = vlist[i].index;
-			break;
-		}
-	}
-	return ret;
+	sgtflag = 1;
+	sgttyb.sg_flags &= ~(RAW | CBREAK);	/* cooked -cbreak */
+	sgttyb.sg_flags |= (CRMOD | ECHO);	/* -nl echo */
 }
-
-/*
- * See if current argument specifies a numeric option.
- * If so, return the index into the c_cc array.
- * Else, return -1.
- */
-int
-num_opt(opt)
-char * opt;
-{
-	int	ret = -1;
-	int	i;
-	static struct {
-		char	name[NAMELN];
-		int	index;
-	} vlist[] = {
-		{ "min",	4},
-		{ "time",	5}
-	};
-
-	for (i = 0; i < sizeof(vlist)/sizeof(vlist[0]); i++) {
-		if (strcmp(opt, vlist[i].name) == 0) {
-			ret = vlist[i].index;
-			break;
-		}
-	}
-	return ret;
-}
-
-/*
- * set_ch()
- *
- * Given index into c_cc[] array in termio and an argument string,
- * decode the string and store into specified array element.
- *
- * Return 1 if argument passed can be decoded, else return 0.
- * Valid argument strings are "0xnn", "c", "^c", "^?" denoting DEL,
- * and "^-" denoting NUL, which means unused.
- */
-int
-set_ch(want_ch, arg)
-int	want_ch;
-char	* arg;
-{
-	int	ret = 0;
-	unsigned int n;
-
-	if (strlen(arg) == 1) {
-		n = arg[0];
-		ret = 1;
-		goto set_ch_end;
-	}
-	if (strlen(arg) == 2 && arg[0] == '^') {
-		if (arg[1] == '?')
-			n = DEL;
-		else if (arg[1] == '-')
-			n = NUL;
-		else
-			n = arg[1] & ~0x60;
-		ret = 1;
-		goto set_ch_end;
-	}
-	if (strncmp(arg, "0x", 2) == 0  && sscanf(arg+2, "%x", &n) == 1) {
-		ret = 1;
-		goto set_ch_end;
-	}
-set_ch_end:
-	if (ret)
-		t.c_cc[want_ch] = n;
-	return ret;
-}
-
-/*
- * set_num()
- *
- * Given index into c_cc[] array in termio and an argument string,
- * decode the string and store into specified array element.
- *
- * Return 1 if argument passed can be decoded, else return 0.
- * Valid argument strings are "nnn", a decimal value.
- */
-int
-set_num(want_num, arg)
-int	want_num;
-char	* arg;
-{
-	int	ret = 0;
-	unsigned int n;
-
-	if (sscanf(arg, "%d", &n) == 1) {
-		ret = 1;
-		t.c_cc[want_num] = n;
-	}
-	return ret;
-}
-
-#if 0
-/*
- * set_speed()
- *
- * Given baud rate, set speed in termio struct.
- * Return 1 if valid baud rate, else return 0.
- */
-int
-set_speed(rate)
-int rate;
-{
-	int	ret = 1;
-	int	x;
-
-	switch (rate) {
-	case 0:  x = B0;  break;
-	case 50:  x = B50;  break;
-	case 75:  x = B75;  break;
-	case 110:  x = B110;  break;
-	case 134:  x = B134;  break;
-	case 150:  x = B150;  break;
-	case 200:  x = B200;  break;
-	case 300:  x = B300;  break;
-	case 600:  x = B600;  break;
-	case 1200:  x = B1200;  break;
-	case 1800:  x = B1800;  break;
-	case 2400:  x = B2400;  break;
-	case 4800:  x = B4800;  break;
-	case 9600:  x = B9600;  break;
-	case 19200:  x = B19200;  break;
-	case 38400:  x = B38400;  break;
-	default:  ret = 0;
-	}
-	if (ret) {
-		t.c_cflag &= ~CBAUD;
-		t.c_cflag |= x;
-	}
-	return ret;
-}
-#endif

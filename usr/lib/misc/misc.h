@@ -10,18 +10,24 @@
 #define ENDOF(x) (((char *)(x))+sizeof(x)) /* end of some thing */
 #define SETIN(a, b) !((a) & ~(b))	/* a in b */
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <time.h>
+#ifdef M68000
+#define ptrdiff(a, b) ((long)a - (long)b)
+#else
+#ifdef LARGE
+#define ptrdiff(a, b) (((((long)a>>16)-((long)b>>16))<<4)+((int)a-(int)b))
+#else
+#define ptrdiff(a, b) ((int)a - (int)b)
+#endif
+#endif
 
-extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
+#include <stdio.h>
+extern fatal();		/* like fprintf(stderr, ...); exit(0); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);
 			 * gets lines off a file treats # to end of line
 			 * as comment, discards \ [ \t\n] through end of
 			 * line to create continuations. */
 extern usage();		/* like fatal but message starts usage: */
 extern FILE *xopen();	/* xopen(filename, access); fopen or die */
-extern char *basename(); /* return the last filename on a path */
 extern char *pathn();	/* pathn("helpfile", "LIBPATH", ",,\lib", "r");
 			 * gets full pathname given an filename
 			 * env var with path, default path and access rights */
@@ -35,10 +41,6 @@ extern int yn();	/* like printf(msg, ...) returns yes=1 or no=0 reply */
 extern char *alloc();	/* get space or die */
 extern void banner();	/* banner("Done", 3) prints a banner saying
 			 * Done with 3 spaces infront. */
-extern int copyd();	/* copyd(FILE *outfile, FILE *infile, long length)
-			 * Copys infile to outfile for length efficiently.
-			 * on failure copys all it can read and returns 0.
-			 * returns 1 on success */
 extern strcmpl();	/* case insensative strcmp() */
 extern char *lcase();	/* convert string to lower case */
 extern char *ucase();	/* convert string to upper case */
@@ -60,9 +62,7 @@ extern char * span();	/* span(s1, matcher, fin)
 extern char * skip();	/* skip(s1, matcher, fin)
 			 * matches all chars not passing function
 			 * matcher. Looks like match. */
-extern void tocont();	/* Enter NL to continue */
 extern approx();	/* approx(double a, double b) 1 if == within epsilon */
-extern if_COHERENT();	/* returns 1 if Coherent else 0 */
 extern double epsilon;
 extern int is_fs();	/* is_fs(char *special) test if special is filesystem */
 extern void vinit();	/* vinit(char * workFileName, unsigned storAmt);
@@ -83,22 +83,6 @@ extern strchrtr();
 			 * Find c in from and return the corresponding char
 			 * in to or def if there is none.
 			 */
-char *kernelName();	/* return name of current kernel file */
-/*
- * Julian day structure consists of the days and seconds since
- * Greenwich mean noon of January 1st 4713 BC.
- * COHERENT time_t is a variation of Julian time:
- * it counts seconds from Julian day 2,440,587.5 (January 1, 1970).
- */
-typedef struct tm tm_t;
-typedef struct { long j_d, j_s; } jday_t;
-#define COHEPOCH 2440587L		/* Julian day 1969.12.31 12h00m00s */
-
-jday_t time_to_jday();			/* COHERENT time into Julian date */
-time_t jday_to_time();			/* Julian date to COHERENT time */
-jday_t tm_to_jday();			/* tm structure into Julian date */
-tm_t  *jday_to_tm();			/* Julian date into tm_t structure */
-
 /*
  * Definitions etc. for regexp(3) routines.
  *

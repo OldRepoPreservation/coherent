@@ -3,9 +3,6 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-/*
- * $Log$
- */
 /**
  *
  * fdisk( dev, fp )	--	Fixed Disk Configuration
@@ -24,13 +21,13 @@
  *		0 = failure (could not read block, or bad signature)
  */
 
-#include <coherent.h>
-#include <uproc.h>
+#include <sys/coherent.h>
+#include <sys/uproc.h>
 #include <errno.h>
-#include <inode.h>
+#include <sys/inode.h>
 #include <sys/fdisk.h>
-#include <buf.h>
-#include <con.h>
+#include <sys/buf.h>
+#include <sys/con.h>
 
 fdisk( dev, fp )
 dev_t dev;
@@ -40,9 +37,8 @@ register struct fdisk_s *fp;
 	BUF *bp;
 	int s, i;
 	int ret = 0;
-int erf = -1;
 
-printf("fdisk(): special dev open\n");
+	s = sphi( );
 	dopen( dev, IPR, DFBLK );
 
 	if ( u.u_error == 0 ) {		/* special device now open */
@@ -54,17 +50,15 @@ printf("fdisk(): special dev open\n");
 
 			if ( hp->hd_sig == HDSIG ) {	/* valid data */
 
-			} else {
-printf("fdisk(): sig=%x, want=%x\n", hp->hd_sig, HDSIG);
 				for (i=0; i < NPARTN; ++i)
 					*fp++ = hp->hd_partn[i];
-		} else {
-printf("fdisk(): bread failed\n");
 
 				ret   = 1;
-	} else {
-printf("fdisk(): special dev not open\n");
 			}
-else erf=1;
-	devmsg(dev, "fdisk: open failed");
-	break;
+			brelease( bp );
+		}
+		dclose( dev );
+	}
+	spl( s );
+	return ret;
+}

@@ -16,10 +16,18 @@ LEX=lex
 YACCFLAGS=
 LEXFLAGS=
 CFLAGS=-O -I..
+PROGS=uucp.perms checkperms
 #
-checkperms:	$(OBJS)
+all:	$(PROGS)
+	>done!
+
+checkperms:	$(OBJS) uucp.perms
 	$(CC) -o $(DESTDIR)checkperms $(CFLAGS) $(OBJS) $(LIBS)
 	su root chmog 511 bin bin $(DESTDIR)$@
+
+uucp.perms:	uucp.perms
+		co $@ ; mv $@ $(DESTDIR)
+		su root chmog 444 bin bin $(DESTDIR)$@
 
 y.tab.o:	checkperms.y
 	$(YACC) $(YACCFLAGS) checkperms.y
@@ -37,7 +45,6 @@ copyright.o: ../copyright.c
 
 install:
 	cp -d checkperms $(BIN)/uucheckperms
-	cp -d uucp.perms $(LIB)
 	chown bin $(BIN)/uucheckperms $(LIB)/uucp.perms
 	chgrp bin $(BIN)/uucheckperms $(LIB)/uucp.perms
 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/fs2.c,v 1.1 88/03/24 16:13:51 src Exp $ */
+/* $Header: /newbits/286_KERNEL/USRSRC/coh/RCS/fs2.c,v 1.1 92/01/09 13:28:39 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Filesystem (disk inodes).
  *
- * $Log:	/usr/src/sys/coh/RCS/fs2.c,v $
+ * $Log:	fs2.c,v $
+ * Revision 1.1  92/01/09  13:28:39  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:13:51	src
  * Initial revision
  * 

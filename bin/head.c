@@ -1,8 +1,8 @@
 static char Copyright[] =	"$Copyright: (c) 1984, INETCO Systems, Ltd.$";
 static char Release[] =		"$Release: INETCO COHERENT V8.0$";
-static char Date[] =		"$Date: 89/04/03 13:06:08 $";
+static char Date[] =		"$Date: 91/02/12 10:26:13 $";
 
-/* $Header: /usr/src/cmd/cmd.am/RCS/head.c,v 1.1 89/04/03 13:06:08 src Exp $
+/* $Header: /newbits/bin/head.c,v 1.1 91/02/12 10:26:13 bin Exp $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -32,7 +32,10 @@ static char Date[] =		"$Date: 89/04/03 13:06:08 $";
  * In any case, head copys from the start of the file up to, and
  * includeing, the specified point onto the standard output.
  *
- * $Log:	/usr/src/cmd/cmd.am/RCS/head.c,v $
+ * $Log:	/newbits/bin/head.c,v $
+ * Revision 1.1	91/02/12  10:26:13 	bin
+ * Initial revision
+ * 
  * Revision 1.1	89/04/03  13:06:08 	src
  * Initial revision
  * 

@@ -1,6 +1,6 @@
-/* $Source: /newbits/usr/bin/pax/shipping/pax.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/RCS/pax.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * DESCRIPTION
  *
@@ -48,7 +48,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/newbits/usr/bin/pax/shipping/pax.c,v $
+ * $Log:	pax.c,v $
+ * Revision 1.2  92/06/11  07:51:11  bin
+ * vlad: added recognition of ustar AND tar
+ * 
  * Revision 1.1	91/02/05  11:58:29 	bin
  * Initial revision
  * 
@@ -61,7 +64,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: pax.c,v 1.2 89/02/12 10:05:17 mark Exp $";
+static char *ident = "$Id: pax.c,v 1.2 92/06/11 07:51:11 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

@@ -4,7 +4,7 @@
  */
 
 #include <stdio.h>
-#include <types.h>
+#include <sys/types.h>
 
 char	entdiff[] = "Please enter a string of %d digits, all different\n";
 

@@ -3,6 +3,8 @@
 # Objects.
 DESTDIR=/interim/etc/
 DESTDIR2=/interim/
+DESTDIR386=/bin386/etc/
+
 O=\
 	build.o \
 	build0.o \
@@ -55,7 +57,7 @@ kbdinstall:	kbdinstall.o
 mkdev:	mkdev.o build0.o
 	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 mkserial:	mkserial.o numtab.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+	$(CC) $(LFLAGS) -o $@ $<
 
 # Unlinked objects.
 build.o:	build.c build0.h serialno.h

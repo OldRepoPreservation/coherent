@@ -42,9 +42,7 @@ char	*sys_errlist[] = {
 	"driver not loaded",
 	"bad exec format",
 	"device needs attention",
-	"device busy",
-	"deadlock",
-	"no lock available"
+	"device busy"
 };
 
 int	sys_nerr = sizeof (sys_errlist)/sizeof (sys_errlist[0]);

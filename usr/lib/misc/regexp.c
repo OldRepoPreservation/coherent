@@ -25,7 +25,7 @@
  * regular-expression syntax might require a total rethink.
  */
 #include <stdio.h>
-#include "local_misc.h"
+#include "misc.h"
 
 /*
  * The "internal use only" fields in regexp.h are present to pass info from

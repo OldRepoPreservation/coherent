@@ -1,5 +1,4 @@
 /*
- * /usr/src/libc/gen/strtod.c
  * C general utilities library.
  * strtod()
  * ANSI 4.10.1.4.
@@ -12,20 +11,18 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
-#include <float.h>
 #include <math.h>
 
 #if	__STDC__
+#include <float.h>
 #include <locale.h>
 #else
 #define	_decimal_point	'.'
+#define	DBL_MIN_10_EXP	-37		/* DECVAX fp */
+#define	DBL_MAX_10_EXP	38
 #endif
 
-#if	_DECVAX
 #define	DBL_EXP_10_DIG	2		/* max dec digits in legal DECVAX exponent */
-#elif	_IEEE
-#define	DBL_EXP_10_DIG	3		/* max dec digits in legal IEEE exponent */
-#endif
 
 /* Flag bits. */
 #define	NEG	1			/* negative significand */
@@ -62,9 +59,8 @@ strtod(nptr, endptr) char *nptr; char **endptr;
 		c = *cp++;
 	}
 
-	/* Next character must be decimal digit or '.' followed by decimal digit. */
-	if (!isdigit(c)
-	 && (c != _decimal_point || (c == _decimal_point && !isdigit(*cp)))) {
+	/* Next character must be decimal digit. */
+	if (!isdigit(c)) {
 		cp = nptr;
 		goto done;
 	}
@@ -77,18 +73,6 @@ strtod(nptr, endptr) char *nptr; char **endptr;
 	for (; ; c = *cp++) {
 		if (isdigit(c)) {
 			c -= '0';
-			if (c == 0 && (flag & DOT)) {
-				/* Check for trailing zeros to avoid imprecision.  */
-				char *look, d;
-
-				for (look = cp; (d = *look++) == '0'; )
-					;		/* skip a trailing zero */
-				if (!isdigit(d)) {	/* ignore zeroes */
-					cp = look;
-					c = d;
-					break;
-				}			/* else don't ignore */
-			}
 			if (sdigits != 0 || c != 0)
 				++sdigits;	/* significant digits seen */
 #if	__STDC__
@@ -185,4 +169,4 @@ done:
 	return ((flag & NEG) ? -d : d);
 }
 
-/* end of libc/gen/strtod.c */
+/* end of strtod.c */

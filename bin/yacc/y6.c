@@ -3,8 +3,6 @@
  * gets memory, reads in optimizer temp file
  * spits out parser
  */
-
-#include <limits.h>
 #include "action.h"
 
 struct actn *atab;
@@ -22,6 +20,11 @@ callopt()
 	patab = (int *)yalloc(nstates, sizeof *patab);
 	pgotab = (int *)yalloc(nnonterm, sizeof *pgotab);
 	pdl = (int *)yalloc(nprod, sizeof *pdl);
+	rewopt();
+	pronts();
+	prodls();
+	rdgos();
+	rdacts();
 	cpyparse();
 }
 
@@ -30,7 +33,7 @@ pronts()
 	register i;
 	for (i=0; i<nprod; i++)
 		pdl[i] = -prdptr[i]->p_left - NTBASE;
-
+	fprintf(tabout, "#include <action.h>\n");
 	warray("yypdnt", pdl, nprod, 0);
 }
 
@@ -95,42 +98,26 @@ warray(s, a, n, sw)
 char *s;
 int *a, n, sw;
 {
-	register i, v;
-	char *type = "int";
+	register i;
+	char *type;
 
 	if (!sw) {	/* !sw means array of array refs */
 		type = "char";
 		for (i = 0; i < n; i++) {
-			if (a[i] > UCHAR_MAX) {
+			if (a[i] > 255) {
 				type = "short";
 				break;
 			}
 		}
-	}
+	} else
+		type = "int";
 	fprintf(tabout, "unsigned %s %s[%d] = {\n", type, s, n--);
 
 	i = 0;
 	do {
-		switch(v = a[i]) {
-		case YYEOFVAL:
-			fputs("YYEOFVAL", tabout);
-			break;
-		case YYERRVAL:
-			fputs("YYERRVAL", tabout);
-			break;
-		case YYOTHERS:
-			fputs("YYOTHERS", tabout);
-			break;
-		default:
-			if (!sw || (0 > v))
-				fprintf(tabout, "%d", v);
-			else
-				fprintf(tabout, "0x%x", v);
-		}
-
+		fprintf(tabout, "%d", a[i]);
 		if (i != n)
 			fputc(',', tabout);
-
 		fputc(((++i%8 == 0) ? '\n' : ' '), tabout);
 	} while (i <= n);
 
@@ -152,28 +139,17 @@ cpyparse()
 		yyerror(NLNO|FATAL, "can't find parser");
 	if( (actin = fopen(acttmp, "r")) == NULL )
 		yyerror(NLNO|FATAL, "someone lost action temp file");
-	while ((c = getc (fparse)) != EOF)
-		if (c == '$') {
-			switch (c = getc(fparse)) {
-			case 'A':
-				while ((c = getc(actin)) != EOF)
-					putc (c, tabout);
-				break;
-
-			case 'D':
-				rewopt();
-				pronts();
-				prodls();
-				rdgos();
-				rdacts();
-				break;
-
-			default:
-				putc('$', tabout);
-				break;
+	while( (c = getc(fparse)) != EOF ) {
+		if( c=='$' ) {
+			if( (c = getc(fparse))=='A' ) {
+				while( (c = getc(actin)) != EOF )
+					putc(c, tabout);
+				continue;
 			}
-		} else
-			putc(c, tabout);
+			putc('$', tabout);
+		}
+		putc(c, tabout);
+	}
 	fclose(actin);
 	fclose(fparse);
 	fclose(tabout);

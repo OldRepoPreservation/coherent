@@ -33,13 +33,17 @@ typedef struct {
 #define DEVDIR	"/dev/"
 
 /* minix */
+
+
 #ifndef _I386
 
-#define O_RDWR	2
+/* #define O_RDWR	2 */
+/*
 #ifdef BITS8
 #define ANYP	BITS8
 #else
 #define ANYP	(EVENP|ODDP)
 #endif
-
+*/
 #endif /* _I386 */
+

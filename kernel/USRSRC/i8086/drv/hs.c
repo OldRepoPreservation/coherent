@@ -15,6 +15,7 @@
 #include <sys/proc.h>
 #include <sys/tty.h>		/* indirectly includes sgtty.h */
 #include <sys/con.h>
+#include <sys/devices.h>
 #include <errno.h>
 #include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
 #include <sys/poll_clk.h>
@@ -88,7 +89,7 @@ int	nonedev();
  */
 CON hscon ={
 	DFCHR|DFPOL,			/* Flags */
-	7,				/* Major index */
+	HS_MAJOR,			/* Major index */
 	hsopen,				/* Open */
 	hsclose,			/* Close */
 	nulldev,			/* Block */

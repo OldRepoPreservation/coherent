@@ -1,5 +1,8 @@
 # libmp/Makefile 4/5/90
 
+DESTDIR=/interim/usr/lib/
+DESTDIR386=/bin386/usr/lib/
+
 OBJ=\
 	gcd.o \
 	ispos.o \
@@ -31,4 +34,7 @@ OBJ=\
 	zerop.o \
 
 libmp.a:	$(OBJ)
-	ar ckrs libmp.a $(OBJ)
+	ar ckrs $(DESTDIR)libmp.a $(OBJ)
+
+libmp386.a:	$(OBJ)
+	ar crs $(DESTDIR386)libmp.a $(OBJ)

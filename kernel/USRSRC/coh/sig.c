@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sig.c,v 1.1 88/03/24 16:14:24 src Exp $ */
+/* $Header: /newbits/kernel/USRSRC/coh/RCS/sig.c,v 1.4 91/07/24 07:52:13 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,11 @@
  * Coherent.
  * Signal handling.
  *
- * $Log:	/usr/src/sys/coh/RCS/sig.c,v $
+ * $Log:	sig.c,v $
+ * Revision 1.4  91/07/24  07:52:13  bin
+ * update prov by hal
+ * 
+ * 
  * Revision 1.1	88/03/24  16:14:24	src
  * Initial revision
  * 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/lib/libcurses/RCS/getkey.c,v 1.1 89/04/07 13:21:17 src Exp $
+/* $Header: /newbits/usr/lib/libcurses/RCS/getkey.c,v 1.2 91/09/30 13:05:46 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under

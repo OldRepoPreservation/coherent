@@ -2,14 +2,14 @@
  * shell buffered IO and formatted output
  */
 
-static char *RCSid = "$Header: io.c,v 3.1 88/11/03 09:16:11 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/io.c,v 1.2 91/08/01 12:40:33 bin Exp Locker: bin $";
 
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #include <signal.h>
 #include <setjmp.h>
 #if __STDC__

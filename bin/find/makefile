@@ -1,4 +1,4 @@
-DESTDIR=/f1/bin/
+DESTDIR=/interim/bin/
 
 find:	find.o	findnode.h
 	cc -O -o $(DESTDIR)find find.o -ly

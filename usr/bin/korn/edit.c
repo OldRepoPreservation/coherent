@@ -8,7 +8,7 @@
 
 #if EDIT
 
-static char *RCSid = "$Header: edit.c,v 3.1 88/11/03 09:14:51 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/edit.c,v 1.2 91/08/01 12:39:10 bin Exp Locker: bin $";
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -21,7 +21,7 @@ static char *RCSid = "$Header: edit.c,v 3.1 88/11/03 09:14:51 egisin Exp $";
 #endif
 #include <sys/stat.h>
 #include <dirent.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #include <ctype.h>
 #include <errno.h>
 #include <setjmp.h>

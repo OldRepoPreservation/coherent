@@ -1,10 +1,14 @@
 /*
- * $Header: $
- * $Log:	$
+ * $Header: /newbits/bin/units.c,v 1.2 89/02/22 05:09:42 bin Exp $
+ * $Log:	/newbits/bin/units.c,v $
+ * Revision 1.2	89/02/22  05:09:42 	bin
+ * Changed memory allocation to work better on the atari.
+ * Changed where it looks for units and binary units, using path.
+ * 
  */
 static	char	*revision = "$Revision 1.1 $";
 static	char *header =
-	"$Header: /v/wgl/src.adm/hp/hpr/rcsmin.c,v 1.2 88/08/31 10:09:48 wgl Exp $";
+	"$Header: /newbits/bin/units.c,v 1.2 89/02/22 05:09:42 bin Exp $";
 
 /*
  * units -- do multiplicative unit conversions

@@ -1,2 +1,0 @@
-cd /src386/lib/libc/libcobjects; make -e SRCPATH=/src386/lib/libc MCH=i386
-

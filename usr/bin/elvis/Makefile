@@ -73,7 +73,8 @@ DESTDIR= /interim/usr/bin/
 
 OBJS=	blk$O cmd1$O cmd2$O curses$O cut$O ex$O input$O main$O misc$O \
 	modify$O move1$O move2$O move3$O move4$O move5$O opts$O recycle$O \
-	redraw$O regexp$O regsub$O system$O tio$O tmp$O vars$O vcmd$O vi$O
+	redraw$O regexp$O regsub$O system$O tio$O tmp$O vars$O vcmd$O \
+	vi$O
 
 ALIAS=	alias$O
 

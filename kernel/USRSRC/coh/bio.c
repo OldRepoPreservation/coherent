@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/bio.c,v 1.1 88/03/24 16:13:29 src Exp $ */
+/* $Header: /newbits/kernel/USRSRC/coh/RCS/bio.c,v 1.4 91/07/24 07:49:45 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,11 @@
  * Coherent.
  * Buffered I/O.
  *
- * $Log:	/usr/src/sys/coh/RCS/bio.c,v $
+ * $Log:	bio.c,v $
+ * Revision 1.4  91/07/24  07:49:45  bin
+ * update prov by hal
+ * 
+ * 
  * Revision 1.1	88/03/24  16:13:29	src
  * Initial revision
  * 

@@ -1,5 +1,5 @@
 /*
- * libc/gen/malloc/malloc.c
+ * malloc.c
  * Memory allocation routines.
  * The memory arena is a circular linked list rooted at __a_first.
  * Each arena is subdivided into two or more blocks.
@@ -15,10 +15,7 @@
 
 MBLOCK	*__a_scanp = NULL;		/* start search here */
 MBLOCK	*__a_first = NULL;		/* first arena */
-MBLOCK	*__a_top = NULL;		/* end of last sbrk */
 unsigned __a_count = 0;			/* number of blocks */
-
-extern char *sbrk();
 
 /*
  * Get a new arena from sbrk() and hook it to the old list.
@@ -31,18 +28,12 @@ int
 newarena(size) unsigned size;
 {
 	register MBLOCK *mp, *pmp, *linkmp;
-	register unsigned len, max;
+	register unsigned len;
+	static MBLOCK *__a_top = NULL;
 	static char failed = 0;
 
 	if (failed)			/* no more room */
 		return 0;
-
-	/* Force sbrk() to alignment boundary. */
-	if ((len = ((unsigned)sbrk(0)) & (ALIGNMENT - 1)) != 0
-	 && (sbrk(ALIGNMENT - len) == BADSBRK)) {
-		failed = 1;
-		return 1;
-	}
 
 	/* Add space for end mblock, round up to 2^ARENASIZE */
 	len = roundup(size + sizeof(MBLOCK), ARENASIZE);
@@ -56,8 +47,6 @@ newarena(size) unsigned size;
 	 * This means further calls to newarena must fail.
 	 */
 	while ((mp = (MBLOCK *)sbrk(len)) == BADSBRK) {
-		if (failed == 0 && (max = ulimit(3)) != -1 && len > max)
-			len = max;		/* use system limit as upper bound */
 		failed = 1;
 		if (len <= DECRSIZE)
 			return 1;		/* even zero may be ok */
@@ -113,14 +102,13 @@ malloc(size) unsigned size;
 	    return NULL;
 
     do { /* until we find enough or newarena fails */
-	for (counter = __a_count, mp = __a_scanp, prevmp = NULL; counter--; ) {
-		if (!isfree(len = mp->blksize)) { /* used block or pointer */
-			mp = (len) ? bumpp(mp, len) : mp->uval.next;
+	prevmp = NULL;
+	mp = __a_scanp;
+	for(counter = __a_count; counter--; ) {
+		if (!isfree(len = mp->blksize))	/* used block or pointer */
 			prevmp = NULL;
-			continue;
-		}
-
-		if (prevmp != NULL) {		/* consolidate free */
+		else {
+			if (prevmp != NULL) {		/* consolidate free */
 #if	0
 /*
  * The following assumes adjacent free blocks can be consolidated without
@@ -133,32 +121,35 @@ malloc(size) unsigned size;
  * point to the same memory location) and newarena() leaves a 0 end marker
  * between the arenas.
  */
-			if (prevmp->blksize + realsize(len) > len) {
-				len = ((mp = prevmp)->blksize += realsize(len));
-				__a_count--;
-			}
+				if (prevmp->blksize + realsize(len) > len) {
+					mp = prevmp;
+					len = (mp->blksize += realsize(len));
+					__a_count--;
+				}
 #else
-			len = ((mp = prevmp)->blksize += realsize(len));
-			__a_count--;
+				mp = prevmp;
+				len = (mp->blksize += realsize(len));
+				__a_count--;
 #endif
+			}
+			if (len < needed)
+				prevmp = mp;
+			else {		/* got one big enough */
+				if ((len -= needed) < LEASTFREE) {
+					/* grab the entire block */
+					mp->blksize=needed=realsize(mp->blksize);
+					__a_scanp = bumpp(mp, needed);
+				} else {
+					/* split into used and free portions */
+					mp->blksize = needed;
+					__a_scanp = bumpp(mp, needed);
+					__a_scanp->blksize = len;
+					__a_count++;
+				}
+				return mp->uval.usera;
+			}
 		}
-
-		if (len < needed) {	/* free but too small */
-			mp = bumpp(prevmp = mp, realsize(len));
-			continue;
-		}
-
-		if ((len -= needed) < LEASTFREE)
-			/* grab the entire block */
-			__a_scanp = bumpp(mp, mp->blksize = needed = realsize(mp->blksize));
-		else {
-			/* split into used and free portions */
-			mp->blksize = needed;
-			__a_scanp = bumpp(mp, needed);
-			__a_scanp->blksize = len;
-			__a_count++;
-		}
-		return mp->uval.usera;
+		mp = (len) ? bumpp(mp, realsize(len)) : mp->uval.next;
 	}
 
 	/*
@@ -190,7 +181,7 @@ free(cp) char *cp;
 
 	mp = mblockp(cp);
 	len = mp->blksize;
-	if (len < LEASTFREE) { /* This can't exist */
+	if (len < 2) {		/* length of 0 or 1 is wrong */
 		static char msg[] = "Bad pointer in free.\r\n";
 
 		write(2, msg, sizeof(msg) - 1);
@@ -199,8 +190,10 @@ free(cp) char *cp;
 	mp->blksize |= FREE;			/* mark free */
 
 	/*
-	 * If freed block precedes scan pointer reset the scan pointer.
+	 * If freed block precedes scan pointer or scan pointer is not free,
+	 * reset the scan pointer.
 	 */
-	if (bumpp(mp, realsize(len)) == __a_scanp)
+	if (bumpp(mp, realsize(len)) == __a_scanp
+	 || !isfree(__a_scanp->blksize))
 		__a_scanp = mp;
 }

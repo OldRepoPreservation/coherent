@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/src/RCS/as1.s,v 1.3 88/08/05 08:32:09 src Exp $
+/ $Header: /x/usr/src/sys/i8086/src/RCS/as1.s,v 1.2 91/06/20 14:07:20 hal Exp $
 
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -24,7 +24,10 @@
 / or by changing the number of automatic variables in the functions
 / called on the paths leading to consave or conrest.  Tread with caution.
 /
-/ $Log:	/usr/src/sys/i8086/src/RCS/as1.s,v $
+/ $Log:	as1.s,v $
+/ Revision 1.2  91/06/20  14:07:20  hal
+/ I'm not sure what changed here.
+
 / Revision 1.3	88/08/05  08:32:09 	src
 / Kludges for AMD 286 bug have been removed.
 / 

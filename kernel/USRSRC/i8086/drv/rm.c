@@ -8,6 +8,7 @@
 #include	<sys/uproc.h>
 #include	<sys/seg.h>
 #include	<sys/con.h>
+#include	<sys/devices.h>
 #include	<sys/inode.h>
 #include	<sys/stat.h>
 
@@ -19,7 +20,6 @@
 #define	rm_drive(dev)	(minor(dev) >> 7)
 #define	rm_asize(dev)	(minor(dev) & 0x7F)
 #define	ASIZE		128	/* allocation chunk size in blocks (64KB) */
-#define	RMMAJ		8	/* major # for driver */
 #define NUM_RM		2	/* number of ram disks */
 				/* - tied to dev encoding (see above) */
 
@@ -35,7 +35,7 @@ int	rmblock();
 
 CON	rmcon	= {
 	DFBLK|DFCHR,
-	RMMAJ,
+	RM_MAJOR,
 	rmopen,			/* Open */
 	rmclose,		/* Close */
 	rmblock,		/* Block */
@@ -170,14 +170,17 @@ rmblock(bp) register BUF *bp;
 	osize = rmp->rm_size;
 	if (osize == 0 || asize != osize)
 		bp->b_flag |= BFERR;
-	else if (bp->b_bno >= asize*ASIZE)
+	/*
+	 * Make sure last block requested is within range of device.
+	 */	
+	else if ((bp->b_bno + bp->b_count/BSIZE - 1) >= asize*ASIZE)
 		bp->b_flag |= BFERR;
 	else {
 		base = rmp->rm_paddr + (paddr_t)bp->b_bno * BSIZE;
 		if (bp->b_req == BREAD)
-			plrcopy(base, bp->b_paddr, (fsize_t)BSIZE);
+			plrcopy(base, bp->b_paddr, (fsize_t)bp->b_count);
 		else
-			plrcopy(bp->b_paddr, base, (fsize_t)BSIZE);
+			plrcopy(bp->b_paddr, base, (fsize_t)bp->b_count);
 	}
 	bdone(bp);
 }

@@ -7,6 +7,9 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.15  92/01/13  08:58:40  bin
+ * update by hal for 321 kernel (looks like just additions of debug stuff)
+ * 
  * Revision 1.15  92/01/13  08:36:53  hal
  * Add a few DEBUG lines.
  * 

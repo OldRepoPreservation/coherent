@@ -13,7 +13,7 @@
 #ifndef TESTLIB
 #define CHAR_BIT 8	/* bits in a char */
 typedef char Void;
-typedef unsigned size_t;
+typedef unsigned short size_t;
 
 #define ORD(h, l) ((*compar)((Void *)(h), (Void *)(l)) >= 0)
 #define INDEX(p) (((p) - (char *)base) / size)

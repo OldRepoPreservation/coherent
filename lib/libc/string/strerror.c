@@ -26,7 +26,7 @@ static char *_errors[] = {
 	"Permission denied",			/* EACCES	*/
 	"Bad system call argument address",	/* EFAULT	*/
 	"Block device required (mount)",	/* ENOTBLK	*/
-	"Device busy",				/* EBUSY	*/
+	"Device busy (mount)",			/* EBUSY	*/
 	"File already exists",			/* EEXIST	*/
 	"Cross device link",			/* EXDEV	*/
 	"No such device",			/* ENODEV	*/
@@ -46,16 +46,10 @@ static char *_errors[] = {
 	"Domain error",				/* EDOM		*/
 	"Result too large",			/* ERANGE	*/
 	"Out of kernel space",			/* EKSPACE	*/
-#if	_I386
-	"Identifier removed",			/* EIDRM	*/
-#else
 	"Driver not loaded",			/* ENOLOAD	*/
-#endif
 	"Bad format",				/* EBADFMT	*/
 	"Device needs attention",		/* EDATTN	*/
-	"Device busy",				/* EDBUSY	*/
-	"Deadlock",				/* EDEADLK	*/
-	"No lock available"			/* ENOLCK	*/
+	"Device busy"				/* EDBUSY	*/
 };
 #endif
 

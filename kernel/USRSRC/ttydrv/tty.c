@@ -7,6 +7,9 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.9  91/09/17  06:06:42  bin
+ * updated by hal
+ * 
  * Revision 1.8  91/09/13  18:01:39  piggy
  * Only do XON/XOFF flow control if TANDEM is set.
  * 

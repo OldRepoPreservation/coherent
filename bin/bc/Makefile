@@ -1,3 +1,4 @@
+DESTDIR=/interim/bin/
 YFLAGS	= -hdr yy.h -st -terms 55 -nterms 34 -prods 109 -states 203
 OFILES	= bcmch.o  bcmutil.o getnum.o globals.o gram.o grmact.o\
 		interp.o lex.o main.o output.o putnum.o
@@ -8,7 +9,7 @@ CFLAGS= -AOs -I.. -I.
 MFILES	= readme Makefile gram.fix
 
 bc:	$(OFILES) 
-	$(CC) $(CFLAGS) -o bc $(OFILES) -lmp
+	$(CC) $(CFLAGS) -o bc $(DESTDIR)$(OFILES) -lmp
 
 install : bc
 	su root cp bc /bin

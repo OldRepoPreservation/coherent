@@ -16,9 +16,8 @@ I86OBJS = i8086/i8086a.o i8086/i8086b.o i8086/i8086c.o i8086/i8086d.o
 
 #	TARGETS
 i8086/db: $(OBJS) $(I86OBJS)
-	$(CC) $(LDFLAGS) -o i8086/db $(OBJS) $(I86OBJS)
-	mv i8086/db $(DESTDIR)
-	su root chmog $(DESTDIR)db 511 bin bin 
+	$(CC) $(LDFLAGS) -o $(DESTDIR)db $(OBJS) $(I86OBJS)
+	su root chmog 511 bin bin $(DESTDIR)db
 
 #	MACHINE INDEPENDENT OBJECTS
 $(TARG)/trace0.o: trace.h $(TARG)/mtrace.h trace0.c

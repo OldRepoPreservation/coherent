@@ -2,6 +2,10 @@
  * Reboot the processor by transferring to the reset vector of the 8088.
  *
  * $Log:	/usr/src.inetco/etc/reboot.c,v $
+ * Revision 1.3	90/04/17  14:56:54 	root
+ * steve 4/17/90
+ * Added sync() after prompt with -p option.
+ * 
  * Revision 1.2	90/04/17  14:48:29 	root
  * steve 4/17/90
  * Added "-p" option to prompt user to hit <Enter> before rebooting,

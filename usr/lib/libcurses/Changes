@@ -13,3 +13,4 @@ Changed Makefile to take advantage of $SRCPATH
 9-5  Changed delwin to free lines on subwindows.
 9-26 Changed all char's to unsigned chars.
 9-26 Changed Makefile to archive with rcs option instead of q.
+10-9 Changed endwin not to clear the screen.

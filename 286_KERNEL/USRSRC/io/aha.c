@@ -3,6 +3,9 @@
  * Adaptec AHA154x driver.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/aha.c,v $
+ * Revision 1.2	91/05/01  04:54:43	root
+ * Debug code and kalloc arg fixes.
+ * 
  * Revision 1.1	91/04/30  11:01:41	root
  * Shipped with COH 3.1.0
  * 
@@ -11,8 +14,8 @@
 #include <sys/buf.h>
 #include <sys/sched.h>
 
-#include "scsiwork.h"
-#include "aha154x.h"
+#include <sys/scsiwork.h>
+#include <sys/aha154x.h>
 
 extern	saddr_t	sds;		/* System Data Selector */
 static	paddr_t	sds_physical;	/* as physical address */
@@ -100,9 +103,9 @@ ccb_t *ccb;
 	register scsi_work_t *sw = ccb->ccb_sw;
 	register BUF *bp;
 
-	printf( "aha_process: ccb %x ", ccb );
-printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
 #if	VERBOSE
+	printf( "aha_process: ccb %x ", ccb );
+	printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
 	aha_ccb_print( ccb );
 #endif
 	if( ccb->ccb_sw == 0 ) {
@@ -125,12 +128,6 @@ printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
 			int s = sphi();
 			if( scsi_work_queue->sw_actf == NULL ) {
 				scsi_work_queue->sw_actf = sw;
-printf("0-swq-f=%x\n", scsi_work_queue->sw_actf);
-{BUF *bp=sw->sw_bp;
-printf("bno=%lx count=%d ", bp->b_bno, bp->b_count);
-printf("faddr=%lx resid=%d ", bp->b_faddr, bp->b_resid);
-printf("req=%x bp=%x\n", bp->b_req, bp);
-}
 			} else {
 				scsi_work_queue->sw_actl->sw_actf = sw;
 			}
@@ -332,9 +329,7 @@ scsi_work_t *head;
 	for( i = 0; i < MAX_MAILBOX; ++i )
 		mailbox_out[i].cmd = mailbox_in[i].cmd = 0;
 
-printf("B");
 	sds_physical = VTOP2( 0, sds );
-printf("C");
 	aha_l_to_p3( VTOP2( mailbox_out, sds ), &adr[1] );
 	adr[0] = MAX_MAILBOX;
 
@@ -356,7 +351,6 @@ printf("C");
 	for( i = 0; i < 4; ++i )
 		aha_1out( adr[i] );
 	scsi_work_queue = head;
-printf("1-swq-f=%x\n", scsi_work_queue->sw_actf);
 	++aha_loaded;
 	return MAX_MAILBOX;
 }
@@ -404,7 +398,6 @@ register scsi_cmd_t *sc;
 
 	aha_l_to_p3( (long)sc->buflen, ccb->datalen );
 	aha_l_to_p3( sc->buffer, ccb->dataptr );
-printf("D");
 	aha_l_to_p3( VTOP2( ccb, sds ), mailbox_out[0].adr );
 #if	VERBOSE
 	aha_ccb_print( ccb );
@@ -437,7 +430,7 @@ register scsi_work_t *sw;
 	register ccb_t *ccb;
 	ccb = (ccb_t *)kalloc(sizeof(ccb_t));
 
-#if	1
+#if	VERBOSE
 	printf( "build: drv = %x, bno = %D  ",
 		sw->sw_drv, sw->sw_bno );
 #endif
@@ -464,13 +457,7 @@ register scsi_work_t *sw;
 	ccb->senselen = MAX_SENSEDATA;
 
 	aha_l_to_p3( (long)sw->sw_bp->b_count, ccb->datalen );
-printf("E");
-{BUF *bp=sw->sw_bp;
-printf("bno=%lx count=%d ", bp->b_bno, bp->b_count);
-printf("faddr=%lx resid=%d ", bp->b_faddr, bp->b_resid);
-printf("req=%x bp=%x\n", bp->b_req, bp);
-}
-	aha_l_to_p3( VTOP(sw->sw_bp->b_faddr), ccb->dataptr );
+	aha_l_to_p3( vtop(sw->sw_bp->b_faddr), ccb->dataptr );
 	return ccb;
 #if	0
 /* start of ioctl code */
@@ -489,7 +476,7 @@ aha_start()
 	register i, s, n = 0;
 	scsi_work_t *sw;
 	static char locked;
-printf("aha_start ");
+
 	s = sphi();
 	if( locked ) {
 		spl(s);
@@ -505,29 +492,25 @@ printf("aha_start ");
 				int s;
 
 				++n;
-printf("before buildccb\n");
 				ccb = buildccb( sw );
-printf("after buildccb\n");
 #if	VERBOSE
 				aha_ccb_print( ccb );
 #endif
-printf("F");
 				aha_l_to_p3( VTOP2( ccb, sds ),
 						mailbox_out[i].adr );
 				mailbox_out[i].cmd = MBO_TO_START;
-#if	1
+#if	VERBOSE
 				printf( "MBO[%d] = %x:%x:%x:%x, ccb = %x ",
 					i, mailbox_out[i].cmd,
 					mailbox_out[i].adr[0],
 					mailbox_out[i].adr[1],
 					mailbox_out[i].adr[2], ccb );
-printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
+	printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
 #endif
 				aha_1out( AHA_DO_SCSI_START );
 
 				s = sphi();
 				sw = scsi_work_queue->sw_actf = sw->sw_actf;
-printf("2-swq-f=%x\n", scsi_work_queue->sw_actf);
 				if( sw == NULL )
 					scsi_work_queue->sw_actl = NULL;
 				spl(s);
@@ -545,10 +528,10 @@ printf("2-swq-f=%x\n", scsi_work_queue->sw_actf);
 int	aha_completed()
 {
 	register i, n;
-printf("aha_completed ");
+
 	for( n = 0, i = 0; i < MAX_MAILBOX; ++i )
 		if( mailbox_in[i].cmd != MBI_IS_FREE ) {
-#if	1
+#if	VERBOSE
 			printf( "aha: mail[%d] = %x:%x:%x:%x\n",
 				i, mailbox_in[i].cmd,
 				mailbox_in[i].adr[0],

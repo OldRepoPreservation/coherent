@@ -1,8 +1,7 @@
 /*
- * libc/gen/getpwent.c
  * Coherent I/O Library.
- * Get password file entry.
- * Searches by next entry, name or numerical id.
+ * Routines to get the password file entry.
+ * (searches by next entry, name or numerical id).
  */
 
 #include <stdio.h>
@@ -25,8 +24,8 @@ char *name;
 	setpwent();
 	while ((pwp = getpwent()) != NULL)
 		if (streq(name, pwp->pw_name))
-			return pwp;
-	return NULL;
+			return (pwp);
+	return (NULL);
 }
 
 struct	passwd *
@@ -37,33 +36,28 @@ getpwuid(uid)
 	setpwent();
 	while ((pwp = getpwent()) != NULL)
 		if (uid == pwp->pw_uid)
-			return pwp;
-	return NULL;
+			return (pwp);
+	return (NULL);
 }
 
 struct passwd *
 getpwent()
 {
 	register char *cp, *xp;
-	register int c, nseps;
+	register c;
 
 	if (pwfile == NULL)
 		if ((pwfile = fopen(PWFILE, "r")) == NULL)
-			return NULL;
-again:
+			return (NULL);
 	cp = pwline;
-	for (nseps = 0; (c = getc(pwfile))!=EOF && c!='\n'; ) {
-		if (c == ':') {
+	while ((c = getc(pwfile))!=EOF && c!='\n') {
+		if (c == ':')
 			c = '\0';
-			++nseps;
-		}
 		if (cp < &pwline[NPWLINE-1])
 			*cp++ = c;
 	}
 	if (c == EOF)
-		return NULL;
-	if (nseps != 6)
-		goto again;		/* accept only lines with six ':'s */
+		return (NULL);
 	*cp = '\0';
 	cp = pwline;
 	field(pw.pw_name);
@@ -72,11 +66,10 @@ again:
 	pw.pw_uid = atoi(xp);
 	field(xp);
 	pw.pw_gid = atoi(xp);
-	field(pw.pw_comment);
-	pw.pw_gecos = pw.pw_comment;
+	field(pw.pw_gecos);
 	field(pw.pw_dir);
 	field(pw.pw_shell);
-	return &pw;
+	return (&pw);
 }
 
 setpwent()
@@ -92,5 +85,3 @@ endpwent()
 		pwfile = NULL;
 	}
 }
-
-/* end of getpwent.c */

@@ -1,17 +1,15 @@
 /*
- * libc/sys/execlp.c
- * Sys exec with a list of arguments but no environment,
- * searching directories specified in PATH.
+ * Execlp(name, arg0, arg1, ..., argn, NULL)
+ * Repeatedly do sys exec on each of the directories in the
+ * search rules found in the environment.
  */
 
-extern char **environ;
+#include <stdio.h>
 
-/* execlp(name, arg0, arg1, ..., argn, NULL) */
-/* VARARGS 1 */
-int
-execlp(name, arg0) char *name; char *arg0;
+/* VARARGS */
+execlp(name, arg0)
+char *name;
+char *arg0;
 {
-	return execvpe(name, &arg0, environ);
+	return (execvp(name, &arg0));
 }
-
-/* end of libc/sys/execlp.c */

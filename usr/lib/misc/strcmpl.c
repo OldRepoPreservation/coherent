@@ -26,7 +26,7 @@ register unsigned char *s1, *s2;
 }
 
 #ifdef TEST
-#include "local_misc.h"
+#include "misc.h"
 main()
 {
     char s1[40], s2[40];

@@ -1,4 +1,4 @@
-# /usr/src/libc/crt/i8086/Makefile 7/16/92
+# /usr/src/libc/crt/i8086/Makefile 6/26/91
 
 OBJ=\
 	blkmv.o\

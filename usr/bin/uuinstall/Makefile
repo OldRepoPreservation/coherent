@@ -2,9 +2,17 @@ O =lsys1.o uuin.o uunam.o helpscn.o devices.o permis.o \
   comment.o choices.o choices1.o choices2.o getline.o escapes.o
 CFLAGS = -I. -A
 L = -lscn  -lcurses -lterm -lmisc
+L386 = -lscn  -lcurses -lmisc
+DESTDIR=/interim/usr/bin/
+DESTDIR386=/bin386/usr/bin/
 
 uuinstall : $O uuinstall.o /usr/lib/libscn.a
-	cc -o uuinstall uuinstall.o $O $L
+	cc -o $(DESTDIR)uuinstall uuinstall.o $O $L
+	su root chmog 500 root root $(DESTDIR)uuinstall
+
+uuinstall386 : $O uuinstall.o /usr/lib/libscn.a
+	cc -o $(DESTDIR386)uuinstall uuinstall.o $O $(L386)
+	su root chmog 500 root root $(DESTDIR386)uuinstall
 
 install : uuinstall
 	strip uuinstall

@@ -1,7 +1,11 @@
 /*
  * INETCO Coherent Driver Load Program
  *
- * $Log:	/usr/src/inetco/etc/drvld.c,v $
+ * $Log:	drvld.c,v $
+ * Revision 1.2  91/08/01  12:34:08  bin
+ * updated by stevesf to include :/etc/drvld in error messages
+ * produced by drvld
+ * 
  * Revision 1.3	91/07/31  13:44:11 	bin
  * steve 7/31/91
  * Corrected additional fatal error message.

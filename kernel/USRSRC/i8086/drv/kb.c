@@ -10,14 +10,13 @@
 #include <sys/coherent.h>
 #include <sys/i8086.h>
 #include <sys/con.h>
+#include <sys/devices.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/uproc.h>
 #include <signal.h>
 #include <sys/sched.h>
-
-#define	ISMAJ	2			/* Keyboard major device */
 
 #define	SPC	0376			/* Special encoding */
 #define XXX	0377			/* Non-character */
@@ -82,7 +81,7 @@ int	nonedev();
  */
 CON iscon ={
 	DFCHR|DFPOL,			/* Flags */
-	ISMAJ,				/* Major index */
+	KB_MAJOR,				/* Major index */
 	isopen,				/* Open */
 	isclose,			/* Close */
 	nulldev,			/* Block */
@@ -212,7 +211,7 @@ isload()
 	/*
 	 * Enable mmwatch() invocation every second.
 	 */
-	drvl[ISMAJ].d_time = 1;
+	drvl[KB_MAJOR].d_time = 1;
 
 	/*
 	 * Seize keyboard interrupt.

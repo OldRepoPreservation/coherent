@@ -1,6 +1,8 @@
 # lex/Makefile 2/6/91
 # Does not include header file dependencies.
-DESTDIR=/f1/bin/
+#DESTDIR=/interim/bin/
+DESTDIR=/tmp/
+DESTDIR386=/bin386/bin/
 SRC=/newbits/bin/lex
 
 OBJ=\
@@ -15,6 +17,12 @@ lex:	$(OBJ)
 	su root chown bin $(DESTDIR)$@
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
+
+lex386:	$(OBJ)
+	cc -o $(DESTDIR386)lex $(OBJ)
+	su root chown bin $(DESTDIR386)lex
+	su root chgrp bin $(DESTDIR386)lex
+	su root chmod 511 $(DESTDIR386)lex
 
 # Secondary targets.
 lex0.o:	$(SRC)/lex0.c

@@ -4,83 +4,57 @@
  * This parser generator is dedicated to Reinaldo Braga.
  * May he live a hundred years
  */
-/*
- * Modified by nigel to eliminate ill-advised use of "flex-arrays" in the
- * data structures, eliminate use of '%r' in yyerror (), and to use <limits.h>
- * rather than magic internal definitions. Other than that, I had nothing to
- * do with this garbage.
- */
 #include <stdio.h>
-#include <limits.h>
+#include <sys/mdata.h>
 
-enum {
-	FATAL		= 1,	/* flag for yyerror */
-	SKIP,			/* ditto */
-	NLNO,			/* no line number on error line */
-	WARNING
-};
-
-enum {
-	TTERM		= 0,	/* "genre" for token */
-	TNTERM,			/* non-terminal */
-	TTYPE,			/* <type> */
-	MAXT			/* number of different genres */
-};
-
+#define FATAL 01		/* flag for yyerror */
+#define SKIP 02			/* ditto */
+#define NLNO 04			/* no line number on error line */
+#define WARNING 010
+#define TTERM 0			/* "genre" for token */
+#define TNTERM 1			/* non terminal */
+#define TTYPE 2			/* <type> */
+#define MAXT 3			/* number of different genres */
+				/* if maxterm is > 127 change LSETSIZE  */
+#define LSETSIZE 20		/* chars in ws ::= MAXTERM/8 + 1 */
 
 		/* defaults -- can be changed with run time options */
-enum {
-	MAXPROD		= 400,	/* maximum number of productions */
-	MAXTERM		= 200,	/* maximum number of different terminals */
-	MAXNTERM	= 150,	/* maximum number of non terminal symbols */
-	MAXSTATE	= 800,	/* max # of states */
-	MAXPRODL	= 20,	/* maximum number of symbols in any prodn */
-	MAXITEM		= 160,	/* maximum number of items in any state */
-	MAXREDS		= 300,	/* maximum number of reductions per state */
-	MAXTYPE		= 20	/* for the union of YYSTYPE */
-};
+#define MAXPROD 175		/* maximum number of productions */
+#define MAXTERM 150		/* maximum number of different terminals */
+#define MAXNTERM 100		/* maximum number of non terminal symbols */
+#define MAXSTATE 300		/* max # of states */
+#define MAXTYPE 10		/* for the union of YYSTYPE */
 
-/*
- * This defines the size of some char-based bit-sets declared below, and thus
- * sets a hard upper bound on the configurable number of terminals. The
- * original form of this was:
- */
-#if 0
-				/* if maxterm is > 127 change LSETSIZE */
-#define LSETSIZE 30		/* chars in ws ::= MAXTERM/8 + 1 */
-#endif
-
-#define	LSETSIZE	(MAXTERM * 2 / CHAR_BIT + 1)
+		/* compiled in sizes -- can be increased without problem */
+#define MAXPRODL 20		/* maximum number of symbols in any prodn */
+#define MAXITEM 160		/* maximum number of items in any state */
+#define MAXREDS 60		/* maximum number of reductions per state */
 
 		/* keyword codings */
-enum {
-	START		= 1,
+#define START 1	
 		/* %token .. %nonassoc must be contiguously coded */
-	TOKEN,
-	LEFT,
-	RIGHT,
-	NONASSOC,
-	UNION,
-	PREC,
-	TYPE,
-	SEMICOLON,
-	VBAR,		/* production separators */
-	LBRAC,		/* beginning of action */
-	T_IDENT,
-	C_IDENT,
-	MARK,
-	IDENT,
-	COMMA,
-	INTEGER
-};
+#define TOKEN 2
+#define LEFT 3
+#define RIGHT 4
+#define NONASSOC 5
+#define UNION 6
+#define PREC 7
+#define TYPE 8
+#define SEMICOLON 9
+#define VBAR 10		/* production separators */
+#define LBRAC 11	/* beginning of action */
+#define T_IDENT 12
+#define C_IDENT 13
+#define MARK 14
+#define IDENT 15
+#define COMMA 16
+#define INTEGER 17
 
 	/* precedence associativities */
-enum {
-	UNASSOC		= 0,
-	LASSOC,
-	RASSOC,
-	BASSOC		/* "binary" associativity, meaning %nonassoc */
-};
+#define UNASSOC 0
+#define LASSOC 1
+#define RASSOC 2
+#define BASSOC 3		/* "binary" associativity - %nonassoc */
 
 		/* macros */
 		/* character manipulation */
@@ -105,71 +79,49 @@ enum {
 #define MAXSYM 353
 
 
+
 struct sym
 {
 	char	s_name[SYMSIZE];
 	int	s_no;	/* ordinal number of symbol */
+	int	s_val;	/* external value, for non terminal only */
 	char	s_prc, s_ass; /* precedence, associativity */
 	int	s_type;
 	char	s_genre; /* "kind" of symbol -- terminal, nonterminal, type */
 		/* remaining flags are only used for non-terminals */
 
 	char	s_flags;	/* for closure and lookahead computations */
-	int	s_val;	/* external value, for non terminal only */
 	int	s_nprods;	/* number of productions having nt as lhs */
 	struct prod **s_prods;
-	int	s_nstates;	/* for nt A, # of states with item A->. ai* */
+	int	s_nstates;	/* sfor nt A, # of states with item A->. ai* */
 	int	*s_states;	/* list */
 };
 
 struct sitem
 {
-	int		i_nitems;	/* number of items in set */
-	int	     **	i_items;
-};
-#define	SITEM_EXTRA_SIZE(n)	((n) * sizeof (int *))
-#define	SITEM_TOTAL_SIZE(n)	(sizeof (struct sitem) + SITEM_EXTRA_SIZE (n))
-#define	SITEM_EXTRA_INIT(p)	((p)->i_items = (int **) ((p) + 1))
+	int	i_nitems;	/* number of items in set */
+	int	*i_items[];
+} ;
 
 struct state
 {
-	int		s_tgo;
-	struct tgo    *	s_tgos;
-	int		s_ntgo;
-	struct ntgo   *	s_ntgos;
-	int		s_nred;
-	struct redn   *	s_reds;
+	int	s_tgo;
+	struct	tgo *s_tgos;
+	int	s_ntgo;
+	struct	ntgo *s_ntgos;
+	int	s_nred;
+	struct redn *s_reds;
 } ;
 
 struct prod
 {
-	int		p_prodno;	/* index in prdptr */
-	char		p_prc, p_ass;	/* precedence, associativity */
-	int	      *	p_ord;		/*
-					 * Ordinal numbers for production,
-					 * starting with LHS and then the
-					 * RHS ordinals terminated by a -1
-					 * sentinel.
-					 * The LHS ordinal is negated.
-					 */
-#if	0
-	int		p_left;		/* -(ordinal number for lhs) */
-	int	      *	p_right;	/*
-					 * ordinal numbers for rhs w/ -1
-					 * end marker
-					 */
-#endif
+	int	p_prodno;	/* index in prdptr */
+	char	p_prc, p_ass;	/* precedence, associativity */
+	int	p_left;		/* -(ordinal number for lhs) */
+	int	p_right[];	/* ordinal numbers for rhs w. -1 end marker */
 };
-#define	p_left		p_ord [0]
-
-/*
- * Macro for determining additional space required for "n" items in "p_right"
- * vector, above.
- */
-#define	PROD_EXTRA_SIZE(n)	(((n) + 1) * sizeof (int))
-#define	PROD_TOTAL_SIZE(n)	(sizeof (struct prod) + PROD_EXTRA_SIZE (n))
-#define	PROD_EXTRA_INIT(p)	((p)->p_ord = (int *) ((p) + 1))
-#define	PROD_RIGHT(p)		((p)->p_ord + 1)
+		/* kludgy accessing macro */
+#define i2p(leftp) ( (struct prod *) ( (char *)leftp - (int) &0->p_left) )
 
 struct tgo
 {
@@ -198,17 +150,14 @@ struct redn
 /* relation between nt transitions */
 struct rel
 {
-	int		r_count;
-	int	      *	r_list;
+	int	r_count;
+	int	r_list[];
 };
-#define	REL_EXTRA_SIZE(n)	((n) * sizeof (int))
-#define	REL_TOTAL_SIZE(n)	(sizeof (struct rel) + REL_EXTRA_SIZE (n))
-#define	REL_EXTRA_INIT(p)	((p)->r_list = (int *) ((p) + 1))
 
 struct trans
 {
-	struct ntgo   *	t_trans;
-	int		t_level;
+	struct ntgo *t_trans;
+	int	t_level;
 };
 
 struct lset
@@ -274,7 +223,6 @@ extern struct genre gtab[MAXT];
 extern int startsym;
 extern int predlev;
 extern struct resv restab[];
-extern int maxitem, maxprodl, maxreds;
 
 char 	*calloc();
 char	*yalloc();

@@ -17,6 +17,9 @@
 / Add ld_call()
 /
 / $Log:	/usr/src/sys/i8086/src/RCS/ldas.s,v $
+/ Revision 1.2	91/03/01  09:23:04	root
+/ Part of COHERENT 3.1.0 kernel
+/ 
 / Revision 1.1	88/03/24  17:39:39	src
 / Initial revision
 / 

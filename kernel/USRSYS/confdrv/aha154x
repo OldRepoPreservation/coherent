@@ -35,27 +35,30 @@ esac
 :
 : needed for both build and config
 :
-if [ -d "${DEV-/dev}" ]
+DEV=${DEV-/dev}
+if [ -d "$DEV" ]
 then
 	umask 077
-	/etc/mknod -f ${DEV-/dev}/sd0a  b 13 0		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd0b  b 13 1		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd0c  b 13 2		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd0d  b 13 3		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd0x  b 13 128	|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd0a c 13 0		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd0b c 13 1		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd0c c 13 2		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd0d c 13 3		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd0x c 13 128	|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd1a  b 13 16		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd1b  b 13 17		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd1c  b 13 18		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd1d  b 13 19		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/sd1x  b 13 144	|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd1a c 13 16		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd1b c 13 17		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd1c c 13 18		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd1d c 13 19		|| exit 1
-	/etc/mknod -f ${DEV-/dev}/rsd1x c 13 144	|| exit 1
+	/etc/mknod -f $DEV/sd0a  b 13 0		|| exit 1
+	/etc/mknod -f $DEV/sd0b  b 13 1		|| exit 1
+	/etc/mknod -f $DEV/sd0c  b 13 2		|| exit 1
+	/etc/mknod -f $DEV/sd0d  b 13 3		|| exit 1
+	/etc/mknod -f $DEV/sd0x  b 13 128	|| exit 1
+	/etc/mknod -f $DEV/rsd0a c 13 0		|| exit 1
+	/etc/mknod -f $DEV/rsd0b c 13 1		|| exit 1
+	/etc/mknod -f $DEV/rsd0c c 13 2		|| exit 1
+	/etc/mknod -f $DEV/rsd0d c 13 3		|| exit 1
+	/etc/mknod -f $DEV/rsd0x c 13 128	|| exit 1
+	/etc/mknod -f $DEV/sd1a  b 13 16	|| exit 1
+	/etc/mknod -f $DEV/sd1b  b 13 17	|| exit 1
+	/etc/mknod -f $DEV/sd1c  b 13 18	|| exit 1
+	/etc/mknod -f $DEV/sd1d  b 13 19	|| exit 1
+	/etc/mknod -f $DEV/sd1x  b 13 144	|| exit 1
+	/etc/mknod -f $DEV/rsd1a c 13 16	|| exit 1
+	/etc/mknod -f $DEV/rsd1b c 13 17	|| exit 1
+	/etc/mknod -f $DEV/rsd1c c 13 18	|| exit 1
+	/etc/mknod -f $DEV/rsd1d c 13 19	|| exit 1
+	/etc/mknod -f $DEV/rsd1x c 13 144	|| exit 1
+	chown sys $DEV/sd* $DEV/rsd*
+	chgrp sys $DEV/sd* $DEV/rsd*
 fi

@@ -1,6 +1,10 @@
 /*
- * $Header: /newbits/usr/bin/uucpstuff/dcp/RCS/dcpxf2.c,v 1.6 92/07/10 08:46:17 bin Exp Locker: bin $
+ * $Header: /newbits/usr/bin/uucpstuff/dcp/RCS/dcpxf2.c,v 1.7 92/11/20 14:40:16 bin Exp Locker: bin $
  * $Log:	dcpxf2.c,v $
+ * Revision 1.7  92/11/20  14:40:16  bin
+ * bob h: restricted permissions, cleanup problems with ports not closing and
+ * parsing of CLINE when permissions field is not used.
+ * 
  * Revision 1.6  92/07/10  08:46:17  bin
  * bob h: fixed placement of an endif _I386
  * 

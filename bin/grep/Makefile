@@ -1,5 +1,5 @@
 # /usr/src/cmd/grep/Makefile 2/20/91
-DESTDIR=/interim/bin/
+DESTDIR=/bin386/bin/
 OBJ=\
 	grep1.o\
 	grep2.o

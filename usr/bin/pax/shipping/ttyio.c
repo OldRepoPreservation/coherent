@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/ttyio.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/ttyio.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * ttyio.c - Terminal/Console I/O functions for all archive interfaces
  *
@@ -30,7 +30,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	ttyio.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/ttyio.c,v $
+ * Revision 1.1	91/02/05  11:59:39 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:06:11  mark
  * 1.2 release fixes
  * 

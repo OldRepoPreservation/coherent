@@ -1,10 +1,12 @@
 DESTDIR=/bin386/bin/
+EXPR=$(DESTDIR)expr
 
-expr:	expr.o	
-	cc -O -o $(DESTDIR)expr expr.o -ly
-	su root chown bin $(DESTDIR)expr
-	su root chgrp bin $(DESTDIR)expr
-	su root chmod 511 $(DESTDIR)expr
+CFLAGS=-O
+CC=cc
+
+$(EXPR):	expr.o	
+	rm -f $(EXPR)
+	cc -O -so $(EXPR) expr.o -ly
+	su root chmog 511 bin bin $(EXPR)
 
 expr.o:	expr.y
-

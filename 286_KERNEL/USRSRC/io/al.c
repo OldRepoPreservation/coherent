@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.12  92/02/14  10:12:27  bin
+ * update by hal (post 321)
+ * 
  * Revision 1.11  92/01/13  08:37:52  hal
  * alclose() - decrement open count in alx.c
  * 

@@ -6,7 +6,7 @@
 
 # SRC defines the root directory of as source, MCH the target machine.
 SRC=/newbits/bin/as
-DESTDIR=/f1/bin/
+DESTDIR= /interim/bin/
 MCH=i8086
 
 # Add source and mch directories to include path.

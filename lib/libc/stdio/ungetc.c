@@ -1,124 +1,134 @@
 /*
- * libc/stdio/ungetc.c
- * ANSI-compliant C standard i/o library.
- * ungetc()
- * ANSI 4.9.7.11.
- * Unget a character.
+ * Standard I/O Library
+ * Unget char for next getc
  */
 
 #include <stdio.h>
-#include <string.h>
-
-extern	int	_fungotc();
-extern	int	_funungetc();
 
 int
-ungetc(c, stream) int c; register FILE *stream;
+ungetc(c, fp)
+int	c;
+register FILE	*fp;
 {
-	register _FILE2 *f2p;
+	extern	int	_fginit();
+	extern	int	_fgetb();
+	extern	int	_fgetc();
+	extern	int	_fgeteof();
+	int	_fungoti();
+	int	_fungotb();
+	int	_fungotc();
+	int	_fungote();
+	int	_funungc();
 
-	f2p = stream->_f2p;
-	if (c == EOF || (stream->_ff1 & _FWONLY))
-		return EOF;		/* Leave input stream unchanged */
-	f2p->_gt = &_fungotc;		/* Replace get function */
-	if (!(stream->_ff1 & _FRONLY))
-		f2p->_pt = &_funungetc;	/* Replace put function */
-	stream->_cc = 0;
-	stream->_ff2 |= _FUNGOT;	/* Set ungot flag */
-	stream->_ff1 &= ~_FEOF;		/* ANSI 4.9.7.11 (24) */
-	f2p->_uc = c;			/* Store ungot character */
-	return c;
+	if (c == EOF)			/* ANSI 4.9.7.11 (22) */
+		return(EOF);		/* Leave input stream unchanged */
+	if (fp->_gt==&_fginit)
+		fp->_gt = &_fungoti;
+	else if (fp->_gt==&_fgetb)
+		fp->_gt = &_fungotb;
+	else if (fp->_gt==&_fgetc)
+		fp->_gt = &_fungotc;
+	else if (fp->_gt==&_fgeteof)
+		fp->_gt = &_fungote;
+	else
+		return (EOF);
+	fp->_pt = &_funungc;
+	fp->_cc = 0;
+	fp->_ff |= _FUNGOT;
+	fp->_ff &= ~_FEOF;		/* ANSI 4.9.7.11 (24) */
+	fp->_uc = c;
+	return (c);
 }
+
 
 /*
- * Get ungetc character.
- * Restore the appropriate get and put functions.
+ * uninitialized fp unget
  */
+
 static
 int
-_fungotc(fp) register FILE *fp;
+_fungoti(fp)
+register FILE	*fp;
 {
-	register _FILE2 *f2p;
+	extern	int	_fginit();
+	extern	int	_fpinit();
 
-	f2p = fp->_f2p;
-
-#if	_ASCII
-	register int isascii;
-
-	isascii = fp->_ff2 & _FASCII;
-#endif
-
-	switch (fp->_mode) {
-	case _MODE_UNINIT:		/* Uninitialized */
-		f2p->_gt = &_fginit;
-		f2p->_pt = &_fpinit;
-		break;
-
-	case _MODE_FBUF:
-	case _MODE_LBUF:
-		/* Fully buffered or line buffered */
-		if (fp->_mode == _MODE_FBUF) {
-			/* Fully buffered output */
-#if	_ASCII
-			f2p->_pt = isascii ? &_fputba : &_fputb;
-#else
-			f2p->_pt = &_fputb;
-#endif
-		} else {
-			/* Line buffered output */
-#if	_ASCII
-			f2p->_pt = isascii ? &_fputta : &_fputt;
-#else
-			f2p->_pt = &_fputt;
-#endif
-		}
-#if	_ASCII
-		f2p->_gt = isascii ? &_fgetba : &_fgetb;
-#else
-		f2p->_gt = &_fgetb;
-#endif
-		if ((fp->_cc = -(fp->_cp - f2p->_dp)) < 0)
-			fp->_cc = f2p->_ep - fp->_cp;
-		break;
-
-	case _MODE_NBUF:
-		/* Unbuffered */
-#if	_ASCII
-		f2p->_gt = isascii ? &_fgetca : &_fgetc;
-		f2p->_pt = isascii ? &_fputca : &_fputc;
-#else
-		f2p->_gt = &_fgetc;
-		f2p->_pt = &_fputc;
-#endif
-		break;
-
-	case _MODE_STR:
-		/* String */
-		f2p->_gt = &_fgetstr;
-		fp->_cc = strlen(fp->_cp);
-		break;
-	}
-
-	if (fp->_ff1 & _FRONLY)
-		f2p->_pt = &_fpute;
-	fp->_ff2 &= ~_FUNGOT;		/* Clear the ungot flag */
-	return f2p->_uc;		/* Return the ungot character */
+	fp->_gt = &_fginit;
+	fp->_pt = &_fpinit;
+	fp->_cc = 0;
+	fp->_ff &= ~_FUNGOT;
+	return (fp->_uc);
 }
+
 
 /*
- * Undo unget.
- * This occurs after an ungetc()
- * when put function is done before get function.
+ * buffered unget
  */
+
 static
 int
-_funungetc(c, fp) register int c; register FILE *fp;
+_fungotb(fp)
+register FILE	*fp;
 {
-	register _FILE2 *f2p;
+	extern	int	_fgetb();
+	extern	int	_fputb();
 
-	f2p = fp->_f2p;
-	(*f2p->_gt)(fp);		/* Undo the unget */
-	return putc(c, fp);		/* and do the put */
+	fp->_gt = &_fgetb;
+	fp->_pt = &_fputb;
+	if ((fp->_cc = fp->_cp - fp->_dp) > 0)
+		fp->_cc = _ep(fp) - fp->_cp;
+	fp->_ff &= ~_FUNGOT;
+	return (fp->_uc);
 }
 
-/* end of libc/stdio/ungetc.c */
+
+/*
+ * unbuffered unget
+ */
+
+static
+int
+_fungotc(fp)
+register FILE	*fp;
+{
+	extern	int	_fgetc();
+	extern	int	_fputc();
+
+	fp->_gt = &_fgetc;
+	fp->_pt = &_fputc;
+	fp->_cc = 0;
+	fp->_ff &= ~_FUNGOT;
+	return (fp->_uc);
+}
+
+
+/*
+ * string unget (for sscanf)
+ */
+
+static
+int
+_fungote(fp)
+register FILE	*fp;
+{
+	extern int	_fgeteof();
+
+	fp->_gt = &_fgeteof;
+	fp->_cc = -strlen(fp->_cp);
+	return (fp->_uc);
+}
+
+
+/*
+ * un unget; occurs if put done before get after unget
+ */
+
+static
+int
+_funungc(c, fp)
+register char	c;
+register FILE	*fp;
+{
+	(*fp->_gt)(fp);
+	return (putc(c, fp));
+}

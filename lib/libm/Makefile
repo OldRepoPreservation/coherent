@@ -1,8 +1,11 @@
-# /usr/src/libm/Makefile 2/4/93
+# /usr/src/libm/Makefile 2/12/92
 # For the moment, this just makes the main directory.
 # It should have separate targets for different machines and representations,
 # notably i8087.
-DESTDIR=/bin386/lib/
+
+DESTDIR=/interim/lib/
+DESTDIR386=/bin386/lib/
+
 OBJ=\
 	acos.o\
 	asin.o\
@@ -15,7 +18,6 @@ OBJ=\
 	exp.o\
 	fabs.o\
 	floor.o\
-	fmod.o\
 	hypot.o\
 	j0.o\
 	j1.o\
@@ -35,6 +37,9 @@ OBJ=\
 libm.a:	$(OBJ)
 	$(AR) rckus $(DESTDIR)$@ $?
 
+libm386.a:	$(OBJ)
+	$(AR) rcs $(DESTDIR386)$@ $?
+
 # Secondary targets.
 acos.o:		acos.c
 asin.o:		asin.c
@@ -47,7 +52,6 @@ cosh.o:		cosh.c
 exp.o:		exp.c
 fabs.o:		fabs.c
 floor.o:	floor.c
-fmod.o:		fmod.c
 hypot.o:	hypot.c
 j0.o:		j0.c
 j1.o:		j1.c
@@ -66,4 +70,4 @@ two.o:		two.c
 clean:
 	rm $(OBJ)
 
-# end of /usr/src/libm/Makefile
+# end of /usr/src/libm/Makefile 2/12/91

@@ -1,9 +1,13 @@
-static	char	*rcsrev = "$Revision: 2.31 $";
+static	char	*rcsrev = "$Revision: 1.2 $";
 static	char	*rcshdr =
-	"$Header: /v/wgl/src/ourmail/mail.c,v 2.31 90/03/30 16:16:19 wgl Exp $";
+	"$Header: /newbits/bin/mail/lmail/RCS/lmail.c,v 1.2 92/01/07 08:46:20 bin Exp Locker: bin $";
 /*
- * $Header: /v/wgl/src/ourmail/mail.c,v 2.13 90/03/30 16:16:19 wgl Exp $
- * $Log:	/v/wgl/src/ourmail/mail.c,v $
+ * $Header: /newbits/bin/mail/lmail/RCS/lmail.c,v 1.2 92/01/07 08:46:20 bin Exp Locker: bin $
+ * $Log:	lmail.c,v $
+ * Revision 1.2  92/01/07  08:46:20  bin
+ * Piggy changes for so that if an all caps sitename fails, it will try
+ * lower case.
+ * 
  * Revision 2.13	90/03/30  16:16:19 	wgl
  * Correct seek pointer work within readmail.
  * 

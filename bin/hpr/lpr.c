@@ -133,7 +133,7 @@ char **av;
 	if (chdir(spooldir) < 0)
 		lperr("bad directory `%s'", spooldir);
 	tfname = tfspace;
-	sprintf(tfname, "tf%D", unique());
+	sprintf(tfname, "tf%ld", unique());
 	strcpy(cfname, tfname);
 	cfname[0] = 'c';
 	if ((cfp = fopen(tfname, "w")) == NULL)
@@ -240,7 +240,7 @@ register FILE *inf;
 	register int c;
 	register FILE *outf;
 
-	sprintf(dfname, "df%D", unique());
+	sprintf(dfname, "df%ld", unique());
 	if ((outf = fopen(dfname, "w")) == NULL)
 		lperr("cannot create data file");
 	while ((c = getc(inf)) != EOF)

@@ -1,3 +1,0 @@
-digilog|333|digilog 333,
-	cols#80, lines#16, bel=^G, cr=^M, el=^X, cud1=^J, home=^N, cub1=^H, 
-	cuf1=^I, cuu1=^O, ind=^J, 

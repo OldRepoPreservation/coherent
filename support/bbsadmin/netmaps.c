@@ -1,3 +1,10 @@
+/* netmaps.c: utility to build mwcbbs data files for uunet maps.
+ *
+ * usage: cat MAPLIST | netmaps
+ * 
+ * Beware the MAP_PATH and FILENAME when building these files!
+ */
+
 #include <stdio.h>
 
 #define MAP_PATH "/usr/spool/uucppublic/maps/can/"

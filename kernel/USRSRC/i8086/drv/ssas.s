@@ -3,6 +3,9 @@
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
 / $Log:	ssas.s,v $
+/ Revision 1.7  91/06/01  10:51:00  hal
+/ Add ffcopy().
+/ 
 / Revision 1.6  91/06/01  10:32:51  hal
 / Do handshaking both ways.  Now names are ss_getb()/ss_putb().
 / 

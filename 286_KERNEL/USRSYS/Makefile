@@ -1,4 +1,4 @@
-# $Header: /usr/src/sys/i8086/ibm_at/RCS/Makefile,v 1.3 89/06/30 16:26:39 src Exp $
+# $Header: /x/usr/sys/RCS/Makefile,v 1.1 91/11/14 14:36:50 hal Exp $
 #
 # Makefile for ibm specific coherent sources and coherent images.
 #
@@ -7,7 +7,10 @@
 #	USRSRC (e.g. /usr/src/sys)
 #	KOBJ (e.g. /usr/kobj)
 #
-# $Log:	/usr/src/sys/i8086/ibm_at/RCS/Makefile,v $
+# $Log:	Makefile,v $
+# Revision 1.1  91/11/14  14:36:50  hal
+# Last before going to 286/coh/io tree.
+# 
 # Revision 1.3	89/06/30  16:26:39 	src
 # Bug:	Lack of DMA lock resulted in failed transfers between SCSI drive
 # 	and floppy disk.
@@ -23,11 +26,8 @@ SYSINC=/usr/include/sys
 
 # Source directories
 COHSRC=$(USRSRC)/coh
-DRVSRC=$(USRSRC)/i8086/drv
-I86SRC=$(USRSRC)/i8086/src
-IBMATSRC=$(USRSRC)/i8086/ibm_at
-KERSRC=$(USRSRC)/ker
-TTYSRC=$(USRSRC)/ttydrv
+DRVSRC=$(USRSRC)/io
+I86SRC=$(USRSRC)/286
 
 # Library directory
 DRVLIB=$(USRSYS)/lib
@@ -128,24 +128,27 @@ $(KOBJ)/dmareq.o:	\
 $(USRSYS)/atkernel.o: $(KOBJ)/as2.obj $(HERE) $(DOTDOT)
 	exec /bin/ld -r -o $@ $<
 
-$(KOBJ)/as2.obj: $(IBMATSRC)/as2.s
+$(KOBJ)/as2.obj: $(I86SRC)/as2.s
 	exec as -go $@ $<
 
-$(KOBJ)/dmac.o: $(IBMATSRC)/dmac.c
+$(KOBJ)/dmac.o: $(I86SRC)/dmac.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(KOBJ)/dump.o: $(IBMATSRC)/dump.c
+$(KOBJ)/dump.o: $(I86SRC)/dump.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(KOBJ)/md2.o: $(IBMATSRC)/md2.c
+$(KOBJ)/md2.o: $(I86SRC)/md2.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Define REAL_MODE if real mode is also required
-$(KOBJ)/mmu.o: $(IBMATSRC)/mmu.c
+$(KOBJ)/mmu.o: $(I86SRC)/mmu.c
 	$(CC) $(CFLAGS) -DREAL_MODE -c -o $@ $<
 
-$(KOBJ)/support.o: $(I86SRC)/support.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(KOBJ)/support.o:		\
+	$(SYSINC)/al.h $(SYSINC)/timeout.h $(SYSINC)/ktty.h \
+			$(SYSINC)/poll_clk.h \
+	$(I86SRC)/support.c
+	$(CC) $(CFLAGS) -c -o $@ $(I86SRC)/support.c
 
 # this stuff was in the /usr/src/sys/i8086 Makefile before 90/08/08
 C86FLAGS=-c -DNOMONITOR=1
@@ -171,7 +174,7 @@ $(KOBJ)/clist.o: $(I86SRC)/clist.s $(SYSINC)/const.h
 $(KOBJ)/clock.o: $(COHSRC)/clock.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(KOBJ)/ct.o: $(TTYSRC)/ct.c
+$(KOBJ)/ct.o: $(COHSRC)/ct.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
 $(KOBJ)/defer.o: $(I86SRC)/defer.s
@@ -222,7 +225,15 @@ $(KOBJ)/ld.o: $(I86SRC)/ld.c
 $(KOBJ)/ldas.o: $(I86SRC)/ldas.s
 	as -gxo $@ $<
 
-$(KOBJ)/main.o: $(USRSYS)/version $(COHSRC)/main.c
+$(KOBJ)/main.o: \
+	$(USRSYS)/version \
+	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+				$(SYSINC)/machine.h $(SYSINC)/param.h \
+				$(SYSINC)/fun.h $(SYSINC)/mmu.h \
+	$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
+	$(SYSINC)/seg.h \
+	$(SYSINC)/uproc.h \
+	$(COHSRC)/main.c
 	$(CC) $(C86FLAGS) `$(USRSYS)/version` -o $@ $(COHSRC)/main.c
 
 $(KOBJ)/md1.o: $(I86SRC)/md1.c
@@ -255,10 +266,10 @@ $(KOBJ)/seg.o: $(COHSRC)/seg.c
 $(KOBJ)/sig.o: $(COHSRC)/sig.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(KOBJ)/swap.o: $(KERSRC)/swap.c
+$(KOBJ)/swap.o: $(COHSRC)/swap.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(KOBJ)/elog.o: $(KERSRC)/elog.c
+$(KOBJ)/elog.o: $(COHSRC)/elog.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
 $(KOBJ)/sys1.o: $(COHSRC)/sys1.c
@@ -298,5 +309,5 @@ $(DRVLIB)/tty.a:	$(KOBJ)/tty.o
 	rm -f $@
 	ar rc $@ $<
 
-$(KOBJ)/tty.o: $(TTYSRC)/tty.c
+$(KOBJ)/tty.o: $(DRVSRC)/tty.c
 	$(CC) $(CFLAGS) -c -o $@ $<

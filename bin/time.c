@@ -16,7 +16,9 @@ main(argc, argv)
 char *argv[];
 {
 	if (argc <= 1) {
-		exit(0);
+		execl("/bin/date", "date", NULL);
+		eprint("date: not found\n");
+		exit(1);
 	}
 	dotime(argc-1, argv+1);
 	exit(0);
@@ -61,7 +63,6 @@ char *argv[];
 			tpart += MILLI;
 			tdiff--;
 		}
-		eprint("\n");
 		output("Real:", tdiff, (tpart+MILLI/20)/(MILLI/10));
 		tpart = tb.tb_cutime%HZ;
 		output("User:", tb.tb_cutime/HZ, (tpart+HZ/20)/(HZ/10));

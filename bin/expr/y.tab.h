@@ -1,5 +1,5 @@
 
-#line 79 "expr.y"
+#line 77 "expr.y"
 typedef union {
 	char *str;
 } YYSTYPE;
@@ -11,7 +11,7 @@ typedef union {
 #define UMINUS 262
 #define LEN 263
 #ifdef YYTNAMES
-extern readonly struct yytname
+extern struct yytname
 {
 	char	*tn_name;
 	int	tn_val;

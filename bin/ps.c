@@ -3,7 +3,11 @@
  *
  * Print out process statuses.
  *
- * $Log:	/usr/src/cmd/cmd.nz/RCS/ps.c,v $
+ * $Log:	ps.c,v $
+ * Revision 1.3  91/07/17  14:22:55  bin
+ * stevesf supplied as INETCO source because previous sources are of
+ * questionable origin... this one works
+ * 
  * Revision 1.2	89/06/12  15:15:22 	src
  * Bug:	A directory at the end of the '/dev' directory would cause 'ps'
  * 	to crash with the message "Cannot open <dir> in /dev".

@@ -7,6 +7,7 @@ LDFLAGS=-f
 YFLAGS=  -prods 110 -terms 67 -nterms 30 -states 200
 
 DESTDIR=/interim/bin/
+DESTDIR386=/bin386/bin/
 
 OBJ=\
 	awk.o\
@@ -22,6 +23,10 @@ OBJ=\
 awk:	$(OBJ)
 	cc $(LDFLAGS) -o $(DESTDIR)awk $(OBJ) -lm
 	su root chmog 511 bin bin $(DESTDIR)awk
+
+awk386:	$(OBJ)
+	cc $(LDFLAGS) -o $(DESTDIR386)awk $(OBJ) -lm
+	su root chmog 511 bin bin $(DESTDIR386)awk
 
 # Secondary targets.
 awk.o:	awk.y

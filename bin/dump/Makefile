@@ -1,7 +1,8 @@
 # /usr/src/cmd/dump/Makefile 2/20/91
 
 CFLAGS = -O
-DESTDIR= /f1/bin/
+#DESTDIR= /interim/bin/
+DESTDIR= /bin386/bin/
 
 EXE=\
 	dump\

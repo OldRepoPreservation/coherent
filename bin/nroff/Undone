@@ -1,4 +1,15 @@
-troff/Undone 4/16/91
+troff/Undone 6/26/91
+
+fwtable:
+	Understand TFMs
+	Write version ID in fwt
+	Change width fields from unsigned to signed
+[nt]roff:
+	Line thickness
+	Should \h generate a wordbreak?  Seems not to now...
+troff:
+	PS outline fonts?
+	Modify fwts as per fwtable
 
 Command line option for full vs. partial character set?
 Output character set fix:

@@ -3,7 +3,7 @@
  * fortune cookies. Multi line fortunes such as poems should
  * have their lines separated by @'s.
  */
-#include <timeb.h>
+#include <sys/timeb.h>
 #include <stdio.h>
 #define RAND_MAX 32767
 

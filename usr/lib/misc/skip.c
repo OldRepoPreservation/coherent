@@ -20,7 +20,7 @@ register char **fin;
 }
 #ifdef TEST
 #include <ctype.h>
-#include "local_misc.h"
+#include "misc.h"
 
 /* eliminatye under ansi */
 digit(s)

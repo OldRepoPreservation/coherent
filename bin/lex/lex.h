@@ -1,10 +1,8 @@
 /*
- * lex/lex.h
+ * lex.h
  */
-
 #include <sys/mdata.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <ctype.h>
 #include "lextype.h"
 
@@ -14,23 +12,29 @@
 #define	OUTFILE	"lex.yy.c"
 #endif
 
-/* Manifest constants. */
-#define	ARRSZ	1000			/* maximum size of automaton */
-#define	NCBLK	16	/* number of chars in a quantum of stringspace */
-
 /*
- * Macros for manipulating bit-packed character classes.
+ * maximum size of automaton
  */
-#define	classindex(n)	((n) / NBCHAR * (MAXUCHAR+1))
-#define	classbit(n)	(1 << ((n) & (NBCHAR-1)))
+#define	ARRSZ	1000
 
 /*
- * Check for octal digit.
+ * number of chars in a quantum of stringspace
  */
-#define	isoctl(c)	('0' <= (c) && (c) <= '7')
+#define	NCBLK	16
 
 /*
- * Symbol storage.
+ * macros for manipulating bit-packed character classes
+ */
+#define	classindex(n)	((n)/NBCHAR*(MAXUCHAR+1))
+#define	classbit(n)	(1<<((n)&(NBCHAR-1)))
+
+/*
+ * check for octal digit
+ */
+#define	isoctl(c)	('0'<=(c)&&(c)<='7')
+
+/*
+ * symbol storage
  */
 struct	def {
 	struct	def *d_next;
@@ -39,16 +43,15 @@ struct	def {
 };
 
 /*
- * Types of input lines in the specification.
+ * types of input lines in the specification
  */
 enum	{
-	LN_DFLT,	LN_LSPC,	LN_CTXT,	LN_SCON,
-	LN_LCOM,	LN_RCOM,	LN_DLIM,	LN_OPTN,
-	LN_EOFL
+	LN_DFLT,LN_LSPC,LN_CTXT,LN_SCON,
+	LN_LCOM,LN_RCOM,LN_DLIM,LN_OPTN,LN_EOFL
 };
 
 /*
- * Globals.
+ * external declarations
  */
 extern	int	nxt;
 extern	int	yylval;
@@ -81,12 +84,8 @@ extern	char	actsyn[];
 extern	char	unmopr[];
 extern	char	reperr[];
 extern	char	eoferr[];
-
-/*
- * Function definitions.
- */
 extern	char	*alloc();
 extern	char	*ralloc();
 extern	char	*getident();
-
-/* end of lex.h */
+extern	char	*malloc();
+extern	char	*realloc();

@@ -438,6 +438,8 @@ printline(cp) register char *cp;
 		new = ROMAN_F;
 		if (c1 == '\f')
 			return;		/* chars after FF on line get eaten */
+		else if (c1 == ' ' || c1 == '\t')
+			new = font;	/* no font change on whitespace */
 		else if (c1 == '_') {
 			if ((c2 = *cp++) == '\b') {
 				/* "_\bx" means italic x. */

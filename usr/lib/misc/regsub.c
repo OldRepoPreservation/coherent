@@ -21,7 +21,7 @@
  ********* libmisc.a. The original may be obtained freely on mwcbbs.
  */
 #include <stdio.h>
-#include "local_misc.h"
+#include "misc.h"
 
 #ifndef CHARBITS
 #define	UCHARAT(p)	((int)*(unsigned char *)(p))

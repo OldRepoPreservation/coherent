@@ -36,7 +36,7 @@ SOURCES=Startup.s $(LIBSOURCES)
 
 LIBS=libtboot.a /lib/libc.a
 #LIBS=libtboot.a libtboot.a libtboot.a /lib/286/libc.a
-INCLUDE=-I.
+INCLUDE=-I. -I/usr/include -I/usr/include/sys
 CFLAGS=$(INCLUDE)
 
 all: tboot bootcmd

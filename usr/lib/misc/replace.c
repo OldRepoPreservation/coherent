@@ -5,7 +5,7 @@
  * or NULL if s1 not in pat. Set all to 1 to
  * replace all occurances 0 to replace the first.
  */
-#include "local_misc.h"
+#include "misc.h"
 
 char *
 replace(s1, pat, s3, all, matcher)

@@ -5,6 +5,14 @@ DESTDIR=/interim/usr/lib/
 libterm.a: termcap.o tgoto.o tputs.o
 	$(AR) rucks $(DESTDIR)libterm.a termcap.o tgoto.o tputs.o
 
+libtermcap: termcap.c tgoto.c tputs.c
+	cc -v -c $<
+	(cd /newbits/usr/lib/libcurses/obj386 ; make libtermcap)
+
+libtermcap.NDP: termcap.c tgoto.c tputs.c
+	cc -VNDP -v -c $<
+	(cd /newbits/usr/lib/libcurses/obj386 ; make libtermcap.NDP)
+
 install: libterm.a
 	cp libterm.a ${DESTDIR}/usr/lib/libterm.a
 

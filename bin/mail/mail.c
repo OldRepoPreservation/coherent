@@ -1,35 +1,11 @@
-static	char	*rcsrev = "$Revision: 1.4 $";
+static	char	*rcsrev = "$Revision: 1.1 $";
 static	char	*rcshdr =
-"$Header: /src386/bin/mail/RCS/mail.c,v 1.4 92/05/28 10:28:53 bin Exp Locker: bin $";
+	"$Header: /newbits/bin/mail/mail.c,v 1.1 91/02/04 10:42:40 bin Exp $";
 /*
- * $Header: /src386/bin/mail/RCS/mail.c,v 1.4 92/05/28 10:28:53 bin Exp Locker: bin $
- * $Log:	mail.c,v $
- * Revision 1.4  92/05/28  10:28:53  bin
- * bob h added a test for new msgsep scheme so that mail will exit
- * if it does not detect the new sep scheme.
- * 
- * Revision 1.2  92/04/20  10:07:46  bin
- * The 'final' fix using CORRECT sources to properly write a msgsep at the
- * top of a save file if new file is opened or if saving the first message
- * of a mailbox to a file
- * 
- * Revision 1.1  92/04/20  09:03:08  bin
+ * $Header: /newbits/bin/mail/mail.c,v 1.1 91/02/04 10:42:40 bin Exp $
+ * $Log:	/newbits/bin/mail/mail.c,v $
+ * Revision 1.1	91/02/04  10:42:40 	bin
  * Initial revision
- * 
- * Revision 3.4	91/02/18  17:14:10	piggy
- * Fixed "q" command so that it works with a non-setuid mail.
- * 
- * Revision 3.3	91/02/18  09:30:09	piggy
- * Fixed two mishandlings of args[].
- * 
- * Revision 3.2	91/02/08  15:16:07	piggy
- * Updated error messages to include malloc failures.
- * 
- * Revision 3.1	91/02/08  14:34:28	piggy
- * Made csplit non-destructive.
- * 
- * Revision 3.0	91/02/07  15:19:14	piggy
- * *** empty log message ***
  * 
  * Revision 2.13	90/03/30  16:16:19 	wgl
  * Correct seek pointer work within readmail.
@@ -90,8 +66,10 @@ static	char	*rcshdr =
  */
 /*
  * The mail command.
- * Coherent electronic postal system, user agent.
- * With v3.0 this program no longer runs setuid.
+ * Coherent electronic postal system.
+ * (NOTE: this command is written in such a way that
+ * it assumed that it is setuid on execution to `root'.
+ * All file accession is checked on this basis).
  * Modifications by rec january 1986 to include xmail.
  * 		 by epstein november 1987 to include CC:
  *		 by epstein november 1987 to allow ^C exit to leave you in
@@ -124,25 +102,26 @@ Command summary:\n\
 	!command	Pass 'command' to the shell to execute\n\
 If no 'file' is specified, 'mbox' in user's home directory is default.\n\
 If no 'user' is specified, the invoking user is default.\n\
+If the 'm', 'p', 't' commands are followed by an 'x',\n\
+then the public key cryptosystem is applied to the message.\n\
 \
 ";
 
+#include <stdio.h>
+#include <pwd.h>
+#include <sys/types.h>
+#include <access.h>
+#include <signal.h>
+#include <sys/mdata.h>
+#include <sys/stat.h>
 #include "mail.h"
 
 #define	NARGS	64		/* Maximum # args to interactive command */
-
-#define TRACE	printf
-#define TRUE	1
-#define FALSE	0
 
 extern	char	*getenv();
 extern	int	optind;
 extern	char	*optarg;
 extern	char	getopt();
-extern	char	*malloc();
-int	csplit();
-char	*eat_ws();
-char	*find_ws();
 char	*revnop();
 
 int	mflag;			/* `You have mail.' message to recipient */
@@ -172,17 +151,15 @@ char	noperm[] = "Mailbox '%s' access denied.\n";
 char	moerr[] = "Cannot open mailbox '%s'\n";
 char	wrerr[] = "Write error on '%s'\n";
 char	nosave[] = "Cannot save letter in '%s'\n";
-char	allocerr[] = "%s: Can't malloc.\n";
 
 FILE	*mfp;				/* Mailbox stream */
 int	myuid;				/* User-id of mail user */
 int	mygid;				/* Group-id of mail user */
 char	myname[25];			/* User name */
 char	myfullname[50];
-char	mymbox[256];			/* $HOME/mbox		*/
-char	mydead[256];			/* $HOME/dead.letter	*/
-char	mysig[256];			/* $HOME/.sig.mail	*/
-char	myalias[256];			/* $HOME/.aliases	*/
+char	mymbox[256];			/* $HOME/mbox */
+char	mydead[256];			/* $HOME/dead.letter */
+char	mysig[256];			/* $HOME/dead.letter */
 char	spoolname[50] = SPOOLDIR;
 char	*mailbox = spoolname;
 char	cmdname[1024];		/* Command for x{en,de}code filter */
@@ -192,51 +169,32 @@ char	cmdname[1024];		/* Command for x{en,de}code filter */
 char	*args[NARGS];			/* Interactive command arglist */
 char	msgline[NLINE];
 char	cline[NCLINE] = "+\n";
-char	*temp;				/* Currently open temp file	*/
-char	templ[] = "/tmp/mailXXXXXX";	/* Temp file name template	*/
-char	*editname;			/* name of editor		*/
-char	*scatname;			/* name of scat filter		*/
-char	*askcc;				/* Ask for CC: list? (YES/NO)	*/
+char	*temp;				/* Currently open temp file */
+char	templ[] = "/tmp/mailXXXXXX";	/* Temp file name template */
+char	*editname;			/* name of editor	   */
+char	*askcc;				/* Ask for CC: list? (YES/NO) */
 
 fsize_t	ftell();
 char	*getlogin();
 char	*mktemp();
 int	catchintr();
-int	catchpipe();
+char	*malloc();
+extern	char	*rindex();
 char	asuser [32];
-
-typedef short int bool;
-bool watch_first_msg;
-bool delete_first_msg;
-
 main(argc, argv)
 char *argv[];
 {
 	register char *ap;
-	char	c, *foo;
-	int i;
-
-	umask(077);
-	logopen();
-
-	/* Explicitly NULL out args.  */
-	for (i = 0; i < NARGS; ++i) {
-		args[i] = NULL;
-	}
+	char	c;
 
 	ap = argv[0];
-	if ( (foo=rindex(ap, '/')) != NULL )
-		ap = foo+1;
-
+	if (rindex (ap, '/') != NULL)
+		++ap;
 	callmermail = (strcmp(ap, "rmail") == 0);
 	callmexmail = (strcmp(ap, "xmail") == 0);
-
-	if (callmermail)
-		logdump("argv0 = rmail\n");
-
 	asuser [0] = '\0';
-	signal(SIGINT, catchintr);
-	signal(SIGPIPE, catchpipe);
+	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
+		signal(SIGINT, catchintr);
 	while ((c = getopt(argc, argv, "a:f:mpqrv")) != EOF) {
 		switch(c) {
 		case 'f':
@@ -271,9 +229,7 @@ char *argv[];
 	setname();
 	if (optind < argc) {
 		qflag = 1;
-		if ( send2(stdin, &argv[optind], (fsize_t)0,
-						 (fsize_t)MAXLONG, 1) != 0 )
-			rmexit(1);
+		send2(stdin, &argv[optind], (fsize_t)0, (fsize_t)MAXLONG, 1);
 	} else {
 		if ( ! pflag)
 			callmexmail = 0;
@@ -310,19 +266,13 @@ setname()
 	strcat(mydead, "/dead.letter");
 	strcpy(mysig, pwp->pw_dir);
 	strcat(mysig, "/.sig.mail");
-	strcpy(myalias, pwp->pw_dir);
-	strcat(myalias, "/.aliases");
 	mktemp(templ);
 
 	if ((editname=getenv("EDITOR"))==NULL)
 		editname = "/bin/ed";
 
-	if ( ((scatname=getenv("PAGER")) != NULL) &&
-	     (strlen(scatname) == 0) )
-		scatname = NULL;
-
 	if ((askcc=getenv("ASKCC")) != NULL)
-		if ( strcmp(askcc, "YES") )
+		if ( strcmp(askcc, "YES") || !isatty(fileno(stdin)) )
 			askcc = NULL;
 }
 
@@ -334,60 +284,40 @@ commands()
 {
 	register struct msg *mp;
 	struct msg *dest;
-	struct stat filestats;
 	register char **fnp;
 	register FILE *fp;
 	fsize_t seek;
-	int need_to_add_sep;
-	char am_i_sep[7];
-	bool first_msg_read;
-	int testfile; /* used to test if file exists */
 
 	readmail();
 	mprint(mp = rflag ? m_last : m_first);
 	for (;;) {
 		readmail();
 		intcheck();
-
-	/* if pflag is set, then we will loop through and print all messages
-	 * without stopping between messages for command prompts
-	 */
-		if(!pflag){
+		if ( ! pflag) {
 			callmexmail = 0;
 			mmsg("? ");
-			if (fgets(cline, sizeof cline, stdin) == NULL){
-				if(intcheck())
+			if (fgets(cline, sizeof cline, stdin) == NULL) {
+				if (intcheck())
 					continue;
 				break;
 			}
 		}
-
 		switch (cline[0]) {
 		case 'd':
 			if (cline[1] != '\n')
 				goto usage;
 			mp->m_flag += 1;
-			if(mp->m_seek == 5)
-				delete_first_msg = TRUE;
 			goto advance;
 
 		case 'm':
 		case 't':
 			if (csplit(cline, args) == 1) {
-				/* We don't want to put anything into
-				   args that we didn't get from malloc. */
-
-				if (args[1] != NULL) {
-					free(args[1]);
-				}
-				args[1] = malloc(strlen(myname) + 1);
-				strcpy(args[1], myname);
+				args[1] = myname;
 				args[2] = NULL;
 			}
 			callmexmail = (cline[1] == 'x');
 			if (cline[0] == 'm') {
-	/* when forwarding mail, seek  to msg start + 5 to rid the msgsep */
-			send2(mfp, args+1, (mp->m_seek + 5), mp->m_end - ((sizeof(MSGSEP) - 1) *2), 0);
+				send2(mfp, args+1, mp->m_seek, mp->m_end - 3, 0);
 				fseek(mfp, mp->m_seek, 0);
 			} else
 				send2(stdin, args+1, 0L, (fsize_t)MAXLONG, 1);
@@ -419,14 +349,7 @@ commands()
 		case 's':
 		case 'w':
 			if (csplit(cline, args) == 1) {
-				/* We don't want to put anything into
-				   args that we didn't get from malloc. */
-
-				if (args[1] != NULL) {
-					free(args[1]);
-				}
-				args[1] = malloc(strlen(mymbox) + 1);
-				strcpy(args[1], mymbox);
+				args[1] = mymbox;
 				args[2] = NULL;
 			}
 			seek = mp->m_seek;
@@ -434,47 +357,12 @@ commands()
 				seek += mp->m_hsize;
 			for (fnp = &args[1]; *fnp != NULL; fnp++) {
 				fp = NULL;
-
-				testfile = stat(*fnp, &filestats);
-
-		/* attempt to open the file and write */
-
-				if ( (maccess(*fnp) < 0) 
-				  || ( (fp = fopen(*fnp,"a")) == NULL)
-				  || (mcopy(mfp,fp,seek,mp->m_end,0)))
+				if (maccess(*fnp) < 0
+				 || (fp = fopen(*fnp, "a")) == NULL
+				 || mcopy(mfp, fp, seek, mp->m_end - 3, 0))
 					mmsg(nosave, *fnp);
-
-		/* close the output file. Because some screwy 'not logic'
-		 * was used to determine how msg seps were treated in elm
-		 * (and I actually understood it after a while), it was
-		 * semi implemented here for SCO mail format compatibility.
-		 * Unfortunately, for reasons not clear to me yet, sometimes
-		 * a message is copied to the out file with no msgsep appended
-		 * to the end of it. So, after appending our message to the
-		 * outfile, we will reopen the outfile, seek to the last
-		 * byte - 5, and see if the last 5 bytes are a msgsep. If
-		 * not, close the file and reopen for append and then write
-		 * the msgsep.
-		 */
 				if (fp != NULL) {
-					fflush(fp);
 					fclose(fp);
-					stat(*fnp,&filestats);
-					fp = fopen(*fnp,"r");
-/*		TRACE("Seeking to position %d\n",(filestats.st_size - 5)); */
-				fseek(fp,(filestats.st_size - 5),0);
-					fgets(am_i_sep,sizeof(MSGSEP),fp);
-					fclose(fp);
-					need_to_add_sep = strcmp(am_i_sep,MSGSEP
-);
-					if(need_to_add_sep){
-						fp = fopen(*fnp,"a");
-						fprintf(fp,MSGSEP);
-						fflush(fp);
-						fclose(fp);
-					}
-			
-					
 					chown(*fnp, myuid, mygid);
 				}
 			}
@@ -539,46 +427,17 @@ commands()
  */
 readmail()
 {
-	typedef short int bool;
 	register struct msg *mp;
 	struct stat sb;
 	static long m_last_end;
+	fsize_t	first;		/* to become ffsize_t */
 	int datasw;
-	bool newmsg;
-	static bool checked_format;
-	static fsize_t original_box_size;
-	char convert_cmd[65];
 
 	if (m_first == NULL) {
 		if (stat(mailbox, &sb) < 0)
 			merr(nombox, mailbox);
 		if (sb.st_size == 0)
 			merr(nomail);
-
-		/* the following will open the mailbox and read the first
-		 * line. If it is not a MSGSEP, then a message will be printed
-		 * to run cvmail and exit.
-		 */
-
-		if(!checked_format){
-			if ((mfp = fopen(mailbox, "r")) == NULL)
-				merr(moerr, mailbox);
-			if(fgets(msgline, sizeof msgline, mfp) == NULL){
-				printf("Can not determine mailbox format\n");
-				exit(1);
-			}
-			fclose(mfp);
-			checked_format = TRUE;
-			if(strcmp(MSGSEP, msgline)){
-				printf("Your mailbox or mailfile needs to be converted to the proper format.\n");
-				strcpy(convert_cmd, "/bin/cvmail ");
-				strcat(convert_cmd, mailbox);
-				printf("\nTo manually convert your mailbox, run: %s\n\n", convert_cmd);
-				exit(1);
-			}
-		}
-
-		original_box_size = sb.st_size;
 		if (access(mailbox, AREAD) < 0)
 			merr(noperm, mailbox);
 		if ((mfp = fopen(mailbox, "r")) == NULL)
@@ -588,59 +447,73 @@ readmail()
 		fstat(fileno(mfp), &sb);
 		if (sb.st_size == m_last_end)
 			return;
-		if (sb.st_size != original_box_size){
-			mmsg("More mail received.\n");
-			original_box_size = sb.st_size;
-		}
+		mmsg("More mail received.\n");
 	}
 
-	/* we will enter a loop which reads the mailbox line by line.
-	 * When it hits a MSGSEP indicating the end of a mail message,
-	 * a struct msg will be set with the start and end positions
-	 * of the message read. We will continue through this loop until 
-	 * struct msg's have been built for all messages.
-	 */
-
-	newmsg = TRUE;
 	for(mlock(myuid);;) {
 		fseek(mfp, m_last_end, 0);
-		datasw = 0;
-		while (fgets(msgline, sizeof msgline, mfp) != NULL) {
-			/* NB: this means the implicit message
-			   seperator is actually "\n\1\1\n".  */
-			if(!(datasw = strcmp(MSGSEP, msgline))){
-
-				/* message seperator */
-				if (((newmsg = !newmsg) == TRUE) && (ftell(mfp) != 5)){
-					mp = (struct msg *)myalloc(sizeof(*mp));
-					mp->m_next = NULL;
-					mp->m_prev = m_last;
-					mp->m_flag = mp->m_hsize = 0;
-	/* start position of msg */	mp->m_seek = m_last_end;
-	/* end position of msg */	mp->m_end = m_last_end = ftell(mfp);
-/*	TRACE("Message ends at %ld\n",ftell(mfp)); */
-					if (m_first == NULL)
-						m_last = m_first = mp;
-					else
-						m_last = m_last->m_next = mp;
-				}
+		first = ftell(mfp);
+		for (datasw = 0;
+		     fgets(msgline, sizeof msgline, mfp) != NULL; ) {
+			if(!(datasw = strcmp("\1\1\n", msgline))) {
+				/* found message seperator */
+				mp = (struct msg *)malloc(sizeof(*mp));
+				mp->m_next = NULL;
+				mp->m_prev = m_last;
+				mp->m_flag = mp->m_hsize = 0;
+				mp->m_seek = first;
+				mp->m_end = first = m_last_end = ftell(mfp);
+				if (m_first == NULL)
+					m_last = m_first = mp;
+				else
+					m_last = m_last->m_next = mp;
 			}
 		}
 
-		if(!datasw) /* data ended with message seperator */
+		if(!datasw)
 			break;
 
 		/* unterminated data, patch and retry */
 		fclose(mfp);
 		if ((mfp = fopen(mailbox, "a")) == NULL)
 			merr(moerr, mailbox);
-		fprintf(mfp, MSGSEP); /* terminate it */
+		fprintf(mfp, "\1\1\n"); /* terminate it */
 		fclose(mfp);
 		if ((mfp = fopen(mailbox, "r")) == NULL)
 			merr(moerr, mailbox);
 		mmsg("Incomplete message found.\n");
 	}
 	munlock();
+}
+
+/*
+ * Split a command line up into
+ * argv (passed) and argc (returned).
+ */
+int
+csplit(command, args)
+char *command;
+char **args;
+{
+	register char *cp;
+	register char **ap;
+	register int c;
+
+	cp = command;
+	ap = args;
+	for (;;) {
+		while ((c = *cp)==' ' || c=='\t')
+			*cp++ = '\0';
+		if (*cp == '\n')
+			*cp = '\0';
+		if (*cp == '\0')
+			break;
+		*ap++ = cp;
+		while ((c = *cp)!=' ' && c!='\t' && c!='\n' && c!='\0')
+			cp++;
+	}
+	*ap = NULL;
+	return (ap - args);
 }
 
 /*
@@ -683,46 +556,30 @@ munlock()
 mquit()
 {
 	register struct msg *mp;
-	register FILE *nfp, *tmpfp;
+	register FILE *nfp;
 	struct stat sb;
 
-	/* Get new stuff. */
 	readmail();
-	/* There is a slight race here.  We really should
-	   lock BEFORE the readmail(), but readmail() does unlocks...
-	   FIX ME. */
 	mlock(myuid);
-
 	if (mailbox != spoolname && maccess(mailbox) < 0)
 		merr(noperm, mailbox);
 	fstat(fileno(mfp), &sb);
 	signal(SIGINT, SIG_IGN);
-	signal(SIGPIPE, SIG_IGN);
-
-	/* Make a copy of the mail box; we're going to overwrite it.  */
-	tmpfp = tmp_copy(mfp);
-	fclose(mfp);
-
+	unlink(mailbox);
 	if ((nfp = fopen(mailbox, "w")) == NULL)
 		merr("Cannot re-write '%s'\n", mailbox);
 	chown(mailbox, sb.st_uid, sb.st_gid);
 	chmod(mailbox, sb.st_mode&0777);
 	for (mp = m_first; mp != NULL; mp = mp->m_next) {
-
 		if (mp->m_flag == 0) {
-			if(delete_first_msg){
-				mp->m_seek = mp->m_seek+5;
-				delete_first_msg = FALSE;
-			}
-			if (mcopy(tmpfp, nfp, mp->m_seek, mp->m_end, 0)) {
+			if (mcopy(mfp, nfp, mp->m_seek, mp->m_end, 0)) 
 				merr(wrerr, mailbox);
-			}
-		} /* if (mp->m_flag == 0) */
-
-	} /* for (walk through the linked list of messages) */
-
+/*			else
+				fprintf(nfp, "\1\1\n"); */
+		}
+	}
 	fclose(nfp);
-	fclose(tmpfp);
+	fclose(mfp);
 	munlock();
 	rmexit(0);
 }
@@ -735,17 +592,13 @@ mprint(mp)
 register struct msg *mp;
 {
 	FILE *xfp;
-
 	if (mp->m_flag)
 		return 0;
 	if (callmexmail) {
-		if (scatname != NULL) 
-			sprintf(cmdname, "xdecode | %s", scatname);
-		else
-			sprintf(cmdname, "xdecode");
-		if ((xfp = popen(cmdname, "w")) == NULL)
+		sprintf(cmdname, "xdecode");
+		if ((xfp = popen(cmdname, "w")) == NULL) {
 			return 0;
-		fprintf(xfp, MSGSEP);
+		}
 		mcopy(mfp, xfp, mp->m_seek+mp->m_hsize, mp->m_end, 1);
 		pclose(xfp);
 	} else {
@@ -756,16 +609,7 @@ register struct msg *mp;
 			system("/usr/games/fortune");
 			return(1);
 		}
-		if (scatname != NULL) {
-			sprintf(cmdname, "%s", scatname);
-			if ((xfp = popen(cmdname, "w")) == NULL)
-				return(0);
-			mcopy(mfp, xfp, mp->m_seek, mp->m_end - 5, 1);
-			if ( ((pclose(xfp)>>8)&0xFF) == SIGINT )
-				putc('\n', stdout);
-		} else {
-			mcopy(mfp, stdout, mp->m_seek, mp->m_end - 5, 1);
-		}
+		mcopy(mfp, stdout, mp->m_seek, mp->m_end - 3, 1);
 	}
 	return (1);
 }
@@ -775,18 +619,21 @@ register struct msg *mp;
  */
 
 char **
-getcc()
+getcc(users)
+register char **users;
 {
+	register char **ulist = args;
 	static	char names[NCLINE];
-	static	char *ccargs[NARGS];
 
-	ccargs[0] = NULL;
 	mmsg("CC: ");
 	if ( fgets(names, sizeof names, stdin) == NULL )
-		return(ccargs);
+		return(users);
 
-	csplit(names, ccargs);
-	return(ccargs);
+	while (*users != NULL)
+		*ulist++ = *users++;
+
+	csplit(names, ulist);
+	return(args);
 }
 
 	
@@ -794,17 +641,16 @@ getcc()
  * Errors, usage, and exit removing
  * any tempfiles left around.
  */
-mmsg(x)
+mmsg(x, s)
+char *x, *s;
 {
-	fprintf(stderr, "%r", &x);
+	fprintf(stderr, x, s);
 }
 
 merr(x, s)
 char *x, *s;
 {
 	mmsg(x, s);
-	logdump("merr: ");
-	logdump(x, s);
 	rmexit(1);
 }
 
@@ -814,10 +660,6 @@ int s;
 	if (temp != NULL)
 		unlink(temp);
 	munlock();
-
-	logdump("About to exit, status = 0x%04x\n", s);
-	logclose();
-
 	exit(s);
 }
 
@@ -826,31 +668,22 @@ int s;
  * appropriate action based on
  * the `-q' option.
  */
-int	intrflag;		/* On when interrupt sent	*/
-int	pipeflag;		/* On when broken pipe caught	*/
+int	intflag;		/* On when interrupt sent */
 
 catchintr()
 {
-	logdump("Caught SIGINT\n");
+	signal(SIGINT, SIG_IGN);
 	if (qflag)
 		rmexit(1);
-	intrflag = 1;
+	intflag = 1;
 	signal(SIGINT, catchintr);
-}
-
-catchpipe()
-{
-	logdump("Caught SIGPIPE\n");
-	pipeflag = 1;
-	signal(SIGPIPE, catchpipe);
 }
 
 intcheck()
 {
-	if (intrflag || pipeflag) {
-		if (intrflag)
-			putc('\n', stdout);
-		intrflag = pipeflag = 0;
+	if (intflag) {
+		intflag = 0;
+		putc('\n', stderr);
 		return (1);
 	}
 	return (0);
@@ -904,77 +737,3 @@ revnop()
 	} else
 		return("OOPS");
 }
-
-/*
- * Split a command line up into
- * argv (passed) and argc (returned).
- * We assume that elements of "args" are either NULL or they were
- * returned from malloc, so that they can be freed.
- */
-int
-csplit(command, args)
-char *command;
-char **args;
-{
-	register char *cp;
-	int i, argsize;
-
-	i = 0; /* Start filling in at the zero'th arg.  */
-	cp = eat_ws(command);	
-
-	/* Walk "cp" through "command", copying segments as we go.  */
-	while ( *cp != CNULL ) {
-		/* We've found an argument; find some space.  */
-		if (args[i] != NULL ) {
-			free(args[i]);
-		}
-
-		/* Figure out how big the argment is.  */
-		argsize = (int) (find_ws(cp) - cp);
-
-		/* Alloc enough space for it--include the trailing NULL.  */
-		if ((args[i] = malloc(argsize + 1)) == NULL) {
-			mmsg(allocerr, "csplit");
-			return(0);  /* Is this the approriate action?? */
-		}
-
-		/* Copy the argument into the space.  */
-		memcpy(args[i], cp, argsize);
-		args[i][argsize] = CNULL; /* This may be redundant.  */
-
-		/* Make sure that cp points to after the argument.  */
-		cp += argsize;
-
-		cp = eat_ws(cp);
-		++i;
-	} /* while (walk "cp" through "command") */
-
-	args[i] = NULL;
-	return (i);
-}
-
-/*
- * Find the next occurence of non-white space in character string s.
- */
-char *
-eat_ws(s)
-	char *s;
-{
-	while(isspace(*s)){
-		++s;
-	}
-	return(s);
-}
-
-/*
- * Find next occurence of white space in character string s.
- */
-char *
-find_ws(s)
-	register char *s;
-{
-	while((*s != CNULL) && !isspace(*s) ){
-		++s;
-	}
-	return(s);
-}	

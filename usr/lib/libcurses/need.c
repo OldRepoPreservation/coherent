@@ -1,4 +1,4 @@
-/* $Header: /usr/src/lib/libcurses/RCS/need.c,v 1.1 89/04/07 13:21:49 src Exp $
+/* $Header: /newbits/usr/lib/libcurses/RCS/need.c,v 1.2 91/09/30 13:06:39 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under

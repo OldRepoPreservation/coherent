@@ -1,7 +1,7 @@
 /*
  * Create a new copy of a string.
  */
-#include "local_misc.h"
+#include "misc.h"
 extern char *strcpy();
 
 char *

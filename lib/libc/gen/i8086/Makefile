@@ -1,4 +1,4 @@
-# /usr/src/libc/gen/i8086/Makefile 1/9/92
+# /usr/src/libc/gen/i8086/Makefile 2/12/91
 
 OBJ=\
 	abort.o\
@@ -21,7 +21,7 @@ UNUSED=\
 
 # Primary target.
 GENI8086:	$(OBJ)
-	$(AR) rkus libc.a $?
+	ar rkus libc.a $?
 	touch $@
 	: libc/gen/i8086 done
 

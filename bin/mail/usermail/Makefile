@@ -13,7 +13,7 @@ mail : $O
 	$(CC) -n -o $(DESTDIR)mail $O
 	fixstack 1000 $(DESTDIR)mail
 	su root chmog 511 bin bin $(DESTDIR)mail
-	su root ln $(DESTDIR)mail $(DESTDIR)rmail
+	su root ln -f $(DESTDIR)mail $(DESTDIR)rmail
 
 copyright.o : ../copyright.c
 

@@ -257,7 +257,7 @@ int type;
 		break;
 	}
 
-	printf("%s entry in block %lu in directory\n", errname, blocknum);
+	printf("%s entry in block %U in directory\n", errname, blocknum);
 	pinfo(myinum);
 	pname(path[--depth]->d_name);
 	depth++;
@@ -295,11 +295,8 @@ register struct direct *elemnt;
 			zeroent(elemnt);
 			return(UNALLOC);
 		}
-		if ( (flags(inum)&MODEMASK)==IDIR ) {
-			linkincr(inum);
-			numfiles++;
-			return(UNALLOC);	/* Don't traverse this baby */
-		}
+		if ( (flags(inum)&MODEMASK)==IDIR )
+			return(UNALLOC);
 	}
 
 	linkincr(inum);
@@ -352,7 +349,7 @@ ino_t inum;
 	else
 		printf("Owner=%u, ", dip->di_uid);
 	printf(" Mode=0%o\n", dip->di_mode);
-	printf("Size=%lu, Mtime=%s", dip->di_size, ctime(&dip->di_mtime));
+	printf("Size=%U, Mtime=%s", dip->di_size, ctime(&dip->di_mtime));
 	return(dip->di_size);
 }
 
@@ -389,7 +386,7 @@ char *name;
 {
 	register int mode = flags(inum)&MODEMASK;
 
-	printf("Bad or Dup blocks in %s\n", typename(inum));
+	printf("Bad or Dup blocks in %s\n",(mode==IDIR) ? "Directory" : "File");
 	pinfo(inum);
 	pname(name);
 	return(action(remove));

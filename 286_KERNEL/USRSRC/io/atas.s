@@ -8,6 +8,9 @@
 / AT Hard Disk Assembler Support
 /
 / $Log:	atas.s,v $
+/ Revision 1.4  92/02/06  09:25:32  bin
+/ update by Hal to correct global declaration of the ATSREG variable.
+/ 
 / Revision 1.4  92/02/05  15:55:06  hal
 / Patchable ATSREG_.
 / 

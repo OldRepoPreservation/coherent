@@ -1,17 +1,27 @@
 # dos/Makefile 6/26/92
 
 CFLAGS= -A 
+DESTDIR=/interim/bin/
+DOSBIN386=/bin386/bin
+DOSBIN=/interim/bin
 
 #-o $(DOSOBJ)/$@ 
 #CFLAGS=-DDEBUG 
 
 OBJ=\
-	$(DOSOBJ)/copyright.o\
-	$(DOSOBJ)/dos0.o\
-	$(DOSOBJ)/dos1.o\
-	$(DOSOBJ)/dos2.o\
-	$(DOSOBJ)/dos3.o\
-	$(DOSOBJ)/dos4.o
+	copyright.o\
+	dos0.o\
+	dos1.o\
+	dos2.o\
+	dos3.o\
+	dos4.o
+#OBJ=\
+#	$(DOSOBJ)/copyright.o\
+#	$(DOSOBJ)/dos0.o\
+#	$(DOSOBJ)/dos1.o\
+#	$(DOSOBJ)/dos2.o\
+#	$(DOSOBJ)/dos3.o\
+#	$(DOSOBJ)/dos4.o
 HDR=\
 	bpb.h\
 	dos0.h\
@@ -27,8 +37,21 @@ SRC=\
 
 
 # Primary targets.
+dos386:	$(OBJ)
+	$(CC) -i -o $(DOSBIN386)/dos $(OBJ)
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosdir
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosls	
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosmkdir
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/doscp
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/doscpdir
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosdel
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/doscat
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosrm
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosrmdir
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/dosformat
+	ln -f $(DOSBIN386)/dos $(DOSBIN386)/doslabel
 dos:	$(OBJ)
-	$(CC) -i -o $(DOSBIN)/dos $(OBJ)
+	$(CC) -i -o $(DESTDIR)dos $(OBJ)
 	ln -f $(DOSBIN)/dos $(DOSBIN)/dosdir
 	ln -f $(DOSBIN)/dos $(DOSBIN)/dosls	
 	ln -f $(DOSBIN)/dos $(DOSBIN)/dosmkdir

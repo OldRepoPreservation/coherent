@@ -3,7 +3,10 @@
  *
  * Purpose:
  *
- * $Log$
+ * $Log:	template.c,v $
+ * Revision 1.2  91/06/20  14:55:08  bin
+ * update provided by hal
+ * 
  */
 
 /*

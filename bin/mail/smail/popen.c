@@ -75,25 +75,36 @@ FILE *stream;
 	int status;
 	int (*hupfun)(), (*intfun)(), (*quitfun)();
 
+	char BOBerrmsg[80];
+
 	fd = fileno(stream);
 	pid = poppid[fd];
 	poppid[fd] = 0;
-	if (pid==0 || fclose(stream)==EOF)
+	if (pid==0 || fclose(stream)==EOF){
 		return (-1);
+	}
 	hupfun = signal(SIGHUP, SIG_IGN);
 	intfun = signal(SIGINT, SIG_IGN);
 	quitfun = signal(SIGQUIT, SIG_IGN);
-	while ((wpid = wait(&status))!=pid && wpid>=0)
-		;
-	if (wpid < 0)
+
+	while ((wpid = wait(&status))!=pid && wpid>=0){
+			;
+	}
+
+	if (wpid < 0){
+		sprintf(BOBerrmsg,"wpid is %d",wpid);
+		error_log(BOBerrmsg);
 		status = -1;
+	}
 	signal(SIGHUP, hupfun);
 	signal(SIGINT, intfun);
 	signal(SIGQUIT, quitfun);
 	return (status);
 }
 
+
 /* Close all file descriptors above 2 (stderr).  */
+
 void
 close_fds()
 {
