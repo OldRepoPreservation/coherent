@@ -4,6 +4,12 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 1.4  92/02/07  09:41:21  hal
+ * Fix Wallenberg bug.
+ * 
+ * Revision 2.10  92/02/04  18:50:00  hal
+ * Use EBUSY, not EDBUSY - merge for 386 code.
+ * 
  * Revision 2.9  92/01/13  08:38:24  hal
  * Rearrange alxopen() to deal with ill-behaved daemons.
  * 
@@ -35,7 +41,9 @@
  * Shared parts of IBM async port drivers.
  */
 #include <sys/coherent.h>
+#ifndef _I386
 #include <sys/i8086.h>
+#endif
 #include <sys/al.h>
 #include <sys/con.h>
 #include <errno.h>
@@ -46,6 +54,12 @@
 #include <sys/clist.h>
 #include <sys/ins8250.h>
 #include <sys/sched.h>
+
+#ifdef _I386
+#define	EEBUSY	EBUSY
+#else
+#define	EEBUSY	EDBUSY
+#endif
 
 #define ALPORT	(((COM_DDP *)(tp->t_ddp))->port)
 #define AL_NUM	(((COM_DDP *)(tp->t_ddp))->com_num)
@@ -90,6 +104,8 @@ static	int alxclk();
 static	set_poll_rate();
 static	void alxpoll();
 static	void alx_send();
+static	int iocbaud[4];
+static	char ioclcr[4];
 
 /*
  * Baud rate table and polling rate table.
@@ -212,7 +228,7 @@ register TTY	*tp, **irqtty;
 	}
 
 	if (drvl[major(dev)].d_time != 0) {	/* Modem settling */
-		u.u_error = EDBUSY;
+		u.u_error = EEBUSY;
 		goto bad_open;
 	}
 
@@ -220,7 +236,7 @@ register TTY	*tp, **irqtty;
 	 * Can't open a polled port if another driver is using polling.
 	 */
 	if (dev & CPOLL && poll_owner & ~ POLL_AL) {
-		u.u_error = EDBUSY;
+		u.u_error = EEBUSY;
 		goto bad_open;
 	}
 
@@ -230,7 +246,7 @@ register TTY	*tp, **irqtty;
 	if ( !(dev & CPOLL)
 	&& com_usage[AL_NUM^2].irq
 	&& com_usage[AL_NUM^2].in_use) {
-		u.u_error = EDBUSY;
+		u.u_error = EEBUSY;
 		goto bad_open;
 	}
 
@@ -253,7 +269,7 @@ register TTY	*tp, **irqtty;
 		if (minor_h & CFLOW)
 			newmode += 4;
 		if (oldmode != newmode) {
-			u.u_error = EDBUSY;
+			u.u_error = EEBUSY;
 			goto bad_open;
 		}
 	}
@@ -303,7 +319,7 @@ printf("x1 ");
 		if (minor_h & CFLOW)
 			newmode += 4;
 		if (oldmode != newmode) {
-			u.u_error = EDBUSY;
+			u.u_error = EEBUSY;
 			goto bad_open;
 		}
 	} else {
@@ -602,6 +618,9 @@ TTY	*tp;
 	register int	b;
 	register int	baud;
 	int s;
+	char newlcr;
+	int write_baud=1, write_lcr=1;
+	int alnum;
 
 	b = ALPORT;
 
@@ -620,34 +639,49 @@ TTY	*tp;
 			outb(b+MCR, inb(b+MCR) & MC_OUT2); /* hangup */
 			spl(s);
 		}
+		write_baud = 0;
 	}
 
-	if (baud) {
-		unsigned char ier_save;
+	switch (tp->t_sgttyb.sg_flags & (EVENP|ODDP|RAW)) {
+	case ODDP:
+		newlcr = LC_CS7|LC_PARENB;
+		break;
+	case EVENP:
+		newlcr = LC_CS7|LC_PARENB|LC_PAREVEN;
+		break;
+	default:
+		newlcr = LC_CS8;
+		break;
+	}
 
-		s=sphi();
-		ier_save=inb(b+IER);	/* some chips need this */
-		outb(b+LCR, LC_DLAB);
-		outb(b+DLL, baud);
-		outb(b+DLH, baud >> 8);
-		switch (tp->t_sgttyb.sg_flags & (EVENP|ODDP|RAW)) {
-		case EVENP:
-			outb(b+LCR, LC_CS7 + LC_PARENB + LC_PAREVEN);
-			break;
-
-		case ODDP:
-			outb(b+LCR, LC_CS7 + LC_PARENB);
-			break;
-
-		default:
-			outb(b+LCR, LC_CS8);
-			break;
+	alnum = AL_NUM;
+	if (alnum >= 0 && alnum < 4) {
+		if (baud == iocbaud[alnum]) {
+			write_baud = 0;
+			if (newlcr == ioclcr[alnum]) {
+				write_lcr = 0;
+			}
 		}
+		iocbaud[alnum] = baud;
+		ioclcr[alnum] = newlcr;
+	}
+
+	if (write_lcr) {
+		unsigned char ier_save;
+		s=sphi();
+		ier_save=inb(b+IER);
+		if (write_baud) {
+			outb(b+LCR, LC_DLAB);
+			outb(b+DLL, baud);
+			outb(b+DLH, baud >> 8);
+		}
+		outb(b+LCR, newlcr);
 		if (com_usage[AL_NUM].uart_type == US_16550A)
 			outb(b+FCR, FC_ENABLE | FC_Rx_RST | FC_Rx_08);
 		outb(b+IER, ier_save);
 		spl(s);
 	}
+
 	set_poll_rate();
 }
 
