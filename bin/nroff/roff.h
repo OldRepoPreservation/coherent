@@ -16,10 +16,10 @@
 #include "request.h"
 #include "str.h"
 
-#define	VERSION	"3.2.16"
+#define	VERSION	"4.0.5"
 
 /* Buffer sizes. */
-#define	ABFSIZE	128			/* Size of argument buffer	*/
+#define	ABFSIZE	256			/* Size of argument buffer	*/
 #define	ASCSIZE	128			/* Size of ASCII character set	*/
 #define	CBFSIZE	128			/* Size of char buffer		*/
 #ifdef	GEMDOS

@@ -36,6 +36,7 @@ typedef union STR {
 		int	s_argc;		/* Number of arguments		*/
 		char	*s_argp[ARGSIZE];	/* Pointer to arguments	*/
 		char	*s_abuf;	/* Arg buffer space		*/
+		char	*s_fname;	/* File name			*/
 		FILE	*s_fp;		/* File pointer			*/
 	} x2;
 	struct	x3 {			/* Core I/O			*/
