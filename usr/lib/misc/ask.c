@@ -9,5 +9,5 @@ char *reply, *msg;
 {
 	printf("Enter: %r ", &msg);
 	fflush(stdout);
-	return(gets(reply));
+	return (gets(reply));
 }

@@ -28,9 +28,9 @@ register char *p;
 	register unsigned char tmp, c;
 	register unsigned short h;
 
-	for(h = 0; c = *p; p++) {
+	for (h = 0; c = *p; p++) {
 		tmp = c ^ h;
 		h = (h >> 8) ^ crctab1[tmp & 15] ^ crctab2[tmp >> 4];
 	}
-	return(h);
+	return (h);
 }

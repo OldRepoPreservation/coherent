@@ -38,7 +38,7 @@ char  *output;	/* the output area. Must be at least as large as format */
 	} 
 
 	if (outp = index(format, '.'))	/* if . in format adjust number */
-		for(; *outp != '\000'; outp++)
+		for (; *outp != '\000'; outp++)
 			switch ( *outp ) {
 				case '9' :
 				case 'Z' :
@@ -51,7 +51,7 @@ char  *output;	/* the output area. Must be at least as large as format */
 	numb += 0.5;		/* round number */
 
 	 /* scan backward for slot */
-	for(i = strlen(format), output[i--] = '\000'; i >= 0; i--) {
+	for (i = strlen(format), output[i--] = '\000'; i >= 0; i--) {
 		outp = &output[i];
 		switch ( tmp=format[i] ) {
 			case '+' :
@@ -108,14 +108,14 @@ char  *output;	/* the output area. Must be at least as large as format */
 				break;
 			case 'T' :	/* suppress trailing zeros */
 				*outp = dmod10(&numb);
-				if(*outp != '0' || sig >= output )
+				if (*outp != '0' || sig >= output )
 					sig = outp - 1;
 				else
 					*outp = ' ';
 				break;
 			case 'S' :	/* shrink trailing zeros */
 				*outp = dmod10(&numb);
-				if(*outp != '0' || sig >= output )
+				if (*outp != '0' || sig >= output )
 					sig = outp - 1;
 				else
 					strcpy(outp, (outp + 1));
@@ -171,7 +171,7 @@ register double *numb;
 		wrk = *numb;
 		*numb = 0.0;
 	}
-	return(wrk + '0');
+	return (wrk + '0');
 }
 
 #ifdef TEST
@@ -191,17 +191,17 @@ char *descr;	/* description */
 	double ret;
 
 	test_no++;
-	if(descr != NULL)
+	if (descr != NULL)
 		printf("\n%s\n", descr);
 	printf("%10.3f passed through a mask of '%s' gives '%s'\n",
 		number, mask, expect);
-	if((int)oflow)
+	if ((int)oflow)
 		printf("    With an overflow of %-3.1f\n", oflow);
 	ret = picture(number, mask, result);
-	if((int)(ret - oflow))
+	if ((int)(ret - oflow))
 		printf("Expected oflow\t%e\ngot\t\t%e\ttest %d\n",
 			oflow, ret, test_no);
-	if(strcmp(result, expect))
+	if (strcmp(result, expect))
 		printf("Expected\t'%s'\ngot\t\t'%s'\ttest %d\n",
 			expect, result, test_no);
 }
