@@ -433,17 +433,19 @@ extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 	char *tmp, tmp2[6], *mcohfile;
 
 	tmp = &(mdp->m_name[8]);
-	if (!bflag && (*tmp != ' ')) {
-		tmp2[0] = '.';
-		for (i=0; i< 3; i++) {
-			if (tmp[i] != ' ')
-				tmp2[i+1] = tolower(tmp[i]);
-			else
-				break;
+	if (!oldstyle) {
+		if (!bflag && (*tmp != ' ')) {
+			tmp2[0] = '.';
+			for (i=0; i< 3; i++) {
+				if (tmp[i] != ' ')
+					tmp2[i+1] = tolower(tmp[i]);
+				else
+					break;
+			}
+			tmp2[i+1] = '.';
+			tmp2[i+2] = '\0';
+			aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
 		}
-		tmp2[i+1] = '.';
-		tmp2[i+2] = '\0';
-		aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
 	}
 
 dbprintf(("bflag=%d, aflag=%d, mdp->m_name=%s, tmp2=%s\n", bflag, aflag, mdp->m_name, tmp2));

@@ -12,6 +12,7 @@
 #include "dos0.h"
 
 /* Globals. */
+short		oldstyle;		/* Indicates the this was a dos */
 short		aflag;			/* ASCII text file		*/
 short		bflag;			/* Binary text file		*/
 unsigned char	cohfile[NAMEMAX];	/* COHERENT filename		*/
@@ -184,6 +185,7 @@ main(argc, argv) short argc; char *argv[];
 			usage("Invalid command.\n\n");
 	}
 	else {
+		oldstyle = 1;
 		usagemsg = OUSAGE;
 		if (argc < 2)
 			usage(NULL);
@@ -194,6 +196,7 @@ main(argc, argv) short argc; char *argv[];
 		mode = key(argv[1]);
 		tv = argc - 3;
 		tmp = &argv[3];
+		strcpy(adev, device);
 	}
 
 	make_lock();

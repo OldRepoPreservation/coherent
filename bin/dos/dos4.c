@@ -144,9 +144,12 @@ replace(nargs, args) short nargs; char *args[];
 		if (stat(*ap, &s) == -1)
 			fatal("replace: \"%s\" not found", *ap);
 
+		if (strncmp(*ap, "./", 2) == 0)
+			*ap += 2;
+
 		base = basehold;
 		strcpy(base,*ap);
-		
+
 		if (s.st_mode & S_IFDIR) {
 			if (!sflag)
 				replacedir(*ap);
@@ -219,9 +222,11 @@ replacefile(file) char *file;
 	unsigned short next, prev;
 	char *tmp, tmp2[6], *files;
 
-	if (!bflag && ((tmp = strrchr(file, '.')) != NULL)) {
-		sprintf(tmp2, "%s.", tmp);
-		aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
+	if (!oldstyle) {
+		if (!bflag && ((tmp = strrchr(file, '.')) != NULL)) {
+			sprintf(tmp2, "%s.", tmp);
+			aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
+		}
 	}
 
 	/* Create the file in the appropriate directory. */
@@ -339,7 +344,7 @@ dbprintf(("base = <%s>, base1 = <%s>\n  name = <%s>, tname = <%s>\n", base, base
 char *fequiv(name) char *name;
 {
 	char *tmp;
-	short basesize, nwsize, st = 1;
+	short basesize, nwsize;
 
 	if (!base)		/* No base at all means a full disk copy */
 		return name;
@@ -357,12 +362,7 @@ char *fequiv(name) char *name;
 	else
 		basesize = strlen(base);
 
-	if (*base == '.')
-		st = -1;
-	else
-		st = 1;
-
-	return name + basesize + st;
+	return name + basesize + 1;
 }
 
 maketree(name) char *name;
