@@ -722,7 +722,6 @@ get_hdc:
 			(dflag) ? "d" : "",
 			(vflag) ? "v" : "");
 		sys(cmd, S_NONFATAL);
-		sys(cmd, S_NONFATAL);
 	}
 	if (yes_no("Does your computer system include a SCSI host adapter")) {
 		hdc = 1;
