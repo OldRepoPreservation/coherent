@@ -83,15 +83,17 @@ char *argv[];
 		argv++;
 	}
 
-	if (vflag && iflag)
-		usage("Cannot use -v with -i");
-	else if (vflag)
-                printf("Mount Dir      Filesystem                blocks    "
+	if (!oflag)
+	{
+		if (vflag && iflag)
+			usage("Cannot use -v with -i");
+		else if (vflag)
+                	printf("Mount Dir      Filesystem                blocks    "
 						 " used      free     %%used\n");
-	else if (iflag)
-		printf("Mount Dir      Filesystem                 iused     i"
+		else if (iflag)
+			printf("Mount Dir      Filesystem                 iused     i"
 	 					   "free    itotal   %%iused\n");
-
+	}
 	minit();
 	sync();
 	if (argc < 2) {
