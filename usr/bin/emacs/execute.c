@@ -55,8 +55,7 @@ register int c;
 			return(status);
 	}
 
-	if ((c>=0x20 && c<=0x7E)		/* Self inserting.	*/
-	||  (c>=0xA0 && c<=0xFE)) {
+	if (c >= 0x20 && c <= 0xFF)	{	/* Self inserting.	*/
 		if (n <= 0) {			/* Fenceposts.		*/
 			lastflag = 0;
 			return (n<0 ? FALSE : TRUE);
@@ -212,7 +211,7 @@ bindFun()
  */
 loadBinds()
 {
-	char		fname[NFILEN];
+	uchar		fname[NFILEN];
 
 	if(mlreply("Load bindings file: ", fname, NFILEN) != TRUE)
 		return(FALSE);
@@ -223,7 +222,7 @@ loadBinds()
  * report io error in various ways.
  */
 ioTrouble(fname, startsw)
-char *fname;
+uchar *fname;
 {
 	switch(startsw) {
 	case FALSE:	/* callec from ctl-x l */
@@ -240,7 +239,7 @@ char *fname;
  * Actual work of load bindings.
  */
 loadBup(fname, startsw)
-char *fname;
+uchar *fname;
 {
 	register int i;
 	short magic;
@@ -283,7 +282,7 @@ storBinds()
 {
 	register int i;
 	static	short magic = BINDID;
-	char	fname[NFILEN];
+	uchar	fname[NFILEN];
 
 	if(mlreply("Store bindings file: ", fname, NFILEN) != TRUE)
 		return(FALSE);
@@ -362,14 +361,14 @@ initMac()
  * Return TRUE if all ok, else FALSE.
  */
 doMac(macro, f, n)
-char **macro;
+uchar **macro;
 {
 	register int	c;
 	register int	af;
 	register int	an;
 	register int	s;
 	short *kbdsav;
-	char  *macsav;
+	uchar  *macsav;
 
 	if(!n) 
 		return (TRUE);

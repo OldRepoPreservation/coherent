@@ -184,6 +184,81 @@ forwword(f, n)
 }
 
 /*
+ * There is no pattern I can discover to the upper and lower case
+ * of the wierd umlauts etc tacked on to ascii. These tables are the
+ * convertable wierd characters upFor has the upper case and loFor
+ * the corresponding lower case.
+ */
+static uchar upFor[8] = { 0x80, 0x9A, 0x90, 0x8E, 0x8F, 0x92, 0x99, 0 };
+static uchar loFor[8] = { 0x87, 0x81, 0x82, 0x84, 0x86, 0x91, 0x94, 0 };
+
+/*
+ * Turn a char to upper case.
+ */
+capChar()
+{
+	register int c;
+
+	if(c = islow(lgetc(curwp->w_dotp, curwp->w_doto))) {
+		lputc(curwp->w_dotp, curwp->w_doto, c);
+		lchange(WFHARD);
+	}
+	return (forwchar(FALSE, 1));
+}
+
+/*
+ * If character is lower case return upper case version.
+ * else return 0
+ */
+islow(c)
+register int c;
+{
+	int i, d;
+
+	if (c>='a' && c<='z')
+		return(c - ('a'-'A'));
+
+	if (c & 0x80)
+		for (i = 0; d = loFor[i]; i++)
+			if (d == c)
+				return(upFor[i]);
+	return(0);
+}
+
+/*
+ * Turn a char to lower case.
+ */
+lowChar()
+{
+	register int c;
+
+	if(c = ishi(lgetc(curwp->w_dotp, curwp->w_doto))) {
+		lputc(curwp->w_dotp, curwp->w_doto, c);
+		lchange(WFHARD);
+	}
+	return (forwchar(FALSE, 1));
+}
+
+/*
+ * If character is upper case return lower case version.
+ * else return 0
+ */
+ishi(c)
+register int c;
+{
+	int i, d;
+
+	if (c>='A' && c<='Z')
+		return(c - ('A'-'a'));
+
+	if (c & 0x80)
+		for (i = 0; d = upFor[i]; i++)
+			if (d == c)
+				return(loFor[i]);
+	return(0);
+}
+
+/*
  * Move the cursor forward by the specified number of words.  As you move,
  * convert any characters to upper case.  Error if you try and move beyond
  * the end of the buffer.
@@ -191,25 +266,16 @@ forwword(f, n)
  */
 upperword(f, n)
 {
-	register int	c;
-
 	if (n < 0)
 		return (FALSE);
 	while (n--) {
-		while (inword() == FALSE) {
+		while (inword() == FALSE)
 			if (forwchar(FALSE, 1) == FALSE)
 				return (FALSE);
-		}
-		while (inword() != FALSE) {
-			c = lgetc(curwp->w_dotp, curwp->w_doto);
-			if (c>='a' && c<='z') {
-				c -= 'a'-'A';
-				lputc(curwp->w_dotp, curwp->w_doto, c);
-				lchange(WFHARD);
-			}
-			if (forwchar(FALSE, 1) == FALSE)
+
+		while (inword() != FALSE)
+			if (capChar() == FALSE)
 				return (FALSE);
-		}
 	}
 	return (TRUE);
 }
@@ -227,20 +293,13 @@ lowerword(f, n)
 	if (n < 0)
 		return (FALSE);
 	while (n--) {
-		while (inword() == FALSE) {
+		while (inword() == FALSE)
 			if (forwchar(FALSE, 1) == FALSE)
 				return (FALSE);
-		}
-		while (inword() != FALSE) {
-			c = lgetc(curwp->w_dotp, curwp->w_doto);
-			if (c>='A' && c<='Z') {
-				c += 'a'-'A';
-				lputc(curwp->w_dotp, curwp->w_doto, c);
-				lchange(WFHARD);
-			}
-			if (forwchar(FALSE, 1) == FALSE)
+
+		while (inword() != FALSE)
+			if (lowChar() == FALSE)
 				return (FALSE);
-		}
 	}
 	return (TRUE);
 }
@@ -260,29 +319,16 @@ capword(f, n)
 	if (n < 0)
 		return (FALSE);
 	while (n--) {
-		while (inword() == FALSE) {
+		while (inword() == FALSE)
 			if (forwchar(FALSE, 1) == FALSE)
 				return (FALSE);
-		}
+
 		if (inword() != FALSE) {
-			c = lgetc(curwp->w_dotp, curwp->w_doto);
-			if (c>='a' && c<='z') {
-				c -= 'a'-'A';
-				lputc(curwp->w_dotp, curwp->w_doto, c);
-				lchange(WFHARD);
-			}
-			if (forwchar(FALSE, 1) == FALSE)
+			if (capChar() == FALSE)
 				return (FALSE);
-			while (inword() != FALSE) {
-				c = lgetc(curwp->w_dotp, curwp->w_doto);
-				if (c>='A' && c<='Z') {
-					c += 'a'-'A';
-					lputc(curwp->w_dotp, curwp->w_doto, c);
-					lchange(WFHARD);
-				}
-				if (forwchar(FALSE, 1) == FALSE)
+			while (inword() != FALSE)
+				if (lowChar() == FALSE)
 					return (FALSE);
-			}
 		}
 	}
 	return (TRUE);
@@ -378,6 +424,8 @@ inword()
 		return (TRUE);
 	if (c=='$' || c=='_' || c=='\\')	/* For identifiers */
 		return (TRUE);
+	if (c & 0x80)
+		return (TRUE);
 	return (FALSE);
 }
 
@@ -389,8 +437,8 @@ inword()
  */
 lookupword(f, n)
 {
-	static char wordplace[128];
-	register char *cp;
+	static uchar wordplace[128];
+	register uchar *cp;
 
 	while (inword() != FALSE)		/* Get to beginning of word */
 		if (backchar(FALSE, 1) == FALSE)

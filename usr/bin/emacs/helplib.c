@@ -29,45 +29,56 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <path.h>
+#include "ed.h"
 
-#define	NLINE	512			/* Longest helpfile line */
 #define PATHSIZE 64			/* Longest path name	*/
 
+#if	GEMDOS
 #define	DEFHELPATH	DEFLIBPATH
+#endif
+
+#if	MSDOS
+#define	DEFHELPATH	DEFLIBPATH
+#endif
+
+#ifdef	COHERENT
+#define	DEFHELPATH	".:/usr/lib:/etc:/lib:"
+#endif
 
 #ifndef	HELPSEP
 #define	HELPSEP	'@'			/* marks a new help entry */
 #endif
 
-extern char	*helpfile;		/* Help file name	*/
-extern char	*helpindex;		/* Help file index	*/
+extern uchar	*helpfile;		/* Help file name	*/
+extern uchar	*helpindex;		/* Help file index	*/
 
 static	FILE	*helpfp;		/* Our helpfile		*/
-static	char	*helpline;		/* Our help buffer	*/
+static	uchar	*helpline;		/* Our help buffer	*/
 
 /*
  * Structure to speed lookup time.
  */
 struct	look	{
 	long	l_seek;
-	char	*l_name;
+	uchar	*l_name;
 };
 
 struct	look	*lread();
 
-char	*getenv();
+uchar	*getenv();
 char	*path();
 
 /*
  * Create a file name from a basename and an environment variable.
  */
-char *name_gen(name, pathvar, defpath)
-register char *name;
-char	*pathvar;
-char	*defpath;
+uchar *
+name_gen(name, pathvar, defpath)
+register uchar *name;
+uchar	*pathvar;
+uchar	*defpath;
 {
-	register char *fullname;
-	register char *libpath;
+	register uchar *fullname;
+	register uchar *libpath;
 
 	if ((fullname = (char *)malloc(PATHSIZE)) == NULL)
 		return NULL;
@@ -83,7 +94,7 @@ char	*defpath;
 /*
  * Get name of flex bind file.
  */
-char *
+uchar *
 flexName()
 {
 #ifdef COHERENT
@@ -98,10 +109,10 @@ flexName()
  */
 static FILE *
 hfopen(name, acs)
-char *name;
-char *acs;
+uchar *name;
+uchar *acs;
 {
-	char *fullname;
+	uchar *fullname;
 	FILE *fp = NULL;
 
 	if ((fullname = name_gen(name, "LIBPATH", DEFHELPATH)) == NULL)
@@ -116,10 +127,10 @@ char *acs;
  * Get the "stat" of the help file...
  */
 static hstat(name, sb)
-char *name;
+uchar *name;
 struct stat *sb;
 {
-	char *fullname;
+	uchar *fullname;
 	register int s;
 
 	if ((fullname = name_gen(name, "LIBPATH", DEFHELPATH)) == NULL)
@@ -144,7 +155,7 @@ helpclose() {
  * with it.  Non-zero return means no help found.
  */
 help(topic, output)
-char *topic;
+uchar *topic;
 int (*output)();
 {
 	if (helpfp == NULL)
@@ -161,7 +172,7 @@ int (*output)();
  * Non-zero return means no topics found.
  */
 indexhelp(topic, output)
-char *topic;
+uchar *topic;
 int (*output)();
 {
 	if (helpfp == NULL)
@@ -181,9 +192,9 @@ int (*output)();
  * large system help file.
  */
 static lookup(com, fp, ind, output)
-register char *com;
+register uchar *com;
 FILE *fp;
-char *ind;
+uchar *ind;
 int (*output)();
 {
 	if (fp == NULL)
@@ -211,9 +222,9 @@ int (*output)();
  * Return non-zero only when it is impossible to find it.
  */
 static fastlook(com, fp, ind)
-char *com;
+uchar *com;
 FILE *fp;
-char *ind;
+uchar *ind;
 {
 	register struct look *lp;
 	FILE *ifp;
@@ -253,10 +264,10 @@ static struct look *
 lread(fp)
 register FILE *fp;
 {
-	register char *cp;
+	register uchar *cp;
 	register int c;
 	static struct look look;
-	static char name[50];
+	static uchar name[50];
 
 	look.l_name = name;
 	if (fread(&look.l_seek, sizeof look.l_seek, 1, fp) != 1)
@@ -273,11 +284,11 @@ register FILE *fp;
 
 /* Return 0 if s1 found in s2 */
 static subcmp(s1, s2)
-char *s1;
-register char *s2;
+uchar *s1;
+register uchar *s2;
 {
-	register char *st;
-	register char *se;
+	register uchar *st;
+	register uchar *se;
 
 	st = s1;
 	for (;;) {
@@ -298,7 +309,7 @@ register char *s2;
 }
 
 static int doindex(com, fp, output)
-register char *com;
+register uchar *com;
 FILE *fp;
 int (*output)();
 {

@@ -303,7 +303,7 @@ register int	n;
 {
 	register LINE	*clp;
 	register int	s;
-	char		buf[32];
+	uchar		buf[32];
 
 	if (f == FALSE) {
 		if ((s=mlreply("Goto line: ", buf, sizeof(buf))) != TRUE)
@@ -341,7 +341,7 @@ register int	n;
 {
 	register LINE	*clp;
 	register int	s;
-	char		buf[32];
+	uchar		buf[32];
 
 	if (f == FALSE) {
 		if ((s=mlreply("Goto line: ", buf, sizeof(buf))) != TRUE)

@@ -23,9 +23,9 @@
 #define	NOBUF	1024			/* MM says bug buffers win!	*/
 #define	EFN	0			/* Event flag			*/
 
-char	obuf[NOBUF];			/* Output buffer		*/
+uchar	obuf[NOBUF];			/* Output buffer		*/
 int	nobuf;				/* # of bytes in above		*/
-char	ibuf[NIBUF];			/* Input buffer			*/
+uchar	ibuf[NIBUF];			/* Input buffer			*/
 int	nibuf;				/* # of bytes in above		*/
 int	ibufi;				/* Read index			*/
 int	oldmode[2];			/* Old TTY mode bits		*/
@@ -63,7 +63,7 @@ ttopen()
 #if	VMS
 	struct	dsc$descriptor	idsc;
 	struct	dsc$descriptor	odsc;
-	char	oname[40];
+	uchar	oname[40];
 	int	iosb[2];
 	int	status;
 
@@ -120,10 +120,10 @@ ttopen()
 		"\033[0;83;127p",	/* del   = del       */
 		"\033[0;3;27;46p"	/* <ctrl-@> = <esc>. */
 	};
-	register char *cp;
+	register uchar *cp;
 	register int i;
 
-	for (i = 0; i < sizeof(control)/sizeof(char *); i++) {
+	for (i = 0; i < sizeof(control)/sizeof(uchar *); i++) {
 		for (cp = control[i]; *cp; )
 			ttputc(*cp++);
 	}
@@ -132,7 +132,7 @@ ttopen()
 #endif
 #if	V7
 	gtty(1, &ostate);			/* save old state */
-	gtty(1, &nstate);			/* get base of new state */
+	nstate = ostate;			/* get base of new state */
 	nstate.sg_flags |= RAW;
 	nstate.sg_flags &= ~(ECHO|CRMOD);	/* no echo for now... */
 	stty(1, &nstate);			/* set mode */
@@ -177,10 +177,10 @@ ttclose()
 		"\033[0;83;0;83p",
 		"\033[0;3;0;3p"
 	};
-	register char *cp;
+	register uchar *cp;
 	register int i;
 
-	for (i = 0; i < sizeof(control)/sizeof(char *); i++) {
+	for (i = 0; i < sizeof(control)/sizeof(uchar *); i++) {
 		for (cp = control[i]; *cp; )
 			ttputc(*cp++);
 	}

@@ -35,11 +35,11 @@ forwerr(dir)
 {
 	register LINE	*lp;
 	register WINDOW	*wp;
-	register char	*tp;
+	register uchar	*tp;
 	register int	c;
 	register int	error_line;
-	char		error_text[81];
-	char		*et;
+	uchar		error_text[81];
+	uchar		*et;
 
 	if ((wp = wfind(errbp)) == NULL)
 		return FALSE;
@@ -174,7 +174,7 @@ preverr(f,n)
 readerr()
 {
 	register BUFFER	*bp;
-	char		bname[NBUFN];
+	uchar	bname[NBUFN];
 
 	makename(bname, "error-buffer");	/* New buffer name.	*/
 #if	GEM

@@ -14,7 +14,7 @@
 fileread(f, n)
 {
 	register int	s;
-	char		fname[NFILEN];
+	uchar		fname[NFILEN];
 
 	if ((s=mlreply("Read file: ", fname, NFILEN)) != TRUE)
 		return (s);
@@ -34,7 +34,7 @@ fileread(f, n)
  */
 filevisit(f, n)
 {
-	char		fname[NFILEN];
+	uchar		fname[NFILEN];
 	int		s;
 
 	if ((s=mlreply("Visit file: ", fname, NFILEN)) != TRUE)
@@ -47,14 +47,14 @@ filevisit(f, n)
 
 /* Real file visit routine...	*/
 visitfile(fname)
-char fname[];
+uchar fname[];
 {
 	register BUFFER	*bp;
 	register WINDOW	*wp;
 	register LINE	*lp;
 	register int	i;
 	register int	s;
-	char		bname[NBUFN];
+	uchar		bname[NBUFN];
 
 	for (bp=bheadp; bp!=NULL; bp=bp->b_bufp) {
 		if ((bp->b_flag&BFTEMP)==0 && strcmp(bp->b_fname, fname)==0) {
@@ -130,7 +130,7 @@ char fname[];
  * specified on the command line as an argument.
  */
 readin(fname)
-char	fname[];
+uchar	fname[];
 {
 	register LINE	*lp1;
 	register LINE	*lp2;
@@ -140,7 +140,7 @@ char	fname[];
 	register int	s;
 	register int	nbytes;
 	register int	nline;
-	char		line[NLINE];
+	uchar		line[NLINE];
 
 	mlwrite(" ");
 	bp = curbp;				/* Cheap.		*/
@@ -207,11 +207,11 @@ out:
  * line of code.
  */
 makename(bname, fname)
-char	bname[];
-char	fname[];
+uchar	bname[];
+uchar	fname[];
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 
 	cp1 = &fname[0];
 	while (*cp1 != 0)
@@ -249,7 +249,7 @@ filewrite(f, n)
 {
 	register WINDOW	*wp;
 	register int	s;
-	char		fname[NFILEN];
+	uchar		fname[NFILEN];
 
 	if ((s=mlreply("Write file: ", fname, NFILEN)) != TRUE)
 		return (s);
@@ -309,7 +309,7 @@ filesave(f, n)
  * provide a macro for this.  Most of the grief is error checking of some sort.
  */
 writeout(fn)
-char	*fn;
+uchar	*fn;
 {
 	register int	s;
 	register LINE	*lp;
@@ -352,7 +352,7 @@ filename(f, n)
 {
 	register WINDOW	*wp;
 	register int	s;
-	char	 	fname[NFILEN];
+	uchar	 	fname[NFILEN];
 
 	if ((s=mlreply("Name: ", fname, NFILEN)) == ABORT)
 		return (s);

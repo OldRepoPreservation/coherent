@@ -41,8 +41,8 @@ extern	short	iochan;				/* In "termio.c"	*/
 spawncli(f, n)
 {
 #if	V7
-	register char *cp;
-	char	*getenv();
+	register uchar *cp;
+	uchar	*getenv();
 #endif
 #if	VMS
 	movecursor(term.t_nrow, 0);		/* In last line.	*/
@@ -96,7 +96,7 @@ spawncli(f, n)
 spawn(f, n)
 {
 	register int	s;
-	char		line[NLINE];
+	uchar		line[NLINE];
 #if	VMS
 	if ((s=mlreply("DCL command: ", line, NLINE)) != TRUE)
 		return (s);
@@ -171,7 +171,7 @@ spawn(f, n)
  * in raw mode.
  */
 sys(cmd)
-register char	*cmd;
+register uchar	*cmd;
 {
 	struct	dsc$descriptor	cdsc;
 	struct	dsc$descriptor	*cdscp;

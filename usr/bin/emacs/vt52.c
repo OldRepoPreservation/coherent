@@ -92,8 +92,8 @@ vt52stand(f)			/* Set/clear standout mode...	*/
 vt52open()
 {
 #if	V7
-	register char *cp;
-	char *getenv();
+	register uchar *cp;
+	uchar *getenv();
 
 	if ((cp = getenv("TERM")) == NULL) {
 		puts("Shell variable TERM not defined!");

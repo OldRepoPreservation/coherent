@@ -20,11 +20,11 @@ extern int	tcapbeep();
 extern int	tcapopen();
 extern int	tcapstand();
 extern int	tput();
-extern char	*tgoto();
+extern uchar	*tgoto();
 
 #define TCAPSLEN 315
 
-char tcapbuf[TCAPSLEN];
+uchar tcapbuf[TCAPSLEN];
 char	PC,
 	*CM,
 	*CL,
@@ -52,11 +52,11 @@ TERM term = {
 tcapopen()
 
 {
-	char *getenv();
-	char *t, *p, *tgetstr();
-	char tcbuf[1024];
-	char *tv_stype;
-	char err_str[72];
+	uchar *getenv();
+	uchar *t, *p, *tgetstr();
+	uchar tcbuf[1024];
+	uchar *tv_stype;
+	uchar err_str[72];
 
 	if ((tv_stype = getenv("TERM")) == NULL)
 	{
@@ -120,13 +120,13 @@ tcapbeep()
 }
 
 putpad(str)
-char	*str;
+uchar	*str;
 {
 	tputs(str, 1, ttputc);
 }
 
 putnpad(str, n)
-char	*str;
+uchar	*str;
 {
 	tputs(str, n, ttputc);
 }

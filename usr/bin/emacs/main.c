@@ -29,15 +29,15 @@ BUFFER	*blistp;			/* Buffer list BUFFER		*/
 BUFFER	*helpbp;			/* Help buffer			*/
 #endif
 BUFFER	*errbp;				/* Error file BUFFER		*/
-char	pat[NPAT];			/* Pattern			*/
+uchar	pat[NPAT];			/* Pattern			*/
 
-char	errfile[NFILEN];	/* Error file name		*/
+uchar	errfile[NFILEN];	/* Error file name		*/
 
 #if	LIBHELP
-char	*helpfile=0;			/* Help file name ptr.		*/
-char	*helpindex=0;			/* Help index file name ptr.	*/
-char	hfname[NFILEN];			/* Help file name place		*/
-char	hiname[NFILEN];			/* Help index file name place	*/
+uchar	*helpfile=0;			/* Help file name ptr.		*/
+uchar	*helpindex=0;			/* Help index file name ptr.	*/
+uchar	hfname[NFILEN];			/* Help file name place		*/
+uchar	hiname[NFILEN];			/* Help index file name place	*/
 #endif
 extern  char	*strcpy();		/* copy string */
 extern  char	*getenv();
@@ -45,7 +45,7 @@ extern  char	*getenv();
 /*
  * File-name list for command line...
  */
-char	*cfiles[NCFILES];		/* Command line specified files	*/
+uchar	*cfiles[NCFILES];		/* Command line specified files	*/
 int	cfilecnt;			/* File count...		*/
 
 /*
@@ -142,12 +142,12 @@ short	lkmap[]	= {
 #endif
 
 main(argc, argv)
-char	*argv[];
+uchar	*argv[];
 {
 	register int	c;
 	register int	f;
 	register int	n;
-	char		bname[NBUFN];
+	uchar		bname[NBUFN];
 
 #if	MSDOS
 	setkeys();
@@ -248,7 +248,7 @@ char	*argv[];
  * be right.
  */
 edinit(bname)
-char	bname[];
+uchar	bname[];
 {
 	register BUFFER	*bp;
 	register WINDOW	*wp;
@@ -535,12 +535,12 @@ resetkeys()					/* redefine cursor keys */
 		"\033[0;3;0;3p",
 		NULL
 	};
-char **argv;
+	register char **ctlp;
 
 	for (ctlp = ctlseq; NULL != *ctlp; ctlp++)
-	char *flexn;
-	extern char *flexName();
-	char *ptr;
+		mlwrite(*ctlp);
+#endif
+}
 #endif
 
 argproc(argc, argv)
@@ -645,7 +645,7 @@ uchar **argv;
 /*
  * Do nothing.  ("Dead")
  */
-register char *prompt;
+ignore()
 {
 	return TRUE;
 }

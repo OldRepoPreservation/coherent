@@ -13,7 +13,7 @@
 
 typedef	struct	VIDEO {
 	short	v_flag;			/* Flags			*/
-	char	v_text[];		/* Screen data.			*/
+	uchar	v_text[];		/* Screen data.			*/
 }	VIDEO;
 
 #define	VFCHG	0x0001			/* Changed.			*/
@@ -319,12 +319,12 @@ update()
  * The RAINBOW version of this routine uses fast video.
  */
 updateline(row, vline, pline)
-char	vline[];
-char	pline[];
+uchar	vline[];
+uchar	pline[];
 {
 #if	RAINBOW|IBM
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register int	nch;
 
 	cp1 = &vline[0];			/* Use fast video.	*/
@@ -337,11 +337,11 @@ char	pline[];
 		++cp1;
 	} while (--nch);
 #else
-	register char	*cp1;
-	register char	*cp2;
-	register char	*cp3;
-	register char	*cp4;
-	register char	*cp5;
+	register uchar	*cp1;
+	register uchar	*cp2;
+	register uchar	*cp3;
+	register uchar	*cp4;
+	register uchar	*cp5;
 	register int	nbflag;
 
 	cp1 = &vline[0];			/* Compute left match.	*/
@@ -397,7 +397,7 @@ char	pline[];
 modeline(wp)
 register WINDOW	*wp;
 {
-	register char	*cp;
+	register uchar	*cp;
 	register int	c;
 	register int	n;
 	register BUFFER	*bp;
@@ -493,10 +493,10 @@ mlerase()
  * Used any time a confirmation is required.
  */
 mlyesno(prompt)
-char	*prompt;
+uchar	*prompt;
 {
 	register int	s;
-	char		buf[64];
+	uchar		buf[64];
 
 	for (;;) {
 		strcpy(buf, prompt);
@@ -522,8 +522,8 @@ char	*prompt;
  * Handle erase, kill, and abort keys.
  */
 mlreply(prompt, buf, nbuf)
-char	*prompt;
-char	*buf;
+uchar	*prompt;
+uchar	*buf;
 {
 	register int	cpos;
 	register int	i;
@@ -625,13 +625,15 @@ char	*buf;
  * in the argument scan loop.  Set the "message line" flag TRUE.
  */
 mlwrite(fmt)
-char	*fmt;
+uchar	*fmt;
 {
 	register int	c;
-	char buf[80];
+	uchar buf[NPAT * 2];
 
 	movecursor(term.t_nrow, 0);
 	sprintf(buf, "%r", &fmt);
+	if(strlen(buf) > 78)  /* too big to display on normal terminal */
+		buf[78] = 0;
 	for(fmt = buf; c = *fmt; fmt++) {
 		tputc(c);
 		++ttcol;
@@ -648,7 +650,7 @@ char	*fmt;
  * a little.
  */
 mlputs(s)
-register char	*s;
+register uchar	*s;
 {
 	register int	c;
 

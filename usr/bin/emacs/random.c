@@ -453,7 +453,7 @@ yank(f, n)
  * this routine assumes ASCII.
  */
 fixname(bp)
-register unsigned char *bp;
+register uchar *bp;
 {
 	register unsigned c;
 

@@ -15,7 +15,7 @@ usebuffer(f, n)
 	register BUFFER	*bp;
 	register WINDOW	*wp;
 	register int	s;
-	char		bufn[NBUFN];
+	uchar		bufn[NBUFN];
 
 	if ((s=mlreply("Use buffer: ", bufn, NBUFN)) != TRUE)
 		return (s);
@@ -70,7 +70,7 @@ killbuffer(f, n)
 	register BUFFER	*bp1;
 	register BUFFER	*bp2;
 	register int	s;
-	char		bufn[NBUFN];
+	uchar		bufn[NBUFN];
 
 	if ((s=mlreply("Kill buffer: ", bufn, NBUFN)) != TRUE)
 		return (s);
@@ -160,15 +160,15 @@ listbuffers(f, n)
  */
 makelist()
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register BUFFER	*bp;
 	register LINE	*lp;
 	register long	nlines;
 	register long	nbytes;
 	register int	c;
-	char		b[6+1];
-	char		line[128];
+	uchar		b[6+1];
+	uchar		line[128];
 
 	blistp->b_flag &= ~BFCHG;		/* Don't complain!	*/
 	if ((c=bclear(blistp)) != TRUE)		/* Blow old text away	*/
@@ -228,7 +228,7 @@ makelist()
 }
 
 ltoa(buf, width, num)
-register char	buf[];
+register uchar	buf[];
 register int	width;
 register long	num;
 {
@@ -249,7 +249,7 @@ register long	num;
  */
 addline(bp, text)
 register BUFFER *bp;
-char	*text;
+uchar	*text;
 {
 	register LINE	*lp;
 	register int	i;
@@ -296,7 +296,7 @@ anycb()
  * is TRUE, create it. The "bflag" is the settings for the flags in in buffer.
  */
 BUFFER	*bfind(bname, cflag, bflag)
-register char	*bname;
+register uchar	*bname;
 {
 	register BUFFER	*bp;
 	register LINE	*lp;
@@ -368,7 +368,7 @@ register BUFFER	*bp;
  * Put up a help window with the text pointed to by txt.
  */
 helpwindow(tag)
-char *tag;
+uchar *tag;
 {
 	register WINDOW	*wp;
 	register BUFFER	*bp;
@@ -411,7 +411,7 @@ char *tag;
  * Service routine for help...
  */
 addhelp(str)
-char *str;
+uchar *str;
 {
 	addline(helpbp, str);
 }
@@ -423,9 +423,9 @@ char *str;
  * or no help for the topic or file not found.)
  */
 makehelp(tag)
-char *tag;
+uchar *tag;
 {
-	extern char *helpfile;
+	extern uchar *helpfile;
 	register int c;
 
 	helpbp->b_flag &= ~BFCHG;		/* Don't complain!	*/
@@ -445,7 +445,7 @@ char *tag;
  * Put up a help window with an index of matching topics
  */
 topicwindow(tag)
-char *tag;
+uchar *tag;
 {
 	register WINDOW	*wp;
 	register BUFFER	*bp;
@@ -491,9 +491,9 @@ char *tag;
  * or no help for the topic or file not found.)
  */
 makeindex(tag)
-char *tag;
+uchar *tag;
 {
-	extern char *helpfile;
+	extern uchar *helpfile;
 	register int c;
 
 	helpbp->b_flag &= ~BFCHG;		/* Don't complain!	*/

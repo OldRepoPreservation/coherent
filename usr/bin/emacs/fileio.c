@@ -12,7 +12,7 @@ FILE	*ffp;				/* File pointer, all functions.	*/
  * Open a file for reading.
  */
 ffropen(fn)
-char	*fn;
+uchar	*fn;
 {
 	if ((ffp=fopen(fn, "r")) == NULL)
 		return (FIOFNF);
@@ -24,7 +24,7 @@ char	*fn;
  * Return TRUE if all is well, and FALSE on error (cannot create).
  */
 ffwopen(fn, w)
-char	*fn, *w;
+uchar	*fn, *w;
 {
 #if	VMS
 	register int	fd;
@@ -65,9 +65,9 @@ ffclose()
  */
 ffputline(buf, nbuf)
 #ifdef	SLOW
-register char	buf[];
+register uchar	buf[];
 #else
-char	buf[];
+uchar	buf[];
 #endif
 {
 	register int	i;
@@ -93,7 +93,7 @@ char	buf[];
  * Check for I/O errors too.  Return status.
  */
 ffgetline(buf, nbuf)
-register char	buf[];
+register uchar	buf[];
 {
 	register int	c;
 	register int	i;
