@@ -1,6 +1,7 @@
 # /usr/src/cmd/yacc/Makefile 2/20/91
 # For i8086: LFLAGS=-n.
 
+DESTDIR=/f1/bin/
 CFLAGS=-O
 LDFLAGS=-i -n
 
@@ -14,14 +15,13 @@ OBJ=\
 	y6.o
 
 yacc:	$(OBJ)
-	$(CC) $(LDFLAGS) -o $@ $(OBJ)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJ)
+	su root chown bin $(DESTDIR)yacc
+	su root chgrp bin $(DESTDIR)yacc
+	su root chmod 511 $(DESTDIR)yacc
 
 cmp:
 	cmp yacc /bin/yacc
-	rm yacc *.o
-
-cp:	all
-	cp yacc /bin/yacc
 	rm yacc *.o
 
 y0.o y1.o y4.o:	yacc.h

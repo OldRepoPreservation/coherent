@@ -31,6 +31,9 @@ MCHOBJ=\
 # Primary target.
 as:	$(OBJ) $(MCHOBJ)
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)as
+	su root chgrp bin $(DESTDIR)as
+	su root chmod 511 $(DESTDIR)as
 
 # Secondary targets.
 # Machine independent.

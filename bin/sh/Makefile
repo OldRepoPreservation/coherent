@@ -1,5 +1,5 @@
 # /usr/src/cmd0/sh/Makefile 2/19/91
-
+DESTDIR=/f1/bin/
 # Version number compiled into var.o.
 VERSION=3.1.1
 
@@ -46,7 +46,7 @@ SRCS=\
 
 # Primary target.
 sh: $(OBJ)
-	cc $(LDFLAGS) -o sh $(OBJ)
+	cc $(LDFLAGS) -o $(DESTDIR)sh $(OBJ)
 
 psh: $(OBJ)
 	cc -n -o psh -O -DPARANOID $(OBJ)
