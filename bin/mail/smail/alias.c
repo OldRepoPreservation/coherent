@@ -286,7 +286,11 @@ char **argv;
 aliasing_complete:
 		user = escape(u->string);
 		for(i=0; i < nargc; i++) {
+#ifdef CASEALIAS
+			if(strcmp(nargv[i], user) == 0) {
+#else
 			if(strcmpic(nargv[i], user) == 0) {
+#endif
 				break;
 			}
 		}
@@ -517,7 +521,11 @@ char *p;
 		** a	a
 		*/
 		if((islocal(b, d, u) == 0)
+#ifdef CASEALIAS
+		|| (strcmp(h->string, u) != 0)) {
+#else
 		|| (strcmpic(h->string, u) != 0)) {
+#endif
 			add_horz(h, b);
 			ret = 1;
 		}
