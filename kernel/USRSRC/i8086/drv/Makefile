@@ -1,29 +1,29 @@
 # Makefile for AT specific Coherent drivers
-# Environment variable USRSYS must be defined!  It used to be /usr/sys - 
-# Environment variable KOBJ must be defined!  Try /tmp/kobj
+
+# System utility directory
+USRSYS=/usr/sys
+
+# Source directory
+USRSRC=/usr/src/sys
+
+# Loadable driver directory
+LDRV=$(USRSYS)/ldrv
 
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
 
-DEBUG=0
-AS=exec /bin/as
-CC=exec /bin/cc
-CPP=exec /lib/icpp
-CFLAGS=
-AFLAGS=-gx
-NKB=nkb
+# Object directory
+KOBJ=/usr/kobj
 
-# Loadable driver directory
-LDRV=$(USRSYS)/ldrv
-
-ARCHIVES=$(USRSYS)/lib/aha154x.a \
+ARCHIVES=\
 	$(USRSYS)/lib/al.a \
 	$(USRSYS)/lib/at.a \
 	$(USRSYS)/lib/ati.a \
 	$(USRSYS)/lib/fl.a \
 	$(USRSYS)/lib/gr.a \
 	$(USRSYS)/lib/hs.a \
+	$(USRSYS)/lib/kb.a \
 	$(USRSYS)/lib/lp.a \
 	$(USRSYS)/lib/mm.a \
 	$(USRSYS)/lib/ms.a \
@@ -32,11 +32,10 @@ ARCHIVES=$(USRSYS)/lib/aha154x.a \
 	$(USRSYS)/lib/st.a \
 	$(USRSYS)/lib/tn.a \
 
-DRVOBJ=	$(KOBJ)/aha.o \
+DRVOBJ=\
 	$(KOBJ)/alx.o \
 	$(KOBJ)/at.o \
 	$(KOBJ)/atas.o \
-	$(KOBJ)/bufq.o \
 	$(KOBJ)/ms.o \
 	$(KOBJ)/ati.o \
 	$(KOBJ)/com1.o $(KOBJ)/com2.o \
@@ -45,21 +44,16 @@ DRVOBJ=	$(KOBJ)/aha.o \
 	$(KOBJ)/fontw.o \
 	$(KOBJ)/gr.o $(KOBJ)/gras.o \
 	$(KOBJ)/hs.o \
-	$(KOBJ)/nkb.o \
-	$(KOBJ)/gkb.o \
 	$(KOBJ)/kb.o \
 	$(KOBJ)/mm.o \
 	$(KOBJ)/lp.o \
 	$(KOBJ)/mmas.o \
 	$(KOBJ)/rm.o \
 	$(KOBJ)/rs0.o $(KOBJ)/rs1.o $(KOBJ)/rsas.o \
-	$(KOBJ)/scsi.o \
-	$(KOBJ)/ss.o \
-	$(KOBJ)/ssas.o \
 	$(KOBJ)/st.o \
-	$(KOBJ)/tn.o $(KOBJ)/tnas.o \
+	$(KOBJ)/tn.o $(KOBJ)/tnas.o
 
-DRIVERS=$(LDRV)/aha154x \
+DRIVERS=\
 	$(LDRV)/al0 \
 	$(LDRV)/al1 \
 	$(LDRV)/at \
@@ -69,8 +63,7 @@ DRIVERS=$(LDRV)/aha154x \
 	$(LDRV)/lp \
 	$(LDRV)/mm \
 	$(LDRV)/ms \
-	$(LDRV)/rm \
-	$(LDRV)/ss \
+	$(LDRV)/rm
 
 install: $(ARCHIVES) $(DRIVERS)
 	@exec /bin/sync
@@ -78,32 +71,32 @@ install: $(ARCHIVES) $(DRIVERS)
 all:	$(DRVOBJ)
 	@exec /bin/sync
 
-$(USRSYS)/lib/aha154x.a: $(KOBJ)/scsi.o $(KOBJ)/aha.o $(KOBJ)/fdisk.o
-	rm -f $@
-	ar rc $@ $<
 $(USRSYS)/lib/al.a: $(KOBJ)/com1.o $(KOBJ)/com2.o $(KOBJ)/alx.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/at.a: $(KOBJ)/at.o $(KOBJ)/atas.o $(KOBJ)/fdisk.o
 	rm -f $@
 	ar rc $@ $<
-$(USRSYS)/lib/ati.a: $(KOBJ)/mm.o $(KOBJ)/ati.o $(KOBJ)/$(NKB).o
+$(USRSYS)/lib/ati.a: $(KOBJ)/mm.o $(KOBJ)/ati.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/fl.a: $(KOBJ)/fl.o
 	rm -f $(USRSYS)/lib/fl.a
 	ar rc $(USRSYS)/lib/fl.a $(KOBJ)/fl.o
 $(USRSYS)/lib/gr.a: $(KOBJ)/mm.o $(KOBJ)/gr.o $(KOBJ)/gras.o \
-				$(KOBJ)/fontw.o $(KOBJ)/$(NKB).o
+				$(KOBJ)/fontw.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/hs.a: $(KOBJ)/hs.o
 	rm -f $@
 	ar rc $@ $<
+$(USRSYS)/lib/kb.a: $(KOBJ)/kb.o
+	rm -f $@
+	ar rc $@ $<
 $(USRSYS)/lib/lp.a: $(KOBJ)/lp.o
 	rm -f $@
 	ar rc $@ $<
-$(USRSYS)/lib/mm.a: $(KOBJ)/mm.o $(KOBJ)/mmas.o $(KOBJ)/$(NKB).o
+$(USRSYS)/lib/mm.a: $(KOBJ)/mm.o $(KOBJ)/mmas.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/ms.a: $(KOBJ)/ms.o
@@ -115,26 +108,12 @@ $(USRSYS)/lib/rm.a: $(KOBJ)/rm.o
 $(USRSYS)/lib/rs.a: $(KOBJ)/rs0.o $(KOBJ)/rs1.o $(KOBJ)/rsas.o
 	rm -f $@
 	ar rc $@ $<
-$(USRSYS)/lib/ss.a: $(KOBJ)/ss.o $(KOBJ)/ssas.o $(KOBJ)/bufq.o $(KOBJ)/fdisk.o
-	rm -f $@
-	ar rc $@ $<
 $(USRSYS)/lib/st.a: $(KOBJ)/st.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/tn.a: $(KOBJ)/tn.o $(KOBJ)/tnas.o
 	rm -f $@
 	ar rc $@ $<
-
-$(KOBJ)/aha.o:				\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
-		$(SYSINC)/buf.h		\
-		$(SYSINC)/sched.h		\
-		$(SYSINC)/scsiwork.h	\
-		$(SYSINC)/aha154x.h	\
-		aha.c
-	$(CC) $(CFLAGS) -c -o $@ aha.c
 
 $(KOBJ)/alx.o:				\
 		$(SYSINC)/clist.h	\
@@ -151,26 +130,27 @@ $(KOBJ)/alx.o:				\
 		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		alx.c
-	$(CC) $(CFLAGS) -c -o $(KOBJ)/alx.o alx.c
+	$(CC) $(CFLAGS) -c -o $@ alx.c
 
-$(KOBJ)/at.o: at.c
-	$(CC) $(CFLAGS) -DVERBOSE=1 -c -o $@ $<
+$(KOBJ)/at.o: at.c			\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/machine.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/fdisk.h	\
+		$(SYSINC)/hdioctl.h	\
+		$(SYSINC)/buf.h		\
+		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/uproc.h	\
+		$(USRINC)/errno.h
+	$(CC) $(CFLAGS) -DVERBOSE=1 -c -o $@ at.c
 
 $(KOBJ)/atas.o: atas.s
 	$(AS) -go $@ $<
 
-$(KOBJ)/ati.o: ati.s
-	$(CPP) -E -DATI_132=1 ati.s > ati.i
-	$(AS) -gxo $(KOBJ)/ati.o ati.i
-	exec /bin/rm -f ati.i
-
-$(KOBJ)/bufq.o:			\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
-		$(SYSINC)/buf.h		\
-		bufq.c
-	$(CC) $(CFLAGS) -DDEBUG=$(DEBUG) -c -o $@ bufq.c
+$(KOBJ)/ati.o: ati.m
+	$(CC) $(CFLAGS) -DATI_132=1 -c -o $@ ati.m
 
 $(KOBJ)/com1.o: 			\
 		$(SYSINC)/al.h		\
@@ -179,6 +159,7 @@ $(KOBJ)/com1.o: 			\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/i8086.h	\
 		$(SYSINC)/ins8250.h	\
@@ -197,6 +178,7 @@ $(KOBJ)/com2.o: 			\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/i8086.h	\
 		$(SYSINC)/ins8250.h	\
@@ -207,23 +189,6 @@ $(KOBJ)/com2.o: 			\
 		$(SYSINC)/uproc.h	\
 		al.c
 	$(CC) $(CFLAGS) -DALCOM2=1 -c -o $@ al.c
-
-$(KOBJ)/dmareq.o:			\
-		$(SYSINC)/buf.h		\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h \
-		$(SYSINC)/con.h		\
-		$(SYSINC)/dmac.h	\
-		$(USRINC)/errno.h	\
-		$(SYSINC)/io.h		\
-		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
-		$(SYSINC)/sched.h	\
-		$(SYSINC)/seg.h		\
-		$(SYSINC)/stat.h	\
-		$(SYSINC)/uproc.h	\
-		dmareq.c
-	$(CC) $(CFLAGS) -c -o $@ dmareq.c
 
 $(KOBJ)/fdisk.o:			\
 		$(SYSINC)/buf.h		\
@@ -244,6 +209,7 @@ $(KOBJ)/fl.o:				\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(SYSINC)/dmac.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/fdioctl.h	\
@@ -267,6 +233,7 @@ $(KOBJ)/gr.o:				\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/timeout.h	\
@@ -275,24 +242,18 @@ $(KOBJ)/gr.o:				\
 		gr.c
 	$(CC) $(CFLAGS) -c -o $@ gr.c
 
-$(KOBJ)/gras.o: gras.s
-	$(CPP) -E gras.s > gras.i
-	$(AS) -gxo $@ gras.i
-	exec /bin/rm -f gras.i
+$(KOBJ)/gras.o: gras.m
+	$(CC) $(CFLAGS) -c -o $@ gras.m
 
 $(KOBJ)/hgas.o: gras.s
-	$(CPP) -E -DHERCULES gras.s > hgas.i
-	$(AS) -gxo $@ hgas.i
-	exec /bin/rm -f hgas.i
-
-$(KOBJ)/hd.o: hd.c
-	$(CC) $(CFLAGS) -c -o $@ hd.c
+	$(CC) $(CFLAGS) -c -o $@ -DHERCULES gras.m
 
 $(KOBJ)/hs.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
@@ -307,6 +268,7 @@ $(KOBJ)/kb.o:				\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/i8086.h	\
 		$(SYSINC)/sched.h	\
@@ -317,43 +279,12 @@ $(KOBJ)/kb.o:				\
 		kb.c
 	$(CC) $(CFLAGS) -c -o $@ kb.c
 
-$(KOBJ)/gkb.o:				\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h \
-		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
-		$(SYSINC)/i8086.h	\
-		$(SYSINC)/sched.h	\
-		$(USRINC)/signal.h	\
-		$(SYSINC)/stat.h	\
-		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
-		$(SYSINC)/uproc.h	\
-		gkb.c
-	$(CC) $(CFLAGS) -c -o $@ gkb.c
-
-$(KOBJ)/nkb.o:				\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h \
-		$(SYSINC)/con.h		\
-		$(USRINC)/errno.h	\
-		$(SYSINC)/i8086.h	\
-		$(SYSINC)/sched.h	\
-		$(SYSINC)/seg.h		\
-		$(USRINC)/signal.h	\
-		$(SYSINC)/stat.h	\
-		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
-		$(SYSINC)/uproc.h	\
-		$(SYSINC)/kb.h		\
-		nkb.c
-	$(CC) $(CFLAGS) -c -o $@ nkb.c
-
 $(KOBJ)/lp.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/i8086.h	\
 		$(SYSINC)/io.h		\
@@ -378,10 +309,8 @@ $(KOBJ)/mm.o:				\
 		mm.c
 	$(CC) $(CFLAGS) -c -o $@ mm.c
 
-$(KOBJ)/mmas.o: mmas.s
-	-$(CPP) -E mmas.s > mmas.i
-	$(AS) -gxo $@ mmas.i
-	exec /bin/rm -f mmas.i
+$(KOBJ)/mmas.o: mmas.m
+	$(CC) $(CFLAGS) -c -o $@ mmas.m
 
 $(KOBJ)/ms.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
@@ -389,12 +318,24 @@ $(KOBJ)/ms.o:				\
 					$(SYSINC)/fun.h \
 		$(SYSINC)/uproc.h	\
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(SYSINC)/ms.h		\
 		$(USRINC)/errno.h	\
 		ms.c
 	$(CC) $(CFLAGS) -c -o $@ ms.c
 
-$(KOBJ)/rm.o: rm.c
+$(KOBJ)/rm.o: rm.c			\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/machine.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/buf.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/uproc.h	\
+		$(SYSINC)/seg.h		\
+		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
+		$(SYSINC)/inode.h	\
+		$(SYSINC)/stat.h
 	$(CC) $(CFLAGS) -c -o $@ rm.c
 
 $(KOBJ)/rs0.o:				\
@@ -402,6 +343,7 @@ $(KOBJ)/rs0.o:				\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
@@ -417,6 +359,7 @@ $(KOBJ)/rs1.o: 				\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
@@ -430,52 +373,13 @@ $(KOBJ)/rs1.o: 				\
 $(KOBJ)/rsas.o: rsas.s
 	$(AS) -gxo $@ rsas.s
 
-$(KOBJ)/scsi.o:				\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
-		$(SYSINC)/fdisk.h	\
-		$(SYSINC)/hdioctl.h	\
-		$(SYSINC)/sdioctl.h	\
-		$(SYSINC)/buf.h		\
-		$(SYSINC)/con.h		\
-		$(SYSINC)/stat.h	\
-		$(SYSINC)/uproc.h	\
-		$(USRINC)/errno.h	\
-		$(SYSINC)/scsiwork.h	\
-		scsi.c
-	$(CC) $(CFLAGS) -c -o $(KOBJ)/scsi.o scsi.c
-
-$(KOBJ)/ss.o:				\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
-		$(SYSINC)/io.h		\
-		$(SYSINC)/sched.h	\
-		$(SYSINC)/uproc.h	\
-		$(SYSINC)/proc.h	\
-		$(SYSINC)/con.h		\
-		$(SYSINC)/stat.h	\
-		$(SYSINC)/devices.h	\
-		$(USRINC)/errno.h	\
-		$(SYSINC)/ss.h		\
-		$(SYSINC)/fdisk.h	\
-		$(SYSINC)/hdioctl.h	\
-		$(SYSINC)/buf.h		\
-		$(SYSINC)/scsiwork.h	\
-		ss.c
-	$(CC) $(CFLAGS) -DDEBUG=$(DEBUG) -c -o $(KOBJ)/ss.o ss.c
-
-$(KOBJ)/ssas.o:				\
-		ssas.s
-	$(AS) -go $@ $<
-
 $(KOBJ)/st.o:				\
 		$(SYSINC)/buf.h		\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(SYSINC)/const.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/inode.h	\
@@ -492,6 +396,7 @@ $(KOBJ)/tn.o:				\
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
+		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/timeout.h	\
@@ -504,9 +409,6 @@ $(KOBJ)/tnas.o: tnas.s
 	$(AS) -gxo $@ tnas.s
 
 # How to make loadable drivers.
-
-$(LDRV)/aha154x:	$(USRSYS)/lib/aha154x.a
-	( cd $(USRSYS); ldconfig aha154x )
 
 $(LDRV)/al0:	$(USRSYS)/lib/al.a
 	( cd $(USRSYS); ldconfig al0 )
@@ -537,6 +439,3 @@ $(LDRV)/ms:	$(USRSYS)/lib/ms.a
 
 $(LDRV)/rm:	$(USRSYS)/lib/rm.a
 	( cd $(USRSYS); ldconfig rm )
-
-$(LDRV)/ss:	$(USRSYS)/lib/ss.a
-	( cd $(USRSYS); ldconfig ss )
