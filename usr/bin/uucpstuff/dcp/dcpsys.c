@@ -261,10 +261,14 @@ startup()
 		if ( (devname=ttyname(fileno(stdin))) == NULL )
 			FAIL1("No attached tty device.");
 		devname += 5;
-		if ( lockit(devname) < 0 ) {
-			cp = devname;
-			devname = NULL;
-			FAIL2("Incoming device locked: %s", cp);
+
+	/* The incoming device will already have been locked by login.  */
+		if (MASTER == role) { 
+			if ( lockit(devname) < 0 ) {
+				cp = devname;
+				devname = NULL;
+				FAIL2("Incoming device locked: %s", cp);
+			}
 		}
 
 		sprintf(msg, "ROK");
