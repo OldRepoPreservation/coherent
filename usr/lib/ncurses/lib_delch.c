@@ -27,7 +27,10 @@
 **
 **	The routine wdelch().
 **
-** $Log:	RCS/lib_delch.v $
+** $Log:	lib_delch.c,v $
+ * Revision 1.2  92/04/13  14:37:18  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  18:13:33  munk
  * Usage of register variables
  *
@@ -42,7 +45,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_delch.v  Revision 2.2  91/04/20  18:13:33  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_delch.c,v 1.2 92/04/13 14:37:18 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
@@ -54,14 +57,16 @@ register WINDOW	*win;
 {
 	register chtype	*temp1, *temp2;
 	chtype		*end;
+	int cury;
 
 #ifdef TRACE
 	if (_tracing)
 	    _tracef("wdelch(%o) called", win);
 #endif
 
-	end = &win->_line[win->_cury][win->_maxx];
-	temp2 = &win->_line[win->_cury][win->_curx + 1];
+	cury = win->_cury;
+	end = &win->_line[cury][win->_maxx];
+	temp2 = &win->_line[cury][win->_curx + 1];
 	temp1 = temp2 - 1;
 
 	while (temp1 < end)
@@ -69,14 +74,14 @@ register WINDOW	*win;
 
 	*temp1 = ' ' | win->_attrs;
 
-	win->_lastchar[win->_cury] = win->_maxx;
+	win->_lastchar[cury] = win->_maxx;
 
-	if (win->_firstchar[win->_cury] == _NOCHANGE
-				   || win->_firstchar[win->_cury] > win->_curx)
-	    win->_firstchar[win->_cury] = win->_curx;
+	if (win->_firstchar[cury] == _NOCHANGE
+				   || win->_firstchar[cury] > win->_curx)
+	    win->_firstchar[cury] = win->_curx;
 
 	if (delete_character)
-	    win->_numchngd += 1;
+	    win->_numchngd[cury] += 1;
 	else
-	    win->_numchngd += win->_maxx - win->_curx + 1;
+	    win->_numchngd[cury] += win->_maxx - win->_curx + 1;
 }

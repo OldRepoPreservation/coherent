@@ -27,7 +27,10 @@
 **
 **	The routines newwin(), subwin() and their dependent
 **
-** $Log:	RCS/lib_newwin.v $
+** $Log:	lib_newwin.c,v $
+ * Revision 1.2  92/04/13  14:38:12  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  19:31:13  munk
  * Usage of register variables
  *
@@ -50,7 +53,6 @@ WINDOW	*malloc();
 #endif
 
 static WINDOW	*makenew();
-
 
 WINDOW *
 newwin(num_lines, num_columns, begy, begx)
@@ -153,7 +155,6 @@ int	num_lines, num_columns, begy, begx;
 }
 
 
-
 static WINDOW *
 makenew(num_lines, num_columns, begy, begx)
 int	num_lines, num_columns, begy, begx;
@@ -174,27 +175,27 @@ int	num_lines, num_columns, begy, begx;
 
 	if ((win->_firstchar = calloc(num_lines, sizeof(short))) == NULL)
 	{
-		free(win);
 		free(win->_line);
+		free(win);
 
 		return(ERR);
 	}
 
 	if ((win->_lastchar = calloc(num_lines, sizeof(short))) == NULL)
 	{
-		free(win);
-		free(win->_line);
 		free(win->_firstchar);
+		free(win->_line);
+		free(win);
 
 		return(ERR);
 	}
 
 	if ((win->_numchngd = calloc(num_lines, sizeof(short))) == NULL)
 	{
-		free(win);
-		free(win->_line);
-		free(win->_firstchar);
 		free(win->_lastchar);
+		free(win->_firstchar);
+		free(win->_line);
+		free(win);
 
 		return(ERR);
 	}

@@ -27,7 +27,10 @@
 **
 **	The routine box().
 **
-** $Log:	RCS/lib_box.v $
+** $Log:	lib_box.c,v $
+ * Revision 1.2  92/04/13  14:37:07  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  18:02:49  munk
  * Usage of register variables
  *
@@ -42,7 +45,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_box.v  Revision 2.1  91/04/20  18:02:49  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_box.c,v 1.2 92/04/13 14:37:07 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
@@ -72,9 +75,8 @@ char		vert, hor;
 	for (i = 0; i <= endx; i++)
 	    fp[i] = lp[i] = hor;
 
-	for (i = 0; i <= endy; i++)
-	{
-	    win->_line[i][0] = (win->_line[i][endx] = vert);
+	for (i = 0; i <= endy; i++) {
+	    win->_line[i][0] = win->_line[i][endx] = vert;
 	    win->_firstchar[i] = 0;
 	    win->_lastchar[i] = endx;
 	    win->_numchngd[i] += 2;

@@ -27,7 +27,10 @@
 **
 **	The routine winsch().
 **
-** $Log:	RCS/lib_insch.v $
+** $Log:	lib_insch.c,v $
+ * Revision 1.2  92/04/13  14:37:38  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  19:09:25  munk
  * Usage of register variables
  *
@@ -42,7 +45,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_insch.v  Revision 2.2  91/04/20  19:09:25  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_insch.c,v 1.2 92/04/13 14:37:38 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
@@ -55,6 +58,7 @@ char	c;
 {
 	register chtype	*temp1, *temp2;
 	chtype		*end;
+	int from, to;
 
 #ifdef TRACE
 	if (_tracing)
@@ -70,8 +74,9 @@ char	c;
 
 	*temp1 = c | win->_attrs;
 
-	win->_lastchar[win->_cury] = win->_maxx;
-	if (win->_firstchar[win->_cury] == _NOCHANGE
-	    			||  win->_firstchar[win->_cury] > win->_curx)
-	    win->_firstchar[win->_cury] = win->_curx;
+	to = win->_lastchar[win->_cury] = win->_maxx;
+	from = win->_firstchar[win->_cury];
+	if ((from == _NOCHANGE) || (from > win->_curx))
+	    from = win->_firstchar[win->_cury] = win->_curx;
+	win->_numchngd[win->_cury] = to - from;
 }

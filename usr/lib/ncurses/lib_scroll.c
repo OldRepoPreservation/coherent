@@ -27,7 +27,10 @@
 **
 **	The routine scroll().
 **
-** $Log:	RCS/lib_scroll.v $
+** $Log:	lib_scroll.c,v $
+ * Revision 1.2  92/04/13  14:38:26  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  21:40:21  munk
  * Usage of register variables
  *
@@ -42,7 +45,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_scroll.v  Revision 2.2  91/04/20  21:40:21  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_scroll.c,v 1.2 92/04/13 14:38:26 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
@@ -61,17 +64,28 @@ register WINDOW	*win;
 	    _tracef("scroll(%o) called", win);
 #endif
 
-	if (! win->_scroll)
+	if (!win->_scroll)
 	    return;
 
-	temp = win->_line[0];
-	for (i = 0; i < win->_regbottom; i++)
+	/* scroll up within scrolling region */
+	temp = win->_line[win->_regtop];
+	for (i = win->_regtop; i < win->_regbottom; i++) {
 	    win->_line[i] = win->_line[i+1];
 
+	    win->_firstchar[i] = 0;
+	    win->_numchngd[i] = win->_lastchar[i] = win->_maxx;
+	}
+
+	/* clear last line */
 	for (ptr = temp; ptr - temp <= win->_maxx; ptr++)
 	    *ptr = blank;
 
 	win->_line[win->_regbottom] = temp;
-
-	win->_cury--;
+	win->_firstchar[win->_regbottom] = 0;
+	win->_numchngd[win->_regbottom] = win->_lastchar[win->_regbottom] =
+		win->_maxx;
+	
+	/* if cursor is in scrolling region move it up */
+	if ((win->_cury > win->_regtop) && (win->_cury <= win->_regbottom))
+		win->_cury--;
 }

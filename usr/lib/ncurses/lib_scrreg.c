@@ -27,7 +27,10 @@
 **
 **	The routine wsetscrreg().
 **
-** $Log:	RCS/lib_scrreg.v $
+** $Log:	lib_scrreg.c,v $
+ * Revision 1.2  92/04/13  14:38:28  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  21:42:05  munk
  * Usage of register variables
  *
@@ -42,7 +45,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_scrreg.v  Revision 2.2  91/04/20  21:42:05  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_scrreg.c,v 1.2 92/04/13 14:38:28 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
@@ -58,11 +61,14 @@ int		top, bottom;
 	    _tracef("wsetscrreg(%o,%d,%d) called", win, top, bottom);
 #endif
 
-    	if (0 <= top  &&  top <= win->_cury  &&
-		win->_cury <= bottom  &&  bottom <= win->_maxy)
-	{
+    	if ((0 <= top) && (bottom <= win->_maxy) && (top < bottom)) {
 	    win->_regtop = top;
 	    win->_regbottom = bottom;
+
+	    if (win->_cury > bottom)	/* get cursor in scroll region */
+	    	win->_cury = bottom;
+	    else if (win->_cury < top)
+	    	win->_cury = top;
 
 	    return(OK);
 	}

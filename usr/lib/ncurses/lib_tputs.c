@@ -26,6 +26,9 @@
  *	tputs.c
  *
  *  $Log:	lib_tputs.c,v $
+ * Revision 1.2  92/04/13  14:38:41  bin
+ * update by vlad
+ * 
  * Revision 3.2  91/04/20  21:57:22  munk
  * Usage of register variables
  *
@@ -52,7 +55,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header: lib_tputs.c,v 3.2 91/04/20 21:57:22 munk Exp $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_tputs.c,v 1.2 92/04/13 14:38:41 bin Exp Locker: bin $";
 #endif
 
 #include <ctype.h>
@@ -77,6 +80,9 @@ int		(*outc)();
 	    _tracef("tputs(%s,%d,%o) called", string, affcnt, outc);
 #endif
 
+	if (NULL == string)
+		return;
+
 	if (pad_char)
 	    null = pad_char[0];
 
@@ -98,7 +104,8 @@ int		(*outc)();
 		    number = 0;
 		    string++;
 
-		    if (!isdigit(*string) && *string != '.' || !index(string, '>')) {
+		    if (!isdigit(*string) &&
+		         *string != '.' || !index(string, '>')) {
 			(*outc)('$');
 			(*outc)('<');
 			continue;
