@@ -4,12 +4,21 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.12  92/01/17  03:50:53  hal
+ * Cleanup for 3.2.1.
+ * 
+ * Revision 1.11  91/12/11  16:41:10  hal
+ * Add ATSREG patchable kernel variable.
+ * 
+ * Revision 1.10  91/11/11  12:29:03  hal
+ * Use n_atdr.
+ * 
  * Revision 1.9  91/10/30  10:47:46  hal
  * Get atparms from tboot.
  *
  * Revision 1.8  91/10/24  12:36:25  hal
  * Bump ATSECS from 4 to 6.
- * Poll HF_REG (3F6) rather than CSR_REG (1F6).
+ * Poll HF_REG (3F6) rather than CSR_REG (1F7).
  * COH 3.2.03.
  *
  * Revision 1.7  91/09/11  14:45:38  hal
@@ -100,7 +109,7 @@ CON	atcon	= {
 /*
  * Forward Referenced Functions.
  */
-void	atreset();
+static int atreset();
 int	atdequeue();
 void	atstart();
 void	atintr();
@@ -235,9 +244,13 @@ static BUF	dbuf;			/* For raw I/O */
  * Patchable variables.
  *	ATBSYW is a loop count for busy-waiting after issuing commands.
  *	ATSECS is number of seconds to wait for an expected interrupt.
+ *	ATSREG needs to be 3F6 for most new IDE drives;  needs to be
+ *		1F7 for Perstor controllers and some old IDE drives.
+ *		Either value works with many drives.
  */
 int	ATBSYW = 50;			/* patchable */
 int	ATSECS = 6;			/* patchable */
+int	ATSREG = HF_REG;		/* patchable */
 static char timeout_msg[] = "at%d: TO\n";
 
 /**
@@ -355,16 +368,12 @@ atload()
 		}
 #if VERBOSE > 0
 	printf(" drive %d parameters\n", u);
-	printf(
-	"at%d: ncyl=%d nhead=%d wpcc=%d eccl=%d ctrl=%d landc=%d nspt=%d\n",
-		u,
-		dp->d_ncyl,
-		dp->d_nhead,
-		dp->d_wpcc,
-		dp->d_eccl,
-		dp->d_ctrl,
-		dp->d_landc,
-		dp->d_nspt);
+
+	/* intersegment printf only gets 6 words of arguments */	
+	printf( "at%d: ncyl=%d nhead=%d wpcc=%d ",
+	  u, dp->d_ncyl, dp->d_nhead, dp->d_wpcc);
+	printf(" eccl=%d ctrl=%d landc=%d nspt=%d\n",
+	  dp->d_eccl, dp->d_ctrl, dp->d_landc, dp->d_nspt);
 #endif
 	}
 
@@ -411,16 +420,16 @@ atunload()
 	clrivec(HDIRQ);
 }
 
-/**
- *
- * void
+/*
  * atreset()	-- reset hard disk controller, define drive characteristics.
+ *
+ * Return 0 if controller apparently not found, else return 0.
  */
-static void
-atreset()
+static int atreset()
 {
 	register int u;
 	register struct dparm_s * dp;
+	int ret = 1;
 
 	/*
 	 * Reset controller for a minimum of 4.8 microseconds.
@@ -430,8 +439,19 @@ atreset()
 		;
 	outb(HF_REG, atparm[0].d_ctrl & 0x0F);
 	myatbsyw(0);
-	if (inb(AUX_REG) != 0x01)
-		printf("at: AT disk controller not present (reset)\n");
+	if (inb(AUX_REG) != 0x01) {
+		/*
+		 * Some IDE drives always timeout on initial reset.
+		 * So don't report first timeout.
+		 */
+		static one_bad;
+
+		if (one_bad) {
+			printf("at: hd controller reset timeout\n");
+		} else
+			one_bad = 1;
+		ret = 0;
+	}
 
 	/*
 	 * Initialize drive parameters.
@@ -469,6 +489,7 @@ atreset()
 		outb(CSR_REG, RESTORE(0));
 		myatbsyw(u);
 	}
+	return ret;
 }
 
 /**
@@ -1044,7 +1065,7 @@ aterror()
 	register int csr;
 	register int aux;
 
-	if ((csr = inb(HF_REG)) & (ERR_ST|WFLT_ST)) {
+	if ((csr = inb(ATSREG)) & (ERR_ST|WFLT_ST)) {
 
 		aux = inb(AUX_REG);
 

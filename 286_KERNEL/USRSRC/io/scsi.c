@@ -3,6 +3,12 @@
  * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.10  92/01/17  03:51:13  hal
+ * Cleanup for 3.2.1.
+ * 
+ * Revision 1.9  91/11/11  12:32:58  hal
+ * Get SD_HDS and SD_SPT from tboot.
+ * 
  * Revision 1.8  91/10/25  14:50:39  hal
  * Make DMA channel patchable.
  *
@@ -189,7 +195,7 @@ sdload()
 	 * If nothing from tboot, use default values.
 	 */
 	if (SD_HDS == 0 || SD_SPT == 0) {
-printf("AHA - heads & spt not both patched");
+		/* heads & spt not both patched */
 		SD_HDS = DEF_AHA_HDS;
 		SD_SPT = DEF_AHA_SPT;
 		if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
@@ -197,7 +203,7 @@ printf("AHA - heads & spt not both patched");
 				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
 				if ((T_BIOS_DISK == tp->ts_type) &&
 				    (n_atdr == bdp->dp_drive) ) {
-printf(" got values from tboot");
+				/* got values from tboot */
 					SD_HDS = bdp->dp_heads;
 					SD_SPT = bdp->dp_sectors;
 				}
