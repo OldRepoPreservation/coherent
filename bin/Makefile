@@ -4,13 +4,14 @@ DESTDIR= /interim/bin/
 CMDS= expr/expr conv/conv as/as awk/awk \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
       ed/ed find/find grep/grep lex/lex mail/mail make/make sed/sed sh/sh \
-      test/test tsort/tsort yacc/yacc \
+      test/test tsort/tsort yacc/yacc nroff/nroff \
       login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
       chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
       factor file fixstack from head help join kill lc ln look ls m4 mail man \
       mesg mkdir msg mv newgrp nm od pr prep prof pwd quot ranlib rev rm rmdir \
       sa scat size sleep sort split strings strip stty sum sync tail tar tee \
-      time touch tr tty typo uniq units wc who write yes qfind 
+      time touch tr tty typo uniq units wc who write yes qfind umount true \
+      shutdown phone mount fnkey false msgs
 
 all:	$(CMDS)
 	>all
@@ -269,12 +270,8 @@ m4:	m4.c
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
 
-mail:	mail.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)mail mail.c
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 4511 $(DESTDIR)$@
-	su root ln -f $(DESTDIR)$@ $(DESTDIR)rmail
+mail/mail:	mail.c
+	./make.in mail
 
 man:	man.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)man man.c
@@ -559,7 +556,7 @@ dos/dos:
 	./make.in dos
 
 dump/dump:
-	./make.in dos
+	./make.in dump
 
 ed/ed:
 	./make.in ed
@@ -572,9 +569,6 @@ grep/grep:
 
 lex/lex:
 	./make.in lex
-
-mail/mail:
-	./make.in mail
 
 make/make:
 	./make.in make
@@ -599,3 +593,61 @@ expr/expr:
 
 conv/conv:
 	./make.in conv
+
+nroff/nroff:
+	./make.in nroff
+
+mount:
+	co $(DESTDIR)$@
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 755 $(DESTDIR)$@
+
+umount:
+	co $(DESTDIR)$@
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 755 $(DESTDIR)$@
+
+false:
+	su root co $(DESTDIR)$@
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 555 $(DESTDIR)$@
+
+true:
+	su root touch $(DESTDIR)$@
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 555 $(DESTDIR)$@
+
+shutdown:
+	su root co $(DESTDIR)$@
+	su root chown root $(DESTDIR)$@
+	su root chgrp root $(DESTDIR)$@
+	su root chmod 500 $(DESTDIR)$@
+
+ps:	ps.c
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ ps.c
+	su root chown sys $(DESTDIR)$@
+	su root chgrp sys $(DESTDIR)$@
+	su root chmod 6511 $(DESTDIR)$@
+
+phone:
+	su root co $(DESTDIR)$@
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 555 $(DESTDIR)$@
+
+fnkey:	fnkey.c
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ fnkey.c
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+
+msgs: msgs.c
+	cc -o $(DESTDIR)$@ msgs.c
+	su root fixstack 1000 $(DESTDIR)$@
+	su root chown msgs $(DESTDIR)$@
+	su root chgrp msgs $(DESTDIR)$@
+	su root chmod 6511 $(DESTDIR)$@
