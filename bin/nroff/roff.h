@@ -1,192 +1,165 @@
 /*
+ * roff.h
  * Nroff/Troff.
  * Header file.
  */
 
-/*
- * ASCII characters.  (this should be in ascii.h).
- */
-#define BEL	007
-#define SOH	001
-#define UPSP	127	
+#include <stdio.h>
+#include "code.h"
+#include "codebug.h"
+#include "div.h"
+#include "env.h"
+#include "escapes.h"
+#include "fonts.h"
+#include "hyphen.h"
+#include "reg.h"
+#include "request.h"
+#include "str.h"
 
-/*
- * Parameters determining sizes of buffers.
- */
-#define LINSIZE	300			/* Size of line buffer */
-#define WORSIZE	200			/* Size of word buffer */
-#define ENVSIZE	3			/* Number of enviroments */
-#define EVSSIZE	20			/* Pushdown stack for enviroments */
-#define TABSIZE	20			/* Maximum number of tab stops */
-#define ARGSIZE	10			/* Maximum number of arguments */
-#define ABFSIZE	128			/* Size of argument buffer */
-#define MSCSIZE	128			/* Size of miscellaneous buffer */
-#define CBFSIZE	128			/* Size of char buffer */
-#ifdef GEMDOS
-#define DBFSIZE	128			/* Size of disk buffer */
+#define	VERSION	"3.0"
+
+/* Buffer sizes. */
+#define	ABFSIZE	128			/* Size of argument buffer	*/
+#define	ASCSIZE	128			/* Size of ASCII character set	*/
+#define	CBFSIZE	128			/* Size of char buffer		*/
+#ifdef	GEMDOS
+#define	DBFSIZE	128			/* Size of disk buffer		*/
 #else
-#define DBFSIZE	128			/* Size of disk buffer */
+#define	DBFSIZE	128			/* Size of disk buffer		*/
 #endif
-#define RHTSIZE	128			/* Size of register hash table */
-#define ASCSIZE	128			/* Size of ASCII character set */
+#define	MSCSIZE	256			/* Size of miscellaneous buffer	*/
 
-/*
- * Types of justification.
- */
-#define NJUS	0			/* None (marks end of table) */
-#define LJUS	1			/* Left justification */
-#define CJUS	2			/* Centre justification */
-#define RJUS	3			/* Right justification */
-#define FJUS	4			/* Filled justification */
+/* Types of justification. */
+#define	NJUS	0			/* None (marks end of table)	*/
+#define	LJUS	1			/* Left justification		*/
+#define	CJUS	2			/* Centre justification		*/
+#define	RJUS	3			/* Right justification		*/
+#define	FJUS	4			/* Filled justification		*/
 
 /*
  * Unit measures.
+ * These use constants defined as globals in tty.c (nroff) or output.c (troff).
+ * The values are different for nroff and troff,
+ * but the same unlinked object works for both.
+ * Changing these to different manifest constants with a conditional
+ * compilation switch would require different unlinked objects.
  */
-#define SMINCH	((long) sinmul)		/* Inch (mul) */
-#define SDINCH	((long) sindiv)		/* Inch (div) */
-#define SMCENT	((long) 50*sinmul)	/* Centimetre (mul) */
-#define SDCENT	((long) 127*sindiv)	/* Centimetre (div) */
-#define SMPICA	((long) sinmul)		/* Pica (mul) */
-#define SDPICA	((long) 6*sindiv)	/* Pica (div) */
-#define SMEMSP	((long) newpsz*semmul)	/* Em space (mul) */
-#define SDEMSP	((long) semdiv)		/* Em space (div) */
-#define SMENSP	((long) newpsz*senmul)	/* En space (mul) */
-#define SDENSP	((long) sendiv)		/* En space (div) */
-#define SMVEMS	((long) newpsz)		/* Vertical em space (mul) */
-#define SDVEMS	((long) 1)		/* Vertical em space  (div) */
-#define SMNARS	((long) snrmul)		/* Narrow space (mul) */
-#define SDNARS	((long) snrdiv)		/* Narrow space (div) */
-#define SMPOIN	((long) sinmul)		/* Point (mul) */
-#define SDPOIN	((long) 72*sindiv)	/* Point (div) */
-#define SMVLSP	((long) vls)		/* Line space (mul) */
-#define SDVLSP	((long) 1)		/* Line space (div) */
-#define SMDIGW	((long) sdwmul)		/* Digit width (mul) */
-#define SDDIGW	((long) sdwdiv)		/* Digit width (div) */
-#define SMHRES	((long) shrmul)		/* Horizontal resolution (mul) */
-#define SDHRES	((long) shrdiv)		/* Horizontal resolution (div) */
-#define SMVRES	((long) svrmul)		/* Vertical resolution (mul) */
-#define SDVRES	((long) svrdiv)		/* Vertical resolution (div) */
-#define SMUNIT	((long) 1)		/* Unit (mul) */
-#define SDUNIT	((long) 1)		/* Unit (div) */
+#define	SMCENT	((long) 50*sinmul)	/* Centimetre (mul)		*/
+#define	SDCENT	((long) 127*sindiv)	/* Centimetre (div)		*/
+#define	SMEMSP	((long) psz*semmul)	/* Em space (mul)		*/
+#define	SDEMSP	((long) semdiv)		/* Em space (div)		*/
+#define	SMENSP	((long) psz*senmul)	/* En space (mul)		*/
+#define	SDENSP	((long) sendiv)		/* En space (div)		*/
+#define	SMHRES	((long) shrmul)		/* Horizontal resolution (mul)	*/
+#define	SDHRES	((long) shrdiv)		/* Horizontal resolution (div)	*/
+#define	SMINCH	((long) sinmul)		/* Inch (mul)			*/
+#define	SDINCH	((long) sindiv)		/* Inch (div)			*/
+#define	SMNARS	((long) psz*snrmul)	/* Narrow space (mul)		*/
+#define	SDNARS	((long) snrdiv)		/* Narrow space (div)		*/
+#define	SMPICA	((long) sinmul)		/* Pica (mul)			*/
+#define	SDPICA	((long) 6*sindiv)	/* Pica (div)			*/
+#define	SMPOIN	((long) sinmul)		/* Point (mul)			*/
+#define	SDPOIN	((long) 72*sindiv)	/* Point (div)			*/
+#define	SMUNIT	((long) 1)		/* Unit (mul)			*/
+#define	SDUNIT	((long) 1)		/* Unit (div)			*/
+#define	SMVEMS	((long) psz)		/* Vertical em space (mul)	*/
+#define	SDVEMS	((long) 1)		/* Vertical em space  (div)	*/
+#define	SMVLSP	((long) vls)		/* Line space (mul)		*/
+#define	SDVLSP	((long) 1)		/* Line space (div)		*/
+#define	SMVRES	((long) svrmul)		/* Vertical resolution (mul)	*/
+#define	SDVRES	((long) svrdiv)		/* Vertical resolution (div)	*/
 
-/*
- * Temp file.
- */
-extern	FILE	*tmp;			/* Temp file pointer */
-extern	unsigned long tmpseek;		/* Pointer into temp file */
-extern  char	*nalloc();
-extern  char	*findreg();
-extern  char	*makereg();
-extern  char	*allstr();
-extern  char	*getnreg();
-extern  char	*nextarg();
-extern  char	*duplstr();
-extern	char	*index();
-
-/*
- * Expressions.
- */
-extern	int	experr;			/* Got an error */
-extern	int	expmul;			/* Default unit multiplier */
-extern	int	expdiv;			/* Default unit divisor */
-extern	char	*expp;			/* Pointer in expression */
-
-/*
- * Process.
- */
-extern	int	nbrflag;		/* Don't allow command to break */
-extern	int	escflag;		/* Last character was escaped */
-extern	int	outflag;		/* Have output a line */
-extern	char	*null;			/* Pointer to a null string */
-
-/*
- * Miscellaneous.
- */
-extern	char	miscbuf[MSCSIZE];	/* Miscellaneous buffer */
-extern	int	pof;			/* Page offset */
-extern	int	oldpof;			/* Old page offset */
-extern	unsigned pgl;			/* Page length */
-extern	unsigned pct;			/* Page counter */
-#define  pno	(nrpnreg->r_nval)
-extern	unsigned npn;			/* Next page number */
-extern	char	esc;			/* Escape character */
-extern	char	endtrap[2];		/* End macro */
-extern	char	curbold,		/* Current bold mode */
-		curital;		/* Current italics mode */
-extern	int	curfont,		/* Current font type */
-		curpsz;			/* Current point size */
-
-/*
- * Device dependent variables.
- */
-extern	int	ntroff;			/* Type of programme */
-extern	long	sinmul;			/* Multiplier for inch */
-extern	long	sindiv;			/* Divisor for inch */
-extern	long	semmul;			/* Multiplier for em space */
-extern	long	semdiv;			/* Divisor for em space */
-extern	long	senmul;			/* Multiplier for en space */
-extern	long	sendiv;			/* Divisor for en space */
-#if	0
-extern	long	swdmul;			/* Multiplier for width tables */
-extern	long	swddiv;			/* Divisor for width tables */
+/* Miscellaneous. */
+#define	NROFF		1		/* Program is nroff		*/
+#define	TROFF		2		/* Program is troff		*/
+#define	INFINITY	32767
+#ifdef	MSDOS
+#define	TMACDIR "\\bin\\"
+#else
+#ifdef	GEMDOS
+#define	TMACDIR "\\bin\\"
+#else
+#define	TMACDIR	"/usr/lib/"		/* Library directory		*/
+#endif
 #endif
 
-/*
- * These should be commented.
- */
-extern	int	svs;
-extern	int	lastcon;
-extern	int	nnnndn;
-extern long shrmul;			/* Horizontal resolution (mul) */
-extern long shrdiv;			/* Horizontal resolution (div) */
-extern long svrmul;			/* Vertical resolution (mul) */
-extern	long	svrdiv ;		/* Vertical resolution (div) */
-
+/* Roman numeral table. */
 typedef struct {
-	char	o_digit;			/* Offset for digit */
-	char	o_state;			/* Next state */
+	char	o_digit;		/* Offset for digit		*/
+	char	o_state;		/* Next state			*/
 } ROM;
-extern	ROM	romtab[10];
-extern	char	trantab[ASCSIZE];
-extern char esctab[];
-extern int asctab[];
-extern int byeflag;
-typedef struct {
-	char q_name[2];
-	int (*q_func)();
-} REQ;
-extern REQ reqtab[];
-#define INFINITY	32767
-extern long sdwmul;
-extern long sdwdiv, snrmul, snrdiv;
-typedef struct {
-	char f_name[2];
-	int f_font;
-	char f_bold;
-	char f_ital;
-} FTB;
-extern FTB fontab[];
-extern int ifeflag;
-extern int ntrflag;
-#if RSX
-#define TMACDIR	"[102,17]"
-#else
-#ifdef MSDOS
-#define TMACDIR "\\bin\\"
-#else
-#ifdef GEMDOS
-#define TMACDIR "\\bin\\"
-#else
-#define	TMACDIR	"/usr/lib/"
-#endif
-#endif
-#endif
-extern int debflag;
-extern	int	d00flag;
-extern	char	diskbuf[DBFSIZE];	/* Disk buffer for temp file */
-#define NROFF	1			/* Nroff programme */
-#define TROFF	2			/* Troff programme */
-extern	int	antflag;
-extern	int	tntflag;
-extern	int	nrorval;
-extern	int	arorval;
+
+/*
+ * Device dependent variables,
+ * defined in tty.c (nroff) or output.c (troff).
+ */
+extern	int	ntroff;			/* Program type			*/
+extern	long	semmul;			/* Multiplier for em space	*/
+extern	long	semdiv;			/* Divisor for em space		*/
+extern	long	senmul;			/* Multiplier for en space	*/
+extern	long	sendiv;			/* Divisor for en space		*/
+extern	long	shrmul;			/* Horizontal resolution (mul)	*/
+extern	long	shrdiv;			/* Horizontal resolution (div)	*/
+extern	long	sinmul;			/* Multiplier for inch		*/
+extern	long	sindiv;			/* Divisor for inch		*/
+extern	long	snrmul;			/* Narrow space (mul)		*/
+extern	long	snrdiv;			/* Narrow space (div)		*/
+extern	long	svrmul;			/* Vertical resolution (mul)	*/
+extern	long	svrdiv;			/* Vertical resolution (div)	*/
+
+/* Global variables, defined in extern.c. */
+extern	int	A_reg;			/* .A register			*/
+extern	int	a_reg;			/* .a register			*/
+extern	char	*argv0;			/* "nroff" or "troff"		*/
+extern	int	byeflag;		/* True when exiting.		*/
+extern	int	dbglvl;			/* Debug level.			*/
+extern	int	dflag;			/* Debug flag			*/
+extern	char	diskbuf[DBFSIZE];	/* Disk buffer for temp file	*/
+extern	char	endtrap[2];		/* End macro name		*/
+extern	char	esc;			/* Escape character		*/
+extern	int	escflag;		/* Last character was escaped	*/
+extern	int	ifeflag;		/* True in false conditional	*/
+extern	int	lastcon;		/* Last condition of if/else	*/
+extern	int	lflag;			/* Landscape mode		*/
+extern	char	miscbuf[MSCSIZE];	/* Miscellaneous buffer		*/
+extern	int	nbrflag;		/* Don't allow command to break	*/
+extern unsigned	npn;			/* Next page number		*/
+extern	int	n_reg;			/* .n register			*/
+extern	int	oldpof;			/* Old page offset		*/
+extern unsigned	pct;			/* Page counter			*/
+extern	int	pflag;			/* Generate PostScript output	*/
+extern unsigned	pgl;			/* Page length			*/
+extern	int	pof;			/* Page offset			*/
+extern	int	svs;			/* Saved space			*/
+extern	FILE	*tmp;			/* Temp file pointer		*/
+extern	unsigned long tmpseek;		/* Pointer into temp file	*/
+extern	int	T_reg;			/* .T register			*/
+extern	int	xflag;			/* Suppress page eject on exit	*/
+
+/* Global tables, defined in tables.c. */
+extern	char	esctab[];
+extern	char	*mapfont[];
+extern	REQ	reqtab[];
+extern	ROM	romtab[];
+extern	char	trantab[];
+
+/* Functions. */
+extern	STR	*allstr();
+extern	char	*duplstr();
+extern	REG	*findreg();
+extern	void	font_display();
+extern	REG	*getnreg();
+extern	REG	*makereg();
+extern	char	*nalloc();
+extern	char	*nextarg();
+extern	void	resetdev();
+
+/* Library functions. */
+extern	char	*index();
+extern	void	free();
+extern	long	lseek();
+extern	char	*malloc();
+extern	char	*realloc();
+extern	char	*strcpy();
+
+/* end of roff.h */
