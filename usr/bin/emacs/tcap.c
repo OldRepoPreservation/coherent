@@ -145,7 +145,7 @@ tcapopen()
 		if (0 < (i = tgetnum("co")))
 			term.t_ncol = i;
 		if (0 < (i = tgetnum("li")))
-			term.t_nrow = i;
+			term.t_nrow = i - 1;
 	}
 
 	ttopen();

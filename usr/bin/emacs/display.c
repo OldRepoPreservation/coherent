@@ -41,7 +41,6 @@ vtinit()
 	register int	i;
 	register VIDEO	*vp;
 
-	topen();
 	vscreen = (VIDEO **) malloc(term.t_nrow*sizeof(VIDEO *));
 	if (vscreen == NULL)
 		abort();
