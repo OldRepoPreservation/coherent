@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/db/i8086/RCS/i8086b.c,v 1.2 89/06/19 16:46:29 src Exp $
+/* $Header: /src386/bin/db/RCS/i8086b.c,v 1.1 92/06/10 14:36:31 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * A debugger.
  * Intel 8086.
  *
- * $Log:	/usr/src/cmd/db/i8086/RCS/i8086b.c,v $
+ * $Log:	i8086b.c,v $
+ * Revision 1.1  92/06/10  14:36:31  bin
+ * Initial revision
+ * 
  * Revision 1.2	89/06/19  16:46:29 	src
  * Bug:	80286 virtual mode instructions not supported [ie: lgdt].
  * Fix:	Metakey 'V' added to support 3 byte virtual mode instructions. (ABC)
@@ -815,7 +818,7 @@ unsigned long	v;
 		sprintf(wbp, "%04x", v);
 	}
 	else {
-		sprintf(wbp, "%04X", v);
+		sprintf(wbp, "%04lx", v);
 	}
 }
 
