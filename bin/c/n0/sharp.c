@@ -167,14 +167,16 @@ bad:
  */
 getfname()
 {
-	register int	c, d;
+	register int c, d, expanded;
 	register char *spshp, *p;
 
-	d = 0;
+	d = expanded = 0;
 	spshp = dpshp;
-	while ((c = getnb()) >= 0 && ct[c] == ID)
-		if ( ! expand(c))
-			goto done;
+	while ((c = getnb()) >= 0 && ct[c] == ID) {
+		if (!expand(c))
+			goto done;		/* error, not " or < */
+		++expanded;
+	}
 	if (c == '<')
 		d = '>';
 	else if (c == '"')
@@ -182,12 +184,20 @@ getfname()
 	else
 		goto done;
 	instring = d;
-	while ((c=get()) >= 0 && c != d)
-		dpshc(c);
+	while ((c = get()) >= 0 && c != d) {
+		if (expanded && ct[c] == ID) {
+			if (expand(c))
+				continue;
+			for (p = id; c = *p++; dpshc(c))
+				;
+		} else
+			dpshc(c);
+	}
 	instring = 0;
 	if (c != d)
 		d = 0;
- done:	while (c >= 0)
+done:
+	while (c >= 0)
 		c = get();
 	for (p = spshp; --p >= dpshp; )
 		dputc(*p);
