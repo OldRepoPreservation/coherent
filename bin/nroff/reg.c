@@ -1,20 +1,15 @@
 /*
+ * reg.c
  * Nroff/Troff.
  * Register manipulation.
  */
-#include <stdio.h>
-#include "roff.h"
-#include "reg.h"
-#include "codebug.h"
 
-#ifndef	DDEBUG
-#define	DDEBUG	0
-#endif
+#include "roff.h"
 
 /*
  * Return a pointer to a number register of the given name.
  */
-char	*
+REG *
 getnreg(name)
 char name[2];
 {
@@ -22,9 +17,9 @@ char name[2];
 
 	if ((rp=findreg(name, RNUMR)) == NULL) {
 		rp = makereg(name, RNUMR);
-		rp->r_nval = 0;
-		rp->r_form = '1';
-		rp->r_incr = 1;
+		rp->n_reg.r_nval = 0;
+		rp->n_reg.r_form = '1';
+		rp->n_reg.r_incr = 1;
 	}
 	return (rp);
 }
@@ -33,7 +28,7 @@ char name[2];
  * Create a register of the given name and type.  If one
  * already exists, remove it.
  */
-char	*
+REG	*
 makereg(name, type)
 char name[2];
 {
@@ -46,15 +41,16 @@ char name[2];
 		printd(DBGREGS,"makereg: deleting old register %c%c\n", name[0],
 				name[1]);
 #endif
-		if (rp->r_type == RTEXT) {
-			rp->r_maxh = 0;
-			rp->r_maxw = 0;
-			mp = rp->r_macd.m_next;
+		if (rp->t_reg.r_type == RTEXT) {
+			rp->t_reg.r_maxh = 0;
+			rp->t_reg.r_maxw = 0;
+			mp = rp->t_reg.r_macd.t_div.m_next;
 			while (mp) {
-				if (mp->m_type==MTEXT && mp->m_core!=NULL)
-					nfree(mp->m_core);
+				if (mp->t_div.m_type==MTEXT &&
+				    mp->t_div.m_core!=NULL)
+					nfree(mp->t_div.m_core);
 				lmp = mp;
-				mp = mp->m_next;
+				mp = mp->t_div.m_next;
 				nfree(lmp);
 			}
 		}
@@ -65,12 +61,12 @@ char name[2];
 #endif
 		rpp = &regt[hash(name)];
 		rp = (REG *) nalloc(sizeof *rp);
-		rp->r_type = type;
-		rp->r_name[0] = name[0];
-		rp->r_name[1] = name[1];
-		rp->r_maxh = 0;
-		rp->r_maxw = 0;
-		rp->r_next = *rpp;
+		rp->t_reg.r_type = type;
+		rp->t_reg.r_name[0] = name[0];
+		rp->t_reg.r_name[1] = name[1];
+		rp->t_reg.r_maxh = 0;
+		rp->t_reg.r_maxw = 0;
+		rp->t_reg.r_next = *rpp;
 		*rpp = rp;
 	}
 	return (rp);
@@ -90,19 +86,21 @@ char name[2];
 #if	(DDEBUG & DBGREGS)
 	printd(DBGREGS, "reltreg: removing text register %c%c\n", name[0],name[1]);
 #endif
-	for (lrp=&regt[hash(name)]; rp=*lrp; lrp=&rp->r_next) {
-		if (rp->r_name[0]==name[0] && rp->r_name[1]==name[1]) {
-			if (rp->r_type != RTEXT)
+	for (lrp = &regt[hash(name)]; rp = *lrp; lrp = &rp->t_reg.r_next) {
+		if (rp->n_reg.r_name[0]==name[0] &&
+		    rp->n_reg.r_name[1]==name[1]) {
+			if (rp->n_reg.r_type != RTEXT)
 				continue;
-			mp = rp->r_macd.m_next;
+			mp = rp->t_reg.r_macd.t_div.m_next;
 			while (mp) {
-				if (mp->m_type==MTEXT && mp->m_core!=NULL)
-					nfree(mp->m_core);
+				if (mp->t_div.m_type==MTEXT &&
+				    mp->t_div.m_core!=NULL)
+					nfree(mp->t_div.m_core);
 				lmp = mp;
-				mp = mp->m_next;
+				mp = mp->t_div.m_next;
 				nfree(lmp);
 			}
-			*lrp = rp->r_next;
+			*lrp = rp->t_reg.r_next;
 			nfree(rp);
 			return (1);
 		}
@@ -123,10 +121,11 @@ char name[2];
 	printd(DBGREGS, "relnreg: removing number register %c%c\n",
 		name[0],name[1]);
 #endif
-	for (lrp=&regt[hash(name)]; rp=*lrp; lrp=&rp->r_next) {
-		if (rp->r_name[0]==name[0] && rp->r_name[1]==name[1]) {
-			if (rp->r_type == RNUMR) {
-				*lrp = rp->r_next;
+	for (lrp = &regt[hash(name)]; rp = *lrp; lrp = &rp->t_reg.r_next) {
+		if (rp->n_reg.r_name[0]==name[0] &&
+		    rp->n_reg.r_name[1]==name[1]) {
+			if (rp->n_reg.r_type == RNUMR) {
+				*lrp = rp->t_reg.r_next;
 				nfree(rp);
 				return (1);
 			}
@@ -139,7 +138,7 @@ char name[2];
  * Given a register name, and a register type, return a pointer
  * to the register if it exists.  If not, NULL is returned.
  */
-char	*
+REG *
 findreg(name, type)
 char name[2];
 {
@@ -149,9 +148,10 @@ char name[2];
 	printd(DBGREGX, "findreg: looking for register %c%c, type %d --",
 			name[0],name[1],type);
 #endif
-	for (rp=regt[hash(name)]; rp; rp=rp->r_next)
-		if (rp->r_name[0]==name[0] && rp->r_name[1]==name[1])
-			if (rp->r_type == type) {
+	for (rp=regt[hash(name)]; rp; rp=rp->t_reg.r_next)
+		if (rp->n_reg.r_name[0]==name[0] &&
+		    rp->n_reg.r_name[1]==name[1])
+			if (rp->n_reg.r_type == type) {
 #if	(DDEBUG & DBGREGX)
 				printd(DBGREGX, "found\n");
 #endif
@@ -175,3 +175,5 @@ char name[2];
 	else
 		name[1] = str[1];
 }
+
+/* end of reg.c */
