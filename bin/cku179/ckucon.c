@@ -531,11 +531,19 @@ newfork:
 	printf("\r\nCommunications disconnect (Back at %s)\r\n",
 	       *myhost ?
 	       myhost :
+#ifdef COHERENT
+		"Local COHERENT system"
+
+#else
 #ifdef UNIX
 	       "local UNIX system"
 #else
 	       "local system"
 #endif /* UNIX */
+
+
+#endif /* COHERENT */
+
 	       );
 	}
 	printf("\n");
@@ -810,7 +818,11 @@ newfork:
 	}
 #endif /* SUNX25 */
 	if (!quiet)
+#ifdef COHERENT
+	  printf("(Back at %s)", *myhost ? myhost : "local COHERENT system");
+#else
 	  printf("(Back at %s)", *myhost ? myhost : "local UNIX system");
+#endif /* COHERENT */
 	printf("\n");
 	what = W_NOTHING;		/* So console modes set right. */
 #ifndef NOCSETS
