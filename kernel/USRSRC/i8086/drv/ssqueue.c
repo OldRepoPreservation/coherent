@@ -6,6 +6,9 @@
  *	Should be generalizable for other hard drives.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ssqueue.c,v $
+ * Revision 1.3	91/03/25  19:05:25	root
+ * run at high priority
+ * 
  * Revision 1.2	91/03/25  13:04:04	root
  * Minor code fixes.  Now passes unit test.
  * 
@@ -50,6 +53,15 @@ scsi_work_t * ssq_rd_head();
 scsi_work_t * ssq_rm_head();
 
 /*
+ * Debug macros.
+ */
+#if 1
+#define QSIZE	printf("Q%d:", ssq_count)
+#else
+#define QSIZE
+#endif
+
+/*
  * ssq_wr_tail()
  *
  * Append a scsi_work_t object to the doubly-linked queue.
@@ -72,6 +84,7 @@ scsi_work_t * sw;
 		ssq_tail = sw;
 	}
 	ssq_count++;
+QSIZE;
 	spl(s);
 }
 
@@ -112,6 +125,7 @@ scsi_work_t * ssq_rm_head()
 			ssq_head->sw_actl = NULL;
 		}
 		ssq_count--;
+QSIZE;
 	} else
 		ret = NULL;
 	spl(s);
