@@ -490,8 +490,8 @@ assemble(ip1) register INS *ip1;
 			 * by the load table in n1/i386/tables/leaves.t.
 			 * There must be a better way.
 			 */
-			if ((opcode == ZMOVW && m2 != A_WR)
-			 || (opcode == ZMOVB && m2 != A_BR)) {
+			if ((opcode == ZMOVW && m2 == A_DR)
+			 || (opcode == ZMOVB && (m2 == A_WR || m2 == A_DR))) {
 				ip1->i_af[1].a_mode &= ~A_AMOD;
 				ip1->i_af[1].a_mode |= (opcode == ZMOVW) ? A_WR : A_BR;
 				m2 = MOD(af_p(ip1, 1));
