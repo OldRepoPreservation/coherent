@@ -12,6 +12,7 @@ OPTIONS = -D_V7 -DEDIT
 CFLAGS = -O $(INC) $(OPTIONS)
 LDLIBS = /lib/libc.a -lx
 LDFLAGS=-n
+DESTDIR=/interim/usr/bin/
 
 HDRS =	sh.h table.h expand.h lex.h tree.h tty.h
 SRCS1 =	version.c main.c misc.c trap.c alloc.c io.c \
@@ -31,11 +32,12 @@ OBJS =	version.o main.o misc.o \
 	unistd.o
 
 ksh: $(OBJS) 
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-	fixstack +1000 $@
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJS) $(LDLIBS)
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+	su root fixstack +1000 $(DESTDIR)$@
 
-install: ksh
-	cp ksh $(BIN)/ksh
 
 print: Index $(SRCS)
 	$(PRINT) Index $(SRCS)
