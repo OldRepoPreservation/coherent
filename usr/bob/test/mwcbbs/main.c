@@ -67,7 +67,7 @@ int x;
 
 
 void show_files(win1, win2, EOF_FLAG)
-WINDOW *win1, win2;
+WINDOW *win1, *win2;
 int EOF_FLAG;
 
 {
