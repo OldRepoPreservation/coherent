@@ -75,7 +75,7 @@ $(K386OBJ)/fs1.o: fs1.c \
 	$(USRINC)/sys/coherent.h \
 	$(USRINC)/sys/buf.h \
 	$(USRINC)/canon.h \
-	$(USRINC)/sys/dir.h \
+	$(USRINC)/dirent.h \
 	$(USRINC)/errno.h \
 	$(USRINC)/sys/filsys.h \
 	$(USRINC)/sys/ino.h \

@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys1.c,v 1.7 92/07/16 16:33:34 hal Exp $ */
+/* $Header: /y/coh.386/RCS/sys1.c,v 1.8 92/10/06 23:48:55 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * General system calls.
  *
  * $Log:	sys1.c,v $
+ * Revision 1.8  92/10/06  23:48:55  root
+ * Ker #64
+ * 
  * Revision 1.7  92/07/16  16:33:34  hal
  * Kernel #58
  * 
@@ -423,57 +426,58 @@ int *add;
 	int readChild = 0;	/* for debug, true if reading child memory */
 
 #ifdef TRACER
-	if ((t_hal & 0x10000) == 0)
-		goto skip;
-#endif
-	switch(req) {
-	case 0:	/* init called by child */
-		printf("PSetup: child=%d  ", SELF->p_pid);
-		break;
-	case 1:	/* parent reads child text */
-		printf("PRdT: add=%x ", add);
-		readChild = 1;
-		break;
-	case 2:	/* parent reads child data */
-		printf("PRdD: add=%x ", add);
-		readChild = 1;
-		break;
-	case 3:	/* parent reads child u area */
-		printf("PRdU: add=%x ", add);
-		readChild = 1;
-		break;
-	case 4:	/* parent writes child text */
-		printf("PWrT: add=%x data=%x  ", add, data);
-		break;
-	case 5:	/* parent writes child data */
-		printf("PWrD: add=%x data=%x  ", add, data);
-		break;
-	case 6:	/* parent writes child u area */
-		printf("PWrU: add=%x data=%x ", add, data);
-		break;
-	case 7:	/* resume child, maybe fake signal to child */
-		printf("PResume: sig=%d  ", data);
-		break;
-	case 8:	/* terminate child */
-		printf("PTerm: pid=%d  ", pid);
-		break;
-	case 9:	/* single-step child, maybe fake signal to child */
-		printf("PSStp: sig=%d  ", data);
-		break;
+	if (t_hal & 0x10000) {
+		switch(req) {
+		case 0:	/* init called by child */
+			printf("PSetup: child=%d  ", SELF->p_pid);
+			break;
+		case 1:	/* parent reads child text */
+			printf("PRdT: add=%x ", add);
+			readChild = 1;
+			break;
+		case 2:	/* parent reads child data */
+			printf("PRdD: add=%x ", add);
+			readChild = 1;
+			break;
+		case 3:	/* parent reads child u area */
+			printf("PRdU: add=%x ", add);
+			readChild = 1;
+			break;
+		case 4:	/* parent writes child text */
+			printf("PWrT: add=%x data=%x  ", add, data);
+			break;
+		case 5:	/* parent writes child data */
+			printf("PWrD: add=%x data=%x  ", add, data);
+			break;
+		case 6:	/* parent writes child u area */
+			printf("PWrU: add=%x data=%x ", add, data);
+			break;
+		case 7:	/* resume child, maybe fake signal to child */
+			printf("PResume: sig=%d  ", data);
+			break;
+		case 8:	/* terminate child */
+			printf("PTerm: pid=%d  ", pid);
+			break;
+		case 9:	/* single-step child, maybe fake signal to child */
+			printf("PSStp: sig=%d  ", data);
+			break;
+		}
 	}
-skip:
+#endif
 
 	if (req == 0) {
 		SELF->p_flags |= PFTRAC;
 		ret = 0;
 	} else
 		ret = ptset(req, pid, add, data);
+
 #ifdef TRACER
 	if (t_hal & 0x10000) {
 		if (readChild)
 			printf("data=%x  ", ret);
 	}
 #endif
+
 	return ret;
 }
 

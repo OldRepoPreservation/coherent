@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/sig.c,v 1.2 92/01/06 12:00:24 hal Exp $ */
+/* $Header: /y/coh.386/RCS/sig.c,v 1.4 92/10/06 23:48:53 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Signal handling.
  *
  * $Log:	sig.c,v $
+ * Revision 1.4  92/10/06  23:48:53  root
+ * Ker #64
+ * 
  * Revision 1.2  92/01/06  12:00:24  hal
  * Compile with cc.mwc.
  * 
@@ -39,6 +42,8 @@
 #include <sys/sched.h>
 #include <sys/seg.h>
 #include <signal.h>
+
+void sendsig();
 
 /*
  * Set up the action to be taken on a signal.
@@ -138,14 +143,17 @@ register void (*func)();
 
 /*
  * Send a signal to the process `pp'.
+ * Return 1 if signal was sent.
+ * Return 0 if signal was ignored.
+ * The return value is of use to the trap handler.
  */
+void
 sendsig(sig, pp)
 register unsigned sig;
 register PROC *pp;
 {
 	register sig_t f;
 	register int s;
-
 
 	T_PIGGY( 0x40000000,
 	    printf("<send sig: %d, id: %d, state: %x, flags: %x, event: %x>",
@@ -161,28 +169,17 @@ register PROC *pp;
 	 * If the signal is ignored, do nothing.
 	 */
 	if (pp->p_isig&f) {
-		return;
+		goto sendSigDone;
 	}
-
-	/*
-	 * This bit causes SIGCHLD to be ignored here in sendsig().
-	 */
-	T_PIGGY( 0x10000000, {
-		if (SIGCHLD == sig) {
-			printf("SIGCHLD ignored, ");
-			return;
-		}
-	}
-	);
 
 	/*
 	 * I do not understand delayed or held signals.
 	 */
 	if ((pp->p_ssig & f) && (pp->p_hsig|pp->p_dsig) & f)
-		return;
+		goto sendSigDone;
 	
 	/*
-	 * Acutally send the signal by flagging the needed bit.
+	 * Actually send the signal by flagging the needed bit.
 	 */
 	pp->p_ssig |= f;
 
@@ -198,6 +195,8 @@ register PROC *pp;
 		setrun(pp);
 		spl(s);
 	}
+sendSigDone:
+	return;
 }
 
 /*
@@ -244,20 +243,12 @@ actvsig()
 	register int (*func)();
 	sig_t s;
 
-
 	/*
 	 * Fetch an unprocessed signal.
 	 * Return if there are none.
 	 */
 	if ((n = nondsig()) == 0)
 		return;
-
-	T_PIGGY( 0x40000, {
-		if (SIGCHLD == n) {
-			printf("-");
-			return;
-		}
-	} );
 
 	pp = SELF;
 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh.386/RCS/fs1.c,v 1.3 92/02/06 17:55:36 vlad Exp $ */
+/* $Header: /y/coh.386/RCS/fs1.c,v 1.4 92/07/16 16:33:32 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (mostly handling of in core inodes).
  *
  * $Log:	fs1.c,v $
+ * Revision 1.4  92/07/16  16:33:32  hal
+ * Kernel #58
+ * 
  * Revision 1.3  92/02/06  17:55:36  vlad
  * Fix typo in ialloc panic.
  * 
@@ -35,7 +38,7 @@
 #include <sys/coherent.h>
 #include <sys/buf.h>
 #include <canon.h>
-#include <sys/dir.h>
+#include <dirent.h>
 #include <errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
