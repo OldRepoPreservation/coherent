@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include "sh.h"
+#include <fcntl.h>
 
 void		fakearg		();
 void		reset		();
@@ -33,6 +34,15 @@ char *envp[];
 		umask (ufmask = 022);
 	} else
 		umask (ufmask = umask (ufmask));
+
+	/*
+	 * NIGEL: we must *force* stdin to be unbuffered to defeat some
+	 * excessive cleverness in the stdio library. Note that line-buffering
+	 * is a mode that only applies to output.
+	 */
+
+	if (setvbuf (stdin, NULL, _IONBF, BUFSIZ) != 0)
+		printe ("Cannot set stdin buffering\n");
 
 	if (setjmp (restart) != 0) {
 		/* reentry for shell command file execution */
@@ -145,7 +155,34 @@ SES	      *	session;
 
 	case SFILE:
 		session->s_strp = (char *) info;
-		if ((session->s_ifp = fopen (session->s_strp, "r")) == NULL) {
+
+		/*
+		 * NIGEL: We should take steps to ensure that the file
+		 * descriptors created for these input files lie above the
+		 * range that can be redirected in scripts!
+		 */
+
+		if ((type = open (session->s_strp, O_RDONLY)) < 0) {
+			ecantopen (session->s_strp);
+			return 2;
+		}
+		if (type > 9) {
+			int		scan;
+			for (scan = 10 ; scan < FOPEN_MAX ; scan ++) {
+				if (fcntl (scan, F_GETFD) == -1) {
+					/*
+					 * Move the new FD to the new place.
+					 */
+
+					dup2 (type, scan);
+					close (type);
+					type = scan;
+
+					break;
+				}
+			}
+		}
+		if ((session->s_ifp = fdopen (type, "r")) == NULL) {
 			ecantopen (session->s_strp);
 			return 2;
 		}
@@ -257,7 +294,7 @@ register char *p;
 			continue;
 
 		case RERR:
-			recover( IRDY);
+			recover (IRDY);
 			if (! errflag)
 				syntax ();
 			if (! iflag || (tflag && tflag ++ >= 2))
@@ -307,7 +344,7 @@ register char *p;
 
 
 void
-reset(f)
+reset (f)
 {
 	longjmp (sesp->s_envl, f);
 	NOTREACHED;

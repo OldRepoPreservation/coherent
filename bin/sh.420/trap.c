@@ -89,7 +89,7 @@ telltrp()
 		if (what)
 			prints("%d=%s: %s\n", sig, signame[sig], what);
 	}
-	return (0);
+	return 0;
 }
 
 /*
@@ -103,7 +103,7 @@ register char *actp;
 
 	if (sig < 0 || sig > NSIG) {
 		printe("Bad trap: %d", sig);
-		return (1);
+		return 1;
 	}
 	spc = (iflag && (sig==SIGINT||sig==SIGTERM)) || sig==SIGQUIT;
 	sfree(trap[sig].t_act);
@@ -124,7 +124,7 @@ register char *actp;
 			signal(sig, sigintr);
 		trap[sig].t_set = sigintr;
 	}
-	return (0);
+	return 0;
 }
 
 /*
@@ -153,8 +153,8 @@ recover(context)
 	register int sig;
 	register char *actp;
 
-	if ( ! intflag || norecur)
-		return (1);
+	if (! intflag || norecur)
+		return 1;
 	norecur++;
 	realint = realint && iflag;	/* iflag may have been cleared */
 	switch (context) {
@@ -166,7 +166,7 @@ recover(context)
 	case ILEX:
 	case IEVAL:
 		norecur = 0;
-		return ( ! realint);
+		return ! realint;
 	}
 	for (sig = 0; sig <= NSIG; sig += 1) {
 		if (trap[sig].t_cnt) {
@@ -194,5 +194,5 @@ recover(context)
 		reset(RINT);
 		NOTREACHED;
 	}
-	return (1);
+	return 1;
 }

@@ -117,6 +117,43 @@ typedef	struct	buf {
 
 
 /*
+ * NB: Here-document processing in shell functions places extra demands on
+ * the management of temporary files. When a shell function is interned, any
+ * here documents created within the function are turned into temporary
+ * files which must persist for the life of the function (ie, until the
+ * shell exits or the function is removed via "unset -f").
+ *
+ * The following data structure is intended to allow the temporary-file
+ * context to be managed in the manner required. A pointer to a list of these
+ * structures is stored in the function definition, taken from the global
+ * list of temporary files when a function is defined.
+ *
+ * Related functions:
+ *	def_sh_fn (nodep)
+ *		Captures the current temporary-file context and attaches it
+ *		to the shell function being defined.
+ *	remember_temp (filename)
+ *		Adds a filename to the current global list of temporary
+ *		files (copies filename to private buffer).
+ *	capture_temp ()
+ *		Detaches the global list of temporary files and returns
+ *		the list to the caller.
+ *	unlink_temp (templist)
+ *		Walks over the list of temporary files, unlinking the files
+ *		and deallocating the list nodes.
+ *	forget_temp (templist)
+ *		Deallocates the memory for the list of temporary files.
+ */
+
+typedef struct temp_file TEMP_FILE;
+
+struct temp_file {
+	TEMP_FILE     *	tf_next;
+	char	      *	tf_name;
+};
+
+
+/*
  * Per executing command data structure.
  * Used for break/continue.
  */
@@ -126,7 +163,24 @@ typedef	struct	con {
 	NODE	*c_node;		/* Node which created this control */
 	BUF	**c_bpp;		/* Current free buffer */
 	jmp_buf	c_envl;			/* Enviroment list */
+	TEMP_FILE     *	c_temp;		/* temporary files */
 } CON;
+
+#define	DESTROY_CON(cp)	(freebuf ((cp)->c_bpp), \
+			 (cp)->c_temp != NULL ? unlink_temp ((cp)->c_temp) : \
+						(void) 0)
+
+/*
+ * Shell functions.
+ */
+
+typedef struct shfunc {
+	struct	shfunc	*fn_link;
+	int		fn_hash;
+	char		*fn_name;
+	NODE		*fn_body;
+	TEMP_FILE     *	fn_temp;
+} SHFUNC;
 
 
 /*
@@ -197,56 +251,6 @@ typedef struct ses {
 #define EHERE	1	/* Evaluate $N, `cmd`, ignore quotes */
 #define EARGS	2	/* Evaluete $N, `cmd`, strip quotes, *?[, blanks */
 #define EPATT	3	/* Evaluate for pattern match */
-
-
-/*
- * NB: Here-document processing in shell functions places extra demands on
- * the management of temporary files. When a shell function is interned, any
- * here documents created within the function are turned into temporary
- * files which must persist for the life of the function (ie, until the
- * shell exits or the function is removed via "unset -f").
- *
- * The following data structure is intended to allow the temporary-file
- * context to be managed in the manner required. A pointer to a list of these
- * structures is stored in the function definition, taken from the global
- * list of temporary files when a function is defined.
- *
- * Related functions:
- *	def_sh_fn (nodep)
- *		Captures the current temporary-file context and attaches it
- *		to the shell function being defined.
- *	remember_temp (filename)
- *		Adds a filename to the current global list of temporary
- *		files (copies filename to private buffer).
- *	capture_temp ()
- *		Detaches the global list of temporary files and returns
- *		the list to the caller.
- *	unlink_temp (templist)
- *		Walks over the list of temporary files, unlinking the files
- *		and deallocating the list nodes.
- *	forget_temp (templist)
- *		Deallocates the memory for the list of temporary files.
- */
-
-typedef struct temp_file TEMP_FILE;
-
-struct temp_file {
-	TEMP_FILE     *	tf_next;
-	char	      *	tf_name;
-};
-
-
-/*
- * Shell functions.
- */
-
-typedef struct shfunc {
-	struct	shfunc	*fn_link;
-	int		fn_hash;
-	char		*fn_name;
-	NODE		*fn_body;
-	TEMP_FILE     *	fn_temp;
-} SHFUNC;
 
 
 /*

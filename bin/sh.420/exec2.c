@@ -151,18 +151,18 @@ flexec()
 			nargv = vdupl(nargv);
 			nenvp = vdupl(nenvp);
 			while (sesp) {
-				freebuf(sesp->s_bpp);
+				freebuf (sesp->s_bpp);
 				sesp = sesp->s_next;
 			}
-			longjmp(restart, 1);
+			longjmp (restart, 1);
 		}
 		if (errno==E2BIG) {
-			e2big(nargv[0]);
-			return(-1);
+			e2big (nargv [0]);
+			return -1;
 		}
 	}
-	ecantfind(nargv[0]);
-	return (-1);
+	ecantfind (nargv [0]);
+	return -1;
 }
 
 ALLOC_COUNT (undo)
@@ -188,11 +188,33 @@ REDIR_UNDO ** undo;
 	int u1, u2;
 	REDIR_UNDO * undo_node;
 
-	for (iopp = iovp;(io = *iopp++)!=NULL; ) {
-		if (class(*io, MDIGI))
-			u1 = *io++ - '0';
+	for (iopp = iovp ; (io = * iopp ++) != NULL; ) {
+		if (class (* io, MDIGI))
+			u1 = * io ++ - '0';
 		else
-			u1 = *io=='<' ? 0 : 1;
+			u1 = * io == '<' ? 0 : 1;
+
+		/*
+		 * NIGEL: When redirecting stdin/stdout/stderr, we have to
+		 * worry about the cached state of the FILE structure.
+		 */
+
+		switch (u1) {
+		case 0:
+			clearerr (stdin);
+			break;
+
+		case 1:
+			clearerr (stdout);
+			break;
+
+		case 2:
+			clearerr (stderr);
+			break;
+
+		default:
+			/* DO NOTHING */
+		}
 
 		if (undo) {
 			/*
@@ -218,66 +240,76 @@ REDIR_UNDO ** undo;
 			* undo = undo_node;
 		} else
 			undo_node = NULL;
-		for (op=0; ; io+=1)
-			if (*io=='>')
+
+		for (op = 0 ; ; io += 1) {
+			if (*io == '>')
 				op += 1;
-			else if (*io=='<')
+			else if (* io == '<')
 				op -= 1;
 			else
 				break;
-		if (*io++ == '&') {
+		}
+		if (* io ++ == '&') {
 			if (op != 1 && op != -1) {
-				panic(7);
+				panic (7);
 				NOTREACHED;
 			}
-			u2 = *io++;
+			u2 = * io ++;
 			if (u2 == '-') {
-				close(u1);
+				close (u1);
 				continue;
-			} else if (!class(u2, MDIGI)) {
-				eredir();
-				return (-1);
+			} else if (! class (u2, MDIGI)) {
+				eredir ();
+				return -1;
 			} else {
 				u2 -= '0';
-				dup2(u2, u1);
+				dup2 (u2, u1);
 				continue;
 			}
 		}
-		for (io-=1; *io==' '||*io=='\t'; io+=1);
+		for (io -= 1 ; * io == ' ' || * io == '\t' ; io += 1)
+			/* DO NOTHING */;
+
 		switch (op) {
 		case -2:	/* Unquoted here */
 				/* Fall through */
 		case -1:	/* Input file, quoted here */
-			if ((u2 = open(io, 0)) < 0) {
-				ecantopen(io);
-				return (-1);
+			if ((u2 = open (io, 0)) < 0) {
+				ecantopen (io);
+				return -1;
 			}
-			if (op == -2 && (u2 = evalhere(u2)) < 0)
-				return (-1);
-			dup2(u2, u1);
-			close(u2);
+			if (op == -2 && (u2 = evalhere (u2)) < 0)
+				return -1;
+			dup2 (u2, u1);
+			close (u2);
 			continue;
+
 		case 2:		/* Append to output */
-			if ((u2 = open(io, 1)) >= 0) {
-				lseek(u2, 0L, 2);
-				dup2(u2, u1);
-				close(u2);
+			if ((u2 = open (io, 1)) >= 0) {
+				lseek (u2, 0L, SEEK_END);
+				dup2 (u2, u1);
+				close (u2);
 				continue;
-			} /* else fall through */
-		case 1:		/* Output file */
-			if ((u2 = creat(io, 0666)) < 0) {
-				ecantmake(io);
-				return (-1);
 			}
-			dup2(u2, u1);
-			close(u2);
+			/* FALL THROUGH */
+
+		case 1:		/* Output file */
+			u2 = creat (io, S_IRUSR | S_IWUSR | S_IRGRP |
+					S_IWGRP | S_IROTH | S_IWOTH);
+			if (u2 < 0) {
+				ecantmake (io);
+				return -1;
+			}
+			dup2 (u2, u1);
+			close (u2);
 			continue;
+
 		default:
-			panic(8);
+			panic (8);
 			NOTREACHED;
 		}
 	}
-	return (0);
+	return 0;
 }
 
 /*
@@ -436,5 +468,3 @@ checkmail()
 		mailsize = sbuf.st_size;
 	}
 }
-
-/* end of sh/exec2.c */
