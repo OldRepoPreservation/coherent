@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.32	91/04/17  04:07:21	root
+ * Accesses file system but has frequent BFERR 5's.
+ * 
  * Revision 1.31	91/04/17  03:16:33	root
  * Now fdisk command works but mkfs fails.
  * 
@@ -1044,10 +1047,12 @@ SSDUMP(ssp, "Command overrun");
 				ffbyte(ss_dat);
 			break;
 		case XP_DATA_OUT:
+#if 0
 if (!we_wrote) {
 	we_wrote=1;
 	printf("W");
 }
+#endif
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
@@ -1275,6 +1280,7 @@ uchar * buf;
  */
 static void ss_start()
 {
+#define RW_TRIES	5
 	int s;
 	BUF * bp;
 	static char locked;
@@ -1283,6 +1289,7 @@ static void ss_start()
 	struct	fdisk_s	*fdp;
 	int partition;
 	dev_t dev;
+	static int retry[MAX_SCSI_ID-1];
 
 	s = sphi();
 	if(locked) {
@@ -1306,23 +1313,27 @@ static void ss_start()
 			else
 				ssp->bno = bp->b_bno;
 			ssp->bp = bp;
-			ssq_rm_head();
 			ssp->id_busy = 1;
 			ssp->dr_watch = WATCHDOG_SECONDS;
 			if (ss_rw(s_id)) {
+				retry[s_id] = 0;
+				ssq_rm_head();
 				if (bp->b_req == BREAD)
 					bp->b_resid -= ssp->data_bytes_in;
 				else
 					bp->b_resid -= ssp->data_bytes_out;
 				if (ssp->msg_in != MSG_DISCONNECT)
 					ss_done(s_id);
-				else
-					printf("D");
 /* printf("%d in  %d out\n",ssp->data_bytes_in,ssp->data_bytes_out); */
 			} else {
+				if (++retry[s_id] > RW_TRIES) {
 printf("BFERR 5\n");
-				bp->b_flag |= BFERR;
-				ss_done(s_id);
+					retry[s_id] = 0;
+					ssq_rm_head();
+					bp->b_flag |= BFERR;
+					ss_done(s_id);
+				} else
+printf("R%d\n",retry[s_id]);
 			}
 		}
 	}
@@ -1443,8 +1454,6 @@ static int chk_reconn()
 			s_id = 0;
 			while (dat >>=1)
 				s_id++;
-printf("R%d", s_id);
-if(s_id!=0)s_id=-1;
 		}
 	}
 
