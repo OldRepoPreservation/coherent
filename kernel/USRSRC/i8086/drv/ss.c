@@ -15,6 +15,9 @@
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 2.2	91/05/20  10:23:58	root
+ * Modify ss_get/ss_put calls for Future Domain & drop 3rd arg.
+ * 
  * Revision 2.1	91/05/17  14:26:12	root
  * Debug level up to 4 tracking write problem.
  * 
@@ -119,7 +122,7 @@
 #define DEV_SPECIAL(dev)	(dev & 0x0080)
 
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
-#define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
+#define HIPRI_RETRIES	4000	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
 
@@ -305,6 +308,35 @@ static int	ss_expired;	/* 1 after local timeout */
 
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
 static ss_type  *ss[MAX_SCSI_ID-1];
+
+/*
+ *
+ * ss_putC()
+ *
+ * return # of bytes remaining to be sent from current block
+ * - should be 0
+ *
+ * temporary C code
+ */
+int ss_putC(ss_dat_fp, buf_fp)
+faddr_t ss_dat_fp, buf_fp;
+{
+	uchar dat;
+	int i, junk;
+#if 0
+	faddr_t req_waitA();
+	printf("ss_stat=%x ", ffbyte(ss_csr));
+	printf("ss_datA=%lx ", req_waitA(ss_dat_fp, buf_fp));
+#endif
+	for (i = 0; i < BSIZE; i++) {
+/*		if (!req_wait(&junk)) */
+		if (!req_waitA(ss_dat_fp, buf_fp))
+			break;
+		dat = ffbyte(buf_fp + i);
+		sfbyte(ss_dat_fp, dat);
+	}
+	return BSIZE - i;
+}
 
 /*
  * ssload()	- load routine.
@@ -903,12 +935,15 @@ int s_id;
 	BUF * bp = ssp->bp;
 	int xfer_good = 1;
 	int xfer_count = bp->b_count - bp->b_resid;
+	int irpts_masked;
 int block_done=0;
 int i=0;
 
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
 	s = sphi();
+	irpts_masked = 1;
+
 	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
@@ -1000,13 +1035,17 @@ block_done=1;
 			 * Copy output buffer bytes to data register.
 			 */
 			if (bp->b_req == BWRITE) {
-#if 0
+#if 1
 				int res;
 PR4("DO ");
 if (block_done)
 	printf("Data out overrun ");
 block_done=1;
 				res=ss_put(ss_dat, bp->b_faddr + xfer_count);
+				if (irpts_masked) {
+					spl(s);
+					irpts_masked = 0;
+				}
 #if (DEBUG >= 3)
 				printf("p%d ", res);
 #else
@@ -1033,7 +1072,8 @@ if (i==BSIZE)
 			break;
 		} /* endswitch */
 	}
-	spl(s);
+	if (irpts_masked)
+		spl(s);
 #if (DEBUG >= 1)
 switch(ssp->cmdstat) {
 case -1:
@@ -1091,6 +1131,11 @@ int *to_ptr;
 	if (*to_ptr) {
 		printf("TX: s=%x ", status);
 	}
+#endif
+
+#if (DEBUG >= 2)
+if (i>100)
+	printf("rw=%d ", i);
 #endif
 
 	return req_found;
