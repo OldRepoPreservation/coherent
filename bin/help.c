@@ -1,92 +1,186 @@
 /*
- * Command to give help on various command's usages.
- * Also, this command allows user-specific information
- * to be kept.
+ * help.c
+ * 6/5/91
+ * Usage: help [ -dc ] [ -ffile ] [ -ifile] [ -r ] [ topic ] ...
+ * Options:
+ *	-dc	Use c as delimiter character (default: '#')
+ *	-ffile	Use file as helpfile (default: /etc/helpfile)
+ *	-iindex	Use index as helpindex (default: /åtc/helpindex)
+ *	-r	Rebuild helpindex and exit
+ * Print command help information as given in HELPFILE.
+ * Also looks for user-specific information in file $HELP.
+ * Pipes output through $PAGER if defined.
  */
 
 #include <stdio.h>
 #include <sys/stat.h>
 
-#define	NLINE	512		/* Longest helpfile line */
-
-char	doc[50];
-char	buf[BUFSIZ];
-char	*list[2];
-
-char	helpline[NLINE];
-char	helpfile[] = "/etc/helpfile";
-FILE	*shf;			/* System helpfile */
-FILE	*uhf;			/* User helpfile */
-
-/*
- * Structure to speed lookup time.
- */
-struct	look	{
-	long	l_seek;
-	char	*l_name;
-};
-
-struct	look	*lread();
-
-char	helpuse[] = "\
-The 'help' command prints a brief description of the usage of a command.\n\
-For example, to get information about the 'who' command, type:\n\
-	help who\n\
-The 'man' command provides more detailed descriptions of commands.\n\
-\n\
-";
-
-char	noinf[] = "No information on %s\n";
+/* Externals. */
 char	*getenv();
 
-main(argc, argv)
-char *argv[];
+/* Manifest constants. */
+#define	VERSION		"1.2"			/* Version number	*/
+#define	NLINE		512			/* Longest helpfile line */
+#define	DELIM		'#'			/* Default delimiter	*/
+#define	HELPFILE	"/etc/helpfile"		/* Default helpfile	*/
+#define	HELPINDEX	"/etc/helpindex"	/* Default helpindex	*/
+#define	MAXNAME		80			/* Max name length	*/
+#define	USAGE		"Usage: help [ -dc ] [ -ffile ] [ -ifile] [ -r ] [ topic ] ...\n"
+
+/* Structure to speed lookup time. */
+typedef	struct	look	{
+	long	l_seek;				/* seek into helpfile	*/
+	char	*l_name;			/* topic		*/
+} LOOK;
+
+/* Globals. */
+char	buf[BUFSIZ];			/* Input buffer			*/
+char	delim = DELIM;			/* Help file delimiter		*/
+char	*helpfile = HELPFILE;		/* Help file			*/
+char	*helpindex = HELPINDEX;		/* Help index			*/
+char	helpline[NLINE];		/* Help file text line		*/
+FILE	*ofp = NULL;			/* Output file			*/
+int	rflag;				/* Rebuild helpindex		*/
+FILE	*shf;				/* System helpfile		*/
+FILE	*uhf;				/* User helpfile		*/
+
+/* Forward. */
+int	fastlook();
+int	help();
+int	lookup();
+LOOK	*lread();
+int	rebuild();
+void	usage();
+
+main(argc, argv) int argc; char *argv[];
 {
 	register char **ap;
-	register int estat = 0;
-	char *fn;
+	register int status;
+	char *cp;
+	char *list[2];
 
-	shf = fopen(helpfile, "r");
-	if ((fn = getenv("HELP")) != NULL)
-		uhf = fopen(fn, "r");
-	setbuf(stdout, buf);
-	ap = argv+1;
-	if (argc < 2) {
-		fprintf(stderr, helpuse);
-		ap = list;
-		if ((*ap = getenv("LASTERROR")) == NULL)
-			exit(0);
+	/* Process command line options. */
+	while (argc > 1 && argv[1][0] == '-') {
+		switch(argv[1][1]) {
+		case 'd':	delim = argv[1][2];		break;
+		case 'f':	helpfile = &argv[1][2];		break;
+		case 'i':	helpindex = &argv[1][2];	break;
+		case 'r':	rflag++;			break;
+		case 'V':
+			fprintf(stderr, "help: V%s\n", VERSION);
+			break;
+		default:	usage();			break;
+		}
+		--argc;
+		++argv;
 	}
+
+	/* Open files and read environmental variables. */
+	shf = fopen(helpfile, "r");		/* system helpfile */
+	if (rflag)
+		exit(rebuild(shf, helpindex));
+	if ((cp = getenv("HELP")) != NULL)
+		uhf = fopen(cp, "r");		/* user helpfile */
+	if ((cp = getenv("PAGER")) != NULL && *cp != '\0' && isatty(fileno(stdout)))
+		ofp = popen(cp, "w");
+	if (ofp == NULL) {
+		ofp = stdout;
+		setbuf(stdout, buf);
+	}
+	ap = ++argv;
+
+	/* If no args, print help info and LASTERROR info. */
+	status = 0;
+	if (argc < 2) {
+		fprintf(stderr,
+"The 'help' command prints a brief description of the usage of a command.\n"
+"For example, to get information about the 'who' command, type:\n"
+"\thelp who\n"
+"The 'man' command provides more detailed descriptions of commands.\n"
+"\n"
+			);
+		if ((list[0] = getenv("LASTERROR")) == NULL)
+			exit(status);
+		list[1] = NULL;
+		ap = list;
+	}
+
+	/* Print help info on requested topics. */
 	while (*ap != NULL) {
 		if (help(*ap)) {
-			printf(noinf, *ap);
-			estat |= 1;
+			fprintf(stderr, "help: no information on %s\n", *ap);
+			status = 1;
 		}
 		if (*++ap != NULL)
-			putchar('\n');
-		fflush(stdout);
+			fputc('\n', ofp);
+		fflush(ofp);
 	}
-	exit(estat);
+
+	/* Done, clean up. */
+	if (ofp != stdout)
+		pclose(ofp);
+	if (shf != NULL)
+		fclose(shf);
+	if (uhf != NULL)
+		fclose(uhf);
+	exit(status);
 }
 
 /*
- * This routine looks for information
- * in the on-line documentation for
- * the specified command.
- * The information is bracketed by `.HS'
- * and `.HE'.
- * If nothing is found, search the other two places.
+ * Possibly seek the helpfile 'fp' to the right place based on helpindex 'ind'.
+ * Return 0 if found, 1 if not found.
+ * Rebuild the index file if it is out of date.
  */
-help(command)
-char *command;
+int
+fastlook(cmd, fp, ind) char *cmd; FILE *fp; char *ind;
 {
-	register int bad = 1;
+	register LOOK *lp;
+	register FILE *ifp;
+	struct stat sb;
+	long htime;
+	int status;
+
+	fstat(fileno(fp), &sb);
+	htime = sb.st_mtime;			/* helpfile mtime */
+	if (stat(ind, &sb) < 0 || htime > sb.st_mtime)
+		rebuild(fp, ind);
+	status = 1;
+	if ((ifp = fopen(ind, "r")) == NULL)
+		return status;
+	while ((lp = lread(ifp)) != NULL) {
+		if (strcmp(cmd, lp->l_name) == 0) {
+			fseek(fp, lp->l_seek, SEEK_SET);
+			status = 0;
+			break;
+		}
+	}
+	fclose(ifp);
+	return status;
+}
+
+/*
+ * Look for information on a command.
+ * The #if OLD code looks for command information bracketed by '.HS' and '.HE';
+ * it is conditionalized out because
+ * online documentation is now cooked, not raw.
+ * After the #if OLD code, look for information in system helpfile,
+ * then in user helpfile.
+ * Return 0 if found, 1 if not found.
+ */
+int
+help(command) char *command;
+{
+	register int bad;
+
+	bad = 1;
+
+#if	OLD
 	register FILE *hf;
 
-	sprintf(doc, "/usr/man/cmd/%s", command);
-	if ((hf = fopen(doc, "r")) == NULL) {
-		strcat(doc, "m");
-		if ((hf = fopen(doc, "r")) == NULL)
+	sprintf(buf, "/usr/man/cmd/%s", command);
+	if ((hf = fopen(buf, "r")) == NULL) {
+		strcat(buf, "m");
+		if ((hf = fopen(buf, "r")) == NULL)
 			goto other;
 	}
 	for (;;) {
@@ -100,160 +194,111 @@ char *command;
 	if (!bad)
 		while (fgets(helpline, NLINE, hf) != NULL
 		    && strcmp(helpline, ".HE\n") != 0)
-			fputs(helpline, stdout);
+			fputs(helpline, ofp);
 	fclose(hf);
 other:
 	if (bad)
-		if (bad = lookup(command, shf, "/etc/helpindex"))
+		/* fall through to conditional below... */
+#endif
+
+		if (bad = lookup(command, shf, helpindex))
 			bad = lookup(command, uhf, NULL);
-	return (bad);
+	return bad;
 }
 
 /*
- * Lookup a command in the given file.
- * The format is to look for # lines.
- * The index-file is provided to speed up
- * the lookup in situations where there is a very
- * large system help file.
+ * Lookup a command in the given file by looking for DELIM-delimited lines.
+ * The indexfile speeds up lookup when there is a very large system help file.
+ * Return 0 if found, 1 if not found.
  */
-lookup(com, fp, ind)
-register char *com;
-FILE *fp;
-char *ind;
+int
+lookup(cmd, fp, ind) register char *cmd; FILE *fp; char *ind;
 {
 	if (fp == NULL)
-		return (1);
-	if (fastlook(com, fp, ind))
-		return (1);
+		return 1;
+	if (fastlook(cmd, fp, ind))
+		return 1;
 	while (fgets(helpline, NLINE, fp) != NULL)
-		if (helpline[0] == '#') {
+		if (helpline[0] == delim) {
 			helpline[strlen(helpline)-1] = '\0';
-			if (strcmp(com, helpline+1) == 0) {
+			if (strcmp(cmd, helpline+1) == 0) {
 				while (fgets(helpline, NLINE, fp) != NULL) {
-					if (helpline[0] == '#')
+					if (helpline[0] == delim)
 						break;
-					fputs(helpline, stdout);
+					fputs(helpline, ofp);
 				}
-				return (0);
+				return 0;
 			}
 		}
-	return (1);
+	return 1;
 }
 
 /*
- * Possibly seek the helpfile to the right place
- * based on an index file.
- * Return non-zero only when it is impossible to
- * find it.
- * If the index file is out of date, re-build it.
+ * Read in a look structure.
+ * Return NULL on end of file or error.
  */
-fastlook(com, fp, ind)
-char *com;
-FILE *fp;
-char *ind;
+LOOK *
+lread(fp) register FILE *fp;
 {
-	register char *cp, *ep;
-	register struct look *lp;
-	struct look look;
-	FILE *ifp;
-	long seek = 0;
-	int found = 0;
-	static struct stat sb;
-	long htime;
+	register char *cp;
+	static LOOK look;
+	static char name[MAXNAME];
 
-	fstat(fileno(fp), &sb);
-	htime = sb.st_mtime;
-	if (stat(ind, &sb) < 0)
-		goto rebuild;
-	if (htime < sb.st_mtime) {
-		if ((ifp = fopen(ind, "r")) == NULL)
-			goto rebuild;
-		while ((lp = lread(ifp)) != NULL)
-			if (strcmp(com, lp->l_name) == 0) {
-				seek = lp->l_seek;
-				found++;
-				break;
-			}
-		fclose(ifp);
-		if (found) {
-			fseek(fp, seek, 0);
-			return (0);
-		}
-		return (1);
+	if (fread(&look.l_seek, sizeof look.l_seek, 1, fp) != 1)
+		return NULL;
+	for (look.l_name = cp = name; (*cp = getc(fp)) != '\0'; ) {
+		if (feof(fp))
+			return NULL;
+		else if (cp < &name[MAXNAME-1])
+			++cp;
 	}
+	return &look;
+}
 
-rebuild:
-	/*
-	 * Re-build the index file.
-	 */
+/*
+ * Rebuild an index file.
+ * Return 0 on success, 1 on failure.
+ */
+int
+rebuild(fp, ind) FILE *fp; char *ind;
+{
+	register FILE *ifp;
+	register char *cp, *ep;
+	long seek;
+
 	if ((ifp = fopen(ind, "w")) == NULL)
-		return (0);
+		return 1;
 	for (;;) {
-		look.l_seek = ftell(fp);
-		if (fgets(helpline, NLINE, fp) == NULL)
-			break;
+		seek = ftell(fp);
 		cp = helpline;
-		if (*cp++ != '#')
-			continue;
+		if (fgets(cp, NLINE, fp) == NULL)
+			break;
+		if (*cp++ != delim)
+			continue;		/* line must start with delim */
 		while (*cp==' ' && *cp=='\t')
-			cp++;
+			cp++;			/* skip whitespace after delim */
 		ep = cp;
 		while (*ep!='\n' && *ep!='\0' && *ep!=' ' && *ep!='\t')
-			ep++;
+			ep++;			/* scan past keyword */
 		*ep = '\0';
-		look.l_name = cp;
-		if (strcmp(com, cp) == 0) {
-			seek = look.l_seek;
-			found++;
-		}
-		lwrite(&look, ifp);
+
+		/* Write index entry: seek and NUL-terminated keyword. */
+		fwrite(&seek, 1, sizeof seek, ifp);
+		fputs(cp, ifp);
+		fputc('\0', ifp);
 	}
 	fclose(ifp);
-	if (found) {
-		fseek(fp, seek, 0);
-		return (0);
-	}
-	return (1);
+	return 0;
 }
 
 /*
- * Read in a look structure.  Return NULL
- * on end of file or error.
+ * Print usage message and die.
  */
-struct look *
-lread(fp)
-register FILE *fp;
+void
+usage()
 {
-	register char *cp;
-	register int c;
-	static struct look look;
-	static char name[50];
-
-	look.l_name = name;
-	if (fread(&look.l_seek, sizeof look.l_seek, 1, fp) != 1)
-		return (NULL);
-	for (cp = name; cp<&name[49]; cp++) {
-		if ((c = getc(fp)) == EOF)
-			return (NULL);
-		*cp = c;
-		if (c == '\0')
-			break;
-	}
-	return (&look);
+	fprintf(stderr, USAGE);
+	exit(1);
 }
 
-/*
- * Write out a structure to the
- * given file pointer.
- */
-lwrite(lp, fp)
-register struct look *lp;
-FILE *fp;
-{
-	register char *cp;
-
-	fwrite(&lp->l_seek, 1, sizeof lp->l_seek, fp);
-	cp = lp->l_name; do {
-		putc(*cp, fp);
-	} while (*cp++ != '\0');
-}
+/* end of help.c */
