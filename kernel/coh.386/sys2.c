@@ -14,54 +14,6 @@
 /*
  * Coherent.
  * System calls (filesystem related).
- *
- * $Log:	sys2.c,v $
- * Revision 1.10  92/10/06  23:48:57  root
- * Ker #64
- * 
- * Revision 1.9  92/06/11  18:25:58  root
- * Add close on exec code.
- * 
- * Revision 1.8  92/06/10  12:53:14  hal
- * Initial record locking.  Ker #55.
- * 
- * Revision 1.6  92/03/16  16:05:39  hal
- * upoll(): fix control logic and two getuwd's from short values.
- * 
- * Revision 1.5  92/03/13  14:46:35  hal
- * Three argument open.
- * Fix upoll().
- * 
- * Revision 1.3  92/01/06  12:00:42  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.2  91/12/10  15:58:13  hal
- * Allow apparently negative net offsets to lseek.
- * 
- * Revision 1.2	88/08/02  15:00:22	src
- * O_APPEND flag now supported on open/fcntl system calls.
- * 
- * Revision 1.1	88/03/24  16:14:31	src
- * Initial revision
- * 
- * 87/08/13	Allan Cornish		/usr/src/sys/coh/sys2.c
- * upoll() now initiates/cancels poll timers which use cprocp->p_polltim.
- *
- * 87/03/27	Allan Cornish		/usr/src/sys/coh/sys2.c
- * upoll() does more argument validation, and more comments.
- *
- * 86/12/14	Allan Cornish		/usr/src/sys/coh/sys2.c
- * upoll() now calls msgpoll() with 3 arguments, new arg means blocking poll
- *
- * 86/12/12	Allan Cornish		/usr/src/sys/coh/sys2.c
- * upoll() now calls dpoll() with 3 arguments, new arg indicating blocking poll
- *
- * 86/11/19	Allan Cornish		/usr/src/sys/coh/sys2.c
- * ufcntl() and upoll() system call handlers added, to support
- * non-blocking reads/writes, and System V.3 compatible multi-event waits.
- *
- * 85/01/11	Allan Cornish		/usr/src/sys/coh/sys2.c
- * ucreat() on block/char devices works	even if the file system is readonly.
  */
 #include <sys/coherent.h>
 #include <errno.h>
@@ -330,7 +282,7 @@ int fd, cmd, arg;
 		return;
 
 	case F_SETFL:
-		fdp->f_flag &= ~IPNDLY;
+		fdp->f_flag &= ~(IPNDLY|IPAPPEND);
 		if ( arg & O_NDELAY )
 			fdp->f_flag |= IPNDLY;
 		if ( arg & O_APPEND )
@@ -611,7 +563,7 @@ int msec;
 	 * Validate address of polling information.
 	 */
 	if ((pollfds == NULL)
-	  || !useracc(pollfds, npoll*sizeof(struct pollfd))) {
+	  || !useracc(pollfds, npoll*sizeof(struct pollfd), 1)) {
 		u.u_error = EFAULT;
 		goto poll_done;
 	}

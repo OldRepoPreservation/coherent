@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh.386/RCS/sys3.c,v 1.3 92/02/20 19:37:59 piggy Exp $ */
+/* $Header: /y/coh.386/RCS/sys3.c,v 1.6 92/12/18 14:08:13 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -15,33 +15,6 @@
 /*
  * Coherent.
  * System calls (more filesystem related calls).
- *
- * $Log:	sys3.c,v $
- * Revision 1.3  92/02/20  19:37:59  piggy
- * Three-argument S5-style open().
- * 
- * Revision 1.2  92/01/06  12:00:52  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.3	89/02/07  18:50:27	src
- * Bug:	Console driver did not validate user addresses before initiating a
- * 	transfer.  This resulted in a system trap in protected mode if a write
- * 	outside of user data space was attempted.
- * Fix:	Reads and writes now validate user addresses via 'useracc' prior to
- * 	calling drivers. (ABC)
- * 
- * Revision 1.2	88/08/02  15:01:04	src
- * O_APPEND flag now supported on open/fcntl system calls.
- * 
- * Revision 1.1	88/03/24  16:14:35	src
- * Initial revision
- * 
- * 88/01/22	Allan Cornish		/usr/src/sys/coh/sys3.c
- * sysio() inode lock extended to cover getting/modifying file seek offset.
- *
- * 86/11/19	Allan Cornish		/usr/src/sys/coh/sys3.c
- * uopen() now checks mode for O_NDELAY and sets IPNDLY bit in fdp->f_flag.
- * sysio() now checks fdp->f_flag for IPNDLY and sets IONDLY bit in io_flag.
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
@@ -234,7 +207,9 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 }
 
 /*
- * Create a pipe.
+ * Create a pipe.  Notice, we must do the IPR fdopen with IPNDLY so that
+ * we don't block waiting for the writer we are about to create.  Then
+ * after we are done, we ufcntl() to turn off the IPNDLY on fd1.
  */
 upipe(fdp)
 short fdp[2];
@@ -245,11 +220,12 @@ short fdp[2];
 
 	if ((ip=pmake(0)) == NULL)
 		return;
-	if ((fd1=fdopen(ip, IPR)) >= 0) {
+	if ((fd1=fdopen(ip, IPR|IPNDLY)) >= 0) {
 		ip->i_refc++;
 		if ((fd2=fdopen(ip, IPW)) >= 0) {
 			iunlock(ip);
 			u.u_rval2 = fd2;
+			ufcntl(fd1, F_SETFL, 0);
 			return fd1;
 		}
 		--ip->i_refc;
@@ -295,17 +271,11 @@ int do_write;
 	}
 
 	/*
-	 * When reading, buffer may NOT be in text segment.
+	 * When reading (writing into user memory), buffer may NOT be in text
+	 * segment.  When writing (reading from user memory), buffer may
+	 * be in text segment.
 	 */
-	if (!useracc(bp, n) && do_write == 0) {
-		u.u_error = EFAULT;
-		return 0;
-	}
-
-	/*
-	 * When writing, buffer may be in text segment.
-	 */
-	if (!useracc(bp, n) && !acctext(bp, n)) {
+	if (!useracc(bp, n, !do_write)) {
 		u.u_error = EFAULT;
 		return 0;
 	}
@@ -464,8 +434,6 @@ char *np;
 	if (ip->i_nlink > 0)
 		--ip->i_nlink;
 	icrt(ip);	/* unlink - ctime */
-	if ((ip->i_mode&IFMT)==IFPIPE && ip->i_nlink==0 && ip->i_refc==2)
-		pevent(ip);
 err:
 	idetach(ip);
 	return 0;
@@ -517,6 +485,7 @@ unsigned n;
  *	Input:	base  = offset in user data space of the region to be accessed.
  *		count = size of access region in bytes.
  *		mode  = access mode desired [B_READ or B_WRITE].
+ *		write = 0 if read access to be checked, else write
  *
  *	Action:	Verify user has desired access mode into specified region.
  *
@@ -527,12 +496,46 @@ unsigned n;
  *		with System V, and future protected mode extensions.
  */
 int
-useracc( base, count, mode )
+useracc(base, count, writeUsr)
 register char *base;
-int mode, count;
+int writeUsr, count;
 {
-	if (base+count < base) {
+	int ret = 0;
+
+	if (base+count >= base) {
+		ret = accdata(base, count) || accstack(base, count)
+		  || accShm(base, count);
+		if (!writeUsr)
+			ret = ret || acctext(base, count);
+	}
+
+	return ret;
+
+	return accdata(base, count) || accstack(base, count)
+	  || accShm(base, count);
+}
+
+/*
+ * "Safe" ukcopy and kucopy - use useracc to check user address supplied.
+ */
+int
+kucopyS(k, u, n)
+{
+	if (useracc(u, n, 1))
+		return kucopy(k, u, n);
+	else {
+		u.u_error = EFAULT;
 		return 0;
 	}
-	return accdata(base, count) || accstack(base, count);
+}
+
+int
+ukcopyS(u, k, n)
+{
+	if (useracc(u, n, 0))
+		return ukcopy(u, k, n);
+	else {
+		u.u_error = EFAULT;
+		return 0;
+	}
 }
