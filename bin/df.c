@@ -19,10 +19,15 @@
 
 #define	NMOUNT	64			/* Maximum mounted file systems */
 
-int	aflag;				/* Print for each mounted fs */
-int	iflag;				/* Print information on i-nodes */
+/* New format options */
+int	fflag;				/* supress information on i-nodes */
+int	vflag;				/* Print % blocks used */
 int	tflag;				/* Print total device size */
-int	oflag;				/* Print in old (incompatible) format */
+int	iflag;				/* Print information on i-nodes */
+
+/* Old format options  - also -t and -i are valid */
+int	aflag;				/* Print for each mounted fs */
+int	oflag;				/* switch to old style */
 
 char	buf[BSIZE];			/* Basic file system reading buffer */
 struct	mnttab	m_tab[NMOUNT];
@@ -39,11 +44,24 @@ char *argv[];
 	register int i;
 	register int estat = 0;
 
+	if (!strcmp(getenv("OLDSTYLE"), "TRUE"))
+		oflag++;
+
 	while (argc > 1 && *argv[1] == '-') {
 		for (ap = &argv[1][1]; *ap != '\0'; ap++)
 			switch (*ap) {
 			case 'a':
-				aflag++;
+				if (oflag)
+					aflag++;
+				else
+					usage("illegal option -a");
+				break;
+
+			case 'f':
+				if (!oflag)
+					fflag++;
+				else
+					usage("illegal option -f");
 				break;
 
 			case 'i':
@@ -54,23 +72,30 @@ char *argv[];
 				tflag++;
 				break;
 
-			case 'o':
-				oflag++;
+			case 'v':
+				vflag++;
 				break;
 
 			default:
-				usage();
+				usage("illegal option");
 			}
 		argc--;
 		argv++;
 	}
-	if (!strcmp(getenv("OLDSTYLE"), "TRUE"))
-		oflag++;
+
+	if (vflag && iflag)
+		usage("Cannot use -v with -i");
+	else if (vflag)
+                printf("Mount Dir      Filesystem                blocks    "
+						 " used      free     %%used\n");
+	else if (iflag)
+		printf("Mount Dir      Filesystem                 iused     i"
+	 					   "free    itotal   %%iused\n");
 
 	minit();
 	sync();
 	if (argc < 2) {
-		if (aflag)
+		if (!oflag || aflag)
 			estat = dfmtab();
 		else {
 			noarg = 1;
@@ -119,6 +144,7 @@ register char *fs;
 	long	bfree;
 	long	itotal;
 	long	ifree;
+	long 	percent;
 	char	*nfs = fs;
 
 
@@ -174,10 +200,30 @@ register char *fs;
         if (!oflag)
 	{
 		printf("%-12s   (%-20s): ", fs, nfs);
-		printf(" %7lu blocks   %7lu inodes", bfree, ifree);
-		if (tflag)
-			printf("\n\t\t\t\tTotal:\t%7lu blocks   %7lu inodes",
-								btotal, itotal);
+		if (vflag)
+		{
+                	percent = ((btotal - bfree) * 1000L) / btotal;
+			printf(" %7lu   %7lu   %7lu    %2ld.%1ld%%", btotal,
+			      btotal - bfree, bfree, percent/10L, percent%10L);
+        	}
+		else if (iflag)
+		{
+                	percent = ((itotal - ifree) * 1000L) / itotal;
+			printf(" %7lu   %7lu   %7lu    %2ld.%1ld%%",
+  		         itotal-ifree, ifree, itotal, percent/10L, percent%10L);
+		}
+		else
+                {
+			printf(" %7lu blocks", bfree);
+			if (!fflag)
+				printf("   %7lu inodes", ifree);
+			if (tflag)
+			{
+				printf("\n\t\t\t\tTotal:\t%7lu blocks", btotal);
+				if (!fflag)
+					printf("   %7lu inodes", itotal);
+			}
+		}
 	}
 	else
 	{
@@ -335,8 +381,10 @@ char *arg;
 	fprintf(stderr, "df: %r\n", &arg);
 }
 
-usage()
+usage(str)
+char *str;
 {
 	fprintf(stderr, "Usage: df [-ait] [directory ...] [filesystem ...]\n");
+       	fprintf(stderr, "\ndf: %s\n", str);
 	exit(1);
 }
