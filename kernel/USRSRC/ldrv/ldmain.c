@@ -28,9 +28,9 @@
  * 87/12/03	Allan Cornish		/usr/src/sys/ldrv/ldmain.c
  * Initial version.
  */
-#include <coherent.h>
-#include <proc.h>
-#include <sched.h>
+#include <sys/coherent.h>
+#include <sys/proc.h>
+#include <sys/sched.h>
 #include <sys/con.h>
 #include <sys/seg.h>
 #include <sys/stat.h>

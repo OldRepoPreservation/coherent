@@ -4,17 +4,13 @@
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
-KERINC=$(USRKER)/src/sys/sys
-DRVINC=$(USRKER)/src/sys/i8086/sys
 
 DEBUG=0
 AS=exec /bin/as
 CC=exec /bin/cc
 CPP=exec /lib/icpp
-CFLAGS=-I$(KERINC) -I$(DRVINC)
+CFLAGS=
 AFLAGS=-gx
-
-# USRSYS=$USRSYS
 
 # Loadable driver directory
 LDRV=$(USRSYS)/ldrv
@@ -125,29 +121,29 @@ $(USRSYS)/lib/tn.a: objects/tn.o objects/tnas.o
 	ar rc $@ $<
 
 objects/aha.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
+					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
 		$(SYSINC)/buf.h		\
 		$(SYSINC)/sched.h		\
-		$(DRVINC)/scsiwork.h	\
-		$(DRVINC)/aha154x.h	\
+		$(SYSINC)/scsiwork.h	\
+		$(SYSINC)/aha154x.h	\
 		aha.c
 	$(CC) $(CFLAGS) -c -o $@ aha.c
 
 objects/alx.o:				\
-		$(KERINC)/clist.h	\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/clist.h	\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/i8086.h	\
-		$(DRVINC)/ins8250.h	\
+		$(SYSINC)/i8086.h	\
+		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
-		$(SYSINC)/tty.h		$(KERINC)/ktty.h \
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		alx.c
 	$(CC) $(CFLAGS) -c -o objects/alx.o alx.c
@@ -164,56 +160,56 @@ objects/ati.o: ati.s
 	exec /bin/rm -f ati.i
 
 objects/bufq.o:			\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
+					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
 		$(SYSINC)/buf.h		\
 		bufq.c
 	$(CC) $(CFLAGS) -DDEBUG=$(DEBUG) -c -o $@ bufq.c
 
 objects/com1.o: 			\
-		$(DRVINC)/al.h		\
-		$(KERINC)/clist.h	\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/al.h		\
+		$(SYSINC)/clist.h	\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/i8086.h	\
-		$(DRVINC)/ins8250.h	\
+		$(SYSINC)/i8086.h	\
+		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
-		$(SYSINC)/tty.h		$(KERINC)/ktty.h \
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		al.c
 	$(CC) $(CFLAGS) -DALCOM1=1 -c -o $@ al.c
 
 objects/com2.o: 			\
-		$(DRVINC)/al.h		\
-		$(KERINC)/clist.h	\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/al.h		\
+		$(SYSINC)/clist.h	\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/i8086.h	\
-		$(DRVINC)/ins8250.h	\
+		$(SYSINC)/i8086.h	\
+		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
-		$(SYSINC)/tty.h		$(KERINC)/ktty.h \
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		al.c
 	$(CC) $(CFLAGS) -DALCOM2=1 -c -o $@ al.c
 
 objects/dmareq.o:			\
 		$(SYSINC)/buf.h		\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(DRVINC)/dmac.h	\
+		$(SYSINC)/dmac.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/io.h		\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
@@ -226,7 +222,7 @@ objects/dmareq.o:			\
 
 objects/fdisk.o:			\
 		$(SYSINC)/buf.h		\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
@@ -239,14 +235,14 @@ objects/fdisk.o:			\
 
 objects/fl.o:				\
 		$(SYSINC)/buf.h		\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(DRVINC)/dmac.h	\
+		$(SYSINC)/dmac.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/fdioctl.h	\
-		$(DRVINC)/i8086.h	\
+		$(SYSINC)/i8086.h	\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
@@ -262,7 +258,7 @@ objects/fontw.o: tools/fontgen.c
 	exec /bin/rm fontw.s
 
 objects/gr.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
@@ -288,42 +284,42 @@ objects/hd.o: hd.c
 	$(CC) $(CFLAGS) -c -o $@ hd.c
 
 objects/hs.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/ins8250.h	\
+		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
 		$(SYSINC)/stat.h	\
-		$(SYSINC)/tty.h		$(KERINC)/ktty.h \
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		hs.c
 	$(CC) $(CFLAGS) -c -o $@ hs.c
 
 objects/nkb.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/i8086.h	\
+		$(SYSINC)/i8086.h	\
 		$(SYSINC)/sched.h	\
 		$(USRINC)/signal.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
-		$(SYSINC)/tty.h		$(KERINC)/ktty.h \
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		nkb.c
 	$(CC) $(CFLAGS) -c -o $@ nkb.c
 
 objects/lp.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/i8086.h	\
+		$(SYSINC)/i8086.h	\
 		$(SYSINC)/io.h		\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
 		$(SYSINC)/stat.h	\
@@ -333,14 +329,14 @@ objects/lp.o:				\
 	$(CC) $(CFLAGS) -c -o $@ lp.c
 
 objects/mm.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/sched.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/io.h		\
-		$(SYSINC)/tty.h		$(KERINC)/ktty.h \
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
 		$(SYSINC)/timeout.h	\
 		mm.c
@@ -352,7 +348,7 @@ objects/mmas.o: mmas.s
 	exec /bin/rm -f mmas.i
 
 objects/ms.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/uproc.h	\
@@ -366,12 +362,12 @@ objects/rm.o: rm.c
 	$(CC) $(CFLAGS) -c -o $@ rm.c
 
 objects/rs0.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/ins8250.h	\
+		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/stat.h	\
@@ -381,12 +377,12 @@ objects/rs0.o:				\
 	$(CC) $(CFLAGS) -DRS0 -c -o $@ rs.c
 
 objects/rs1.o: 				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/ins8250.h	\
+		$(SYSINC)/ins8250.h	\
 		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/stat.h	\
@@ -399,9 +395,9 @@ objects/rsas.o: rsas.s
 	$(AS) -gxo $@ rsas.s
 
 objects/scsi.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
+					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
 		$(SYSINC)/fdisk.h	\
 		$(SYSINC)/hdioctl.h	\
 		$(SYSINC)/sdioctl.h	\
@@ -410,14 +406,14 @@ objects/scsi.o:				\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/uproc.h	\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/scsiwork.h	\
+		$(SYSINC)/scsiwork.h	\
 		scsi.c
 	$(CC) $(CFLAGS) -c -o objects/scsi.o scsi.c
 
 objects/ss.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
+					$(SYSINC)/fun.h $(SYSINC)/mmu.h \
 		$(SYSINC)/io.h		\
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/uproc.h	\
@@ -426,11 +422,11 @@ objects/ss.o:				\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/devices.h	\
 		$(USRINC)/errno.h	\
-		$(DRVINC)/ss.h		\
+		$(SYSINC)/ss.h		\
 		$(SYSINC)/fdisk.h	\
 		$(SYSINC)/hdioctl.h	\
 		$(SYSINC)/buf.h		\
-		$(DRVINC)/scsiwork.h	\
+		$(SYSINC)/scsiwork.h	\
 		ss.c
 	$(CC) $(CFLAGS) -DDEBUG=$(DEBUG) -c -o objects/ss.o ss.c
 
@@ -440,7 +436,7 @@ objects/ssas.o:				\
 
 objects/st.o:				\
 		$(SYSINC)/buf.h		\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
@@ -456,7 +452,7 @@ objects/st.o:				\
 	$(CC) $(CFLAGS) -c -o $@ st.c
 
 objects/tn.o:				\
-		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\

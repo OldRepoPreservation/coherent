@@ -21,7 +21,7 @@
  *		0 = failure (could not read block, or bad signature)
  */
 
-#include "coherent.h"
+#include <sys/coherent.h>
 #include <sys/uproc.h>
 #include <errno.h>
 #include <sys/inode.h>

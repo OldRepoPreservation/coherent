@@ -26,7 +26,7 @@
  * Initial version.
  */
 
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>

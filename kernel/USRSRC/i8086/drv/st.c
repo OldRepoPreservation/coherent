@@ -7,7 +7,7 @@
  * This is a driver for the
  * Archive SC-400 Series Tape Controller.
  */
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/const.h>

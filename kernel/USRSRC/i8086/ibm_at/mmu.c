@@ -29,7 +29,7 @@
  * 87/11/13	Allan Cornish	/usr/src/sys/i8086/ibm_at/mmu.c
  * Initial version.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/seg.h>
 #include <sys/mmu.h>
 

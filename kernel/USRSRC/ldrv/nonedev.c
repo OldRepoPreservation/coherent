@@ -6,7 +6,7 @@
  * Initial revision
  * 
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/uproc.h>
 #include <errno.h>
 

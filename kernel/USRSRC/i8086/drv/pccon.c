@@ -25,10 +25,10 @@
  * Initial revision
  * 
  */
-#include <coherent.h>
-#include <con.h>
+#include <sys/coherent.h>
+#include <sys/con.h>
 #include <mtype.h>
-#include <stat.h>
+#include <sys/stat.h>
 
 extern	CON	nlcon[];		/* Null device */
 extern	CON	ctcon[];		/* Console terminal */

@@ -17,7 +17,7 @@
  * Reads drive characteristics from ROM (thru interrupt vector 0x41 and 0x46).
  * Reads partition information from disk.
  */
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>

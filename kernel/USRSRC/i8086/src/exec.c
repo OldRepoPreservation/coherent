@@ -63,7 +63,7 @@
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/uproc.h>
-#include <i8086.h>
+#include <sys/i8086.h>
 
 /*
  * Sizes.

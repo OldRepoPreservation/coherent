@@ -10,12 +10,12 @@
  * Shipped with COH 3.1.0
  * 
  */
-#include "coherent.h"
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/sched.h>
 
-#include "scsiwork.h"
-#include "aha154x.h"
+#include <sys/scsiwork.h>
+#include <sys/aha154x.h>
 
 extern	saddr_t	sds;		/* System Data Selector */
 static	paddr_t	sds_physical;	/* as physical address */

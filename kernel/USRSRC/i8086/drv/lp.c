@@ -3,15 +3,14 @@
  * It has been tested on an EPSON MX-80, Printronix P300, HP LaserJet II.
  * Supports up to three line printers.
  */
-#include <coherent.h>
-#include <i8086.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/io.h>
 #include <sys/proc.h>
 #include <sys/uproc.h>
 #include <sys/stat.h>
-#include <sys/timeout.h>
 
 #define	LPMAJ	3				/* major device # */
 

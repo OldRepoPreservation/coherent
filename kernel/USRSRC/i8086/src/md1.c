@@ -41,9 +41,9 @@
  * 87/09/21	Allan Cornish	/usr/src/sys/i8086/src/md1.c
  * mproto() and setload() modified to support loadable driver processes.
  */
-#include <coherent.h>
-#include <i8086.h>
-#include <clist.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/clist.h>
 #include <errno.h>
 #include <sys/inode.h>
 #include <sys/proc.h>

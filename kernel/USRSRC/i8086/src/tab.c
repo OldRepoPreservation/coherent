@@ -35,9 +35,9 @@
  * 85/07/09	Allan Cornish
  * Added getpgrp() as system call 63.
  */
-#include <coherent.h>
-#include <i8086.h>
-#include <systab.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/systab.h>
 
 /*
  * System call functions.

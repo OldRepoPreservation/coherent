@@ -22,7 +22,7 @@
  * 87/12/08	Allan Cornish	/usr/src/sys/ldrv/timeout.c
  * Timed loadable driver functions now supported.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 
 /*
  * External functions.

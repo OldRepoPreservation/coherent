@@ -49,12 +49,12 @@
  * 86/07/23	Allan Cornish
  * Added check for kernel data space exceeding 64 Kbytes.
  */
-#include <coherent.h>
-#include <i8086.h>
-#include <clist.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/clist.h>
 #include <errno.h>
 #include <sys/inode.h>
-#include <proc.h>
+#include <sys/proc.h>
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/uproc.h>

@@ -11,15 +11,12 @@
  * minor device.  Netbios access is through novell minor device + 16.
  */
 
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/con.h>
-#include <sys/fun.h>
 #include <sys/sched.h>
 #include <sys/seg.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/uproc.h>
-#include <sys/timeout.h>
 #include <sys/tnioctl.h>
 #include <errno.h>
 

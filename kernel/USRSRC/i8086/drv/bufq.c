@@ -6,6 +6,9 @@
  *	Should be generalizable for other hard drives.
  *
  * $Log:	bufq.c,v $
+ * Revision 1.2  91/05/21  23:23:36  hal
+ * Enhanced debug printout.
+ * 
  * Revision 1.1  91/05/21  13:54:11  root
  * First running version.
  * 
@@ -14,7 +17,7 @@
 /*
  * Includes.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 
 /*

@@ -26,7 +26,7 @@
  * 87/11/26	Allan Cornish	/usr/src/sys/i8086/src/krunch.c
  * krunch() now called to merge unused memory by moving segments.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/i8086.h>
 #include <sys/proc.h>
 #include <sys/seg.h>

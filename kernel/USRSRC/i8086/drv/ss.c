@@ -50,7 +50,7 @@ static int s_id;
 /*
  * Includes.
  */
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include	<sys/io.h>
 #include	<sys/sched.h>
 #include	<sys/uproc.h>
@@ -59,11 +59,10 @@ static int s_id;
 #include	<sys/stat.h>
 #include	<sys/devices.h>		/* SCSI_MAJOR */
 #include	<errno.h>
-
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
-#include	<scsiwork.h>
+#include	<sys/scsiwork.h>
 
 /*
  * Definitions.

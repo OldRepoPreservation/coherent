@@ -26,11 +26,11 @@
  * 87/11/02	Allan Cornish		/usr/src/sys/i8086/src/trap.c
  * iAPX 286 exception traps added.
  */
-#include <coherent.h>
-#include <i8086.h>
-#include <systab.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/systab.h>
 #include <errno.h>
-#include <proc.h>
+#include <sys/proc.h>
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/uproc.h>

@@ -30,9 +30,9 @@
  * 87/01/05	Allan Cornish		/usr/src/sys/ker/swap.c
  * Swap() now waits for all processes to be swapped in before exit on signal.
  */
-#include <coherent.h>
-#include <proc.h>
-#include <sched.h>
+#include <sys/coherent.h>
+#include <sys/proc.h>
+#include <sys/sched.h>
 #include <sys/seg.h>
 #include <sys/uproc.h>
 #include <sys/buf.h>

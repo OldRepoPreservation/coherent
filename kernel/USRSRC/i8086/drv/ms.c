@@ -7,7 +7,7 @@
  *	Microsoft bus mouse (rodent) driver.
  */
 
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/uproc.h>
 #include <sys/con.h>
 #include <sys/ms.h>
