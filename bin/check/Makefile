@@ -22,14 +22,32 @@ all:	$(UTILS)
 
 check:	check.o
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)check
+	su root chgrp bin $(DESTDIR)check
+	su root chmod 511 $(DESTDIR)check
 clri:	clri.o
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)clri
+	su root chgrp bin $(DESTDIR)clri
+	su root chmod 511 $(DESTDIR)clri
+
 dcheck:	dcheck.o
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)dcheck
+	su root chgrp bin $(DESTDIR)dcheck
+	su root chmod 511 $(DESTDIR)dcheck
+
 icheck:	icheck.o
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)icheck
+	su root chgrp bin $(DESTDIR)icheck
+	su root chmod 511 $(DESTDIR)icheck
+
 ncheck:	ncheck.o
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)ncheck
+	su root chgrp bin $(DESTDIR)ncheck
+	su root chmod 511 $(DESTDIR)ncheck
 
 check.o:	check.h check.c
 clri.o:		clri.c
