@@ -15,6 +15,7 @@ initvar(envp)
 char **envp;
 {
 	register char **nvp;
+	char *wd;
 	static struct initvals {
 		int i_flag;
 		char *i_name;
@@ -25,6 +26,7 @@ char **envp;
 		VSET,	"MAIL=",
 		VSET,	"PATH=:/bin:/usr/bin",
 		VSET,	"HOME=",
+		VSET,	"CWD=",
 		0,	NULL
 	};
 	static char lasterror[] = "LASTERROR";
@@ -54,6 +56,14 @@ char **envp;
 		setsvar(*nvp++);
 	if (findvar(lasterror) == NULL)
 		flagvar(lasterror, VEXP);
+	if (findvar("CWD") == NULL)
+		flagvar("CWD", VEXP);
+	if ((wd = getwd()) == NULL)
+		wd = ".";			/* getwd() failed */
+	else
+		wd = duplstr(wd, 1);
+	dstack[dstkp] = wd;
+	assnvar("CWD", wd);
 }
 
 /*
