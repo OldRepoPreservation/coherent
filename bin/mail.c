@@ -1,6 +1,10 @@
 /*
- * $Header: /usr/src/cmd/mail.c,v 1.4 88/09/01 14:44:49 bin Exp $
+ * $Header: /usr/src/cmd/mail.c,v 1.5 88/09/01 14:49:01 bin Exp $
  * $Log:	/usr/src/cmd/mail.c,v $
+ * Revision 1.5	88/09/01  14:49:01	bin
+ * Source administration: Re-install declaration of getenv. 
+ * It was inserted after epstein made his copy.
+ * 
  * Revision 1.4	88/09/01  14:44:49	bin
  * Mark Epsteins changes for ASKCC and for message scrolling, and interrupt
  * handling during processing.
@@ -17,7 +21,7 @@
  */
 static	char	*rcsrev = "$Revision 1.1 $";
 static	char	*rcshdr =
-	"$Header: /usr/src/cmd/mail.c,v 1.4 88/09/01 14:44:49 bin Exp $";
+	"$Header: /usr/src/cmd/mail.c,v 1.5 88/09/01 14:49:01 bin Exp $";
 
 /*
  * The mail command.
@@ -31,6 +35,8 @@ static	char	*rcshdr =
  *					  mail command processor
  *		 by epstein november 1987 to substitute /usr/games/fortune
  *					  for printing encrypted messages
+ *		by rec february 1989 to tail to lauren weinstein's
+ *			mail for alias expansion and uucp queuing.
  */
 
 char helpmessage[] = "\
@@ -41,7 +47,6 @@ Usage:	mail [ options ] [ user ... ]\n\
 or:	xmail [ options ] user [ ... ]\n\
 Options:\n\
 	-f file		Print mail from 'file' instead of the default\n\
-	-m		Notify each logged in recipient when mail is sent\n\
 	-p		Print mail non-interactively\n\
 	-q		Exit on interrupt, leaving mail unchanged\n\
 	-r		Print mail in reverse order, latest first\n\
@@ -98,7 +103,6 @@ extern	char	*getenv();
 
 
 
-int	mflag;			/* `You have mail.' message to recipient */
 int	rflag;			/* Reverse order of print */
 int	qflag;			/* Exit after interrrupts */
 int	pflag;			/* Print mail */
@@ -134,12 +138,13 @@ int	myuid;				/* User-id of mail user */
 int	mygid;				/* Group-id of mail user */
 char	myname[25];			/* User name */
 char	mymbox[256];			/* $HOME/mbox */
-char	mydead[256];			/* $HOME/dead.letter */
 char	spoolname[50] = SPOOLDIR;
 char	*mailbox = spoolname;
 char	boxname[64];		/* Destination mailbox */
 char	keyname[64];		/* Destination public key file name */
-char	cmdname[128];		/* Command for x{en,de}code filter */
+char	cmdname[1024];		/* Command for x{en,de}code filter */
+				/* and for tail recursion to uumail */
+				/* and for editor recursion */
 char	header[256];		/* Message header */
 
 char	*args[NARGS];			/* Interactive command arglist */
@@ -149,7 +154,6 @@ char	cline[NCLINE] = "+\n";
 char	*temp;				/* Currently open temp file */
 char	templ[] = "/tmp/mailXXXXXX";	/* Temp file name template */
 char	*editname;			/* name of editor	   */
-char	editcmd[80];			/* command to edit message */
 char	*askcc;				/* Ask for CC: list? (YES/NO) */
 
 fsize_t	ftell();
@@ -181,7 +185,6 @@ char *argv[];
 					break;
 
 				case 'm':
-					mflag++;
 					break;
 
 				case 'p':
@@ -237,13 +240,10 @@ setname()
 	strcpy(myname, np);
 	strcpy(mymbox, pwp->pw_dir);
 	strcat(mymbox, "/mbox");
-	strcpy(mydead, pwp->pw_dir);
-	strcat(mydead, "/dead.letter");
 	mktemp(templ);
 
 	if ((editname=getenv("EDITOR"))==NULL)
 		editname = "/bin/ed";
-	sprintf(editcmd, "%s %s", editname, templ);
 
 	if ((askcc=getenv("ASKCC")) != NULL)
 		if ( strcmp(askcc, "YES") || !isatty(fileno(stdin)) )
@@ -263,12 +263,6 @@ FILE *fp;
 register char **users;
 fsize_t start, end;
 {
-	register char **ulist;
-	register char *cp;
-	register struct passwd *pwp;
-	register int senderr = 0;
-	time_t curtime;
-	register int fromtty;
 	FILE *tfp, *xfp;
 	char **getcc();
 
@@ -305,15 +299,16 @@ fsize_t start, end;
 			break;
 		}
 	}
-	if (ftell(tfp) == 0 || intcheck()) {
+	/*
+	 * If interrupted, bug out.
+	 */
+	if (intcheck()) {
 		fclose(tfp);
 		return;
 	}
-	if (msgline[0] != '\n')
-		putc('\n', tfp);
-/*
- * Now, see if user wants to edit the message
- */
+	/*
+	 * Now, see if user wants to edit the message
+	 */
 	if (eflag) {
 		xfp = tfp;
 		temp = templ;
@@ -322,13 +317,83 @@ fsize_t start, end;
 		chown(temp, myuid, mygid);
 		mcopy(xfp, tfp, (fsize_t)0, (fsize_t)MAXLONG, 0);
 		fclose(xfp);
-		system(editcmd);
+		sprintf(cmdname, "%s %s", editname, templ);
+		system(cmdname);
 		unlink(temp);
 		temp = NULL;
 	}
+	/*
+	 * Otherwise if empty message, bug out.
+	 */
+	else if (ftell(tfp) == 0) {
+		fclose(tfp);
+		return;
+	}
+	/*
+	 * Now see if a copy list is requested.
+	 */
 	if (askcc)
-		users = getcc(users);
-	fromtty = isatty(fileno(fp));
+	  users = getcc(users);
+	/*
+	 * Now send the message.
+	 */
+	if (callmexmail)
+	  xsend(users, tfp);
+	else
+	  usend(users, tfp);
+}
+
+char *subject()
+{
+  /* lauren's mail refuses to read a subject from standard input */
+  /* without discarding the rest of the message */
+  /* and refuses to accept an empty subject on the command line */
+  /* so we supply a subject */
+  static char *subject[] = {
+#if 0
+    "national security", "world peace", "elvis sighted",
+    "ayatollah ups reward", "new version", "old version",
+    "budget deficit", "technical support", "worker satisfaction",
+    "profit sharing", "fringe benefit", "coherent software",
+    "computer virus", "no subject", "forbidden",
+    "to memory failure", "ive", "object", "not specified",
+    "new policy", "old policy", "pass words",
+#else
+    " "
+#endif
+  };
+  srand((int)time(NULL));
+  return subject[rand() % (sizeof(subject)/sizeof(subject[0]))];
+}
+
+usend(users, tfp) char **users; FILE *tfp;
+{
+  FILE *xfp;
+  strcpy(cmdname, "/usr/bin/uumail");
+  while (*users) {
+    strcat(cmdname, " ");
+    strcat(cmdname, *users++);
+  }
+  strcat(cmdname, " -n -s'");
+  strcat(cmdname, subject());
+  strcat(cmdname, "'");
+  rewind(tfp);
+  if ((xfp = popen(cmdname, "w")) == NULL) {
+    mmsg("Can't pipe to uumail\n");
+    return;
+  }
+  if (mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG), 0)
+    merr(wrerr, cmdname);
+  pclose(xfp);
+}
+xsend(users, tfp) char **users; FILE *tfp;
+{
+	register char **ulist;
+	register char *cp;
+	register struct passwd *pwp;
+	time_t curtime;
+	FILE *xfp;
+
 	time(&curtime);
 	tp = localtime(&curtime);
 	cp = asctime(tp);
@@ -345,117 +410,39 @@ fsize_t start, end;
 	}
 	for (ulist = users; *ulist!=NULL; ulist++) {
 		rewind(tfp);
-		if ((cp = index(*ulist, '!')) != NULL) {
-			*cp++ = '\0';
-			if (rsend(*ulist, cp, tfp))
-				senderr = 1;
-			continue;
-		}
 		sprintf(boxname, "%s%s", SPOOLDIR, *ulist);
-		if ((pwp = getpwnam(*ulist)) == NULL) {
+		sprintf(cmdname, "xencode %s >> %s", *ulist, boxname);
+		if (index(*ulist, '!') != NULL
+		 || (pwp = getpwnam(*ulist)) == NULL) {
 			mmsg(nosend, *ulist);
-			senderr = 1;
 			continue;
 		}
-		if (callmexmail) {
-			if (xaccess(*ulist) == 0) {
-				mmsg(nopubk, *ulist);
-				senderr = 1;
-				continue;
-			}
-			sprintf(cmdname, "xencode %s >> %s", *ulist, boxname);
+		if (xaccess(*ulist) == 0) {
+			mmsg(nopubk, *ulist);
+			continue;
 		}
 		mlock(pwp->pw_uid);
 		if ((xfp = fopen(boxname, "a")) == NULL) {
 			mmsg(nosend, *ulist);
-			senderr = 1;
 			munlock();
 			continue;
 		}
 		chown(boxname, pwp->pw_uid, pwp->pw_gid);
-		if (callmexmail) {
-			fprintf(xfp, "From xmail\n");
-			fclose(xfp);
-			if ((xfp = popen(cmdname, "w")) == NULL) {
-				mmsg("Can't pipe to xencode\n");
-				senderr = 1;
-				continue;
-			}
+		fprintf(xfp, "From xmail %s %s\n", cp,
+		  tzname[tp->tm_isdst ? 1 : 0]);
+		fclose(xfp);
+		if ((xfp = popen(cmdname, "w")) == NULL) {
+			mmsg("Can't pipe to xencode\n");
+			continue;
 		}
 		if (fwrite(header, strlen(header), 1, xfp) != 1
 		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG), 0) {
-			if (callmexmail)
-				merr(wrerr, cmdname);
-			else
-				merr(wrerr, boxname);
-			senderr = 1;
+			merr(wrerr, cmdname);
 		}
-		if (callmexmail)
-			pclose(xfp);
-		else
-			fclose(xfp);
+		pclose(xfp);
 		munlock();
-		advise(*ulist);
-	}
-	if (senderr && fromtty && ! callmexmail) {
-		if (maccess(mydead) < 0
-		 || (xfp = fopen(mydead, "a")) == NULL
-		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG, 0))
-			mmsg(nosave, mydead);
-		else
-			mmsg("Letter saved in %s\n", mydead);
-		if (xfp != NULL) {
-			chown(mydead, myuid, mygid);
-			fclose(xfp);
-		}
 	}
 	fclose(tfp);
-}
-
-/*
- * Send a message to `user' on remote `system'
- * from the temp-file described by the stream
- * `fp' (which is rewound).
- */
-rsend(system, user, fp)
-char *system;
-char *user;
-FILE *fp;
-{
-	mmsg("Cannot send to '%s' ", user);
-	mmsg("on remote system '%s\n", system);
-	fp = NULL;
-	return (1);
-}
-
-/*
- * If the `-m' option is specified, advise
- * the recipient of the presence of mail.
- */
-advise(recipient)
-char *recipient;
-{
-	register FILE *fp;
-	register FILE *tfp;
-	struct utmp ut;
-	char tty[30];
-	struct stat sb;
-
-	if (!mflag)
-		return;
-	if ((fp = fopen("/etc/utmp", "r")) == NULL)
-		return;
-	while (fread(&ut, sizeof ut, 1, fp) == 1)
-		if (strncmp(ut.ut_name, recipient, DIRSIZ) == 0) {
-			sprintf(tty, "/dev/%s", ut.ut_line);
-			if (stat(tty, &sb)<0 || (sb.st_mode&S_IEXEC)==0)
-				continue;
-			if ((tfp = fopen(tty, "w")) != NULL) {
-				fprintf(tfp, "\7%s: you have mail.\n", myname);
-				fclose(tfp);
-			}
-		}
-	fclose(fp);
 }
 
 /*
@@ -689,6 +676,8 @@ readmail()
 {
 	register struct msg *mp, *lmp;
 	struct stat sb;
+	static long m_last_end;
+	long last;
 
 	if (m_first == NULL) {
 		if (stat(mailbox, &sb) < 0)
@@ -700,13 +689,15 @@ readmail()
 		if ((mfp = fopen(mailbox, "r")) == NULL)
 			merr(moerr, mailbox);
 		mp = lmp = NULL;
+		last = m_last_end = 0;
 	} else {
 		fstat(fileno(mfp), &sb);
-		if (sb.st_size == m_last->m_end)
+		if (sb.st_size == m_last_end)
 			return;
 		mmsg("More mail received.\n");
 		mp = lmp = m_last;
-		fseek(mfp, mp->m_end, 0);
+		last = mp->m_end;
+		fseek(mfp, m_last_end, 0);
 	}
 	mlock(myuid);
 	while (fgets(msgline, sizeof msgline, mfp) != NULL) {
@@ -721,15 +712,19 @@ readmail()
 				m_first = mp;
 			} else {
 				lmp->m_next = mp;
-				lmp->m_end = mp->m_seek;
+				lmp->m_end = last;
 			}
 			mp->m_prev = lmp;
 			m_last = lmp = mp;
 		}
+		if (strcmp("\n", msgline) != 0
+		 && strcmp("\1\1\n", msgline) != 0)
+			last = ftell(mfp);
 	}
 	if (mp == NULL)
 		merr("Not mailbox format '%s'\n", mailbox);
-	mp->m_end = ftell(mfp);
+	mp->m_end = last;
+	m_last_end = ftell(mfp);
 	munlock();
 }
 
