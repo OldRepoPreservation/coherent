@@ -78,6 +78,8 @@ I386OBJ1 =\
 
 I386OBJ = $(I386OBJ0) $(I386OBJ1)
 
+STUBS = $(K386OBJ)/stubs.o
+
 OPTS =\
 	$(K386OBJ)/aha.o \
 	$(K386OBJ)/aha_dsl.o \
@@ -212,7 +214,7 @@ $(K386LIB)/kl386.a: \
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
 
-$(K386LIB)/ker386.o: $(I386OBJ) coh io
+$(K386LIB)/ker386.o: $(I386OBJ) coh io $(STUBS)
 	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ)
 
 coh:
@@ -275,6 +277,9 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/fd.h		\
 		$(USRINC)/sgtty.h
 	$(CC) $(CFLAGS) -c -o $@ sys1632.c
+
+$(K386OBJ)/stubs.o: stubs.s
+	$(AS) -g -o $@ stubs.s
 
 $(K386OBJ)/ndpas.o: ndpas.s
 	$(AS) -g -o $@ ndpas.s
