@@ -32,7 +32,7 @@ dev_t condev = makedev(2,0);
 putchar(c)
 int c;
 {
-#if 1
+#ifndef SERIAL_CONSOLE
 	IO iob;
 
 	/*
