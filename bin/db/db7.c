@@ -87,7 +87,7 @@ getb(segn, bp, n) int segn; char *bp; unsigned int n;
 	register int i;
 	printf("getb(%d, ..., %d):\n", segn, n);
 	for (i = 0; i < n; i++)
-		printf("bp = %x\n", (unsigned char)bp[i]);
+		printf("bp = %X\n", (unsigned char)bp[i]);
 }
 #endif
 	return 1;
@@ -181,6 +181,7 @@ getputb(segn, bp, n, d) int segn; char *bp; unsigned int n; int d;
 	register int (*f)();
 	ADDR_T a;
 
+	dbprintf(("getputb(s=%d bp=%X n=%d d=%s) add=%X\n", segn, bp, n,(d) ? "put" : "get", add));
 	s = n;
 	a = add;
 	while (s) {
@@ -198,9 +199,12 @@ getputb(segn, bp, n, d) int segn; char *bp; unsigned int n; int d;
 			/* Map to program or core file. */
 			fp = mp->m_flag == MAP_PROG ? lfp : cfp;
 			f = (d) ? putf : getf;
-			fseek(fp, (long)(mp->m_offt+(a-mp->m_base)), SEEK_SET);
-			if ((*f)(fp, bp, l) == 0)
+			if (fseek(fp, (long)(mp->m_offt+(a-mp->m_base)), SEEK_SET) == -1)
 				return 0;
+			if ((*f)(fp, bp, l) == 0) {
+				clearerr(fp);
+				return 0;
+			}
 		}
 		bp += l;
 		a += l;

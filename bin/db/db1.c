@@ -141,8 +141,9 @@ set_core(name) char *name;
 #endif
 
 	/* Read the file name from the core file. */
-	fseek(cfp, offset+offsetof(UPROC, u_comm[0]), SEEK_SET);
-	if ((cp = lfn) != NULL && fread(ucomm, sizeof(ucomm), 1, cfp) == 1) {
+	if (fseek(cfp, offset+offsetof(UPROC, u_comm[0]), SEEK_SET) != -1
+	 && (cp = lfn) != NULL
+	 && fread(ucomm, sizeof(ucomm), 1, cfp) == 1) {
 
 		/* Compare object filename to core filename. */
 		while (strchr(cp, '/') != NULL)
@@ -155,13 +156,13 @@ set_core(name) char *name;
 	}
 
 	/* Read the core file segment information. */
-	fseek(cfp, offset+offsetof(UPROC, u_segl[0]), SEEK_SET);
-	if (fread(usegs, sizeof(usegs), 1, cfp) != 1)
+	if (fseek(cfp, offset+offsetof(UPROC, u_segl[0]), SEEK_SET) == -1
+	 || fread(usegs, sizeof(usegs), 1, cfp) != 1)
 		panic("Bad core file");
 
 	/* Read the core file signal number and register pointer. */
-	fseek(cfp, offset+offsetof(UPROC, u_signo), SEEK_SET);
-	if (fread(&signo, sizeof(signo), 1, cfp) != 1)
+	if (fseek(cfp, offset+offsetof(UPROC, u_signo), SEEK_SET) == -1
+	 || fread(&signo, sizeof(signo), 1, cfp) != 1)
 		panic("cannot read signo");
 	dbprintf(("signo=%d\n", signo));
 	if (fread(&regl, sizeof(regl), 1, cfp) != 1)
@@ -199,7 +200,7 @@ set_core(name) char *name;
 				continue;
 			offt += usegs[i].sr_size;
 		}
-		fseek(cfp, 0, SEEK_END);
+		fseek(cfp, 0L, SEEK_END);
 		textflag = (ftell(cfp) != offt);
 		dbprintf(("cfp_len=%lx offt=%lx textflag=%d", ftell(cfp), offt, textflag));
 #if	OLD_CORE
@@ -236,7 +237,8 @@ set_core(name) char *name;
 	if (iflag)
 		ISPACE = DSPACE;
 	get_regs(R_ALL);			/* read the registers */
-	set_sig(signo);				/* and correct signal number */
+	if (!rflag)
+		set_sig(signo);			/* correct signal number */
 }
 
 /*
@@ -270,10 +272,12 @@ set_prog(name, flag) char *name; int flag;
 		file_type = COFF_FILE;
 		addr_fmt = ADDR_FMT;
 		aop_size = 32;
+		strcpy(seg_format[DSEG], "l");
+		strcpy(seg_format[USEG], "l");
 	} else {
 		/* Not a COFF file, might be an l.out. */
-		fseek(lfp, 0L, SEEK_SET);
-		if (fread(&ldh, sizeof(ldh), 1, lfp) != 1)
+		if (fseek(lfp, 0L, SEEK_SET) == -1
+		 || fread(&ldh, sizeof(ldh), 1, lfp) != 1)
 			panic("Cannot read object file");
 		canlout();
 		if (ldh.l_magic != L_MAGIC)
@@ -510,19 +514,25 @@ usage()
 	panic(
 		"Usage: db [ -cdefkorst ] [ [ mapfile ] program ]\n"
 		"Options:\n"
-		"\t-c\tMap program as a core file\n"
-		"\t-d\tMap program as a system dump; mapfile defaults to /coherent\n"
+		"\t-c\tprogram is a core file\n"
+		"\t-d\tprogram is a system dump; mapfile defaults to /coherent\n"
 		"\t-e\tNext argument is object file and rest of command line is passed\n"
 		"\t\tto the child process\n"
-		"\t-f\tMap program as binary data\n"
-		"\t-k\tMap program as a kernel process; mapfile defaults to /coherent\n"
+		"\t-f\tprogram is binary data (an ordinary file)\n"
+		"\t-k\tprogram is a kernel process; mapfile defaults to /coherent\n"
 		"\t-o\tprogram is an object file\n"
-		"\t-p str\tArgument str is interactive command prompt (default: \"db: \")\n"
+		"\t-p str\tUse str as interactive command prompt (default: \"db: \")\n"
 		"\t-r\tAccess all files read-only\n"
 		"\t-s\tDo not load symbol table\n"
 		"\t-t\tPerform input and output via /dev/tty\n"
 		"\tmapfile defaults to a.out or l.out.\n"
-		"\tprogram defaults to core."
+		"\tprogram defaults to core.\n"
+		"Examples:\n"
+		"\tdb prog\t\tExamine, patch, execute \"prog\" under db control\n"
+		"\tdb prog core\tExamine postmortem core dump \"core\",\n"
+		"\t\t\tusing symbol table from \"prog\"\n"
+		"\tdb -e prog *.c\tExecute \"prog\" under db control with args *.c\n"
+		"\tdb -f file\tExamine and patch \"file\" as stream of bytes\n"
 	);
 }
 

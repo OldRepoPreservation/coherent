@@ -176,12 +176,13 @@ read_coff_sym()
 	/* Read the COFF section headers. */
 	len = coff_hdr.f_nscns * sizeof(SCNHDR);
 	shp = (SCNHDR *)nalloc(len, "COFF section headers");
-	fseek(sfp, (long)(sizeof(FILEHDR) + coff_hdr.f_opthdr), SEEK_SET);
-	if (fread(shp, len, 1, sfp) != 1)
+	if (fseek(sfp, (long)(sizeof(FILEHDR) + coff_hdr.f_opthdr), SEEK_SET) == -1
+	 || fread(shp, len, 1, sfp) != 1)
 		return printe("Cannot read section headers");
 
 	/* Read symbols. */
-	fseek(sfp, (long)coff_hdr.f_symptr, SEEK_SET);
+	if (fseek(sfp, (long)coff_hdr.f_symptr, SEEK_SET) == -1)
+		return printe("COFF symbol seek failed");
 	for (nsyms = 0, n = coff_hdr.f_nsyms; n--; ) {
 		/* Read a COFF symbol. */
 		if (fread(&coffsym, sizeof(SYMENT), 1, sfp) != 1)
@@ -225,7 +226,8 @@ read_lout_sym(symseek) long symseek;
 	struct ldsym lds;
 	char id[NCPLN+1];
 
-	fseek(sfp, symseek, SEEK_SET);
+	if (fseek(sfp, symseek, SEEK_SET) == -1)
+		return printr("Cannot seek to l.out symbols");
 	for (n = nsyms; n--; ) {
 		/* Read an l.out symbol. */
 		if (fread(&lds, sizeof(struct ldsym), 1, sfp) != 1)
@@ -274,8 +276,9 @@ read_strtab()
 	if (llen != len)
 		panic("COFF symbol table too big");
 
-	fseek(sfp, coff_hdr.f_symptr+len, SEEK_SET);	/* seek to strtab length */
-	if (fread(&llen, sizeof(llen), 1, sfp) != 1)
+	/* Seek to strtab length. */
+	if (fseek(sfp, coff_hdr.f_symptr+len, SEEK_SET) == -1
+	 || fread(&llen, sizeof(llen), 1, sfp) != 1)
 		llen = 0;
 	if (llen == 0)
 		return NULL;			/* no string table */
