@@ -21,11 +21,17 @@ char *key;		/* what we are looking for */
 char *path;		/* where the path results go */
 int *cost;		/* where the cost results go */
 {
-	register char *s;
-	int c;
-	static FILE *file;
+	char *getline();
+
+	int lineno;
+	char	*next_line,	/* Next line read by getline().  */
+		*line_key,	/* Key extracted by strtok() from next_line.  */
+		*line_cost;	/* Cost extracted by strtok() from next_line.  */
+	FILE *file;
 
 DEBUG("getpath: looking for '%s'\n", key);
+
+	lineno = 0;
 
 	if((file = fopen(pathfile, "r")) == NULL) {
 		(void) printf("can't access %s.\n", pathfile);
@@ -33,53 +39,31 @@ DEBUG("getpath: looking for '%s'\n", key);
 	}
 
 	/* Linear search for key "path" in file stream "file".  */
-	fseek(file, 0L, 0); /* Rewind the file pointer "file".  */
 
-	for (c = getc(file); c != EOF; c = getc(file)) {
-		s = key;
-		while (lower(c) == lower(*s) ){
-			/* NB: lower is a macro which evals its arg twice!  */
-			s++;
-			if((c = getc(file)) == EOF) {
-				fclose(file);
-				return(EX_NOHOST);
+	while (NULL != (next_line = getline(file, &lineno))) {
+		line_key = strtok(next_line, WS);
+
+		/*
+		 * If we have a match, copy the path; copy the
+		 * cost if there is one.
+		 */
+		if (strcmpic(key, line_key) == 0) {
+			strcpy(path, strtok(NULL, WS));
+
+			if (NULL != (line_cost = strtok(NULL, WS)) ) {
+				*cost = atoi(line_cost);
+			} else {
+				*cost = DEFCOST;
 			}
-		} /* while (lower(c) == lower(*s++)) */
+			break;
+		}
+	}
 
-		if (*s == '\0') {
-			if ((c == '\t') || (c == ' ')){
-				break;
-			} /* if found seperator character */
-		} /* if key hit end of string */
-
-		while ((c != '\n') && (c != EOF)){
-			c = getc(file);	
-		} /* while not at next line or EOF */
-	} /* for (read characters until EOF) */
-
-	/* Did we get a match or hit EOF?  */
-	if ( c == EOF ) {
+	if (NULL == next_line) {
 		fclose(file);
 		return(EX_NOHOST);
 	}
 
-	while(((c = getc(file)) != EOF) && (c != '\t') && (c != '\n')) {
-		*path++ = c;
-	}
-	*path = '\0';
-/*
-** See if the next field on the line is numeric.
-** If so, use it as the cost for the route.
-*/
-	if(c == '\t') {
-		int tcost = -1;
-		while(((c = getc(file)) != EOF) && isdigit(c)) {
-			if(tcost < 0) tcost = 0;
-			tcost *= 10;
-			tcost += c - '0';
-		}
-		if(tcost >= 0) *cost = tcost;
-	}
 	fclose(file);
 	return (EX_OK);
 }
