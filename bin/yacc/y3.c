@@ -224,7 +224,8 @@ register struct prod *pp;
 				break;
 		}
 		assert(pp->p_prodno==0 || i<stp->s_ntgo);
-		sno1 = go2star(sno, pp->p_right, pp->p_right+prodl(pp));
+		sno1 = go2star(sno, PROD_RIGHT (pp),
+				PROD_RIGHT (pp) + prodl(pp));
 		stp1 = &states[sno1];
 		if( stp1->s_reds == (struct redn *)NULL ) {	/* MWC DSC */
 			stp1->s_reds = (struct redn *)yalloc(stp1->s_nred, sizeof *stp1->s_reds);
@@ -333,7 +334,7 @@ rincl(todo)
 		sp = ntrmptr[transp[i].t_trans->ng_nt-NTBASE];
 		for(j=0; j<sp->s_nprods; j++) {
 			pp = sp->s_prods[j];
-			pb = pp->p_right;
+			pb = PROD_RIGHT (pp);
 			pe = pb + prodl(pp);
 			while( pb <= --pe && (nt = *pe) >= NTBASE ) {
 				sno1 = go2star(sno, pb, pe);
@@ -360,19 +361,23 @@ rincl(todo)
 
 endcount()
 {
-	register i, k, *relp; /* relp must be integer pointer */
+	register i, k;
 	struct ntgo *ntp;
+	char	      *	alloc;
+
 	k = 0;
-	for(i=0; i<nttrans; i++)
-				 {
-		k += transp[i].t_level+1; /* include 1 for count */
-		}
-	relp = (int *)yalloc(k, sizeof *relp);
+	for(i = 0 ; i < nttrans ; i ++)
+		k += REL_TOTAL_SIZE (transp [i].t_level);
+
+	alloc = yalloc (1, k);
+
 	for(i=0; i<nttrans; i++) {
 		ntp = transp[i].t_trans;
-		ntp->ng_rel = relp;
+		ntp->ng_rel = (struct rel *) alloc;
+		REL_EXTRA_INIT (ntp->ng_rel);
 		ntp->ng_rel->r_count = transp[i].t_level;
-		relp += transp[i].t_level+1;
+
+		alloc += REL_TOTAL_SIZE (transp[i].t_level);
 	}
 }
 
@@ -448,9 +453,10 @@ register struct prod *pp;
 {
 	register *ip;
 
-	ip = pp->p_right;
-	while( *ip++ != -1 );
-	return( ip-pp->p_right-1 );		/* BONZO OR NO??? */
+	ip = PROD_RIGHT (pp);
+	while (* ip ++ != -1)
+		/* DO NOTHING */;
+	return ip - PROD_RIGHT (pp) - 1;		/* BONZO OR NO??? */
 }
 
 struct lset *

@@ -76,7 +76,7 @@ paout()
 	if (verbose)
 		fprintf(listout, "\n\nParsing action table:\n\n");
 
-	rdact = yalloc(maxreds, sizeof(*rdact));
+	rdact = (struct actn *) yalloc (maxreds, sizeof(*rdact));
 	for(i = 0; i < nstates; i++)
 		outstate(i, rdact);
 	free(rdact);
@@ -192,15 +192,15 @@ struct lset *lp;
 {
 	register n, count;
 	register unsigned char *ucp;
-	extern unsigned char bcount[];
+	extern unsigned char bcount [];
 
 	count = 0;
 	ucp = lp->l_bits;
 	n = LSETSIZE;
 	do {
-		count += bcount[*ucp++];
-	} while (--n);
-	return(count);
+		count += bcount [* ucp ++];
+	} while (-- n);
+	return count;
 }
 
 setdiff(ld, ls)
@@ -213,8 +213,8 @@ struct lset *ld, *ls;
 	udcp = ld->l_bits;
 	uscp = ls->l_bits;
 	do {
-		*udcp++ &= ~ *uscp++;
-	} while (--n);
+		* udcp ++ &= ~ * uscp ++;
+	} while (-- n);
 }
 
 setunion(ld, ls)
@@ -227,8 +227,8 @@ struct lset *ld, *ls;
 	udcp = ld->l_bits;
 	uscp = ls->l_bits;
 	do {
-		*udcp++ |= *uscp++;
-	} while (--n);
+		* udcp ++ |= * uscp ++;
+	} while (-- n);
 }
 
 setint(ld, ls)
@@ -241,35 +241,20 @@ struct lset *ld, *ls;
 	udcp = ld->l_bits;
 	uscp = ls->l_bits;
 	do {
-		*udcp++ &= *uscp++;
-	} while (--n);
+		* udcp ++ &= * uscp ++;
+	} while (-- n);
 }
 
 copylset(ld, ls)
 struct lset *ld, *ls;
 {
-	register n;
-	register unsigned char *udcp, *uscp;
-
-	n = LSETSIZE;
-	udcp = ld->l_bits;
-	uscp = ls->l_bits;
-	do {
-		*udcp++ = *uscp++;
-	} while (--n);
+	memcpy (ld->l_bits, ls->l_bits, sizeof (ld->l_bits));
 }
 
 zerolset(ld)
 struct lset *ld;
 {
-	register n;
-	register unsigned char *udcp;
-
-	n = LSETSIZE;
-	udcp = ld->l_bits;
-	do {
-		*udcp++ = 0;
-	} while (--n);
+	memset (ld->l_bits, 0, sizeof (ld->l_bits));
 }
 
 resolve(sno, p, sls, rls)
@@ -348,60 +333,51 @@ redred(sno, pn1, pn2, tok)
 
 clrbit(lp, n)
 struct lset *lp;
-register n;
+register unsigned n;
 {
-	register unsigned char *ucp;
-
-	ucp = lp->l_bits;
-	ucp[n>>LOGCHAR] &= ~( 01 << (n & (NBCHAR-1)) );
+	lp->l_bits [n / CHAR_BIT] &= ~ (1 << (n & (CHAR_BIT - 1)) );
 }
 
 setbit(lp, n)
 struct lset *lp;
-register n;
+register unsigned n;
 {
-	register unsigned char *ucp;
-
-	ucp = lp->l_bits;
-	ucp[n>>LOGCHAR] |= 01 << (n & (NBCHAR-1));
+	lp->l_bits [n / CHAR_BIT] |= 1 << (n & (CHAR_BIT - 1));
 }
 
 bit(lp, n)
 struct lset *lp;
-register n;
+register unsigned n;
 {
-	register unsigned char *ucp;
-
-	ucp = lp->l_bits;
-	return( (ucp[n>>LOGCHAR] >> (n&(NBCHAR-1))) & 01 );
+	return (lp->l_bits [n / CHAR_BIT] >> (n & (CHAR_BIT - 1))) & 1;
 }
 
 first(lp)
 struct lset *lp;
 {
-	return(next(lp,-1));
+	return next (lp,-1);
 }
 
 next(lp, n)
 struct lset *lp;
-register n;
+register unsigned n;
 {
 	register w;
 	register unsigned char *ucp;
 	extern char ltab[];
 
-	if( ++n >= LSETSIZE*NBCHAR )
-		return(-1);
+	if (++ n >= LSETSIZE * CHAR_BIT)
+		return -1;
 	ucp = lp->l_bits;
-	w = ucp[n >> LOGCHAR];
-	w &= ~ ( (01 << (n&(NBCHAR-1))) - 1);
-	n >>= LOGCHAR;
+	w = ucp [n / CHAR_BIT];
+	w &= ~ ((1 << (n & (CHAR_BIT - 1))) - 1);
+	n /= CHAR_BIT;
 	while (w == 0) {
-		if ( ++n >= LSETSIZE )
-			return(-1);
-		w = ucp[n];
+		if (++ n >= LSETSIZE)
+			return -1;
+		w = ucp [n];
 	}
-	return( (n<<LOGCHAR) + ltab[w] );
+	return n * CHAR_BIT + ltab [w];
 }
 
 struct ntgo *

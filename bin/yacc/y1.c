@@ -1,9 +1,8 @@
 /*
  * LALR-1 parser generator
- *
- * the comments previously here have been suppressed since they were
- * boring
  */
+
+#include <string.h>
 #include "yacc.h"
 
 main(argc,argv)
@@ -86,7 +85,8 @@ ntprod()
 	/* now allocate list pointers for each non-terminal */
 	for(i=0; i<nnonterm; i++) {
 		sp = ntrmptr[i];
-		sp->s_prods = (struct prod **)yalloc(sp->s_nprods, sizeof *sp->s_prods);
+		sp->s_prods = (struct prod **)
+			yalloc (sp->s_nprods, sizeof (* sp->s_prods));
 		sp->s_nprods = 0; /* il sera recharge a la suite */
 	}
 	/* finally, run down the production table again filling in the
@@ -127,7 +127,7 @@ ntderive()
 				continue;
 			for(j=0; j<sp->s_nprods; j++) {
 				pp = sp->s_prods[j];
-				for(ip=pp->p_right; *ip!=-1; ip++)
+				for(ip = PROD_RIGHT (pp); *ip != -1; ip ++)
 					if( *ip>=NTBASE &&
 					    (ntrmptr[*ip-NTBASE]->s_flags&DERIV)==0 )
 						break;
@@ -169,10 +169,10 @@ ntempty()
 		changed = 0;
 		for(i=0; i<nnonterm; i++) {
 			sp = ntrmptr[i];
-			if( sp->s_flags&DERIV )
+			if (sp->s_flags & DERIV)
 				continue;
 			for(ppp=sp->s_prods; ppp<&sp->s_prods[sp->s_nprods]; ppp++) {
-				for(kp = (*ppp)->p_right; *kp!=-1; kp++ )
+				for(kp = PROD_RIGHT (*ppp); *kp!=-1; kp++ )
 					if( *kp<NTBASE ||
 					    (ntrmptr[*kp-NTBASE]->s_flags&DERIV)==0 )
 						break;
@@ -205,7 +205,7 @@ genstates()
 		ntrmptr[i]->s_nstates = 0;
 	ntp = yalloc(nnonterm, sizeof *ntp); /* array used by "install" */
 	nititem->i_nitems = 1;
-	nititem->i_items[0] = prdptr[0]->p_right;
+	nititem->i_items[0] = PROD_RIGHT (prdptr[0]);
 	closure();
 	install();
 	i = 0;
@@ -234,8 +234,9 @@ genstates()
 			for(k=0; k<items[i]->i_nitems; k++)
 				if( *(items[i]->i_items[k]) == -1 )
 					states[i].s_nred++;
-			states[i].s_tgos = states[i].s_ntgos =
-			    states[i].s_reds = NULL;		/* MWC DSC */
+			states[i].s_tgos = NULL;
+			states[i].s_ntgos = NULL;
+			states[i].s_reds = NULL;		/* MWC DSC */
 		}
 	} while( newgen );
 	free(ntp);
@@ -268,9 +269,13 @@ closure()
 	for(i=0; i<nnonterm; i++)
 		ntrmptr[i]->s_flags &= ~CPRES;
 	for(i=0; i<itp->i_nitems; i++)
-		/* kludge: requires p.left & p.rights contigouuous */
-		if( (nt = *(itp->i_items[i]-1)) < 0 )	/* ARE THEY???? */
+		/* kludge: requires p.left & p.rights contiguous */
+		if( (nt = *(itp->i_items[i]-1)) < 0 ) {	/* ARE THEY???? */
+#if	0
+			fprintf (stderr, "CPRES : %d\n", i);
+#endif
 			ntrmptr[-nt-NTBASE]->s_flags |= CPRES;
+		}
 	do {
 		changed = 0;
 		for(i=0; i<itp->i_nitems; i++) {
@@ -284,7 +289,7 @@ closure()
 				itp->i_nitems += j = sp->s_nprods;
 				bounded(itp->i_nitems, maxitem, "items in state");
 				do
-					*ipp++ = (*ppp++)->p_right;
+					*ipp++ = PROD_RIGHT (*ppp++);
 				while( --j );
 			}
 		}
@@ -320,20 +325,30 @@ install()
 		if( n==0 )
 			break;
 	}
-	if( i==nstates ) {
-		bounded(nstates,maxstates,"states");
-		chklhs();
-		itp1 = (struct sitem *)yalloc(1, sizeof *itp1 + itp->i_nitems *
-				sizeof itp->i_items[0]);
-		copyb(itp, itp1, sizeof *itp1 + itp->i_nitems *
-			sizeof itp->i_items[0]);
+	if (i == nstates) {
+		bounded (nstates,maxstates,"states");
+		chklhs ();
+
+		/*
+		 * NIGEL: Changed to stop use of flex-arrays.
+		 */
+
+		itp1 = (struct sitem *)
+			yalloc (1, SITEM_TOTAL_SIZE (itp->i_nitems));
+		* itp1 = * itp;
+		SITEM_EXTRA_INIT (itp1);
+
+		if (SITEM_EXTRA_SIZE (itp->i_nitems) > 0)
+			memcpy (itp1->i_items, itp->i_items,
+				SITEM_EXTRA_SIZE (itp->i_nitems));
+
 		newgen = 1;
-		items[nstates] = itp1;
-		if( verbose )
-			prstate(nstates, listout);
-		nstates++;
+		items [nstates] = itp1;
+		if (verbose)
+			prstate (nstates, listout);
+		nstates ++;
 	}
-	return( i );
+	return i;
 }
 
 go2(itp, tk)
@@ -405,7 +420,7 @@ genslist()
 	}
 	for(i=0; i<nnonterm; i++) {
 		sp = ntrmptr[i];
-		ip = sp->s_prods[0]->p_right; /* pick an item, any item */
+		ip = PROD_RIGHT (sp->s_prods[0]); /* pick an item, any item */
 		for(j=0; j<nstates; j++)
 			if( pitem(ip, items[j]) )
 				sp->s_states[sp->s_nstates++] = j;
@@ -461,15 +476,6 @@ int n;
 		*min = *ipp;
 		*ipp++ = t;
 	} while( --n );
-}
-
-copyb(sp,dp,n)
-register char *sp, *dp;
-register n;
-{
-	do
-		*dp++ = *sp++;
-	while( --n );
 }
 
 cleanup(err)
@@ -534,9 +540,11 @@ yalloc(n, s)
 {
 	register char *cp;
 
-	if( cp = calloc(n, s) )
-		return(cp);
-	yyerror(NLNO|FATAL, "storage overflow (requested %d)\n", n*s);
+	if ((cp = calloc(n, s)) == NULL)
+		yyerror (NLNO | FATAL,
+			 "storage overflow (requested %d * %d)\n", n, s);
+
+	return cp;
 }
 
 /*
