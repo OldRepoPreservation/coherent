@@ -7,6 +7,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.15	91/03/21  16:44:03	root
+ * getting ready to call fdisk - finish ss_start next
+ * 
  * Revision 1.14	91/03/20  17:25:14	root
  * Inquiry and Read Capacity working
  * 
@@ -527,13 +530,12 @@ register BUF	*bp;
 	struct ss * ssp;
 
 	dev = bp->b_dev;
-
 	partition = DEV_PARTN(dev);
 	drive = DEV_DRIVE(dev);
 	s_id = DEV_SCSI_ID(dev);
 	ssp = ss[s_id];
 
-	if (dev & SDEV )
+	if (dev & SDEV)
 		partition = WHOLE_DRIVE;
 	bp->b_resid = bp->b_count;
 	
@@ -572,15 +574,14 @@ register BUF	*bp;
 	}
 	sw->sw_bp = bp;
 	sw->sw_drv = drive;
-	sw->sw_type = 0;
-	if ( partition != WHOLE_DRIVE )
-		sw->sw_bno   = fdp[partition].p_base + bp->b_bno;
+	if (partition != WHOLE_DRIVE)
+		sw->sw_bno = fdp[partition].p_base + bp->b_bno;
 	else
-		sw->sw_bno   = bp->b_bno;
+		sw->sw_bno = bp->b_bno;
 	sw->sw_retry = 1;
 
-printf( "ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
-	drv, (long)sw->sw_bno, bp, bp->b_flag );
+printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
+	drv, (long)sw->sw_bno, bp, bp->b_flag);
 
 	s = sphi();
 	if (sd.sw_actf == NULL)
@@ -588,7 +589,6 @@ printf( "ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
 	else
 		sd.sw_actl->sw_actf = sw;
 	sd.sw_actl = sw;
-	++drvl[SDMAJOR].d_time;	
 	spl(s);
 
 	ss_start();
@@ -1144,10 +1144,16 @@ printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
 
 /*
  * ss_start()
+ *
+ * Invoked whenever there is I/O to do.  Pull first request, if any,
+ * off the queue and try to send it to the drive.
+ * If request is sent, delete it from the queue.
+ *
+ * Disallow re-entrancy in this routine (variable "locked").
  */
 static void ss_start()
 {
-	int i, s, n = 0;
+	int s;
 	scsi_work_t *sw;
 	static char locked;
 
@@ -1159,26 +1165,14 @@ static void ss_start()
 	++locked;
 	spl(s);
 
-	while( (sw = scsi_work_queue->sw_actf) != NULL ) {
-		for( i = MIN_MAILBOX; i < MAX_MAILBOX; ++i )
-			if( mailbox_out[i].cmd == MBO_IS_FREE ) {
-				register ccb_t *ccb;
-				int s;
-
-				++n;
-SEND SCSI COMMAND
-				s = sphi();
-				sw = scsi_work_queue->sw_actf = sw->sw_actf;
-				if( sw == NULL )
-					scsi_work_queue->sw_actl = NULL;
-				spl(s);
-
-				if( sw == NULL )
-					break;
-			}
-		if( i == MAX_MAILBOX )
-			break;
+	if( (sw = scsi_work_queue->sw_actf) != NULL ) {
+		if (do_ss(sw)) {
+			s = sphi();
+			sw = scsi_work_queue->sw_actf = sw->sw_actf;
+			if( sw == NULL )
+				scsi_work_queue->sw_actl = NULL;
+			spl(s);
+		}
 	}
 	--locked;
-	return n;
 }
