@@ -35,7 +35,7 @@
 #include <stddef.h>
 #include <sys/coherent.h>
 #include <sys/buf.h>
-#include <sys/inode.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/sched.h>
 #include <errno.h>
