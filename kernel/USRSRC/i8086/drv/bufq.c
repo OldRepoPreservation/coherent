@@ -5,7 +5,10 @@
  *	Queueing routines for SCSI driver.
  *	Should be generalizable for other hard drives.
  *
- * $Log$
+ * $Log:	bufq.c,v $
+ * Revision 1.1  91/05/21  13:54:11  root
+ * First running version.
+ * 
  */
 
 /*
@@ -51,10 +54,14 @@ BUF * bufq_rm_head();
 /*
  * Debug macros.
  */
-#if (DEBUG >= 2)
+#if (DEBUG >= 3)
 #define QSIZE	printf("Q%d:%d ", s_id, bqp->count)
 #else
+#if (DEBUG >= 2)
+#define QSIZE	{if (bqp->count>1)printf("Q%d:%d ", s_id, bqp->count);}
+#else
 #define QSIZE
+#endif
 #endif
 
 /*
