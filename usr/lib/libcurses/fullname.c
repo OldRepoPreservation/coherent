@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)fullname.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)fullname.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -28,12 +28,12 @@ static char sccsid[] = "@(#)fullname.c	5.3 (Berkeley) 6/30/88";
  * This is assumed to be the last name in the list of aliases.
  *
  */
-char *
+unsigned char *
 fullname(bp, def)
-reg char	*bp, *def;
+reg unsigned char	*bp, *def;
 {
 
-	reg char	*cp;
+	reg unsigned char	*cp;
 
 	*def = 0;			/* in case no name */
 
@@ -47,5 +47,5 @@ reg char	*bp, *def;
 			bp++;		/* skip over '|' if that is case */
 		}
 	}
-	return(def);
+	return (def);
 }

@@ -33,7 +33,7 @@ getkey()
 	register int len;
 	tkeyent_t * sav_kp;
 	int sav_len;
-	char * str;
+	uchar * str;
 	static unsigned char buf[64];
 	static int bufoff;
 	static int buflen;
@@ -62,7 +62,7 @@ getkey()
 #endif
 
 			if ( buflen <= 0 )
-				return( 0 );
+				return (0);
 
 			buf[buflen] = '\0';
 		}
@@ -102,7 +102,7 @@ getkey()
 
 #if DEBUG > 0
 			{
-			char * cp;
+			uchar * cp;
 			fprintf( outf, "getkey:0%03o = '", kp->id );
 			for ( cp = str; *cp; cp++ )
 				fprintf( outf, "%s", unctrl(*cp) );
@@ -149,7 +149,7 @@ getkey()
 #endif
 			bufoff += sav_len;
 
-			return( sav_kp->id );
+			return (sav_kp->id);
 		}
 
 #if DEBUG > 0
@@ -158,6 +158,6 @@ getkey()
 		/*
 		 * Return next char.
 		 */
-		return( buf[ bufoff++ ] );
+		return (buf[ bufoff++ ]);
 	}
 }

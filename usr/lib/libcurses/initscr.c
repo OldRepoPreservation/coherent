@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)initscr.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)initscr.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -25,7 +25,7 @@ static char sccsid[] = "@(#)initscr.c	5.3 (Berkeley) 6/30/88";
 # include	"curses.ext"
 # include	<signal.h>
 
-extern char	*getenv();
+extern uchar	*getenv();
 
 /*
  *	This routine initializes the current and standard screen.
@@ -34,7 +34,7 @@ extern char	*getenv();
 WINDOW *
 initscr() {
 
-	reg char	*sp;
+	reg uchar	*sp;
 	extern int	tstp();
 
 # ifdef DEBUG

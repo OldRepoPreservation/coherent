@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)mvscanw.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)mvscanw.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,7 +31,7 @@ static char sccsid[] = "@(#)mvscanw.c	5.3 (Berkeley) 6/30/88";
 
 mvscanw(y, x, fmt, args)
 reg int		y, x;
-char		*fmt;
+uchar		*fmt;
 int		args; {
 
 	return move(y, x) == OK ? _sscans(stdscr, &fmt) : ERR;
@@ -40,7 +40,7 @@ int		args; {
 mvwscanw(win, y, x, fmt, args)
 reg WINDOW	*win;
 reg int		y, x;
-char		*fmt;
+uchar		*fmt;
 int		args; {
 
 	return wmove(win, y, x) == OK ? _sscans(win, &fmt) : ERR;

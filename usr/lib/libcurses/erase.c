@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)erase.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)erase.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,7 +31,7 @@ werase(win)
 reg WINDOW	*win; {
 
 	reg int		y;
-	reg char	*sp, *end, *start, *maxx;
+	reg uchar	*sp, *end, *start, *maxx;
 	reg int		minx;
 
 # ifdef DEBUG

@@ -35,7 +35,7 @@
  */
 int
 _need( s )
-char * s;
+uchar * s;
 {
 	reg FILE * fp = stdout;
 
@@ -48,12 +48,12 @@ char * s;
 	if ( (fp != NULL) && (fp->_bp != NULL) && (fp->_cp != NULL) ) {
 		if ( ((fp->_cp - fp->_bp) + strlen(s)) >= BUFSIZ )
 			fflush( stdout );
-		return( 0 );
+		return (0);
 	}
 
 	/*
 	 * Atomic output by stdio cannot be guaranteed.
 	 */
-	return( -1 );
+	return (-1);
 }
 #endif
