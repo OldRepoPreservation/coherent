@@ -3,27 +3,33 @@
  * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.9  91/11/11  12:32:58  hal
+ * Get SD_HDS and SD_SPT from tboot.
+ * 
+ * Revision 1.8  91/10/25  14:50:39  hal
+ * Make DMA channel patchable.
+ *
  * Revision 1.7  91/10/22  13:40:36  hal
  * Use sys on kernel header includes.
- * 
+ *
  * Revision 1.6  91/06/10  13:28:11  hal
  * Refix startup problem with HDGETA.  Text cleanup.
- * 
+ *
  * Revision 1.5  91/06/10  12:58:04  hal
  * Partial fix for HDGETA failing if partition table absent.
- * 
+ *
  * Revision 1.4  91/06/03  13:50:06  hal
  * Add HDSETA.
- * 
+ *
  * Revision 1.3	91/05/08  11:00:30	root
  * Make number of heads - SD_HDS - patchable for Tandy.
- * 
+ *
  * Revision 1.2	91/05/01  04:50:11	root
  * Debug code and d_time/sw_active imbalance fixed.
- * 
+ *
  * Revision 1.1	91/04/30  11:02:22	root
  * Shipped with COH 3.1.0
- * 
+ *
  */
 
 #include	<sys/coherent.h>
@@ -36,8 +42,10 @@
 #include	<sys/uproc.h>
 #include	<errno.h>
 #include	<sys/scsiwork.h>
+#include	<sys/typed.h>
 
 extern	saddr_t sds;
+extern	short	n_atdr;
 
 /*
  * Configurable parameters
@@ -45,18 +53,17 @@ extern	saddr_t sds;
  * Adaptec ROM translates at 64 heads, except the Tandy version, which
  * uses 16 heads.  Kernel variable SD_HDS is patchable for this reason.
  */
-#ifdef TANDY
-int SD_HDS = 16;
-#else
-int SD_HDS = 64;
-#endif
-int SD_SPT = 32;
+#define DEF_AHA_HDS	64
+#define DEF_AHA_SPT	32
+
+int SD_HDS = 0;
+int SD_SPT = 0;
 
 #define NDRIVE	(8 * 4)			/* 8 SCSI ids and 4 LUNs */
 #define	SDMAJOR	13			/* Major Device Number */
 
 /*
- * user configurable paramters
+ * user configurable parameters
  */
 int	SDIRQ	= 11;			/* Interrupt */
 int	SDBASE	= 0x0330;		/* Port base */
@@ -161,6 +168,10 @@ static	int	sw_active;
 static void
 sdload()
 {
+	FIFO *ffp;
+	typed_space *tp;
+	extern typed_space boot_gift;
+
 	/*
 	 * Initialize Drive Controller.
 	 */
@@ -169,6 +180,36 @@ sdload()
 		u.u_error = ENXIO;
 		return;
 	}
+
+	/*
+	 * Set values for # of heads and # of sectors per track.
+	 *
+	 * AHA translation mode uses the same # of heads
+	 * and the same # of sectors per track for all drives.
+	 *
+	 * If these values are already patched, leave them alone.
+	 * Otherwise, look in the data area written by tboot.
+	 * If nothing from tboot, use default values.
+	 */
+	if (SD_HDS == 0 || SD_SPT == 0) {
+printf("AHA - heads & spt not both patched");
+		SD_HDS = DEF_AHA_HDS;
+		SD_SPT = DEF_AHA_SPT;
+		if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
+			if (T_NULL != (tp = fifo_read(ffp))) {
+				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
+				if ((T_BIOS_DISK == tp->ts_type) &&
+				    (n_atdr == bdp->dp_drive) ) {
+printf(" got values from tboot");
+					SD_HDS = bdp->dp_heads;
+					SD_SPT = bdp->dp_sectors;
+				}
+			}
+			fifo_close(ffp);
+		}
+	}
+printf(" SD_HDS=%d SD_SPT=%d\n", SD_HDS, SD_SPT);
+
 /*	aha_device_info(); */		/* enable after this gets fixed */
 }
 
@@ -219,7 +260,7 @@ dev_t	dev;
 	sc.blklen = 0;
 
 	sc.buffer = VTOP2(buffer, sds);
-	++drvl[SDMAJOR].d_time;	
+	++drvl[SDMAJOR].d_time;
 #if	0
 	sc.cmd = ScmdINQUIRY;
 	sc.buflen = 36;
@@ -251,7 +292,7 @@ dev_t	dev;
 #endif
 	kfree(buffer);
 	fdp[WHOLE_DRIVE].p_size = sc.block;
-	--drvl[SDMAJOR].d_time;	
+	--drvl[SDMAJOR].d_time;
 	return fdisk(sdmkdev(major(dev), SDEV, d), pparmp[d]);
 }
 
@@ -281,7 +322,7 @@ register dev_t	dev;
 			u.u_error = ENXIO;		/* not yet! */
 devmsg(dev, "No tape yet");
 		} else {
-			++drvl[SDMAJOR].d_time;	
+			++drvl[SDMAJOR].d_time;
 			++sw_active;
 		}
 		return;
@@ -307,15 +348,15 @@ devmsg(dev, "No tape yet");
 	} else if (fdp[p].p_size == 0) {
 		u.u_error = ENODEV;
 	} else {
-		++drvl[SDMAJOR].d_time;	
+		++drvl[SDMAJOR].d_time;
 		++sw_active;
 	}
 }
 
 void sdclose(dev)
 {
-	--drvl[SDMAJOR].d_time;	
-	--sw_active;	
+	--drvl[SDMAJOR].d_time;
+	--sw_active;
 }
 
 /**
@@ -479,7 +520,7 @@ register BUF	*bp;
 	if (minor(bp->b_dev) & SDEV)
 		p = WHOLE_DRIVE;
 	bp->b_resid = bp->b_count;
-	
+
 	fdp = (struct fdisk_s *) pparmp[drv];
 
 	/*
@@ -487,11 +528,15 @@ register BUF	*bp;
 	 */
 	if (pparmp[drv] == PNULL) {
 		if (p == WHOLE_DRIVE) {
+#if 0
+/* Why did we only allow people to access the first block of WHOLE_DRIVE?
+   in cases where there was not a valid partition table? */
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
 				bp->b_flag |= BFERR;
 				bdone(bp);
 				return;
 			}
+#endif
 		} else {
 			printf("aha154x: no partition table\n");
 			bp->b_flag |= BFERR;

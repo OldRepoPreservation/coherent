@@ -4,23 +4,26 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.10  91/11/11  12:29:03  hal
+ * Use n_atdr.
+ * 
  * Revision 1.9  91/10/30  10:47:46  hal
  * Get atparms from tboot.
- * 
+ *
  * Revision 1.8  91/10/24  12:36:25  hal
  * Bump ATSECS from 4 to 6.
  * Poll HF_REG (3F6) rather than CSR_REG (1F6).
  * COH 3.2.03.
- * 
+ *
  * Revision 1.7  91/09/11  14:45:38  hal
  * Trial patch for Seagate 157A problems.
- * 
+ *
  * Revision 1.6  91/09/11  13:23:12  hal
  * Explicit sys in include paths.  AT_MAJOR.
- * 
+ *
  * Revision 1.5  91/05/22  15:06:59  hal
  * Don't force 8's bit of control byte.
- * 
+ *
  * Revision 1.4	91/03/14  14:22:32	hal
  *
  -lgl) */
@@ -43,6 +46,7 @@
 #include	<errno.h>
 
 extern	saddr_t	sds;		/* System Data Selector */
+extern	short	n_atdr;		/* Number of "at" drives */
 
 /*
  * Configurable parameters
@@ -253,7 +257,10 @@ atload()
 	unsigned int u;
 	struct dparm_s * dp;
 	struct { unsigned off, seg; } p;
-	
+
+	if (n_atdr == 0)
+		return;
+
 	/*
 	 * Obtain Drive Types.
 	 *
@@ -270,7 +277,7 @@ atload()
 	/*
 	 * Obtain Drive Characteristics.
 	 */
-	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
+	for (u = 0, dp = &atparm[0]; u < n_atdr; ++dp, ++u) {
 		struct dparm_s int_dp;
 
 		if (dp->d_ncyl == 0) {
@@ -299,11 +306,11 @@ atload()
 			int found, parm_int;
 			extern typed_space boot_gift;
 
-			ffp = fifo_open(&boot_gift, 0); 
-	
+		if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
+
 			for (found = 0;
 			!found && T_NULL != (tp = fifo_read(ffp));
-			) {	
+			) {
 				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
 				if ((T_BIOS_DISK == tp->ts_type) &&
 				    (u == bdp->dp_drive) ) {
@@ -318,6 +325,7 @@ atload()
 				}
 			}
 			fifo_close(ffp);
+		}
 
 			if (u == 0)
 				parm_int = 0x41;
@@ -326,7 +334,7 @@ atload()
 			pkcopy((paddr_t)(parm_int*4), &p, sizeof p);
 			pkcopy((paddr_t) (p.seg << 4L) + p.off,
 				&int_dp, sizeof(int_dp));
-			if (!found || 
+			if (!found ||
 			    (dp->d_nhead == int_dp.d_nhead
 			     && dp->d_nspt == int_dp.d_nspt)) {
 			     *dp = int_dp;
@@ -366,7 +374,7 @@ atload()
 	/*
 	 * Initialize Drive Size.
 	 */
-	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
+	for (u = 0, dp = &atparm[0]; u < n_atdr; ++dp, ++u) {
 
 		if (at.at_dtype[u] == 0)
 			continue;
@@ -431,7 +439,7 @@ atreset()
 	/*
 	 * Initialize drive parameters.
 	 */
-	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
+	for (u = 0, dp = &atparm[0]; u < n_atdr; ++dp, ++u) {
 
 		if (at.at_dtype[u] == 0)
 			continue;
