@@ -1,6 +1,6 @@
 /*
  * fdisk.c
- * 3/26/90
+ * 4/4/90
  * cc -o fdisk fdisk.c query.c -f
  * Change partitioning of IBM-XT or IBM-AT hard disk.
  * Usage: /etc/fdisk [ -rvx ] [ -b bootb ] [ device ... ]
@@ -11,6 +11,9 @@
  *	-x	Use devices /dev/xt[01]x instead of /dev/at[01]x
  * If no device argument is given, fdisk supplies "/dev/[ax]t[01]x"
  * as appropriate.
+ *
+ * UNDONE:
+ *	allow <Esc> to return to main menu options
  */
 
 #include <stdio.h>
@@ -18,9 +21,9 @@
 #include <sys/hdioctl.h>
 
 #define	USAGE	"Usage: /etc/fdisk [ -rvx ] [ -b mboot ] [ device ... ]\n"
-#define	VERSION	"2.2"
-#define	CMDSIZE	128		/* max dosshrink command length */
-#define	SSIZE	512		/* Sector size. */
+#define	VERSION	"2.4"
+#define	NBUF	256		/* buffer size			*/
+#define	SSIZE	512		/* sector size			*/
 
 /*
  * Conversions.
@@ -46,6 +49,7 @@ extern	void	qsort();
 void		change_active();
 void		change_part();
 void		check_chs();
+void		cls();
 void		dos_shrink();
 void		drive_info();
 void		fatal();
@@ -63,6 +67,7 @@ void		usage();
 /* Globals. */
 char		*argv0;		/* Command name, for error messages.	*/
 int		badflag;	/* Partition table is bad.		*/
+char		buf[NBUF];	/* Input buffer.			*/
 int		cylflag;	/* Specify base and size in cylinders.	*/
 unsigned int	cylsize;	/* Cylinder size in sectors.		*/
 unsigned char	*defargs[3] = { "/dev/at0x", "/dev/at1x", NULL };
@@ -82,6 +87,7 @@ unsigned long	nsectors;	/* Total sectors.			*/
 char		*mboot;		/* Name of new master boot file.	*/
 int		openmode = 2;	/* Default open mode: read/write.	*/
 int		partbase;	/* Partition number base (0 or 4).	*/
+int		rflag;		/* Readonly.				*/
 int		vflag;		/* Print c:h:s start and end values.	*/
 
 main(argc, argv) int argc; char *argv[];
@@ -98,11 +104,12 @@ main(argc, argv) int argc; char *argv[];
 		for (s = &argv[0][1]; *s; ++s) {
 			switch(*s) {
 			case 'b':
-				if (argc < 2)
+				if (argc-- < 2)
 					usage();
 				mboot = *++argv;
 				break;
 			case 'r':
+				++rflag;
 				openmode = 0;
 				break;
 			case 'v':
@@ -112,7 +119,7 @@ main(argc, argv) int argc; char *argv[];
 				fprintf(stderr, "%s: V%s\n", argv0, VERSION);
 				break;
 			case 'x':
-				argv[0][5] = argv[1][5] = 'x';
+				defargs[0][5] = defargs[1][5] = 'x';
 				break;
 			default:
 				usage();
@@ -140,6 +147,7 @@ main(argc, argv) int argc; char *argv[];
 		if (argc == 0)
 			fatal("cannot open default devices");
 	}
+	cls(0);
 	printf(
 		"This program lets you change partition information for each disk drive.\n"
 		"A disk drive can be divided into one to four logical partitions.\n"
@@ -159,7 +167,7 @@ main(argc, argv) int argc; char *argv[];
 void
 change_active()
 {
-	int active, oactive, i;
+	int active, oactive, i, flag;
 
 	active = oactive = -1;
 	for (i=0; i < NPARTN; i++) 
@@ -167,6 +175,14 @@ change_active()
 			hd.hd_partn[i].p_boot = 0;	/* make inactive */
 			active = oactive = i;		/* remember old */
 		}
+	flag = 'y';
+	queryc("Do you want to make a partition active", &flag);
+	if (flag == 'n') {
+		active = -1;
+		if (active != oactive)
+			++nmods;
+		return;
+	}
 	if (active == -1)
 		active = 0;				/* default */
 	active += partbase;
@@ -193,6 +209,7 @@ change_part(n) int n;
 	/* Get options first time through. */
 	if (optflag == 0) {
 		++optflag;
+		cls(0);
 		printf(
 			"Existing data on a partition will be lost if you change the\n"
 			"base or the size of the partition.  Be sure you have backed up\n"
@@ -210,7 +227,7 @@ change_part(n) int n;
 		megflag = (flag == 'y');
 	}
 	p = &hd.hd_partn[n];
-	printf("Partition %d:\n", n + partbase);
+	printf("\nPartition %d:\n", n + partbase);
 	size = p->p_size;
 			
 	/* Display possible system types. */
@@ -278,7 +295,7 @@ getbase:
 	/* Specify the partition size. */
 	/* Default size: free block size, old size, largest possible. */
 	osize = size;
-	size = (base == freestart) ? freesize : (size != 0L) ? size : nsectors - base;
+	size = (base == freestart) ? freesize : (osize != 0L) ? osize : nsectors - base;
 	if (megflag) {				/* in megabytes */
 		size = meg(size);
 		if ((long)meg(nsectors - base) == 0) {
@@ -371,6 +388,7 @@ check_chs(p, flag) FDISK_S *p; int flag;
 		nc = sec_to_c(n);
 		nh = sec_to_h(n);
 		ns = sec_to_s(n);
+		cls(1);
 		printf("According to the hard disk controller, the disk contains\n");
 		printf("%u cylinders (0 to %u), %u heads (0 to %u), and %u sectors\n",
 			ncyls, ncyls - 1, nheads, nheads -1, nspt);
@@ -385,6 +403,10 @@ check_chs(p, flag) FDISK_S *p; int flag;
 		printf("to resolve this inconsistency.  If you feel this change is\n");
 		printf("incorrect, exit from this program without saving the\n");
 		printf("partition table to the disk.\n");
+		flag = 'n';
+		queryc("Do you want to exit from this program", &flag);
+		if (flag == 'y')
+			exit(1);
 		++nmods;
 		if (flag) {
 			p->p_bcyl = nc & 0xFF;
@@ -399,6 +421,24 @@ check_chs(p, flag) FDISK_S *p; int flag;
 }
 
 /*
+ * Clear the IBM-AT console screen.
+ */
+void
+cls(flag) register int flag;
+{
+	if (flag || rflag) {
+		printf("\nHit <Enter> to continue...");
+		fflush(stdout);		
+		fgets(buf, sizeof buf, stdin);
+	}
+	putchar(0x1B);
+	putchar('[');
+	putchar('2');
+	putchar('J');
+	fflush(stdout);
+}
+
+/*
  * Shrink an MS-DOS partition.
  * PFM.
  */
@@ -406,8 +446,8 @@ void
 dos_shrink(fd, n) int fd, n;
 {
 	int flag;
-	static char cmd[CMDSIZE];
 
+	cls(0);
 	printf(
 		"You can sometimes shrink an existing MS-DOS partition to make room for\n"
 		"a COHERENT partition if your disk is entirely allocated to MS-DOS.\n"
@@ -429,15 +469,14 @@ dos_shrink(fd, n) int fd, n;
 	}
 
 	/* Go for smoke. */
-	sprintf(cmd, "/etc/dosshrink %s %d %s\n", device, n, device);
-	cmd[strlen(cmd) - 2] = 'a' + n;
-	if (system(cmd) != 0) {
+	sprintf(buf, "/etc/dosshrink %s %d %s\n", device, n, device);
+	buf[strlen(buf) - 2] = 'a' + n;
+	if (system(buf) != 0) {
 		printf("Shrinking of MS-DOS partition failed.\n");
 		return;
 	}
 
 	/* Read the partition table again to get the changed entry. */
-	++nmods;
 	if (lseek(fd, 0L, 0) != 0L)
 		fatal("%s: seek failed", device);
 	else if (read(fd, &newhd, sizeof hd) != sizeof hd) {
@@ -464,7 +503,6 @@ drive_info()
 		nsectors, SSIZE);
 	printf("or a total of %ld bytes (%.2f megabytes).\n",
 		nsectors * SSIZE, meg(nsectors));
-	printf("\n");
 }
 
 /*
@@ -484,11 +522,10 @@ void
 fdisk()
 {
 	hdparm_t	hdparms;
-	int 		fd, nfd, p;
+	int 		fd, nfd, p, flag;
 	unsigned	action;
 	char		drive;
 
-	printf("\n");
 	nmods = 0;
 	fd = get_boot(device, openmode, &hd);		/* read boot */
 	if (mboot != NULL) {
@@ -500,7 +537,7 @@ fdisk()
 		nmods++;
 	}
 
-	/* Obtain and print drive characteristics. */
+	/* Obtain drive characteristics. */
 	if (ioctl(fd, HDGETA, (char *)&hdparms) == -1)
 		fatal("cannot get \"%s\" drive characteristics", device);
 	ncyls = (hdparms.ncyl[1] << 8) | hdparms.ncyl[0];
@@ -527,14 +564,15 @@ fdisk()
 
 	/* If readonly, print information and return. */
 	if (openmode == 0) {
-		print_part();
+		print_part(0);
 		close(fd);
 		return;
 	}
 
 	/* Interactive input loop. */
-	for (;;) {
-		print_part();
+	for (flag = 1; ; ) {
+		print_part(flag);
+		flag = 0;
 		printf(
 			"Possible actions:\n"
 			"\t1 = Change active partition\n"
@@ -551,7 +589,7 @@ fdisk()
 		case 1:
 			printf("Change active partition:\n");
 			change_active();
-			continue;	
+			continue;
 		case 2:
 		case 4:
 			p = (freepart != -1) ? freepart : 0;
@@ -560,19 +598,23 @@ fdisk()
 			p -= partbase;
 			if (action == 2)
 				change_part(p);
-			else
+			else {
 				dos_shrink(fd, p);
+				flag = 1;
+			}
 			continue;
 		case 3:
 			for (p=0; p < NPARTN; ) {
 				change_part(p++);
 				if (p < NPARTN)
-					print_part();
+					print_part(0);
 			}
 			continue;
 
 		case 5:
+			cls(0);
 			drive_info();
+			flag = 1;
 			continue;
 		case 6:
 			if (quit(device, fd) == 1)
@@ -666,26 +708,34 @@ pcompare(pp1, pp2) FDISK_S **pp1, **pp2;
  * Output partition information.
  */
 void
-print_part()
+print_part(flag) int flag;
 {
 	register FDISK_S *p;
 	register char c, *s;
 	int i;
 	unsigned long end;
 
+	cls(flag);
 	printf("%s currently has the following logical partitions:\n", drivename);
 	printf("                     Cylinders             Tracks\n");
 	printf("Number     Type   Start  End  Size  Start    End   Size Megabytes  Name\n");
 	for (i = 0; i < NPARTN; ++i) {
 		p = &hd.hd_partn[i];
-		end = p->p_base + p->p_size - 1;
+		if (p->p_size == 0L)
+			end = p->p_base = 0L;
+		else
+			end = p->p_base + p->p_size - 1;
 		printf("%d", partbase + i);
 		printf("%s\t", (p->p_boot == 0x80) ? " Boot" : "");
 		s = NULL;
 		switch (p->p_sys) {
 		case SYS_EMPTY:		s = "<Empty>";	break;
 		case SYS_DOS_12:
-		case SYS_DOS_16:	s = "MS-DOS";	break;
+		case SYS_DOS_16:
+		case SYS_DOS_LARGE:
+					s = "MS-DOS";	break;
+		case SYS_DOS_XP:
+					s = "Ext.DOS";	break;
 		case SYS_XENIX:		s = "Xenix";	break;
 		case SYS_COH:		s = "Coherent";	break;
 		case SYS_SWAP:		s = "Swap";	break;
@@ -695,12 +745,12 @@ print_part()
 			printf("%8u ", p->p_sys);
 		else
 			printf("%8s ", s);
-		printf("%5d ", sec_to_c(p->p_base));
-		printf("%5d ", sec_to_c(end));
-		printf("%5d ", sec_upto_c(p->p_size));
-		printf("%6ld ", p->p_base / nspt);
-		printf("%6ld ", end / nspt);
-		printf("%6d ", sec_upto_t(p->p_size));
+		printf("%5u ", sec_to_c(p->p_base));
+		printf("%5u ", sec_to_c(end));
+		printf("%5u ", sec_upto_c(p->p_size));
+		printf("%6lu ", p->p_base / nspt);
+		printf("%6lu ", end / nspt);
+		printf("%6u ", sec_upto_t(p->p_size));
 		printf("%7.2f ", meg(p->p_size));
 		s = &device[strlen(device) - 1];
 		c = *s;
@@ -743,7 +793,6 @@ quit(fname, fd) char *fname; int fd;
 			else if (write(fd, &hd, sizeof hd) != sizeof hd)
 				fatal("write error on \"%s\"", fname);
 			sync();
-			printf("Changes saved to \"%s\".\n", fname);
 		} else
 			printf("Changes not saved.\n");
 	} else
