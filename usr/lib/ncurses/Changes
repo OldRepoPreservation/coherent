@@ -1,6 +1,8 @@
 general:	compilation of RCS headers independend from COHERENT
 		signal handling for SIGTSTP implemented right now
 		the silly ^L removed from the sources
+		millions of casts and forward declarations added and function
+		types changed, to make lint happy
 
 Makefile:	several, make depend now works under COHERENT!
 
