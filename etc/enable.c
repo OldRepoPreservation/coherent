@@ -86,12 +86,12 @@ char **argv;
 
 	if (flagchar != -1 && argc < 2) /* disable and enable */
 	{
-		fprintf(stderr, "Usage: %s tty ...\n", cmd);
+		fprintf(stderr, "Usage: /etc/%s tty ...\n", cmd);
 		exit(-2);
 	}
 	else if (argc != 2)		/* ttystat */
 	{
-		fprintf(stderr, "Usage: ttystat [-d] tty\n");
+		fprintf(stderr, "Usage: /etc/ttystat [-d] tty\n");
 		exit(-2);
 	}
 
