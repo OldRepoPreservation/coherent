@@ -4,7 +4,7 @@
 
 #include "fsck.h"
 
-static	char	*maptab;	/* table of interleave offsets	*/
+static	unsigned char *maptab;	/* table of interleave offsets	*/
 static	daddr_t	mapbot;		/* minimum block number to interleave map */
 static	daddr_t	maptop;		/* maximum block number to interleave map */
 static	short	m,n;		/* interleave factors	*/
@@ -111,11 +111,12 @@ daddr_t
 bmap(blk)
 register daddr_t blk;
 {
-	int i;
+	short i;
 
 	if ( (blk>=mapbot) && (blk<maptop) ) {
-		i = ((unsigned)blk)%n;
-		blk += maptab[i] - i;
+		i = blk%n;
+		blk -= i;
+		blk += maptab[i];
 	}
 	return(blk);
 }
