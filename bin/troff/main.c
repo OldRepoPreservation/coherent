@@ -14,7 +14,6 @@
 #endif
 #include <time.h>
 #include <path.h>
-#include <string.h>
 #include "roff.h"
 
 extern	char	*getenv();
@@ -73,7 +72,7 @@ main(argc, argv) int argc; char *argv[];
 			/* Process "-m" macro package argument. */
 			sprintf(miscbuf, TMACFMT, cp);
 			libpath = DEFLIBPATH;
-			if ((libpath = path(libpath, miscbuf, AREAD)) != NULL)
+			if ((libpath = path(libpath, miscbuf, R_OK)) != NULL)
 				strcpy(miscbuf, libpath);
 #if	(DDEBUG & DBGFILE)
 			printd(DBGFILE, "tmac file = %s\n", miscbuf);
@@ -330,13 +329,17 @@ setnreg()
 
 /*
  * Leave.
+ * The passed exit status is:
+ *	0	normal
+ *	1	fatal error
+ *	2	usage error
  */
-leave(n)
+leave(status) register int status;
 {
 	char name[2];
 	static int depth = 0;
 
-	if(n == 0 && depth++ == 0) {
+	if (status == 0 && depth++ == 0) {
 		if (endtrap[0] != '\0') {
 			name[0] = endtrap[0];
 			name[1] = endtrap[1];
@@ -344,6 +347,12 @@ leave(n)
 			execute(name);
 		}
 		setbreak();
+		if (xflag == 0) {
+			byeflag = 1;
+			pspace();
+		}
+	} else if (status == 1 && depth++ == 0) {
+		/* Space to bottom of page if status==1, useful for PS. */
 		if (xflag == 0) {
 			byeflag = 1;
 			pspace();
@@ -365,7 +374,7 @@ leave(n)
 	if (kflag == 0)
 		unlink(tempname);
 #endif
-	exit(n);
+	exit(status);
 }
 
 /*
@@ -390,7 +399,7 @@ usage()
 		fprintf(stderr, "\t-p\tProduce PostScript output\n");
 	fprintf(stderr, "\t-raN\tSet number register a to value N\n");
 	fprintf(stderr, "\t-x\tDo not eject to bottom of final page\n");
-	leave(1);
+	leave(2);
 }
 
 /*

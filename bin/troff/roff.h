@@ -5,6 +5,8 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "code.h"
 #include "codebug.h"
 #include "div.h"
@@ -16,7 +18,7 @@
 #include "request.h"
 #include "str.h"
 
-#define	VERSION	"4.0.5"
+#define	VERSION	"4.0.8"
 
 /* Buffer sizes. */
 #define	ABFSIZE	256			/* Size of argument buffer	*/
@@ -204,11 +206,6 @@ extern	void	resetdev();
 extern	SPECIAL	*spc_find();
 
 /* Library functions. */
-/* extern	char	*index(); */
-extern	void	free();
 extern	long	lseek();
-extern	char	*malloc();
-extern	char	*realloc();
-extern	char	*strcpy();
 
 /* end of roff.h */

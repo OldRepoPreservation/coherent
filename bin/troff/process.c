@@ -843,7 +843,10 @@ justify()
 	int t;
 	register int n, r;
 
-	n = cec  ?  CJUS  :  (fill==0||adm==0) ? LJUS : adj;
+	n = cec ? CJUS : (fill==0 || adm==0) ? LJUS : adj;
+#if	0
+	fprintf(stderr, "justify() lln=%d llinsiz=%d n=%d\n", lln, llinsiz, n);
+#endif
 	switch (n) {
 	case LJUS:
 		n = 0;
