@@ -1,21 +1,36 @@
-# awk/Makefile 12/13/90
+# awk/Makefile 2/6/91
 
-CFLAGS=-O -VSINU
+SRC=/usr.src/cmd/awk
+
+CFLAGS=-O -I$(SRC)
 LDFLAGS=-f
 YFLAGS=  -prods 110 -terms 67 -nterms 30 -states 200
-OBJECTS=awk.o awk0.o awk1.o awk2.o awk3.o awk4.o awk5.o awk6.o awk.v.o
-SRCS=awk.y awk0.c awk1.c awk2.c awk3.c awk4.c awk5.c awk6.c
 
-awk:	$(OBJECTS)
-	cc $(LDFLAGS) -o awk $(OBJECTS) -lm
+OBJ=\
+	awk.o\
+	awk0.o\
+	awk1.o\
+	awk2.o\
+	awk3.o\
+	awk4.o\
+	awk5.o\
+	awk6.o
 
-$(OBJECTS): awk.h
+# Primary target.
+awk:	$(OBJ)
+	cc $(LDFLAGS) -o awk $(OBJ) -lm
 
-awk.o: awk.y
+# Secondary targets.
+awk.o:	$(SRC)/awk.y
+awk0.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk0.c
+awk1.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk1.c
+awk2.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk2.c
+awk3.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk3.c
+awk4.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk4.c
+awk5.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk5.c
+awk6.o:	$(SRC)/awk.h $(SRC)/y.tab.h $(SRC)/awk6.c
 
-awk1.o: y.tab.h
+clean:
+	rm $(OBJ)
 
-awk.v.o: $(SRCS)
-	version `pwd` awk $(SRCS) >awk.v.c
-	$(CC) -c $(CFLAGS) awk.v.c
-	rm awk.v.c
+# end of awk/Makefile
