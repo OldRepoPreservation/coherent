@@ -1,6 +1,6 @@
 /*
  * bad.c
- * 2/16/91
+ * 11/6/92
  * Usage: bad option filesystem [ block ... ]
  * Manipulate bad block list.
  */
@@ -46,7 +46,7 @@ char *argv[];
 
 	if (argc < 3)
 		usage();
-	if ((filf=open(argv[2], 2)) < 0)
+	if ((filf=open(argv[2], (argv[1][0] == 'l') ? 0 : 2)) < 0)
 		panic("cannot open \"%s\"", argv[2]);
 	badm = 64;
 	if ((badl=malloc(badm*sizeof(*badl))) == NULL)
