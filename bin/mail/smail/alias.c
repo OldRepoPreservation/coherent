@@ -13,6 +13,9 @@ extern enum edebug debug;	/* verbose and debug modes		*/
 extern char hostdomain[];
 extern char hostname[];
 extern char *aliasfile;
+#ifdef HOMEALIASES
+extern char *homealias;
+#endif /* HOMEALIASES */
 
 /*
 **
@@ -52,6 +55,8 @@ static node aliases = {"", 0, 0}; /* this is the 'dummy header' */
 #define NNULL	((node   *) 0)
 #define CNULL	('\0')
 
+#define TRUE ((int) (1==1))
+#define FALSE ((int) (1==2))
 /*
 ** string parsing macros
 */
@@ -60,6 +65,8 @@ static node aliases = {"", 0, 0}; /* this is the 'dummy header' */
 
 static int nargc = 0;
 static char *nargv[MAXARGS];
+static int no_backslash = TRUE;
+static int last_no_backslash = TRUE;
 
 void	add_horz();
 void	load_alias(), strip_comments();
@@ -309,6 +316,22 @@ char *user;
 	head = &aliases;
 	if(loaded == 0) {
 		load_alias(head, aliasfile);
+#ifdef HOMEALIASES
+		/* Load $HOME/.aliases if there is one.  */
+		/* NB:  Security problem if aliases can pipe to programs.  */
+		if (( homealias = getenv("HOME") ) != NULL ) {
+			FILE *fp;
+
+			strcat(homealias, HOMEALIASES);
+			/* This fopen is just an existence and perm check.  */
+			if((fp = fopen(homealias,"r")) != NULL) {
+				fclose(fp);
+				load_alias(head, homealias);
+			} else {
+				fclose(fp);
+			}
+		}
+#endif
 		loaded = 1;
 	}
 
@@ -376,6 +399,19 @@ DEBUG("load_alias open('%s') failed\n", filename);
 
 	while(fgets(buf, sizeof buf, fp) != NULL) {
 		p = buf;
+
+		/* Check for trailing \, mark for later.  */
+		no_backslash = last_no_backslash;
+		if(strlen(p) > 0) {
+			if(p[strlen(p) - 2 ] == '\\') {
+				last_no_backslash = FALSE;
+			} else {
+				last_no_backslash = TRUE;
+			}
+		} else {
+			last_no_backslash = TRUE;
+		} /* check for trailing \ */
+
 		if((*p == '#') || (*p == '\n')) {
 			continue;
 		}
@@ -392,15 +428,16 @@ DEBUG("load_alias open('%s') failed\n", filename);
 			}
 DEBUG("load_alias '%s' includes file '%s'\n", filename, p);
 			load_alias(head, p);
-			continue;
+			continue; /* bug? line truncated after :include: */
 		}
 
 		/*
 		**  if the first char on the line is a space or tab
+		**  or the last character of the last line was a '\'
 		**  then it's a continuation line.  Otherwise,
 		**  we start a new alias.
 		*/
-		if(*p != ' ' && *p != '\t') {
+		if(*p != ' ' && *p != '\t' && no_backslash) {
 			b = p;
 			SKIPWORD(p);
 			*p++ = CNULL;
@@ -418,6 +455,7 @@ DEBUG("load_alias '%s' includes file '%s'\n", filename, p);
 			*/
 			if((h = add_vert(head, user)) == NNULL) {
 DEBUG("load_alias for '%s' failed\n", b);
+				fclose(fp);
 				return;
 			}
 		}
@@ -427,6 +465,7 @@ DEBUG("load_alias for '%s' failed\n", b);
 		**  horizontal linked list.
 		*/
 		(void) recipients(h, p);
+
 	} /* while (fgets(buf, sizeof buf, fp) != NULL) */
 	(void) fclose(fp);
 	/*
