@@ -220,7 +220,14 @@ dpb()
 } /* dpb() */
 
 
-/* Ask the BIOS how many drives are attached.  */
+/*
+ * Ask the BIOS how many drives are attached.
+ *
+ * If the BIOS says more than MAX_DRIVES, ask again.  Some BIOS's
+ * seem to answer this question differently on alternate calls, or
+ * on the first call.
+ */
+#define MAX_DRIVES 8
 int get_num_of_drives()
 {
 	struct reg r;
@@ -230,7 +237,42 @@ int get_num_of_drives()
 	
 	intcall(&r, &r, DISKINT);
 
-	return(LOW(r.r_dx));
+	if ( verbose_flag ) {
+		/*
+		 * Print out the flags for debugging purposes.
+		 */
+		puts("flags: ");
+		print16(r.r_flags);
+		puts(" ");
+	}
+
+	if (LOW(r.r_dx) > MAX_DRIVES) {
+		puts("I doubt that you have 0x");
+		print8(LOW(r.r_dx));
+		puts(" disk drives.  Let's try again.\r\n");
+
+		r.r_ax = DISK_PARAMS;	/* ah = 8 -- Return disk drive parameters */
+		r.r_dx = HARD_DRIVE;	/* set bit 7 of dl for hard disk info.  */
+		
+		intcall(&r, &r, DISKINT);
+
+		if (LOW(r.r_dx) <= MAX_DRIVES) {
+			puts(" That's better!");
+		}
+	}
+	
+	if (LOW(r.r_dx) > MAX_DRIVES) {
+		puts("I simply don't believe that you have 0x");
+		print8(LOW(r.r_dx));
+		puts(" disk drives.\r\n");
+		puts("I'm going to guess that you have 0x");
+		print8(MAX_DRIVES);
+		puts(" drives.\r\n");
+
+		return(MAX_DRIVES);
+	} else {
+		return(LOW(r.r_dx));
+	}
 } /* get_num_of_drives() */
 
 /* Create a listing of file names in /.  */
