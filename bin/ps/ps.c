@@ -21,10 +21,15 @@ void		vPrintLine();	/* Print ps data */
 dev_t		dvtGetTerminal();/* Get ps controlling terminal */
 int		iState();	/* Is the process asleep, running, or zombie? */
 void 		ReadDevDir();	 /* Read device directory */
+int		iOkToPrint();	/* Is the process one we want to display? */
 
 stMonitor	*pMonData = NULL; 	/* Pointer to an array of data for ps */
 int		iRet;			/* Number of bytes read */
 dev_t		dvtPs;			/* ps device */
+
+#define		MAXPROCESSES	40
+int		aiProcessP[MAXPROCESSES];	/* List of process to print */
+int		iNumProcessP;		/* Number of process to print */
 
 static stDevices	*pstDevFirst= NULL;	/* List of character devices. */
 
@@ -36,6 +41,7 @@ int	iaFlag,		/* Display information from all terminals */
 	ilFlag,		/* Long format */
 	imFlag,		/* Scheduling fields */
 	inFlag,		/* Suppress header line */
+	ipFlag,		/* Print only specified processes */
 	irFlag,		/* Print real size of processes */
 	itFlag,		/* Print elapsed CPU time */
 	iwFlag,		/* Wide format (print 132 columns) */
@@ -67,7 +73,7 @@ char	*argv[];
 	vPrintPs();
 }
 
-/* 
+/*
  * Fetch all data for ps from the kernel.
  */
 void	vGetData()
@@ -112,13 +118,16 @@ vCvtArgs(argc, argv)
 int argc;
 char *argv[];
 {
-	char		*opstring = "ac:dfgk:lmnrtwx";
+	char		*opstring = "ac:defgk:lmnp:rtwx";
 	extern char	*optarg;
 	int		c;
+	char 		*token;
+
 
 	while ((c = getopt(argc, argv, opstring)) != EOF)
 		switch (c) {
 		case 'a':
+		case 'e':
 			iaFlag = 1;
 			break;
 		case 'c':	/* We will just ignore it */
@@ -143,6 +152,18 @@ char *argv[];
 		case 'n':
 			inFlag = 1;
 			break;
+		case 'p':
+			ipFlag = iaFlag = 1;
+
+			token = strtok(optarg, ",");
+			while((token != NULL) && (iNumProcessP < MAXPROCESSES))
+			{
+				aiProcessP[iNumProcessP++] = atoi(token);
+				token = strtok(NULL, ",");
+			}
+			if (iNumProcessP == 0)
+				ipFlag = 0;
+			break;
 		case 'r':
 			irFlag = 1;
 			break;
@@ -155,7 +176,7 @@ char *argv[];
 		case 'x':
 			ixFlag = 1;
 			break;
-		default: 
+		default:
 			usage(c);
 	}
 	if (ilFlag && igFlag)
@@ -174,9 +195,10 @@ void vPrintPs()
 	/* Print the header line */
 	vPrintHeader();
 
-	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1; 
+	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1;
 					pMonTmp >= pMonData; pMonTmp--) {
-		vPrintLine(pMonTmp);
+		if(iOkToPrint(pMonTmp->p_pid))
+			vPrintLine(pMonTmp);
 	}
 }
 
@@ -190,7 +212,7 @@ void vPrintHeader()
 	if (igFlag)
 		printf(" %5s", "GROUP");
 	if (ilFlag)
-		printf(" %5s%9s%5s%5s%2s%9s", 
+		printf(" %5s%9s%5s%5s%2s%9s",
 			"PPID", "UID", "K", "F", "S", "EVENT");
 	if (imFlag)
 		printf(" %8s %8s %8s %8s", "CVAL", "SVAL", "IVAL", "RVAL");
@@ -242,7 +264,7 @@ stMonitor	*pMonLine;
 		 		getpwuid(pMonLine->p_uid)->pw_name);
 		if (irFlag)
 			printf("%5d", pMonLine->rsize);
-		else 
+		else
 			printf("%5d", pMonLine->size);
 		printf("%5o", pMonLine->p_flags);
 		c = iState(pMonLine);
@@ -272,7 +294,7 @@ stMonitor	*pMonLine;
 		ptime(pMonLine->p_stime);
 	}
 				
-	printf("  %s\n", pMonLine->u_comm); 
+	printf("  %s\n", pMonLine->u_comm);
 }
 
 /*
@@ -340,7 +362,7 @@ dev_t	dev;
 }
 
 /*
- * Read device directory and store data in memory. 
+ * Read device directory and store data in memory.
  * This function will not return if it cannot open /dev or run
  * out of memory.
  */
@@ -371,7 +393,7 @@ void ReadDevDir()
 			perror("ps");
 			exit(1);	
 		}
-		if (pstDevFirst == NULL) 
+		if (pstDevFirst == NULL)
 			pstDevFirst = pstDevPrev = pstDevNext;
 		else
 			pstDevPrev->next = pstDevNext;
@@ -399,17 +421,32 @@ dev_t dvtGetTerminal()
 	iPid = getpid();
 	
 	/* Go through all data until ps id will be found */
-	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1; 
-					pMonTmp >= pMonData; pMonTmp--) 
+	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1;
+					pMonTmp >= pMonData; pMonTmp--)
 		if (pMonTmp->p_pid == iPid)
 			return pMonTmp->p_ttdev;
 
 	return 0;
 }
-		
+
+/* If ipflag is set, only print specified processes */
+iOkToPrint(pnum)
+int pnum;
+{
+	int i = 0;
+
+	if (!ipFlag)
+		return 1;
+	
+	while (i < iNumProcessP)
+		if (aiProcessP[i++] == pnum)
+			return 1;
+	return 0;
+}
+
 usage()
 {
-	printf("usage: ps [-afglmnrtwx]\n");
+	printf("usage: ps [-aefglmnrtwx]\n");
 	exit(1);
 }
 
