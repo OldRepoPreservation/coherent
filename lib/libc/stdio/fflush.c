@@ -1,6 +1,7 @@
 /*
- * Standard I/O Library
- * Write out any unwritten data in buffer
+ * libc/stdio/fflush.c
+ * Standard I/O Library.
+ * Write out any unwritten data in buffer.
  */
 
 #include <stdio.h>
@@ -10,13 +11,13 @@ int
 fflush(fp)
 register FILE	*fp;
 {
-	register int	cc;
+	register int n, cc, oerrno;
 
-	fp->_cc = 0;
-	errno = 0;
-	if (fp->_ff&_FERR) {
-		return (EOF);
-	} else if ((cc = fp->_cp - fp->_dp) <= 0
+	oerrno = errno;
+	n = errno = fp->_cc = 0;
+	if (fp->_ff&_FERR)
+		n = EOF;
+	else if ((cc = fp->_cp - fp->_dp) <= 0
 	 || write(fileno(fp), fp->_dp, cc) == cc
 	 || errno == EINTR) {
 		if (cc < 0)
@@ -25,9 +26,13 @@ register FILE	*fp;
 			fp->_dp = fp->_cp = fp->_bp;
 		else
 			fp->_dp = fp->_cp;
-		return (0);
 	} else {
 		fp->_ff |= _FERR;
-		return (EOF);
+		n = EOF;
 	}
+	if (errno == 0)
+		errno = oerrno;
+	return n;
 }
+
+/* end of libc/stdio/fflush.c */
