@@ -1,0 +1,120 @@
+$Log$
+
+State Machines for ss Driver.
+-----------------------------
+
+Host States.
+	H_IDLE.
+		Host adapter not in use.  May be awaiting reselect on one
+		or more devices.
+
+	H_ARBITRATING.
+		Awaiting arbitration complete on some drive.
+
+Target States.
+	T_IDLE.
+		Target device not in use.  No reselect pending.
+
+	T_DISCONNECTED.
+		Disconnected;  reselect is expected from this device.
+
+	T_BUSY.
+		Target device failed with Device Busy status.  Waiting to
+		repeat previous command.
+
+	T_CHECK.
+		Target device failed with Device Check status.  Need to
+		execute Request Status and repeat previous command.
+
+	T_TIMED_OUT.
+		Target device failed with a timeout at some point during a
+		SCSI bus cycle.  Waiting to retry previous command.
+
+Inputs.
+	I_CALL_SSBLOCK.
+		The kernel routine dblock() has called the block routine
+		for this drive.
+
+	I_INTERRUPT.
+		An IRQ for the host has occurred, indicating that SELECT has
+		gone active on the SCSI bus.
+
+	I_HOST_WATCHDOG.
+		Once started, the host watchdog will be invoked once per second
+		until stopped.
+
+	I_TGT_WATCHDOG.
+		Once started, a target watchdog will be invoked once per second
+		until stopped.
+
+	I_HOST_TIMEOUT.
+		A timeout set for the host adapter has expired.  Only one host
+		timeout may be set at a time.
+
+	I_TGT_TIMEOUT.
+		A timeout set for a target device has expired.  Only one target
+		timeout per device may be set at a time.
+
+1. Host State = H_IDLE.
+	a.  input = I_CALL_SSBLOCK (valid arguments assumed).
+		Load arguments to ssblock() into a request node and place at
+		tail of request queue for the target.
+		If tgt_state = T_IDLE
+			Read block request for this drive nondestructively from
+			head of request queue and load the work structure for
+			this drive.
+			device_try_count <- 0
+			device_reset_done  <- 0
+			Start host watchdog.
+			Send control codes to start arbitration.
+			Go into high priority loop looking for arbitration
+			complete.
+			If arbitration not complete at end of loop
+				host_state <- H_ARBITRATING.
+				Set host timeout to 250 msec
+			Else
+				Stop host watchdog.
+				Attempt to get to information transfer phases.
+				Allow interrupts after last byte of command
+				is sent.
+				Update static byte counts for the current
+				request.
+				When information transfer phase ends:
+				If disconnect message was received
+					Start target watchdog.
+					tgt_state <- T_DISCONNECTED.
+				else if command status is BUSY
+					Set target timeout to 250 msec.
+					tgt_state <- T_BUSY.
+				else if command status is CHECK
+					Set target timeout to 0 msec. (defer)
+					tgt_state <- T_CHECK.
+				else if command status is COMPLETE
+					Turn off target watchdog.
+					If this was a kernel block request
+						Update b_resid.
+						Release buffer to the kernel.
+					Clear work structure for the drive.
+					tgt_state <- T_IDLE.
+				else // something timed out during SCSI cycle
+					Set target timeout to 250 msec.
+					tgt_state <- T_BUSY.
+		Else // tgt_state != T_IDLE
+			Drive is busy and has pending timeout or watchdog.
+			Do nothing.
+	b.  input = I_INTERRUPT.
+	c.  input = I_WATCHDOG.
+	d.  input = I_TO_HOST.
+
+2. Host State = H_ARBITRATING.
+	a.  input = I_CALL_SSBLOCK.
+	b.  input = I_INTERRUPT.
+	c.  input = I_WATCHDOG.
+		Cancel host adapter timeout.
+	d.  input = I_TO_HOST.
+
+3. Host State = H_xxx.
+	a.  input = I_CALL_SSBLOCK.
+	b.  input = I_INTERRUPT.
+	c.  input = I_WATCHDOG.
+	d.  input = I_TO_HOST.
