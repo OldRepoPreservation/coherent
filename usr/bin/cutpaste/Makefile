@@ -1,4 +1,4 @@
-DESTDIR=/interim/usr/bin
+DESTDIR=/interim/usr/bin/
 
 all:	cut paste
 	>done
