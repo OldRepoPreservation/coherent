@@ -4,7 +4,7 @@
  * Purpose:	Diskette device control.
  *		Requires 765 controller module fdc.c
  *
- * Revised: Wed May  5 11:23:53 1993 CDT
+ * Revised: Wed Jul 14 13:11:34 1993 CDT
  */
 
 /*
@@ -28,9 +28,9 @@
 #include	<sys/devices.h>
 #include	<sys/fdc765.h>
 #include	<sys/fdioctl.h>
+#include	<sys/file.h>
 #include	<sys/sched.h>
 #include	<sys/stat.h>
-#include	<sys/file.h>
 
 /*
  * ----------------------------------------------------------------------
@@ -453,7 +453,7 @@ int	mode;
 					x_sleep(&fl.fl_state,
 					  pridisk, slpriSigCatch, "flopen");
 
-				if (nondsig ()) {  /* signal? */
+				if (nondsig()) {  /* signal? */
 					u.u_error = EINTR;
 					drv_locked[unit_number] = 0;
 					goto badFlopen;
@@ -988,8 +988,8 @@ TryRate:
 			fdcRate(fl.fl_rate_set);
 		}
 GetNextID:
-		fdcPut(CMDRDID);
-		fdcPut(fl.fl_unit);		/* Always read side 0. */
+		/* Always read side 0. */
+		fdcReadID(fl.fl_unit, 0);
 
 		break;				/* Wait for ID to arrive. */
 
@@ -1100,10 +1100,9 @@ T_HAL(0x40000, printf("SRDID "));
 
 		/*
 		 * --otherwise we check to see:
+		 * Try to read ANY sector ID from side two.
 		 */
-
-		fdcPut(CMDRDID); 		/* Just try to read ANY sector*/
-		fdcPut(fl.fl_unit | 0x04);	/* ID from side two.	      */
+		fdcReadID(fl.fl_unit, 1);
 		fl.fl_state = SSIDTST;
 		break;
 
@@ -1229,18 +1228,18 @@ T_HAL(0x40000, printf("SLOCK "));
 
 		fl.fl_time[fl.fl_unit] = 0;
 
-		flcmd = CMDRDAT;
+		flcmd = FDC_CMD_RDAT;
 		fl.fl_wflag = 0;
 
 		if (fl_clrng_cd == 0)
 			if (bp->b_req == BWRITE) {
 				fl.fl_wflag = 1;
-				flcmd = CMDWDAT;
+				flcmd = FDC_CMD_WDAT;
 			}
 
 			else if (bp->b_req == BFLFMT) {
 				fl.fl_wflag = 1;
-				flcmd = CMDFMT;
+				flcmd = FDC_CMD_FMT;
 
 				if(!dmaon(DMA_CH2, P2P(fl.fl_addr),bp->b_count,
 				  fl.fl_wflag))
@@ -1582,7 +1581,7 @@ flDrvStatus()
 	for (;;) {
 		/* Check for incoming signal. */
 		spl(s);
-		if (nondsig ()) {  /* signal? */
+		if (nondsig()) {  /* signal? */
 			u.u_error = EINTR;
 			break;
 		}
