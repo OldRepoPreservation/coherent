@@ -5,19 +5,31 @@ DESTDIR2= /interim/lib/
 CMDS= expr/expr conv/conv as/as awk/awk  \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
       ed/ed find/find grep/grep lex/lex lmail smail make/make sed/sed sh/sh \
-      test/test tsort/tsort yacc/yacc nroff/nroff ld/ld debugger\
+      test/test tsort/tsort yacc/yacc nroff/nroff ld debugger detab printers \
       login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
       chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
       factor file fixstack from head help join kill lc ln look ls m4 mail man \
       mesg mkdir msg mv newgrp nm od pr prep prof pwd quot ranlib rev rm rmdir \
       sa scat size sleep sort split strings strip stty sum sync tail tar tee \
       time touch tr tty typo uniq units wc who write yes qfind umount true \
-      shutdown phone mount fnkey false msgs clear epson cgrep
+      shutdown phone mount fnkey false msgs clear epson cgrep uucheckperms \
+      which chroot env
 
 all:	$(CMDS)
 	>all
 # include file deftty.h defines the default ERASE, KILL and INTERRUPT 
 # characters for ttys.
+
+env:	env.c execvep.c
+	cc $< -o $(DESTDIR)$@
+	su root chmog 511 bin bin $(DESTDIR)$@
+
+chroot:	chroot.c
+	cc $< -o $(DESTDIR)$@
+	su root chmog 500 root root $(DESTDIR)$@
+	
+printers:
+	export SRCPATH=.. ; cd lpr/objects ; make
 
 debugger:
 	cd db ; make
@@ -26,6 +38,8 @@ compiler:
 	export SRC=/newbits/bin/cc/c ; . /newbits/bin/cc/c/.profile ; cd cc/work ; make
 	su root mv cc/work/bin/cc $(DESTDIR)cc
 	su root chmog 511 bin bin $(DESTDIR)cc
+	su root mv cc/work/bin/cc0 $(DESTDIR2)cc0
+	su root chmog 511 bin bin $(DESTDIR2)cc0
 	su root mv cc/work/bin/cc1 $(DESTDIR2)cc1
 	su root chmog 511 bin bin $(DESTDIR2)cc1
 	su root mv cc/work/bin/cc2 $(DESTDIR2)cc2
@@ -35,11 +49,11 @@ compiler:
 	su root mv cc/work/bin/cpp $(DESTDIR2)cpp
 	su root chmog 511 bin bin $(DESTDIR2)cpp
 
-ld/ld:
-	cd ld/objects ; export SRCPATH=.. ; make
+ld:
+	cd load/objects ; export SRCPATH=.. ; make
 
-login:	login.c deftty.h
-	$(CC) $(CFLAGS) -o $(DESTDIR)login login.c
+login:	login.c lock.c deftty.h
+	$(CC) $(CFLAGS) $< -o $(DESTDIR)$@
 	su root chmog 4511 root root $(DESTDIR)$@
 
 passwd:	passwd.c
@@ -477,21 +491,15 @@ true:
 
 shutdown:
 	su root co $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
+	su root chmog 500 root root $(DESTDIR)$@
 
 ps:	ps.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)$@ ps.c
-	su root chown sys $(DESTDIR)$@
-	su root chgrp sys $(DESTDIR)$@
-	su root chmod 6511 $(DESTDIR)$@
+	su root chmog 6511 sys sys $(DESTDIR)$@
 
 phone:
 	su root co $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 555 $(DESTDIR)$@
+	su root chmog 555 bin bin $(DESTDIR)$@
 
 fnkey:	fnkey.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)$@ fnkey.c
@@ -520,3 +528,22 @@ cgrep: cgrep.c
 	cc -O -o $(DESTDIR)$@ cgrep.c -lmisc
 	su root chmog 511 bin bin $(DESTDIR)$@
 
+detab:
+	export SRCPATH=.. ; cd /newbits/usr/bin/emacs/objects ; make detab
+
+uucheckperms:
+	cd uucheck ; make
+
+which:	which.c
+	cc -O -o $(DESTDIR)$@ $<
+	su root chmog 511 bin bin $(DESTDIR)$@
+
+# /bin/login for mwcbbs
+bbslogin:	login.o chk_srlno.o numtab.o
+	cc -DBBS -DNEWTTYS -o $(DESTDIR)bbs.login login.o chk_srlno.o numtab.o
+	su root chmog 6511 root root $(DESTDIR)bbs.login
+
+chk_srlno.o : chk_srlno.c unumber.h
+
+login.o:	login.c
+	cc -DBBS -DNEWTTYS -c login.c
