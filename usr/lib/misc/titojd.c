@@ -2,7 +2,7 @@
  * Convert COHERENT time into julian date
  */
 #include "time.h"
-#include "misc.h"
+#include "local_misc.h"
 jday_t
 time_to_jday(t)
 time_t t;

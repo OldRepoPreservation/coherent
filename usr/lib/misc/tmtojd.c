@@ -3,7 +3,7 @@
  * Algorithm from Duffett-Smith, Practical Astronomy With Your Calculator
  * Also Meeus, Astronomical Formulae for Calculators
  */
-#include "misc.h"
+#include "local_misc.h"
 
 /* Pack year, month, and day into long package for easy compares */
 #define pymd(y,m,d)	(((long)(y)<<16)|((m)<<8)|(d))

@@ -9,7 +9,7 @@
  *	$		end of string
  * if patttern is found fin is aimed past the end of the pattern.
  */
-#include "misc.h"
+#include "local_misc.h"
 
 /*
  * amatch is used internally by match.
