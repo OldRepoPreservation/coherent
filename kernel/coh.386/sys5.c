@@ -21,6 +21,7 @@
 #include <sys/mount.h>
 #include <ustat.h>
 #include <sys/statfs.h>
+#include <sys/sysi86.h>
 
 utime(tp)
 long *tp;
@@ -31,10 +32,13 @@ long *tp;
 /*
  * Return an unique number.
  */
-usysi86(f, arg1, arg2, arg3)
+usysi86(f, arg1)
 {
 	register MOUNT *mp;
 	register struct filsys *fsp;
+	extern void (*ndpEmFn)();
+	int fpval;
+	extern short ndpType;
 
 	switch (f) {
 	case SYI86UNEEK:
@@ -43,16 +47,22 @@ usysi86(f, arg1, arg2, arg3)
 		fsp = &mp->m_super;
 		fsp->s_fmod = 1;
 		return (++fsp->s_unique);
-	case 40:
+	case SI86FPHW:
 		/* 
-		 * bit 2: floating point is present (80287/80387)
-		 * bit 1: 80387 is present
+		 * 2's bit: floating point ndp is present (80287/80387/80486dx)
+		 * 1's bit (when 2's bit = 1): 80387/486dx is present
 		 */
 		if (!useracc(arg1, sizeof(int), 1)) {
-			SET_U_ERROR(EFAULT, "sysi386:40");
+			SET_U_ERROR(EFAULT, "sysi386:SI86FPHW");
 			return;
 		}
-		putuwd(arg1, 0);			
+		if (ndpType <= 1) { /* no ndp */
+			fpval = (ndpEmFn) ? FP_SW : FP_NO;
+		} else {
+			fpval = (ndpType > 2) ? FP_387 : FP_287;
+		}
+		putuwd(arg1, fpval);
+		return 0;
 		break;
 	}
 }
@@ -61,12 +71,9 @@ ushmsys(func, arg1, arg2, arg3)
 int func, arg1, arg2, arg3;
 {
 	switch(func){
-
-#if 0
 		case 0: return ushmat(arg1, arg2, arg3);
-		case 1: return ushmdt(arg1);
-#endif
-		case 2: return ushmctl(arg1, arg2, arg3);
+		case 1: return ushmctl(arg1, arg2, arg3);
+		case 2: return ushmdt(arg1);
 		case 3: return ushmget(arg1, arg2, arg3);
 		default: u.u_error = EINVAL;
 	}

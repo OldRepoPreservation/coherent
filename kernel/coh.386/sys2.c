@@ -38,13 +38,13 @@ register int mode;
 	schizo();
 	r = ftoi(np, 'r');
 	schizo();
-	if (r != 0)
+	if (r)
 		return;
 	ip = u.u_cdiri;
 	if ((mode&imode(ip, u.u_ruid, u.u_rgid)) != mode)
 		u.u_error = EACCES;
 	idetach(ip);
-	return (0);
+	return 0;
 }
 
 /*
@@ -84,7 +84,7 @@ register char *np;
 			u.u_error = EINVAL;
 			return;
 		}
-		if (ftoi(np, 'r') != 0)
+		if (ftoi(np, 'r'))
 			return;
 		ip = u.u_cdiri;
 		if ((ip->i_mode&IFMT) != IFREG) {
@@ -95,7 +95,7 @@ register char *np;
 		iunlock(ip);
 		acctip = ip;
 	}
-	return (0);
+	return 0;
 }
 
 /*
@@ -105,7 +105,7 @@ uchdir(np)
 char *np;
 {
 	setcdir(np, &u.u_cdir);
-	return (0);
+	return 0;
 }
 
 /*
@@ -120,7 +120,7 @@ register INODE **ipp;
 {
 	register INODE *ip;
 
-	if (ftoi(np, 'r') != 0)
+	if (ftoi(np, 'r'))
 		return;
 	ip = u.u_cdiri;
 	if ((ip->i_mode&IFMT) != IFDIR) {
@@ -146,18 +146,18 @@ char *np;
 {
 	register INODE *ip;
 
-	if (ftoi(np, 'r') != 0)
+	if (ftoi(np, 'r'))
 		return;
 	ip = u.u_cdiri;
 	if (owner(ip->i_uid)) {
-		if (u.u_uid != 0)
+		if (u.u_uid)
 			mode &= ~ISVTXT;
 		ip->i_mode &= IFMT;
 		ip->i_mode |= mode&~IFMT;
 		icrt(ip);	/* chmod - ctime */
 	}
 	idetach(ip);
-	return (0);
+	return 0;
 }
 
 /*
@@ -168,7 +168,7 @@ char *np;
 {
 	register INODE *ip;
 
-	if (ftoi(np, 'r') != 0)
+	if (ftoi(np, 'r'))
 		return;
 	ip = u.u_cdiri;
 	if (super()) {
@@ -178,7 +178,7 @@ char *np;
 		icrt(ip);	/* chown - ctime */
 	}
 	idetach(ip);
-	return (0);
+	return 0;
 }
 
 /*
@@ -189,7 +189,7 @@ register char *np;
 {
 	if (super())
 		setcdir(np, &u.u_rdir);
-	return (0);
+	return 0;
 }
 
 /*
@@ -198,7 +198,7 @@ register char *np;
 uclose(fd)
 {
 	fdclose(fd);
-	return (0);
+	return 0;
 }
 
 /*
@@ -234,7 +234,7 @@ struct stat *stp;
 	ip = fdp->f_ip;
 	istat(ip, &stat);
 	kucopy(&stat, stp, sizeof(stat));
-	return (0);
+	return 0;
 }
 
 /*
@@ -355,7 +355,7 @@ struct sgttyb *argp;
 		return;
 	}
 	dioctl(ip->i_a.i_rdev, r, argp);
-	return (0);
+	return 0;
 }
 
 /*
@@ -367,7 +367,7 @@ char *np2;
 {
 	register INODE *ip1;
 
-	if (ftoi(np1, 'r') != 0)
+	if (ftoi(np1, 'r'))
 		return;
 	ip1 = u.u_cdiri;
 	if ((ip1->i_mode&IFMT)==IFDIR && super()==0) {
@@ -375,7 +375,7 @@ char *np2;
 		return;
 	}
 	iunlock(ip1);
-	if (ftoi(np2, 'c') != 0) {
+	if (ftoi(np2, 'c')) {
 		ldetach(ip1);
 		return;
 	}
@@ -408,7 +408,7 @@ char *np2;
 		ip1->i_nlink++;
 	icrt(ip1);	/* link - ctime */
 	idetach(ip1);
-	return (0);
+	return 0;
 }
 
 /*
@@ -466,7 +466,7 @@ dev_t rdev;
 		return;
 	if (type!=IFBLK && type!=IFCHR)
 		rdev = 0;
-	if (ftoi(np, 'c') != 0)
+	if (ftoi(np, 'c'))
 		return;
 	if ((ip=u.u_cdiri) != NULL) {
 		u.u_error = EEXIST;
@@ -475,7 +475,7 @@ dev_t rdev;
 	}
 	if ((ip=imake(mode, rdev)) != NULL)
 		idetach(ip);
-	return (0);
+	return 0;
 }
 
 /*
@@ -491,7 +491,7 @@ char *np;
 	register dev_t rdev;
 	register int mode;
 
-	if (ftoi(sp, 'r') != 0)
+	if (ftoi(sp, 'r'))
 		return;
 	ip = u.u_cdiri;
 	if (iaccess(ip, IPR|IPW) == 0)
@@ -503,7 +503,7 @@ char *np;
 		goto err;
 	}
 	idetach(ip);
-	if (ftoi(np, 'r') != 0)
+	if (ftoi(np, 'r'))
 		return;
 	ip = u.u_cdiri;
 	if (iaccess(ip, IPR) == 0)
@@ -530,7 +530,7 @@ char *np;
 	ip->i_refc++;
 err:
 	idetach(ip);
-	return (0);
+	return 0;
 }
 
 /*
@@ -614,20 +614,21 @@ int msec;
 				goto remember;
 			}
 
-			/*
-			 * Non-character device.
-			 */
-			if ((fdp->f_ip->i_mode & IFMT) != IFCHR) {
-printf("polling non-CHR device: fd=%d mode=%x\n", fd, fdp->f_ip->i_mode);
+			switch ( fdp->f_ip->i_mode & IFMT ) {
+			case IFCHR:
+				rev = dpoll(fdp->f_ip->i_a.i_rdev,
+					getusd(&pollp->events)&0xffff, msec);
+				break;
+			case IFPIPE:
+				rev = ppoll(fdp->f_ip,
+					getusd(&pollp->events)&0xffff, msec);
+				break;
+			default:
+				printf("polling illegal dev: fd=%d mode=%x\n",
+					fd, fdp->f_ip->i_mode);
 				rev = POLLNVAL;
-				goto remember;
+				break;
 			}
-
-			/*
-			 * Poll character device driver.
-			 */
-			rev = dpoll(fdp->f_ip->i_a.i_rdev,
-			  getusd(&pollp->events)&0xffff, msec);
 
 			/*
 			 * Remember reponses.
@@ -694,7 +695,7 @@ remember:
 			goto poll_done;
 		}
 
-	} while (msec != 0);
+	} while (msec);
 
 	ret = 0;
 
