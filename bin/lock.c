@@ -7,52 +7,86 @@
 #include <stdio.h>
 #include <access.h>
 
-#define LOCK	"/usr/spool/uucp/LCK.."
+#define	LOKFLEN		64	/* Max Length of UUCP Lock File Name	*/
+#define SPOOLDIR	"/usr/spool/uucp"
+#define	LOCKSIG		9	/* Significant Chars of Lockable Resource  */
+#define LOCKDIR	SPOOLDIR
+#define	LOCKPRE	"LCK.."
 
-static	char	lockfile[80];
+/*
+ *  lockit(resource)  char *resource;
+ *
+ *  Lock the given resource.
+ *  Returns (-1) if already locked or error in locking.
+ *          ( 0) if all ok, resource locked.
+ */
 
-char *
 lockit(resource)
 char *resource;
 {
 	int lockfd;
+	char lockfn[LOKFLEN];
 
-	strcpy(lockfile, LOCK);
-	strcat(lockfile, resource);
-	if ( (access(lockfile, AEXISTS) == 0) ||
-	     ((lockfd=creat(lockfile, 0)) == -1) )
-		return( NULL );
+	sprintf(lockfn, "%s/%s%.*s", LOCKDIR, LOCKPRE, LOCKSIG, resource);
+	if ( (access(lockfn, AEXISTS) == 0) ||
+	     ((lockfd=creat(lockfn, 0)) == -1) ) {
+#ifdef UUCP
+		printmsg(M_DEBUG, "Can't lock: %s", lockfn);
+#endif /* UUCP */
+		return( -1 );
+	}
+#ifdef UUCP
+	printmsg(M_DEBUG, "Just locked: %s", lockfn);
+#endif /* UUCP */
 	close(lockfd);
-	return( lockfile );
-}
-
-/* Lock removal routine symetric with lockit() */
-unlockit(resource)
-char *resource;
-{
-	strcpy(lockfile, LOCK);
-	strcat(lockfile, resource);
-	lockrm(lockfile);
-}
-
-lockrm(the_lockfile)
-char	*the_lockfile;
-{
-	if (*the_lockfile != '\0')
-		unlink(the_lockfile);
+	return( 0 );
 }
 
 /*
- *	locktry
- *	if the lock cannot be written, return 1
+ *  lockrm(resource)  char *resource;
+ *
+ *  Simply remove the lock on the given resource.
+ *  Returns (-1) if not locked or error in unlocking.
+ *          ( 0) if all ok, resource lock removed.
  */
-int
+
+lockrm(resource)
+char *resource;
+{
+	char lockfn[LOKFLEN];
+
+	if ( resource == NULL )
+		return( 0 );
+	sprintf(lockfn, "%s/%s%.*s", LOCKDIR, LOCKPRE, LOCKSIG, resource);
+	if ( unlink(lockfn) < 0 ) {
+#ifdef UUCP
+		printmsg(M_DEBUG, "Error unlocking: %s", lockfn);
+#endif /* UUCP */
+		return( -1 );
+	} else {
+#ifdef UUCP
+		printmsg(M_DEBUG, "Just unlocked: %s", lockfn);
+#endif /* UUCP */
+		return( 0 );
+	}
+}
+
+/*
+ *  lockexist(resource)  char *resource;
+ *
+ *  Test for existance of a lock on the given resource.
+ *
+ *  Returns:  (1)  Resource is locked.
+ *	      (0)  Resource is not locked.
+ */
+
 lockexist(resource)
 char	*resource;
 {
-	strcpy(lockfile, LOCK);
-	strcat(lockfile, resource);
-	if (access(lockfile, AEXISTS) == 0)
-		return 1;
-	return 0;
+	char lockfn[LOKFLEN];
+
+	if ( resource == NULL )
+		return(0);
+	sprintf(lockfn, "%s/%s%.*s", LOCKDIR, LOCKPRE, LOCKSIG, resource);
+	return( !access(lockfn, AEXISTS) );
 }
