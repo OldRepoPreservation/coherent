@@ -139,6 +139,7 @@ static void asyparam();
 static void asysph();
 static void asyspr();
 static void asystart();
+static void endbrk();
 static void irqdummy();
 static void upd_irq1();
 
@@ -653,9 +654,7 @@ int mode;
 
 	a1->a_hcls = 1;			/* disallow reopen til done closing */
 	flags = tp->t_flags;		/* save flags - ttclose zeroes them */
-#if 1
 	ttclose(tp);
-#endif
 
 	/*
 	 * Wait for output silo and UART xmit buffer to empty.
@@ -809,28 +808,29 @@ int	com; struct sgttyb *vec;
 	asy1_t	*a1 = asy1 + chan;
 	TTY	*tp = &a1->a_tty;
 	int	s;
-	int	stat1, stat2;
+	int	temp;
 	silo_t	*out_silo = &a1->a_out;
 	silo_t	*in_silo = &a1->a_in;
 	short	port = a0->a_port;
-	char	msr;
-	char	ier_save;
+	unsigned char	msr, mcr, lcr, ier;
 	char	do_ttioctl = 0;
 	char	do_asyparam = 0;
 
 	s = sphi();
-	ier_save = inb(port+IER);
-	stat1 = inb(port+MCR);		/* get current MCR register status */
-	stat2 = inb(port+LCR);		/* get current LCR register status */
+	ier = inb(port+IER);
+	mcr = inb(port+MCR);		/* get current MCR register status */
+	lcr = inb(port+LCR);		/* get current LCR register status */
 
-#if 0
+#ifdef _I386
 	/*
-	 * If command will drain input, do the drain now
+	 * If command will drain output, do the drain now
 	 * before calling ttioctl().
+	 * Don't do this for 286 kernel:  we're running out of code space.
 	 */
 	switch(com) {
 	case TCSETAW:
 	case TCSETAF:
+	case TCSBRK:
 	case TIOCSETP:
 		/*
 		 * Wait for output silo and UART xmit buffer to empty.
@@ -854,36 +854,36 @@ int	com; struct sgttyb *vec;
 
 	switch(com) {
 	case TIOCSBRK:			/* set BREAK */
-		outb(port+LCR, stat2|LC_SBRK);
+		outb(port+LCR, lcr|LC_SBRK);
 		break;
 	case TIOCCBRK:			/* clear BREAK */
-		outb(port+LCR, stat2 & ~LC_SBRK);
+		outb(port+LCR, lcr & ~LC_SBRK);
 		break;
 	case TIOCSDTR:			/* set DTR */
-		outb(port+MCR, stat1|MC_DTR);
+		outb(port+MCR, mcr|MC_DTR);
 		break;
 	case TIOCCDTR:			/* clear DTR */
-		outb(port+MCR, stat1 & ~MC_DTR);
+		outb(port+MCR, mcr & ~MC_DTR);
 		break;
 	case TIOCSRTS:			/* set RTS */
-		outb(port+MCR, stat1|MC_RTS);
+		outb(port+MCR, mcr|MC_RTS);
 		break;
 	case TIOCCRTS:			/* clear RTS */
-		outb(port+MCR, stat1 & ~MC_RTS);
+		outb(port+MCR, mcr & ~MC_RTS);
 		break;
 	case TIOCRSPEED:		/* set "raw" I/O speed divisor */
-		outb(port+LCR, stat2|LC_DLAB);  /* set speed latch bit */
+		outb(port+LCR, lcr|LC_DLAB);  /* set speed latch bit */
 		outb(port+DLL, (unsigned) vec);
 		outb(port+DLH, (unsigned) vec >> 8);
-		outb(port+LCR, stat2);       /* reset latch bit */
+		outb(port+LCR, lcr);       /* reset latch bit */
 		break;
 	case TIOCWORDL:		/* set word length and stop bits */
-		outb(port+LCR, ((stat2&~0x7) | ((unsigned) vec & 0x7)));
+		outb(port+LCR, ((lcr&~0x7) | ((unsigned) vec & 0x7)));
 		break;
 	case TIOCRMSR:		/* get CTS/DSR/RI/RLSD (MSR) */
 		msr = inb(port+MSR);
-		stat1 = msr >> 4;
-		kucopy(&stat1, (unsigned *) vec, sizeof(unsigned));
+		temp = msr >> 4;
+		kucopy(&temp, (unsigned *) vec, sizeof(unsigned));
 		break;
 	case TIOCFLUSH:		/* Flush silos here, queues in tty.c */
 		RAWIN_FLUSH(in_silo);
@@ -924,13 +924,54 @@ int	com; struct sgttyb *vec;
 	default:
 		do_ttioctl = 1;
 	}
-	outb(port+IER, ier_save);
+	outb(port+IER, ier);
 	if (do_ttioctl)
 		ttioctl(tp, com, vec);
 	spl(s);
 	if (do_asyparam)
 		asyparam(tp);
+#ifdef _I386
+	/*
+	 * Things to be done after calling ttioctl().
+	 */
+	switch(com) {
+	case TCSBRK:
+		/*
+		 * Send 0.25 second break:
+		 * 1.  Turn on break level.
+		 * 2.  Set timer to turn off break level 0.25 sec later.
+		 * 3.  Sleep till timer expires.
+		 * 4.  Turn off break level.
+		 */
+		outb(port+LCR, lcr|LC_SBRK);
+		a1->a_brk = 1;
+		timeout(&tp->t_sbrk, HZ/4, endbrk, chan);
+		while(a1->a_brk) {
+			v_sleep(a1, CVTTOUT, IVTTOUT, SVTTOUT, "asybreak");
+			if (SELF->p_ssig && nondsig()) {  /* signal? */
+				break;
+			}
+		}
+		outb(port+LCR, lcr & ~LC_SBRK);
+	}
+#endif
 }
+
+#ifdef _I386
+/*
+ * Turn off the break level.
+ * Called from timeout after ioctl(fd, TCSBRK, 0).
+ */
+void
+endbrk(chan)
+int chan;
+{
+	asy1_t	*a1 = asy1 + chan;
+
+	a1->a_brk = 1;
+	wakeup(a1);
+}
+#endif
 
 /*
  * asyparam()
@@ -945,7 +986,7 @@ TTY * tp;
 	short	port = a0->a_port;
 	int	s;
 	int	write_baud=1, write_lcr=1;
-	char	newlcr, speed;
+	unsigned char	mcr, newlcr, speed, oldSpeed;
 
 #ifdef _I386
 	unsigned short cflag = tp->t_termio.c_cflag;
@@ -985,7 +1026,8 @@ TTY * tp;
 	 * Writing baud rate resets the port, which loses characters.
 	 * You want this on first open, NOT on later opens.
 	 */
-	if (speed == a0->a_speed && tp->t_open) {
+	oldSpeed = a0->a_speed;
+	if (speed == oldSpeed && tp->t_open) {
 		write_baud = 0;
 		if (newlcr == a1->a_lcr) {
 			write_lcr = 0;
@@ -999,12 +1041,24 @@ TTY * tp;
 		s = sphi();
 		ier_save = inb(port+IER);
 		if (write_baud) {
-			short divisor = albaud[speed];
+			if (speed) {
+				short divisor = albaud[speed];
 
-			T_HAL(4, printf("CH%d speed=%x\n", chan, speed));
-			outb(port+LCR, LC_DLAB);
-			outb(port+DLL, divisor);
-			outb(port+DLH, divisor >> 8);
+				if (oldSpeed == 0) {
+					/* if previous baud rate was zero,
+					 * need to go off hook. */
+					mcr = inb(port+MCR) | (MC_RTS | MC_DTR);
+					outb(port+MCR, mcr);
+				}
+				T_HAL(4, printf("CH%d speed=%x\n", chan, speed));
+				outb(port+LCR, LC_DLAB);
+				outb(port+DLL, divisor);
+				outb(port+DLH, divisor >> 8);
+			} else {
+				/* Baud rate of zero means hang up. */
+				mcr = inb(port+MCR) & ~(MC_RTS | MC_DTR);
+				outb(port+MCR, mcr);
+			}
 		}
 		T_HAL(4, printf("CH%d newlcr=%x\n", chan, newlcr));
 		outb(port+LCR, newlcr);
