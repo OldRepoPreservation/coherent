@@ -69,9 +69,9 @@ _bread_:
 	test	ax, ax			/ if block 0, return zeroed buffer
 	jnz	3f
 	test	dx, dx
+	jnz	3f
 	movb	al, $1			/ Say that we read 1 block.
-	jz	2f
-
+	jmp	2f
 	/ Translate block number into cylinder, head, and sector.
 3:	add	ax, first		/ add first block
 	adc	dx, first+2		/ add rest
