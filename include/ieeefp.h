@@ -1,8 +1,9 @@
-/* excerpted from Intel 386 Architecture BCS Supplement, Intel Draft 3/3/90 */
+#ifndef IEEEFP_H
+#define IEEEFP_H
 struct _fpstackframe {
 	long	signo;
 	long	regs[SS+1];
-	struct _fpstat *fpsp;
+	struct _fpstate *fpsp;
 	char	*wsp;
 };
 
@@ -12,13 +13,14 @@ struct _fpreg {
 };
 
 struct _fpstate {
-	unsigned	longcw,
-	sw,
-	tag,
-	ipoff,
-	csssel,
-	dataoff,
-	datasel;
-	struct	_fpreg	st[8];
-	unsigned longstatus;
+	unsigned long	cw,
+			sw,
+			tag,
+			ipoff,
+			cssel,
+			dataoff,
+			datasel;
+	struct _fpreg	_st[8];
+	unsigned long	status;
 };
+#endif
