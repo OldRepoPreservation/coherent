@@ -4,77 +4,77 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * French standard AT keyboard code table.
+ * Canadian French AT keyboard code table.
  *
  *	See header files for definitions and constants.
  *
- *	Version: 1.1, 06/25/91
+ *	Version: 1.2, 07/08/91
  */
 #include <sys/kbscan.h>
 #include <sys/kb.h>
 
-char	tbl_name[] = "French AT keyboard table";
+char	tbl_name[] = "Canadian French AT keyboard table";
 
 KBTBL	kbtbl[] = {
 /* AT                                                    Alt
  *Phys                       Ctrl           Alt   Alt    Ctrl     Alt
  *Key#  Base   Shift  Ctrl   Shift  Alt    Shift  Ctrl   Shift  Graphic Flags
  *----  ----   -----  ----   -----  ---    -----  ----   -----  ------- -----*/
-{K_1,	0xFD,  0xC0,  none,  none,  0xFD,  0xC0,  none,  none,  none,	O|T  },
-{K_2,	'&',   '1',   none,  none,  '&',   '1',   none,  none,  none,	O|T  },
-{K_3,	0x82,  '2',   none,  none,  0x82,  '2',   '~',   none,  '~',	O|T  },
-{K_4,	'"',   '3',   none,  none,  '"',   '3',   '#',   none,  '#',	O|T  },
-{K_5,	'\'',  '4',   none,  none,  '\'',  '4',   '{',   none,  '{',	O|T  },
-{K_6,	'(',   '5',   esc,   esc,   '(',   '5',   '[',   esc,   '[',	O|T  },
-{K_7,	'-',   '6',   none,  none,  '-',   '6',   '|',   none,  '|',	O|T  },
-{K_8,	0x8A,  '7',   none,  none,  0x8A,  '7',   '`',   none,  '`',	O|T  },
-{K_9,	'_',   '8',   none,  none,  '_',   '8',   '\\',  none,  '\\',	O|T  },
-{K_10,	0x87,  '9',   rs,    rs,    0x87,  '9',   '^',   rs,    '^',	O|T  },
-{K_11,	0x85,  '0',   none,  none,  0x85,  '0',   '@',   none,  '@',	O|T  },
-{K_12,	')',   0xF8,  none,  none,  ')',   0xF8,  ']',   none,  ']',	O|T  },
-{K_13,	'=',   '+',   none,  none,  '=',   '+',   '}',   none,  '}',	O|T  },
+{K_1,	'#',   '|',   none,  none,  '#',   '|',   '\\',  none,  '\\',	O|T  },
+{K_2,	'1',   '!',   none,  none,  '1',   '!',   0xF1,  none,  0xF1,	O|T  },
+{K_3,	'2',   '"',   none,  none,  '2',   '"',   '@',   none,  '@',	O|T  },
+{K_4,	'3',   '/',   none,  none,  '3',   '/',   0x9C,  none,  0x9C,	O|T  },
+{K_5,	'4',   '$',   none,  none,  '4',   '$',   0x9B,  none,  0x9B,	O|T  },
+{K_6,	'5',   '%',   none,  none,  '5',   '%',   0x0F,  none,  0x0F,	O|T  },
+{K_7,	'6',   '?',   none,  none,  '6',   '?',   0xAA,  none,  0xAA,	O|T  },
+{K_8,	'7',   '&',   none,  none,  '7',   '&',   '|',   none,  '|',	O|T  },
+{K_9,	'8',   '*',   none,  none,  '8',   '*',   0xFD,  none,  0xFD,	O|T  },
+{K_10,	'9',   '(',   none,  none,  '9',   '(',   0xFC,  none,  0xFC,	O|T  },
+{K_11,	'0',   ')',   none,  none,  '0',   ')',   0xAC,  none,  0xAC,	O|T  },
+{K_12,	'-',   '_',   us,    us,    '-',   '_',   0xAB,  us,    0xAB,	O|T  },
+{K_13,	'=',   '+',   none,  none,  '=',   '+',   none,  none,  none,	O|T  },
 /* key 14 undefined */
 {K_15,	bs,    bs,    del,   del,   bs,    bs,    none,  del,   none,	O|T  },
 {K_16,	f42,   f43,   none,  none,  f42,   f43,   none,  none,  none,   F|T  },
-{K_17,	'a',   'A',   soh,   soh,   'a',   'A',   none,  soh,   none,   C|T  },
-{K_18,	'z',   'Z',   sub,   sub,   'z',   'Z',   none,  sub,   none,   C|T  },
+{K_17,	'q',   'Q',   dc1,   dc1,   'q',   'Q',   none,  dc1,   none,   C|T  },
+{K_18,	'w',   'W',   etb,   etb,   'w',   'W',   none,  etb,   none,   C|T  },
 {K_19,	'e',   'E',   enq,   enq,   'e',   'E',   none,  enq,   none,   C|T  },
 {K_20,	'r',   'R',   dc2,   dc2,   'r',   'R',   none,  dc2,   none,   C|T  },
 {K_21,	't',   'T',   dc4,   dc4,   't',   'T',   none,  dc4,   none,   C|T  },
 {K_22,	'y',   'Y',   em,    em,    'y',   'Y',   none,  em,    none,   C|T  },
 {K_23,	'u',   'U',   nak,   nak,   'u',   'U',   none,  nak,   none,   C|T  },
 {K_24,	'i',   'I',   ht,    ht,    'i',   'I',   none,  ht,    none,   C|T  },
-{K_25,	'o',   'O',   si,    si,    'o',   'O',   none,  si,    none,   C|T  },
-{K_26,	'p',   'P',   dle,   dle,   'p',   'P',   none,  dle,   none,   C|T  },
-{K_27,	0xB0,  0xB1,  none,  none,  0xB0,  0xB1,  none,  none,  none,   O|T  },
-{K_28,	'$',   0x9C,  none,  none,  '$',   0x9C,  0xC2,  none,  0xC2,   O|T  },
+{K_25,	'o',   'O',   si,    si,    'o',   'O',   nak,   nak,   nak,	C|T  },
+{K_26,	'p',   'P',   dle,   dle,   'p',   'P',   dc4,   dc4,   dc4,	C|T  },
+{K_27,	'^',   0xB0,  rs,    rs,    '^',   0xB0,  '[',   esc,   '[',	O|T  },
+{K_28,	none,  0xB1,  none,  none,  none,  0xB1,  ']',   gs,    ']',	O|T  },
 {K_29,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|T  },
 {K_30,	caps,  caps,  caps,  caps,  caps,  caps,  caps,  caps,  caps,   S|M  },
-{K_31,	'q',   'Q',   dc1,   dc1,   'q',   'Q',   none,  dc1,   none,   C|T  },
-{K_32,	's',   'S',   dc3,   dc3,   's',   'S',   none,  dc3,   none,   C|T  },
-{K_33,	'd',   'D',   eot,   eot,   'd',   'D',   none,  eot,   none,   C|T  },
-{K_34,	'f',   'F',   ack,   ack,   'f',   'F',   none,  ack,   none,   C|T  },
-{K_35,	'g',   'G',   bel,   bel,   'g',   'G',   none,  bel,   none,   C|T  },
-{K_36,	'h',   'H',   bs,    bs,    'h',   'H',   none,  bs,    none,   C|T  },
-{K_37,	'j',   'J',   nl,    nl,    'j',   'J',   none,  nl,    none,   C|T  },
-{K_38,	'k',   'K',   vt,    vt,    'k',   'K',   none,  vt,    none,   C|T  },
-{K_39,	'l',   'L',   ff,    ff,    'l',   'L',   none,  ff,    none,   C|T  },
-{K_40,	'm',   'M',   cr,    cr,    'm',   'M',   none,  cr,    none,   C|T  },
-{K_41,	0x97,  '%',   none,  none,  0x97,  '%',   none,  none,  none,   O|T  },
-{K_42,	'*',   0xE6,  none,  none,  '*',   0xE6,  none,  none,  none,   O|T  },
+{K_31,	'a',   'A',   soh,   soh,   'a',   'A',   soh,   soh,   none,   C|T  },
+{K_32,	's',   'S',   dc3,   dc3,   's',   'S',   dc3,   dc3,   none,   C|T  },
+{K_33,	'd',   'D',   eot,   eot,   'd',   'D',   eot,   eot,   none,   C|T  },
+{K_34,	'f',   'F',   ack,   ack,   'f',   'F',   ack,   ack,   none,   C|T  },
+{K_35,	'g',   'G',   bel,   bel,   'g',   'G',   bel,   bel,   none,   C|T  },
+{K_36,	'h',   'H',   bs,    bs,    'h',   'H',   bs,    bs,    none,   C|T  },
+{K_37,	'j',   'J',   nl,    nl,    'j',   'J',   nl,    nl,    none,   C|T  },
+{K_38,	'k',   'K',   vt,    vt,    'k',   'K',   vt,    vt,    none,   C|T  },
+{K_39,	'l',   'L',   ff,    ff,    'l',   'L',   ff,    ff,    none,   C|T  },
+{K_40,	';',   ':',   none,  none,  ';',   ':',   '~',   none,  '~',	O|T  },
+{K_41,	'`',   '`',   none,  none,  '`',   '`',   '{',   none,  '{',	O|T  },
+{K_42,	'<',   '>',   none,  none,  '<',   '>',   '}',   none,  '}',	O|T  },
 {K_43,	cr,    cr,    nl,    nl,    cr,    cr,    nl,    nl,    none,   O|T  },
 {K_44,	lshift,lshift,lshift,lshift,lshift,lshift,lshift,lshift,lshift, S|MB },
-{K_45,	'<',   '>',   none,  none,  '<',   '>',   none,  none,  none,   O|T  },
-{K_46,	'w',   'W',   etb,   etb,   'w',   'W',   none,  etb,   none,   C|T  },
+{K_45,	0xAE,  0xAF,  none,  none,  0xAE,  0xAF,  0xF8,  none,  0xF8,	O|T  },
+{K_46,	'z',   'Z',   sub,   sub,   'z',   'Z',   none,  sub,   none,   C|T  },
 {K_47,	'x',   'X',   can,   can,   'x',   'X',   none,  can,   none,   C|T  },
 {K_48,	'c',   'C',   etx,   etx,   'c',   'C',   none,  etx,   none,   C|T  },
 {K_49,	'v',   'V',   syn,   syn,   'v',   'V',   none,  syn,   none,   C|T  },
 {K_50,	'b',   'B',   stx,   stx,   'b',   'B',   none,  stx,   none,   C|T  },
 {K_51,	'n',   'N',   so,    so,    'n',   'N',   none,  so,    none,   C|T  },
-{K_52,	',',   '?',   none,  none,  ',',   '?',   none,  none,  none,   O|T  },
-{K_53,	';',   '.',   none,  none,  ';',   '.',   none,  none,  none,   O|T  },
-{K_54,	':',   '/',   none,  none,  ':',   '/',   none,  none,  none,   O|T  },
-{K_55,	'!',   0x15,  none,  none,  '!',   0x15,  none,  none,  none,   O|T  },
+{K_52,	'm',   'M',   cr,    cr,    'm',   'M',   0xE6,  0xE6,  0xE6,	C|T  },
+{K_53,	',',   ',',   none,  none,  ',',   ',',   none,  none,  none,   O|T  },
+{K_54,	'.',   '.',   none,  none,  '.',   '.',   none,  none,  none,   O|T  },
+{K_55,	0x82,  0x90,  none,  none,  0x82,  0x90,  '\'',  '\'',  '\'',	C|T  },
 /* key 56 undefined */
 {K_57,	rshift,rshift,rshift,rshift,rshift,rshift,rshift,rshift,rshift, S|MB },
 {K_58,	lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl,  S|MB },
@@ -216,5 +216,4 @@ unsigned char	*funkey[] = {
 
 int	numfun	= sizeof(funkey) / sizeof(funkey[0]);	/* # of Fn keys */
 int	numkey	= sizeof(kbtbl) / sizeof(kbtbl[0]);	/* # of actual keys */
-/* end of french.c */
-
+/* end of canadian.c */

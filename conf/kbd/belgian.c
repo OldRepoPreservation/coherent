@@ -4,35 +4,35 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * French standard AT keyboard code table.
+ * Belgian standard AT keyboard code table.
  *
  *	See header files for definitions and constants.
  *
- *	Version: 1.1, 06/25/91
+ *	Version: 1.2, 07/01/91
  */
 #include <sys/kbscan.h>
 #include <sys/kb.h>
 
-char	tbl_name[] = "French AT keyboard table";
+char	tbl_name[] = "Belgian AT keyboard table";
 
 KBTBL	kbtbl[] = {
 /* AT                                                    Alt
  *Phys                       Ctrl           Alt   Alt    Ctrl     Alt
  *Key#  Base   Shift  Ctrl   Shift  Alt    Shift  Ctrl   Shift  Graphic Flags
  *----  ----   -----  ----   -----  ---    -----  ----   -----  ------- -----*/
-{K_1,	0xFD,  0xC0,  none,  none,  0xFD,  0xC0,  none,  none,  none,	O|T  },
-{K_2,	'&',   '1',   none,  none,  '&',   '1',   none,  none,  none,	O|T  },
-{K_3,	0x82,  '2',   none,  none,  0x82,  '2',   '~',   none,  '~',	O|T  },
+{K_1,	0xFD,  0xFC,  none,  none,  0xFD,  0xFC,  none,  none,  none,	O|T  },
+{K_2,	'&',   '1',   none,  none,  '&',   '1',   '|',   none,  '|',	O|T  },
+{K_3,	0x82,  '2',   none,  none,  0x82,  '2',   '@',   none,  '@',	O|T  },
 {K_4,	'"',   '3',   none,  none,  '"',   '3',   '#',   none,  '#',	O|T  },
-{K_5,	'\'',  '4',   none,  none,  '\'',  '4',   '{',   none,  '{',	O|T  },
-{K_6,	'(',   '5',   esc,   esc,   '(',   '5',   '[',   esc,   '[',	O|T  },
-{K_7,	'-',   '6',   none,  none,  '-',   '6',   '|',   none,  '|',	O|T  },
-{K_8,	0x8A,  '7',   none,  none,  0x8A,  '7',   '`',   none,  '`',	O|T  },
-{K_9,	'_',   '8',   none,  none,  '_',   '8',   '\\',  none,  '\\',	O|T  },
-{K_10,	0x87,  '9',   rs,    rs,    0x87,  '9',   '^',   rs,    '^',	O|T  },
-{K_11,	0x85,  '0',   none,  none,  0x85,  '0',   '@',   none,  '@',	O|T  },
-{K_12,	')',   0xF8,  none,  none,  ')',   0xF8,  ']',   none,  ']',	O|T  },
-{K_13,	'=',   '+',   none,  none,  '=',   '+',   '}',   none,  '}',	O|T  },
+{K_5,	'\'',  '4',   none,  none,  '\'',  '4',   none,  none,  none,	O|T  },
+{K_6,	'(',   '5',   esc,   esc,   '(',   '5',   none,  none,  none,	O|T  },
+{K_7,	nak,   '6',   none,  none,  nak,   '6',   '^',   none,  '^',	O|T  },
+{K_8,	0x8A,  '7',   none,  none,  0x8A,  '7',   none,  none,  none,	O|T  },
+{K_9,	'!',   '8',   none,  none,  '!',   '8',   none,  none,  none,	O|T  },
+{K_10,	0x87,  '9',   none,  none,  0x87,  '9',   '{',   none,  '{',	O|T  },
+{K_11,	0x85,  '0',   none,  none,  0x85,  '0',   '}',   none,  '}',	O|T  },
+{K_12,	')',   0xF8,  none,  none,  ')',   0xF8,  none,  none,  none,	O|T  },
+{K_13,	'-',   '_',   none,  none,  '-',   '_',   none,  none,  none,	O|T  },
 /* key 14 undefined */
 {K_15,	bs,    bs,    del,   del,   bs,    bs,    none,  del,   none,	O|T  },
 {K_16,	f42,   f43,   none,  none,  f42,   f43,   none,  none,  none,   F|T  },
@@ -46,8 +46,8 @@ KBTBL	kbtbl[] = {
 {K_24,	'i',   'I',   ht,    ht,    'i',   'I',   none,  ht,    none,   C|T  },
 {K_25,	'o',   'O',   si,    si,    'o',   'O',   none,  si,    none,   C|T  },
 {K_26,	'p',   'P',   dle,   dle,   'p',   'P',   none,  dle,   none,   C|T  },
-{K_27,	0xB0,  0xB1,  none,  none,  0xB0,  0xB1,  none,  none,  none,   O|T  },
-{K_28,	'$',   0x9C,  none,  none,  '$',   0x9C,  0xC2,  none,  0xC2,   O|T  },
+{K_27,	0xB0,  0xB1,  none,  none,  0xB0,  0xB1,  '[',   none,  '[',	O|T  },
+{K_28,	'$',   '*',   none,  none,  '$',   '*',   ']',   none,  ']',	O|T  },
 {K_29,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|T  },
 {K_30,	caps,  caps,  caps,  caps,  caps,  caps,  caps,  caps,  caps,   S|M  },
 {K_31,	'q',   'Q',   dc1,   dc1,   'q',   'Q',   none,  dc1,   none,   C|T  },
@@ -60,11 +60,11 @@ KBTBL	kbtbl[] = {
 {K_38,	'k',   'K',   vt,    vt,    'k',   'K',   none,  vt,    none,   C|T  },
 {K_39,	'l',   'L',   ff,    ff,    'l',   'L',   none,  ff,    none,   C|T  },
 {K_40,	'm',   'M',   cr,    cr,    'm',   'M',   none,  cr,    none,   C|T  },
-{K_41,	0x97,  '%',   none,  none,  0x97,  '%',   none,  none,  none,   O|T  },
-{K_42,	'*',   0xE6,  none,  none,  '*',   0xE6,  none,  none,  none,   O|T  },
+{K_41,	0x97,  '%',   none,  none,  0x97,  '%',   '\'',  none,  '\'',   O|T  },
+{K_42,	0xE6,  0x9C,  none,  none,  0xE6,  0x9C,  '`',   none,  '`',	O|T  },
 {K_43,	cr,    cr,    nl,    nl,    cr,    cr,    nl,    nl,    none,   O|T  },
 {K_44,	lshift,lshift,lshift,lshift,lshift,lshift,lshift,lshift,lshift, S|MB },
-{K_45,	'<',   '>',   none,  none,  '<',   '>',   none,  none,  none,   O|T  },
+{K_45,	'<',   '>',   none,  none,  '<',   '>',   '\\',  none,  '\\',	O|T  },
 {K_46,	'w',   'W',   etb,   etb,   'w',   'W',   none,  etb,   none,   C|T  },
 {K_47,	'x',   'X',   can,   can,   'x',   'X',   none,  can,   none,   C|T  },
 {K_48,	'c',   'C',   etx,   etx,   'c',   'C',   none,  etx,   none,   C|T  },
@@ -74,7 +74,7 @@ KBTBL	kbtbl[] = {
 {K_52,	',',   '?',   none,  none,  ',',   '?',   none,  none,  none,   O|T  },
 {K_53,	';',   '.',   none,  none,  ';',   '.',   none,  none,  none,   O|T  },
 {K_54,	':',   '/',   none,  none,  ':',   '/',   none,  none,  none,   O|T  },
-{K_55,	'!',   0x15,  none,  none,  '!',   0x15,  none,  none,  none,   O|T  },
+{K_55,	'=',   '+',   none,  none,  '=',   '+',   '~',   none,  '~',	O|T  },
 /* key 56 undefined */
 {K_57,	rshift,rshift,rshift,rshift,rshift,rshift,rshift,rshift,rshift, S|MB },
 {K_58,	lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl, lctrl,  S|MB },
@@ -216,5 +216,4 @@ unsigned char	*funkey[] = {
 
 int	numfun	= sizeof(funkey) / sizeof(funkey[0]);	/* # of Fn keys */
 int	numkey	= sizeof(kbtbl) / sizeof(kbtbl[0]);	/* # of actual keys */
-/* end of french.c */
-
+/* end of belgian.c */
