@@ -1,25 +1,5 @@
-/* $Header: /usr/src/cmd/db/RCS/trace.h,v 1.1 88/10/17 04:04:51 src Exp $
- *
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.35
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- */
 /*
- * A debugger.
- * Header file.
- *
- * $Log:	/usr/src/cmd/db/RCS/trace.h,v $
- * Revision 1.1	88/10/17  04:04:51 	src
- * Initial revision
- * 
+ * trace.h
  */
 
 #include <sys/types.h>
@@ -58,9 +38,9 @@
  */
 typedef struct b_st {
 	int	b_flag;			/* Flag word */
-	vaddr_t	b_badd;			/* Breakpoint address */
-	vaddr_t	b_rfpt;			/* Return frame pointer */
-	vaddr_t	b_sfpt;			/* Single continue frame pointer */
+	caddr_t	b_badd;			/* Breakpoint address */
+	caddr_t	b_rfpt;			/* Return frame pointer */
+	caddr_t	b_sfpt;			/* Single continue frame pointer */
 	char	*b_bcom;		/* Breakpoint command */
 	char	*b_rcom;		/* Return command */
 	BIN	b_bins;			/* Instruction we replaced */
@@ -70,9 +50,14 @@ typedef struct b_st {
  * Segment definitions.
  */
 #define NSEGM	3			/* Number of segments */
-#define	DSPACE	segmapl[0]		/* Data space */
-#define ISPACE	segmapl[1]		/* Instruction space */
-#define USPACE	segmapl[2]		/* User area */
+
+#define DSEG	0
+#define ISEG	1
+#define USEG	2
+
+#define	DSPACE	segmapl[DSEG]		/* Data space */
+#define ISPACE	segmapl[ISEG]		/* Instruction space */
+#define USPACE	segmapl[USEG]		/* User area */
 
 /*
  * Segmentation map table structure.
@@ -125,6 +110,12 @@ typedef struct sym {
 } SYM;
 
 /*
+ * Default file names.
+ */
+#define DEFLT_OBJ	"l.out"		/* object file */
+#define DEFLT_AUX	"core"		/* auxiliary file */
+
+/*
  * Flags in value.
  */
 #define VNULL	1			/* Value is null */
@@ -170,7 +161,7 @@ typedef union inp {
 /*
  * Functions defined by the machine dependent routines.
  */
-vaddr_t	getpc();			/* Get programme counter */
+caddr_t	getpc();			/* Get programme counter */
 
 /*
  * Function for the C compiler.

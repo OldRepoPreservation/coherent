@@ -57,14 +57,14 @@
 #define OPDPRE	0x66
 
 /* define segment override prefix codes */
-#define CS	0x2E
-#define DS	0x3E
-#define ES	0x26
-#define FS	0x64
-#define GS	0x65
-#define SS	0x36
+#define CS_PFX	0x2E
+#define DS_PFX	0x3E
+#define ES_PFX	0x26
+#define FS_PFX	0x64
+#define GS_PFX	0x65
+#define SS_PFX	0x36
 
-#define EBP	5
+#define EBP_SIB	5
 
 #define UNSIGNED	0
 #define SIGNED		1
@@ -159,12 +159,12 @@ int	s;		/* segment number */
 		case OPDPRE:		/* operand size prefix */
 			opdflag = 1;
 			continue;
-		case CS:		/* "cs:" segment override prefix */
-		case DS:		/* "ds:" segment override prefix */
-		case ES:		/* "es:" segment override prefix */
-		case FS:		/* "fs:" segment override prefix */
-		case GS:		/* "gs:" segment override prefix */
-		case SS:		/* "ss:" segment override prefix */
+		case CS_PFX:		/* "cs:" segment override prefix */
+		case DS_PFX:		/* "ds:" segment override prefix */
+		case ES_PFX:		/* "es:" segment override prefix */
+		case FS_PFX:		/* "fs:" segment override prefix */
+		case GS_PFX:		/* "gs:" segment override prefix */
+		case SS_PFX:		/* "ss:" segment override prefix */
 			segPreStrp = opStrMap1[ ibp[0] ]; /* store segment override */ 
 			segflag = 1;
 			break;
@@ -544,7 +544,7 @@ unsigned char	displctsize, m;
 	switch(m) {
 	case 0:
 		wbp = getSegPreStr(wbp);
-		if (sb == EBP) {
+		if (sb == EBP_SIB) {
 			val = getVal(s, ibp, 'd', SIGNED, ADDZERO, &deltaVal);
 			wbp = getSegValStr(ibp, wbp, 'd');
 			wbp = getASCIIdisplcmtStr(wbp, 'd', SIGNED, s, deltaVal, val);
@@ -818,7 +818,7 @@ unsigned long	v;
 		sprintf(wbp, "%04x", v);
 	}
 	else {
-		sprintf(wbp, "%04lx", v);
+		sprintf(wbp, "%04X", v);
 	}
 }
 

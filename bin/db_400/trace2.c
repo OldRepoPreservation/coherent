@@ -1,4 +1,5 @@
-/* $Header: /usr/src/cmd/db/RCS/trace2.c,v 1.1 88/10/17 04:05:23 src Exp $
+/*
+ *	trace2.c
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -12,27 +13,17 @@
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  */
-/*
- * A debugger.
- * Runtime support.
- *
- * $Log:	/usr/src/cmd/db/RCS/trace2.c,v $
- * Revision 1.1	88/10/17  04:05:23 	src
- * Initial revision
- *
- * Revision: 386 version 92/05/01 
- * Bernard Wald, Wald Software Consulting, Germany
- *
- * 
- */
 
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 #include <l.out.h>
+#include <sys/ptrace.h>
+#include <sys/timeout.h>
 #include <sys/uproc.h>
 #include <signal.h>
 #include "trace.h"
+#include "i8086.h"
 
 /*
  * Talk to the user and try to solve his problems.
@@ -43,25 +34,55 @@ process()
 	/* register  */ int n;
 	register int nibflag;
 	register int bptflag;
-	register vaddr_t pc;
-	register vaddr_t fp;
+	register caddr_t pc;
+	register caddr_t fp;
 	register int f;
 
+	int		pcmd;
+	char		ans[10];
+
 	/*
-	 * Let the user speak.
+	 * Reverse-engineered pseudocode, minus global variable garbage.
+	 *
+	 * forever:
+	 *   execute(":x\n") <= Preload interpreter stack.
+	 *   (Will come back after traced process traps, e.g. after ":e".)
+	 *   forever:
+	 *     See if at call instruction.
+	 *     Install breakpoints, except at current instruction.
+	 *     See if current instruction is a breakpoint opcode.
+	 *     Start up traced process, full speed or single step.
+	 *     Report any error from ptrace call.
+	 *     Wait for traced process.
+	 *     Fetch registers and signal received from traced process.
+	 *     Replace breakpoints with instructions.
+	 *     If signal to child was not SIGTRAP
+	 *       display message
+	 *       execute(":f\n:x\n");
+	 *       continue inner loop
+	 *     Back up instruction pointer to start of the breakpoint.
+	 *     If single stepping
+	 *       Execute single step command string (sinp).
+	 *       If last single step in count
+	 *         execute(":x\n")
+	 *   end forever
+	 * end forever
+	 *
 	 */
 top:
 	bptflag = 0;
 	execute(":x\n");
 	for (;;) {
 		/*
-		 * Initialise flags.
+		 * Initialize flags.
 		 */
 		bitflag = 0;
 		nibflag = 0;
+		bp = 0;
 	
 		/*
 		 * If in single step mode, set up for single step.
+		 * If in SCONT mode, change to SCSET mode at call instruction.
 		 */
 		if (sinmode!=SNULL && sinmode!=SWAIT) {
 			bitflag = 1;
@@ -72,21 +93,31 @@ top:
 		/*
 		 * Place all breakpoints.
 		 */
-		pc = getpc();
+		if (reg.valid)
+			pc = getpc();
+
 		for (n=NBPT, bp=&bpt[0]; n--; bp++) {
+			/* skip unused breakpoints */
 			if (bp->b_flag == 0)
 				continue;
+
+			/* fetch instruction at breakpoint address */
 			add = bp->b_badd;
-			if (getb(1, bp->b_bins, sizeof(BIN)) == 0) {
+			if (getb(ISEG, bp->b_bins, sizeof(BIN)) == 0) {
 				printb(bp->b_badd);
 				goto err;
 			}
-			if (bptflag!=0 && bp->b_badd==pc) {
+
+			/* don't install breakpoint at current instruction */
+			if (reg.valid && bptflag && bp->b_badd==pc) {
 				bitflag = 1;
 				continue;
 			}
+
+			/* put in a breakpoint */
 			add = bp->b_badd;
-			if (putb(1, bin, sizeof(BIN)) == 0) {
+fprintf(stderr, "replacing breakpoint at eip=%x\n", add);
+			if (putb(ISEG, bin, sizeof(BIN)) == 0) {
 				printb(bp->b_badd);
 				goto err;
 			}
@@ -95,66 +126,105 @@ top:
 
 		/*
 		 * Set flags and call machine dependent restore routine.
+		 * Set "nibflag" if instruction at EIP is BRK.
 		 */
-		if (testbpt(pc) != 0)
+		if (reg.valid && testbpt(pc))
 			nibflag = 1;
+
+		/*
+		 * restret() looks at bitflag and returns 1 if bitflag set.
+		 * This is bogus.
+		 * Mainly, restret() undoes the current breakpoint
+		 * if it is done at a system call.
+		 * This is probably unnecessary.
+		 */
+#if 0
 		if (restret() == 0)
 			goto err;
+#endif
 	
 		/*
 		 * Start up the child.
 		 */
 		errno = 0;
-		ptrace(bitflag?9:7, pid, (int *)1, 0);
+		switch (sinmode) {
+		case SNULL:
+		case SWAIT:
+			pcmd = PTRACE_RESUME;
+			break;
+		case SCSET:
+		case SCONT:
+		case SSTEP:
+			pcmd = PTRACE_SSTEP;
+			break;
+		}
+		ptrace(pcmd, pid, 1, 0);
 		if (errno) {
-			printr("Ptrace error (%d)", errno);
+			perror("ptrace");
 			goto err;
 		}
 		if (waitc() == 0)
 			goto err;
 	
-		/*
-		 * Get registers and call machine dependent trap routine.
-		 */
+#if 0
+/* whatever this is, it looks unnecessary. */
 		if (trapint() == 0)
 			goto err;
+#endif
+
+		/*
+		 * Copy registers into ureg, and thence to r.
+		 * Why are there two register sets?  I don't know - hws
+		 */
 		if (setregs() == 0)
 			goto err;
+
+		/*
+		 * Set f to the signal number sent to the traced process
+		 * and global "trapstr" to its name.
+		 */
 		if ((f=settrap()) == 0)
 			goto err;
 	
 		/*
 		 * Replace breakpoints with instructions.
 		 */
-		for (n=NBPT, bp=&bpt[0]; n--; bp++) {
+fprintf(stderr, "Replace breakpoints with instructions\n");
+		for (n=NBPT, bp=bpt; n--; bp++) {
 			if (bp->b_flag == 0)
 				continue;
 			add = bp->b_badd;
-			if (putb(1, bp->b_bins, sizeof(BIN)) == 0) {
+			if (putb(ISEG, bp->b_bins, sizeof(BIN)) == 0) {
 				printb(bp->b_badd);
 				goto err;
 			}
 		}
 	
 		/*
-		 * If trap was not a breakpoint, tell the user, accept input.
+		 * If latest signal to traced process was not SIGTRAP,
+		 * tell the user, then accept input.
 		 */
 		if (f != SIGTRAP) {
+			fprintf(stderr,
+			  "Traced process did not stop at a breakpoint\n");
 			execute(":f\n:x\n");
 			continue;
 		}
 
 		/*
 		 * Find the breakpoint we are at.
+		 * Back up pc to start of the breakpoint.
 		 */
+		bp = 0;
 		pc = getpc() - sizeof(BIN);
-		if (bitflag==0 || nibflag!=0) {
+		if (bitflag==0 || nibflag) {
 			for (n=NBPT, bp=&bpt[0]; n--; bp++) {
 				if (bp->b_flag == 0)
 					continue;
 				if (bp->b_badd != pc)
 					continue;
-				setpc((vaddr_t)pc);
+fprintf(stderr, "found bp at %x\n", pc);
+				setpc((caddr_t)pc);
 				bptflag = 1;
 				break;
 			}
@@ -167,6 +237,23 @@ top:
 		 * If in single step mode, execute command.
 		 */
 		switch (sinmode) {
+		case SCSET:
+fprintf(stderr, "sinmode=SCSET\n");
+			break;
+		case SNULL:
+fprintf(stderr, "sinmode=SNULL\n");
+			break;
+		case SWAIT:
+fprintf(stderr, "sinmode=SWAIT\n");
+			break;
+		case SCONT:
+fprintf(stderr, "sinmode=SCONT\n");
+			break;
+		case SSTEP:
+fprintf(stderr, "sinmode=SSTEP\n");
+			break;
+		}
+		switch (sinmode) {
 		case SSTEP:
 		case SCONT:
 			execute(sinp);
@@ -174,9 +261,10 @@ top:
 				execute(":x\n");
 			continue;
 		case SCSET:
-			for (n=0; n<NBPT; bp++)
+			for (n=0; n<NBPT; n++)
 				bpt[n].b_flag &= ~BSIN;
 			sinmode = SWAIT;
+			/* put a BSIN breakpoint at the return address */
 			intcont();
 			break;
 		}
@@ -186,8 +274,11 @@ top:
 		 * breakpoint, we handle it here.
 		 */
 		if (bp == NULL) {
-			if (bitflag==0 || nibflag!=0)
+			if (bitflag==0 || nibflag) {
+				fprintf(stderr,
+				  "Unexpected trace trap or breakpoint\n");
 				execute(":f\n:x\n");
+			}
 			continue;
 		}
 
@@ -195,10 +286,11 @@ top:
 		 * Single step breakpoints have highest priority.
 		 */
 		fp = getfp();
-		if ((bp->b_flag&BSIN) != 0) {
+		if (bp->b_flag & BSIN) {
 			if (bp->b_sfpt==0 || bp->b_sfpt==fp) {
 				bp->b_flag &= ~BSIN;
 				if (sinmode == SWAIT) {
+fprintf(stderr, "SCWAIT->SCONT??\n");
 					sinmode = SCONT;
 					execute(sinp);
 					if (--sindecr == 0)
@@ -211,7 +303,7 @@ top:
 		/*
 		 * Return breakpoints are next.
 		 */
-		if ((bp->b_flag&BRET) != 0) {
+		if (bp->b_flag & BRET) {
 			if (fp == bp->b_rfpt) {
 				bp->b_flag &= ~BRET;
 				execute(bp->b_rcom);
@@ -222,7 +314,7 @@ top:
 		/*
 		 * Your conventional everyday ordinary breakpoint.
 		 */
-		if ((bp->b_flag&BBPT) != 0) {
+		if (bp->b_flag & BBPT) {
 			execute(bp->b_bcom);
 			continue;
 		}
@@ -237,11 +329,6 @@ err:
 	reslout();
 	bptinit();
 	goto top;
-
-	/*
-	 * They say psychiatry is one of the hardest occupations.
-	 * I think I agree.
-	 */
 }
 
 /*
@@ -258,8 +345,8 @@ runfile()
 
 	killc();
 	if (objflag == 0) {
-		printe("No l.out");
-		return (1);
+		printe("No executable");
+		return 1;
 	}
 	ifn = NULL;
 	ofn = NULL;
@@ -285,7 +372,7 @@ runfile()
 		default:
 			if (n >= ARGSIZE-1) {
 				printe("Too many arguments");
-				return (1);
+				return 1;
 			}
 			argl[n++] = cp;
 		}
@@ -300,7 +387,7 @@ runfile()
 			if (c == '\\') {
 				if ((c=*bp++) == '\n') {
 					printe("Syntax error");
-					return (1);
+					return 1;
 				}
 			}
 			*cp++ = c;
@@ -308,7 +395,7 @@ runfile()
 		}
 		if (qflag) {
 			printe("Missing \"");
-			return (1);
+			return 1;
 		}
 		*cp++ = '\0';
 		if (c == '\n')
@@ -320,8 +407,8 @@ runfile()
 		argl[n++] = lfn;
 	argl[n] = NULL;
 	if (startup(argl, ifn, ofn, aflag) == 0)
-		return (1);
-	return (0);
+		return 1;
+	return 0;
 }
 
 /*
@@ -338,7 +425,7 @@ char *ofnp;
 
 	if ((pid=fork()) < 0) {
 		printr("Cannot fork");
-		return (0);
+		return 0;
 	}
 	if (pid == 0) {
 		if (ifnp != NULL) {
@@ -360,22 +447,22 @@ char *ofnp;
 			dup2(n, 1);
 			close(n);
 		}
-		ptrace(0, 0, NULL, 0);
+		ptrace(PTRACE_SETUP, 0, NULL, 0);
 		execv(lfn, argv);
-		exit(1);
+		exit (1);
 	}
 	if (waitc() == 0)
-		return (0);
+		return 0;
 	clramap();
 	DSPACE = setsmap(NULL, (off_t)0, (off_t)LI, (off_t)0,
-			getp, putp, 1);
+			getp, putp, DSEG);
 	ISPACE = setsmap(NULL, (off_t)0, (off_t)LI, (off_t)0,
-			getp, putp, 0);
+			getp, putp, ISEG);
 	USPACE = setsmap(NULL, (off_t)0, (off_t)UPASIZE, (off_t)0,
-			getp, putp, 2);
+			getp, putp, USEG);
 	excflag = 1;
 	regflag = 1;
-	return (1);
+	return 1;
 }
 
 /*
@@ -384,10 +471,10 @@ char *ofnp;
 shiftup()
 {
 	if (trapint() == 0)
-		return (0);
+		return 0;
 	if (setregs() == 0)
-		return (0);
-	return (settrap());
+		return 0;
+	return settrap();
 }
 
 /*
@@ -396,12 +483,13 @@ shiftup()
 killc()
 {
 	if (excflag) {
-		ptrace(8, pid, 0, 0);
+		ptrace(PTRACE_TERM, pid, 0, 0);
 		waitc();
 	}
 	excflag = 0;
 	regflag = 0;
 	trapstr = NULL;
+	reg.valid = 0;
 }
 
 /*
@@ -420,17 +508,17 @@ waitc()
 		}
 		if (intflag == 0) {
 			excflag = 0;
-			printr("Nonexistant child");
-			return (0);
+			printr("Nonexistent child");
+			return 0;
 		}
 		intflag = 0;
 	}
-	if ((s&0377) != 0177) {
+	if ((s&0xff) != 0x7f) {
 		excflag = 0;
-		printr("Child process terminated (%x)", (s>>8)&0377 );
-		return (0);
+		printr("Child process terminated (%x)", (s>>8)&0xff );
+		return 0;
 	}
-	return (1);
+	return 1;
 }
 
 
@@ -458,28 +546,37 @@ reslout()
 	fseek(lfp, (long)0, 0);
 	if (fread(&coffh, sizeof(coffh), 1, lfp) != 1) {
 		printr("Can't read object file");
-		return (0);
+		return 0;
 	}
 
 	if (coffh.f_magic == C_386_MAGIC) {
+#if 0
+		/* get entry point from optional coff header */
+		struct aouthdr	opth;
+
+		reg.r_ip = 0xA8;
+		if (coffh.f_opthdr >= sizeof(struct aouthdr)) {
+			if (fread(&opth, sizeof(struct aouthdr), 1, lfp) == 1) 
+				reg.r_ip = opth.entry;
+		}
+#endif
 		objflag = 1;
 		setcoffseg(lfp, &coffh);
-		return (1);
-	}	
-	else {
+		return 1;
+	} else {
 		fseek(lfp, (long)0, 0);
 		if (fread(&ldh, sizeof(ldh), 1, lfp) != 1) {
 			printr("Can't read object file");
-			return (0);
+			return 0;
 		}
 		canlout(&ldh);
 		if (ldh.l_magic != L_MAGIC) {
 			printr("not an object file");
-			return (0);
+			return 0;
 		}
 		objflag = 1;
 		setaseg(&ldh);
-		return (1);
+		return 1;
 	}
 }
 

@@ -1,4 +1,5 @@
-/* $Header: /usr/src/cmd/db/RCS/trace0.c,v 1.1 88/10/17 04:05:08 src Exp $
+/*
+ *	trace0.c
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -11,17 +12,9 @@
  *	Copyright (c) 1982, 1983, 1984.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
- */
-/*
- * A debugger.
- * Tables and stuff.
  *
- * $Log:	/usr/src/cmd/db/RCS/trace0.c,v $
- * Revision 1.1	88/10/17  04:05:08 	src
- * Initial revision
- * 
+ *	Tables and stuff.
  */
-
 #include <stdio.h>
 #include <l.out.h>
 #include "trace.h"
@@ -39,7 +32,6 @@ MAP	*segmapl[NSEGM];		/* Segment descriptors */
 SYM	*ssymp;				/* Pointer to core symbol table */
 char	*errrstr;			/* Last error */
 char	*lfn;				/* l.out file name */
-/* char	*segname[NSEGM]; */		/* Names of segments */
 char	*sinp;				/* Command for single step */
 char	*trapstr;			/* Fault type */
 char	miscbuf[MISSIZE];		/* Miscellaneous buffer */

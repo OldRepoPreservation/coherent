@@ -1,4 +1,5 @@
-/* $Header: /usr/src/cmd/db/RCS/trace6.c,v 1.1 88/10/17 04:05:52 src Exp $
+/*
+ *	trace6.c
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -11,20 +12,9 @@
  *	Copyright (c) 1982, 1983, 1984.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
+ *
+ *	Miscellaneous routines.
  */
-/*
- * A debugger.
- * Miscellaneous routines.
- *
- * $Log:	/usr/src/cmd/db/RCS/trace6.c,v $
- * Revision 1.1	88/10/17  04:05:52 	src
- * Initial revision
- *
- * Revision: 386 version 92/05/01 
- * Bernard Wald, Wald Software Consulting, Germany
- *
- */
-
 #include <stdio.h>
 #include <ctype.h>
 #include <canon.h>
@@ -35,7 +25,7 @@
 #define DEBUG		0
 
 unsigned short	getMagic();
-vaddr_t		initn();
+caddr_t		initn();
 off_t		initb();
 off_t		incb();
 off_t		incb();
@@ -70,6 +60,7 @@ register char *cp;
 
 /*
  * Add a string onto the input stream.
+ * Make a node for string "cp" and insert it at the front of "inpp".
  */
 addstrp(cp)
 char *cp;
@@ -163,12 +154,15 @@ getb(segn, bp, n)
 char *bp;
 unsigned n;
 {
-int i;
 	if (getputb(segn, bp, n, 0) == 0)
 		return (0);
 	canon(bp, n);
+
 #if DEBUG
+{
+	int i;
 	for (i=0; i<n; i++) printf("bp = %x\n", (unsigned char)bp[i]);
+}
 #endif
 	return (1);
 }
@@ -222,14 +216,16 @@ unsigned n;
 	s = n;
 	a = add;
 	while (s) {
-		if ((mp=mapaddr(segn, a)) == NULL)
-			return (0);
+		if ((mp=mapaddr(segn, a)) == NULL) {
+			return 0;
+		}
 		l = s;
 		if (a+l > mp->m_bend)
 			l = mp->m_bend-a+1;
 		f = d ? mp->m_putf : mp->m_getf;
-		if ((*f)(mp->m_segi, mp->m_offt+(a-mp->m_base), bp, l) == 0)
-			return (0);
+		if ((*f)(mp->m_segi, mp->m_offt+(a-mp->m_base), bp, l) == 0) {
+			return 0;
+		}
 		bp += l;
 		a += l;
 		s -= l;
@@ -248,14 +244,15 @@ off_t a;
 {
 	register MAP *mp;
 
-	for (mp=segmapl[n]; mp != NULL; mp=mp->m_next)
+	for (mp=segmapl[n]; mp; mp=mp->m_next) {
 		if (mp->m_base<=a && a<mp->m_bend)
 			break;
+	}
 	return (mp);
 }
 
 /*
- * Read a symbol and return it's value in the given `VAL' structure.
+ * Read a symbol and return its value in the given `VAL' structure.
  */
 getsval(vp)
 VAL *vp;
@@ -373,7 +370,7 @@ nameval(ldp)
 struct LDSYM *ldp;
 {
 	register int u;
-	register vaddr_t n;
+	register caddr_t n;
 	register SYM *sp;
 	register int r;
 	register int h;
@@ -385,7 +382,7 @@ struct LDSYM *ldp;
 	h = hash(ldp);
 	evalhdrinfo(lfp);
 	for (n=initn(), sp=ssymp, b=initb(); n--
-				; sp++, b=incb(b, ((vaddr_t)sngblsym-n))) {
+				; sp++, b=incb(b, ((caddr_t)sngblsym-n))) {
 		if (ssymp!=NULL && sp->s_hash!=h) {
 			continue;
 		}
@@ -472,7 +469,7 @@ struct LDSYM *ldp;
 		fseek(sfp, (long)sbase, 0);
 	hdrinfo.magic = getMagic(lfp);
 	for (n=0, sp=ssymp, b=initb(); n<initn()
-				; n++, sp++, b=incb(b, ((vaddr_t)n))) {
+				; n++, sp++, b=incb(b, ((caddr_t)n))) {
 		if (ssymp != NULL) {
 			a = sp->s_sval;
 			t = sp->s_type;
@@ -574,10 +571,19 @@ long seek;
 char *bp;
 {
 	register FILE *fp;
+	int ret = 1;
 
 	fp = f ? cfp : lfp;
 	fseek(fp, (long)seek, 0);
-	return (fwrite(bp, n, 1, fp) && fflush(fp)!=EOF);
+	if (fwrite(bp, n, 1, fp) != 1) {
+		ret = 0;
+	}
+	if (ret) {
+		if (fflush(fp)!=EOF) {
+			ret = 0;
+		}
+	}
+	return ret;
 }
 
 /*
@@ -617,7 +623,7 @@ char *a1;
  * Print out a breakpoint error message.
  */
 printb(a)
-vaddr_t a;
+caddr_t a;
 {
 	fprintf(stderr, "Breakpoint error at ");
 	fprintf(stderr, DAFMT, (long)a);
@@ -735,11 +741,11 @@ struct	LDSYM	*ldsp;
 }
 
 
-vaddr_t
+caddr_t
 initn()
 {
 	
-	return(hdrinfo.magic == C_386_MAGIC ? (vaddr_t)sngblsym : (vaddr_t)snsym);
+	return(hdrinfo.magic == C_386_MAGIC ? (caddr_t)sngblsym : (caddr_t)snsym);
 }
 
 off_t
@@ -756,7 +762,7 @@ initb()
 off_t
 incb(b, i)
 off_t	b;
-vaddr_t i;
+int i;
 {
 	b += ( hdrinfo.magic == C_386_MAGIC 
 		? ( (gblsymMap[i] - gblsymMap[i-1L]) * sizeof(SYMENT) )

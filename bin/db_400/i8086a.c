@@ -1,4 +1,5 @@
-/* $Header: /src386/bin/db/RCS/i8086a.c,v 1.1 92/06/10 14:36:27 bin Exp Locker: bin $
+/*
+ *	i8086a.c
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -12,25 +13,12 @@
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  */
-/*
- * A debugger.
- * Intel 8086.
- *
- * $Log:	i8086a.c,v $
- * Revision 1.1  92/06/10  14:36:27  bin
- * Initial revision
- * 
- * Revision 1.1	88/10/17  04:03:35 	src
- * Initial revision
- * Revision: 386 version 92/05/01 
- * Bernard Wald, Wald Software Consulting, Germany
- * 
- */
 
 #include <stdio.h>
 #include <sys/param.h>
 #include <l.out.h>
 #include <signal.h>
+#include <sys/ptrace.h>
 #include <sys/timeout.h>
 #include <sys/uproc.h>
 #include "trace.h"
@@ -112,7 +100,7 @@ char *np;
 	USPACE = setsmap(NULL, (off_t)0, (off_t)LI, (off_t)0,
 		getf, putf, 1);
 	add = 2;
-	if (getb(2, &n, sizeof(n)) == 0)
+	if (getb(USEG, &n, sizeof(n)) == 0)
 		panic("Bad memory file");
 	l = (off_t)n << 4;
 	ISPACE = setsmap(NULL, (off_t)0, (off_t)LI, (off_t)l,
@@ -136,6 +124,61 @@ char *np;
 	setkmem(np);
 }
 
+#if FPTEST
+void
+fpdump(fstp)
+struct _fpstate * fstp;
+{
+	int i;
+	int tagbits;
+	unsigned char opfirst, opsecond;
+	unsigned int fcs = fstp->cssel;
+	int tos = (fstp->sw >> 11) & 7;
+
+	fflush(stdout);
+
+	printf("fstp=%08x  tos=%d  ", fstp, tos);
+	opfirst = 0xD8 | ((fcs >> 24) & 7);
+	opsecond = fcs >> 16;
+	printf("cw=%04x  sw=%04x  tag=%04x\n",
+	  fstp->cw&0xFFFF, fstp->sw&0xFFFF, fstp->tag&0xffff);
+	printf("op=%02x %02x  fcs=%04x fip=%08x  fos=%04x foo=%08x\n",
+	  opfirst, opsecond,
+	  fcs&0xFFFF, fstp->ipoff, fstp->datasel&0xFFFF, fstp->dataoff);
+	for (i = 0; i < 8; i++) {
+		tagbits = (fstp->tag >> (((tos + i) & 7) * 2)) & 3;
+		printf("st[%d]:(%d) at %08x ", i, tagbits,
+		  fstp->_st + i);
+		switch(tagbits) {
+		case 0:
+			{
+			  int j;
+			  for (j = 0; j < 4; j++)
+			    printf("%04x ", fstp->_st[i].significand[j]);
+			  printf(":%04x ", fstp->_st[i].exponent);
+			}
+			printf("\n");
+			break;
+		case 1:
+			printf("Zero\n");
+			break;
+		case 2:
+			printf("Special: %08x %08x %08x %08x : %08x\n",
+			  fstp->_st[i].significand[0],
+			  fstp->_st[i].significand[1],
+			  fstp->_st[i].significand[2],
+			  fstp->_st[i].significand[3],
+			  fstp->_st[i].exponent);
+			break;
+		case 3:
+			printf("Empty\n");
+			break;
+		}
+	}
+	fflush(stdout);
+}
+#endif
+
 /*
  * Update register structure in memory.
  */
@@ -144,14 +187,18 @@ setregs()
 	struct ureg ureg;
 
 	regflag = 0;
-	add = UREGOFF;
-	if (getb(2, (char *)&ureg, sizeof(ureg)) == 0) {
+	add = 0; /* UGLY! FIX THIS! */
+	if (getb(USEG, (char *)&ureg, sizeof(ureg)) == 0) {
 		printr("Cannot read registers");
-		return (0);
+		return 0;
 	}
+
+#if FPTEST
+	fpdump(&ureg.ur_fpstate);
+#endif
 	copyreg(&ureg);
 	regflag = 1;
-	return (1);
+	return 1;
 }
 
 /*
@@ -175,11 +222,14 @@ register struct ureg *up;
 	reg.r_es = up->ur_es;
 	reg.r_ip = up->ur_ip;
 	reg.r_fw = up->ur_fw;
+	reg.r_fs = up->ur_fs;
+	reg.r_gs = up->ur_gs;
+	reg.valid = 1;
 }
 
 /*
  * If the given name matches a register, set up `ldp' with the address
- * of a registers in the user area.
+ * of a register in the user area.
  */
 regaddr(ldp)
 struct LDSYM *ldp;
@@ -189,14 +239,14 @@ struct LDSYM *ldp;
 	register int c1;
 	register int a;
 
-	a = UPASIZE - sizeof(struct ureg);
+	a = 0;	/* UGLY!  FIX THIS */
 	cp = ldp->ls_id;
 	if ((c0=*cp++) == '\0')
-		return (0);
+		return 0;
 	if ((c1=*cp++) == '\0')
-		return (0);
+		return 0;
 	if (*cp != '\0')
-		return (0);
+		return 0;
 	switch (c1) {
 	case 'h':
 		a++;
@@ -208,32 +258,33 @@ struct LDSYM *ldp;
 		if (cp[0]==c0 && cp[1]==c1) {
 			ldp->ls_addr = a;
 			ldp->ls_type = L_REG;
-			return (1);
+			return 1;
 		}
 		a += 2;
 		cp += 2;
 	} while (*cp != '\0');
-	return (0);
+	return 0;
 }
 
 /*
- * Return the programme counter.
+ * Return the program counter.
  */
-vaddr_t
+caddr_t
 getpc()
 {
-	return (reg.r_ip);
+	return reg.r_ip;
 }
 
 /*
- * Set the programme counter.
+ * Set the program counter.
  */
 setpc(ip)
-vaddr_t ip;
+caddr_t ip;
 {
+fprintf(stderr, "setpc(%x)\n", ip);
 	reg.r_ip = ip;
-	add = UREGOFF + offset(ureg, ur_ip);
-	putb(2, (char *)&reg.r_ip, sizeof(reg.r_ip));
+	add = PTRACE_EIP;
+	putb(USEG, &reg.r_ip, sizeof(reg.r_ip));
 }
 
 /*
@@ -241,7 +292,7 @@ vaddr_t ip;
  */
 getfp()
 {
-	return (reg.r_bp);
+	return reg.r_bp;
 }
 
 /*
@@ -292,8 +343,9 @@ dispreg()
 
 	if (testint())
 		return;
-	printf("%%cs=%04x %%ds=%04x %%ss=%04x %%es=%04x\n",
-		reg.r_cs, reg.r_ds, reg.r_ss, reg.r_es);
+	printf("%%cs=%04x %%ds=%04x %%ss=%04x %%es=%04x %%fs=%04x %%gs=%04x\n",
+		reg.r_cs&0xffff, reg.r_ds&0xffff, reg.r_ss&0xffff,
+		reg.r_es&0xffff, reg.r_fs&0xffff, reg.r_gs&0xffff);
 }
 
 /*
@@ -319,7 +371,7 @@ dispsbt(l)
 	if (nameval(&ldsym) != 0)
 		amain = ldsym.ls_addr;
 	add = MAGICTEST ? (unsigned short)reg.r_ip : reg.r_ip;
-	if (getb(1, b, 1) == 0) {
+	if (getb(ISEG, b, 1) == 0) {
 		printe("Illegal ip");
 		return;
 	}
@@ -328,7 +380,7 @@ dispsbt(l)
 	e[0] = MAGICTEST ? 0x56 : 0xc8;			/* push si : enter */
 	if (valname(1, (off_t)reg.r_ip, &ldsym) != 0) {
 		add = (long)ldsym.ls_addr;
-		getb(1, (char *)e, 1);
+		getb(ISEG, (char *)e, 1);
 	}
 	if ( MAGICTEST ? (b[0]==0x56 || e[0]!=0x56)		/* push si */
 			: (b[0]==0xc8 || e[0]!=0xc8) ) {	/* enter */
@@ -339,18 +391,18 @@ dispsbt(l)
 	qflag = 0;
 	for (;;) {
 		add = MAGICTEST ? (unsigned short)fp + 6 : fp + 4;
-		if (getb(0, &rpc, MAGICTEST ? 2 : 4) == 0)
+		if (getb(DSEG, &rpc, MAGICTEST ? 2 : 4) == 0)
 			break;
 		argc = 0;
 		add = MAGICTEST ? (unsigned short)rpc : rpc;
-		if (getb(1, b, 3) != 0) {
+		if (getb(ISEG, b, 3) != 0) {
 			if (b[0]==0x83 && b[1]==0xC4)	/* add sp,$? */
 				argc = b[2]/(MAGICTEST ? 2 : 4);
 		}
 		add = MAGICTEST ? (unsigned short)rpc - 3 : rpc - 5;
-		if (getb(1, b, 1) == 0)
+		if (getb(ISEG, b, 1) == 0)
 			break;
-		if (getb(1, &n, (MAGICTEST ? 2 : 4)) == 0)
+		if (getb(ISEG, &n, (MAGICTEST ? 2 : 4)) == 0)
 			break;
 		printx(DAFMT, (long)fp);
 		printx("  ");
@@ -380,7 +432,7 @@ dispsbt(l)
 		add = (MAGICTEST ? (unsigned short)fp : fp) + 8;
 			/* offset 8 coincidently works for both file formats */
 		while (argc--) {
-			if (getb(0, &n, MAGICTEST ? 2 : 4) == 0)
+			if (getb(DSEG, &n, MAGICTEST ? 2 : 4) == 0)
 				break;
 			if (iflag++ != 0)
 				printx(", ");
@@ -396,7 +448,7 @@ dispsbt(l)
 			fp = reg.r_bp;
 		} else {
 			add = MAGICTEST ? (unsigned short)fp : fp;
-			if (getb(0, &fp, (MAGICTEST ? 2 : 4)) == 0)
+			if (getb(DSEG, &fp, (MAGICTEST ? 2 : 4)) == 0)
 				break;
 		}
 		if (--l == 0)
@@ -409,25 +461,25 @@ dispsbt(l)
  * Get the return pc and frame pointer to set a return breakpoint.
  */
 setretf(pcp, fpp)
-register vaddr_t *pcp;
-register vaddr_t *fpp;
+register caddr_t *pcp;
+register caddr_t *fpp;
 {
-	char b[1];
+	unsigned char b[1];
 
 	add = reg.r_ip;
-	if (getb(0, b, sizeof(b)) == 0)
-		return (0);
+	if (getb(ISEG, b, sizeof(b)) == 0)
+		return 0;
 	if (b[0] == 0x56) {			/* push si */
 		*fpp = reg.r_bp;
 		add = reg.r_sp;
 	} else {
 		add = reg.r_bp;
-		if (getb(0, (char *)fpp, sizeof(*fpp)) == 0)
-			return (0);
+		if (getb(DSEG, (char *)fpp, sizeof(*fpp)) == 0)
+			return 0;
 		add = reg.r_bp + 6;
 	}
-	if (getb(0, (char *)pcp, sizeof(*pcp)) == 0)
-		return (0);
+	if (getb(DSEG, (char *)pcp, sizeof(*pcp)) == 0)
+		return 0;
 }
 
 /*
@@ -435,40 +487,43 @@ register vaddr_t *fpp;
  */
 trapint()
 {
-	vaddr_t pc;
-	vaddr_t fw;
+	caddr_t pc;
+	caddr_t fw;
 
-	add = UREGOFF + offset(ureg, ur_fw);
-	if (getb(2, (char *)&fw, sizeof(fw)) == 0) {
-		printr("Cannot get fw");
-		return (0);
+#if 0
+/* new trap handler clears TF in PSW */
+	add = PTRACE_EFL;
+	if (getb(USEG, &fw, sizeof(int)) == 0) {
+		printr("Cannot get psw");
+		return 0;
 	}
 	fw &= ~TBIT;
-	add = UREGOFF + offset(ureg, ur_fw);
-	if (putb(2, (char *)&fw, sizeof(fw)) == 0) {
-		printr("Cannot set fw");
-		return (0);
+	add = PTRACE_EFL;
+	if (putb(USEG, &fw, sizeof(int)) == 0) {
+		printr("Cannot set psw");
+		return 0;
 	}
+#endif
 	if (sysflag) {
-		add = UREGOFF + offset(ureg, ur_ip);
-		if (getb(2, (char *)&pc, sizeof(pc)) == 0) {
-			printr("Cannot get pc");
-			return (0);
+		add = PTRACE_EIP;
+		if (getb(USEG, &pc, sizeof(pc)) == 0) {
+			printr("Cannot get eip");
+			return 0;
 		}
 		pc -= 2;
-		add = UREGOFF + offset(ureg, ur_ip);
-		if (putb(2, (char *)&pc, sizeof(pc)) == 0) {
-			printr("Cannot set pc");
-			return (0);
+		add = PTRACE_EIP;
+		if (putb(USEG, &pc, sizeof(pc)) == 0) {
+			printr("Cannot set eip");
+			return 0;
 		}
 		add = (long)pc;
-		if (putb(1, (char *)sin, sizeof(sin)) == 0) {
+		if (putb(ISEG, (char *)sin, sizeof(sin)) == 0) {
 			printr("Cannot set sin");
-			return (0);
+			return 0;
 		}
 		bitflag = 1;
 	}
-	return (1);
+	return 1;
 }
 
 /*
@@ -477,57 +532,66 @@ trapint()
  */
 restret()
 {
-	char w[1];
+	unsigned char w[1];
 
 	sysflag = 0;
 	if (bitflag == 0)
-		return (1);
+		return 1;
 	add = reg.r_ip;
-	if (getb(1, (char *)w, sizeof(w)) == 0)
-		return (1);
+	if (getb(ISEG, (char *)w, sizeof(w)) == 0)
+		return 1;
+
+/* FIX THIS FOR 386 */
 	if (w[0] != 0xCD)		/* Interrupt (system call) */
-		return (1);
+		return 1;
 	add = reg.r_ip + 2;
-	if (getb(1, (char *)sin, sizeof(sin)) == 0) {
+	if (getb(ISEG, (char *)sin, sizeof(sin)) == 0) {
 		printr("Cannot get breakpoint");
-		return (0);
+		return 0;
 	}
 	add -= sizeof(sin);
-	if (putb(1, (char *)bin, sizeof(bin)) == 0) {
+	if (putb(ISEG, (char *)bin, sizeof(bin)) == 0) {
 		printr("Cannot set breakpoint");
-		return (0);
+		return 0;
 	}
 	bitflag = 0;
 	sysflag = 1;
-	return (1);
+	return 1;
 }
 
 /*
- * Set up breakpoint for single step continue.
+ * Change sinmode to SCSET if instruction at EIP is a call.
  */
 setcont()
 {
-	char w[2];
+	unsigned char	w[4];
+	int	xx;
 
 	add = reg.r_ip;
-	if (getb(1, (char *)w, sizeof(w)) == 0)
+	if (getb(ISEG, &xx, sizeof(xx)) == 0) {
 		return;
-	if (w[0] == 0xE8)			/* Direct call */
+	}
+	w[0] = xx & 0xff;
+	w[1] = (xx>>8) & 0xff;
+	if (w[0] == 0xE8) {			/* Direct call */
 		sinmode = SCSET;
-	if (w[0]==0xFF && (w[1]&0x38)==0x10)	/* Indirect call */
+	}
+	if (w[0]==0xFF && (w[1]&0x38)==0x10) {	/* Indirect call */
 		sinmode = SCSET;
+	}
 }
 
 /*
- * Continue after initial break in single step continue.
+ * Get return address from ESP and set BSIN breakpoint there.
  */
 intcont()
 {
-	unsigned a;
+	unsigned return_addr;
 
 	add = reg.r_sp;
-	if (getb(0, (char *)&a, sizeof(a)))
-		setibpt(BSIN, a, reg.r_bp, NULL);
+	if (getb(DSEG, &return_addr, sizeof(return_addr))) {
+		setibpt(BSIN, return_addr, reg.r_bp, NULL);
+	}
 }
 
 /*
@@ -535,15 +599,15 @@ intcont()
  */
 testbpt(pc)
 {
-	char w[1];
+	unsigned char w[1];
 
 	add = pc;
-	return (getb(1, (char *)w, sizeof(w))!=0 && w==0xCC);
+	return (getb(ISEG, w, sizeof(w))!=0 && w[0]==0xCC);
 }
 
 /*
  * Read `n' characters into the buffer `bp' starting at address `a'
- * from the traced process.
+ * from the traced process, segment `f'.
  */
 getp(f, a, bp, n)
 long a;
@@ -552,10 +616,16 @@ register int n;
 {
 	int d, n1;
 	char *memcpy();
+	int	pcmd;
 
 	for (errno = 0; n; n -= n1, a += n1, bp += n1) {
 		n1 =n>sizeof(long) ? sizeof(long) : n;
-		d = ptrace(1+f, pid, (int *) a, 0);
+		switch(f) {
+		case ISEG:	pcmd = PTRACE_RD_TXT;	break;
+		case DSEG:	pcmd = PTRACE_RD_DAT;	break;
+		case USEG:	pcmd = PTRACE_RD_USR;	break;
+		}
+		d = ptrace(pcmd, pid, (int *) a, 0);
 		if (errno)
 			return 0;
 		memcpy(bp, &d, n1);
@@ -565,7 +635,7 @@ register int n;
 
 /*
  * Write `n' characters from the buffer `bp' starting at address `a' in
- * the traced process.
+ * the traced process to segment `f'.
  */
 putp(f, a, bp, n)
 long a;
@@ -573,17 +643,30 @@ register char *bp;
 register int n;
 {
 	int d, n1;
+	int	pcmd;
 
 	for (errno = 0; n; n -= n1, a += n1, bp += n1) {
 		if (n < sizeof(long)) {
 			n1 = n;
-			d = ptrace(1+f, pid, (int *)a, 0);
+			switch(f) {
+			case ISEG:	pcmd = PTRACE_RD_TXT;	break;
+			case DSEG:	pcmd = PTRACE_RD_DAT;	break;
+			case USEG:	pcmd = PTRACE_RD_USR;	break;
+			}
+			d = ptrace(pcmd, pid, (int *)a, 0);
 		} else
 			n1 = sizeof(long);
 		memcpy(&d, bp, n1);
-		ptrace(4+f, pid, (int *) a, d);
-		if (errno)
+		switch(f) {
+		case ISEG:	pcmd = PTRACE_WR_TXT;	break;
+		case DSEG:	pcmd = PTRACE_WR_DAT;	break;
+		case USEG:	pcmd = PTRACE_WR_USR;	break;
+		}
+		ptrace(pcmd, pid, (int *) a, d);
+		if (errno) {
+			perror("db: putp()");
 			return 0;
+		}
 	}
 	return 1;
 }
