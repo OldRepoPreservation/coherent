@@ -7,6 +7,13 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.15  92/01/13  08:36:53  hal
+ * Add a few DEBUG lines.
+ * 
+ * Revision 1.14  92/01/09  09:42:31  hal
+ * Add debug conditionals for sleeps.
+ * Fix process group logic, including TIOCSETG hack.
+ * 
  * Revision 1.13  91/12/10  17:01:56  hal
  * Don't wait for drain on TIOCFLUSH.
  * 
@@ -195,12 +202,19 @@ dev_t ctdev;
 	register PROC *pp;
 
 	pp = SELF;
+#if DEBUG
+printf("ttsetgrp dev=%x pid=%d pg=%d ", ctdev, pp->p_pid, pp->p_group);
+printf("old_ct=%x old_tg=%d ", pp->p_ttdev, tp->t_group);
+#endif
 	if (pp->p_group == pp->p_pid) {
 		if (pp->p_ttdev == NODEV)
 			pp->p_ttdev = ctdev;
 		if (tp->t_group == 0)
 			tp->t_group = pp->p_pid;
 	}
+#if DEBUG
+printf("new_ct=%x new_tg=%d\n", pp->p_ttdev, tp->t_group);
+#endif
 }
 
 /*
@@ -960,6 +974,9 @@ int sig;
 	register PROC *pp;
 
 	g = tp->t_group;
+#if DEBUG
+printf("ttsignal sig=%d gp=%d\n", sig, g);	
+#endif
 	if (g == 0)
 		goto sigdone;
 	ttflush(tp);
