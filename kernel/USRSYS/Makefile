@@ -44,6 +44,13 @@ HERE=	$(KOBJ)/md2.o \
 	$(KOBJ)/mmu.o \
 	$(KOBJ)/support.o
 
+FIFO=	$(KOBJ)/fifo_open.o \
+	$(KOBJ)/fifo_close.o \
+	$(KOBJ)/fifo_read.o \
+	$(KOBJ)/fifo_write.o \
+	$(KOBJ)/fifo_len.o \
+	$(KOBJ)/fifo_rewind.o
+
 DOTDOT=	$(KOBJ)/alloc.o \
 	$(KOBJ)/as1.o \
 	$(KOBJ)/bio.o \
@@ -179,6 +186,24 @@ $(KOBJ)/exec.o: $(I86SRC)/exec.c
 $(KOBJ)/fd.o: $(COHSRC)/fd.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
+$(KOBJ)/fifo_open.o: $(COHSRC)/fifo_open.c $(SYSINC)/typed.h
+	$(CC) $(C86FLAGS) -o $@ $(COHSRC)/fifo_open.c
+
+$(KOBJ)/fifo_close.o: $(COHSRC)/fifo_close.c $(SYSINC)/typed.h
+	$(CC) $(C86FLAGS) -o $@ $(COHSRC)/fifo_close.c
+
+$(KOBJ)/fifo_read.o: $(COHSRC)/fifo_read.c $(SYSINC)/typed.h
+	$(CC) $(C86FLAGS) -o $@ $(COHSRC)/fifo_read.c
+
+$(KOBJ)/fifo_write.o: $(COHSRC)/fifo_write.c $(SYSINC)/typed.h
+	$(CC) $(C86FLAGS) -o $@  $(COHSRC)/fifo_write.c
+
+$(KOBJ)/fifo_len.o: $(COHSRC)/fifo_len.c $(SYSINC)/typed.h
+	$(CC) $(C86FLAGS) -o $@  $(COHSRC)/fifo_len.c
+
+$(KOBJ)/fifo_rewind.o: $(COHSRC)/fifo_rewind.c $(SYSINC)/typed.h
+	$(CC) $(C86FLAGS) -o $@ $(COHSRC)/fifo_rewind.c
+
 $(KOBJ)/fs1.o: $(COHSRC)/fs1.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
@@ -259,7 +284,7 @@ $(KOBJ)/var.o: $(COHSRC)/var.c
 
 # Additional libraries searched when "config" runs.
 
-$(DRVLIB)/support.a:	$(KOBJ)/cs_sel.o $(KOBJ)/clocked.o
+$(DRVLIB)/support.a:	$(KOBJ)/cs_sel.o $(KOBJ)/clocked.o $(FIFO)
 	rm -f $@
 	ar rc $@ $<
 
