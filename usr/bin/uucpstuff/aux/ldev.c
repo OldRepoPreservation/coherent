@@ -14,7 +14,7 @@
 extern	char *index();
 static	char linebuf[LINELEN];
 
-static	char *kw_txt[] = {		/* Indexed by LSYS_E		*/
+static	char *kw_txt[] = {		/* Indexed by LDEV_E		*/
 	"Connection Type",
 	"Local Line",
 	"Remote Line",
@@ -62,7 +62,7 @@ ldev_next()
 	LDEV_E i;
 
 	if ( ldevfp == NULL )
-		fatal("Bad function call: lsys_next");
+		fatal("Bad function call: ldev_next");
 
 	for (i=0; i<LDEVLAST_e; i++)
 		ldev_ptr[i] = NULL;
@@ -92,7 +92,7 @@ ldev_next()
 
 /*
  *  ldev_line() parses the string linebuf[] into the LDEV_E fields as
- *  specified in "ldev.h" and fills the arrays lsys_ptr[].
+ *  specified in "ldev.h" and fills the arrays ldev_ptr[].
  *  Return values are (0) for syntax error in linebuf[], or (1) for success.
  */
 
@@ -113,8 +113,8 @@ ldev_line()
 }	
 
 /*
- *  lsys_value() returns the field associated with the desired keyword
- *  as specified by the LSYS_E argument.  See "lsys.h" for more info.
+ *  ldev_value() returns the field associated with the desired keyword
+ *  as specified by the LDEV_E argument.  See "ldev.h" for more info.
  */
 
 char *
