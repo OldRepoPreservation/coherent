@@ -49,7 +49,7 @@ COHERENT
 .tm tmac.an: there is no such macro `.TL'; please use `.TH'
 .ab
 ..
-.	subheading
+.	section heading
 .de SH
 .br
 .sp \\n(pDu
@@ -57,6 +57,19 @@ COHERENT
 .Pr
 .fi
 .in 0
+.ne 3
+.ft B
+.it 1 S-
+.if \\n(.$ .Xa \\n(.$ "*** \\$1 ***" "*** \\$2 ***" "*** \\$3 ***" "\\$4" "\\$5" "\\$6"
+..
+.	subsection heading
+.de SS
+.br
+.sp \\n(pDu
+.Rr
+.Pr
+.fi
+.in 5n
 .ne 3
 .ft B
 .it 1 S-
