@@ -14,6 +14,9 @@ MFILES	= readme Makefile gram.fix
 
 bc:	$(OFILES) 
 	$(CC) $(CFLAGS) -i -o $(DESTDIR)bc $(OFILES) -lmp
+	su root chown bin $(DESTDIR)bc
+	su root chgrp bin $(DESTDIR)bc
+	su root chmod 511 $(DESTDIR)bc
 
 bcprof:	$(OFILES)
 	$(CC) $(CFLAGS) -o bcprof -p $(OFILES) bc.v.o -lmp
