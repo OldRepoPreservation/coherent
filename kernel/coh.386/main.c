@@ -86,18 +86,32 @@ main()
 	extern int realmode;
 #endif
 
-	T_PIGGY( 0x1000000, chirp('a'); );
+	CHIRP('a');
 
 	u.u_error = 0;
 	bufinit();
+	_CHIRP('0', 156);
 	cltinit();
+	_CHIRP('1', 156);
 	pcsinit();
+	_CHIRP('2', 156);
 	seginit();
+	_CHIRP('3', 156);
 	atcount();
+	_CHIRP('4', 156);
 	rpdev();
+	_CHIRP('5', 156);
 	devinit();
+	_CHIRP('6', 156);
 #ifdef _I386
 	rlinit();
+	/*
+	 * Below this point, chirp() should not be needed any more.
+	 * So, remove the remaining chirp marks.
+	 */
+	_CHIRP(' ', 156);
+	CHIRP(' ');
+
 	putchar_init();
 	printf("*** COHERENT Version %s - %s Mode.  %uKB free memory. ***\n",
 		release, "386", ctob(allocno())/1024);
@@ -139,16 +153,16 @@ panic("Verification error - call Mark Williams Company at +1-708-291-6700\n");
 	batflag = 1;
 #ifdef _I386
 	iprocp = SELF;
-	T_PIGGY( 0x1000000, chirp('b'); );
+	CHIRP('b');
 	if (pfork()) {
-		T_PIGGY( 0x1000000, chirp('i'); );
+		CHIRP('i');
 		idle();
 	} else {
 		fsminit();
-		T_PIGGY( 0x1000000, chirp('-'); );
+		CHIRP('-');
 		eprocp = SELF;
 		eveinit();
-		T_PIGGY( 0x1000000, chirp('='); );
+		CHIRP('=');
 	}
 #else
 	if ((sp=salloc((fsize_t)UPASIZE, SFNCLR|SFNSWP)) == NULL)
@@ -158,7 +172,7 @@ panic("Verification error - call Mark Williams Company at +1-708-291-6700\n");
 	eveinit(sp);
 	fsminit();
 #endif
-	T_PIGGY( 0x1000000, chirp('c'); );
+	CHIRP('c');
 }
 
 /*
