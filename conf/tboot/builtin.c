@@ -11,6 +11,8 @@
 #include <sys/dir.h>
 #include "tboot.h"
 
+int slow_flag = FALSE;	/* Slow down pacifier.  */
+
 /* If possible, execute "command".
  * Return "true" if the command exists, "false" otherwise.
  */
@@ -52,6 +54,10 @@ interpret(command)
 	} else if (0 == strcmp(command, "monitor")) {
 		monitor();
 		return(TRUE);
+	} else if ((0 == strcmp(command, "slow"))) {
+		slow_flag = TRUE;
+		puts("Slow mode.\r\n");
+		return(TRUE); 
 	} else if ((0 == strcmp(command, "gift"))) {
 		dump_gift();	/* Dump boot_gift.  */
 		return(TRUE);
@@ -66,6 +72,7 @@ interpret(command)
 		   (0 == strcmp(command, "?")) ) {
 		   puts("info          Print disk information.\r\n");
 		   puts("dir|ls        List contents of /.\r\n");
+		   puts("slow          Slow down pacifier.\r\n");
 		   puts("?|help        Print this list.\r\n");
 		   return(TRUE);
 	} else if (0 == strcmp(command, "mon_on")) {
