@@ -7,6 +7,9 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.8  91/09/13  18:01:39  piggy
+ * Only do XON/XOFF flow control if TANDEM is set.
+ *
  * Revision 1.7  91/09/13  17:58:00  hal
  * Drop 3rd arg (was writing PSW directly from it!) for ttread/ttwrite.
  * General face lift.
@@ -50,6 +53,28 @@
  *
  * 85/03/01	Allan Cornish
  * made ttclose() interruptible.
+ */
+
+/*
+ * About STOP flag bits:
+ *	T_ISTOP is set when the tty module's input queue is in danger of
+ *		overflow.  It is up to the device driver to check this flag
+ *		and do something about it.  If ttin() is called with a
+ *		character from the device while T_ISTOP is set, the  character
+ *		is discarded.  T_ISTOP is cleared when the input queue is
+ *		sufficiently empty.  The device driver can monitor this bit for
+ *		hardware flow control.
+ *	T_TSTOP is the "Tandem" flow control flag for input.  If TANDEM is set
+ *		and the input queue is in danger of overflow, t_stopc is sent
+ *		and T_TSTOP is set.  When the input queue is empty enough,
+ *		t_startc is sent and T_TSTOP is cleared.
+ *	T_STOP is the flow control bit for output.  No output will be
+ *		sent to the device from tty.c while this bit is true.  If
+ *		TANDEM is set for the device, tty.c will set T_STOP whenever it
+ *		receives t_stopc and clear T_STOP when it receives t_startc.
+ *		If TANDEM is not set, the device driver can write this bit when
+ *		doing hardware flow control.
+ *	91/09/15 - hal
  */
 
 /*
@@ -232,7 +257,7 @@ register IO *iop;
 			 * Non-blocking reads.
 			 * Tell user process to try again later.
 			 */
-			if ( iop->io_flag & IONDLY ) {
+			if (iop->io_flag & IONDLY) {
 				u.u_error = EAGAIN;
 				spl(o);
 				return;
@@ -254,7 +279,7 @@ register IO *iop;
 		if (tp->t_iq.cq_cc <= ILOLIM) {
 			if ((tp->t_flags&T_ISTOP) != 0)
 				tp->t_flags &= ~T_ISTOP;
-			if ((tp->t_flags&T_TSTOP) != 0) {
+			if (ISTAND && (tp->t_flags&T_TSTOP) != 0) {
 				tp->t_flags &= ~T_TSTOP;
 				while (putq(&tp->t_oq, startc) < 0) {
 					ttstart(tp);
@@ -290,12 +315,12 @@ register IO *iop;
 	 * Non-blocking writes which can fit.
 	 * NOTE: exhaustion of clists can still cause blocking writes.
 	 */
-	if ( (iop->io_flag & IONDLY) && (OHILIM >= iop->io_ioc) ) {
+	if ((iop->io_flag & IONDLY) && (OHILIM >= iop->io_ioc)) {
 
 		/*
 		 * No room.
 		 */
-		if ( tp->t_oq.cq_cc >= OHILIM-iop->io_ioc ) {
+		if (tp->t_oq.cq_cc >= OHILIM-iop->io_ioc) {
 			u.u_error = EAGAIN;
 			return;
 		}
@@ -417,17 +442,18 @@ register struct sgttyb *vec;
 	}
 
 	/*
-	 * Ensure output is enabled BEFORE waiting for output to drain.
-	 */
-	if ( (ISRIN) && (tp->t_flags & T_STOP) ) {
-		tp->t_flags &= ~T_STOP;
-		ttstart( tp );
-	}
-
-	/*
 	 * Wait for output to drain, or signal to arrive.
 	 */
 	if (drain != 0) {
+
+		/*
+		 * Ensure output is enabled BEFORE waiting for output to drain.
+		 */
+		if (ISRIN && (tp->t_flags & T_STOP)) {
+			tp->t_flags &= ~T_STOP;
+			ttstart(tp);
+		}
+
 		while (tp->t_oq.cq_cc != 0) {
 			tp->t_flags |= T_DRAIN;
 			sleep((char *)&tp->t_oq, CVTTOUT, IVTTOUT, SVTTOUT);
@@ -445,7 +471,7 @@ register struct sgttyb *vec;
 	/*
 	 * Re-initialize hardware.
 	 */
-	if ( (rload != 0) && (tp->t_param != NULL) )
+	if ((rload != 0) && (tp->t_param != NULL))
 		NEAR_OR_FAR_CALL(t_param)
 }
 
@@ -455,7 +481,7 @@ register struct sgttyb *vec;
  *	Polling routine.
  *	[System V.3 Compatible]
  */
-int ttpoll( tp, ev, msec )
+int ttpoll(tp, ev, msec)
 register TTY * tp;
 int ev;
 int msec;
@@ -468,40 +494,40 @@ int msec;
 	/*
 	 * Input poll with no data present.
 	 */
-	if ( (ev & POLLIN) && (tp->t_iq.cq_cc == 0) ) {
+	if ((ev & POLLIN) && (tp->t_iq.cq_cc == 0)) {
 
 		/*
 		 * Blocking input poll.
 		 */
-		if ( msec != 0 )
-			pollopen( &tp->t_ipolls );
+		if (msec != 0)
+			pollopen(&tp->t_ipolls);
 
 		/*
 		 * Second look to avoid interrupt race.
 		 */
-		if ( tp->t_iq.cq_cc == 0 )
+		if (tp->t_iq.cq_cc == 0)
 			ev &= ~POLLIN;
 	}
 
 	/*
 	 * Output poll with no space.
 	 */
-	if ( (ev & POLLOUT) && (tp->t_oq.cq_cc >= OLOLIM) ) {
+	if ((ev & POLLOUT) && (tp->t_oq.cq_cc >= OLOLIM)) {
 
 		/*
 		 * Blocking output poll.
 		 */
-		if ( msec != 0 )
-			pollopen( &tp->t_opolls );
+		if (msec != 0)
+			pollopen(&tp->t_opolls);
 
 		/*
 		 * Second look to avoid interrupt race.
 		 */
-		if ( tp->t_oq.cq_cc >= OLOLIM )
+		if (tp->t_oq.cq_cc >= OLOLIM)
 			ev &= ~POLLIN;
 	}
 
-	if ( ((ev & POLLIN) == 0) && ((tp->t_flags & T_CARR) == 0) )
+	if (((ev & POLLIN) == 0) && ((tp->t_flags & T_CARR) == 0))
 		ev |= POLLHUP;
 
 	return ev;
@@ -706,11 +732,11 @@ register c;
 		putq(&tp->t_iq, c);
 		if ((tp->t_flags&T_INPUT) != 0) {
 			tp->t_flags &= ~T_INPUT;
-			defer( wakeup, (char *) &tp->t_iq );
+			defer(wakeup, (char *) &tp->t_iq);
 		}
-		if ( tp->t_ipolls.e_procp ) {
+		if (tp->t_ipolls.e_procp) {
 			tp->t_ipolls.e_procp = 0;
-			defer( pollwake, (char *) &tp->t_ipolls );
+			defer(pollwake, (char *) &tp->t_ipolls);
 		}
 	} else {
 		if (tp->t_ibx == 0)
@@ -760,14 +786,14 @@ register TTY *tp;
 		tp->t_ibx = 0;
 		tp->t_escape = 0;
 
-		if ( tp->t_flags & T_INPUT ) {
+		if (tp->t_flags & T_INPUT) {
 			tp->t_flags &= ~T_INPUT;
-			defer( wakeup, (char *) &tp->t_iq );
+			defer(wakeup, (char *) &tp->t_iq);
 		}
 
-		if ( tp->t_ipolls.e_procp ) {
+		if (tp->t_ipolls.e_procp) {
 			tp->t_ipolls.e_procp = 0;
-			defer( pollwake, (char *) &tp->t_ipolls );
+			defer(pollwake, (char *) &tp->t_ipolls);
 		}
 
 	} else if (tp->t_ibx < NCIB-1)
@@ -786,29 +812,29 @@ register TTY *tp;
 	register int n;
 
 	n = tp->t_flags;
-	if ( n & T_STOP )
+	if (n & T_STOP)
 		return;
 
 	if ((n&T_DRAIN)!=0 && tp->t_oq.cq_cc==0
 	   && (n&T_INL)==0 && tp->t_nfill==0)
 	{	tp->t_flags &= ~T_DRAIN;
-		defer( wakeup, (char *) &tp->t_oq );
+		defer(wakeup, (char *) &tp->t_oq);
 		return;
 	}
 
 	NEAR_OR_FAR_CALL(t_start)
 
-	if ( tp->t_oq.cq_cc > OLOLIM )
+	if (tp->t_oq.cq_cc > OLOLIM)
 		return;
 
-	if ( n & T_HILIM ) {
+	if (n & T_HILIM) {
 	   	tp->t_flags &= ~T_HILIM;
-		defer( wakeup, (char *) &tp->t_oq );
+		defer(wakeup, (char *) &tp->t_oq);
 	}
 
-	if ( tp->t_opolls.e_procp ) {
+	if (tp->t_opolls.e_procp) {
 		tp->t_opolls.e_procp = 0;
-		defer( pollwake, (char *) &tp->t_opolls );
+		defer(pollwake, (char *) &tp->t_opolls);
 	}
 }
 
@@ -824,20 +850,20 @@ register TTY *tp;
 	clrq(&tp->t_iq);
 	clrq(&tp->t_oq);
 
-	if ( tp->t_flags & T_INPUT )
-		defer( wakeup, (char *) &tp->t_iq );
+	if (tp->t_flags & T_INPUT)
+		defer(wakeup, (char *) &tp->t_iq);
 
-	if ( tp->t_flags & (T_DRAIN|T_HILIM) )
-		defer( wakeup, (char *) &tp->t_oq );
+	if (tp->t_flags & (T_DRAIN|T_HILIM))
+		defer(wakeup, (char *) &tp->t_oq);
 
-	if ( tp->t_ipolls.e_procp != 0 ) {
+	if (tp->t_ipolls.e_procp != 0) {
 		tp->t_ipolls.e_procp = 0;
-		defer( pollwake, (char *) &tp->t_ipolls );
+		defer(pollwake, (char *) &tp->t_ipolls);
 	}
 
-	if ( tp->t_opolls.e_procp != 0 ) {
+	if (tp->t_opolls.e_procp != 0) {
 		tp->t_opolls.e_procp = 0;
-		defer( pollwake, (char *) &tp->t_opolls );
+		defer(pollwake, (char *) &tp->t_opolls);
 	}
 
 	tp->t_ibx = 0;
