@@ -197,7 +197,9 @@ register NODE *np;
 		break;
 
 	case AFPIPE:
+#ifndef GEMDOS
 		if ((ofp->of_fp = popen(s, "w")) == NULL)
+#endif
 			awkerr("Cannot create pipe to `%s'", s);
 		ofp->of_flag = OFPIPE;
 		break;
@@ -270,7 +272,7 @@ STRING asval;
 {
 	CHAR *xfield1();
 	register CHAR *as, *s1, *s2;
-	register int c;
+	register int c, i1, nf;
 	register unsigned nb;
 	extern int whitesw;
 
@@ -289,6 +291,7 @@ STRING asval;
 		if ((i += (int)NF + 1) == 0)
 			i = -1;
 
+	i1 = i;
 	do {
 		if (!*s1 || --i==0)
 			break;
@@ -307,6 +310,20 @@ STRING asval;
 		nb++;
 	s2--;
 	if (asval != NULL) {
+		/*
+		 * An attempt to set an arg past the end.
+		 */
+		if(0 < (i1 -= evalint(NFp))) {
+			if (whitesw && (i1 > 1))
+				awkwarn("Assignment to unbuildable field");
+			as = xalloc(strlen(asval) + i1 + 1);
+			strcpy(as + i1, asval);
+			memset(as, FS[0], i1);
+
+			inline = xfield1(inline, s1, as, s2, s2+strlen(s2));
+			free(as);
+			return (snode(inline, 0));
+		}
 		inline = as = xfield1(inline, s1, asval, s2, s2+strlen(s2));
 		return (snode(inline, 0));
 	} else {
