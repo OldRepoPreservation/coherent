@@ -6,6 +6,7 @@
  -lgl) */
 #include <sys/coherent.h>
 #include <sys/con.h>
+#include <sys/ino.h>
 #include <mtype.h>
 #include <sys/stat.h>
 
@@ -38,7 +39,7 @@ DRV	drvl[NDRV] = {
 /*
  * Time.
  */
-TIME timer ={
+struct _TIME_OF_DAY timer ={
 	0,				/* Initial time */
 	0,				/* Ticks */
 	-1*60,				/* Mittel Europa Zeit */
@@ -65,4 +66,5 @@ int	ALLSIZE = 0;	/* main.c autosizes. Patching overrides autosize */
 int	NINODE	= 128;	/* More than enough so far */
 int	NBUF	= 0;	/* main.c autosizes. Patching overrides autosize */
 int	NHASH	= 1021;
-int	BPFMAX	= 1024*1024*2;	/* for ulimit - max # of blocks per file */
+int	BPFMAX	= (ND + NBN + NBN*NBN + NBN*NBN*NBN);
+			/* for ulimit - max # of blocks per file */
