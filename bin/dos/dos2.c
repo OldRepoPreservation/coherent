@@ -73,6 +73,7 @@ creatdir(name) char *name;
 	DIR *dp, *ndp;
 
 	/* Check if directory exists. */
+
 	if ((mdp = find(name, root, &dp)) != NULL) {
 		if (!isdir(mdp))
 			fatal("replace: \"%s\" is an MS-DOS file, not a subdirectory", name);
@@ -81,7 +82,7 @@ creatdir(name) char *name;
 
 	/* Directory does not exist, create it. */
 	dbprintf(("creatdir(%s)\n", name));
-	if ((cp = rindex(name, '/')) == NULL) {
+	if ((cp = strrchr(name, '/')) == NULL) {
 		dp = root;
 		mdp = creatfile(name, dp);	/* create the dir in root */
 	} else {
@@ -167,10 +168,14 @@ delete(nargs, args) int nargs; char *args[];
 			fprintf(stderr, "d %s\n", *ap);
 		if ((mdp = find(*ap, root, &dp)) == NULL)
 			nonfatal("delete: \"%s\" not found", *ap);
-		else if isdir(mdp)
-			deletedir(mdp, dp, *ap);
-		else
-			deletefile(mdp, dp);
+		else {
+			do { 
+				if isdir(mdp)
+					deletedir(mdp, dp, cohn(mdp->m_name));
+				else
+					deletefile(mdp, dp);
+			} while (mdp = findnext(&dp));
+		}
 	}
 }
 
@@ -245,16 +250,16 @@ dirclusters(mdp) MDIR *mdp;
  * Map a COHERENT filename to an 11-character MS-DOS name (plus NUL terminator)
  * in the static buffer and return a pointer to it.
  * There is no good way, thanks to different filename lengths and '.'.
- * Special hacks: ".profile" -> "_PROFILE", "a.b.c" -> "A_B_.C".
+ * Special hacks: ".profile" -> "_PROFILE", "a.b.c" -> "A_B.C".
  */
 char *
 dosname(name) register char *name;
 {
 	register char *s, *dotp;
 	char c;
-	static char buf[12];
+	static char buf[16];
 
-	dotp = rindex(name, '.');
+	dotp = strrchr(name, '.');
 	if (dotp == name)
 		dotp = NULL;
 	for (s = buf; name != dotp && (c = *name) != '\0'; name++)
@@ -266,7 +271,7 @@ dosname(name) register char *name;
 		for ( ; *name != '\0'; name++)
 			if (s < &buf[11])
 				*s++ = *name;	/* copy extension */
-	while (s < &buf[11])
+	while (s < &buf[10])
 		*s++ = ' ';			/* space-pad extension */
 	*s = '\0';				/* NUL terminate */
 	uppercase(buf);				/* map to UPPER */
@@ -301,6 +306,16 @@ dostime(mdp, file) register MDIR *mdp; char *file;
 }
 
 /*
+ * creat a directory on a dos disk
+ */
+void
+createdir(nargs, args) int nargs; char *args[];
+{
+	creatdir(*args);
+}
+
+
+/*
  * Extract files from MS-DOS file system.
  */
 void
@@ -308,6 +323,7 @@ extract(nargs, args) int nargs; char *args[];
 {
 	register MDIR *mdp;
 	register char **ap;
+	char *tmp;
 	DIR *dp;
 
 	if ((clbuf = malloc(clsize * ssize)) == NULL)
@@ -316,13 +332,26 @@ extract(nargs, args) int nargs; char *args[];
 		fatal("extract: exactly one file required with 'p' option");
 	if (nargs == 0)
 		extractdir(root);
-	else for (ap = args; *ap != NULL; ap++) {
+	else for (ap = args; nargs ; ap++, nargs--) {
 		if ((mdp = find(*ap, root, &dp)) == NULL)
 			nonfatal("extract: file \"%s\" not found", *ap);
-		else if isdir(mdp)
-			extractdir(dp);
-		else
-			extractfile(mdp, dp);
+		else {
+			do {
+				if ((tmp = strrchr(*ap, '/')) != NULL) {
+					base = *ap;
+					*(tmp++) = '\0';
+				}
+				else {
+					base = NULL;
+					tmp = *ap;
+				}
+		
+				if isdir(mdp)
+					extractdir(dp);
+				else
+					extractfile(mdp, dp);
+			} while (mdp = findnext(&dp));
+		}
 	}
 	free(clbuf);
 }
@@ -380,6 +409,13 @@ extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 	int readsize;
 	long size;
 	FILE *ofp;
+	char *tmp, tmp2[6];
+
+	if (!bflag && ((tmp = strrchr(mdp->m_name, '.')) != NULL)) {
+		sprintf(tmp2, "%s.", tmp);
+		aflag = strstr(ext, tmp2) ? 1 : 0;
+		printf("%s - %s\n", mdp->m_name, aflag ? "ascii" : "binary");
+	}
 
 	/* Convert filename to COHERENT format and open the output file. */
 	cohname(mdp->m_name, dp);
@@ -387,7 +423,7 @@ extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 		fprintf(stderr, "x %s\n", cohfile);
 	if (pflag)
 			ofp = stdout;
-	else if ((ofp = fopen(cohfile, "w")) == NULL)
+	else if ((ofp = fopen(makef(cohfile), "w")) == NULL)
 		fatal("extract: cannot create file \"%s\"", cohfile);
 
 	/* Read the MS-DOS file and write it to the COHERENT file. */

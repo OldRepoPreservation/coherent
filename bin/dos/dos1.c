@@ -148,6 +148,14 @@ void
 fatal(x) char *x;
 {
 	fprintf(stderr, "%s: %r\n", argv0, &x);
+	rm_lock();
+	exit(1);
+}
+
+void
+fatal1(x) char *x;
+{
+	fprintf(stderr, "%s: %r\n", argv0, &x);
 	exit(1);
 }
 
@@ -362,10 +370,13 @@ setglobals()
  * Print usage message and die.
  */
 void
-usage()
+usage(msg) char *msg;
 {
 	fprintf(stderr, usagemsg);
-	exit(1);
+	if (msg)
+		fatal(msg);
+	else
+		exit(1);
 }
 
 /*
