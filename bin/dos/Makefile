@@ -1,10 +1,10 @@
-# /usr/src/cmd/dos/Makefile 3/26/90
+# dos/Makefile 3/26/90
 # Does not include header file dependencies.
 
-# CFLAGS=-DDEBUG
-DESTDIR= /interim/bin/
-
+CFLAGS=-A
+#CFLAGS=-DDEBUG -A
 OBJ=\
+	copyright.o\
 	dos0.o\
 	dos1.o\
 	dos2.o\
@@ -16,6 +16,7 @@ HDR=\
 	dos1.h\
 	mdir.h
 SRC=\
+	copyright.c\
 	dos0.c\
 	dos1.c\
 	dos2.c\
@@ -25,20 +26,27 @@ SRC=\
 
 # Primary targets.
 dos:	$(OBJ)
-	$(CC) -i -o $(DESTDIR)dos $(OBJ)
-	su root chown bin $(DESTDIR)dos
-	su root chgrp bin $(DESTDIR)dos
-	su root chmod 511 $(DESTDIR)dos
-
+	$(CC) -i -o dos $(OBJ)
+	ln -f dos dosdir
+	ln -f dos dosls	
+	ln -f dos dosmkdir
+	ln -f dos doscp
+	ln -f dos doscpdir
+	ln -f dos dosdel
+	ln -f dos doscat
+	ln -f dos dosrm
+	ln -f dos dosrmdir
+	ln -f dos dosformat
+	ln -f dos doslabel
 dosshrink:	dosshrink.o dos1.o
-	$(CC) -i -o $(DESTDIR)dosshrink dosshrink.o dos1.o -f
+	$(CC) -i -o dosshrink dosshrink.o dos1.o -f
 
 # Secondary targets.
-dos0.o:		dos0.c
-dos1.o:		dos1.c
-dos2.o:		dos2.c
-dos3.o:		dos3.c
-dos4.o:		dos4.c
+dos0.o:		dos0.c $(HDR)
+dos1.o:		dos1.c $(HDR)
+dos2.o:		dos2.c $(HDR)
+dos3.o:		dos3.c $(HDR)
+dos4.o:		dos4.c $(HDR)
 dosshrink.o:	dosshrink.c
 
 # Etc.
@@ -53,5 +61,3 @@ listing:
 dos.tar.Z:
 	tar cvf dos.tar dos dosshrink Makefile $(HDR) $(SRC)
 	compress dos.tar
-
-# end of /usr/src/cmd/dos/Makefile
