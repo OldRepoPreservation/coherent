@@ -122,7 +122,6 @@ char *argv[];
 				break;
 
 			case 'y':
-			case 'i':
 				redual = 1;
 				yflag = 1;
 				break;
@@ -270,7 +269,7 @@ char *s;
 
 	m = 0;
 	for (epp = &exps[0]; epp->e_un.u_re!=NULL && m==0; epp++)
-		if ((*epp->e_mfun)(epp->e_un.u_re, s) != NULL)
+		if ((*epp->e_mfun)(epp->e_un.u_re, s) != 0)
 			m = 1;
 	if (vflag)
 		m = !m;
@@ -289,8 +288,8 @@ char *s;
 	register m;
 
 	m = 0;
-	for (epp = &exps[0]; epp->u_cp!=NULL && !m; epp++)
-		m = yflag ? yseq(epp->u_cp, s) : seq(epp->u_cp, s);
+	for (epp = &exps[0]; epp->e_un.u_cp!=NULL && !m; epp++)
+		m = yflag ? yseq(epp->e_un.u_cp, s) : seq(epp->e_un.u_cp, s);
 	if (vflag)
 		m = !m;
 	if (m)
@@ -392,9 +391,7 @@ register char *s;
 
 err(s)
 {
-	if (!sflag) {
-		fprintf(stderr, "%r", &s);
-		fprintf(stderr, "\n");
-	}
+	if (!sflag)
+		fprintf(stderr, "grep: %r\n", &s);
 	exit(2);
 }
