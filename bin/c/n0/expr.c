@@ -395,11 +395,14 @@ build(op, lp, rp) int op; TREE *lp; TREE *rp;
 	 * Look mainly at the type, although some consideration
 	 * is made of storage class.
 	 */
-	if ((op!=COMMA && rt==T_VOID) ||
-	    (op!=COMMA && op!=COLON && lt==T_VOID)) {
-		cerror("illegal operation on \"void\" type");
-		lt = T_INT;
-		rt = T_INT;
+	if (lt==T_VOID || rt==T_VOID) {
+		if ((op!=COMMA && op!=QUEST && op!=COLON)
+		 || (op==COLON && lt!=rt)
+		 || (op==QUEST && lt==T_VOID)) {
+			cerror("illegal operation on \"void\" type");
+			lt = T_INT;
+			rt = T_INT;
+		}
 	}
 	if (op==ADDR && lp->t_op==REG)
 		cerror("cannot apply unary '&' to a register variable");
@@ -562,19 +565,21 @@ conversion:
 			if (op>=INCBEF && op<=DECAFT)
 				cv &= ~CVL;
 			if (op == COLON && lt != rt) {
-				if (lt == T_PTR)
+				if (lt == T_PTR) {
 					if (iszero(rp)) {
 						gt.t_op = CAST;
 						gt.t_rp = NULL;
 					} else
 						cerror(tclash);
-				else if (rt == T_PTR)
+				} else if (rt == T_PTR) {
 					if (iszero(lp)) {
 						gt.t_op = CAST;
 						gt.t_rp = NULL;
 					} else
 						cerror(tclash);
-			}
+				}
+			} else if (op == COLON && lt==T_VOID && rt==T_VOID)
+				gt.t_type = T_VOID;
 			if ((cv&CVL) != 0)
 				lp = bcvt(lp, &gt);
 			if (op==SHL || op==SHR) {
