@@ -5,7 +5,7 @@
  */
 
 #include "sh.h"
-#include "y.tab.h"
+#include <y.tab.h>
 
 /*
  * Local externals.
@@ -25,6 +25,7 @@ int	hereqflag;		/* Here document quoted */
  * Keyword table.
  */
 typedef	struct	key {
+	int	k_hash;			/* Hash */
 	int	k_lexv;			/* Lexical value */
 	char	*k_name;		/* Keyword name */
 } KEY;
@@ -33,30 +34,37 @@ typedef	struct	key {
  * Keyword table.
  */
 KEY keytab[] ={
-	_CASE,	"case",
-	_DO,	"do",
-	_DONE,	"done",
-	_ELIF,	"elif",
-	_ELSE,	"else",
-	_ESAC,	"esac",
-	_FI,	"fi",
-	_FOR,	"for",
-	_IF,	"if",
-	_IN,	"in",
-	_THEN,	"then",
-	_UNTIL,	"until",
-	_WHILE,	"while",
-	_OBRAC,	"{",
-	_CBRAC, "}",
-	_NULL
+	0,	_CASE,	"case",
+	0,	_DO,	"do",
+	0,	_DONE,	"done",
+	0,	_ELIF,	"elif",
+	0,	_ELSE,	"else",
+	0,	_ESAC,	"esac",
+	0,	_FI,	"fi",
+	0,	_FOR,	"for",
+	0,	_IF,	"if",
+	0,	_IN,	"in",
+	0,	_THEN,	"then",
+	0,	_UNTIL,	"until",
+	0,	_WHILE,	"while",
+	0,	_OBRAC,	"{",
+	0,	_CBRAC, "}"
 };
+#define	NKEYS	(sizeof(keytab) / sizeof(keytab[0]))
+
 /*
  * Get the next lexical token.
  */
 yylex()
 {
 	register int c;
+	register KEY *kp;
+	int hash;
 
+	/* Initialize hash values in key table. */
+	if (keytab[0].k_hash == 0)
+		for (kp = &keytab[0]; kp < &keytab[NKEYS]; kp++)
+			kp->k_hash = ihash(kp->k_name);
 again:
 	while ((c=getn())==' '  ||  c=='\t') ;
 	strp = strt;
@@ -88,12 +96,11 @@ again:
 			goto again;
 		else if (c < 0)
 			return c;
+		hash = ihash(strt);
 		if (keyflag) {
-			register KEY *kp;
-			for (kp=keytab; kp->k_lexv!=_NULL; kp++) {
-				if (strcmp(strt, kp->k_name) == 0)
+			for (kp = keytab; kp < &keytab[NKEYS]; kp++)
+				if (hash == kp->k_hash && strcmp(strt, kp->k_name) == 0)
 					return kp->k_lexv;
-			}
 		}
 		return c;
 	}
@@ -306,7 +313,7 @@ lexiors(c1)
 	 */
 	strp = strt;
 	/* Simplify quoted here document iors from ?<<file to ?<file. */
-	if (hereqflag = any(name, "\"\\'"))
+	if (hereqflag = (strpbrk(name, "\"\\'") != NULL))
 		*++strp = *strt;
 	heretmp = name;
 	name = duplstr(name, 0);
@@ -329,7 +336,7 @@ lexiors(c1)
 	bpp = savebuf();
 	strp = strt;
 	/* Simplify quoted to ?<file from ?<<file */
-	if (quote = any(name, "\"\\'"))
+	if (quote = (strpbrk(name, "\"\\'") != NULL))
 		*++strp = *strt;
 	tmp = name;
 	name = duplstr(name, 0);
@@ -465,24 +472,6 @@ getn()
 ungetn(c)
 {
 	lastget = c;
-}
-
-
-/*
- * Returns true if the intersection of two
- * strings is non-NULL, otherwise 0.
- */
-int
-any(s, spcl)
-char *s, *spcl;
-{
-	register char *p1, *p2;
-
-	for (p1 = s; *p1; p1++)
-		for (p2 = spcl; *p2; p2++)
-			if (*p2 == *p1)
-				return 1;
-	return 0;
 }
 
 /* end of sh/lex.c */

@@ -556,7 +556,7 @@ long t;
 {
 	register int ticks, tenths, seconds;
 
-	prints("%ldm", t/MINUTE);
+	prints("%Dm", t/MINUTE);
 	ticks = t%MINUTE;
 	seconds = ticks/SECOND;
 	tenths = (ticks%SECOND + SECOND/20)/(SECOND/10);

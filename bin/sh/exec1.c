@@ -1,7 +1,9 @@
 /*
+ * sh/exec1.c
  * The Bourne shell.
  * Shell part of execution.
  */
+
 #include "sh.h"
 
 char *lastcmd = "";
@@ -40,7 +42,7 @@ register NODE *np;
 	case 2:		/* break */
 		goto break2;
 	default:
-		panic();
+		panic(1);
 		NOTREACHED;
 	}
 
@@ -150,7 +152,7 @@ register NODE *np;
 		f = pipecoms(np);
 		break;
 	default:
-		panic();
+		panic(2);
 		NOTREACHED;
 	}
 	break;
@@ -255,14 +257,14 @@ register NODE *np;
 			continue;
 		case NCTRL:
 			if (nctlp!=NULL) {
-				panic();
+				panic(3);
 				NOTREACHED;
 			}
 			f |= FARGS;
 			nctlp = np;
 			continue;
 		default:
-			panic();
+			panic(4);
 			NOTREACHED;
 		}
 	}
@@ -317,7 +319,7 @@ register NODE *np;
 		}
 		break;
 	default:
-		panic();
+		panic(5);
 		NOTREACHED;
 	}
 	if (nllflag || (f=clone()) == 0) {
@@ -419,3 +421,5 @@ skipredir(s) register char *s;
 		++s;
 	return s;
 }
+
+/* end of sh/exec1.c */

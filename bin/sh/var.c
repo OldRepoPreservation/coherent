@@ -33,7 +33,7 @@ char **envp;
 		VSET,	"PATH=:/bin:/usr/bin",
 		VSET,	"HOME=",
 		VSET,	"CWD=",
-		VRDO,	VERSION,
+		VSET,	"VERSION=" VERSION,
 		0,	NULL
 	};
 	static char lasterror[] = "LASTERROR";
