@@ -121,8 +121,11 @@ ino_t	ino;
 {
 	if ( bn >= fsize )
 		return(STOP);
-	if ( !testdup(bn) ) 
+	if ( !testdup(bn) ) {
+		if ( ino == 1 )		/* bad block inode, let's mark it */
+			markdup(bn);	/* so we never read it again	  */
 		return(OK);
+	}
 
 	if (!fflag)
 		orflags(ino, IBAD_IDUP);
