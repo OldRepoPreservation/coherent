@@ -16,17 +16,18 @@
  * line, using interrupts. The interface
  * uses a Natty/WD 8250 chip.
  */
-#include <coherent.h>
-#include <i8086.h>
-#include <con.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/con.h>
 #include <errno.h>
-#include <stat.h>
-#include <tty.h>
-#include <uproc.h>
-#include <clist.h>
-#include <ins8250.h>
-#include <sched.h>
-#include <al.h>
+#include <sys/stat.h>
+#include <sys/tty.h>
+#include <sys/uproc.h>
+#include <sys/clist.h>
+#include <sys/ins8250.h>
+#include <sys/sched.h>
+#include <sys/al.h>
+#include <sys/devices.h>
 
 #define	minor_st(dev)	(dev & 0x3f)
 #define	DEV_TTY		(alttab[minor_st(dev)])
@@ -53,7 +54,7 @@
 #define ALNUMb	2		/* com3 has com number of 2 */
 #define ALINT	4		/* Interrupt level of com1_3 ports */
 #define	ALNAME	a0con		/* CON name of com1_3 ports */
-#define ALMAJ	5		/* Major number of com1_3 port */
+#define ALMAJ	AL0_MAJOR	/* Major number of com1_3 port */
 #define ALCNT	A0CNT		/* Number of ports for this IRQ */
 #define ALSPEEDa C1BAUD		/* Name of patchable variable for com1 speed */
 #define ALSPEEDb C3BAUD		/* Name of patchable variable for com3 speed */
@@ -66,7 +67,7 @@
 #define ALNUMb	3		/* com4 has com number of 3 */
 #define ALINT	3		/* Interrupt level of com2_4 ports */
 #define ALNAME	a1con		/* CON name of com2_4 ports */
-#define ALMAJ	6		/* Major number of com2_4 ports */
+#define ALMAJ	AL1_MAJOR	/* Major number of com2_4 ports */
 #define ALCNT	A1CNT		/* Number of ports for this IRQ */
 #define ALSPEEDa C2BAUD		/* Name of patchable variable for com2 speed */
 #define ALSPEEDb C4BAUD		/* Name of patchable variable for com4 speed */
@@ -296,5 +297,5 @@ int msec;
 static
 alintr()
 {
-	alxintr(irqtty, 1);
+	alxintr(irqtty);
 }
