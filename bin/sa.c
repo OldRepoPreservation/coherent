@@ -1,8 +1,7 @@
 /*
- * System accounting
- * of command execution (in
- * conjuction with acct system
- * call.)
+ * sa.c
+ * System accounting of command execution 
+ * (in conjuction with acct system call.)
  */
 
 #include <stdio.h>
@@ -10,8 +9,8 @@
 #include <pwd.h>
 #include <acct.h>
 #include <sys/times.h>
-#include <sys/dir.h>
 #include <sys/const.h>
+#include <sys/dir.h>
 
 #define	MIN	60		/* Seconds in a minute */
 #define	MINHZ	(MIN*HZ)	/* HZ in a minute */
@@ -291,7 +290,8 @@ saprint()
 	time_t tottime;
 
 	if (mflag)
-		userenter(); else
+		userenter();
+	else
 		commenter();
 	for (sp = sort; sp<&sort[NSORT] && sp->s_count; sp++)
 		if (sortflag == CPUTIME)
@@ -302,10 +302,12 @@ saprint()
 			sp->s_key = sp->s_count;
 	qsort(sort, sp-sort, sizeof *sp, compar);
 	if (mflag)
-		printf("%-*s #PROC", DIRSIZ, ""); else
+		printf("%-*s #PROC", DIRSIZ, "");
+	else
 		printf("%-*s #CALL", NCNAME, "");
 	if (lflag)
-		printf("  USER  SYS"); else
+		printf("  USER  SYS");
+	else
 		printf("  CPU");
 	printf("  REAL");
 	if (cflag)
@@ -322,7 +324,8 @@ saprint()
 	}
 	for (sp = sort; sp<&sort[NSORT] && sp->s_count; sp++) {
 		if (mflag)
-			printf("%-*s", DIRSIZ, uname(sp->s_uid)); else
+			printf("%-*s", DIRSIZ, uname(sp->s_uid));
+		else
 			printf("%-*s", NCNAME, sp->s_comm);
 		printf(" %5d", sp->s_count);
 		if (lflag)
@@ -568,7 +571,8 @@ time_t hz;
 register struct sort *sp;
 {
 	if (jflag)
-		return ((hz + HZ/2) / (HZ*sp->s_count)); else
+		return ((hz + HZ/2) / (HZ*sp->s_count));
+	else
 		return ((hz + MINHZ/2) / MINHZ);
 }
 
@@ -579,6 +583,8 @@ register struct sort *sp;
 percent(t, total)
 time_t t, total;
 {
+	if (total == (time_t)0)
+		t = total = (time_t)1;
 	t *= 100;
 	printf("%3ld.", t/total);
 	t %= total;
@@ -600,3 +606,5 @@ saerr(x)
 	putc('\n', stderr);
 	exit(1);
 }
+
+/* end of sa.c */
