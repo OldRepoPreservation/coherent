@@ -4,12 +4,56 @@
 
 
 
-main()
+main(argc, argv)
+int argc;
+char *argv[];
+
 {
 
 WINDOW *win1, *win2;		
 int x;
 
+	printflag = 0;
+	if(argc > 2)
+		{
+		printf("Too many arguments!\n");
+		exit(1);
+		}
+
+	/* parse the command line argument for a 'p' or a 'P' so
+	 * that we know to PRINT a file.
+	 */
+
+	if(argc==2)
+		{
+		for(x=0;x<strlen(argv[1]);x++)
+			{
+			if((argv[1][x] == 112) || (argv[1][x] == 80))
+				break;
+			}
+		}
+
+	/* the following should only be executed if the above
+	 * loop went all the way thru the argument passed, which means
+	 * that we did not find a [pP].
+	 */
+
+	if ((argc==2) && (x==strlen(argv[1])))
+		{
+		printf("Unknown option %s\n",argv[1]);
+		exit(1);
+		}
+	else
+
+	/* we found that there is one argument and that it is [pP],
+	 * so set a printflag. We should only set this flag if argc = 2.
+	 * The if statement ensures that printflag will only be set
+	 * if there was one argument passed.
+	*/
+		{
+		if(argc==2)
+			printflag = 1;
+		}
 
 	initscr();
 	raw();
@@ -36,6 +80,19 @@ int x;
 
 	do	{
 		getfilename();
+
+
+		/* if we're printing, call the print function. After
+		 * completion, exit the program. We want to exit the
+		 * becausze we don't want the user to automatically 
+		 * run the print function again and overwrite the 
+		 * data file written by the previous run-through.
+		*/
+		if(printflag == 1)
+			{
+			print(win2);
+			strcpy(workfile,"QUIT");
+			}
 
 		/* if we did NOT select the mail option, then read the indicated
 		 * Content file.

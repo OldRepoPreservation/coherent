@@ -16,10 +16,15 @@ char tryfile[7][15] = {FILE0,FILE1,FILE2,FILE3,FILE4,FILE5,FILE6};
 	refresh();
 	noecho();
 
-	/* print our file choices */
+	/* print our file choices. If printflag is set, then we only print
+	 * the first 4 choices, the Contents files, since they are the only
+	 * ones that can be printed.
+	 */
 
 	for (x=8;x<15;x++)
 		{
+		if((printflag==1) && (x == 12))
+			x = 14;
 		move(x,32);
 		printw("%d. %s",(x-8),tryfile[x-8]);
 		}
@@ -32,10 +37,29 @@ char tryfile[7][15] = {FILE0,FILE1,FILE2,FILE3,FILE4,FILE5,FILE6};
 	 * than 6, keep getting a keystroke. This is how we will select
 	 * our file to use for further operations.
 	*/
+	
+	/* if printflag is set, then we test for a more narrow 
+	 * range of files since only the Contents files (selections
+	 * 0 thru 3) can be printed. Only these filenames should have 
+	 * been printed by the function to print selections, anyways.
+	*/
 
-	x = 0;
-	while( x<48 || x>54 )
-		x = getch();
+	if(printflag != 1)
+		{
+		x = 0;
+		while( x<48 || x>54 )
+			x = getch();
+		}
+	else
+		{
+		x = 0;
+		while ( x<48 || x>51 )
+			{
+			x = getch();
+			if (x == 54)
+				break;
+			}
+		}
 
 	if( (x-48)==5)
 		get_net_map();
@@ -50,6 +74,8 @@ char tryfile[7][15] = {FILE0,FILE1,FILE2,FILE3,FILE4,FILE5,FILE6};
 		clrtoeol();
 		refresh();
 		}
+	clear();
+	refresh();
 }
 
 
