@@ -60,6 +60,7 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 #include <ctype.h>
 #include <signal.h>
 #include <path.h>
@@ -529,7 +530,6 @@ char *argv[];
 resolve()
 {
 	register int i;
-	extern char *index();
 
 	for (i = CPP; i < ALL; i += 1) {
 		if (pass[i].p_flag & P_BACK)
@@ -541,7 +541,7 @@ resolve()
 		strcpy(cmdb, pass[i].p_mch);
 		strcat(cmdb, pass[i].p_pln);
 #if GEMDOS
-		if (i <= ED && index(pass[i].p_pln, '.') == NULL)
+		if (i <= ED && strchr(pass[i].p_pln, '.') == NULL)
 			strcat(cmdb, i==ED ? ".tos" : ".prg");
 #endif
 		if (strlen(cmdb) > PTMP-1)
@@ -874,17 +874,17 @@ char *argv[];
 basename(in, out)
 char *in, *out;
 {
-	register char *ip = in, *op = out;
-	register int c;
+	register char *s;
+	register int n;
 
-	while (*ip++)
-		;
-	ip -= 2;
-	while (ip >= in && *ip != PATHSEP)
-		--ip;
-	while ((c = *++ip) && c != '.')
-		*op++ = c;
-	*op = '\0';
+	if ((s = strrchr(in, PATHSEP)) != NULL)
+		in = ++s;		/* skip past last PATHSEP */
+	if ((s = strrchr(in, '.')) != NULL)
+		n = s - in;		/* copy to last '.' */
+	else
+		n = strlen(in);		/* copy all */
+	strncpy(out, in, n);		/* copy as appropriate */
+	out[n] = '\0';			/* and NUL-terminate */
 }
 
 run(catch_errors) int catch_errors;
