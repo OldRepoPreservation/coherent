@@ -4,6 +4,9 @@
  * To do:
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.36	91/05/13  11:08:25	root
+ * Last version before using state machine logic.
+ * 
  */
 
 /*
@@ -71,6 +74,7 @@ int stats[100], statsptr;
 #endif
 
 typedef unsigned char	uchar;
+typedef unsigned int	uint;
 typedef unsigned long	ulong;
 typedef struct ss {
 	ulong	capacity;
@@ -91,8 +95,13 @@ typedef struct ss {
 	BUF	*bp;		/* current I/O request node, or NULL */
 	struct	fdisk_s parmp[NPARTN+1];
 	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
-	unsigned int	id_busy:1;  /* 1 if device with this SCSI id busy */
 }	ss_type;
+
+typedef struct {
+	uint	ncyl;
+	uchar	nhead;
+	uchar	nspt;
+}	drv_parm_type;
 
 /*
  * Functions.
@@ -103,6 +112,7 @@ typedef struct ss {
 extern int	nulldev();
 extern int	nonedev();
 extern unsigned char ffbyte();
+extern void	ss_mach();
 
 static void	ssopen();		/* CON functions */
 static void	ssclose();
@@ -163,7 +173,20 @@ int	NSDRIVE = 1;		/* Bitmap of attached SCSI drives. */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
-static int	loading;	/* 1 ssload() is executing */
+#define NCYL	1004
+#define NHEAD	4
+#define NSPT	52
+
+drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
+	{ NCYL, NHEAD, NSPT},
+	{ 0, 0, 0},
+	{ 0, 0, 0},
+	{ 0, 0, 0},
+	{ 0, 0, 0},
+	{ 0, 0, 0},
+	{ 0, 0, 0}
+};
+
 static BUF	dbuf;		/* For raw I/O */
 static paddr_t	ss_base;	/* physical address of ST0x comm area */
 static faddr_t	ss_fp;		/* (far *) to ST0x comm area */
@@ -174,14 +197,13 @@ static faddr_t	ss_dat;		/* (far *) to data port */
 
 static int	num_drives;	/* number of controller SCSI id's */
 static ss_type *ss_tbl;		/* points to block of "ss" structs */
-static int	st0x_busy;	/* 1 if SCSI host adapter busy */
 
 static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	reset_tim;	/* needed for calls to scsireset() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
 static TIM	sst_tim;	/* for timeout() call from ss_start() */
 static int	ss_expired;	/* 1 after local timeout */
-static ss_type  *ss[MAX_SCSI_ID-1], rqs;
+static ss_type  *ss[MAX_SCSI_ID-1];
 
 /*
  * ssload()	- load routine.
@@ -193,7 +215,6 @@ static void ssload()
 {
 	int erf = 0;  /* 1 if error occurs */
 	int i;
-	loading = 1;
 
 	/*
 	 * Claim IRQ vector.
@@ -230,6 +251,8 @@ static void ssload()
 	 *
 	 * Do a single call to kalloc() then put allocated pieces into
 	 * array ss.
+	 *
+	 * First allocate and clear storage.  Then hook up the pointers.
 	 */
 	if (!erf) {
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
@@ -256,14 +279,11 @@ static void ssload()
 	/*
 	 * Initialize drives we know about (i.e. in NSDRIVE bitmap).
 	 */
-	st0x_busy++;
 	if (!erf) {
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
 				ssinit(i);
 	}
-	st0x_busy--;
-	loading = 0;
 }
 
 /*
@@ -384,6 +404,7 @@ printf("fdisk() failed\n");
 	 */
 	if (valid_open) {
 		++drvl[SCSI_MAJOR].d_time;
+		++ssp->dr_watch;
 	}
 }
 
@@ -393,10 +414,18 @@ printf("fdisk() failed\n");
 static void ssclose(dev)
 dev_t dev;
 {
+	ss_type * ssp;
+	int s_id;
+
+	s_id = DEV_SCSI_ID(dev);
+	ssp = ss[s_id];
+
 	/*
-	 * Decrement the number of watchdog timer requests open for host board.
+	 * Decrement the number of watchdog timer requests open for host
+	 * adapter and for target.
 	 */
 	--drvl[SCSI_MAJOR].d_time;	
+	--ssp->dr_watch;
 devmsg(dev, "ssclose");
 }
 
@@ -440,9 +469,6 @@ IO	*iop;
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
-#define NHEAD	4
-#define NSEC	52
-#define NCYL	1004
 
 static int ssioctl(dev, cmd, vec)
 register dev_t	dev;
@@ -464,9 +490,9 @@ char * vec;
 printf("HDGETA ");
 		fdp = ssp->parmp;
 		*(short *)&hdparm.landc[0] =
-		*(short *)&hdparm.ncyl[0] = NCYL;
-		hdparm.nhead = NHEAD;
-		hdparm.nspt = NSEC;
+		*(short *)&hdparm.ncyl[0] = drv_parm[s_id].ncyl;
+		hdparm.nhead = drv_parm[s_id].nhead;
+		hdparm.nspt = drv_parm[s_id].nspt;
 printf("ncyl=%d nhead=%d nspt=%d\n",
   hdparm.ncyl[0]+((int)hdparm.ncyl[1]<<8), (int)hdparm.nhead, (int)hdparm.nspt);
 		kucopy( &hdparm, vec, sizeof hdparm );
@@ -518,12 +544,12 @@ register BUF	*bp;
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
-{if(sserrct<=MAXSSERR)printf("BF1 ");}
+printf("BF1 ");
 				bp->b_flag |= BFERR;
 				valid_op = 0;
 			}
 		} else {
-{if(sserrct<=MAXSSERR)printf("BF2 ");}
+printf("BF2 ");
 			devmsg(dev, "no partition table");
 			bp->b_flag |= BFERR;
 			valid_op = 0;
@@ -541,7 +567,7 @@ register BUF	*bp;
 	 */
 	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
-{if(sserrct<=MAXSSERR)printf("BF3 ");}
+printf("BF3 ");
 		bp->b_flag |= BFERR;
 		valid_op = 0;
 	}
@@ -551,12 +577,8 @@ register BUF	*bp;
 	 * Fill fields in the node and queue the request.
 	 */
 	if (valid_op) {
-
-/* if(sserrct<=MAXSSERR)printf("ssblock: drv=%x bno=%lx bp=%x flag=%x\n",
-	drive, bp->b_bno, bp, bp->b_flag); */
-
-		ssq_wr_tail(bp);
-		ss_start();
+		bufq_wr_tail(bp, s_id);
+		ss_mach(s_id);
 	/*
 	 * Operation cannot be done.  Release the kernel buffer structure.
 	 * Value of "bp->b_flag" tells caller if error occurred.
@@ -579,8 +601,7 @@ static void ssintr()
 
 	s_id = chk_reconn();
 	if (s_id != -1)
-		reconnect(s_id);
-/*		defer(reconnect, s_id); */
+		defer(ss_mach, s_id); */
 }
 
 /*
@@ -591,29 +612,13 @@ static void ssintr()
  */
 static void sswatch()
 {
-	int s_id, rs_id;
+	int s_id;
 	ss_type * ssp;
 
 	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++) {
 		ssp = ss[s_id];
-		if (ssp && ssp->dr_watch) {
-			ssp->dr_watch--;
-			if (ssp->dr_watch == 0) {
-{if(sserrct<=MAXSSERR)printf("BF4 ");}
-				bus_dev_reset(s_id);
-				ssp->bp->b_flag |= BFERR;
-{if(sserrct<=MAXSSERR)printf("SCSI id #%d: bno=%lu <Watchdog Timeout>\n", s_id, ss[s_id]->bp->b_bno);}
-				ss_done(s_id);
-			} else {
-				while (1) {
-					rs_id = chk_reconn();
-					if (rs_id == -1)
-						break;
-					else
-						reconnect(rs_id);
-				} /* endwhile */
-			}
-		}
+		if (ssp && ssp->dr_watch)
+			ss_mach(s_id);
 	} /* endfor */
 }
 
@@ -645,7 +650,7 @@ unsigned short flags;
 	}
 
 	if (!found)
-		{if(sserrct<=MAXSSERR)printf("TO:f=%x s=%x ", flags, status);}
+		printf("TO:f=%x s=%x ", flags, status);
 
 	return found;
 }
@@ -662,49 +667,10 @@ static int ssinit(s_id)
 int s_id;
 {
 	int try;
-	int retval = 0;
+	int retval = 1;
 	uchar query_buf[MODESENSELEN];
 	ss_type * ssp = ss[s_id];
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
-
-/*FOO*/
-bus_dev_reset(s_id);
-	/*
-	 * Try Test Unit Ready command.
-	 * If it fails, reset SCSI bus and target device, and try again.
-	 */
-printf("T");
-	for (try = 0; !retval && try < LOPRI_RETRIES; try++) {
-		if (testready(s_id))
-			retval = 1;
-		else {
-printf("X");
-			if (ssp->cmdstat == CS_BUSY)
-				ssdelay(50);
-			else if (ssp->cmdstat == CS_CHECK)
-				req_sense(s_id);
-			else if (s_id == chk_reconn())
-			{
-printf("-r-");
-				ssdelay(50);
-			}
-			else
-				scsireset();
-		}
-#if 0
-		scsireset();
-		bus_dev_reset(s_id);
-#endif
-	} /* endfor */
-	if (!retval)
-		devmsg(dev, "Test Unit Ready Failed");
-
-printf("R");
-	if (retval)
-		if (req_sense(s_id)) {
-			retval = 1;
-		} else
-			devmsg(dev, "Request Sense Failed");
 
 	if (retval)
 		if (inquiry(s_id, query_buf)) {
@@ -746,7 +712,6 @@ printf("%d heads\n", heads);
 		} else
 			devmsg(dev, "Mode Sense Failed");
 
-ssp->id_busy=0;
 	return retval;
 }
 
@@ -831,16 +796,13 @@ printf("!");
 	 * After load is finished, use timeout() to accomplish this.
 	 */
 	if (loading) {
-		st0x_busy++;
 		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
 		ssdelay(RESET_TICKS);
 		sfbyte(ss_csr, 0);
 		ssdelay(RESET_TICKS);
-		st0x_busy--;
 	} else {
 		switch(reset_state) {
 		case 0:
-			st0x_busy++;
 			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
 			timeout(&reset_tim, RESET_TICKS, scsireset, 0);
 			reset_state = 1;
@@ -851,7 +813,6 @@ printf("!");
 			reset_state = 2;
 			break;
 		case 2:
-			st0x_busy--;
 			reset_state = 0;
 			break;
 		}
@@ -1085,7 +1046,7 @@ SSDUMP(ssp, "Command overrun");
 #if 0
 if (!we_wrote) {
 	we_wrote=1;
-	{if(sserrct<=MAXSSERR)printf("W");}
+	printf("W");
 }
 #endif
 			/*
@@ -1113,14 +1074,14 @@ case -1:
 case CS_GOOD:
 	break;
 case CS_CHECK:
-	{if(sserrct<=MAXSSERR)printf("CSK",ssp->cmdstat);}
+	printf("CSK",ssp->cmdstat);
 	break;
 case CS_BUSY:
-	{if(sserrct<=MAXSSERR)printf("CSY",ssp->cmdstat);}
+	printf("CSY",ssp->cmdstat);
 	break;
 case CS_RESERVED:
 default:
-	{if(sserrct<=MAXSSERR)printf("CS%x",ssp->cmdstat);}
+	printf("CS%x",ssp->cmdstat);
 }
 	return (bus_timeout) ? 0 : 1 ;
 }
@@ -1156,7 +1117,7 @@ int *to_ptr;
 	}
 
 	if (*to_ptr)
-		{if(sserrct<=MAXSSERR)printf("TX: s=%x ", status);}
+		printf("TX: s=%x ", status);
 
 	return req_found;
 }
@@ -1387,10 +1348,9 @@ static void ss_start()
 					bp->b_resid -= ssp->data_bytes_out;
 				if (ssp->msg_in != MSG_DISCONNECT)
 					ss_done(s_id);
-/* if(sserrct<=MAXSSERR)printf("%d in  %d out\n",ssp->data_bytes_in,ssp->data_bytes_out); */
 			} else {
 				if (++retry[s_id] > RW_TRIES) {
-{if(sserrct<=MAXSSERR)printf("BF5 ");}
+printf("BF5 ");
 					retry[s_id] = 0;
 					ssq_rm_head();
 					bp->b_flag |= BFERR;
@@ -1398,7 +1358,7 @@ static void ss_start()
 				} else {
 					ssp->id_busy = 0;
 					timeout(&sst_tim, 10, ss_start, 0);
-{if(sserrct<=MAXSSERR)printf("R%d ",retry[s_id]);}
+printf("R%d ",retry[s_id]);
 				}
 			}
 		}
@@ -1443,7 +1403,7 @@ static int bus_dev_reset(s_id)
 	int bdr_ok = 1;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
-{if(sserrct<=MAXSSERR)printf("bdr");}
+printf("bdr");
 
 	if (!loading && st0x_busy)
 		bdr_ok = 0;
@@ -1491,7 +1451,7 @@ static int bus_dev_reset(s_id)
 			bdr_ok = 0;
 	}
 
-{if(sserrct<=MAXSSERR)printf("%d",bdr_ok);}
+printf("%d",bdr_ok);
 	return bdr_ok;
 }
 
@@ -1557,7 +1517,7 @@ int s_id;
 					} else
 						ss_done(s_id);
 				} else {
-{if(sserrct<=MAXSSERR)printf("BF6 ");}
+printf("BF6 ");
 					bp->b_flag |= BFERR;
 					ss_done(s_id);
 				}
@@ -1614,17 +1574,6 @@ rwc='W';
 		bus_info_xfer(ssp);
 spl(s);
 		rw_ok = (ssp->cmdlen == ssp->cmd_bytes_out);
-if(!rw_ok) {
-  uchar csr=ffbyte(ss_csr), dat=ffbyte(ss_dat);
-  sserrct++; if (sserrct <=MAXSSERR) {
-    {if(sserrct<=MAXSSERR)printf("F2 cmdlen=%d cmd_bytes_out=%d cmdstat=%d\n", ssp->cmdlen,
-  	ssp->cmd_bytes_out, ssp->cmdstat);}
-    {if(sserrct<=MAXSSERR)printf("%c msg_in=%x inl=%d ", rwc, ssp->msg_in, ssp->in_buf_len);}
-    {if(sserrct<=MAXSSERR)printf("inb=%d otl=%d otb=%d\n", ssp->data_bytes_in, ssp->out_buf_len,
-    ssp->data_bytes_out);}
-    {if(sserrct<=MAXSSERR)printf("csr=%x dat=%x bno=%ld ",csr,dat,bp->b_bno);}
-  }
-}
 	}
 else {{if(sserrct<=MAXSSERR)printf("F1");}spl(s);}
 }
