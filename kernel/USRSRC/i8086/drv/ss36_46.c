@@ -1,16 +1,15 @@
 /*
- * This is a driver for Seagate ST01/ST02 scsi host adapters.
+ * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
- *	get rid of declarations for deleted functions
- *	if (bp->b_req == BREAD) {...
+ *	local commands: (right now there aren't any!)
+ *		local_buf = 0
+ *		local_done = 0
+ *		local_failed = 0
+ *
+ * Cleanup:
  *	set host_claimed conscientiously
- *	ss_start() code moved elsewhere
- *	initialize and maintain retry counters
- *	inquiry()
- *	read_cap()
- *	mode_sense()
- *	req_sense() <- called from dblock!!!
+ *	get rid of declarations for deleted functions
  *
  * To try after initial working version:
  *	bufq_rd_head()
@@ -19,8 +18,12 @@
  *
  *	bus_pre_xfer() -> start_arb() + host_ident()
  *	mask interrupts on finishing arbitration, etc.
+ *	backoff & retry when bdr or req sense needed
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.39	91/05/15  09:35:58	root
+ * Code recover, do_connect, etc..
+ * 
  * Revision 1.38	91/05/14  10:05:37	root
  * Code ss_mach().
  * 
@@ -31,6 +34,11 @@
  * Last version before using state machine logic.
  * 
  */
+
+/* TEMPORARY S**T */
+#define bufq_rd_head(s_id)	ssq_rd_head()
+#define bufq_rm_head(s_id)	ssq_rm_head()
+#define bufq_wr_tail(s_id, foo)	ssq_wr_head(foo)
 
 /*
  * Includes.
@@ -173,13 +181,14 @@ static void	ssload();
 static void	ssunload();
 
 static int	bus_dev_reset();	/* additional support functions */
-static int	bus_info_xfer();
 static int	bus_pre_xfer();
 static int	chk_reconn();
 static void	do_connect();
+static int	far_info_xfer();
 static int	host_ident();
 static void	init_pointers();
 static int	inquiry();
+static int	local_info_xfer();
 static int	mode_sense();
 static void	nonpolled();
 static int	read_cap();
@@ -190,12 +199,9 @@ static int	rsel_handshake();
 static int	scsicmd();
 static void	scsireset();
 static void	ss_done();
+static void	ss_finished();
 static void	ss_mach();
-static void	ss_start();
-static void	ss_start_timing();
-static void	ss_stop_timing();
 static void	set_timeout();
-static void	ssdelay();
 static int	ssinit();
 static void	ssintr();
 static int	start_arb();
@@ -252,9 +258,7 @@ static faddr_t	ss_dat;		/* (far *) to data port */
 
 static int	num_drives;	/* number of controller SCSI id's */
 
-static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	reset_tim;	/* needed for calls to scsireset() */
-static TIM	sst_tim;	/* for timeout() call from ss_start() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
 
 static int	do_sst_op;	/* 1 when state machine iteration continues */
@@ -577,7 +581,6 @@ printf("ncyl=%d nhead=%d nspt=%d\n",
 static void ssblock(bp)
 register BUF	*bp;
 {
-	register int s;
 	struct	fdisk_s	*fdp;
 	int partition, drive, s_id;
 	dev_t dev;
@@ -635,13 +638,14 @@ printf("BF3 ");
 	 * Fill fields in the node and queue the request.
 	 */
 	if (valid_op) {
-		bufq_wr_tail(bp, s_id);
+		bufq_wr_tail(s_id, bp);
 		ss_mach(s_id);
+	}
 	/*
 	 * Operation cannot be done.  Release the kernel buffer structure.
 	 * Value of "bp->b_flag" tells caller if error occurred.
 	 */
-	} else { 	/* "valid_op" is FALSE */
+	else { 	/* "valid_op" is FALSE */
 		bdone(bp);
 	}
 }
@@ -724,7 +728,6 @@ unsigned short flags;
 static int ssinit(s_id)
 int s_id;
 {
-	int try;
 	int retval = 1;
 	uchar query_buf[MODESENSELEN];
 	ss_type * ssp = ss[s_id];
@@ -774,22 +777,6 @@ printf("%d heads\n", heads);
 }
 
 /*
- * ssdelay()
- *
- * Delay for some number of clock ticks.
- * 286/386 kernel ticks are at 100Hz
- *
- * This routine is of limited use as it can only be called via
- * ssload()/ssunload()/ssopen()/ssclose().
- */
-static void ssdelay(ticks)
-int ticks;
-{
-	timeout(&delay_tim, ticks, wakeup, (int)&delay_tim);
-	sleep((char *)&delay_tim, CVPAUSE, IVPAUSE, SVPAUSE);
-}
-
-/*
  * bus_pre_xfer()
  *
  * Do bus cycle phases prior to the information transfer phases.
@@ -798,64 +785,54 @@ int ticks;
 static int bus_pre_xfer(s_id)
 int s_id;
 {
-	int tries;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 	int ret = 0;
 
-	for (tries = 0; !ret && tries < LOPRI_RETRIES; tries++) {
-if (tries>0)break;
-		/*
-		 * Do ST0x arbitration.
-		 */
-		sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
-		sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
-		sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+	/*
+	 * Do ST0x arbitration.
+	 */
+	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
+	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
+	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
 
-		/*
-		 * SCSI spec says there is "no maximum" to the wait for arbitration
-		 * complete.
-		 */
-		if (!bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL)) {
-			if (ffbyte(ss_csr) & (RS_REQUEST|RS_BUSY))
-				ret = 1;
-			continue;
-		}
-
-		/*
-		 * Arbitration complete.  Now select, with ATN to allow messages.
-		 */
-		sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
-
-		if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
-			continue;
-
-		/*
-		 * Send "Identify" Message with Disconnect allowed.
-		 */
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
-
-		if (!bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
-		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
-			continue;
-
-		/*
-		 * During ssload(), diagnostics are running and we don't
-		 * want disconnects.  At other times, disconnect is ok.
-		 */
-		if (loading)
-			sfbyte(ss_dat, MSG_IDENTIFY);
-		else
-			sfbyte(ss_dat, MSG_IDENT_DC);
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
-		ret = 1;
+	/*
+	 * SCSI spec says there is "no maximum" to the wait for arbitration
+	 * complete.
+	 */
+	if (!bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL)) {
+		if (ffbyte(ss_csr) & (RS_REQUEST|RS_BUSY))
+			ret = 1;
+		goto frotz;
 	}
 
+	/*
+	 * Arbitration complete.  Now select, with ATN to allow messages.
+	 */
+	sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
+
+	if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
+		goto frotz;
+
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+
+	if (!bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
+	| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
+		goto frotz;
+
+	/*
+	 * Disallow Disconnect.
+	 */
+	sfbyte(ss_dat, MSG_IDENTIFY);
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
+	ret = 1;
+
+frotz:
 	return ret;
 }
 
 /*
- * bus_info_xfer()
+ * far_info_xfer()
  *
  * Do bus cycle information transfer phases.
  * This includes message in/out, command in/out, and data in/out.
@@ -878,21 +855,21 @@ if (tries>0)break;
  *   endif
  * endwhile
  */
-static int bus_info_xfer(ssp)
-ss_type *ssp;
+static int far_info_xfer(s_id)
+int s_id;
 {
 	int bus_timeout;
 	uchar phase_type;
 	uchar msg_in;
-	int no_msg_rcvd = 1;
 	int s;
 	int bytes_to_send;
-int we_wrote=0;
+	ss_type * ssp = ss[s_id];
+	int xfer_good = 1;
 
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
 	s = sphi();
-	while(req_wait(&bus_timeout)) {
+	while(req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
@@ -947,7 +924,7 @@ int we_wrote=0;
 					s = sphi();
 				}
 			} else {	/* This case should not happen. */
-				scsireset();
+				xfer_good = 0;
 			}
 			break;
 		case XP_DATA_IN:
@@ -965,12 +942,6 @@ int we_wrote=0;
 				ffbyte(ss_dat);
 			break;
 		case XP_DATA_OUT:
-#if 0
-if (!we_wrote) {
-	we_wrote=1;
-	printf("W");
-}
-#endif
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
@@ -981,7 +952,7 @@ if (!we_wrote) {
 				sfbyte(ss_dat, dat);
 				ssp->data_bytes_out++;
 			} else { /* This case should not happen. */
-				scsireset();
+				xfer_good = 0;
 			}
 			break;
 		default:
@@ -991,6 +962,8 @@ if (!we_wrote) {
 	spl(s);
 switch(ssp->cmdstat) {
 case -1:
+	if (msg_in != MSG_DISCONNECT)
+		printf("CS-",ssp->cmdstat);
 	break;
 case CS_GOOD:
 	break;
@@ -1057,29 +1030,22 @@ static int req_sense(s_id)
 int s_id;
 {
 	uchar sense_buf[SENSELEN];
+	uchar cmdbuf[G0CMDLEN];
 	int ret = 0;
 
-	rqs.cmdstat = -1;
-	rqs.data_bytes_in = 0;
-	rqs.data_bytes_out = 0;
-	rqs.cmdbuf[0] = ScmdREQUESTSENSE;
-	rqs.cmdbuf[1] = rqs.cmdbuf[2] = rqs.cmdbuf[3] =
-		rqs.cmdbuf[5] = 0;
-		rqs.cmdbuf[4] = SENSELEN;
-	rqs.cmdlen = G0CMDLEN;
-	rqs.in_buf_len = SENSELEN;
-	rqs.out_buf_len = 0;
-	FP_OFF(rqs.in_buf) = sense_buf;
-	FP_SEL(rqs.in_buf) = sds;
+	cmdbuf[0] = ScmdREQUESTSENSE;
+	cmdbuf[1] = 0;
+	cmdbuf[2] = 0;
+	cmdbuf[3] = 0;
+	cmdbuf[4] = SENSELEN;
+	cmdbuf[5] = 0;
 
-	if (bus_pre_xfer(s_id)) {
-		bus_info_xfer(&rqs);
-		if (rqs.data_bytes_in == SENSELEN) {
-			if (sense_buf[2] == 0x00)	/* No Sense.  AOK */
-				ret = 1;
-			else if (sense_buf[2] == 0x06 && sense_buf[12] == 0x29)
-				ret = 1;
-		}
+	if (bus_pre_xfer(s_id) &&
+	local_info_xfer(cmdbuf, G0CMDLEN, sense_buf, SENSELEN, NULL, 0)) {
+		if (sense_buf[2] == 0x00)	/* No Sense.  AOK */
+			ret = 1;
+		else if (sense_buf[2] == 0x06 && sense_buf[12] == 0x29)
+			ret = 1;
 	}
 
 	return ret;
@@ -1099,24 +1065,18 @@ int s_id;
 uchar * buf;
 {
 	int ret = 0;
-	ss_type * ssp = ss[s_id];
+	uchar cmdbuf[G0CMDLEN];
 
-	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
-	ssp->id_busy = 1;
-	ssp->cmdbuf[0] = ScmdINQUIRY;
-	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] =
-		ssp->cmdbuf[5] = 0;
-		ssp->cmdbuf[4] = INQUIRYLEN;
-	ssp->cmdlen = G0CMDLEN;
-	FP_OFF(ssp->in_buf) = buf;
-	FP_SEL(ssp->in_buf) = sds;
-	ssp->in_buf_len = INQUIRYLEN;
-	ssp->out_buf_len = 0;
+	cmdbuf[0] = ScmdINQUIRY;
+	cmdbuf[1] = 0;
+	cmdbuf[2] = 0;
+	cmdbuf[3] = 0;
+	cmdbuf[4] = INQUIRYLEN;
+	cmdbuf[5] = 0;
 
-	ret = scsicmd(s_id);
-	ssp->id_busy = 0;
+	if (bus_pre_xfer(s_id) &&
+	local_info_xfer(cmdbuf, G0CMDLEN, buf, INQUIRYLEN, NULL, 0))
+		ret = 1;
 
 	return ret;
 }
@@ -1138,26 +1098,18 @@ int s_id;
 uchar * buf;
 {
 	int ret = 0;
-	ss_type * ssp = ss[s_id];
+	uchar cmdbuf[G0CMDLEN];
 
-	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
-	ssp->id_busy = 1;
-	ssp->cmdbuf[0] = ScmdMODESENSE;
-	ssp->cmdbuf[1] = 0;
-	ssp->cmdbuf[2] = 0x3F;
-	ssp->cmdbuf[3] = 0;
-	ssp->cmdbuf[4] = MODESENSELEN;
-	ssp->cmdbuf[5] = 0;
-	ssp->cmdlen = G0CMDLEN;
-	FP_OFF(ssp->in_buf) = buf;
-	FP_SEL(ssp->in_buf) = sds;
-	ssp->in_buf_len = MODESENSELEN;
-	ssp->out_buf_len = 0;
+	cmdbuf[0] = ScmdMODESENSE;
+	cmdbuf[1] = 0;
+	cmdbuf[2] = 0x3F;
+	cmdbuf[3] = 0;
+	cmdbuf[4] = MODESENSELEN;
+	cmdbuf[5] = 0;
 
-	ret = scsicmd(s_id);
-	ssp->id_busy = 0;
+	if (bus_pre_xfer(s_id) &&
+	local_info_xfer(cmdbuf, G0CMDLEN, buf, MODESENSELEN, NULL, 0))
+		ret = 1;
 
 	return ret;
 }
@@ -1174,117 +1126,24 @@ int s_id;
 uchar * buf;
 {
 	int ret = 0;
-	ss_type * ssp = ss[s_id];
+	uchar cmdbuf[G1CMDLEN];
 
-	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
-	ssp->id_busy = 1;
-	ssp->cmdbuf[0] = ScmdREADCAPACITY;
-	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
-	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[7] = ssp->cmdbuf[8] = 0;
-	ssp->cmdbuf[9] = 0;
-	ssp->cmdlen = G1CMDLEN;
-	FP_OFF(ssp->in_buf) = buf;
-	FP_SEL(ssp->in_buf) = sds;
-	ssp->in_buf_len = 8;
-	ssp->out_buf_len = 0;
+	cmdbuf[0] = ScmdREADCAPACITY;
+	cmdbuf[1] = 0;
+	cmdbuf[2] = 0;
+	cmdbuf[3] = 0;
+	cmdbuf[4] = 0;
+	cmdbuf[5] = 0;
+	cmdbuf[6] = 0;
+	cmdbuf[7] = 0;
+	cmdbuf[8] = 0;
+	cmdbuf[9] = 0;
 
-	ret = scsicmd(s_id);
-	ssp->id_busy = 0;
+	if (bus_pre_xfer(s_id) &&
+	local_info_xfer(cmdbuf, G1CMDLEN, buf, READCAPLEN, NULL, 0))
+		ret = 1;
 
 	return ret;
-}
-
-/*
- * ss_start()
- *
- * Invoked whenever there might be I/O to do.
- *
- * Disallow re-entrancy in this routine (variable "locked").
- * If there is a next I/O request queued (peek at head of queue)
- *   get the target SCSI ID.
- *   If target is not busy
- *     remove request from queue
- *     mark target device busy
- *     start watchdog timer
- *     send command to host adapter
- *     if command succeeded
- *       cleanup after command
- *       adjust b_resid field
- *     else if command failed
- *       set error flag
- *       cleanup after command
- *     else (disconnected)
- *       do nothing
- */
-static void ss_start()
-{
-#define RW_TRIES	5
-	int s;
-	BUF * bp;
-	static char locked;
-	int s_id;
-	ss_type * ssp;
-	struct	fdisk_s	*fdp;
-	int partition;
-	dev_t dev;
-	static int retry[MAX_SCSI_ID-1];
-
-	s = sphi();
-	if(locked) {
-		spl(s);
-		return;
-	}
-	++locked;
-	spl(s);
-
-	if (st0x_busy) {
-		timeout(&sst_tim, 50, ss_start, 0);
-		return;
-	}
-
-	if((bp = ssq_rd_head()) != NULL) {
-		s_id = DEV_SCSI_ID(bp->b_dev);
-		ssp = ss[s_id];
-		dev = bp->b_dev;
-		partition = DEV_PARTN(dev);
-		if (dev & SDEV)
-			partition = WHOLE_DRIVE;
-		fdp = ssp->parmp;
-		if (!(ssp->id_busy)) {
-			if (partition != WHOLE_DRIVE)
-				ssp->bno = fdp[partition].p_base + bp->b_bno;
-			else
-				ssp->bno = bp->b_bno;
-			ssp->bp = bp;
-			ssp->id_busy = 1;
-			ssp->dr_watch = WATCHDOG_SECONDS;
-			if (ss_rw(s_id)) {
-				retry[s_id] = 0;
-				ssq_rm_head();
-				if (bp->b_req == BREAD)
-					bp->b_resid -= ssp->data_bytes_in;
-				else
-					bp->b_resid -= ssp->data_bytes_out;
-				if (ssp->msg_in != MSG_DISCONNECT)
-					ss_done(s_id);
-			} else {
-				if (++retry[s_id] > RW_TRIES) {
-printf("BF5 ");
-					retry[s_id] = 0;
-					ssq_rm_head();
-					bp->b_flag |= BFERR;
-					ss_done(s_id);
-				} else {
-					ssp->id_busy = 0;
-					timeout(&sst_tim, 10, ss_start, 0);
-printf("R%d ",retry[s_id]);
-				}
-			}
-		}
-	}
-	--locked;
 }
 
 /*
@@ -1406,7 +1265,6 @@ int s_id;
 					recover(s_id, RV_A_TIMEOUT);
 				} else
 					do_sst_op = 0;
-				endif
 			}
 			break;
 		case SST_POLL_BEGIN_IO:
@@ -1417,7 +1275,7 @@ int s_id;
 				 * At this point a SCSI command is about to
 				 * be initiated.  It may be a retry.
 				 */
-				if (host_claimed == -1 && BUS_FREE) {
+				if (host_claimed == -1 && BUS_FREE && BUS_FREE) {
 					host_claimed = s_id;
 					ssp->waiting = 0;
 					init_pointers(s_id);
@@ -1430,7 +1288,7 @@ int s_id;
 						ssp->state = SST_POLL_ARBITN;
 						set_timeout(s_id, DELAY_ARB);
 					}
-				} else  /* host busy or bus not free */
+				} else { /* host busy or bus not free */
 					++ssp->avl_count;
 					if (ssp->avl_count >= MAX_AVL_COUNT)
 						recover(s_id, RV_BF_TIMEOUT);
@@ -1479,6 +1337,9 @@ int s_id;
 {
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
+	struct	fdisk_s	*fdp;
+	int partition;
+	dev_t dev;
 
 	switch (ssp->state) {
 	case SST_BUS_DEV_RESET:
@@ -1493,7 +1354,20 @@ int s_id;
 		if(bufq_rd_head(s_id) != NULL && !ssp->busy) {
 			ssp->busy = 1;
 			bp = bufq_rm_head(s_id);
-			init_pointers(s_id);
+			ssp->bp = bp;
+			dev = bp->b_dev;
+			partition = DEV_PARTN(dev);
+			if (dev & SDEV)
+				partition = WHOLE_DRIVE;
+			fdp = ssp->parmp;
+			if (partition != WHOLE_DRIVE)
+				ssp->bno = fdp[partition].p_base + bp->b_bno;
+			else
+				ssp->bno = bp->b_bno;
+			if (bp->b_req == BREAD)
+				ssp->cmdbuf[0] = ScmdREADEXTENDED;
+			else
+				ssp->cmdbuf[0] = ScmdWRITEXTENDED;
 			ssp->cmdbuf[1] = 0;
 			ssp->cmdbuf[2] = ssp->bno >> 24;
 			ssp->cmdbuf[3] = ssp->bno >> 16;
@@ -1504,6 +1378,10 @@ int s_id;
 			ssp->cmdbuf[8] = bp->b_count / BSIZE;
 			ssp->cmdbuf[9] = 0;
 			ssp->cmdlen = G1CMDLEN;
+			init_pointers(s_id);
+			ssp->bdr_count = 0;
+			ssp->bsy_count = 0;
+			ssp->try_count = 0;
 			ssp->state = SST_POLL_BEGIN_IO;
 		} else /* queue is empty or ssp->busy */
 			do_sst_op = 0;
@@ -1580,12 +1458,12 @@ int s_id;
 		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
 
 		if (bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
-		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
+		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE))) {
 			/*
 			 * If using a local buffer rather than doing a kernel
 			 * block i/o request, inhibit Disconnect.
 			 */
-			if (ss[s_id]->local_buf))
+			if (ss[s_id]->local_buf)
 				sfbyte(ss_dat, MSG_IDENTIFY);
 			else
 				sfbyte(ss_dat, MSG_IDENT_DC);
@@ -1636,7 +1514,7 @@ int s_id, delay;
 	ss_type * ssp = ss[s_id];
 
 	ssp->expired = 0;
-	ssp->timing = 1;
+	ssp->waiting = 1;
 	do_sst_op =  0;
 	timeout(&(ssp->tim), delay, stop_timeout, s_id);
 }
@@ -1647,7 +1525,7 @@ int s_id, delay;
  * Called on expiration of the timer for a given target.
  * Don't expire a timer if it's no longer active.
  */
-static void stop_timeout(s_id);
+static void stop_timeout(s_id)
 int s_id;
 {
 	ss_type * ssp = ss[s_id];
@@ -1679,13 +1557,11 @@ int s_id;
 	if (bp) {
 		bp->b_resid = bp->b_count;
 		if (bp->b_req == BREAD) {
-			ssp->cmdbuf[0] = ScmdREADEXTENDED;
 			ssp->in_buf_len = bp->b_count;
 			ssp->in_buf = bp->b_faddr;
 			ssp->out_buf_len = 0;
 			ssp->out_buf = NULL;
 		} else {
-			ssp->cmdbuf[0] = ScmdWRITEXTENDED;
 			ssp->in_buf_len = 0;
 			ssp->in_buf = NULL;
 			ssp->out_buf_len = bp->b_count;
@@ -1743,8 +1619,7 @@ RV_TYPE errtype;
 				ssp->state = SST_POLL_BEGIN_IO;
 				set_timeout(s_id, DELAY_BSY);
 			} else
-				ssp->state = SST_BUS_DEV_RST;
-			}
+				ssp->state = SST_BUS_DEV_RESET;
 			break;
 
 		case RV_CS_CHECK:
@@ -1756,19 +1631,18 @@ RV_TYPE errtype;
 		case RV_R_TIMEOUT:
 			++ssp->bdr_count;
 			if (ssp->bdr_count < MAX_BDR_COUNT)
-				ssp->state = SST_BUS_DEV_RST;
+				ssp->state = SST_BUS_DEV_RESET;
 			else
 				ssp->state = SST_LOPRI_RESET;
-			}
 			break;
 
 		case RV_BF_TIMEOUT:
 			host_claimed = -1;
 			/* fall thru */
-		case RV_A_TIMEOUT
+		case RV_A_TIMEOUT:
 			ssp->state = SST_HIPRI_RESET;
 		}
-	else { /* try_count >= MAX_TRY_COUNT */
+	} else { /* try_count >= MAX_TRY_COUNT */
 		if (bp)
 			bp->b_flag |= BFERR;
 		if (ssp->local_buf) {
@@ -1794,13 +1668,18 @@ int s_id;
 	ssp->busy = 0;
 	ssp->in_buf = ssp->out_buf = NULL;
 	if (bp) {
-		bdone(bp);
 		ssp->bp = NULL;
 		ssp->state = SST_DEQUEUE;
+		if (bp->b_req == BREAD)
+			bp->b_resid -= ssp->data_bytes_in;
+		else
+			bp->b_resid -= ssp->data_bytes_out;
+		bdone(bp);
 	}
 	if (ssp->local_buf) {
 		ssp->local_buf = 0;
 		ssp->local_done = 1;
+		ssp->state = SST_POLL_BEGIN_IO;
 	}
 }
 
@@ -1814,21 +1693,121 @@ static void do_connect(s_id)
 int s_id;
 {
 	int result;
+	ss_type * ssp = ss[s_id];
 
-	result = info_xfer(s_id);
+	result = far_info_xfer(s_id);
 	if (host_claimed == s_id)
 		host_claimed = -1;
 	if (!result)
 		recover(s_id, RV_P_TIMEOUT);
 	else if (ssp->msg_in == MSG_DISCONNECT) {
-		target_state = SST_POLL_RESELECT;
+		ssp->state = SST_POLL_RESELECT;
 		set_timeout(s_id, DELAY_RES);
 	} else if (ssp->msg_in == MSG_CMD_CMPLT && ssp->cmdstat == CS_GOOD)
 		ss_finished(s_id);
-	} else if (ssp->cmdstat == CS_BUSY)
+	else if (ssp->cmdstat == CS_BUSY)
 		recover(s_id, RV_CS_BUSY);
-	} else if (ssp->cmdstat == CS_CHECK)
+	else if (ssp->cmdstat == CS_CHECK)
 		recover(s_id, RV_CS_CHECK);
 	else  /* something else went wrong */
 		recover(s_id, RV_P_TIMEOUT);
+}
+
+/*
+ * local_info_xfer()
+ *
+ * Do bus cycle information transfer phases.
+ * Transfer is for a command which will produce local results in the driver.
+ * Other ...info_xfer routine handles kernel block i/o commands.
+ *
+ * Return 1 if transfer succeeded, else 0.
+ *
+ */
+static int local_info_xfer(cmdbuf, cmdlen, inbuf, inlen, outbuf, outlen)
+uchar * cmdbuf, * inbuf, * outbuf;
+uint cmdlen, inlen, outlen;
+{
+	int bus_timeout;
+	uchar phase_type;
+	int s;
+	int cmd_bytes_out = 0;
+	int data_bytes_in = 0;
+	int data_bytes_out = 0;
+	int ret = 0;
+	int xfer_good = 1;
+	int cmdstat = -1;
+	int msg_in = -1;
+
+	s = sphi();
+	while(req_wait(&bus_timeout) && xfer_good) {
+		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+		switch (phase_type) {
+		case XP_MSG_IN:
+			msg_in = ffbyte(ss_dat);
+			switch(msg_in){
+			case MSG_CMD_CMPLT:
+			case MSG_DISCONNECT:
+				sfbyte(ss_csr, WC_ENABLE_IRPT);
+				break;
+			}
+			break;
+		case XP_MSG_OUT:
+			/*
+			 * This case shouldn't happen.  We weren't
+			 * asserting ATTENTION.  Abort the bus cycle.
+			 */
+			sfbyte(ss_csr, WC_ENABLE_SCSI);
+			sfbyte(ss_dat, MSG_ABORT); 
+			break;
+		case XP_STAT_IN:
+			cmdstat = ffbyte(ss_dat);
+			break;
+		case XP_CMD_OUT:
+			/*
+			 * Ship out command bytes.
+			 */
+			if (cmd_bytes_out < cmdlen) {
+				sfbyte(ss_dat, cmdbuf[cmd_bytes_out++]);
+				/*
+				 * If just sent last byte, allow interrupts.
+				 */
+				if (cmd_bytes_out == cmdlen) {
+					spl(s);
+					s = sphi();
+				}
+			} else {	/* This case should not happen. */
+				xfer_good = 0;
+			}
+			break;
+		case XP_DATA_IN:
+			/*
+			 * If caller's buffer has room, keep incoming
+			 * data byte.  Else toss it.
+			 */
+			if (data_bytes_in < inlen) {
+				inbuf[data_bytes_in++] = ffbyte(ss_dat);
+			} else
+				ffbyte(ss_dat);
+			break;
+		case XP_DATA_OUT:
+			/*
+			 * Copy output buffer bytes to data register.
+			 */
+			if (data_bytes_out < outlen) {
+				sfbyte(outbuf[data_bytes_out++], ss_dat);
+			} else { /* This case should not happen. */
+				xfer_good = 0;
+			}
+			break;
+		default:
+			break;
+		} /* endswitch */
+	}
+	spl(s);
+
+	if (!bus_timeout && xfer_good && cmdstat == CS_GOOD)
+		ret = 1;
+
+	host_claimed = -1;
+	return ret;
 }
