@@ -8,6 +8,9 @@ int busted;
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.23	91/04/11  12:51:50	root
+ * ssopen compiles - not tested
+ * 
  * Revision 1.22	91/04/10  16:55:59	root
  * Starting to get block operations working.
  * 
@@ -19,7 +22,30 @@ int busted;
  */
 
 /*
+ * Includes.
+ */
+#include	<coherent.h>
+#include	<sys/io.h>
+#include	<sys/sched.h>
+#include	<sys/uproc.h>
+#include	<sys/proc.h>
+#include	<sys/con.h>
+#include	<sys/stat.h>
+#include	<sys/devices.h>		/* SCSI_MAJOR */
+#include	<errno.h>
+
+#include 	<sys/fdisk.h>
+#include	<sys/hdioctl.h>
+#include	<sys/buf.h>
+#include	<scsiwork.h>
+#include	<ss.h>
+
+/*
  * Definitions.
+ *	Constants.
+ *	Macros with argument lists.
+ *	Typedefs.
+ *	Enums.
  */
 #define DEV_SCSI_ID(dev)	((dev >> 4) & 0x0007)
 #define DEV_LUN(dev)		((dev >> 2) & 0x0003)
@@ -31,6 +57,8 @@ int busted;
 #define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
+
+#define IN_BUF_SIZE	512	/* buffer size in "ss" structs */
 
 				/* Device States */
 #define	SIDLE		0	/* controller idle */
@@ -62,46 +90,34 @@ int stats[100], statsptr;
 #define SSDUMP(ssp, text)
 #endif
 
-/*
- * Includes.
- */
-#include	<coherent.h>
-#include	<sys/io.h>
-#include	<sys/sched.h>
-#include	<sys/uproc.h>
-#include	<sys/proc.h>
-#include	<sys/con.h>
-#include	<sys/stat.h>
-#include	<sys/devices.h>		/* SCSI_MAJOR */
-#include	<errno.h>
-
-#include 	<sys/fdisk.h>
-#include	<sys/hdioctl.h>
-#include	<sys/buf.h>
-#include	<scsiwork.h>
-#include	<ss.h>
-
-/*
- * Export Functions.
- */
+typedef unsigned char	uchar;
+typedef struct ss {
+	long	capacity;
+	long	blocklen;
+	int	msg_in;
+	uchar	cmdbuf[G1CMDLEN];
+	int	cmdlen;
+	int	cmd_bytes_out;
+	int	cmdstat;
+	uchar	in_buf[IN_BUF_SIZE];
+	int	in_buf_len;
+	int	data_bytes_in;
+	BUF	*bp;
+	struct	fdisk_s parmp[NPARTN+1];
+	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
+	unsigned int	id_busy:1;  /* 1 if device with this SCSI id busy */
+}	ss_type;
 
 /*
- * Export Variables - patch these to configure the driver.
- */
-int	NSDRIVE = 1;		/* Bitmap of attached SCSI drives. */
-int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
-int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
-
-/*
- * Import Functions.
+ * Functions.
+ *	Import Functions.
+ *	Export Functions.
+ *	Local Functions.
  */
 extern int	nulldev();
 extern int	nonedev();
 extern unsigned char ffbyte();
 
-/*
- * Local Functions.
- */
 static void	ssopen();		/* CON functions */
 static void	ssclose();
 static void	ssblock();
@@ -115,6 +131,7 @@ static void	ssunload();
 static void	bus_dev_reset();	/* additional support functions */
 static int	bus_info_xfer();
 static int	bus_pre_xfer();
+static void	chk_reconn();
 static void	do_ss();
 static int	inquiry();
 static int	read_cap();
@@ -130,27 +147,10 @@ static int	ssinit();
 static void	ssintr();
 
 /*
- * Local Variables.
- */
-static BUF	dbuf;		/* For raw I/O */
-static paddr_t	ss_base;	/* physical address of ST0x comm area */
-static faddr_t	ss_fp;		/* (far *) to ST0x comm area */
-
-static faddr_t	ss_ram;		/* (far *) to parameter RAM */
-static faddr_t	ss_csr;		/* (far *) to control/status */
-static faddr_t	ss_dat;		/* (far *) to data port */
-
-static int	num_drives;	/* number of controller SCSI id's */
-static struct ss *ss_block;	/* points to block of "ss" structs */
-static int	st0x_busy;	/* 1 if SCSI host adapter busy */
-
-static TIM	delay_tim;	/* needed for calls to ssdelay() */
-static TIM	timeout_tim;	/* needed for calls to timeout() */
-static int	ss_expired;	/* 1 after local timeout */
-static int	ss_state;	/* starts at SIDLE */
-
-/*
- * Driver CON entry - an export variable.
+ * Global Data.
+ *	Import Variables.
+ *	Export Variables.
+ *	Local Variables.
  */
 CON	sscon	= {
 	DFBLK|DFCHR,			/* Flags */
@@ -168,27 +168,29 @@ CON	sscon	= {
 	nulldev				/* Poll */
 };
 
-/*
- * A per-drive structure - ss
- */
-#define IN_BUF_SIZE	512
-typedef unsigned char	uchar;
+	/* Patch these Export Variables to configure the driver. */
+int	NSDRIVE = 1;		/* Bitmap of attached SCSI drives. */
+int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
+int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
-static struct ss	{
-	long	capacity;
-	long	blocklen;
-	int	msg_in;
-	uchar	cmdbuf[G1CMDLEN];
-	int	cmdlen;
-	int	cmd_bytes_out;
-	int	cmdstat;
-	uchar	in_buf[IN_BUF_SIZE];
-	int	in_buf_len;
-	int	data_bytes_in;
-	struct	fdisk_s parmp[NPARTN+1];
-	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
-	unsigned int	id_busy:1;  /* 1 if device with this SCSI id busy */
-} *ss[MAX_SCSI_ID-1], rqs;
+static BUF	dbuf;		/* For raw I/O */
+static paddr_t	ss_base;	/* physical address of ST0x comm area */
+static faddr_t	ss_fp;		/* (far *) to ST0x comm area */
+
+static faddr_t	ss_ram;		/* (far *) to parameter RAM */
+static faddr_t	ss_csr;		/* (far *) to control/status */
+static faddr_t	ss_dat;		/* (far *) to data port */
+
+static int	num_drives;	/* number of controller SCSI id's */
+static ss_type *ss_block;	/* points to block of "ss" structs */
+static int	st0x_busy;	/* 1 if SCSI host adapter busy */
+
+static TIM	delay_tim;	/* needed for calls to ssdelay() */
+static TIM	timeout_tim;	/* needed for calls to timeout() */
+static int	ss_expired;	/* 1 after local timeout */
+static int	ss_state;	/* starts at SIDLE */
+static ss_type  *ss[MAX_SCSI_ID-1], rqs;
+static int	dr_watch[MAX_SCSI_ID-1];
 
 /*
  * ssload()	- load routine.
@@ -244,15 +246,15 @@ static void ssload()
 		if (num_drives == 0) {
 			printf("Error - ss has no valid target id's\n");
 			erf = 1;
-		} else if ((ss_block = kalloc(num_drives*sizeof(struct ss)))
+		} else if ((ss_block = kalloc(num_drives*sizeof(ss_type)))
 		== NULL) {
 			printf("Error - ss can't allocate structs\n");
 			erf = 1;
 		} else
-			kclear(ss_block, num_drives * sizeof(struct ss));
+			kclear(ss_block, num_drives * sizeof(ss_type));
 	}
 	if (!erf) {
-		struct ss *foo = ss_block;
+		ss_type *foo = ss_block;
 
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
@@ -306,7 +308,7 @@ register dev_t	dev;
 	int drive, partn;
 	int valid_open;
 	struct	fdisk_s	*fdp;
-	struct ss * ssp;
+	ss_type * ssp;
 	int s_id;
 
 	/*
@@ -462,7 +464,7 @@ register BUF	*bp;
 	struct	fdisk_s	*fdp;
 	int partition, drive, s_id;
 	dev_t dev;
-	struct ss * ssp;
+	ss_type * ssp;
 	int valid_op = 1;
 
 	bp->b_resid = bp->b_count;
@@ -566,9 +568,20 @@ static void ssintr()
  */
 static void sswatch()
 {
+	int	s_id;
+
+	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++)
+		if (dr_watch[s_id]) {
+			dr_watch[s_id]--;
+			chk_reconn();
+			if (dr_watch[s_id] == 0) {
+				bus_dev_reset(s_id);
+printf("SCSI id #%d: bno=%lu <Watchdog Timeout>\n", s_id, ss[s_id]->bp->b_bno);
+			}
+		}
 	printf("*");
 	busted = 1;
-	drvl[SCSI_MAJOR].d_time=0;
+	drvl[SCSI_MAJOR].d_time--;
 	wakeup(&rpt_irpt);
 }
 
@@ -667,7 +680,7 @@ int foo,fof;
 for (foo=0,fof=0;foo<READ_PTS;){
 	rpt_irpt=0;
 	busted=0;
-	drvl[SCSI_MAJOR].d_time=1;
+	drvl[SCSI_MAJOR].d_time++;
 		if (read_pt(s_id)) {
 			retval = 1;
 		} else {
@@ -702,7 +715,7 @@ static int testready(s_id)
 int s_id;
 {
 	int retval;
-	struct ss * ssp = ss[s_id];
+	ss_type * ssp = ss[s_id];
 
 	ssp->cmdbuf[0] = ScmdTESTREADY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] =
@@ -727,7 +740,7 @@ static int scsicmd(s_id)
 int s_id;
 {
 	int retval;
-	struct ss *ssp = ss[s_id];
+	ss_type *ssp = ss[s_id];
 	int tries;
 
 	tries = 0;
@@ -942,7 +955,7 @@ int s_id;
  * endwhile
  */
 static int bus_info_xfer(ssp)
-struct ss *ssp;
+ss_type *ssp;
 {
 	int bus_timeout;
 	uchar phase_type;
@@ -1120,7 +1133,7 @@ static int inquiry(s_id)
 int s_id;
 {
 	int ret = 0;
-	struct ss * ssp = ss[s_id];
+	ss_type * ssp = ss[s_id];
 
 	ssp->cmdbuf[0] = ScmdINQUIRY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] =
@@ -1145,7 +1158,7 @@ static int read_cap(s_id)
 int s_id;
 {
 	int ret = 0;
-	struct ss * ssp = ss[s_id];
+	ss_type * ssp = ss[s_id];
 
 	ssp->cmdbuf[0] = ScmdREADCAPACITY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
@@ -1237,11 +1250,13 @@ struct scsi_work_t * sw;
 	BUF * bp;
 
 printf("ss_done\n");
-	bp = sw->sw_bp;
+	if (sw) {
+		bp = sw->sw_bp;
 
-	ss_state = SIDLE;
-	bdone(bp);
-	kfree(sw);
+		ss_state = SIDLE;
+		bdone(bp);
+		kfree(sw);
+	}
 
 	if (ssq_rd_head())
 		ss_start();
@@ -1258,7 +1273,7 @@ static int read_pt(s_id)
 int s_id;
 {
 	int ret = 0;
-	struct ss * ssp = ss[s_id];
+	ss_type * ssp = ss[s_id];
 
 	ssp->cmdbuf[0] = ScmdREADEXTENDED;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
@@ -1337,4 +1352,15 @@ printf("bus_dev_reset\n");
 		}
 		ssdelay(BDR_CHECK_INTERVAL);
 	}
+}
+
+/*
+ * chk_reconn()
+ *
+ * Poll to see if any SCSI device has tried to reconnect to the host
+ * adapter.  Called if there is an interrupt, and by the timer in case
+ * we somehow lose an interrupt.
+ */
+static void chk_reconn()
+{
 }
