@@ -5,7 +5,6 @@
  * a specific operating system and terminal.
  */
 #ifdef	COHERENT
-/* VT100 is 1 below to make the IBM AT console arrow keys work.		*/
 #define	V7	1			/* V7 UN*X or Coherent		*/
 #define	VMS	0			/* VAX/VMS			*/
 #define	CPM	0			/* CP/M-86			*/
@@ -63,6 +62,13 @@
 #ifndef	PROMPT
 #define	PROMPT	" MicroEMACS -- "
 #endif
+
+/* 
+ * NORMAL_CHARS will be 1 when the ctype.h problems are solved
+ * for internationalization or when international characters are
+ * not required.
+ */
+#define NORMAL_CHARS 0
 
 #define	CVMVAS	1			/* C-V, M-V arg. in screens.	*/
 #define	LIBHELP	1			/* Use help stuff		*/
@@ -150,6 +156,8 @@
 #define	PFX3	0x1000			/* prefix 3 flag, or'ed in	*/
 #define OBND	0x2000			/* original binding only	*/
 
+typedef unsigned char uchar;
+
 /*
  * Key bindings point into a function table which
  * contains function names.
@@ -157,7 +165,7 @@
 typedef struct KEYTAB KEYTAB;
 struct	KEYTAB {
 	short	k_code;			/* Key code			*/
-	char  k_fun;		/* Function number */
+	char	k_fun;		/* Function number */
 	char 	k_synonym;	/* Next at this hash value */
 };
 
@@ -171,7 +179,7 @@ struct	FUNTAB {
  */
 typedef struct BIND {
 	KEYTAB	table[MAXREB];		/* overlay keybind table	*/
-	char	*macs[MAXMAC + 2];	/* list of kbd macros		*/
+	uchar	*macs[MAXMAC + 2];	/* list of kbd macros		*/
 	short	maclen[MAXMAC + 2];	/* lengths of kbd macros	*/
 	short	pfx1;			/* prefix 1 char		*/
 	short	pfx2;			/* prefix 2 char		*/
@@ -231,8 +239,8 @@ typedef	struct	BUFFER {
 	struct	LINE *b_linep;		/* Link to the header LINE	*/
 	char	b_nwnd;			/* Count of windows on buffer	*/
 	char	b_flag;			/* Flags			*/
-	char	b_fname[NFILEN];	/* File name			*/
-	char	b_bname[NBUFN];		/* Buffer name			*/
+	uchar	b_fname[NFILEN];	/* File name			*/
+	uchar	b_bname[NBUFN];		/* Buffer name			*/
 }	BUFFER;
 
 #define	BFTEMP	0x01			/* Internal temporary buffer	*/
@@ -274,7 +282,7 @@ typedef	struct	LINE {
 	short	l_size;			/* Allocated size		*/
 	short	l_used;			/* Used size			*/
 	long	l_lnumber;		/* Line number in original file	*/
-	char	l_text[];		/* A bunch of characters.	*/
+	uchar	l_text[];		/* A bunch of characters.	*/
 }	LINE;
 
 #define	lforw(lp)	((lp)->l_fp)
@@ -305,7 +313,7 @@ typedef	struct	{
 	int	(*t_flush)();		/* Flush output buffers.	*/
 	int	(*t_move)();		/* Move the cursor, origin 0.	*/
 	int	(*t_eeol)();		/* Erase to end of line.	*/
-	int	(*t_eeop)();		/* Erase to end of page.	*/
+	int	(*t_eeop)();		/* Clear screen			*/
 	int	(*t_beep)();		/* Beep.			*/
 	int	(*t_stand)();		/* Standout mode.		*/
 }	TERM;
@@ -319,7 +327,7 @@ typedef	struct	{
 #define	tclose		(*term.t_close)		/* Close the terminal	*/
 #define	tmove(X,Y)	(*term.t_move)((X),(Y))	/* Move cursor		*/
 #define	teeol		(*term.t_eeol)		/* Erase to end of line	*/
-#define	teeop		(*term.t_eeop)		/* Erase to end of page	*/
+#define	teeop		(*term.t_eeop)		/* Clear screen		*/
 #define	tflush		(*term.t_flush)		/* Flush output buff	*/
 
 /* Command line switch flags -- set in runswitch	*/
@@ -354,15 +362,15 @@ extern	BUFFER	*errbp;			/* Error file buffer		*/
 extern	short	*kbdm;			/* Holds kayboard macro data	*/
 extern	short	*kbdmip;		/* Input pointer for above	*/
 extern	short	*kbdmop;		/* Output pointer for above	*/
-extern	char	pat[];			/* Search pattern		*/
+extern	uchar	pat[];			/* Search pattern		*/
 extern	TERM	term;			/* Terminal information.	*/
-extern	char	*ufiles[];		/* command-line specified files	*/
-extern	char	errfile[];		/* error file name		*/
+extern	uchar	*ufiles[];		/* command-line specified files	*/
+extern	uchar	errfile[];		/* error file name		*/
 #if	LIBHELP
-extern	char	hfname[];		/* Help file name buffer	*/
-extern	char	hiname[];		/* Help index name buffer	*/
-extern	char	*helpfile;		/* Help file name		*/
-extern	char	*helpindex;		/* Help index file name		*/
+extern	uchar	hfname[];		/* Help file name buffer	*/
+extern	uchar	hiname[];		/* Help index name buffer	*/
+extern	uchar	*helpfile;		/* Help file name		*/
+extern	uchar	*helpindex;		/* Help index file name		*/
 #endif
 extern	BUFFER	*bfind();		/* Lookup a buffer by name	*/
 extern	WINDOW	*wpopup();		/* Pop up window creation	*/
