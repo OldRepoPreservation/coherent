@@ -1,7 +1,6 @@
 #include	<stdio.h>
 #include	<sgtty.h>
 extern int printing;
-extern int banyes;
 extern FILE *lp;
 
 char escbuff[64];
@@ -12,7 +11,6 @@ char	*file;
 	register FILE	*f;
 	register int c;
 	register int nraw = 0;
-	int reset = 1;
 	int col = 0;
 	struct sgttyb sg;
 
@@ -24,8 +22,6 @@ char	*file;
 	sg.sg_flags &= ~(XTABS|CRMOD);
 	ioctl(fileno(lp), TIOCSETP, &sg);
 	sg.sg_flags = c;
-	if (banyes)
-		putc('\f', lp);
 	while ((c=getc(f)) != EOF && printing > 0) {
 		if (nraw) {
 			putc(c, lp);
@@ -36,7 +32,6 @@ char	*file;
 		case 033:
 			switch (escape(f)) {
 			case 'E':
-				reset = 0;
 				continue;
 			case 'W':
 				if (escbuff[1] == '*' && escbuff[2] == 'b')
@@ -71,10 +66,6 @@ char	*file;
 			putc(c, lp);
 			continue;
 		}
-	}
-	if (reset) {
-		putc('\033', lp);
-		putc('E', lp);
 	}
 	ioctl(fileno(lp), TIOCSETP, &sg);
 	fclose( f);
