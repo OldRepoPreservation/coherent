@@ -1,6 +1,6 @@
 /*
  * badscan.c
- * 4/20/90
+ * 2/7/91
  * Usage: badscan [-v] [-o proto] [-b boot] device count
  *	device	  device to be scanned (e.g. /dev/rat0a)
  *	count	  size of file system to be scanned
@@ -10,7 +10,33 @@
  *	-o proto  output file name for prototype file  (default: stdout)
  *	-v	  verbose messages as to the percentage of file system scanned
  *
+ * Due to Inetco's braindamaged notion of removing stdio from everything, this
+ * does not #include <stdio.h> and uses sys write() calls to fd 1 and fd 2 in
+ * lieu of stdout and stderr.  This should be fixed when someone gets the urge.
+ *
  * $Log:	/usr/src.inetco/etc/badscan.c,v $
+ * Revision 1.7	91/02/07  12:36:00 	bin
+ * steve 2/7/91
+ * Following norm's suggestion, SCSI badscan now issues warning but
+ * the continues with block-by-block scan of device.
+ * 
+ * Revision 1.6	91/02/07  09:58:21 	bin
+ * steve 2/7/91
+ * Added include of <sys/devices.h>, changed explicitly declared floppy
+ * and hard disk major device manifest constants accordingly.
+ * Added check for major==SCSI; if so, print "SCSI devices do not require
+ * badscan" and exit successfully.
+ * Added "badscan:" at start of fatal() messages.
+ * Added comment moaning about Inetco avoiding stdio.
+ * 
+ * Revision 1.5	90/04/20  09:01:50 	bin
+ * steve 4/20/90
+ * Previous version failed on floppy disks because HDGETA ioctl only works
+ * on hard disks.  Now it checks the major number, does HDGETA to find
+ * tracksize on hard disk and uses tracksize=1 (sector by sector scan)
+ * on floppies.  Future: should add FDGETA ioctl to floppy driver and
+ * let badscan (and mkfs) find default floppy size automatically.
+ * 
  * Revision 1.4	90/04/19  14:08:36 	bin
  * steve 4/19/90
  * Change -v messages slightly for use during install;
@@ -56,6 +82,7 @@
  */
 
 #include <sys/stat.h>
+#include <sys/devices.h>
 #include <sys/fdisk.h>
 #include <sys/hdioctl.h>
 
@@ -63,8 +90,6 @@
 #define	MAXUINT	((unsigned)65535L)
 #define	NULL	((char *)0)
 #define	TRUE	(0 == 0)
-#define	FDCMAJ	4			/* floppy controller major number */
-#define	HDCMAJ	11			/* hard disk controller major number */
 
 /*
  * External functions.
@@ -170,8 +195,10 @@ main(argc, argv) register int argc; register char *argv[];
 		fatal("cannot stat: ", argv[0]);
 	sb.st_mode &= S_IFMT;
 	if ((sb.st_mode != S_IFCHR) && (sb.st_mode != S_IFBLK))
-		fatal("not a special file: ", argv[0]);
-	if ((n = major(sb.st_rdev)) != HDCMAJ && n != FDCMAJ)
+		fatal("not a device special file: ", argv[0]);
+	if ((n = major(sb.st_rdev)) == SCSI_MAJOR)
+		sput(2, "badscan: warning: SCSI devices do not require badscan\n");
+	else if (n != AT_MAJOR && n != FL_MAJOR)
 		fatal("not a disk device: ", argv[0]);
 
 	/*
@@ -181,13 +208,14 @@ main(argc, argv) register int argc; register char *argv[];
 	close(0);
 	if (open(argv[0], 0) == -1)
 		fatal("cannot open: ", argv[0]);
-	if (n == HDCMAJ) {
+	if (n == AT_MAJOR) {
 		/* Get hard disk track size with ioctl. */
 		if (ioctl(0, HDGETA, (char *)&hdparms) == -1)
 			fatal("cannot get disk device parameters: ", argv[0]);
 		tracksize = hdparms.nspt;
 	} else {
-		/* ioctl FDGETA should be implemented but is not (yet). */
+		/* Badscan a floppy disk or a SCSI disk. */
+		/* Floppy ioctl FDGETA should be implemented but is not (yet). */
 #if	0
 		/* Kludge: this code knows floppy minor to tracksize mapping. */
 		n = minor(sb.st_rdev) & 7;
@@ -340,6 +368,7 @@ bad(n) register long n;
 void
 fatal(s1, s2) char * s1, * s2;
 {
+	sput(2, "badscan: ");
 	sput(2, s1);
 	sput(2, s2);
 	sput(2, "\n");
