@@ -84,7 +84,7 @@ char *argv[];
 	strcpy(notifyusr, luser);
 	if (debugflg > 0)
 		fprintf(stderr, "I yam %s.\n", luser);
-	while((ch = getopt(argc, argv, "dfcCmrg:s:x:n:")) != EOF) {
+	while( (ch=getopt(argc, argv, "dfcCmrg:s:x:n:vV")) != EOF ) {
 		switch(ch) {
 		case 'r':
 			nocicoflg = 1;
@@ -131,6 +131,9 @@ char *argv[];
 			if (debugflg > 5)
 			fprintf(stderr, "notify user %s upon rcpt\n",notifyusr);
 			break;
+		case 'v':
+		case 'V':
+			fatal("uucp: Version %s", VERSION);
 		default:
 			fprintf(stderr, "uucp: Option character of %c\n", ch);
 			usage();

@@ -102,10 +102,12 @@ char *argv[], *envp[];
 
 dcxqt()
 {
-	if ( lockit("uuxqt") < 0 ) {
-		printmsg(M_LOG, "uuxqt locked");
+	if ( lockexist("uuxqt") )
 		return;
-	}
+
+	if ( lockit("uuxqt") < 0 )
+		fatal("Can't lock uuxqt");
+
 	if ( dscan_start() ) {
 		while ( dscan() ) {
 			if ( xscan_start() ) {
