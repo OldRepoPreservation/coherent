@@ -14,6 +14,16 @@
 #define	MAXNAME	400		/* Longest pathname */
 
 extern	int	errno;
+static	int	oerrno;
+
+static
+char *
+fail()
+{
+	if (errno == 0)
+		errno = oerrno;		/* preserve previous errno */
+	return NULL;
+}
 
 char *
 getwd()
@@ -26,19 +36,20 @@ getwd()
 	register dev_t rdev;
 	register ino_t rino;
 
+	oerrno = errno;			/* save old errno */
 	errno = 0;
 	dp = fnbuf+MAXNAME-1;
 	*dp = '\0';
 	if (stat("/", &d) < 0)
-		return (NULL);
+		return fail();
 	rdev = d.st_dev;
 	rino = d.st_ino;
 	while (stat(".", &d)>=0 && (d.st_ino!=rino || d.st_dev!=rdev)) {
 		if ((file = open("..", 0)) < 0)
-			return (NULL);
+			return fail();
 		if (fstat(file, &dd)<0 || chdir("..")<0) {
 			close(file);
-			return (NULL);
+			return fail();
 		}
 		if (d.st_dev == dd.st_dev) {
 			if (d.st_ino == dd.st_ino) {
@@ -49,7 +60,7 @@ getwd()
 				if (read(file, (char *)&dir, sizeof (dir))
 				    != sizeof (dir)) {
 					close(file);
-					return (NULL);
+					return fail();
 				}
 				canino(dir.d_ino);
 			} while (dir.d_ino != d.st_ino);
@@ -58,17 +69,17 @@ getwd()
 				if (read(file, (char *)&dir, sizeof (dir))
 				    != sizeof  (dir)) {
 					close(file);
-					return (NULL);
+					return fail();
 				}
 				canino(dir.d_ino);
 				if (dir.d_ino!=0 && stat(dir.d_name, &dd)<0) {
 					close(file);
-					return (NULL);
+					return fail();
 				}
 			} while (dd.st_ino!=d.st_ino || dd.st_dev!=d.st_dev);
 		close(file);
 		if (dp-DIRSIZ <= fnbuf)
-			return (NULL);
+			return fail();
 		for (cp=dir.d_name; cp!=dir.d_name+DIRSIZ && *cp!='\0'; cp++)
 			;
 		while (cp > dir.d_name)
@@ -76,10 +87,11 @@ getwd()
 		*--dp = '/';
 	}
 	if (errno)
-		return (NULL);
+		return NULL;
 	if (*dp != '/')
 		*--dp = '/';
 	if (chdir(dp) < 0)
-		return (NULL);
-	return (dp);
+		return fail();
+	errno = oerrno;
+	return dp;
 }
