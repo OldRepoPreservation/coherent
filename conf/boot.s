@@ -50,11 +50,8 @@
 #define	NTRK	40			/ # of tracks on floppy.
 #endif
 
-PX_OPND =	0x66		/ register values & immediates
-				/ and value of jump instruction
-PX_ADDR =	0x67		/ displacements
-
-NSTK	=	512			/ # of bytes of stack.
+NSTK	=	256			/ # of bytes of stack.
+BS	=	0x08			/ BS character.
 CR	=	0x0D			/ CR character.
 LF	=	0x0A			/ LF character.
 SP	=	0x20			/ Backspace character.
@@ -90,8 +87,26 @@ LPRVD	=	26			/ Offset of "l_ssize[PRVD]"
 LBSSD	=	30			/ Offset of "l_ssize[BSSD]"
 LFMAG	=	0x0107			/ Magic number.
 LFSEP	=	0x02			/ Sep I/D flag bit.
-SYSBASE =	0x0200			/ System load base paragraph.
+SYSBASE =	0x0060			/ System load base paragraph.
 FIRST	=	8			/ relative start of partition
+
+////////
+/ Overall structure of boot.s (the secondary boot):
+/
+/ boot: relocate secondary to high memory (0x2060:0x0000)
+/	if needed, get hard disk parameters from bios
+/	jump far to high memory (RBOOTS:entry)
+/ entry: open directory "/"
+/ search: while filename not found
+/	walk through "/" looking for filename (in nbuf)
+/	if not found, ask for another name (call input:), and loop to search
+/ found: open file that we just found
+/	read the l.out header (verify magic number, get partition sizes)
+/	load the shared and private code segments as one (call load:)
+/	load the initialized data segment (call load:)
+/	jump far to the newly loaded program
+/	
+////////
 
 ////////
 /
@@ -106,17 +121,22 @@ FIRST	=	8			/ relative start of partition
 boot:	xor	di, di
 	mov	ds, di
 	mov	si, $BOOTLC		/ Make DS:SI point at the code
+/ "mov es, 1f(si)" really means "mov es, $RBOOTS".  Clever Intel... :-(
 	mov	es, 1f(si)		/ Make ES:DI point at where it goes
 	mov	cx, $512		/ cx = # of bytes to move
 	cld
 	rep				/ Move the bootstrap
 	movsb				/ to high memory.
 
-/ Check for XT partition
+/ Check to see if we were invoked by mboot.  (That means we're booting
+/ off a hard disk and need to load disk parameters.
 
+					/ mboot sets bx = sp
 	cmp	bx, sp			/ trick to tell
-	jne	0f			/ whether not xt
-	mov	si, bp			/ set si to partition
+	jne	0f			/ whether or not xt
+
+/ Assertion: at this point we know we're boot off a hard disk.
+	mov	si, bp			/ set si to partition table
 
 	movb	dl, (si)		/ get drive number
 	movb	ah, $8			/ get drive parameters
@@ -163,8 +183,26 @@ boot:	xor	di, di
 
 ////////
 /
+/ This is the equivalent of "open()",
+/ but takes an inode instead of a pathname.
+/
 / Read the inode specified by "ax"
 / into the external variable "iaddr".
+/
+/ Makes a list of block numbers in "iaddr"
+/ consisting of the 10 direct block numbers, the 128
+/ block numbers pointed to the singly indirect block,
+/ and the first 128 block numbers pointed to by the
+/ first doubly indirect block.
+/
+/ Note that "iread" can only access the first 256
+/ block numbers in this list, so the last 10 are
+/ ignored.
+/
+/ Note that block numbers are actually 32 bits on disk--
+/ this routine only uses the lower 16 bits.
+/ In fact, iaddr is loaded with 16 bit numbers, not 32 bit.
+/
 / No checking is done to make sure that
 / the inumber is in range on the filesystem.
 / Sets dx and cx to 0.
@@ -175,6 +213,8 @@ boot:	xor	di, di
 igrab:	dec	ax			/ Make origin 0 and
 	push	ax			/ remember for later use.
 
+	/ We assume that the inode table appears in the first 32 meg of disk.
+	/ Look up the inode in the inode table.
 	movb	cl, $IBSHIFT		/ Convert to
 	shr	ax, cl			/ inode block number,
 	inc	ax			/ then to physical block number,
@@ -187,14 +227,23 @@ igrab:	dec	ax			/ Make origin 0 and
 	shl	ax, cl			/ a byte offset in the block.
 	add	si, ax			/ si = inode pointer.
 
+	/ Assertion: si now points at the start of the desired
+	/ inode structure (see <sys/inode.h>).
+
+	/ Copy out the direct block numbers to iaddr.
 	add	si, $IADDR		/ Point at address field.
 	mov	di, $iaddr		/ Copy out area.
 
+	/ The block numbers in the inode on disk are stored as
+	/ 3 bytes: msb, lsw.  lsw is lsb, msb.  We want to store them
+	/ in memory as msw, lsw, just like the inodes in the indirect
+	/ blocks on disk.  So we need to cast msb as msw.
 	movb	cl, $ND 		/ cx = # of direct blocks.
 0:	inc	si			/ Skip 0th byte.
 	movsw				/ Move 1st (lsb) and 2nd (msb)
 	loop	0b			/ Do them all.
 
+	/ Read the singly indirect block.
 	inc	si			/ Skip 0th byte and
 	lodsw				/ grab block # of (first) indirect.
 
@@ -203,33 +252,42 @@ igrab:	dec	ax			/ Make origin 0 and
 
 	call	bread			/ Read (first) indirect block.
 
+	/ Copy out the singly indirect block numbers to iaddr.
 	movb	cl, $NIND		/ cx = # of indirect maps (ch=0)
 1:	lodsw				/ Skip hi half (canon long)
 	movsw				/ and move low half.
 	loop	1b			/ Do them all.
 
+	/ Read the doublely indirect block.
 	pop	ax
-	call	bread			/ Read double indirect block.
+	call	bread
 	lodsw
 	lodsw
-	call	bread			/ Read (second) indirect block.
+	/ Read the first block of THAT (do the indirection)
+	call	bread
 
+	/ Copy out the first block of
+	/ doublely indirect block numbers to iaddr.
+	/ These are stored on disk as 4 byte numbers: msw, lsw
+	/ where each word is lsb, msb.
 	movb	cl, $NIND		/ cx = # of indirect maps (ch=0)
 2:	lodsw				/ Skip hi half (canon long)
 	movsw				/ and move low half.
 	loop	2b			/ Do them all.
 
-	sub	dx, dx			/ sets dx to first word
+	/ Finish by reading the first block of the file into bbuf.
+	sub	dx, dx			/ Set dh to first block number in iaddr.
 /	jmp	iread			/ Done return through iread.
 
 ////////
 /
 / This routine reads the virtual
-/ block described by the ofs in "dx" into the
-/ buffer "bbuf". It uses the mapping data that
+/ block iaddr[dh] (the dh'th block number
+/ in iaddr) into the buffer "bbuf".
+/ It uses the mapping data that
 / has been provided by a previous call to igrab
 / On return "si" points at "bbuf".
-/ Holes in files are correctly done.
+/ Holes in files (sparse blocks) are correctly done.
 / mungs ax, bx, si.
 / clears cx.
 /
@@ -248,6 +306,8 @@ iread:
 / drive A:, using the code in the IBM firmware.
 / The physical block # is in "ax".
 /
+/ This code is restricted to reading from the first 32meg of
+/ disk because the block number is only 16 bits long.
 ////////
 
 bread:	push	es			/ Save registers
@@ -257,14 +317,16 @@ bread:	push	es			/ Save registers
 	push	ds
 	pop	es			/ set ES to the address of the buffer
 
-	mov	di, bp			/ if block 0, clear buffer
-	mov	cx, $BUFSIZE
-	rep
+	mov	di, bp			/ Blast the buffer contents.
+	mov	cx, $BUFSIZE		/ For block 0, this fills the buffer
+	rep				/ with zeros.
 	stosb
 
+	/ Block #0 is the sparse block--it means a block of all zeros.
 	test	ax, ax			/ if block 0, return zeroed buffer
 	jz	2f
 
+	/ Translate block number into cylinder, head, and sector.
 	xor	dx, dx			/ extend block number
 	add	ax, first		/ add first block
 	adc	dx, first+2		/ add rest
@@ -323,8 +385,8 @@ print:	lodsb				/ al=byte
 	ret
 
 / Prompt with a "?" and read the file name
-/ into the "nbuf". No character editing facilities
-/ are provided.
+/ into "nbuf".  Only BS handling is provided
+/ for editing.
 
 error:	mov	sp, bp			/ Reset stack
 	call	login			/ print boot message
@@ -336,6 +398,18 @@ input:	mov	di, $nbuf		/ di=name buffer pointer
 
 1:	movb	ah, $0			/ Get ASCII opcode.
 	int	KEYBD			/ Read keyboard ROM call.
+
+	cmpb	al, $BS			/ BS ?
+	jne	2f			/
+	cmpb	cl, $DIRSIZE		/ At start of buffer?
+	je	1b			/ Yup, ignore BS
+	call	putc			/ Output destructive backspace
+	movb	al, $SP
+	call	putc
+	movb	al, $BS
+	dec	di			/ Adjust pointer
+	inc	cx			/ and char count
+	jmp	0b			/ and continue.
 
 2:	cmpb	al, $CR 		/ CR ?
 	je	3f			/ Yup, do next thing
@@ -352,11 +426,20 @@ input:	mov	di, $nbuf		/ di=name buffer pointer
 	rep
 	stosb				/ rest of name
 
+////////
+/ This is where we jump after boot has been relocated.
+/ 
+/ Open "/"; we're going to search for "autoboot".
+////////
 entry:	mov	ax, $ROOTINO		/ ax = current inode
 	call	igrab			/ Read in inode and set dx
 
-/ Search directory.
-/ Assume directory size < 64 Kbytes.
+////////
+/ Search directory for filename in nbuf.
+/ Assume directory size = 64 Kbytes.
+/ This assumption works because block numbers
+/ from the inode beyond end of file are zero.
+////////
 
 search: orb	dl, dl			/ On block boundry ?
 	jnz	0f			/ Nope.
@@ -388,46 +471,62 @@ found:	call	igrab			/ read in inode and first block
 	cmp	LMAGIC(si),$LFMAG	/ Check the magic number.
 	jne	error			/ not Ok.
 
+/	push	LBSSD(si)		/ Push the uninitialized data size.
+
+	/ Get the total size of shared and private data segments.
+	/ They are contigious on disk.  see <l.out.h>
 	mov	ax, LSHRD(si)		/ Push the sum
 	add	ax, LPRVD(si)		/ of the shared and private
 	push	ax			/ [initialized] data sizes.
+	/ If this is not a sep I/D executable, then we
+	/ don't want to load the non-existent data segment.
 	andb	LFLAG(si), $LFSEP	/ check image flags.
 	pushf				/ Push result of test.
-	.byte	PX_OPND
-	mov	ax, LSHRI-2(si)		/ Get the sum of the
-	.byte	PX_OPND
-	ror	ax, $16
-	.byte	PX_OPND
+	mov	ax, LSHRI(si)		/ Get the sum of the
 	add	ax, LPRVI(si)		/ shared and private code sizes.
 
+	/ Find the start of the first segment on disk.
 	mov	dx, $HDRSIZ2		/ Seek after header and
-	.byte	PX_OPND
-	lea	si, HDRSIZE(si)		/ set buffer pointer appropriately.
+	add	si, $HDRSIZE		/ set buffer pointer appropriately.
 	mov	es, 1f			/ Set ES:DI to point to the load
 	sub	di, di			/ base of the new system.
 
+	/ Load the code segment.
 	call	load			/ Load code.
 
+	/ Skip loading the data segment for non-sep I/D executables.
 	popf				/ Pop sep I/D flag test
 	jz	0f			/ Not sep.
 
-	or	di, di
-	jz	2f
-	mov	ax, es
-	inc	ax
-	mov	es, ax
-2:	sub	di,di
+	/ Assertion: at this point we are dealing with a sep I/D
+	/ l.out executable.
+
+	/ Calculate load point for data segment.
+	add	di, $15 		/ Round up the system code
+	movb	cl, $4			/ size to 16 byte
+	shr	di, cl			/ paragraphs.
+	mov	ax, es			/ fetch program base
+	add	ax, di			/ Compute the data base and
+	mov	es, ax			/ set up ES:DI to point
+	sub	di, di			/ at it.
 
 0:	pop	ax			/ Pop off initialized data size and
+	/ Load the initialized data segment.
 	call	load			/ load the image.
 
+/	pop	cx			/ Pop off uninitialized data size and
+/	rep				/ clear it.
+/	stosb
+
+	/ Run the program that we just loaded.
 	.byte	JMPF			/ Jump to offset
 	.word	0x0100			/ 0x0100 (after base) in system
 1:	.word	SYSBASE 		/ code segment.
 
 ////////
 /
-/ Load a segment. The "dx" holds the
+/ Load a segment from an l.out file into memory.
+/ The "dx" register holds the
 / seek pointer into the file. The "si" holds
 / a pointer into the "bbuf". The "es:di" pair
 / holds the target address. The "ax" holds
@@ -435,14 +534,15 @@ found:	call	igrab			/ read in inode and first block
 / "ax" must equal 0 (the caller assumes this
 / and uses "al" to clear the BSS).
 /
+/ Note that since the number of bytes to load is
+/ stored in a 16 bit register, a segment may be no
+/ longer than 64K.  For small model this is just fine.
 ////////
 
-load:	.byte	PX_OPND
-	or	ax, ax			/ Any left ?
+load:	or	ax, ax			/ Any left ?
 	jz	return			/ Jump if all loaded.
 
-	.byte	PX_OPND
-	lea	cx, bbuf+BUFSIZE
+	mov	cx, $bbuf+BUFSIZE	/ Compute the number of bytes
 	sub	cx, si			/ remaining in the block.
 	jnz	0f			/ Jump if some.
 
@@ -451,24 +551,15 @@ load:	.byte	PX_OPND
 	pop	ax			/ of the file.
 	mov	cx, $BUFSIZE		/ We now have a full block.
 
-0:	.byte	PX_OPND
-	cmp	cx, ax			/ More than we need ?
+0:	cmp	cx, ax			/ More than we need ?
 	jbe	1f			/ Nope.
 	mov	cx, ax			/ Only take what we need.
 
-1:	.byte	PX_OPND
-	sub	ax, cx			/ Fix up the count
+1:	sub	ax, cx			/ Fix up the count
 	shr	cx, $1			/
 	add	dx, cx			/ Fix up the seek [word] address, then
-
-2:	movsw				/ copy the words from the block
-	cmp	di, $0x10		/ buffer to the load point and
-	jnz	3f
-	mov	di,es			/	push	es	
-	inc	di			/	.byte	0xff,0x04,0x24
-	mov	es,di			/	pop	es
-	sub	di,di
-3:	loop	2b
+	rep				/ copy the words from the block
+	movsw				/ buffer to the load point and
 	jmp	load			/ loop until done.
 
 ////////
@@ -483,13 +574,17 @@ load:	.byte	PX_OPND
 /
 ////////
 
-putc:	pusha			/ Save registers.
+putc:	push	si			/ Save registers.
+	push	di
+	push	bp
 
 	mov	bx, $0x0007		/ Page 0, white on black
 	movb	ah, $0x0E		/ Write TTY.
 	int	0x10			/ Call video I/O in ROM.
 
-	popa
+	pop	bp			/ Restore registers.
+	pop	di
+	pop	si
 return: ret				/ Return
 
 ////////
@@ -504,22 +599,26 @@ return: ret				/ Return
 
 	.prvd
 nbuf:	.ascii	"autoboot"		/ Name buffer.
-	.blkb	DIRSIZE-8		/ rest of buffer
+	.blkb	DIRSIZE-8		/ rest of buffer (8=sizeof("autoboot"))
 
-traks:	.word	NTRK
-sects:	.byte	NSPT
-heads:	.byte	NHD
+/ Defaults for all the following parameters match a floppy disk.
 
-drive:	.byte	0
-first:	.word	0
+traks:	.word	NTRK	/ Number of cylinders on drive we're booting off of.
+sects:	.byte	NSPT	/ Number of sectors per track for our drive.
+heads:	.byte	NHD	/ Number of heads on drive we're booting off of.
+
+drive:	.byte	0	/ Drive our partition resides upon.
+first:	.word	0	/ First block of our partition (?)
 	.word	0
 
-msg00:	.ascii	"386 boot"
+msg00:	.ascii	"AT boot"
 crlf:	.byte	CR, LF
 
-	.even
-	.byte	0x55,0xAA
-	.byte	0x55,0xAA
+/ This magic pair of bytes must be the last two bytes of
+/ the sector (address 0x1FE), otherwise mboot will refuse
+/ to execute it.
+/ If needed, uncomment the .blkb and adjust the number appropriately.
+/	.blkb	0	/ Padding need to make magic byte line up
 	.byte	0x55,0xAA
 
 	.bssd
