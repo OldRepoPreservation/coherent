@@ -10,6 +10,9 @@ DESTDIR= /interim/usr/bin/
 
 uuinstall : $P uuinstall.o
 	cc -o $(DESTDIR)uuinstall uuinstall.o $P $L
+	su root chown root $(DESTDIR)$@
+	su root chgrp root $(DESTDIR)$@
+	su root chmod 500 $(DESTDIR)$@
 
 uuinstall.o : uuinstall.c
 
