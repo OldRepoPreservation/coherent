@@ -1,3 +1,4 @@
+#define	NEWTTYS	1
 /*
  * Coherent I/O Library
  * Return the name of the terminal device
