@@ -1,11 +1,14 @@
+# /usr/src/cmd0/sh/Makefile 1/23/90
+# sh.v.o removed from OBJS, version does not work under Inetco COH.
+
 # for i8086 use CFLAGS=-VSINU
-CFLAGS= -O -VSINU -I.
+CFLAGS= -O -VSINU -I. -I/usr/include/sys
 LDFLAGS= -n -i
-#Don't bind shared on the PDP-11
-#LDFLAGS= -i
+# Don't bind shared on the PDP-11
+# LDFLAGS= -i
 
 OBJS =  main.o alloc.o eval.o exec1.o exec2.o exec3.o extern.o lex.o \
-	tab.o trap.o var.o y.tab.o atoi.o glob.o malloc.o notmem.o sh.v.o 
+	tab.o trap.o var.o y.tab.o atoi.o glob.o malloc.o notmem.o
 
 SRCS =  main.c alloc.c eval.c exec1.c exec2.c exec3.c extern.c lex.c \
 	tab.c trap.c var.c sh.y atoi.c glob.c sh.h
@@ -36,11 +39,10 @@ tab.o: sh.h tab.c
 
 trap.o: sh.h trap.c
 
-var.o: sh.h var.c
 #	$(CC) -O -c var.c
+var.o: sh.h var.c
 
 y.tab.o: sh.h y.tab.h y.tab.c
-#	$(CC) -O -c y.tab.c
 
 y.tab.c: sh.y
 	yacc sh.y
