@@ -22,6 +22,10 @@
  *			Add docmd0() to make $< and $* work in Makefiles.
  *	12-Feb-91	steve: add $SRCPATH source path searching.
  *	 1-Nov-91	steve: fix bug in nextc() to handle "\n\t\n" correctly
+ *      29-Sep-92	michael: fix problem with defining a rule that also
+ *				exists in the ACTIONFILE.	
+ *      08-Oct-92	michael: fix problem with making targets with no 
+ *				specified actions (empty productions).
  */
 
 #include	"make.h"
@@ -67,6 +71,7 @@ char		tokbuf[NTOKBUF];
 char		*token;
 int		toklen;
 char		*tokp;
+int 		inactionfile = 0;
 
 /* Forward function declarations. */
 DEP	*adddep();
@@ -503,7 +508,7 @@ getmdate(name) char *name;
 	struct ar_hdr	hdrbuf;
 #endif
 
-	if (stat(name, &statbuf) ==0)
+	if (stat(name, &statbuf) == 0)
 		return(statbuf.st_mtime);
 #if	COHERENT || GEMDOS
 	subname = index(name, '(');
@@ -530,8 +535,9 @@ getmdate(name) char *name;
 	result = 0;
 	while (read(fd, &hdrbuf, sizeof hdrbuf) == sizeof hdrbuf) {
 		if (strcmp(hdrbuf.ar_name, subname) == 0) {
-			cantime(hdrbuf.ar_date);
+ 			cantime(hdrbuf.ar_date); 
 			result = hdrbuf.ar_date;
+printf("%s %s\n", hdrbuf.ar_name, ctime(&hdrbuf.ar_date));
 			break;
 		}
 		canlong(hdrbuf.ar_size);
@@ -713,9 +719,13 @@ install(cons, ante, action, twocolons) TOKEN *ante, *cons; char *action;
 					err("must use '::' for %s", cp->name);
 				if (action != NULL) {
 					if (cp->action != NULL)
-						err("multiple actions for %s",
-							cp->name);
-					cp->action = action;
+					{
+						if (!inactionfile)
+							err("multiple action"
+							"s for %s", cp->name);
+					}
+					else
+						cp->action = action;
 				}
 			}
 			for(ap=ante;ap!=NULL;ap=ap->next)
@@ -750,7 +760,7 @@ make(s) register SYM *s;
 	type=s->type;
 	s->type=T_DONE;
 	s->moddate=getmdate(name);
-	for(dep=s->deplist;dep!=NULL;dep=dep->next)
+	for(dep=s->deplist;dep!=NULL;dep=dep->next)		
 		make(dep->symbol);
 	if (type==T_DETAIL){
 		implicit(s, "", 0);
@@ -1021,9 +1031,13 @@ implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
  */
 defalt(obj, ques) SYM *obj; char *ques;
 {
-	if (deflt == NULL)
-		die("do not know how to make %s", obj->name);
-	docmd0(obj, deflt->action, obj->name, ques);
+	if (deflt == NULL) 
+	{
+		if (obj->deplist == NULL)
+			die("do not know how to make %s", obj->name);
+	}
+	else
+		docmd0(obj, deflt->action, obj->name, ques);
 }
 
 main(argc, argv, envp) int argc; char *argv[], *envp[];
@@ -1031,42 +1045,59 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 	register char	*s, *value;
 	register char	*namesave;
 	register int c;
-	int	len;
+	int	len, numtargets = 0;
+	char 	*dtarget[24];
 	TOKEN	*fp = NULL;
 	SYM	*sp;
 	DEP	*d;
 	MACRO	*mp;
 
+
+	getmdate("mm.a(z.o)");
+	exit(1);
+
 	time(&now);
 	++argv;
 	--argc;
-	while (argc > 0 && argv[0][0] == '-')
-		for (--argc, s = *argv++; *++s != NUL;)
-			switch (*s) {
-			case 'd': dflag++; break;
-			case 'e': eflag++; break;
-			case 'i': iflag++; break;
-			case 'n': nflag++; break;
-			case 'p': pflag++; break;
-			case 'q': qflag++; break;
-			case 'r': rflag++; break;
-			case 's': sflag++; break;
-			case 't': tflag++; break;
-			case 'f':
-				if (--argc < 0)
+
+	while (argc > 0) 
+	{
+		if (argv[0][0] == '-')
+		{
+			for (--argc, s = *argv++; *++s != NUL;)
+				switch (*s) {
+				case 'd': dflag++; break;
+				case 'e': eflag++; break;
+				case 'i': iflag++; break;
+				case 'n': nflag++; break;
+				case 'p': pflag++; break;
+				case 'q': qflag++; break;
+				case 'r': rflag++; break;
+				case 's': sflag++; break;
+				case 't': tflag++; break;
+				case 'f':
+					if (--argc < 0)
+						Usage();
+					fp=listtoken(*argv++, fp);
+					break;
+				default:
 					Usage();
-				fp=listtoken(*argv++, fp);
-				break;
-			default:
-				Usage();
-			}
-	while (argc > 0 && (value = index(*argv, '=')) != NULL) {
-		s = *argv;
-		while (*s != ' ' && *s != '\t' && *s != '=')
-			++s;
-		*s = '\0';
-		define(*argv++, value+1, 1);
-		--argc;
+				}
+		}
+		else if ((value = index(*argv, '=')) != NULL) 
+		{
+			s = *argv;
+			while (*s != ' ' && *s != '\t' && *s != '=')
+				++s;
+			*s = '\0';
+			define(*argv++, value+1, 1);
+			--argc;
+		}
+		else
+		{
+			dtarget[numtargets++] = *argv++;
+			--argc;
+		} 
 	}
 	while (*envp != NULL) {
 		if ((value = index(*envp, '=')) != NULL
@@ -1106,7 +1137,12 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 		} while (fp != NULL);
 	}
 	if (!rflag)
+	{
+		inactionfile = 1;
 		inlib(ACTIONFILE);
+		inactionfile = 0;
+	}
+
 	if (sexists(".IGNORE") != NULL)
 		++iflag;
 	if (sexists(".SILENT") != NULL)
@@ -1132,12 +1168,16 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 			}
 		}
 	}
-	if (argc > 0){
-		do{
-			make(lookup(*argv++));
-		} while (--argc > 0);
+	if (numtargets)
+
+	{
+		int i;
+
+		for (i=0;i<numtargets;i++)
+			make(lookup(dtarget[i]));		
 	} else
 		make(lookup(deftarget));
+
 	exit(ALLOK);
 }
 
