@@ -1,4 +1,4 @@
-# /usr/src/libc/stdio/Makefile 11/13/92
+# /usr/src/libc/stdio/Makefile 11/16/92
 
 # The order of stdio objects in libc.a is significant and a bit complicated.
 # To reduce the size of linked objects when possible,
@@ -44,6 +44,7 @@ OBJ=\
 	getc.o\
 	getchar.o\
 	gets.o\
+	perror.o\
 	popen.o\
 	putc.o\
 	putchar.o\
@@ -120,6 +121,7 @@ fwrite.o:	fwrite.c
 getc.o:		getc.c
 getchar.o:	getchar.c
 gets.o:		gets.c
+perror.o:	perror.c
 popen.o:	popen.c
 printf.o:	printf.c
 putc.o:		putc.c
