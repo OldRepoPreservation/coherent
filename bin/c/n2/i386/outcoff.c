@@ -433,8 +433,9 @@ outdlab(i, class) int i; register int class;
 	DBSYM *dp, *tagdp;
 	AUXENT *ap, *endap, *arrayap;
 
-	/* Initialize locals. */
 	++refnum;					/* compiler db refnum */
+
+	/* Initialize locals. */
 	seg = -1;
 	suppress = tagn = ctype = derived = dims = 0;
 	last_size = array_size = sue_size = (ival_t)0;
@@ -654,6 +655,13 @@ outdlab(i, class) int i; register int class;
 				++level;
 				for ( ; size > 0; --size) {
 					dbprintf(("\n"));
+					/*
+					 * Leave refnum unchanged to keep
+					 * it in sync with the outdloc()
+					 * reference numbers, for local structs.
+					 * It gets bumped in outdlab().
+					 */
+					--refnum;
 					outdlab(i+1, bget());	/* overwrites id */
 				}
 				--level;
@@ -716,7 +724,7 @@ db_line(line) register int line;
 	SYMLIST *bp;
 	char *name;
 
-	dbprintf(("db_line(%d):\n", line));
+	dbprintf(("db_line(%d): %c\n", line, id[0]));
 	dp = NULL;
 	switch(id[0]) {
 	case '{':
