@@ -1,6 +1,6 @@
 /*
  * more: COHERENT port of traditional Berkeley pager
- *	 02/12/91
+ *	 Last rev 06/14/91
  */
 
 /*
@@ -131,7 +131,7 @@ int		Mcol = 80;	/* number of columns */
 int		Wrap = 1;	/* set if automargins */
 int		soglitch;	/* terminal has standout mode glitch */
 int		ulglitch;	/* terminal has underline mode glitch */
-int		pstate = 0;	/* current UL state */
+int		pstate = NOSEQ;	/* current UL state */
 char		*editor;	/* editor of choice */
 long		fseek();
 char		*getenv();
@@ -940,7 +940,7 @@ register char *s;
 register int n;
 {
     register char c;			/* next output character */
-    register int state;			/* next output char's state */
+    register int state = NOSEQ;		/* next output char's state */
 
     while (--n >= 0)
 	if (!ul_opt)
@@ -976,6 +976,14 @@ register int n;
 	    }
 	    pstate = state;
 	}
+	if (state != NOSEQ) {
+	    if (state == ITALIC)
+		tputs(ULexit, 1, putch);
+	    else if (state == BOLD && Senter && Sexit)
+		tputs(Sexit, 1, putch);
+	    pstate = NOSEQ;
+	}
+
 }
 
 /*
