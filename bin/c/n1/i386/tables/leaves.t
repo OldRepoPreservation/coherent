@@ -490,6 +490,14 @@ LEAF:
 			[ZPUSH]	[LO AL]
 
 / Hardware coprocessor (NDP) floating point.
+/ Push direct double.
+%	PFNARG|PNDP
+	FF64		NONE	*	*	NONE
+		DIR|MMX		FF64
+		*		*
+			[ZPUSH]	[HI AL]
+			[ZPUSH]	[LO AL]
+
 / Push double from NDP stacktop.
 %	PFNARG|PNDP
 	FF64		NONE	*	*	NONE
