@@ -158,7 +158,7 @@ wgetLoc(w, f, sw) register WINDOW *w; register loc *f; int sw;
 		break;
 
 	case 4:	/* get long field */
-		standout();	/* remind user which */
+		wstandout(w);	/* remind user which */
 
 	case 5:	/* display long field default */
 		def   = *((char **)f->Default); /* we have ptr to ptr */
@@ -195,14 +195,16 @@ wgetLoc(w, f, sw) register WINDOW *w; register loc *f; int sw;
 		else
 			waddch(w, ' ');
 	}
-	wrefresh(w);
+
+	if (f->flags & LONGFIELD)
+		wstandend(w);
+
+	refresh();
 
 	if (sw || (f->flags & READONLY))  /* display or read only */
 		return (0);
 
 	if (f->flags & LONGFIELD) {
-		standend();
-
 		longField(f);	/* this calls wgetLoc indirectly */
 
 		wmove(w, y, x);

@@ -3,7 +3,7 @@
  */
 #include <scn.h>
 
-fatal(s)
+void fatal(s)
 char *s;
 {
 	closeUp();

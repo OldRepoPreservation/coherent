@@ -22,6 +22,7 @@ static char *name;
 /*
  * Fatal error.
  */
+void
 fatal(s)
 char *s;
 {
