@@ -23,7 +23,7 @@
  * 
  */
 
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/sdioctl.h>
@@ -32,7 +32,7 @@
 #include	<sys/stat.h>
 #include	<sys/uproc.h>
 #include	<errno.h>
-#include	<scsiwork.h>
+#include	<sys/scsiwork.h>
 
 extern	saddr_t sds;
 

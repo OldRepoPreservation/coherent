@@ -31,17 +31,17 @@
  * 87/01/05	Allan Cornish		/usr/src/sys/i8086/drv/dmareq.c
  * dmareq() now wakes &stimer only if the swap timer is active.
  */
-#include <coherent.h>
-#include <buf.h>
-#include <con.h>
+#include <sys/coherent.h>
+#include <sys/buf.h>
+#include <sys/con.h>
 #include <errno.h>
-#include <io.h>
-#include <proc.h>
-#include <sched.h>
-#include <seg.h>
-#include <stat.h>
-#include <uproc.h>
-#include <dmac.h>
+#include <sys/io.h>
+#include <sys/proc.h>
+#include <sys/sched.h>
+#include <sys/seg.h>
+#include <sys/stat.h>
+#include <sys/uproc.h>
+#include <sys/dmac.h>
 
 dmareq(bp, iop, dev, req)
 register BUF *bp;

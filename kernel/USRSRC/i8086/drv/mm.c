@@ -7,7 +7,7 @@
  * Memory Mapped Video
  * High level output routines.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/sched.h>
 #include <errno.h>
 #include <sys/stat.h>

@@ -8,17 +8,16 @@
  * - supports version 7 compatible ioctl
  */
 
-#include "coherent.h"
-#include "ins8250.h"
+#include <sys/coherent.h>
+#include <sys/ins8250.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
 #include <sys/proc.h>
 #include <sys/tty.h>		/* indirectly includes sgtty.h */
 #include <sys/con.h>
 #include <errno.h>
-#include <sys/timeout.h>	/* TIM */
 #include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
-#include <poll_clk.h>
+#include <sys/poll_clk.h>
 
 /*
  * Definitions.

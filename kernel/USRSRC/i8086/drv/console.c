@@ -13,7 +13,7 @@
  * 86/11/19	Allan Cornish		/usr/src/sys/i8086/drv/console.c
  * putchar() initializes the (new) (IO).io_flag field to 0.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/inode.h>
 #include <sys/stat.h>
 #include <sys/con.h>

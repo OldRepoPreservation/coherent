@@ -17,7 +17,7 @@
  *    90/08/14 hws	make it more like a Unix system call
  */
 
-#include	"coherent.h"		/* altclk */
+#include	<sys/coherent.h>		/* altclk */
 #include	<sys/const.h>		/* HZ */
 
 #define	PIT	0x40		/* 8253 port */

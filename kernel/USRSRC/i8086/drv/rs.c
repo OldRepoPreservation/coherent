@@ -14,8 +14,8 @@
  *
  */
 
-#include "coherent.h"
-#include "ins8250.h"
+#include <sys/coherent.h>
+#include <sys/ins8250.h>
 #include <sys/proc.h>
 #include <sys/uproc.h>
 #include <sys/con.h>

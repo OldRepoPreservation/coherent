@@ -22,7 +22,7 @@
  * 87/12/03	Allan Cornish		/usr/src/sys/ldrv/setivec.c
  * Initial version.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <errno.h>
 #include <sys/con.h>
 #include <sys/uproc.h>

@@ -18,17 +18,16 @@
  *
  */
 
-#include	"coherent.h"
-#include	"i8086.h"
+#include	<sys/coherent.h>
+#include	<sys/i8086.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/stat.h>
 #include	<errno.h>
 #include	<sys/uproc.h>
-#include	<sys/timeout.h>
 #include	<sys/fdioctl.h>
 #include	<sys/sched.h>
-#include	"dmac.h"
+#include	<sys/dmac.h>
 
 #define		BIT(n)		(1 << (n))
 

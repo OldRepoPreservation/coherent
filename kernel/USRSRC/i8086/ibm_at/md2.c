@@ -23,15 +23,15 @@
  * 87/10/26	Allan Cornish		/usr/src/sys/i8086/ibm_at/md2.c
  * Clrivec() now properly resets the interrupt vector for intr 2 in slot 9.
  */
-#include <coherent.h>
-#include <i8086.h>
-#include <clist.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/clist.h>
 #include <errno.h>
-#include <inode.h>
-#include <proc.h>
-#include <seg.h>
+#include <sys/inode.h>
+#include <sys/proc.h>
+#include <sys/seg.h>
 #include <signal.h>
-#include <uproc.h>
+#include <sys/uproc.h>
 
 int nirqslave;
 /*

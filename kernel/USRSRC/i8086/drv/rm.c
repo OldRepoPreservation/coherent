@@ -2,7 +2,7 @@
  * Block or character device RAM disk driver.
  */
 
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include	<sys/buf.h>
 #include	<errno.h>
 #include	<sys/uproc.h>

@@ -7,8 +7,7 @@
  * Graphics Display Driver for PC Color Card
  */
 
-#include <coherent.h>
-#include <sys/timeout.h>
+#include <sys/coherent.h>
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/uproc.h>

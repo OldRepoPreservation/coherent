@@ -16,17 +16,17 @@
  * line, using interrupts. The interface
  * uses a Natty/WD 8250 chip.
  */
-#include <coherent.h>
-#include <i8086.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/uproc.h>
-#include <clist.h>
-#include <ins8250.h>
+#include <sys/clist.h>
+#include <sys/ins8250.h>
 #include <sys/sched.h>
-#include <al.h>
+#include <sys/al.h>
 
 #define	minor_st(dev)	(dev & 0x3f)
 #define	DEV_TTY		(alttab[minor_st(dev)])

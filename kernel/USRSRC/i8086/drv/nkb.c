@@ -2,15 +2,14 @@
  * User configurable AT keyboard/display driver.
  * AT COHERENT
  */
-#include <coherent.h>
-#include <i8086.h>
+#include <sys/coherent.h>
+#include <sys/i8086.h>
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/uproc.h>
 #include <signal.h>
-#include <sys/timeout.h>
 #include <sys/seg.h>
 #include <sys/sched.h>
 #include <sys/kb.h>
