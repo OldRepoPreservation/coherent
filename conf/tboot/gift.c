@@ -267,10 +267,22 @@ gift_rootdev(ffp)
 
 	myrootdev.rd_partition = NOPARTITION; /* Mark an invalid partition.  */
 
+	puts("partition start: ");
+	print32(first);
+	puts("\r\n");
 	/* Look for the current partition in the table.  */
 	for (i=0; i < NPARTN; ++i) {
-		if (first == fp[NPARTN].p_base) {
+		puts("fp[");
+		print8(i);
+		puts("]=");
+		print32(fp[i].p_base);
+		puts("\r\n");
+
+		if (first == fp[i].p_base) {
 			myrootdev.rd_partition = i;
+			puts("Decided partition is ");
+			print8(i);
+			puts("\r\n");
 			break;
 		}
 	}
@@ -280,8 +292,12 @@ gift_rootdev(ffp)
 		return(2);
 	}
 
-	if (T_NULL == fifo_write_untyped(ffp, &myrootdev, sizeof(BIOS_ROOTDEV),
-					T_BIOS_ROOTDEV)) {
+	if (T_NULL == fifo_write_untyped(ffp,
+					 &myrootdev,
+					 (int32) sizeof(BIOS_ROOTDEV),
+					 T_BIOS_ROOTDEV)
+	) {
+		puts("Ran out of space in gift_rootdev().\r\n");
 		return(0);
 	} else {
 		return(1);
@@ -315,6 +331,9 @@ dump_fifo(fifo)
 	switch(tp->ts_type) {
 	case T_BIOS_DISK:
 		dump_bios_disk(tp->ts_data);
+		break;
+	case T_BIOS_ROOTDEV:
+		dump_rootdev(tp->ts_data);
 		break;
 	case T_FIFO_SIC:
 		dump_fifo(tp);
@@ -362,5 +381,15 @@ dump_bios_disk(a_disk)
 	puts(buffer);
 
 	puts("\r\n");
-}
-	
+} /* dump_bios_disk() */
+
+
+dump_rootdev(a_rootdev)
+	BIOS_ROOTDEV *a_rootdev;
+{
+	puts("Dumping a BIOS_ROOTDEV struct.\r\n");
+
+	puts("partition: 0x");
+	print8(a_rootdev->rd_partition);
+	puts("\r\n");
+} /* dump_rootdev() */
