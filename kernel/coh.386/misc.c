@@ -103,6 +103,7 @@ owner(uid)
 /*
  * Panic.
  */
+void
 panic(a1)
 char *a1;
 {

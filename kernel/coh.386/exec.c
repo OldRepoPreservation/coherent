@@ -15,6 +15,9 @@
  *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
  *
  * $Log:	exec.c,v $
+ * Revision 1.10  92/07/16  16:33:31  hal
+ * Kernel #58
+ * 
  * Revision 1.9  92/06/11  21:39:19  root
  * Add close on exec.
  * 
@@ -83,8 +86,9 @@ char	*envp[];
 
 	pp = SELF;
 	kclear(&head, sizeof(head)); 
-	if ((ip=exlopen(&head, np, &shrdsize)) == NULL)
+	if ((ip=exlopen(&head, np, &shrdsize)) == NULL) {
 		goto done;
+	}
 	roundup = (shrdsize) & 0xf;
 	ssegp = exstack(&head,argp, envp, wdsize());
 
@@ -103,7 +107,6 @@ char	*envp[];
  	 * NOTE: User-area segment is NOT released.
  	 *	 Segment pointer in proc is erased BEFORE invoking sfree().
 	 */
-
 	for ( i = 1; i < NUSEG; ++i ) {
  		if ((segp = pp->p_segp[i]) != NULL) {
 			pp->p_segp[i] = NULL;
@@ -177,8 +180,13 @@ char	*envp[];
 	/*
 	 * Norm says Frank says we need to drop this for db to work.
 	 */
-	if (iaccess(ip, IPW) == 0)	/* Can't write ? no trace */
+#if 0
+	if (iaccess(ip, IPW) == 0) {	/* Can't write ? no trace */
 		pp->p_flags &= ~PFTRAC;
+printf("Can't write - no trace! ");
+u.u_error = 0;
+	}
+#endif
 
 	if ((ip->i_mode&ISUID) != 0) {	/* Set user id ? no trace */
 		pp->p_uid = u.u_uid = ip->i_uid;
@@ -617,6 +625,8 @@ char * np;
  * Set up the first process, a small programme which will exec
  * the init programme.
  */
+extern char aicodep[];
+
 eveinit()
 {
 	SEG *sp;
@@ -638,7 +648,7 @@ eveinit()
 	if (sproto(0) == 0)
 		panic("eveinit()");
 	segload();
-	kucopy(icodep, 0, icodes);
+	kucopy(aicodep, 0, icodes);
 }
 
 /*

@@ -115,7 +115,7 @@ $(K386OBJ)/fs3.o: fs3.c \
 	$(CC) $(CFLAGS) -c -o $@ fs3.c
 
 $(K386OBJ)/main.o: ../i386/version main.c
-	/bin/cc $(CFLAGS) -o $(K386OBJ)/main.o `../i386/version` -c main.c
+	$(CC) $(CFLAGS) -o $(K386OBJ)/main.o `../i386/version` -c main.c
 
 $(K386OBJ)/misc.o: misc.c
 	$(CC) $(CFLAGS) -c -o $@ $<

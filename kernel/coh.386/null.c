@@ -134,7 +134,7 @@ register IO *iop;
 
 	switch (minor(dev)) {
 	case DEV_NULL:
-		iop->io_ioc = 0;
+		/* leave iop->io_ioc unchanged - read nothing */
 		break;
 
 	case DEV_MEM:
