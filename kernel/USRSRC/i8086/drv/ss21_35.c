@@ -4,11 +4,13 @@ int busted;
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * To do:
- *	turn on interrupts
  *	figure out a better storage class for rqs
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.21	91/04/10  15:21:41	root
+ * Move define's to ss.h and scsiwork.h.  Other cleanup
+ * 
  * Revision 1.20	91/04/09  14:23:49	root
  * Reads boot sector 100 times using IRQ on reconnect
  */
@@ -640,8 +642,9 @@ int s_id;
 	 * For test purposes only, try to read the partition table.
 	 */
 	if (retval) {
+#define READ_PTS	1
 int foo,fof;
-for (foo=0,fof=0;foo<100;){
+for (foo=0,fof=0;foo<READ_PTS;){
 	rpt_irpt=0;
 	busted=0;
 	drvl[SCSI_MAJOR].d_time=1;
