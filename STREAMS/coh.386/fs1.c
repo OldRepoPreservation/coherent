@@ -1,45 +1,9 @@
-/* $Header: /y/coh.386/RCS/fs1.c,v 1.8 93/04/14 10:06:28 root Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- -lgl) */
 /*
- * Coherent.
- * Filesystem (mostly handling of in core inodes).
+ * coh.386/fs1.c
  *
- * $Log:	fs1.c,v $
- * Revision 1.8  93/04/14  10:06:28  root
- * r75
- * 
- * Revision 1.7  93/02/23  15:50:51  root
- * after caddr_t change, before blclear
- * 
- * Revision 1.4  92/07/16  16:33:32  hal
- * Kernel #58
- * 
- * Revision 1.3  92/02/06  17:55:36  vlad
- * Fix typo in ialloc panic.
- * 
- * Revision 1.2  92/01/06  11:59:17  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.1	88/03/24  16:13:47	src
- * Initial revision
- * 
- * 86/12/13	Allan Cornish		/usr/src/sys/coh/fs1.c
- * isync() no longer updates the disk image of a character device inode.
+ * Coherent filesystem (mostly handling of in core inodes).
  *
- * 86/11/19	Allan Cornish		/usr/src/sys/coh/fs1.c
- * idirent() initializes the (new) (IO).io_flag field to 0.
+ * Revised: Mon Jul 12 08:15:06 1993 CDT
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
@@ -77,6 +41,19 @@
  */
 ftoi(np, t)
 char *np;
+int	t;
+{
+	return file_to_inode(np, t, 0);
+}
+
+/*
+ * Does main ftoi job. Was created to solve the problem with rmdir.
+ * doRmdir is 0 for all cases except when called from rmdir.
+ */
+file_to_inode(np, t, doRmdir)
+char	*np;
+int	t;
+int	doRmdir;
 {
 	register INODE *cip;
 	register char *cp;
@@ -124,8 +101,13 @@ char *np;
 			*cp++ = '\0';
 		if ((cip->i_mode&IFMT) != IFDIR)
 			u.u_error = ENOTDIR;
-		else
-			iaccess(cip, IPE);
+		else {
+			/* For rmdir we need only write */
+			if (doRmdir)
+				iaccess(cip, IPW);
+			else
+				iaccess(cip, IPE);
+		}
 		if (u.u_error) {
 			idetach(cip);
 			return (u.u_error);
@@ -683,10 +665,13 @@ iaccess(ip, mode)
 register INODE *ip;
 register int mode;
 {
-	if ((imode(ip, u.u_uid, u.u_gid)&mode) != mode) {
-		u.u_error = EACCES;
-		return 0;
-	}
+	/* Super user can do everything with directories */
+	if (((ip->i_mode & IFMT) != IFDIR) || u.u_uid)
+		if ((imode(ip, u.u_uid, u.u_gid)&mode) != mode) {
+			u.u_error = EACCES;
+			return 0;
+		}
+
 	if ((mode & IPW) && ip->i_refc > 1 && sbusy(ip)) {
 		u.u_error = ETXTBSY;
 		return 0;
