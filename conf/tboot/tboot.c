@@ -56,7 +56,7 @@ main()
 
 	want_monitor = FALSE;	/* Don't invoke mini-monitor before execution.  */
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.9\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 1.1\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
@@ -65,12 +65,14 @@ main()
 			/* Ask for another name.
 			 * Don't generate a message for name "".
 			 */
-			if (cmd_name[0] != '\0' &&
-			    (0 == strcmp(cmd_name, "autoboot"))) {
-				puts("\r\nCan't find \"");
-				puts(cmd_name);
-				puts("\".  Type \"dir\" for a list of files.\r\n");
-				puts("If installing COHERENT, please type \"begin\".\r\n");
+			if (cmd_name[0] != '\0') {
+				if (0 == strcmp(cmd_name, "autoboot")) {
+					puts("If installing COHERENT, please type \"begin\".\r\n");
+				} else {
+					puts("\r\nCan't find \"");
+					puts(cmd_name);
+					puts("\".  Type \"dir\" for a list of files.\r\n");
+				}
 			}
 
 			/* Fetch new file names, executing them

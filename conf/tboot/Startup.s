@@ -3,10 +3,10 @@
 / La Monte H. Yarroll <piggy@mwc.com>, September 1991
 /
 
-/ RBOOTS is set exactly 128K above the load base of the 386 kernel.
+/ RBOOTS is set exactly 128K below the top of 640K.
 / One day, RBOOTS should be dynamicly determined based on the size of
 / available memory.
-	RBOOTS	= 0x2200		/ New segement for boot program.
+	RBOOTS	= 0x8000		/ New segement for boot program.
 	JMPF	= 0xEA			/ jump far, direct
 	SEGSIZ	= 0xffff		/ Size of a whole segment.
 	NSTK	= 0x2000		/ # of bytes of stack.
