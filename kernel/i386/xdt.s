@@ -9,22 +9,18 @@
 /	valid gdt is required)
 
 gdtinit:				/ used before turning on paging
-	.value	119			/ 120 bytes => 15 entries in gdt
+	.value	gdtend-gdt-1		/ limit of gdt
 					/ gdt physical addr is 0x0040_2000+gdt
 	.long	[[[-SBASE]+PBASE]<<BPCSHIFT]+gdt
 	.value	0
 gdtmap:					/ used after paging is enabled
-	.value	119
+	.value	gdtend-gdt-1		/ limit of gdt
 	.long	gdt
 	.value	0
 
 idtmap:					/ used after paging is enabled
 	.value	2047
 	.long	idt
-	.value	0
-bdtmap:					/ used after paging is enabled
-	.value	2047				/ 1023
-	.long	bdt
 	.value	0
 
 ////
@@ -33,11 +29,34 @@ bdtmap:					/ used after paging is enabled
 / base is 32 bits;  limit and attr are 16 bits.
 /
 ////
+
+// Fix this!  High bits of limit are in attr!
+
 SEGMENT	.macro	base,limit,attr
 	.value	limit
 	.value	base
 	.byte	[base] >> 16
 	.value	attr
+	.byte	[base] >> 24
+	.endm
+
+////
+/
+/ Macro MEM_SEG specifies a memory segment descriptor.
+/ base is 32 bits
+/ limit is 20 bits
+/ type is 4 bits
+/ dpl is 2 bits
+/ flags is the 4 high bits of byte at descriptor + 6
+/
+////
+
+MEM_SEG	.macro	base,limit,type,dpl,flags
+	.value	limit
+	.value	base
+	.byte	[base] >> 16
+	.byte	0x90 | [[[dpl] & 3] << 5] | [[type] & 0xF]
+	.byte	[[[flags] << 4] & 0xF0] | [[[limit] >> 16] & 0xF]
 	.byte	[base] >> 24
 	.endm
 
@@ -49,51 +68,94 @@ SEGMENT	.macro	base,limit,attr
 /
 ////
 
+	.set	DPL_0,0
+	.set	DPL_1,1
+	.set	DPL_2,2
+	.set	DPL_3,3
+
 gdt:
 	/ segment 0000
-	SEGMENT	0,0,0			/ null entry
+	.long	0,0			/ null entry
 
 	/ segment 0008 - SEG_386_UI
-	SEGMENT	0,0xFFFF,0xCFFB		/ user code (386 mode)
+	MEM_SEG	0,0xFFFFF,0xB,DPL_3,0xC
 
 	/ segment 0010 - SEG_386_UD
-	SEGMENT	0,0xFFFF,0xCFF3		/ user data (386 mode)
+	MEM_SEG	0,0xFFFFF,0x3,DPL_3,0xC
 
-	/ segment 0018 - SEG_386_KI
-	SEGMENT	0,0xFFFF,0xCF9B		/ kernel code
+	/ segment 0018 - SEG_RNG0_TXT/SEG_386_KI
+	MEM_SEG	0,0xFFFFF,0xB,DPL_0,0xC
 
 	/ segment 0020 - SEG_386_KD
-	SEGMENT	0,0xFFFF,0xCF93		/ kernel data
+	MEM_SEG	0,0xFFFFF,0x3,DPL_1,0xC
 
 	/ segment 0028 - SEG_286_UI
-	SEGMENT	0,0xF,0x80FB		/ user code (286 common I/D spaces)
+	MEM_SEG	0,0xF,0xB,DPL_3,0x8
 
 	/ segment 0030 - SEG_286_UD
-	SEGMENT	0,0xF,0x80F3		/ user data (286 mode) 
+	MEM_SEG	0,0xF,0x3,DPL_3,0x8
 
 	/ segment 0038 - SEG_TSS
 	SEGMENT	0xFFC00000,0xEB,0x0089
 
 	/ segment 0040 - SEG_ROM
-	SEGMENT	0xFFFC0000,0xF,0x8093
+	MEM_SEG	0xFFFC0000,0xF,0x3,DPL_0,0x8
 
 	/ segment 0048 - SEG_VIDEOa
-	SEGMENT	0xFFFB0000,0xF,0x8093	/ 000B0000 -> FFFB0000 (video A)
+	MEM_SEG	0xFFFB0000,0xF,0x3,DPL_1,0x8
 
 	/ segment 0050 - SEG_VIDEOb
-	SEGMENT	0xFFFA0000,0xF,0x8093	/ 000B8000 -> FFFA0000 (video B)
+	MEM_SEG	0xFFFA0000,0xF,0x3,DPL_1,0x8
 
 	/ segment 0058 - SEG_386_II	/ init code (text)
-	SEGMENT	0x400000+[PBASE<<BPCSHIFT],0xFFFF,0xCF9B
+	MEM_SEG	0x400000+[PBASE<<BPCSHIFT],0xFFFFF,0xB,DPL_0,0xC
 
 	/ segment 0060 - SEG_386_ID	/ init code (data)
-	SEGMENT	0x400000+[PBASE<<BPCSHIFT],0xFFFF,0xCF93
+	MEM_SEG	0x400000+[PBASE<<BPCSHIFT],0xFFFFF,0x3,DPL_0,0xC
 
 	/ segment 0068 - SEG_286_UII
-	SEGMENT	0x400000,0xF,0x80FB	/ user code (286 separate I/D spaces)
+	MEM_SEG	0x400000,0xF,0xB,DPL_3,0x8
 
 	/ segment 0070 - SEG_LDT
 	SEGMENT	0xFFC00000,0xF,0x0082	/ ldt segment (2 descriptors)
+
+	/ segment 0078 - SEG_RNG0_STK
+	/ sloppy limit check on ring 0 stack
+	MEM_SEG	0,0xFFBFF,0x7,DPL_0,0xC
+
+	/ segment 0080 - SEG_RNG1_TXT
+	MEM_SEG	0,0xFFFFF,0xB,DPL_1,0xC
+
+	/ segment 0088 - SEG_RNG1_STK
+	MEM_SEG	0,0xFFFFE,0x7,DPL_1,0xC
+gdtend:
+
+////
+/
+/ Macro CALL_GATE specifies a call gate descriptor.
+/ selector is 16 bits
+/ offset is 32 bits
+/ dwdcount is 5 bits
+/ dpl is 2 bits
+/
+/ Would like the following, but can't shift offset since it's a symbol.
+/	.value	offset
+/	.value	selector
+/	.value	0x8C00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
+/	.value	[offset] >> 16
+/
+/ IMPORTANT!!!
+/ This macro does not create a proper call gate.  
+/ Count on idtinit() to swap 16-bit words at macro+2, macro+6.
+/
+////
+
+CALL_GATE	.macro	selector,offset,dwdcount,dpl
+
+	.long	offset
+	.value	0x8C00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
+	.value	selector
+	.endm
 
 /	The two entries in the ldt are call gates whose format is somewhat
 /	different from the other segment descriptors
@@ -101,411 +163,208 @@ gdt:
 /	BCS compatibility requires an LDT
 
 ldt:
-	/ segment 0000
-	.long	syc32				/ call gate for system call
-	.long	0xFFC0EC01
+	/ ldt + 0000
+	CALL_GATE	SEG_RNG1_TXT,syc32,1,DPL_3
+/	.long	syc32				/ call gate for system call
+/	.long	0xFFC0EC01
 
-	/ segment 0008
-	.long	sig32				/ call gate for signal return
-	.long	0xFFC0EC01
-
+	/ ldt + 0008
+/	.long	sig32				/ call gate for signal return
+/	.long	0xFFC0EC01
+	CALL_GATE	SEG_RNG1_TXT,sig32,1,DPL_3
 ldtend:
 
+////
+/
+/ Macro IRPT_GATE specifies a call gate descriptor.
+/ selector is 16 bits
+/ offset is 32 bits
+/ dwdcount is 5 bits
+/ dpl is 2 bits
+/
+/ Would like the following, but can't shift offset since it's a symbol.
+/	.value	offset
+/	.value	selector
+/	.value	0x8E00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
+/	.value	[offset] >> 16
+/
+/ IMPORTANT!!!
+/ This macro does not create a proper interrupt gate.  
+/ Count on idtinit() to swap 16-bit words at macro+2, macro+6.
+/
+////
+
+IRPT_GATE	.macro	selector,offset,dwdcount,dpl
+
+	.long	offset
+	.value	0x8E00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
+	.value	selector
+	.endm
+
 idt:
-	.long	trap0
-	.value	0xEE00,0xFFC0
-	.long	trap1
-	.value	0xEE00,0xFFC0
-	.long	trap2
-	.value	0xEE00,0xFFC0
-	.long	trap3
-	.value	0xEE00,0xFFC0
-	.long	trap4
-	.value	0xEE00,0xFFC0
-	.long	trap5
-	.value	0xEE00,0xFFC0
-	.long	trap6
-	.value	0xEE00,0xFFC0
-	.long	trap7
-	.value	0xEE00,0xFFC0
-	.long	trap8
-	.value	0xEE00,0xFFC0
-	.long	trap9
-	.value	0xEE00,0xFFC0
-	.long	trap10
-	.value	0xEE00,0xFFC0
-	.long	trap11
-	.value	0xEE00,0xFFC0
-	.long	trap12
-	.value	0xEE00,0xFFC0
-	.long	trap13				/trap13
-	.value	0xEE00,0xFFC0
-	.long	trap14				/trap14
-	.value	0xEE00,0xFFC0
+	IRPT_GATE	SEG_RNG1_TXT,trap0,0,DPL_3
+	IRPT_GATE	SEG_RNG0_TXT,trap1,0,DPL_3	/ Ring 0!
+	IRPT_GATE	SEG_RNG1_TXT,trap2,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap3,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap4,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap5,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap6,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap7,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap8,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap9,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap10,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap11,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,trap12,0,DPL_3
+	IRPT_GATE	SEG_RNG0_TXT,trap13,0,DPL_3	/ Ring 0!
+	IRPT_GATE	SEG_RNG1_TXT,trap14,0,DPL_3
 	.long	0,0
-	.long	trap16
-	.value	0xEE00,0xFFC0
+	IRPT_GATE	SEG_RNG1_TXT,trap16,0,DPL_3
 	.org	.+0x78
-	.long	clk
-	.value	0xEE00,0xFFC0
-	.long	dev1
-	.value	0xEE00,0xFFC0
-	.long	dev9
-	.value	0xEE00,0xFFC0
-	.long	dev3
-	.value	0xEE00,0xFFC0
-	.long	dev4
-	.value	0xEE00,0xFFC0
-	.long	dev5
-	.value	0xEE00,0xFFC0
-	.long	dev6
-	.value	0xEE00,0xFFC0
-	.long	dev7
-	.value	0xEE00,0xFFC0
+	IRPT_GATE	SEG_RNG1_TXT,clk,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev1,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev9,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev3,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev4,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev5,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev6,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev7,0,DPL_3
 	.org	.+0x240
-	.long	dev8
-	.value	0xEE00,0xFFC0
-	.long	dev9
-	.value	0xEE00,0xFFC0
-	.long	dev10
-	.value	0xEE00,0xFFC0
-	.long	dev11
-	.value	0xEE00,0xFFC0
-	.long	dev12
-	.value	0xEE00,0xFFC0
-	.long	dev13
-	.value	0xEE00,0xFFC0
-	.long	dev14
-	.value	0xEE00,0xFFC0
-	.long	dev15
-	.value	0xEE00,0xFFC0
+	IRPT_GATE	SEG_RNG1_TXT,dev8,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev9,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev10,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev11,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev12,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev13,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev14,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,dev15,0,DPL_3
 	.org	.+0x40
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
-	.long	syc
-	.value	0xEE00,0xFFC0
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
+	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
 	.long	0
 idtend:
-
-bdt:
-	.long	trap0
-	.value	0xEE00,0xFFC0
-	.long	trap1
-	.value	0xEE00,0xFFC0
-	.long	trap2
-	.value	0xEE00,0xFFC0
-	.long	trap3
-	.value	0xEE00,0xFFC0
-	.long	trap4
-	.value	0xEE00,0xFFC0
-	.long	trap5
-	.value	0xEE00,0xFFC0
-	.long	trap6
-	.value	0xEE00,0xFFC0
-	.long	trap7
-	.value	0xEE00,0xFFC0
-	.long	trap8
-	.value	0xEE00,0xFFC0
-	.long	trap9
-	.value	0xEE00,0xFFC0
-	.long	trap10
-	.value	0xEE00,0xFFC0
-	.long	trap11
-	.value	0xEE00,0xFFC0
-	.long	trap12
-	.value	0xEE00,0xFFC0
-	.long	loc10
-	.value	0xEE00,0xFFC0
-	.long	loc10
-	.value	0xEE00,0xFFC0
-	.long	0,0
-	.long	trap16
-	.value	0xEE00,0xFFC0
-	.org	.+0x78 
-	.long	clk
-	.value	0xEE00,0xFFC0
-	.long	dev1
-	.value	0xEE00,0xFFC0
-	.long	dev9
-	.value	0xEE00,0xFFC0
-	.long	dev3
-	.value	0xEE00,0xFFC0
-	.long	dev4
-	.value	0xEE00,0xFFC0
-	.long	dev5
-	.value	0xEE00,0xFFC0
-	.long	dev6
-	.value	0xEE00,0xFFC0
-	.long	dev7
-	.value	0xEE00,0xFFC0
-	.org	.+0x240
-	.long	dev8
-	.value	0xEE00,0xFFC0
-	.long	dev9
-	.value	0xEE00,0xFFC0
-	.long	dev10
-	.value	0xEE00,0xFFC0
-	.long	dev11
-	.value	0xEE00,0xFFC0
-	.long	dev12
-	.value	0xEE00,0xFFC0
-	.long	dev13
-	.value	0xEE00,0xFFC0
-	.long	dev14
-	.value	0xEE00,0xFFC0
-	.long	dev15
-	.value	0xEE00,0xFFC0
-	.org	.+0x40
-bdtend:
