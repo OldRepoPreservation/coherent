@@ -159,6 +159,9 @@ register char *p;
 				break;
 			case 2:		/* + sign invocation */
 				lgnflag = 0;
+				if (ffind("/etc", "profile", 4))
+					session(SFILE, duplstr(strt, 0));
+				recover(IPROF);
 				return exshell( findvar("SHELL") );
 			}
 			checkmail();
