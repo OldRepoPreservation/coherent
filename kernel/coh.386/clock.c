@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/clock.c,v 1.6 92/07/16 16:33:29 hal Exp $ */
+/* $Header: /y/coh.386/RCS/clock.c,v 1.8 92/11/09 17:10:52 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -59,7 +59,7 @@ int (*altclk)();	/* pointer to higher-speed clock function */
 int altsel;	/* if nonzero, CS for LOADABLE driver owning altclk() */
 #endif
 
-static int clocks;
+int clocks;
 
 /*
  * This routine is called once every tick (1/HZ seconds).
@@ -133,7 +133,6 @@ vaddr_t pc;
  *
  * Called when there is an interrupt or trap.
  */
-
 stand()
 {
 	int s;
