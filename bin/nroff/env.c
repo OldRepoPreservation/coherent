@@ -1,52 +1,13 @@
 /*
+ * env.c
  * Nroff/Troff.
- * Enviroments.
+ * Environments.
  */
-#include <stdio.h>
+
 #include "roff.h"
-#include "code.h"
-#include "env.h"
-#include "esc.h"
 
 /*
- * Save enviroment parameters that might be destroyed when processing
- * a single line of text and initialise for a new line.
- */
-/*
-newenvr()
-{
-	register ENV *ep;
-
-	ep = nalloc(sizeof (ENV));
-#ifdef	STRUCTCPY
-	*ep = env;
-#else
-	copystr(ep, &env, sizeof (ENV), 1);
-#endif
-	setline();
-	return(ep);
-}
-*/
-
-/*
- * Restore enviroment parameters that were previously saved with
- * the function `newenvr'.
- */
-/*
-resenvr(ep)
-register ENV *ep;
-{
-#ifdef	STRUCTCPY
-	env = *ep;
-#else
-	copystr(&env, ep, sizeof (ENV), 1);
-#endif
-	nfree(ep);
-}
-*/
-
-/*
- * Initialise the current enviroment.
+ * Initialize the current environment.
  */
 setenvr()
 {
@@ -57,8 +18,8 @@ setenvr()
 	preexls = 0;
 	posexls = 0;
 	setfont("R", 1);
-	setpsze(unit(10*SMPOIN, SDPOIN));
-	devvlsp(newpsz);
+	devpsze(unit(10*SMPOIN, SDPOIN));
+	devvlsp(psz+10);		/* default leading is 11 on 10 */
 	tab[0].t_pos = 0;
 	tab[0].t_jus = LJUS;
 	inc = n = unit(8*SMINCH, 10*SDINCH);
@@ -69,7 +30,7 @@ setenvr()
 	}
 	tab[TABSIZE-1].t_pos = 0;
 	tab[TABSIZE-1].t_jus = NJUS;
-	lln = unit(13*SMINCH, 2*SDINCH);
+	lln = (lflag) ? unit(9*SMINCH, SDINCH) : unit(13*SMINCH, 2*SDINCH);
 	ind = 0;
 	tin = 0;
 	tif = 0;
@@ -80,14 +41,12 @@ setenvr()
 	ulc = 0;
 	uft[0] = 'I';
 	uft[1] = '\0';
-	if (ntroff == NROFF)
-		mws = unit(SMENSP, SDENSP);
-	else
-		mws = unit(SMEMSP * 12, SDEMSP * 36);
+	ufn = font_number(uft, NULL);
+	mws = (ntroff == NROFF) ? unit(SMENSP, SDENSP) : unit(SMEMSP * 12, SDEMSP * 36);
 	lsp = 1;
 	hyp = 1;
 	tln = lln;
-	mar = 0;
+	mar = mws;
 	csz = 0;
 	lgm = 0;
 	lnn = 0;
@@ -116,43 +75,7 @@ setenvr()
 	hic = EHYP;
 	tpc = '%';
 	mrc = '\0';
+	mrch = '\0';
 }
 
-/*
- * Given a font name, change font.
- */
-setfont(name, setflag)
-char name[2];
-{
-	register FTB *fp;
-
-	if ((name[0] >= '1') && (name[0] <='8'))
-		name[0] = mapfont[name[0] - '0' - 1];
-
-	if (name[0]=='P' && name[1]=='\0') {
-		name[0] = oldfon[0];
-		name[1] = oldfon[1];
-	}
-	fp = fontab;
-	while (fp->f_name[0]!=name[0] || fp->f_name[1]!=name[1]) {
-		if (fp++->f_name[0] == '\0') {
-			printe("Cannot find font");
-			return;
-		}
-	}
-	devfont(fp->f_font);
-	if (setflag) {
-		oldfon[0] = fon[0];
-		oldfon[1] = fon[1];
-		fon[0] = name[0];
-		fon[1] = name[1];
-	}
-}
-
-/*
- * Set the current pointsize.
- */
-setpsze(n)
-{
-	devpsze(n);
-}
+/* end of env.c */
