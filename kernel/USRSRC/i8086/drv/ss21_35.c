@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.28	91/04/16  20:48:47	root
+ * Kernel fdisk works, fdisk command gets garbage.
+ * 
  * Revision 1.27	91/04/16  16:38:47	root
  * Typos fixed.  Locks up CPU on first open
  * 
@@ -85,7 +88,7 @@ int stats[100], statsptr;
 	printf(" %x", ssp->cmdbuf[i]);printf(" cmd_bytes_out=%d",\
 	ssp->cmd_bytes_out);\
 	if(ssp->data_bytes_in)for(i=0;i<ssp->data_bytes_in;i++)\
-	printf(" %x", ssp->in_buf[i]);printf(" data_bytes_in=%d\n",\
+	printf(" %x", ffbyte(ssp->in_buf+i));printf(" data_bytes_in=%d\n",\
 	ssp->data_bytes_in);}
 #else
 #define PUSHI
@@ -107,10 +110,10 @@ typedef struct ss {
 	int	cmdlen;
 	int	cmd_bytes_out;
 	int	cmdstat;
-	uchar	*in_buf;
+	faddr_t	in_buf;
 	int	in_buf_len;
 	int	data_bytes_in;
-	uchar	*out_buf;
+	faddr_t	out_buf;
 	int	out_buf_len;
 	int	data_bytes_out;
 	BUF	*bp;		/* current I/O request node, or NULL */
@@ -369,6 +372,7 @@ devmsg(fdisk_dev, "calling fdisk");
 		if (fdisk(fdisk_dev, fdp)) {
 int p;
 			fdp[WHOLE_DRIVE].p_size = ssp->capacity;
+			fdp[WHOLE_DRIVE].p_base = 0;
 printf("fdisk() succeeded\n");
 for (p=0; p<=WHOLE_DRIVE; p++)
 	printf("p=%d base=%ld size=%ld\n", p, fdp[p].p_base, fdp[p].p_size);
@@ -1007,8 +1011,10 @@ SSDUMP(ssp, "Command overrun");
 			 * data byte.  Else toss it.
 			 */
 			if (ssp->data_bytes_in < ssp->in_buf_len && ssp->in_buf) {
-				ssp->in_buf[ssp->data_bytes_in]
-				= ffbyte(ss_dat);
+				uchar dat;
+
+				dat = ffbyte(ss_dat);
+				sfbyte(ssp->in_buf + ssp->data_bytes_in, dat);
 				ssp->data_bytes_in++;
 			} else
 				ffbyte(ss_dat);
@@ -1018,7 +1024,10 @@ SSDUMP(ssp, "Command overrun");
 			 * Copy output buffer bytes to data register.
 			 */
 			if (ssp->data_bytes_out < ssp->out_buf_len && ssp->out_buf) {
-				sfbyte(ss_dat, ssp->out_buf[ssp->data_bytes_out]);
+				uchar dat;
+
+				dat = ffbyte(ssp->out_buf + ssp->data_bytes_out);
+				sfbyte(ss_dat, dat);
 				ssp->data_bytes_out++;
 			} else { /* This case should not happen. */
 SSDUMP(ssp, "Data out overrun");
@@ -1091,14 +1100,15 @@ int s_id;
 		rqs.cmdbuf[4] = SENSELEN;
 	rqs.cmdlen = G0CMDLEN;
 	rqs.in_buf_len = SENSELEN;
-	rqs.in_buf = sense_buf;
+	FP_OFF(rqs.in_buf) = sense_buf;
+	FP_SEL(rqs.in_buf) = sds;
 
 	if (bus_pre_xfer(s_id)) {
 		bus_info_xfer(&rqs);
 		if (rqs.data_bytes_in == SENSELEN) {
-			if (rqs.in_buf[2] == 0x00)	/* No Sense.  AOK */
+			if (sense_buf[2] == 0x00)	/* No Sense.  AOK */
 				ret = 1;
-			else if (rqs.in_buf[2] == 0x06 && rqs.in_buf[12] == 0x29)
+			else if (sense_buf[2] == 0x06 && sense_buf[12] == 0x29)
 				ret = 1;
 		}
 	}
@@ -1128,7 +1138,8 @@ uchar * buf;
 		ssp->cmdbuf[5] = 0;
 		ssp->cmdbuf[4] = INQUIRYLEN;
 	ssp->cmdlen = G0CMDLEN;
-	ssp->in_buf = buf;
+	FP_OFF(ssp->in_buf) = buf;
+	FP_SEL(ssp->in_buf) = sds;
 	ssp->in_buf_len = INQUIRYLEN;
 
 	ret = scsicmd(s_id);
@@ -1157,7 +1168,8 @@ uchar * buf;
 	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[7] = ssp->cmdbuf[8] = 0;
 	ssp->cmdbuf[9] = 0;
 	ssp->cmdlen = G1CMDLEN;
-	ssp->in_buf = buf;
+	FP_OFF(ssp->in_buf) = buf;
+	FP_SEL(ssp->in_buf) = sds;
 	ssp->in_buf_len = 8;
 
 	ret = scsicmd(s_id);
@@ -1213,6 +1225,8 @@ static void ss_start()
 		ssp->bp = bp;
 		dev = bp->b_dev;
 		partition = DEV_PARTN(dev);
+		if (dev & SDEV)
+			partition = WHOLE_DRIVE;
 		fdp = ssp->parmp;
 		if (partition != WHOLE_DRIVE)
 			ssp->bno = fdp[partition].p_base + bp->b_bno;
@@ -1410,11 +1424,11 @@ printf("ss_rw(%d)\n", s_id);
 	if (bp->b_req == BREAD) {
 		ssp->cmdbuf[0] = ScmdREADEXTENDED;
 		ssp->in_buf_len = bp->b_count;
-		ssp->in_buf = FP_OFF(bp->b_faddr);
+		ssp->in_buf = bp->b_faddr;
 	} else {
 		ssp->cmdbuf[0] = ScmdWRITEXTENDED;
 		ssp->out_buf_len = bp->b_count;
-		ssp->out_buf = FP_OFF(bp->b_faddr);
+		ssp->out_buf = bp->b_faddr;
 	}
 	ssp->cmdbuf[1] = 0;
 	ssp->cmdbuf[2] = ssp->bno >> 24;
