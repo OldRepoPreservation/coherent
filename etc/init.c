@@ -1,50 +1,62 @@
+#define	NOSWAPPER
+#define	NODRIVERS
 /*
  * Init
  *
- * Compile -s -n -i on machines other than pdp11
- * Slightly repaired by mike to correct the "kill -1 1" problem
+ * Compile -s -n -i on machines other than pdp11.
  */
+
 #include <sys/dir.h>
 #include <signal.h>
 #include <utmp.h>
 #include <sgtty.h>
 #include <errno.h>
+#include <sys/malloc.h>
+#include <access.h>
 
 /*
  * Miscellaneous constants.
  */
 #define	NULL	((char *)0)
+#define	BRCFILE	"/etc/brc"
+
+#if	DEBUG
+#define	dbmsg(arglist)	msg arglist
+#else
+#define	dbmsg(arglist)
+#endif
 
 /*
  * Structure containing information about each terminal.
  */
-struct tty {
-	struct	 tty *t_next;		/* Pointer to next entry */
-	int	 t_pid;			/* Process id */
-	int	 t_flag;		/* Flag */
-	char	 t_linetype;		/* Line type (local, remote, etc.) */
-	char	 t_baud[2];		/* Baud descriptor */
-	char	 t_tty[5+DIRSIZ+1];	/* tty name */
-};
+typedef struct	tty {
+	struct	tty	*t_next;	/* Pointer to next entry */
+	int	t_pid;			/* Process id */
+	int	t_flag;			/* Flag */
+	char	t_linetype;		/* Line type (local, remote, etc.) */
+	char	t_baud[2];		/* Baud descriptor */
+	char	t_tty[5+DIRSIZ+1];	/* tty name */
+} TTY;
 
 /* Console tty for simplified spawn */
-struct tty contty = {
-	NULL, 0, 0, 'l', 'P', 0, "/dev/console"
+TTY contty = {
+	NULL, 0, 0, 'l', "P", "/dev/console"
 };
 
 /* Null tty for simplified spawn */
-struct tty nultty = {
-	NULL, 0, 0, 'l', 'P', 0, "/dev/null"
+TTY nultty = {
+	NULL, 0, 0, 'l', "P", "/dev/null"
 };
 
 /*
  * Default environment list for shell.
  */
-char	euser[]	= "USER=root";
-char	ehome[]	= "HOME=/etc";
-char	eshell[]	= "SHELL=";
-char *defenv0[] = {		/* Default environment for super user */
-	euser, ehome, "PATH=/bin:/usr/bin:/etc:", "PS1=# ", 0
+char	*defenv0[] = {		/* Default environment for super user */
+	"USER=root",
+	"HOME=/etc",
+	"PATH=/bin:/usr/bin:/etc:",
+	"PS1=# ",
+	NULL
 };
 
 
@@ -63,16 +75,16 @@ struct	tty *ttyp;			/* Terminal list */
 int	hangflag;			/* Go to single user */
 int	quitflag;			/* Scan tty file */
 
-main(argc, argv)
-register int argc;
-char *argv[];
+main(argc, argv) register int argc; char *argv[];
 {
-	register struct tty *tp;
-	register int n;
+	register TTY *tp;
+	register int n, multi;
 	unsigned status;
 
+	multi = 0;			/* do not go to multiuser */
 	if (getpid() != 1)
 		exit(1);
+	umask(022);
 	fakearg(0, argv);
 	if ((n = creat("/etc/boottime", 0644)) >= 0)
 		close(n);
@@ -86,32 +98,49 @@ char *argv[];
 #endif
 	putwtmp("~", "");
 	signal(SIGHUP, sighang);
+	if (fork() == 0) {			/* paranoid sync */
+		sync();
+		exit(0);
+	}
+	if (access(BRCFILE, AEXISTS) == 0) {
+		dbmsg(("executing /etc/brc", NULL));
+		n = spawn(&contty, "/bin/sh", "sh", BRCFILE, NULL);
+		while (wait(&status) != n)
+			;
+		if (status == 0)
+			multi = 1;
+	}
+
 	for (;;) {
 		while (inittys() == 0) {
-			/* Single user - no multi-user ttys active */
-			/* No rescan signals accepted */
-			signal(SIGQUIT, SIG_IGN);
-			/* Wait for things to quiet down */
-			/* Necessitated by system shared segment bug */
-			/* But don't wait for hung processes */
-			signal(SIGALRM, sigalrm);
-			alarm(2);
-			while (wait(NULL) >= 0)
-				;
-			alarm(0);
-			/* Initiate single user state */
-			n = spawn(&contty, "/bin/sh", "-sh", NULL);
-			/* Wait for shell to exit */
-			if (waitc(n) < 0) {
-				hangflag = 0;
-				kill(-1, 9);
-				continue;
+			if (!multi) {
+				/* Single user - no multi-user ttys active */
+				/* No rescan signals accepted */
+				signal(SIGQUIT, SIG_IGN);
+				/* Wait for things to quiet down */
+				/* Necessitated by system shared segment bug */
+				/* But don't wait for hung processes */
+				signal(SIGALRM, sigalrm);
+				alarm(2);
+				while (wait(NULL) >= 0)
+					;
+				alarm(0);
+				/* Initiate single user state */
+				dbmsg(("spawn single user shell", NULL));
+				n = spawn(&contty, "/bin/sh", "-sh", NULL);
+				/* Wait for shell to exit */
+				if (waitc(n) < 0) {
+					hangflag = 0;
+					kill9(-1);
+					continue;
+				}
 			}
 			/* Start multi-user state */
+			dbmsg(("executing /etc/rc", NULL));
 			n = spawn(&nultty, "/bin/sh", "sh", "/etc/rc", NULL);
 			if (waitc(n) < 0) {
 				hangflag = 0;
-				kill(-1, 9);
+				kill9(-1);
 				continue;
 			}
 			/* Scan the ttys file */
@@ -122,32 +151,40 @@ char *argv[];
 		}
 		/* Wait for orphaned processes */
 		n = wait(&status);
-		/* Return to single user */
 		if (hangflag) {
+			/* Return to single user */
+			dbmsg(("going single user", NULL));
 			hangflag = 0;
+			kill9(-1);
 			for (tp=ttyp; tp!=NULL; tp=tp->t_next)  {
-				tp->t_pid = 0;  /* Added by mike */
+				tp->t_pid = 0;
 				tp->t_flag = 0;
 			}
-			kill(-1, 9);
+			if (fork() == 0) {		/* paranoid sync */
+				sync();
+				exit(0);
+			}
+			multi = 0;
 			continue;
 		}
-		/* Scan for ttys with changes in status */
 		if (quitflag) {
+			/* Scan for ttys with changes in status */
+			dbmsg(("quit signal, rescan ttys", NULL));
 			quitflag = 0;
 			scantty();
 			continue;
 		}
-		/* Logout */
 		if (n > 0) {
+			/* Logout process n. */
 			for (tp=ttyp; tp; tp=tp->t_next) {
 				if (n != tp->t_pid)
 					continue;
 				tp->t_pid = 0;
+				dbmsg(("logout process on tty ", tp->t_tty, NULL));
 				putwtmp(&tp->t_tty[5], "");
 				clrutmp(&tp->t_tty[5]);
 				chmod(tp->t_tty, 0700);
-				chown(tp->t_tty, 0, 1);
+				chown(tp->t_tty, 0, 0);
 				/* See if we panicked */
 				if ((status>>8) == 0377)
 					tp->t_flag = 0;
@@ -221,7 +258,7 @@ char *np;
 */
 inittys()
 {
-	register struct tty *tp;
+	register TTY *tp;
 	register int n;
 
 	n = 0;
@@ -251,16 +288,17 @@ register int p1;
  */
 scantty()
 {
-	register struct tty *tp;
+	register TTY *tp;
 	register int fd;
-	struct tty tty;
+	TTY tty;
 	extern char *sbrk();
 
 	if ((fd=open("/etc/ttys", 0)) < 0)
 		return;
 	while (readtty(&tty, fd) != 0) {
 		if ((tp=findtty(&tty)) == NULL) {
-			tp = sbrk(sizeof(*tp));
+			if ((tp = sbrk(sizeof(*tp))) == BADSBRK)
+				panic("too many ttys");
 			*tp = tty;
 			tp->t_next = ttyp;
 			ttyp = tp;
@@ -273,7 +311,7 @@ scantty()
 			tp->t_baud[0] = tty.t_baud[0];
 			tp->t_linetype = tty.t_linetype;
 			if (tp->t_pid != 0)
-				kill(tp->t_pid, 9);
+				kill9(tp->t_pid);
 		}
 	}
 	close(fd);
@@ -284,11 +322,11 @@ scantty()
  * the terminal structure.
  */
 readtty(tp, fd)
-register struct tty *tp;
+register TTY *tp;
 {
 	register char *lp;
 	char c[1];
-	char line[2+DIRSIZ+1];
+	char line[3+DIRSIZ+1];
 
 	lp = line;
 	for (;;) {
@@ -296,15 +334,15 @@ register struct tty *tp;
 			return (0);
 		if (c[0] == '\n')
 			break;
-		if (lp < &line[2+DIRSIZ])
+		if (lp < &line[3+DIRSIZ])
 			*lp++ = c[0];
 	}
 	*lp++ = '\0';
-	if (lp < &line[2])
+	if (lp < &line[5])
 		return (0);
 	lp = line;
-	tp->t_flag = *lp++ - '0';
-#if NEWTTYS
+	tp->t_flag = (*lp++) != '0';
+#if	NEWTTYS
 	tp->t_linetype = *lp++;
 #else
 	tp->t_linetype = 'l';
@@ -315,6 +353,7 @@ register struct tty *tp;
 	strcpy(tp->t_tty, "/dev/");
 	strncpy(&tp->t_tty[5], lp, DIRSIZ);
 	tp->t_tty[5+DIRSIZ] = '\0';
+	dbmsg(("readtty: ", tp->t_tty, NULL));
 	return (1);
 }
 
@@ -322,11 +361,11 @@ register struct tty *tp;
  * Given a terminal structure containing the name of a terminal,
  * find the entry in the terminal list.
  */
-struct tty *
+TTY *
 findtty(tp1)
-register struct tty *tp1;
+register TTY *tp1;
 {
-	register struct tty *tp2;
+	register TTY *tp2;
 
 	for (tp2=ttyp; tp2!=NULL; tp2=tp2->t_next)
 		if (strcmp(tp1->t_tty, tp2->t_tty) == 0)
@@ -338,14 +377,19 @@ register struct tty *tp1;
  * Given a terminal structure, spawn off a login (getty).
  */
 login(tp)
-register struct tty *tp;
+register TTY *tp;
 {
 	register int pid;
 
-	pid = spawn(tp, "/etc/getty", "-",  tp->t_baud, NULL);
-	if (pid < 0)
+	pid = spawn(tp,
+		"/etc/getty",
+		(tp->t_linetype == 'l') ? "-" : "-r",
+		tp->t_baud,
+		NULL);
+	if (pid < 0) {
 		tp->t_flag = 0;
-	else
+		dbmsg(("spawn failed tty ", tp->t_tty, NULL));
+	} else
 		tp->t_pid = pid;
 }
 
@@ -353,7 +397,7 @@ register struct tty *tp;
  * Spawn off a command.
  */
 spawn(tp, np, ap)
-struct tty *tp;
+TTY *tp;
 char *np, *ap;
 {
 	register int pid;
@@ -366,7 +410,7 @@ char *np, *ap;
 		sleep(1);
 	if (fd < 0)
 		panic("cannot open ", tp->t_tty, NULL);
-#if NEWTTYS
+#if	NEWTTYS
 	if (tp->t_linetype == 'r')      /* remote line? */
 	   ioctl(fd, TIOCHPCL);   /* "hangup" on last close */
 #endif
@@ -380,7 +424,7 @@ char *np, *ap;
 /*
  * Write an entry onto the wtmp file.
  */
-putwtmp(lp, np)
+putwtmp(lp, np) char *lp, *np;
 {
 	register int fd;
 	struct utmp utmp;
@@ -471,3 +515,31 @@ char **argv;
 	}
 }
 
+/*
+ * Send SIGKILL to process, delaying and sending twice to ensure death.
+ */
+kill9(pid) register int pid;
+{
+	kill(pid, SIGKILL);
+	sleep(1);
+	kill(pid, SIGKILL);
+}
+
+#if	DEBUG
+/*
+ * Write a debug message to the console.
+ * The args should be a NULL-terminated list of strings.
+ */
+msg(cp) char *cp;
+{
+	register char **cpp;
+	int fd;
+
+	fd = open("/dev/console", 2);
+	write(fd, "/etc/init: ", 11);
+	for (cpp=&cp; *cpp!=NULL; cpp++)
+		write(fd, *cpp, strlen(*cpp));
+	write(fd, "\n", 1);
+	close(fd);
+}
+#endif
