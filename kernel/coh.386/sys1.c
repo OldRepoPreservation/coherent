@@ -426,9 +426,10 @@ uptrace(req, pid, add, data)
 int *add;
 {
 	int ret;
-	int readChild = 0;	/* for debug, true if reading child memory */
 
 #ifdef TRACER
+	int readChild = 0;	/* for debug, true if reading child memory */
+
 	if (t_hal & 0x10000) {
 		switch(req) {
 		case 0:	/* init called by child */
@@ -553,16 +554,20 @@ char *np;
 
 /*
  * Set time and date.
+ *
+ * Unlike the libc interface, this routine expects a time_t value
+ * as an arg, not a time_t pointer.
  */
 ustime(tp)
-register time_t *tp;
+time_t tp;
 {
 	register int s;
 
-	if (super() == 0)
+	if (super() == 0) {
 		return;
+	}
 	s = sphi();
-	ukcopy(tp, &timer.t_time, sizeof(*tp));
+	ukcopy(&tp, &timer.t_time, sizeof(tp));
 	spl(s);
 	return 0;
 }
