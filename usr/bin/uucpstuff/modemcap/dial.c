@@ -16,6 +16,7 @@
 #include "ldev.h"
 
 char	*devname = NULL;	/* Communications Device Name Connected	*/
+char	*rdevname = NULL;	/* Remote device name */
 
 static	char	login_lock[15];
 static	char	enableme[16];
@@ -87,8 +88,8 @@ int	fd;
 		plog(M_CALL, "Enabling line %s", enableme);
 		exec_stat("enable", enableme);
 	}
-	if ( (devname != NULL) && lockexist(devname) )
-		lockrm(devname);
+	if ( (rdevname != NULL) && lockexist(rdevname) )
+		lockrm(rdevname);
 	devname = NULL;
 }
 
@@ -138,8 +139,23 @@ char **brand;
 		strcat(login_lock, "+");
 		if (lockexist(login_lock))
 			continue;	/* somebody is logged in there */
-		if ( lockit(l_lline) < 0 )
+
+		/* If the Ldev remote line is not a '-', then see if a lock
+		 * exists on the remote device. If a lock exists, then we don't
+		 * want to disable the remote before calling out on the local
+		 * local device for fear of booting off a logged in process.
+		 * Bob H. 11/4/91.
+		*/
+
+		if((strcmp(l_rline,"-")!=0) && (0 != lockexist(l_rline))){
+			plog(M_CALL,"Remote device %s enabled, cannot disable.",
+				l_rline);
 			continue;
+		}
+
+		else if ((strcmp(l_rline,"-") != 0) && (lockit(l_rline) < 0) ){
+				continue;
+		}
 
 		enableme[0] = '\0';
 		if (strcmp(l_rline, "-") != 0) {
@@ -150,6 +166,7 @@ char **brand;
 			}
 		}
 		devname = l_lline;
+		rdevname = l_rline;
 		*brand = l_brand;
 		ldev_close();
 		callp->line = l_lline;
