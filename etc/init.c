@@ -41,6 +41,7 @@
 
 #if	DEBUG
 #define	dbmsg(arglist)	msg arglist
+int debug_fd = -1;
 #else
 #define	dbmsg(arglist)
 #endif
@@ -486,11 +487,16 @@ char *np, *ap;
 
 	if ((pid=fork()) != 0)
 		return (pid);
+#if DEBUG
+	close(debug_fd);
+#endif
+	setpgrp();
 	fakearg(1, tp->t_tty);
 	while ((fd=open(tp->t_tty, 2)) < 0 && errno==EDBUSY)
 		sleep(1);
 	if (fd < 0)
 		panic("cannot open ", tp->t_tty, NULL);
+	ioctl(fd, TIOCSETG);
 #if	NEWTTYS
 	if (tp->t_linetype == 'r')      /* remote line? */
 	   ioctl(fd, TIOCHPCL);   /* "hangup" on last close */
@@ -624,6 +630,8 @@ kill9(pid) register int pid;
 msg(cp) char *cp;
 {
 	register char **cpp;
+#if 0
+/* Old init couldn't write to console because it messed up process groups. */
 	int fd;
 	static long mp = SCREEN_ADDR;
 	int i;
@@ -646,5 +654,14 @@ msg(cp) char *cp;
 		mp += 2;
 	}	
 	close(fd);
+#else
+	if (debug_fd == -1)
+		debug_fd = open("/dev/console", 2);
+	write(debug_fd, ":", 1);
+	for (cpp=&cp; *cpp!=NULL; cpp++) {
+		write(debug_fd, *cpp, strlen(cp));
+		write(debug_fd, " ", 1);
+	}	
+#endif
 }
 #endif
