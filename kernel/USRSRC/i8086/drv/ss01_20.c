@@ -2,6 +2,9 @@
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.8	91/03/11  17:41:10	root
+ * started ssopen()/wrote stub for ssinit()
+ * 
  * Revision 1.7	91/03/08  17:07:28	root
  * Does Test Read and Request Sense properly.
  * 
@@ -56,6 +59,7 @@
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
 #define BUS_RETRIES	1000
 
+#define CMDLEN		6
 				/* Message types */
 #define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
 #define MSG_ABORT	0x06	/* End the current SCSI bus cycle */
@@ -126,7 +130,11 @@ static void	sswrite();
 static int	ssioctl();
 static void	sswatch();
 static void	ssblock();
-static void	ssinit();
+static int	ssinit();
+static void	scsireset();
+static void	scsidelay();
+static int	bus_pre_xfer(s_id);
+static int	bus_info_xfer(s_id);
 
 static void	ssintr();
 
@@ -141,8 +149,9 @@ static faddr_t	ss_ram;		/* (far *) to parameter RAM */
 static faddr_t	ss_csr;		/* (far *) to control/status */
 static faddr_t	ss_dat;		/* (far *) to data port */
 
-static int num_drives;
-static struct ss *ss_block;		/* points to block of "ss" structs */
+static int	num_drives;	/* number of controller SCSI id's */
+static struct ss *ss_block;	/* points to block of "ss" structs */
+static TIM	delay_tim;	/* needed for calls to ssdelay() */
 
 /*
  * Driver CON entry - an export variable.
@@ -168,7 +177,7 @@ CON	sscon	= {
  */
 static struct ss	{
 	long capacity;
-	char scsi_id;
+	unsigned char do_xfer;	/* bitmapped flags;  1=xfer needed */
 } *ss[MAX_SCSI_ID-1];
 
 /**
@@ -225,14 +234,21 @@ ssload()
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
 				num_drives++;
-		if ((ss_block = kalloc(num_drives*sizeof(struct ss))) == NULL) {
+		if (num_drives == 0) {
+			printf("Error - ss has no valid target id's\n");
+			erf = 1;
+		} else if ((ss_block = kalloc(num_drives*sizeof(struct ss)))
+		== NULL) {
 			printf("Error - ss can't allocate structs\n");
 			erf = 1;
-		} else
-			kclear(ssblock, num_drives * sizeof(struct ss));
+		} else {
+			kclear(ss_block, num_drives * sizeof(struct ss));
+			printf("kalloc'ed %d bytes at offset %x\n",
+				num_drives*sizeof(struct ss), ss_block);
+		}
 	}
 	if (!erf) {
-		struct ss *foo = ssblock;
+		struct ss *foo = ss_block;
 
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
@@ -259,7 +275,8 @@ ssunload()
 	/*
 	 * Deallocate driver heap space.
 	 */
-	kfree(ssblock);
+	if (ss_block)
+		kfree(ss_block);
 
 	/*
 	 * Free the ST0x selector.
@@ -362,7 +379,7 @@ IO	*iop;
 	ioreq( &dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC );
 }
 
-/**
+/*
  *
  * void
  * sswrite( dev, iop )	- write a block to the raw disk
@@ -382,7 +399,7 @@ IO	*iop;
 	ioreq( &dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC );
 }
 
-/**
+/*
  *
  * int
  * ssioctl( dev, cmd, arg )
@@ -405,7 +422,7 @@ char * vec;
 {
 }
 
-/**
+/*
  *
  * void
  * ssblock( bp )	- queue a block to the disk
@@ -421,7 +438,7 @@ register BUF	*bp;
 {
 }
 
-/**
+/*
  *
  * void
  * ssintr()	- Interrupt routine.
@@ -438,6 +455,8 @@ static void	sswatch()
 }
 
 /*
+ * bus_wait()
+ *
  * Wait for specified bit values to appear in Status Register.
  * This uses a tight loop and does not expect to be interrupted.
  *
@@ -465,34 +484,120 @@ unsigned short flags;
 	if (!found)
 		printf("ST0x timeout;  flags=%x status=%x\n", flags, status);
 
-PUSHI;
 	return found;
 }
 
 /*
  * Attempt to initialize the (unique) drive with a given SCSI id.
  * Assume only one drive per SCSI id, having LUN = 0.
+ * 
+ * Return 1 if success, 0 if failure.
+ *
+ * Pseudocode:
+ *
+ * retval = 0
+ * if Test Unit Ready command fails
+ *   print "Test Unit Ready fails"
+ * else if Request Sense command fails
+ *   print "Request Sense fails"
+ * else if Read Capacity command succeeds
+ *   print "Read Capacity fails"
+ * else if partition table can't be read
+ *   print "can't get partition table"
+ * else
+ *   print "SCSI id #n initialized"
+ *   retval = 1
+ * return retval
  */
-static void ssinit(s_id)
+static int ssinit(s_id)
 int s_id;
 {
+	int retval = 0;
+	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
+
+	if (!testready(s_id))
+		devmsg(dev, "Test Unit Ready failed");
+	else {
+		devmsg(dev, "Unit successfully initialized");
+		retval = 1;
+	}
+	return retval;
 }
 
-#define STUFF 0
-/* pieces of code temporarily without a home */
-#if STUFF
-#if 0
-{ long x;
-	/*
-	 * Reset the SCSI bus.
-	 */
+/*
+ * Send Test Unit Ready command.
+ * Retry after bus reset if necessary.
+ *
+ * Return 1 if unit is ready, 0 if not.
+ */
+static int testready(s_id)
+int s_id;
+{
+	unsigned char cmd[CMDLEN];
+	int retval;
+
+	cmd[0] = ScmdTESTREADY;
+	cmd[1] = cmd[2] = cmd[3] = cmd[4] = cmd[5] = 0;
+	if (!(retval = scsicmd(s_id, cmd))) {
+printf("First Test Unit Ready failed.  Will reset SCSI bus.\n");
+		scsireset();
+		retval = scsicmd(s_id, cmd);
+	}
+	return retval;
+}
+
+/*
+ * scsicmd()
+ *
+ * Send 6-byte command packet to target device.
+ *
+ * Return 1 if command succeeds, else 0.
+ */
+static int scsicmd(s_id, cmd)
+int s_id;
+unsigned char *cmd;
+{
+	int retval;
+
+	if (retval = bus_pre_xfer(s_id))
+		retval = bus_info_xfer(cmd);
+	return retval;
+}
+
+/*
+ * scsireset()
+ *
+ * Assert reset for 1 clock tick.
+ */
+static void scsireset()
+{
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
-	for (x=0; x<100000L; x++);
+	scsidelay(1);
 	sfbyte(ss_csr, 0);
-	for (x=0; x<100000L; x++);
 }
-#endif
 
+/*
+ * scsidelay()
+ *
+ * Delay for some number of clock ticks.
+ * 286/386 kernel ticks are at 100Hz
+ */
+static void ssdelay(ticks)
+int ticks;
+{
+	timeout(&delay_tim, ticks, wakeup, (int)&delay_tim);
+	sleep((char *)&delay_tim, CVPAUSE, IVPAUSE, SVPAUSE);
+}
+
+/*
+ * bus_pre_xfer()
+ *
+ * Do bus cycle phases prior to the information transfer phases.
+ * This includes arbitration and selection.
+ */
+static int bus_pre_xfer(s_id)
+int s_id;
+{
 	/*
 	 * Do ST0x arbitration.
 	 */
@@ -500,49 +605,113 @@ int s_id;
 	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
 	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
 
-	bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL);
+	if (!bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL))
+		return 0;
 
 	/*
 	 * Arbitration complete.  Now select, with ATN to allow messages.
 	 */
-	sfbyte(ss_dat, HOST_ID | 1);	/* Write two SCSI id's to port */
+	sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
-	bus_wait(RS_BUSY << 8 | RS_BUSY);
+	if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
+		return 0;
 
 	/*
 	 * Send "Identify" Message with Disconnect allowed.
 	 */
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
 
-	bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
-		(RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE));
+	if (!bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
+	| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
+		return 0;
 
-#ifdef SEND_ABORT_MESSAGE
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
-	sfbyte(ss_dat, MSG_IDENT_DC);
-
-	/*
-	 * Second message is Abort.
-	 */
-	bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
-		(RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE));
-	sfbyte(ss_csr, WC_ENABLE_SCSI);
-	sfbyte(ss_dat, MSG_ABORT);
-
-	bus_wait(RS_BUSY << 8 | RS_BUSY);
-#else
 	sfbyte(ss_csr, WC_ENABLE_SCSI);
 	sfbyte(ss_dat, MSG_IDENT_DC);
 
-for (i = 0; i < CMDLEN; i++) cmd[i] = 0; /* send Test Unit Ready command */
+	return 1;
+}
 
+/*
+ * bus_info_xfer()
+ *
+ * Do bus cycle information transfer phases.
+ * This includes message in/out, command in/out, and data in/out.
+ *
+ * If cmdlen is nonzero, cmdbuf is an array of bytes of that length,
+ * to be sent to the target.
+ *
+ * Return 1 if command executed successfully, else 0.
+ *
+ * pseudocode:
+ *
+ * while (wait for REQ true or BUSY false on SCSI bus)
+ *  if (BUSY false)
+ *    break from while loop
+ *  else
+ *    switch (xfer phase = RS_CTRL_DATA|RS_I_O|RS_MESSAGE)
+ *      case XP_MSG_IN/XP_MSG_OUT/...
+ *        handle the indicated information transfer phase
+ *    endswitch
+ * endwhile
+ */
+static int bus_info_xfer(cmdbuf, cmdlen)
+char * cmdbuf;
+int cmdlen;
+{
+	int ret;
+	int bus_timeout;
+
+	while(req_wait(&bus_timeout)) {
+		
+	}
+	return (cmdlen == 0);
+}
+/*
+ * req_wait()
+ *
+ * This routine is called at the start of each information transfer
+ * phase and after the last such phase.
+ *
+ * It returns 1 if REQ is asserted on the SCSI bus, meaning another phase
+ * may begin, and 0 otherwise.  A REQ signal will not be seen if the function
+ * times out or if BUSY drops.  A value of 1 is written to the pointer argument
+ * if timeout occurred, else 0 is written.
+ */
+static int req_wait(to_ptr)
+int *to_ptr;
+{
+	int req_found, i;
+	unsigned char status;
+
+	*to_ptr = 1;
+	req_found = 0;
+	for ( i = 0; i < BUS_RETRIES; i++) {
+		status = ffbyte(ss_csr);
+		if (status & RS_REQUEST) {
+			req_found = 1;
+			*to_ptr = 0;
+			break;
+		} else if ((status & RS_BUSY) == 0) {
+			*to_ptr = 0;
+			break;
+		}
+	}
+
+	if (!req_found)
+		printf("ST0x info xfer timeout;  status=%x\n", status);
+
+	return req_found;
+}
+
+#define STUFF 0
+/* pieces of code temporarily without a home */
+#if STUFF
 	for (i = 0; i < CMDLEN; i++) {
 		bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
 			(RS_REQUEST|RS_CTRL_DATA));
 		sfbyte(ss_dat, cmd[i]);
 	}
-#endif
 
 	bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
 		(RS_REQUEST|RS_CTRL_DATA|RS_I_O));
