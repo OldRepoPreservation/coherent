@@ -73,7 +73,7 @@ char choice;
 	refresh();
 
 	choice = 0;
-	while( (choice < 48) || (x > 51) )
+	while( (choice > 51) || (choice <48) )
 		choice = getch();
 
 	strcpy(workfile,mapfile[choice - 48]);
