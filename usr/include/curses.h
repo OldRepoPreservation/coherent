@@ -25,9 +25,12 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.2 92/04/13 14:40:04 bin Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.4 93/01/06 09:21:57 bin Exp Locker: bin $
  *
  *  $Log:	curses.h,v $
+ * Revision 1.4  93/01/06  09:21:57  bin
+ * vlad: update from Udo
+ * 
  * Revision 2.2  92/10/25  22:36:15  munk
  * Several changes to make it more SV.3 compatible
  *
@@ -54,6 +57,8 @@
  */
 
 #ifndef WINDOW
+
+#define USE_TERMIO
 
 #define bool    char
 
