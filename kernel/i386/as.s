@@ -2,11 +2,7 @@
 	.include	as.inc
 
 MMUUPD	.macro
-/	push	%edx
-/	pushfl
-/	pop	%edx
 	mov	%eax,%cr3
-/	pop	%edx
 	.endm
 /
 / USTART and ESP_START map kernel stack and u area within top 4k page
