@@ -98,8 +98,9 @@ struct	stable	s2[] = {	/* 9600 baud - Tek 4104 */
 	0,	GMODE,	B9600,	B9600,	defm
 };
 
-struct	stable	s3[] = {	/* 212 datasets (1200,300,...) */
-	1,	GMODE,	B1200,	B1200,	defm,
+struct	stable	s3[] = {	/* v22.bis & 212 datasets (2400,1200,300) */
+	1,	GMODE,	B2400,	B2400,	defm,
+	2,	GMODE,	B1200,	B1200,	defm,
 	0,	GMODE,	B300,	B300,	defm
 };
 
