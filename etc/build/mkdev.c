@@ -10,6 +10,9 @@
  *	-v	Verbose
  *
  * $Log:	mkdev.c,v $
+ * Revision 1.3  91/06/28  07:29:59  bin
+ * updated by hal
+ * 
  * Revision 1.5  91/06/17  08:13:40  hal
  * Allow for older Future Domain host adapters.
  * 
@@ -32,6 +35,7 @@
 #define	USAGEMSG	"Usage:\t/etc/mkdev [ -bdv ] [ scsi ]\n"
 #define BUFLEN		50
 #define AHA_HDS		64
+#define AHA_DMA		5
 #define TANDY_HDS	16
 
 /* Forward. */
@@ -89,7 +93,7 @@ scsi()
 	unsigned int ss_base = 0xCA00, new_base;
 	unsigned char ss_patch[80], buf[BUFLEN];
 	FILE *fp;
-	int aha_dev = 0, sd_hds = AHA_HDS;
+	int aha_dev = 0, sd_hds = AHA_HDS, sd_dma = AHA_DMA;
 
 	rootflag = 0;
 #if	0
@@ -147,6 +151,19 @@ printf("\nMost versions of the Adaptec BIOS use 64-head translation mode.\n");
 printf("A few, including some Tandy variants, use 16-head translation mode.\n\n");
 		if (!yes_no("Do you want 64-head translation mode"))
 			sd_hds = TANDY_HDS;
+printf("\nWhich DMA channel does the host adapter use (0/5/6/7) [%d]? ",
+	sd_dma);
+		for (;;) {
+			new_int = sd_dma;
+			fgets(buf, BUFLEN, stdin);
+			sscanf(buf, "%d", &new_int);
+			if (new_int != 0 && new_int != 5
+			&& new_int != 6 && new_int != 7)
+printf("Type 0,5,6,7 or just <Enter> for the default: ");
+			else
+				break;
+		} /* endwhile */
+		sd_dma = new_int;
 	}
 
 	/*
@@ -348,7 +365,7 @@ sprintf(cmd, "/conf/patch /tmp/coherent %s\n", ss_patch);
 		 * Adaptec's Own Translation Mode.
 		 */
 		sprintf(ss_patch,
-			"SD_HDS_=%d", sd_hds);
+			"SD_HDS_=%d SDDMA_=%d", sd_hds, sd_dma);
 
 		/*
 		 * Write PATCHFILE which is run by build.
