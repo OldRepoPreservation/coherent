@@ -1,6 +1,6 @@
 /*
  * install.c
- * 4/16/91
+ * 6/7/91
  * Install COHERENT disks on a system.
  * This is the back end of the initial COHERENT installation procedure;
  * the first part is in build.c.
@@ -303,6 +303,7 @@ newdisk()
 void
 newusr()
 {
+	static int flag = 0;
 	register int n, status, passwd;
 	register char *s;
 	char homeparent[80], user[80];
@@ -339,7 +340,7 @@ newusr()
 			break;
 		if (++n == 1) {
 			printf(
-"You must specify a login name and a full name for each user.\n"
+"You must specify a login name, a full name and a shell for each user.\n"
 "Joe Smith might have login name \"joe\" and full name \"Joseph H. Smith.\"\n"
 "His home directory would be in \"/usr\" by default, namely \"/usr/joe\".\n"
 "Do not type quotation marks around the names you enter.\n"
@@ -372,6 +373,29 @@ again:
 		sprintf(cmd, "/etc/newusr %s ", s);
 		s = get_line("Full name:");
 		sprintf(&cmd[strlen(cmd)], "\"%s\" %s", s, homeparent);
+		if (flag == 0) {
+			++flag;		/* print only first time through */
+			printf(
+"COHERENT includes two different command line interpreters, or shells.\n"
+"A command line interpreter is a program which reads and executes each\n"
+"command which the user types.  The available command line interpreters\n"
+"are the Bourne shell (/bin/sh) and the Korn shell (/usr/bin/ksh).\n"
+"Use the Bourne shell if you are not sure which shell to use.\n"
+"After you have finished installing COHERENT, you can change the shell\n"
+"for any user by editing the password file /etc/passwd.\n"
+				);
+		}
+		for (s = NULL; s == NULL; ) {
+			if (yes_no("Do you want to user %s to use the Bourne shell (/bin/sh)",
+					user))
+				s = "/bin/sh";
+			else if (yes_no("Do you want to user %s to use the Korn shell (/usr/bin/ksh)",
+					user))
+				s = "/usr/bin/ksh";
+			else
+				printf("You must specify either the Bourne or Korn shell.\n");
+		}
+		sprintf(&cmd[strlen(cmd)], " %s", s);
 		sys(cmd, S_NONFATAL);
 		if (passwd && yes_no("Do you want to assign a password for user \"%s\"", user)) {
 			sprintf(cmd, "passwd %s", user);
