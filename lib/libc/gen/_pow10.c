@@ -16,14 +16,7 @@
  */
 
 #include <math.h>
-
-#if	IEEE
-#define	DBL_MAX_10_EXP	308
-#define DBL_MIN_10_EXP	-307
-#else
-#define	DBL_MAX_10_EXP	38
-#define DBL_MIN_10_EXP	-38
-#endif
+#include <float.h>
 
 static const double powtab0[] = {
 	1e0,	1e-1,	1e-2,	1e-3,	1e-4,	1e-5,	1e-6,	1e-7,
@@ -36,11 +29,12 @@ static const double powtab1[] = {
 };
 
 static const double powtab2[] = {
-#ifdef	IEEE
+#if	_IEEE
 	1e16,	1e32,	1e48,	1e64,	1e80,	1e96,	1e112,	1e128,
 	1e144,	1e160,	1e176,	1e192,	1e208,	1e224,	1e240,	1e256,
 	1e272,	1e288,	1e304
-#else
+#endif
+#if	_DECVAX
 	1e16,	1e32
 #endif
 };
