@@ -39,25 +39,7 @@ atan2:
 	ret
 
 ?1:
-	pushf			/ Save flags with sign of x.
-	fld	%st(1)		/ y, x, y
-	fxch			/ x, y, y
-	fpatan			/ atan(y/x), y
-	popf			/ Restore flags.
-	jb	?2		/ x < 0, must adjust by pi.
-	fstp	%st(1)		/ atan(y/x)
-	ret
-
-?2:
-	fxch			/ y, atan(y/x)
-	call	_tstcc
-	fstp	%st		/ atan(y/x)
-	fldpi			/ pi, atan(y/x)
-	jae	?3		/ y >= 0, add pi.
-	fchs			/ y < 0, subtract pi.
-
-?3:
-	fadd			/ atan(y/x) + pi
+	fpatan			/ atan(y/x)
 	ret
 
 / end of atan287.s
