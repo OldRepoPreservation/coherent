@@ -80,6 +80,7 @@
 #define	WORK1		0xFFFFB /* Scratch page 1 virtual address.	*/
 #define	WORK0		0xFFFFA	/* Scratch page 0 virtual address.	*/
 
+#define MAX_VADDR	ctob(VIDEOb)	/* Highest allocatable virtual address.  */
 /*
  * Addresses in kernel data for the RAM disk are now in rm.c.
  * As of 92/06/25, they are
@@ -175,9 +176,23 @@ cseg_t	*c_alloc();
 cseg_t	*c_extend();
 BLOCKLIST	*arealloc();
 
+/*
+ * Declare and initialize an in-memory segment structure.
+ */
 #define	MAKESR(sr, seg) SEG seg; SR sr = { 0, 0, 0, &seg }
+/*
+ * Is 'p' a valid physical click address?
+ */
 #define	pvalid(p)	((p) >= sysmem.lo && (p) < sysmem.hi)
+/*
+ * How many physical clicks are free for allocation?
+ */
 #define allocno()	(sysmem.pfree - sysmem.tfree)
+
+/*
+ * IS_POW2() works for negative n only if the CPU uses 2's complement.
+ */
+#define IS_POW2(n)	(!((n) & ((n) - 1)))	/* Is n a power of 2?  */
 
 typedef struct {
 	int	pid;
@@ -190,7 +205,9 @@ typedef struct {
 #define	NEV	32
 extern	EVENT	evtab[NEV];
 EVENT	*evtrap();
-#else
+
+#else /* From here to EOF is for 286 kernels.  */
+
 /*
  * The following macros facilitate independent access
  * to the selector and offset of a faddr_t (far *) pointer.
@@ -212,7 +229,8 @@ extern	faddr_t	ptovx();	/* faddr_t ptovx( paddr_t );		*/
 extern	paddr_t vtop();		/* paddr_t vtop( faddr_t );		*/
 extern	void	vrelse();	/* void    vrelse( faddr_t );		*/
 extern	void	vremap();	/* void    vremap( SEG * );		*/
-#endif
-#endif
+#endif /* KERNEL */
 
-#endif
+#endif /* _I386 */
+
+#endif /* MMU_H */
