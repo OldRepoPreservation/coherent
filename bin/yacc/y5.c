@@ -4,8 +4,7 @@
  * at this point, the tables are fit to be processed by the C parser
  */
 #include "yacc.h"
-#include "assert.h"
-#include "action.h"
+#include <action.h>
 
 char	*actns[] = {
 	"SHIFT",

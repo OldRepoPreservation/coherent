@@ -7,7 +7,7 @@
  */
 
 #include "yacc.h"
-#include "assert.h"
+#include <assert.h>
 
 /* the size of SMAX must be related to the amount of space available
    on the runtime stack for recursive calls to traverse.
