@@ -1,4 +1,4 @@
-/ $Header: /usr/local/src/dist/boot/RCS/boot.m,v 1.6 91/09/26 13:26:11 piggy Exp Locker: piggy $
+/ $Header: /usr/local/src/dist/boot/RCS/boot.m,v 1.7 91/11/08 11:31:13 piggy Exp $
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
 /	Company, and  is confidential information.  It is provided  under a
@@ -7,8 +7,8 @@
 /	material without the express written authorization of Mark Williams
 /	Company or persuant to the license agreement is unlawful.
 /
-/	COHERENT Version 2.3.37
-/	Copyright (c) 1982, 1983, 1984.
+/	COHERENT Version 3.2.1
+/	Copyright (c) 1982, 1983, 1984, 1991.
 /	An unpublished work by Mark Williams Company, Chicago.
 /	All rights reserved.
 / -lgl)
@@ -24,6 +24,10 @@
 / in beginning at paragraph 0x0060.
 /
 / $Log:	boot.m,v $
+/  Revision 1.7  91/11/08  11:31:13  piggy
+/  Attempted to integrate pboot into these sources.  Still not working.
+/  Updated secondary boot for use with tertiary boot code.
+/  
 /  Revision 1.4  91/09/17  10:35:59  piggy
 /  Uses 4 byte disk blocks, so can boot from anywhere on disk.
 /  Points ds:si at useful data for tertiary boot.
