@@ -1,56 +1,11 @@
 # $Header: $(USRSRC)/ldrv/RCS/Makefile,v 1.2 91/04/30 18:38:22 root Exp $
-#
-#	The  information  contained herein  is a trade secret  of INETCO
-#	Systems, Ltd, and is  confidential information.   It is provided
-#	under a license agreement,  and may be copied or disclosed  only
-#	under  the  terms  of  that  agreement.    Any  reproduction  or
-#	disclosure  of  this   material   without  the  express  written
-#	authorization of INETCO Systems, Ltd. or persuant to the license
-#	agreement is unlawful.
-#
-#	Copyright (c) 1988
-#	An unpublished work by INETCO Systems, Ltd.
-#	All rights reserved.
 
 # Loadable Drivers - Makefile
 #
-# $Log:	$(USRSRC)/ldrv/RCS/Makefile,v $
-# Revision 1.2	91/04/30  18:38:22	root
-# Changes to support polled async driver "hs"
-
-# Revision 1.5	89/06/30  16:31:48 	src
-# Bug:	Multiple simultaneous DMA transfers resulted in data being lost.
-# Fix:	Added DMA lock routines to ensure single simultaneous DMA
-# 	transfers. (JHB)
-# 
-# Revision 1.3	88/05/23  17:31:10	src
-# Added vtop linkage routine (Jim had filed away in his directory) - ART
-# 
-# Revision 1.2	88/04/04  16:39:27	src
-# defer() function now supported from loadable drivers.
-# 
-# Revision 1.1	88/03/24  16:30:21	src
-# Initial revision
-#
-# 88/02/16	Jim Belton		$(USRSRC)/ldrv/Makefile
-# Added vtop linkage routine to ldlib.a.
 
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
-
-# Source directories
-COHSRC=$(USRSRC)/coh
-DRVSRC=$(USRSRC)/i8086/drv
-I86SRC=$(USRSRC)/i8086/src
-IBMATSRC=$(USRSRC)/i8086/ibm_at
-KERSRC=$(USRSRC)/ker
-TTYSRC=$(USRSRC)/ttydrv
-
-# Object directories
-I86OBJ=$(USRSRC)/i8086/objects
-DRVOBJ=$(USRSRC)/i8086/drv/objects
-IBMATOBJ=$(USRSRC)/i8086/ibm_at/objects
 
 CC=exec /bin/cc
 CFLAGS=
@@ -72,543 +27,533 @@ $(USRSYS)/lib/ldmain.o:	ldmain.c
 $(USRSYS)/lib/ldswap.o:	ldswap.c
 	$(CC) $(CFLAGS) -DNOMONITOR -c -o $@ $<
 
-# The following script creates a interface stub to a kernel function.
-GEN_DRV=objects/mkstub.sh
-
 # The following script extracts a module from a library.
-ARX_LIB=set -e; OBJFIL=`basename $@` ;\
-	eval ar x $< $${OBJFIL} ;\
-	eval mv $${OBJFIL} $@
+X_LIB=	OBJFIL=`basename $@ | sed 's/L//'` ;\
+	ar x $< $$OBJFIL ;\
+	mv $$OBJFIL $@
 
 # The following modules are supported in loadable drivers.
 # NOTE: Most of them are interface stubs to kernel code.
 #	Some of them are entirely driver resident.
-LIBOBJ1=objects/abs.o		\
-	objects/alloc.o		\
-	objects/bclaim.o	\
-	objects/bdone.o		\
-	objects/blkmv.o		\
-	objects/boot.o		\
-	objects/bread.o		\
-	objects/brelease.o	\
-	objects/clockedf.o	\
-	objects/clrq.o		\
-	objects/cs_self.o	\
-	objects/dblock.o	\
-	objects/dclose.o	\
-	objects/defer.o		\
-	objects/devmsg.o	\
-	objects/dmago.o		\
-	objects/dmalock.o	\
-	objects/dmaoff.o	\
-	objects/dmaon.o		\
-	objects/dmareq.o	\
-	objects/dopen.o		\
-	objects/drvmap.o	\
-	objects/dwrite.o	\
-	objects/fclear.o	\
-	objects/fdisk.o		\
-	objects/ffbyte.o	\
-	objects/ffword.o	\
-	objects/ffmem.o		\
-	objects/fkcopy.o	\
-	objects/fpxcopy.o	\
-	objects/free.o		\
-	objects/fucopy.o	\
-	objects/getcs.o		\
-	objects/getq.o		\
-	objects/getubd.o	\
-	objects/getuwd.o	\
-	objects/inb.o		\
-	objects/int11.o		\
-	objects/iogetc.o	\
-	objects/iomapvp.o	\
-	objects/ioputc.o	\
-	objects/ioread.o	\
-	objects/ioreq.o		\
-	objects/iowrite.o	\
-	objects/ipcaccess.o	\
-	objects/kcall.o		\
-	objects/kfcopy.o	\
-	objects/kclear.o	\
-	objects/kpcopy.o	\
-	objects/kucopy.o	\
-	objects/lock.o		\
-	objects/lxdiv.o		\
-	objects/lxmul.o		\
-	objects/lxrem.o		\
-	objects/lxsgn.o		\
-	objects/memset.o	\
-	objects/memtest.o	\
-	objects/nmidisable.o	\
-	objects/nmienable.o	\
-	objects/nondsig.o	\
-	objects/nonedev.o	\
-	objects/nulldev.o	\
+LIBOBJ1=$(LOBJ)/absL.o		\
+	$(LOBJ)/allocL.o	\
+	$(LOBJ)/bclaimL.o	\
+	$(LOBJ)/bdoneL.o	\
+	$(LOBJ)/blkmvL.o	\
+	$(LOBJ)/bootL.o		\
+	$(LOBJ)/breadL.o	\
+	$(LOBJ)/breleaseL.o	\
+	$(LOBJ)/clockedfL.o	\
+	$(LOBJ)/clrqL.o		\
+	$(LOBJ)/cs_selfL.o	\
+	$(LOBJ)/dblockL.o	\
+	$(LOBJ)/dcloseL.o	\
+	$(LOBJ)/deferL.o	\
+	$(LOBJ)/devmsgL.o	\
+	$(LOBJ)/dmagoL.o	\
+	$(LOBJ)/dmalockL.o	\
+	$(LOBJ)/dmaoffL.o	\
+	$(LOBJ)/dmaonL.o	\
+	$(LOBJ)/dmareqL.o	\
+	$(LOBJ)/dopenL.o	\
+	$(LOBJ)/drvmapL.o	\
+	$(LOBJ)/dwriteL.o	\
+	$(LOBJ)/fclearL.o	\
+	$(LOBJ)/fdiskL.o	\
+	$(LOBJ)/ffbyteL.o	\
+	$(LOBJ)/ffwordL.o	\
+	$(LOBJ)/ffmemL.o	\
+	$(LOBJ)/fkcopyL.o	\
+	$(LOBJ)/fpxcopyL.o	\
+	$(LOBJ)/freeL.o		\
+	$(LOBJ)/fucopyL.o	\
+	$(LOBJ)/getcsL.o	\
+	$(LOBJ)/getqL.o		\
+	$(LOBJ)/getubdL.o	\
+	$(LOBJ)/getuwdL.o	\
+	$(LOBJ)/inbL.o		\
+	$(LOBJ)/int11L.o	\
+	$(LOBJ)/iogetcL.o	\
+	$(LOBJ)/iomapvpL.o	\
+	$(LOBJ)/ioputcL.o	\
+	$(LOBJ)/ioreadL.o	\
+	$(LOBJ)/ioreqL.o	\
+	$(LOBJ)/iowriteL.o	\
+	$(LOBJ)/ipcaccessL.o	\
+	$(LOBJ)/kcallL.o	\
+	$(LOBJ)/kfcopyL.o	\
+	$(LOBJ)/kclearL.o	\
+	$(LOBJ)/kpcopyL.o	\
+	$(LOBJ)/kucopyL.o	\
+	$(LOBJ)/lockL.o		\
+	$(LOBJ)/lxdivL.o	\
+	$(LOBJ)/lxmulL.o	\
+	$(LOBJ)/lxremL.o	\
+	$(LOBJ)/lxsgnL.o	\
+	$(LOBJ)/memsetL.o	\
+	$(LOBJ)/memtestL.o	\
+	$(LOBJ)/nmidisableL.o	\
+	$(LOBJ)/nmienableL.o	\
+	$(LOBJ)/nondsigL.o	\
+	$(LOBJ)/nonedevL.o	\
+	$(LOBJ)/nulldevL.o	\
 
-LIBOBJ2=objects/outb.o		\
-	objects/panic.o		\
-	objects/pclear.o	\
-	objects/pkcopy.o	\
-	objects/plrcopy.o	\
-	objects/pollopen.o	\
-	objects/pollwake.o	\
-	objects/printf.o	\
-	objects/prlcopy.o	\
-	objects/ptov.o		\
-	objects/pucopy.o	\
-	objects/putchar.o	\
-	objects/putq.o		\
-	objects/putubd.o	\
-	objects/putuwd.o	\
-	objects/rucopy.o	\
-	objects/s5_to_sg.o	\
-	objects/s5_to_tc.o	\
-	objects/salloc.o	\
-	objects/sclear.o	\
-	objects/sendsig.o	\
-	objects/setivec.o	\
-	objects/sfree.o		\
-	objects/sfbyte.o	\
-	objects/sfword.o	\
-	objects/sfmem.o		\
-	objects/sg_to_s5.o	\
-	objects/sleep.o		\
-	objects/slrcopy.o	\
-	objects/sphi.o		\
-	objects/spl.o		\
-	objects/splo.o		\
-	objects/super.o		\
-	objects/swapio.o	\
-	objects/tc_to_s5.o	\
-	objects/timeout.o	\
-	objects/ttclose.o	\
-	objects/tthup.o		\
-	objects/ttin.o		\
-	objects/ttioctl.o	\
-	objects/ttopen.o	\
-	objects/ttout.o		\
-	objects/ttpoll.o	\
-	objects/ttread.o	\
-	objects/ttsetgrp.o	\
-	objects/ttsignal.o	\
-	objects/ttstart.o	\
-	objects/ttwrite.o	\
-	objects/uexit.o		\
-	objects/ufcopy.o	\
-	objects/ukcopy.o	\
-	objects/unlock.o	\
-	objects/upcopy.o	\
-	objects/urcopy.o	\
-	objects/vprint.o	\
-	objects/vrelse.o	\
-	objects/vremap.o	\
-	objects/vtop.o		\
-	objects/vxdiv.o		\
-	objects/vxmul.o		\
-	objects/vxrem.o		\
-	objects/waitq.o		\
-	objects/wakeup.o	\
+LIBOBJ2=$(LOBJ)/outbL.o		\
+	$(LOBJ)/panicL.o	\
+	$(LOBJ)/pclearL.o	\
+	$(LOBJ)/pkcopyL.o	\
+	$(LOBJ)/plrcopyL.o	\
+	$(LOBJ)/pollopenL.o	\
+	$(LOBJ)/pollwakeL.o	\
+	$(LOBJ)/printfL.o	\
+	$(LOBJ)/prlcopyL.o	\
+	$(LOBJ)/ptovL.o		\
+	$(LOBJ)/pucopyL.o	\
+	$(LOBJ)/putcharL.o	\
+	$(LOBJ)/putqL.o		\
+	$(LOBJ)/putubdL.o	\
+	$(LOBJ)/putuwdL.o	\
+	$(LOBJ)/rucopyL.o	\
+	$(LOBJ)/s5_to_sgL.o	\
+	$(LOBJ)/s5_to_tcL.o	\
+	$(LOBJ)/sallocL.o	\
+	$(LOBJ)/sclearL.o	\
+	$(LOBJ)/sendsigL.o	\
+	$(LOBJ)/setivecL.o	\
+	$(LOBJ)/sfreeL.o	\
+	$(LOBJ)/sfbyteL.o	\
+	$(LOBJ)/sfwordL.o	\
+	$(LOBJ)/sfmemL.o	\
+	$(LOBJ)/sg_to_s5L.o	\
+	$(LOBJ)/sleepL.o	\
+	$(LOBJ)/slrcopyL.o	\
+	$(LOBJ)/sphiL.o		\
+	$(LOBJ)/splL.o		\
+	$(LOBJ)/sploL.o		\
+	$(LOBJ)/superL.o	\
+	$(LOBJ)/swapioL.o	\
+	$(LOBJ)/tc_to_s5L.o	\
+	$(LOBJ)/timeoutL.o	\
+	$(LOBJ)/ttcloseL.o	\
+	$(LOBJ)/tthupL.o	\
+	$(LOBJ)/ttinL.o		\
+	$(LOBJ)/ttioctlL.o	\
+	$(LOBJ)/ttopenL.o	\
+	$(LOBJ)/ttoutL.o	\
+	$(LOBJ)/ttpollL.o	\
+	$(LOBJ)/ttreadL.o	\
+	$(LOBJ)/ttsetgrpL.o	\
+	$(LOBJ)/ttsignalL.o	\
+	$(LOBJ)/ttstartL.o	\
+	$(LOBJ)/ttwriteL.o	\
+	$(LOBJ)/uexitL.o	\
+	$(LOBJ)/ufcopyL.o	\
+	$(LOBJ)/ukcopyL.o	\
+	$(LOBJ)/unlockL.o	\
+	$(LOBJ)/upcopyL.o	\
+	$(LOBJ)/urcopyL.o	\
+	$(LOBJ)/vprintL.o	\
+	$(LOBJ)/vrelseL.o	\
+	$(LOBJ)/vremapL.o	\
+	$(LOBJ)/vtopL.o		\
+	$(LOBJ)/vxdivL.o	\
+	$(LOBJ)/vxmulL.o	\
+	$(LOBJ)/vxremL.o	\
+	$(LOBJ)/waitqL.o	\
+	$(LOBJ)/wakeupL.o	\
 
-$(USRSYS)/lib/ldlib.a:	$(GEN_DRV)	\
-			$(LIBOBJ1)	\
-			$(LIBOBJ2)
+$(USRSYS)/lib/ldlib.a:	mkstub.m4 $(LIBOBJ1) $(LIBOBJ2)
 	rm -f  $@
 	ar rc  $@ $(LIBOBJ1)
 	ar rc  $@ $(LIBOBJ2)
 	ranlib $@
 
-#
-# Create the script to create an interface stub to a kernel function.
-#
-$(GEN_DRV):
-	echo ": 'Created by Makefile - do not edit.';\
-	set -e; ENTRY=\`basename \$$1\`;(\
-	echo \".globl \$${ENTRY}_\";\
-	echo \"\$${ENTRY}_: mov ax,\\\\\$$K\$${ENTRY}_\";\
-	echo .byte 0x9A;\
-	echo .word xcalled;\
-	echo .word 0x0060;\
-	echo ret;)>/tmp/\$$\$$.s;\
-	as -gxo /tmp/\$$\$$.o /tmp/\$$\$$.s;\
-	mv /tmp/\$$\$$.o \$$1.o;\
-	rm -f /tmp/\$$\$$.s" > $@
-	chmod +x $@
+# Here is mkstub.m4:
+#define(sym, substr(basename, -2, ))dnl
+#	.globl	sym`_'
+#sym`_':	mov	ax,`$K'sym`_'
+#	.byte	0x9A
+#	.word	xcalled
+#	.word	0x0060
+#	ret
 
-objects/abs.o:
-	$(GEN_DRV) $*
+MKSTUB=	echo "define(basename, `basename $*`)dnl" | m4 - mkstub.m4 > $*.s ;\
+	as -gxo $@ $*.s; rm $*.s
 
-objects/alloc.o:
-	$(GEN_DRV) $*
+$(LOBJ)/absL.o:
+	$(MKSTUB)
 
-objects/bclaim.o:
-	$(GEN_DRV) $*
+$(LOBJ)/allocL.o:
+	$(MKSTUB)
 
-objects/bdone.o:
-	$(GEN_DRV) $*
+$(LOBJ)/bclaimL.o:
+	$(MKSTUB)
 
-objects/blkmv.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/bdoneL.o:
+	$(MKSTUB)
 
-objects/boot.o:
-	$(GEN_DRV) $*
+$(LOBJ)/blkmvL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/bread.o:
-	$(GEN_DRV) $*
+$(LOBJ)/bootL.o:
+	$(MKSTUB)
 
-objects/brelease.o:
-	$(GEN_DRV) $*
+$(LOBJ)/breadL.o:
+	$(MKSTUB)
 
-objects/clockedf.o:	clockedf.c
+$(LOBJ)/breleaseL.o:
+	$(MKSTUB)
+
+$(LOBJ)/clockedfL.o:	clockedf.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/clrivec.o:
-	$(GEN_DRV) $*
+$(LOBJ)/clrivecL.o:
+	$(MKSTUB)
 
-objects/clrq.o:
-	$(GEN_DRV) $*
+$(LOBJ)/clrqL.o:
+	$(MKSTUB)
 
-objects/cs_self.o:	cs_self.s
+$(LOBJ)/cs_selfL.o:	cs_self.s
 	as -gxo $@ $<
 
-objects/dblock.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dblockL.o:
+	$(MKSTUB)
 
-objects/dclose.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dcloseL.o:
+	$(MKSTUB)
 
-objects/defer.o:	defer.s
+$(LOBJ)/deferL.o:	defer.s
 	as -gxo $@ $<
 
-objects/devmsg.o:
-	$(GEN_DRV) $*
+$(LOBJ)/devmsgL.o:
+	$(MKSTUB)
 
-objects/dmago.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dmagoL.o:
+	$(MKSTUB)
 
-objects/dmalock.o:	dmalock.c
+$(LOBJ)/dmalockL.o:	dmalock.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/dmaoff.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dmaoffL.o:
+	$(MKSTUB)
 
-objects/dmaon.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dmaonL.o:
+	$(MKSTUB)
 
-objects/dmareq.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dmareqL.o:
+	$(MKSTUB)
 
-objects/dopen.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dopenL.o:
+	$(MKSTUB)
 
-objects/drvmap.o:
-	$(GEN_DRV) $*
+$(LOBJ)/drvmapL.o:
+	$(MKSTUB)
 
-objects/dwrite.o:
-	$(GEN_DRV) $*
+$(LOBJ)/dwriteL.o:
+	$(MKSTUB)
 
-objects/fclear.o:
-	$(GEN_DRV) $*
+$(LOBJ)/fclearL.o:
+	$(MKSTUB)
 
-objects/fdisk.o:
-	$(GEN_DRV) $*
+$(LOBJ)/fdiskL.o:
+	$(MKSTUB)
 
-objects/ffbyte.o:	ffbyte.s
+$(LOBJ)/ffbyteL.o:	ffbyte.s
 	as -gxo $@ $<
 
-objects/ffword.o:	ffword.s
+$(LOBJ)/ffwordL.o:	ffword.s
 	as -gxo $@ $<
 
-objects/ffmem.o:	ffmem.s
+$(LOBJ)/ffmemL.o:	ffmem.s
 	as -gxo $@ $<
 
-objects/fkcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/fkcopyL.o:
+	$(MKSTUB)
 
-objects/fpxcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/fpxcopyL.o:
+	$(MKSTUB)
 
-objects/free.o:
-	$(GEN_DRV) $*
+$(LOBJ)/freeL.o:
+	$(MKSTUB)
 
-objects/fucopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/fucopyL.o:
+	$(MKSTUB)
 
-objects/getcs.o:	getcs.s
+$(LOBJ)/getcsL.o:	getcs.s
 	as -gxo $@ $<
 
-objects/getq.o:
-	$(GEN_DRV) $*
+$(LOBJ)/getqL.o:
+	$(MKSTUB)
 
-objects/getubd.o:
-	$(GEN_DRV) $*
+$(LOBJ)/getubdL.o:
+	$(MKSTUB)
 
-objects/getuwd.o:
-	$(GEN_DRV) $*
+$(LOBJ)/getuwdL.o:
+	$(MKSTUB)
 
-objects/inb.o:		inb.s
+$(LOBJ)/inbL.o:		inb.s
 	as -gxo $@ $<
 
-objects/int11.o:
-	$(GEN_DRV) $*
+$(LOBJ)/int11L.o:
+	$(MKSTUB)
 
-objects/iogetc.o:
-	$(GEN_DRV) $*
+$(LOBJ)/iogetcL.o:
+	$(MKSTUB)
 
-objects/iomapvp.o:
-	$(GEN_DRV) $*
+$(LOBJ)/iomapvpL.o:
+	$(MKSTUB)
 
-objects/ioputc.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ioputcL.o:
+	$(MKSTUB)
 
-objects/ioread.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ioreadL.o:
+	$(MKSTUB)
 
-objects/ioreq.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ioreqL.o:
+	$(MKSTUB)
 
-objects/iowrite.o:
-	$(GEN_DRV) $*
+$(LOBJ)/iowriteL.o:
+	$(MKSTUB)
 
-objects/ipcaccess.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ipcaccessL.o:
+	$(MKSTUB)
 
-objects/kcall.o:	kcall.s
+$(LOBJ)/kcallL.o:	kcall.s
 	as -gxo $@ $<
 
-objects/kclear.o:
-	$(GEN_DRV) $*
+$(LOBJ)/kclearL.o:
+	$(MKSTUB)
 
-objects/kfcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/kfcopyL.o:
+	$(MKSTUB)
 
-objects/kpcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/kpcopyL.o:
+	$(MKSTUB)
 
-objects/kucopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/kucopyL.o:
+	$(MKSTUB)
 
-objects/lock.o:
-	$(GEN_DRV) $*
+$(LOBJ)/lockL.o:
+	$(MKSTUB)
 
-objects/lxdiv.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/lxdivL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/lxmul.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/lxmulL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/lxrem.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/lxremL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/lxsgn.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/lxsgnL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/memset.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/memsetL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/memtest.o:
-	$(GEN_DRV) $*
+$(LOBJ)/memtestL.o:
+	$(MKSTUB)
 
-objects/nmidisable.o:
-	$(GEN_DRV) $*
+$(LOBJ)/nmidisableL.o:
+	$(MKSTUB)
 
-objects/nmienable.o:
-	$(GEN_DRV) $*
+$(LOBJ)/nmienableL.o:
+	$(MKSTUB)
 
-objects/nondsig.o:
-	$(GEN_DRV) $*
+$(LOBJ)/nondsigL.o:
+	$(MKSTUB)
 
-objects/nonedev.o:	nonedev.c
+$(LOBJ)/nonedevL.o:	nonedev.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/nulldev.o:	nulldev.c
+$(LOBJ)/nulldevL.o:	nulldev.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/outb.o:		outb.s
+$(LOBJ)/outbL.o:		outb.s
 	as -gxo $@ $<
 
-objects/panic.o:
-	$(GEN_DRV) $*
+$(LOBJ)/panicL.o:
+	$(MKSTUB)
 
-objects/pclear.o:
-	$(GEN_DRV) $*
+$(LOBJ)/pclearL.o:
+	$(MKSTUB)
 
-objects/plrcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/plrcopyL.o:
+	$(MKSTUB)
 
-objects/pkcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/pkcopyL.o:
+	$(MKSTUB)
 
-objects/pollopen.o:
-	$(GEN_DRV) $*
+$(LOBJ)/pollopenL.o:
+	$(MKSTUB)
 
-objects/pollwake.o:
-	$(GEN_DRV) $*
+$(LOBJ)/pollwakeL.o:
+	$(MKSTUB)
 
-objects/printf.o:
-	$(GEN_DRV) $*
+$(LOBJ)/printfL.o:
+	$(MKSTUB)
 
-objects/prlcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/prlcopyL.o:
+	$(MKSTUB)
 
-objects/ptov.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ptovL.o:
+	$(MKSTUB)
 
-objects/pucopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/pucopyL.o:
+	$(MKSTUB)
 
-objects/putchar.o:
-	$(GEN_DRV) $*
+$(LOBJ)/putcharL.o:
+	$(MKSTUB)
 
-objects/putq.o:
-	$(GEN_DRV) $*
+$(LOBJ)/putqL.o:
+	$(MKSTUB)
 
-objects/putubd.o:
-	$(GEN_DRV) $*
+$(LOBJ)/putubdL.o:
+	$(MKSTUB)
 
-objects/putuwd.o:
-	$(GEN_DRV) $*
+$(LOBJ)/putuwdL.o:
+	$(MKSTUB)
 
-objects/rucopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/rucopyL.o:
+	$(MKSTUB)
 
-objects/s5_to_sg.o:
-	$(GEN_DRV) $*
+$(LOBJ)/s5_to_sgL.o:
+	$(MKSTUB)
 
-objects/s5_to_tc.o:
-	$(GEN_DRV) $*
+$(LOBJ)/s5_to_tcL.o:
+	$(MKSTUB)
 
-objects/salloc.o:
-	$(GEN_DRV) $*
+$(LOBJ)/sallocL.o:
+	$(MKSTUB)
 
-objects/sclear.o:
-	$(GEN_DRV) $*
+$(LOBJ)/sclearL.o:
+	$(MKSTUB)
 
-objects/sendsig.o:
-	$(GEN_DRV) $*
+$(LOBJ)/sendsigL.o:
+	$(MKSTUB)
 
-objects/setivec.o:	setivec.c
+$(LOBJ)/setivecL.o:	setivec.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/sfree.o:
-	$(GEN_DRV) $*
+$(LOBJ)/sfreeL.o:
+	$(MKSTUB)
 
-objects/sfbyte.o:	sfbyte.s
+$(LOBJ)/sfbyteL.o:	sfbyte.s
 	as -gxo $@ $<
 
-objects/sfword.o:	sfword.s
+$(LOBJ)/sfwordL.o:	sfword.s
 	as -gxo $@ $<
 
-objects/sfmem.o:	sfmem.s
+$(LOBJ)/sfmemL.o:	sfmem.s
 	as -gxo $@ $<
 
-objects/sg_to_s5.o:
-	$(GEN_DRV) $*
+$(LOBJ)/sg_to_s5L.o:
+	$(MKSTUB)
 
-objects/sleep.o:
-	$(GEN_DRV) $*
+$(LOBJ)/sleepL.o:
+	$(MKSTUB)
 
-objects/slrcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/slrcopyL.o:
+	$(MKSTUB)
 
-objects/sphi.o:	sphi.s
+$(LOBJ)/sphiL.o:	sphi.s
 	as -gxo $@ $<
 
-objects/spl.o:	spl.s
+$(LOBJ)/splL.o:	spl.s
 	as -gxo $@ $<
 
-objects/splo.o:	splo.s
+$(LOBJ)/sploL.o:	splo.s
 	as -gxo $@ $<
 
-objects/super.o:
-	$(GEN_DRV) $*
+$(LOBJ)/superL.o:
+	$(MKSTUB)
 
-objects/swapio.o:
-	$(GEN_DRV) $*
+$(LOBJ)/swapioL.o:
+	$(MKSTUB)
 
-objects/tc_to_s5.o:
-	$(GEN_DRV) $*
+$(LOBJ)/tc_to_s5L.o:
+	$(MKSTUB)
 
-objects/timeout.o:	timeout.c
+$(LOBJ)/timeoutL.o:	timeout.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/ttclose.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttcloseL.o:
+	$(MKSTUB)
 
-objects/tthup.o:
-	$(GEN_DRV) $*
+$(LOBJ)/tthupL.o:
+	$(MKSTUB)
 
-objects/ttin.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttinL.o:
+	$(MKSTUB)
 
-objects/ttioctl.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttioctlL.o:
+	$(MKSTUB)
 
-objects/ttopen.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttopenL.o:
+	$(MKSTUB)
 
-objects/ttout.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttoutL.o:
+	$(MKSTUB)
 
-objects/ttpoll.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttpollL.o:
+	$(MKSTUB)
 
-objects/ttread.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttreadL.o:
+	$(MKSTUB)
 
-objects/ttsetgrp.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttsetgrpL.o:
+	$(MKSTUB)
 
-objects/ttsignal.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttsignalL.o:
+	$(MKSTUB)
 
-objects/ttstart.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttstartL.o:
+	$(MKSTUB)
 
-objects/ttwrite.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ttwriteL.o:
+	$(MKSTUB)
 
-objects/uexit.o:
-	$(GEN_DRV) $*
+$(LOBJ)/uexitL.o:
+	$(MKSTUB)
 
-objects/ufcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ufcopyL.o:
+	$(MKSTUB)
 
-objects/ukcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/ukcopyL.o:
+	$(MKSTUB)
 
-objects/unlock.o:
-	$(GEN_DRV) $*
+$(LOBJ)/unlockL.o:
+	$(MKSTUB)
 
-objects/upcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/upcopyL.o:
+	$(MKSTUB)
 
-objects/urcopy.o:
-	$(GEN_DRV) $*
+$(LOBJ)/urcopyL.o:
+	$(MKSTUB)
 
-objects/vprint.o:
-	$(GEN_DRV) $*
+$(LOBJ)/vprintL.o:
+	$(MKSTUB)
 
-objects/vrelse.o:
-	$(GEN_DRV) $*
+$(LOBJ)/vrelseL.o:
+	$(MKSTUB)
 
-objects/vremap.o:
-	$(GEN_DRV) $*
+$(LOBJ)/vremapL.o:
+	$(MKSTUB)
 
-objects/vtop.o:
-	$(GEN_DRV) $*
+$(LOBJ)/vtopL.o:
+	$(MKSTUB)
 
-objects/vxdiv.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/vxdivL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/vxmul.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/vxmulL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/vxrem.o:	/lib/libc.a
-	$(ARX_LIB)
+$(LOBJ)/vxremL.o:	/lib/libc.a
+	$(X_LIB)
 
-objects/waitq.o:
-	$(GEN_DRV) $*
+$(LOBJ)/waitqL.o:
+	$(MKSTUB)
 
-objects/wakeup.o:
-	$(GEN_DRV) $*
+$(LOBJ)/wakeupL.o:
+	$(MKSTUB)
