@@ -1,6 +1,16 @@
 	.llen	132
 	.include	as.inc
-	.set	u,0xFFFFF000
+/
+/ USTART and ESP_START map kernel stack and u area within top 4k page
+/ of virtual space.
+/ See also U_OFFSET in mmu.h
+/
+	.set	USTART,0xFFFFFD00
+	.set	ESP0_START,0xFFFFFD00
+	.set	ESP1_START,0xFFFFFD00
+	.set	u,USTART
+	.set	PSW_VAL,0x1200	/ set system IOPL to 1, enable IRQ
+/	.set	PSW_VAL,0x3200	/ set system IOPL to 3, enable IRQ
 
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -10,8 +20,7 @@
 /	material without the express written authorization of Mark Williams
 /	Company or persuant to the license agreement is unlawful.
 
-/	COHERENT Version 2.3.37
-/	Copyright (c) 1982, 1983, 1984.
+/	Copyright (c) 1982, 1992.
 /	An unpublished work by Mark Williams Company, Chicago.
 /	All rights reserved.
 
@@ -20,6 +29,9 @@
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.10  92/07/27  18:15:43  hal
+/ Kernel #59
+/ 
 / Revision 1.9  92/07/16  16:38:14  hal
 / Kernel #58
 / 
@@ -33,7 +45,7 @@
 
 ///////
 / Machine language assist for
-/ Intel 8086 Coherent. This contains the parts
+/ Intel 80386/80486 Coherent. This contains the parts
 / that are common to all machines as well as the machine-specific code
 / for the IBM PC-386
 
@@ -58,13 +70,10 @@
 / 	must be relocated by -SBASE<<BPCSHIFT for memory reference instructions
 /	to work.
 
-/ Historical note:  under PC-DOS, which thinks that Coherent is just a large
-/ user program, the code is offset by 0x100 to allow space for the base page.
-
 ///////
 
 stext:					/ kernel code starts at stext+0x100
-	.org .+0x100
+	.org .+0x100			/ reserve stack space
 	cli				/ No interrupts, please.
 
 / put up a debugging "!" on the screen.  We can still use the BIOS.
@@ -109,10 +118,10 @@ next:
 	mov	$SEG_386_ID,%eax
 	movw	%ax,%ds
 	movw	%ax,%ss
-	mov	$SEG_386_UD+R_USR,%eax
+	mov	$SEG_386_UD|R_USR,%eax
 	movw	%ax,%es
 	mov	$stext+0x100,%eax	/ 256 byte stack for initialization
-	mov	%eax, %esp
+	mov	%eax,%esp
 
 	push	$'@'			/ Debugging checkpoint:
 	call	chirp			/ protected mode is on
@@ -143,7 +152,6 @@ loc1:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	testb	$2,%al		/ NOTE: A20 not enabled for up to 20 us.
 	loopne	loc2
-
 
 
 / Reprogram the 8253 timer so that channel 0, 
@@ -202,79 +210,92 @@ loc2:	inb	$KBCTRL		/ Wait for 8042 input buffer to empty.
 	jmp	.+2		/ DELAY
 	movb	$0xFF,%al
 	outb	$SPICM		/ Disable interrupts from slave PIC.
+/DEBUG
+/	call	__cinit
 	call	mchinit		/ C initialization
-	mov	%cr0,%eax	/ Enter protected mode.
+	mov	%cr0,%eax	/ Turn on paging
 / use 80000001 to allow FP
 /	or	$0x80000001,%eax
 / use 80000005 to disallow FP
 	or	$0x80000005,%eax
 	mov	%eax,%cr0
-	ljmp	$SEG_386_KI,$loc3	/ clear pipeline; jump far, direct
+	ljmp	$SEG_RNG0_TXT,$loc3	/ clear pipeline; jump far, direct
 
+/
+/ Ring 0 startup code
+/
 loc3:
-	mov	$SEG_386_KD,%eax
+	movw	$SEG_386_KD,%ax
 	movw	%ax,%ds
+	movw	$SEG_RNG0_STK,%ax
 	movw	%ax,%ss
+	movl	$ESP0_START,%esp	/ Stack pointer for init
+	clts				/ Clear task switched flag.
 
 / Call the machine setup code.
 / Call Coherent main.
 / On return, send control off to the user
 / at its entry point.
 
-	movl	$0, %esp		/ Stack pointer for init
-	clts				/ Clear task switched flag.
 	sub	%eax, %eax	/ Load local descriptor table register.
 	lldt	%ax
-	mov	$tss,%eax
+	movw	$tss,%ax
 	movw	%ax,gdt+SEG_TSS+2
-	mov	$SEG_TSS,%eax		/ Load task state segment register.
+	movw	$SEG_TSS,%ax		/ Load task state segment register.
 	ltr	%ax
 	lidt	idtmap			/ Load interrupt descriptor table
 	lgdt	gdtmap
-	mov	$ldt,%eax
+	movw	$ldt,%ax		/ Relocate ldt in gdt
 	movw	%ax,gdt+SEG_LDT+2
-	mov	$SEG_LDT,%eax 
+	movw	$SEG_LDT,%ax 
 	lldt	%ax
+
+	call	i8086			/ i8086() does fixup of tss_sp0
+
+/
+/ Enter Ring 1 kernel from Ring 0
+/
+	push	$SEG_RNG1_STK		/ SS
+	push	$ESP1_START		/ ESP
+	push	$PSW_VAL		/ PSW
+	push	$SEG_RNG1_TXT		/ CS
+	push	$__xmain__		/ IP
+	movw	$SEG_386_KD,%ax		/ DS, ES
+	movw	%ax, %ds		/ Map data segment
+	movw	%ax, %es		/ Map extra segment
+	iret				/ Go to user state.
+
+/
+/ Start of Ring 1 kernel.
+/ Need Ring 1 because interrupts are about to turn on, and all irpt gates
+/ have DPL (descriptor privilege level) 1.
+/
+__xmain__:
 	sti				/ Interrupts on, and
-	call	i8086
-
 	call	main			/ call Coherent mainline.
-
 	cli				/ Interrupts off.
-	push	$SEG_386_UD+R_USR	/ SS
+
+/
+/ Enter User mode from Ring 1 kernel
+/
+	push	$SEG_386_UD|R_USR	/ SS
 	push	$NBPC			/ ESP
-	push	$0x3200			/ 3200!!
-	push	$SEG_386_UI+R_USR	/ CS
+	push	$PSW_VAL		/ PSW
+	push	$SEG_386_UI|R_USR	/ CS
 	push	$0			/ IP
-	mov	$SEG_386_UD+R_USR, %eax	/ DS, ES
+	movw	$SEG_386_UD|R_USR,%ax	/ DS, ES
 	movw	%ax, %ds		/ Map data segment
 	movw	%ax, %es		/ Map extra segment
 	iret				/ Go to user state.
 
 ///////
-
+/
 / Trap and interrupt save.
-/ These routines will be very familiar to any
-/ RSX-11M hackers out there; it is just the ever
-/ common co-routine call. The caller is called back,
-/ with "dx" pointing to the saved "ax" on the stack,
-/ with interrupts enabled. The called routine must
-/ set X_ERR(dx), which was initially the call back address,
-/ to something non zero in the high byte if it does
-/ not want an EOI sent to the 8259.
-
+/
+/ This version of tsave runs from Ring 1 trap/irpt gates.
+/
 ///////
-
-syserr:
-	cli
-	mov	$SEG_386_KD,%eax
-	movw	%ax,%ds
-	mov	%cr2,%eax
-	push	%eax
-	push	$err14
-	call	printf
-	jmp	.
-err14:	.byte	"FAULT %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\n",0
+	.globl	disflag
 
 tsave:					/ What level of interrupt ? 
 	pusha
@@ -285,7 +306,7 @@ tsave:					/ What level of interrupt ?
 
 	mov	$SEG_386_KD,%eax	/ Map ds
 	movw	%ax,%ds
-	mov	$SEG_386_UD+R_USR,%eax	/ Map es
+	mov	$SEG_386_UD|R_USR,%eax	/ Map es
 	movw	%ax,%es			/ to system ds
 
 	sti
@@ -295,21 +316,77 @@ tsave:					/ What level of interrupt ?
 / if got here from user mode or from idle process, call stand()
 / else just do cleanup and return
 
-/ DEBUG!!!
-/	.globl	irqblab
-/	call	irqblab
-/ DEBUG!!!
+	movb	X_ERR+8(%esp),%al	/ trapped CS:  user RPL?
+	andb	$3,%al
+	cmpb	$R_USR,%al
+	je	tsave1a			/ jmp if user mode
+	cmpl	$__idle__,X_ERR+4(%esp)	/ trapped EIP == idle process?
+	jnz	tsave1b			/ Call stand() only if idle
+	movl	$1,disflag
 
-	testl	$3,X_ERR+8(%esp)	/ trapped CS:  user RPL?
-	jnz	loc19			/ jmp if user mode
-	cmpl	$_Idle,X_ERR+4(%esp)	/ trapped EIP == idle process?
-	jnz	loc5			/ Call stand() only if idle
-
-loc19:
+tsave1a:
 	sti
 	call	stand
-loc5:
+tsave1b:
 	cli				/ No more interrupts
+	pop	%gs			/ Restore
+	pop	%fs
+	pop	%es
+	pop	%ds
+	popa
+	add	$8,%esp			/ forget err, trapno
+	iret				/ Done.
+
+/
+/ Here is another version of tsave, called only from the GP vector (RING 0)
+/
+
+tsave0:					/ What level of interrupt ? 
+	pusha
+	push	%ds			/ Save current state
+	push	%es
+	push	%fs
+	push	%gs
+
+	mov	$SEG_386_KD,%eax	/ Map ds
+	movw	%ax,%ds
+	mov	$SEG_386_UD|R_USR,%eax	/ Map es
+	movw	%ax,%es			/ to system ds
+
+	jmp	tsave0b
+
+ //The following lines help find traps during startup.
+
+ 	mov	52(%esp),%eax		/ Print fault code.
+ 	cmpb	$0x40,%al
+ 	je	tsave0b			/ Skip over hardware interrupts.
+ 	push	%eax
+ 	call	print32
+ 	pop	%ecx
+ 
+ 	push	$' '
+ 	call	mchirp
+ 	pop	%ecx
+ 
+ 	mov	56(%esp),%eax		/ Print eip.
+ 	push	%eax
+ 	call	print32
+ 	pop	%ecx
+
+ 	push	$' '
+ 	call	mchirp
+ 	pop	%ecx
+
+ 	push	%esp			/ Print esp.
+ 	call	print32
+ 	pop	%ecx
+ 
+ tsave0a:	jmp	tsave0a
+ tsave0b:
+//
+
+	icall	X_TRAPNO(%esp)		/ and call the caller
+
 	pop	%gs			/ Restore
 	pop	%fs
 	pop	%es
@@ -336,7 +413,7 @@ consave:
 	mov	4(%esp), %edi 		/ di at the MCON block.
 
 	movw	%es,%dx		/ save = setspace(SEG_386_KD) -- should be %edx
-	mov	$SEG_386_KD,%eax
+	movw	$SEG_386_KD,%ax
 	movw	%ax,%es
 
 	cld				/ Ensure increment.
@@ -401,24 +478,27 @@ envrest:
 ///////
 
 conrest:
-	mov	4(%esp),%eax		/ Fetch uarea saddr_t
-	orb	$SEG_SRW,%al
 	mov	8(%esp), %esi		/ Fetch syscon offset
 
 	cli				/ Interrupts on hold
 	cld
 
+	/ Map new u area into linear space and update paging hardware
+
+	mov	4(%esp),%eax		/ Fetch new u area saddr_t
+	orb	$SEG_SRW,%al
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+UADDR
-	mov	$PTABLE0_P<<BPCSHIFT,%eax
+	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
 	mov	%eax,%cr3
-					/ Now restore context
+
+	/ Restore context
 
 	lodsl				/ Restore di
 	mov	%eax,%edi
 	lodsl		 		/ Restore si
 	mov	%eax,%ecx		/ Save for later
 	lodsl				/ Restore bx
-	mov	%eax, %ebx
+	mov	%eax,%ebx
 	lodsl				/ Restore bp
 	mov	%eax,%ebp
 	lodsl				/ Restore sp
@@ -426,6 +506,7 @@ conrest:
 	push	%cs			/ Push current CS
 	lodsl				/ Restore pc
 	push	%eax
+
 	lodsl				/ Restore flags
 	mov	%eax,8(%esp)		/ Stack now in form PSW,CS,IP.
 	mov	%ecx,%esi		/ Restore si
@@ -479,30 +560,40 @@ spl:
 / this will be set up correctly.
 
 ///////
-
-_idle:	sti				/ Interupts on.
-	hlt				/ Wait for an interrupt
-_Idle:
+	.globl	idle
+idle:
+	sti				/ Interupts on.
+__idle__:
+	jmp	__idle__		/ Wait for an interrupt
 	ret				/ and return.
 
 ///////
 
 / The world is indeed grim.
-/ Halt. Keep the interrupts on so that the
+/ Hang. Keep the interrupts on so that the
 / keyboard can get int.
 
 ///////
 
 halt:	sti				/ Be safe,
-	hlt				/ and halt.
-	jmp	halt			/ Paranoid, yes sir.
+__halt__
+	jmp	__halt__		/ And hang.
 
 ///////
 
 / Basic port level I/O.
 
+/ Byte I/O (8 bits)
 / int	inb(port);
 / int	outb(port, data);
+
+/ Word I/O (16 bits)
+/ int	inw(port);
+/ int	outw(port, data);
+
+/ Long I/O (32 bits)
+/ int	ind(port);
+/ int	outd(port, data);
 
 ///////
 
@@ -515,6 +606,27 @@ outb:	movl	4(%esp),%edx
 	movl	8(%esp),%eax
 	outb	(%dx)
 	ret
+
+inw:	mov	4(%esp),%edx
+	sub	%eax,%eax
+	inw	(%dx)
+	ret
+
+outw:	movl	4(%esp),%edx
+	movl	8(%esp),%eax
+	outw	(%dx)
+	ret
+
+inl:	mov	4(%esp),%edx
+	sub	%eax,%eax
+	inl	(%dx)
+	ret
+
+outl:	movl	4(%esp),%edx
+	movl	8(%esp),%eax
+	outl	(%dx)
+	ret
+
 ///////
 
 / AT Hard Disk Assembler Support
@@ -572,7 +684,7 @@ atsend:
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-	mov	%eax,%cr3
+	mov	%eax,%cr3		/ mmuupd()
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
@@ -617,7 +729,7 @@ atrecv:
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK0
-	mov	%eax,%cr3
+	mov	%eax,%cr3		/ mmuupd()
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
@@ -638,7 +750,7 @@ mmuupd:
 	mov	%eax,%cr3
 	jmp	.+2		/ DELAY
 	jmp	.+2		/ DELAY
-	mov	%cr2,%eax
+/	mov	%cr2,%eax
 	ret
 ///////
 
@@ -667,6 +779,18 @@ setspace:
 	movl	4(%edx),%edx
 	movw	%dx,%es
 	ret
+
+/////////////////////////
+/
+/ From __xtrap_on__ to __xtrap_off__, GP fault and page fault will not
+/ cause panic.  Normally, these two traps coming from kernel text result
+/ in panic.
+/
+/////////////////////////
+	.globl	__xtrap_on__
+	.globl	__xtrap_break__
+	.globl	__xtrap_off__
+__xtrap_on__:
 
 ///////
 
@@ -767,8 +891,8 @@ putuwd:
 
 putubd:
 	call	start_copy
-	mov	8(%edx),%eax
-	mov	4(%edx),%ecx		/ eax
+	mov	8(%edx),%eax	/ get data
+	mov	4(%edx),%ecx	/ get addr
 	movb	%al,%es:(%ecx)
 	jmp	end_copy
 
@@ -852,10 +976,10 @@ ukcopy:
 	mov	8(%edx),%edi		/ edi
 	mov	12(%edx),%ecx
 
-	movw	%es,%ax
+	push	%ds			/ exchange ds,es
+	movw	%es,%ax			/ don't assume ss=ds
 	movw	%ax,%ds
-	movw	%ss,%ax
-	movw	%ax,%es			/ exchange ds,es
+	pop	%es
 
 	sar	$2,%ecx
 	je	loc8
@@ -1006,7 +1130,7 @@ start_copy:
 	push	%edi
 	push	%ds
 	push	%es
-	lidt	%cs:bdtmap
+/	lidt	%cs:bdtmap
 	ijmp	%eax
 
 ///////
@@ -1016,28 +1140,28 @@ start_copy:
 / a bounds error on a user address.
 
 ///////
-loc10:
+/loc10:
+__xtrap_break__:
+
 	add	$16,%esp		/ pop error code, IP, CS, PSW
-	movb	$EFAULT,%ss:u+U_ERROR	/ Bad parameter error
+/	movb	$EFAULT,%ss:u+U_ERROR	/ Bad parameter error
 	subl	%eax,%eax		/ Didn't copy anything
 
 /	cleanup routine for n-byte copy
 
 end_copy:
-	lidt	%cs:idtmap
+/	lidt	%cs:idtmap
 	pop	%es
 	pop	%ds
 	pop	%edi
 	pop	%esi
 	ret				/ Return
 
-
+__xtrap_off__:				/ See __xtrap_on__ above.
 
 /	the following four routines are used by [386/fakedma.c]
 /	and will disappear when a 386 assembler implementation
 /	is available
-
-
 
 /	clearseg_b(nbytes, vaddr_t p, long fill)	(byte clear)
 /	clearseg_d(nbytes, vaddr_t p, long fill)	(double word clear)
@@ -1197,10 +1321,11 @@ trap0:
 	call	tsave
 	jmp	trap
 
+	.globl	__debug__
 trap1:
 	push	$0x01			/ Single step.
-	call	tsave
-	jmp	trap
+	call	tsave0
+	jmp	__debug__
 
 trap2:
 	push	$0x02			/ Non-maskable interrupt.
@@ -1233,7 +1358,8 @@ trap7:
 	jmp	trap
 
 trap8:
-	pop	%ss:trapcode		/ Get error code from stack [always 0]
+/	pop	%ss:trapcode		/ Get error code from stack [always 0]
+	add	$4,%esp
 	push	$0x08			/ Double Exception detected
 	call	tsave
 	jmp	trap
@@ -1244,31 +1370,36 @@ trap9:
 	jmp	trap
 
 trap10:
-	pop	%ss:trapcode		/ Get error code from stack
+/	pop	%ss:trapcode		/ Get error code from stack
+	add	$4,%esp
 	push	$0x0A			/ Invalid task state segment
 	call	tsave
 	jmp	trap
 
 trap11:
-	pop	%ss:trapcode		/ Get error code from stack
+/	pop	%ss:trapcode		/ Get error code from stack
+	add	$4,%esp
 	push	$0x0B			/ Segment not present
 	call	tsave
 	jmp	trap
 
 trap12:
-	pop	%ss:trapcode		/ Get error code from stack
+/	pop	%ss:trapcode		/ Get error code from stack
+	add	$4,%esp
 	push	$0x0C			/ Stack segment overrun or not present
 	call	tsave
 	jmp	trap
 
 trap13:
-	pop	%ss:trapcode		/ Get error code from stack
+/	pop	%ss:trapcode		/ Get error code from stack
+	add	$4,%esp
 	push	$0x0D			/ General protection
-	call	tsave
+	call	tsave0
 	jmp	trap
 
 trap14:
-	pop	%ss:trapcode		/ Get error code from stack
+/	pop	%ss:trapcode		/ Get error code from stack
+	add	$4,%esp
 	push	$0x0E			/ General protection
 	call	tsave
 	jmp	trap
@@ -1288,7 +1419,7 @@ syc32:
 	push	%eax			/ save %eax
 	pushf				/ modify current flags
 	pop	%eax
-	orw    	$0x3200,%ax		/ set IF=1, IOPL=3 (user) on iret
+	orw    	$PSW_VAL,%ax		/ set IF=1, IOPL=1 (user) on iret
 	mov	%eax,FAKE_EFL(%esp)
 	pop	%eax			/ restore %eax
 	push	$0x20			/ New format system calls.
@@ -1299,7 +1430,7 @@ sig32:
 	push	%eax
 	pushf
 	pop	%eax
-	orw    	$0x3200,%ax
+	orw    	$PSW_VAL,%ax
 	mov	%eax,FAKE_EFL(%esp)
 	pop	%eax
 	push	$0x20			/ New format system calls.
@@ -1375,13 +1506,6 @@ dev11:
 dev12:
 	push	$0x0C40			/ Device 12:
 	call	tsave
-
-/DEBUG
-/	.globl	putchar
-/	pushl	$'!'
-/	call	putchar
-/	add	$4,%esp
-
 	icall	[12<<2]+vecs
 	jmp	eoi2			/ Dismiss interrupt
 
@@ -1414,7 +1538,7 @@ clk:
 	push	$0x0040
 	call	tsave			/ Perform trap save.
 	mov	X_ERR+12(%esp),%eax	/ ECS at tick time
-	and	$3,%eax			/ This will be nonzero iff user mode
+	and	$3,%eax			/ This will be R_USR iff user mode
 	push	%eax
 	mov	X_ERR+12(%esp),%eax	/ EIP at tick time
 	push	%eax
@@ -1562,7 +1686,7 @@ aicodep:
 	sub	$4,%esp			/ Dummy word for exec
 	movl	$59, %eax
 	lcall	$0x7,$0
-	jmp	.			/ This should not return
+	jmp	.			/ Instant page fault if exec failed!
 	.alignoff
 	.align	2
 argl:	.long	0			/ argv[0] = "/etc/init";
@@ -1581,12 +1705,14 @@ sb:
 ///////
 	.alignon
 	.align	4
+	.globl	tss_sp0		/ Use run-time fixup for tss_sp0
+
 tss:				/ Task State Segment.
 tss_lnk:.long	0		/  0: Back link selector to TSS.
-tss_sp0:.long	u+NBPC		/  4: SP for CPL 0.
-tss_ss0:.long	SEG_386_KD	/  8: SS for CPL 0.
-tss_sp1:.long	u+NBPC		/  C: SP for CPL 1.
-tss_ss1:.long	SEG_386_KD	/ 10: SS for CPL 1.
+tss_sp0:.long	ESP0_START	/  4: SP for CPL 0.
+tss_ss0:.long	SEG_RNG0_STK	/  8: SS for CPL 0.
+tss_sp1:.long	ESP1_START	/  C: SP for CPL 1.
+tss_ss1:.long	SEG_RNG1_STK	/ 10: SS for CPL 1.
 tss_sp2:.long	u+NBPC		/ 14: SP for CPL 2.
 tss_ss2:.long	SEG_386_KD	/ 18: SS for CPL 2.
 tss_cr3:.long	PTABLE0_P<<BPCSHIFT / 1C: CR3 (PDBR)
@@ -1844,18 +1970,34 @@ loc17:	inb	(%dx)
 /       Read a byte from the CMOS.  Takes one argument--the
 /       CMOS address to read from as an int; returns the
 /       value read as a char.
+/
+/	int read_cmos(int addr);
 
 read_cmos:
 	push	%esi
 	push	%edi
-        push    %ebp
-        mov     %esp, %ebp
-        movb    16(%ebp), %al	/ Fetch address from stack.
+        movb    12(%esp), %al	/ Fetch address from stack.
         outb    $CMOSA		/ Send address to CMOS.
         jmp     .+2             / DELAY
 	sub	%eax, %eax	/ Zero out everything we don't want.
         inb     $CMOSD		/ Get Value from CMOS into al.
-        pop     %ebp
+	pop	%edi
+	pop	%esi
+        ret                     / Return from read_cmos().
+
+/       Write a byte to the CMOS.
+/
+/	void write_cmos(int addr, int data)
+
+write_cmos:
+	push	%esi
+	push	%edi
+        movb    12(%esp), %al	/ Fetch address from stack.
+        outb    $CMOSA		/ Send address to CMOS.
+        jmp     .+2             / DELAY
+        movb    16(%esp), %al	/ Fetch address from stack.
+        outb     $CMOSD		/ Get Value from CMOS into al.
+        jmp     .+2             / DELAY
 	pop	%edi
 	pop	%esi
         ret                     / Return from read_cmos().
@@ -1990,4 +2132,49 @@ no_fp:
 done_fp:
 	mov	%eax,%cr0
 	popl	%eax
+	ret
+
+	.globl	hal
+hal:
+	push	%esp
+	call	print32
+	add	$4,%esp
+ 
+ 	push	$' '
+ 	call	mchirp
+	add	$4,%esp
+ 
+ 	push	%eax
+	xorl	%eax,%eax
+	movw	%ss,%ax
+	xchgl	%eax,(%esp)
+ 	call	print32
+	add	$4,%esp
+	
+ 	push	$' '
+ 	call	mchirp
+	add	$4,%esp
+ 
+ 	push	%eax
+	xorl	%eax,%eax
+	movw	%cs,%ax
+	xchgl	%eax,(%esp)
+ 	call	print32
+	add	$4,%esp
+	
+ 	push	$' '
+ 	call	mchirp
+	add	$4,%esp
+	ret 
+
+/ return nonzero if paging is turned on
+	.globl	paging
+paging:
+	movl	(%esp),%eax	/ fetch return address
+	cmpl	$SBASE,%eax	/ is it >= unsigned FFC0_0000?
+	jae	paging_yes
+	xorl	%eax,%eax
+	ret
+paging_yes:
+	movl	$1,%eax
 	ret
