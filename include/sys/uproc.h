@@ -12,13 +12,14 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
-#include <sys/dir.h>
+#include <dirent.h>
 #include <sys/io.h>
 #include <sys/proc.h>
 #include <signal.h>
 
 #ifdef _I386
 #include <sys/reg.h>
+#include <ieeefp.h>
 #else
 #include <sys/machine.h>
 #endif
@@ -48,16 +49,16 @@ typedef struct sr {
  *
  * Remember to update UPROC_VERSION whenever you change this struct.
  *
- * UPROC_OFFSET is the byte offset of uproc within segment SIUSERP.
+ * U_OFFSET is the byte offset of uproc within segment SIUSERP.
  * See also the definition of "u" at start of as.s.
  */
-#define UPROC_OFFSET	0xD00
+#define U_OFFSET	0xC00
 #define U_COMM_LEN	10
 
 typedef struct uproc {
 #ifdef _I386
 	/* Magic number UPROC_VERSION identifies this uproc struct.  */
-#define UPROC_VERSION 0x0103
+#define UPROC_VERSION 0x0104
 	unsigned short u_version;	/* Version number for uproc struct */
 #endif /* _I386 */
 	char	 u_error;		/* Error number (must be first) */
@@ -137,6 +138,8 @@ typedef struct uproc {
 	int	*u_regl;
 	int	u_rval2;
 	void	(*u_sigreturn)();
+	struct _fpstate	u_ndpCon;	/* ndp state */
+	int	u_ndpFlags;
 #endif
 } UPROC;
 
