@@ -5,6 +5,10 @@ if [ $USRSYS ]
 then
 if [ $USRSRC ]
 then
+if [ $KOBJ ]
+then
+if [ $LOBJ ]
+then
 HDDR=${1-"at"}
 case $HDDR in
 at)
@@ -57,8 +61,14 @@ echo "New kernel in /coh.$HDDR"
 ls -l /coh.$HDDR
 # the rest is error exits
 else
-echo "Error - USRSRC not defined - (was /usr/src/sys)"
+echo "Error - LOBJ not defined - (e.g. /tmp/lobj)"
 fi
 else
-echo "Error - USRSYS not defined - (was /usr/sys)"
+echo "Error - KOBJ not defined - (e.g. /tmp/kobj)"
+fi
+else
+echo "Error - USRSRC not defined - (e.g. /usr/src/sys)"
+fi
+else
+echo "Error - USRSYS not defined - (e.g. /usr/sys)"
 fi
