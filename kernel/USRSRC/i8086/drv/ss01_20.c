@@ -1,7 +1,10 @@
 /*
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.3	91/03/05  17:03:43	root
+ * Goes thru arbitration (sans IRQ) successfully
+ * 
  */
  
 /*
@@ -34,8 +37,15 @@
 #define RS_BUSY  	0x01
 
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
-#define BUS_RETRIES	100
+#define BUS_RETRIES	10000
+#define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
  
+#if 1
+#define SSTELL(foo)	printf(foo)
+#else
+#define SSTELL(foo)
+#endif
+
 /*
  * Includes.
  */ 
@@ -160,14 +170,25 @@ ssload()
 		return;
 	} else
 		printf("ST0x passed memory test\n");
+		
+#if 1
+{ long x;
 	/*
-	 * Check out Bus Stuff.
-	 *
-	 * First, do ST0x arbitration.
+	 * Reset the SCSI bus.
+	 */
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
+	for (x=0; x<1000000L; x++);
+	sfbyte(ss_csr, 0);
+	for (x=0; x<1000000L; x++);
+}
+#endif	
+	 
+	/*
+	 * Do ST0x arbitration.
 	 */	
-	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
+	sfbyte(ss_csr, WC_ENABLE_PRTY);	/* De-assert SCSI enable bit */
 	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
-	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);	/* Start arbitration */
 
 	for ( i = 0, await_bus = 1; i < BUS_RETRIES; i++) {
 		status = ffbyte(ss_csr);
@@ -179,9 +200,13 @@ ssload()
 		printf("Error - ST0x doesn't complete arbitration\n");
 		return;
 	}
-	
+SSTELL("Arbitration complete\n");
+
+	/*
+	 * Arbitration complete.  Now select, with ATN to allow messages.
+	 */
 	sfbyte(ss_dat, HOST_ID | 1);	/* Write two SCSI id's to port */
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SELECT);
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SELECT | WC_ENABLE_PRTY);
 	
 	for ( i = 0, await_bus = 1; i < BUS_RETRIES; i++) {
 		status = ffbyte(ss_csr);
@@ -192,9 +217,45 @@ ssload()
 	if (await_bus) {
 		printf("Error - ST0x drive doesn't assert BUSY\n");
 		return;
-	} else
-		printf("Arbitration phase succeeded.\n");
+	}
 
+	/*
+	 * Send "Identify" Message with Disconnect allowed.
+	 */	
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
+	for ( i = 0, await_bus = 1; i < BUS_RETRIES; i++) {
+		status = ffbyte(ss_csr);
+		if (status & (RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) ==
+			(RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)) {
+			await_bus = 0;
+		}
+		if (status & (RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE))
+			break;
+	}
+SSTELL("status=%x\n");	
+	if (await_bus) {
+		printf("Error - ST0x didn't enter MSG out\n");
+		return;
+	}
+SSTELL("MSG out phase entered.\n");
+
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
+	sfbyte(ss_dat, MSG_IDENT_DC);
+SSTELL("Identify MSG sent\n");
+
+	for ( i = 0, await_bus = 1; i < BUS_RETRIES; i++) {
+		status = ffbyte(ss_csr);
+		if (status & RS_REQUEST) {
+			await_bus = 0;
+		}
+	}
+SSTELL("status=%x\n");	
+	if (await_bus) {
+		printf("Error - ST0x didn't REQ after Identify msg\n");
+		return;
+	}
+SSTELL("REQ hanging\n");
+	
 	/*
 	 * Initialize Drive Size.
 	 */
