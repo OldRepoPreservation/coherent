@@ -110,6 +110,7 @@ extern int getclose();
 extern daddr_t balloc();
 extern ino_t ialloc();
 extern char *bcache();
+extern char *realloc(); 	/* February 28, 1990. vlad. */
 
 time_t	time();
 char	*xmalloc();
@@ -199,7 +200,7 @@ char *argv[];
 	 * prototype description.
 	 */
 	if (argc != 3)
-		return eusage();
+		return   eusage();
 	special = argv[1];
 	if ( ! unnatural(argv[2])) {
 		P.p_fsize = argv[2];
@@ -829,7 +830,7 @@ putilist()
 
 	clear(&din, sizeof(din));
 	for (inum = BADFIN; inum <= nino; inum += 1) {
-		if (bad(inodeb(inum))) {
+		if (bad((daddr_t)inodeb(inum))) {
 			inum += INOPB;
 			continue;
 		}
@@ -935,6 +936,7 @@ struct xnode *xp;
 		return eignore("size of %s has changed", xp->x_name);
 	if ((fd = open(xp->x_name, 0)) < 0)
 		return eignore("open %s failed: %s", xp->x_name, syserror);
+fprintf(stderr, "putreg x_name=%s\n", xp->x_name);
 	xexpand(xp);
 	size = xp->x_size;
 	while (size > 0) {
@@ -1685,7 +1687,7 @@ daddr_t b;
 }
 
 #define	MAXINTN	255			/* maptab must be int * if > 255 */
-static char	*maptab;			/* Interleave table */
+static unsigned	char	*maptab;	/* Interleave table */
 static daddr_t	mapbot;
 static daddr_t maptop;
 /*
@@ -1695,7 +1697,7 @@ static daddr_t
 bmap(b)
 daddr_t b;
 {
-	register int i;
+	register short i;
 	register int ints;
 
 	if (maptab == NULL) {
@@ -1704,14 +1706,14 @@ daddr_t b;
 		 || S.s_n%S.s_m != 0)
 			efatal("%d/%d: bad interleave factor", S.s_m, S.s_n);
 		maptab = xmalloc(S.s_n);
-		mapbot = (S.s_isize+S.s_n-1)/S.s_n*S.s_n;
-		maptop = S.s_fsize/S.s_n*S.s_n;
-		ints = S.s_n/S.s_m;
-		for (i=0; i<S.s_n; i++)
-			maptab[i] = (i/ints) + (i%ints)*S.s_m;
+		mapbot = ((S.s_isize + S.s_n - 1) / S.s_n) * S.s_n;
+		maptop = (S.s_fsize / S.s_n) * S.s_n;
+		ints = S.s_n / S.s_m;
+		for (i=0; i < S.s_n; i++)
+			maptab[i] = (i / ints) + (i % ints) * S.s_m;
 	}
-	if (b>=mapbot && b<maptop) {
-		i = ((unsigned)b)%S.s_n;
+	if (b >= mapbot && b < maptop) {
+		i = b % S.s_n;
 		b -= i;
 		b += maptab[i];
 	}
