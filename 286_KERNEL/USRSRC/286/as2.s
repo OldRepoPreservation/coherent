@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/ibm_at/RCS/as2.s,v 1.3 88/08/05 15:37:32 src Exp $
+/ $Header: /usr/src/sys/i286/RCS/as2.s,v 1.3 92/01/21 16:10:37 hal Exp $
 /
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -18,7 +18,14 @@
 / Machine language assist for
 / Coherent on the IBM personal computer.
 /
-/ $Log:	/usr/src/sys/i8086/ibm_at/RCS/as2.s,v $
+/ $Log:	as2.s,v $
+/ Revision 1.3  92/01/21  16:10:37  hal
+/ Use read_cmos_ routine.
+/ Allows merged 386 C code compatibility.
+/ 
+/ Revision 1.2  91/06/06  18:14:46  norm
+/ Get memory size by reading CMOS.
+
 / Revision 1.3	88/08/05  15:37:32	src
 / AMD 286 hardware specific fixes removed - hardware now correct.
 / Virtual Selector F000 initialized to access ROM at F0000.
@@ -534,21 +541,19 @@ UPASIZE	=	1024			/ Size of uproc and stack
 					/
 					/ Register usage:
 					/ DX:AX = extended mem physical addr.
-					/ BX = 0.
+					/ BX = scratch, then 0.
 					/ SI = selector into extended memory.
 					/ ES = selector into extended memory.
 					/ DS = selector into global descr table
 					/
-	movb	al, $EXTMEMH		/ high byte of pair
-	outb	CMOSA, al		/ to CMOS memory port
-	jmp	.+2			/ DELAY
-	inb	al, CMOSD		/ get value from CMOS
-	xchgb	ah, al
-	jmp	.+2			/ DELAY
-	movb	al, $EXTMEML		/ low byte of pair
-	outb	CMOSA, al		/ to CMOS memory port
-	jmp	.+2			/ DELAY
-	inb	al, CMOSD		/ get rest of pair from CMOS
+	push	$EXTMEMH		/ high byte of pair
+	call	read_cmos_		/ result in ax
+	add	sp, $2			/ pop argument
+	movb	bl, al			/ save al to bl
+	push	$EXTMEML		/ low byte of pair
+	call	read_cmos_		/ result in ax
+	add	sp, $2			/ pop argument
+	movb	ah, bl			/ restore high byte to ah
 	shr	ax, $6			/ K -> 64K conversion
 	add	ax, $0x0010		/ bias up to 1MB
 	mov	CMOSmax_, ax		/ save count of 64K hunks
@@ -1264,6 +1269,27 @@ kuerr:
 	movb	(bx),$EFAULT		/ Bad parameter error
 	sub	ax,ax			/ Didn't copy anything
 	ret				/ Return
+
+////////
+/       Read a byte from the CMOS.  Takes one argument--the
+/       CMOS address to read from as an int; returns the
+/       value read in ax.
+/
+/	int read_cmos(addr)
+/	int addr;
+/
+////////
+        .globl	read_cmos_
+read_cmos_:
+        push    bp
+        mov     bp, sp
+        movb    al, 4(bp)	/ Fetch address from stack.
+        outb    CMOSA, al	/ Send address to CMOS.
+        jmp     .+2             / DELAY
+	sub	ax, ax		/ Zero out everything we don't want.
+        inb     al, CMOSD	/ Get Value from CMOS into al.
+        pop     bp
+        ret                     / Return from read_cmos().
 
 ////////
 /
