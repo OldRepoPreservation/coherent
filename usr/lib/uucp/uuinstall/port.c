@@ -3,8 +3,6 @@
  *		dialers; viewing or deleting an existing entry.
  */
 
-#include <stdio.h>
-#include <fcntl.h>
 #include "uuinstall.h"
 
 char names[MAXENTRIES][15];	/* array of port names read */

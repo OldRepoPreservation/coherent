@@ -28,6 +28,9 @@
 **	The routine winsch().
 **
 ** $Log:	lib_insch.c,v $
+ * Revision 1.11  93/04/12  14:13:44  bin
+ * Udo: third color update
+ * 
  * Revision 1.5  92/06/02  12:05:16  bin
  * *** empty log message ***
  * 
@@ -48,7 +51,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_insch.c,v 1.5 92/06/02 12:05:16 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_insch.c,v 1.11 93/04/12 14:13:44 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

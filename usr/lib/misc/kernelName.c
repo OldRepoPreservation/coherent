@@ -1,7 +1,11 @@
-#define KERNEL
-#include <sys/typed.h>
+#define __KERNEL__ 1
+#include <kernel/typed.h>
 #undef KERNEL
 #include <fcntl.h>
+
+#ifndef T_NULL
+#define T_NULL ((char *)0)
+#endif
 
 /*
  * Return name of current kernel.

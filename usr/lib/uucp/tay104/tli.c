@@ -26,7 +26,7 @@
 #include "uucp.h"
 
 #if USE_RCS_ID
-const char tli_rcsid[] = "$Id: tli.c,v 1.8 1993/01/24 00:46:53 ian Rel $";
+const char tli_rcsid[] = "$Id: tli.c,v 1.1 93/07/30 07:54:19 bin Exp Locker: bin $";
 #endif
 
 #if HAVE_TLI

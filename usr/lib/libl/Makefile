@@ -1,6 +1,6 @@
 # /usr/src/libl/Makefile 2/14/92
 
-DESTDIR=/interim/usr/lib/
+DESTDIR386=/bin386/usr/lib/
 
 OBJ=\
 	auto.o \
@@ -18,8 +18,9 @@ OBJ=\
 	wrap.o
 
 # Primary target.
-libl.a:	$(OBJ)
-	$(AR) rckus $(DESTDIR)$@ $?
+
+libl386.a:	$(OBJ)
+	$(AR) rckus $(DESTDIR386)libl.a $?
 
 # Secondary targets.
 auto.o:		auto.c lexlib.h lextype.h

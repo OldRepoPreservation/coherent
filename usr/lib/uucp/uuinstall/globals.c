@@ -1,8 +1,5 @@
 /* globals.c: these are our global variable, structs, file pointers... */
 
-#include <stdio.h>
-#include <curses.h>
-#include <fcntl.h>
 #include "uuinstall.h"
 
 char names[MAXENTRIES][15];	/* array of port names read */
@@ -59,3 +56,15 @@ char sysprot[15];
 char syscmds[87];
 char sysread[87];
 char syswrite[87];
+
+/* color related variables */
+short use_colors;		/* flag to use colors */
+
+int mainfore;			/* main menu colors */
+int mainback;
+int actfore;			/* action menu colors */
+int actback;
+int selfore;			/* select screen colors */
+int selback;
+int helpfore;			/* help message colors */
+int helpback;

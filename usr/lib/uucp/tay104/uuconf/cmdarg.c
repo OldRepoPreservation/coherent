@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_cmdarg_rcsid[] = "$Id: cmdarg.c,v 1.3 1992/10/03 15:10:20 ian Rel $";
+const char _uuconf_cmdarg_rcsid[] = "$Id: cmdarg.c,v 1.1 93/07/30 08:07:04 bin Exp Locker: bin $";
 #endif
 
 #include <ctype.h>

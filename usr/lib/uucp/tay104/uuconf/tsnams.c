@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_tsnams_rcsid[] = "$Id: tsnams.c,v 1.2 1992/06/15 18:40:43 ian Rel $";
+const char _uuconf_tsnams_rcsid[] = "$Id: tsnams.c,v 1.1 93/07/30 08:08:09 bin Exp Locker: bin $";
 #endif
 
 /* Get all the system names from the Taylor UUCP configuration files.

@@ -1,5 +1,5 @@
-# RCSid: $Header:   RCS/Makefile.v  Revision 2.3  91/12/07  20:09:50  munk  Exp$
-
+# RCSid: $Header: /src386/usr/bin/tic/RCS/Makefile,v 1.1 92/03/13 10:45:36 bin Exp $
+DESTDIR=/bin386/usr/bin/
 SRCDIR= /usr/lib/terminfo
 CFLAGS= -A -O -DSRCDIR='"$(SRCDIR)"'
 LIB=/usr/lib
@@ -15,7 +15,7 @@ all:	tic
 	@echo "all done"
 
 tic: $(COMPOBJS)
-	cc -o tic $(COMPOBJS)
+	cc -o $(DESTDIR)tic $(COMPOBJS)
 
 comp_captab.c: Caps MKcaptab.awk
 	awk -f `srcpath MKcaptab.awk` Caps > comp_captab.c

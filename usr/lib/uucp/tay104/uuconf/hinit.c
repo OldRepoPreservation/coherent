@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_hinit_rcsid[] = "$Id: hinit.c,v 1.4 1992/09/16 06:19:29 ian Rel $";
+const char _uuconf_hinit_rcsid[] = "$Id: hinit.c,v 1.1 93/07/30 08:07:14 bin Exp Locker: bin $";
 #endif
 
 #include <errno.h>

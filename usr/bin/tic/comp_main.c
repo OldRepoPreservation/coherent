@@ -25,7 +25,10 @@
 /*
  *	comp_main.c --- Main program for terminfo compiler
  *
- *  $Log:	RCS/comp_main.v $
+ *  $Log:	comp_main.c,v $
+ * Revision 1.1  92/03/13  10:45:42  bin
+ * Initial revision
+ * 
  * Revision 2.1  82/10/25  14:45:37  pavel
  * Added Copyright Notice
  * 
@@ -46,7 +49,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/comp_main.v  Revision 2.1  82/10/25  14:45:37  pavel  Exp$";
+	"$Header: /src386/usr/bin/tic/RCS/comp_main.c,v 1.1 92/03/13 10:45:42 bin Exp $";
 #endif
 
 #include <sys/types.h>

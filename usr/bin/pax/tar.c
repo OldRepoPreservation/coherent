@@ -1,4 +1,4 @@
-/* $Source: /usr/local/src/pax/tar.c,v $
+/* $Source: /src386/usr/bin/pax/RCS/tar.c,v $
  *
  * $Revision: 1.2 $
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/tar.c,v $
+ * $Log:	tar.c,v $
+ * Revision 1.2  92/09/04  07:36:25  bin
+ * vlad bug fixes
+ * 
  * Revision 1.1  89/02/14  16:48:49  jep
  * Initial revision
  * 
@@ -39,7 +42,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: tar.c,v 1.2 89/02/12 10:06:05 mark Exp $";
+static char *ident = "$Id: tar.c,v 1.2 92/09/04 07:36:25 bin Exp Locker: bin $";
 static char *copyright ="Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.";
 #endif /* not lint */
 
@@ -118,7 +121,7 @@ char          **argv;		/* argument list (argv from main) */
     blocking = 0;
     ar_interface = TAR;
     ar_format = TAR;
-    msgfile=stdout;	/* VLAD */
+    msgfile=stderr;	/* VLAD */
 
     /* Parse options */
     while ((c = taropt(argc, argv, "b:cf:hlmortuvwx")) != EOF) {

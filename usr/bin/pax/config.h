@@ -1,4 +1,4 @@
-/* $Source: /usr/local/src/pax/config.h,v $
+/* $Source: /src386/usr/bin/pax/config.h,v $
  *
  * $Revision: 1.1 $
  *

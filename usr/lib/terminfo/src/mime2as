@@ -1,7 +1,0 @@
-mime2as,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=\EL, el=\EK, 
-	ed=\EJ$<20*>, cup=\E=%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=^^, 
-	cub1=^H, cuf1=^L, cuu1=\EI, dch1=\ED, dl1=^W$<20*>, smir=\EE, 
-	smso=\E:, smul=\E6, rmir=^Z, rmso=\E;, rmul=\E7, is2=\E), 
-	il1=^A$<20*>, ip=$<2>, kcud1=^J, kcub1=^H, kcuf1=^L, kcuu1=^K, 
-	ind=^J, ri=\EI, 

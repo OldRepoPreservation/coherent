@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_errstr_rcsid[] = "$Id: errstr.c,v 1.2 1992/06/15 18:40:43 ian Rel $";
+const char _uuconf_errstr_rcsid[] = "$Id: errstr.c,v 1.1 93/07/30 08:07:09 bin Exp Locker: bin $";
 #endif
 
 static char *zeprint_num P((char *zbuf, size_t cbuf, int ival));

@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_diacod_rcsid[] = "$Id: diacod.c,v 1.5 1993/01/01 16:49:10 ian Rel $";
+const char _uuconf_diacod_rcsid[] = "$Id: diacod.c,v 1.1 93/07/30 08:07:07 bin Exp Locker: bin $";
 #endif
 
 #include <errno.h>

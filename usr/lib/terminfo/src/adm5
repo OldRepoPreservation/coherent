@@ -1,5 +1,0 @@
-adm5|lsi adm5,
-	am, cols#80, lines#24, xmc#1, bel=^G, cr=^M, clear=^Z$<1>, el=\ET, 
-	ed=\EY, cup=\E=%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=^^, cub1=^H, 
-	cuf1=^L, cuu1=^K, smso=\EG, rmso=\EG, kbs=^H, kcud1=^J, khome=^^, 
-	kcub1=^H, kcuf1=^L, kcuu1=^K, ind=^J, 

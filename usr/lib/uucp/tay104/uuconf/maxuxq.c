@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_maxuxq_rcsid[] = "$Id: maxuxq.c,v 1.3 1992/06/15 18:40:43 ian Rel $";
+const char _uuconf_maxuxq_rcsid[] = "$Id: maxuxq.c,v 1.1 93/07/30 08:07:25 bin Exp Locker: bin $";
 #endif
 
 /* Get the maximum number of simultaneous uuxqt executions.  When

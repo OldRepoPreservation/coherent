@@ -1,4 +1,4 @@
-/* $Source: /usr/local/src/pax/ttyio.c,v $
+/* $Source: /src386/usr/bin/pax/RCS/ttyio.c,v $
  *
  * $Revision: 1.2 $
  *
@@ -30,7 +30,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/ttyio.c,v $
+ * $Log:	ttyio.c,v $
+ * Revision 1.2  92/09/04  07:36:33  bin
+ * vlad bug fixes
+ * 
  * Revision 1.1  89/02/14  16:48:50  jep
  * Initial revision
  * 
@@ -40,7 +43,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: ttyio.c,v 1.2 89/02/12 10:06:11 mark Exp $";
+static char *ident = "$Id: ttyio.c,v 1.2 92/09/04 07:36:33 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

@@ -3,7 +3,11 @@
  *
  * Purpose:	recording proces
  *
- * $Log$
+ * $Log:	recorder.c,v $
+ * Revision 1.3  93/02/04  12:02:49  bin
+ * hal: changed from sys/fcntl.h to fcntl.h in getps* , changed from execvp
+ * to execvpe in recorder.c
+ * 
  */
 
 /*

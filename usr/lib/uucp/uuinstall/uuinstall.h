@@ -71,3 +71,15 @@ extern char syswrite[];
 extern char * get_data();
 
 
+/* color related stuff */
+
+extern short use_colors;		/* flag to use colors */
+
+extern int mainfore;			/* main menu colors */
+extern int mainback;
+extern int actfore;			/* action menu colors */
+extern int actback;
+extern int selfore;			/* select screen colors */
+extern int selback;
+extern int helpfore;			/* help message colors */
+extern int helpback;

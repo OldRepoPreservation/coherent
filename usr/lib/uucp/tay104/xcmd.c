@@ -26,7 +26,7 @@
 #include "uucp.h"
 
 #if USE_RCS_ID
-const char xcmd_rcsid[] = "$Id: xcmd.c,v 1.9 1993/01/19 05:10:46 ian Rel $";
+const char xcmd_rcsid[] = "$Id: xcmd.c,v 1.1 93/07/30 08:00:19 bin Exp Locker: bin $";
 #endif
 
 #include <errno.h>

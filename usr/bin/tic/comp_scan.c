@@ -25,7 +25,10 @@
 /*
  *	comp_scan.c --- Lexical scanner for terminfo compiler.
  *
- *   $Log:	RCS/comp_scan.v $
+ *   $Log:	comp_scan.c,v $
+ * Revision 1.1  92/03/13  10:45:48  bin
+ * Initial revision
+ * 
  * Revision 2.1  82/10/25  14:45:55  pavel
  * Added Copyright Notice
  * 
@@ -46,7 +49,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/comp_scan.v  Revision 2.1  82/10/25  14:45:55  pavel  Exp$";
+	"$Header: /src386/usr/bin/tic/RCS/comp_scan.c,v 1.1 92/03/13 10:45:48 bin Exp $";
 #endif
 
 #include <stdio.h>

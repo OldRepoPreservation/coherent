@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/limits.h,v $
+/* $Source: /src386/usr/bin/pax/limits.h,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * 	limits.h - POSIX compatible defnitions for some of <limits.h>
  *

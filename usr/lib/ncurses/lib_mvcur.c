@@ -29,6 +29,9 @@
 **	mvcur() and its subroutines
 **
 ** $Log:	lib_mvcur.c,v $
+ * Revision 1.8  93/04/12  14:13:47  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:37:43  bin
  * update by vlad
  * 
@@ -49,7 +52,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_mvcur.c,v 1.2 92/04/13 14:37:43 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_mvcur.c,v 1.8 93/04/12 14:13:47 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"

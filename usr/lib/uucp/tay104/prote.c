@@ -26,7 +26,7 @@
 #include "uucp.h"
 
 #if USE_RCS_ID
-const char prote_rcsid[] = "$Id: prote.c,v 1.15 1992/08/20 02:45:32 ian Rel $";
+const char prote_rcsid[] = "$Id: prote.c,v 1.1 93/07/30 07:53:17 bin Exp Locker: bin $";
 #endif
 
 #include "uudefs.h"

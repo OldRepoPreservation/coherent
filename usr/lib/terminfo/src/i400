@@ -1,5 +1,0 @@
-i400|400|infoton 400,
-	am, cols#80, lines#25, bel=^G, cr=^M, clear=\E[2J, el=\E[N, 
-	cup=\E[%i%p1%3d;%p2%3dH, cud1=^J, cub1=^H, cuf1=\E[C, cuu1=\E[A, 
-	dch1=\E[4h\E[2Q\E[P\E[4l\E[0Q, dl1=\E[M, smir=\E[4h\E[2Q, 
-	rmir=\E[4l\E[0Q, if=/usr/lib/tabset/infoton_tabs, il1=\E[L, ind=^J, 

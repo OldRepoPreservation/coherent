@@ -22,59 +22,15 @@
 *                decvax!cornell!pavel       (UUCPnet)                *
 *********************************************************************/
 
-/*
- *  $Header: /src386/usr/lib/ncurses/RCS/terminfo.h,v 1.2 92/04/13 14:40:21 bin Exp Locker: bin $
- *
- *	terminfo.h - those things needed for programs runnning at the
- *			terminfo level.
- *
- *  $Log:	terminfo.h,v $
- * Revision 2.4  92/11/29  15:42:29  munk
- * Conditional ussage of termio
- *
- * Revision 2.3  92/10/25  22:52:49  munk
- * Now supports 16-bit characters
- * Defines for alternate character set added
- * Attribute bits changed, colors added
- *
- * Revision 1.2  92/04/13  14:40:21  bin
- * *** empty log message ***
- * 
- * Revision 2.2  91/02/10  12:27:05  munk
- * Added conditional 8-bit characters for UNIX on PC's
- * 
- * Revision 2.1  82/10/25  14:49:59  pavel
- * Added Copyright Notice
- * 
- * Revision 2.0  82/10/24  15:18:26  pavel
- * Beta-one Test Release
- * 
- * Revision 1.4  82/08/23  22:31:21  pavel
- * The REAL Alpha-one Release Version
- * 
- * Revision 1.3  82/08/19  19:24:11  pavel
- * Alpha Test Release One
- * 
- * Revision 1.2  82/08/19  19:10:56  pavel
- * Alpha Test Release One
- * 
- * Revision 1.1  82/08/15  16:42:20  pavel
- * Initial revision
- */
-
 #ifndef A_STANDOUT
 
 #include <stdio.h>
-#ifdef USE_TERMIO
+
 #include <termio.h>
 #define DEF_VEOF	CEOF
 #define DEF_VEOL	0
 #define DEF_VMIN	1
 #define DEF_VTIME	0
-#else
-#include <sgtty.h>
-#define SGTTY	struct sgttyb
-#endif
 
 /* Video attributes */
 

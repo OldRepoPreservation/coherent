@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_snams_rcsid[] = "$Id: snams.c,v 1.2 1992/06/15 18:40:43 ian Rel $";
+const char _uuconf_snams_rcsid[] = "$Id: snams.c,v 1.1 93/07/30 08:07:32 bin Exp Locker: bin $";
 #endif
 
 /* Get all known system names.  */

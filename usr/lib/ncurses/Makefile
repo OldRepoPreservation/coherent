@@ -22,9 +22,9 @@
 #                decvax!cornell!pavel       (UUCPnet)                *
 #********************************************************************/
 
-# RCSid: $Header: /src386/usr/lib/ncurses/RCS/Makefile,v 1.2 92/04/13 14:42:19 bin Exp Locker: bin $
-DESTDIR=
-DESTDIR2=
+# RCSid: $Header: /src386/usr/lib/ncurses/RCS/Makefile,v 1.7 93/04/12 14:07:28 bin Exp Locker: bin $
+DESTDIR=/bin386/usr/lib/
+#DESTDIR2=/bin386/usr/bin/
 
 SRCDIR= /usr/lib/terminfo
 LIB=/usr/lib
@@ -35,6 +35,7 @@ INCL=/usr/include
 #	TRACE	compile library with trace function
 #	RCSHDR	compile the RCS headers into the functions
 #
+#CFLAGS= -O -DSRCDIR='"$(SRCDIR)"'
 CFLAGS= -O -DSRCDIR='"$(SRCDIR)"'
 
 SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
@@ -96,7 +97,7 @@ comp_captab.c: Caps MKcaptab.awk
 comp_captab.o: comp_captab.c
 
 captoinfo:	$(CTOIOBJS) libcurses.a
-		cc -s $(CFLAGS) $(CTOIOBJS) -o $(DESTDIR2)captoinfo libcurses.a
+		cc -s $(CFLAGS) $(CTOIOBJS) -o $(DESTDIR2)captoinfo $(DESTDIR)libcurses.a
 
 putinfo.c: Caps infotail.src MKinfo.awk
 	awk -f MKinfo.awk Caps

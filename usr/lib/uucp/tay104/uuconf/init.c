@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_init_rcsid[] = "$Id: init.c,v 1.4 1992/09/24 02:00:32 ian Rel $";
+const char _uuconf_init_rcsid[] = "$Id: init.c,v 1.1 93/07/30 08:07:22 bin Exp Locker: bin $";
 #endif
 
 /* Initialize the UUCP configuration file reading routines.  This is

@@ -26,9 +26,12 @@
  *	compiler.h - Global variables and structures for the terminfo
  *			compiler.
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/compiler.h,v 1.2 92/04/13 14:39:59 bin Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/compiler.h,v 1.7 93/04/12 14:10:47 bin Exp Locker: bin $
  *
  *  $Log:	compiler.h,v $
+ * Revision 1.7  93/04/12  14:10:47  bin
+ * udo: 3rd color update
+ * 
  * Revision 1.2  92/04/13  14:39:59  bin
  * *** empty log message ***
  * 

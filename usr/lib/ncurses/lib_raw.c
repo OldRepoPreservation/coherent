@@ -41,6 +41,9 @@
  *	nocbreak() == crmode()
  *
  *  $Log:	lib_raw.c,v $
+ * Revision 1.8  93/04/12  14:13:59  bin
+ * Udo: third color update
+ * 
  * Revision 2.2  92/11/29  15:37:59  munk
  * Conditional usage of termio
  *
@@ -67,7 +70,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_raw.c,v 1.2 92/04/13 14:38:19 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_raw.c,v 1.8 93/04/12 14:13:59 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

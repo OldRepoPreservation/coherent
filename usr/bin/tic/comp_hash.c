@@ -26,7 +26,10 @@
  *	comp_hash.c --- Routines to deal with the hashtable of capability
  *			names.
  *
- *  $Log:	RCS/comp_hash.v $
+ *  $Log:	comp_hash.c,v $
+ * Revision 1.1  92/03/13  10:45:37  bin
+ * Initial revision
+ * 
  * Revision 2.1  82/10/25  14:45:34  pavel
  * Added Copyright Notice
  * 
@@ -47,7 +50,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/comp_hash.v  Revision 2.1  82/10/25  14:45:34  pavel  Exp$";
+	"$Header: /src386/usr/bin/tic/RCS/comp_hash.c,v 1.1 92/03/13 10:45:37 bin Exp $";
 #endif
 
 #include "compiler.h"

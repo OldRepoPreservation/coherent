@@ -26,7 +26,7 @@
 #include "uucnfi.h"
 
 #if USE_RCS_ID
-const char _uuconf_reliab_rcsid[] = "$Id: reliab.c,v 1.3 1992/07/15 19:08:11 ian Rel $";
+const char _uuconf_reliab_rcsid[] = "$Id: reliab.c,v 1.1 93/07/30 08:07:31 bin Exp Locker: bin $";
 #endif
 
 /* Handle the "seven-bit" command for a port or a dialer.  The pvar

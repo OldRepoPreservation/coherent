@@ -1,3 +1,5 @@
+DESTDIR=/bin386/usr/bin/
+DESTDIR2=/bin386/
 CC=cc
 CFLAGS = -AO -I$(SRCPATH)
 #For the PDP-11, do not bind shared:
@@ -14,10 +16,10 @@ SRCS=ansi.c basic.c buffer.c display.c error.c file.c fileio.c line.c\
 	ed.h Makefile
 
 emacs: $(OBJS)
-	$(CC) $(LDFLAGS) emacs $(OBJS) $(LFLAGS)
+	$(CC) $(LDFLAGS) $(DESTDIR)me $(OBJS) $(LFLAGS)
 
 detab : detab.c
-	$(CC) $<
+	$(CC) -o $(DESTDIR2)$@ $<
 
 install : emacs detab
 	strip $<

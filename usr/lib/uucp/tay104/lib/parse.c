@@ -26,7 +26,7 @@
 #include "uucp.h"
 
 #if USE_RCS_ID
-const char parse_rcsid[] = "$Id: parse.c,v 1.2 1992/10/28 05:25:14 ian Rel $";
+const char parse_rcsid[] = "$Id: parse.c,v 1.1 93/07/30 08:01:05 bin Exp Locker: bin $";
 #endif
 
 #include "uudefs.h"
