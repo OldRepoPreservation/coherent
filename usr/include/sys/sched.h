@@ -86,7 +86,7 @@
 /*
  * Waiting for a pipe.
  */
-#define CVPIPE	0
+#define CVPIPE	256
 #define IVPIPE	0
 #define SVPIPE	0
 

@@ -78,4 +78,25 @@ extern	SEG	segiom;			/* I/O memory segment */
 
 #endif
 
+/*
+ * Open segment structure.
+ */
+typedef struct sr {
+	int	 sr_flag;		/* Flags for this reference */
+	vaddr_t	 sr_base;		/* Virtual address base */
+#ifdef _I386
+	off_t	 sr_size;		/* Mapped in window size */
+#else
+	vaddr_t	 sr_size;		/* Mapped in window size */
+#endif
+	struct	 seg *sr_segp;		/* Segment pointer */
+} SR;
+
+/*
+ * Flags (sr_flag).
+ */
+#define SRFPMAP	1			/* Segment is mapped in process */
+#define SRFDUMP	2			/* Dump segment */
+#define	SRFDATA	4			/* Data segment */
+
 #endif
