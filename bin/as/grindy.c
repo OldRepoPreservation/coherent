@@ -28,7 +28,7 @@ char *id;
 				++ip;
 		} while (c==' ' || c=='\t');
 		if (ctype[c] >= 0)	/* Not LETTER */
-			qerr();
+			qerr("invalid identifier");
 	}
 	p = id;
 	e = p + NCPLN;
