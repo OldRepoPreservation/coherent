@@ -49,7 +49,7 @@ char	*argv[];
 		switch (c) {
 		case 0: /* Not -option; attempt to read file */
 			if (!rdfile(optarg))
-				fatal("can't open %s", optarg);	/**/
+				fatal("Can't open '%s'", optarg); /* NODOC */
 			continue;
 
 		case 'b':
@@ -117,7 +117,7 @@ char	*argv[];
 				if (NULL == lp)
 				   fatal("can't find lib%s.a", optarg); /**/
 				if (!rdfile(lp))
-					fatal("can't open %s", lp);	/**/
+					fatal("can't open '%s'", lp);	/**/
 			}
 				continue;
 
@@ -188,7 +188,7 @@ char	*argv[];
 
 	if (!fileh.f_magic)
 		fatal("no work");
-		/* Argumements did not require any files to be loaded */
+		/* Argumements did not require any files to be loaded. */
 	/*
 	 * all modules have been read
 	 * resolve meanings of various flags
@@ -202,8 +202,8 @@ char	*argv[];
 		 * Requires symbol table be retained
 		 */
 		message("the following symbols are undefined:");
-		/* At least one required symbol was undefined 
-		 *a list follows */
+		/* At least one required symbol was undefined,
+		 * a list follows. */
 		errCount--;
 		for (mp = modhead; mp != NULL; mp = mp->next)
 			for (i = 0; i < mp->nsym; i++)
@@ -223,7 +223,7 @@ char	*argv[];
 	if (errCount)
 		fatal("pass1 %d errors\n", errCount);
 		/* At the end of pass1 there were \fIn\fB errors detected.
-		 * Link stopped here */
+		 * Link stopped here. */
 
 	if (reloc) {
 		nosym = 0;
@@ -266,7 +266,7 @@ char	*argv[];
 	 */
 	if ((ofp = fopen(ofname, "w+")) == NULL)
 		fatal("cannot create %s", ofname);
-		/* Cannot create linker output file */
+		/* Cannot create linker output file. */
 
 	if (!reloc) {
 		stat(ofname, &statbuf);
@@ -513,7 +513,7 @@ baddisk:			fatal("temporary file read error");	/**/
 	fwrite(&fileh, sizeof(fileh), 1, ofp);
 
 	if (fileh.f_flags & F_EXEC) {
-		aouth.magic  = 0x10B;
+		aouth.magic  = Z_MAGIC;
 		aouth.vstamp = 0;
 		aouth.tsize  = oseg[S_TEXT].size;
 		aouth.dsize  = oseg[S_DATA].size;
@@ -536,7 +536,7 @@ baddisk:			fatal("temporary file read error");	/**/
 		fatal("pass2 %d errors", errCount);
 		/* At the end of pass1 there were \fIn\fB errors detected.
 		 * Link stopped before making output executable
-		 * with chmod */
+		 * with chmod. */
 
 	/*
 	 * Make executable if no undefined symbols, and common storage defined.
@@ -720,4 +720,19 @@ char * s;
 	 * Add [undefined] to symbol table.
 	 */
 	addsym(&lds, NULL);
+}
+
+/*
+ * Get space or die.
+ */
+char *
+alloc(n)
+unsigned n;
+{
+	char	*tmp;
+
+	if (NULL == (tmp = malloc(n)))
+		fatal("Out of space");
+		/* A call to malloc failed during a link. */
+	return (memset(tmp, '\0', n));
 }

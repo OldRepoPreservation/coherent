@@ -7,3 +7,5 @@
 /@mpmsg@/s/@mpmsg@/@message@/
 /@filemsg@/s/@/@file %s: /
 /@filemsg@/s/@filemsg@/@message@/
+/[ 	][ 	]*@/s/[ 	][ 	]*@/@/g
+/[ 	][ 	]*$/s/[ 	][ 	]*$//g

@@ -132,8 +132,7 @@ char  * fname;
 		if (arh.ar_name[0])
 			fatal("Library must be created with ar -s option");
 			/* The ar -s option gives librarys a symbol table
-			 * for the use of ld.
-			 */
+			 * for the use of ld. */
 
 		/*
 		 * Perform exhaustive search of random libraries symbol table.
@@ -146,7 +145,7 @@ char  * fname;
 		i = size = count * sizeof(count);
 		if (i != size)
 			fatal("archive %s is corrupt", fname);
-			/* This file makes no sense as a COFF archive */
+			/* This file makes no sense as a COFF archive. */
 		ptrs = alloc(i);
 		buf  = alloc(sz = 16);
 		if (1 != fread(ptrs, i, 1, xfp))
@@ -154,53 +153,56 @@ char  * fname;
 
 		tabpos = ftell(xfp);
 
-rescan:		for (found = i = 0; i < count; i++) {
-			got = 0; /* read symbol */
-			do {
-				if (got >= sz &&
-				    NULL == (buf=realloc(buf,sz+=16)))
-					fatal("out of space");
-					/* A malloc() failed during the link. */
-				buf[got++] = c = fgetc(xfp);
-			} while(c);
+		for (;;) {
+			for (found = i = 0; i < count; i++) {
+				got = 0; /* read symbol */
+				do {
+					if (got >= sz &&
+					    NULL == (buf= realloc(buf, sz += 16)))
+						fatal("out of space");
+						/* NODOC */
+					buf[got++] = c = fgetc(xfp);
+				} while(c);
 
-			if(!ptrs[i] || symref(buf, 0) == NULL)
-				continue;
+				if(!ptrs[i] || symref(buf, 0) == NULL)
+					continue;
 
-			flipbytes(ptrs + i);
-			fseek(ifp, ptrs[i], 0);
-			if (fread(&in_arh, sizeof(in_arh), 1, ifp) != 1)
-				fatal("can't read %s", fname); /* NODOC */
+				flipbytes(ptrs + i);
+				fseek(ifp, ptrs[i], 0);
+				if (fread(&in_arh, sizeof(in_arh), 1, ifp) != 1)
+					fatal("can't read %s", fname); /* NODOC */
 
-			sscanf(in_arh.ar_date,
-				"%ld %d %d %o %ld",
-				&arh.ar_date, &arh.ar_uid,
-				&arh.ar_gid, &arh.ar_mode,
-				&arh.ar_size);
+				sscanf(in_arh.ar_date,
+					"%ld %d %d %o %ld",
+					&arh.ar_date, &arh.ar_uid,
+					&arh.ar_gid, &arh.ar_mode,
+					&arh.ar_size);
 
-			in_arh.ar_date[0] = '\0';
-			if (NULL != (p = strchr(in_arh.ar_name,'/')))
-				*p = '\0';
+				in_arh.ar_date[0] = '\0';
+				if (NULL != (p = strchr(in_arh.ar_name,'/')))
+					*p = '\0';
 
-			found |= addmod(ifp,
-					ptrs[i] + sizeof(coff_arh),
-					fname,
-					in_arh.ar_name,
-					arh.ar_size);
-			ptrs[i] = 0;
-		}
+				found |= addmod(ifp,
+						ptrs[i] + sizeof(coff_arh),
+						fname,
+						in_arh.ar_name,
+						arh.ar_size);
+				ptrs[i] = 0;
+			}
 
-		if (nundef && found) {
-			fseek(xfp, tabpos, 0);
-			goto rescan;
+			if (nundef && found)	/* rescan archive */
+				fseek(xfp, tabpos, 0);
+			else
+				break;		/* done with archive */
 		}
 
 		free(ptrs);
 		free(buf);
 		fclose(xfp);
-		fclose(ifp);
-		return (1);
 	}
+
+	fclose(ifp);
+	return (1);
 }
 
 /*
@@ -550,7 +552,7 @@ char * sysnam;
 	int	i, aux;
 
 	if ( (fp = fopen(sysnam, "r")) == NULL )
-		fatal("can't open %s", sysnam);	/* NODOC */
+		fatal("can't open '%s'", sysnam);	/* NODOC */
 
 	/*
 	 * Allow null input file
