@@ -55,6 +55,8 @@ char *resource;
 #ifdef UUCP
 		printmsg(M_DEBUG, "Can't lock: %s", lockfn);
 #endif /* UUCP */
+		close(lockfd);
+		unlink(lockfn);
 		return( -1 );
 	}
 #ifdef UUCP
@@ -109,7 +111,7 @@ locknrm(resource, pid)
 	int lockfd;	/* pointer to file to read */
 	int chars_read;	/* Number of characters read().  */
 
-	char gotpid[PIDLEN];	/* String value of the PID that should be stored
+	char gotpid[PIDLEN + 1];	/* String value of the PID that should be stored
 			 	 * in the lock file pointed to by *lockfp.
 				 */
 	char lockfn[LOKFLEN];
@@ -129,6 +131,7 @@ locknrm(resource, pid)
 		printmsg(M_DEBUG, "Error opening lock file for PID verify");
 		plog(M_CALL, "Error opening lock file for PID verify");
 #endif /* UUCP */
+		close(lockfd);
 		return(-1);
 	}
 
