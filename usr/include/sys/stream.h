@@ -474,3 +474,221 @@ struct copyreq {
  */
 
 struct copyresp {
+	int		cp_cmd;		/* ioctl command (from cq_cmd) */
+	cred_t	      *	cp_cr;		/* full credentials (from cq_cr) */
+	unsigned int	cp_id;		/* ioctl id (from cq_id) */
+	caddr_t		cp_rval;	/* request status: 0 success, non-zero failure */
+	unsigned int	cp_pad1;	/* reserved */
+	unsigned int	cp_pad2;	/* reserved */
+	mblk_t	      * cp_private;	/* private state information */
+	long		cp_filler [4];	/* reserved for future use */
+};
+
+/* for compatibility with old sources */
+
+#define	cp_uid		cp_cr->cr_uid
+#define	cp_gid		cp_cr->cr_gid
+
+
+/*
+ * LOCAL EXTENSIONS : The methods used in the multiplexing examples in the
+ * STREAMS V.2 manual are slightly inefficient. The following general STREAMS
+ * queue schedling routines were defined for multiplexing drivers and device
+ * drivers (such as Ethernet drivers) that must consume data from several
+ * queues.
+ *
+ * In the STREAMS code supplied, these routines are also used for the main
+ * streams queue scheduling, so we define them here. A consequence of this is
+ * that a given queue may not be queued for both STREAMS execution and
+ * multiplexing at the same time.
+ *
+ * The basic idea is to use qschedule () and qunschedule () to add and remove
+ * a queue from the scheduling list. Lower queues may then getq () from the
+ * "s_head" of the scheduling list to consume the data. Since by default this
+ * will simply attempt to drain each scheduled queue of data before moving to
+ * the next, the muxrobin () call adjusts the head/tail pointers to effect
+ * a round-robin of the queues that have data.
+ */
+
+struct strsched {
+	queue_t		* s_head;	/* next queue to read data from */
+	queue_t		* s_tail;	/* last queue to read data from */
+};
+
+
+/*
+ * Message allocation priorities, used with allocb () and bufcall ()
+ */
+
+enum {
+	BPRI_LO,
+	BPRI_MED,
+	BPRI_HI
+};
+
+
+/*
+ * Flag values used with flushq () and flushband ().
+ */
+
+enum {
+	FLUSHDATA,			/* flush M_DATA, M_PROTO, M_PCPROTO, M_DELAY */
+	FLUSHALL			/* flush all messages from queue */
+};
+
+
+/*
+ * queue field numbers to be used with strqget ()/strqset ().
+ */
+
+typedef enum qfields {
+	QHIWAT		= 0,  		/* q_hiwat or qb_hiwat */
+	QLOWAT  	= 1,		/* q_lowat or qb_lowat */
+	QMAXPSZ		= 2,		/* q_maxpsz */
+	QMINPSZ		= 3, 		/* q_minpsz */
+	QCOUNT		= 4,		/* q_count or qb_count */
+	QFIRST		= 5,		/* q_first or qb_first */
+	QLAST	        = 6,		/* q_last or qb_last */
+	QFLAG		= 7,		/* q_flag or qb_flag */
+	QBAD		= 8
+} qfields_t;
+
+
+/*
+ * External function definitions for the STREAMS library.
+ *
+ * Note that prototypes are also provided for those STREAMS functions that
+ * are available as macros. This is since this header is a more appropriate
+ * place to encode this knowledge than the DDI/DKI required header
+ * <sys/ddi.h>
+ *
+ * The System V Release 4 Multi-Processor DDI/DKI defines some extra versions
+ * of some common STREAMS library functions so that STREAMS driver code does
+ * not reference the q->q_next member, since this may not be safe in a multi-
+ * processor environment. These functions are included in this implementation
+ * and are prototyped below to help device drivers anticipate the multi-
+ * processor environment.
+ */
+
+__EXTERN_C_BEGIN__
+
+int		adjmsg		__PROTO ((mblk_t * _mp, int _len));
+mblk_t	      *	allocb		__PROTO ((int _size, unsigned int _pri));
+queue_t	      *	backq		__PROTO ((queue_t * _q));
+int		bcanput		__PROTO ((queue_t * _q, unsigned char _pri));
+int		bcanputnext	__PROTO ((queue_t * _q, unsigned char _pri));
+/* see <sys/bufcall.h> for a discussion of this declaration for bufcall () */
+#define	__STDARG_BUFCALL__
+toid_t		bufcall		__PROTO ((unsigned int _size, int _pri, ...));
+int		canput		__PROTO ((queue_t * _q));
+int		canputnext	__PROTO ((queue_t * _q));
+mblk_t 	      *	copyb		__PROTO ((mblk_t * _bp));
+mblk_t	      *	copymsg		__PROTO ((mblk_t * _mp));
+int     	datamsg		__PROTO ((unsigned char _type));
+mblk_t	      *	dupb		__PROTO ((mblk_t * _bp));
+mblk_t	      *	dupmsg		__PROTO ((mblk_t * _mp));
+void		enableok	__PROTO ((queue_t * _q));
+mblk_t	      *	esballoc	__PROTO ((unsigned char * _base, int _size,
+					  int _pri, frtn_t * _fr_rtn));
+/* The following assumes __STDARG_BUFCALL__ as above */
+toid_t		esbbcall	__PROTO ((int _pri, ...));
+void		flushband	__PROTO ((queue_t * _q, unsigned char _pri,
+					  int _flag));
+void		flushq		__PROTO ((queue_t * _q, int _flag));
+pl_t		freezestr	__PROTO ((queue_t * _q));
+void		freeb		__PROTO ((mblk_t * _bp));
+void		freemsg		__PROTO ((mblk_t * _mp));
+int	     (*	getadmin	__PROTO ((unsigned short _mid)))
+			__PROTO ((void));
+unsigned short	getmid		__PROTO ((char * _name));
+mblk_t	      *	getq		__PROTO ((queue_t * _q));
+int		insq		__PROTO ((queue_t * _q, mblk_t * _emp,
+					  mblk_t * _nmp));
+void		linkb		__PROTO ((mblk_t * _mp, mblk_t * _bp));
+int		msgdsize	__PROTO ((mblk_t * _mp));
+mblk_t	      *	msgpullup	__PROTO ((mblk_t * _mp, int _len));
+void		noenable	__PROTO ((queue_t * _q));
+queue_t	      *	OTHERQ		__PROTO ((queue_t * _q));
+int		pcmsg		__PROTO ((uchar_t _type));
+int		pullupmsg	__PROTO ((mblk_t * _mp, int _len));
+void		put		__PROTO ((queue_t * _q, mblk_t * _mp));
+int		putbq		__PROTO ((queue_t * _q, mblk_t * _mp));
+int		putctl		__PROTO ((queue_t * _q, int _type));
+int		putctl1		__PROTO ((queue_t * _q, int _type,
+					  int _param));
+int		putnext		__PROTO ((queue_t * _q, mblk_t * _mp));
+int		putnextctl	__PROTO ((queue_t * _q, int _type));
+int		putnextctl1	__PROTO ((queue_t * _q, int _type,
+					  int _param));
+int		putq		__PROTO ((queue_t * _q, mblk_t * _mp));
+void		qenable		__PROTO ((queue_t * _q));
+void		qprocsoff	__PROTO ((queue_t * _rq));
+void		qprocson	__PROTO ((queue_t * _rq));
+void		qreply		__PROTO ((queue_t * _q, mblk_t * _mp));
+int		qsize		__PROTO ((queue_t * _q));
+queue_t	      *	RD		__PROTO ((queue_t * _q));
+mblk_t	      *	rmvb		__PROTO ((mblk_t * _mp, mblk_t * _bp));
+void		rmvq		__PROTO ((queue_t * _q, mblk_t * _mp));
+int		strlog		__PROTO ((short _mid, short _sid, char _level,
+					  unsigned short _flags, char * _fmt,
+					  ...));
+int		strqget		__PROTO ((queue_t * _q, qfields_t _what,
+					  unsigned char _pri, long * _valp));
+int		strqset		__PROTO ((queue_t * _q, qfields_t _what,
+					  unsigned char _pri, long _val));
+int		testb		__PROTO ((int _size, int _pri));
+void		unbufcall	__PROTO ((toid_t _id));
+void		unfreezestr	__PROTO ((queue_t * _q, pl_t _pl));
+mblk_t	      *	unlinkb		__PROTO ((mblk_t * _mp));
+queue_t	      *	WR		__PROTO ((queue_t * _q));
+
+__EXTERN_C_END__
+
+
+/*
+ * Possible values for the stream open flag "sflag" in a module or driver
+ * open (0 implies a normal driver open)
+ */
+
+enum {
+	MODOPEN		= 1,		/* normal module open */
+	CLONEOPEN			/* clone device open */
+};
+
+
+/*
+ * Special value for the two-byte form of the M_ERROR message.
+ */
+
+enum {
+	NOERROR		= 0xFF
+};
+
+
+/*
+ * Functions that are normally implemented as macros (although the function
+ * versions which are prototyped above are available by including the
+ * <sys/ddi.h> header.
+ */
+/*
+ * NB: Borland C++ 3.1 in 'C' mode insists that if a pointer is derived from
+ * a ternary where the arms are calculated from lvalues then dereferencing
+ * that pointer does not yield a valid lvalue, e.g.
+ *	WR (q)->q_ptr = NULL;
+ * it thinks is invalid, which is untrue. To fix this, the pointer value from
+ * the ternary seems to need massaging to turn it into a proper rvalue... the
+ * easiest way to do this is add 0 to the *result* of the ternary. This is
+ * optimized away by basic constant-folding in even simple compilers.
+ */
+
+#define	__HACK(exp)	((exp) + 0)
+
+#define	datamsg(type)	((unsigned char) ((type) & (M_PRI - 1)) <= M_DELAY)
+/* There is no multiprocessor macro implementation of enableok () */
+/* There is no multiprocessor macro implementation of noenable () */
+#define	OTHERQ(q)     __HACK (((q)->q_flag & QREADR) != 0 ? (q) + 1 : (q) - 1)
+#define	pcmsg(type)	((type) >= QPCTL)
+#define	RD(q)	      __HACK (((q)->q_flag & QREADR) != 0 ? (q) : (q) - 1)
+#define	WR(q)	      __HACK (((q)->q_flag & QREADR) != 0 ? (q) + 1 : (q))
+
+#endif /* ! defined (__SYS_STREAM_H__) */
