@@ -1,3 +1,4 @@
+static char _version[]="env version 1.0";
 /*
  * env - execute a command in an environment
  *
