@@ -62,6 +62,33 @@ MEM_SEG	.macro	base,limit,type,dpl,flags
 
 ////
 /
+/ Macro CALL_GATE specifies a call gate descriptor.
+/ selector is 16 bits
+/ offset is 32 bits
+/ dwdcount is 5 bits
+/ dpl is 2 bits
+/
+/ Would like the following, but can't shift offset since it's a symbol.
+/	.value	offset
+/	.value	selector
+/	.value	0x8C00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
+/	.value	[offset] >> 16
+/
+/ IMPORTANT!!!
+/ This macro does not create a proper call gate.  
+/ Count on idtinit() to swap 16-bit words at macro+2, macro+6.
+/
+////
+
+CALL_GATE	.macro	selector,offset,dwdcount,dpl
+
+	.long	offset
+	.value	0x8C00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
+	.value	selector
+	.endm
+
+////
+/
 / "segment xxxx" below gives the value in a segment register corresponding
 / to the given descriptor.  The low 3 bits in a segment register are not
 / used in indexing into the descriptor table.
@@ -128,34 +155,15 @@ gdt:
 
 	/ segment 0088 - SEG_RNG1_STK
 	MEM_SEG	0,0xFFFFE,0x7,DPL_1,0xC
+
+	/ Call gates need idtinit() to fix them before they can be used.
+	.globl	gdtFixBegin
+	.globl	gdtFixEnd
+gdtFixBegin:
+	/ segment 0090 - SEG_MMUUPD - Call gate for mmu update
+	CALL_GATE	SEG_RNG0_TXT,mmuupdfR0,0,DPL_1
+gdtFixEnd:
 gdtend:
-
-////
-/
-/ Macro CALL_GATE specifies a call gate descriptor.
-/ selector is 16 bits
-/ offset is 32 bits
-/ dwdcount is 5 bits
-/ dpl is 2 bits
-/
-/ Would like the following, but can't shift offset since it's a symbol.
-/	.value	offset
-/	.value	selector
-/	.value	0x8C00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
-/	.value	[offset] >> 16
-/
-/ IMPORTANT!!!
-/ This macro does not create a proper call gate.  
-/ Count on idtinit() to swap 16-bit words at macro+2, macro+6.
-/
-////
-
-CALL_GATE	.macro	selector,offset,dwdcount,dpl
-
-	.long	offset
-	.value	0x8C00 | [[dwdcount] & 0x1F] | [[[dpl] & 3] << 13]
-	.value	selector
-	.endm
 
 /	The two entries in the ldt are call gates whose format is somewhat
 /	different from the other segment descriptors
