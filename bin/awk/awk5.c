@@ -291,18 +291,25 @@ STRING asval;
 			i = -1;
 
 	i1 = i;
-	do {
-		if (!*s1 || --i==0)
-			break;
-		while ((c = *s1) && !FSMAP[c])
-			s1++;
-		if (whitesw)
-			while (FSMAP[*s1])
+	if (whitesw) {
+		do {
+			while ((c = *s1) && FSMAP[c])
 				s1++;
-		else
+			if (!c || --i==0)
+				break;
+			while ((c = *s1) && !FSMAP[c])
+				s1++;
+		} while (c);
+	} else {
+		do {
+			if (!*s1 || --i==0)
+				break;
+			while ((c = *s1) && !FSMAP[c])
+				s1++;
 			if (FSMAP[*s1])
 				s1++;
-	} while (c);
+		} while (c);
+	}
 	s2 = s1;
 	nb = sizeof(CHAR);
 	while ((c = *s2++)!='\0' && !FSMAP[c])
@@ -311,36 +318,19 @@ STRING asval;
 	if (asval != NULL) {
 		/*
 		 * An attempt to set an arg past the end.
-		 * i1 is args desired, i is args in line.
 		 */
-		if (!(i = evalint(NFp)))
-			i++;
-
-		if (i1 > i) {
-			int sw;
-
-			/* remove trailing delimeters */
-			for (sw = 1; (--s1 >= inline) && FSMAP[*s1];) {
-				i -= sw;	/* drop field ct */
-				if (whitesw)
-					sw = 0;
-			}
-			if (s1 < inline)
-				i = 1;
-			++s1;
-
-			if (whitesw && ((i1 - i) > 1)) {
+		if(0 < (i1 -= evalint(NFp))) {
+			if (whitesw && (i1 > 1))
 				awkwarn("Assignment to unbuildable field");
-				i1 = i + 1;
-			}
-			iassign(NFp, (INT)i1);
-
-			i1 -= i;
+			/* remove trailing delimeters */
+			while ((--s1 > inline) && FSMAP[*s1])
+				;
+			s2 = ++s1;
 			as = xalloc(strlen(asval) + i1 + 1);
 			strcpy(as + i1, asval);
 			memset(as, FS[0], i1);
 
-			inline = xfield1(inline, s1, as, s1, s1);
+			inline = xfield1(inline, s1, as, s2, s2);
 			free(as);
 			return (snode(inline, 0));
 		}

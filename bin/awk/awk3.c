@@ -74,18 +74,32 @@ register FILE *fp;
 	}
 	*s = '\0';
 	ret = c==EOF && s==as ? NULL : as;
-
-	/* count fields */
-	for (c = *(s = as); c;) {
-		if (whitesw)
-			while ((c = *s) && FSMAP[c])
+	s = as;
+	if (whitesw) {
+		for (;;) {
+			while (FSMAP[c = *s])	/* pass spaces */
 				s++;
-		else
-			if ((c = *s) && FSMAP[*s])
+			if (c == '\0')		/* if end of line no field */
+				break;
+			nf++;
+			while ((c = *s) != '\0' && !FSMAP[c]) /* pass field */
 				s++;
-		nf++;	/* increment at end of delimeter */
-		while ((c = *s) != '\0' && !FSMAP[c]) /* pass field */
-			s++;
+			if (c == '\0')
+				break;
+		}
+	}
+	else if (*s) {
+		for (;;) {
+			nf++;
+			while ((c = *s) != '\0' && !FSMAP[c])
+				s++;
+			if (c == '\0')
+				break;
+			if (FSMAP[c = *s])	/* pass delimeter */
+				s++;
+			if (c == '\0')
+				break;
+		}
 	}
 	iassign(NFp, (INT)nf);
 	return (ret);
