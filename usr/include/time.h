@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	COHERENT Version 4.0.2
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -31,7 +31,7 @@ extern	struct	tm	*gmtime();
 extern	struct	tm	*localtime();
 extern	time_t		time();
 extern	long		timezone;
-extern	char		tzname[2][32];
+extern	char		*tzname[2];
 
 #endif
 
