@@ -121,7 +121,7 @@ static silo_t in_silo;
  */
 int		islock;			/* Keyboard locked flag */
 int		isbusy;			/* Raw input conversion busy */
-static	char	shift;			/* Overall shift state */
+static	short	shift;			/* Overall shift state */
 static	char	scroll;			/* Scroll lock state */
 static  char	lshift = LSHIFT;	/* Left shift alternate state */
 static	char	isfbuf[NFBUF];		/* Function key values */
