@@ -148,7 +148,6 @@ register struct _args *arg;
 		fprintf(fd, "\n	movl	%%edx,%%eax\n");  
 	}
 
-	fprintf(fd,"	orl	%%eax,%%eax\n");
 	fprintf(fd,"	ret\n");
 	fflush(fd);
 	fclose(fd);
