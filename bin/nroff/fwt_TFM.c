@@ -1,7 +1,6 @@
-#define	DEBUG	0
 /*
  * fwt_TFM.c
- * 6/9/91
+ * 3/30/93
  * Build troff font width table from HP TFM file.
  * Reference: Hewlett Packard, "Tagged Font Metric Specification".
  * However, as of 6/7/91, steve has not seen the official spec,
@@ -63,8 +62,8 @@ int	selector;		/* Selector.			*/
 int	slant;			/* Slant.			*/
 int	spacing;		/* Spacing.			*/
 int	stroke_weight;		/* Stroke weight.		*/
-int	*symbol_horiz;		/* Symbol map horizontal esc.	*/
-int	*symbol_set;		/* Symbol set indices.		*/
+short	*symbol_horiz;		/* Symbol map horizontal esc.	*/
+short	*symbol_set;		/* Symbol set indices.		*/
 int	symbol_set_size;	/* Symbol set size.		*/
 int	symset_val;		/* Encoded symbol set value.	*/
 char	*typeface;		/* Typeface name.		*/
@@ -87,21 +86,6 @@ gcd(m, n) long m, n;
 }
 
 /*
- * Read and return an int, observing specified byte order.
- */
-int
-getint()
-{
-	register int c;
-
-	c = getuchar();
-	if (Intel_order)
-		return (getuchar() << 8) | c;
-	else
-		return (c << 8) | getuchar();
-}
-
-/*
  * Read and return a long, observing specified byte order.
  */
 long
@@ -109,11 +93,11 @@ getlong()
 {
 	register int c;
 
-	c = getint();
+	c = getword();
 	if (Intel_order)
-		return (((long)getint()) << 16) | c;
+		return (((long)getword()) << 16) | c;
 	else
-		return (((long)c) << 16) | getint();
+		return (((long)c) << 16) | getword();
 }
 
 /*
@@ -141,6 +125,21 @@ getstring()
 }
 
 /*
+ * Read and return a short (2 bytes), observing specified byte order.
+ */
+int
+getword()
+{
+	register int c;
+
+	c = getuchar();
+	if (Intel_order)
+		return (getuchar() << 8) | c;
+	else
+		return (c << 8) | getuchar();
+}
+
+/*
  * Read TFM file.
  */
 void
@@ -151,13 +150,13 @@ inputTFM()
 	long size, length, curpos, offset;
 
 	/* Read byte order word. */
-	if ((i = getshort()) == INTEL_ORDER)
+	if ((i = getword()) == INTEL_ORDER)
 		++Intel_order;
 	else if (i != MOTOROLA_ORDER)
 		fatal("unknown byte order 0x%x in TFM header", i);
 
 	/* Skip TFM version number. */
-	getshort();
+	getword();
 
 	/* Read typeface offset, warn if not equal to current position. */
 	if ((offset = getlong()) != 8L) {
@@ -166,13 +165,13 @@ inputTFM()
 	}
 
 	/* Read tag count and process tags. */
-	ntags = getint();
+	ntags = getword();
 	dbprintf((stderr, "ntags=%d\n", ntags));
 	for (i = 1; i <= ntags; i++) {
 
 		/* Read tag, type, size; compute length. */
-		tag = getint();
-		type = getint();
+		tag = getword();
+		type = getword();
 		size = getlong();
 		length = size * type_size[type];
 		dbprintf((stderr, "tag=%d type=%d size=%ld length=%ld\n", tag, type, size, length));
@@ -195,8 +194,8 @@ inputTFM()
 		case T_DESIGN_UNITS:	getrational(&design_units);	break;
 		case T_TYPE_STRUCT:	type_structure = getuchar();	break;
 		case T_STROKE_WT:	stroke_weight = getuchar();	break;
-		case T_SPACING:		spacing = getint();		break;
-		case T_SLANT:		slant = getint();		break;
+		case T_SPACING:		spacing = getword();		break;
+		case T_SLANT:		slant = getword();		break;
 		case T_APPEAR_WIDTH:	appear_width = PCL_width(getuchar());
 					break;
 		case T_TYPEFACE:	typeface = newstring(getstring());
@@ -231,14 +230,12 @@ outputTFM()
 		if (width > max)
 			max = width;		
 	}
-	dbprintf((stderr, "max=%d\n", max));
 	mul = (max / 256) + 1;
+	dbprintf((stderr, "max=%d\n", max));
 	dbprintf((stderr, "mul=%d\n", mul));
-
-fprintf(stderr, "mul=%d\n", mul);
-fprintf(stderr, "design_unit: %ld/%ld\n", design_units.r_mul, design_units.r_div);
-fprintf(stderr, "nominal pt:  %ld/%ld\n", nominal_point.r_mul, nominal_point.r_div);
-fprintf(stderr, "point:       %ld/%ld\n", point.r_mul, point.r_div);
+	dbprintf((stderr, "design_unit: %ld/%ld\n", design_units.r_mul, design_units.r_div));
+	dbprintf((stderr, "nominal pt:  %ld/%ld\n", nominal_point.r_mul, nominal_point.r_div));
+	dbprintf((stderr, "point:       %ld/%ld\n", point.r_mul, point.r_div));
 
 	/* A little fuss to convert tag values to PCL values; thanks, HP. */
 	if (vflag)
@@ -246,26 +243,26 @@ fprintf(stderr, "point:       %ld/%ld\n", point.r_mul, point.r_div);
 	fprintf(ofp, "%s %s", typeface, symset);	/* descriptor string */
 	fputc('\0', ofp);		/* NUL-terminated */
 	fputc('\0', ofp);		/* PS name */
-	putint(FLAG_PCL);		/* flags */
-	putint(0);			/* fonttype */
-	putint(0);			/* orientation */
-	putint(spacing == 0);		/* spacing */
-	putint(symset_val);		/* symbol set */
+	putshort(FLAG_PCL);		/* flags */
+	putshort(0);			/* fonttype */
+	putshort(0);			/* orientation */
+	putshort(spacing == 0);		/* spacing */
+	putshort(symset_val);		/* symbol set */
 	if (spacing == 0)
-		putint(0);		/* pitch, proportional */
+		putshort(0);		/* pitch, proportional */
 	else {
 		/* UNTESTED, is this right? */
 		i = (point.r_div * nominal_point.r_div * design_units.r_mul) /
 		    (point.r_mul * nominal_point.r_mul * design_units.r_div * spacing);
-		putint(i);		/* pitch, fixed spacing */
+		putshort(i);		/* pitch, fixed spacing */
 	}
 	i = 10 * nominal_point.r_mul / nominal_point.r_div;
-	putint(i);			/* 10 * pointsize */
-	i = ((type_structure/8) << 5) | (appear_width << 2) | slant;
-	putint(i);			/* style */
+	putshort(i);			/* 10 * pointsize */
+	i = ((type_structure/8) << 5) | (appear_width << 2) | (slant != 0);
+	putshort(i);			/* style */
 	i = (stroke_weight == 0) ? -7 : (stroke_weight-1)/17 - 7;
-	putint(i);			/* weight */
-	putint(selector);		/* face */
+	putshort(i);			/* weight */
+	putshort(selector);		/* face */
 
 	/* Compute multiplier and divisor. */
 #if	0
@@ -285,14 +282,14 @@ fprintf(stderr, "point:       %ld/%ld\n", point.r_mul, point.r_div);
 	lmul = design_units.r_div * mul;
 	ldiv = design_units.r_mul;
 #endif
-fprintf(stderr, "lmul=%ld ldiv=%ld\n", lmul, ldiv);
+	dbprintf((stderr, "lmul=%ld ldiv=%ld\n", lmul, ldiv));
 	if ((g = gcd(lmul, ldiv)) != 1) {
 		lmul /= g;
 		ldiv /= g;
 	}
-fprintf(stderr, "g=%ld lmul=%ld ldiv=%ld\n", g, lmul, ldiv);
-	putint((int)lmul);		/* mul */
-	putint((int)ldiv);		/* div */
+	dbprintf((stderr, "g=%ld lmul=%ld ldiv=%ld\n", g, lmul, ldiv));
+	putshort((int)lmul);		/* mul */
+	putshort((int)ldiv);		/* div */
 
 	/* Write width table. */
 	for (i = 0; i < 256; i++) {
@@ -320,18 +317,18 @@ PCL_width(n) int n;
 }
 
 /*
- * Allocate space for n integers.
+ * Allocate space for n integer words.
  * Read the array of integers and return a pointer to the array.
  */
 int *
 read_array(n) int n;
 {
 	register int i;
-	register int *ip, *p;
+	register short *ip, *p;
 
-	p = ip = alloc(n * sizeof(int));
+	p = ip = alloc(n * sizeof(short));
 	for (i = 0; i < n; i++, ip++) {
-		*ip = getint();
+		*ip = getword();
 #if	0
 		dbprintf((stderr, "index=%d val=%d\n", i, *ip));
 #endif
@@ -349,14 +346,13 @@ read_symbol_set(n) int n;
 	long curpos, offset, symset_seek, symsel_seek;
 	char *s;
 
-fprintf(stderr, "n_symbol_sets=%d\n", n);
 	dbprintf((stderr, "n_symbol_sets=%d\n", n));
 	for (found = i = 0; i < n && !found; i++) {
 		dbprintf((stderr, "symbol set %d: ", i));
 		symset_seek = getlong();
 		symsel_seek = getlong();
 		offset = getlong();
-		symbol_set_size = getint();
+		symbol_set_size = getword();
 		curpos = xtell();
 		xseek(symset_seek);
 		s = getstring();		/* symbol set */
@@ -379,7 +375,7 @@ fprintf(stderr, "n_symbol_sets=%d\n", n);
 	symset_val = atoi(s) * 32 + s[strlen(s)-1] - 64;
 	dbprintf((stderr, "symset_val=%d\n", i));
 	xseek(offset);
-	symbol_set = read_array((long)symbol_set_size);
+	symbol_set = read_array(symbol_set_size);
 }
 
 /*

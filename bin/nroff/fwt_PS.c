@@ -259,19 +259,19 @@ outputPS()
 	 * All but spacing, pitch, ptsize, num, den are zeroed.
 	 * This uses a nominal point size of 10, for no particular reason.
 	 */
-	putint(FLAG_PS);
-	putint(0);
-	putint(0);
-	putint(spacing);		/* spacing */
-	putint(0);
-	putint(44);			/* pitch */
-	putint(100);			/* 10 * ptsize */
-	putint(0);			/* style */
-	putint(0);			/* weight */
-	putint(0);			/* face */
+	putshort(FLAG_PS);
+	putshort(0);
+	putshort(0);
+	putshort(spacing);		/* spacing */
+	putshort(0);
+	putshort(44);			/* pitch */
+	putshort(100);			/* 10 * ptsize */
+	putshort(0);			/* style */
+	putshort(0);			/* weight */
+	putshort(0);			/* face */
 	mul = (maxwidth / 256) + 1;	/* scale factor */
-	putint(mul);			/* mul */
-	putint(1000);			/* div */
+	putshort(mul);			/* mul */
+	putshort(1000);			/* div */
 
 	/* Write width table. */
 	if (cflag) {
