@@ -716,7 +716,7 @@ mkdev()
 	cls(0);
 get_hdc:	
 	if (yes_no(
-"Are you using an AT-type hard drive or compatible (IDE/MFM/RLL/ESDI)")) {
+"Is your hard drive AT-type or compatible (IDE/MFM/RLL/ESDI)")) {
 		hdc = 1;
 		sprintf(cmd, "/etc/mkdev -b%s%s at",
 			(dflag) ? "d" : "",
