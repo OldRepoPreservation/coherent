@@ -362,14 +362,16 @@ char *type;
 		return;
 	if (printed)
 		putchar('\n');
-	prindent("%s:\n", type);
+	if(!oneflag)
+		prindent("%s:\n", type);
 	if (oneflag)
-		npl = 1; else
+		npl = 1;
+	else
 		npl = lwidth/(maxwidth+GAP);
 	ep = list;
 	i = 0;
 	for (ep = list; ep != NULL; ep = ep->e_fp) {
-		if (i == 0) {
+		if (!oneflag && (i == 0)) {
 			printf("%*s", INDENT2, "");
 			prindent("");
 		}
