@@ -1,102 +1,75 @@
 /*
+ * extern.c
  * Nroff/Troff.
  * Global variables.
  */
-#include <stdio.h>
+
 #include "roff.h"
-#include "code.h"
-#include "env.h"
-#include "div.h"
-#include "reg.h"
-#include "str.h"
 
-/*
- * Temp file.
- */
-FILE		*tmp;			/* Temp file pointer */
-unsigned long	tmpseek;		/* Pointer into temp file */
+/* Miscellaneous globals, declared in roff.h. */
+int		A_reg;			/* .A register			*/
+int		a_reg;			/* .a register			*/
+char		*argv0;			/* "nroff" or "troff"		*/
+int		byeflag;		/* True when exiting.		*/
+int		dbglvl;			/* Debug level.			*/
+int		dflag;			/* Debug flag			*/
+char		diskbuf[DBFSIZE];	/* Disk buffer for temp file	*/
+char		endtrap[2];		/* End macro name		*/
+char		esc;			/* Escape character		*/
+int		escflag;		/* Last character was escaped	*/
+int		ifeflag;		/* True in false conditional	*/
+int		lastcon;		/* Last condition of if/else	*/
+int		lflag;			/* Landscape mode		*/
+char		miscbuf[MSCSIZE];	/* Miscellaneous buffer		*/
+int		nbrflag;		/* Don't allow command to break	*/
+unsigned	npn;			/* Next page number		*/
+int		n_reg;			/* .n register			*/
+int		oldpof;			/* Old page offset		*/
+unsigned	pct;			/* Page counter			*/
+int		pflag;			/* Generate PostScript output	*/
+unsigned	pgl;			/* Page length			*/
+int		pof;			/* Page offset			*/
+int		svs;			/* Saved space			*/
+FILE		*tmp;			/* Temp file pointer		*/
+unsigned long	tmpseek;		/* Pointer into temp file	*/
+int		T_reg;			/* .T register			*/
+int		xflag;			/* Suppress page eject on exit	*/
 
-/*
- * Expressions.
- */
-int		experr;			/* Got an error */
-int		expmul;			/* Default unit multiplier */
-int		expdiv;			/* Default unit divisor */
-char		*expp;			/* Pointer in expression */
-
-/*
- * Enviroments.
- */
-ENV		env;			/* Current enviroment */
-int		envstak[EVSSIZE];	/* Enviroment stack */
-int		envs;			/* Enviroment stack index */
-
-/*
- * Process.
- */
-int		nbrflag;		/* Don't allow command to break */
-int		escflag;		/* Last character was escaped */
-
-/*
- * Miscellaneous.
- */
-char		miscbuf[MSCSIZE];	/* Miscellaneous buffer */
-int		pof;			/* Page offset */
-int		oldpof;			/* Old page offset */
-unsigned	pgl;			/* Page length */
-unsigned	pct;			/* Page counter */
-unsigned	npn;			/* Next page number */
-char		esc;			/* Escape character */
-char		endm[2];		/* End macro */
-DIV		*mdivp;			/* Pointer to main diversion */
-DIV		*cdivp;			/* Pointer to diversion stack */
-STR		*strp;			/* Input stack */
-char		lbomsg[]	= "Line buffer overflow";	/* Message for chkcode macro */
-int		curfont,		/* Current font type */
-		curpsz;			/* Current point size */
-int		mapfont[8] = { 'R', 'I', 'B', 'S', 'H', 'L', 0, 0};
-
-/*
- * A null string.
- */
-char		*null 	= "";
-
-/*
- * These should be commented.
- */
+/* Code global, declared in code.h. */
 CODE		codeval;
-int		svs;
-char		endtrap[2];
-int		outflag;
-int		lastcon;
-REG		*regt[RHTSIZE];
-REG		*nrpnreg;		/* Page number register?	*/
-REG		*nrctreg;
-REG		*nrdlreg;
-REG		*nrdnreg;
-REG		*nrdwreg;
-REG		*nrdyreg;
-REG		*nrhpreg;
-REG		*nrlnreg;
-REG		*nrmoreg;
-REG		*nrnlreg;
-REG		*nrsbreg;
-REG		*nrstreg;
-REG		*nryrreg;
-int		envinit[ENVSIZE];
-int		byeflag;
-int		ifeflag;
-int		ntrflag;
-int		debflag;
-char		hyphbuf[WORSIZE];
-char		hletbuf[WORSIZE];
-char		hindbuf[WORSIZE];
-int		d00flag = 0;
-char		diskbuf[DBFSIZE];
-int		antflag = 0;
-int		tntflag = 0;
-extern int	ntroff;			/* Initialized in tty.c */
-int		nrorval;
-int		arorval;
 
-int		dbglvl = 0;		/* Debug level.		*/
+/* Diversion globals, declared in div.h. */
+DIV		*cdivp;			/* Pointer to diversion stack	*/
+DIV		*mdivp;			/* Pointer to main diversion	*/
+
+/* Environment globals, declared in env.h. */
+ENV		env;			/* Current environment		*/
+int		envinit[ENVSIZE];	/* If initialized		*/
+int		envs;			/* Environment stack index	*/
+int		envstak[EVSSIZE];	/* Environment stack		*/
+
+/* Hyphenation globals, declared in hyphen.h. */
+char		hindbuf[WORSIZE];
+char		hletbuf[WORSIZE];
+char		hyphbuf[WORSIZE];
+
+/* Register globals, declared in reg.h. */
+REG		*nrctreg;		/* Character type		*/
+REG		*nrdlreg;		/* Max width of last diversion	*/
+REG		*nrdnreg;		/* Height of last diversion	*/
+REG		*nrdwreg;		/* Day of the week		*/
+REG		*nrdyreg;		/* Day of the month		*/
+REG		*nrhpreg;		/* Current horizontal place	*/
+REG		*nrlnreg;		/* Output line number		*/
+REG		*nrmoreg;		/* Month			*/
+REG		*nrnlreg;		/* Position of last printed line */
+REG		*nrpnreg;		/* Current page number		*/
+REG		*nrsbreg;		/* Depth of string below base	*/
+REG		*nrstreg;		/* Height of string above base	*/
+REG		*nryrreg;		/* Year				*/
+REG		*regt[RHTSIZE];		/* Register hash table		*/
+
+/* Input stack global, declared in str.h. */
+STR		*strp;			/* Input stack			*/
+
+/* end of extern.c */

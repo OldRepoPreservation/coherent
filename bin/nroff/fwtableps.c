@@ -1,0 +1,406 @@
+/*
+ * fwtableps.c
+ * 2/21/91
+ * Usage: fwtableps [ -cv ] [ infile [ outfile ] ]
+ * Options:
+ *	-c	C output instead of binary
+ *	-v	Verbose font description to stderr
+ * Build troff font width table from PostScript AFM file.
+ * Reference: "Adobe Font Metric Files Specification Version 3.0", 3/8/90.
+ *
+ * Untested!
+ */
+
+#include <stdio.h>
+#include <canon.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define	USAGE	"Usage: fwtableps [ -cv ] [ infile [ outfile ] ]\n"
+#define	VERSION	"0.1"
+#define	NBUF	256			/* AFM max line length == 255 */
+#define	NWIDTH	256			/* character width table size */
+
+/*
+ * Recognized keywords.
+ * Most of the AFM file is ignored, recognized keys are listed here.
+ */
+#define	OTHER		0		/* anything other than listed below */
+#define	COMMENT		1
+#define	ENDCHAR		2
+#define	ENDFONT		3
+#define	FONTNAME	4
+#define	FULLNAME	5
+#define	STARTCHAR	6
+#define	STARTFONT	7
+#define	WEIGHT		8
+typedef	struct	key {
+	char	*key_name;
+	int	key_val;
+	size_t	key_len;
+} KEY;
+KEY	keys[] = {
+	"Comment",		COMMENT,	 7,
+	"EndCharMetrics",	ENDCHAR,	14,
+	"EndFontMetrics",	ENDFONT,	14,
+	"FontName",		FONTNAME,	 8,
+	"FullName",		FULLNAME,	 8,
+	"StartCharMetrics",	STARTCHAR,	16,
+	"StartFontMetrics",	STARTFONT,	16,
+	"Weight",		WEIGHT,		 6
+};
+#define	NKEYS	(sizeof keys/sizeof (struct key))
+
+/* Forward. */
+char	*alloc();
+void	character();
+void	charmetrics();
+void	fatal();
+void	input();
+int	lookup();
+char	*newstring();
+void	output();
+void	putint();
+void	usage();
+
+/* Globals. */
+char	buf[NBUF];			/* input buffer			*/
+char	*bufp;				/* buffer pointer		*/
+int	cflag;				/* C output option flag		*/
+int	chartab[NWIDTH];		/* character movement table	*/
+char	*FontName;			/* AFM FontName			*/
+char	*FullName;			/* AFM FullName			*/
+FILE	*ifp = stdin;			/* input FILE			*/
+int	lineno;				/* input line number		*/
+int	maxwidth;			/* maximum character movement	*/
+FILE	*ofp = stdout;			/* output FILE			*/
+int	vflag;				/* verbose			*/
+char	*Weight;			/* AFM Weight			*/
+
+main(argc, argv) int argc; char *argv[];
+{
+	register char *s;
+
+	/* Process command-line options. */
+	if (argc > 1 && argv[1][0] == '-') {
+		for (s = &argv[1][1]; *s; s++) {
+			switch(*s) {
+			case 'c':
+				++cflag;
+				break;
+			case 'v':
+				++vflag;
+				break;
+			case 'V':
+				fprintf(stderr, "fwtableps: V%s\n", VERSION);
+				continue;
+			default:
+				usage();
+			}
+		}
+		--argc;
+		++argv;
+	}
+
+	/* Set up input and output FILEs. */
+	if (argc >= 2 && (ifp = fopen(argv[1], "r")) == NULL)
+		fatal("cannot open input file \"%s\"", argv[1]);
+	if (argc >= 3 && (ofp = fopen(argv[2], "w")) == NULL)
+		fatal("cannot open output file \"%s\"", argv[2]);
+
+	/* Do the work. */
+	input();
+	output();
+
+	/* Close FILEs and exit. */
+	if (ifp != stdin && fclose(ifp) == EOF)
+		fatal("cannot close input file \"%s\"", argv[1]);
+	if (ofp != stdout && fclose(ofp) == EOF)
+		fatal("cannot close output file \"%s\"", argv[2]);
+	exit(0);
+}
+
+/*
+ * Allocate memory, die on failure.
+ */
+char *
+alloc(n) size_t n;
+{
+	register char *s;
+
+	if ((s = malloc(n)) == NULL)
+		fatal("out of space");
+	return s;
+}
+
+/*
+ * Process an AFM file character metric line
+ * and store the character width in the width table.
+ * Very ad hoc.
+ * Understands only "C", "CH", "W", "WX"; everything else is ignored.
+ * Should probably understand "WX0" as well.
+ */
+void
+character()
+{
+	register char *s, *next;
+	int code, width, base;
+
+	code = -2;			/* -1 to 255 are legal */
+	width = -1;
+	for (s = buf; s != NULL; s = next) {
+		if ((next = strchr(s, ';')) != NULL)
+			*next++ = '\0';
+		while(isspace(*s))
+			s++;
+		if (*s == 'C') {
+			++s;
+			if (*s == 'H') {
+				++s;
+				base = 16;
+			} else
+				base = 10;
+			code = (int)strtol(s, NULL, base);
+			if (code < -1 || code >= NWIDTH)
+				fatal("illegal character code %d\n", code);
+		} else if (*s == 'W' && isspace(*(s+1)))
+			width = atoi(s+2);
+		else if (*s == 'W' && *(s+1) == 'X')
+			width = atoi(s+2);
+	}
+	if (code == -2)
+		fatal("missing character code");
+	if (width == -1)
+		fatal("missing character width");
+	if (code != -1) {
+		chartab[code] = width;
+		if (width > maxwidth)
+			maxwidth = width;
+	}
+}
+
+/*
+ * Process the AFM file character metrics section.
+ */
+void
+charmetrics()
+{
+	register int cmsize, nchars;
+
+	cmsize = atoi(bufp);		/* number of chars to expect */
+	nchars = 0;			/* number of chars seen so far */
+	while (fgets(buf, sizeof buf, ifp) != NULL) {
+		++lineno;
+		switch(lookup()) {
+		case COMMENT:
+			continue;
+		case ENDCHAR:
+			if (nchars != cmsize)
+				fprintf(stderr,
+"fwtableps: warning: %d chars in character metrics section, expected %d\n",
+					nchars, cmsize);
+				return;
+		default:
+			++nchars;
+			character();
+			break;
+		}
+	}
+	fatal("missing EndCharMetrics");
+}
+
+/*
+ * Cry and die.
+ */
+/* VARARGS */
+void
+fatal(s) char *s;
+{
+	fprintf(stderr, "fwtableps: ");
+	if (lineno != 0)
+		fprintf(stderr, "%d: ", lineno);
+	fprintf(stderr, "%r\n", &s);
+	exit(1);
+}
+
+/*
+ * Process AFM input file.
+ * Most of the specifications are ignored.
+ */
+void
+input()
+{
+	register int n, flag;
+
+	for (flag = 1; fgets(buf, sizeof buf, ifp) != NULL; ) {
+		++lineno;
+		if ((n = lookup()) == COMMENT)
+			continue;
+		else if (flag) {
+			if (n != STARTFONT)
+				fatal("not an AFM file (no StartFontMetrics)");
+			flag = 0;
+			continue;
+		}
+		switch(n = lookup()) {
+		case OTHER:						break;
+		case ENDCHAR:	fatal("unexpected EndCharMetrics");	break;
+		case ENDFONT:	return;
+		case FONTNAME:	FontName = newstring(bufp);		break;
+		case FULLNAME:	FullName = newstring(bufp);		break;
+		case STARTCHAR:	charmetrics();				break;
+		case STARTFONT:	fatal("unexpected StartFontMetrics");	break;
+		case WEIGHT:	Weight = newstring(bufp);		break;
+		default:	fatal("lookup botch %d", n);		break;
+		}
+	}
+}
+
+/*
+ * See if the line in buf[] starts with a recognized keyword.
+ * If so, set bufp to point past it and return its key_val.
+ * If not, return OTHER.
+ * This does not skip leading whitespace in the line,
+ * if whitespace is legal then it should.
+ */
+int
+lookup()
+{
+	register KEY *kp;
+	register size_t n;
+	char *s;
+
+	if ((s = strrchr(buf, '\n')) != NULL)
+		*s = '\0';			/* zap trailing newline */
+	for (kp = keys; kp < &keys[NKEYS]; kp++) {
+		n = kp->key_len;
+		if (strncmp(buf, kp->key_name, n) == 0) {
+			bufp = buf + n;
+			if (*bufp != '\0') {
+				if (!isspace(*bufp))
+					continue;	/* no match */
+				while (isspace(*bufp))
+					bufp++;		/* skip trailing whitespace */
+			}
+			return kp->key_val;
+		}
+	}
+	return OTHER;
+}
+
+/*
+ * Return pointer to allocated copy of string s.
+ */
+char *
+newstring(s) register char *s;
+{
+	return strcpy(alloc(strlen(s) + 1), s);
+}
+
+/*
+ * Write a font width table for troff.
+ * The following had better agree about the binary FWT format:
+ *	troff/fwtable.c			writes binary FWT from HP PCL
+ *	troff/fwtableps.c		writes binary FWT from PostScript AFM
+ *	troff/fonts.c/loadfont()	reads binary FWT for troff
+ * Most of the fields in the binary FWT are for PCL and are zeroed here.
+ */
+void
+output()
+{
+	register int i, mul;
+	char *fullname;
+
+	if (FontName == NULL)
+		fatal("no FontName specified");
+	fullname = (FullName == NULL) ? FontName : FullName;
+
+	/* Verbose output. */
+	if (vflag) {
+		if (FullName != NULL)
+			fprintf(stderr, "FullName = %s\n", FullName);
+		fprintf(stderr, "FontName = %s\n", FontName);
+		if (Weight != NULL)
+			fprintf(stderr, "Weight = %s\n", Weight);
+	}
+
+	/* Descriptive name. */
+	if (cflag) {
+		fprintf(ofp, "{\n\t\"%s", fullname);
+		if (Weight != NULL)
+			fprintf(ofp, " %s", Weight);
+		fprintf(ofp, "\",\n");
+	} else {
+		fputs(fullname, ofp);
+		if (Weight != NULL) {
+			fputc(' ', ofp);
+			fputs(Weight, ofp);
+		}
+		fputc(0, ofp);
+	}
+
+	/* Font name. */
+	if (cflag)
+		fprintf(ofp, "\t\"%s\",\n", FontName);
+	else {
+		fputs(FontName, ofp);
+		fputc(0, ofp);
+	}
+
+	/*
+	 * Write FWTAB fields.
+	 * All but pitch, ptsize, num, den are zeroed.
+	 * This uses a nominal point size of 10, for no particular reason.
+	 */
+	for (i = 1; i <= 5; i++)
+		putint(0);
+	putint(44);			/* pitch */
+	putint(100);			/* 10 * ptsize */
+	for (i = 1; i <= 3; i++)
+		putint(0);
+	mul = (maxwidth / 256) + 1;	/* scale factor */
+	putint(mul);			/* mul */
+	putint(1000);			/* div */
+
+	/* Write width table. */
+	if (cflag) {
+		fprintf(ofp, "\t{");
+		for (i = 0; i < NWIDTH; i++) {
+			if (i % 8 == 0)
+				fprintf(ofp, "\n\t\t");
+			fprintf(ofp, "%3d, ", chartab[i]/mul);
+		}
+		fprintf(ofp, "\n\t}\n}\n");
+	} else {
+		for (i = 0; i < NWIDTH; i++)
+			fputc(chartab[i]/mul, ofp);
+	}
+}
+
+/*
+ * Write a canonical int.
+ */
+void
+putint(i) int i;
+{
+	if (cflag)
+		fprintf(ofp, "\t%d,\n", i);
+	else {
+		canint(i);
+		if (fwrite(&i, sizeof i, 1, ofp) != 1)
+			fatal("write error");
+	}
+}
+
+/*
+ * Print usage message and die.
+ */
+void
+usage()
+{
+	fprintf(stderr, USAGE);
+	exit(1);
+}
+
+/* end of fwtableps.c */

@@ -1,22 +1,26 @@
 /*
+ * expr.c
  * Nroff/Troff.
  * Expression reader.
  */
-#include <stdio.h>
+
 #include <ctype.h>
 #include "roff.h"
-#include "code.h"
-#include "div.h"
-#include "env.h"
+
+/* Local variables. */
+static	int	experr;			/* Got an error */
+static	int	expmul;			/* Default unit multiplier */
+static	int	expdiv;			/* Default unit divisor */
+static	char	*expp;			/* Pointer in expression */
 
 /*
- * Given a string containing an expression, a default unit, `mul'/`div',
+ * Given a string containing an expression, a default unit, 'mul'/'div',
  * which is used as a multiplier whenever a number is found without a
- * unit attached, an initial value, `num', used if the expression has a
- * leading sign, a flag, `hvf', specifying whether the number is associated
+ * unit attached, an initial value, 'num', used if the expression has a
+ * leading sign, a flag, 'hvf', specifying whether the number is associated
  * with the horizontal or the vertical which is used if the expression has
- * an initial '|' and a default value `def' which is returned scaled by
- * the default unit if no expression is specified.  The expression is
+ * an initial '|' and a default value 'def' which is returned
+ * if no expression is specified.  The expression is
  * evaluated from left to right with no priorites excepting parentheses.
  */
 number(str, mul, div, num, hvf, def)
@@ -31,15 +35,15 @@ long mul, div;
 	experr = 0;
 	while (isascii(*expp) && isspace(*expp))
 		expp++;
-	if ((c=*expp) == '\0')
-		return (unit(def*mul, div));
+	if ((c = *expp) == '\0')
+		return def;
 	if (index("+-|", *expp))
 		++expp;
 	n = expseq();
 	if (*expp != '\0')
 		experr++;
 	if (experr) {
-		printe("Syntax error");
+		printe("syntax error");
 		return (0);
 	}
 	switch (c) {
@@ -67,7 +71,7 @@ expseq()
 	if (experr)
 		return (0);
 	for (;;) {
-		while ((c=*expp++)==' ' || c=='\t')
+		while ((c = *expp++)==' ' || c == '\t')
 			;
 		switch (c) {
 		case '<':
@@ -107,7 +111,7 @@ expseq()
 			break;
 		case '/':
 			if (n2 == 0) {
-				printe("Attempted zero divide");
+				printe("attempted zero divide");
 				experr++;
 				return (0);
 			}
@@ -115,7 +119,7 @@ expseq()
 			break;
 		case '%':
 			if (n2 == 0) {
-				printe("Attempted zero modulus");
+				printe("attempted zero modulus");
 				experr++;
 				return (0);
 			}
@@ -157,7 +161,7 @@ expval()
 	long mul, div, m, d;
 	register int n, c;
 
-	while (isascii(c=*expp++) && isspace(c))
+	while (isascii(c = *expp++) && isspace(c))
 		;
 	if (c == '(') {
 		n = expseq();
@@ -166,7 +170,7 @@ expval()
 			experr++;
 			n = 0;
 		}
-		return (n);
+		return n;
 	}
 	m = 0;
 	d = 1;
@@ -175,7 +179,7 @@ expval()
 		c = *expp++;
 	}
 	if (c == '.') {
-		while (isascii(c=*expp++) && isdigit(c)) {
+		while (isascii(c = *expp++) && isdigit(c)) {
 			m = m*10 + c-'0';
 			d *= 10;
 		}
@@ -218,20 +222,19 @@ expval()
 		mul = expmul;
 		div = expdiv;
 	}
-	while (isascii(c=*expp) && isalpha(c))
+	while (isascii(c = *expp) && isalpha(c))
 		expp++;
-	n = unit(m*mul, d*div);
-	return (n);
+	return unit(m*mul, d*div);
 }
 
 /*
  * Given a long numerator and denominator, divide the numerator by
  * the denominator and return an int.
  */
-unit(mul, div)
-long mul, div;
+int
+unit(mul, div) long mul, div;
 {
-	if (div == 1)
-		return ((int) mul);
-	return ((int) (mul/div));
+	return ((div == 1) ? ((int) mul) : ((int) (mul/div)));
 }
+
+/* end of expr.c */

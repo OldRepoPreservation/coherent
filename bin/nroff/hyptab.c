@@ -1,11 +1,11 @@
 /*
+ * hyptab.c
  * Nroff/Troff.
  * Hyphenation tables.
  * compressed format by DAG
  */
-#include <stdio.h>
+
 #include "roff.h"
-#include "hyphen.h"
 
 #undef	HY
 #define	HY	hyptab
@@ -250,3 +250,5 @@ char hyptab[] ={
 44,52,37,54,2,1,0,61,48,2,1,4,0,61,54,37,1,5,1,10,50,1,5,25,10,41,7,6,6,
 2,8,10,51,14,5,12,10,45,8,6,6,6,2,8,6,6,2,8,0
 };
+
+/* end of hyptab.c */

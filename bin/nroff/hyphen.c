@@ -1,12 +1,11 @@
 /*
+ * hyphen.c
  * Nroff/Troff.
  * Hyphenation.
  */
-#include <stdio.h>
+
+#include <ctype.h>
 #include "roff.h"
-#include "code.h"
-#include "hyphen.h"
-#include "char.h"
 
 /*
  * Try to hyphenate the word found in the word buffer.
@@ -24,13 +23,15 @@ CODE *cp2;
 	while (n--)
 		hyphbuf[n] = 0;
 	while (cp1 < cp2) {
-		if ((n=cp2[-1].c_code)>=CUA && n<=CLZ)
+		n = cp2[-1].c_arg.c_code;
+		if (isascii(n) && isalpha(n))
 			break;
 		--cp2;
 	}
 	len = cp2 - cp1;
 	while (cp1 < cp2) {
-		if ((n=cp1->c_code)>=CUA && n<=CLZ)
+		n = cp1->c_arg.c_code;
+		if (isascii(n) && isalpha(n))
 			break;
 		cp1++;
 	}
@@ -52,19 +53,18 @@ CODE *cp2;
 		hyphbuf[wi1] = 0;
 		hyphbuf[wi2-1] = 0;
 	}
-/*
-	automate(remcode, &new, &con, -1, cp1, hyphbuf, 0, wi2);
-*/
 	n = wi2;
-	if (--n>=0 && cpl[n].c_code==LEEE) {
+	if (--n>=0 && cpl[n].c_arg.c_code==LEEE) {
 		int m;
 		m = 3;
 		while (n && m--)
 			hyphbuf[n--] = 0;
 	}
 	n = wi2;
-	if (n>=2 && cpl[--n].c_code==LDDD && cpl[--n].c_code==LEEE) {
-		if (--n<1 || cpl[n].c_code!=LZZZ || cpl[n-1].c_code!=LIII) {
+	if (n>=2 && cpl[--n].c_arg.c_code==LDDD &&
+	    cpl[--n].c_arg.c_code==LEEE) {
+		if (--n<1 || cpl[n].c_arg.c_code!=LZZZ ||
+		    cpl[n-1].c_arg.c_code!=LIII) {
 			if (--n >= 0)
 				hyphbuf[n] = 0;
 			if (--n >= 0)
@@ -84,7 +84,7 @@ char *hbuf;
 	register int wi, n;
 	register char *bp;
 
-	ti1 = 0;
+	ti = ti1 = 0;	/* ti = 0 by c.e.f triggered by lint error */
 	ti2 = EXCSIZE;
 	for (;;) {
 		ti0 = ti;
@@ -97,7 +97,7 @@ char *hbuf;
 			if (*bp == LEOK) {
 				if (wi == wi2)
 					return (1);
-				if (wi==wi2-1 && wbuf[wi].c_code==LSSS)
+				if (wi==wi2-1 && wbuf[wi].c_arg.c_code==LSSS)
 					return (1);
 				ti1 = ti;
 				break;
@@ -112,7 +112,7 @@ char *hbuf;
 				ti1 = ti;
 				break;
 			}
-			if ((c1=wbuf[wi++].c_code) != (c2=*bp++)) {
+			if ((c1=wbuf[wi++].c_arg.c_code) != (c2 = *bp++)) {
 				if (c1 > c2)
 					ti1 = ti;
 				else
@@ -143,7 +143,7 @@ register int wi2;
 
 	do {
 		ti0 = -1;
-		ti1 = 0;
+		ti = ti1 = 0;	/* ti = 0 by c.e.f triggered by lint */
 		ti2 = PRESIZE;
 		for (;;) {
 			ti0 = ti;
@@ -165,7 +165,8 @@ register int wi2;
 				}
 				if (wi >= wi2)
 					return (wi1);
-				if ((c1=wbuf[wi++].c_code) != (c2=*bp++)) {
+				if ((c1=wbuf[wi++].c_arg.c_code) !=
+				    (c2 = *bp++)) {
 					if (c1 > c2)
 						ti1 = ti;
 					else
@@ -200,7 +201,7 @@ register int wi2;
 
 	do {
 		ti0 = -1;
-		ti1 = 0;
+		ti = ti1 = 0;	/* ti = 0 by cef triggered by lint */
 		ti2 = SUFSIZE;
 		for (;;) {
 			ti0 = ti;
@@ -222,7 +223,8 @@ register int wi2;
 				}
 				if (wi <= wi2)
 					return (wi1);
-				if ((c1=wbuf[wi--].c_code) != (c2=*bp++)) {
+				if ((c1=wbuf[wi--].c_arg.c_code) !=
+				    (c2 = *bp++)) {
 					if (c1 > c2)
 						ti1 = ti;
 					else
@@ -250,14 +252,15 @@ middle(wbuf, hbuf, wi1, wi2)
 CODE *wbuf;
 char *hbuf;
 {
-	int new, con, bil, c2, c3, n;
+	int new, bil, c2, c3, n;
+	unsigned con;
 	register int wi, bi, c1;
 
 	wi = wi1;
 	bi = 0;
 	while (wi < wi2) {
-		c1 = wbuf[wi++].c_code;
-		if (wi<wi2 && wbuf[wi].c_code==LHHH) {
+		c1 = wbuf[wi++].c_arg.c_code;
+		if (wi<wi2 && wbuf[wi].c_arg.c_code==LHHH) {
 			wi++;
 			switch (c1) {
 			case LCCC:
@@ -336,7 +339,7 @@ register int c1;
 	register char *cp;
 
 	cp = dbctab;
-	while ((c=*cp++) != LNUL) {
+	while ((c = *cp++) != LNUL) {
 		if (c1 < c)
 			return (0);
 		if (c1 > c) {
@@ -359,7 +362,7 @@ register int c1;
 automate(patp, newp, conp, dirn, wbuf, hbuf, wi1, wi2)
 char *patp;
 int *newp;
-int *conp;
+unsigned *conp;
 CODE *wbuf;
 char *hbuf;
 {
@@ -389,7 +392,7 @@ char *hbuf;
 		case LNEW:
 			n = *bp++;
 			if (wi != wi2) {
-				c = wbuf[wi].c_code;
+				c = wbuf[wi].c_arg.c_code;
 				wi += dirn;
 				continue;
 			}
@@ -401,7 +404,7 @@ char *hbuf;
 			continue;
 		case LOLD:
 			wi -= dirn;
-			c = wbuf[wi-dirn].c_code;
+			c = wbuf[wi-dirn].c_arg.c_code;
 			continue;
 		case LBRF:
 			goto fail;
@@ -412,7 +415,7 @@ char *hbuf;
 				bp++;
 				continue;
 			}
-			if ((n=*bp++) == 1)
+			if ((n = *bp++) == 1)
 				goto fail;
 			if (n == 2)
 				goto succ;
@@ -423,14 +426,14 @@ char *hbuf;
 				bp++;
 				continue;
 			}
-			if ((n=*bp++) == 1)
+			if ((n = *bp++) == 1)
 				goto fail;
 			if (n == 2)
 				goto succ;
 			bp += n-3;
 			continue;
 		default:
-			panic("Bad pattern");
+			panic("bad pattern");
 		}
 	}
 succ:
@@ -542,3 +545,5 @@ char dbctab[] ={
 	LDTH, LRRR, 2,
 	LNUL
 };
+
+/* end of hyphen.c */
