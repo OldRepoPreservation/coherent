@@ -3,28 +3,6 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  *
- * $Log:	at.c,v $
- * Revision 1.6  92/02/06  13:03:01  hal
- * Poll ATSREG.
- * 
- * Revision 1.5  92/01/06  12:25:51  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.3  91/10/31  10:39:11  hal
- * Use HF_REG for polling.
- * Cosmetic alteration.
- * 
- * Revision 1.2  91/10/31  07:52:22  hal
- * Use AT_MAJOR.  Set ATCACHE to 0.
- * 
- * Revision 1.1  91/10/30  16:19:25  hal
- * Initial from Ciaran.
- * 
- * Revision 1.5  91/05/22  15:06:59  hal
- * Don't force 8's bit of control byte.
- * 
- * Revision 1.4	91/03/14  14:22:32	hal
- *
  -lgl) */
 /*
  * This is a driver for the
@@ -204,13 +182,11 @@ CON	atcon	= {
 
 /*
  * Patchable variables.
- *	ATBSYW is a loop count for busy-waiting after issuing commands.
  *	ATSECS is number of seconds to wait for an expected interrupt.
  *	ATSREG needs to be 3F6 for most new IDE drives;  needs to be
  *		1F7 for Perstor controllers and some old IDE drives.
  *		Either value works with most drives.
  */
-int	ATBSYW = 50;
 int	ATSECS = 6;
 int	ATSREG = 0x3F6;
 
@@ -962,7 +938,7 @@ atstart()
 
 		outb(CSR_REG, WRITE_CMD);
 
-		while (atdrqw() == 0)
+		while (atdrq() == 0)
 			printf(timeout_msg, at.at_drv);
 
 		atsend(at.at_addr);
@@ -1021,7 +997,7 @@ atdefer()
 		/*
 		 * Wait for data, or forever.
 		 */
-		if (atdrqw() == 0)
+		if (atdrq() == 0)
 			printf(timeout_msg, at.at_drv);
 
 #if ATCACHE > 0
@@ -1108,7 +1084,7 @@ atdefer()
 		/*
 		 * Wait for ability to send data, or forever.
 		 */
-		while (atdrqw() == 0)
+		while (atdrq() == 0)
 			printf(timeout_msg, at.at_drv);
 
 		/*
@@ -1301,13 +1277,38 @@ register BUF * bp;
 }
 
 int
+notBusy()
+{
+	return (inb(ATSREG) & BSY_ST) == 0;
+}
+
+int
+dataRequested()
+{
+	return inb(ATSREG) & DRQ_ST;
+}
+
+/*
+ * Wait while controller is busy.
+ *
+ * Return 0 if timeout, nonzero if not busy.
+ */
+int
 myatbsyw(unit) int unit;
 {
-	register int n, status;
-
-	for (n = ATBSYW; n > 0; --n)
-		if ((status = atbsyw()) != 0)
-			return status;
+	if (busyWait(notBusy, ATSECS * HZ))
+		return 1;
 	printf(timeout_msg, unit);
 	return 0;
+}
+
+/*
+ * Wait for controller to initiate request.
+ *
+ * Return 0 if timeout, 1 if data requested.
+ */
+int
+atdrq()
+{
+	return busyWait(dataRequested, ATSECS * HZ);
 }

@@ -194,11 +194,13 @@ static unsigned char smaptab[] ={
 isload()
 {
 	register short i;/* was: int i .. the loop below is hardly portable */
+	int now;
 
+#if 1
 	/*
 	 * Reset keyboard if NOT an XT turbo.
 	 */
-	if ( ! isturbo ) {
+	if (!isturbo) {
 		outb(KBCTRL, 0x0C);		/* Clock low */
 		for (i = 10582; --i >= 0; );	/* For 20ms */
 		outb(KBCTRL, 0xCC);		/* Clock high */
@@ -208,6 +210,7 @@ isload()
 		outb(KBCTRL, 0xCC);			/* Clear keyboard */
 		outb(KBCTRL, 0x4D);			/* Enable keyboard */
 	}
+#endif
 
 	/*
 	 * Enable mmwatch() invocation every second.
@@ -707,7 +710,7 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (!ISRIN) {
+	if (ISIXON) {
 		if (ISSTOP) {
 			if ((tp->t_flags&T_STOP) == 0)
 				tp->t_flags |= T_STOP;

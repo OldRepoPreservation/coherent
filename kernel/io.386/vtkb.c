@@ -921,7 +921,7 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (!ISRIN) {
+	if (ISIXON) {
 		if (ISSTOP) {
 			if ((tp->t_flags&T_STOP) == 0)
 				tp->t_flags |= T_STOP;

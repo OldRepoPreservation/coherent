@@ -11,6 +11,9 @@
  *		...x xxxx	channel number - 0..31
  *
  * $Log:	asy.c,v $
+ * Revision 1.8  92/11/09  17:12:18  root
+ * Just before adding vio segs.
+ * 
  * Revision 1.7  92/07/16  16:34:44  hal
  * Kernel #58
  * 
@@ -1531,7 +1534,7 @@ rescan:
 		 * Must recognize XOFF quickly to avoid transmit overrun.
 		 * Recognize XON here as well to avoid race conditions.
 		 */
-		if (!ISRIN) {
+		if (ISIXON) {
 			/*
 			 * XOFF.
 			 */
@@ -1749,7 +1752,7 @@ int chan;
 		 * Must recognize XOFF quickly to avoid transmit overrun.
 		 * Recognize XON here as well to avoid race conditions.
 		 */
-		if (!ISRIN) {
+		if (ISIXON) {
 			/*
 			 * XOFF.
 			 */
