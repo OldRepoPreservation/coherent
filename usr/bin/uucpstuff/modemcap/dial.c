@@ -15,9 +15,14 @@
 #include "dcp.h"
 #include "ldev.h"
 
+#define	TRUE (1 == 1)
+#define FALSE (1 == 2)
+#define LCKTMOUT 10	/* Wait 10 seconds for init to blow away our lock.  */
+
 char	*devname = NULL;	/* Communications Device Name Connected	*/
 char	*rdevname = NULL;	/* Remote device name */
 
+static  int	timed_out;	/* Has this wait timed out? */
 static	char	login_lock[15];
 static	char	enableme[16];
 static	int	modemfd = -1;
@@ -41,7 +46,7 @@ CALL *cp;
 	char	*strcpy (),
 	*strcat ();
 	int	fd, err;
-
+	
 	fd = -1;		/* channel illegal until line is opened	*/
 	if ( (err=findline(cp, &modemname)) <= 0 )
 		goto error;
@@ -79,17 +84,23 @@ error:
 	return (merrno = err);
 }
 
+/* undial()
+ * removes the lock on the remote device if it exists and reenables
+ * the port.
+*/
 undial (fd)
 int	fd;
 {
 	if (fd > 2)
 		close (fd);
+	if ( (strcmp(rdevname,"-") != 0) && lockexist(rdevname) )
+		lockrm(rdevname);
+
 	if (enableme[0] != '\0') {
 		plog(M_CALL, "Enabling line %s", enableme);
 		exec_stat("enable", enableme);
 	}
-	if ( (strcmp(rdevname,"-") != 0) && lockexist(rdevname) )
-		lockrm(rdevname);
+
 	rdevname = NULL;
 }
 
@@ -106,6 +117,10 @@ char **brand;
 	char	*l_type;		/* ACU, DIR, etc. */
 	char	*l_brand;		/* modemcap brand name */
 	int	l_baud;			/* tty baud rate */
+
+	int lock_alarm();
+	int (*last_alarm)();	/* Previous alarm handling function.  */
+	unsigned last_time;	/* Time remaining on a previous alarm().  */
 
 	ldev_open();
 	if ( ((devflag=(callp->line != NULL)) &&
@@ -135,12 +150,8 @@ char **brand;
 			continue;
 		}
 		++tried;		/* found device at desired baud rate */
-/*
- *		strcpy(login_lock, l_lline);
- *		strcat(login_lock, "+");
- *		if (lockexist(login_lock))
- *			continue;	 somebody is logged in there 
-*/
+
+
 		/* If the Ldev remote line is not a '-', then see if a lock
 		 * exists on the remote device. If a lock exists, then we don't
 		 * want to disable the remote before calling out on the local
@@ -148,22 +159,60 @@ char **brand;
 		 * Bob H. 11/4/91.
 		*/
 
-		if((strcmp(l_rline,"-")!=0) && (0 != lockexist(l_rline))){
+		/* Check for a lock on the remote device */
+		if ((strcmp(l_rline,"-")!=0) && (0 != lockexist(l_rline))) {
 			plog(M_CALL,"Remote device %s locked, cannot disable.",
 				l_rline);
 			continue;
-		}
+		} else {
+			enableme[0] = '\0';
+			if(strcmp(l_rline,"-") !=0){
+	/* Disable the remote device and then create a lock on it.
+	 * If the lock fails, abort.
+	 * Note that init will remove the lock after we run disable,
+	 * so we have to create one lock, wait for init to remove it,
+	 * and then create another.
+	 */
+				if (lockit(l_rline) < 0) {
+					plog(M_CALL,"Remote device %s locked, cannot disable.",
+						l_rline);
+					continue;
+				}
 
-		else if ((strcmp(l_rline,"-") != 0) && (lockit(l_rline) < 0) ){
-				continue;
-		}
+				if (exec_stat("disable", l_rline) != 0){
+					plog(M_CALL,"Disabling line %s",l_rline);
 
-		enableme[0] = '\0';
-		if (strcmp(l_rline, "-") != 0) {
-			if (exec_stat("disable", l_rline) != 0) {
-				plog(M_CALL, "Disabling line %s", l_rline);
-				/* tty was enabled */
-				strcpy(enableme, l_rline);
+					/* Set up an alarm so we don't loop
+					 * forever.
+					 */
+					timed_out = FALSE;
+					last_alarm = signal(SIGALRM,lock_alarm);
+					last_time = alarm(LCKTMOUT);
+
+					/* Wait for init to remove
+					 * the lock file.
+					 */
+					while ((lockexist(l_rline)) &&
+					       (!timed_out)){
+						/* do nothing */
+					}
+					
+					/* Put back the old alarm stuff.  */
+					signal(SIGALRM, last_alarm);
+					alarm(last_time);
+
+					/* Only need to lock it if
+					 * our lock didn't get clobbered.
+					 */
+					if (!timed_out) {
+						if (lockit(l_rline) < 0){
+							plog(M_CALL,"Could not lock remote device %s",
+								l_rline);
+							continue;
+						}
+					}
+					strcpy(enableme,l_rline);
+				}
 			}
 		}
 		devname = l_lline;
@@ -204,4 +253,15 @@ char	*line;
 	/* plog("Command returned value of %d", waitstat);
 	 */
 	return waitstat;
+}
+
+
+/* Mark the appearance of an alarm signal.  This is an argument to signal.  */
+int
+lock_alarm()
+{
+	timed_out = TRUE;
+	return (0);	/* The return value of signal handlers
+			 * is not documented.
+			 */
 }
