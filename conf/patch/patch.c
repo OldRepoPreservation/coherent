@@ -1,5 +1,6 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
-static char version[] =	"patch version 2.6 for COHERENT v.4.0";
+static char Release[] =		"$Release: INETCO COHERENT V8.0$";
+static char Date[] =		"$Date: 91/04/24 14:20:20 $";
 
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
@@ -21,10 +22,7 @@ static char version[] =	"patch version 2.6 for COHERENT v.4.0";
  * Certain hot patches may not be effective, since some values are only
  * referenced once at system initialization.
  *
- * $Log:	patch.c,v $
- * Revision 1.5  92/07/06  15:41:09  bin
- * piggy: all hex numbers have leading zeroes to indicate their length
- * 
+ * $Log:	/newbits/conf/patch/patch.c,v $
  * Revision 1.1	91/04/24  14:20:20 	bin
  * Initial revision
  * 
@@ -34,17 +32,11 @@ static char version[] =	"patch version 2.6 for COHERENT v.4.0";
  * main() now enables buffering on standard output.
  *
  */
-char short_helpmessage[] = "\
-patch -- alter COFF binary image\n\
-Usage:	patch [ -v ][ -p ][ -k ] imagename symbol=value [ ... ]\n\
-";
-
 char helpmessage[] = "\
+patch -- alter coherent binary image\n\
+Usage:	patch [ -k ] imagename symbol=value [ ... ]\n\
 Options:\n\
-	-v	Verbose mode--print what's being done.\n\
-	-p	Peek only--do not write.\n\
-	-k	Patch running system via /dev/kmem, /dev/kmemhi.\n\
-	-K	Like -k but do not alter imagename.\n\
+	-k	patch running system via /dev/kmem\n\
 Patch alters the value of 'symbol' to 'value' in the binary 'imagename'.\n\
 Both 'symbol' and 'value' may be composed of a decimal numeric constant\n\
 or of a symbol in the image's symbol table, trailing '_' is significant,\n\
@@ -58,196 +50,121 @@ explicitly specify a char, short, int, or long sized patch.\n\
 ";
 
 #include <stdio.h>
-#include <coff.h>
+#include <l.out.h>
 #include <canon.h>
 #include <ctype.h>
-#include <fcntl.h>
+
+#include <sys/machine.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "patch.h"
 
 /*
  * Nlist tables and patch records.
  */
 #define NNLS	512
 int	nnls;	/* Number of nlist elements used */
-SYMENT nl[NNLS*2];
-int	sym_len = 0;	/* Number of bytes allocated for symbols.  */
-char	*symbols=NULL;
+struct nlist nl[NNLS*2];
+struct plist {
+	struct	nlist *p_lvnp, *p_rvnp;
+	long	p_lval, p_rval;
+	int	p_type;
+	char	p_char;
+	short	p_short;
+	int	p_int;
+	long	p_long;
+} pl[NNLS];
+char *namep;
+struct ldheader ldh;
+int hotpatch = 0;
 
-PLIST pl[NNLS];
-
-char *namep;		/* Name of object file to patch.  */
-int nobin = 0;		/* Should we not patch the image?  */
-int hotpatch = 0;	/* Are we patching /dev/kmem,/dev/kmemhi?  */
-int verbose = 0;	/* Are we printing feedback?  */
-int peek = 0;		/* Just peek--don't actually do the patch.  */
-
-void main();
-int getnames();
-void badsym();
-void getone();
-void setfile();
-void setkmem();
-int patch();
-long myatol();
-void usage();
-char *index();
-char *realloc();
-
-
-void
 main(argc, argv)
-	int argc;
-	char *argv[];
+char *argv[];
 {
 	static char obuf[BUFSIZ];
-	int c;			/* For reading options from getopt().  */
-	int num_patches;	/* Number of patches to make on this file.  */
-
-	extern int optind;
-	extern char *optarg;
 
 	/*
 	 * Enable output buffering.
 	 */
 	setbuf( stdout, obuf );
 
-	while ((c = getopt(argc, argv, "Kkpv?")) != EOF) {
-		switch (c) {
-		case 'K':
-			hotpatch++;
-			nobin++;
-		case 'k':
-			hotpatch++;
-			break;
-		case 'p':
-			peek++;
-			break;
-		case 'v':
-			verbose++;
-			break;
-		case '?':
-			fprintf(stderr, "%s\n", version);
-			usage(TRUE);	/* Does not return.  */
-		default:
-			usage(FALSE);	/* Does not return.  */
-		}
+	if (argc > 1 && strcmp(argv[1], "-k") == 0) {
+		hotpatch += 1;
+		argv += 1;
+		argc -= 1;
 	}
-
-	/*
-	 * There must be at least 2 arguments left.
-	 */
-	if (argc - optind < 2) {
-		fprintf(stderr, "Missing arguments.\n");
-		usage(FALSE);	/* Does not return */
-	}
-	
-	namep = argv[optind++];	/* Fetch the name of the file to patch.  */
-
-	num_patches = (argc - optind);
-	if (getnames(num_patches, &(argv[optind])) == 0) {
-		if (!nobin) {
-			setfile(namep, num_patches, pl);
-		}
-		if (hotpatch) {
-			setkmem(num_patches);
-		}
+	if (argc < 3)
+		usage();
+	namep = argv[1];
+	if (getnames(argc-2, &argv[2]) == 0) {
+		setfile(argc-2);
+		if (hotpatch)
+			setkmem(argc-2);
 		exit(0);
 	}
 	exit(1);
 }
 
-/*
- * Fill in the array of patch structures 'pl[]' based on the command line.
- * 'nn' is the number of symbol assignments; 'npp' is an argv of symbol
- * assignments.
- * Returns the number of invalid assignments.
- */
-int
 getnames(nn, npp)
-	int nn;
-	char **npp;
+int nn;
+char **npp;
 {
 	register int i;
-	register PLIST *p;
-	register SYMENT *np;
+	register struct plist *p;
+	register struct nlist *np;
 	int nbad;
 
 	nbad = 0;
 	for (i = 0; i < nn; i += 1)
 		if (i < NNLS-1)
 			getone(i, npp[i]);
-
-	/* Now we can look up all the symbols in the symbol table.  */
-	coffnlist(namep, nl, symbols, nnls);
-
+	nlist(namep, nl);
 	for (i = 0; i < nn; i += 1)
 		if (i >= NNLS)
-			fprintf(stderr,
-				"Too many patches: %s ignored\n", npp[i]);
+			printf("Too many patches: %s ignored\n", npp[i]);
 		else {
-			/* 'p' is the struct we fill in this time around.  */
 			p = &pl[i];
-			
-			/* If the LHS was (part) symbolic, add in the value
-			 * of the symbol.
-			 */
 			if ((np = p->p_lvnp) != NULL) {
-				if (0xffff != np->n_type) {
+				if (np->n_type || np->n_value)
 					p->p_lval += np->n_value;
-				} else {
+				else {
 					nbad += 1;
-					badsym(np->n_offset);
+					badsym(np->n_name);
 				}
 			}
-			/* If the RHS was (part) symbolic, add in the value
-			 * of the symbol.
-			 */
 			if ((np = p->p_rvnp) != NULL) {
-				if (0xffff != np->n_type) {
+				if (np->n_type || np->n_value)
 					p->p_rval += np->n_value;
-				} else {
+				else {
 					nbad += 1;
-					badsym(np->n_offset);
+					badsym(np->n_name);
 				}
 			}
-
-			/* Fill in the value to be assigned.  */
 			switch (p->p_type) {
-			case 'c': p->p_val.p_char	= p->p_rval; break;
-			case 's': p->p_val.p_short	= p->p_rval; break;
-			case 'i': p->p_val.p_int	= p->p_rval; break;
-			case 'l': p->p_val.p_long	= p->p_rval; break;
+			case 'c': p->p_char	= p->p_rval; break;
+			case 's': p->p_short	= p->p_rval; break;
+			case 'i': p->p_int	= p->p_rval; break;
+			case 'l': p->p_long	= p->p_rval; break;
 			default:
 				nbad += 1;
-				fprintf(stderr, "Bad data type %c in %s.\n",
-					p->p_type, npp[i]);
+				printf("Bad type in %s\n", npp[i]);
 				break;
 			}
 		}
 	return (nbad);
 }
 
-void
-badsym(offset)
-	long offset;
+badsym(np)
+char *np;
 {
-	fprintf(stderr, "%s not found in %s\n",
-		&(symbols[offset - sizeof(long)]), namep);
+	printf("%*.*s not found in %s\n", NCPLN, NCPLN, np, namep);
 }
 
-/*
- * Parse a symbolic assignment, filling in pl[i].
- */
-void
 getone(i, np)
-	int i;			/* Which'th symbol assigment is this?  */
-	register char *np;	/* The symbol assignment itself.  */
+int i;
+register char *np;
 {
 	register int n;
 	register char *cp;
-	char *nsym;		/* Temporary holder for 'symbols' realloc().  */
 	long myatol();
 
 	pl[i].p_lvnp = NULL;
@@ -255,64 +172,27 @@ getone(i, np)
 	pl[i].p_rvnp = NULL;
 	pl[i].p_rval = 0;
 	pl[i].p_type = 'i';
-
-	/*
-	 * If there is a type indicator, get it now.
-	 */
-	if (NULL != (cp = index(np, ':'))) {
-		pl[i].p_type = cp[1];
-	}
-
-	/* Pull apart LHS of assignment.  */
 	if (isalpha(*np) || *np == '_') {
-		pl[i].p_lvnp = nl + nnls;	/* Allocate another SYMENT.  */
-		/* Mark as not yet found.  */
-		nl[nnls].n_type = 0xffff;
-		/* Point at offset into 'symbols' for new name.  */
-		nl[nnls].n_zeroes = 0;
-		nl[nnls].n_offset = sizeof(long) + sym_len;
-
-		/* Figure out how big the symbol is by looking for
-		 * a non-alphanumeric or _ character.
-		 */
-		cp = np;
-		for (n = 0; isalnum(*cp) || *cp == '_'; n += 1) {
-			cp += 1;
+		pl[i].p_lvnp = nl + nnls;
+		cp = nl[nnls].n_name;
+		nnls += 1;
+		for (n = 0; ; n += 1) {
+			if ( ! isalnum(*np) && *np != '_')
+				break;
+			if (n < NCPLN)
+				*cp++ = *np;
+			np += 1;
 		}
-		/* Now allocate more space for symbol names.  */
-		sym_len += n + sizeof('\0');
-		if (NULL == (nsym = realloc(symbols, sym_len))) {
-			/* This assignment is too long; skip it.  */
-			sym_len -= n;
-			fprintf(stderr,
-				"Assignment too long; skipping:  %s\n", np);
-			return;
-		}
-		symbols = nsym;	/* The realloc() worked.  */
-		/* Copy the new symbol in place.  */
-		cp = symbols + sym_len - (n + sizeof('\0'));
-		strncpy(cp, np, n);
-		cp[n] = '\0';
-
-		nnls += 1;	/* Move up to next empty SYMENT.  */
-		np += n;	/* Move on to next token.  */
+/* printf(" %s", nl[nnls-1].n_name); */
 	}
-	/*
-	 * If there is a '+' it has served its purpose by dropping us
-	 * out of the for loop above.  Ignore it now.
-	 */
 	if (*np == '+')
 		np += 1;
-
-	/* Fetch a possible literal number.  */
 	pl[i].p_lval = myatol(np);
-
-	/* Pull apart RHS of assignment.  */
+/* printf(" %D =", pl[i].p_lval); */
 	np = index(np, '=');
 	if (np != NULL) {
 		np += 1;
 		if (strncmp(np, "makedev(", 8) == 0) {
-			/* RHS is a makedev() expression.  */
 			int d1, d2;
 
 			np = index(np, '(') + 1;
@@ -324,205 +204,119 @@ getone(i, np)
 			} else
 				d2 = 0;
 			pl[i].p_rval = makedev(d1, d2);
-			pl[i].p_type = 's';
 			if (np == NULL)
 				np = "";
 			else
 				np += 1;
 			goto tail;
-	} else if (isalpha(*np) || *np == '_') {
-			/* The RHS must be a object symbol.  */
-	
-			pl[i].p_rvnp = nl + nnls;  /* Allocate another SYMENT.  */
-			nl[nnls].n_type = 0xffff;  /* Mark as not yet found.  */
-
-			/* Point at offset into 'symbols' for new name.  */
-			nl[nnls].n_zeroes = 0;
-			nl[nnls].n_offset = sizeof(long) + sym_len;
-	
-			/* Figure out how big the symbol is by looking for
-			 * a non-alphanumeric or _ character.
-			 */
-			cp = np;
-			for (n = 0; isalnum(*cp) || *cp == '_'; n += 1) {
-				cp += 1;
+		} else if (isalpha(*np) || *np == '_') {
+			pl[i].p_rvnp = nl + nnls;
+			cp = nl[nnls].n_name;
+			nnls += 1;
+			for (n = 0; ; n += 1) {
+				if ( ! isalnum(*np) && *np != '_')
+					break;
+				if (n < NCPLN)
+					*cp++ = *np;
+				np += 1;
 			}
-			/* Now allocate more space for symbol names.  */
-			sym_len += n + sizeof('\0');
-			if (NULL == (nsym = realloc(symbols, sym_len))) {
-				/* This assignment is too long; skip it.  */
-				sym_len -= n;
-				fprintf(stderr,
-				  "Assignment too long; skipping:  %s\n", np);
-				return;
-			}
-			symbols = nsym;	/* The realloc() worked.  */
-			/* Copy the new symbol in place.  */
-			cp = &(symbols[sym_len - (n + sizeof('\0'))]);
-			strncpy(cp, np, n);
-			cp[n] = '\0';
-
-			nnls += 1;	/* Move up to next empty SYMENT.  */
-			np += n;	/* Move on to next token.  */
+/* printf(" %s", nl[nnls-1].n_name); */
 		}
-
-
-		/*
-		 * If there is a '+' is has served its purpose by dropping us
-		 * out of the for loop above.  Ignore it now.
-		 */
 		if (*np == '+')
 			np += 1;
-		/* Fetch a possible literal number.  */
 		pl[i].p_rval = myatol(np);
-	}
+/* printf(" %D", pl[i].p_rval); */
 tail:
-	return;
+		np = index(np, ':');
+		if (np != NULL)
+			pl[i].p_type = np[1];
+	}
+/* printf(" : %c\n", pl[i].p_type); */
 }
 
-/*
- * Modify the contents of /dev/kmem to match the array of patch
- * structures pl[].  The argument 'n' is the number of entries in pl[]
- * that should be processed.
- */
-void
-setkmem(n)
-	int n;
+setfile(n)
+int n;
 {
-	int fdlo, fdhi;
+	int u;
 	register int i;
-	char *symname;	/* Name of symbol in LHS being patched.  */
+	long seekoff, minval, maxval;
+	long seek;
 
-	/* Open up live memory for patching.  */
-	if (peek) {
-		if ((fdlo=open("/dev/kmem", O_RDONLY)) < 0) {
-			fprintf(stderr, "Cannot open /dev/kmem for reading.\n");
-			return;
-		}
-		if ((fdhi=open("/dev/kmemhi", O_RDONLY)) < 0) {
-			fprintf(stderr, "Cannot open /dev/kmemhi for reading.\n");
-			return;
-		}
-	} else {
-		if ((fdlo=open("/dev/kmem", O_RDWR)) < 0) {
-			fprintf(stderr, "Cannot open /dev/kmem.\n");
-			return;
-		}
-		if ((fdhi=open("/dev/kmemhi", O_RDWR)) < 0) {
-			fprintf(stderr, "Cannot open /dev/kmemhi.\n");
-			return;
-		}
+	if ((u=open(namep, 2)) < 0) {
+		printf("Cannot open %s\n", namep);
+		exit(1);
 	}
-
-	/* Walk through pl[] blasting the new values into live memory.  */
+	if (read(u, &ldh, sizeof(ldh)) != sizeof(ldh)) {
+		printf("Cannot read %s\n", namep);
+		exit(1);
+	}
+	canint(ldh.l_magic);
+	if (ldh.l_magic != L_MAGIC) {
+		printf("%s is not an image\n", namep);
+		exit(1);
+	}
+	canint(ldh.l_flag);
+	cansize(ldh.l_ssize[L_SHRI]);
+	cansize(ldh.l_ssize[L_PRVI]);
+	cansize(ldh.l_ssize[L_SHRD]);
+	cansize(ldh.l_ssize[L_PRVD]);
+	seekoff = sizeof(ldh);
+	minval = 0;
+	if (ldh.l_flag&LF_SEP)	/* Separate i and d */
+		seekoff += ldh.l_ssize[L_SHRI] + ldh.l_ssize[L_PRVI];
+	else
+		minval = ldh.l_ssize[L_SHRI] + ldh.l_ssize[L_PRVI];
+	maxval = minval + ldh.l_ssize[L_SHRD] + ldh.l_ssize[L_PRVD];
 	for (i = 0; i < n; i += 1) {
-		int seekOffset = pl[i].p_lval;
-		symname = &(symbols[pl[i].p_lvnp->n_offset - sizeof(long)]);
-
-		if ((seekOffset & 0x80000000) == 0) {
-			if(lseek(fdlo, seekOffset, 0) != -1L) {
-				if (patch(fdlo, &pl[i], "/dev/kmem",
-				  symname) < 0)
-					fprintf(stderr,
-					  "Write error in /dev/kmem\n");
-			} else
-				fprintf(stderr, "Seek error in /dev/kmem\n");
-		} else {
-			if(lseek(fdhi, seekOffset-0x80000000, 0) != -1L) {
-				if (patch(fdhi, &pl[i], "/dev/kmemhi",
-				  symname) < 0)
-					fprintf(stderr,
-					  "Write error in /dev/kmemhi\n");
-			} else
-				fprintf(stderr, "Seek error in /dev/kmemhi\n");
+		seek = pl[i].p_lval;
+		if (seek < minval || seek >= maxval) {
+			printf("%s: cannot patch\n", nl[i].n_name);
+			continue;
 		}
+		lseek(u, seekoff+seek, 0);
+		if (patch(u, &pl[i]) < 0)
+			printf("Write error in %s\n", namep);
 	}
-	close(fdlo);
-	close(fdhi);
+	close(u);
 }
 
+setkmem(n)
+int n;
+{
+	int u;
+	register int i;
 
-/*
- * Modify the file attached to descriptor 'fd' to match the single patch
- * structure 'p'.  The file descriptor should already be lseek()'d to
- * the correct place.
- * Returns 0 on success, -1 otherwise.  errno will be set on error.
- */
-int
-patch(fd, p, file, sym)
-	int fd;
-	PLIST *p;
-	/* These two args are only for information.  */
-	char *file;	/* Name of the file being patched.  */
-	char *sym;	/* Name of the LHS symbol being patched.  */
+	if ((u=open("/dev/kmem", 2)) < 0) {
+		printf("Cannot open /dev/kmem\n");
+		return;
+	}
+	for (i = 0; i < n; i += 1) {
+		lseek(u, pl[i].p_lval, 0);
+		if (patch(u, &pl[i]) < 0)
+			printf("Write error in /dev/kmem\n");
+	}
+	close(u);
+}
+
+patch(fd, p)
+int fd;
+struct plist *p;
 {
 	register char *bp;
 	register int nc;
-	union {
-		char	p_char;
-		short	p_short;
-		int	p_int;
-		long	p_long;
-	} old_val;
 
-	bp = &p->p_val;
 	switch (p->p_type) {
-	case 'c':	nc = sizeof(char);	break;
-	case 's':	nc = sizeof(short);	break;
-	case 'i':	nc = sizeof(int);	break;
-	case 'l':	nc = sizeof(long);	break;
+	case 'c':
+		bp = &p->p_char; nc = sizeof(char); break;
+	case 's':
+		bp = &p->p_short; nc = sizeof(short); break;
+	case 'i':
+		bp = &p->p_int; nc = sizeof(int); break;
+	case 'l':
+		bp = &p->p_long; nc = sizeof(long); break;
 	}
-
-	if (verbose || peek) {
-	    old_val.p_long = 0;	/* Zero the whole buffer.  */
-
-	    if (read(fd, &old_val, nc) != nc) {
-	    	fprintf(stderr, "Can't read old value.\n");
-	    } else {
-
-		printf("%s: ", file);
-
-		if (verbose) printf("old value of ");
-
-		printf("%s: ", sym);
-	    	switch (p->p_type) {
-		case 'c':	printf("0x%02x", old_val.p_char);	break;
-		case 's':	printf("0x%04x", old_val.p_short);	break;
-		case 'i':	printf("0x%08x", old_val.p_int);	break;
-		case 'l':	printf("0x%08x", old_val.p_long);	break;
-		} /* switch */
-
-		printf("\n");
-
-		if (!peek) {	/* If only peeking, there is no new value.  */
-			printf("%s: new value: ", file);
-		    	switch (p->p_type) {
-			case 'c':	printf("0x%02x", p->p_val.p_char);
-					break;
-			case 's':	printf("0x%04x", p->p_val.p_short);
-					break;
-			case 'i':	printf("0x%08x", p->p_val.p_int);
-					break;
-			case 'l':	printf("0x%08x", p->p_val.p_long);
-					break;
-			} /* switch */
-
-			printf("\n");
-		} /* if (verbose) */
-
-		/* Go back for the write.  */
-		lseek(fd, (long) (-nc), 1);
-	    } /* if (read...) */
-
-	} /* if (verbose || peek) */
-
-	if (peek) {
-		if (verbose) {
-			printf("Just peeking, no write.\n");
-		}
-	} else if (write(fd, bp, nc) != nc) {
+	if (write(fd, bp, nc) != nc)
 		return (-1);
-	}
 	return (0);
 }
 
@@ -545,7 +339,7 @@ patch(fd, p, file, sym)
  */
 long
 myatol( s )
-	register char * s;
+register char * s;
 {
 	register int base;
 	register int sign;
@@ -614,13 +408,9 @@ myatol( s )
 /*
  * Print out an usage message.
  */
-void
-usage(verbose)
-	int verbose;
+usage()
 {
-	fprintf(stderr, short_helpmessage);
-	if (verbose) {
-		fprintf(stderr, helpmessage);
-	}
+	printf(helpmessage);
 	exit(1);
 }
+

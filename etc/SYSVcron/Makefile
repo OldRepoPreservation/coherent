@@ -2,7 +2,10 @@
 #DEBUG = 1
 DEBUG = 0
 
-ALL = bin/crontab bin/crond
+DESTDIR=/bin386/etc
+DESTDIR2=/bin386/bin
+
+ALL = bin/crontab bin/cron
 
 COMMON = src/cron.h Makefile
 
@@ -14,22 +17,19 @@ DAEMOBJ = obj/cron.o obj/misc.o obj/cronpipe.o \
 all: $(ALL)
 	@echo All done.
 
-bin/crond: $(DAEMOBJ)
-	cc -DDEBUG=$(DEBUG) $(DAEMOBJ) -lndir -o bin/crond
-	su root chown root bin/crond
-	su root chgrp root bin/crond
-	su root chmod 4511 bin/crond
-	su root strip	bin/crond
+bin/cron: $(DAEMOBJ) $(COMMON)
+	cc -DDEBUG=$(DEBUG) $(DAEMOBJ) -lmisc -o $(DESTDIR)/cron
+	su root chown root $(DESTDIR)/cron
+	su root chgrp root $(DESTDIR)/cron
+	su root chmod 4511 $(DESTDIR)/cron
+#	su root strip	$(DESTDIR)/cron
 
-bin/crontab: $(TABOBJ) 
-	cc -DDEBUG=$(DEBUG) -o bin/crontab $(TABOBJ)
-	su root chown root bin/crontab
-	su root chgrp root bin/crontab
-	su root chmod 4511 bin/crontab
-	su root strip bin/crontab
-
-obj/bedaemon.o: src/bedaemon.c $(COMMON)
-	cc -c src/bedaemon.c -o obj/bedaemon.o
+bin/crontab: $(TABOBJ) $(COMMON)
+	cc -DDEBUG=$(DEBUG) -o $(DESTDIR2)/crontab $(TABOBJ)
+	su root chown root $(DESTDIR2)/crontab
+	su root chgrp root $(DESTDIR2)/crontab
+	su root chmod 4511 $(DESTDIR2)/crontab
+	su root strip $(DESTDIR2)/crontab
 
 obj/cron.o: src/cron.c $(COMMON)
 	cc -DDEBUG=$(DEBUG) -c src/cron.c -o obj/cron.o
@@ -39,6 +39,9 @@ obj/crontab.o: src/crontab.c $(COMMON)
 
 obj/cronpipe.o: src/cronpipe.c $(COMMON)
 	cc -DDEBUG=$(DEBUG) -c src/cronpipe.c -o obj/cronpipe.o
+
+obj/bedaemon.o: src/bedaemon.c $(COMMON)
+	cc -DDEBUG=$(DEBUG) -c src/bedaemon.c -o obj/bedaemon.o
 
 obj/entry.o: src/entry.c $(COMMON)
 	cc -DDEBUG=$(DEBUG) -c src/entry.c -o obj/entry.o

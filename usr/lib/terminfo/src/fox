@@ -1,5 +1,0 @@
-fox|perkin elmer 1100,
-	am, cols#80, lines#24, bel=^G, cr=^M, tbc=\E3, clear=\EH\EJ$<132>, 
-	el=\EI, ed=\EJ$<5.5*>, cup=\EX%p1%' '%+%c\EY%p2%' '%+%c, cud1=^J, 
-	home=\EH, cub1=^H, cuf1=\EC, ll=\EH\EA, cuu1=\EA, flash=^P^B^P^C, 
-	ind=^J, hts=\E1, 

@@ -1,11 +1,11 @@
-# /usr/src/cmd0/sh/Makefile 1/11/93
-
-# Version number for var.c.
-VERSION=V3.4.3
-# Parsing stack depth for y.tab.c.
-YYMAXDEPTH=300
+# /usr/src/cmd0/sh/Makefile 4/3/93
 
 DESTDIR=/bin386/bin/
+
+# Version number for var.c.
+VERSION=V3.4.5
+# Parsing stack depth for y.tab.c.
+YYMAXDEPTH=300
 
 CFLAGS= -O -I$(SRCPATH)
 # Undefine _copyright_ to pull in libc.a/copyright.o.
@@ -49,7 +49,6 @@ SRCS=\
 # Primary target.
 sh: $(OBJ)
 	$(CC) $(LDFLAGS) -o $(DESTDIR)sh $(OBJ)
-	chmog 511 bin bin $(DESTDIR)sh
 
 psh: $(OBJ)
 	$(CC) -n -o psh -O -DPARANOID $(OBJ)

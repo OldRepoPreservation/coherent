@@ -1,9 +1,7 @@
-# /usr/src/libc/Makefile 11/19/92
+# /usr/src/libc/Makefile 7/23/91
 # Assumes $(SRCPATH) defines root libc source directory, e.g. /usr/src/libc.
-# Assumes $(MCH) defines target machine, e.g. i8086 or i386.
-# Assumes $(AR), $(AS), $(AFLAGS), $(CC), $(CFLAGS) defined appropriately.
 # To build a new libc.a, move to an empty object directory and
-# type "make -e SRCPATH=/usr/src/libc MCH=i8086" (or other pathname as appropriate).
+# type "make SRCPATH=/usr/src/libc" (or other pathname as appropriate).
 # This takes about 20 minutes from scratch on 20 MHz 386.
 
 # Copyright module is first entry in the archive.
@@ -15,7 +13,7 @@ OBJ=\
 # dstdio must be the last target, because it plays tricks to reduce size
 # of executable if stdio is not required.
 # dgen is next to last because e.g. perror() references stdio.
-all:	ROOT dcrt dndir dstring dsys dstdlib dgen dstdio
+all:	ROOT dcrt dstring dsys dgen dstdio
 	: libc done.
 
 # Pseudotargets.
@@ -23,22 +21,18 @@ all:	ROOT dcrt dndir dstring dsys dstdlib dgen dstdio
 # The upper case pseudotargets indicate when the objects in a given directory
 # were last made, allowing replacement of only the stale object files.
 ROOT:	$(OBJ)
-	$(AR) rckus libc.a $?
+	ar rckus libc.a $?
 	touch $@
 dcrt:	
-	SRCPATH=$(SRCPATH)/crt make -e
+	make SRCPATH=$(SRCPATH)/crt
 dgen:
-	SRCPATH=$(SRCPATH)/gen make -e
-dndir:
-	SRCPATH=$(SRCPATH)/ndir make -e
+	make SRCPATH=$(SRCPATH)/gen
 dstdio:
-	SRCPATH=$(SRCPATH)/stdio make -e
-dstdlib:
-	SRCPATH=$(SRCPATH)/stdlib make -e
+	make SRCPATH=$(SRCPATH)/stdio
 dstring:
-	SRCPATH=$(SRCPATH)/string make -e
+	make SRCPATH=$(SRCPATH)/string
 dsys:
-	SRCPATH=$(SRCPATH)/sys make -e
+	make SRCPATH=$(SRCPATH)/sys
 
 # Secondary targets.
 copyright.o:	$(SRCPATH)/gen/copyright.c

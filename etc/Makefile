@@ -2,7 +2,8 @@
 CFLAGS= -O -DNEWTTYS
 
 ETCDIR = /newbits/etc
-DESTDIR = /interim/etc/
+#DESTDIR = /interim/etc/
+DESTDIR = /bin386/etc/
 UTILS= getty init enable accton cron drvld fdformat timezone termcap \
 	mkfs mknod mount umount unmkfs update wall utmp umount.all \
 	shutdown serialno rc profile passwd newusr mtab mount.all motd \
@@ -20,11 +21,13 @@ getty:	getty.c deftty.h
 	su root chgrp root $(DESTDIR)$@
 	su root chmod 500 $(DESTDIR)$@
 
-init:	init.c
-	$(CC) $(CFLAGS) -s -n -i -o $(DESTDIR)init $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
+init:	init.c lock.c
+	$(CC) $(CFLAGS) -n -i -o $(DESTDIR)init $<
+	su root chmog 500 root root $(DESTDIR)$@
+
+init386:	init.c
+	$(CC) $(CFLAGS) -n -i -o $(DESTDIR386)init $< -lmisc
+	su root chmog 500 root root $(DESTDIR386)init
 
 enable:	enable.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)enable $<
@@ -64,6 +67,12 @@ fdformat: fdformat.c
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
 
+mkfs386:	mkfs.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)mkfs $<
+	su root chown bin $(DESTDIR386)mkfs
+	su root chgrp bin $(DESTDIR386)mkfs
+	su root chmod 511 $(DESTDIR386)mkfs
+
 mkfs:	mkfs.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)mkfs $<
 	su root chown bin $(DESTDIR)$@
@@ -75,6 +84,12 @@ mknod:	mknod.c
 	su root chown root $(DESTDIR)$@
 	su root chgrp root $(DESTDIR)$@
 	su root chmod 500 $(DESTDIR)$@
+
+mount386:	mount.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)mount $<
+	su root chown bin $(DESTDIR386)mount
+	su root chgrp bin $(DESTDIR386)mount
+	su root chmod 511 $(DESTDIR386)mount
 
 mount:	mount.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)mount $<
@@ -88,11 +103,23 @@ reboot:	reboot.c ATrebootas.s
 	su root chgrp root $(DESTDIR)$@
 	su root chmod 500 $(DESTDIR)$@
 
+umount386:	umount.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)umount $<
+	su root chown bin $(DESTDIR386)umount
+	su root chgrp bin $(DESTDIR386)umount
+	su root chmod 511 $(DESTDIR386)umount
+
 umount:	umount.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)umount $<
 	su root chown bin $(DESTDIR)$@
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
+
+unmkfs386:	unmkfs.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)unmkfs $<
+	su root chown bin $(DESTDIR386)unmkfs
+	su root chgrp bin $(DESTDIR386)unmkfs
+	su root chmod 511 $(DESTDIR386)unmkfs
 
 unmkfs:	unmkfs.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)unmkfs $<
@@ -223,7 +250,8 @@ group:
 	su root chmog 644 bin bin $(DESTDIR)$@
 
 drvld.all:
-	su root touch $(DESTDIR)$@
+	su root rm -f $(DESTDIR)$@
+	su root echo "/conf/kbd/us" > $(DESTDIR)$@
 	su root chown root $(DESTDIR)$@
 	su root chgrp root $(DESTDIR)$@
 	su root chmod 744 $(DESTDIR)$@
@@ -276,7 +304,7 @@ ATclock: ATclock.c ATclockas.s
 	su root chmod 500 $(DESTDIR)$@
 
 .profile:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
+	(co $@ ; cp $@ $(DESTDIR) ; rm $@)
 	su root chmog 700 root root $(DESTDIR)$@
 
 build/build:

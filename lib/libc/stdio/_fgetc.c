@@ -1,57 +1,41 @@
 /*
  * libc/stdio/_fgetc.c
- * ANSI-compliant C standard i/o library internals.
- * _fgetc(), _fgetca()
- * Read character, unbuffered.
+ * C Standard I/O Library internals.
+ * Unbuffered input.
  */
 
 #include <stdio.h>
-#if	COHERENT || GEMDOS
 #include <errno.h>
-#endif
+
+extern	int	_fputt();
 
 int
 _fgetc(fp) register FILE *fp;
 {
-	unsigned char c;
-	register int n;
+	register unsigned char s[1];
+	register int n, oerrno;
 
-	/* Special kludge: fflush stdout if line buffered. */
-	if ((stdout->_ff1 & _IOLBF) != 0)
+	if (stdout->_pt==&_fputt)	/* special kludge */
 		fflush(stdout);
-
-	if ((n = read(fileno(fp), &c, 1)) == 1)
-		return c;
-	else if (n == 0)
-		fp->_ff1 |= _FEOF;
-	else {
-#if	COHERENT || GEMDOS
-		if (errno == EINTR)
-			errno = 0;
-		else
-#endif
-		fp->_ff1 |= _FERR;
-	}
-	return EOF;
-}
-
-#if	_ASCII
-
-/* ASCII: ignore '\r', map _EOFCHAR to EOF. */
-int
-_fgetca(fp) register FILE *fp;
-{
- 	register int c;
-
-	while ((c = _fgetc(fp)) == '\r')
-		;
-	if (c == _EOFCHAR) {
+	fp->_cc = 0;
+	oerrno = errno;			/* save old errno */
+	errno = 0;
+	n = EOF;			/* return value in case error */
+	switch (read(fileno(fp), s, 1)) {
+	case -1:			/* error */
+		if (errno != EINTR)
+			fp->_ff |= _FERR;
+		break;
+	case 0:				/* EOF */
 		fp->_ff |= _FEOF;
-		return EOF;
+		break;
+	default:			/* success */
+		n = s[0];
+		break;
 	}
-	return c;
+	if (errno == 0)
+		errno = oerrno;		/* preserve errno if no error */
+	return n;
 }
-
-#endif
 
 /* end of libc/stdio/_fgetc.c */

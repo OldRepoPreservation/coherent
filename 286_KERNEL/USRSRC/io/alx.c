@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 2.8  92/02/14  10:14:48  bin
+ * update by hal (post 321?)
+ * 
  * Revision 1.4  92/02/07  09:41:21  hal
  * Fix Wallenberg bug.
  * 

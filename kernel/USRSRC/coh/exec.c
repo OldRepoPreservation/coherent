@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/exec.c,v 1.1 88/03/24 16:13:39 src Exp $ */
+/* $Header: /newbits/kernel/USRSRC/coh/RCS/exec.c,v 1.4 91/07/24 07:50:20 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,11 @@
  * Coherent.
  * Exec and driver load code.
  *
- * $Log:	/usr/src/sys/coh/RCS/exec.c,v $
+ * $Log:	exec.c,v $
+ * Revision 1.4  91/07/24  07:50:20  bin
+ * update prov by hal
+ * 
+ * 
  * Revision 1.1	88/03/24  16:13:39	src
  * Initial revision
  * 

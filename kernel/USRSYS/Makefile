@@ -1,4 +1,4 @@
-# $Header: /usr/src/sys/i8086/ibm_at/RCS/Makefile,v 1.3 89/06/30 16:26:39 src Exp $
+# $Header: /newbits/kernel/USRSYS/RCS/Makefile,v 1.7 91/10/31 08:33:41 bin Exp Locker: bin $
 #
 # Makefile for ibm specific coherent sources and coherent images.
 #
@@ -7,7 +7,10 @@
 #	USRSRC (e.g. /usr/src/sys)
 #	KOBJ (e.g. /usr/kobj)
 #
-# $Log:	/usr/src/sys/i8086/ibm_at/RCS/Makefile,v $
+# $Log:	Makefile,v $
+# Revision 1.7  91/10/31  08:33:41  bin
+# Makefile for building 3204{k} kernel and loadable drivers
+#
 # Revision 1.3	89/06/30  16:26:39 	src
 # Bug:	Lack of DMA lock resulted in failed transfers between SCSI drive
 # 	and floppy disk.

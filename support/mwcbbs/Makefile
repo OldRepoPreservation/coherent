@@ -4,7 +4,7 @@ CFLAGS= -c -v -A
 OBJECTS= globals.o main.o disp_rec.o getflname.o lite.o map_cmd.o states.o \
 	 print.o bbsdatafile.o
 
-../bbsutil:	$(OBJECTS)
+beta/mwcbbs:	$(OBJECTS)
 	cc -v -A $< $(LDFLAGS) -o $@
 	strip $@
 	ls -l $@

@@ -543,7 +543,11 @@ sysend()
 		dcpundial();
 		plog(M_CALL,"Removing remote site lock");
 		if (lockexist(rmtname)){
+#ifndef _I386
+			if (lockrm(rmtname)!= 0) {
+#else
 			if (!lockrm(rmtname)) {
+#endif
 				printmsg(M_LOG,"sysend: Remote site Lock file removal failed!");
 				plog(M_CALL,"sysend: Remote site lock file removal failed!");
 			}

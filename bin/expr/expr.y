@@ -31,9 +31,7 @@ char	s1[] = "1";	/* `1' integer - `true' expr */
 char	*regexp(),
 	*arithop(),
 	*relop(),
-	*realloc(),
 	*ltoa();
-long	atol();
 
 
 /*

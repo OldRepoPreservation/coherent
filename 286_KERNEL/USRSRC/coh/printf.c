@@ -2,7 +2,10 @@
  * Coherent.
  * Print formatted.
  *
- * $Log:	/usr/src/sys/coh/RCS/printf.c,v $
+ * $Log:	printf.c,v $
+ * Revision 1.1  92/01/09  13:29:00  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:14:13	src
  * Initial revision
  * 

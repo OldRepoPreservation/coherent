@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/mmain.c,v 1.2 88/08/05 15:43:42 src Exp $ */
+/* $Header: /usr/local/src/sys/i8086/src/RCS/mmain.c,v 1.2 91/06/20 14:40:23 bin Exp Locker: piggy $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,7 +17,10 @@
  * All machines.
  * Machine dependent stuff.
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/mmain.c,v $
+ * $Log:	mmain.c,v $
+ * Revision 1.2  91/06/20  14:40:23  bin
+ * update provided by hal
+ * 
  * Revision 1.2	88/08/05  15:43:42	src
  * Bug:	Spawning large number of processes would cause system to crash.
  * Fix:	Kernel alloc space no longer overlaps loadable driver data.
@@ -59,6 +62,15 @@
 #include <signal.h>
 #include <sys/uproc.h>
 #include <sys/buf.h>
+#include <sys/typed.h>
+
+/* Arguments are passed into the kernel through boot_gift.
+ * If you start getting "Not enough room for all arguments." messages
+ * at boot time, just increase the BG_LEN  to whatever you need.
+ * This structure is EXACTLY BG_LEN bytes long.
+ */
+#define BG_LEN 512
+TYPED_SPACE(boot_gift, BG_LEN, T_FIFO_SIC);
 
 saddr_t uasa;	/* Currently active uarea */
 

@@ -6,13 +6,12 @@
 #include <sys/coherent.h>
 #include <sys/i8086.h>
 #include <sys/con.h>
+#include <sys/devices.h>
 #include <errno.h>
 #include <sys/io.h>
 #include <sys/proc.h>
 #include <sys/uproc.h>
 #include <sys/stat.h>
-
-#define	LPMAJ	3				/* major device # */
 
 /*
  * Patchable parameters.
@@ -41,7 +40,7 @@ int	nonedev();
 
 CON	lpcon =	{
 	DFCHR,				/* Flags */
-	LPMAJ,				/* Major index */
+	LP_MAJOR,				/* Major index */
 	lpopen,				/* Open */
 	lpclose,			/* Close */
 	nulldev,			/* Block */

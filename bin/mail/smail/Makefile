@@ -2,19 +2,24 @@
 
 # @(#)Makefile	2.5 (smail) 9/15/87
 
-CFLAGS	= -O -n
+DESTDIR=/bin386/bin/
+
+CFLAGS	= -O -n 
 #
 # System V Release 2.0 sites can use -lmalloc for a faster malloc
 #
 # LIBS	=	-lmalloc
 LIBS=-lmisc
-OBJECTS =	main.o map.o resolve.o deliver.o misc.o alias.o pw.o headers.o getpath.o str.o getopt.o gethostname.o popen.o copyright.o
+CC = cc
+OBJECTS =	main.o map.o resolve.o deliver.o misc.o alias.o pw.o \
+		headers.o getpath.o str.o getopt.o gethostname.o copyright.o
 
 all: smail svbinmail lcasep pathproc mkfnames nptx
 
 smail:		$(OBJECTS)
-		$(CC) $(CFLAGS) $(OBJECTS) -o smail $(LIBS)
-		fixstack 2000 smail
+		$(CC) $(CFLAGS) $(OBJECTS) -o $(DESTDIR)smail $(LIBS)
+		su root chmog 6511 root root $(DESTDIR)smail
+		su root ln -f $(DESTDIR)smail $(DESTDIR)rmail
 
 $(OBJECTS):	defs.h
 #		$(CC) $(CFLAGS) -c $<

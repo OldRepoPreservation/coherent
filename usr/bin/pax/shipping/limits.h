@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/limits.h,v $
+/* $Source: /newbits/usr/bin/pax/shipping/limits.h,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * 	limits.h - POSIX compatible defnitions for some of <limits.h>
  *

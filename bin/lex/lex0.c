@@ -1,10 +1,9 @@
-/*
- * lex/lex0.c
- * external variables
- */
-
 #include "lex.h"
 
+/*
+ * lex0.c
+ * external variables
+ */
 int	nxt;
 int	yylval;
 int	ltype;
@@ -37,5 +36,3 @@ char	actsyn[] = "action syntax";
 char	unmopr[] = "unmatched `%c' in regular expression";
 char	reperr[] = "improper repetition specification";
 char	eoferr[] = "unexpected EOF";
-
-/* end of lex0.c */

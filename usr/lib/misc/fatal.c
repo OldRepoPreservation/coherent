@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <errno.h>
 
-void
 fatal(s)
 char *s;
 {
@@ -19,6 +18,7 @@ char *s;
 #ifdef TEST
 main()
 {
-	xopen("Bogus.file", "r");
+	sqrt(-1.0);
+	fatal("test %d", 1);
 }
 #endif

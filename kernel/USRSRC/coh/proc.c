@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/proc.c,v 1.2 88/08/05 15:30:01 src Exp $ */
+/* $Header: /newbits/kernel/USRSRC/coh/RCS/proc.c,v 1.4 91/07/24 07:51:40 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,11 @@
  * Coherent.
  * Process handling and scheduling.
  *
- * $Log:	/usr/src/sys/coh/RCS/proc.c,v $
+ * $Log:	proc.c,v $
+ * Revision 1.4  91/07/24  07:51:40  bin
+ * update prov by hal
+ * 
+ * 
  * Revision 1.2	88/08/05  15:30:01	src
  * pfork() made more rigorous, supports loadable driver forks, etc.
  * lock/unlock more efficient, since know wakeup is synchronous.

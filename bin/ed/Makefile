@@ -2,7 +2,7 @@
 
 # for i8086 LDFLAGS = -i -n
 CFLAGS=-O
-DESTDIR= /f1/bin/
+DESTDIR= /bin386/bin/
 LDFLAGS=-i -n
 
 OBJ=ed0.o ed1.o ed2.o ed3.o

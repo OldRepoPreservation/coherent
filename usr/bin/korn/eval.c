@@ -2,7 +2,7 @@
  * Expansion - quoting, separation, substitution, globbing
  */
 
-static char *RCSid = "$Header: eval.c,v 3.1 88/11/03 09:15:39 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/eval.c,v 1.2 91/08/01 12:39:55 bin Exp Locker: bin $";
 
 #include <stddef.h>
 #include <stdio.h>

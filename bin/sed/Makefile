@@ -1,5 +1,5 @@
 # /usr/src/cmd/sed/Makefile 5/26/92
-DESTDIR=/interim/bin/
+DESTDIR=/bin386/bin/
 OBJ=\
 	sed0.o\
 	sed1.o\

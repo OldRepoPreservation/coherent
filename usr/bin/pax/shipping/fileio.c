@@ -1,6 +1,6 @@
-/* $Source: /newbits/usr/bin/pax/shipping/fileio.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/RCS/fileio.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * fileio.c - file I/O functions for all archive interfaces
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/newbits/usr/bin/pax/shipping/fileio.c,v $
+ * $Log:	fileio.c,v $
+ * Revision 1.2  91/06/19  09:55:59  bin
+ * udated by vlad for restoring ownership/permissions 
+ * 
  * Revision 1.1	91/02/05  11:56:02 	bin
  * Initial revision
  * 
@@ -42,7 +45,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: fileio.c,v 1.2 89/02/12 10:04:31 mark Exp $";
+static char *ident = "$Id: fileio.c,v 1.2 91/06/19 09:55:59 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

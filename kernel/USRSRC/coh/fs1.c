@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/fs1.c,v 1.1 88/03/24 16:13:47 src Exp $ */
+/* $Header: /newbits/kernel/USRSRC/coh/RCS/fs1.c,v 1.5 91/07/24 07:50:40 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,11 @@
  * Coherent.
  * Filesystem (mostly handling of in core inodes).
  *
- * $Log:	/usr/src/sys/coh/RCS/fs1.c,v $
+ * $Log:	fs1.c,v $
+ * Revision 1.5  91/07/24  07:50:40  bin
+ * update prov by hal
+ * 
+ * 
  * Revision 1.1	88/03/24  16:13:47	src
  * Initial revision
  * 

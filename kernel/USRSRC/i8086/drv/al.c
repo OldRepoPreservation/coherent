@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.8  91/08/01  13:47:28  bin
+ * updated by hal to include rts/cts handshaking.
+ * 
  * Revision 1.4  91/07/31  16:06:33  hal
  * Change include usage.  Use AL[01]_MAJOR.
  * 

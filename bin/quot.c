@@ -186,14 +186,14 @@ quotterm()
 				totfiles += fep->f_nfiles;
 			}
 			if (fflag)
-				printf("%8D ", fep->f_nfiles);
-			printf("%8D    %s\n", fep->f_nblocks,
+				printf("%8ld ", fep->f_nfiles);
+			printf("%8ld    %s\n", fep->f_nblocks,
 			    username(fep->f_uid));
 		}
 		if (tflag) {
 			if (fflag)
-				printf("%8D ", totfiles);
-			printf("%8D      Total\n", totblocks);
+				printf("%8ld ", totfiles);
+			printf("%8ld      Total\n", totblocks);
 		}
 		free((char *)fentries);
 		fentries = NULL;
@@ -206,7 +206,7 @@ quotterm()
 			if (cep->c_nblocks == BADSIZE)
 				break;
 			cumblocks += cep->c_nblocks*cep->c_nfiles;
-			printf("%8D %8D %10D\n", cep->c_nblocks,
+			printf("%8ld %8ld %10ld\n", cep->c_nblocks,
 			    cep->c_nfiles, cumblocks);
 		}
 		free((char *)centries);

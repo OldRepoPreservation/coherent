@@ -2,16 +2,18 @@
 # part of uucheck the uucp sanity checker.
 #
 # Destination directory for installing executable files
+DESTDIR=/interim/bin/
 BIN=./install/bin/
 # Destination directory for installing data files
 # BTW if LIB= anything other than /usr/lib/uucheck/, you will have to edit
 # uucheck by hand.
 LIB=./install/usr/lib/uucheck/
 
-SUBPROGS=checkperms/checkperms uucheckname/uucheckname uuchecklock/uuchecklock
+SUBPROGS=uucheck checkperms/checkperms uucheckname/uucheckname uuchecklock/uuchecklock
 #
 uucheck:	$(SUBPROGS)
-	touch $@
+	cp uucheck $(DESTDIR)$@
+	su root chmog 511 bin bin $(DESTDIR)$@
 
 checkperms/checkperms:
 	(cd checkperms; make)

@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.11  92/01/17  11:38:56  bin
+ * update by hal... looks like final 321 version
+ * 
  * Revision 1.12  92/01/17  03:50:53  hal
  * Cleanup for 3.2.1.
  * 

@@ -1,50 +1,59 @@
 /*
- * libc/stdio/_stropen.c
- * ANSI-compliant C standard i/o library internals.
- * _stropen()
- * Open string stream.
- * Called by sprintf(), sscanf(), vsprintf().
+ * Standard I/O Library Internals
+ * open string for getc, putc
  */
 
 #include <stdio.h>
-#include <limits.h>
+#include <sys/mdata.h>
 
-extern	int	_fputstr();
-
-/* length is -1 for output to string, strlen(string) for input from string. */
 FILE *
-_stropen(string, length, fp) char *string; int length; register FILE *fp;
+_stropen(string, length, fp)
+char	*string;
+int	length;
+register FILE	*fp;
 {
-	register _FILE2 *f2p;
+#if !RSX
+	int	_fgeteof(),
+		_fputeos(),
+		_fputexs();
 
-	f2p = fp->_f2p;
-	f2p->_bp = fp->_cp = string;
-	f2p->_dp = f2p->_ep = f2p->_nm = NULL;
-	fp->_mode = _MODE_STR;
-	fp->_ff1 = fp->_ff2 = fp->_fd = f2p->_uc = 0;
-	if (length < 0) {
-		fp->_ff1 |= _FWONLY;
-		fp->_cc = INT_MAX;
-		f2p->_pt = &_fputstr;
-		f2p->_gt = &_fgete;
-	} else {
-		fp->_ff1 |= _FRONLY;
-		fp->_cc = length;
-		f2p->_pt = &_fpute;
-		f2p->_gt = &_fgetstr;
-	}
-	return fp;
+	fp->_bp = fp->_cp = string;
+	fp->_gt = &_fgeteof;
+	fp->_cc = -length;
+	if (fp->_cc < -MAXINT) {	/* most negative int means unlimited */
+		fp->_cc = MAXINT;
+		fp->_pt = &_fputexs;
+	} else
+		fp->_pt = &_fputeos;
+#else
+	fp->v_flag = VF_FIL;
+	fp->v_r0 = -length;
+	fp->v_r1 = string;
+	fp->v_rblk = 1L;	/* seek block > eof block */
+	fp->v_efbk = 0L;	/* => eof at end of string */
+	fp->v_uget = -1;
+#endif
+	return (fp);
 }
 
-/*
- * _fputstr() is static;
- * _fgetstr() (in _fgetstr.c) is not, because it must be visible to ungetc().
- */
+#if !RSX
 static
 int
-_fputstr(c, fp) int c; register FILE *fp;
+_fputeos(c, fp)
+unsigned char	c;
+register FILE	*fp;
 {
-	return (*fp->_cp++ = (unsigned char)c);
+	fp->_cc = 0;
+	return (EOF);
 }
 
-/* end of libc/stdio/_stropen.c */
+static
+int
+_fputexs(c, fp)
+unsigned char	c;
+register FILE	*fp;
+{
+	fp->_cc = MAXINT;
+	return (*fp->_cp++ = c);
+}
+#endif

@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/pass.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/pass.c,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * pass.c - handle the pass option of cpio
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	pass.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/pass.c,v $
+ * Revision 1.1	91/02/05  11:57:42 	bin
+ * Initial revision
+ * 
  * Revision 1.3  89/02/12  10:29:51  mark
  * Fixed misspelling of Replstr
  * 

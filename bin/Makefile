@@ -1,19 +1,22 @@
 # CFLAGS are not needed for i8086
 CFLAGS= -O -DNEWTTYS 
-DESTDIR= /interim/bin/
+#DESTDIR= /interim/bin/
+DESTDIR= /bin386/bin/
 DESTDIR2= /interim/lib/
+DESTDIR386= /bin386/bin/
+DESTDIR386B= /bin386/etc/
 CMDS= expr/expr conv/conv as/as awk/awk  \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
       ed/ed find/find grep/grep lex/lex lmail smail make/make sed/sed sh/sh \
       test/test tsort/tsort yacc/yacc nroff/nroff ld debugger detab printers \
-      login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
-      chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
+      login passwd su ac ar at bad banner basename c cal calendar cat \
+      cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
       factor file fixstack from head help join kill lc ln look ls m4 mail man \
       mesg mkdir msg mv newgrp nm od pr prep prof pwd quot ranlib rev rm rmdir \
       sa scat size sleep sort split strings strip stty sum sync tail tar tee \
       time touch tr tty typo uniq units wc who write yes qfind umount true \
       shutdown phone mount fnkey false msgs clear epson cgrep uucheckperms \
-      which chroot env
+      which chroot env chmog
 
 all:	$(CMDS)
 	>all
@@ -24,9 +27,17 @@ env:	env.c execvep.c
 	cc $< -o $(DESTDIR)$@
 	su root chmog 511 bin bin $(DESTDIR)$@
 
+env386:	env.c execvep.c
+	cc $< -o $(DESTDIR386)env
+	su root chmog 511 bin bin $(DESTDIR386)env
+
 chroot:	chroot.c
 	cc $< -o $(DESTDIR)$@
 	su root chmog 500 root root $(DESTDIR)$@
+
+chroot386:	chroot.c
+	cc $< -o $(DESTDIR386)chroot
+	su root chmog 500 root root $(DESTDIR386)chroot
 	
 printers:
 	export SRCPATH=.. ; cd lpr/objects ; make
@@ -108,6 +119,13 @@ cat:	cat.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)cat cat.c
 	su root chmog 511 bin bin $(DESTDIR)$@
 
+chmog:	chmog.c
+	$(CC) -v -o $(DESTDIR)$@ $<
+	su root chmog 511 bin bin $(DESTDIR)$@
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)chown
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)chgrp
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)chmod
+
 chgrp:	chgrp.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)chgrp chgrp.c
 	su root chmog 511 bin bin $(DESTDIR)$@
@@ -160,6 +178,10 @@ df:	df.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)df df.c
 	su root chmog 511 bin bin $(DESTDIR)$@
 
+df386:	df.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)df $<
+	su root chmog 511 bin bin $(DESTDIR386)df
+
 du:	du.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)du du.c
 	su root chmog 511 bin bin $(DESTDIR)$@
@@ -204,6 +226,10 @@ kill:	kill.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)kill kill.c
 	su root chmog 511 bin bin $(DESTDIR)$@
 
+kill386:	kill.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)kill $<
+	su root chmog 511 bin bin $(DESTDIR386)kill
+
 lc:	lc.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)lc lc.c
 	su root chmog 511 bin bin $(DESTDIR)$@
@@ -219,6 +245,18 @@ look:	look.c
 ls:	ls.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)ls ls.c
 	su root chmog 511 bin bin $(DESTDIR)$@
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)l
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)lf
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)lr
+	su root ln -f $(DESTDIR)$@ $(DESTDIR)lx
+
+ls386:	ls.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)ls $<
+	su root chmog 511 bin bin $(DESTDIR386)ls
+	su root ln -f $(DESTDIR386)ls $(DESTDIR386)l
+	su root ln -f $(DESTDIR386)ls $(DESTDIR386)lf
+	su root ln -f $(DESTDIR386)ls $(DESTDIR386)lr
+	su root ln -f $(DESTDIR386)ls $(DESTDIR386)lx
 
 m4:	m4.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)m4 m4.c
@@ -251,9 +289,18 @@ mv:	mv.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)mv mv.c
 	su root chmog 511 bin bin $(DESTDIR)$@
 
+mv386:	mv.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)mv $<
+	su root chmog 511 bin bin $(DESTDIR386)mv
+	su root ln -f $(DESTDIR386)mv $(DESTDIR386B)mvdir
+
 newgrp:	newgrp.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)newgrp newgrp.c
 	su root chmog 4511 root root $(DESTDIR)$@
+
+nm386:	nm.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)nm nm.c
+	su root chmog 511 bin bin $(DESTDIR386)nm
 
 nm:	nm.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)nm nm.c
@@ -270,6 +317,10 @@ pr:	pr.c
 prep:	prep.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)prep prep.c
 	su root chmog 511 bin bin $(DESTDIR)$@
+
+prof386:	prof.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)prof prof.c
+	su root chmog 511 bin bin $(DESTDIR386)prof
 
 prof:	prof.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)prof prof.c
@@ -294,6 +345,10 @@ rev:	rev.c
 rm:	rm.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)rm rm.c
 	su root chmog 511 bin bin $(DESTDIR)$@
+
+rm386:	rm.c
+	$(CC) $(CFLAGS) -o $(DESTDIR386)rm $<
+	su root chmog 511 bin bin $(DESTDIR386)rm
 
 rmdir:	rmdir.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)rmdir rmdir.c
@@ -360,7 +415,7 @@ time:	time.c
 	su root chmog 511 bin bin $(DESTDIR)$@
 
 touch:	touch.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)touch time.c
+	$(CC) $(CFLAGS) -o $(DESTDIR)touch $<
 	su root chmog 511 bin bin $(DESTDIR)$@
 
 tr:	tr.c

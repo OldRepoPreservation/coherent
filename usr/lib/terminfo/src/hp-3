@@ -1,4 +1,0 @@
-hp-3,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=\EH\EJ, el=\EK, ed=\EJ, 
-	cup=\E&a%p2%dc%p1%dY$<6>, cud1=^J, home=\E&a0c0Y, cub1=^H, cuf1=\EC, 
-	cuu1=\EA, ind=^J, ht=^I, 

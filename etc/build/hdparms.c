@@ -16,6 +16,9 @@
  *	-s	Seagate SCSI
  *
  * $Log:	hdparms.c,v $
+ * Revision 1.4  92/01/17  11:31:11  bin
+ * another hal update... looks like the final 321 ship version
+ * 
  * Revision 1.2  91/06/28  07:29:47  bin
  * updated by hal
  * 

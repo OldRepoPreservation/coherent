@@ -53,7 +53,11 @@ static char sccsid[] = "@(#)more.c	5.22 (Berkeley) 7/30/89";
 #include <l.out.h>
 #include <sys/mdata.h>
 #include <canon.h>
+#ifdef _I386
+#include <misc.h>
+#else
 #include "regexp.h"
+#endif
 #else
 #include <sys/file.h>
 #include <a.out.h>
@@ -133,7 +137,8 @@ int		soglitch;	/* terminal has standout mode glitch */
 int		ulglitch;	/* terminal has underline mode glitch */
 int		pstate = NOSEQ;	/* current UL state */
 char		*editor;	/* editor of choice */
-long		fseek();
+/* long		fseek(); */
+extern int	fseek(); 
 char		*getenv();
 struct {
     long chrctr, line;
@@ -768,7 +773,7 @@ char *filename;
 /*
 ** Get a logical line
 */
-
+#ifndef _I386
 getline(f, length)
 register FILE *f;
 int *length;
@@ -850,7 +855,7 @@ int *length;
     *p = 0;
     return (column);
 }
-
+#endif _I386
 /*
 ** Erase the rest of the prompt, assuming we are starting at column col.
 */
@@ -1725,7 +1730,7 @@ readch ()
 	extern int errno;
 
 	errno = 0;
-	if (read (2, &ch, 1) <= 0)
+	if (read (fileno(stdin), &ch, 1) <= 0)
 		if (errno != EINTR)
 			end_it();
 		else

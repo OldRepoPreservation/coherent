@@ -1,7 +1,7 @@
 # boot/Makefile 8 Nov 1991
 # COHERENT boot strap Makefile.
 
-DESTDIR=objects/
+DESTDIR=/interim/conf/
 TMP=boot.o
 ALL=\
 	boot \

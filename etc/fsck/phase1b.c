@@ -4,6 +4,8 @@
 
 #include "fsck.h"
 
+extern int	numdup;		/* declared in phase1.c */
+
 phase1b()
 {
 	if (!qflag)
@@ -14,13 +16,17 @@ phase1b()
 
 buildtable()
 {
-	unsigned cntr=0;
+	unsigned cntr=0, numdiff=0;
 	daddr_t bn;
 
 	while (cntr<totdups) {
 		bn = dupblck[cntr++];
-		markdup(bn);
+		if (!testdup(bn)) {
+			markdup(bn);
+			numdiff++;
+		}
 	}
+	totdups = numdiff;
 }
 
 iscanb()
@@ -43,6 +49,8 @@ iscanb()
 			candino(dip);
 			if (inuse(dip) == TRUE) 
 				ckblksb(dip, ino);
+			if (totdups == 0)
+				return;			
 			ino++;
 			dip++;
 		}
@@ -58,26 +66,24 @@ ckblksb(dip, ino)
 register struct dinode *dip;
 register ino_t	ino;
 {
-	daddr_t	addrs[NADDR], bn;
-	int i, lev, naddr;
+	daddr_t	addrs[NADDR];
+	int i, lev;
 	int mode;
 
 	mode = dip->di_mode & IFMT;
 
-	if ( (mode == IFREG) || (mode == IFDIR) )
-		l3tol(addrs, dip->di_addr, naddr=NADDR);
-	else if ( mode == IFPIPE )
-		l3tol(addrs, dip->di_addr, naddr=ND);
-	else
+	if ( (mode != IFREG) && (mode != IFDIR) )
 		return;
 
-	for(i=0; i<naddr; i++)
+	l3tol(addrs, dip->di_addr, NADDR);
+
+	numdup = 0;			/* num dup blocks so far THIS INODE */
+
+	for(i=0; i<NADDR; i++)
 		for (lev=0; lev<4; lev++) 
 			if (i < offsets[lev]) {
-				if ( (bn=addrs[i]) != 0 ) {
-					dblocksb(bn, ino, lev);
-					break;
-				}
+				dblocksb(addrs[i], ino, lev);
+				break;
 			}
 }
 
@@ -97,7 +103,11 @@ int	lev;
 	int  i;
 	daddr_t	*bnptr;
 
-	if ( cdupb(bn, ino) == OK ) {
+	if (bn == 0)
+		return(OK);
+		
+	switch ( cdupb(bn, ino) ) {
+	case OK:
 		if (lev--==0)
 			return(OK);
 		bread(bn, buf);
@@ -105,9 +115,12 @@ int	lev;
 		for (i=0; i<NBN; i++) {
 			bn = bnptr[i];
 			candaddr(bn);
-			if ( bn != 0 )
-				dblocksb(bn, ino, lev);
+			if ( dblocksb(bn, ino, lev) == STOP )
+				return(STOP);
 		}
+		return(OK);
+	case STOP:
+		return(STOP);
 	}
 }
 
@@ -119,17 +132,14 @@ cdupb(bn, ino)
 daddr_t	bn;
 ino_t	ino;
 {
-	if ( bn >= fsize )
-		return(STOP);
-	if ( !testdup(bn) ) {
-		if ( ino == 1 )		/* bad block inode, let's mark it */
-			markdup(bn);	/* so we never read it again	  */
+	if ( !testdup(bn) ) 
 		return(OK);
-	}
 
+	totdups--;
+	unmarkdup(bn);
 	if (!fflag)
 		orflags(ino, IBAD_IDUP);
-	printf("Dup Block %lu, i-number = %u\n", bn, ino);
+	printf("Dup Block %U, i-number = %u\n", bn, ino);
 
 	return(STOP);
 }

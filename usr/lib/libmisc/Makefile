@@ -8,10 +8,12 @@ O = \
 	approx.o \
 	ask.o \
 	banner.o \
+	bedaemon.o \
 	crc16.o \
 	fatal.o \
 	is_fs.o \
 	lcase.o \
+	lock.o \
 	match.o \
 	newcpy.o \
 	pathn.o \

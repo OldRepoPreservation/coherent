@@ -1,14 +1,13 @@
 /*
- * lex/lex1.c
+ * lex1.c
  * main and parsing routines
  */
-
 #include "lex.h"
 
 main(argc, argv)
 char **argv;
 {
-	register int i, s;
+	register i, s;
 	int pflag = 0, tflag = 0, vflag = 0;
 
 	while (argc>1 && **++argv=='-') {
@@ -153,7 +152,7 @@ char **argv;
  */
 yyparse()
 {
-	register int s = nxt;
+	register s = nxt;
 	register struct def *nd, *pd = NULL;
 	register char *pc;
 
@@ -207,7 +206,7 @@ yyparse()
 			}
 			nfa[nxt][0] = LX_ACPT;
 			nfa[nxt++][1] = ++actn;
-			loutput(1, "case 0x%x:", actn);
+			loutput(1, "case 0%o:", actn);
 			outlnum(0);
 			eatspc();
 			if (look(0) == '\n')
@@ -270,7 +269,7 @@ yyparse()
  */
 rexparse(p)
 {
-	register int c, t, s;
+	register c, t, s;
 
 	s = nxt;
 	for (c=yylex(); c!=LX_TERM; c=nfaclose(t)) {
@@ -316,7 +315,7 @@ rexparse(p)
  * nfa segement starting at t, ending at nxt
  */
 nfaclose(t)
-register int t;
+register t;
 {
 	register c;
 	int v0, v1;
@@ -377,9 +376,9 @@ register int t;
  * create an epsilon transition at nfa state s to nxt
  */
 nfalink(s)
-register int s;
+register s;
 {
-	register int i, j;
+	register i, j;
 
 	j = nxt++;
 	while ((i=j--) > s) {
@@ -394,9 +393,9 @@ register int s;
  * replicate the nfa segment starting at t ending at nxt
  */
 nfacopy(t)
-register int t;
+register t;
 {
-	register int s;
+	register s;
 
 	for (s=nxt; t<s; ++t,++nxt) {
 		nfa[nxt][0] = nfa[t][0];
@@ -411,7 +410,7 @@ register int t;
  */
 inscons()
 {
-	register int t;
+	register t;
 
 	nfa[nxt][0] = LX_SCON;
 	nfa[t=nxt++][1] = getstart();
@@ -424,5 +423,3 @@ inscons()
 		nfa[t][1] = nxt - t;
 	}
 }
-
-/* end of lex1.c */

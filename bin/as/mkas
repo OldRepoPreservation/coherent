@@ -1,6 +1,0 @@
-case $# in
-	1) ;;
-	*) echo "Usage -- mkas processor";
-	   exit 1;;
-esac
-make "TARG=$1" $1/as

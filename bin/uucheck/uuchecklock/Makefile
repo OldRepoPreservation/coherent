@@ -6,7 +6,7 @@ BIN=../install/usr/lib/uucheck/
 # BTW if LIB= anything other than /usr/lib/uucheck, you will have to edit
 # uucheck by hand.
 LIB=../install/usr/lib/uucheck/
-
+DESTDIR=/interim/usr/lib/uucheck/
 OBJS=main.o uuchecklock.o parse_args.o copyright.o
 LIBS=
 YACC=
@@ -16,7 +16,8 @@ LEXFLAGS=
 CFLAGS=-O -I..
 #
 uuchecklock:	$(OBJS)
-	$(CC) -o $@ $(CFLAGS) $(OBJS) $(LIBS)
+	$(CC) -o $(DESTDIR)$@ $(CFLAGS) $(OBJS) $(LIBS)
+	su root chmog 511 bin bin $(DESTDIR)$@
 
 parse_args.o:	../parse_args.c
 

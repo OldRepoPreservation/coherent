@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys2.c,v 1.1 91/04/30 13:56:54 root Exp $ */
+/* $Header: /newbits/286_KERNEL/USRSRC/coh/RCS/sys2.c,v 1.2 92/01/09 13:29:20 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,7 +17,11 @@
  * Coherent.
  * System calls (filesystem related).
  *
- * $Log:	/usr/src/sys/coh/RCS/sys2.c,v $
+ * $Log:	sys2.c,v $
+ * Revision 1.2  92/01/09  13:29:20  bin
+ * new sources provided by hal as new kit designed for 386 sources to be
+ * included.
+ * 
  * Revision 1.1	91/04/30  13:56:54	root
  * Shipped with COH 3.1.0.
  * 

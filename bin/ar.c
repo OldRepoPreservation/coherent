@@ -4,26 +4,16 @@
  * link editor,
  * including ranlib header updates.
  */
-#define PORTAR	1	/* COFF frmat */
+#define	RUNRSX	0
+#define	FMTRSX	0		/* Achives in COHERENT format */
 
-#ifdef COHERENT
-#define SLASH '/'
-#else
-#define SLASH '\\'
-#endif
-
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <arcoff.h>
 #include <ar.h>
-#if !PORTAR
 #include <canon.h>
-#else
-#include <coff.h>
-#endif
 #include <sys/types.h>
+#if !RUNRSX
 #include <sys/stat.h>
+#endif
 
 #define	RO	0
 #define	RW	1
@@ -48,91 +38,57 @@ char	creop[] = "%s: cannot reopen";
 FILE	*afp;
 FILE	*tfp;
 FILE	*rfp;
-#define DIRSIZ 14
-#if PORTAR
-struct old_ar_hdr ahb;
-char	rnp[] = "";
-char	rnpx[] = "SYMDEF.__";
-#else
-#define SARMAG sizeof(short)
-char	rnp[] = HDRNAME;
-char	*rnpx = rnp;
 struct	ar_hdr ahb;
-#endif
-
-int	usage();
-long	fsize();
-
-long	ranCt;	/* count of ranlib entrys for coff */
-
 int	nname;
 char	**namep;
+char	*ctime();
+int	usage();
+long	fsize();
+long	ftell();
 int	cflag;
 int	kflag;
 int	lflag;
 int	sflag;
 int	uflag;
 int	vflag;
-int	xflag;
 char	*pnp;
 char	*anp;
 char	*tnp;
+char	rnp[] = HDRNAME;
 int	xstat	 = ALLOK;
 int	pos	 = NONE;
 int	(*ffp)() = usage;
-FILE *makeh();
 
-char	state[] = "'%s' file not found";
-
-/*
- * ar called as ranlib.
- */
-ranlib(argv)
-char *argv[];
-{
-	int rfunc();
-
-	ffp = rfunc;
-	++sflag;
-	anp = argv[1];
-	(*ffp)();
-	delexit(xstat);
-}
+#if RUNRSX
+struct	header fhb;
+time_t	fmdate();
+time_t	getmdate();
+#else
+char	state[] = "%s: stat error";
+#endif
 
 main(argc, argv)
 char *argv[];
 {
+	register char *p;
 	register i;
-	char *p;
 	int usage(), rfunc();
 
-	if (NULL == (p = strrchr(argv[0], SLASH)))
-		p = argv[0];
-	else
-		p++;
-
-	if (!strcmp(p, "ranlib"))
-		ranlib(argv);
-
-	if (strcmp(p, "ar"))
-		diag(1, "called as %s, expecting ar, or ranlib", p);
-
-	_addargs("AR", &argc, &argv);
 	if (argc < 2)
 		usage();
 	key(argv[1]);
-	nname = argc - 2;
+	nname = argc-2;
 	namep = &argv[2];
-	for (i = 2; i < argc; ++i) {
-		if (pos != NONE && pnp == NULL) {
-			pnp = argv[i];
+	for (i=2; i<argc; ++i) {
+		p = argv[i];
+		if (pos!=NONE && pnp==NULL) {
+			pnp = p;
 			++namep;
 			--nname;
-		} else {
-			anp = argv[i];
+		} else if (anp == NULL) {
+			anp = p;
 			++namep;
 			--nname;
-			break;
 		}
 	}
 	if (anp == NULL)
@@ -188,7 +144,6 @@ register char *p;
 
 		case 'x':	/* Extract */
 			ffp = xfunc;
-			++xflag;
 			break;
 
 		case 'c':	/* no create message */
@@ -231,18 +186,6 @@ register char *p;
 }
 
 /*
- * Seek forward for ahb.ar_size rounded up.
- */
-static
-seekPast()
-{
-	long len;
-
-	len = (ahb.ar_size + 1) & ~1;
-	fseek(afp, len, 1);
-}
-
-/*
  * Replace.
  * Eliminate dead stuff if 'u'.
  * Copy up to insert point.
@@ -256,22 +199,22 @@ rfunc()
 	register i, nef;
 	FILE *qfp;
 
-	if (nname == 0 && sflag == 0)
+	if (nname == 0)
 		diag(1, nwork);
-	aopen(RW);	/* open archive */
-	ropen();	/* maybe open ranlib */
+	aopen(RW);
+	ropen();
 	if (uflag) {
 		update();
-		fseek(afp, (long)SARMAG, 0);	/* bypass magic */
+		fseek(afp, (long)sizeof(int), 0);
 		if (rfp != NULL) {
 			geth();
-			if (eqh(rnp))	/* if SYMBOL header bypass */
-				seekPast();
+			if (eqh(rnp))
+				fseek(afp, (long)ahb.ar_size, 1);
 			else
-				fseek(afp, (long)SARMAG, 0);
+				fseek(afp, (long)sizeof(int), 0);
 		}
 	}
-	topen();	/* open tmpfile */
+	topen();
 	while (nef = geth()) {
 		if (pos==BEFORE && eqh(pnp)) {
 			fseek(afp, (long)-sizeof(struct ar_hdr), 1);
@@ -283,14 +226,16 @@ rfunc()
 					break;
 			}
 			if (i != nname) {
-				seekPast();
+				fseek(afp, ahb.ar_size, 1);
 				namep[i] = NULL;
 				remove(i, qfn);
-				qfp = makeh(qfn);
+				if ((qfp = fopen(qfn, "rb")) == NULL)
+					diag(1, copen, qfn);
+				makeh(qfn, qfp);
 				if (vflag)
 					printf("%s: in place replace.\n", qfn);
-				puth(tfp, tnp);
-				ffcopy(tfp, tnp, qfp, qfn, (long)ahb.ar_size);
+				puth();
+				ffcopy(tfp, tnp, qfp, qfn, fsize(qfp, qfn));
 				fclose(qfp);
 				continue;
 			}
@@ -305,11 +250,13 @@ rfunc()
 		if ((qfn=namep[i]) == NULL)
 			continue;
 		remove(i, qfn);
-		qfp = makeh(qfn);
+		if ((qfp=fopen(qfn, "rb")) == NULL)
+			diag(1, copen, qfn);
+		makeh(qfn, qfp);
 		if (vflag)
 			printf("%s: replaced.\n", qfn);
-		puth(tfp, tnp);
-		ffcopy(tfp, tnp, qfp, qfn, (long)ahb.ar_size);
+		puth();
+		ffcopy(tfp, tnp, qfp, qfn, fsize(qfp, qfn));
 		fclose(qfp);
 	}
 	while (geth())
@@ -329,15 +276,21 @@ update()
 {
 	register char *p;
 	register i;
+#if !RUNRSX
 	struct stat sb;
+#endif
 
 	while (geth()) {
 		for (i=0; i<nname; ++i) {
 			p = namep[i];
 			if (p!=NULL && eqh(p)) {
+#if RUNRSX
+				if (ahb.ar_date >= fmdate(p)) {
+#else
 				if (stat(p, &sb) < 0)
 					diag(1, state, p);
 				if (ahb.ar_date >= sb.st_mtime) {
+#endif
 					if (vflag)
 						printf("%s: no update.\n", p);
 					namep[i] = NULL;
@@ -345,7 +298,7 @@ update()
 				}
 			}
 		}
-		seekPast();
+		fseek(afp, ahb.ar_size, 1);
 	}
 	for (i=0; i<nname && namep[i]==NULL; ++i)
 		;
@@ -383,7 +336,7 @@ mfunc()
 	s = ftell(afp);
 	if (pos == BEFORE)
 		s -= sizeof(struct ar_hdr);
-	fseek(afp, (long)SARMAG, 0);
+	fseek(afp, (long)sizeof(int), 0);
 	while (geth())
 		mmove(1);
 	if (nef) {
@@ -416,12 +369,12 @@ register f1;
 		if (vflag)
 			amsg("copied");
 		size = ahb.ar_size;
-		puth(tfp, tnp);
+		puth();
 		ffcopy(tfp, tnp, afp, anp, size);
 	} else {
 		if (vflag)
 			amsg("skipped");
-		seekPast();
+		fseek(afp, ahb.ar_size, 1);
 	}
 }
 
@@ -435,7 +388,7 @@ pfunc()
 		if (nname==0 || match())
 			pfile();
 		else
-			seekPast();
+			fseek(afp, ahb.ar_size, 1);
 	}
 	if (nname != 0)
 		notdone(found);
@@ -443,9 +396,41 @@ pfunc()
 
 pfile()
 {
+#if FMTRSX
+	register char *rb;
+	register i;
+	long s;
+	int n;
+
+	if (vflag)
+		amsg(NULL);
+	if ((rb = malloc(ahb.ar_ufat.f_rsiz)) == NULL)
+		diag(1, "Out of space");
+	s = ahb.ar_size;
+	while (s != 0) {
+		if (ahb.ar_ufat.f_rtyp == R_FIX)
+			n = ahb.ar_ufat.f_rsiz;
+		else {
+			fread(&n, sizeof(int), 1, afp);
+			s -= sizeof(int);
+		}
+		fread(rb, sizeof(char), n, afp);
+		for (i=0; i<n; ++i)
+			putchar(rb[i]);
+		if ((ahb.ar_ufat.f_ratt&FD_CR) != 0)
+			putchar('\n');
+		if ((n&01) != 0) {
+			++n;
+			fseek(afp, (long)1, 1);
+		}
+		s -= n;
+	}
+	free(rb);
+#else
 	if (vflag)
 		amsg(NULL);
 	ffcopy(stdout, "Stdout", afp, anp, ahb.ar_size);
+#endif
 }
 
 /*
@@ -468,13 +453,13 @@ dfunc()
 		if (match()) {
 			if (vflag)
 				amsg("deleted");
-			seekPast();
+			fseek(afp, ahb.ar_size, 1);
 			continue;
 		}
 		if (vflag)
 			amsg("copied");
 		size = ahb.ar_size;
-		puth(tfp, tnp);
+		puth();
 		ffcopy(tfp, tnp, afp, anp, size);
 	}
 	if (notdone("deleted"))
@@ -500,18 +485,20 @@ qfunc()
 	if (geth() != 0 && eqh(rnp)) {
 		fseek(afp, (long)-sizeof(ahb), 1);
 		ahb.ar_date = 0;
-		puth(afp, anp);
+		aputh();
 	}
 	fseek(afp, (long)0, 2);
 	for (i=0; i<nname; ++i) {
 		if ((qfn=namep[i]) == NULL)
 			continue;
 		remove(i, qfn);
-		qfp = makeh(qfn);
+		if ((qfp=fopen(qfn, "rb")) == NULL)
+			diag(1, copen, qfn);
+		makeh(qfn, qfp);
 		if (vflag)
 			printf("%s: quick insert.\n", qfn);
-		puth(afp, anp);
-		ffcopy(afp, anp, qfp, qfn, (long)ahb.ar_size);
+		aputh();
+		ffcopy(afp, anp, qfp, qfn, fsize(qfp, qfn));
 		fclose(qfp);
 	}
 }
@@ -530,11 +517,8 @@ tfunc()
 	aopen(RO);
 	while (geth()) {
 		if (nname==0 || match()) {
-			if (!*(p = ahb.ar_name)) {
-				seekPast();
-				continue;
-			}
 			n = 0;
+			p = ahb.ar_name;
 			while (n<DIRSIZ && (c=*p++)) {
 				putchar(c);
 				++n;
@@ -542,16 +526,19 @@ tfunc()
 			if (vflag) {
 				while (n++ < DIRSIZ+1)
 					putchar(' ');
-#if COHERENT
+#if FMTRSX
+				printf("[%03o,%03o] ", ahb.ar_gid, ahb.ar_uid);
+				printf("%06o ", ahb.ar_mode);
+#else
 				printf("%5d %5d ", ahb.ar_gid, ahb.ar_uid);
-				printf("%03o ",  ahb.ar_mode & 0777);
+				printf("%03o ",  ahb.ar_mode);
 #endif
 				printf("%10ld ", ahb.ar_size);
 				printf("%s", ctime(&ahb.ar_date));
 			} else
 				putchar('\n');
 		}
-		seekPast();
+		fseek(afp, ahb.ar_size, 1);
 	}
 	if (nname != 0)
 		notdone(found);
@@ -574,26 +561,34 @@ xfunc()
 	aopen(RO);
 	while (geth()) {
 		if (nname==0 || match()) {
-			if (!*(p1 = ahb.ar_name)) {
-				seekPast();
-				continue;
-			}
+			p1 = ahb.ar_name;
 			p2 = fnb;
 			while (p1<&ahb.ar_name[DIRSIZ] && (c=*p1++))
 				*p2++ = c;
 			*p2 = 0;
 			if ((xfp=fopen(fnb, "wb")) == NULL) {
 				diag(0, ccrea, fnb);
-				seekPast();
+				fseek(afp, ahb.ar_size, 1);
 				continue;
 			}
 			if (vflag)
 				amsg("extracting");
 			ffcopy(xfp, fnb, afp, anp, ahb.ar_size);
+#if RUNRSX && FMTRSX
+			fseek(xfp, (long)0, 0);
+			xfp->v_rtyp = ahb.ar_ufat.f_rtyp;
+			xfp->v_ratt = ahb.ar_ufat.f_ratt;
+			xfp->v_rsiz = ahb.ar_ufat.f_rsiz;
+			xfp->v_hibk = ahb.ar_ufat.f_hibk;
+			xfp->v_efbk = ahb.ar_ufat.f_efbk;
+			xfp->v_ffby = ahb.ar_ufat.f_ffby;
+#endif
+#if !RUNRSX && !FMTRSX
 			chmod(fnb, ahb.ar_mode);
-
+#endif
 			fclose(xfp);
 			if (kflag) {
+#if !RUNRSX && !FMTRSX
 				time_t	times[2];
 				time_t	time();
 
@@ -602,9 +597,10 @@ xfunc()
 				if (utime(fnb, times) < 0)
 					diag(0, "Unable to set time for %s",
 					 fnb);
+#endif
 			}
 		} else
-			seekPast();
+			fseek(afp, ahb.ar_size, 1);
 	}
 	if (nname != 0)
 		notdone(found);
@@ -617,46 +613,77 @@ xfunc()
  * 'fn' is the file name. The file
  * is open on 'fp'.
  */
-FILE *
-makeh(fn)
+makeh(fn, fp)
 char *fn;
+FILE *fp;
 {
-	FILE *fp;
-	char *p1;
-
+	register char *p1, *p2;
+	register c;
+#if !RUNRSX
 	struct stat sb;
+#endif
 
+	for (p1=fn; *p1++; )
+		;
+	while (p1 > fn) {
+		c = p1[-1];
+#if RUNRSX
+		if (c==':' || c==']')
+			break;
+#endif
+#if COHERENT
+		if (c == '/')
+			break;
+#endif
+#if GEMDOS
+		if (c == '\\')
+			break;
+#endif
+		--p1;
+	}
+	p2 = ahb.ar_name;
+	while (c = *p1++) {
+		if (p2 < &ahb.ar_name[DIRSIZ])
+			*p2++ = c;
+	}
+	while (p2 < &ahb.ar_name[DIRSIZ])
+		*p2++ = 0;
+#if RUNRSX
+	if (ratt(fp, &fhb) == 0)
+		diag(1, "%s: ratt failed", fn);
+	ahb.ar_date = getmdate(&fhb);
+	ahb.ar_size = fsize(fp, fn);
+#if FMTRSX
+	ahb.ar_uid  = fhb.h_prog;
+	ahb.ar_gid  = fhb.h_proj;
+	ahb.ar_mode = fhb.h_fpro;
+	ahb.ar_ufat.f_rtyp = fp->v_rtyp;
+	ahb.ar_ufat.f_ratt = fp->v_ratt;
+	ahb.ar_ufat.f_rsiz = fp->v_rsiz;
+	ahb.ar_ufat.f_hibk = fp->v_hibk;
+	ahb.ar_ufat.f_efbk = fp->v_efbk;
+	ahb.ar_ufat.f_ffby = fp->v_ffby;
+#else
+	ahb.ar_uid  = 0;
+	ahb.ar_gid  = 0;
+	ahb.ar_mode = 0644;
+#endif
+#else
 #if GEMDOS
 	if (stat(fn, &sb) < 0)
-		diag(1, state, fn);
-
-	if (NULL == (fp = fopen(fn, "rb")))
-		diag(1, copen, fn);
 #else
-	if (NULL == (fp = fopen(fn, "rb")))
-		diag(1, copen, fn);
-
 	if (fstat(fileno(fp), &sb) < 0)
+#endif
 		diag(1, state, fn);
-#endif	
-	if (fn == rnpx)
-		fn = "";
-
-	if (NULL == (p1 = strrchr(fn, SLASH)))
-		p1 = fn - 1;
-
-	strncpy(ahb.ar_name, p1 + 1, DIRSIZ);
-
 	if (kflag)
 		ahb.ar_date = sb.st_mtime;
 	else
 		time(&ahb.ar_date);
 	ahb.ar_uid  = sb.st_uid;
 	ahb.ar_gid  = sb.st_gid;
-	ahb.ar_mode = sb.st_mode & 07777;
+	ahb.ar_mode = sb.st_mode&0777;
 	ahb.ar_size = sb.st_size;
-
-	return (fp);
+#endif
 }
 
 /*
@@ -742,25 +769,16 @@ char *tfn, *ffn;
 long s;
 {
 	register n;
-	int pad;
 	static char fb[BUFSIZ];
 
-	if (rfp != NULL)
-		raddmod(tfp, ffp, s);
-
-	pad = s & 1;
-	for (n = ftell(ffp) % BUFSIZ; s; (s -= n), (n = 0)) {
-		if ((n = BUFSIZ - n) > s)
-			n = s;
+	if (rfp != NULL) raddmod(tfp, ffp);
+	while (s != 0) {
+		n = (s>BUFSIZ) ? BUFSIZ : s;
 		if (fread (fb, sizeof(char), n, ffp) != n)
 			ioerr(ffn);
 		if (fwrite(fb, sizeof(char), n, tfp) != n)
 			ioerr(tfn);
-	}
-	if (pad) {
-		fgetc(ffp);
-		if (!xflag)
-			fputc(0, tfp);
+		s -= n;
 	}
 }
 
@@ -772,28 +790,6 @@ long s;
  */
 geth()
 {
-#if PORTAR
-	struct ar_hdr hdr;
-	int uid, gid, mode;
-	register char *p;
-
-	if (fread(&hdr, sizeof(hdr), 1, afp) != 1) {
-		aechk();
-		return (0);
-	}
-
-	memset(&ahb, '\0', sizeof(ahb));
-	memcpy(ahb.ar_name, hdr.ar_name, DIRSIZ);
-	if (NULL != (p = strchr(ahb.ar_name, '/')))
-		*p = '\0';
-
-	sscanf(hdr.ar_date, "%d %d %d %o %d",
-		&ahb.ar_date, &uid, &gid, &mode, &ahb.ar_size);
-	ahb.ar_uid  = uid;	/* use intermediate fields for shorts */
-	ahb.ar_gid  = gid;
-	ahb.ar_mode = mode & 07777;
-
-#else
 	if (fread(&ahb, sizeof(ahb), 1, afp) != 1) {
 		aechk();
 		return (0);
@@ -803,7 +799,6 @@ geth()
 	canshort(ahb.ar_uid);
 	canshort(ahb.ar_mode);
 	cansize(ahb.ar_size);
-#endif
 	return (1);
 }
 
@@ -811,37 +806,30 @@ geth()
  * Write the header in 'ahb' to
  * the temp file.
  */
-puth(fp, np)
-FILE *fp;
-char *np;
+puth()
 {
-#if PORTAR
-	struct ar_hdr hdr;
-	register i;
-
-	sprintf(hdr.ar_date, "%-12ld%-6d%-6d%-8o%-10ld",
-		ahb.ar_date, ahb.ar_uid,
-		ahb.ar_gid, ahb.ar_mode & 07777, ahb.ar_size);
-	
-	memcpy(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag));
-
-	for (i = 0; (i < DIRSIZ) && ahb.ar_name[i]; i++)
-		hdr.ar_name[i] = ahb.ar_name[i];
-	hdr.ar_name[i++] = '/';
-	for (; i < sizeof(hdr.ar_name); i++)
-		hdr.ar_name[i] = ' ';
-
-	fwrite(&hdr, sizeof(hdr), 1, fp);
-#else
 	cantime(ahb.ar_date);
 	canshort(ahb.ar_gid);
 	canshort(ahb.ar_uid);
 	canshort(ahb.ar_mode);
 	cansize(ahb.ar_size);
-	fwrite(&ahb, sizeof(ahb), 1, fp);
-#endif
-	if(ferror(fp))
-		ioerr(np);
+	fwrite(&ahb, sizeof(ahb), 1, tfp);
+	techk();
+}
+
+/*
+ * Write the header in 'ahb' to
+ * the archive file.  from qfunc.
+ */
+aputh()
+{
+	cantime(ahb.ar_date);
+	canshort(ahb.ar_gid);
+	canshort(ahb.ar_uid);
+	canshort(ahb.ar_mode);
+	cansize(ahb.ar_size);
+	fwrite(&ahb, sizeof(ahb), 1, afp);
+	aechk();
 }
 
 /*
@@ -852,14 +840,39 @@ char *np;
 eqh(p)
 char *p;
 {
-	register char *p1;
+	register char *p1, *p2;
+	register c;
 
-	if (NULL == (p1 = strrchr(p, SLASH)))
-		p1 = p;
-	else
-		p1++;
-
-	return (!strncmp(p1, ahb.ar_name, DIRSIZ));
+	if ((p1 = p) == NULL)
+		return (0);
+	while (*p1++)
+		;
+	while (p1 > p) {
+		c = p1[-1];
+#if RUNRSX
+		if (c==':' || c==']')
+			break;
+#endif
+#if COHERENT
+		if (c == '/')
+			break;
+#endif
+#if GEMDOS
+		if (c == '\\')
+			break;
+#endif
+		--p1;
+	}
+	p2 = ahb.ar_name;
+	c  = DIRSIZ;
+	while (c && *p1 == *p2++) {
+		if (*p1++ == 0)
+			return (1);
+		--c;
+	}
+	if (c == 0)
+		return (1);
+	return (0);
 }
 
 /*
@@ -869,11 +882,7 @@ char *p;
  */
 aopen(aam)
 {
-#ifdef PORTAR
-	char	buf[SARMAG];
-#else
 	int i;
-#endif
 
 	if ((afp=fopen(anp, "rb")) == NULL) {
 		if (aam == RO)
@@ -883,13 +892,9 @@ aopen(aam)
 			diag(1, ccrea, anp);
 		if (cflag == 0)
 			printf("%s: new archive.\n", anp);
-#if PORTAR
-		fputs(ARMAG, afp);
-#else
 		i = ARMAG;
 		canint(i);
 		fwrite(&i, sizeof(i), 1, afp);
-#endif
 		aechk();
 		return;
 	}
@@ -898,16 +903,10 @@ aopen(aam)
 		if ((afp=fopen(anp, "rwb"))==NULL)
 			diag(1, copen, anp);
 	}
-#if PORTAR
-	fread(buf, SARMAG, 1, afp);
-	aechk();
-	if(memcmp(buf, ARMAG, SARMAG))
-#else
 	fread(&i, sizeof(i), 1, afp);
 	aechk();
 	canint(i);
 	if (i != ARMAG)
-#endif
 		diag(1, "%s: not an archive", anp);
 }
 
@@ -922,18 +921,18 @@ topen()
 {
 	int i;
 
+#if COHERENT || GEMDOS
 	extern char *tempnam();
 	tnp = tempnam((lflag ? "." : NULL), "v");
-
+#endif
+#if RUNRSX
+	tnp = "ar.tmp";
+#endif
 	if ((tfp=fopen(tnp, "wb")) == NULL) 
 		diag(1, ccrea, tnp);
-#if PORTAR
-	fputs(ARMAG, tfp);
-#else
 	i = ARMAG;
 	canint(i);
 	fwrite(&i, sizeof(i), 1, tfp);
-#endif
 	techk();
 }
 
@@ -944,11 +943,7 @@ topen()
 tacopy()
 {
 	register FILE *xtp;
-#if PORTAR
-	char buf[SARMAG];
-#else
 	int i;
-#endif
 
 	fclose(tfp);
 	tfp = NULL;  /* Scare off delexit */
@@ -959,23 +954,12 @@ tacopy()
 		diag(1, creop, anp);
 	if (vflag)
 		printf("%s: copy back.\n", anp);
-#if PORTAR
-	if (fread(buf, SARMAG, 1, xtp) != 1)
-		ioerr(tnp);
-	if (fwrite(buf, SARMAG, 1, afp) != 1)
-		ioerr(anp);
-	if (rfp != NULL)
-		 rcopy();
-	ffcopy(afp, anp, xtp, tnp, fsize(xtp, tnp) - SARMAG);
-#else
 	if (fread(&i, sizeof(i), 1, xtp) != 1)
 		ioerr(tnp);
 	if (fwrite(&i, sizeof(i), 1, afp) != 1)
 		ioerr(anp);
-	if (rfp != NULL)
-		 rcopy();
-	ffcopy(afp, anp, xtp, tnp, fsize(xtp, tnp) - sizeof(int));
-#endif
+	if (rfp != NULL) rcopy();
+	ffcopy(afp, anp, xtp, tnp, fsize(xtp, tnp)-sizeof(int));
 	tfp = xtp;   /* Delete */
 }
 
@@ -985,7 +969,8 @@ tacopy()
  */
 diag(f, a)
 {
-	fprintf(stderr, "%r.\n", &a);
+	fprintf(stderr, "%r", &a);
+	fprintf(stderr, ".\n");
 	if (f)
 		delexit(ERROR);
 	xstat = NOTALL;
@@ -1018,13 +1003,17 @@ char *s;
  */
 delexit(s)
 {
+#if RUNRSX
+	if (tfp != NULL)
+		fmkdl(tfp);
+#else
 	if (tfp != NULL)
 		unlink(tnp);
+#endif
 #ifdef DEBUG
 	if (s)
 		abort();
 #endif
-	unlink(rnpx);
 	exit(s);
 }
 
@@ -1054,19 +1043,127 @@ usage()
  */
 long
 fsize(fp, fn)
-FILE *fp;
+register FILE *fp;
 char *fn;
 {
+#if RUNRSX
+	return (((fp->v_efbk-1)<<9) + fp->v_ffby);
+#else
 	struct stat sb;
 
 #if GEMDOS
 	if (stat(fn, &sb) < 0)
-		diag(1, state, fn);
-#else
-	fstat(fileno(fp), &sb);
 #endif
+#if COHERENT
+	if (fstat(fileno(fp), &sb) < 0)
+#endif
+		diag(1, state, fn);
 	return (sb.st_size);
+#endif
 }
+
+#if RUNRSX
+/*
+ * The following routines simulate
+ * some aspects of Coherent under the
+ * dreaded RSX.
+ */
+#define	DAY	(24L*60L*60L)
+
+time_t
+fmdate(fn)
+char *fn;
+{
+	register FILE *fp;
+	register s;
+
+	if ((fp=fopen(fn, "rb")) == NULL)
+		diag(1, copen, fn);
+	s = ratt(fp, &fhb);
+	fclose(fp);
+	if (s == 0)
+		diag(1, "%s: ratt failed", fn);
+	return (getmdate(&fhb));
+}
+
+time_t
+getmdate(fhp)
+register struct header *fhp;
+{
+	register i;
+	time_t date;
+	int rsxdate[8];
+	static	char *mtab[] = {
+		"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+		"JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+	};
+
+	rsxdate[0] = (fhp->i_rvdt[5]-'0')*10+fhp->i_rvdt[6]-'0';
+	for (i=0; i<12; ++i) {
+		if (cmp3(&fhp->i_rvdt[2], mtab[i])) {
+			rsxdate[1] = i+1;
+			break;
+		}
+	}
+	rsxdate[2] = (fhp->i_rvdt[0]-'0')*10+fhp->i_rvdt[1]-'0';
+	rsxdate[3] = (fhp->i_rvti[0]-'0')*10+fhp->i_rvti[1]-'0';
+	rsxdate[4] = (fhp->i_rvti[2]-'0')*10+fhp->i_rvti[3]-'0';
+	rsxdate[5] = (fhp->i_rvti[4]-'0')*10+fhp->i_rvti[5]-'0';
+	cvttime(&date, rsxdate);
+	return (date);
+}
+
+cmp3(p1, p2)
+register char *p1, *p2;
+{
+	if (*p1++==*p2++ && *p1++==*p2++ && *p1++==*p2++)
+		return (1);
+	return (0);
+}
+
+/*
+ * Convert rsx date to Coherent
+ * format. This routine assumes that
+ * the timezone is CST.
+ * Courtesy of Tom Duff.
+ */
+cvttime(date, rsxdate)
+register long *date;
+int rsxdate[8];
+{
+	register i;
+
+	*date = 0;
+	for (i=70; i!=rsxdate[0]; i++) {
+		if (i%4==0)
+			*date += 366L*DAY; else
+			*date += 365L*DAY;
+	}
+	for (i=1; i!=rsxdate[1]; i++)
+		switch (i){
+		case 9:  /* Sep */
+		case 4:  /* Apr */
+		case 6:  /* Jun */
+		case 11: /* Nov */
+			*date += 30L*DAY;
+			break;
+
+		case 2:  /* Feb */
+			if (rsxdate[0]%4 == 0)
+				*date += 29L*DAY; else
+				*date += 28L*DAY;
+			break;
+
+		default:
+			*date += 31L*DAY;
+		}
+	*date += (rsxdate[2]-1)*DAY;
+	*date += rsxdate[3]*60L*60L;
+	*date += rsxdate[4]*60L;
+	*date += rsxdate[5];
+	*date += 6L*60L*60L;	/* adjust cst to gmt */
+}
+#endif
 
 /*
  * Ranlib stuff.
@@ -1081,28 +1178,25 @@ char *fn;
 ropen()
 {
 	extern int dfunc();
-	long loc;
 
-	ranCt = 0;
-	loc = ftell(afp);
 	if (geth() != 0) {	/* Must not be end of file */
-		if (eqh(rnp)) {	/* Symbol header */
-			seekPast();
+		if (eqh(rnp)) {
+			fseek(afp, (long)ahb.ar_size, 1);
 			if (ffp == dfunc && match()) {
 				if (vflag)
 					amsg("deleted");
 			} else
 				++sflag;
 		} else {
-			fseek(afp, loc, 0);
+			fseek(afp, (long)-sizeof(ahb), 1);
 			if (sflag && ffp == dfunc) {
 				strcpy(ahb.ar_name, rnp);
 				match();
 			}
 		}
 	}
-	if (sflag && (rfp = fopen(rnpx, "wb")) == NULL)
-		diag(1, ccrea, rnpx);
+	if (sflag && (rfp = fopen(rnp, "wb")) == NULL)
+		diag(1, ccrea, rnp);
 }
 
 /*
@@ -1111,155 +1205,6 @@ ropen()
  * The postion of this module in the archive
  * is -sizeof(arhdr) from current position of afp.
  */
-#if PORTAR
-raddmod(afp, mfp, s)
-FILE *afp, *mfp;
-long s;
-{
-	FILEHDR  fdh;
-	SYMENT	sym;
-	long	off;
-	long	str_length, aroff, i;
-	int	len, j, c, aux;
-	char 	*str_tab;
-
-	aroff = ftell(afp) - sizeof(struct ar_hdr);
-	off   = ftell(mfp);
-	str_length = fdh.f_magic = 0;
-	if (1 != fread(&fdh, sizeof(fdh), 1, mfp) ||
-	    (C_386_MAGIC != fdh.f_magic) ||
-	    !fdh.f_nsyms)
-		goto done;
-
-	i = fdh.f_symptr + (SYMESZ * fdh.f_nsyms);
-	str_length = 0;
-	if (!fdh.f_symptr)
-		goto done;
-	if (i < s) {	/* make our own eof inside archive */
-		fseek(mfp, i + off, 0);
-		if (1 != fread(&str_length, sizeof(str_length), 1, mfp))
-			str_length = 0;
-	}
-	if (str_length) {
-		len = str_length -= 4;
-		if (len != str_length)
-			diag(1, "Cannot process %.*s small model",
-				DIRSIZ, ahb.ar_name);
-		if(NULL == (str_tab = malloc(len)))
-			diag(1, "out of space %.*s", DIRSIZ, ahb.ar_name);
-		if (1 != fread(str_tab, len, 1, mfp))
-			diag(1, "truncated module %.*s", DIRSIZ, ahb.ar_name);
-	}
-
-	fseek(mfp, fdh.f_symptr + off, 0);
-
-	for (aux = i = 0; i < fdh.f_nsyms; i++) {
-		if (1 != fread(&sym, sizeof(sym), 1, mfp))
-			diag(1, "truncated module %.*s", DIRSIZ, ahb.ar_name);
-
-		/* bypass aux symbols */
-		if (aux) {
-			aux--;
-			continue;
-		}
-		aux = sym.n_numaux;
-
-		if (C_EXT != sym.n_sclass ||
-		    (!sym.n_scnum && !sym.n_value))
-			continue;
-
-		fwrite(&aroff, sizeof(aroff), 1, rfp);
-		ranCt++;
-
-		if (!sym._n._n_n._n_zeroes) {
-			fputs(str_tab + sym._n._n_n._n_offset - 4, rfp);
-			fputc(0, rfp);
-			continue;
-		}
-		for (j = 0; (j < SYMNMLEN) && (c = sym._n._n_name[j]); j++)
-			fputc(c, rfp);
-		fputc(0, rfp);
-	}
-	if (str_length)
-		free(str_tab);
-done:
-	fseek(mfp, off, 0);
-}
-
-/*
- * Reverse byte order on 386s
- */
-flipwrite(x)
-unsigned long x;
-{
-#ifdef GEMDOS
-	if (1 != fwrite(&x, sizeof(x), 1, afp))
-		ioerr(anp);
-#else
-	union full {
-		unsigned char uc[4];
-		unsigned long ul;
-	} l;
-	unsigned char c;
-
-	l.ul = x;	
-	c = l.uc[0]; l.uc[0] = l.uc[3]; l.uc[3] = c;
-	c = l.uc[1]; l.uc[1] = l.uc[2]; l.uc[2] = c;
-
-	if (1 != fwrite(&l, sizeof(x), 1, afp))
-		ioerr(anp);
-#endif
-}
-
-/*
- * Copy the ranlib header to the output archive.
- * Close and null the ranlib file pointer
- */
-rcopy()
-{
-	register FILE *fp;
-	int c, pad;
-	long i, x, ranLen;
-
-	ranLen = ftell(rfp); /* we are at the end */
-	fclose(rfp);
-	rfp = NULL;
-
-	fp = makeh(rnpx);
-	pad = ranLen & 1;
-	ahb.ar_size = ranLen += pad + sizeof(ranCt);
-
-	time(&ahb.ar_date);
-	ahb.ar_date += (long)(10*365+3)*24*60*60;
-
-	puth(afp, anp);
-	tfp = NULL;
-	flipwrite(ranCt);
-	ranLen += sizeof(struct ar_hdr);
-
-	for (i = 0; i < ranCt; i++) {
-		if (1 != fread(&x, sizeof(x), 1, fp))
-			ioerr(rnpx);
-		flipwrite(x + ranLen);
-		while(fgetc(fp))
-			;
-	}
-
-	fseek (fp, 0L, 0);
-	for (i = 0; i < ranCt; i++) {
-		if (1 != fread(&x, sizeof(x), 1, fp))
-			ioerr(rnpx);
-		while (c = fgetc(fp))
-			fputc(c, afp);
-		fputc(0, afp);
-	}
-	if (pad)
-		fputc(0, afp);
-	
-	fclose(fp);
-	unlink(rnpx);
-}
-#else
 struct ldheader ldh;
 struct ldsym lds;
 struct ar_sym ars;
@@ -1268,7 +1213,7 @@ xwrite()
 {
 	if (fwrite(lds.ls_id, sizeof(lds.ls_id), 1, rfp) != 1
 	 || fwrite(&ars.ar_off, sizeof(ars.ar_off), 1, rfp) != 1)
-		ioerr(rnpx);
+		ioerr(rnp);
 }
 
 xread(fp) register FILE *fp;
@@ -1294,7 +1239,7 @@ raddmod(afp, mfp) FILE *afp, *mfp;
 	fsize_t	off, offset;
 	int	seg, nsym;
 
-	ars.ar_off = ftell(afp) - sizeof(ahb) - SARMAG;
+	ars.ar_off = ftell(afp) - sizeof(ahb) - sizeof(int);
 	cansize(ars.ar_off);
 	off = ftell(mfp);
 	ldh.l_magic = 0;	/* in case fread fails */
@@ -1343,13 +1288,15 @@ rcopy()
 	register FILE *fp;
 	fclose(rfp);
 	rfp = NULL;
-	fp = makeh(rnpx);
+	if ((fp = fopen(rnp, "rb")) == NULL)
+		diag(1, creop, rnp);
+	makeh(rnp, fp);
 	time(&ahb.ar_date);
 	ahb.ar_date += (long)(10*365+3)*24*60*60;
-	puth(afp, anp);
+	tfp = afp;
+	puth();
 	tfp = NULL;
-	ffcopy(afp, anp, fp, rnpx, fsize(fp, rnpx));
+	ffcopy(afp, anp, fp, rnp, fsize(fp, rnp));
 	fclose(fp);
-	unlink(rnpx);
+	unlink(rnp);
 }
-#endif

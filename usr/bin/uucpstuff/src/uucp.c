@@ -20,7 +20,11 @@ extern char *index(/* char *string, char c */);
 extern char *rindex(/* char *string, char c */);
 extern char *mktemp(/* char *template */);
 extern FILE *fopen();
+#ifdef _I386
+extern	char	*_getwd();
+#else
 extern	char	*getwd();
+#endif
 char	*build_full_path();
 char *uucpname(), *whoami();
 char *filesite(/* char *filename */), *filepath(/* char *filename */);
@@ -76,6 +80,7 @@ char *argv[];
 	int ch;
 	int	argx;
 
+	umask(077);
 	commandfile = NULL;
 	strcpy(commandsite, "<?>");
 	strcpy(thissite, uucpname());
@@ -491,7 +496,11 @@ char	*localpath;
 	static	char buf[BUFSIZ];
 	char	*p;
 	if ((*localpath != '/') && (*localpath != '~')) {
+#ifdef _I386
+		strcpy(buf, p = _getwd());
+#else
 		strcpy(buf, p = getwd());
+#endif
 		if (p == NULL) {
 			fprintf(stderr, "uucp: Unable to do getpwd\n");
 			exit(1);

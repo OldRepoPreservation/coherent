@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/mem.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/mem.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * mem.c - memory allocation and manipulation functions
  *
@@ -30,7 +30,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	mem.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/mem.c,v $
+ * Revision 1.1	91/02/05  11:56:44 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:04:53  mark
  * 1.2 release fixes
  * 

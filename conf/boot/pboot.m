@@ -9,6 +9,9 @@
 / in beginning at paragraph 0x0060.
 /
 / $Log:	/newbits/conf/boot/RCS/pboot.m,v $
+ * Revision 1.2	91/05/29  09:42:16 	bin
+ * bob h modified due to commented lines screwing the makefile
+ * 
 / * Revision 1.1	91/05/29  08:30:45 	bin
 / * Initial revision
 / * 

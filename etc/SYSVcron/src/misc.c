@@ -17,10 +17,10 @@
  *
  * $ 12-9-1991 vlad (Vladimir Smelyansky)
  */
+#include	<stdio.h>
 #include	<string.h>
 #include	<pwd.h>
 #include	<errno.h>
-#include	<stdio.h>
 #include	<time.h>
 #include	<errno.h>
 #include	<sys/ino.h>
@@ -121,7 +121,8 @@ void vMailDisable()
 {
 	char	*buf;
 
-	if ((buf = malloc(strlen(D_MAIN) + MAX_UNAME)) == NULL) {
+	if ((buf = malloc(strlen(D_MAIN) + MAX_UNAME)) == 
+				NULL) {
 		fprintf(stderr, "crontab: not enough memory\n");
 		exit(1);
 	}

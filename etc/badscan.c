@@ -14,7 +14,10 @@
  * does not #include <stdio.h> and uses sys write() calls to fd 1 and fd 2 in
  * lieu of stdout and stderr.  This should be fixed when someone gets the urge.
  *
- * $Log:	/usr/src.inetco/etc/badscan.c,v $
+ * $Log:	/newbits/etc/badscan.c,v $
+ * Revision 1.6	91/02/22  12:14:25 	bin
+ * updated version provided by stevesf for v311
+ * 
  * Revision 1.7	91/02/07  12:36:00 	bin
  * steve 2/7/91
  * Following norm's suggestion, SCSI badscan now issues warning but

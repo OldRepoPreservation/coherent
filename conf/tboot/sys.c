@@ -9,8 +9,8 @@
 
 int errno;
 /* Table of file descriptors.  */
-static FD u_filep[NUFILE];
-static struct inode ip_table[NUFILE];
+static FD u_filep[NOFILE];
+static struct inode ip_table[NOFILE];
 static inited = (1==2);
 
 /* Open a file.
@@ -36,7 +36,7 @@ open(file, type)
 	/* If no file has been opened before, initialize u_filep.  */
 	if (!inited) {
 		int i;
-		for (i = 0; i < NUFILE; ++i) {
+		for (i = 0; i < NOFILE; ++i) {
 /* Unused.  */		u_filep[i].f_flag	= (char) 0;
 			u_filep[i].f_refc	= (short) 0;
 			u_filep[i].f_seek	= (fsize_t) 0;
@@ -56,7 +56,7 @@ open(file, type)
 		}
 	
 		/* Now look for a free file descriptor.  */
-		for (i = 0; (-1 == fd) && (i < NUFILE); ++i) {
+		for (i = 0; (-1 == fd) && (i < NOFILE); ++i) {
 			/* Reference count of 0 means free.  */
 			if (0 == u_filep[i].f_refc) {
 				++u_filep[i].f_refc;
@@ -65,7 +65,7 @@ open(file, type)
 		}
 	
 		/* Did we find a free file descriptor?  */
-		if ( NUFILE == i) {
+		if ( NOFILE == i) {
 			errno = EMFILE;	/* Too many open files.  */
 			fd = -1;
 			return(fd);
@@ -114,7 +114,7 @@ read(fd, buffer, n)
 	uint16 to_read;
 
 	/* Validate the file descriptor we were passed.  */
-	if ((fd < 0) || (fd >= NUFILE) || (0 == u_filep[fd].f_refc)) {
+	if ((fd < 0) || (fd >= NOFILE) || (0 == u_filep[fd].f_refc)) {
 		errno = EBADF;	/* Bad file descriptor.  */
 		return(-1);
 	}
@@ -153,7 +153,7 @@ close(fd)
 	register FD *local_fd;	/* Points to our FD structure.  */
 
 	/* Validate the file descriptor we were passed.  */
-	if ((fd < 0) || (fd >= NUFILE) || (0 == u_filep[fd].f_refc)) {
+	if ((fd < 0) || (fd >= NOFILE) || (0 == u_filep[fd].f_refc)) {
 		errno = EBADF;	/* Bad file descriptor.  */
 		return(-1);
 	}
@@ -194,7 +194,7 @@ lseek(fd, where, how)
 	register FD *local_fd;	/* Points to our FD structure.  */
 
 	/* Validate the file descriptor we were passed.  */
-	if ((fd < 0) || (fd >= NUFILE) || (0 == u_filep[fd].f_refc)) {
+	if ((fd < 0) || (fd >= NOFILE) || (0 == u_filep[fd].f_refc)) {
 		errno = EBADF;	/* Bad file descriptor.  */
 		return((int32) -1);
 	}

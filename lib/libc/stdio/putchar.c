@@ -1,18 +1,14 @@
 /*
- * libc/stdio/putchar.c
- * ANSI-compliant C standard i/o library.
- * putchar()
- * ANSI 4.9.7.9.
- * Write character c to stdout.
+ * Standard I/O Library
+ * putchar function for those too lazy to include stdio.h
  */
 
 #include <stdio.h>
 #undef	putchar
 
 int
-putchar(c) int c;
+putchar(c)
+unsigned char	c;
 {
-	return putc(c, stdout);
+	return (putc(c, stdout));
 }
-
-/* end of libc/stdio/putchar.c */

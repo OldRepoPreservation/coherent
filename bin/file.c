@@ -1,4 +1,4 @@
-char _version[] = "Version 1.5";
+char _version[] = "Version 1.1";
 /*
  * Look at a file and try to
  * figure out its type. Knows about the various
@@ -7,16 +7,13 @@ char _version[] = "Version 1.5";
  * of text formatter, etc.
  */
 #include <stdio.h>
-#include <sys/coherent.h>
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
 #include <n.out.h>
-#include <coff.h>
+#include <filehdr.h>
 #include <canon.h>
 #include <ar.h>
-#include <arcoff.h>
-#include <sys/core.h>
 
 /* UNIX archive magic numbers */
 #define COFFARMAG	"!<arch>\n"
@@ -24,14 +21,12 @@ char _version[] = "Version 1.5";
 #define	UARMAG	0177545		/* UNIX v7 archives */
 #define	OUARMAG	0177555		/* UNIX v6 and previous archives */
 
-#define TYPE_LEN	120
-
 #define COMPRESSED 0x9D1F	/* Output of "compress(1)" command.  */
 
 #define	EXEC	(S_IEXEC|(S_IEXEC<<3)|(S_IEXEC<<6))
 
 /*
- * Tar header.
+ * This is a tar header.
  */
 struct  th_info {
 	char	th_name[100],
@@ -58,12 +53,12 @@ union	iobuf
 	char	u_buf[BUFSIZ];		/* General data */
 	struct	ldheader u_lout;	/* L.out object file header */
 	struct	filehdr u_coff;		/* COFF object file header */
+	UPROC	u_u;			/* core file header */
 	int	u_armag;		/* Archive number */
 	struct	th_info u_tar;		/* Tar header  */
-	struct	ch_info u_core;		/* Core header */
 };
 
-UPROC	uProc;
+char *type;
 
 union	iobuf	iobuf;
 char	*file();
@@ -109,9 +104,8 @@ struct stat *sbp;
 char *fn;
 {
 	static char buf[50];
-	unsigned short magic;
+	int magic;
 	register int nb;
-	char type[TYPE_LEN];
 	register int fd = -1;
 
 	if ((sbp->st_mode&S_IFMT) != S_IFREG) {
@@ -145,18 +139,12 @@ char *fn;
 	if ((fd = open(fn, 0)) < 0)
 		return ("unreadable");
 	if ((nb = read(fd, (char *) &iobuf, sizeof(iobuf))) < 0) {
-		extern int errno;
-		printf("nb: %d, errno: %d ", nb, errno );
 		close(fd);
 		return ("read error");
 	}
-
-	/* file of length zero? */
-	if (nb == 0) {
-		close(fd);
+	close(fd);
+	if (nb == 0)
 		return ("empty");
-	}
-
 	/* l.out executable?  */
 	if (nb >= sizeof(struct ldheader)) {
 		magic = iobuf.u_lout.l_magic;
@@ -164,34 +152,29 @@ char *fn;
 		if (magic == L_MAGIC) {
 			canint(iobuf.u_lout.l_flag);
 			canint(iobuf.u_lout.l_machine);
-			close(fd);
 			return (objclass(fd, &iobuf.u_lout));
 		}
 	}
-
 	/* COFF executable?  */
 	if (nb >= sizeof(struct filehdr)) {
 		magic = iobuf.u_coff.f_magic;
 		if (ISCOFF(magic)) {
-			close(fd);
 			return (coffclass(&iobuf.u_coff));
 		}
 	}
 
 	/* COFF archive?  */
 	if (nb >= strlen(COFFARMAG_RAN)) {
-		if (strncmp(COFFARMAG_RAN, iobuf.u_buf,
-		  strlen(COFFARMAG_RAN)) == 0) {
-			close(fd);
+		if ( strncmp(COFFARMAG_RAN,
+		     iobuf.u_buf,
+		     strlen(COFFARMAG_RAN)) == 0) {
 			return("COFF archive (ranlib)");
 		}
 		if ( strncmp(COFFARMAG, iobuf.u_buf, strlen(COFFARMAG)) == 0) {
-			close(fd);
 			return("COFF archive");
 		}
 	}
 
-	/* {v7 tar} archive?  */
 	if (nb >= sizeof(struct th_info)) {
 		if (	tar_path(iobuf.u_tar.th_name, 100) &&
 			tar_oct(iobuf.u_tar.th_mode, 8) &&
@@ -201,6 +184,8 @@ char *fn;
 			tar_dec(iobuf.u_tar.th_mtime, 12) &&
 			strlen(iobuf.u_tar.th_pad) < 8 ) {
 
+			type = malloc(64);
+
 			type[0] ='\0';
 			if ( '\0' != iobuf.u_tar.th_pad[0]) {
 				strcpy(type, iobuf.u_tar.th_pad);
@@ -209,74 +194,75 @@ char *fn;
 			}
 
 			strcat(type, " archive");
-			close(fd);
 			return(type);
 		} /* if looks like a tar header.  */
 	}
 
-	/* core file? */
-	if (nb >= sizeof(struct ch_info)) {
-		struct ch_info * cip = & iobuf.u_core;
-		int offset = cip->ch_info_len + cip->ch_uproc_offset;
-		int lsought, readed;
+	/* core file?
+	 * This is pure heuristic.  If the last signal number was legal
+	 * (a 13/256 random chance) and if the command string is NUL
+	 * terminated (about 1/5 random chance) and at least one long,
+	 * and if all of the
+	 * characters are printable (~ (96/256)^4), we assume it really
+	 * is a core file.  (Pardon the crude statistics.)
+	 * That all adds up to a less than 0.1% chance of incorrectly
+	 * classifying a random binary file.
+	 */
+	if (nb > sizeof(UPROC)) {
+		if ((iobuf.u_u.u_signo < NSIG) &&	/* Legal signal? */
+		    (iobuf.u_u.u_comm[9] == '\0') ) {  /* Terminated command?  */
+			char *comm;
+			int i;
+			int len;
+			
+			/* Check to see if the command is printable.  */
+			comm = iobuf.u_u.u_comm;
+			len = strlen(comm);
 
-		magic = cip->ch_magic;
-		if (magic != CORE_MAGIC)
-			;	/* bad magic for core file */
-		else if (offset != (lsought = lseek(fd, offset, 0)))
-			;	/* can't seek far enough to find UPROC */
-		else if (sizeof(UPROC) !=
-		  (readed = read(fd, &uProc, sizeof(UPROC))))
-			;	/* can't read UPROC */
-		else {
-			sprintf(type, "core file from \"%.10s\" uproc (v%04X)",
-			  uProc.u_comm, uProc.u_version);
-			close(fd);
-			return(type);
+			for (i=0; isprint(comm[i]) && (i < len); i++) {
+				/* Do nothing.  */
+			}
+			/* If we go to the end, probably a core file.  */
+			if (len == i && len > 0) {
+				type = malloc(64);
+				sprintf(type, "core file from \"%s\"", comm);
+				return(type);
+			}
+					
 		}
 	}
 
 	/* Archive or compress'ed file?  */
-	if (nb >= sizeof (short)) {
+	if (nb >= sizeof (int)) {
 		magic = iobuf.u_armag;
 		canint(magic);
-		if (magic == ARMAG) {
-			close(fd);
+		if (magic == ARMAG)
 			return ("l.out archive");
-		}
-		if (magic == UARMAG) {
-			close(fd);
+		if (magic == UARMAG)
 			return ("seventh edition archive");
-		}
-		if (magic == OUARMAG) {
-			close(fd);
+		if (magic == OUARMAG)
 			return ("sixth edition archive");
-		}
 		if (magic == COMPRESSED){
+			type = malloc(64);
 			sprintf(type, "%d bit compressed file",
-			  (int) (0x7f & iobuf.u_buf[2]));
-			close(fd);
+					 (int) (0x7f & iobuf.u_buf[2]));
 			return(type);
 		}
 	}
 
-	if (hasnonascii((unsigned char *) &iobuf, nb)) {
-		close(fd);
+	if (hasnonascii((unsigned char *) &iobuf, nb))
 		return ("binary data");
-	}
-	if (sbp->st_mode & EXEC) {
+	if ((sbp->st_mode&EXEC) != 0) {
 		if (strncmp(iobuf.u_buf, "#!", 2) == 0) {
+			type = malloc(64);
 			sprintf(type, "%s script",
-			  strtok(&(iobuf.u_buf[2]), " \t\n"));
-			close(fd);
+				strtok(&(iobuf.u_buf[2]), " \t\n"));
 			return(type);
 		} else {
-			close(fd);
 			return ("commands");
 		}
 	}
-	close(fd);
-	return textclass((unsigned char *) &iobuf, nb);
+	return (textclass((unsigned char *) &iobuf, nb));
 }
 
 /*
@@ -289,7 +275,7 @@ register char *dn;
 {
 	register char *cp;
 
-	for (cp = dn; *cp; cp++)
+	for (cp=dn; *cp!='\0'; cp++)
 		;
 	while (cp > dn)
 		if (*--cp == '/') {
@@ -397,7 +383,7 @@ char *
 objclass(fd, lhp)
 register struct ldheader *lhp;
 {
-	static char type[TYPE_LEN];
+	static char type[64];
 	register char *mch;
 	struct ldsym lds;
 	register fsize_t stbase;
@@ -462,13 +448,12 @@ char *
 coffclass(chp)
 register struct filehdr *chp;
 {
-	static char type[TYPE_LEN];
+	static char type[64];
 	register char *mch;
 
 	sprintf(type, "COFF ");
 	if ((chp->f_flags&F_MINMAL) != 0)
 		strcat(type, "minimal ");
-#ifdef COFF_H_FIXED
 	if ((chp->f_flags&F_UPDATE) != 0)
 		strcat(type, "update ");
 	if ((chp->f_flags&F_SWABD) != 0)
@@ -477,10 +462,6 @@ register struct filehdr *chp;
 		strcat(type, "patch ");
 	if ((chp->f_flags&F_NODF) != 0)
 		strcat(type, "no decision ");
-#else /* COFF_H_FIXED */
-	if ((chp->f_flags&F_AR32WR) == 0)
-		strcat(type, "non i80x86 byte order ");
-#endif /* COFF_H_FIXED */
 	if ((chp->f_flags&F_EXEC) != 0){
 		if ((chp->f_flags&F_LSYMS) != 0)
 			strcat(type, "stripped ");
@@ -489,14 +470,18 @@ register struct filehdr *chp;
 		strcat(type, "object ");
 		if ((chp->f_flags&F_RELFLG) != 0)
 			strcat(type, "stripped relocation ");
+		
 		if ((chp->f_flags&F_LSYMS) != 0)
-			strcat(type, "stripped local symbols ");
+			strcat(type, "stripped symbols ");
 	}
 
 	if ((mch = coffmtype(chp->f_magic)) == NULL)
 		mch = "Unknown machine type";
 	sprintf(type, "%s(%s) ", type, mch);
 
+	if (chp->f_nsyms > 0) {
+		strcat(type, "not stripped ");
+	}
 	return (type);
 }
 
@@ -510,7 +495,6 @@ coffmtype(magic)
 {
 	switch ((unsigned) magic) {
 
-#ifdef COFF_H_FIXED
 	case IAPX16:
 	case IAPX16TV:
 	case IAPX20:
@@ -569,12 +553,6 @@ coffmtype(magic)
 	case AMDWRMAGIC:
 	case AMDROMAGIC:
 		return("Amdahl 470/580");
-
-#else /* COFF_H_FIXED */
-	case C_386_MAGIC:
-		return("Intel 386");
-#endif /* COFF_H_FIXED */
-
 	default:
 		return(NULL);
 
@@ -587,8 +565,8 @@ coffmtype(magic)
  */
 int
 tar_oct(str, len)
-char *str;
-int len;
+	char *str;
+	int len;
 {
 	for (; len > 0; --len, ++str) {
 		if (*str != '\0' && *str != ' ' &&
@@ -606,8 +584,8 @@ int len;
  */
 int
 tar_dec(str, len)
-char *str;
-int len;
+	char *str;
+	int len;
 {
 	for (; len > 0; --len, ++str) {
 		if (*str != '\0' && *str != ' ' &&
@@ -625,8 +603,8 @@ int len;
  */
 int
 tar_path(str, len)
-char *str;
-int len;
+	char *str;
+	int len;
 {
 	for (; len > 0; --len, ++str) {
 		if (*str != '\0' && *str != ' ' &&

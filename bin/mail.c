@@ -1,6 +1,9 @@
 /*
- * $Header: /usr/src/cmd/mail.c,v 1.5 88/09/01 14:49:01 bin Exp $
- * $Log:	/usr/src/cmd/mail.c,v $
+ * $Header: /newbits/bin/mail.c,v 1.6 89/02/22 05:34:00 bin Exp $
+ * $Log:	/newbits/bin/mail.c,v $
+ * Revision 1.6	89/02/22  05:34:00 	bin
+ * Changes by rec to integrate with lauren's uumail.
+ * 
  * Revision 1.5	88/09/01  14:49:01	bin
  * Source administration: Re-install declaration of getenv. 
  * It was inserted after epstein made his copy.
@@ -21,7 +24,7 @@
  */
 static	char	*rcsrev = "$Revision 1.1 $";
 static	char	*rcshdr =
-	"$Header: /usr/src/cmd/mail.c,v 1.5 88/09/01 14:49:01 bin Exp $";
+	"$Header: /newbits/bin/mail.c,v 1.6 89/02/22 05:34:00 bin Exp $";
 
 /*
  * The mail command.

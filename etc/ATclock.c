@@ -5,10 +5,29 @@
  * Usage:  /etc/ATclock [YY[MM[DD[HH[MM[.SS]]]]]]
  * cc -s -i -O -o ATclock ATclock.c ATclockas.s
  *
+ *	Prints the current date and time in format 'YYMMDDHHMM.SS'.
+ *	Author: Allan Cornish, INETCO Systems, Nov 1984.
+ *	Modifications (c) Copyright INETCO Systems Ltd. (1985)
+ *
+ *	$Log:	/usr/src.inetco/etc/ATclock.c,v $
+ * Revision 1.2	90/05/31  14:07:22 	root
+ * steve 5/31/90
+ * Added sanity checking for values read from or written to clock;
+ * the old source allowed out of range values without complaint.
+ * Changed system call output to use stdio, bigger but saner.
+ * Changed spacing, rearranged code, added #defines for clarity.
+ * 
+ *	86/07/16	Allan Cornish
+ *	Validation of NVRAM contents is no longer performed.  It checked
+ *	fields which were unused, and could incorrectly report errors.
+ *
+ *	85/09/??	Krish Nair
+ *	Modified so that the ATclock may be set.
+ *	The "set" format must be 'YYMMDDHHMM.SS'.
+ *	The "read" format is always of type 'YYMMDDHHMM.SS'.
  */
 
 #include <stdio.h>
-#include <fcntl.h>
 
 #define	USAGE	"Usage: /etc/ATclock [YY[MM[DD[HH[MM[.SS]]]]]]\n"
 
@@ -25,11 +44,6 @@
 #define	MIN	2
 #define	SEC	0
 
-#define	DEV_CMOS	"/dev/cmos"
-#define	DEV_CLOCK	"/dev/clock"
-
-#define CLKLEN	10
-
 /* Forward. */
 int	bcd();
 void	clock();
@@ -38,76 +52,29 @@ void	fatal();
 void	sanity();
 void	set();
 void	usage();
-
+/* ATclockas.s */
+void	sphi();
+void	splo();
 int	zget();
 void	zput();
 
 /* Globals. */
-unsigned char clkbuf[CLKLEN];	/* Clock image buffer (ten BCD digits). */
-
-int	fd_cmos;
-int	fd_clock;
-
-/*
- * zget()
- *
- * read a byte from a specified offset in CMOS
- *
- */
-int
-zget(offset)
-int offset;
-{
-	int ret;
-
-	lseek(fd_cmos, (long)offset, 0);
-	if(read(fd_cmos, &ret, 1) != 1) {
-		fprintf(stderr, "Can't read CMOS byte %d\n", offset);
-		exit (1);
-	}
-	return ret & 0xff;
-}
+unsigned char clkbuf[10];	/* Clock image buffer (ten BCD digits). */
 
 main(argc, argv) int argc; char *argv[];
 {
-	if((fd_cmos = open(DEV_CMOS, O_RDONLY)) == -1) {
-		fprintf(stderr, "ATclock: can't read %s.\n",
-		  DEV_CMOS);
-		exit(1);
-	}
-
-	if((fd_clock = open(DEV_CLOCK, O_RDONLY)) == -1) {
-		fprintf(stderr, "ATclock: can't read %s.\n",
-		  DEV_CLOCK);
-		exit(1);
-	}
+	register char *a, *s;
 
 	if (argc > 2)
 		usage();
 
 	if (zget(DIAG) & BADCLK)
 		fatal("bad clock");		/* check for valid clock */
-
-	if (read(fd_clock, clkbuf, CLKLEN) != CLKLEN) {
-		fprintf(stderr, "Can't read %d bytes from %s.\n",
-		  CLKLEN, DEV_CLOCK);
-		exit(1);
-	}
+	clock(0);				/* read it to clkbuf[] */
 
 	if (argc == 2) {
-		close(fd_clock);
-		if((fd_clock = open(DEV_CLOCK, O_RDWR)) == -1) {
-			fprintf(stderr, "ATclock: can't write %s.\n",
-			  DEV_CLOCK);
-			exit(1);
-		}
 		set(argv[1]);			/* initialize clkbuf[] */
-		lseek(fd_clock, 0L, 0);
-		if (write(fd_clock, clkbuf, CLKLEN) != CLKLEN) {
-			fprintf(stderr, "Can't write %d bytes to %s.\n",
-			  CLKLEN, DEV_CLOCK);
-			exit(1);
-		}
+ 		clock(1);			/* and set the clock */
 	} else
 		clockcheck();			/* check clock */
 
@@ -120,9 +87,6 @@ main(argc, argv) int argc; char *argv[];
 		clkbuf[MIN]  >> 4, clkbuf[MIN]  & 15,
 		clkbuf[SEC]  >> 4, clkbuf[SEC]  & 15
 		);
-
-	close(fd_cmos);
-	close(fd_clock);
 	exit (0);
 }
 
@@ -149,6 +113,34 @@ clockcheck()
 	sanity(HOUR, 0, 23, "hour");
 	sanity(MIN, 0, 59, "minute");
 	sanity(SEC, 0, 59, "second");
+}
+
+/*
+ * Wait for clock to stabilize or timeout to occur, then read or set it.
+ */
+void
+clock(flag) register int flag;
+{
+	register int i;
+
+	i = 0;
+	do {
+		splo();
+		if (--i == 0)
+			fatal("bad clock");
+		sphi();
+	} while (zget(STAT) & UPDATE);
+
+	if (flag == 0) {
+		/* Read the clock. */
+		for (i = 0; i < sizeof clkbuf; i++)
+			clkbuf[i] = zget(i);
+	} else {
+		/* Write the clock. */
+		for (i = 0; i < sizeof clkbuf; i++)
+			zput(i, clkbuf[i]);
+	}
+	splo();
 }
 
 /*

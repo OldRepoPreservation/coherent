@@ -1,5 +1,7 @@
-# /usr/src/cmd/nroff/Makefile 6/7/91
+# /usr/src/cmd/nroff/Makefile 5/27/92
 # Makefile for nroff and troff
+
+DESTDIR=/bin386/bin/
 
 # Targets.
 ALL=\
@@ -59,13 +61,13 @@ all:	$(ALL)
 
 # Secondary targets.
 troff:	$(OBJ) $(TOBJ)
-	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(TOBJ)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJ) $(TOBJ)
 
 nroff:	$(OBJ) $(NOBJ)
-	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(NOBJ)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJ) $(NOBJ)
 
 fwtable:	$(FWTOBJ)
-	cc -o $@ $(FWTOBJ) -f
+	$(CC) -o $(DESTDIR)$@ $(FWTOBJ) -f
 
 strip:	$(ALL)
 	strip $(ALL)

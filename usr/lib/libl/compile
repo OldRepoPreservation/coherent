@@ -1,21 +1,23 @@
+#Makefile by bob H. to replace compile script.
+#Here's hoping it works...
 
-
-cc -O -I. -c *.c
-ar rc libl.a\
-	auto.o\
-	back.o\
-	ctxt.o\
-	error.o\
-	less.o\
-	look.o\
-	main.o\
-	more.o\
-	next.o\
-	rjct.o\
-	wrap.o\
-	ctab.o\
-	ltab.o\
+libl:
+	cc -O -I. -c *.c
+	ar rc libl.a\
+		auto.o\
+		back.o\
+		ctxt.o\
+		error.o\
+		less.o\
+		look.o\
+		main.o\
+		more.o\
+		next.o\
+		rjct.o\
+		wrap.o\
+		ctab.o\
+		ltab.o\
 	;
-echo mv libl.a /usr/lib
-echo ranlib libl.a
-rm *.o
+	mv libl.a /interim/usr/lib/
+	ranlib /interim/usr/lib/libl.a
+

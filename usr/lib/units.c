@@ -1,6 +1,6 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
 static char Release[] =		"$Release: INETCO COHERENT V8.0$";
-static char Date[] =		"$Date: Oct 25, 1986$";
+static char Date[] =		"$Date: 91/04/19 12:41:06 $";
 
 /* (-lgl
  * 	The information contained herein is a trade secret of Mark Williams

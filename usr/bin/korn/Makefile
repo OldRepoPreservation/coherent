@@ -5,14 +5,14 @@ DESTDIR=/interim/usr/bin/
 BIN = /usr/bin
 STD =../std
 PRINT = prhp
-INC=-I. -I/usr/spool/uucppublic -I/distrib/usr/include -I/distrib/usr/include/sys
+# INC=-I. -I/usr/spool/uucppublic -I/distrib/usr/include -I/distrib/usr/include/sys
 
 # Must define one of _V7, _SYSV, _BSD, _POSIX
 # may define any of JOBS (have BSD or POSIX job control),
 # EDIT (emacs-like command editing), SILLY (see edit.c)
 OPTIONS = -D_V7 -DEDIT
 CFLAGS = -O $(INC) $(OPTIONS)
-LDLIBS = /usr/spool/uucppublic/libc.a -lx
+LDLIBS = /lib/libc.a -lx
 LDFLAGS=-n
 
 HDRS =	sh.h table.h expand.h lex.h tree.h tty.h

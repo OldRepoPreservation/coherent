@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/replace.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/replace.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * replace.c - regular expression pattern replacement functions
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	replace.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/replace.c,v $
+ * Revision 1.1	91/02/05  11:59:31 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:05:59  mark
  * 1.2 release fixes
  * 

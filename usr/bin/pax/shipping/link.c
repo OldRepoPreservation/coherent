@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/link.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/link.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * link.c - functions for handling multiple file links 
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	link.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/link.c,v $
+ * Revision 1.1	91/02/05  11:56:19 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:04:38  mark
  * 1.2 release fixes
  * 

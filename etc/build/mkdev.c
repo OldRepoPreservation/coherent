@@ -9,7 +9,10 @@
  *	-d	Debug; echo commands without executing
  *	-v	Verbose
  *
- * $Log$
+ * $Log:	mkdev.c,v $
+ * Revision 1.6  92/01/17  11:31:17  bin
+ * another hal update... looks like the final 321 ship version
+ * 
  *
  * Roughly, do the following for device "foo" ( at | aha154x | ss )
  *

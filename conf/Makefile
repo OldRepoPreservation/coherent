@@ -1,94 +1,29 @@
-# Master makefile
+#Makefile to place proper sources in /conf/kbd and to
+#build boot blocks
+# Bob H. June 13, 1991
 
-# Use of GCC for compilations of DDI/DKI drivers caused by this makefile is
-# strongly recommended. Comment out the following lines if you cannot use gcc
-# for some reason. The default compiler is fine for the Space.c and conf.c
-# files, though.
+DESTDIR=/interim/conf/kbd/
+DESTDIR2=/interim/conf/
 
-CONFDIR=.
-PREFIX=.
-MANIFEST=$(PREFIX)/conf
-MAKEFILE=Makefile
-MAKEARGS="CC=$(CC)" "CFLAGS=$(CFLAGS)" \
-	 "LDFLAGS=$(LDFLAGS)" "LIBFLAGS=$(LIBFLAGS)" \
-	 "CONFDIR=$(CONFDIR)"
-GCC=gcc
-GCCFLAGS=-O2 $(CFLAGS) # -Wall -ansi -pedantic
-GLDFLAGS=-nostdlib /lib/ndp/crts0.o
-GLIBFLAGS=-lc
-BIN=bin
+POST=Coh_321.post
 
-everything:	all $(CONFDIR)/drvbld.mak configure
+kb_tables=belgian canadian danish dutch french \
+	   german italian latin_am norwegian \
+	   portuguese spanish swedish swiss_french \
+	   swiss_german uk us us_xt
 
-all clean setup depend:
-	+j=$$(pwd); for i in */src/[Mm]akefile; do \
-		case $$i in \
-		[!*]*)	cd $${i%/*} ; echo $$(pwd); \
-			$(MAKE) $(MAKEARGS) \
-				PREFIX=$(MANIFEST)/$${i%%/*} $@ || (echo FAIL;exit 1;); \
-			cd $$j; ;; \
-		esac \
-	done
+kbmain.o: /newbits/kernel/USRSRC/i8086/drv/kbmain.c
+	cc -c $< -o $(DESTDIR)$@
 
-gcc:
-	+exec $(MAKE)	"CC=$(GCC)" "CFLAGS=$(GCCFLAGS)" \
-			"LDFLAGS=$(GLDFLAGS)" "LIBFLAGS=$(GLIBFLAGS)" \
-			 "CONFDIR=$(CONFDIR)" \
-			-f $(MAKEFILE)
+keyboards:
+	(cd kbd/objects;export SRCPATH=..;make; mv $(kb_tables) $(DESTDIR))
+	cp -d kbd/.list $(DESTDIR)
 
-# The only difference between this and the action above is Hal's desire
-# to see the system walk over the directories.
+ldker:
+	(co ldker ; mv ldker $(DESTDIR2)$@)
+	su root chmog 500 root root $(DESTDIR2)$@
 
-manifest distrib:
-	@j=$$(pwd); for i in */src/[Mm]akefile; do \
-		case $$i in \
-		[!*]*)	cd $${i%/*} ; \
-			$(MAKE) $(MAKEARGS) \
-				PREFIX=$(MANIFEST)/$${i%%/*} $@ || exit 1; \
-			cd $$j; ;; \
-		esac \
-	done
-
-# Update binaries of drivers and the 'devadm' program
-# As a detail, we check to see that a device for major number 4 is installed,
-# otherwise the kernel will be built without a console and will fail to be
-# very useful.
-
-$(CONFDIR)/drvbld.mak: $(CONFDIR)/mdevice $(CONFDIR)/sdevice \
-			$(CONFDIR)/template.mak $(BIN)/idcheck \
-			$(BIN)/devadm
-	$(BIN)/idcheck -i $(CONFDIR) -B -l 4; if [ $$? -gt 0 -a $$? -lt 100 ]; \
-		then exit 0; \
-		else echo "No console device configured"; exit 1;\
-		fi
-	CONFPATH=$$(pwd) $(BIN)/devadm -d -I $(CONFDIR)
-
-configure:
-	export CONFPATH=$$(pwd); cd $(CONFDIR); \
-		make K386LIB=$(K386LIB) TARGET=$(TARGET) -f drvbld.mak
-
-# Set up additional dependencies for top-level actions, and then define the
-# additional actions.
-
-clean:	conf_clean
-setup:	conf_setup
-manifest: conf_manifest
-distrib: conf_distrib
-
-conf_clean:
-	rm -f drvbld.mak conf.[ch] obj/*
-
-conf_setup:
-	if [ ! -d obj ]; then mkdir obj; fi
-
-conf_manifest:
-	@for i in Makefile template.mak [ms]tune [ms]device; do \
-		echo $(MANIFEST)/$$i; \
-	done
-
-conf_distrib:
-	@for i in Makefile template.mak bin/id* bin/devadm bin/cohtune\
-		  bin/ndptype bin/bports bin/kbdselect; do \
-		echo $(MANIFEST)/$$i; \
-	done
-
+postfile:
+	co $(POST) ; mv $(POST) $(DESTDIR2)
+	chmog 500 root root $(DESTDIR2)$(POST)
+	

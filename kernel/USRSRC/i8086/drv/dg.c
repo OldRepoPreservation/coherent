@@ -1,9 +1,12 @@
 /*
  * dg - device driver for Digiboard PC/Xe intelligent multiport controller
  *
- * $Header: /usr/src/sys/i8086/drv/RCS/dg.c,v 1.2 91/03/01 13:29:12 root Exp $
+ * $Header: /usr/src/sys/i8086/drv/RCS/dg.c,v 1.3 91/03/05 12:23:42 root Exp $
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/dg.c,v $
+ * Revision 1.3	91/03/05  12:23:42	root
+ * Fix cast on dg_ram_base
+ * 
  */
  
 /*

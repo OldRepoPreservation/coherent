@@ -1,27 +1,22 @@
-# /usr/src/libc/crt/Makefile 1/13/93
+# /usr/src/libc/crt/Makefile 2/14/91
 
 OBJ=\
+	_pow10.o\
 	_prof.o
 
 # Primary target.
-all:	CRT crt$(MCH)
+all:	CRT crti8086
 	: libc/crt done.
 
-# Primary NDP target.
-ndp:	CRT crti387
-	: libc/crt done.
-
-# Pseduotargets.
+# Pseudotargets.
 CRT:	$(OBJ)
-	$(AR) rkus libc.a $?
+	ar rkus libc.a $?
 	touch $@
-crt$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
-crti387:
-	SRCPATH=$(SRCPATH)/$(MCH) make -e CRTI386NDP
-	SRCPATH=$(SRCPATH)/i387 make -e
+crti8086:
+	make SRCPATH=$(SRCPATH)/i8086
 
 # Secondary targets.
+_pow10.o:	_pow10.c
 _prof.o:	_prof.c
 
 # end of /usr/src/libc/crt/Makefile

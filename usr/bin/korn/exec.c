@@ -2,7 +2,7 @@
  * execute command tree
  */
 
-static char *RCSid = "$Header: exec.c,v 3.1 88/11/03 09:15:46 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/exec.c,v 1.2 91/08/01 12:40:11 bin Exp Locker: bin $";
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -12,7 +12,7 @@ static char *RCSid = "$Header: exec.c,v 3.1 88/11/03 09:15:46 egisin Exp $";
 #include <signal.h>
 #include <setjmp.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #include "sh.h"
 #include "lex.h"
 #include "tree.h"

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/seg.c,v 1.1 88/03/24 16:14:20 src Exp $ */
+/* $Header: /newbits/kernel/USRSRC/coh/RCS/seg.c,v 1.4 91/07/24 07:51:50 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,11 @@
  * Coherent.
  * Segment manipulation.
  *
- * $Log:	/usr/src/sys/coh/RCS/seg.c,v $
+ * $Log:	seg.c,v $
+ * Revision 1.4  91/07/24  07:51:50  bin
+ * update prov by hal
+ * 
+ * 
  * Revision 1.1	88/03/24  16:14:20	src
  * Initial revision
  * 

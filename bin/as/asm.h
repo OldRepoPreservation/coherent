@@ -1,228 +1,180 @@
-/*
- * 80386 assembler header.
- */
 #include <stdio.h>
+#include <setjmp.h>
+#include "asmch.h"
+#ifdef	LADDR
+#include "n.out.h"
+#else
+#include <l.out.h>
+#endif
 
-#define new(s) ((s *)alloc(sizeof(s)))
-#define gnew(s) ((s *)galloc(sizeof(s)))
-#define clear(x) memset((char *)(x), 0, sizeof(*(x)))
-#define offset(st, memb) ((unsigned)(((st *)0)->memb))
-
-typedef struct expr expr;	/* generated address stuff */
-typedef struct inpctl inpctl;	/* include level of control */
-typedef struct macctl macctl;	/* macro level of control */
-typedef struct macline macline;	/* a macro line */
-typedef struct macro macro;	/* macro symbol */
-typedef struct opc opc;		/* opcode symbol entry */
-typedef struct parm parm;	/* a parameter on a control line */
-typedef struct data data;	/* data block for dc.w dc.d etc */
-typedef struct sym sym;		/* allocated  symbol table entry */
-typedef struct symt  symt;	/* opcode table entry */
-typedef struct nhash nhash;	/* hash table entry */
-typedef struct psym psym;	/* predefined symbol table entry */
-typedef struct symdef symdef;	/* defined in c_out.c uses SYMENT & AUXENT */
-
-struct expr {	/* generated 80386 address stuff */
-	expr *next;
-	char mode;	/* mode byte */
-	long exp;	/* displacment */
-	short sg;	/* segment override */
-	psym *r1;	/* first register */
-	psym *r2;	/* second register */
-	char scale;	/* scaling factor */
-	long size;	/* size of target */
-	sym	*ref;	/* pointer to associated symbol */
-};
-
-#define T_IMM 	1	/* $ immediate */
-#define T_R	2	/* reg */
-#define T_RI	3	/* ( reg ) */
-#define T_RID	4	/* disp ( reg ) */
-#define T_RIX	5	/* ( reg, reg ) */
-#define T_RIXD  6	/* disp ( reg, reg ) */
-#define T_RIS	7	/* ( reg, scale ) */
-#define T_RIDS	8 	/* disp ( reg, scale ) */
-#define T_RIXS  9	/* ( reg , reg, scale ) */
-#define T_RIXDS 10	/* disp ( reg , reg, scale ) */
-#define T_D	11	/* displacment */
-#define T_FP	12	/* %st( n ) */
-
-struct opc {	/* slice in pref tab */
-	short code;	/* opcode */
-	short kind;	/* index to symt table */
-};
-
-struct symt {	/* Opcode symbol type. */
-	unsigned short type;		/* yacc type */
-	unsigned short bldr;		/* code for builder */
-	unsigned char operands;		/* operands for this kind of symbol */
-	unsigned char ap[3];		/* operand types */
-};
-
-struct nhash {	/* name hash entry */
-	short next;			/* index to next symbol same hash */
-	short nameIx;			/* index into charLump */
-	char  nlen;			/* length of name */
-	char  count;			/* match count in prefTab */
-	short prefIx;			/* index into prefTab */
-};
-
-struct psym {	/* predefined symbol table entry */
-	psym	*next;			/* same symbol with same hash */
-	short	type;			/* yacc type or coff debug type */
-	long	loc;			/* location of coff debug value */
-	long	size;			/* length */
-	short	sg;			/* segment plus 1 */
-	short	flag;			/* flag bits */
-	sym 	*ref;			/* base copy of this symbol on symtab */
-	short	num;			/* symbol number for relocation */
-	int	statement;		/* statement no of definition */
-	char	*name;			/* symbol name */
-};
-
-struct sym {	/* allocated symbol table entry */
-	psym	*next;			/* same symbol with same hash */
-	short	type;			/* yacc type */
-	long	loc;			/* location */
-	long	size;			/* length */
-	short	sg;			/* segment plus 1 */
-	short	flag;			/* flag bits */
-	sym 	*ref;			/* base copy of this symbol on symtab */
-	short	num;			/* symbol number for relocation */
-	int	statement;		/* statement no of definition */
-	char	name[1];		/* symbol name */
-};
-
-/* Register flags */
-#define ORD_REG	0
-#define	SEG_REG	0x0800
-#define CTL_REG	0x0400
-#define DEB_REG	0x0200
-#define TST_REG	0x0100
-
-#define BAD	1		/* Bad exit() code */
-#define	NCPLN	16		/* max external symbol length */
-#define NINPUT	256		/* Input line size */
+/* Basic */
+#define	HUGE	1000		/* A huge number */
+#define NERR	10		/* Errors per line */
+#define NINPUT	128		/* Input buffer size */
+#define NCODE	128		/* Listing code buffer size */
+#define NTIT	64		/* Title buffer size */
+#define	NHASH	64		/* Buckets in hash table */
+#define	HMASK	077		/* Hash mask */
+#define	NLPP	60		/* Lines per page */
 
 /* Listing */
 #define NLIST	0		/* No listing */
 #define SLIST	1		/* Source only */
 #define ALIST	2		/* Address only */
-#define	BLIST	3		/* Byte listing */
+#define	BLIST	3		/* Bytes */
+#define	WLIST	4		/* Words */
 
-#define	dot	(symtab[0])	/* Dot, current loc */
-
-/* symbol type flags */
-#define S_EXDEF 0x01	/* defined here visable elsewhere */
-#define S_LOCAL 0x02	/* defined here */
-#define S_EXREF 0x04	/* defined elsewhere visable here */
-#define S_UNDEF 0x08	/* unidentified so far */
-#define S_DUPSYM 0x10	/* duplicate symbol */
-#define S_XSYM  0x20	/* non identifier */
-#define S_USED  0x40	/* symbol used */
-#define S_COMMON 0x80	/* common symbol */
-
-#define S_ASYM	0x3F	/* allocated symbol */
-
-#define SYMNAME(sp) ((sp->flag&S_ASYM) ? ((sym *)sp)->name : ((psym *)sp)->name)
-
-struct parm {	/* a parameter on a control line */
-	parm *next;	/* next parm on line */
-	char str[1];
-};
-
-struct macline {	 /* a macro line */
-	macline *next;
-	char line[1];	/* data of indefinate length */
-};
-
-struct macro {	/* macro symbol */
-	macro	*next;	/* macro's searched sequentially */
-	unsigned short type;	/* same position as sym type */
-	macline *first;	/* first line of macro */
-	parm	*names; /* names of macro parms */
-	char name[1];	/* name of macro */
-};
-
-#define WHILETYPE 0	/* while loop */
-#define MACTYPE 1	/* macro */
-#define MACSTR  2	/* string */
-#define MACSCAN 3	/* string being scaned */
-
-struct macctl {	 /* macro level of control */
-	macctl  *prev;	/* previous level of control */
-	unsigned short type; /* do mac while etc */
-	parm	*parms;	/* macro parm list */
-	parm	*names;	/* macro parm names */
-	macline *first; /* where it started for do else etc */
-	macline *curr;	/* this macro line */
-	short	expno;	/* this macro expansion number */
-};
-
-/* macctl types */
-#define INMACDEF 1	/* in macro definition */
-#define INWDEF	 2	/* finding limits of a while */
-#define INPWDEF	 3	/* defining while internal to another while or mac */
-#define PMACDEF  4	/* macro definition inside macro definition */
-#define INIF0	 5	/* in unsuccesfull if */
-#define INIFX	 6	/* if in unsuccessfull if */
-#define INIF1	 7	/* in successfull if */
-#define INWHILE	 8	/* in successfull while */
-#define NORMAL	 9	/* base mode */
-
-struct inpctl {		/* include level of control */
-	inpctl *prev;		/* previous file */
-	FILE   *fp;		/* File ptr */
-	short	lineNo;		/* current line number */
-	char	name[1];	/* file name */
-};
-
-struct data {	/* misc data item */
-	data *next;
-	unsigned short type;	/* 'd', 'l', 'y', 's' */
-	unsigned short count;	/* repeat count */
-	union d {
-		double	d;	/* double data */
-		long	l;	/* long data */
-		sym	*y;	/* pointer to original symbol */
-		char	*s;	/* pointer to string */
-	} d;
-};
-
-/* bits for lflags */
-#define A_SHORT 1	/* Uses short address */
-#define A_LONG  2	/* Uses long address */
-#define O_SHORT 4	/* Uses short operand */
-#define O_LONG  8	/* Uses long operand */
-#define A_INDIR 16	/* Uses indirect operand */
+#define	dot	(&sym[0])	/* Dot, current loc */
 
 /*
- * Some opcodes need to be known outside the tables.
- * the following defines at least give them names.
+ * Symbol.
+ * The names `s_ref' and `s_base'
+ * don't get init. in `pst.c'.
+ * Good thing: you cannot initialise
+ * a union.
  */
-#define PREFIX_OP 0x66	/* Operand size prefix */
-#define PREFIX_AD 0x67	/* Address mode prefix */
-#define PREFIX_ES 0x26	/* Use %es: */
-#define PREFIX_CS 0x2e	/* Use %cs: */
-#define PREFIX_SS 0x36	/* Use %ss: */
-#define PREFIX_DS 0x3e	/* Use %ds: */
-#define PREFIX_FS 0x64	/* Use %ds: */
-#define PREFIX_GS 0x65	/* Use %ds: */
+struct	sym
+{
+	struct	sym	*s_sp;		/* Hash link */
+	char		s_id[NCPLN];	/* Name */
+	unsigned char	s_kind;		/* Symbol kind (S_) */
+	unsigned char	s_flag;		/* Symbol flags */
+	int		s_type;		/* Expression type */
+	address		s_addr;		/* Address */
+	int		s_ref;		/* Ref. number */
+	int		s_total;	/* Hash total */
+	union	{
+		struct sym *s_sp;
+		struct loc *s_lp;
+		int s_segn;
+	} s_base;		/* Base */
+};
 
-#define JMP_SHORT 0xEB 
-#define JMP_NEAR  0xE9
-#define JMP_INDIR 0xFF04
-#define CALL_NEAR 0xE8
-#define CALL_INDIR 0xFF02
-#define JCC_SHORT 0x70
-#define JCC_NEAR  0x0F80
+/* Flags */
+#define	S_GBL	01		/* Global */
+#define	S_ASG	02		/* Assigned */
+#define	S_MDF	04		/* Mult. def */
+#define	S_END	010		/* End mark */
+#define	S_SYMT	020		/* For l.out symbol table */
 
-#define MOV_BYTE  0xC6	/* Ambigous move op code */
-#define INSB	  0x6C
-#define INSW	  0x6D
-#define NOP	  0x90
-#define POPA	  0x61
-#define AAM	  ((unsigned short)0xD40A)
-#define POP_MEM	  ((unsigned short)0x8F00)
-#define NON_OP	  ((unsigned short)0x0201)	/* not an op code */
-#include "asme.h"
+/* Kinds */
+#define	S_NEW	0		/* New name */
+#define	S_USER	1		/* User name */
+#define	S_LOC	2		/* Loc. counter */
+#define	S_SEG	3		/* Seg. name */
+#define	S_BYTE	4		/* .byte */
+#define	S_WORD	5		/* .word */
+#define	S_SDEF	6		/* .segdef */
+#define	S_ASCII	7		/* .ascii */
+#define	S_COMM	8		/* .comm */
+#define	S_LDEF	9		/* .locdef */
+#define	S_GLOBL	10		/* .globl */
+#define	S_PAGE	11		/* .page */
+#define	S_TITLE	12		/* .title */
+#define	S_BLK	13		/* .blk[bwl] */
+
+/*
+ * Location counter.
+ */
+struct	loc
+{
+	struct	loc *l_lp;	/* Link */
+	int	l_seg;		/* Seg. no. */
+	address	l_break;	/* Size */
+	address	l_offset;	/* Offset in area */
+	address	l_fuzz;		/* Fuzz */
+};
+
+/*
+ * Temp. symbols.
+ */
+struct	tsym
+{
+	struct	tsym *t_fp;	/* Link to next */
+	struct	loc *t_lp;	/* Location counter */
+	address	t_addr;		/* Address */
+};
+
+struct	tsymp
+{
+	struct	tsym *tp_fp;	/* Symbol for `n'f */
+	struct	tsym *tp_bp;	/* Symbol for `n'b */
+	struct	tsym *tp_lfp;	/* First symbol */
+	struct	tsym *tp_llp;	/* Last symbol */
+};
+
+/*
+ * Globals.
+ */
+extern	address	absexpr();
+extern	struct sym *lookup();
+extern	int	inbss;
+extern  jmp_buf env;
+extern	char	*new();
+extern	struct	sym sym[];
+extern	int	line;
+extern	int	page;
+extern	int	lop;
+extern	int	pass;
+extern	int	lflag;
+extern	int	gflag;
+extern	int	eflag;
+extern	int	xflag;
+extern	address	laddr;
+extern	address	fuzz;
+extern	int	lmode;
+extern	struct	sym *symhash[NHASH];
+extern	int	nloc;
+extern	int	nerr;
+extern  struct  loc *loc[];
+extern  struct  loc *defloc;
+extern	char	*ep;
+extern	char	eb[NERR];
+extern	char	*ip;
+extern	char	ib[NINPUT];
+extern	char	*cp;
+extern	char	cb[NCODE];
+extern	char	tb[NTIT];
+extern	struct	tsymp tsymp[10];
+extern	char	*ofn;
+extern	char	*ifn;
+extern	FILE	*ofp;
+extern	FILE	*sfp;
+extern FILE 	*efp;
+extern	char	ctype[];
+
+/*
+ * Character types.
+ * Letters are < 0.
+ * Letters and digits are <= 0.
+ * This speeds up getid.
+ */
+#define	LETTER	(-1)
+#define	DIGIT	0
+#define	BINOP	1
+#define ETC	2
+#define	ILL	3
+#define	SPACE	4
+
+/*
+ * Expression.
+ */
+struct	expr
+{
+	char	e_mode;		/* Address mode */
+	char	e_type;		/* Type */
+	address	e_addr;		/* Address */
+	union	{
+		struct loc  *e_lp;
+		struct sym  *e_sp;
+		int e_segn;
+	} e_base;		/* Rel. base */
+};
+
+/* Types */
+#define	E_ACON	0		/* A constant */
+#define	E_ASEG	1		/* An absolute segment */
+#define	E_SYM	2		/* Symbol base */
+#define	E_DIR	3		/* Direct address */
+#define	E_AREG	4		/* Reg */
+#define	E_SEG	5		/* Relocatable segment */

@@ -71,7 +71,7 @@ MAN1 = /usr/manl
 #    to this directory and choose the DIROBJ lines.  Please note that this 
 #    version of dirent has been modified to work as a stand-alone. 
 #
-DIRENT= -ldir
+DIRENT= -lndir
 #DIRENT= -ldirent
 #DIROBJ= paxdir.o
 #DIRSOURCE= paxdir.c

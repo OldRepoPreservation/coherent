@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/clock.c,v 1.1 88/03/24 16:13:36 src Exp $ */
+/* $Header: /x/usr/src/sys/coh/RCS/clock.c,v 1.2 91/06/20 14:12:44 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a

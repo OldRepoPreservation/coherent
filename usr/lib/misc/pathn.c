@@ -12,7 +12,6 @@
 #define PATHSIZE 64
 
 char	*getenv(), *path(), *strchr();
-
 char *
 pathn(name, envpath, deflpath, acs)
 char *name, *envpath, *deflpath, *acs;
@@ -42,21 +41,3 @@ char *name, *envpath, *deflpath, *acs;
 			return (p);
 	}
 }
-#ifdef TEST
-#include <misc.h>
-
-main()
-{
-	char name[80], envpath[80], deflpath[80], acs[80];
-
-	for (;;) {
-		ask(name, "file name");
-		if ('q' == name[0])
-			return(0);
-		ask(envpath, "env");
-		ask(deflpath, "path");
-		ask(acs,  "acs");
-		printf("found %s\n", pathn(name, envpath, deflpath, acs));
-	}
-}
-#endif

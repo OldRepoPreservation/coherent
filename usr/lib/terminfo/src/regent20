@@ -1,4 +1,0 @@
-regent20|adds regent 20,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=\EK, ed=\Ek, 
-	cup=\EY%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=^A, cub1=^H, cuf1=^F, 
-	ll=^A^Z, cuu1=^Z, ind=^J, 

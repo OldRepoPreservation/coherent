@@ -498,7 +498,7 @@ do_it()
 
 	if ((fp = cronpipe(tokbuf, "w")) == NULL) {
 		fprintf(stderr, "cron:\tCould not popen: %s\n\t\
-				errno = %d: %s.\n", tokbuf, errno, perror());
+				errno = %d\n", tokbuf, errno);
 		return (skip_it());
 	}
 

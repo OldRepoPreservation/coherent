@@ -1,17 +1,13 @@
 /*
- * libc/stdio/fgetc.c
- * ANSI-compliant C standard i/o library.
- * fgetc()
- * ANSI 4.9.7.1.
- * Get character from stream.
+ * Standard I/O Library
+ * Get character function (rather than macro)
  */
 
 #include <stdio.h>
 
 int
-fgetc(stream) FILE *stream;
+fgetc(fp)
+register FILE	*fp;
 {
-	return getc(stream);
+	return (getc(fp));
 }
-
-/* end of libc/stdio/fgetc.c */

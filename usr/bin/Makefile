@@ -4,9 +4,15 @@ DESTDIR=/interim/usr/bin/
 
 all:	$(CMDS)
 
-kermit:	kermit.c
-	cc -O -o $(DESTDIR)$@ kermit.c
-	su root chmog 511 bin bin $(DESTDIR)$@
+# old kermit
+
+# kermit:	kermit.c
+#	cc -O -o $(DESTDIR)$@ kermit.c
+#	su root chmog 511 bin bin $(DESTDIR)$@
+
+# ckermit
+kermit:
+	cd ckermit/objects ; export SRCPATH=..; make
 
 cut:
 	cd cutpaste/objects ; export SRCPATH=.. ; make
@@ -21,7 +27,7 @@ cpio:
 	cd pax/shipping; make
 
 me:
-	cd emacs; make
+	cd emacs/objects; export SRCPATH=.. ; make
 
 modeminit:
 	su root co $(DESTDIR)$@
@@ -48,4 +54,4 @@ uuprogs:
 	cd uucpstuff/src; make
 
 ksh:
-	cd korn; make
+	cd korn/objects; export SRCPATH=.. ; make

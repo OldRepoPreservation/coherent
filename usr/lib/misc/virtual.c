@@ -1,7 +1,7 @@
 /*
  * Virtual memory system for Coherent.
  */
-#include "local_misc.h"
+#include "misc.h"
 #include <sys/stat.h>
 
 #define FILES 20
@@ -38,7 +38,7 @@ unsigned ram;	/* amount of storage to devote to ram */
 	map  = (struct mapper *)alloc(blocks * sizeof(*map));
 	ramsw = topf = initp = 0;	/* make code reusable */
 	
-	if ((0 == stat(fname, &st)) && (S_IFCHR == (st.st_mode & S_IFCHR))) {
+	if ((0 == stat(fname, &st)) && (st.st_mode & S_IFCHR)) {
 		switch (is_fs(fname)) {
 		case -1:
 			fatal("Virtual; cannot seek %s", fname);

@@ -11,10 +11,10 @@
 #define	NULL	((char *)0)		/* rather than using stdio.h	*/
 #endif
 
-static char lookbuff[NFILEN];
+static uchar lookbuff[NFILEN];
 
 inithelp(){
-	extern char *getenv();
+	extern uchar *getenv();
 
 	if (helpfile == NULL) {
 		if ((helpfile = getenv("HELP")) == NULL) {
@@ -41,7 +41,7 @@ inithelp(){
 }
 
 do_lookup(topic)
-char *topic;
+uchar *topic;
 {
 	inithelp();
 	if (topic == NULL || *topic == '\0') {

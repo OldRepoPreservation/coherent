@@ -41,7 +41,7 @@ lines:
 	su root chmog 511 bin bin $(DESTDIR)$@
 
 almanac:	almanac.c
-	cc -O -o $(DESTDIR)$@ lines.c
+	cc -O -o $(DESTDIR)$@ almanac.c
 	(cd lib ; co alm.birth ; co alm.death ; co alm.event)
 	(cd lib ; cp alm.birth $(DESTDIR2)/almanac.birth)
 	(cd lib ; cp alm.death $(DESTDIR2)/almanac.death)

@@ -1,4 +1,4 @@
-# /usr/src/libc/gen/ctype/Makefile 1/9/92
+# /usr/src/libc/gen/ctype/Makefile 2/14/91
 
 OBJ=\
 	_ctype.o\
@@ -22,7 +22,7 @@ OBJ=\
 
 # Primary target.
 GENCTYPE:	$(OBJ)
-	$(AR) rkus libc.a $?
+	ar rkus libc.a $?
 	touch $@
 	: lib/gen/ctype done
 

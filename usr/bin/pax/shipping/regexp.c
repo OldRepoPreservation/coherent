@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/regexp.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/regexp.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * regexp.c - regular expression matching
  *
@@ -42,7 +42,10 @@
  *
  * Sponsored by The USENIX Association for public distribution. 
  *
- * $Log:	regexp.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/regexp.c,v $
+ * Revision 1.1	91/02/05  11:59:22 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:05:39  mark
  * 1.2 release fixes
  * 

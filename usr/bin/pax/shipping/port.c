@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/port.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/port.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * port.c - These are routines not available in all environments. 
  *
@@ -32,7 +32,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	port.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/port.c,v $
+ * Revision 1.1	91/02/05  11:59:08 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:05:35  mark
  * 1.2 release fixes
  * 

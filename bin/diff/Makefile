@@ -1,6 +1,9 @@
 # diff/Makefile 4/13/90
-DESTDIR=/interim/bin/
-DESTDIR2=/interim/usr/lib/
+#DESTDIR=/interim/bin/
+#DESTDIR2=/interim/usr/lib/
+
+DESTDIR=/bin386/bin/
+DESTDIR2=/bin386/usr/lib/
 
 OBJ=\
 	diff1.o \
@@ -11,8 +14,9 @@ all:	diff diffh diff3 diff3.script
 	: all done
 
 diff3.script:
-	co $(DESTDIR)diff3.script
-	su root mv $(DESTDIR)diff3.script $(DESTDIR)diff3
+	co diff3.script
+	su root cp diff3.script $(DESTDIR)diff3
+	rm diff3.script
 	su root chmog 555 bin bin $(DESTDIR)diff3
 
 diff:	diff1.o diff2.o

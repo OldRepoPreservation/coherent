@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.11  91/11/12  07:48:34  bin
+ * 3204 kernel source for use with piggy's tboot code
+ * 
  * Revision 1.10  91/11/11  12:29:03  hal
  * Use n_atdr.
  * 

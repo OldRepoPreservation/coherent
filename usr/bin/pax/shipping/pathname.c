@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/pathname.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/pathname.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * pathname.c - directory/pathname support functions 
  *
@@ -28,7 +28,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	pathname.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/pathname.c,v $
+ * Revision 1.1	91/02/05  11:58:18 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:05:13  mark
  * 1.2 release fixes
  * 

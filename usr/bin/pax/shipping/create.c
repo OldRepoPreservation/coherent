@@ -1,6 +1,6 @@
-/* $Source: /newbits/usr/bin/pax/shipping/create.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/RCS/create.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * create.c - Create a tape archive. 
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/newbits/usr/bin/pax/shipping/create.c,v $
+ * $Log:	create.c,v $
+ * Revision 1.2  91/11/11  15:33:03  bin
+ * update by vlad to fix bug with long filenames and SV/posix readability
+ * 
  * Revision 1.1	91/02/05  11:55:38 	bin
  * Initial revision
  * 
@@ -45,7 +48,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: create.c,v 1.3 89/02/12 10:29:37 mark Exp Locker: mark $";
+static char *ident = "$Id: create.c,v 1.2 91/11/11 15:33:03 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

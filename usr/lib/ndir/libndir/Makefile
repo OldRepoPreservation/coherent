@@ -1,12 +1,12 @@
 DIRENT=/usr/include/dirent.h
 SYSDIR=/usr/include/sys/dir.h
-DESTDIR=/usr/lib/
+#DESTDIR=/usr/lib/
 
 
 OBJS=closedir.o opendir.o seekdir.o readdir.o rewinddir.o telldir.o \
 	getdents.o 
 
-CFLAGS = -O -DUFS -DBIT_16 #-DDBG
+CFLAGS = -O -DDBG -DUFS -DBIT_16 #-DDBG
 LIBNDIR = libndir#
 
 all: $(LIBNDIR).a

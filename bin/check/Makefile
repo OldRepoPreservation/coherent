@@ -2,8 +2,10 @@
 
 # CFLAGS for PDP11
 CFLAGS= -O
-DESTDIR= /interim/bin/
-DESTDIR2 = /interim/etc/
+#DESTDIR= /interim/bin/
+#DESTDIR2 = /interim/etc/
+DESTDIR= /bin386/bin/
+DESTDIR2 = /bin386/etc/
 UTILS=\
 	check\
 	clri\

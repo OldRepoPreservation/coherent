@@ -1,8 +1,6 @@
 /*
  * pretty print routines
  */
-
-#include <stdarg.h>
 #include "yacc.h"
 
 static char ctab[] = " |";
@@ -21,9 +19,9 @@ listgram()
 		for(j=0; j<sp->s_nprods; j++ ) {
 			pp = sp->s_prods[j];
 			fprintf(listout, "%d:\t%c ", pp->p_prodno, ctab[j!=0]);
-			for(k = 0 ; PROD_RIGHT (pp) [k] >= 0 ; k ++)
-				fprintf (listout, "%s ",
-					 ptosym (PROD_RIGHT (pp) [k]));
+			for(k=0; pp->p_right[k]>=0; k++) {
+				fprintf(listout, "%s ", ptosym(pp->p_right[k]));
+			}
 			fprintf(listout, "\n");
 		}
 		fprintf(listout,"\t;\n\n");
@@ -66,10 +64,10 @@ char *
 ptosym(n)
 register n;
 {
-	if (n >= NTBASE)
-		return ntrmptr [n - NTBASE]->s_name;
+	if( n>=NTBASE )
+		return( ntrmptr[n-NTBASE]->s_name);
 	else
-		return trmptr [n]->s_name;
+		return( trmptr[n]->s_name);
 }
 
 char *
@@ -145,17 +143,8 @@ char *argv[];
 				verbose++;
 			}
 		else
-			if( strcmp(ap, "-items")==0 )
-				maxitem = getnum(argv[++i]);
-		else
-			if( strcmp(ap, "-sprod")==0 )
-				maxprodl = getnum(argv[++i]);
-		else
 			if( strcmp(ap,"-prods")==0 )
 				maxprod = getnum(argv[++i]);
-		else
-			if( strcmp(ap,"-reds")==0 )
-				maxreds = getnum(argv[++i]);
 		else
 			if( strcmp(ap,"-terms")==0 )
 				maxterm = getnum(argv[++i]);
@@ -170,10 +159,8 @@ char *argv[];
 				maxtype = getnum(argv[++i]);
 		else
 			usage();
-		if (maxterm >= LSETSIZE * CHAR_BIT)
-			yyerror (NLNO|FATAL,
-				 "The maximum -terms value is %d\n",
-				 LSETSIZE * CHAR_BIT);
+		if( maxterm >= LSETSIZE*NBCHAR )
+			yyerror(NLNO|FATAL, "get ciaran to change alloc for lsets");
 	}
 /*
  *	if( (maxterm+maxnterm+maxtype) >= MAXSYM )
@@ -182,38 +169,25 @@ char *argv[];
  * MWC DSC - make it all flexible with maxsym - it will also mean less memory
  * allocated, in most cases.
  */
-	prdptr = (struct prod **) yalloc (maxprod, sizeof (* prdptr));
-	symtab = (struct sym **)
-			yalloc(maxsym+1, sizeof *symtab);	/* MWC DSC */
-	ntrmptr = (struct sym **) yalloc (maxnterm, sizeof *ntrmptr);
-	trmptr = (struct sym **) yalloc (maxterm, sizeof *trmptr);
-	typeptr = (struct sym **) yalloc (maxtype, sizeof *typeptr);
-
-	nitprod = (struct prod *) yalloc (1, PROD_TOTAL_SIZE (maxprodl));
-	PROD_EXTRA_INIT (nitprod);
-
-	nititem = (struct sitem *) yalloc (1, SITEM_TOTAL_SIZE (maxitem));
-	SITEM_EXTRA_INIT (nititem);
-
-	states = (struct state *) yalloc(maxstates, sizeof *states);
-	items = (struct sitem **) yalloc(maxstates, sizeof (* items));
+	prdptr = (struct prod **)yalloc(maxprod, sizeof *prdptr);
+	symtab = (struct sym **)yalloc(maxsym+1, sizeof *symtab);	/* MWC DSC */
+	ntrmptr = (struct sym **)yalloc(maxnterm, sizeof *ntrmptr);
+	trmptr = (struct sym **)yalloc(maxterm, sizeof *trmptr);
+	typeptr = (struct sym **)yalloc(maxtype, sizeof *typeptr);
+	nitprod = (struct prod *)yalloc(1, sizeof *nitprod + sizeof(int) * MAXPRODL);
+	nititem = (struct sitem *)yalloc(1, sizeof *nititem + MAXITEM * sizeof nititem->
+			i_items[0]);
+	states = (struct state *)yalloc(maxstates, sizeof *states);
+	items = (struct sitem **)yalloc(maxstates, sizeof *items);
 }
 
-yyerror(type, format /* , ... */)
-char * format;
+yyerror(type, args)
 {
-	va_list		argp;
-
 	if( type&FATAL )
 		fprintf(stderr, "fatal error: ");
 	if( (type&NLNO)==0 )
 		fprintf(stderr, "line %d: ", yyline);
-
-	/* Look ma! No more '%r'! */
-	va_start (argp, format);
-	vfprintf (stderr, format, argp);
-	va_end (argp);
-
+	fprintf(stderr, "%r", &args);
 	fprintf(stderr, "\n");
 	if( type&FATAL )
 		cleanup(2);

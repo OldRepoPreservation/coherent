@@ -1,6 +1,6 @@
 OFILES	= alc.o hash.o input.o logic.o main.o util.o
 CFLAGS	= -O
-DESTDIR = /f1/bin/
+DESTDIR = /interim/bin/
 
 tsort:	$(OFILES)
 	$(CC) $(CFLAGS) -o $(DESTDIR)tsort $(OFILES)

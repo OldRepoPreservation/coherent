@@ -1,4 +1,4 @@
-# /usr/src/libc/gen/malloc/Makefile 1/9/92
+# /usr/src/libc/gen/malloc/Makefile 2/12/91
 
 OBJ=\
 	calloc.o\
@@ -11,7 +11,7 @@ UNUSED=trymallo.c
 
 # Primary target.
 GENMALLOC:	$(OBJ)
-	$(AR) rkus libc.a $?
+	ar rkus libc.a $?
 	touch $@
 	: libc/gen/malloc done
 

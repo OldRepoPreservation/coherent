@@ -13,6 +13,7 @@
 /* 1.3 Beta  Cron will not die when cannot fork 2-26-92 
  * 1.2 Beta  Added stuff to be a real deamon.
  */
+#include	<sys/types.h>
 /*
  * File's and directory's definitions.
  */
@@ -42,9 +43,7 @@
 #define FALSE	0
 #define DAEMON	"daemon"
 
-#ifndef TYPES_H
-	typedef	long	 time_t;		/* Time */
-#endif
+extern char	*malloc();
 
 /*
  * We want to keep track about children.

@@ -1,7 +1,6 @@
 /*
- * libc/stdio/finit.c
- * Standard i/o library internals.
- * Initialize file for i/o:
+ * Standard I/O Library Internals
+ * initialize file for I/O
  *	decide if buffered
  *	allocate buffer if required
  *	stuff appropriate get/put functions
@@ -9,22 +8,19 @@
  */
 
 #include <stdio.h>
-#include <errno.h>
 
-extern	long	lseek();
-
-extern	int	_fgetc();
-extern	int	_fputc();
-extern	int	_fgetb();
-extern	int	_fputb();
-extern	int	_fputt();
 
 void
-finit(fp) register FILE *fp;
+finit(fp)
+register FILE	*fp;
 {
-	register int tty, sav;
+	register int	tty;
+	extern	int	_fgetc();
+	extern	int	_fputc();
+	extern	int	_fgetb();
+	extern	int	_fputb();
+	extern	int	_fputt();
 
-	sav = errno;			/* because isatty() can set errno */
 	if (fp->_bp == NULL
 	 && (fp->_ff&_FSTBUF || (tty=isatty(fileno(fp))) && fp!=stdout
 	    || (fp->_bp = malloc(BUFSIZ)) == NULL)) {
@@ -41,48 +37,50 @@ finit(fp) register FILE *fp;
 		fp->_dp = fp->_cp = fp->_bp + boffset(fileno(fp));
 		fp->_cc = 0;
 	}
-	errno = sav;
 }
 
 static
 int
-boffset(fd) int fd;
+boffset(fd)
+int	fd;
 {
-	register long off;
+	extern	long	lseek();
+	register long	off;
 
 	if ((off=lseek(fd, 0L, SEEK_CUR))==-1L)
-		return 0;
+		return (0);
 	else
-		return (unsigned)off%BUFSIZ;
+		return ((unsigned)off%BUFSIZ);
 }
 
 int
-_fginit(fp) register FILE *fp;
+_fginit(fp)
+register FILE	*fp;
 {
 	finit(fp);
-	return (*fp->_gt)(fp);
+	return ((*fp->_gt)(fp));
 }
 
 int
-_fpinit(c, fp) register char c; register FILE *fp;
+_fpinit(c, fp)
+register char	c;
+register FILE	*fp;
 {
 	finit(fp);
-	return (*fp->_pt)(c, fp);
+	return ((*fp->_pt)(c, fp));
 }
 
 
 /*
- * Close all files.
- * Called from exit().
+ * Close all files (called from exit)
  */
+
 void
 _finish()
 {
-	register FILE **fpp;
+	register FILE	**fpp;
 
 	for (fpp = &_fp[_NFILE-1]; fpp>=&_fp[0]; --fpp)
-		if (*fpp != NULL)
+		if (*fpp!=NULL)
 			fclose(*fpp);
 }
-
-/* end of libc/stdio/finit.c */

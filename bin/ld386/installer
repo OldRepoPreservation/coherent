@@ -1,2 +1,0 @@
-cp ld /bin
-chmog 511 bin bin /bin/ld

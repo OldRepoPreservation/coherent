@@ -66,15 +66,6 @@
  * -r Replaces all occurances of the pattern with "new". This form only matches
  *    simple tokens, not things like "ptr->val". -r is incompatible with all
  *    other options.
- *
- * -R Replaces all occurances of the pattern with a new after the following
- *    substitutions. & is the whole pattern found. \1 is the first
- *    parenthesized subexpression, \2 the second etc.
- *
- * -d token. Take following string and comment. For documentation extraction.
- *    use the first char of the token as an output delimeter.
- *
- * -C token. Use token as delimeter -c option.
  */
 #include <ctype.h>
 #include <stdio.h>
@@ -104,7 +95,6 @@ enum fstate {	/* lexical processing state */
 	start,
 	slash,		/* slash encountered in normal state */
 	comment,	/* in comment */
-	cppcom,		/* in cpp comment */
 	star,		/* * in comment */
 	bsl,		/* back slash */
 	dquote,		/* double quote */
@@ -131,13 +121,10 @@ static int  lineLen;		/* current length of input line */
 
 static char lswitch;		/* list files found */
 static char aswitch;		/* call emacs with line list */
-static char dswitch;		/* special for docs */
-static char dtoken[80];		/* token copy for dswitch */
 static char nswitch;		/* print line number */
 static char sswitch;		/* print all strings */
 static char cswitch;		/* print all comments */
 static char rswitch;		/* replace found pattern */
-static char Rswitch;		/* do substition magic */
 
 static regexp *pat;		/* a compiled regular expression */
 
@@ -149,8 +136,6 @@ static FILE *tfp;		/* tmp file pointer */
 
 static int lineno;		/* current line number */
 static int marked;		/* 1 if pattern found on line. */
-
-static int matched;		/* 1 if any match found. */
 
 /*
  * Character types table
@@ -166,8 +151,8 @@ static unsigned char _ctype[] = {
 	_C, _C, _C, _C, _C, _C, _C, _C,
 	_S|_X, _P, _P, _P, _P, _P, _P, _P,
 	_P, _P, _P, _P, _P, _P, _P, _P,
-	_N, _N, _N, _N, _N, _N, _N, _N,
-	_N, _N, _P, _P, _P, _P, _P, _P,
+	_D, _D, _D, _D, _D, _D, _D, _D,
+	_D, _D, _P, _P, _P, _P, _P, _P,
 	_P, _U, _U, _U, _U, _U, _U, _U,
 	_U, _U, _U, _U, _U, _U, _U, _U,
 	_U, _U, _U, _U, _U, _U, _U, _U,
@@ -247,7 +232,6 @@ char *what;		/* the string we have or NULL */
 
 	if (rswitch) {	/* replace mode works on tokens only */
 		marked = (word == got) && regexec(pat, what);
-		matched |= marked;
 		return;
 	}
 
@@ -289,11 +273,6 @@ char *what;		/* the string we have or NULL */
 					emacsLine(p, tokens[i].atline);
 				else {
 					marked = 1;
-					matched = 1;
-					if (dswitch) {
-						strcpy(dtoken, p);
-						cswitch = sswitch = 1;
-					}
 					break;
 				}
 			}
@@ -355,86 +334,14 @@ callEmacs()
 }
 
 /*
- * find first word in a string excluding printf % constructs.
- * make it lower case and return it.
- */
-static char *
-firstWord(p)
-char *p;
-{
-	static char buf[80];
-	char *out, c;
-	enum state { start, pct, name } state;
-
-	out = NULL;
-	for (state = start; c = *p++;) {
-		switch(state) {
-		case start:
-			if (isalpha(c)) {
-				state = name;
-				out = buf;
-				*out++ = tolower(c);
-				continue;
-			}
-			if ('%' == c)
-				state = pct;
-			continue;
-
-		case pct:
-			if (isalpha(c) && 'l' != c)
-				state = start;
-			continue;
-
-		case name:
-			if (isalnum(c)) {
-				*out++ = tolower(c);
-				continue;
-			}
-			*out = '\0'; 
-			return (buf);
-		}
-	}			
-	if (NULL == out)
-		return ("???");
-	*out = '\0';
-	return (buf);
-}
-
-/*
- * print a hit for options -s or -c. Option -d creates -s and -c.
+ * print a hit for options -s or -c.
  */
 static void
-printx(s, sw)
-register char *s;
+printx(s)
+char *s;
 {
-	register char c, *p;
-
 	if (aswitch)
 		emacsLine(s, lineno);
-	else if (cswitch > 1) {
-		for (p = s; (c = *p) && isspace(c); p++)
-			;
-		if ('*' == c)
-			s = p + 1;
-
-		printf("%s", s);
-		putchar(sw ? cswitch : '\n');
-	}
-	else if (dswitch) {
-		for (p = s; (c = *p) && isspace(c); p++)
-			;
-		if ('*' == c)
-			s = p + 1;
-
-		if (dtoken[0]) {
-			printf("%s%c%s%c%s",
-				firstWord(s), dswitch, s, dswitch, dtoken);
-			dtoken[0] = '\0';
-		}
-		else
-			printf("%s", s);
-		putchar(cswitch ? dswitch : '\n');
-	}
 	else {
 		if (NULL != filen)
 			printf("%s: ", filen);
@@ -469,13 +376,12 @@ lex()
 			tfp = stdout;
 		else if ((NULL == (tname = tempnam(NULL, "cse"))) ||
 			 (NULL == (tfp = fopen(tname, "w"))))
-		  	fatal("cgrep: Cannot open tmp file");
+		  	fatal("csed: Cannot open tmp file");
 	}
 
 	lineno = 1;
 	i = marked = 0;
 	gota(other, NULL);	/* initialize word machine */
-
 	for (state = start; ; ) {
 		line[i] = '\0';
 		c = fgetc(ifp);
@@ -495,18 +401,9 @@ lex()
 
 			/* we have a word to replace */
 			if (rswitch && marked) {
-				if(Rswitch) {
-					char buf[80];
-
-					regsub(pat, newstr, buf);
-					i += strlen(buf) - strlen(w);
-					ROOM(line, lineLen, i);
-					strcpy(w, buf);
-				} else {
-					i += strlen(newstr) - strlen(w);
-					ROOM(line, lineLen, i);
-					strcpy(w, newstr);
-				}
+				i += strlen(newstr) - strlen(w);
+				ROOM(line, lineLen, i);
+				strcpy(w, newstr);
 				changed = 1;
 			}
 isstart:		state = start;
@@ -541,42 +438,17 @@ isstart:		state = start;
 					gota(other, NULL);
 			}
 			break;
-
 		case slash:
-			switch (c) {
-			case '*':
-				state = comment;
-				w = line + i + 1;
-				break;
-			case '/':
-				state = cppcom;
-				w = line + i + 1;
-				break;
-			default:
+			if ('*' != c)
 				goto isstart;
-			}
+			w = line + i + 1;
+			state = comment;
 			break;
-
-		case cppcom:
-			if ('\n' == c) {
-				if (cswitch) { /* report comment */
-					if (dswitch)
-						cswitch = 0;
-					line[i] = '\0';
-					printx(w, 0);
-					line[i] = '\n';
-				}
-				state = start;
-			}				
-			break;
-
 		case star:
 			if ('/' == c) {
 				if (cswitch) { /* report comment */
-					if (dswitch)
-						cswitch = 0;
 					line[i - 1] = '\0';
-					printx(w, 0);
+					printx(w);
 					line[i - 1] = '*';
 				}
 				state = start;
@@ -595,11 +467,8 @@ isstart:		state = start;
 			case '"':
 			case '\n':
 				state = start;
-				if (sswitch) {
-					if (dswitch)
-						sswitch = 0;
-					printx(w + 1, 0);
-				}
+				if (sswitch)
+					printx(w + 1);
 				else
 					gota(other, NULL);
 				break;
@@ -642,20 +511,21 @@ isstart:		state = start;
 			}
 
 			if (cswitch && (comment == state)) {
-				printx(w, 1);
+				printx(w);
 				w = line;
 			}
 
-			if (marked && !dswitch) {
+			if (marked) {
+				marked = 0;			
 				if (lswitch) {
 					printf("%s\n", filen);
 					break;
 				}
-				printx(line, 0);
+				printx(line);
 			}
 
 			lineno++;
-			marked = i = 0;
+			i = 0;
 			if (EOF == c)
 				break;
 		}
@@ -666,15 +536,15 @@ isstart:		state = start;
 	if (rswitch) {
 		fclose(tfp);
 
-		if (NULL != filen) {	/* tmp file used */
-			if (changed) {
-				unlink(filen);
-				sprintf(line, "mv %s %s", tname, filen);
-				system(line);
-			}
-			else
-				unlink(tname);
+		if (NULL == filen)
+			; /* do nothing file is already out */
+		else if (changed) {
+			unlink(filen);
+			sprintf(line, "mv %s %s", tname, filen);
+			system(line);
 		}
+		else
+			unlink(tname);
 	}
 
 	if (aswitch && (NULL != tname)) /* tmp file opened for -A option */
@@ -687,8 +557,7 @@ register char **argv;
 {
 	register char c;
 	int errsw = 0;
-	static char msg[] = 
-		"cgrep [-[rR] newStr] [-clnsA] [pattern] filename ...";
+	static char msg[] = "cgrep [-r newStr] [-clnsA] [pattern] filename ...";
 	char *p, *q;
 	extern int optind;
 	extern char *optarg;
@@ -696,19 +565,13 @@ register char **argv;
 	if (1 == argc)
 		usage(msg);
 
-	while (EOF != (c = getopt(argc, argv, "cC:d:slnA?r:R:V"))) {
+	while (EOF != (c = getopt(argc, argv, "cslnA?r:V"))) {
 		switch (c) {
 		case 'V':
-			printf("cgrep version 1.2\n");
+			printf("cgrep version 1.1\n");
 			exit(0);
-		case 'C':
-			cswitch = *optarg;	/* get delimiter */
-			break;
 		case 'c':
 			cswitch = 1;	/* comments only */
-			break;
-		case 'd': /* report following string & comment */
-			dswitch = *optarg;
 			break;
 		case 's':
 			sswitch = 1;	/* strings only */
@@ -722,11 +585,6 @@ register char **argv;
 		case 'A':
 			aswitch = 1;	/* interact with emacs */
 			break;
-		case 'R':
-			Rswitch = 1;	/* do substitution magic */
-			for (p = optarg; *p; p++)
-				if('\\' == *p && (p[1] <= '8') && (p[1] > '0'))
-					p[1]++;
 		case 'r':
 			rswitch = 1;	/* replace hits */
 			newstr = optarg;
@@ -765,5 +623,5 @@ register char **argv;
 			lex();
 		}
 	}
-	exit(! matched);
+	exit(0);
 }

@@ -30,9 +30,9 @@
 #define	GMODE	(ECHO|XTABS|CRT|CRMOD)
 #define	LA36M	GMODE			/* Should have LA36 delays w/a */
 #define	MAXNAME	50			/* Maximum characters in a name */
+#define	LOGMSG	"/etc/logmsg"		/* alternate login msg file */
 
 char	defm[] = "\n\r\7Coherent login: "; /* default login prompt */
-char	logmsg[] = "/etc/logmsg";	   /* alternate login msg file */
 
 int	xflags;				/* Extra flags to set */
 char	remote = FALSE;			/* TRUE for remote tty line */
@@ -40,7 +40,7 @@ int 	timeout();			/* forward declaration */
 
 /*
  * Structure for each speed table.
- * The `s_nindex' entry is the next
+ * The 's_nindex' entry is the next
  * indent in the current table to
  * use (for fixed-speed entries, it
  * should be always 0).
@@ -104,7 +104,7 @@ struct	stable	s3[] = {	/* v22.bis & 212 datasets (2400,1200,300) */
 	0,	GMODE,	B300,	B300,	defm
 };
 
-struct	stable	s5[] = {	/* Reverse of `s3' */
+struct	stable	s5[] = {	/* Reverse of 's3' */
 	1,	GMODE,	B300,	B300,	defm,
 	0,	GMODE,	B1200,	B1200,	defm
 };
@@ -187,11 +187,14 @@ char *argv[];
 	register struct stable	*stpp;
 	register struct stypes  *stp;
 	register int index;
-	unsigned ttyflags;
 	char name[MAXNAME];
 	char *ttyn;	/* pointer to current tty name */
 	extern char *ttyname();
 
+	if (argc != 2) {
+		write(1, "Usage: /etc/getty baudtype\r\n", 28);
+		slexit(1);		  /* error exit */
+	}
 
 	signal(SIGINT, SIG_IGN);	  /* ignore int and quit */
 	signal(SIGQUIT, SIG_IGN);
@@ -206,12 +209,10 @@ char *argv[];
  	}
 
 #if NEWTTYS
-	ioctl(1, TIOCGETTF, &ttyflags);   /* get tty flags */
-
-	if (ttyflags & T_HPCL)            /* assume remote if HUPCLS */
-	{  remote = TRUE;
-	   signal(SIGALRM, &timeout);     /* catch alarm timeouts */
-	   alarm(MAXTIME);		  /* timeout interval */
+	if (argv[0][0] == '-' && argv[0][1] == 'r') {
+		remote = TRUE;
+		signal(SIGALRM, &timeout);     /* catch alarm timeouts */
+		alarm(MAXTIME);		  /* timeout interval */
 	}
 #endif
 
@@ -236,7 +237,7 @@ char *argv[];
 #endif
 	dostty(sp, 0, RAW, 0);		/* set sgtty modes */
 	ioctl(1, TIOCSETC, &deftch);	/* set tchars modes */
-	execl("/bin/login", "-", name, NULL);
+	execl("/bin/login", (remote) ? "-r" : "-", name, NULL);
 	slexit(1);
 }
 
@@ -286,35 +287,25 @@ struct	stable	*sp;
 	register int	c;
 	register int	seenupper;
 	register int	seenlower;
-		 int	msgfd;
-		 int	count;
-		 char	msgbuf[128];    /* login msg buffer */
+	FILE		*msgfp;
+	char		last;
 
 loop:
 	seenlower = 0;
 	seenupper = 0;
 	xflags  = 0;
-	count = -1;
-	if ((msgfd = open(logmsg, 0)) >= 0)    /* try for login msg file */
-	{  count = read(msgfd, msgbuf, 128);   /* read from file */
-	   close(msgfd);
-	   if (count > 0)
-	   {  if (msgbuf[count-1] == '\n')
-	         --count;  /* skip trailing newline */
-	      cp = msgbuf;
-	      write(1, "\r\n", 2);      /* write msg leader to console */
-	      while (count--)           /* while characters remain */
-       	      {  if (*cp == '\n')     /* newline? */
-		 {  write(1, "\r\n", 2);  /* write carriage-return/newline */
-		    cp++;
-		 }
-		 else
-		    write(1, cp++, 1);  /* normal char output */
-	      }		    
-	   }
-	}	
-	else   
-	   write(1, sp->s_lmsg, strlen(sp->s_lmsg));  /* use standard msg */
+	if ((msgfp = fopen(LOGMSG, "r")) != NULL) {
+		/* Read from login message file. */
+		for (last = '\n'; (c = fgetc(msgfp)) != EOF; last = c) {
+			if (last == '\n')
+				write(1, "\r", 1);
+			write(1, &last, 1);
+		}
+		if (last != '\n')
+			write(1, &last, 1);
+		fclose(msgfp);
+	} else   
+		write(1, sp->s_lmsg, strlen(sp->s_lmsg));  /* use standard msg */
 
 	cp = s;
 	for (;;) {

@@ -1,6 +1,6 @@
-/* $Source: /newbits/usr/bin/pax/shipping/namelist.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/RCS/namelist.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * namelist.c - track filenames given as arguments to tar/cpio/pax
  *
@@ -30,7 +30,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/newbits/usr/bin/pax/shipping/namelist.c,v $
+ * $Log:	namelist.c,v $
+ * Revision 1.2  91/11/11  15:34:31  bin
+ * update by vlad to fix bug with long filenames and SV/posix readibility
+ * 
  * Revision 1.1	91/02/05  11:57:17 	bin
  * Initial revision
  * 
@@ -55,7 +58,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: namelist.c,v 1.6 89/02/13 09:14:48 mark Exp $";
+static char *ident = "$Id: namelist.c,v 1.2 91/11/11 15:34:31 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

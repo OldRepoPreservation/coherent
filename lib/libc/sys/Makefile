@@ -1,37 +1,41 @@
-# /usr/src/libc/sys/Makefile 9/28/92
+# /usr/src/libc/sys/Makefile 2/14/91
 
 OBJ=\
+	dup2.o\
 	execl.o\
 	execle.o\
 	execlp.o\
-	execlpe.o\
 	execv.o\
-	execve.o\
 	execvp.o\
-	execvpe.o
+	msgop.o\
+	semop.o\
+	shmop.o\
+	time.o
 
 UNUSED=\
 	brk.o
 
 # Primary target.
-all:	SYS sys$(MCH)
+all:	SYS sysi8086
 	: libc/sys done.
 
 # Pseudotargets.
 SYS:	$(OBJ)
-	$(AR) rkus libc.a $?
+	ar rkus libc.a $?
 	touch $@
-sys$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
+sysi8086:
+	make SRCPATH=$(SRCPATH)/i8086
 
 # Secondary targets.
+dup2.o:		dup2.c
 execl.o:	execl.c
 execle.o:	execle.c
 execlp.o:	execlp.c
-execlpe.o:	execlpe.c
 execv.o:	execv.c
-execve.o:	execve.c
 execvp.o:	execvp.c
-execvpe.o:	execvpe.c
+msgop.o:	msgop.c
+semop.o:	semop.c
+shmop.o:	shmop.c
+time.o:		time.c
 
 # end of /usr/src/libc/sys/Makefile

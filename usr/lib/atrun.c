@@ -1,8 +1,8 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
 static char Release[] =		"$Release: INETCO COHERENT V8.0$";
-static char Date[] =		"$Date: 89/04/03 13:02:41 $";
+static char Date[] =		"$Date: 91/04/19 12:26:17 $";
 
-/* $Header: /usr/src/cmd/cmd.am/RCS/atrun.c,v 1.1 89/04/03 13:02:41 src Exp $
+/* $Header: /newbits/usr/lib/RCS/atrun.c,v 1.1 91/04/19 12:26:17 bin Exp $
  *
  * 	The information contained herein is a trade secret of Mark Williams
  * 	Company, and  is confidential information.  It is provided  under a
@@ -27,7 +27,10 @@ static char Date[] =		"$Date: 89/04/03 13:02:41 $";
  * script to be run, it must have the set uid, set gid and owner
  * execute bits set.
  *
- * $Log:	/usr/src/cmd/cmd.am/RCS/atrun.c,v $
+ * $Log:	/newbits/usr/lib/RCS/atrun.c,v $
+ * Revision 1.1	91/04/19  12:26:17 	bin
+ * Initial revision
+ * 
  * Revision 1.1	89/04/03  13:02:41 	src
  * Initial revision
  * 

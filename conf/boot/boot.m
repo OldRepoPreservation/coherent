@@ -1,4 +1,4 @@
-/ $Header: /usr/local/src/dist/boot/RCS/boot.m,v 1.7 91/11/08 11:31:13 piggy Exp $
+/ $Header: /newbits/conf/boot/RCS/boot.m,v 1.4 91/11/08 13:18:38 bin Exp Locker: bin $
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
 /	Company, and  is confidential information.  It is provided  under a
@@ -24,6 +24,9 @@
 / in beginning at paragraph 0x0060.
 /
 / $Log:	boot.m,v $
+/ * Revision 1.4  91/11/08  13:18:38  bin
+/ * Piggy update for building secondary boot for tboot
+/ * 
 /  Revision 1.7  91/11/08  11:31:13  piggy
 /  Attempted to integrate pboot into these sources.  Still not working.
 /  Updated secondary boot for use with tertiary boot code.

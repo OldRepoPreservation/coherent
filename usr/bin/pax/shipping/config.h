@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/config.h,v $
+/* $Source: /newbits/usr/bin/pax/shipping/config.h,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * config.h - configuration options for PAX
  *

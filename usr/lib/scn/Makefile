@@ -1,3 +1,4 @@
+DESTDIR=/usr/lib/
 # Parts of scn
 O = y.tab.o lex.o
 
@@ -29,8 +30,10 @@ install : libscn.a scn scn.h
 	su root `srcpath installer`
 
 libscn.a : $L
-	rm -f libscn.a
-	ar rcs libscn.a $L
+	rm -f $(DESTDIR)libscn.a
+	ar rcs $(DESTDIR)libscn.a $L
+
+getStuff.o : getStuff.c longfield.c
 
 longfield.c : longfield scn
 	./scn `srcpath longfield`

@@ -3,6 +3,9 @@
  * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.10  91/11/12  07:50:21  bin
+ * 3204 kernel source for use with piggy's tboot code
+ * 
  * Revision 1.9  91/11/11  12:32:58  hal
  * Get SD_HDS and SD_SPT from tboot.
  * 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys1.c,v 1.2 92/01/13 08:42:37 hal Exp $ */
+/* $Header: /newbits/286_KERNEL/USRSRC/coh/RCS/sys1.c,v 1.2 92/01/13 09:00:16 bin Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * General system calls.
  *
  * $Log:	sys1.c,v $
+ * Revision 1.2  92/01/13  09:00:16  bin
+ * update by hal to properly support process id groups
+ * 
  * Revision 1.2  92/01/13  08:42:37  hal
  * setpgrp() - detach controlling terminal if process not group leader
  * 

@@ -11,6 +11,9 @@
  *	Company or persuant to the license agreement is unlawful.
  *
  * $Log:	main.c,v $
+ * Revision 1.4  92/01/22  09:48:40  bin
+ * update by hal... post 321 beta
+ * 
  * Revision 1.4  92/01/21  16:08:34  hal
  * Merged with 386 main.c.  Call read_cmos().
  * 

@@ -74,7 +74,7 @@ modf_:	push	si			/ Standard
 	movsw				/ to
 	movsw				/ the
 	movsw				/ return area.
-	jmp	1f			/ Done.
+	jmp	1f			/ Go check the sign.
 
 / If the exponant is > 56 then there are no fractional bits
 / at all. The integer part is correct. Zero out the floating point
@@ -84,7 +84,7 @@ modf_:	push	si			/ Standard
 	jl	0f			/ Yes.
 
 	call	dzero			/ Zero the _fpac_.
-	jmp	1f			/ Done.
+	jmp	1f			/ Go check the sign.
 
 / Clear 56-exp bits, starting at the right hand end of the
 / integer value. Clear as many full bytes as you can, then build a
@@ -152,7 +152,35 @@ modf_:	push	si			/ Standard
 	mov	_fpac_+2,si		/ return
 	mov	_fpac_+0,di		/ location.
 
-1:	mov	sp,bp			/ Standard
+/ Final sign checks. The fractional part is always a
+/ positive number. If it is less than zero, add one to it and
+/ subtract one from the integer part.
+
+1:	test	_fpac_+6,$0x7F80	/ Is the return value zero ?
+	jz	0f			/ Yup.
+	testb	_fpac_+7,$0x80		/ Is the return value negative ?
+	jz	0f			/ Nope.
+
+	mov	si,$one			/ Get address of "1.0"
+	push	si			/ Push for "dladd"
+	call	dpush			/ Push fraction for "dlsub"
+	push	si			/ Push for "dlsub"
+	mov	di,ip(bp)		/ di=pointer to the integer part.
+	push	6(di)			/ Push
+	push	4(di)			/ onto the
+	push	2(di)			/ stack for
+	push	0(di)			/ "dlsub"
+	call	dlsub			/ Subtract 1 from integer part.
+	add	sp,$10			/ Pop args.
+	mov	si,$_fpac_		/ Copy
+	movsw				/ result
+	movsw				/ to
+	movsw				/ the integer
+	movsw				/ part
+	call	dladd			/ Add one to the fraction
+	add	sp,$10			/ and clear args.
+
+0:	mov	sp,bp			/ Standard
 	pop	bp			/ C
 	pop	di			/ function
 	pop	si			/ return

@@ -17,7 +17,8 @@ spell2.o: spell2.c
 
 spell.script:
 	co $(DESTDIR)$@
-	su root chmog 555 bin bin $(DESTDIR)$@
+	mv $(DESTDIR)$@ $(DESTDIR)spell
+	su root chmog 555 bin bin $(DESTDIR)spell
 
 spell:	spell.c spell2.o
 	$(CC) $(CFLAGS) -o $(DESTDIR3)spell spell.c spell2.o

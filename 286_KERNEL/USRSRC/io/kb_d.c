@@ -1,18 +1,17 @@
 /*
  * Keyboard/display driver for German keyboard.
- * Coherent, IBM PC/XT and AT (in XT mode).
+ * Coherent, IBM PC/XT and AT (286 and 386).
  */
 #include <sys/coherent.h>
 #include <sys/i8086.h>
 #include <sys/con.h>
+#include <sys/devices.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/uproc.h>
 #include <signal.h>
 #include <sys/sched.h>
-
-#define	ISMAJ	2			/* Keyboard major device */
 
 #define	SPC	0376			/* Special encoding */
 #define XXX	0377			/* Non-character */
@@ -79,7 +78,7 @@ int	nonedev();
  */
 CON iscon ={
 	DFCHR|DFPOL,			/* Flags */
-	ISMAJ,				/* Major index */
+	KB_MAJOR,			/* Major index */
 	isopen,				/* Open */
 	isclose,			/* Close */
 	nulldev,			/* Block */
@@ -230,7 +229,7 @@ isload()
 	/*
 	 * Enable mmwatch() invocation every second.
 	 */
-	drvl[ISMAJ].d_time = 1;
+	drvl[KB_MAJOR].d_time = 1;
 
 	/*
 	 * Seize keyboard interrupt.
@@ -763,13 +762,35 @@ static
 isin( c )
 register int c;
 {
+	int cache_it = 1;
+	TTY * tp = &istty;
+
+	/*
+	 * If using software incoming flow control, process and
+	 * discard t_stopc and t_startc.
+	 */
+	if (!ISRIN) {
+		if (ISSTOP) {
+			if ((tp->t_flags&T_STOP) == 0)
+				tp->t_flags |= T_STOP;
+			cache_it = 0;
+		}
+		if (ISSTART) {
+			tp->t_flags &= ~T_STOP;
+			ttstart(tp);
+			cache_it = 0;
+		}
+	}
+
 	/*
 	 * Cache received character.
 	 */
-	istty.t_rawin.si_buf[ istty.t_rawin.si_ix ] = c;
+	if (cache_it) {
+		istty.t_rawin.si_buf[ istty.t_rawin.si_ix ] = c;
 
-	if ( ++istty.t_rawin.si_ix >= sizeof(istty.t_rawin.si_buf) )
-		istty.t_rawin.si_ix = 0;
+		if ( ++istty.t_rawin.si_ix >= sizeof(istty.t_rawin.si_buf) )
+			istty.t_rawin.si_ix = 0;
+	}
 }
 
 /**

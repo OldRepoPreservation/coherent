@@ -4,6 +4,7 @@
 # for converting nroff output to HP LaserJet printer escape sequences (PCL).
 # This Makefile and this directory should be integrated with lpr.
 
+DESTDIR=/f1/bin/
 ALL=\
 	hp\
 	hpd\
@@ -34,13 +35,13 @@ hpskip:	hpskip.o
 # Unlinked objects.
 hp.o:	hp.c
 hpr.o:	lpr.c
-	cc -c -o $@ -DLASER $?
+	cc -c -o $(DESTDIR)$@ -DLASER $?
 hpskip.o:	lpskip.c
-	cc -c -o $@ -DLASER $?
+	cc -c -o $(DESTDIR)$@ -DLASER $?
 hpd1.o:	lpd1.c
-	cc -c -o $@ -DLASER $?
+	cc -c -o $(DESTDIR)$@ -DLASER $?
 hpd2.o:	lpd2.c
-	cc -c -o $@ $?
+	cc -c -o $(DESTDIR)$@ $?
 hpprint.o:	hpprint.c
 
 clean:

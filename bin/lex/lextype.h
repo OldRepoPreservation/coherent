@@ -1,27 +1,32 @@
 /*
- * src/[lex|libl]/lextype.h
- * Used by lex and by lex library routines.
+ * lextype.h, used by lex and by library routines
  */
 
-/* Packed nfa state format: opcode in low four bits, data in high bits. */
-#define	LR_MASK	0x0F
+/*
+ * form of packed nfa states:
+ * opcode sits in low four bits
+ * data in high twelve bits
+ */
+#define	LR_MASK	017
 #define	LR_SHFT	4
 
-/* Opcodes. */
-#define	LX_STOP	0
-#define	LX_LINK	1
-#define	LX_JUMP	2
-#define	LX_LOOK	3
-#define	LX_ACPT	4
-#define	LX_CHAR	5
-#define	LX_CLAS	6
-#define	LX_BLIN	7
-#define	LX_ELIN	8
-#define	LX_ANYC	9
-#define	LX_SCON	10
+/*
+ * opcodes
+ */
+#define	LX_STOP	000
+#define	LX_LINK	001
+#define	LX_JUMP	002
+#define	LX_LOOK	003
+#define	LX_ACPT	004
+#define	LX_CHAR	005
+#define	LX_CLAS	006
+#define	LX_BLIN	007
+#define	LX_ELIN	010
+#define	LX_ANYC	011
+#define	LX_SCON	012
 
-/* Not used in automaton. */
-#define	LX_TERM	14
-#define	LX_OPER	15
-
-/* end of lextype.h */
+/*
+ * not used in automaton
+ */
+#define	LX_TERM	016
+#define	LX_OPER	017

@@ -2,6 +2,9 @@
 # bld - make a complete COHERENT mwc kernel.
 #
 # $Log:	bld,v $
+# Revision 1.3  92/01/16  15:53:52  root
+# updated by hal for floppy only kernels
+# 
 # Revision 1.3  92/01/10  10:09:12  hal
 # Add "dbg" option.
 # Default to rootdev = pipedev = (0,0).

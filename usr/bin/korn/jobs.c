@@ -2,7 +2,7 @@
  * Process and job control
  */
 
-static char *RCSid = "$Header: jobs.c,v 3.3 88/11/05 11:56:24 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/jobs.c,v 1.2 91/08/01 12:40:37 bin Exp Locker: bin $";
 
 /*
  * based on version by Ron Natalie, BRL

@@ -2,7 +2,7 @@
  * command tree climbing
  */
 
-static char *RCSid = "$Header: tree.c,v 3.1 88/11/03 09:18:05 egisin Exp $";
+static char *RCSid = "$Header: /newbits/usr/bin/korn/RCS/tree.c,v 1.2 91/08/01 12:41:25 bin Exp Locker: bin $";
 
 #include <stddef.h>
 #include <stdlib.h>

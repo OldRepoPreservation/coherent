@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/port.h,v $
+/* $Source: /newbits/usr/bin/pax/shipping/port.h,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * port.h - defnitions for portability library
  *

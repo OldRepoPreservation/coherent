@@ -16,7 +16,7 @@
 #define	NBLOCK	16			/* Line block chunk size	*/
 #define	KBLOCK	256			/* Kill buffer block size	*/
 
-char	*kbufp	= NULL;			/* Kill buffer data		*/
+uchar	*kbufp	= NULL;			/* Kill buffer data		*/
 int	kused	= 0;			/* # of bytes used in KB	*/
 int	ksize	= 0;			/* # of bytes allocated in KB	*/
 
@@ -129,8 +129,8 @@ register int	flag;
  */
 linsert(n, c)
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register LINE	*lp1;
 	register LINE	*lp2;
 	register LINE	*lp3;
@@ -213,8 +213,8 @@ linsert(n, c)
  */
 lnewline()
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register LINE	*lp1;
 	register LINE	*lp2;
 	register int	doto;
@@ -266,8 +266,8 @@ lnewline()
  */
 ldelete(n, kflag)
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register LINE	*dotp;
 	register int	doto;
 	register int	chunk;
@@ -333,8 +333,8 @@ ldelete(n, kflag)
  */
 ldelnewline()
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register LINE	*lp1;
 	register LINE	*lp2;
 	register LINE	*lp3;
@@ -436,7 +436,7 @@ kdelete()
  */
 kinsert(c)
 {
-	register char	*nbufp;
+	register uchar	*nbufp;
 	register int	i;
 
 	if (kused == ksize) {

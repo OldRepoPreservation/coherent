@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/boot/RCS/boot.s,v 1.1 88/03/24 16:44:09 src Exp $
+/ $Header: /z/vlad/boot/src/RCS/boot.s,v 1.4 91/08/27 14:19:59 vlad Exp Locker: vlad $
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
 /	Company, and  is confidential information.  It is provided  under a
@@ -23,7 +23,12 @@
 / (128K above the fixed memory used by the ROM). The system image is read
 / in beginning at paragraph 0x0060.
 /
-/ $Log:	/usr/src/sys/i8086/boot/RCS/boot.s,v $
+/ $Log:	boot.s,v $
+/RCS-> Revision 1.4  91/08/27  14:19:59  vlad
+/RCS-> Fixed boot that allow to boot from arbitrary place of the disk, by
+/RCS-> using four byte block numbers. Original (oldest and Ciarian) used
+/RCS-> only two byte block numbers -- only the first 32 Meg were accessable.
+/RCS-> 
 / Revision 1.1	88/03/24  16:44:09	src
 / Initial revision
 / 

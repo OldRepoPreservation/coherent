@@ -1,6 +1,5 @@
 /*
- * libc/stdio/fputs.c
- * ANSI-compliant C standard i/o library.
+ * C input/output library.
  * fputs()
  * ANSI 4.9.7.4.
  * Write string s to stream.
@@ -8,8 +7,9 @@
 
 #include <stdio.h>
 
+/* Should be "const char * s". */
 int
-fputs(s, stream) register const char *s; register FILE *stream;
+fputs(s, stream) register char *s; register FILE *stream;
 {
 	while (*s)
 		if (putc(*s++, stream) == EOF && ferror(stream))
@@ -17,4 +17,4 @@ fputs(s, stream) register const char *s; register FILE *stream;
 	return 1;
 }
 
-/* end of libc/stdio/fputs.c */
+/* end of fputs.c */

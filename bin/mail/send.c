@@ -1,20 +1,24 @@
-/*
- *	The code that passes an individual message to the mail system.
- */
-
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/mdata.h>
+#include <time.h>
+#include <pwd.h>
+#include <utmp.h>
+#include <sys/stat.h>
 #include "mail.h"
 
 #define SITENAMELEN	32	/* max length of sitename */
 #define NODENAME	"/etc/uucpname"
 #define DOMAINNAME	"/etc/domain"
+#define	ALIAS	"/usr/lib/mail/aliases"
 char	domain [64];
 
 extern	char	*strtok();
-static	char	**allist;
-static	char	**tolist;
-static	char	**cclist = NULL;
-
-char	mysite[SITENAMELEN];	/* this host's uucpname */
+FILE	*aliasfp;
+char	aliasbuf [BUFSIZ];
+char	*findalias();
+static	**gusers;
+char mysite[SITENAMELEN];	/* this host's uucpname */
 
 extern	char	*temp;
 extern	int	myuid;		/* User-id of mail user */
@@ -42,6 +46,7 @@ struct	tm	*tp;
 char	toerr[] = "Cannot create temporary file\n";
 char	header[BUFSIZ];		/* Message header */
 char	boxname[256];		/* Destination mailbox */
+char	aftralias [BUFSIZ];		/* name after alias processing */
 char	remotefrom [32];	/* "remote from uucp" */
 
 char	nosend[] = "Can't send mail to '%s'\n";
@@ -62,7 +67,7 @@ register char **users;
 fsize_t start, end;
 int	asksubj;
 {
-	char	**getcc(), **listpp;
+	char	**getcc();
 	FILE 	*xfp, *tfp, *sigfp;
 	time_t	curtime;
 
@@ -70,8 +75,8 @@ int	asksubj;
 	domainname();
 	senderr = 0;
 	temp = templ;
-
-	fromtty = isatty(fileno(stdin));
+/*fprintf(stderr, "send2(fp, users, %ld, %ld, %d)\n", start, end, asksubj);*/
+	fromtty = isatty(fileno(fp));
 	if ((tfp = fopen(temp, "w")) != NULL) {
 		fclose(tfp);
 		if ((tfp = fopen(temp, "r+w")) == NULL)
@@ -93,12 +98,6 @@ int	asksubj;
 				fprintf(tfp, "Subject: %s", msgline);
 		}
 	}
-
-	if (intcheck()) {
-		fclose(tfp);
-		return(1);
-	}
-
 	for (;;) {
 		if (fgets(msgline, NLINE, fp) == NULL)
 			break;
@@ -109,29 +108,30 @@ int	asksubj;
 				eflag = 1;
 				break;
 			}
+/*		fprintf(stderr, ":%s:", msgline);	*/
 		fputs(msgline, tfp);
-		if ( (end-=strlen(msgline)) <= 0 )
+		end -= strlen(msgline);	/* compiler bug */		
+		if (end <= 0) {
 			break;
+		}
 	}
-
-	if (intcheck()) {
-		fclose(tfp);
-		return(1);
-	}
-
-
 	if (!callmermail && (sigfp = fopen(mysig, "r")) != NULL) {
 		fputs("\n", tfp);
-		while (fgets(msgline, NLINE, sigfp) != NULL)
+		while (fgets(msgline, NLINE, sigfp) != NULL) {
 			fputs(msgline, tfp);
+		}
 		fclose(sigfp);
 	}
-
-
+	/*
+	 * If interrupted, bug out.
+	 */
+	if (intcheck()) {
+		fclose(tfp);
+		return;
+	}
 	/*
 	 * Now, see if user wants to edit the message
 	 */
-
 	if (eflag) {
 		xfp = tfp;
 		temp = templ;
@@ -140,50 +140,33 @@ int	asksubj;
 		chown(temp, myuid, mygid);
 		mcopy(xfp, tfp, (fsize_t)0, (fsize_t)MAXLONG, 0);
 		fclose(xfp);
-		sprintf(cmdname, "exec %s %s", editname, templ);
+		sprintf(cmdname, "%s %s", editname, templ);
 		system(cmdname);
 		unlink(temp);
 		temp = NULL;
 	}
-
 	/*
-	 * if empty message, bug out.
+	 * Otherwise if empty message, bug out.
 	 */
-
-	if (ftell(tfp) == 0) {
+	else if (ftell(tfp) == 0) {
 		fclose(tfp);
-		return(1);
+		return;
 	}
-
 	/*
 	 * Now see if a copy list is requested.
 	 */
-
-	tolist = users;
-	cclist = (askcc && fromtty && !callmermail) ? getcc(): NULL;
-	allist = listcat(tolist, cclist);
-	
-	if ( verbflag ) {
-		mmsg(
-	"Recipient List:\n\n");
-		for (listpp=allist; *listpp != NULL; listpp++)
-			mmsg("\t%s\n", *listpp);
-	}
-
+	if (askcc)
+		users = getcc(users);
+	gusers = users;
 	/*
 	 * Now send the message.
 	 */
-
 	time(&curtime);
 	tp = localtime(&curtime);
-
-	if (callmexmail){
-		xsend(allist, tfp);
-	}else{
-		usend(allist, tfp);
-	}
-
-	return( senderr );
+	if (callmexmail)
+		xsend(users, tfp);
+	else
+		usend(users, tfp);
 }
 
 usend(users, tfp)
@@ -191,51 +174,94 @@ char **users;
 FILE *tfp;
 {
 	FILE *xfp;
-	char *name;
-	char **ulist, **listpp;
-	char command[CMDLINE];
-	char *arpadate();
-	FILE *popen();
+	char	*cp, *ap;
+	char	**ulist;
+	register struct passwd *pwp;
 
-	logdump("Date: %s  From: %s!%s (%s)\n",
-			arpadate(tp), mysite, myname, myfullname);
-	for (ulist = users; (name=*ulist) != NULL; ulist++)
-		logdump("To: \"%s\"\n", name);
-
-	/* Build the command line to the delivery program.  */
-	if ( callmexmail ) {
-		strcpy(command, XDELIVER); /* usually "/bin/rxmail" */
-	} else {
-		strcpy(command, DELIVER); /* usually "/bin/rmail" */
-	} /* if ( callmexmail ) */
-
-	/* Add the list of recipients to the command line.  */
-
-	for (listpp = users; *listpp != NULL; listpp++) {
-		strcat(command, " ");
-		strcat(command, *listpp);
+	for (ulist = users; *ulist != NULL; ulist++) {
+		rewind(tfp);
+		strcpy(aftralias, *ulist);
+		if (index(*ulist, '!') == 0) {
+			ap = findalias(*ulist);
+			if (ap != NULL) {
+				strcpy(aftralias, ap);
+				if (verbflag && strcmp(aftralias, ap))
+					fprintf(stderr,
+					"name %s aliased to %s\n",
+					*ulist, aftralias);
+			}
+		}
+		if ((cp = index(aftralias, '!')) != NULL) {
+			*cp++ = '\0';
+			if (rsend(aftralias, cp, tfp) != 0) 
+				senderr = 1;
+			continue;
+		}
+		sprintf(boxname, "%s%s", SPOOLDIR, aftralias);
+		if ((pwp = getpwnam(aftralias)) == NULL) {
+			mmsg(nosend, aftralias);
+			senderr = 1;
+			continue;
+		}
+		mlock(pwp->pw_uid);
+		if ((xfp = fopen(boxname, "a")) == NULL) {
+			mmsg(nosend, aftralias);
+			senderr = 1;
+			munlock();
+			continue;
+		}
+		chown(boxname, pwp->pw_uid, pwp->pw_gid);
+		if (build_header(aftralias, NULL, tfp, xfp) != 1
+		  || mcopy(tfp, xfp, ftell(tfp), (fsize_t)MAXLONG, 0)) {
+			merr(wrerr, boxname);
+			senderr = 1;
+		} else
+			fprintf(xfp, "\1\1\n");
+		fflush(xfp);
+		munlock();
+		advise(aftralias);
 	}
-
-	/* NB:  I think there may be a security problem
-	   here, since popen ought to exec $SHELL.  Check this.  */
-	/* Now actually call the mail delivery agent.  */
-
-
-	if ( (xfp = popen(command, "w")) == NULL ) {
-		/* Report a send error and return.  */
+	if (senderr && fromtty && ! callmexmail) {
+		if (maccess(mydead) < 0
+		 || (xfp = fopen(mydead, "a")) == NULL
+		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG, 0))
+			mmsg(nosave, mydead);
+		else
+			mmsg("Letter saved in %s\n", mydead);
+		if (xfp != NULL) {
+			chown(mydead, myuid, mygid);
+			fclose(xfp);
+		}
 	}
-
-	/* Pump the headers into the delivery agent. */
-
-	build_header(xfp);
-
-	/* Pump the message into the delivery agent.  */
-
-	rewind(tfp);
-	mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG, 0);
-
-	fclose(xfp);
 	fclose(tfp);
+}
+
+rsend(system, user, tfp)
+char	*user;
+char	*system;
+FILE	*tfp;
+{
+	FILE	*xfp;
+	int	i;
+
+	sprintf(cmdname, "uux -r - %s!rmail '(%s)'", system, user);
+	if (verbflag)
+		fprintf(stderr, "Queueing remote mail to %s!%s\n",
+		system, user);
+	if ((xfp = popen(cmdname, "w")) == NULL) {
+		mmsg("Can't pipe to %s\n", cmdname);
+		return 1;
+	}
+	if (build_header(user, mysite, tfp, xfp) != 1 
+	  || mcopy(tfp, xfp, ftell(tfp), (fsize_t)MAXLONG, 0)) {
+		merr(wrerr, cmdname);
+		return 1;
+	}
+	if (i = (pclose(xfp) != 0)) {
+		mmsg("uux has failed, status %d\n", i);
+		return 1;
+	}
+	return 0;
 }
 
 xsend(users, tfp) char **users; FILE *tfp;
@@ -282,6 +308,36 @@ xsend(users, tfp) char **users; FILE *tfp;
 	fclose(tfp);
 }
 
+/*
+ * If the `-m' option is specified, advise
+ * the recipient of the presence of mail.
+ */
+advise(recipient)
+char *recipient;
+{
+	register FILE *fp;
+	register FILE *tfp;
+	struct utmp ut;
+	char tty[30];
+	struct stat sb;
+
+	if (!mflag)
+		return;
+	if ((fp = fopen("/etc/utmp", "r")) == NULL)
+		return;
+	while (fread(&ut, sizeof ut, 1, fp) == 1)
+		if (strncmp(ut.ut_name, recipient, DIRSIZ) == 0) {
+			sprintf(tty, "/dev/%s", ut.ut_line);
+			if (stat(tty, &sb)<0 || (sb.st_mode&S_IEXEC)==0)
+				continue;
+			if ((tfp = fopen(tty, "w")) != NULL) {
+				fprintf(tfp, "\7%s: you have mail.\n", myname);
+				fclose(tfp);
+			}
+		}
+	fclose(fp);
+}
+
 uucpname()
 {
 	FILE *uufile;
@@ -307,6 +363,47 @@ domainname()
 	domain [strlen(domain) - 1] = '\0';
 	fclose (domfile);
 	return;
+}
+
+char	*
+findalias(who)
+{
+	char	*name, *newname;
+	static	whobuf [64];
+	int	recurcount;
+	int	hit;
+
+	if (aliasfp == NULL) {
+		if ((aliasfp = fopen(ALIAS, "r")) == NULL) {
+			mmsg("Cannot open alias file\n");
+			return who;
+		}
+	}
+	recurcount = 0;
+	strcpy(whobuf, who);
+	for (; ; ) {
+		fseek(aliasfp, 0L, 0);
+		hit = 0;
+		while (fgets(aliasbuf, BUFSIZ, aliasfp) != NULL) {
+			name = strtok(aliasbuf," #:\t");
+			newname = strtok(NULL, "#(), \t\n");
+			if (strcmp(name, whobuf) == 0) {
+				strcpy(whobuf, newname);
+				if (recurcount++ > 4) {
+					sprintf(whobuf,
+					"Too many alias recursions for %s\n",
+						who);
+					mmsg(whobuf);
+					return who;
+				}
+				hit = 1;
+				break;
+			}
+		}
+		if (hit == 0)
+			return whobuf;
+	}
+	return whobuf;
 }
 
 char *
@@ -335,46 +432,71 @@ struct	tm	*tp;
 	return msgidbuf;
 }
 
-build_header(xfp)
+build_header(user, site, tfp, xfp)
+char	*user;
+char	*site;
+FILE	*tfp;
 FILE	*xfp;
 {
+	char	*cp;
 	char	**ulist;
+	long	pos;
 	int	processid;
 
-	/* Generate a Message-Id.  */
-	processid = getpid();
-	sprintf(header, "Message-Id: <%s.AA%d.V%s@%s.%s>\n",
-		msgid(tp), processid, revnop(), mysite, domain);
-	if (fwrite(header, strlen(header), 1, xfp) != 1)
-		return 0;
-
-	/* generate Date: and From: lines.  */
-	sprintf(header, "Date: %s\nFrom: %s@%s.%s (%s)\n",
-		arpadate(tp), myname, mysite, domain, myfullname);
-	if (fwrite(header, strlen(header), 1, xfp) != 1)
-		return 0;
-
-	/* Generate the full To: lines.  We just spit addresses out
-	   verbatum, with no cleanup.  */
-	strcpy(header, "To:");
-	for (ulist=tolist; *ulist != NULL; ulist++) {
-		strcat(header, " ");
-		strcat(header, *ulist);
-	}
-	strcat(header, "\n");
-	if (fwrite(header, strlen(header), 1, xfp) != 1)
-		return 0;
-
-	/* Generate a Cc: line if needed.  */
-	if (cclist[0] != NULL) {
-		strcpy(header, "Cc:");
-		for (ulist=cclist; *ulist != NULL; ulist++) {
-			strcat(header, " ");
-			strcat(header, *ulist);
+	cp = asctime(tp);
+	cp[strlen(cp)-1] = 0;
+/*	if (!callmermail) {	*/
+		sprintf(header, "From %s %s %s", myname, cp,
+			tzname[tp->tm_isdst ? 1 : 0]);
+		if (site != NULL) {
+			strcat(header, " remote from ");
+			strcat(header, site);
 		}
 		strcat(header, "\n");
+/*	}	*/
+	if (fwrite(header, strlen(header), 1, xfp) != 1)
+		return 0;
+	pos = ftell(tfp);
+	/* scan to end of From_ lines */
+	while (fgets(header, NLINE, tfp) != NULL) {
+		if ((strncmp (header, "From ", 5) != 0) &&
+			(strncmp (header, ">From ", 6) != 0)) {
+			break;
+		}
 		if (fwrite(header, strlen(header), 1, xfp) != 1)
 			return 0;
+		pos = ftell(tfp);
+	}
+	fseek(tfp, pos, 0);
+	processid = getpid();
+	if (callmermail) {
+		sprintf(header,
+		"Received: by %s (mail v %s)\n\tid AA%d; %s\n",
+			mysite, revnop(), processid, arpadate(tp));
+		if (fwrite(header, strlen(header), 1, xfp) != 1)
+			return 0;
+	} else {
+		sprintf(header, "Message-Id: <%s.AA%d.V%s.%s@%s>\n",
+			msgid(tp), processid, revnop(), mysite, domain);
+		if (fwrite(header, strlen(header), 1, xfp) != 1)
+			return 0;
+		sprintf(header, "Date: %s\nFrom: %s!%s (%s)\n",
+			arpadate(tp), mysite, myname, myfullname);
+		if (fwrite(header, strlen(header), 1, xfp) != 1)
+			return 0;
+		sprintf(header, "To:   %s\n", user);
+		if (fwrite(header, strlen(header), 1, xfp) != 1)
+			return 0;
+		if (gusers[0] != NULL && gusers[1] != NULL) {
+			strcpy(header, "cc:");
+			for (ulist = gusers; *ulist != NULL; ulist++) {
+				strcat(header, " ");
+				strcat(header, *ulist);
+			}
+			strcat(header, "\n");
+			if (fwrite(header, strlen(header), 1, xfp) != 1)
+				return 0;
+		}
 	}
 	return 1;
 }

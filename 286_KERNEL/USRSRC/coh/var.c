@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/var.c,v 1.2 89/08/01 13:57:35 src Exp $ */
+/* $Header: /newbits/286_KERNEL/USRSRC/coh/RCS/var.c,v 1.1 92/01/09 13:29:33 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Variables.
  *
- * $Log:	/usr/src/sys/coh/RCS/var.c,v $
+ * $Log:	var.c,v $
+ * Revision 1.1  92/01/09  13:29:33  bin
+ * Initial revision
+ * 
  * Revision 1.2	89/08/01  13:57:35 	src
  * Bug:	#include <timeout.h> not accurate; timeout.h now in /usr/include/sys.
  * Fix:	#include <sys/timeout.h> now used. (ABC)

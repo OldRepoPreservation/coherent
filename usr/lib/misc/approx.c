@@ -1,18 +1,13 @@
 /*
  * return 1 if args are within epsilon else 0
  */
-double epsilon = 2.3e-16;
+
+double epsilon = 1.0e-20;
 
 approx(a, b)
 double a, b;
 {
-	double e;
-
-	if (0.0 > (e = epsilon * b))
-		e = -e;
-
-	if (0.0 > (a -= b))
+	if (0 > (a -= b))
 		a = -a;
-
-	return (a <= e);
+	return (a <= epsilon);
 }

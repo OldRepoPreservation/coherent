@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/buffer.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/buffer.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * buffer.c - Buffer management functions
  *
@@ -32,7 +32,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	buffer.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/buffer.c,v $
+ * Revision 1.1	91/02/05  11:55:12 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:04:02  mark
  * 1.2 release fixes
  * 

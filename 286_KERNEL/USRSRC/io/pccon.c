@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/drv/RCS/pccon.c,v 2.1 88/09/03 13:09:51 src Exp $ */
+/* $Header: /x/usr/src/sys/io/RCS/pccon.c,v 1.1 91/12/02 17:15:52 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -14,15 +14,12 @@
  -lgl) */
 /*
  * Configuration table.
- * 8088 Coherent, IBM PC.
+ * 80286/80386 Coherent.
  * Minimal system.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/pccon.c,v $
- * Revision 2.1	88/09/03  13:09:51	src
- * *** empty log message ***
- * 
- * Revision 1.1	88/03/24  17:05:55	src
- * Initial revision
+ * $Log:	pccon.c,v $
+ * Revision 1.1  91/12/02  17:15:52  hal
+ * Shipped with COH 3.2.0.
  * 
  */
 #include <sys/coherent.h>
@@ -60,8 +57,8 @@ TIME timer ={
 /*
  * Devices and sizes.
  */
-dev_t	rootdev = makedev(4, 4);	/* Root device */
-dev_t	pipedev = makedev(4, 4);	/* Pipe device */
+dev_t	rootdev = makedev(0, 0);	/* Root device */
+dev_t	pipedev = makedev(0, 0);	/* Pipe device */
 dev_t	swapdev = makedev(0, 0);	/* Swap device */
 daddr_t	swapbot = 0;			/* Swap base */
 daddr_t	swaptop = 0;			/* Swap end */
