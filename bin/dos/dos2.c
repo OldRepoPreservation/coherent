@@ -1,4 +1,4 @@
-/* #define DEBUG 1 */
+/*#define DEBUG 1*/
 /* dos.c */
 
 #include "dos0.h"
@@ -170,7 +170,7 @@ delete(nargs, args) short nargs; char *args[];
 		if ((mdp = find(*ap, root, &dp)) == NULL)
 			nonfatal("delete: \"%s\" not found", *ap);
 		else {
-			do { 
+			do {
 				if isdir(mdp)
 					deletedir(mdp, dp, cohn(mdp->m_name));
 				else
@@ -300,7 +300,7 @@ dostime(mdp, file) register MDIR *mdp; char *file;
 	tmp = localtime(&t);
 	mdp->m_time =
 	   c_sec(tmp->tm_sec/2) | c_min(tmp->tm_min) | c_hour(tmp->tm_hour);
-	mdp->m_date = 
+	mdp->m_date =
 	   c_day(tmp->tm_mday)|c_month(tmp->tm_mon+1)|c_year(tmp->tm_year-80);
 }
 
@@ -341,14 +341,14 @@ extract(nargs, args) short nargs; char *args[];
 				cohname(mdp->m_name, dp);
 				if (isdir(mdp)) {
 					if (!sflag) {
-						argsd[dnargs] = 
+						argsd[dnargs] =
 						    malloc(strlen(cohfile)+1);
 						strcpy(argsd[dnargs++],
 								cohfile);
 					}
 				}
 				else {
-					argsf[fnargs] = 
+					argsf[fnargs] =
 						malloc(strlen(cohfile) + 1);
 					strcpy(argsf[fnargs++],cohfile);
 				}
@@ -359,7 +359,7 @@ extract(nargs, args) short nargs; char *args[];
 					isdir_keep = 0;
 					mdp = find(*ap, root, &dp);
 					base = basehold;
-					strcpy(base,*ap); 
+					strcpy(base,*ap);
 					extractfile(mdp, dp);
 				}
 			}
@@ -368,7 +368,7 @@ extract(nargs, args) short nargs; char *args[];
 					isdir_keep = 1;
 					mdp = find(*ap, root, &dp);
 					base = basehold;
-					strcpy(base,*ap); 
+					strcpy(base,*ap);
 					extractdir(dp);
 				}
 			}
@@ -402,7 +402,7 @@ extractdir(dp) register DIR *dp;
 				/* COHERENT directory not found, create it. */
 				if (vflag)
 					fprintf(stderr, "x %s/\n", cohfile);
-				if (oldstyle) 
+				if (oldstyle)
 					if (system(strcat(strcpy(cmd, "mkdir "), cohfile)) != 0)
 						fatal("cannot create directory \"%s\"", cohfile);
 			} else if ((s.st_mode & S_IFDIR) == 0)
@@ -454,12 +454,14 @@ dbprintf(("bflag=%d, aflag=%d, mdp->m_name=%s, tmp2=%s\n", bflag, aflag, mdp->m_
 
 	/* Convert filename to COHERENT format and open the output file. */
 	cohname(mdp->m_name, dp);
-	if (vflag)
-		fprintf(stderr, "x %s\n", cohfile);
+
 	if (pflag)
 			ofp = stdout;
 	else if ((ofp = fopen(mcohfile = makef(cohfile, 1), "w")) == NULL)
 		fatal("extract: cannot create file \"%s\"", mcohfile);
+
+	if (vflag)
+		fprintf(stderr, "x %s\n", mcohfile);
 
 	/* Read the MS-DOS file and write it to the COHERENT file. */
 	readsize = clsize * ssize;
@@ -477,7 +479,7 @@ dbprintf(("bflag=%d, aflag=%d, mdp->m_name=%s, tmp2=%s\n", bflag, aflag, mdp->m_
 	if (!pflag)
 		fclose(ofp);
 	if (kflag)
-		cohtime(cohfile, mdp);
+		cohtime(mcohfile, mdp);
 }
 
 /* end of dos2.c */
