@@ -90,9 +90,9 @@
  * (which is currently 0xFFFFA000) and working down, managed in work.c.
  *
  * Addresses in kernel data for the RAM disk are now in rm.c.
- * As of 92/06/25, they are
- *	RAM0	0x80000		Ram disk 0 virtual click address.
- *	RAM1	0x80800		Ram disk 1 virtual click address.
+ * As of 92/12/23, they are
+ *	RAM0	0x88000		Ram disk 0 virtual click address.
+ *	RAM1	0x88800		Ram disk 1 virtual click address.
  *	RAMSIZE	0x00800		Number of clicks in each ram disk.
  */
 

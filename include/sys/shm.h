@@ -30,6 +30,14 @@ extern int shmfd;		/* file descriptor to access shared memory */
 **	Message Operations Flags.
 */
 #define	SHM_RDONLY	010000	/* attach read-only (else read-write) */
+#define SHM_RND		020000	/* round attach address to SHMLBA */
+
+/* 
+ * Shared memory control operations (are not included in iBCS2)
+ * COHERENT 4.0.x does not use a swapper.
+ */
+#define	SHM_LOCK	3	/* lock shared memory segment in core */
+#define SHM_UNLOCK	4	/* unlock shared memory segment */
 
 /*
 **	There is a shared mem id data structure for each segment in the system.
