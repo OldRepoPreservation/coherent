@@ -277,20 +277,12 @@ atload()
 	register struct dparm_s * dp;
 	struct { unsigned short off, seg; } p;
 
-	if (n_atdr == 0)
+	if (n_atdr <= 0)
 		return;
 
-	/*
-	 * Obtain Drive Types.
-	 *
-	 *	High nibble of CMOS 0x12 is drive 0's type.
-	 *	Low  nibble of CMOS 0x12 is drive 1's type.
-	 */
-	outb(CMOSA, 0x12);
-	/* delay */
-	u = inb(CMOSD);
-	at.at_dtype[0] = u >> 4;
-	at.at_dtype[1] = u & 15;
+	/* Flag drives 0, 1 as present or not. */
+	at.at_dtype[0] = 1;
+	at.at_dtype[1] = n_atdr > 1 ? 1 : 0;
 
 #if 0
 /* hex dump boot gift */
@@ -336,9 +328,7 @@ for (bgi = 0; bgi < 80; bgi++) {
 			int found, parm_int;
 
 if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
-			for (found = 0;
-			!found && T_NULL != (tp = fifo_read(ffp));
-			) {
+			for (found = 0; !found && (tp = fifo_read(ffp)); ) {
 				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
 				if ((T_BIOS_DISK == tp->ts_type) &&
 				    (u == bdp->dp_drive) ) {
