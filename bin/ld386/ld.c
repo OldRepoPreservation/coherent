@@ -808,6 +808,7 @@ mod_t *  mp;
 				mtype = pcrel;
 				relf = fixr;
 
+			case R_DIR8:
 			case R_RELBYTE:
 				relocate(char);
 				break;
@@ -864,6 +865,7 @@ mod_t *  mp;
 			case R_PCRBYTE:
 				mtype = pcrel;
 				relf -= orsp->s_vaddr;
+			case R_DIR8:
 			case R_RELBYTE:
 				relocate(char);
 				break;

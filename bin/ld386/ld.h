@@ -107,5 +107,5 @@ extern int optix;
 extern char *strchr(), *realloc(), *strrchr(), *strcpy(), *alloca();
 extern void driver_fail(), spwarn(), showUndef();
 extern int driver_alloc();
-
+extern void fatal();
 extern char *symName();
