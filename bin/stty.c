@@ -32,6 +32,9 @@
 #define NAMELN		8
 #define OPTNAMELEN	16
 
+#define DEL	0x7F
+#define NUL	0
+
 typedef unsigned char uchar;
 typedef unsigned int  uint;
 typedef unsigned long ulong;
@@ -66,8 +69,10 @@ static void dump_hex();
 static void dump_iflag();
 static void dump_lflag();
 static void dump_oflag();
+static int num_opt();
 static void panic();
 static int set_ch();
+static int set_num();
 static int set_speed();
 static void set_hex();
 static int simple();
@@ -219,6 +224,7 @@ char ** argv, ** envp;
 {
 	int	argn;
 	int	want_ch = -1;
+	int	want_num = -1;
 	int	want_line = 0;
 	unsigned int	line;
 	char	* arg;
@@ -261,7 +267,8 @@ char ** argv, ** envp;
 	 * Possible argument formats are:
 	 *	nnnn		(decimal baud rate)
 	 *	line nnnn	(line discipline spec)
-	 *	{intr|quit|erase|kill|eof|eol|min|time} {c|^c|0xnn}
+	 *	{intr|quit|erase|kill|eof|eol} {c|^c|^?|^-|0xnn}
+	 *	{min|time} {nnn}
 	 *	simple_option
 	 *	combined_option
 	 */
@@ -273,6 +280,14 @@ char ** argv, ** envp;
 				  "stty: invalid option %s %s\n",
 				  argv[argn-1], arg);
 			want_ch = -1;
+			continue;
+		}
+		if (want_num >= 0) {
+			if (!set_num(want_num, arg))
+				fprintf(stderr,
+				  "stty: invalid option %s %s\n",
+				  argv[argn-1], arg);
+			want_num = -1;
 			continue;
 		}
 		if (want_line) {
@@ -297,6 +312,8 @@ char ** argv, ** envp;
 			continue;
 		}
 		if ((want_ch = c_opt(arg)) >= 0)
+			continue;
+		if ((want_num = num_opt(arg)) >= 0)
 			continue;
 		if (simple(arg, i_list, &t.c_iflag))
 			continue;
@@ -749,6 +766,11 @@ combo_done:
 	return ret;
 }
 
+/*
+ * See if current argument specifies a character option.
+ * If so, return the index into the c_cc array.
+ * Else, return -1.
+ */
 int
 c_opt(opt)
 char * opt;
@@ -765,11 +787,37 @@ char * opt;
 		{ "kill",	3},
 		{ "eof",	4},
 		{ "eol",	5},
+	};
+
+	for (i = 0; i < sizeof(vlist)/sizeof(vlist[0]); i++) {
+		if (strcmp(opt, vlist[i].name) == 0) {
+			ret = vlist[i].index;
+			break;
+		}
+	}
+	return ret;
+}
+
+/*
+ * See if current argument specifies a numeric option.
+ * If so, return the index into the c_cc array.
+ * Else, return -1.
+ */
+int
+num_opt(opt)
+char * opt;
+{
+	int	ret = -1;
+	int	i;
+	static struct {
+		char	name[NAMELN];
+		int	index;
+	} vlist[] = {
 		{ "min",	4},
 		{ "time",	5}
 	};
 
-	for (i = 0; i < NCC; i++) {
+	for (i = 0; i < sizeof(vlist)/sizeof(vlist[0]); i++) {
 		if (strcmp(opt, vlist[i].name) == 0) {
 			ret = vlist[i].index;
 			break;
@@ -785,7 +833,8 @@ char * opt;
  * decode the string and store into specified array element.
  *
  * Return 1 if argument passed can be decoded, else return 0.
- * Valid argument strings are "0xnn", "c", and "^c".
+ * Valid argument strings are "0xnn", "c", "^c", "^?" denoting DEL,
+ * and "^-" denoting NUL, which means unused.
  */
 int
 set_ch(want_ch, arg)
@@ -801,7 +850,12 @@ char	* arg;
 		goto set_ch_end;
 	}
 	if (strlen(arg) == 2 && arg[0] == '^') {
-		n = arg[1] & ~0x60;
+		if (arg[1] == '?')
+			n = DEL;
+		else if (arg[1] == '-')
+			n = NUL;
+		else
+			n = arg[1] & ~0x60;
 		ret = 1;
 		goto set_ch_end;
 	}
@@ -812,6 +866,30 @@ char	* arg;
 set_ch_end:
 	if (ret)
 		t.c_cc[want_ch] = n;
+	return ret;
+}
+
+/*
+ * set_num()
+ *
+ * Given index into c_cc[] array in termio and an argument string,
+ * decode the string and store into specified array element.
+ *
+ * Return 1 if argument passed can be decoded, else return 0.
+ * Valid argument strings are "nnn", a decimal value.
+ */
+int
+set_num(want_num, arg)
+int	want_num;
+char	* arg;
+{
+	int	ret = 0;
+	unsigned int n;
+
+	if (sscanf(arg, "%d", &n) == 1) {
+		ret = 1;
+		t.c_cc[want_num] = n;
+	}
 	return ret;
 }
 
