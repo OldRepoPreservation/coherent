@@ -3,7 +3,8 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/at.c,v $
+ * Revision 1.4	91/03/14  14:22:32	hal
  *
  -lgl) */
 /*
@@ -264,8 +265,10 @@ atload()
 				at.at_dtype[u] = 1;
 			if ( dp->d_nspt == 0 )
 				dp->d_nspt = 17;
+#if FORCE_CTRL_8
 			if ( dp->d_nhead > 8 )
 				dp->d_ctrl |= 8;
+#endif
 
 #if VERBOSE > 0
 			printf(
