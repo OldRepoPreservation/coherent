@@ -8,11 +8,19 @@
 
 #define CICO	"/usr/lib/uucp/uucico"
 #define XQT	"/usr/lib/uucp/uuxqt"
+#define CICO_CMD	"-s"
 
-exec_cico()
+
+exec_cico(cmdsite)
+char *cmdsite[40];
+
 {
+char site[43];
+
+	strcpy(site,CICO_CMD);
+	strcat(site,cmdsite);
 	if ( fork() == 0) {
-		execl(CICO, "memeCICO", "-r1", "-sany", NULL);
+		execl(CICO, "memeCICO", "-r1", site, NULL);
 		exit(0);
 	}
 	return(0);
