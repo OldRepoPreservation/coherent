@@ -1,6 +1,6 @@
 /*
  * The Bourne shell.
- * Main programme, initialisation and miscellaneous routines.
+ * Main program, initialization and miscellaneous routines.
  */
 #include <param.h>
 #include "sh.h"
@@ -325,22 +325,20 @@ printe(a1)
 char *a1;
 {
 	errflag += 1;
-	if (! noeflag) {
-		fprintf(stderr, "%r", &a1);
-		fprintf(stderr, "\n");
-	}
+	if (! noeflag)
+		fprintf(stderr, "%r\n", &a1);
 }
 
 /*
  * Some familiar errors.
  */
-ecantopen(s) char *s; { printe("Can't open %s", s); }
-ecantfind(s) char *s; { printe("Can't find %s", s); }
+ecantopen(s) char *s; { printe("Cannot open %s", s); }
+ecantfind(s) char *s; { printe("Cannot find %s", s); }
 e2big(s) char *s; { printe("File to big to execute: %s", s); }
-ecantmake(s) char *s; { printe("Can't create %s", s); }
+ecantmake(s) char *s; { printe("Cannot create %s", s); }
 emisschar(c) { printe("Missing `%c'", c); }
 ecantfdop() { printe("Fdopen failed"); }
-enotdef(s) char *s; { printe("Can't find variable %s", s); }
+enotdef(s) char *s; { printe("Cannot find variable %s", s); }
 eillvar(s) char *s; { printe("Illegal variable name: %s", s); }
 eredir() { printe("Illegal redirection"); }
 etoolong() { printe("Argument too long: %.*s", STRSIZE, strt); }
