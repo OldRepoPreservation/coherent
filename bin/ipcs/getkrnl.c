@@ -2,7 +2,7 @@
  * get_kernel_vals(). This is code borrowed from Hal's asypatch command.
  * This code will get the following values from the kernel:
  *	NSHMID:		max number of allowable shared memory segments
- *	NSEMID:		max number of allowable semaphores
+ *	SEMMNI:		max number of allowable semaphores
  *	NMSQID:		max number of allowable message queues
  *
  * The name of the symbol and kernel file are passed from the calling
