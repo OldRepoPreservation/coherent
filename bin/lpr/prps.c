@@ -1,6 +1,6 @@
 /*
  * prps.c
- * 6/26/91
+ * 1/28/92
  * Produce PostScript pages containing input files.
  * By default, each page has a header line and text enclosed in a box.
  * See usage() for usage and options.
@@ -13,7 +13,7 @@
 #endif
 
 /* Manifest constants. */
-#define	VERSION		"1.7"
+#define	VERSION		"2.2"
 #define	DEFFONT		"Courier"	/* default font			*/
 #define	DEFFONTB	"-Bold"		/* default boldface font suffix	*/
 #define	DEFFONTI	"-Oblique"	/* default italic font suffix	*/
@@ -33,9 +33,10 @@ void	file();
 int	font_of();
 char	*Foption();
 void	init();
-void	printline();
+int	printline();
 char	*PSstring();
 void	usage();
+char	*index();
 
 /* Global. */
 char	*argv0;				/* Command name.		*/
@@ -44,6 +45,7 @@ char	buf[NBUF];			/* Input buffer.		*/
 char	buf2[NBUF];			/* Buffer for PSstring.		*/
 char	buf3[NBUF];			/* Buffer for printline.	*/
 char	curfont;			/* Current font ('R','B','I').	*/
+int	dodate = 1;			/* Display local date/time	*/
 char	*fontname = DEFFONT;		/* Font name.			*/
 char	*fontBsuffix = DEFFONTB;	/* Boldace font suffix.		*/
 char	*fontIsuffix = DEFFONTI;	/* Italic font suffix.		*/
@@ -101,6 +103,9 @@ main(argc, argv) int argc; char *argv[];
 			switch(c) {
 			case 'b':
 				++bflag;
+				continue;
+			case 'd':
+				dodate = 0;
 				continue;
 			case 'f':
 				fontname = s;
@@ -211,16 +216,23 @@ file(name) char *name;
 			PSstring((hdrname != NULL) ? hdrname : 
 				 (name != NULL)    ? name    : ""));
 		time(&t);
-		printf("/hdrdate %s def\n\n", PSstring(asctime(localtime(&t))));
+		printf("/hdrdate %s def\n\n",
+			dodate	? PSstring(asctime(localtime(&t)))
+				: PSstring(""));
 	}
 
 	/* Process the file. */
 	if (skip) {
 		if (lflag == 2)
 			skip &= ~1;		/* round down to even */
-		for (line = 0; line < skip * nlines; line++)
-			if (fgets(buf, NBUF, fp) == NULL)
-				break;
+		for (page = 0; page < skip; page++) {
+			for (line = 0; line < nlines; line++) {
+				if (fgets(buf, NBUF, fp) == NULL)
+					break;
+				if (index(buf, '\f') != NULL)
+					break;
+			}
+		}
 	}
 	line = 0;
 	page = skip + 1;
@@ -237,8 +249,7 @@ file(name) char *name;
 				printf("startpage\n");
 			curfont = 'R';		/* startpage sets Roman */
 		}
-		printline();
-		if (line == nlines) {
+		if (printline() || line == nlines) {
 			/* End of page. */
 			if (lflag == 2 && !rhpage != 0)
 				putchar('\n');
@@ -437,6 +448,7 @@ init()
 		printf("/lhpage {90 rotate 0 %d translate startpage} bind def\n",
 			inch(-PAGEDX));
 	printf("/nl {0 %d translate 0 0 moveto} bind def\n", -ptsize);
+	printf("/BS { stringwidth pop neg 0 rmoveto } bind def\n");
 	printf("/N {show nl} bind def\n");
 	if (lflag == 2)
 		printf("/rhpage {grestore %d 0 translate startpage} bind def\n",
@@ -463,16 +475,34 @@ init()
  * Print a line of text from buf[].
  * This would be one line of code without the font handling.
  */
-void
 printline()
 {
 	register char *s, *cp;
 	char c;
 	int new;
+	int found_ff = 0;		/* saw formfeed in input stream */
 
 	s = buf;			/* input pointer */
 	cp = buf3;			/* output string pointer */
 	while ((c = *s) != '\0' && c != '\n') {
+		if (c == '\f') {
+			/* Formfeed. */
+			++found_ff;
+			++s;
+			continue;
+		} else if (c == '\b') {
+			/* Backspace. */
+			if (cp != buf3) {
+				*cp-- = '\0';
+				c = *cp;		/* last char printed */
+				printf("%s S ", PSstring(buf3));
+				cp = buf3;
+			} else
+				c = ' ';		/* at start of line */
+			printf("(%c) BS ", c);		/* backspace */
+			++s;
+			continue;
+		}
 		new = font_of(s);
 		if (new != curfont && new != 'W') {
 			/* Font change. */
@@ -489,6 +519,11 @@ printline()
 		else {
 			s += 2;			/* skip 2 if bold or italic */
 			c = *s++;		/* third gives the char */
+			if (new == 'B') {
+				/* Watch for Unix braindamage "c\bc\bc", GOK. */
+				while (*s == '\b' && *(s+1) == c)
+					s += 2;
+			}
 		}
 		*cp++ = c;			/* store the character */
 	}
@@ -497,6 +532,7 @@ printline()
 		printf("%s N\n", PSstring(buf3));
 	} else
 		printf("nl\n");
+	return found_ff;
 }
 
 /*
@@ -543,6 +579,7 @@ usage()
 "\t+n\tSkip first n pages of output.\n"
 "\t-n\tUse point size n (default: 10).\n"
 "\t-b\tSuppress the box around the page text.\n"
+"\t-d\tSuppress printing the date and time.\n"
 "\t-ffont\tUse the given font name (default: Courier).\n"
 "\t-FX\tUse font X, which must be [ABHNPST].\n"
 "\t-FsXsfx\tUse sfx as suffix for font X, which must be [RBI].\n"
