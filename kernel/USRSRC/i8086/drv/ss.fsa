@@ -1,4 +1,7 @@
-$Log$
+$Log:	/usr/src/sys/i8086/drv/RCS/ss.fsa,v $
+ * Revision 1.1	91/04/23  17:32:53	root
+ * Unfinished draft.
+ * 
 
 State Machines for ss Driver.
 -----------------------------
@@ -24,11 +27,15 @@ Target States.
 
 	T_CHECK.
 		Target device failed with Device Check status.  Need to
-		execute Request Status and repeat previous command.
+		execute Request Sense and repeat previous command.
 
 	T_TIMED_OUT.
 		Target device failed with a timeout at some point during a
 		SCSI bus cycle.  Waiting to retry previous command.
+
+	T_DEV_RESET.
+		The try count for a request has been exhausted.  The target
+		device should be sent a Bus Device Reset command.
 
 Inputs.
 	I_CALL_SSBLOCK.
@@ -64,7 +71,6 @@ Inputs.
 			head of request queue and load the work structure for
 			this drive.
 			device_try_count <- 0
-			device_reset_done  <- 0
 			Start host watchdog.
 			Send control codes to start arbitration.
 			Go into high priority loop looking for arbitration
@@ -84,11 +90,19 @@ Inputs.
 					Start target watchdog.
 					tgt_state <- T_DISCONNECTED.
 				else if command status is BUSY
-					Set target timeout to 250 msec.
-					tgt_state <- T_BUSY.
+					device_try_count++
+					if (device_try_count too high)
+						tgt_state <- T_DEV_RESET.
+					else
+						Set target timeout to 250 msec.
+						tgt_state <- T_BUSY.
 				else if command status is CHECK
-					Set target timeout to 0 msec. (defer)
-					tgt_state <- T_CHECK.
+					device_try_count++
+					if (device_try_count too high)
+						tgt_state <- T_DEV_RESET.
+					else
+						Set target timeout to 0 msec. (defer)
+						tgt_state <- T_CHECK.
 				else if command status is COMPLETE
 					Turn off target watchdog.
 					If this was a kernel block request
@@ -97,8 +111,12 @@ Inputs.
 					Clear work structure for the drive.
 					tgt_state <- T_IDLE.
 				else // something timed out during SCSI cycle
-					Set target timeout to 250 msec.
-					tgt_state <- T_BUSY.
+					device_try_count++
+					if (device_try_count too high)
+						tgt_state <- T_DEV_RESET.
+					else
+						Set target timeout to 250 msec.
+						tgt_state <- T_TIMED_OUT.
 		Else // tgt_state != T_IDLE
 			Drive is busy and has pending timeout or watchdog.
 			Do nothing.
