@@ -1,0 +1,10 @@
+ucode, 1,
+%%
+		UUCP Install
+
+		H Help for screens
+		S Sitename
+		L Lsys
+		D Devices
+		P Permissions
+		X eXit [!]

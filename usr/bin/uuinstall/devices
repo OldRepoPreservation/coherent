@@ -1,0 +1,21 @@
+%h DIR for direct connect, ACU for dialer
+devType, -10,, nonNull
+%h eg: com1, com2, or tty16 etc
+devLine, -10,, nonNull
+%h If modem control device, modem control version of Line eg: com1r for com1.
+devRemote, -10,, nonNull
+%h 110, 300, 600, 1200, 2400, 4800, 9600 or 19200
+devBaud, -10,, numeric
+%h direct or entry in /etc/modemcap
+devBrand, -10,, nonNull
+%%
+
+
+
+	L-devices
+
+Type	 !
+Line	 !
+Remote	 !			- for null.
+Baudrate !
+brand	 !

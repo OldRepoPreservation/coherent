@@ -1,0 +1,43 @@
+%h sitename of remote system
+sys, -20,, nonNull
+%h ACU, None or a DIR line in devices
+Line, -7,, checkLine
+%h 110, 300, 600, 1200, 2400, 4800, 9600 or 19200
+baudRate, -6,, numeric
+%h must be in the format understood by your dialer
+phoneNo, -14
+% 3 7
+%h Su Mo Tu We Th Fr Sa Wk Any Never
+day, -15,, checkDay, group
+%h 0000 to 2400 or null for any
+timeFrom, -4,, checkTime, 1
+%h 0000 to 2400
+timeTo, -4,, checkTime
+% 2 3
+%h Expected message from remote site
+expect, -20
+%h Reply
+send, -20
+%%
+		Connected system list
+
+System		!
+Line		!
+baud rate	!
+phone number	!
+
+Day to call     Time From    Time To     
+!		!	     !
+!		!	     !
+!		!	     !
+!		!	     !
+!		!	     !
+!		!	     !
+!		!	     !
+
+expect	!
+send	!
+expect	!
+send	!
+expect	!
+send	!

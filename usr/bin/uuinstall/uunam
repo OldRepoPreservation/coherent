@@ -1,0 +1,9 @@
+%h uucp name for this machine
+uuname, -8,, cleanAlnum
+%h domain info for this machine
+uudomain, -64,, cleanAscii
+%%
+		The sitename
+
+/etc/uucpname !
+/etc/domain   !

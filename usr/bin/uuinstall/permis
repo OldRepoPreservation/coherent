@@ -1,0 +1,34 @@
+perSite, -20,, vSite
+%h Allow remote login?
+perCallIn, -1,, yesNo
+perLogn, 0, 20
+%h eg: rmail:rnews
+perComm, -70
+%h eg: /usr/spool/uucppublic:/tmp
+perRead, -70
+%h eg: /tmp/private
+perNoRead, -70
+%h eg: /usr/spool/uucppublic:/tmp
+perWrite, -70
+%h eg: /tmp/private
+perNoWrite, -70
+perRequest, -1,, yesNoCall
+perSendFiles, -1,, yesNo
+%%
+ /usr/lib/uucp/Permissions Items in all lists are separated by : (colon)
+
+ Remote site name !
+ Provide an entry for that site calling in <y/n> !
+      LOGNAME	  !
+ Commands which can be executed at this computer by this remote site
+   !
+ Read directory list
+   !
+ Exceptions to the read directory list
+   !
+ Write directory list
+   !
+ Exceptions to the write directory list
+   !
+ Can the remote site request file transfers from this computer <y/n/c> !
+ Can this computer initiate file transfers to the remote site <y/n> !
