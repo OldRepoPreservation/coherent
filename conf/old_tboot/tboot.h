@@ -165,5 +165,6 @@ extern int fdisk();	/* Read fixed disk configuration.  */
 extern int errno;	/* Error number for "system" calls.  */
 EXTERN uint16 sys_base;	/* Segment into which to load the kernel.  */
 EXTERN int sys_base_set;	/* Has sys_base been explicitly set?  */
+EXTERN int want_monitor;	/* Should we invoke monitor before execution?  */
 
 #endif /* TBOOT_H */

@@ -68,12 +68,17 @@ interpret(command)
 		   puts("dir|ls        List contents of /.\r\n");
 		   puts("?|help        Print this list.\r\n");
 		   return(TRUE);
+	} else if (0 == strcmp(command, "mon_on")) {
+		want_monitor = TRUE;
+		puts("Mini-monitor will autoinvoke before running kernel.\r\n");
+		return(TRUE);
 	} else if (0 == strcmp(command, "??")) {
 		   puts("UNSUPPORTED FEATURES:  (don't call :-)\r\n");
 		   puts("sys_base|scs  Print current load segment.\r\n");
 		   puts("sys_base=tttt Set current load segment to 0xtttt.\r\n");
 		   puts("test arg      Test for the presence of arg.\r\n");
 		   puts("monitor       Invoke the mini-monitor.\r\n");
+		   puts("mon_on        Autoinvoke the mini-monitor before kernel.\r\n");
 		   return(TRUE);
 	} else {
 		return(FALSE);
