@@ -181,6 +181,7 @@ alload()
 	setivec(ALINT, alintr);     /* set interrupt vector */
 	usa = uart_sense(AL_ADDR[ALNUMa]);
 	usb = uart_sense(AL_ADDR[ALNUMb]);
+	putchar('\n');
 	if (usa == US_NONE && usb == US_NONE) {
 		ALCNT = 0;
 	} else {
@@ -188,7 +189,6 @@ alload()
 			ALCNT = 1;
 		else
 			ALCNT = 2;
-		putchar('\n');
 	}
 	if (init == 0 && ALCNT
 	  && (alttab = (TTY *)kalloc(ALCNT * sizeof(TTY)))
