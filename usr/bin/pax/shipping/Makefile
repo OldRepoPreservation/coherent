@@ -47,6 +47,7 @@ LINTFLAGS = -U__STDC__ $(POSIX)
 # cpio binaries installed in.
 #
 BINDIR = /usr/lbin
+DESTDIR= /interim/usr/bin/
 
 #
 # MANDIR - specify the directory in which the man pages will be installed
@@ -96,8 +97,8 @@ PMAN5 = pax.5 ustar.5
 all: $(PROGS)
 
 install: $(PROGS)
-	mv $(PROGS) $(BINDIR)
-	cp $(PMAN1) $(MAN1)
+	su root mv $(PROGS) $(DESTDIR)
+#	cp $(PMAN1) $(MAN1)
 #	cp $(PMAN5) $(MAN5)
 
 clean:
