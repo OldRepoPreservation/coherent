@@ -20,6 +20,7 @@
  *  Minor device 3 is /dev/cmos
  *  Minor device 4 is /dev/boot_gift
  *  Minor device 5 is /dev/clock
+ *  Minor device 6 is /dev/proc
  *
  * $Log:	null.c,v $
  * Revision 1.2  92/01/06  11:59:49  hal
@@ -43,6 +44,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/typed.h>
+#include <sys/inode.h>
 #ifdef NULL_IOCTL
 #include <sys/null.h>
 #endif /* NULL_IOCTL */
@@ -54,6 +56,7 @@
 #define DEV_CMOS	3	/* /dev/cmos	*/
 #define DEV_BOOTGIFT	4	/* /dev/bootgift  */
 #define DEV_CLOCK	5	/* /dev/clock  */
+#define DEV_PROC	6	/* /dev/proc  */
 
 /*
  * CMOS devices are limited by an 8 bit address.
@@ -81,8 +84,10 @@
 /*
  * Functions for configuration.
  */
-int	nlread();
-int	nlwrite();
+void	nlopen();
+void	nlclose();
+void	nlread();
+void	nlwrite();
 int	nlioctl();
 int	nulldev();
 int	nonedev();
@@ -93,8 +98,8 @@ int	nonedev();
 CON nlcon ={
 	DFCHR,				/* Flags */
 	0,				/* Major index */
-	nulldev,			/* Open */
-	nulldev,			/* Close */
+	nlopen,				/* Open */
+	nlclose,			/* Close */
 	nulldev,			/* Block */
 	nlread,				/* Read */
 	nlwrite,			/* Write */
@@ -113,16 +118,170 @@ int lock_clock();
 void unlock_clock();
 
 /*
- * do_locks controls locking of the CMOS clock.  If set (default)
- * then the clock will be locked for any single read.  If it is
- * not set, it is up to the user process to muck with the bits
- * to stabilize the clock.
+ * These variables are used by /dev/proc.
  */
-static int do_locks = 1;
+static	int proc_open_c = 0;	/* How many times is this device open?  */
+static	int proc_valid = 0;	/* Do we have a valid snapshot?  */
+static	PROC *proc_snapshot;	/* This is a snapshot of procq.  */
+static	int proc_size;		/* How long is proc_snapshot (in bytes)?  */
+
+/*
+ * Null/memory open routine.
+ */
+void
+nlopen(dev, mode)
+dev_t dev;
+int mode;
+{
+	register PROC *pp1;
+	int count;		/* How many processes are there?  */
+
+	switch (minor(dev)) {
+	case DEV_PROC:
+		if ( IPR == (IPR & mode) ){
+			T_PIGGY( 0x4000000, printf("proc open "); );
+			/*
+			 * Lock the process table.
+			 * We lock the process table first to avoid a race
+			 * condition.  We really only want to muck with the
+			 * process table on the first open.
+			 */
+			lock(pnxgate);
+	
+			/*
+			 * If this is the first open, take a snapshot.
+			 */
+			if ( 0 == proc_open_c ) {
+				T_PIGGY( 0x4000000, printf("snapshot of "); );
+				/*
+				 * Find out how long the process table is.
+				 */
+				for (count = 0, pp1 = &procq;
+				     (pp1=pp1->p_nforw) != &procq;
+				     ++count) {
+					/* Do nothing else.  */
+				}
+
+				T_PIGGY( 0x4000000,
+					printf("%d entries of %d, ",
+						count, sizeof(PROC));
+				);
+
+				/*
+				 *	Allocate memory for a snapshot.
+				 */
+				proc_size = count * sizeof(PROC);
+				T_PIGGY( 0x4000000,
+					printf("allocating %d, ", proc_size);
+				);
+				if ( (proc_snapshot = kalloc(proc_size)) !=
+					NULL) {
+					/*
+					 *	Take a snapshot.
+					 */
+					for ( count = 0, pp1 = &procq;
+					      (pp1=pp1->p_nforw) != &procq;
+					      ++count) {
+						T_PIGGY( 0x4000000,
+						    printf("&proc[%d]: %x, ",
+						    	count,
+							&proc_snapshot[count]);
+						);
+						kkcopy(pp1,
+						       &proc_snapshot[count],
+						       sizeof(PROC)
+						);
+					}
+					proc_valid = 1;
+				}
+			} /* First open?  */
+	
+			/*
+			 * Unlock the process table.
+			 */
+			unlock(pnxgate);
+	
+			/*
+			 * If we have a valid snapshot, the open succeeded,
+			 * so increment the count.  Otherwise, fail the open.
+			 */
+			if ( proc_valid ) {
+				proc_open_c++;
+			} else {
+				SET_U_ERROR( ENOMEM,
+					"Not enough memory for a snapshot");
+			}
+		} else {
+			SET_U_ERROR( EACCES, "/dev/proc is read only" );
+		}
+		break;
+	default:
+		/*
+		 * For minor devices on NULL there is
+		 * usually no action for open().
+		 */
+		break;
+	}
+	return;
+} /* nlopen() */
+
+/*
+ * Null/memory close routine.
+ */
+void
+nlclose(dev, mode)
+dev_t dev;
+int mode;
+{
+	switch (minor(dev)) {
+	case DEV_PROC:
+		if (proc_open_c > 0) {
+			T_PIGGY( 0x4000000, printf(" last proc close, "); );
+
+			/*
+			 * Lock the process table.
+			 *
+			 * We lock the process table first to avoid a race
+			 * condition.  We don't muck with the process table
+			 * at all, but on the last close we want to lock out
+			 * opens on this device.
+			 */
+			lock(pnxgate);
+			/*
+			 * If this is the last close:
+			 *	Free the snapshot of the process table.
+			 */
+			if ( 1 == proc_open_c ) {
+				kfree( proc_snapshot );
+				proc_valid = 0;
+			}
+
+			/*
+			 * Unlock the process table.
+			 */
+			unlock(pnxgate);
+	
+			/*
+			 * Record the close.
+			 */
+			proc_open_c--;
+		}
+		break;
+	default:
+		/*
+		 * For minor devices on NULL there is
+		 * Usually no action for close().
+		 */
+		break;
+	}
+	return;
+} /* nlclose() */
+
 
 /*
  * Null/memory read routine.
  */
+void
 nlread(dev, iop)
 dev_t dev;
 register IO *iop;
@@ -134,7 +293,11 @@ register IO *iop;
 
 	switch (minor(dev)) {
 	case DEV_NULL:
-		/* leave iop->io_ioc unchanged - read nothing */
+		/*
+		 * Read nothing.
+		 * Do NOT update iop->io_ioc.
+		 * This way, caller knows 0 bytes were read.
+		 */
 		break;
 
 	case DEV_MEM:
@@ -198,17 +361,44 @@ register IO *iop;
 		break;
 
 	case DEV_BOOTGIFT:
+		/*
+		 * Reads all from the data structure boot_gift.
+		 */
 		if (iop->io_seek < BG_LEN) {
 			bytes_read = iop->io_ioc;
-			/* Copy no more than to the end of boot_gift.  */
+			/*
+			 * Copy no more than to the end of boot_gift.
+			 */
 			if (iop->io_seek + bytes_read > BG_LEN) {
 				bytes_read = BG_LEN - (iop->io_seek);
 			}
 
-			iowrite(iop, &boot_gift, bytes_read);
+			iowrite(iop,
+				(char *)(&boot_gift) + iop->io_seek,
+				bytes_read);
 		}
 		break;
 
+	case DEV_PROC:
+		/*
+		 * Reads are all from the data structure *proc_snapshot.
+		 */
+		T_PIGGY( 0x4000000,
+			printf("reading %d proc bytes, ", iop->io_ioc);
+		);
+
+		if (iop->io_seek < proc_size) {
+			bytes_read = iop->io_ioc;
+			/* Copy no more than to the end of the snapshot.  */
+			if (iop->io_seek + bytes_read > proc_size) {
+				bytes_read = proc_size - (iop->io_seek);
+			}
+
+			iowrite(iop,
+				(char *)(proc_snapshot) + iop->io_seek,
+				bytes_read);
+		}
+		break;
 	default:
 		SET_U_ERROR(ENXIO, "nlread(): illegal minor device for null");
 	}
@@ -218,6 +408,7 @@ register IO *iop;
 /*
  * Null/memory write routine.
  */
+void
 nlwrite(dev, iop)
 dev_t dev;
 register IO *iop;
@@ -229,6 +420,9 @@ register IO *iop;
 
 	switch (minor(dev)) {
 	case DEV_NULL:
+		/*
+		 * Tell caller all bytes were written.
+		 */
 		iop->io_ioc = 0;
 		break;
 
@@ -293,7 +487,16 @@ register IO *iop;
 		break;
 
 	case DEV_BOOTGIFT:
-		/* /dev/bootgift is not writable.  */
+		/*
+		 * /dev/bootgift is not writable.
+		 */
+		break;
+
+	case DEV_PROC:
+		/*
+		 * /dev/proc is not writable.
+		 */
+		T_PIGGY( 0x4000000, printf("/dev/proc is not writable.\n"); );
 		break;
 
 	default:
