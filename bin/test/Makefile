@@ -1,7 +1,8 @@
-# /usr.src/cmd/test/Makefile 1/23/90
+# /usr/src/cmd/test/Makefile 2/20/91
 
-test:	test.o testnode.h
-	cc -O -i -o $@ test.o -ly
-	rm test.o y.tab.h
+test:	test.o
+	cc -O -i -o $@ $< -ly
 
-test.o:	test.y
+test.o:	test.y testnode.h
+
+# end of /usr/src/cmd/test/Makefile

@@ -1,28 +1,43 @@
-SDIR =.
-CFLAGS = -O -I$(SDIR)
-CC = exec /bin/cc
+# /usr/src/cmd/dump/Makefile 2/20/91
 
-all: dumpdate dumpdir dump restor
-	echo done
+CFLAGS = -O
 
-dumpdate: dumpdate.c dumptape.h
-	$(CC) $(CFLAGS) -o dumpdate dumpdate.c
+EXE=\
+	dump\
+	dumpdate\
+	dumpdir\
+	restor
 
-dumpdir: dumpdir.c dumptape.h
-	$(CC) $(CFLAGS) -o dumpdir dumpdir.c
+OBJ=\
+	dump.o\
+	dump.o\
+	dump.o\
+	dump.o\
+	dump.o
 
-dump: dump.c dumptape.h discbuf.h discbuf.o
-	$(CC) $(CFLAGS) -o dump dump.c discbuf.o
+# Primary target.
+all:	$(EXE)
+	: all done
 
-restor: restor.c dumptape.h discbuf.h discbuf.o
-	$(CC) $(CFLAGS) -o restor restor.c discbuf.o
+# Executables.
+dump:	dump.o discbuf.o
+	$(CC) $(CFLAGS) -o $@ $<
+dumpdate: dumpdate.o
+	$(CC) $(CFLAGS) -o $@ $<
+dumpdir: dumpdir.o
+	$(CC) $(CFLAGS) -o $@ $<
+restor:	restor.o discbuf.o
+	$(CC) $(CFLAGS) -o $@ $<
 
-discbuf.o: discbuf.h discbuf.c
+# Secondary targets.
+discbuf.o:	discbuf.h discbuf.c
+dumpdate.o:	dumptape.h dumpdate.c
+dumpdir.o:	dumptape.h dumpdir.c
+dump.o:		dumptape.h discbuf.h dump.c
+restor.o:	dumptape.h discbuf.h restor.c
 
-dumpdate.o: dumptape.h dumpdate.c
+# Etc.
+clean:
+	rm $(OBJ)
 
-dumpdir.o: dumptape.h dumpdir.c
-
-dump.o: dumptape.h discbuf.h dump.c
-
-restor.o: dumptape.h discbuf.h restor.c
+# end of /usr/src/cmd/dump/Makefile

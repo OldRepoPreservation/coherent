@@ -1,27 +1,43 @@
+# /usr/src/cmd/check/Makefile 2/20/91
+
 # CFLAGS for PDP11
-CFLAGS= -O -I.
-UTILS= check dcheck icheck ncheck clri
+CFLAGS= -O
 
-all:	 $(UTILS)
-	echo $(UTILS) are made
+UTILS=\
+	check\
+	clri\
+	dcheck\
+	icheck\
+	ncheck
+OBJ=\
+	check.o\
+	clri.o\
+	dcheck.o\
+	icheck.o\
+	ncheck.o
 
-check:	check.o check.h
-	$(CC) $(CFLAGS) -o check check.o
+# Primary target.
+all:	$(UTILS)
+	: all done
 
-dcheck:	dcheck.o check.h
-	$(CC) $(CFLAGS) -o dcheck dcheck.o
-
-icheck:	icheck.o check.h
-	$(CC) $(CFLAGS) -o icheck icheck.o
-
-ncheck:	ncheck.o
-	$(CC) $(CFLAGS) -o ncheck ncheck.o
-
+check:	check.o
+	$(CC) $(LDFLAGS) -o $@ $<
 clri:	clri.o
-	$(CC) $(CFLAGS) -o clri clri.o
+	$(CC) $(LDFLAGS) -o $@ $<
+dcheck:	dcheck.o
+	$(CC) $(LDFLAGS) -o $@ $<
+icheck:	icheck.o
+	$(CC) $(LDFLAGS) -o $@ $<
+ncheck:	ncheck.o
+	$(CC) $(LDFLAGS) -o $@ $<
 
-install: $(UTILS)
-	chown bin $(UTILS)
-	chmod 755 $(UTILS)
-	cp $(UTILS) /etc
-	rm $(UTILS) *.o
+check.o:	check.h check.c
+clri.o:		clri.c
+dcheck.o:	check.h dcheck.c
+icheck.o:	check.h icheck.c
+ncheck.o:	ncheck.c
+
+clean:
+	rm $(OBJ)
+
+# end of /usr/src/cmd/check/Makefile
