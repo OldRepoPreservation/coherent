@@ -1,15 +1,9 @@
-/* (-lgl
- * 	COHERENT Version 4.0.1
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
- * /usr/include/misc.h
+ * misc.h
  * Miscellaneous useful user functions.
  * Sugggestions and additions are welcome.
  */
-
-#ifndef _MISC_H
+#ifndef OFFSETOF
 
 /* Handy defines */
 #define OFFSETOF(type, mem) (&((char *)((type *)NULL)->m) - NULL)
@@ -18,7 +12,7 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-#include <time.h>
+#include <sys/time.h>
 
 extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);
@@ -135,7 +129,4 @@ extern void regerror();
  * number; the start node begins in the second byte.
  */
 #define	REG_MAGIC	(char)0234
-
 #endif
-
-/* end of /usr/include/misc.h */

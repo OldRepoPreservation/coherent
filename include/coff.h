@@ -8,8 +8,8 @@
  * Common Object File Format (COFF) header for COHERENT.
  */
 
-#ifndef _COFF_H
-#define _COFF_H
+#ifndef COFF_H
+#define COFF_H
 
 /* File header. */
 typedef	struct	filehdr	{
@@ -71,32 +71,14 @@ typedef	struct	scnhdr	{
 #define _TEXT	".text"
 #define _DATA	".data"
 #define _BSS	".bss"
-#define	_COMMENT ".comment"
 #define _TV	".tv"
 #define _INIT	".init"
 #define _FINI	".fini"
 
 /* Flags for s_flags field. */
-#define STYP_GROUP	0x004L			/* Grouped section	*/
-#define STYP_PAD	0x008L			/* Padding section	*/
-#define STYP_COPY	0x010L			/* Copy section		*/
-#define	STYP_TEXT	0x020L			/* Code segment		*/
-#define	STYP_DATA	0x040L			/* Data segment		*/
-#define	STYP_BSS	0x080L			/* BSS segment		*/
-#define STYP_INFO	0x200L			/* Comment section	*/
-#define STYP_OVER	0x400L			/* Overlay section	*/
-#define STYP_LIB	0x800L			/* Shared library	*/
-
-/*
- * Shared Library Section.
- * Followed by implementation dependent data
- * and a path name aligned on a dword boundary.
- */
-typedef	struct	shrlib	{
-	long		entsz;			/* Entry size in longs	*/
-	long		pathndx;		/* Path offset in longs	*/
-}	SHRLIB;
-
+#define	STYP_TEXT	0x20L			/* Code segment		*/
+#define	STYP_DATA	0x40L			/* Data segment		*/
+#define	STYP_BSS	0x80L			/* BSS segment		*/
 
 /* Relocation items. */
 typedef	struct	reloc	{
@@ -267,18 +249,7 @@ typedef union auxent	{
 	} x_scn;
 }	AUXENT;
 #pragma align
-#define	ae_tagndx	x_sym.x_tagndx
-#define	ae_lnno		x_sym.x_misc.x_lnsz.x_lnno
-#define	ae_size		x_sym.x_misc.x_lnsz.x_size
-#define	ae_fsize	x_sym.x_misc.x_fsize
-#define	ae_lnnoptr	x_sym.x_fcnary.x_fcn.x_lnnoptr
-#define	ae_endndx	x_sym.x_fcnary.x_fcn.x_endndx
-#define	ae_dimen	x_sym.x_fcnary.x_ary.x_dimen
-#define	ae_tvndx	x_sym.x_tvndx
-#define	ae_fname	x_file.x_fname
-#define	ae_scnlen	x_scn.x_scnlen
-#define	ae_nreloc	x_scn.x_nreloc
-#define	ae_nlinno	x_scn.x_nlinno
+
 #define AUXESZ	(sizeof(AUXENT))
 
 #endif						 /* COFF_H */
