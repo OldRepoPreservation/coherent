@@ -302,7 +302,7 @@ __LOCAL__ __INLINE__ void ATOMIC_CLEAR_PTR (__atomic_ptr_t _lock) {
 }
 
 __LOCAL__ __INLINE__
-void ATOMIC_STORE_UCHAR (__atomic_uchar_t _lock, uchar_t _newvalue) {
+void ATOMIC_STORE_UCHAR (__atomic_uchar_t _lock, __uchar_t _newvalue) {
 	_lock [0] = _newvalue;
 }
 

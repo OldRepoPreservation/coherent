@@ -6,16 +6,19 @@
 #ifndef __SYS_SELECT_H__
 #define __SYS_SELECT_H__
 
-#include <sys/param.h>
+#include <stdio.h>
 
-#if NOFILE <= 32
+#if _NFILE <= 32
+
 typedef int fd_set;
 
 #define FD_ZERO(fdp)	{*fdp = 0;}
 #define FD_SET(b,fdp)	(*fdp |= 1 << (b))
 #define FD_ISSET(b,fdp)	(*fdp & 1 << (b))
 #define FD_SETSIZE 32
+
 #else
+
 typedef int fd_set[2];
 
 #define FD_ZERO(fdp)	{(*fdp)[0]=(*fdp)[1]=0;}
@@ -24,4 +27,5 @@ typedef int fd_set[2];
 #define FD_SETSIZE 64
 
 #endif
+
 #endif

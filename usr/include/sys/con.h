@@ -26,14 +26,14 @@
  */
 typedef struct drv {
 	struct	 con *d_conp;		/* Pointer to configuration */
-#if	_I386
-	int	foo [2];		/* not used */
-#else
+#if	! _I386
 	struct	 seg *d_segp;		/* Segmentation containing driver */
 	dmap_t	 d_map;			/* Segmentation map */
 #endif
 	int	 d_time;		/* Timeout is active */
+#if	! _I386
 	GATE	 d_gate;		/* Gate for loading */
+#endif
 } DRV;
 
 /*

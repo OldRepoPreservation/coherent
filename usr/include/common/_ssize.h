@@ -18,7 +18,7 @@
 
 typedef	int		ssize_t;
 
-#elif	defined (__GNUC__)
+#elif	__GNUDOS__
 
 typedef	long		ssize_t;
 

@@ -59,6 +59,15 @@
 #include <kernel/ddi_lock.h>
 #include <kernel/ddi_glob.h>
 
+/*
+ * In order to be able to declare prototypes that refer to structures that are
+ * declared in other headers, we supply incomplete declarations at top-level
+ * to avoid some scoping problems.
+ */
+
+struct stroptions;
+struct strbuf;
+
 
 /*
  * In onder for freezestr () to work as defined in the Multiprocessor DDI/DKI,

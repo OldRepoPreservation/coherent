@@ -55,7 +55,6 @@ typedef struct buf {
  * Flags (b_flags).
  */
 #define BFNTP	0x0001			/* Buffer not valid */
-#define BFREQ	0x0002			/* Buffer requested */
 #define BFERR	0x0004			/* Error */
 #define BFMOD	0x0008			/* Data has been modified */
 #define BFASY	0x0010			/* Asynchrous */
@@ -84,8 +83,6 @@ extern	BUF	 *bread();		/* bio.c */
 extern	BUF	 *bclaim();		/* bio.c */
 extern	BUF	 *vread();		/* fs3.c */
 extern	BUF	 *aread();		/* fs3.c */
-extern	daddr_t	 vmap();		/* fs3.c */
-extern	int	 *lmap();		/* fs3.c */
 
 /*
  * Global variables.
@@ -94,5 +91,14 @@ extern	unsigned bufseqn;		/* Buffer sequencer */
 extern	int	 bufneed;		/* Buffer is needed */
 extern	BUF	 swapbuf;		/* Buffer for swap I/O */
 extern	BUF	 *bufl;			/* Buffer headers */
+
+/*
+ * Flags for 3rd argument to bclaim () and bread ().
+ */
+
+enum {
+	BUF_SYNC,
+	BUF_ASYNC
+};
 
 #endif	/* ! defined (__SYS_BUF_H__) */

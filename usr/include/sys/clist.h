@@ -5,12 +5,12 @@
 #define	 __SYS_CLIST_H__
 
 #include <common/feature.h>
-#include <sys/types.h>
 #if	_I386
-#include <sys/reg.h>
+#include <kernel/reg.h>
 #else
-#include <sys/machine.h>
+#include <kernel/machine.h>
 #endif
+#include <sys/types.h>
 
 #if	! __KERNEL__
 # error	You must be compiling the kernel to use this header

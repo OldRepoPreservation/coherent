@@ -117,4 +117,47 @@
 				 ((1 << (__LONG_BIT - 2)) - 1))
 #define	__LONG_MIN	(- __LONG_MAX - __TWOSCOMP)
 
+
+/*
+ * A fequent use of all the above shenanigans is to figure out a mapping from
+ * the C data types to machine 8/16/32-bit specific idioms, where the actual
+ * assignment of data types to machine widths is highly variable (perhaps even
+ * controlled by a compiler switch).
+ *
+ * Here we create standard aliases for the 8-bit-multiple cases, which careful
+ * programs can use token-pasting with to further parameterize things. If
+ * other macros use the __CONCAT... () facility from <sys/ccompat.h> to create
+ * type-encoded macro names, the extra level of indirection in the
+ * preprocessor that comes from using a concatenation macro will cause the
+ * following substitutions to be made before the final token is created, thus
+ * automagically mapping from types into word sizes.
+ *
+ * Because the following information is mainly used in token-pasting, please
+ * leave the decimal constants alone!
+ */
+
+#if	__CHAR_BIT == 8
+# define	__CHAR		8
+#endif
+
+#if	__SHRT_BIT == 16
+# define	__SHORT		16
+#elif	__SHRT_BIT == 32
+# define	__SHORT		32
+#endif
+
+#if	__INT_BIT == 16
+# define	__INT		16
+#elif	__INT_BIT == 32
+# define	__INT		32
+#elif	__INT_BIT == 64
+# define	__INT		64
+#endif
+
+#if	__LONG_BIT == 32
+# define	__LONG		32
+#elif	__LONG_BIT == 64
+# define	__LONG		64
+#endif
+
 #endif	/* ! defined (__COMMON__LIMITS_H__) */

@@ -17,18 +17,18 @@
 #include <common/feature.h>
 #include <common/_time.h>
 #include <kernel/sigproc.h>
-#include <sys/param.h>
+#if	_I386
+#include <kernel/reg.h>
+#include <kernel/param.h>
+#include <ieeefp.h>
+#else
+#include <kernel/machine.h>
+#include <kernel/const.h>
+#endif
 #include <sys/types.h>
 #include <dirent.h>
 #include <sys/io.h>
 #include <sys/proc.h>
-
-#if	_I386
-#include <sys/reg.h>
-#include <ieeefp.h>
-#else
-#include <sys/machine.h>
-#endif
 
 /*
  * NIGEL: This is a quick hack; we have removed the definition of the old
@@ -90,20 +90,22 @@ typedef struct uproc {
 	MCON	 u_syscon;		/* System context save */
 	MENV	 u_sigenv;		/* Signal return */
 	MGEN	 u_sysgen;		/* General purpose area */
-#if	_I386
-	int	 u_args[MSACOUNT];
-#else
-	int	 u_args[(MSASIZE+sizeof(int)-1)/sizeof(int)];
-#endif
+#if	0
+	int	u_args [MSACOUNT];
 	struct	 io u_io;		/* User area I/O template */
+	struct	 direct u_direct;	/* Directory name */
+#endif
+#if	! _I386
+	int	 u_args [__DIVIDE_ROUNDUP_CONST (MSASIZE, sizeof (int)];
+#endif
 
 	/*
 	 * Set by ftoi.
 	 */
+
 	ino_t	 u_cdirn;		/* Child inode number */
 	struct	 inode *u_cdiri;	/* Child inode pointer */
 	struct	 inode *u_pdiri;	/* Parent inode pointer */
-	struct	 direct u_direct;	/* Directory name */
 
 	/*
 	 * Accounting fields.
@@ -137,7 +139,9 @@ typedef struct uproc {
 	unsigned u_argp;		/* Offset of argv[0] (for ps) */
 	int	u_signo;		/* Signal number (for debugger) */
 #if	_I386
+#if	0
 	int	*u_regl;
+#endif
 	int	u_rval2;
 	__sigfunc_t	u_sigreturn;
 	union _fpcontext	u_ndpCon;	/* ndp state */

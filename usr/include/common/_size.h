@@ -18,7 +18,7 @@
 typedef	__size_t	size_t;
 # endif
 
-#elif	defined (__GNUC__)
+#elif	__GNUDOS__
 
 /*
  * For DJCC v1.09, you will have to modify <stddef.h> to prevent multiple

@@ -99,7 +99,7 @@ typedef	int		key_t;		/* for System V IPC */
 #include <common/__paddr.h>
 
 typedef __paddr_t	paddr_t;
-typedef	char *		vaddr_t;
+typedef	char	      *	vaddr_t;
 
 typedef	__VOID__	_VOID;		/* for System V */
 

@@ -32,6 +32,7 @@
 #include <common/__clock.h>		/* for drv_ prototypes */
 #include <common/_cred.h>
 #include <kernel/__pl.h>
+#include <kernel/pri.h>
 #include <kernel/x86io.h>
 #include <kernel/_lock.h>
 #include <kernel/_toid.h>
@@ -59,29 +60,6 @@ typedef	unsigned short	minor_t;	/* external minor device number */
 typedef	unsigned short	major_t;	/* external major device number */
 
 #define	NODEV		((major_t) -1)
-
-/*
- * The following abstract values are used in the DDI/DKI for specifying the
- * priority to be given to processes after awakening from kernel sleep.
- * Clients are permitted to specify a relative bias of up to +/- 3 from the
- * values specified below.
- *
- * The actual values chosen below are such that given the bias, abstract
- * priorities can be mapped via a table into whatever concrete form is
- * desired by the scheduling algorithm. In particular, it is not possible for
- * clients to infer anything about the relative priorities of different levels
- * given the information below.
- */
-
-enum {
-	prilo	= 3,			/* low priority */
-	pritape	= 10,			/* appropriate for tape driver */
-	primed	= 17,			/* medium priority */
-	pritty	= 24,			/* appropriate for terminal driver */
-	pridisk = 31,			/* appropriate for disk driver */
-	prinet	= 38,			/* appropriate for network driver */
-	prihi	= 45			/* high priority */
-};
 
 
 /*
@@ -146,7 +124,7 @@ minor_t		getminor	__PROTO ((n_dev_t _dev));
 major_t		itoemajor	__PROTO ((major_t _imaj, major_t _prevemaj));
 n_dev_t		makedevice	__PROTO ((major_t _majnum, minor_t _minnum));
 
-#ifdef	_SYSV3
+#if	_SYSV3
 
 unsigned	major		__PROTO ((o_dev_t _dev));
 unsigned	minor		__PROTO ((o_dev_t _dev));
@@ -202,7 +180,7 @@ __EXTERN_C_END__
  * SVR3-style types.
  */
 
-#ifdef	_SYSV3
+#if	_SYSV3
 
 #define	major(dev)		(((dev) >> 8) & 0xFF)
 #define	minor(dev)		((dev) & 0xFF)

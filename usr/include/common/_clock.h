@@ -21,7 +21,7 @@ typedef	__clock_t	clock_t;
 
 # endif
 
-#elif	defined (__GNUC__)
+#elif	__GNUDOS__
 
 typedef __clock_t	clock_t;
 

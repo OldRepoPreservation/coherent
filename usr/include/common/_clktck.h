@@ -12,17 +12,26 @@
 #if	__BORLANDC__
 
 #define	CLK_TCK			18.2
-#define	CLOCKS_PER_SEC	18.2
+#define	CLOCKS_PER_SEC		18.2
 
-#elif defined (__GNUC__)
+#elif	__GNUDOS__
 
 #define	CLK_TCK			18.2
-#define	CLOCKS_PER_SEC	18.2
+#define	CLOCKS_PER_SEC		18.2
 
-#elif	__COHERENT__
+#elif	__COHERENT__ && ! _SYSV4
 
 #define	CLK_TCK			100
-#define	CLOCKS_PER_SEC	100
+#define	CLOCKS_PER_SEC		100
+
+#elif	__COHERENT__ && _SYSV4
+
+#include <common/ccompat.h>
+
+#define	CLK_TCK			1000000
+#define	CLOCKS_PER_SEC		__sysconf (3)
+
+__EXTERN_C__	long		__sysconf	PROTO ((int _name));
 
 #else
 

@@ -1,13 +1,14 @@
-/* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
- * Common SCSI portions of Adaptec AHA154x driver
+ * /usr/include/sys/scsiwork.h
+ *
+ * Common SCSI portions of Adaptec and Seagate device drivers.
+ *
+ * Revised: Sun Aug  1 17:17:42 1993 CDT
  */
 #ifndef __SYS_SCSIWORK_H__
 #define __SYS_SCSIWORK_H__
+
+#include <sys/buf.h>
 
 #define	MAX_SCSI_ID	8
 #define	MAX_LUN		4		/* limited by minor device number */ 
@@ -16,6 +17,7 @@
  * drive_info contains the "per drive" flags
  */
 extern	char	drive_info[MAX_SCSI_ID * MAX_LUN];
+
 #define	D_DISK		0x01		/* disk-type device (random) */
 #define	D_TAPE		0x02		/* tape-type device (sequential) */
 #define	D_PRINTER	0x04		/* printer-type device */
@@ -94,5 +96,11 @@ typedef	struct	scsi_cmd	scsi_cmd_t;
 #define XP_DATA_OUT	(                                 0)
 
 #define VTOP2(a1, a2)	vtop(a1,a2)
+
+typedef struct {
+	unsigned int		ncyl;
+	unsigned char		nhead;
+	unsigned char		nspt;
+}	_drv_parm_t;
 
 #endif

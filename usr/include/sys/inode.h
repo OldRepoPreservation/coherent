@@ -101,9 +101,10 @@ typedef struct inode {
 /*
  * Macro functions.
  */
+
 #define ilock(ip)	lock(ip->i_gate)
 #define iunlock(ip)	unlock(ip->i_gate)
-#define ilocked(ip)	locked(ip->i_gate)
+#define ilocked(ip)	__GATE_LOCKED (ip->i_gate)
 
 /*
  * Functions to set modify time.

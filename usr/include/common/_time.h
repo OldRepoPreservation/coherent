@@ -18,7 +18,7 @@
 typedef	__time_t	time_t;
 # endif
 
-#elif defined (__GNUC__)
+#elif __GNUDOS__
 
 /*
  * For DJCC v1.09, you will have to modify <sys/types.h> to guard against
