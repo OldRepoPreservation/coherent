@@ -277,15 +277,17 @@ register int n;
  */
 evalcom()
 {
-	int pipev[2], f;
+	int pipev[2], f, oslret;
 	register FILE *fp;
 	register int c;
 	register int nnl;
 	char *cmdp;
 
+	oslret = slret;
 	cmdp = arcp;
 	while ((c=*arcp++) != '`');
 	if ((f = pipeline(pipev)) == 0) {
+		slret = oslret;		/* in case grave command uses $? */
 		dup2(pipev[1], 1);
 		close(pipev[0]);
 		close(pipev[1]);

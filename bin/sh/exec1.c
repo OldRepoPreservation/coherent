@@ -311,8 +311,10 @@ register NODE *np;
 	case		FIORS|	FASSG:
 		for (app = nenvp; *app!=NULL; )
 			setsvar(*app++);
-		if ((f&~FASSG)==0)
+		if ((f&~FASSG)==0) {
+			slret = 0;
 			return (0);
+		}
 		break;
 	default:
 		panic();
