@@ -22,7 +22,6 @@ char	*file;
 	f = fopen( file, "r");
 	if (f == NULL)
 		return (1);
-	lputc( '\f');
 
 	while ((c=getline( f)) && printing>0) {
 		putline( line1);
