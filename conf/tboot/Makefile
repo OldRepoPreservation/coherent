@@ -3,22 +3,14 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
-#CC=cc286
-#LD=cc286
-#AR=/bin/286/ar
-#RANLIB=/bin/286/ranlib
-#CP=cp
-#AS=/bin/286/as
-
-CC=cc
-LD=/bin/ld
-AR=/bin/ar
-ranlib=/bin/ranlib
+CC=cc286
+LD=cc286
+AR=/bin/286/ar
+RANLIB=/bin/286/ranlib
 CP=cp
-AS=/bin/as
+AS=/bin/286/as
 
-DESTDIR386=/bin386/bin/
-DESTDIR=/interim/
+DESTDIR=/
 
 LIBOBJECTS=bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
 	l.out.o coff.o bio.o gift.o objects.o pacifier.o \
@@ -38,18 +30,21 @@ LIBS=libtboot.a libtboot.a libtboot.a /lib/286/libc.a
 INCLUDE=-I.
 CFLAGS=$(INCLUDE)
 
+all: tboot bootcmd
+	touch all
+
 # NB: Startup.o must come first in the link line, so the entry
 # point in Startup lines up correctly.
-tboot: sys/typed.h sys/ptypes.h  Startup.o tboot.o builtin.o libtboot.a
+tboot: sys/ptypes.h  Startup.o tboot.o builtin.o libtboot.a
 	$(LD) -o tboot Startup.o tboot.o builtin.o $(LIBS)
+
+bootcmd: bootcmd.o fifo_k.o
+	$(LD) -o bootcmd bootcmd.o fifo_k.o
 
 libtboot.a: $(LIBOBJECTS) 
 	rm -f $@
 	$(AR) rkus $@ $(LIBOBJECTS)
 	$(RANLIB) $@
-
-sys/typed.h: typed.h
-	$(CP) typed.h sys/typed.h
 
 sys/ptypes.h: ptypes.h
 	$(CP) ptypes.h sys/ptypes.h
@@ -80,12 +75,6 @@ clean:
 
 install:
 	cp tboot $(DESTDIR)
-	chown root $(DESTDIR)tboot
-	chgrp daemon $(DESTDIR)tboot
-	chmod ugo=r $(DESTDIR)tboot
-
-install386:
-	cp tboot $(DESTDIR386)
-	chown root $(DESTDIR386)tboot
-	chgrp daemon $(DESTDIR386)tboot
-	chmod ugo=r $(DESTDIR386)tboot
+	chown root $(DESTDIR)/tboot
+	chgrp daemon $(DESTDIR)/tboot
+	chmod ugo=r $(DESTDIR)/tboot
