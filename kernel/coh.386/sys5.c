@@ -518,6 +518,7 @@ int	mode;
 		return;
 	}
 	u.u_io.io_seg = IOUSR;
+	u.u_uid = uid;
 	return(0);
 }
 
