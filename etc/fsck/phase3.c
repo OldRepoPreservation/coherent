@@ -106,6 +106,7 @@ int type;
 		nextblock(addrs);
 		element = (struct direct *) databuf;
 		while ( element<&databuf[BSIZE] ) {
+			length -= DSIZE;
 			if ( element->d_ino == 0 ) {
 				element->d_ino = ino;
 				strncpy(element->d_name, nameit(ino), DIRSIZ);
@@ -127,7 +128,6 @@ int type;
 				}
 				return(SUCCESS);
 			}
-			length -= DSIZE;
 			element++;
 		}
 	}
