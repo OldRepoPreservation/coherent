@@ -284,7 +284,7 @@ s_pushd()
 		dir = dstack[dstkp-1];
 		dstack[dstkp-1] = dstack[dstkp];
 		dstack[dstkp] = dir;		/* exchange top two */
-		return (cd(dir) == NULL) ? -1 : 0;	/* and cd accordingly */
+		return ((cd(dir) == NULL) ? -1 : 0);	/* and cd accordingly */
 	}
 	/* Push one or more directories to stack. */
 	for (ret = 0, i = 1; i < nargc; i++)
@@ -411,15 +411,19 @@ cd(dir) register char *dir;
 		printe("%s: bad directory", dir);
 		return NULL;
 	}
-	/*
-	 * If the user lacks search permission from $HOME down the path to "/",
-	 * the getwd() call in var.c will fail and dstack[dstkp] will be ".".
-	 * Avoid getwd() in this case, it undoes the effect of the chdir().
-	 */
-	if (strcmp(dstack[dstkp], ".") == 0)
-		return ".";
-	if ((dir = getwd()) != NULL)
-		assnvar("CWD", dir);
+	if (*dir != '/') {
+		/*
+		 * Find an absolute pathname for the dstack and $CWD.
+		 * The directory now in dstack[dstkp] is "." if getwd() failed
+		 * for any reason (e.g., the user lacks search permission
+		 * down the path to "/", or "." was rm'ed by another process).
+		 * Avoid getwd() in this case, it can undo the chdir() above.
+		 */
+		if ((strcmp(dstack[dstkp], ".") == 0)
+		 || ((dir = getwd()) == NULL))
+			return NULL;
+	}
+	assnvar("CWD", dir);
 	return dir;
 }
 
