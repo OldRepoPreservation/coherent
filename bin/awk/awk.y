@@ -199,11 +199,17 @@ stat:
       | PRINT_ {outflag++;} elist output {
 		$$ = node(APRINT, $3, $4);
 	}
+      | PRINT_ '(' {outflag++;} elist ')' output {
+		$$ = node(APRINT, $4, $6);
+	}
       | PRINT_ {outflag++;} output {
 		$$ = node(APRINT, &xfield0, $3);
 	}
       | PRINTF_ {outflag++;} elist output {
 		$$ = node(APRINTF, $3, $4);
+	}
+      | PRINTF_ '(' {outflag++;} elist ')' output {
+		$$ = node(APRINTF, $4, $6);
 	}
       | NEXT_ ';' {
 		$$ = node(ANEXT);
