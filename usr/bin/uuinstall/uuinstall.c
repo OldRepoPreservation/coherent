@@ -20,6 +20,8 @@
 #define SENDPAIRS 6
 #define TIMEPAIRS 7
 
+#define LIMIT 79 /* Characters per output line */
+
 #define UUNAME  fileList[0]
 #define DOMAIN  fileList[1]
 #define SYSFILE fileList[2]
@@ -483,6 +485,39 @@ register char *s;
 }
 
 /*
+ * Split output lines with \
+ */
+void
+splitter(ofp, line)
+FILE *ofp;
+char *line;
+{
+	int pos, i, j, c;
+
+	for (pos = j = i = 0; c = line[i]; i++) {
+		if ((pos >= LIMIT) && j) { /* split condition */
+			c = line[j];
+			line[j] = '\0';
+			fprintf(ofp, "%s\\\n", line);
+			line += j;
+			line[pos = i = j = 0] = c;
+		}
+		switch (c) {
+		case '\n':
+			pos = 0;
+			break;
+		case '\t':
+			pos |= 7;
+		case ' ':
+			j = i;
+		default:
+			pos++;
+		}
+	}
+	fprintf(ofp, "%s", line);
+}
+
+/*
  * Save a list of lines.
  */
 static void
@@ -496,7 +531,7 @@ register line *l;
 		return;
 	ofp = xopen(fn, "w");
 	for (; NULL != l; l = l->next)
-		fputs(l->str, ofp);
+		splitter(ofp, l->str);
 	fclose(ofp);
 }
 
@@ -578,9 +613,19 @@ clumpLsys()
  */
 clumpDev()
 {
-	sprintf(buf, "%s %s %s %s %s\n",
+	sprintf(buf, "%s\t%s\t%s\t%s\t%s\n",
 		devType, devLine, devRemote, devBaud, devBrand);
 	addLine(&devRoot);
+}
+
+/*
+ * Add comment line.
+ */
+clumpComment(root)
+line **root;
+{
+	sprintf(buf, "#%s\n", comment);
+	addLine(root);
 }
 
 /*
@@ -598,7 +643,7 @@ addPasswd()
 	}
 
 	if (NULL == (fp = fopen(PASSWD, "rw"))) {
-		showMsg("Cannot open /etc/passwd");
+		showMsg("Cannot open %s", PASSWD);
 		return;
 	}
 
@@ -606,14 +651,14 @@ addPasswd()
 		if (NULL != (p = strchr(work, ':'))) {
 			*p = '\0';
 			if (!strcmp(work, perLogn)) {
-				showMsg("%s already in /etc/passwd", perLogn);
+				showMsg("%s already in %s", perLogn, PASSWD);
 				return;
 			}
 		}
 	}
 	fprintf(fp, "%s::6:6::/usr/spool/uucp:/usr/lib/uucp/uucico\n", perLogn);
 	fclose(fp);
-	showMsg("%s added to /etc/passwd successfully", perLogn);
+	showMsg("%s added to %s successfully", perLogn, PASSWD);
 }
 
 /*
@@ -622,39 +667,39 @@ addPasswd()
 clumpPerm()
 {
 	if ('y' == perCallIn[0])
-		sprintf(buf, "MACHINE=%s LOGNAME=%s \\\n",
+		sprintf(buf, "MACHINE=%s LOGNAME=%s ",
 			perSite, perLogn);
 	else
-		sprintf(buf, "MACHINE=%s \\\n", perSite);
+		sprintf(buf, "MACHINE=%s ", perSite);
 
 	if ('y' == perEtc[0])
 		addPasswd();
 
 	if (perMyName[0] && strcmp(perSite, perMyName)) {
-		sprintf(work, "\tMYNAME=%s \\\n", perMyName);
+		sprintf(work, "MYNAME=%s ", perMyName);
 		strcat(buf, work);
 	}
 	if (perComm[0]) {
-		sprintf(work, "\tCOMMANDS=%s \\\n", perComm);
+		sprintf(work, "COMMANDS=%s ", perComm);
 		strcat(buf, work);
 	}
 	if (perRead[0]) {
-		sprintf(work, "\tREAD=%s \\\n", perRead);
+		sprintf(work, "READ=%s ", perRead);
 		strcat(buf, work);
 	}
 	if (perNoRead[0]) {
-		sprintf(work, "\tNOREAD=%s \\\n", perNoRead);
+		sprintf(work, "NOREAD=%s ", perNoRead);
 		strcat(buf, work);
 	}
 	if (perWrite[0]) {
-		sprintf(work, "\tWRITE=%s \\\n", perWrite);
+		sprintf(work, "WRITE=%s ", perWrite);
 		strcat(buf, work);
 	}
 	if (perNoWrite[0]) {
-		sprintf(work, "\tNOWRITE=%s \\\n", perNoWrite);
+		sprintf(work, "NOWRITE=%s ", perNoWrite);
 		strcat(buf, work);
 	}
-	sprintf(work, "\tSENDFILES=%s REQUEST=%s \n",
+	sprintf(work, "SENDFILES=%s REQUEST=%s\n",
 		((perSendFiles[0] == 'y') ? "yes" : "no"),
 		((perRequest[0]   == 'y') ? "yes" : "no"));
 	strcat(buf, work);
@@ -715,9 +760,15 @@ getLsys1()
 		switch (fixCode(code[0], l)) {
 		case 'm':
 			lsysMod = 1;
-			clearBak(choices2_data, choices2_locs);
-			getAll(lsys1_locs);
-			clumpLsys();
+			if ('#' == l->str[0]) {
+				getAll(comment_locs);
+				clumpComment(&sysRoot);
+			}
+			else {
+				clearBak(choices2_data, choices2_locs);
+				getAll(lsys1_locs);
+				clumpLsys();
+			}
 			deleteEntry(&sysRoot, l);
 			l = sysRoot;
 			break;
@@ -847,9 +898,15 @@ getDevices()
 		switch (fixCode(code[0], l)) {
 		case 'm':
 			devicesMod = 1;
-			clearBak(choices_data, choices_locs);
-			getAll(devices_locs);
-			clumpDev();
+			if ('#' == l->str[0]) {
+				getAll(comment_locs);
+				clumpComment(&devRoot);
+			}
+			else {
+				clearBak(choices_data, choices_locs);
+				getAll(devices_locs);
+				clumpDev();
+			}
 			deleteEntry(&devRoot, l);
 			l = devRoot;
 			break;
@@ -921,9 +978,15 @@ getPerm()
 		switch (fixCode(code[0], l)) {
 		case 'm':
 			permisMod = 1;
-			clearBak(choices1_data, choices1_locs);
-			getAll(permis_locs);
-			clumpPerm();
+			if ('#' == l->str[0]) {
+				getAll(comment_locs);
+				clumpComment(&permRoot);
+			}
+			else {
+				clearBak(choices1_data, choices1_locs);
+				getAll(permis_locs);
+				clumpPerm();
+			}
 			deleteEntry(&permRoot, l);
 			l = permRoot;
 			break;
@@ -986,8 +1049,8 @@ uuinstall()
 	for (;;) {
 		clear();
 		showBak(uuin_data);
-		getField(uuin_locs, ucode);
-		switch (tolower(ucode[0])) {
+		getField(uuin_locs, code);
+		switch (tolower(code[0])) {
 		case 'h':
 			clear();
 			showBak(helpscn_data);
@@ -1006,11 +1069,11 @@ uuinstall()
 			getPerm();
 			break;
 		case 'x':
+			if (!(nameMod | lsysMod | devicesMod | permisMod))
+				return;
 			for (;;) {
-				char ans;
-
-				ans = Query("Save changes <y/n> ");
-				switch (tolower(ans)) {
+				switch (Query("Save changes <y/n> ")) {
+				case 'Y':
 				case 'y':
 					saveAll(DEVFILE, devRoot, devicesMod);
 					saveAll(SYSFILE, sysRoot, lsysMod);
@@ -1019,6 +1082,7 @@ uuinstall()
 						saveLine(UUNAME, uuname);
 						saveLine(DOMAIN, uudomain);
 					}
+				case 'N':
 				case 'n':
 					return;
 				}
