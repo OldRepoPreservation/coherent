@@ -23,9 +23,9 @@
  * and do the things the clock really wanted to do but didn't have time.
  * Stand is truly the kernel of the system.
  *
- * $Log:	/usr/src/sys/coh/RCS/clock.c,v $
- * Revision 1.1	88/03/24  16:13:36	src
- * Initial revision
+ * 90/08/13	Hal Snyder		/usr/src/sys/coh/clock.c
+ * Add external altclk to allow polled device drivers.
+ * (extern'ed in coherent.h)
  * 
  * 87/10/26	Allan cornish		/usr/src/sys/coh/clock.c
  * Timed functions are now invoked with TIM * tp as second argument.
@@ -54,6 +54,9 @@
 #include <sys/uproc.h>
 #include <sys/mdata.h>
 
+int (*altclk)();	/* pointer to higher-speed clock function */
+int altsel;	/* if nonzero, CS for LOADABLE driver owning altclk() */
+
 static int clocks;
 
 /*
@@ -66,12 +69,32 @@ clock(pc, umode)
 vaddr_t pc;
 {
 	register PROC *pp;
-
 	/*
 	 * Ignore clock interrupts till we are ready.
 	 */
 	if (batflag == 0)
 		return;
+
+	/*
+	 * Hook for alternate clock interrupt;
+	 * Call polling function ("altclk") if there is one.
+	 *
+	 * For near function, "altsel" is 0 and "altclk" is offset.
+	 * For far function, "altsel" is the CS selector and "altclk"
+	 * is the offset.
+	 *
+	 * Since the polling function ends with a near rather than
+	 * far return, far invocation is via ld_call() (ldas.s) which uses
+	 * the despatch routine at CS:4 (ld.s) in any loadable driver.
+	 */
+	if (altclk) {
+		if (altsel) {	/* will do far call to altclk fn */
+			if (ld_call(altsel, altclk))
+				return;
+		} else
+			if ((*altclk)())
+				return;
+	}
 
 	/*
 	 * Update timers.  Decrement time slice.
