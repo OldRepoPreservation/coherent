@@ -32,10 +32,30 @@
 # 88/02/16	Jim Belton		/usr/src/sys/ldrv/Makefile
 # Added vtop linkage routine to ldlib.a.
 
-CC=/bin/cc
-#IFLAGS=-I/usr/include/sys -I/usr/src/sys/sys -I/usr/src/sys/i8086/sys
-IFLAGS=-I/tmp/usr/include/sys -I/tmp/usr/src/sys/sys -I/tmp/usr/src/sys/i8086/sys
-CFLAGS=$(IFLAGS)
+USRSYS=/usr/sys
+
+# Include directories
+USRINC=/usr/include
+SYSINC=/usr/include/sys
+KERINC=/usr/src/sys/sys
+DRVINC=/usr/src/sys/i8086/sys
+USSINC=/usr/src/sys
+
+# Source directories
+COHSRC=/usr/src/sys/coh
+DRVSRC=/usr/src/sys/i8086/drv
+I86SRC=/usr/src/sys/i8086/src
+IBMATSRC=/usr/src/sys/i8086/ibm_at
+KERSRC=/usr/src/sys/ker
+TTYSRC=/usr/src/sys/ttydrv
+
+# Object directories
+I86OBJ=/usr/src/sys/i8086/objects
+DRVOBJ=/usr/src/sys/i8086/drv/objects
+IBMATOBJ=/usr/src/sys/i8086/ibm_at/objects
+
+CC=exec /bin/cc
+CFLAGS=-I$(DRVINC) -I$(KERINC) -I$(SYSINC)
 
 TARGETS=objects/ldrts0.o	\
 	objects/ldmain.o	\
@@ -85,8 +105,9 @@ LIBOBJ1=objects/abs.o		\
 	objects/boot.o		\
 	objects/bread.o		\
 	objects/brelease.o	\
-	objects/clocked.o	\
+	objects/clockedf.o	\
 	objects/clrq.o		\
+	objects/cs_self.o	\
 	objects/dblock.o	\
 	objects/dclose.o	\
 	objects/defer.o		\
@@ -122,8 +143,8 @@ LIBOBJ1=objects/abs.o		\
 	objects/iowrite.o	\
 	objects/ipcaccess.o	\
 	objects/kcall.o		\
-	objects/kclear.o	\
 	objects/kfcopy.o	\
+	objects/kclear.o	\
 	objects/kpcopy.o	\
 	objects/kucopy.o	\
 	objects/lock.o		\
@@ -143,9 +164,11 @@ LIBOBJ2=objects/outb.o		\
 	objects/panic.o		\
 	objects/pclear.o	\
 	objects/pkcopy.o	\
+	objects/plrcopy.o	\
 	objects/pollopen.o	\
 	objects/pollwake.o	\
 	objects/printf.o	\
+	objects/prlcopy.o	\
 	objects/ptov.o		\
 	objects/pucopy.o	\
 	objects/putchar.o	\
@@ -207,6 +230,7 @@ objects/ldlib.a:	$(GEN_DRV)	\
 	ar rc  $@ $(LIBOBJ1)
 	ar rc  $@ $(LIBOBJ2)
 	ranlib $@
+	cp $@ /usr/sys/lib
 
 #
 # Create the script to create an interface stub to a kernel function.
@@ -249,14 +273,18 @@ objects/bread.o:
 objects/brelease.o:
 	$(GEN_DRV) $*
 
-objects/clocked.o:
-	$(GEN_DRV) $*
+objects/clockedf.o:	clockedf.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 objects/clrivec.o:
 	$(GEN_DRV) $*
 
 objects/clrq.o:
 	$(GEN_DRV) $*
+
+objects/cs_self.o:	cs_self.s
+	as -gxo cs_self.o cs_self.s
+	mv cs_self.o $@
 
 objects/dblock.o:
 	$(GEN_DRV) $*
@@ -431,6 +459,9 @@ objects/panic.o:
 objects/pclear.o:
 	$(GEN_DRV) $*
 
+objects/plrcopy.o:
+	$(GEN_DRV) $*
+
 objects/pkcopy.o:
 	$(GEN_DRV) $*
 
@@ -441,6 +472,9 @@ objects/pollwake.o:
 	$(GEN_DRV) $*
 
 objects/printf.o:
+	$(GEN_DRV) $*
+
+objects/prlcopy.o:
 	$(GEN_DRV) $*
 
 objects/ptov.o:
