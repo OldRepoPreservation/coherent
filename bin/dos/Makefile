@@ -26,6 +26,10 @@ SRC=\
 # Primary targets.
 dos:	$(OBJ)
 	$(CC) -i -o $(DESTDIR)dos $(OBJ)
+	su root chown bin $(DESTDIR)dos
+	su root chgrp bin $(DESTDIR)dos
+	su root chmod 511 $(DESTDIR)dos
+
 dosshrink:	dosshrink.o dos1.o
 	$(CC) -i -o $(DESTDIR)dosshrink dosshrink.o dos1.o -f
 

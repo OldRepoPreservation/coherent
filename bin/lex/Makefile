@@ -12,6 +12,9 @@ OBJ=\
 # Primary target.
 lex:	$(OBJ)
 	cc -o $(DESTDIR)$@ $(OBJ)
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
 
 # Secondary targets.
 lex0.o:	$(SRC)/lex0.c

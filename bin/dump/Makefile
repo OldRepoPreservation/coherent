@@ -23,12 +23,27 @@ all:	$(EXE)
 # Executables.
 dump:	dump.o discbuf.o
 	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+
 dumpdate: dumpdate.o
 	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+
 dumpdir: dumpdir.o
 	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+
 restor:	restor.o discbuf.o
 	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $<
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
 
 # Secondary targets.
 discbuf.o:	discbuf.h discbuf.c

@@ -10,6 +10,10 @@ SRCS= dc.c dcsub.c undefined.c $(bc)/bcmch.c $(bc)/bcmutil.c $(bc)/getnum.c \
 
 dc:	$(dco) $(bco)
 	cc $(CFLAGS) -o $(DESTDIR)dc $(dco) $(bco) -lmp
+	su root chown bin $(DESTDIR)dc
+	su root chgrp bin $(DESTDIR)dc
+	su root chmod 511 $(DESTDIR)dc
+
 bcmch.o: $(bc)/bcmch.c
 	cc $(CFLAGS) -c $?
 bcmutil.o: $(bc)/bcmutil.c
