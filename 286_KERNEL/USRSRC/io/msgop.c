@@ -2,8 +2,10 @@
  * User Message Functions.
  *
  *	Note: msgget() must be first function called.
+ *
+ *	91/02/07	Hal Snyder	mwchwc!/u/libc/sys/msgop.c
+ *	msgget():  sizeof(key_t) is 4, not 2.
  */
- 
 #include <sys/msg.h>
 #include <errno.h>
 
@@ -47,12 +49,13 @@ key_t key;
 int msgflg;
 
 {
-	int parm[3];
+	int parm[4];
 
 	if ( msgfno < 0 ) {
 
-		if ( (msgfno = open(msgdev, 0)) < 0 ) {
+		msgfno = open(msgdev, 0);
 
+		if ( msgfno < 0 ) {
 			perror(msgdev);
 			errno = ENODEV;
 			return -1;
@@ -61,7 +64,8 @@ int msgflg;
 
 	parm[0] = -1;
 	parm[1] = key;
-	parm[2] = msgflg;
+	parm[2] = key >> 16;
+	parm[3] = msgflg;
 
 	ioctl( msgfno, MSGGET, parm );
 	return parm[0];
