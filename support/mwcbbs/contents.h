@@ -39,6 +39,7 @@
 #define MAIL_FORMULA ((sizeof (struct mail) * (screen_num * 100)) + (((row*5) + (col/15)) * sizeof (struct mail)))
 #define MAP_FORMULA ((sizeof (struct map) * (screen_num * 100)) + (((row*5) + (col/15)) * sizeof (struct map)))
 
+void bbsdatafile();	/* reads .mwcbbs file for over ride paths */
 void show_files(); /* this should display the filenames on a curses screen */
 int lite(); /* inverse/normal video display of a filename */
 int rfile(); /* read records from a given file */
@@ -91,7 +92,8 @@ struct map	{
 extern char recdir[50];
 extern char selection[15];
 extern char filenames [MAXRECORDS][15];
-extern char workfile[15];
+extern char workfile[60];
+extern char find_workfile[47];
 extern char workstring[80];
 extern char getfiles[26][115];
 extern int place[MAXRECORDS];
