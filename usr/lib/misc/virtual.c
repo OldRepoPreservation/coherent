@@ -1,7 +1,7 @@
 /*
  * Virtual memory system for Coherent.
  */
-#include "misc.h"
+#include "local_misc.h"
 #include <sys/stat.h>
 
 #define FILES 20
