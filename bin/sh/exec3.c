@@ -4,7 +4,7 @@
  */
 #include "sh.h"
 #include <sys/times.h>
-#include <const.h>		/* HZ defined here */
+#include <sys/const.h>		/* HZ defined here */
 #define HOUR	(60L*60L*HZ)
 #define MINUTE	(60L*HZ)
 #define SECOND	HZ
