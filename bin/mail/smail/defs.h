@@ -27,9 +27,9 @@
 #define GETDOMAIN
 #endif
 
-/* #define BSD				/* if system is a Berkeley system */
+/* #define BSD				if system is a Berkeley system */
 
-/* #define SENDMAIL "/usr/lib/sendmail"	/* Turn off to use /bin/(l)mail only */
+/* #define SENDMAIL "/usr/lib/sendmail" Turn off to use /bin/(l)mail only */
 
 #ifdef BSD
 #define GETHOSTNAME			/* use gethostname() */
@@ -40,16 +40,16 @@
 #endif
 
 /* if defined, HOSTNAME overrides UNAME and GETHOSTNAME */
-/* #define HOSTNAME	"tsqali"		/* literal name */
+/* #define HOSTNAME	"tsqali"		literal name */
 
-/* #define HOSTDOMAIN	"tsqali.mwc.com"  /* overrides default HOSTNAME.MYDOM */
+/* #define HOSTDOMAIN	"tsqali.mwc.com"   overrides default HOSTNAME.MYDOM */
 
 /*
  * .UUCP here is just for testing, GET REGISTERED in COM, EDU, US, etc.
  * See INFO.REGISTRY for details.
  */
 
-/* #define MYDOM		"mwc.com"		/* literal domain suffix */
+/* #define MYDOM		"mwc.com"		literal domain suffix */
 
 /*
  * WARNING: DOMGATE is only for qualified gateways - use caution.
@@ -67,7 +67,7 @@
  * non-local address if necessary.
  */
 
-/* #define DOMGATE		/* Act as Domain Gateway */
+/* #define DOMGATE		 Act as Domain Gateway */
 
 /*
  * HIDDENHOSTS allows hosts that serve as domain gateways to hide
@@ -89,7 +89,7 @@
  * it should be used in ruleset 4 of the sendmail.cf, too.
  */
 
-/*#define HIDDENHOSTS			/* hide subdomains of hostdomain */
+/*#define HIDDENHOSTS			 hide subdomains of hostdomain */
 
 /*
  * Mail that would otherwise be undeliverable will be passed to the
@@ -113,8 +113,8 @@
 */
 
 #define ALIAS	"/usr/lib/mail/aliases"	/* location of mail aliases       */
-/*#define CASEALIAS			/* make aliases case sensitive    */
-/*#define LOWERLOGNAME			/* map local logins to lower case */
+/*#define CASEALIAS			 make aliases case sensitive    */
+/*#define LOWERLOGNAME			 map local logins to lower case */
 
 /*
  * define HOMEALIASES if you want each user to be able to specify
@@ -144,7 +144,7 @@
 #define FULLNAME	"/usr/lib/mail/fullnames"
 					/* list of Full Name, address pairs */
 
-/*#define DOT_REQD			/* Must be George.P.Burdell@gatech.EDU
+/*#define DOT_REQD			 Must be George.P.Burdell@gatech.EDU
 					** not just  Burdell@gatech.EDU
 					*/
 
@@ -161,7 +161,7 @@
 #endif
 
 #define LOG	"/usr/spool/uucp/.Log/mail/mail"	/* log of uucp mail */
-/* #define RECORD	"/log/mail.log"		/* record of uucp mail */
+/* #define RECORD	"/log/mail.log"		 record of uucp mail */
 
 /*
 **  Mailer options:
@@ -196,7 +196,7 @@
 */
 
 #define RMAIL(flags,from,sys) "%s -a%s %s - %s!rmail",UUX,from,flags,sys /* */
-/*#define RMAIL(flags,from,sys) "%s %s - %s!rmail",UUX,flags,sys /* */
+/*#define RMAIL(flags,from,sys) "%s %s - %s!rmail",UUX,flags,sys  */
 
 #define RARG(user)		" '(%s)'",user
 #define RFROM(frm,now,host) 	"From %s  %.24s remote from %s\n",frm,now,host
@@ -276,9 +276,9 @@
 */
 
 #define MAXCLEN			512	/* longest command allowed (approx.)
-					/* this is to keep other's buffers
-					** from overflowing
-					*/
+					 * this is to keep other's buffers
+					 ** from overflowing
+					 */
 
 /* GATEWAY_NAME should only be used on gateway machines into the .ATT.COM
 ** domain. Since mail will appear to come from att.ATT.COM, there is no
@@ -289,7 +289,7 @@
 **
 **  T. G. Thompson		 Thu Apr  7 13:47:36 EDT 1988
 */
-/* #define GATEWAY_NAME "att-ih"	/* gateway name other than "att" */
+/* #define GATEWAY_NAME "att-ih"	 gateway name other than "att" */
 
 
 
