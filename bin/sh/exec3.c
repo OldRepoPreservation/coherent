@@ -1,10 +1,13 @@
 /*
+ * sh/exec3.c
  * Bourne shell.
  * Builtin commands.
  */
+
 #include "sh.h"
 #include <sys/times.h>
 #include <sys/const.h>		/* HZ defined here */
+
 #define HOUR	(60L*60L*HZ)
 #define MINUTE	(60L*HZ)
 #define SECOND	HZ
@@ -346,7 +349,14 @@ s_shift()
 }
 s_times()
 {
+#if	_I386
+#define	tb_cutime	tms_cutime
+#define	tb_cstime	tms_cstime
+	struct	tms	tb;
+#else
 	struct tbuffer tb;
+
+#endif
 
 	times(&tb);
 	ptime(tb.tb_cutime);
@@ -525,3 +535,4 @@ long t;
 	prints("%d.%ds ", seconds, tenths);
 }
 
+/* end of sh/exec3.c */
