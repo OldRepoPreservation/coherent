@@ -47,7 +47,7 @@
 #define	btosrd(n)	(((unsigned long)(n)) >> BPSSHIFT)
 #define	stob(n)		(((long)(n)) << BPSSHIFT)
 
-#define	btoc(n)		((((unsigned long)(n))+(1<<BPCSHIFT)-1) >> BPCSHIFT)
+#define	btoc(n)		((((unsigned long)(n))+NBPC-1) >> BPCSHIFT)
 #define	btocrd(n)	(((unsigned long)(n)) >> BPCSHIFT)
 #define	ctob(n)		(((long)(n)) << BPCSHIFT)
 

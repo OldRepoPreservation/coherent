@@ -4,7 +4,7 @@
 #ifndef	 KTTY_H
 #define	 KTTY_H
 #include <sys/types.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/clist.h>
 #include <sgtty.h>
 #ifdef _I386
@@ -56,28 +56,60 @@ typedef struct tty {
  * Be very careful if you work on the
  * tty driver that this is true.
  */
-#define	ISINTR	(tp->t_tchars.t_intrc  == c)
-#define	ISQUIT	(tp->t_tchars.t_quitc  == c)
-#define	ISEOF	(tp->t_tchars.t_eofc   == c)
 #define	ISBRK	(tp->t_tchars.t_brkc   == c)
 #define	ISSTART	(tp->t_tchars.t_startc == c)
 #define	ISSTOP	(tp->t_tchars.t_stopc  == c)
-#define	ISCRMOD	((tp->t_sgttyb.sg_flags&CRMOD) != 0)
-#define	ISXTABS	((tp->t_sgttyb.sg_flags&XTABS) != 0)
-#define	ISECHO	((tp->t_sgttyb.sg_flags&ECHO)  != 0)
-#define	ISERASE	(tp->t_sgttyb.sg_erase == c)
-#define	ISKILL	(tp->t_sgttyb.sg_kill  == c)
 #define	stopc	(tp->t_tchars.t_stopc)
 #define	startc	(tp->t_tchars.t_startc)
 
 /*
  * The following are not part of S5 sgtty.
  */
-#define	ISRIN	((tp->t_sgttyb.sg_flags&RAWIN) != 0)
-#define	ISROUT	((tp->t_sgttyb.sg_flags&RAWOUT)!= 0)
-#define	ISCRT	((tp->t_sgttyb.sg_flags&CRT)   != 0)
-#define	ISCBRK	((tp->t_sgttyb.sg_flags&CBREAK)!= 0)
-#define	ISTAND	((tp->t_sgttyb.sg_flags&TANDEM)!= 0)
-#define	ISBBYB	((tp->t_sgttyb.sg_flags&(RAWIN|CBREAK)) != 0)
+#define	ISRIN	(tp->t_sgttyb.sg_flags&RAWIN)
+#define	ISCRT	(tp->t_sgttyb.sg_flags&CRT)
+
+#if _I386
+
+#define	ISEOF	(tp->t_termio.c_cc[VEOF]   == c)
+#define	ISERASE	(tp->t_termio.c_cc[VERASE] == c)
+#define	ISINTR	(tp->t_termio.c_cc[VINTR]  == c)
+#define	ISKILL	(tp->t_termio.c_cc[VKILL]  == c)
+#define	ISQUIT	(tp->t_termio.c_cc[VQUIT]  == c)
+
+#define	ISBBYB	((tp->t_termio.c_lflag & ICANON) == 0)
+#define	ISCBRK	((tp->t_termio.c_lflag & ICANON) == 0)
+#define	ISECHO	(tp->t_termio.c_lflag & ECHO)
+#define ISICRNL	(tp->t_termio.c_iflag & ICRNL)
+#define ISIGNCR	(tp->t_termio.c_iflag & IGNCR)
+#define	ISISIG	(tp->t_termio.c_lflag & ISIG)
+#define	ISISTRIP (tp->t_termio.c_iflag & ISTRIP)
+#define ISIXON	(tp->t_termio.c_iflag & IXON)
+#define ISONLCR	(tp->t_termio.c_iflag & ONLCR)
+#define	ISROUT	((tp->t_termio.c_oflag & OPOST) == 0)
+#define	ISTAND	(tp->t_termio.c_iflag & IXOFF)
+#define	ISXTABS	(tp->t_termio.c_oflag & XTABS)
+
+#else
+
+#define	ISEOF	(tp->t_tchars.t_eofc   == c)
+#define	ISINTR	(tp->t_tchars.t_intrc  == c)
+#define	ISQUIT	(tp->t_tchars.t_quitc  == c)
+
+#define	ISBBYB	(tp->t_sgttyb.sg_flags&(RAWIN|CBREAK))
+#define	ISCBRK	(tp->t_sgttyb.sg_flags&CBREAK)
+#define	ISECHO	(tp->t_sgttyb.sg_flags&ECHO)
+#define	ISERASE	(tp->t_sgttyb.sg_erase == c)
+#define ISICRNL	(tp->t_sgttyb.sg_flags&CRMOD)
+#define ISIGNCR	0
+#define	ISISIG	(!ISRIN)
+#define	ISISTRIP (!ISRIN)
+#define ISIXON	(!ISRIN)
+#define	ISKILL	(tp->t_sgttyb.sg_kill  == c)
+#define ISONLCR	(tp->t_sgttyb.sg_flags&CRMOD)
+#define	ISROUT	(tp->t_sgttyb.sg_flags&RAWOUT)
+#define	ISTAND	(tp->t_sgttyb.sg_flags&TANDEM)
+#define	ISXTABS	(tp->t_sgttyb.sg_flags&XTABS)
+
+#endif
 
 #endif
