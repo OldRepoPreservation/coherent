@@ -282,6 +282,27 @@ replacefile(file) char *file;
 	dostime(mdp, file);
 }
 
+#define NUM_D_RES	13
+
+int istrcmp();
+
+char * d_reserved[NUM_D_RES] =
+{
+    "aux",
+    "clock$",
+    "con",
+    "com1",
+    "com2",
+    "com3",
+    "com4",
+    "lpt1",
+    "lpt2",
+    "lpt3",
+    "lpt4",
+    "nul",
+    "prn"
+};
+
 /*
  * Make a full path from base and name
  */
@@ -312,7 +333,7 @@ char * makef(name, cr) char * name; short cr;
 			srcd = (s.st_mode & S_IFDIR);
 		}
 
-dbprintf(("numargs = %d, deste = %d, destd = %d, srcd = %d\n",numargs,deste,destd,srcd));
+/* dbprintf(("numargs = %d, deste = %d, destd = %d, srcd = %d\n",numargs,deste,destd,srcd));*/
 
 		if ((numargs > 1) && (deste) && !(destd))
 			fatal("Error: <%s> is a file", base1);
@@ -345,8 +366,29 @@ dbprintf(("numargs = %d, deste = %d, destd = %d, srcd = %d\n",numargs,deste,dest
 	if (cr)
 		maketree(tname);
 
+        if ((t = strrchr(tname, '/')) != NULL)
+	    t++;
+	else
+	    t = tname;
+
+	if (bsearch(t, d_reserved, NUM_D_RES, sizeof (char *), istrcmp) != NULL)
+	{
+	    printf("Dos reserved name used <%s>. Changing filename to <%s!>\n",
+			t, t);
+            rs = strlen(t);
+	    t[rs] = '!';
+	    t[rs+1] = '\0';
+	}
+
+
 dbprintf(("base = <%s>, base1 = <%s>\n  name = <%s>, tname = <%s>\n", base, base1, name, tname));
 	return tname;
+}
+
+istrcmp(a, b)
+char *a, **b;
+{
+    return strcmp(a,*b);
 }
 
 char *fequiv(name) char *name;
