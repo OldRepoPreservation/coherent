@@ -51,7 +51,7 @@ static char sccsid[] = "@(#)more.c	5.22 (Berkeley) 7/30/89";
 
 #if COHERENT
 #include <l.out.h>
-#include <mdata.h>
+#include <sys/mdata.h>
 #include <canon.h>
 #include "regexp.h"
 #else
