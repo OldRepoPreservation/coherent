@@ -1,6 +1,8 @@
 /*
+ * n2/dbgt2.c
  * Debug table management.
  */
+
 #ifdef vax
 #include "INC$LIB:cc2.h"
 #else
@@ -26,6 +28,7 @@ extern int vflag;
 
 /*
  * Generate a debug table entry during first pass.
+ *	level == -1 resets drefnum (for MONOLITHIC compiler)
  *	level == 0 called from outside a function body.
  *	level == 1 called from inside a function body.
  *	The label information is invariably copied to output
@@ -38,6 +41,13 @@ register int level;
 {
 	static int drefnum;
 	int nline, class;
+
+#if	MONOLITHIC
+	if (level == -1) {
+		drefnum = 0;
+		return;
+	}
+#endif
 
 	/* Read class */
 	class = bget();
@@ -263,3 +273,5 @@ register struct dline *dp;
 	}
 }
 #endif
+
+/* end of n2/dbgt2.c */
