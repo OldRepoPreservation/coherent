@@ -6,6 +6,8 @@
 
 char *lastcmd = "";
 
+char *skipredir();
+
 /*
  * Execute the given node, wait for completion, return status.
  */
@@ -181,7 +183,7 @@ comscom(np)
 register NODE *np;
 {
 	register int f;
-	register char **app;
+	register char **app, *s, *s1, *sp;
 	int nputs, nargs;
 
 	nargc = 1;
@@ -200,10 +202,33 @@ register NODE *np;
 		switch (np->n_type) {
 		case NIORS:
 			f |= FIORS;
+#if	0
+			/* Old code. */
 			eval(np->n_strp, EWORD);
 			niovp = addargl(niovp, duplstr(strt, 0));
 			if (xflag)
 				nputs += puta(nputs, strt);
+#else
+			/*
+			 * New code by steve 1/24/91.
+			 * This allows globs in redirection args.
+			 */
+			s = skipredir(np->n_strp);
+			nargs = nargc;
+			eval(s, EARGS);			/* expand as arg */
+			for (s1 = np->n_strp, sp = strt; s1 < s; )
+				*sp++ = *s1++;
+			strcpy(sp, nargv[nargs]);	/* build redir arg */
+			niovp = addargl(niovp, duplstr(strt, 0));
+			if (xflag)
+				nputs += puta(nputs, strt);
+			--nargc;
+			for (app = nargv+nargs; *app; app++) {
+				*app = *(app + 1);	/* shift remaining args */
+				if (xflag && *app != NULL)
+					nputs += puta(nputs, *app);
+			}
+#endif
 			continue;
 		case NARGS:
 			f |= FARGS;
@@ -370,4 +395,23 @@ register NODE *np;
 		exit(command(np));
 		NOTREACHED;
 	}
+}
+
+/*
+ * Skip a redirection arg, return pointer to following nonspace.
+ */
+char *
+skipredir(s) register char *s;
+{
+	if (*s >= '1' && *s <= '9')
+		++s;
+	if (*s == '>' || *s == '<')
+		++s;
+	if (*s == '>' || *s == '<')
+		++s;
+	if (*s == '&')
+		++s;
+	while (*s == ' ' || *s == '\t')
+		++s;
+	return s;
 }
