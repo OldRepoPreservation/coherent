@@ -1,6 +1,6 @@
 /*
  * ls.c
- * 7/19/91
+ * 03/17/92
  * List structure
  */
 
@@ -11,6 +11,7 @@
 #include <sys/dir.h>
 #include <pwd.h>
 #include <grp.h>
+#include <string.h>
 
 #define	BSIZE	BUFSIZ		/* Disc blocking factor for '-s' */
 #define	NBN	128		/* Number of blocks in an indirect block */
@@ -117,6 +118,32 @@ char *argv[];
 	register int es;
 
 	setbuf(stdout, obuf);
+
+	/*
+	 * recognize variations on the name "ls" as implying which
+	 * flags to set by default.
+	 *   basename  flags
+	 *	l	-l
+	 *	lc	-C	recognized, but conflicts with COHERENT /bin/lc
+	 *	lf	-CF
+	 *	lr	-CR
+	 *	lx	-x
+	 */
+	if ((ap = strrchr(argv[0], '/')) == NULL)
+		ap = argv[0];
+	else
+		++ap;
+	if (streq(ap, "l"))
+		lflag = 1;
+	else if (streq(ap, "lc"))
+		Cflag = 1;
+	else if (streq(ap, "lf"))
+		Cflag = Fflag = 1;
+	else if (streq(ap, "lr"))
+		Cflag = Rflag = 1;
+	else if (streq(ap, "lx"))
+		xflag = 1;
+
 	while (argc>1 && *argv[1]=='-') {
 		for (ap=&argv[1][1]; *ap; ap++)
 			switch (*ap) {
