@@ -8,6 +8,9 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 3.3  91/06/21  10:46:27  hal
+ * Now talks to TMC-881 + ST4350N.
+ * 
  * Revision 3.2  91/06/20  17:10:32  hal
  * First version for TMC-881.
  * 
@@ -750,11 +753,15 @@ if (bp->b_count != BSIZE)
 	 */
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
+#if 0
+/* Why did we only allow people to access the first block of WHOLE_DRIVE?
+   in cases where there was not a valid partition table? */
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
 				msg = "invalid request";
 				bp->b_flag |= BFERR;
 				goto bad_blk;
 			}
+#endif
 		} else {
 			msg = "no partition table";
 			bp->b_flag |= BFERR;
@@ -1257,7 +1264,6 @@ int *to_ptr;
 	int req_found;
 	unsigned char status;
 	ulong poll_ct;
-	ulong oldlbolt=lbolt;
 	int s;
 
 	s = splo();
@@ -1272,10 +1278,6 @@ int *to_ptr;
 		} else if ((status & RS_BUSY) == 0) {
 			*to_ptr = 0;
 			break;
-		}
-		if (oldlbolt != lbolt) {
-			printf("lbolt = %ld\n", lbolt);
-			oldlbolt = lbolt;
 		}
 	}
 
@@ -2293,8 +2295,7 @@ int ticks;
 	int i, j;
 
 	for (i = 0; i < ticks; i++)
-		for (j = 0; j < LOAD_DELAY; j++)
-			;
+		for (j = 0; j < LOAD_DELAY; j++);
 #endif
 }
 
