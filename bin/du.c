@@ -106,7 +106,7 @@ char *name;
 	nondir = (sb.st_mode&S_IFMT) != S_IFDIR;
 	size = duentry(ep, &sb);
 	if (sflag || nondir)
-		printf("%D\t%s\n", size, fname);
+		printf("%ld\t%s\n", size, fname);
 	return (0);
 }
 
@@ -248,7 +248,7 @@ struct stat *sbp;
 prsize(blocks)
 fsize_t blocks;
 {
-	printf("%D\t%s\n", blocks, fname);
+	printf("%ld\t%s\n", blocks, fname);
 }
 
 /*
