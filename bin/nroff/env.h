@@ -32,11 +32,11 @@ typedef	struct {
 	char	e_ccc;			/* Current control character	*/
 	int	e_cec;			/* Count for center command	*/
 	int	e_csz;			/* Constant character size	*/
+	int	e_curfont;		/* Current font			*/
 	int	e_enb;			/* Enbolden by this amount	*/
 	int	e_fcsz[NFONTS];		/* Font character size		*/
 	int	e_fill;			/* Fill mode			*/
 	char	e_fon[2];		/* Font name			*/
-	int	e_fontype;		/* Current font			*/
 	unsigned char	*e_fonwidt;	/* Current font width table	*/
 	int	e_fpsz[NFONTS];		/* Font pointsizes		*/
 	char	e_hic;			/* Hyphenation indicator character */
@@ -70,10 +70,7 @@ typedef	struct {
 	int	e_oldind;		/* Last value of ind		*/
 	int	e_oldlln;		/* Last value of lln		*/
 	int	e_oldlsp;		/* Last value of lsp		*/
-	int	e_oldmar;		/* Last value of mar		*/
 	int	e_oldpsz;		/* Last value of psz		*/
-	int	e_oldssz;		/* Last value of ssz		*/
-	int	e_oldtbf;		/* Last value of tbf		*/
 	int	e_oldtln;		/* Last value of tln		*/
 	int	e_oldvls;		/* Last value of vls		*/
 	int	e_posexls;		/* Post extra line space	*/
@@ -81,13 +78,15 @@ typedef	struct {
 	int	e_psz;			/* Pointsize			*/
 	int	e_spcnt;		/* Pre tab space		*/
 	int	e_ssz;			/* Space size			*/
-	long	e_swddiv;		/* Width table divider		*/
+	int	e_sszdiv;		/* Space size divisor		*/
+	int	e_sszmul;		/* Space size multiplier	*/
+	long	e_swddiv;		/* Width table divisor		*/
 	long	e_swdmul;		/* Width table multiplier	*/
 	TAB	e_tab[TABSIZE];		/* Tab table			*/
 	TAB	*e_tabptr;		/* Tab pointer			*/
 	char	e_tbc;			/* Tab character		*/
-	int	e_tbf;			/* Tab font			*/
 	int	e_tbs;			/* Tab spacing			*/
+	int	e_tfn;			/* Tab font number		*/
 	int	e_tif;			/* Temporary indent flag	*/
 	int	e_tin;			/* Temporary indent		*/
 	CODE	*e_tlinptr;		/* Tab line pointer		*/
@@ -109,11 +108,11 @@ typedef	struct {
 #define	ccc	env.e_ccc		/* Current control character	*/
 #define	cec	env.e_cec		/* Count for center command	*/
 #define	csz	env.e_csz		/* Constant character size	*/
+#define	curfont	env.e_curfont		/* Current font			*/
 #define	enb	env.e_enb		/* Enbolden by this amount	*/
 #define	fcsz	env.e_fcsz		/* Font character size		*/
 #define	fill	env.e_fill		/* Fill mode			*/
 #define	fon	env.e_fon		/* Font name			*/
-#define	fontype	env.e_fontype		/* Current font			*/
 #define	fonwidt	env.e_fonwidt		/* Current font width table	*/
 #define	fpsz	env.e_fpsz		/* Font pointsizes		*/
 #define	hic	env.e_hic		/* Hyphenation indicator character */
@@ -147,10 +146,7 @@ typedef	struct {
 #define	oldind	env.e_oldind		/* Last value of ind		*/
 #define	oldlln	env.e_oldlln		/* Last value of lln		*/
 #define	oldlsp	env.e_oldlsp		/* Last value of lsp		*/
-#define	oldmar	env.e_oldmar		/* Last value of mar		*/
 #define	oldpsz	env.e_oldpsz		/* Last value of psz		*/
-#define	oldssz	env.e_oldssz		/* Last value of ssz		*/
-#define	oldtbf	env.e_oldtbf		/* Last value of tbf		*/
 #define	oldtln	env.e_oldtln		/* Last value of tln		*/
 #define	oldvls	env.e_oldvls		/* Last value of vls		*/
 #define	posexls	env.e_posexls		/* Post extra line space	*/
@@ -158,13 +154,15 @@ typedef	struct {
 #define	psz	env.e_psz		/* Pointsize			*/
 #define	spcnt	env.e_spcnt		/* Pre tab space		*/
 #define	ssz	env.e_ssz		/* Space size			*/
-#define	swddiv	env.e_swddiv		/* Width table divider		*/
+#define	sszdiv	env.e_sszdiv		/* Space size divisor		*/
+#define	sszmul	env.e_sszmul		/* Space size multiplier	*/
+#define	swddiv	env.e_swddiv		/* Width table divisor		*/
 #define	swdmul	env.e_swdmul		/* Width table multiplier	*/
 #define	tab	env.e_tab		/* Tab table			*/
 #define	tabptr	env.e_tabptr		/* Tab pointer			*/
 #define	tbc	env.e_tbc		/* Tab character		*/
-#define	tbf	env.e_tbf		/* Tab font			*/
 #define	tbs	env.e_tbs		/* Tab spacing			*/
+#define	tfn	env.e_tfn		/* Tab font number		*/
 #define	tif	env.e_tif		/* Temporary indent flag	*/
 #define	tin	env.e_tin		/* Temporary indent		*/
 #define	tlinptr	env.e_tlinptr		/* Tab line pointer		*/
