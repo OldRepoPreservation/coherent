@@ -9,18 +9,22 @@
 #define MINUTE	(60L*HZ)
 #define SECOND	HZ
 
+char	*cd();
 
 extern	s_colon();
 extern	s_dot();
 extern	s_break();
 #define s_continue	s_break
 extern	s_cd();
+extern	s_dirs();
 extern	s_eval();
 extern	s_exec();
 extern	s_exit();
 extern	s_export();
 extern	s_login();
 #define s_newgrp	s_login
+extern	s_popd();
+extern	s_pushd();
 extern	s_read();
 #define s_readonly	s_export
 extern	s_set();
@@ -43,12 +47,15 @@ INLINE inls[] = {
 	0,	"break",	s_break,
 	0,	"continue",	s_continue,
 	0,	"cd",		s_cd,
+	0,	"dirs",		s_dirs,
 	0,	"eval",		s_eval,
 	0,	"exec",		s_exec,
 	0,	"exit",		s_exit,
 	0,	"export",	s_export,
 	0,	"login",	s_login,
 	0,	"newgrp",	s_newgrp,
+	0,	"popd",		s_popd,
+	0,	"pushd",	s_pushd,
 	0,	"read",		s_read,
 	0,	"readonly",	s_readonly,
 	0,	"set",		s_set,
@@ -78,8 +85,26 @@ inline()
 	if ((s_func=ip->i_func) == SNULL)
 		return (0);
 	if (*niovp != NULL && s_func != s_exec) {
-		eredir();
-		slret = 1;
+		/* Redirection with built-in command. */
+		/* Allowed only with export, readonly, set, times. */
+		if (s_func != s_export && s_func != s_set && s_func != s_times) {
+			eredir();
+			slret = 1;
+			return 1;
+		}
+		if (clone() == 0) {
+			/* Perform redirection in child process. */
+			if (redirect(niovp) < 0)
+				slret = 1;
+			else {
+				/* Kludge stderr output to stdout. */
+				dup2(1, 2);
+				close(1);
+				slret = (*s_func)();
+			}
+			exit(slret);
+			/* NOTREACHED */
+		}
 	} else
 		slret = (*s_func)();
 	return (1);
@@ -140,14 +165,22 @@ s_break()
 /* s_continue is overlaid with s_break */
 s_cd()
 {
-	register char *cp;
+	register char *dir;
 
-	cp = nargc<2 ? vhome : nargv[1];
-	if (chdir(cp) < 0) {
-		printe("%s: bad directory", cp);
-		return (1);
-	}
-	return (0);
+	if ((dir = cd((nargc<2) ? vhome : nargv[1])) == NULL)
+		return -1;			/* cd failed */
+	if (dstack[dstkp] != NULL)
+		sfree(dstack[dstkp]);
+	dstack[dstkp] = duplstr(dir, 1);	/* update dir stack */
+	return 0;
+}
+s_dirs()
+{
+	register int i;
+
+	for (i = dstkp; i >= 0; i--)
+		fprintf(stderr, "%s ", dstack[i]);
+	fputc('\n', stderr);
 }
 s_eval()
 {
@@ -210,6 +243,54 @@ s_login()
 	return (1);
 }
 /* s_newgrp is overlaid with s_login */
+s_popd()
+{
+	register int i, j, n, ret;
+
+	if (nargc == 1)
+		return popd();
+	/*
+	 * Kludge to pop one or more specific dir stack elements.
+	 * Do args backwards so e.g. "popd 2 3 4" works as expected.
+	 * Internal indices [0, dstkp] are user indices [dstkp, 0].
+	 */
+	for (ret = 0, i = nargc-1; i > 0; i--) {
+		if ((n = atoi(nargv[i])) == 0)
+			ret |= popd();
+		else if (n < 0 || n > dstkp) {
+			printe("Illegal arg: %d", n);
+			ret = -1;
+			continue;
+		} else {
+			j = dstkp - n;
+			if (dstack[j] != NULL)
+				sfree(dstack[j]);
+			for ( ; j < dstkp; j++)
+				dstack[j] = dstack[j+1];
+			--dstkp;
+		}
+	}
+	return ret;
+}
+s_pushd()
+{
+	register char *dir;
+	register int i, ret;
+
+	if (nargc == 1) {
+		/* Exchange top two stack elements. */
+		if (dstkp == 0)
+			return 1;		/* only one element on stack */
+		dir = dstack[dstkp-1];
+		dstack[dstkp-1] = dstack[dstkp];
+		dstack[dstkp] = dir;		/* exchange top two */
+		return (cd(dir) == NULL) ? -1 : 0;	/* and cd accordingly */
+	}
+	/* Push one or more directories to stack. */
+	for (ret = 0, i = 1; i < nargc; i++)
+		ret |= pushd(nargv[i]);
+	return ret;
+}
 s_read()
 {
 	SES s;
@@ -319,6 +400,60 @@ s_wait()
 }
 
 /*
+ * Change to given directory.
+ * Update global variable CWD accordingly.
+ * Return NULL if bad, otherwise full pathname of the directory.
+ */
+char *
+cd(dir) register char *dir;
+{
+	if (chdir(dir) < 0) {
+		printe("%s: bad directory", dir);
+		return NULL;
+	}
+	/*
+	 * If the user lacks search permission from $HOME down the path to "/",
+	 * the getwd() call in var.c will fail and dstack[dstkp] will be ".".
+	 * Avoid getwd() in this case, it undoes the effect of the chdir().
+	 */
+	if (strcmp(dstack[dstkp], ".") == 0)
+		return ".";
+	if ((dir = getwd()) != NULL)
+		assnvar("CWD", dir);
+	return dir;
+}
+
+/*
+ * Pop the directory stack and change to the previous stacked directory.
+ */
+popd()
+{
+	if (dstkp == 0) {
+		printe("Directory stack underflow");
+		return -1;
+	}
+	if (dstack[dstkp] != NULL)
+		sfree(dstack[dstkp]);
+	return (cd(dstack[--dstkp]) == NULL ? -1 : 0);
+}
+
+/*
+ * Change to given directory and add it to the directory stack.
+ */
+pushd(dir) register char *dir;
+{
+	if ((dir = cd(dir)) == NULL)
+		return -1;			/* cd failed */
+	if (++dstkp >= DSTACKN) {
+		--dstkp;
+		printe("Directory stack overflow");
+		return -1;
+	}
+	dstack[dstkp] = duplstr(dir, 1);
+	return 0;
+}
+
+/*
  * The set command.  This is also called from `main' to set
  * options from the command line.  In this case `flag' is
  * set.
@@ -385,3 +520,4 @@ long t;
 	}
 	prints("%d.%ds ", seconds, tenths);
 }
+
