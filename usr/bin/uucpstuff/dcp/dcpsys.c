@@ -212,11 +212,12 @@ startup()
 		if ( rmsg(msg, BUFSIZ) < 0 )
 			FAIL1("Logon failed: 1st reply (wrong sitename?)");
 		printmsg(M_CALLMSG, "Reply to 1st msg = {%s}", visib(msg));
-		if ( (*msg != 'S') ||
-		     ((cp=index(msg+1, ' ')) == NULL) ||
-		     ((cp-msg) > (SITELEN+1)) )
+		if ( *msg != 'S' )
 			FAIL1("Bad format for reply to 1st msg");
-		*cp = '\0';
+		if ( (cp=index(msg+1, ' ')) != NULL )
+			*cp = '\0';
+		if ( strlen(msg) > (SITELEN+1) )
+			FAIL1("Received sitename to long");
 		strcpy(locbuf, msg+1);
 		rmtname = &locbuf[0];
 #ifdef BBS
