@@ -1,4 +1,4 @@
-char _version[] = "Version 1.4";
+char _version[] = "Version 1.5";
 /*
  * Look at a file and try to
  * figure out its type. Knows about the various
@@ -15,6 +15,8 @@ char _version[] = "Version 1.4";
 #include <coff.h>
 #include <canon.h>
 #include <ar.h>
+#include <arcoff.h>
+#include <sys/core.h>
 
 /* UNIX archive magic numbers */
 #define COFFARMAG	"!<arch>\n"
@@ -22,12 +24,14 @@ char _version[] = "Version 1.4";
 #define	UARMAG	0177545		/* UNIX v7 archives */
 #define	OUARMAG	0177555		/* UNIX v6 and previous archives */
 
+#define TYPE_LEN	120
+
 #define COMPRESSED 0x9D1F	/* Output of "compress(1)" command.  */
 
 #define	EXEC	(S_IEXEC|(S_IEXEC<<3)|(S_IEXEC<<6))
 
 /*
- * This is a tar header.
+ * Tar header.
  */
 struct  th_info {
 	char	th_name[100],
@@ -54,12 +58,12 @@ union	iobuf
 	char	u_buf[BUFSIZ];		/* General data */
 	struct	ldheader u_lout;	/* L.out object file header */
 	struct	filehdr u_coff;		/* COFF object file header */
-	UPROC	u_u;			/* core file header */
 	int	u_armag;		/* Archive number */
 	struct	th_info u_tar;		/* Tar header  */
+	struct	ch_info u_core;		/* Core header */
 };
 
-char *type;
+UPROC	uProc;
 
 union	iobuf	iobuf;
 char	*file();
@@ -107,6 +111,7 @@ char *fn;
 	static char buf[50];
 	unsigned short magic;
 	register int nb;
+	char type[TYPE_LEN];
 	register int fd = -1;
 
 	if ((sbp->st_mode&S_IFMT) != S_IFREG) {
@@ -145,9 +150,13 @@ char *fn;
 		close(fd);
 		return ("read error");
 	}
-	close(fd);
-	if (nb == 0)
+
+	/* file of length zero? */
+	if (nb == 0) {
+		close(fd);
 		return ("empty");
+	}
+
 	/* l.out executable?  */
 	if (nb >= sizeof(struct ldheader)) {
 		magic = iobuf.u_lout.l_magic;
@@ -155,29 +164,34 @@ char *fn;
 		if (magic == L_MAGIC) {
 			canint(iobuf.u_lout.l_flag);
 			canint(iobuf.u_lout.l_machine);
+			close(fd);
 			return (objclass(fd, &iobuf.u_lout));
 		}
 	}
+
 	/* COFF executable?  */
 	if (nb >= sizeof(struct filehdr)) {
 		magic = iobuf.u_coff.f_magic;
 		if (ISCOFF(magic)) {
+			close(fd);
 			return (coffclass(&iobuf.u_coff));
 		}
 	}
 
 	/* COFF archive?  */
 	if (nb >= strlen(COFFARMAG_RAN)) {
-		if ( strncmp(COFFARMAG_RAN,
-		     iobuf.u_buf,
-		     strlen(COFFARMAG_RAN)) == 0) {
+		if (strncmp(COFFARMAG_RAN, iobuf.u_buf,
+		  strlen(COFFARMAG_RAN)) == 0) {
+			close(fd);
 			return("COFF archive (ranlib)");
 		}
 		if ( strncmp(COFFARMAG, iobuf.u_buf, strlen(COFFARMAG)) == 0) {
+			close(fd);
 			return("COFF archive");
 		}
 	}
 
+	/* {v7 tar} archive?  */
 	if (nb >= sizeof(struct th_info)) {
 		if (	tar_path(iobuf.u_tar.th_name, 100) &&
 			tar_oct(iobuf.u_tar.th_mode, 8) &&
@@ -187,8 +201,6 @@ char *fn;
 			tar_dec(iobuf.u_tar.th_mtime, 12) &&
 			strlen(iobuf.u_tar.th_pad) < 8 ) {
 
-			type = malloc(64);
-
 			type[0] ='\0';
 			if ( '\0' != iobuf.u_tar.th_pad[0]) {
 				strcpy(type, iobuf.u_tar.th_pad);
@@ -197,19 +209,29 @@ char *fn;
 			}
 
 			strcat(type, " archive");
+			close(fd);
 			return(type);
 		} /* if looks like a tar header.  */
 	}
 
-	/*
-	 * core file?
-	 */
-	if (nb >= sizeof(UPROC)) {
-		magic = iobuf.u_u.u_version;
-		if ( UPROC_VERSION == magic ) {
-			type = malloc(64);
-			sprintf(type, "core file from \"%.10s\"",
-					iobuf.u_u.u_comm );
+	/* core file? */
+	if (nb >= sizeof(struct ch_info)) {
+		struct ch_info * cip = & iobuf.u_core;
+		int offset = cip->ch_info_len + cip->ch_uproc_offset;
+		int lsought, readed;
+
+		magic = cip->ch_magic;
+		if (magic != CORE_MAGIC)
+			;	/* bad magic for core file */
+		else if (offset != (lsought = lseek(fd, offset, 0)))
+			;	/* can't seek far enough to find UPROC */
+		else if (sizeof(UPROC) !=
+		  (readed = read(fd, &uProc, sizeof(UPROC))))
+			;	/* can't read UPROC */
+		else {
+			sprintf(type, "core file from \"%.10s\" uproc (v%04X)",
+			  uProc.u_comm, uProc.u_version);
+			close(fd);
 			return(type);
 		}
 	}
@@ -218,33 +240,43 @@ char *fn;
 	if (nb >= sizeof (short)) {
 		magic = iobuf.u_armag;
 		canint(magic);
-		if (magic == ARMAG)
+		if (magic == ARMAG) {
+			close(fd);
 			return ("l.out archive");
-		if (magic == UARMAG)
+		}
+		if (magic == UARMAG) {
+			close(fd);
 			return ("seventh edition archive");
-		if (magic == OUARMAG)
+		}
+		if (magic == OUARMAG) {
+			close(fd);
 			return ("sixth edition archive");
+		}
 		if (magic == COMPRESSED){
-			type = malloc(64);
 			sprintf(type, "%d bit compressed file",
-					 (int) (0x7f & iobuf.u_buf[2]));
+			  (int) (0x7f & iobuf.u_buf[2]));
+			close(fd);
 			return(type);
 		}
 	}
 
-	if (hasnonascii((unsigned char *) &iobuf, nb))
+	if (hasnonascii((unsigned char *) &iobuf, nb)) {
+		close(fd);
 		return ("binary data");
-	if ((sbp->st_mode&EXEC) != 0) {
+	}
+	if (sbp->st_mode & EXEC) {
 		if (strncmp(iobuf.u_buf, "#!", 2) == 0) {
-			type = malloc(64);
 			sprintf(type, "%s script",
-				strtok(&(iobuf.u_buf[2]), " \t\n"));
+			  strtok(&(iobuf.u_buf[2]), " \t\n"));
+			close(fd);
 			return(type);
 		} else {
+			close(fd);
 			return ("commands");
 		}
 	}
-	return (textclass((unsigned char *) &iobuf, nb));
+	close(fd);
+	return textclass((unsigned char *) &iobuf, nb);
 }
 
 /*
@@ -257,7 +289,7 @@ register char *dn;
 {
 	register char *cp;
 
-	for (cp=dn; *cp!='\0'; cp++)
+	for (cp = dn; *cp; cp++)
 		;
 	while (cp > dn)
 		if (*--cp == '/') {
@@ -365,7 +397,7 @@ char *
 objclass(fd, lhp)
 register struct ldheader *lhp;
 {
-	static char type[64];
+	static char type[TYPE_LEN];
 	register char *mch;
 	struct ldsym lds;
 	register fsize_t stbase;
@@ -430,7 +462,7 @@ char *
 coffclass(chp)
 register struct filehdr *chp;
 {
-	static char type[64];
+	static char type[TYPE_LEN];
 	register char *mch;
 
 	sprintf(type, "COFF ");
@@ -555,8 +587,8 @@ coffmtype(magic)
  */
 int
 tar_oct(str, len)
-	char *str;
-	int len;
+char *str;
+int len;
 {
 	for (; len > 0; --len, ++str) {
 		if (*str != '\0' && *str != ' ' &&
@@ -574,8 +606,8 @@ tar_oct(str, len)
  */
 int
 tar_dec(str, len)
-	char *str;
-	int len;
+char *str;
+int len;
 {
 	for (; len > 0; --len, ++str) {
 		if (*str != '\0' && *str != ' ' &&
@@ -593,8 +625,8 @@ tar_dec(str, len)
  */
 int
 tar_path(str, len)
-	char *str;
-	int len;
+char *str;
+int len;
 {
 	for (; len > 0; --len, ++str) {
 		if (*str != '\0' && *str != ' ' &&
