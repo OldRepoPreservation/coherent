@@ -6,6 +6,9 @@
  *	Should be generalizable for other hard drives.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ssqueue.c,v $
+ * Revision 1.4	91/04/16  01:47:29	root
+ * Use BUF rather than scsi_work_t as queue element type.
+ * 
  * Revision 1.3.1.1	91/04/11  15:59:53	root
  * debug printing added
  * 
@@ -57,7 +60,7 @@ BUF * ssq_rm_head();
 /*
  * Debug macros.
  */
-#if 1
+#if 0
 #define QSIZE	printf("Q%d:", ssq_count)
 #else
 #define QSIZE
