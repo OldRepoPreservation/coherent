@@ -10,7 +10,7 @@ DESTDIR=/interim/usr/games/
 OBJ=ibmpac.o ibmout.o
 
 pacman:	$(OBJ)
-	cc -o $(DESTDIR)pacman $(OBJ)
+	cc -o $(DESTDIR)chase $(OBJ)
 	su root chmog 511 bin bin $(DESTDIR)$@
 
 ibmpac.o:	ibmpac.c term.c io.c
