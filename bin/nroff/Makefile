@@ -1,10 +1,7 @@
-# /usr/src/cmd/nroff/Makefile 3/29/91
+# /usr/src/cmd/nroff/Makefile 6/7/91
 # Makefile for nroff and troff
 
 # Targets.
-
-DESTDIR=/interim/bin/
-
 ALL=\
 	nroff\
 	troff\
@@ -53,7 +50,8 @@ HDR=\
 # fwtable objects.
 FWTOBJ=\
 	fwtable.o\
-	fwtableps.o
+	fwt_PS.o\
+	fwt_TFM.o
 
 # Primary target.
 all:	$(ALL)
@@ -61,22 +59,19 @@ all:	$(ALL)
 
 # Secondary targets.
 troff:	$(OBJ) $(TOBJ)
-	$(CC) $(LDFLAGS) -o $(DESTDIR)troff $(OBJ) $(TOBJ)
-	su root chmog 511 bin bin $(DESTDIR)troff
+	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(TOBJ)
 
 nroff:	$(OBJ) $(NOBJ)
-	$(CC) $(LDFLAGS) -o $(DESTDIR)nroff $(OBJ) $(NOBJ)
-	su root chmog 511 bin bin $(DESTDIR)nroff
+	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(NOBJ)
 
 fwtable:	$(FWTOBJ)
-	cc -o $(DESTDIR)fwtable $(FWTOBJ) -f
-	su root chmog 511 bin bin $(DESTDIR)fwtable
+	cc -o $@ $(FWTOBJ) -f
 
 strip:	$(ALL)
 	strip $(ALL)
 
 clean:
-	rm -f $(OBJ) $(TOBJ) $(NOBJ) fwtable.o fwtableps.o
+	rm -f $(OBJ) $(TOBJ) $(NOBJ) $(FWTOBJ)
 
 # Unlinked objects.
 div.o:		$(HDR) div.c
@@ -98,7 +93,8 @@ request.o:	$(HDR) request.c
 table.o:	$(HDR) table.c
 tty.o:		$(HDR) tty.c
 
-fwtable.o:	fwtable.c
-fwtableps.o:	fwtableps.c
+fwtable.o:	fwtable.c fwtable.h
+fwt_PS.o:	fwt_PS.c fwtable.h
+fwt_TFM.o:	fwt_TFM.c fwtable.h
 
 # end of /usr/src/cmd/nroff/Makefile
