@@ -922,6 +922,17 @@ register int c;
 	 * discard t_stopc and t_startc.
 	 */
 	if (ISIXON) {
+#if _I386
+		if (ISSTART || (ISIXANY && ISXSTOP)) {
+			tp->t_flags &= ~(T_STOP | T_XSTOP);
+			ttstart(tp);
+			cache_it = 0;
+		} else if (ISSTOP) {
+			if ((tp->t_flags&T_STOP) == 0)
+				tp->t_flags |= (T_STOP | T_XSTOP);
+			cache_it = 0;
+		}
+#else
 		if (ISSTOP) {
 			if ((tp->t_flags&T_STOP) == 0)
 				tp->t_flags |= T_STOP;
@@ -932,6 +943,7 @@ register int c;
 			ttstart(tp);
 			cache_it = 0;
 		}
+#endif
 	}
 
 	/*
