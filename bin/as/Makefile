@@ -4,7 +4,7 @@
 # This is much simpler but may need adjusting for non-i8086 versions.
 
 # SRC defines the root directory of as source, MCH the target machine.
-SRC=/usr.src/cmd/as
+SRC=/newbits/bin/as
 MCH=i8086
 
 # Add source and mch directories to include path.
