@@ -1,3 +1,10 @@
+/*
+ * /usr/include/sys/__clock.h
+ *
+ * Definition of __clock_t.
+ *
+ * Revised: Wed May 19 10:26:58 1993 CDT
+ */
 #ifndef	__SYS___CLOCK_H__
 #define	__SYS___CLOCK_H__
 
@@ -16,7 +23,7 @@
  * Accordingly, we select the type here on the basis of feature-test macros.
  */
 
-#if	_POSIX_SOURCE || _STDC_SOURCE || _DDI_DKI
+#if	defined(_POSIX_SOURCE) || _STDC_SOURCE || _DDI_DKI
 
 typedef	unsigned long	__clock_t;
 

@@ -1,3 +1,10 @@
+/*
+ * /usr/include/sys/__time.h
+ *
+ * Definition of __time_t.
+ *
+ * Revised: Wed May 19 10:27:34 1993 CDT
+ */
 #ifndef	__SYS___TIME_H__
 #define	__SYS___TIME_H__
 
@@ -17,7 +24,7 @@
  * the client has contracted us in a POSIX guise.
  */
 
-#if	_POSIX_SOURCE
+#if	defined(_POSIX_SOURCE)
 
 typedef	unsigned long	__time_t;
 
