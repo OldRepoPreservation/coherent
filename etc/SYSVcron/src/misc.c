@@ -58,7 +58,7 @@ void vGetName()
 	 */
 	iRealUid = getuid();	/* Get real user id */
 	if ((pstPasswd = getpwuid(iRealUid)) == NULL) {
-		fprintf(stderr, "Cannot find user id %d\n", iRealUid);
+		fprintf(stderr, "crontab: cannot find user id %d\n", iRealUid);
 		exit(1);
 	}
 	strncpy(acRealUser, pstPasswd->pw_name, MAX_UNAME);
@@ -131,7 +131,7 @@ void vMailDisable()
 }
 
 /*
- * Disable the mail messages.
+ * Enable the mail messages.
  */
 void vMailEnable()
 {
@@ -245,7 +245,8 @@ void	vReplace()
 	Dprint("File name is %s\n", pcFileName);
 	if (strcmp(pcFileName, "-") != 0) {
 		if ((fpInTable = fopen(pcFileName, "r")) == NULL) {
-			fprintf(stderr, "Cannot open file '%s'\n", pcFileName);
+			fprintf(stderr, "crontab: cannot open file '%s'\n", 
+								pcFileName);
 			exit(1);
 		} 
 	} else	/* If input file name is '-' read from stdin */
@@ -254,7 +255,8 @@ void	vReplace()
 	Dprint("vReplace: source table is %s\n", pcFileName);
 
 	if ((fpOutTable = fpOpenTable("w")) == NULL) {
-		fprintf(stderr, "Cannot open file '%s/%s'\n", F_CRON, acRealUser);
+		fprintf(stderr, "crontab: cannot open file '%s/%s'\n", 
+						D_SPOOL, acRealUser);
 		exit(1);
 	}
 
@@ -278,7 +280,7 @@ char	*cmd;
 	char	*pcTableName;
 
 	if ((pcTableName = malloc(strlen(D_SPOOL) + MAX_UNAME + 1)) == NULL) {
-		fprintf(stderr, "Not enough memory\n");
+		fprintf(stderr, "cron*: not enough memory\n");
 		exit(1);
 	}
 
