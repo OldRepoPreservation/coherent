@@ -85,8 +85,8 @@ typedef	struct	OPNODE {
  * and an expression tree OPNODE.
  */
 typedef	union	NODE {
-	OPNODE;
-	TERM;
+	OPNODE	opnode;
+	TERM	term;
 }	NODE;
 
 /*
@@ -173,6 +173,7 @@ extern	int	yflag;
 extern	int	nlskip;
 extern	int	exitflag;
 extern	int	lineno;
+extern	int	whitesw;
 extern	char	*inline;
 extern	jmp_buf	nextenv;
 extern	jmp_buf	fwenv[NNEST];
