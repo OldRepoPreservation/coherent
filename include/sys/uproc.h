@@ -51,7 +51,7 @@ typedef struct sr {
 typedef struct uproc {
 #ifdef _I386
 	/* Magic number UPROC_VERSION identifies this uproc struct.  */
-#define UPROC_VERSION 0x0102
+#define UPROC_VERSION 0x0103
 	unsigned short u_version;	/* Version number for uproc struct */
 #endif /* _I386 */
 	char	 u_error;		/* Error number (must be first) */
@@ -60,6 +60,8 @@ typedef struct uproc {
 	int	 u_gid;			/* Group id */
 	int	 u_ruid;		/* Real user id */
 	int	 u_rgid;		/* Real group id */
+	int	 u_euid;		/* Effective user id */
+	int	 u_egid;		/* Effective group id */
 	unsigned u_umask;		/* Mask for file creation */
 	struct	 inode *u_cdir;		/* Current working directory */
 	struct	 inode *u_rdir;		/* Current root directory */
