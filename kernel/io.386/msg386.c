@@ -186,14 +186,17 @@ int msgflg;
 				return -1;		/* exclusive queue */
 			}
 			/* PERMISSIONS */
-			/* For super-user */
-			if (u.u_uid == 0) 
+			/* For super-user or if mode is 0 */
+			if (u.u_uid == 0 || !rwmode) 
 				return qp->msg_perm.seq;
 			/* For owner or creator */
 			T_MSGQ(0x02, printf("Q%o", qp->msg_perm.mode));
 			if (u.u_uid == qp->msg_perm.uid 
 						|| u.u_uid == qp->msg_perm.cuid)
-				if ((rwmode & qp->msg_perm.mode) & 0600)
+				if (
+				  ((rwmode & 0600)<=(qp->msg_perm.mode & 0600))
+				  &&((rwmode & 060)<=(qp->msg_perm.mode & 060))
+				  &&((rwmode & 06)<=(qp->msg_perm.mode & 06)))
 					return qp->msg_perm.seq;
 				else {
 					u.u_error = EACCES;
@@ -202,14 +205,15 @@ int msgflg;
 			/* For group */		
 			if (u.u_gid == qp->msg_perm.gid 
 						|| u.u_gid == qp->msg_perm.cgid)
-				if ((rwmode & qp->msg_perm.mode) & 060)
+				if (((rwmode & 0660)<=(qp->msg_perm.mode & 060))
+				   &&((rwmode & 06)<=(qp->msg_perm.mode & 06)))
 					return qp->msg_perm.seq;
 				else {
 					u.u_error = EACCES;
 					return -1;
 				}
 			/* For the rest of the world */
-			if ((rwmode & qp->msg_perm.mode) & 06)
+			if ((rwmode & 0666) <= (qp->msg_perm.mode & 06))
 				return qp->msg_perm.seq;
 			else {
 				u.u_error = EACCES;
