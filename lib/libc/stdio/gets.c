@@ -1,20 +1,24 @@
 /*
- * Standard I/O Library
- * Get string from standard input
- * deleting trailing '\n'
+ * libc/stdio/gets.c
+ * Standard I/O Library.
+ * Get string from standard input, deleting trailing '\n'.
  */
 
 #include <stdio.h>
 
 char *
-gets(is)
-register char	*is;
+gets(is) register char *is;
 {
-	register char	*s = is;
+	register char	*s;
 	register int	c;
 
-	while ((c=getchar())!=EOF && c!='\n')
+	s = is;
+	while ((c = getchar()) != EOF && c != '\n')
 		*s++ = c;
-	*s = 0;
-	return (c==EOF && s==is ? NULL : is);
+	if (c == EOF && s == is)
+		return NULL;		/* ANSI says leave *s unchanged */
+	*s = '\0';			/* else NUL-terminate */
+	return is;
 }
+
+/* end of libc/stdio/gets.c */
