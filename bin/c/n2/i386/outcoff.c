@@ -1275,7 +1275,9 @@ write_symbols(dseek) register long dseek;
 					setrefnum(sp);
 				else
 					sp->s_ref = coff_hdr.f_nsyms++;
-			}
+			} else if (isvariant(VXSTAT) && !is_global(sp)
+			        && !is_label(sp) && is_def(sp))
+					sp->s_ref = coff_hdr.f_nsyms++;
 		}
 	}
 
@@ -1309,29 +1311,41 @@ write_symbols(dseek) register long dseek;
 	    /* Scan the C symbol table again and dump the appropriate symbols. */
 	    for (i = 0; i < NSHASH; ++i) {
 		for (sp = hash2[i]; sp != NULL; sp = sp->s_fp) {
-			if (is_global(sp) || (!is_label(sp) && !is_def(sp))) {
-				/* Write global or external symbol. */
-				len = strlen(sp->s_id);
-				if (len <= SYMNMLEN)
-					strncpy(sym.n_name, sp->s_id, SYMNMLEN);
-				else {
-					/* Spill long name to string table. */
-					write_string(&sym, sp->s_id);
-				}
-				sym.n_value = sp->s_value;
-				sym.n_sclass = C_EXT;
-				if (is_def(sp))
-					sym.n_scnum = sec_index[sp->s_seg] + 1;
-				else
-					sym.n_scnum = N_UNDEF;
-				owrite((char *)&sym, sizeof(sym));
-			}
+			if (is_global(sp) || (!is_label(sp) && !is_def(sp)))
+				write_sym(sp, C_EXT);
+			else if (isvariant(VXSTAT) && !is_global(sp)
+			        && !is_label(sp) && is_def(sp))
+				write_sym(sp, C_STAT);
 		}
 	    }
 	}
 	/* Write string table size if nonempty. */
 	if (str_size != sizeof(long))
 		owrite((char *)&str_size, sizeof(str_size));	
+}
+
+/*
+ * Write a symbol.
+ */
+write_sym(sp, class) register SYM *sp;
+{
+	register int len;
+	SYMENT sym;
+
+	len = strlen(sp->s_id);
+	if (len <= SYMNMLEN)
+		strncpy(sym.n_name, sp->s_id, SYMNMLEN);
+	else {
+		/* Spill long name to string table. */
+		write_string(&sym, sp->s_id);
+	}
+	sym.n_value = sp->s_value;
+	sym.n_sclass = class;
+	if (is_def(sp))
+		sym.n_scnum = sec_index[sp->s_seg] + 1;
+	else
+		sym.n_scnum = N_UNDEF;
+	owrite((char *)&sym, sizeof(sym));
 }
 
 /*

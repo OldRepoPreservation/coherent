@@ -1,4 +1,4 @@
-c/n1/i386/tables/Read_me 2/7/92
+c/n1/i386/tables/Read_me 1/5/93
 
 This file briefly describes the i386 compiler code tables.
 The tables consist of a header and 22 files.
@@ -50,11 +50,11 @@ different code for signed/unsigned or dword/word/byte variants
 of the same code sequence.
 
 The machine-dependent pattern flags PNDP, PIEEE, PDECVAX and PBYTE
-are defined in h/i386/cc1mch.h.  PBYTE indicates that a pattern
-requires a byte register, i.e. EAX|EBX|ECX|EDX.  PNDP, PIEEE
-and PDECVAX are pattern flags for 80x87 hardware floating point,
+are defined in h/i386/cc1mch.h.
+PBYTE indicates that a pattern requires a byte register,
+i.e. EAX|EBX|ECX|EDX.
+PNDP, PIEEE and PDECVAX are pattern flags for 80x87 hardware floating point,
 IEEE-format software fp, and DECVAX-format software fp, respectively.
-These flags are currently unnecessary because of the #ifdefs in the
-code tables; they are there to allow future versions of the compiler
-to specify desired fp at compile time, with several fp options built
-into a single set of cooked code tables.
+These flags are allow a single compiler executable to specify
+the desired fp at compile time, with several fp options built
+into a single set of cooked code tables; cf. n1/i386/gen1.c/coderinit().
