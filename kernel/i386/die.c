@@ -1,3 +1,4 @@
+#define INS8250 0x3f8
 /*
  * die.c -- Get information out from a very young kernel which probably
  * can't do printf()'s.
@@ -201,7 +202,9 @@ int n, hexdigits;
  *		allows user to control output
  *
  */
+#ifndef INS8250
 #define	INS8250	0x290
+#endif
 
 #define	THR	(INS8250+0)
 #define	IER	(INS8250+1)
