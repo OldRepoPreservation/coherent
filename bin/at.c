@@ -22,9 +22,9 @@
  */
 #include <stdio.h>
 #include <ctype.h>
-#include <types.h>
+#include <sys/types.h>
 #include <time.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <signal.h>
 
 
