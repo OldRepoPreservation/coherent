@@ -7,6 +7,7 @@
  *	ISBN 0-93717522-6
  */
 #include <stdio.h>
+#include <sgtty.h>
 #include "ed.h"
 
 #if TERMCAP
@@ -106,6 +107,17 @@ tcapopen()
 	 * Get termcap entries for later use.
 	 */
 	{
+		extern short ospeed;	/* termcap's device speed */
+		extern char PC;		/* termcap's pad character */
+		char *p;
+		struct sgttyb tty;
+
+		ospeed = 0;	/* set terminal output speed */
+		if (isatty(fileno(stdout))) {
+			gtty(fileno(stdout), &tty);
+			ospeed = tty.sg_ospeed;
+		}
+
 		/* get far too much space and shrink later */
 		if (NULL == (ptr = tcapbuf = malloc(TERMBUF)))
 			abort();
@@ -123,6 +135,9 @@ tcapopen()
 		/* Get optional entries. */
 		SO = tgetstr("so", &ptr); /* begin standout mode */
 		SE = tgetstr("se", &ptr); /* end standout mode */
+
+		/* set termcap's pad char */
+		PC = ((NULL == (p = tgetstr("pc", &ptr))) ? 0 : *p);
 
 		/*
 		 * check that realloc truncates buffer in place.
