@@ -6,7 +6,7 @@
 #define	TRUE	1
 #define	FALSE	0
 
-extern char    buffer[];
+static char    buffer[1024];	/* 1024 = pulled from a hat */
 
 /*
  * scan:
