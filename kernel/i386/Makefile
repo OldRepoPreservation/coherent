@@ -21,6 +21,7 @@ IOOBJ =\
 	$(K386OBJ)/dmareq.o \
 	$(K386OBJ)/fdisk.o \
 	$(K386OBJ)/msg.o \
+	$(K386OBJ)/sem386.o \
 	$(K386OBJ)/shm1.o
 
 COHOBJ =\
@@ -106,8 +107,7 @@ OPTS =\
 	$(K386OBJ)/pty.o \
 	$(K386OBJ)/putchar.o \
 	$(K386OBJ)/scsi.o \
-	$(K386OBJ)/sem.o \
-	$(K386OBJ)/semcon.o \
+	$(K386OBJ)/sem386.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/vtmm.o \
@@ -205,8 +205,7 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/putchar.o \
 	$(K386OBJ)/rm.o \
 	$(K386OBJ)/scsi.o \
-	$(K386OBJ)/sem.o \
-	$(K386OBJ)/semcon.o \
+	$(K386OBJ)/sem386.o \
 	$(K386OBJ)/shm1.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \

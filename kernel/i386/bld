@@ -34,14 +34,13 @@ DEFAULT_ASYNC=y
 DEFAULT_MM=y
 DEFAULT_HD=y
 USE_ASY=n
-USE_IPC=y
 USE_LP=y
 USE_PTY=y
 USE_ASYNC=y
 MAKE_LIBS=y
 PATCH=
 KEROBJ=${K386LIB}/ker386.o
-TARGET=/foobar
+TARGET=/at386.tst
 ASYNC=/etc/default/async
 
 # Each drvl entry is 0x14, or 20 decimal, bytes.
@@ -84,7 +83,6 @@ OPTS=${OPTS}" ${K386OBJ}/aha_dsl.o ${K386OBJ}/aha.o ${K386OBJ}/scsi.o"
 PATCH="${PATCH} rootdev=makedev(4,14) pipedev=makedev(8,131) ronflag=1"
 PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 		DEFAULT_HD=n
-		USE_IPC=n
 		USE_PTY=n
 		USE_LP=n
 		USE_ASYNC=n
@@ -96,7 +94,6 @@ OPTS=${OPTS}" ${K386OBJ}/aha_dsl.o ${K386OBJ}/aha.o ${K386OBJ}/scsi.o"
 PATCH="${PATCH} rootdev=makedev(4,15) pipedev=makedev(8,131) ronflag=1"
 PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 		DEFAULT_HD=n
-		USE_IPC=n
 		USE_PTY=n
 		USE_LP=n
 		USE_ASYNC=n
@@ -165,11 +162,6 @@ echo "  {-o target} {-a async_file} {-c cflags} {addr=value}..."
 	shift
 done
 
-if [ ${USE_IPC} = "y" ]
-then
-	OPTS=${OPTS}" ${K386OBJ}/semcon.o ${K386OBJ}/sem.o"
-	PATCH="${PATCH} drvl+460=semcon"
-fi
 if [ ${USE_LP} = "y" ]
 then
 	OPTS=${OPTS}" ${K386OBJ}/lp.o"
