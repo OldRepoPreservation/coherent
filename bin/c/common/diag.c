@@ -161,44 +161,44 @@ char	*bp;
 	if (isvariant(VQUIET))
 		return;
 	if (line != 0)
-		printf("%d: ", line);
+		fprintf(stderr, "%d: ", line);
 	if (file[0])
-		printf("%s: ", file);
+		fprintf(stderr, "%s: ", file);
 #if	!TINY
 	if (flag != 0) {
 		if (ifp != NULL)
-			printf("At %ld: ", ftell(ifp));
+			fprintf(stderr, "At %ld: ", ftell(ifp));
 #if	TEMPBUF
 		else if (inbuf != NULL)
-			printf("At %d: ", inbufp - inbuf);
+			fprintf(stderr, "At %d: ", inbufp - inbuf);
 #endif
 	}
 #endif
 	if (flag!=0 && passname != NULL)
-		printf("In %s: ", passname);
+		fprintf(stderr, "In %s: ", passname);
 	if (bp != NULL)
-		printf("%s: ", bp);
+		fprintf(stderr, "%s: ", bp);
 	while ((c = *fp++) != '\0') {
 		if (c != '%')
-			putchar(c);
+			fputc(c, stderr);
 		else {
 			c = *fp++;
 			switch (c) {
 			case 'd':
-				printf("%d", *ap++);
+				fprintf(stderr, "%d", *ap++);
 				break;
 			case 's':
-				printf("%s", *((char **)ap)++);
+				fprintf(stderr, "%s", *((char **)ap)++);
 				break;
 			case 'X':
-				printf("%lx", *((long *)ap)++);
+				fprintf(stderr, "%lx", *((long *)ap)++);
 				break;
 			default:
-				putchar(c);
+				fputc(c, stderr);
 			}
 		}
 	}
-	putchar('\n');
+	fputc('\n', stderr);
 }
 
 /* end of h/diag.c */
