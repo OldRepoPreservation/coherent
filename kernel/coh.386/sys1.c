@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh.386/RCS/sys1.c,v 1.4 92/01/27 12:38:52 hal Exp $ */
+/* $Header: /y/coh.386/RCS/sys1.c,v 1.7 92/07/16 16:33:34 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * General system calls.
  *
  * $Log:	sys1.c,v $
+ * Revision 1.7  92/07/16  16:33:34  hal
+ * Kernel #58
+ * 
  * Revision 1.4  92/01/27  12:38:52  hal
  * Forgot to check flag in upgrp().
  * 
@@ -416,39 +419,113 @@ int bufsiz, offset, scale;
 uptrace(req, pid, add, data)
 int *add;
 {
+	int ret;
+	int readChild = 0;	/* for debug, true if reading child memory */
+
+#ifdef TRACER
+	if ((t_hal & 0x10000) == 0)
+		goto skip;
+#endif
+	switch(req) {
+	case 0:	/* init called by child */
+		printf("PSetup: child=%d  ", SELF->p_pid);
+		break;
+	case 1:	/* parent reads child text */
+		printf("PRdT: add=%x ", add);
+		readChild = 1;
+		break;
+	case 2:	/* parent reads child data */
+		printf("PRdD: add=%x ", add);
+		readChild = 1;
+		break;
+	case 3:	/* parent reads child u area */
+		printf("PRdU: add=%x ", add);
+		readChild = 1;
+		break;
+	case 4:	/* parent writes child text */
+		printf("PWrT: add=%x data=%x  ", add, data);
+		break;
+	case 5:	/* parent writes child data */
+		printf("PWrD: add=%x data=%x  ", add, data);
+		break;
+	case 6:	/* parent writes child u area */
+		printf("PWrU: add=%x data=%x ", add, data);
+		break;
+	case 7:	/* resume child, maybe fake signal to child */
+		printf("PResume: sig=%d  ", data);
+		break;
+	case 8:	/* terminate child */
+		printf("PTerm: pid=%d  ", pid);
+		break;
+	case 9:	/* single-step child, maybe fake signal to child */
+		printf("PSStp: sig=%d  ", data);
+		break;
+	}
+skip:
+
 	if (req == 0) {
 		SELF->p_flags |= PFTRAC;
-		return 0;
+		ret = 0;
+	} else
+		ret = ptset(req, pid, add, data);
+#ifdef TRACER
+	if (t_hal & 0x10000) {
+		if (readChild)
+			printf("data=%x  ", ret);
 	}
-	return (ptset(req, pid, add, data));
+#endif
+	return ret;
 }
 
 /*
  * Set group id.
+ *
+ * As in SVID issue 2:
+ *
+ * if effective gid is superuser
+ *	set real, effective, and saved effective gid to argument "gid"
+ * else if real gid is same as "gid"
+ *	set effective gid to "gid"
+ * else if saved effective gid is same as "gid"
+ *	set effective gid to "gid"
  */
 usetgid(gid)
 register int gid;
 {
-	if (u.u_gid!=gid && super()==0)
-		return;
-	u.u_gid = gid;
-	u.u_rgid = gid;
-	SELF->p_rgid = gid;
+	if (super()) {
+		u.u_gid = u.u_rgid = u.u_egid = gid;
+		SELF->p_rgid = gid;
+	} else if (u.u_rgid == gid || u.u_egid == gid) {
+		u.u_gid = gid;
+	} else {
+		SET_U_ERROR(EPERM, "Illegal gid");
+	}
 	return 0;
 }
 
 /*
  * Set user id.
+ *
+ * As in SVID issue 2:
+ *
+ * if effective uid is superuser
+ *	set real, effective, and saved effective uid to argument "uid"
+ * else if real uid is same as "uid"
+ *	set effective uid to "uid"
+ * else if saved effective uid is same as "uid"
+ *	set effective uid to "uid"
  */
 usetuid(uid)
 register int uid;
 {
-	if (uid!=u.u_ruid && super()==0)
-		return;
-	u.u_uid = uid;
-	u.u_ruid = uid;
-	SELF->p_uid = uid;
-	SELF->p_ruid = uid;
+	if (super()) {
+		u.u_uid = u.u_ruid = u.u_euid = uid;
+		SELF->p_uid = SELF->p_ruid = uid;
+	} else if (u.u_ruid == uid || u.u_euid == uid) {
+		SELF->p_uid = u.u_uid = uid;
+	} else {
+		SET_U_ERROR(EPERM, "Illegal uid");
+	}
 	return 0;
 }
 
