@@ -303,7 +303,6 @@ char *paths, *file;
  */
 exshell(vp) VAR *vp;
 {
-	extern char *rindex();
 	char *vshell;
 	register char *p;
 
