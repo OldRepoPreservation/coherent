@@ -1,11 +1,15 @@
-: /etc/brc.build 10/18/90
+: /etc/brc.build 5/31/91
 : COHERENT executes this script when it boots.
 : This version invokes /etc/build
 : to install floppy-based COHERENT to the hard disk.
 
 : Configure RAM disk and mount it on /tmp.
+. /etc/.profile
 /etc/mkfs /dev/ram1 384
 /etc/mount /dev/ram1 /tmp
+
+: Load drivers.
+/etc/drvld.all
 
 : Set the date from the system clock.
 . /etc/timezone
