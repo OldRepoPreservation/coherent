@@ -1,11 +1,12 @@
 /*
  * fdisk.c
- * 10/10/90
+ * 11/2/90
  * cc -o fdisk fdisk.c -f
- * Change partitioning of IBM-XT or IBM-AT hard disk.
- * Usage: /etc/fdisk [ -rvx ] [ -b bootb ] [ device ... ]
+ * Change partitioning IBM-AT (or other type) hard disk.
+ * Usage: /etc/fdisk [ -crvx ] [ -b bootb ] [ device ... ]
  * Options:
  *	-b	Add master boot block code from "bootb"
+ *	-c	Configure hard disk geometry
  *	-r	Read only
  *	-v	Print c:h:s start and end values
  *	-x	Use devices /dev/xt[01]x instead of /dev/at[01]x
@@ -15,23 +16,30 @@
 
 #include <stdio.h>
 #include <setjmp.h>
+#include <sys/devices.h>
 #include <sys/fdisk.h>
 #include <sys/hdioctl.h>
+#include <sys/stat.h>
 #include "fdisk0.h"
 
 /* Globals. */
 char		*argv0;		/* Command name, for error messages.	*/
 int		badflag;	/* Partition table is bad.		*/
 char		buf[NBUF];	/* Input buffer.			*/
+int		cfd;		/* Current file descriptor.		*/
+int		cflag;		/* Configure disk geometry.		*/
 int		cylflag;	/* Specify base and size in cylinders.	*/
 unsigned int	cylsize;	/* Cylinder size in sectors.		*/
 unsigned char	*defargs[3] = { "/dev/at0x", "/dev/at1x", NULL };
 unsigned char	*device;	/* Partition table device name.		*/
 unsigned char	*drivename;	/* Disk drive name.			*/
+int		drivenum;	/* Drive number.			*/
 int		freepart;	/* Free partition.			*/
 unsigned long	freesize;	/* Free size.				*/
 unsigned long	freestart;	/* First free sector.			*/
 HDISK_S		hd;		/* Structure to house boot block.	*/
+hdparm_t	hdparms;	/* Hard disk parameter block.		*/
+int		isatflag;	/* Device is an AT-type disk.		*/
 jmp_buf		loop;		/* Interactive input loop entry point.	*/
 int		megflag;	/* Specify sizes in megabytes.		*/
 unsigned int	nspt;		/* Number of sectors per track.		*/
@@ -49,7 +57,8 @@ int		vflag;		/* Print c:h:s start and end values.	*/
 main(argc, argv) int argc; char *argv[];
 {
 	register char *s;
-	int fd0, fd1;
+	int fd0, fd1, i;
+	struct stat sb;
 
 	/* Sanity check. */
 	argv0 = argv[0];
@@ -63,6 +72,9 @@ main(argc, argv) int argc; char *argv[];
 				if (argc-- < 2)
 					usage();
 				mboot = *++argv;
+				break;
+			case 'c':
+				++cflag;
 				break;
 			case 'r':
 				++rflag;
@@ -113,9 +125,104 @@ main(argc, argv) int argc; char *argv[];
 		"may list logical partitions in a different order.\n"
 		"Hit <Esc><Enter> to return to the main menu at any time.\n"
 		);
-	while ((device = *argv++) != NULL)
+	for (i = 0; (device = *argv++) != NULL; ++i) {
+		/*
+		 * Set the drive number, drive name, partition base.
+		 * /etc/build calls /etc/fdisk with an ordered list of args
+		 * which correspond to the drive number, so this usually works.
+		 * But there is no obvious way to find the correct drive number
+		 * when the user invokes /etc/fdisk directly; hence the
+		 * kludge below for AT disks.
+		 */
+		drivenum = i;
+		partbase = i * NPARTN;
+		drivename = "Drive x";
+		drivename[6] = drivenum + '0';
+
+		/*
+		 * Check if device is an AT device.
+		 * The fix_chs() kludge only works for AT-type disks.
+		 */
+		if (stat(device, &sb) < 0)
+			fatal("cannot stat \"%s\"", device);
+		isatflag = (major(sb.st_rdev) == AT_MAJOR);
+		if (isatflag) {
+			/* Kludge, see comment above... */
+			if (minor(sb.st_rdev) == AT0X_MINOR) {
+				drivenum = partbase = 0;
+				drivename = "Drive 0";
+			} else if (minor(sb.st_rdev) == AT1X_MINOR) {
+				drivenum = 1;
+				partbase = 4;
+				drivename = "Drive 1";
+			} /* else huh? */
+		}
+
+		/* Do it. */
 		fdisk();
+	}
 	exit(0);
+}
+
+/*
+ * Copy /coherent to /tmp/coherent and
+ * patch /tmp/coherent disk parameters "atparms" with hdparms.
+ * Patch /conf/pboot to /tmp/pboot.[01].
+ */
+void
+atpatch()
+{
+	register int	i, fd;
+	int		dbase;
+	unsigned char	*cp, *hdp;
+	static int	patched;
+
+	if (drivenum == 0)
+		dbase = 0;
+	else if (drivenum == 1)
+		dbase = sizeof hdparms;
+	else
+		fatal("unrecognized drive number");
+
+	/* Copy /coherent to /tmp/coherent and patch appropriately. */
+	/* Not pretty, but better than what's coming next. */
+	if (!patched)
+		sys("/bin/cp -d /coherent /tmp/coherent");
+	sprintf(buf, "/conf/patch /tmp/coherent ");
+	for (i = 0, hdp = (char *)&hdparms; i < sizeof hdparms; i++, hdp++) {
+		if (*hdp != 0) {
+			cp = &buf[strlen(buf)];
+			sprintf(cp, "atparm_+%d=%u:c ", dbase + i, *hdp);
+		}
+	}
+	sys(buf);
+
+	/* Copy /conf/pboot to /tmp/pboot.[01], patched appropriately. */
+	if ((fd = open("/conf/pboot", 0)) < 0)
+		fatal("cannot open /conf/pboot");
+	else if (read(fd, buf, NBUF) != NBUF)
+		fatal("read error on /conf/pboot");
+	else
+		close(fd);
+	/* Hot patch; if the boot changes this will go down in flames. */
+	cp = &buf[0x1F0];
+	*cp++ = ncyls & 0xFF;		/* traks lo */
+	*cp++ = ncyls >> 8;		/* traks hi */
+	*cp++ = nspt;			/* sects */
+	*cp++ = nheads;			/* heads */
+	*cp++ = hdparms.ctrl;		/* control byte */
+	*cp++ = hdparms.wpcc[0];	/* wpcc lo */
+	*cp++ = hdparms.wpcc[1];	/* wpcc hi */
+	*cp++ = drivenum;		/* drive number */
+	if ((fd = creat("/tmp/pboot", 0644)) < 0)
+		fatal("cannot create /tmp/pboot");
+	else if (write(fd, buf, NBUF) != NBUF)
+		fatal("write error on /tmp/pboot");
+	else
+		close(fd);
+	sprintf(buf, "/bin/mv /tmp/pboot /tmp/pboot.%d", drivenum);
+	sys(buf);
+	++patched;
 }
 
 /*
@@ -325,6 +432,7 @@ check_chs(p, flag) FDISK_S *p; int flag;
 	unsigned int c, h, s, nc, nh, ns;
 	unsigned long n;
 
+again:
 	if (flag) {
 		c = bcyl(p);
 		h = bhd(p);
@@ -344,7 +452,7 @@ check_chs(p, flag) FDISK_S *p; int flag;
 		nh = sec_to_h(n);
 		ns = sec_to_s(n);
 		cls(1);
-		printf("According to the hard disk controller, the disk contains\n");
+		printf("According to your computer system, the disk contains\n");
 		printf("%u cylinders (0 to %u), %u heads (0 to %u), and %u sectors\n",
 			ncyls, ncyls - 1, nheads, nheads -1, nspt);
 		printf("per track (1 to %u).  According to the partition table, a partition\n",
@@ -353,11 +461,43 @@ check_chs(p, flag) FDISK_S *p; int flag;
 			(flag) ? "begins" : "ends" , n, nc, nh, ns);
 		printf("But the partition table entry gives a c:h:s of %u:%u:%u.\n",
 			c, h, s);
-		printf("This program will change the c:h:s of the entry to %u:%u:%u\n",
+
+		if (flag) {
+			printf(
+"\n"
+"An inconsistency in a partition table entry usually occurs because\n"
+"the system CMOS RAM area specifies the hard disk geometry incorrectly;\n"
+"that is, your disk does not contain %u cylinders, %u heads, and %u sectors.\n",
+				ncyls, nheads, nspt);
+			if (!cflag) {
+				printf(
+"If you think the above values are wrong, invoke this program again\n"
+"using the \"-c\" option to correct them.  Because changing these values\n"
+"is dangerous and you have not specified the \"-c\" option, this program\n"
+"will now terminate.\n"
+					);
+				exit(1);
+			}
+			if (isatflag) {
+				printf(
+"This program lets you to resolve the inconsistency by specifying correct\n"
+"values for the disk geometry (number of cylinders, heads and sectors) or by\n"
+"making the partition table entry consistent with the given values.\n"
+					);
+				if (yes_no("Do you think the above values are wrong")) {
+					fix_chs();
+					goto again;
+				}
+			}
+		}
+
+		printf("This program will now change the c:h:s of the entry to %u:%u:%u\n",
 			nc, nh, ns);
-		printf("to resolve this inconsistency.  If you feel this change is\n");
-		printf("incorrect, exit from this program without saving the\n");
-		printf("partition table to the disk.\n");
+		printf(
+"to resolve this inconsistency.  Changing a partition table entry can\n"
+"make data on existing filesystems inaccessible.  If you feel this change is\n"
+"incorrect, exit from this program now without updating the partition table.\n"
+			);
 		if (yes_no("Do you want to exit from this program"))
 			exit(1);
 		++nmods;
@@ -398,7 +538,7 @@ cls(flag) register int flag;
  * PFM.
  */
 void
-dos_shrink(fd, n) int fd, n;
+dos_shrink(n) int n;
 {
 	cls(0);
 	printf(
@@ -428,10 +568,10 @@ dos_shrink(fd, n) int fd, n;
 	}
 
 	/* Read the partition table again to get the changed entry. */
-	if (lseek(fd, 0L, 0) != 0L)
+	if (lseek(cfd, 0L, 0) != 0L)
 		fatal("%s: seek failed", device);
-	else if (read(fd, &newhd, sizeof hd) != sizeof hd) {
-		close(fd);
+	else if (read(cfd, &newhd, sizeof hd) != sizeof hd) {
+		close(cfd);
 		fatal("%s: read error", device);
 	} else
 		memcpy(&hd.hd_partn[n], &newhd.hd_partn[n], sizeof(FDISK_S));
@@ -473,24 +613,15 @@ fatal(args) char *args;
 void
 fdisk()
 {
-	hdparm_t	hdparms;
-	int 		fd, nfd, p, flag;
+	int 		nfd, p, flag;
 	unsigned	action;
-	char		drive;
 
 	nmods = 0;
-	fd = get_boot(device, openmode, &hd);		/* read boot */
-	if (mboot != NULL) {
-		nfd = get_boot(mboot, 0, &newhd);	/* read new boot */
-		close(nfd);
-		if (newhd.hd_sig != HDSIG)
-			fatal("invalid signature in \"%s\"", mboot);
-		memcpy(hd.hd_boot, newhd.hd_boot, sizeof hd.hd_boot);
-		nmods++;
-	}
+	if ((cfd = open(device, openmode)) < 0)
+		fatal("cannot open \"%s\"", device);
 
 	/* Obtain drive characteristics. */
-	if (ioctl(fd, HDGETA, (char *)&hdparms) == -1)
+	if (ioctl(cfd, HDGETA, (char *)&hdparms) == -1)
 		fatal("cannot get \"%s\" drive characteristics", device);
 	ncyls = (hdparms.ncyl[1] << 8) | hdparms.ncyl[0];
 	if (ncyls > 1024) {
@@ -507,15 +638,27 @@ fdisk()
 	nspt = hdparms.nspt;
 	cylsize = nheads * nspt;
 	nsectors = (long)ncyls * cylsize;
-	drive = device[strlen(device) - 2];
-	partbase = 0;
-	if (drive == '0')
-		drivename = "Drive 0";
-	else if (drive == '1') {
-		drivename = "Drive 1";
-		partbase = 4;
-	} else
-		drivename = "The disk";
+
+	/* Print drive characteristics and allow user to patch. */
+	if (cflag && isatflag) {
+		cls(1);
+		printf("According to your computer system:\n");
+		drive_info();
+		if (!yes_no("Do you think the above values are correct"))
+			fix_chs();
+	}
+	close(cfd);
+
+	/* Read the current boot block. */
+	cfd = get_boot(device, openmode, &hd);		/* read boot */
+	if (mboot != NULL) {
+		nfd = get_boot(mboot, 0, &newhd);	/* read new boot */
+		close(nfd);
+		if (newhd.hd_sig != HDSIG)
+			fatal("invalid signature in \"%s\"", mboot);
+		memcpy(hd.hd_boot, newhd.hd_boot, sizeof hd.hd_boot);
+		nmods++;
+	}
 
 	/* If no signature, zap the partition entries. */
 	if (hd.hd_sig != HDSIG) {
@@ -527,7 +670,7 @@ fdisk()
 	/* If readonly, print information and return. */
 	if (openmode == 0) {
 		print_part(0);
-		close(fd);
+		close(cfd);
 		return;
 	}
 
@@ -538,7 +681,7 @@ fdisk()
 		flag = 0;
 		printf(
 			"Possible actions:\n"
-			"\t1 = Change active partition\n"
+			"\t1 = Change active partition (or make no partition active)\n"
 			"\t2 = Change one logical partition\n"
 			"\t3 = Change all logical partitions\n"
 #if	DOSSHRINK
@@ -570,7 +713,7 @@ fdisk()
 				change_part(p);
 #if	DOSSHRINK
 			else {
-				dos_shrink(fd, p);
+				dos_shrink(cfd, p);
 				flag = 1;
 			}
 #endif
@@ -589,7 +732,7 @@ fdisk()
 			flag = 1;
 			continue;
 		case NACTIONS:
-			if (quit(device, fd) == 1)
+			if (quit(device, cfd) == 1)
 				return;
 			continue;
 		default:
@@ -599,8 +742,45 @@ fdisk()
 }
 
 /*
+ * Interactively obtain new disk geometry values.
+ * Update running /coherent with correct values using HDSETA.
+ * Call atpatch to create patched /tmp/coherent and /tmp/boot.[01].
+ */
+void
+fix_chs()
+{
+	register int i;
+
+	printf(
+"Warning: if you specify incorrect disk parameter values, data on\n"
+"existing partitions may be lost or your disk may not operate correctly.\n"
+"Consult your disk controller manual or call your disk vendor\n"
+"if you do not know the correct values.\n"
+		);
+	if (!yes_no("Are you sure you want to change the disk parameter values"))
+		return;
+	ncyls = get_int("Number of cylinders", ncyls, 1, 1024);
+	nheads = get_int("Number of heads", nheads, 1, 255);
+	nspt = get_int("Number of sectors per track", nspt, 1, 255);
+	hdparms.ctrl = get_int("Control byte", hdparms.ctrl, 0, 255);
+	i = (hdparms.wpcc[1] << 8) | (hdparms.wpcc[0]);
+	i = get_int("Write pre-compensation cylinder", i, -1, ncyls+1);
+	hdparms.wpcc[1] = i >> 8;
+	hdparms.wpcc[0] = i & 0xFF;
+	cylsize = nheads * nspt;
+	nsectors = (long)ncyls * cylsize;
+	hdparms.ncyl[1] = ncyls >> 8;
+	hdparms.ncyl[0] = ncyls & 0xFF;
+	hdparms.nhead = nheads;
+	hdparms.nspt = nspt;
+	if (ioctl(cfd, HDSETA, (char *)&hdparms) == -1)
+		fatal("cannot set \"%s\" drive characteristics", device);
+	atpatch();
+}
+
+/*
  * Read boot block from a file into the given structure.
- * Return a file descriptor.
+ * Return a file descriptor to the open file.
  */
 int
 get_boot(name, mode, hdp) char *name; HDISK_S *hdp;
@@ -714,7 +894,7 @@ void
 print_part(flag) int flag;
 {
 	register FDISK_S *p;
-	register char c, *s;
+	register char c, *s, *dname;
 	int i;
 	unsigned long end;
 
@@ -738,10 +918,13 @@ print_part(flag) int flag;
 		printf("%6lu ", end / nspt);
 		printf("%6u ", sec_upto_t(p->p_size));
 		printf("%7.2f ", meg(p->p_size));
-		s = &device[strlen(device) - 1];
+		dname = device;
+		if (strncmp(dname, "/tmp", 4) == 0)
+			dname += 4;
+		s = &dname[strlen(dname) - 1];
 		c = *s;
 		*s = 'a' + i;
-		printf("%10s ", device);
+		printf("%10s ", dname);
 		*s = c;
 		if (vflag) {
 			printf("%3u:%u:%u ", bcyl(p), bhd(p), bsec(p));
@@ -759,7 +942,7 @@ print_part(flag) int flag;
  * Return 1 to quit, 0 to not quit.
  */
 int
-quit(fname, fd) char *fname; int fd;
+quit(fname) char *fname;
 {
 	if (badflag) {
 		printf("Because the partition table defines overlapping disk\n");
@@ -768,10 +951,16 @@ quit(fname, fd) char *fname; int fd;
 			return 0;
 	} else if (nmods != 0) {
 		if (yes_no("\nAre you sure you want to write the updated partition table")) {
-			if (lseek(fd, 0L, 0) != 0L)
+			if (lseek(cfd, 0L, 0) != 0L)
 				fatal("seek failed on \"%s\"", fname);
-			else if (write(fd, &hd, sizeof hd) != sizeof hd)
+			else if (write(cfd, &hd, sizeof hd) != sizeof hd)
 				fatal("write error on \"%s\"", fname);
+			/*
+			 * This HDGETA is for the benefit of the SCSI driver,
+			 * which needs to reset the parameters if they changed.
+			 */
+			if (ioctl(cfd, HDGETA, (char *)&hdparms) == -1)
+				fprintf(stderr, "HDGETA failed on \"%s\"\n", fname);
 			sync();
 		} else if (!yes_no("Changes will not be saved.  Quit anyway"))
 			longjmp(loop, 2);
@@ -779,7 +968,7 @@ quit(fname, fd) char *fname; int fd;
 			printf("Changes not saved.\n");
 	} else
 		printf("The partition table is unchanged.\n");
-	close(fd);
+	close(cfd);
 	return 1;
 }
 
@@ -840,6 +1029,16 @@ sanity()
 "the last cylinder in a disk partition.  Mark Williams strongly recommends\n"
 "that you change the partitioning to avoid using the last cylinder.\n"
 			);
+}
+
+/*
+ * Execute a command.
+ */
+void
+sys(cmd) char *cmd;
+{
+	if (system(cmd) != 0)
+		fatal("command \"%s\" failed", cmd);
 }
 
 /*
