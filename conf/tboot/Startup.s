@@ -5,7 +5,8 @@
 
 / RBOOTS is set exactly 128K below the top of 640K.
 / One day, RBOOTS should be dynamicly determined based on the size of
-/ available memory.
+/ available memory.  If you modify RBOOTS, be sure to update it in tboot.h
+/ as well.
 	RBOOTS	= 0x8000		/ New segement for boot program.
 	JMPF	= 0xEA			/ jump far, direct
 	SEGSIZ	= 0xffff		/ Size of a whole segment.

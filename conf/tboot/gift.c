@@ -1,4 +1,5 @@
-/* gift.c -- Prepare a gift of information for the program currently loaded.
+/*
+ * gift.c -- Prepare a gift of information for the program currently loaded.
  *
  * To pass a new data structure into the kernel:
  *
@@ -58,15 +59,15 @@ TYPED_SPACE(local_gift, GIFTBOX, T_FIFO_SIC); /* Static In-Core Fifo.  */
  *
  * The gift is a Static In-Core FIFO whose objects are typed spaces.
  *
- * cmd_line is the command line needby by gift_argf().
+ * argv is the command vector needed by gift_argf().
  *
  * It should be placed in memory at data_seg:offset.
  */
 void
-prepare_gift(data_seg, offset, cmd_line)
+prepare_gift(data_seg, offset, argv)
 	uint16 data_seg;
 	uint16 offset;
-	char *cmd_line;
+	char *argv[];
 {
 	FIFO *ffp;		/* Fifo pointer for a handle.  */
 	typed_space gift_header;	/* Header for destination box.  */
@@ -104,7 +105,7 @@ prepare_gift(data_seg, offset, cmd_line)
 	/* FILL THE BOX.  */
 	/* Stop filling in if we run out of space.  */
 	if ((0 == gift_drive_params(ffp)) ||
-	    (0 == gift_argf(ffp, cmd_line)) ||
+	    (0 == gift_argf(ffp, argv)) ||
 	    (0 == gift_rootdev(ffp))
 	   ) {
 	   	puts("prepare_gift(): WARNING: not enough room for all arguments.\r\n");
@@ -179,8 +180,8 @@ gift_drive_params(ffp)
 
 } /* gift_drive_params() */
 
-
-/* We'd really rather have a dynamic in-core fifo, but they are not
+/*
+ * We'd really rather have a dynamic in-core fifo, but they are not
  * yet implimented.  We'll have to settle for a fixed length argument list.
  */
 TYPED_SPACE(argf, BLOCK, T_FIFO_SIC);
@@ -192,20 +193,21 @@ TYPED_SPACE(argf, BLOCK, T_FIFO_SIC);
  * as a FIFO, with code modeled on point 4 above.  This scheme seemed
  * the simplest for uniquely identifying the argument FIFO.
  * Each element of the FIFO is a T_STR_STR, so ts_data for these is
- * just a NUL terminated string.  You can a
+ * just a NUL terminated string.
  */
 
-/* Write an argument fifo into ffp from the command line cmd_line.
- * Returns 0 if it runs out of space, 1 on success, and 2 if something else
- * goes wrong.
+/*
+ * Write an argument fifo into ffp from the command vector cmd_vect.
+ * Returns 0 if it runs out of space, 1 on success.
  */
 int
-gift_argf(ffp, cmd_line)
+gift_argf(ffp, argv)
 	FIFO *ffp;
-	char *cmd_line;
+	char *argv[];
 {
 	FIFO *argfp;	/* For the argument fifo we're going to build.  */
 	char *current_token;
+	int i;
 
 	/* Open the local gift box.  */
 	if (F_NULL == (argfp = fifo_open(&argf, 1))) {
@@ -214,9 +216,11 @@ gift_argf(ffp, cmd_line)
 		return(2);
 	}
 
-	current_token = strtok(cmd_line, WS);
-	/* Build the command fifo.  */
-	while (NULL != current_token) {
+	current_token = argv[0];
+	/*
+	 * Build the command fifo.
+	 */
+	for (i = 0; NULL != current_token; ++i) {
 		if (T_NULL == 
 			fifo_write_untyped(argfp,
 				   current_token,
@@ -227,14 +231,17 @@ gift_argf(ffp, cmd_line)
 			puts("Truncating.\r\n");
 			break;
 		}
-		current_token = strtok(NULL, WS);
+		current_token = argv[i];
 	}
 
 
-	/* Truncate argf to the minimum size needed.  */
+	/*
+	 * Truncate argf to the minimum size needed.
+	 */
 	RESIZE(&argf, fifo_len(argfp));
 
-	/* Now that we've filled the FIFO, let's mark
+	/*
+	 * Now that we've filled the FIFO, let's mark
 	 * it as an argument fifo.
 	 */
 	RETYPE(&argf, T_STR_ARGF);
@@ -249,7 +256,8 @@ gift_argf(ffp, cmd_line)
 	return(1);
 } /* gift_argf() */
 
-/* Write a structure describing the boot partition into a fifo.
+/*
+ * Write a structure describing the boot partition into a fifo.
  * Returns 1 on success, 0 if it runs out of space, or 2 if it
  * can't read the boot block.
  */
