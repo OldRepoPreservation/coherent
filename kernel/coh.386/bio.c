@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/bio.c,v 1.6 92/07/27 18:15:08 hal Exp $ */
+/* $Header: /y/coh.386/RCS/bio.c,v 1.7 92/10/06 23:48:44 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Buffered I/O.
  *
  * $Log:	bio.c,v $
+ * Revision 1.7  92/10/06  23:48:44  root
+ * Ker #64
+ * 
  * Revision 1.6  92/07/27  18:15:08  hal
  * Kernel #59
  * 
@@ -719,12 +722,18 @@ register BUF *bp;
 {
 	register SR *srp;
 	register SEG *sp;
-	register vaddr_t b, base;
+	register vaddr_t iobase, base;
+	unsigned ioc;
+	int i;
 
 	if (iop->io_seg != IOUSR)
 		panic("Raw I/O from non user");
-	for (srp=u.u_segl; srp<&u.u_segl[NUSEG]; srp++) {
-		if ((sp=srp->sr_segp) == NULL)
+
+	iobase = iop->io.vbase;
+	ioc = iop->io_ioc;
+
+	for (srp = u.u_segl; srp < &u.u_segl[NUSEG]; srp++) {
+		if ((sp = srp->sr_segp) == NULL)
 			continue;
 		if ((srp->sr_flag&SRFDATA) == 0)
 			continue;
@@ -737,13 +746,22 @@ register BUF *bp;
 		if (srp==&u.u_segl[SISTACK])
 			base -= srp->sr_size;
 
-		if ((b=iop->io.vbase) < base)
+		if (iobase < base)
 			continue;
-		if ((long)b+iop->io_ioc > base + sp->s_size)
+		if (iobase + ioc > base + sp->s_size)
 			continue;
- 		bp->b_paddr = MAPIO(sp->s_vmem, b-base);
-		return (sp);
+ 		bp->b_paddr = MAPIO(sp->s_vmem, iobase - base);
+		return sp;
 	}
+
+	/* Is the io area in question contained in a shared memory segment? */
+	if (srp = accShm(iobase, ioc)) {
+		sp = srp->sr_segp;
+		base = srp->sr_base;
+ 		bp->b_paddr = MAPIO(sp->s_vmem, iobase - base);
+		return sp;
+	}
+
 	return 0;
 }
 

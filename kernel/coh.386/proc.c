@@ -26,10 +26,8 @@
 #include <acct.h>
 #include <errno.h>
 #include <sys/inode.h>
-#include <sys/proc.h>
 #include <sys/ptrace.h>
 #include <sys/sched.h>
-#include <sys/seg.h>
 #include <signal.h>
 #include <sys/stat.h>
 
@@ -53,7 +51,8 @@ pcsinit()
 	procq.p_lback = pp;
 
 #ifdef _I386
-	/* Segments are initialized in mchinit() and eveinit().  */
+	/* Segments are initialized in mchinit() and eveinit().	*/
+	/* procq is static, so p_shmsr[] initializes to nulls.	*/
 
 	procq.p_uid = 0;		/* Effective uid */
 	procq.p_ruid = 0;		/* Real uid */
@@ -279,6 +278,7 @@ pfork()
 		relproc(cpp);
 		return -1;
 	}
+	shmDup(cpp);	/* copy shared memory info & update ref counts */
 	if (u.u_rdir)
 		u.u_rdir->i_refc++;
 	if (u.u_cdir)
@@ -398,6 +398,9 @@ pexit(s)
 			sfree(sp);
 		}
 	}
+
+	/* Detach remaining shared memory segments. */
+	shmAllDt();
 
 	/*
 	 * Wakeup our parent.  If we have any children, init will become the
