@@ -41,7 +41,7 @@ FWTAB	fwtab[NDFONTS] = {
 		/* File tr100rpn.usp */
 		"Times 10.00 point",
 		"Times-Roman",	/* PostScript name */
-		0,		/* flags	*/
+		F_PCL,		/* flags	*/
 		0,		/* fonttype	*/
 		0,		/* orientation	*/
 		1,		/* spacing	*/
@@ -93,7 +93,7 @@ FWTAB	fwtab[NDFONTS] = {
 		/* File tr100ipn.usp */
 		"Times 10.00 point italic",
 		"Times-Italic",	/* PostScript name */
-		0,		/* flags	*/
+		F_PCL,		/* flags	*/
 		0,		/* fonttype	*/
 		0,		/* orientation	*/
 		1,		/* spacing	*/
@@ -145,7 +145,7 @@ FWTAB	fwtab[NDFONTS] = {
 		/* File tr100bpn.usp */
 		"Times 10.00 point bold",
 		"Times-Bold",	/* PostScript name */
-		0,		/* flags	*/
+		F_PCL,		/* flags	*/
 		0,		/* fonttype	*/
 		0,		/* orientation	*/
 		1,		/* spacing	*/
@@ -245,17 +245,29 @@ load_font(s, file) char *s, *file;
 {
 	register FWTAB *p;
 	register FILE *fp;
-	int i;
+	int i, new, newflag;
 
-	if (nfonts >= NFONTS) {
-		printe(".lf: cannot load more than %d fonts", NFONTS);
-		return;
-	} else if ((fp = fopen(file, "rb")) == NULL) {	
-		printe(".lf: cannot open file \"%s\"", file);
-		return;
+	if ((fp = fopen(file, "rb")) == NULL) {
+		/* Not found, look in default fwt directory. */
+		sprintf(miscbuf, "%s%s", (pflag) ? FWTPS : FWTPCL, file);
+		if ((fp = fopen(miscbuf, "rb")) == NULL) {
+			printe(".lf: cannot open file \"%s\"", file);
+			return;
+		}
 	}
+	if ((new = font_num(s)) == -1) {
+		/* Font does not already exist, allocate new FWTAB entry. */
+		if (nfonts >= NFONTS) {
+			printe(".lf: cannot load more than %d fonts", NFONTS);
+			return;
+		}
+		newflag = 1;
+		new = nfonts;			/* assign new font number */
+		fwptab[new] = nalloc(sizeof(FWTAB)); /* allocate new FWTAB */
+	} else
+		newflag = 0;
 	errflag = 0;
-	p = nalloc(sizeof(FWTAB));		/* allocate a new width table */
+	p = fwptab[new];
 	p->f_descr = get_str(fp);
 	p->f_PSname = get_str(fp);
 	p->f_flags = get_int(fp);
@@ -272,21 +284,24 @@ load_font(s, file) char *s, *file;
 	p->f_den = get_int(fp);
 	for (i = 0; i < NWIDTH; i++)
 		p->f_width[i] = fgetc(fp);
-	i = fgetc(fp);
+	i = fgetc(fp);				/* should return EOF */
 	fclose(fp);
-	if (i != EOF) {
-		printe(".lf: bad font width table, file \"%s\"", file);
-		free(p);
+	if (i != EOF || errflag) {
+		printe(".lf: %s, file \"%s\"",
+			(i != EOF) ? "bad font width table" : "read error",
+			file);
+		if (newflag)
+			free(p);
 		return;
-	} else if (errflag) {
-		printe(".lf: read error, file \"%s\"", file);
-		free(p);
-		return;
-	}
-	fwptab[nfonts] = p;			/* enter into pointer table */
-	fpsz[nfonts] = p->f_psz;		/* enter pointsize in env */
-	fcsz[nfonts] = 0;			/* enter const char size in env */
-	assign_font(s, nfonts++);		/* and assign desired name */
+	} else if ((p->f_flags & F_PCL) == 0 && !pflag)
+		printe(".lf: \"%s\" is not a PCL font width table", file);
+	else if ((p->f_flags & F_PS) == 0 && pflag)
+		printe(".lf: \"%s\" is not a PostScript font width table", file);
+	fpsz[new] = p->f_psz;			/* enter pointsize in env */
+	fcsz[new] = 0;				/* enter const char size in env */
+	assign_font(s, new);			/* and assign desired name */
+	if (newflag)
+		++nfonts;
 }
 
 /* end of fonts.c */

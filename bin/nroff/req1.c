@@ -145,10 +145,9 @@ req_bd(argc, argv) int argc; char *argv[];
 req_bo(argc, argv) int argc; char *argv[];
 {
 	if (argc == 1)
-		enbldn++;
-	else {
-		enbldn = atoi(argv[1]);
-	}
+		enb++;
+	else
+		enb = atoi(argv[1]);
 }
 
 /*
@@ -158,7 +157,7 @@ req_bp(argc, argv) int argc; char *argv[];
 {
 	setbreak();
 	if (argc >= 2) {
-		npn = number(argv[1], SMUNIT, SDUNIT, 0, 0, 0);
+		npn = numb(argv[1], SMUNIT, SDUNIT);
 		pspace();
 		return;
 	}
@@ -223,7 +222,7 @@ req_ch(argc, argv) int argc; char *argv[];
 		}
 	}
 	if (argc >= 3) {
-		rpos = number(argv[2], SMVLSP, SDVLSP, 0, 0, 0);
+		rpos = numb(argv[2], SMVLSP, SDVLSP);
 		apos = rpos>=0 ? rpos : pgl+rpos;
 		for (tpp = &dp->d_stpl; tp = *tpp; tpp = &tp->t_next) {
 			if (apos <= tp->t_apos)
@@ -283,7 +282,7 @@ req_cs(argc, argv) int argc; char *argv[];
 	if ((n = font_number(name, ".fz: ")) < 0)
 		return;
 	ems = number(argv[3], SMPOIN, SDPOIN, 0, 0, unit(SMEMSP, SDEMSP));
-	dev_cs(n, number(argv[2], (long)ems, 36L, 0, 0, 0));
+	dev_cs(n, numb(argv[2], (long)ems, 36L));
 }
 
 /*
@@ -403,33 +402,11 @@ req_dt(argc, argv) int argc; char *argv[];
 }
 
 /*
-	char charbuf[CBFSIZE], c;
-	register char *bp, *cp;
-
-	bp = nextarg(miscbuf, NULL, 0);
-	if (!lastcon) {
-		cp = charbuf;
-		if (*bp == EBEG)
-			bp++;
-		while (c = *bp++) {
-			if (cp < &charbuf[CBFSIZE-2])
-				*cp++ = c;
-		}
-		*cp++ = '\n';
-		*cp++ = '\0';
-		cp = duplstr(charbuf);
-		adscore(cp);
-		strp->x3.s_srel = cp;
-	} else {
-		if (*bp == EBEG) {
-			ifeflag = 1;
-			while (getf(0) != EEND)
-				;
-			ifeflag = 0;
-			while (getf(0) != '\n')
-				;
-		}
+ * Set escape character.
+ */
+req_ec(argc, argv) int argc; char *argv[];
 {
+	esc = argc>1 ? argv[1][0] : '\\';
 }
 
 /*
@@ -464,13 +441,13 @@ req_eo()
  * Change environments.
  */
 req_ev(argc, argv) int argc; char *argv[];
-		new = number(argv[1], SMUNIT, SDUNIT, 0, 0, 0);
+{
 	register int old, new;
-		if (new<0 || new>=ENVSIZE) {
+
 	if (argc < 2) {
 		dprintd(DBGENVR, "pop environment\n");
 		if (envs == 0) {
-		if (envs >= EVSSIZE) {
+			printe("cannot pop environment");
 			return;
 		}
 		old = envstak[envs];
@@ -478,19 +455,14 @@ req_ev(argc, argv) int argc; char *argv[];
 	} else {
 		new = numb(argv[1], SMUNIT, SDUNIT);
 		dprint2(DBGENVR, "push environment %d\n", new);
-	lseek(fileno(tmp), (long) old * sizeof (ENV), 0);
-	if (write(fileno(tmp), &env, sizeof (env)) != sizeof (env))
-		panic("cannot write environment");
+		if (new < 0 || new >= ENVS) {
 			printe("environment does not exist");
 			return;
 		}
 		if (envs >= ENVSTACK) {
 			printe("environments stacked too deeply");
 			return;
-		lseek(fileno(tmp), (long) new * sizeof (ENV), 0);
-		if (read(fileno(tmp), &env, sizeof (env)) != sizeof (env))
-			panic("cannot read environment");
-		devfont(fontype);
+		}
 		old = envstak[envs];
 		envstak[++envs] = new;
 	}
@@ -535,7 +507,7 @@ req_fc(argc, argv) int argc; char *argv[];
 
 /*
  * Display a list of fonts to standard error.
-	fil = 1;
+ * !V7.
  */
 req_fd()
 {
@@ -615,7 +587,10 @@ req_hw(argc, argv) int argc; char *argv[];
 	printu(".hw");
 }
 
-	lastcon = req_if(argc, argv);
+/*
+ * Hyphenation exception words.			(.hy)	$$TO_DO$$
+ */
+req_hy(argc, argv) int argc; char *argv[];
 {
 	printu(".hy");
 }
@@ -625,95 +600,61 @@ req_hw(argc, argv) int argc; char *argv[];
  */
 req_ie(argc, argv) int argc; char *argv[];
 {
-	char charbuf[CBFSIZE], endc;
+	if (iestackx >= IESTACKSIZE-1)
 		printe(".ie nested more than %d levels", IESTACKSIZE);
-	register unsigned char *bp;
-	register char *cp;
+	else
 		iestack[++iestackx] = req_if(argc, argv);
 }
-	not = 0;
+
+/*
  * If (conditional execution of command).
  * This returns the condition and is called from 'req_ie'.
  */
-	}
+req_if()
+{
+	int not, con;
+	unsigned char charbuf[CBFSIZE];
 	register int c;
-	case 'e':	/* Current page number is even. */
+	register unsigned char *bp, *cp, *cp1, *cp2;
 
 	bp = (unsigned char *)nextarg(miscbuf, NULL, 0);
-	case 'n':	/* Formatter is Nroff. */
+
 	/* Look for leading '!'. */
 	if (*bp == '!') {
-	case 'o':	/* Current page number is odd. */
+		bp++;
 		not = 1;
 	} else
-	case 't':	/* Formatter is Troff. */
+		not = 0;
 
 	/* Look for built-ins. */
 	switch (*bp++) {
-		--bp;
-		if (isascii(*bp) && isdigit(*bp)) {
+	case 'e':			/* Current page number is even. */
+		con = !(pno % 2);
+		break;
 	case 'l':
-			con = number(charbuf, SMUNIT, SDUNIT, 0, 0, 0) > 0;
+		con = lflag;		/* Landscape mode. */
 		break;
 	case 'n':			/* Formatter is Nroff. */
-		if ((endc = *bp) == '\0') {
-			con = 1;
+		con = (ntroff == NROFF);
 		break;
-		}
-		bp++;
-		cp = charbuf;
-		while ((c = *bp++) != endc) {
-			if (c == '\0') {
-				--bp;
-				break;
-			}
-			if (cp < &charbuf[CBFSIZE-1])
-				*cp++ = c;
-		}
-		*cp++ = '\0';
-		cp = charbuf;
-		con = 1;
-		while ((c = *bp++) != endc) {
-			if (c == '\0') {
-				--bp;
-				break;
-			}
-			if (c == *cp)
-				cp++;
-			else
-				con = 0;
-		}
+	case 'o':			/* Current page number is odd. */
+		con = pno % 2;
+		break;
+	case 'p':
+		con = pflag;		/* PostScript mode. */
+		break;
+	case 't':			/* Formatter is Troff. */
+		con = (ntroff == TROFF);
+		break;
+	default:
+		c = *--bp;			/* first character */
+		if ((isascii(c) && isdigit(c)) || c == '(' || c == '+' || c == '-') {
+			/* Numeric expression. */
 			bp = (unsigned char *)nextarg(bp, charbuf, CBFSIZE);
-	while (isascii(*bp) && isspace(*bp))
-		bp++;
 			con = numb(charbuf, SMUNIT, SDUNIT) != 0;
 			break;
-	if (con) {
-		cp = charbuf;
-		if (*bp == EBEG)
-			bp++;
-		while (c = *bp++) {
-			if (cp < &charbuf[CBFSIZE-2])
-				*cp++ = c;
 		}
-		*cp++ = '\n';
-		*cp++ = '\0';
-		cp = duplstr(charbuf);
-		adscore(cp);
-		strp->x3.s_srel = cp;
-	} else {
-		if (*bp++ == EBEG) {
-			while (*bp != '\0') if (*bp++ == EEND)
-				return (con);
-			ifeflag = 1;
-			while (getf(0) != EEND)
-				;
-			ifeflag = 0;
-			while (getf(0) != '\n')
-				;
-		}
-	}
-	return (con);
+
 		/* String comparison. */
 		con = 0;
 		if (c == '\0')
@@ -729,11 +670,7 @@ req_ie(argc, argv) int argc; char *argv[];
 			break;			/* lengths differ, unequal */
 		con = strncmp(cp1, cp2, cp - cp2) == 0;	/* compare strings */
 	}
-	register int n;
-
-	n = ind;
-	ind = number(argv[1], SMEMSP, SDEMSP, ind, 0, oldind);
-	oldind = n;
+	if (not)
 		con = !con;
 	do_cond(con, bp);
 	return con;
@@ -747,16 +684,16 @@ req_ig(argc, argv) int argc; char *argv[];
 	deftext(NULL, argv[1]);
 }
 
-	inpltrc = number(argv[1], SMUNIT, SDUNIT, 0, 0, 0);
+/*
  * Set indent.
  */
 req_in(argc, argv) int argc; char *argv[];
 {
- * Leader repetition character.			(.lc)	$$TO_DO$$
+	setval(&ind, &oldind, argv[1], SMEMSP, SDEMSP);
 	setbreak();
 }
 
-	printu(".lc");
+
 /*
  * Set an input line count trap.
  */
@@ -778,7 +715,7 @@ req_lc(argc, argv) int argc; char *argv[];
 	ldc = (argc < 1) ? '\0' : argv[1][0];
 }
 
-	lgm = number(argv[1], SMUNIT, SDUNIT, 0, 0, 0) > 0;
+/*
  * Load a font width table.
  * !V7.
  * Added by steve 12/12/90.
@@ -786,37 +723,25 @@ req_lc(argc, argv) int argc; char *argv[];
 req_lf(argc, argv) int argc; char *argv[];
 {
 	if (argc != 3) {
-	register int n;
+		printe(".lf: requires fontname and filename");
+		return;
 	}
-	n = lln;
-	lln = number(argv[1], SMEMSP, SDEMSP, lln, 0, oldlln);
-	oldlln = n;
-}
-
 	load_font(argv[1], argv[2]);
 }
 
 /*
  * Set ligature mode.
-	register int n;
+ */
+req_lg(argc, argv) int argc; char *argv[];
 {
-	n = lsp;
-	lsp = number(argv[1], SMUNIT, SDUNIT, lsp, 0, oldlsp);
-	oldlsp = n;
-}
-
 	lgm = numb(argv[1], SMUNIT, SDUNIT) > 0;
 }
 
 /*
  * Set line length.
-	register int n;
+ */
+req_ll(argc, argv) int argc; char *argv[];
 {
-	n = tln;
-	tln = number(argv[1], SMEMSP, SDEMSP, tln, 0, oldtln);
-	oldtln = n;
-}
-
 	setval(&lln, &oldlln, argv[1], SMEMSP, SDEMSP);
 }
 

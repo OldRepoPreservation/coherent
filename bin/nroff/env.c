@@ -8,18 +8,22 @@
 
 /*
  * Initialize the current environment.
+ * The new environment inherits the values of all
+ * environmental variables which are not initialized here:
+ * this includes fcsz, fpsz, tbf, ufn, ufp.
  */
 setenvr()
 {
 	register int inc, i, n;
 
-	hypf = 0;
+	/* Set output line, default font, pointsize, vertical spacing. */
+	tln = lln = (lflag) ? unit(9*SMINCH, SDINCH) : unit(13*SMINCH, 2*SDINCH);
 	setline();
-	preexls = 0;
-	posexls = 0;
 	setfont("R", 1);
 	devpsze(unit(10*SMPOIN, SDPOIN));
 	devvlsp(psz+10);		/* default leading is 11 on 10 */
+
+	/* Set default tab stops. */
 	tab[0].t_pos = 0;
 	tab[0].t_jus = LJUS;
 	inc = n = unit(8*SMINCH, 10*SDINCH);
@@ -30,52 +34,74 @@ setenvr()
 	}
 	tab[TABSIZE-1].t_pos = 0;
 	tab[TABSIZE-1].t_jus = NJUS;
-	lln = (lflag) ? unit(9*SMINCH, SDINCH) : unit(13*SMINCH, 2*SDINCH);
-	ind = 0;
-	tin = 0;
-	tif = 0;
-	fil = 1;
-	adm = 1;
+
+	/* Set other variables. */
 	adj = FJUS;
+	adm = 1;
+	ccc = '.';
 	cec = 0;
-	ulc = 0;
-	uft[0] = 'I';
-	uft[1] = '\0';
-	ufn = font_number(uft, NULL);
-	mws = (ntroff == NROFF) ? unit(SMENSP, SDENSP) : unit(SMEMSP * 12, SDEMSP * 36);
-	lsp = 1;
-	hyp = 1;
-	tln = lln;
-	mar = mws;
 	csz = 0;
-	lgm = 0;
-	lnn = 0;
-	lmn = 0;
-	lns = 0;
-	lni = 0;
-	nnc = 0;
+	enb = 0;
+	fill = 1;
+	hic = EHYP;
+	hyp = 1;
+	hypf = 0;
+	ind = 0;
 	inpltrc = 0;
 	inptrap[0] = '\0';
-	oldfon[0] = fon[0];
-	oldfon[1] = fon[1];
-	oldpsz = psz;
-	oldvls = vls;
-	oldlln = lln;
-	oldind = ind;
-	oldmws = mws;
-	oldlsp = lsp;
-	oldtln = tln;
-	oldmar = mar;
-	ccc = '.';
-	nbc = '\'';
-	tbc = '\0';
 	ldc = '.';
-	ldrspc = 0;
-	oldrspc = ldrspc;
-	hic = EHYP;
-	tpc = '%';
+	lgm = 0;
+	lmn = 0;
+	lni = 0;
+	lnn = 0;
+	lns = 0;
+	lsp = 1;
+	mar = ssz = (ntroff == NROFF) ? unit(SMENSP, SDENSP)
+				      : unit(SMEMSP * 12, SDEMSP * 36);
 	mrc = '\0';
 	mrch = '\0';
+	nbc = '\'';
+	nnc = 0;
+	spcnt = 0;
+	tbc = '\0';
+	tbs = 0;
+	tif = 0;
+	tin = 0;
+	tpc = '%';
+	ulc = 0;
+	oldfon[0] = fon[0];
+	oldfon[1] = fon[1];
+	oldind = ind;
+	oldlln = lln;
+	oldlsp = lsp;
+	oldmar = mar;
+	oldssz = ssz;
+	oldpsz = psz;
+	oldtln = tln;
+	oldvls = vls;
+}
+
+/*
+ * Save environment n.
+ */
+envsave(n) int n;
+{
+	lseek(fileno(tmp), (long) n * sizeof (ENV), 0);
+	if (write(fileno(tmp), &env, sizeof (env)) != sizeof (env))
+		panic("cannot write environment");
+}
+
+/*
+ * Restore environment n.
+ * Bug: in troff, restoring a saved environment does not set
+ * fpsz[n] for a font n loaded in the new environment.
+ */
+envload(n) int n;
+{
+	lseek(fileno(tmp), (long) n * sizeof (ENV), 0);
+	if (read(fileno(tmp), &env, sizeof (env)) != sizeof (env))
+		panic("cannot read environment");
+	devfont(fontype);
 }
 
 /* end of env.c */

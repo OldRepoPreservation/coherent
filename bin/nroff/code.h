@@ -29,7 +29,10 @@ typedef	union	{
 	struct c_arg {			/* Structure containing character */
 		int	c_code;		/* Character code */
 		unsigned c_move;	/* Distance to move after char */
+#if	0
+		/* Special chars not implemented yet... */
 		int	c_char;		/* If special character, char */
+#endif
 	} c_arg;
 	struct l_arg {			/* Command with one long argument */
 		int	c_code;		/* Type of command */
@@ -43,11 +46,11 @@ typedef	union	{
 } CODE;
 
 /*
- * Functions for determining whether an element is a character code
+ * Macros testing whether an element is a character code
  * or a stream directive.
  */
-#define ifcchar(c)	((c)>0)
-#define ifcdirc(c)	((c)<0)
+#define is_char(c)	((c) > 0)
+#define is_dir(c)	((c) < 0)
 
 /*
  * Global variables.

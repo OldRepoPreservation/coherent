@@ -22,7 +22,7 @@ req_na()
  */
 req_nb()
 {
-	enbldn = 0;
+	enb = 0;
 }
 
 /*
@@ -53,15 +53,15 @@ req_ne(argc, argv) int argc; char *argv[];
 req_nf()
 {
 	setbreak();
-	fil = 0;
+	fill = 0;
 }
 
 /*
- * Turn off hyphenation
+ * Turn off hyphenation.
  */
 req_nh()
 {
-	hyp = 0	/* turn the durn thing off */;
+	hyp = 0;		/* turn the durn thing off */
 }
 
 /*
@@ -69,10 +69,10 @@ req_nh()
  */
 req_nm(argc, argv) int argc; char *argv[];
 {
+#if	1
 	printu(".nm");
-/*
-	long	smdigw,
-		sddigw;
+#else
+	long	smdigw, sddigw;
 
 	smdigw = swdmul * fonwidt['0'] * psz;
 	sddigw = swddiv;
@@ -86,7 +86,7 @@ req_nm(argc, argv) int argc; char *argv[];
 		lns = number(argv[3], smdigw, sddigw, 0, 0, unit(smdigw, sddigw));
 	if (argv[4][0] != '\0')
 		lni = number(argv[4], smdigw, sddigw, 0, 0, unit(smdigw, sddigw);
-*/
+#endif
 }
 
 /*
@@ -94,12 +94,13 @@ req_nm(argc, argv) int argc; char *argv[];
  */
 req_nn(argc, argv) int argc; char *argv[];
 {
+#if	1
 	printu(".nn");
-/*
+#else
 	register int n;
 
 	lnc = number(argv[1], SMUNIT, SDUNIT, 0, 0, 1);
-*/
+#endif
 }
 
 /*
@@ -118,7 +119,7 @@ req_nr(argc, argv) int argc; char *argv[];
 #endif
 	rp->n_reg.r_nval = number(argv[2], SMUNIT, SDUNIT, rp->n_reg.r_nval, 0, 0);
 	if (argc >= 4)
-		rp->n_reg.r_incr = number(argv[3], SMUNIT, SDUNIT, 0, 0, 0);
+		rp->n_reg.r_incr = numb(argv[3], SMUNIT, SDUNIT);
 }
 
 /*
@@ -285,11 +286,7 @@ req_pn(argc, argv) int argc; char *argv[];
  */
 req_po(argc, argv) int argc; char *argv[];
 {
-	register int n;
-
-	n = pof;
-	pof = number(argv[1], SMEMSP, SDEMSP, pof, 0, oldpof);
-	oldpof = n;
+	setval(&pof, &oldpof, argv[1], SMEMSP, SDEMSP);
 }
 
 /*
@@ -331,15 +328,11 @@ req_rb(argc, argv) int argc; char *argv[];
  */
 req_rd(argc, argv) int argc; char *argv[];
 {
-	register STR *sp;
-
 	if (argc >= 2)
 		fprintf(stderr, "%s", argv[1]);
 	else
 		putc(A_BEL, stderr);
-	sp = allstr(SSINP);
-	sp->x1.s_next = strp;
-	strp = sp;
+	allstr(SSINP);
 }
 
 /*
@@ -435,7 +428,7 @@ req_rt(argc, argv) int argc; char *argv[];
 	if (argc == 1)
 		n = cdivp->d_mk;
 	else
-		n = number(argv[1], SMVLSP, SDVLSP, 0, 0, 0);
+		n = numb(argv[1], SMVLSP, SDVLSP);
 	if (n >= cdivp->d_rpos)
 		return;
 	sspace(n - cdivp->d_rpos);
@@ -465,11 +458,7 @@ req_sp(argc, argv) int argc; char *argv[];
  */
 req_ss(argc, argv) int argc; char *argv[];
 {
-	register int n;
-
-	n = mws;
-	mws = number(argv[1], SMEMSP, 36*SDEMSP, mws, 0, oldmws);
-	oldmws = n;
+	setval(&ssz, &oldssz, argv[1], SMEMSP, 36 * SDEMSP);
 }
 
 /*
@@ -540,20 +529,18 @@ req_ta(argc, argv) int argc; char *argv[];
  */
 req_tc(argc, argv) int argc; char *argv[];
 {
-	register int fnt;
+	register int n;
 
-	if (argc < 1)
+	if (argc < 1) {
 		tbc = '\0';
-	else {
-		tbc = argv[1][0];
-/* dag */	ldf = fontype;
+		return;
 	}
-	if (argc > 2) {
-		oldrspc = ldrspc;
-		ldrspc = number(argv[2], SMEMSP, SDEMSP, ldrspc, 0, oldrspc);
-	}
-	if (argc > 3 && (fnt = font_number(argv[3], ".tc: ")) >= 0)
-		ldf = fnt;
+	tbc = argv[1][0];
+	tbf = fontype;
+	if (argc > 2)
+		tbs = number(argv[2], SMEMSP, SDEMSP, tbs, 0, tbs);
+	if (argc > 3 && (n = font_number(argv[3], ".tc: ")) >= 0)
+		tbf = n;
 }
 
 /*
@@ -576,13 +563,12 @@ req_tl(argc, argv) int argc; char *argv[];
 	register int n;
 	char charbuf[CBFSIZE], endc, c;
 	register char *bp, *lp;
-	ENV	savenv;
 
-	savenv = env;			/* massive block copy */
+	envsave(ENVTITLE);
 	setline();
 	ind = 0;
 	lln = tln;
-	fil = 0;
+	fill = 0;
 	bp = nextarg(miscbuf, NULL, 0);
 	if ((endc = *bp) != '\0')
 		bp++;
@@ -611,7 +597,7 @@ req_tl(argc, argv) int argc; char *argv[];
 			*lp++ = c;
 		}
 		if (lp != charbuf) {
-			*lp++ = '\0';
+			*lp = '\0';
 			adscore(charbuf);
 			strp->x1.s_eoff = 1;
 			process();
@@ -635,7 +621,7 @@ req_tl(argc, argv) int argc; char *argv[];
 		}
 	}
 	linebreak();
-	env = savenv;
+	envload(ENVTITLE);
 }
 
 /*
@@ -672,16 +658,12 @@ req_tr(argc, argv) int argc; char *argv[];
  */
 req_uf(argc, argv) int argc; char *argv[];
 {
+	register int n;
 	char *name;
 
 	name = (argc < 1) ? "I" : argv[1];
-	ufn = font_number(name, ".uf: ");
-	if (ufn < 0) {
-		ufn = 0;
-		return;
-	}
-	uft[0] = name[0];
-	uft[1] = name[1];
+	if ((n = font_number(name, ".uf: ")) >= 0)
+		ufn = n;
 }
 
 /*
@@ -689,13 +671,8 @@ req_uf(argc, argv) int argc; char *argv[];
  */
 req_ul(argc, argv) int argc; char *argv[];
 {
-	ufp[0] = fon[0];
-	ufp[1] = fon[1];
-	if ((ufn = font_number(uft, ".ul: ")) < 0) {
-		ufn = 0;
-		return;
-	}
-	setfont(uft, 0);
+	ufp = fontype;
+	setfontnum(ufn, 0);
 	ulc = number(argv[1], SMUNIT, SDUNIT, 0, 0, 1);
 }
 
@@ -704,11 +681,7 @@ req_ul(argc, argv) int argc; char *argv[];
  */
 req_vs(argc, argv) int argc; char *argv[];
 {
-	register int n;
-
-	n = vls;
-	vls = number(argv[1], SMPOIN, SDPOIN, vls, 0, oldvls);
-	oldvls = n;
+	setval(&vls, &oldvls, argv[1], SMPOIN, SDPOIN);
 }
 
 /*
@@ -721,7 +694,7 @@ req_wh(argc, argv) int argc; char *argv[];
 	register DIV *dp;
 	int rpos, apos;
 
-	rpos = number(argv[1], SMVLSP, SDVLSP, 0, 0, 0);
+	rpos = numb(argv[1], SMVLSP, SDVLSP);
 	apos = rpos>=0 ? rpos : pgl+rpos;
 	dp = mdivp;
 	for (tpp = &dp->d_stpl; tp = *tpp; tpp = &tp->t_next) {

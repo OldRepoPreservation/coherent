@@ -14,18 +14,19 @@ static	int	expdiv;			/* Default unit divisor */
 static	char	*expp;			/* Pointer in expression */
 
 /*
- * Given a string containing an expression, a default unit, 'mul'/'div',
- * which is used as a multiplier whenever a number is found without a
- * unit attached, an initial value, 'num', used if the expression has a
- * leading sign, a flag, 'hvf', specifying whether the number is associated
- * with the horizontal or the vertical which is used if the expression has
- * an initial '|' and a default value 'def' which is returned
- * if no expression is specified.  The expression is
- * evaluated from left to right with no priorites excepting parentheses.
+ * Given:
+ *	Name						Used
+ *	str	string containing an expression
+ *	mul/div	default unit multiplier, divisor	if no unit given
+ *	num	initial value				if leading sign
+ *	hvf	flag specifying horizontal or vertical	if initial '|'
+ *	def	default value				if no expression
+ * Return the int value of the expression.
+ * The expression is evaluated from left to right with no priorites
+ * excepting parentheses.
  */
-number(str, mul, div, num, hvf, def)
-char *str;
-long mul, div;
+int
+number(str, mul, div, num, hvf, def) char *str; long mul, div; int num, hvf, def;
 {
 	register int n, c;
 
@@ -58,6 +59,15 @@ long mul, div;
 		break;
 	}
 	return (n);
+}
+
+/*
+ * Like number(), but fewer args, for efficiency.
+ */
+int
+numb(str, mul, div) char *str; long mul, div;
+{
+	return number(str, mul, div, 0, 0, 0);
 }
 
 /*

@@ -7,6 +7,12 @@
 #include <ctype.h>
 #include "roff.h"
 
+/* Special escape sequences. */
+#define	RLF	"\0337"			/* Reverse line feed */
+#define	HRLF	"\0338"			/* Half reverse line feed */
+#define	HLF	"\0339"			/* Half line feed */
+#define	LF	"\033B"			/* Line feed */
+
 /*
  * Device parameters.
  */
@@ -35,14 +41,14 @@ FTB fontab[NFNAMES] ={
 
 /*
  * Width table.
- * Initialized in devparm().
+ * Initialized in devinit().
  */
 unsigned char widtab[NWIDTH];
 
 /*
  * Set up the non-constant parameters that depend on a particular device.
  */
-devparm()
+devinit()
 {
 	register int i;
 
@@ -51,9 +57,22 @@ devparm()
 	fonwidt = widtab;		/* width table for all fonts */
 	swdmul	= 1;			/* multiplier for width table */
 	swddiv	= 20;			/* divisor for width table */
-	devfont(TRMED);
-	oldpsz = psz = unit(SMINCH, 6*SDINCH);
-	vls = unit(SMINCH, 6*SDINCH);
+	vls = psz = unit(SMINCH, 6*SDINCH);
+
+	/* Sanity check: width() below assumes swdmul*psz == swddiv. */
+	if (swdmul * psz != swddiv)
+		panic("botch: swdmul=%d psz=%d swddiv=%d", swdmul, psz, swddiv);
+}
+
+/*
+ * Compute the scaled width of a character:
+ *	width(c) == unit(swdmul*fonwidt[c]*psz, swddiv).
+ * For nroff, swdmul*psz == swddiv and fonwidt[i] is constant, so it's trivial.
+ */
+int
+width(c) register int c;
+{
+	return (c < NWIDTH) ? 12 : 0;
 }
 
 /*
@@ -61,6 +80,7 @@ devparm()
  */
 devfont(n) register int n;
 {
+	nlindir++;
 	addidir(DFONT, fontype = n);
 }
 
@@ -70,7 +90,7 @@ devfont(n) register int n;
  */
 devpsze(n) int n;
 {
-	/* psz initialized in devparm() */
+	/* psz initialized in devinit() */
 }
 
 /*
@@ -79,7 +99,7 @@ devpsze(n) int n;
  */
 devvlsp(n)
 {
-	/* vls initialized in devparm() */
+	/* vls initialized in devinit() */
 }
 
 /*
@@ -87,27 +107,24 @@ devvlsp(n)
  * and a pointer to the end of the buffer, print the buffer
  * out.
  */
-flushl(buffer, bufend)
-CODE *buffer;
-CODE *bufend;
+flushl(buffer, bufend) CODE *buffer; CODE *bufend;
 {
-	static int hpos;
-	static int hres;
-	static int vres;
-	static int font;
-	register CODE	*cp;
-	register int	n;
+	static int hpos, hres, vres, font;
+	register CODE *cp;
+	register int i, n;
+	char *tp;
 
 #if	(DDEBUG & DBGFUNC)
 	printd(DBGFUNC, "flushl: hpos=%d, hres=%d, vres=%d, font=%d\n",
 		hpos, hres, vres, font);
 #endif
-	for (cp=buffer; cp<bufend; cp++) {
+	for (cp = buffer; cp < bufend; cp++) {
+		i = cp->l_arg.c_iarg;
 #if	(DDEBUG & DBGCODE)
-		codebug(cp->l_arg.c_code, cp->l_arg.c_iarg, cp->c_csp);
+		codebug(cp->l_arg.c_code, i, cp->c_csp);
 #endif
 #if	0
-		fprintf(stderr, "output: %d arg=%d\n", cp->l_arg.c_code, cp->l_arg.c_iarg);
+		fprintf(stderr, "output: %d arg=%d\n", cp->l_arg.c_code, i);
 #endif
 		switch (cp->l_arg.c_code) {
 		case DNULL:
@@ -115,23 +132,23 @@ CODE *bufend;
 			continue;
 		case DHMOV:
 		case DPADC:
-			hres += cp->l_arg.c_iarg;
-			if ((hpos+=cp->l_arg.c_iarg)<0) {
+			hres += i;
+			if ((hpos += i) < 0) {
 				hres -= hpos;
 				hpos = 0;
 			}
 			continue;
 		case DVMOV:
-			vres += cp->l_arg.c_iarg;
+			vres += i;
 			continue;
 		case DFONT:
-			font = cp->l_arg.c_iarg;
+			font = i;
 			continue;
 		case DPSZE:
 			continue;
 		case DSPAR:
 			hpos = hres = 0;
-			vres += cp->l_arg.c_iarg;
+			vres += i;
 			if (vres >= 0) {
 				n = (vres+10) / 20;
 				vres -= n*20;
@@ -142,24 +159,30 @@ CODE *bufend;
 				n = (-vres+9)/20;
 				vres += n*20;
 				while (n--)
-					printf("\0337");
+					printf(RLF);
 			}
+			continue;
+		case DTRAB:			/* transparent line */
+			tp = cp->b_arg.c_bufp;
+			while (*tp)
+				putchar(*tp++);
+			free(cp->b_arg.c_bufp);
 			continue;
 		default:
 			if (vres >= 0) {
 				vres += 5;
 				n = (vres) / 20;
 				while (n--)
-					printf("\033B");
+					printf(LF);
 				if (vres%20/10)
-					printf("\0339");
+					printf(HLF);
 			} else {
 				vres -= 5;
 				n = (-vres)/20;
 				while (n--)
-					printf("\0337");
+					printf(RLF);
 				if (-vres%20/10)
-					printf("\0338");
+					printf(HRLF);
 			}
 			vres = 0;
 			if (hres >= 0) {
@@ -227,11 +250,5 @@ dev_fz(){}
 newpsze(){}
 load_font(){}
 void resetdev(){}
-
-int
-is_varspace(t) int t;
-{
-	return 0;
-}
 
 /* end of tty.c */

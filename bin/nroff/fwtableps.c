@@ -1,14 +1,18 @@
 /*
  * fwtableps.c
- * 2/21/91
+ * 4/9/91
+ * Build troff font width table from PostScript AFM file.
+ * Used to be stand-alone, now part of fwtable,
+ * conditionalized accordingly (hack, hack...).
  * Usage: fwtableps [ -cv ] [ infile [ outfile ] ]
  * Options:
  *	-c	C output instead of binary
  *	-v	Verbose font description to stderr
- * Build troff font width table from PostScript AFM file.
+ * The following had better agree about the binary FWT format:
+ *	troff/fwtable.c/dump_chartab()	writes binary FWT from HP PCL
+ *	troff/fwtableps.c/output()	writes binary FWT from PostScript AFM
+ *	troff/fonts.c/loadfont()	reads binary FWT for troff
  * Reference: "Adobe Font Metric Files Specification Version 3.0", 3/8/90.
- *
- * Untested!
  */
 
 #include <stdio.h>
@@ -17,9 +21,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if	0
 #define	USAGE	"Usage: fwtableps [ -cv ] [ infile [ outfile ] ]\n"
 #define	VERSION	"0.1"
-#define	NBUF	256			/* AFM max line length == 255 */
+#endif
+#define	FLAG_PS 2			/* PostScript font width table flag */
+
+/* These had better agree with fwtable.c... */
+#define	NBUF	512			/* > AFM max line length == 255 */
 #define	NWIDTH	256			/* character width table size */
 
 /*
@@ -64,20 +73,23 @@ void	output();
 void	putint();
 void	usage();
 
+/* Externals defined in fwtable.c. */
+extern	char	buf[NBUF];		/* input buffer			*/
+extern	int	cflag;			/* C output option flag		*/
+extern	FILE	*ifp;			/* input FILE			*/
+extern	FILE	*ofp;			/* output FILE			*/
+extern	int	vflag;			/* verbose			*/
+
 /* Globals. */
-char	buf[NBUF];			/* input buffer			*/
 char	*bufp;				/* buffer pointer		*/
-int	cflag;				/* C output option flag		*/
 int	chartab[NWIDTH];		/* character movement table	*/
 char	*FontName;			/* AFM FontName			*/
 char	*FullName;			/* AFM FullName			*/
-FILE	*ifp = stdin;			/* input FILE			*/
 int	lineno;				/* input line number		*/
 int	maxwidth;			/* maximum character movement	*/
-FILE	*ofp = stdout;			/* output FILE			*/
-int	vflag;				/* verbose			*/
 char	*Weight;			/* AFM Weight			*/
 
+#if	0
 main(argc, argv) int argc; char *argv[];
 {
 	register char *s;
@@ -120,7 +132,9 @@ main(argc, argv) int argc; char *argv[];
 		fatal("cannot close output file \"%s\"", argv[2]);
 	exit(0);
 }
+#endif
 
+#if	0
 /*
  * Allocate memory, die on failure.
  */
@@ -133,6 +147,7 @@ alloc(n) size_t n;
 		fatal("out of space");
 	return s;
 }
+#endif
 
 /*
  * Process an AFM file character metric line
@@ -210,6 +225,7 @@ charmetrics()
 	fatal("missing EndCharMetrics");
 }
 
+#if	0
 /*
  * Cry and die.
  */
@@ -223,6 +239,7 @@ fatal(s) char *s;
 	fprintf(stderr, "%r\n", &s);
 	exit(1);
 }
+#endif
 
 /*
  * Process AFM input file.
@@ -300,10 +317,6 @@ newstring(s) register char *s;
 
 /*
  * Write a font width table for troff.
- * The following had better agree about the binary FWT format:
- *	troff/fwtable.c			writes binary FWT from HP PCL
- *	troff/fwtableps.c		writes binary FWT from PostScript AFM
- *	troff/fonts.c/loadfont()	reads binary FWT for troff
  * Most of the fields in the binary FWT are for PCL and are zeroed here.
  */
 void
@@ -311,6 +324,7 @@ output()
 {
 	register int i, mul;
 	char *fullname;
+	int spacing, width;
 
 	if (FontName == NULL)
 		fatal("no FontName specified");
@@ -348,13 +362,29 @@ output()
 		fputc(0, ofp);
 	}
 
+	/* Determine if fixed or variable spacing. */
+	width = spacing = 0;				/* assume fixed spacing */
+	for (i = 0; i < NWIDTH; i++) {
+		if (chartab[i] == 0)
+			continue;
+		else if (width == 0)
+			width = chartab[i];		/* first nonzero width */
+		else if (width != chartab[i]) {
+			spacing = 1;			/* variable spacing */
+			break;
+		}
+	}
+
 	/*
 	 * Write FWTAB fields.
-	 * All but pitch, ptsize, num, den are zeroed.
+	 * All but spacing, pitch, ptsize, num, den are zeroed.
 	 * This uses a nominal point size of 10, for no particular reason.
 	 */
-	for (i = 1; i <= 5; i++)
-		putint(0);
+	putint(FLAG_PS);
+	putint(0);
+	putint(0);
+	putint(spacing);		/* spacing */
+	putint(0);
 	putint(44);			/* pitch */
 	putint(100);			/* 10 * ptsize */
 	for (i = 1; i <= 3; i++)
@@ -378,6 +408,7 @@ output()
 	}
 }
 
+#if	0
 /*
  * Write a canonical int.
  */
@@ -392,7 +423,9 @@ putint(i) int i;
 			fatal("write error");
 	}
 }
+#endif
 
+#if	0
 /*
  * Print usage message and die.
  */
@@ -402,5 +435,6 @@ usage()
 	fprintf(stderr, USAGE);
 	exit(1);
 }
+#endif
 
 /* end of fwtableps.c */

@@ -96,9 +96,9 @@ char *hbuf;
 		for (;;) {
 			if (*bp == LEOK) {
 				if (wi == wi2)
-					return (1);
+					return 1;
 				if (wi==wi2-1 && wbuf[wi].c_arg.c_code==LSSS)
-					return (1);
+					return 1;
 				ti1 = ti;
 				break;
 			}
@@ -126,7 +126,7 @@ char *hbuf;
 fail:
 	for (n=wi1; n<wi2; n++)
 		hbuf[n] = 0;
-	return (0);
+	return 0;
 }
 
 /*
@@ -148,7 +148,7 @@ register int wi2;
 		for (;;) {
 			ti0 = ti;
 			if ((ti=(ti1+ti2)/2) == ti0)
-				return (wi1);
+				return wi1;
 			wi = wi1;
 			wih = wi1;
 			bp = pretab[ti];
@@ -164,7 +164,7 @@ register int wi2;
 					continue;
 				}
 				if (wi >= wi2)
-					return (wi1);
+					return wi1;
 				if ((c1=wbuf[wi++].c_arg.c_code) !=
 				    (c2 = *bp++)) {
 					if (c1 > c2)
@@ -181,10 +181,10 @@ register int wi2;
 		if (automate(bp, &wi1, &con, 1, wbuf, hbuf, wi, wi2) == 0) {
 			while (wi > wi1)
 				hbuf[--wi] = 0;
-			return (wi1);
+			return wi1;
 		}
 	} while (con != 0);
-	return (wi1);
+	return wi1;
 }
 
 /*
@@ -206,7 +206,7 @@ register int wi2;
 		for (;;) {
 			ti0 = ti;
 			if ((ti=(ti1+ti2)/2) == ti0)
-				return (wi1);
+				return wi1;
 			wi = wi1;
 			wih = wi1;
 			bp = suftab[ti];
@@ -222,7 +222,7 @@ register int wi2;
 					continue;
 				}
 				if (wi <= wi2)
-					return (wi1);
+					return wi1;
 				if ((c1=wbuf[wi--].c_arg.c_code) !=
 				    (c2 = *bp++)) {
 					if (c1 > c2)
@@ -239,10 +239,10 @@ register int wi2;
 		if (automate(bp, &wi1, &con, -1, wbuf, hbuf, wi, wi2) == 0) {
 			while (wi < wi1)
 				hbuf[++wi] = 0;
-			return (wi1);
+			return wi1;
 		}
 	} while (con != 0);
-	return (wi1);
+	return wi1;
 }
 
 /*
@@ -341,7 +341,7 @@ register int c1;
 	cp = dbctab;
 	while ((c = *cp++) != LNUL) {
 		if (c1 < c)
-			return (0);
+			return 0;
 		if (c1 > c) {
 			cp += 2;
 			continue;
@@ -350,14 +350,13 @@ register int c1;
 			cp++;
 			continue;
 		}
-		return (*cp);
+		return *cp;
 	}
-	return (0);
+	return 0;
 }
 
 /*
- * Given a pattern string, execute it on the given word
- * buffer.
+ * Given a pattern string, execute it on the given word buffer.
  */
 automate(patp, newp, conp, dirn, wbuf, hbuf, wi1, wi2)
 char *patp;
@@ -438,9 +437,9 @@ char *hbuf;
 	}
 succ:
 	*newp = wis;
-	return (1);
+	return 1;
 fail:
-	return (0);
+	return 0;
 }
 
 /*
@@ -450,8 +449,8 @@ vowel(c)
 register int c;
 {
 	if (c>=LAAA && c<=LYYY && contab[c-LAAA]==0)
-		return (1);
-	return (0);
+		return 1;
+	return 0;
 }
 
 /*
@@ -461,8 +460,8 @@ consn(c)
 register int c;
 {
 	if (c>=LAAA && c<=LDTH && contab[c-LAAA]==1)
-		return (1);
-	return (0);
+		return 1;
+	return 0;
 }
 
 /*

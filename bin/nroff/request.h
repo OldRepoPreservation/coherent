@@ -13,8 +13,8 @@ typedef struct {
 /*
  * Request functions.
  * The V7 "Nroff/Troff User's Manual" describes 83 requests.
- * Of these, 10 are currently unimplemented in COHERENT [nt]roff:
- *	.bd, .dt, .fc, .hc, .hw, .hy, .lc, .nm, .nn, .pi.
+ * Of these, 9 are currently unimplemented in COHERENT [nt]roff:
+ *	.bd, .dt, .fc, .hc, .hw, .hy, .nm, .nn, .pi.
  * The 92 requests below also include 9 requests which are not in V7:
  *	.bo, .co, .fb, .fd, .lf, .nb, .rb, .rf, .rp.
  */
@@ -62,7 +62,7 @@ extern	int	req_if();
 extern	int	req_ig();
 extern	int	req_in();
 extern	int	req_it();
-extern	int	req_lc();	/* unimplemented */
+extern	int	req_lc();
 extern	int	req_lf();	/* !V7 */
 extern	int	req_lg();
 extern	int	req_ll();

@@ -64,7 +64,7 @@ long	svrmul	=	12;		/* Vertical resolution (mul)	*/
 long	svrdiv	=	5;		/* Vertical resolution (div)	*/
 
 /*
- * Local variables.
+ * Local variables for output writer.
  */
 static	int	hposd;			/* device horizontal postition	*/
 static	int	vposd;			/* device vertical position	*/
@@ -74,7 +74,7 @@ static	int	inword;			/* in word flag for PostScript	*/
  * Initialize the device.
  * Select the default font.
  */
-devparm()
+devinit()
 {
 	register int i;
 
@@ -82,10 +82,31 @@ devparm()
 		fpsz[i] = fwptab[i]->f_psz;	/* init. env pointsize */
 		fcsz[i] = 0;			/* init. env const. char size */
 	}
-	printf((pflag) ? PSINIT : HPLJINIT);
-	if (lflag && !pflag)
-		printf(HPLJLINIT);
-	devfont(TRMED);
+	if (pflag) {
+		/* Load PostScript font width tables for default fonts. */
+		load_font("R", "/usr/lib/roff/fwt/PS/Times_R.fwt");
+		load_font("I", "/usr/lib/roff/fwt/PS/Times_I.fwt");
+		load_font("B", "/usr/lib/roff/fwt/PS/Times_B.fwt");
+		printf(PSINIT);
+	} else {
+		/* PCL. */
+		printf(HPLJINIT);
+		if (lflag)
+			printf(HPLJLINIT);
+	}
+}
+
+/*
+ * Compute the scaled width of a character:
+ *	width(c) == unit(swdmul*fonwidt[c]*psz, swddiv).
+ */
+int
+width(c) register int c;
+{
+	register long l;
+
+	l = swdmul * fonwidt[c] * psz;
+	return (swddiv == 1) ? (int)l : (int)(l/swddiv);
 }
 
 /*
@@ -98,12 +119,14 @@ devfont(n) register int n;
 	if (n >= nfonts)
 		panic("bad font %d at devfont, nfonts=%d", n, nfonts);
 	fontype = n;
+	nlindir++;
 	addidir(DFONT, n);
 	fp = fwptab[n];
 	csz = fcsz[n];
 	swdmul = (long)fp->f_num;
 	swddiv = (long)fp->f_den;
 	fonwidt = fp->f_width;
+	varsp = fp->f_spacing;
 	devpsze(fpsz[n]);
 }
 
@@ -124,8 +147,14 @@ devfont(n) register int n;
  */
 devpsze(n) register int n;
 {
+	if (psz != n && psz != 0) {
+		/* Scale space size and margin width for pointsize change. */
+		mar = mar * n / psz;
+		ssz = ssz * n / psz;
+	}
 	oldpsz = psz;
 	psz = n;
+	nlindir++;
 	addidir(DPSZE, n);
 }
 
@@ -185,7 +214,7 @@ devvlsp(psize) int psize;
 flushl(buffer, bufend) CODE *buffer, *bufend;
 {
 	register CODE	*cp;
-	register int	next;
+	register int	code;
 	int		i;
 	char		*tp;
 	static	FWTAB	*fp;		/* current font table entry	*/
@@ -200,14 +229,14 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 	static	int	wpsz;		/* current pointsize		*/
 
 	for (cp = buffer; cp < bufend; cp++) {
-		next = cp->l_arg.c_code;
+		code = cp->l_arg.c_code;
 		i = cp->l_arg.c_iarg;
-		if (pflag && ifcdirc(next))
+		if (pflag && is_dir(code))
 			endword();
 #if	0
-		fprintf(stderr, "output: %d arg=%d\n", next, i);
+		fprintf(stderr, "output: code=%d arg=%d\n", code, i);
 #endif
-		switch (next) {
+		switch (code) {
 		case DNULL:			/* null code */
 		case DHYPH:			/* place to hyphenate */
 			continue;
@@ -237,18 +266,13 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 			wnum = (long)fp->f_num * wpsz;
 			wden = (long)fp->f_den;
 			continue;
-#if	0
-		case DTRAN:			/* transparent character */
-			putchar(i);
-			continue;
-#endif
-		case DTRAB:			/* trans line (dag)	*/
+		case DTRAB:			/* transparent line */
 			tp = cp->b_arg.c_bufp;
 			while (*tp)
-				outchar( *tp++ );
+				putchar(*tp++);
 			free(cp->b_arg.c_bufp);
 			continue;
-		case DPSZE:			/* change  pointsize */
+		case DPSZE:			/* change pointsize */
 			if (wpsz != i) {
 				wpsz = i;
 				wnum = (long)fp->f_num * wpsz;
@@ -310,27 +334,27 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 			/* Change to different font. */
 			if (lastfont != font)
 				selectfont(lastfont=font, wpsz);
-			if (next == DHYPC)
-				next = '-';
-			if (next < 0 || next >= NWIDTH)
-				panic("bad directive %d", next);
+			if (code == DHYPC)
+				code = '-';
+			if (code < 0 || code >= NWIDTH)
+				panic("bad directive %d", code);
 			hpost += cp->c_arg.c_move;
-			hposd += unit(wnum*wtab[next], wden);
-			i = next;
+			hposd += unit(wnum*wtab[code], wden);
+			i = code;
 			if (pflag && !inword)
 				startword();
-			outchar(next);
-			if (enbldn != 0) {	/* dag's enbolden...	*/
+			outchar(code);
+			if (enb != 0) {	/* dag's enbolden...	*/
 				hposd -= unit(wnum*wtab[i], wden);
-				vposd -= enbldn;
+				vposd -= enb;
 				move();
-				putchar(next);
-				hposd -= enbldn;
+				putchar(code);
+				hposd -= enb;
 				move();
-				putchar(next);
-				vposd += enbldn;
-				putchar(next);
-				hposd += (unit(wnum*wtab[i], wden) + enbldn);
+				putchar(code);
+				vposd += enb;
+				putchar(code);
+				hposd += (unit(wnum*wtab[i], wden) + enb);
 				move();
 			}
 		}
@@ -365,15 +389,6 @@ font_display()
 			b = ' ';
 		fprintf(stderr," %c%c %s\n", a, b, fwptab[p->f_font]->f_descr);
 	}
-}
-
-/*
- * Return true if font uses variable spacing.
- */
-int
-is_varspace(t) int t;
-{
-	return ((fwptab[t]->f_spacing) == 1);
 }
 
 /*
@@ -414,8 +429,9 @@ selectfont(font, ptsize) int font, ptsize;
 		/* Select font via PCL. */
 		printf("\033(%d%c", fp->f_symset/32, fp->f_symset%32+64); /* symbol set */
 		printf("\033(s%dp", fp->f_spacing);		/* spacing */
+		/* fp->f_pitch is in quarterdots/char, convert to chars/inch. */
 		if (fp->f_pitch != 0)
-			printf("%sh", ndiv10(fp->f_pitch));	/* pitch */
+			printf("%sh", ndiv10(12000/fp->f_pitch)); /* pitch */
 		printf("%sv", ndiv10(fpsz[font]));		/* point size */
 		printf("%ds", fp->f_style);			/* style */
 		printf("%db", fp->f_weight);			/* stroke weight */

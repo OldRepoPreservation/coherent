@@ -83,17 +83,28 @@ getf(flags)
 			continue;
 		case EWID:
 			if (flags&2)		/* Copy mode */
-				return (c);
-			if (scandel(charbuf, CBFSIZE) == 0) {
+				return c;
+			if (scandel(charbuf, CBFSIZE) == 0)
 				adsnval(0, '1');
-			} else {
+			else
 				adsnval(getwidth(charbuf), '1');
-			}
 			continue;
-		case EEND:
-			if (ifeflag == 0)
+		case EBEG:
+			if (flags&2)
+				return c;
+			if (ifeflag != 0) {
+				++ifeflag;	/* skip nested \{ \} */
 				continue;
-			return c;
+			}
+			return c;		/* return \{ in true condition */
+		case EEND:
+			if (flags&2)
+				return c;
+			if (ifeflag == 0)
+				continue;	/* ignore \} in true condition */
+			else if (--ifeflag == 0)
+				return c;	/* closing \} of false condition */
+			continue;		/* keep scanning in false */
 		case EHEX:
 			n = hexdigit(getf(0)) * 0x10;
 			n += hexdigit(getf(0));
@@ -108,31 +119,25 @@ getf(flags)
  * Get width of string by processing into temporary environment.
  */
 int
-getwidth(cp)
-char	*cp;
+getwidth(cp) char *cp;
 {
-	ENV	savenv;
-	int	n;
+	int n;
 
-	savenv = env;		/* gigantic block copy */
+	envsave(ENVWIDTH);
 	setline();
-	ind = 0;
-	tif = 0;
-	fil = 0;
+	ccc = ind = tif = fill = 0;
 	adscore(cp);
-	ccc = 0;
 	strp->x1.s_eoff = 1;
 	process();
 	wordbreak(DNULL);
 	n = nlinsiz;
-	env = savenv;
-	return (n);
+	envload(ENVWIDTH);
+	return n;
 }
 
 /*
  * Given a buffer pointer, 'bp', and the size of the buffer, 'n',
- * get an argument surrounded by delimeters and store it in the
- * buffer.
+ * get an argument surrounded by delimeters and store it in the buffer.
  */
 scandel(cp, n)
 register char *cp;
@@ -146,7 +151,7 @@ register char *cp;
 	while ((c=getf(0)) != endc) {
 		if (c == '\n') {
 			printe("syntax error");
-			return (0);
+			return 0;
 		}
 		if (--n == 0) {
 			printe("delimiter argument too large");
@@ -155,7 +160,7 @@ register char *cp;
 			*cp++ = c;
 	}
 	*cp++ = '\0';
-	return (r);
+	return r;
 }
 
 /*
@@ -176,7 +181,7 @@ getl(eofflag)
 		if (sp == NULL) {
 			if (eofflag == 0)
 				panic("unexpected end of file");
-			return (EOF);
+			return EOF;
 		}
 		switch (sp->x1.s_type) {
 		case SSINP:
@@ -229,7 +234,7 @@ getl(eofflag)
 			cp = (char *) &codeval;
 			while (n--)
 				*cp++ = geth();
-			return (ECOD);
+			return ECOD;
 		}
 		if (sp->x4.s_abuf)
 			nfree(sp->x4.s_abuf);
@@ -240,7 +245,7 @@ getl(eofflag)
 		if (n) {
 			if (eofflag == 0)
 				panic("incomplete macro in trap");
-			return (EOF);
+			return EOF;
 		}
 	}
 ret:
@@ -250,8 +255,7 @@ ret:
 }
 
 /*
- * In a chained macro, set up input stack to point to next
- * element in chain.
+ * In a chained macro, set up input stack to point to next element in chain.
  */
 strnext()
 {
@@ -260,7 +264,7 @@ strnext()
 
 	sp = strp;
 	if ((mp=sp->x4.s_macp) == NULL)
-		return (0);
+		return 0;
 	sp->x4.s_macp = mp->t_div.m_next;
 	switch (mp->t_div.m_type) {
 	case MTEXT:
@@ -269,7 +273,7 @@ strnext()
 	case MDIVN:
 		sp->x4.s_type = SCDIV;
 		if ((sp->x4.s_n=mp->t_div.m_size) == 0)
-			return (strnext());
+			return strnext();
 		break;
 	}
 	if (mp->t_div.m_core) {
@@ -282,7 +286,7 @@ strnext()
 		nread((long)sp->x4.s_seek,(char *)sp->x4.s_bufp);
 		sp->x4.s_seek += DBFSIZE;
 	}
-	return (1);
+	return 1;
 }
 
 /*
@@ -313,24 +317,19 @@ char *file;
 		return 0;
 	}
 	sp = allstr(SFILE);
-	sp->x2.s_next = strp;
-	strp = sp;
 	sp->x2.s_fp = fp;
-	return (1);
+	return 1;
 }
 
 /*
- * Push down input stack and add the given unit.
+ * Push down input stack and add the given FILE.
  */
-adsunit(u)
-FILE *u;
+adsunit(fp) FILE *fp;
 {
 	register STR *sp;
 
 	sp = allstr(SFILE);
-	sp->x2.s_next = strp;
-	strp = sp;
-	sp->x2.s_fp = u;
+	sp->x2.s_fp = fp;
 }
 
 /*
@@ -342,10 +341,8 @@ register REG *rp;
 	register STR *sp;
 
 	if (rp->t_reg.r_macd.t_div.m_type == MREQS)
-		return(1); /* return had been random, 1 is guess work by cef */
+		return 1;	/* return had been random, 1 is guess by cef */
 	sp = allstr(0);
-	sp->x4.s_next = strp;
-	strp = sp;
 	sp->x4.s_bufp = nalloc(DBFSIZE);
 	sp->x4.s_bufend = &sp->x4.s_bufp[DBFSIZE];
 	sp->x4.s_macp = &rp->t_reg.r_macd;
@@ -353,9 +350,9 @@ register REG *rp;
 		strp = strp->x4.s_next;
 		nfree(sp->x4.s_bufp);
 		nfree((char *)sp);
-		return (0);
+		return 0;
 	}
-	return (1);
+	return 1;
 }
 
 /*
@@ -376,21 +373,13 @@ char name[2];
 			if ((n=strp->x1.s_argc) > 0)
 				--n;
 			break;
-		case 'A':
-			n = A_reg;
-			break;
-		case 'H':
-			n = unit(SMHRES, SDHRES);
-			break;
-		case 'T':
-			n = T_reg;
-			break;
-		case 'V':
-			n = unit(SMVRES, SDVRES);
-			break;
-		case 'a':
-			n = a_reg;
-			break;
+		case 'A':	n = A_reg;			break;
+		case 'H':	n = unit(SMHRES, SDHRES);	break;
+		/* case 'L': TO_DO */
+		/* case 'P': TO_DO */
+		case 'T':	n = T_reg;			break;
+		case 'V':	n = unit(SMVRES, SDVRES);	break;
+		case 'a':	n = a_reg;			break;
 		case 'c':
 			n = 0;
 			for (sp=strp; sp; sp=sp->x1.s_next) {
@@ -400,54 +389,28 @@ char name[2];
 				}
 			}
 			break;
-		case 'd':
-			n = cdivp->d_rpos;
-			break;
-		case 'f':
-			n = 0;
-			break;
-		case 'h':
-			n = cdivp->d_maxh;
-			break;
-		case 'i':
-			n = ind;
-			break;
-		case 'l':
-			n = lln;
-			break;
-		case 'n':
-			n = n_reg;
-			break;
-		case 'o':
-			n = pof;
-			break;
-		case 'p':
-			n = pgl;
-			break;
-		case 's':
-			n = unit(psz*SDPOIN, SMPOIN);
-			break;
+		case 'd':	n = cdivp->d_rpos;		break;
+		case 'f':	n = 0;				break;
+		case 'h':	n = cdivp->d_maxh;		break;
+		case 'i':	n = ind;			break;
+		/* case 'j': TO_DO */
+		/* case 'k': TO_DO */
+		case 'l':	n = lln;			break;
+		case 'n':	n = n_reg;			break;
+		case 'o':	n = pof;			break;
+		case 'p':	n = pgl;			break;
+		case 's':	n = unit(psz*SDPOIN, SMPOIN);	break;
 		case 't':
 			n = cdivp->d_ctpp ? cdivp->d_ctpp->t_apos : pgl;
 			if (n > pgl)
 				n = pgl;
 			n -= cdivp->d_rpos;
 			break;
-		case 'u':
-			n = fil;
-			break;
-		case 'v':
-			n = vls;
-			break;
-		case 'w':
-			n = 0;
-			break;
-		case 'x':
-			n = 0;
-			break;
-		case 'y':
-			n = 0;
-			break;
+		case 'u':	n = fill;			break;
+		case 'v':	n = vls;			break;
+		case 'w':	n = 0;				break;
+		case 'x':	n = 0;				break;
+		case 'y':	n = 0;				break;
 		case 'z':
 			cp = nalloc(3);
 			cp[0] = cdivp->d_name[0];
@@ -465,12 +428,7 @@ char name[2];
  * Given a value and a format, expand out the value to the
  * particular format and add it onto the top of the stack.
  */
-adsnval(val, f)
-#ifdef	GEMDOS
-int	f;
-#else
-char f;
-#endif
+adsnval(val, f) int val, f;
 {
 	register ROM *op;
 	int w;
@@ -543,20 +501,17 @@ char f;
 /*
  * Divert input to the given string.
  */
-adscore(cp)
-char *cp;
+adscore(cp) char *cp;
 {
 	register STR *sp;
 
 	sp = allstr(SCORE);
-	sp->x3.s_next = strp;
-	strp = sp;
 	sp->x3.s_cp = cp;
 	sp->x3.s_srel = NULL;
 }
 
 /*
- * Allocate an entry to add to the input stack.
+ * Allocate an entry and add it to the input stack.
  */
 STR *
 allstr(type)
@@ -565,15 +520,17 @@ allstr(type)
 	register int i;
 
 	sp = (STR *) nalloc(sizeof *sp);
-	sp->x4.s_type = type;
-	sp->x4.s_eoff = 0;
-	sp->x4.s_clnc = 1;
-	sp->x4.s_nlnc = 1;
-	sp->x4.s_argc = 0;
-	for (i=0; i<ARGSIZE; i++)
-		sp->x4.s_argp[i] = "";
-	sp->x4.s_abuf = NULL;
-	return (sp);
+	sp->x1.s_next = strp;
+	strp = sp;
+	sp->x1.s_type = type;
+	sp->x1.s_eoff = 0;
+	sp->x1.s_clnc = 1;
+	sp->x1.s_nlnc = 1;
+	sp->x1.s_argc = 0;
+	for (i = 0; i < ARGSIZE; i++)
+		sp->x1.s_argp[i] = "";
+	sp->x1.s_abuf = NULL;
+	return sp;
 }
 
 hexdigit(c) register int c;

@@ -1,16 +1,26 @@
 /*
  * fwtable.c
- * 2/15/91
- * Usage: fwtable [ -cv ] [ -pPSname ] [ infile [ outfile ] ]
- * Requires floating point output conversion: cc fwtable.c -f
- * Read HP PCL bitmap font description from infile or stdin,
+ * 4/9/91
+ * Usage: fwtable [ -cpv ] [ infile [ outfile ] ]
+ * Read HP PCL bitmap font or PostScript AFM file from infile or stdin,
  * write font width table to outfile or stdout.
+ *
+ * Requires floating point output, PostScript routines in fwtableps.c:
+ *	cc fwtable.c fwtableps.c -f
+ *
  * Options:
  *	-c		Write C instead of binary
- *	-pPSname	Assign PSname as the PostScript name of the font
+ *	-p		Input is PostScript AFM file
  *	-v		Write one-line font description to stderr
- * Understands PCL bitmap fonts.
- * Does not understand Intellifont scalable fonts or PostScript fonts.
+ *
+ * Understands PCL bitmap fonts and PostScript AFM files.
+ * Does not understand Intellifont scalable fonts.
+ *
+ * The following had better agree about the binary FWT format:
+ *	troff/fwtable.c/dump_chartab()	writes binary FWT from HP PCL
+ *	troff/fwtableps.c/output()	writes binary FWT from PostScript AFM
+ *	troff/fonts.c/loadfont()	reads binary FWT for troff
+ *
  * Modified 12/12/90-12/28/90 by steve from dag's original hptable.c source;
  * the coding could definitely be cleaner.
  */
@@ -22,10 +32,11 @@ extern	long	ftell();
 extern	char	*malloc();
 
 /* Manifest constants. */
-#define	USAGE	"Usage: fwtable [ -cv ] [ -pPSname ] [ infile [ outfile ] ]\n"
-#define	CBUF	256			/* character buffer size */
+#define	USAGE	"Usage: fwtable [ -cpv ] [ infile [ outfile ] ]\n"
+#define	FLAG_PCL 1			/* PCL font width table flag */
 #define	NBUF	512
-#define	VERSION	"1.0"
+#define	NWIDTH	256			/* character buffer size */
+#define	VERSION	"1.2"
 
 /* Type definitions. */
 typedef unsigned char uchar;
@@ -54,39 +65,40 @@ typedef struct fnt_hdr {
 } font_header;
 
 typedef struct add_info {
-	char	a_slant;	/* Slant information	*/
-	uchar	a_serif;	/* Serif style (see serif table) */
-	uchar	a_quality;	/* Quality level	*/
-	uchar	a_placement;	/* Placement		*/
-	char	a_underline;	/* Underline position	*/
-	uchar	a_uheight;	/* Underline height in dots	*/
-	short	a_lspacing;	/* Optimum line spacing in dots * 4 */
-	short	a_nwidth;	/* Average lower-case char width * 4 */
-	short	a_firstc;	/* First code		*/
-	short	a_lastc;	/* Last code		*/
-	uchar	a_piextend;	/* Extend for pitch	*/
-	uchar	a_poextend;	/* Extend for height	*/
-	short	a_cap_height;	/* Cap height		*/
-	long	a_fontnum;	/* Font Number		*/
-	char	a_fontname[16];	/* Font name		*/
+	char	a_slant;		/* Slant information	*/
+	uchar	a_serif;		/* Serif style (see serif table) */
+	uchar	a_quality;		/* Quality level	*/
+	uchar	a_placement;		/* Placement		*/
+	char	a_underline;		/* Underline position	*/
+	uchar	a_uheight;		/* Underline height in dots	*/
+	short	a_lspacing;		/* Optimum line spacing in dots * 4 */
+	short	a_nwidth;		/* Average lower-case char width * 4 */
+	short	a_firstc;		/* First code		*/
+	short	a_lastc;		/* Last code		*/
+	uchar	a_piextend;		/* Extend for pitch	*/
+	uchar	a_poextend;		/* Extend for height	*/
+	short	a_cap_height;		/* Cap height		*/
+	long	a_fontnum;		/* Font Number		*/
+	char	a_fontname[16];		/* Font name		*/
 } font_extra;
 
 typedef struct chr_hdr {
-	uchar	c_format;	/* Character format (4)	*/
-	uchar	c_continuation;	/* Continuation flag	*/
-	uchar	c_size;		/* Header size to follow*/
-	uchar	c_class;	/* Format class 1=raster*/
-	uchar	c_orientation;	/* Orientation		*/
-	uchar	c_empty2;	/* more padding...	*/
-	short	c_left_offset;	/* left offset		*/
-	short	c_top_offset;	/* top offset		*/
-	short	c_char_width;	/* character width	*/
-	short	c_char_height;	/* character height	*/
-	short	c_delta_x;	/* delta X		*/
-	uchar	c_data[0];	/* character data	*/
+	uchar	c_format;		/* Character format (4)	*/
+	uchar	c_continuation;		/* Continuation flag	*/
+	uchar	c_size;			/* Header size to follow*/
+	uchar	c_class;		/* Format class 1=raster*/
+	uchar	c_orientation;		/* Orientation		*/
+	uchar	c_empty2;		/* more padding...	*/
+	short	c_left_offset;		/* left offset		*/
+	short	c_top_offset;		/* top offset		*/
+	short	c_char_width;		/* character width	*/
+	short	c_char_height;		/* character height	*/
+	short	c_delta_x;		/* delta X		*/
+	uchar	c_data[0];		/* character data	*/
 } character_header;
 
 /* Forward. */
+char		*alloc();
 void		base();
 int		char_code();
 character_header *char_def();
@@ -107,74 +119,58 @@ void		putint();
 void		putstring();
 void		read_header();
 void		usage();
-char		*xalloc();
 
 /* Global arrays. */
-typedef	struct	face	{
-	char	*face_name;
-	int	face_flags;
-}	FACE;
-/*
- * Flags for PostScript font names.
- * By default, append "", "-Bold", "-Italic" or "-BoldItalic" to face_name
- * to form the normal, bold, italic or bolditalic version.
- * The flags are a kludge to make other names come out right.
- * N.B.: most of the PostScript font names below are probably bogus anyway.
- */
-#define	F_ROMAN		0x01		/* "-Roman" for normal		*/
-#define	F_OBLIQUE	0x02		/* "-Oblique" for italic	*/
-#define	F_DEMI		0x04		/* "-Demi" for bold		*/
-
 /*
  * Typefaces.
  * Cf. "HP LJ III Tech Ref Man", pp. 10-27ff.
  * The list given there gives all values 0-84 and some values 87-168.
  * This list is truncated in the name of sanity.
  */
-FACE	faces[] = {
-	{ "LinePrinter",	0 },		/*  0 */
-	{ "Pica",		0 },		/*  1 */
-	{ "Elite",		0 },		/*  2 */
-	{ "Courier",		F_OBLIQUE },	/*  3 */
-	{ "Helvetica",		F_OBLIQUE },	/*  4 */
-	{ "Times",		F_ROMAN },	/*  5 */
-	{ "LetterGothic",	0 },		/*  6 */
-	{ "Script",		0 },		/*  7 */
-	{ "Prestige",		0 },		/*  8 */
-	{ "Caslon",		0 },		/*  9 */
-	{ "Orator",		0 },		/* 10 */
-	{ "Presentation",	0 },		/* 11 */
-	{ "HelveticaCondensed",	0 },		/* 12 */
-	{ "Serifa",		0 },		/* 13 */
-	{ "Futura",		0 },		/* 14 */
-	{ "Palatino",		F_ROMAN },	/* 15 */
-	{ "ITCSouvenir",	0 },		/* 16 */
-	{ "Optima",		0 },		/* 17 */
-	{ "ITCGaramond",	0 },		/* 18 */
-	{ "CooperBlack",	0 },		/* 19 */
-	{ "Coronet",		0 },		/* 20 */
-	{ "Broadway",		0 },		/* 21 */
-	{ "BauerBodoniBlack",	0 },		/* 22 */
-	{ "NewCenturySchlbk",	F_ROMAN },	/* 23 */
-	{ "               ",	0 }		/* >23 */
+char	*faces[] = {
+	"LinePrinter",			/*  0 */
+	"Pica",				/*  1 */
+	"Elite",			/*  2 */
+	"Courier",			/*  3 */
+	"Helvetica",			/*  4 */
+	"Times",			/*  5 */
+	"LetterGothic",			/*  6 */
+	"Script",			/*  7 */
+	"Prestige",			/*  8 */
+	"Caslon",			/*  9 */
+	"Orator",			/* 10 */
+	"Presentation",			/* 11 */
+	"HelveticaCondensed",		/* 12 */
+	"Serifa",			/* 13 */
+	"Futura",			/* 14 */
+	"Palatino",			/* 15 */
+	"ITCSouvenir",			/* 16 */
+	"Optima",			/* 17 */
+	"ITCGaramond",			/* 18 */
+	"CooperBlack",			/* 19 */
+	"Coronet",			/* 20 */
+	"Broadway",			/* 21 */
+	"BauerBodoniBlack",		/* 22 */
+	"NewCenturySchlbk",		/* 23 */
+	"               "		/* >23 */
  };
 #define	NFACES	((sizeof faces / sizeof faces[0]) - 1)
 
 /* f_serif values */
 char *serif_tab[] = {
-	"sans serif square",	/* 0 */
-	"sans serif round",	/* 1 */
-	"serif line",		/* 2 */
-	"serif triangle",	/* 3 */
-	"serif swath",		/* 4 */
-	"serif block",		/* 5 */
-	"serif bracket",	/* 6 */
-	"rounded bracket",	/* 7 */
-	"flair serif",		/* 8 */
-	"script nonconnecting",	/* 9 */
-	"script joining",	/* 10 */
-	"script calligrpahic",	/* 11 */
-	"script broken letter",	/* 12 */
+	"sans serif square",		/* 0 */
+	"sans serif round",		/* 1 */
+	"serif line",			/* 2 */
+	"serif triangle",		/* 3 */
+	"serif swath",			/* 4 */
+	"serif block",			/* 5 */
+	"serif bracket",		/* 6 */
+	"rounded bracket",		/* 7 */
+	"flair serif",			/* 8 */
+	"script nonconnecting",		/* 9 */
+	"script joining",		/* 10 */
+	"script calligrpahic",		/* 11 */
+	"script broken letter",		/* 12 */
 	"serif value out-of-range"	/* >12 */
 };
 #define	NSERIFS	((sizeof serif_tab / sizeof serif_tab[0]) - 1)
@@ -198,39 +194,48 @@ char *orient_tab[] = {
 /* Globals. */
 char		buf[NBUF];		/* String conversion	*/
 int		cflag;			/* Write C not binary	*/
-int		char_datasize[CBUF];	/* Character size	*/
-int		char_movement[CBUF];	/* Character movement	*/
+int		char_datasize[NWIDTH];	/* Character size	*/
+int		char_movement[NWIDTH];	/* Character movement	*/
 font_header	*fhp;			/* Font header pointer	*/
-FILE		*ifp;			/* The input FILE	*/
+FILE		*ifp = stdin;		/* The input FILE	*/
 int		ipointsz;		/* Integer point size	*/
-FILE		*ofp;			/* The output FILE	*/
-char		*PSname = "";		/* PostScript font name	*/
+FILE		*ofp = stdout;		/* The output FILE	*/
+int		pflag;			/* PostScript input	*/
 int		this_char;		/* Current character	*/
 int		vflag;			/* Verbose		*/
 
+/* Globals in fwtableps.c. */
+extern	int	lineno;
+
 main(argc, argv) int argc; char *argv[];
 {
-	register int c;
+	register char *s;
 
-	ifp = stdin;
-	ofp = stdout;
+	/* Process command-line options. */
 	while (argc > 1 && argv[1][0] == '-') {
+		for (s = &argv[1][1]; *s; s++) {
+			switch(*s) {
+			case 'c':
+				++cflag;
+				break;
+			case 'p':
+				++pflag;
+				break;
+			case 'v':
+				++vflag;
+				break;
+			case 'V':
+				fprintf(stderr, "fwtable: V%s\n", VERSION);
+				break;
+			default:
+				usage();
+			}
+		}
 		--argc;
 		++argv;
-		while ((c = *++*argv) != '\0') {
-			if (c == 'c')
-				++cflag;
-			else if (c == 'p') {
-				PSname = ++*argv;
-				break;
-			} else if (c == 'v')
-				++vflag;
-			else if (c == 'V')
-				fprintf(stderr, "fwtable: V%s\n", VERSION);
-			else
-				usage();
-		}
 	}
+
+	/* Set up input and output FILEs. */
 	if (argc > 1 && (ifp = fopen(argv[1], "rb")) == NULL)
 		fatal("cannot open input file \"%s\"", argv[1]);
 	else if (argc > 2 && (ofp = fopen(argv[2], "w")) == NULL)
@@ -238,14 +243,37 @@ main(argc, argv) int argc; char *argv[];
 	else if (argc > 3)
 		usage();
 
-	if (argc > 1 && cflag)
-		fprintf(ofp,"/* File %s */\n", argv[1]);
-	base();
-	if (ifp != stdin)
-		fclose(ifp);
-	if (ofp != stdout)
-		fclose(ofp);
+	/* Do the work. */
+	if (pflag) {
+		/* PostScript. */
+		input();
+		output();
+	} else {
+		/* PCL. */
+		if (argc > 1 && cflag)
+			fprintf(ofp,"/* File %s */\n", argv[1]);
+		base();
+	}
+
+	/* Close FILEs and exit. */
+	if (ifp != stdin && fclose(ifp) == EOF)
+		fatal("cannot close input file \"%s\"", argv[1]);
+	else if (ofp != stdout && fclose(ofp) == EOF)
+		fatal("cannot close output file \"%s\"", argv[2]);
 	exit(0);
+}
+
+/*
+ * Allocate size bytes.
+ */
+char *
+alloc(size) register unsigned int size;
+{
+	register char *s;
+
+	if ((s = malloc(size)) == NULL)
+		fatal("out of space");
+	return s;
 }
 
 void
@@ -254,7 +282,7 @@ base()
 	register int c;
 
 	/* Initialize. */
-	for (c = 0 ; c < CBUF; c++) {
+	for (c = 0 ; c < NWIDTH; c++) {
 		char_movement[c] = -1;
 		char_datasize[c] = 0;
 	}
@@ -290,7 +318,7 @@ char_def(size) int size;
 {
 	register character_header *ch;
 
-	ch = xalloc(size);
+	ch = alloc(size);
 	ch->c_format = getuchar();
 	ch->c_continuation = getuchar();
 	ch->c_size = getuchar();
@@ -318,7 +346,7 @@ dump_chartab()
 	int mult, div, scale;
 
 	/* Find first, last, max values in char_movement[]. */
-	for (c = first = last = max = 0; c < CBUF; c++) {
+	for (c = first = last = max = 0; c < NWIDTH; c++) {
 		if (char_movement[c] >= 0) {
 			if (first == 0)
 				first = c;
@@ -343,7 +371,7 @@ dump_chartab()
 		/* Max deltax is too big to fit in char, scale accordingly. */
 		scale = (max / 256) + 1;
 		mult *= scale;
-		for (c = 0; c < CBUF; c++)
+		for (c = 0; c < NWIDTH; c++)
 			if (char_movement[c] > 0)
 				char_movement[c] /= scale;
 	}
@@ -354,12 +382,8 @@ dump_chartab()
 			mult /= w;
 		}
 	}
-	if (cflag)
-		fprintf(ofp,"\t\t%d, %d,\t\t/* mul, div\t*/\n", mult, div);
-	else {
-		putint(mult);			/* int f_num		*/
-		putint(div);			/* int f_den		*/
-	}
+	putint(mult);				/* int f_num		*/
+	putint(div);				/* int f_den		*/
 
 	/* Dump the movement table. */
 	if (cflag) {
@@ -368,13 +392,13 @@ dump_chartab()
 		fprintf(ofp,"\t\t{\n");
 	}
 	dsize = 0L;
-	for (w = c = 0; c < CBUF; c++) {
+	for (w = c = 0; c < NWIDTH; c++) {
 		dsize += char_datasize[c];
 		if (cflag) {
 			if (w == 0)
 				fprintf(ofp,"\t\t\t");
 			fprintf(ofp,"%3d", char_movement[c]);
-			fputc((c < CBUF-1) ? ',' : ' ', ofp);
+			fputc((c < NWIDTH-1) ? ',' : ' ', ofp);
 			if (++w > 7) {
 				w = 0;
 				fprintf(ofp,"\t/* 0x%02x-0x%02x */\n", c-7, c);
@@ -449,8 +473,7 @@ escape_cparen()
 	register int c, q;
 	register font_extra *fe;
 	char *cp;
-	double pointsz, pitch;
-	int bold, italic;
+	double pointsz;
 
 	if ((c = getuchar()) != 's') {
 		nonfatal("unknown sequence \\033)%c", c);
@@ -462,7 +485,6 @@ escape_cparen()
 		return;
 	}
 	read_header(q);
-	pitch = 1200.0 / ((double) fhp->f_pitch);	/* given in quarterdots */
 	/* pointsz is height*72/1200, 72/1200 == 3/50 */
 	pointsz = ((double)(3.0*fhp->f_height))/50.0;
 	if (cflag) {
@@ -478,7 +500,7 @@ escape_cparen()
 		fprintf(ofp, " * Height: %d\n", fhp->f_height);
 		fprintf(ofp, " * Weight: %d\n", fhp->f_weight);
 		fprintf(ofp, " * Style: %s\n", posture_tab[(fhp->f_style)%4]);
-		fprintf(ofp, " * Typeface: %s\n", faces[fhp->f_face].face_name);
+		fprintf(ofp, " * Typeface: %s\n", faces[fhp->f_face]);
 		fprintf(ofp, " * Designator: %d%c\n",
 			fhp->f_symbol_set / 32,
 			fhp->f_symbol_set % 32 + 64);
@@ -496,8 +518,8 @@ escape_cparen()
 			fprintf(ofp, " * Last: 0x%02x\n", fe->a_lastc);
 			fprintf(ofp, " * Underline pos: %d\n", fe->a_underline);
 			fprintf(ofp, " * Height: %d\n", fe->a_uheight);
-			fprintf(ofp, " * Line spacing: %d\n", fe->a_lspacing);
-			fprintf(ofp, " * Nominal width: %d\n", fe->a_nwidth);
+			fprintf(ofp, " * Line spacing: %u\n", fe->a_lspacing);
+			fprintf(ofp, " * Nominal width: %u\n", fe->a_nwidth);
 			fprintf(ofp, " * Pitch extend: %d\n", fe->a_piextend);
 			fprintf(ofp, " * Height extend: %d\n", fe->a_poextend);
 			fprintf(ofp, " * Font number: %ld\n", fe->a_fontnum);
@@ -532,7 +554,7 @@ escape_cparen()
 		fprintf(ofp,"\n */\n");
 
 	/* Build a descriptive name. */
-	sprintf(buf, "%s %.2f point ", faces[fhp->f_face].face_name, pointsz);
+	sprintf(buf, "%s %.2f point ", faces[fhp->f_face], pointsz);
 	cp = &buf[strlen(buf)];
 	if (fhp->f_weight == 3)
 		strcpy(cp, "bold ");
@@ -550,50 +572,22 @@ escape_cparen()
 	else
 		putstring(buf);			/* char *f_descr	*/
 
-	/* Kludge a PostScript name. */
-	if (PSname[0] == '\0') {
-		strcpy(buf, faces[fhp->f_face].face_name);
-		c = faces[fhp->f_face].face_flags;
-		bold = (fhp->f_weight == 3);
-		italic = (fhp->f_style != 0);
-		if (!bold && !italic && (c & F_ROMAN))
-			strcat(buf, "-Roman");
-		if (bold)
-			strcat(buf, (c & F_DEMI) ? "-Demi" : "-Bold");
-		else if (italic)
-			strcat(buf, "-");	/* italic nonbold */
-		if (italic)			/* italic normal or bold */
-			strcat(buf, (c & F_OBLIQUE) ? "Oblique" : "Italic");
-	}
 	if (cflag)
-		fprintf(ofp, "\t\t\"%s\",\t/* PostScript name */\n", buf);
+		fprintf(ofp, "\t\t\"\",\t/* PostScript name */\n");
 	else
-		putstring(buf);			/* char *f_PSname	*/
+		putstring("");			/* char *f_PSname	*/
 
 	/* Font parameters. */
-	if (cflag) {
-		fprintf(ofp, "\t\t%d,\t\t/* flags\t*/\n", 0);
-		fprintf(ofp, "\t\t%d,\t\t/* fonttype\t*/\n", fhp->f_font_type);
-		fprintf(ofp, "\t\t%d,\t\t/* orientation\t*/\n", fhp->f_orientation);
-		fprintf(ofp, "\t\t%d,\t\t/* spacing\t*/\n", fhp->f_spacing);
-		fprintf(ofp, "\t\t%d,\t\t/* symbol_set\t*/\n", fhp->f_symbol_set);
-		fprintf(ofp, "\t\t%d,\t\t/* pitch\t*/\n", fhp->f_pitch);
-		fprintf(ofp, "\t\t%d,\t\t/* pointsize\t*/\n", ipointsz);
-		fprintf(ofp, "\t\t%d,\t\t/* style\t*/\n", fhp->f_style);
-		fprintf(ofp, "\t\t%d,\t\t/* weight\t*/\n", fhp->f_weight);
-		fprintf(ofp, "\t\t%d,\t\t/* typeface\t*/\n", fhp->f_face);
-	} else {
-		putint(0);				/* flags */
-		putint(fhp->f_font_type);
-		putint(fhp->f_orientation);
-		putint(fhp->f_spacing);
-		putint(fhp->f_symbol_set);
-		putint(fhp->f_pitch);
-		putint(ipointsz);
-		putint(fhp->f_style);
-		putint(fhp->f_weight);
-		putint(fhp->f_face);
-	}
+	putint(FLAG_PCL);			/* flags */
+	putint(fhp->f_font_type);
+	putint(fhp->f_orientation);
+	putint(fhp->f_spacing);
+	putint(fhp->f_symbol_set);
+	putint(fhp->f_pitch);
+	putint(ipointsz);
+	putint(fhp->f_style);
+	putint(fhp->f_weight);
+	putint(fhp->f_face);
 }
 
 /*
@@ -666,7 +660,10 @@ escape_star()
 void
 fatal(args) char *args;
 {
-	fprintf(stderr, "fwtable: %r\n", &args);
+	fprintf(stderr, "fwtable: ");
+	if (lineno != 0)
+		fprintf(stderr, "%d: ", lineno);
+	fprintf(stderr, "%r\n", &args);
 	exit(1);
 }
 
@@ -745,8 +742,12 @@ ofpwrite(buf, count) register char *buf; register unsigned int count;
 void
 putint(i) int i;
 {
-	canint(i);
-	ofpwrite(&i, sizeof i);
+	if (cflag)
+		fprintf(ofp, "\t\t%d,\n", i);
+	else {
+		canint(i);
+		ofpwrite(&i, sizeof i);
+	}
 }
 
 /*
@@ -769,7 +770,7 @@ read_header(size) register int size;
 
 	if (fhp != NULL)
 		fatal("multiple font headers");
-	fhp = xalloc(size);
+	fhp = alloc(size);
 	fhp->f_hsize = getshort();
 	fhp->f_desc_format = getuchar();
 	if (fhp->f_desc_format == 10)
@@ -792,7 +793,7 @@ read_header(size) register int size;
 	fhp->f_face = getuchar();
 	if (fhp->f_face > NFACES) {
 		/* Use extra entry at end of table. */
-		sprintf(faces[NFACES].face_name, "[Typeface %3d]", fhp->f_face);
+		sprintf(faces[NFACES], "[Typeface %3d]", fhp->f_face);
 		fhp->f_face = NFACES;
 	}
 	if (size > 26)
@@ -810,19 +811,6 @@ usage()
 {
 	fprintf(stderr, USAGE);
 	exit(1);
-}
-
-/*
- * Allocate size bytes.
- */
-char *
-xalloc(size) register unsigned int size;
-{
-	register char *cp;
-
-	if ((cp = malloc(size)) == NULL)
-		fatal("out of space");
-	return cp;
 }
 
 /* end of fwtable.c */

@@ -17,8 +17,9 @@ char		diskbuf[DBFSIZE];	/* Disk buffer for temp file	*/
 char		endtrap[2];		/* End macro name		*/
 char		esc;			/* Escape character		*/
 int		escflag;		/* Last character was escaped	*/
+int		iestack[IESTACKSIZE];	/* .ie condition stack		*/
+int		iestackx;		/* .ie condition stack index	*/
 int		ifeflag;		/* True in false conditional	*/
-int		lastcon;		/* Last condition of if/else	*/
 int		lflag;			/* Landscape mode		*/
 char		miscbuf[MSCSIZE];	/* Miscellaneous buffer		*/
 int		nbrflag;		/* Don't allow command to break	*/
@@ -33,6 +34,7 @@ int		svs;			/* Saved space			*/
 FILE		*tmp;			/* Temp file pointer		*/
 unsigned long	tmpseek;		/* Pointer into temp file	*/
 int		T_reg;			/* .T register			*/
+int		varsp;			/* Variable spacing		*/
 int		xflag;			/* Suppress page eject on exit	*/
 
 /* Code global, declared in code.h. */
@@ -46,7 +48,7 @@ DIV		*mdivp;			/* Pointer to main diversion	*/
 ENV		env;			/* Current environment		*/
 int		envinit[ENVSIZE];	/* If initialized		*/
 int		envs;			/* Environment stack index	*/
-int		envstak[EVSSIZE];	/* Environment stack		*/
+int		envstak[ENVSTACK];	/* Environment stack		*/
 
 /* Hyphenation globals, declared in hyphen.h. */
 char		hindbuf[WORSIZE];

@@ -72,6 +72,7 @@
 /* Miscellaneous. */
 #define	NROFF		1		/* Program is nroff		*/
 #define	TROFF		2		/* Program is troff		*/
+#define	IESTACKSIZE	20		/* .ie stack size		*/
 #define	INFINITY	32767
 #ifdef	MSDOS
 #define	TMACDIR "\\bin\\"
@@ -118,8 +119,9 @@ extern	char	diskbuf[DBFSIZE];	/* Disk buffer for temp file	*/
 extern	char	endtrap[2];		/* End macro name		*/
 extern	char	esc;			/* Escape character		*/
 extern	int	escflag;		/* Last character was escaped	*/
+extern	int	iestack[IESTACKSIZE];	/* .ie condition stack		*/
+extern	int	iestackx;		/* .ie condition stack index	*/
 extern	int	ifeflag;		/* True in false conditional	*/
-extern	int	lastcon;		/* Last condition of if/else	*/
 extern	int	lflag;			/* Landscape mode		*/
 extern	char	miscbuf[MSCSIZE];	/* Miscellaneous buffer		*/
 extern	int	nbrflag;		/* Don't allow command to break	*/
@@ -134,6 +136,7 @@ extern	int	svs;			/* Saved space			*/
 extern	FILE	*tmp;			/* Temp file pointer		*/
 extern	unsigned long tmpseek;		/* Pointer into temp file	*/
 extern	int	T_reg;			/* .T register			*/
+extern	int	varsp;			/* Variable spacing		*/
 extern	int	xflag;			/* Suppress page eject on exit	*/
 
 /* Global tables, defined in tables.c. */

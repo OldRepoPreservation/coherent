@@ -7,6 +7,8 @@
 #define	NFNAMES	100			/* max number of font names	*/
 #define	NDFONTS	3			/* number of default fonts	*/
 #define	NWIDTH	256			/* number of width entries	*/
+#define	FWTPCL	"/usr/lib/roff/fwt/PCL/" /* PCL font width tables	*/
+#define	FWTPS	"/usr/lib/roff/fwt/PS/"	/* PostScript font width tables	*/
 
 /*
  * The font table contains the user name and font index of each font.
@@ -46,8 +48,10 @@ typedef struct	fwtab {
 } FWTAB;
 
 /* FWTAB f_flags bits */
-#define	F_USED		1		/* Font has been used		*/
-#define	F_FIXED		2		/* Font has fixed pointsize	*/
+#define	F_PCL		1		/* PCL font width table		*/
+#define	F_PS		2		/* PostScript font width table	*/
+#define	F_USED		4		/* Font has been used		*/
+#define	F_FIXED		8		/* Font has fixed pointsize	*/
 
 /*
  * Indices for built-in fonts.

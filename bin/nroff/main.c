@@ -176,11 +176,8 @@ initialize(argc, argv) int argc; char *argv[];
 		}
 	}
 
-	/* Device-specific initialization. */
-	devparm();
-
 	/* Initialize tempfile. */
-#ifdef GEMDOS
+#ifdef	GEMDOS
 	tempname = (tmparg ? argv[tmparg] : tempnam(0L, "nroff"));
 #else
 	tempname = (tmparg ? argv[tmparg] : mktemp(TMPLATE));
@@ -193,7 +190,7 @@ initialize(argc, argv) int argc; char *argv[];
 	tmpseek = ENVSIZE * sizeof (ENV);
 	tmpseek = (tmpseek+DBFSIZE+DBFSIZE-1) & ~(DBFSIZE-1);
 
-#ifdef GEMDOS
+#ifdef	GEMDOS
 	/* Under GEMDOS lseek wil not produce sparse files
 	 * so it becomes necessary to write the beginning of
 	 * nroff's work file.
@@ -224,6 +221,9 @@ initialize(argc, argv) int argc; char *argv[];
 		unlink(tempname);
 #endif
 
+	/* Device-specific initialization. */
+	devinit();
+
 	/* Initialize globals. */
 	for (i = 0; i < NWIDTH; i++)
 		trantab[i] = i;			/* translation table */
@@ -237,6 +237,7 @@ initialize(argc, argv) int argc; char *argv[];
 	}
 
 	/* Create built in registers. */
+	/* UNDONE: "c.", same as ".c" */
 	nrpnreg = getnreg("%");
 	nrctreg = getnreg("ct");
 	nrdlreg = getnreg("dl");
@@ -255,11 +256,14 @@ initialize(argc, argv) int argc; char *argv[];
 	/* Environment initialization. */
 	setenvr();
 	envinit[0] = 1;
+	tbf = fontype;				/* leader dot font */
+	ufn = font_number("I", NULL);		/* underline font number */
 
+	iestackx = -1;
 	cdivp = NULL;
 	newdivn("\0\0");
 	mdivp = cdivp;
-#if	GEMDOS
+#ifdef	GEMDOS
 	if (((long)mdivp) & 1L)
 		panic("diversion buffer odd alignment");
 #endif
@@ -269,7 +273,6 @@ initialize(argc, argv) int argc; char *argv[];
 	pno = 1;
 	npn = 2;
 	esc = '\\';
-	enbldn	= 0;		/* Enbolden by n pts.	*/
 #if	(DDEBUG & DBGCHEK)
 	printd(DBGFUNC, "initialized...\n");
 #endif

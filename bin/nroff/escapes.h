@@ -25,10 +25,10 @@
 #define ECHR	0x11		/* \(	Special character indicator	*/
 #define EVLF	0x12		/* \L	Vertical line drawing function	*/
 #define EBRA	0x13		/* \b	Bracket building function	*/
+
+/* Recently added. */
 #define EOVS	0x14		/* \o	Overstrike			*/
 #define EZWD	0x15		/* \z	Print character with zero width	*/
-
-/* Provisionally added. */
 #define	EHEX	0x16		/* \X	Hexadecimal character		*/
 
 /* Implemented. */
