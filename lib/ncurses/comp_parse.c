@@ -28,6 +28,9 @@
  *			etc.
  *
  *   $Log:	comp_parse.c,v $
+ * Revision 1.2  92/04/13  14:36:22  bin
+ * update by vlad
+ * 
  * Revision 3.2  91/07/28  13:59:10  munk
  * Made all the large arrays static
  *
@@ -54,7 +57,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header: comp_parse.c,v 3.2 91/07/28 13:59:10 munk Exp $";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_parse.c,v 1.2 92/04/13 14:36:22 bin Exp Locker: bin $";
 #endif
 
 #include <sys/types.h>
@@ -109,7 +112,6 @@ int			use_count = 0;
  *
  */
 
-
 /*
  *	compile()
  *
@@ -208,7 +210,6 @@ char *str;
 }
 
 
-
 /*
  *	int
  *	do_entry(item_ptr)
@@ -355,7 +356,6 @@ struct use_item	*item_ptr;
 
 
 
-
 /*
  *	enqueue(offset)
  *
@@ -394,7 +394,6 @@ long	offset;
 
 
 
-
 /*
  *	dequeue(ptr)
  *
@@ -419,7 +418,6 @@ struct use_item	*ptr;
 }
 
 
-
 /*
  *	dump_structure()
  *
@@ -554,7 +552,6 @@ short	Strings[];
 
 
 
-
 /*
  *	int
  *	write_object(fp, term_names, Booleans, Numbers, Strings)
@@ -630,7 +627,6 @@ short	Strings[];
 }
 
 
-
 /*
  *	check_name(name)
  *
@@ -653,7 +649,6 @@ char	*name;
 }
 
 
-
 /*
  *	int
  *	save_str(string)
@@ -698,7 +693,6 @@ char	*string;
 }
 
 
-
 /*
  *	init_structure(Booleans, Numbers, Strings)
  *
@@ -726,7 +720,6 @@ short	Numbers[], Strings[];
 }
 
 
-
 /*
 **	int
 **	handle_use(item_ptr, entry_offset, Booleans, Numbers, Strings)
@@ -746,7 +739,6 @@ short	Numbers[], Strings[];
 **	Returned value is 0 if it was a backward link and we
 **	successfully read it in, -1 if a forward link.
 */
-
 int
 handle_use(item_ptr, entry_offset, Booleans, Numbers, Strings)
 long		entry_offset;

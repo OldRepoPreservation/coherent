@@ -19,7 +19,6 @@
 
 char    buffer[2048];
 
-
 main (argc, argv)
 int	argc;
 char	**argv;
