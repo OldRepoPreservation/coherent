@@ -18,6 +18,7 @@ typedef	struct	filehdr	{
 
 /* Magic number. */
 #define	I386MAGIC	0x14C			/* Intel iAPX 80386	*/
+#define	C_386_MAGIC	0x14C			/* Intel iAPX 80386	*/
 
 /*
  * This is just a short version of this macro.  We really ought to define
