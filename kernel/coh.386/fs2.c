@@ -51,6 +51,8 @@
 #include <sys/proc.h>
 #include <sys/stat.h>
 
+#define _INODE_BUSY_DUMP 1
+
 /*
  * Initialise filesystem.
  */
@@ -211,12 +213,29 @@ unsigned mode;
 	register ino_t *inope;
 	register MOUNT *mp;
 	register INODE *ip;
+#if _INODE_BUSY_DUMP
+	int	eninode, etinode;
+	int	lninode, ltinode;
+	int	xninode, xtinode;
+#endif
 
 	if ((mp=getment(dev, 1)) == NULL)
 		return NULL;
 	sbp = &mp->m_super;
+
+#if _INODE_BUSY_DUMP
+	eninode = sbp->s_ninode;
+	etinode = sbp->s_tinode;
+#endif
+
 	for (;;) {
 		lock(mp->m_ilock);
+
+#if _INODE_BUSY_DUMP
+		lninode = sbp->s_ninode;
+		ltinode = sbp->s_tinode;
+#endif
+
 		if (sbp->s_ninode == 0) {
 			isync(dev);
 			ino = 1;
@@ -253,6 +272,12 @@ unsigned mode;
 				return NULL;
 			}
 		}
+
+#if _INODE_BUSY_DUMP
+		xninode = sbp->s_ninode;
+		xtinode = sbp->s_tinode;
+#endif
+
 		ino = sbp->s_inode[--sbp->s_ninode];
 		--sbp->s_tinode;
 		sbp->s_fmod = 1;
@@ -260,6 +285,14 @@ unsigned mode;
 		if ((ip=iattach(dev, ino)) != NULL) {
 			if (ip->i_mode != 0) {
 				devmsg(dev, "Inode %u busy", ino);
+
+#if _INODE_BUSY_DUMP
+printf("%x %x rf=%x fl=%x md=%x nl=%x en=%x et=%x ln=%x lt=%x xn=%x xt=%x n=%x t=%x\n",
+	mode, ino, ip->i_refc, ip->i_flag, ip->i_mode, ip->i_nlink,
+	eninode, etinode, lninode, ltinode, xninode, xtinode,
+	sbp->s_ninode, sbp->s_tinode);
+#endif
+
 				idetach(ip);
 				lock(mp->m_ilock);
 				++sbp->s_tinode;
