@@ -105,6 +105,7 @@ extern	char *		base1;
 extern	char *		dest;
 /* Globals in dos0.c. */
 /* dos1.c globals are declared in dos1.h, included above. */
+extern	short		oldstyle;
 extern	short		aflag;
 extern	short		bflag;
 extern	unsigned char	cohfile[NAMEMAX];
