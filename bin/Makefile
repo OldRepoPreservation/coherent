@@ -1,7 +1,8 @@
 # CFLAGS are not needed for i8086
 CFLAGS= -O -DNEWTTYS
 DESTDIR= /interim/bin/
-CMDS= expr/expr conv/conv as/as awk/awk \
+DESTDIR2= /interim/lib/
+CMDS= expr/expr conv/conv as/as awk/awk compiler \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
       ed/ed find/find grep/grep lex/lex mail/mail make/make sed/sed sh/sh \
       test/test tsort/tsort yacc/yacc nroff/nroff \
@@ -11,12 +12,26 @@ CMDS= expr/expr conv/conv as/as awk/awk \
       mesg mkdir msg mv newgrp nm od pr prep prof pwd quot ranlib rev rm rmdir \
       sa scat size sleep sort split strings strip stty sum sync tail tar tee \
       time touch tr tty typo uniq units wc who write yes qfind umount true \
-      shutdown phone mount fnkey false msgs
+      shutdown phone mount fnkey false msgs clear
 
 all:	$(CMDS)
 	>all
 # include file deftty.h defines the default ERASE, KILL and INTERRUPT 
 # characters for ttys.
+
+compiler:
+	SRC=/newbits/bin/cc/c ; export SRC
+	cd cc/work ; make 
+	mv cc/work/bin/cc $(DESTDIR)cc
+	su root chmog 511 bin bin $(DESTDIR)cc
+	mv cc/work/bin/cc1 $(DESTDIR2)cc1
+	su root chmog 511 bin bin $(DESTDIR2)cc1
+	mv cc/work/bin/cc2 $(DESTDIR2)cc2
+	su root chmog 511 bin bin $(DESTDIR2)cc2
+	mv cc/work/bin/cc3 $(DESTDIR2)cc3
+	su root chmog 511 bin bin $(DESTDIR2)cc3
+	mv cc/work/bin/cpp $(DESTDIR2)cpp
+	su root chmog 511 bin bin $(DESTDIR2)cpp
 
 login:	login.c deftty.h
 	$(CC) $(CFLAGS) -o $(DESTDIR)login login.c
@@ -651,3 +666,9 @@ msgs: msgs.c
 	su root chown msgs $(DESTDIR)$@
 	su root chgrp msgs $(DESTDIR)$@
 	su root chmod 6511 $(DESTDIR)$@
+
+clear:	clear.c
+	cc -O -o $(DESTDIR)$@ clear.c -lterm
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
