@@ -7,7 +7,7 @@
 LIBNAME=libuuaux.a
 
 IDIR=../include
-CFLAGS= -O -I$(IDIR)
+CFLAGS= -O -I$(IDIR) -DUUCP
 
 AOBJ=	getopt.o	# Alien Object needed because of bad libc version
 
@@ -15,7 +15,7 @@ LOBJS=	alarm.o checktime.o ckdir.o debuglog.o exec.o fatal.o		\
 	getline.o getseq.o knowhost.o ldev.o lock.o log.o lsys.o	\
 	permission.o uucpname.o whoami.o
 
-all:	$(LIBNAME)
+all:	$(LIBNAME) 
 	@
 
 $(LIBNAME): $(LOBJS) $(AOBJ)
