@@ -8,8 +8,8 @@
 #include "dcp.h"
 
 #define SPOOLSQD	"/usr/spool/uucp/.Sequence"
-#define	MAXLOCKTRY	5
-#define	SLEEPTIME	5
+#define	MAXLOCKTRY	6
+#define	SLEEPTIME	2
 
 /*
  *  Gets the next sequence number (with locking) from the sequence
@@ -36,7 +36,8 @@ char *system;
 	}
 
 	if ( (sfp=fopen(seqfn, "r+")) == NULL ) {
-		if ( (sfp=fopen(seqfn, "w+")) == NULL ) {
+		if ( ((sfp=fopen(seqfn, "w+")) == NULL) ||
+		     (chmod(seqfn, 0600) < 0) ) {
 			lockrm(locknm);
 			fatal("Error using sequence file %s", seqfn);
 		}
