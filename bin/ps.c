@@ -3,11 +3,7 @@
  *
  * Print out process statuses.
  *
- * $Log:	/usr/src/cmd/i8086/ps.c,v $
- * Revision 1.2	91/07/17  09:40:13 	bin
- * steve 7/17/91
- * Inetco ps source, believed to correspond to MWC V300 executable.
- * 
+ * $Log:	/usr/src/cmd/cmd.nz/RCS/ps.c,v $
  * Revision 1.2	89/06/12  15:15:22 	src
  * Bug:	A directory at the end of the '/dev' directory would cause 'ps'
  * 	to crash with the message "Cannot open <dir> in /dev".
