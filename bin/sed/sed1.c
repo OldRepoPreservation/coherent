@@ -58,6 +58,7 @@ char *argv[];
 		compstr(ep->e_argp);
 		free(ep);
 	}
+	compstr(":");
 	load();
 	if (nerr != 0)
 		exit(1);
@@ -108,7 +109,7 @@ salloc(n)
 	register char *cp;
 
 	if ((cp=malloc(n)) == NULL) {
-		fprintf(stderr, "Out of core\n");
+		fprintf(stderr, "Out of space\n");
 		exit(1);
 	}
 	return (cp);
