@@ -1,3 +1,4 @@
+
 /* (-lgl
  *	COHERENT Device Driver Kit version 2.0.1.b
  *	Copyright (c) 1982, 1991, 1992 by Mark Williams Company.
@@ -11,7 +12,7 @@
  * density drives, 8, 9, 15 or 18 sectors per track.
  * It wil NOT run on an XT;  it requires the CMOS setup memory.
  *
- * Minor device assignments: xxuuhkkk   (try pronouncing that--)
+ * Minor device assignments: xxuuhkkk
  *	uu - unit = 0/1/2/3
  *	kkk - kind, struct fdata infra.
  *	h - alternating head rather than side by side
@@ -354,6 +355,44 @@ static	char	fl_intlv_ct,	/* Counts sectors to find interleave.	 */
 		fl_1st_ID,	/* Detects when all track sectors scanned*/
 		fl_hi_ID;	/* Highest sector ID read so far.	 */
 
+/*-------- DEBUG START ---------*/
+#if FL_DEBUG
+#define PUSH3(a,b,c)	push3(a,b,c)
+#define POP3()		pop3()
+
+#define XX	75
+
+static int A[XX], B[XX], C[XX];
+static int xxp = 0;	/* next avail index */
+
+static push3(a,b,c)
+int a,b,c;
+{
+	if (xxp < XX) {
+		A[xxp] = a;
+		B[xxp] = b;
+		C[xxp] = c;
+		xxp++;
+	}
+}
+
+static pop3()
+{
+	int i;
+
+	printf("pop3: ");
+	for (i = 0; i < xxp; i++) {
+		printf("c5=%d 1st=%d hi=%d ", A[i], B[i], C[i]);
+	}
+	xxp = 0;
+	printf(":done ");
+}
+#else
+#define PUSH3(a,b,c)
+#define POP3()
+#endif
+/*-------- DEBUG END ---------*/
+
 /*
  * The load routine asks the
  * switches how many drives are present
@@ -406,7 +445,7 @@ flload()
 		if (t > MAXTYPE)		  /* --in case we get, like, */
 			fl.fl_type[s] = t = MAXTYPE;	/* a 2.88 meg drive. */
 		fl.fl_rate[s] = frates[t].dflt_rate;
-		fl.fl_fd[s] = fdata[ frates[t].dflt_kind ];
+		fl.fl_fd[s] = fdata[frates[t].dflt_kind];
 		if (t) fl.fl_ndsk = s + 1;	  /* Type 0 = no drive. */
 
 		if (DSKCHPROB)
@@ -453,7 +492,7 @@ flunload()
 	/*
 	 * Cancel periodic (1 second) invocation.
 	 */
-	drvl[ FL_MAJOR ].d_time = 0;
+	drvl[FL_MAJOR].d_time = 0;
 
 	/*
 	 * Turn motors off.
@@ -486,8 +525,8 @@ int	mode;
 	 * Validate existence and data rate (Gap length != 0).
 	 */
 	if ((unit_number >= fl.fl_ndsk)
-	  || (fl.fl_type[ unit_number ] == 0)
-	  || (fdata[ fkind(dev) ].fd_GPL[ flrate(dev) ] == 0)) {
+	  || (fl.fl_type[unit_number] == 0)
+	  || (fdata[fkind(dev)].fd_GPL[flrate(dev)] == 0)) {
 		u.u_error = ENXIO;
 		goto badFlopen;		/* status. */
 	}
@@ -503,16 +542,16 @@ int	mode;
 	 * use the DMA.
 	 */
 	if (fl.fl_opct[unit_number] == 0) {	/* first open for this floppy */
-		if (drv_locked[ unit_number ]) {	/* Work areas avail? */
+		if (drv_locked[unit_number]) {	/* Work areas avail? */
 			u.u_error = EBUSY;		/* No. */
 			goto badFlopen;		/* status. */
 		} else {
-			drv_locked[ unit_number ] = 1;	/* Grab work areas. */
-			flbuf[ unit_number ].b_dev = dev;
-			flbuf[ unit_number ].b_req = BFLSTAT;
-			sw3[ unit_number ] = 0;
+			drv_locked[unit_number] = 1;	/* Grab work areas. */
+			flbuf[unit_number].b_dev = dev;
+			flbuf[unit_number].b_req = BFLSTAT;
+			sw3[unit_number] = 0;
 							/* Get drive status. */
-			s = flQhang(&flbuf[ unit_number ]);
+			s = flQhang(&flbuf[unit_number]);
 
 			for (;;) {
 				s = sphi();
@@ -536,7 +575,7 @@ int	mode;
 				}
 			}
 
-                        if (flbuf[ unit_number ].b_resid != 0) {
+                        if (flbuf[unit_number].b_resid != 0) {
 				u.u_error = EDATTN;	/* Couldn't get drive */
 				goto badFlopen;		/* status. */
 			}
@@ -544,7 +583,7 @@ int	mode;
 			/* The payoff - set write enable status. */
 			fl.fl_we[unit_number] =
 			  ((sw3[unit_number] & ST3_WP)==0);
-			drv_locked[ unit_number ] = 0;	/* Release work areas */
+			drv_locked[unit_number] = 0;	/* Release work areas */
 		}
 
 		/*
@@ -554,9 +593,9 @@ int	mode;
 		 * change lines that we can check each time we want to read
 		 * the drive.
 		 */
-		if (frates[ fl.fl_type[ unit_number ] ].fl_hi_rate == -1) {
-			fl.fl_incal[ unit_number ] = -1;
-			fl.fl_dsk_chngd[ unit_number ] = 1;
+		if (frates[fl.fl_type[unit_number]].fl_hi_rate == -1) {
+			fl.fl_incal[unit_number] = -1;
+			fl.fl_dsk_chngd[unit_number] = 1;
 
 			if (DSKCHPROB)
 				jopen = 2;
@@ -570,7 +609,6 @@ int	mode;
 		goto badFlopen;		/* protected. */
 	}
 
-goodFlopen:
 	fl.fl_opct[unit_number]++;
 badFlopen:
 	return;
@@ -603,7 +641,7 @@ dev_t	dev;
 IO	*iop;
 
 {
-	dmareq(&flbuf[ funit(dev) ], iop, dev, BREAD);
+	dmareq(&flbuf[funit(dev)], iop, dev, BREAD);
 }
 
 /*
@@ -619,7 +657,7 @@ dev_t	dev;
 IO	*iop;
 
 {
-	dmareq(&flbuf[ funit(dev) ], iop, dev, BWRITE);
+	dmareq(&flbuf[funit(dev)], iop, dev, BWRITE);
 }
 
 /*
@@ -644,7 +682,7 @@ char	*par;
 		return;
 	}
 
-	fdp = &fdata[ fkind(dev) ];		/* Locate formatting	*/
+	fdp = &fdata[fkind(dev)];		/* Locate formatting	*/
 	cyl = getubd(par);			/* parameters.		*/
 	hd  = getubd(par+1);
 
@@ -675,7 +713,7 @@ char	*par;
 	u.u_io.io_base = par;
 #endif
 	u.u_io.io_ioc = fdp->fd_nspt * 4;
-	dmareq(&flbuf[ funit(dev) ], &u.u_io, dev, BFLFMT);
+	dmareq(&flbuf[funit(dev)], &u.u_io, dev, BFLFMT);
 	return 0;
 }
 
@@ -699,12 +737,12 @@ register BUF	*bp;
 
 { /*DEBUG*/
 	int first = bp->b_bno, last = bno;
-	int fdatasz = fdata[ fkind(bp->b_dev) ].fd_size;
-	int fl_fdsz = fl.fl_fd[ funit(bp->b_dev) ].fd_size;
+	int fdatasz = fdata[fkind(bp->b_dev)].fd_size;
+	int fl_fdsz = fl.fl_fd[funit(bp->b_dev)].fd_size;
 /*DEBUG*/
 
 	if ((bp->b_req == BFLFMT)
-	&&   ((unsigned)bp->b_bno >= fdata[ fkind(bp->b_dev) ].fd_size)) {
+	&&   ((unsigned)bp->b_bno >= fdata[fkind(bp->b_dev)].fd_size)) {
 		bp->b_flag |= BFERR;
 		bdone(bp);
 		return;
@@ -712,12 +750,12 @@ register BUF	*bp;
 
 	if (bp->b_req != BFLFMT) {
 		if ((unsigned)bp->b_bno >=
-		  fl.fl_fd[ funit(bp->b_dev) ].fd_size)  {
+		  fl.fl_fd[funit(bp->b_dev)].fd_size)  {
 			bp->b_flag |= BFERR;
 			bdone(bp);
 			return;
 		}
-		if (bno >= fl.fl_fd[ funit(bp->b_dev) ].fd_size) {
+		if (bno >= fl.fl_fd[funit(bp->b_dev)].fd_size) {
 			if (bp->b_flag & BFRAW) {
 				bp->b_flag |= BFERR;
 			}
@@ -785,7 +823,7 @@ again:
 
 	case SIDLE:
 T_HAL(0x40000, printf("SIDLE "));
-		drvl[ FL_MAJOR ].d_time = 1;
+		drvl[FL_MAJOR].d_time = 1;
 
 		if (bp == NULL)
 			break;
@@ -810,7 +848,7 @@ bp->b_count);
 		if (bp->b_req == BFLSTAT) {
 			fl.fl_drvstat[0] = 0;
 			fldrvstatus();
-			sw3[ fl.fl_unit ] = fl.fl_drvstat[0] | 3;
+			sw3[fl.fl_unit] = fl.fl_drvstat[0] | 3;
 			bp->b_resid = (fl.fl_ndrvstat == 1) ? 0 : 1;
 			fl.fl_actf  = bp->b_actf;
 			fl.fl_state = SIDLE;
@@ -821,7 +859,7 @@ bp->b_count);
 
 		fl.fl_addr = bp->b_paddr;
 		fl.fl_secn = bp->b_bno;
-		fl.fl_time[ fl.fl_unit ] = 0;
+		fl.fl_time[fl.fl_unit] = 0;
 
 		if ((fl.fl_nsec = bp->b_count>>9) == 0)
 			fl.fl_nsec = 1;
@@ -855,7 +893,7 @@ T_HAL(0x40000, printf("SSEEK "));
 		 * which would lose us the disk changed indication.
 		 */
 
-		if ((frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate != -1)
+		if ((frates[fl.fl_type[fl.fl_unit]].fl_hi_rate != -1)
 		&&   (inb(FDCCHGL) & DSKCHGD)
 		&&   (fl_clrng_cd == 0)) {
 
@@ -867,8 +905,8 @@ T_HAL(0x40000, printf("SSEEK "));
 					 jopen--;
 			 }
 
-			fl.fl_dsk_chngd[ fl.fl_unit ] = 1;
-			fl.fl_incal[ fl.fl_unit ] = -1;
+			fl.fl_dsk_chngd[fl.fl_unit] = 1;
+			fl.fl_incal[fl.fl_unit] = -1;
 		}
 
 		fl_clrng_cd = 0;
@@ -882,21 +920,21 @@ T_HAL(0x40000, printf("SSEEK "));
 		 * consequence.
 		 */
 		if (bp->b_req == BFLFMT) {
-			fl.fl_dsk_chngd[ fl.fl_unit ] = 0;
-			fl.fl_fd[ fl.fl_unit ] = fdata[ fkind(bp->b_dev) ];
-			fl.fl_rate[ fl.fl_unit ] =
+			fl.fl_dsk_chngd[fl.fl_unit] = 0;
+			fl.fl_fd[fl.fl_unit] = fdata[fkind(bp->b_dev)];
+			fl.fl_rate[fl.fl_unit] =
 			fl.fl_rate_set		 = flrate(bp->b_dev);
-			if ((fl.fl_fd[ fl.fl_unit ].fd_trks < 45)
-			  && (fl.fl_type[ fl.fl_unit ] != 1))
-				fl.fl_2step[ fl.fl_unit ] = 1;
+			if ((fl.fl_fd[fl.fl_unit].fd_trks < 45)
+			  && (fl.fl_type[fl.fl_unit] != 1))
+				fl.fl_2step[fl.fl_unit] = 1;
 			outb(FDCRATE, fl.fl_rate_set);
 			if (fl.fl_secn == 0)
-				fl.fl_incal[ fl.fl_unit ] = -1;
+				fl.fl_incal[fl.fl_unit] = -1;
 		}
 		/*
 		 * Drive is not calibrated - seek to track 0.
 		 */
-		if (fl.fl_incal[ fl.fl_unit ] == -1) {
+		if (fl.fl_incal[fl.fl_unit] == -1) {
 			flput(CMDRCAL);
 			flput(fl.fl_unit);
 			fl.fl_state = SRECAL1;
@@ -949,14 +987,14 @@ T_HAL(0x40000, printf("SGOTO2 "));
 		  || ((fl.fl_intstat[0] & (ST0_IC | ST0_SE)) != ST0_SE))
 			goto RecalFailed;
 
-		fl.fl_incal[ fl.fl_unit ] = 2;	/* Heads now on cylinder 2. */
+		fl.fl_incal[fl.fl_unit] = 2;	/* Heads now on cylinder 2. */
 
 Recalibrated:
 		/*
 		 * Now, if we don't have to check the interleave factor,
 		 * we can continue with the seek!
 		 */
-		if (fl.fl_dsk_chngd[ fl.fl_unit ] == 0) goto RateKnown;
+		if (fl.fl_dsk_chngd[fl.fl_unit] == 0) goto RateKnown;
 
 		/*
 		 * <sigh>.  Okay, first we'll try the requested density.
@@ -964,33 +1002,33 @@ Recalibrated:
 
 						/* First we'll make sure   */
 						/* we're sitting on cyl 2. */
-		if (fl.fl_incal[ fl.fl_unit ] != 2) goto RecalibrateOK;
+		if (fl.fl_incal[fl.fl_unit] != 2) goto RecalibrateOK;
 
 		/*
 		 * We start by trying the requested density:
 		 */
 
 							/* Get requested rate.*/
-		i = fl.fl_rate[ fl.fl_unit ] = flrate(bp->b_dev);
+		i = fl.fl_rate[fl.fl_unit] = flrate(bp->b_dev);
 							/* This next mess gets*/
 							/* the disk parameters*/
 							/* and the alternate  */
 							/* values.	      */
-		if (i == frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate) {
+		if (i == frates[fl.fl_type[fl.fl_unit]].fl_hi_rate) {
 
-			fl.fl_fd[ fl.fl_unit ] =
-			 fdata[ frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_kind ];
+			fl.fl_fd[fl.fl_unit] =
+			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_hi_kind];
 			fl_alt_kind =
-				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_lo_kind;
+				  frates[fl.fl_type[fl.fl_unit]].fl_lo_kind;
 			fl_alt_rate =
-				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_lo_rate;
+				  frates[fl.fl_type[fl.fl_unit]].fl_lo_rate;
 		} else {
-			fl.fl_fd[ fl.fl_unit ] =
-			 fdata[ frates[ fl.fl_type[ fl.fl_unit ] ].fl_lo_kind ];
+			fl.fl_fd[fl.fl_unit] =
+			 fdata[frates[fl.fl_type[fl.fl_unit]].fl_lo_kind];
 			fl_alt_kind =
-				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_kind;
+				  frates[fl.fl_type[fl.fl_unit]].fl_hi_kind;
 			fl_alt_rate =
-				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate;
+				  frates[fl.fl_type[fl.fl_unit]].fl_hi_rate;
 		}
 
 		fl.fl_state  = SRDID;		/* Set up to read sector IDs. */
@@ -1020,11 +1058,13 @@ T_HAL(0x40000, printf("SRDID "));
 			if (fl_alt_rate == -1) { /* No, is there an alternate?*/
 				flstatus();	 /* No, we can't go on.       */
 				clrQ(bp->b_dev);
+PUSH3(-1,0,1);
 				goto again;
 			} else {
-				fl.fl_fd[ fl.fl_unit ] = fdata[ fl_alt_kind ];
-				i = fl.fl_rate[ fl.fl_unit ] = fl_alt_rate;
+				fl.fl_fd[fl.fl_unit] = fdata[fl_alt_kind];
+				i = fl.fl_rate[fl.fl_unit] = fl_alt_rate;
 				fl_alt_rate = -1; /* Flag tried alternate.    */
+PUSH3(-1,0,2);
 				goto TryRate;	  /* Try alternate density.   */
 			}
 		}
@@ -1048,6 +1088,7 @@ T_HAL(0x40000, printf("SRDID "));
 		 * Look for highest ID on track
 		 */
 
+PUSH3(fl.fl_cmdstat[5], fl_1st_ID, fl_hi_ID);
 		if (fl.fl_cmdstat[5] != fl_1st_ID) {
 			if (fl_1st_ID == 0)
 				fl_1st_ID = fl.fl_cmdstat[5];
@@ -1066,8 +1107,22 @@ T_HAL(0x40000, printf("SRDID "));
 		 * So now we know the density and sectors/track
 		 */
 
-		fl.fl_dsk_chngd[ fl.fl_unit ] = 0;
-		fl.fl_fd[ fl.fl_unit ].fd_nspt = fl_hi_ID;
+		fl.fl_dsk_chngd[fl.fl_unit] = 0;
+		fl.fl_fd[fl.fl_unit].fd_nspt = fl_hi_ID;
+
+		/*
+		 * There is a problem with the approach used here -
+		 * it assumes that once scan of a track starts, all
+		 * sectors appear in physical order without any misses.
+		 * Unfortunately, this is not always the case, especially
+		 * with 1.44 M 3-1/2" drives.
+		 *
+		 * A workaround which fixes incorrect nspt reading appears
+		 * below.
+		 */
+		if (fl.fl_fd[fl.fl_unit].fd_nspt > 15
+		  && fl.fl_fd[fl.fl_unit].fd_nspt < 18)
+			fl.fl_fd[fl.fl_unit].fd_nspt = 18;
 
 		/*
 		 * We're (supposedly) sitting on track 2.  We'll
@@ -1075,20 +1130,21 @@ T_HAL(0x40000, printf("SRDID "));
 		 * we need to do double-stepping.
 		 */
 
-		if (fl.fl_2step[ fl.fl_unit ] = (fl.fl_cmdstat[3] == 1)) {
-			fl.fl_fd[ fl.fl_unit ].fd_trks = FL_CYL_2STEP;
-			fl.fl_incal[ fl.fl_unit ] = 1;
+		if (fl.fl_2step[fl.fl_unit] = (fl.fl_cmdstat[3] == 1)) {
+			fl.fl_fd[fl.fl_unit].fd_trks = FL_CYL_2STEP;
+			fl.fl_incal[fl.fl_unit] = 1;
 		} else					/* Most 1.2M drives */
-			fl.fl_fd[ fl.fl_unit ].fd_trks = /* have 83 cyls!   */
-			  (fl.fl_type[ fl.fl_unit ] == 2)
+			fl.fl_fd[fl.fl_unit].fd_trks = /* have 83 cyls!   */
+			  (fl.fl_type[fl.fl_unit] == 2)
 			  ? FL_CYL_HDHI : FL_CYL_HDLO;
 
 		/*
 		 * We next test for one or two sides:
 		 */
 
-		if (fl.fl_rate[ fl.fl_unit ] == 0) {	    /* If diskette is */
-			fl.fl_fd[ fl.fl_unit ].fd_nhds = 2; /* high-density it*/
+		if (fl.fl_rate[fl.fl_unit] == 0) {	    /* If diskette is */
+			fl.fl_fd[fl.fl_unit].fd_nhds = 2; /* high-density it*/
+PUSH3(-1,0,4);
 			goto DiskEstablished;		    /* will have two  */
 		}					    /* sides.	      */
 
@@ -1097,9 +1153,10 @@ T_HAL(0x40000, printf("SRDID "));
 		 * we use the specified number of sides------
 		 */
 
-		if (fdata[ fkind(bp->b_dev) ].fd_nspt < 12) {
-			fl.fl_fd[ fl.fl_unit ].fd_nhds =
-					      fdata[ fkind(bp->b_dev) ].fd_nhds;
+		if (fdata[fkind(bp->b_dev)].fd_nspt < 12) {
+			fl.fl_fd[fl.fl_unit].fd_nhds =
+					      fdata[fkind(bp->b_dev)].fd_nhds;
+PUSH3(-1,0,5);
 			goto DiskEstablished;
 		}
 
@@ -1110,23 +1167,24 @@ T_HAL(0x40000, printf("SRDID "));
 		flput(CMDRDID); 		/* Just try to read ANY sector*/
 		flput(fl.fl_unit | 0x04);	/* ID from side two.	      */
 		fl.fl_state = SSIDTST;
+PUSH3(-1,0,6);
 		break;
 
 	case SSIDTST:				/* If we succeeded, we have */
 T_HAL(0x40000, printf("SSIDTST "));
 						/* 2 sides, else we have 1. */
-		fl.fl_fd[ fl.fl_unit ].fd_nhds = ((fl.fl_ncmdstat < 7)
+		fl.fl_fd[fl.fl_unit].fd_nhds = ((fl.fl_ncmdstat < 7)
 			  || ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT) ) ? 1 : 2;
 
 		/*
 		 * So now we now know all about the diskette!
 		 */
 DiskEstablished:
-		fl.fl_fd[ fl.fl_unit ].fd_size = fl.fl_fd[ fl.fl_unit ].fd_nhds
-					       * fl.fl_fd[ fl.fl_unit ].fd_trks
-					       * fl.fl_fd[ fl.fl_unit ].fd_nspt;
+		fl.fl_fd[fl.fl_unit].fd_size = fl.fl_fd[fl.fl_unit].fd_nhds
+					       * fl.fl_fd[fl.fl_unit].fd_trks
+					       * fl.fl_fd[fl.fl_unit].fd_nspt;
 
-		if (fl_disp)
+		if (fl_disp) {
 			printf("fl%d: rate=%d, sctrs/trk=%d, hds=%d, cyls=%d,"
 			  " size=%d, intlv=%d, stp=%d\n",
 			  fl.fl_unit,
@@ -1137,6 +1195,8 @@ DiskEstablished:
 			  fl.fl_fd[fl.fl_unit].fd_size,
 			  fl_intlv_ct,
 			  fl.fl_2step[fl.fl_unit]+1);
+			POP3();
+		}
 
 		/*
 		 * Finally, if the diskette drive has a change line
@@ -1149,7 +1209,7 @@ DiskEstablished:
 		 * flakier than this!
 		 */
 
-		if ((frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate != -1)
+		if ((frates[fl.fl_type[fl.fl_unit]].fl_hi_rate != -1)
 		  && (inb(FDCCHGL) & DSKCHGD)) {
 
                          /* See note at def of DSKCHPROB above */
@@ -1160,7 +1220,7 @@ DiskEstablished:
 					jopen--;
 			}
 
-			fl.fl_fcyl = fl.fl_incal[ fl.fl_unit ];
+			fl.fl_fcyl = fl.fl_incal[fl.fl_unit];
 			fl.fl_head = 0;
 			fl.fl_fsec = 1;
 #ifdef _I386
@@ -1170,51 +1230,51 @@ DiskEstablished:
 			fl.fl_addr = vtop(scratch_buffer, sds);
 #endif
 			fl_clrng_cd = 1;
-			goto Suck;
+			goto Sought;
 		}
 
 RateKnown:
 		/*
 		 * Set data rate if changed.
 		 */
-		if (fl.fl_rate_set != (i = fl.fl_rate[ fl.fl_unit ]))
+		if (fl.fl_rate_set != (i = fl.fl_rate[fl.fl_unit]))
 			outb(FDCRATE, fl.fl_rate_set = i);
 
 		/*
 		 * Next we must convert the ordinal block number to
 		 * cylinder/head/sector form.
 		 */
-		fl.fl_fsec = (fl.fl_secn % fl.fl_fd[ fl.fl_unit ].fd_nspt) + 1;
+		fl.fl_fsec = (fl.fl_secn % fl.fl_fd[fl.fl_unit].fd_nspt) + 1;
 
 		/*
 		 * Seek cylinder by cylinder (XENIX/DOS compatible).
 		 */
 		if (fl.fl_hbyh) {
-			fl.fl_head = fl.fl_secn / fl.fl_fd[ fl.fl_unit ].fd_nspt;
-			fl.fl_fcyl = fl.fl_head / fl.fl_fd[ fl.fl_unit ].fd_nhds;
-			fl.fl_head = fl.fl_head % fl.fl_fd[ fl.fl_unit ].fd_nhds;
+			fl.fl_head = fl.fl_secn / fl.fl_fd[fl.fl_unit].fd_nspt;
+			fl.fl_fcyl = fl.fl_head / fl.fl_fd[fl.fl_unit].fd_nhds;
+			fl.fl_head = fl.fl_head % fl.fl_fd[fl.fl_unit].fd_nhds;
 		}
 		
 		/*
 		 * Seek surface by surface.
 		 */
 		else {
-			fl.fl_fcyl = fl.fl_secn / fl.fl_fd[ fl.fl_unit ].fd_nspt;
-			fl.fl_head = fl.fl_fcyl / fl.fl_fd[ fl.fl_unit ].fd_trks;
-			fl.fl_fcyl = fl.fl_fcyl % fl.fl_fd[ fl.fl_unit ].fd_trks;
+			fl.fl_fcyl = fl.fl_secn / fl.fl_fd[fl.fl_unit].fd_nspt;
+			fl.fl_head = fl.fl_fcyl / fl.fl_fd[fl.fl_unit].fd_trks;
+			fl.fl_fcyl = fl.fl_fcyl % fl.fl_fd[fl.fl_unit].fd_trks;
 		}
 					/* Don't seek unless we have to. */
-		if (fl.fl_fcyl == fl.fl_incal[ fl.fl_unit ])
-			goto Suck;		/* Past tense of seek?? */
+		if (fl.fl_fcyl == fl.fl_incal[fl.fl_unit])
+			goto Sought;		/* Past tense of seek. */
 
-		fl.fl_incal[ fl.fl_unit ] = fl.fl_fcyl; /* Save new cylinder. */
+		fl.fl_incal[fl.fl_unit] = fl.fl_fcyl; /* Save new cylinder. */
 
 		flput(CMDSEEK);
 		flput((fl.fl_head<<2) | fl.fl_unit);
 						/* If disk is around 40 tracks*/
 						/* and drive is not 40 track- */
-		if ((fl.fl_fd[ fl.fl_unit ].fd_trks < 45)
-		  && (fl.fl_type[ fl.fl_unit ] != 1))
+		if ((fl.fl_fd[fl.fl_unit].fd_trks < 45)
+		  && (fl.fl_type[fl.fl_unit] != 1))
 			flput(fl.fl_fcyl << 1); 	/* -use double step.  */
 		else
 			flput(fl.fl_fcyl);		/* Single step.       */
@@ -1238,11 +1298,11 @@ T_HAL(0x40000, printf("SHDLY "));
 
 	case SRDWR:
 T_HAL(0x40000, printf("SRDWR "));
-Suck:
+Sought:
 		/*
 		 * Disable watchdog timer while waiting to lock DMA controller.
 		 */
-		fl.fl_time[ fl.fl_unit ] = -1;
+		fl.fl_time[fl.fl_unit] = -1;
 
 		/*
 		 * Next state will be DMA locked state.
@@ -1261,7 +1321,7 @@ T_HAL(0x40000, printf("SLOCK "));
 		 * Reset watchdog timer to restart timeout sequence.
 		 */
 
-		fl.fl_time[ fl.fl_unit ] = 0;
+		fl.fl_time[fl.fl_unit] = 0;
 
 		flcmd = CMDRDAT;
 		fl.fl_wflag = 0;
@@ -1309,9 +1369,9 @@ command:
 		flput((fl.fl_head<<2) | fl.fl_unit);
 
 		if (bp->b_req == BFLFMT) {
-			flput(fl.fl_fd[ fl.fl_unit ].fd_N);	/* N */
-			flput(fl.fl_fd[ fl.fl_unit ].fd_nspt);	/* SC */
-			flput(fl.fl_fd[ fl.fl_unit ].fd_FGPL);	/* GPL */
+			flput(fl.fl_fd[fl.fl_unit].fd_N);	/* N */
+			flput(fl.fl_fd[fl.fl_unit].fd_nspt);	/* SC */
+			flput(fl.fl_fd[fl.fl_unit].fd_FGPL);	/* GPL */
 			flput(0xF6);				/* D */
 		}
 		
@@ -1319,9 +1379,9 @@ command:
 			flput(fl.fl_fcyl);
 			flput(fl.fl_head);
 			flput(fl.fl_fsec);
-			flput(fl.fl_fd[ fl.fl_unit ].fd_N);	/* N */
-			flput(fl.fl_fd[ fl.fl_unit ].fd_nspt);	/* EOT */
-                        flput(fl.fl_fd[ fl.fl_unit ].fd_GPL[ fl.fl_rate_set ]);
+			flput(fl.fl_fd[fl.fl_unit].fd_N);	/* N */
+			flput(fl.fl_fd[fl.fl_unit].fd_nspt);	/* EOT */
+                        flput(fl.fl_fd[fl.fl_unit].fd_GPL[fl.fl_rate_set]);
 								/* GPL */
 			flput(0xFF);				/* DTL */
 		}
@@ -1331,7 +1391,7 @@ command:
 
 	case SENDIO:
 T_HAL(0x40000, printf("SENDIO "));
-		fl.fl_time[ fl.fl_unit ] = 0;
+		fl.fl_time[fl.fl_unit] = 0;
 		dmaoff(2);
 		dmaunlock(&fldmalck);
 
@@ -1356,7 +1416,7 @@ T_HAL(0x40000, printf("SENDIO "));
 					  goto Ask4Recal;
 				} else {
 Ask4Recal:
-					fl.fl_incal[ fl.fl_unit ] = -1;
+					fl.fl_incal[fl.fl_unit] = -1;
 SetSEEKState:
 					fl.fl_state = SSEEK;
 				}
@@ -1429,10 +1489,10 @@ flrate(dev)
 register dev_t dev;
 {
 	register int unit = funit(dev);
-	register int rate = frates[ fl.fl_type[ unit ] ].fl_hi_rate;
+	register int rate = frates[fl.fl_type[unit]].fl_hi_rate;
 
-	if ((rate == -1) || (fdata[ fkind(dev) ].fd_nspt < 15))
-		rate = frates[ fl.fl_type[ unit ] ].fl_lo_rate;
+	if ((rate == -1) || (fdata[fkind(dev)].fd_nspt < 15))
+		rate = frates[fl.fl_type[unit]].fl_lo_rate;
 
 	return(rate);
 }
@@ -1468,13 +1528,13 @@ fltimeout()
 		 * If timer is disabled (i.e. we are waiting for the DMA
 		 * controller), go on to the next drive.
 		 */
-		if (fl.fl_time[ unit ] < 0)
+		if (fl.fl_time[unit] < 0)
 			continue;
 
 		/*
 		 * Leave recently accessed (in last 4 seconds) drives spinning.
 		 */
-		if (++fl.fl_time[ unit ] < MTIMER)
+		if (++fl.fl_time[unit] < MTIMER)
 			continue;
 
 		/*
@@ -1512,7 +1572,7 @@ fltimeout()
 	 * Stop checking once all drives have been stopped.
 	 */
 	if (fl.fl_mstatus == 0)
-		drvl[ FL_MAJOR ].d_time = 0;
+		drvl[FL_MAJOR].d_time = 0;
 
 	spl(s);
 }
@@ -1603,7 +1663,7 @@ flrecov()
 	if (fl.fl_actf) {
 		printf("fd%d: <Door Open>\n", fl.fl_unit);     /* Message    */
 		clrQ(fl.fl_actf->b_dev);		/* Dump pending reqs. */
-		fl.fl_dsk_chngd[ fl.fl_unit ] = 1;	/* Make disk changed. */
+		fl.fl_dsk_chngd[fl.fl_unit] = 1;	/* Make disk changed. */
 	}
 
 	/*
@@ -1799,7 +1859,7 @@ fldrvstatus()
 static
 fldrvselect()
 {
-	fl.fl_time[ fl.fl_unit ] = 0;		/* Start motor-on timeout. */
+	fl.fl_time[fl.fl_unit] = 0;		/* Start motor-on timeout. */
 	fl.fl_mstatus |= fl.fl_mask;
 	outb(FDCDOR, DORNMR | DORIEN | fl.fl_mstatus | fl.fl_unit);
 	fl.fl_selected_unit = fl.fl_unit;	/* This unit is running. */
