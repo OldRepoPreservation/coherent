@@ -15,6 +15,7 @@
 
 #define TFCFLAG	0		/* Truly French GMT is UTC */
 int	gmtflag;		/* Do things in Greenwich Mean Time */
+int	sflag;			/* Suppress DST conversion when setting */
 struct	tm	*gtime();
 struct	timeb	tb;
 time_t	timep[2];
@@ -50,6 +51,8 @@ char *argv[];
 	if (argc>1 && *argv[1]=='-') {
 		if (argv[1][1]=='u' && argv[1][2]=='\0')
 			gmtflag = 1;
+		else if (argv[1][1]=='s' && argv[1][2]=='\0')
+			sflag = 1;
 		else
 			usage();
 		argc--;
@@ -137,7 +140,7 @@ char *s;
 	if (!gmtflag) {
 		ltime += timezone;
 		tmp = localtime(&ltime);
-		if (tmp->tm_isdst)
+		if (!sflag && tmp->tm_isdst)
 			ltime -= HOUR;
 	}
 	status = stime(&ltime);
