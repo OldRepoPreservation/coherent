@@ -1,8 +1,10 @@
 /*
- * lex.h
+ * lex/lex.h
  */
+
 #include <sys/mdata.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include "lextype.h"
 
@@ -12,55 +14,50 @@
 #define	OUTFILE	"lex.yy.c"
 #endif
 
-/*
- * maximum size of automaton
- */
-#define	ARRSZ	1000
+/* Manifest constants. */
+#define	ARRSZ	1000			/* maximum size of automaton */
+#define	NCBLK	16	/* number of chars in a quantum of stringspace */
 
 /*
- * number of chars in a quantum of stringspace
+ * Macros for manipulating bit-packed character classes.
  */
-#define	NCBLK	16
+#define	classindex(n)	((n) / NBCHAR * (MAXUCHAR+1))
+#define	classbit(n)	(1 << ((n) & (NBCHAR-1)))
 
 /*
- * macros for manipulating bit-packed character classes
+ * Check for octal digit.
  */
-#define	classindex(n)	((n)/NBCHAR*(MAXUCHAR+1))
-#define	classbit(n)	(1<<((n)&(NBCHAR-1)))
+#define	isoctl(c)	('0' <= (c) && (c) <= '7')
 
 /*
- * check for octal digit
- */
-#define	isoctl(c)	('0'<=(c)&&(c)<='7')
-
-/*
- * symbol storage
+ * Symbol storage.
  */
 struct	def {
 	struct	def *d_next;
 	char	*d_name;
-	short	d_data;
+	int	d_data;
 };
 
 /*
- * types of input lines in the specification
+ * Types of input lines in the specification.
  */
 enum	{
-	LN_DFLT,LN_LSPC,LN_CTXT,LN_SCON,
-	LN_LCOM,LN_RCOM,LN_DLIM,LN_OPTN,LN_EOFL
+	LN_DFLT,	LN_LSPC,	LN_CTXT,	LN_SCON,
+	LN_LCOM,	LN_RCOM,	LN_DLIM,	LN_OPTN,
+	LN_EOFL
 };
 
 /*
- * external declarations
+ * Globals.
  */
-extern	short	nxt;
-extern	short	yylval;
-extern	short	ltype;
-extern	short	inquotes;
-extern	short	indefs;
-extern	short	actn;
-extern	short	clas;
-extern	short	nfa[ARRSZ][2];
+extern	int	nxt;
+extern	int	yylval;
+extern	int	ltype;
+extern	int	inquotes;
+extern	int	indefs;
+extern	int	actn;
+extern	int	clas;
+extern	int	nfa[ARRSZ][2];
 extern	struct	def *defstart;
 extern	struct	def *ctxstart;
 extern	struct	def *scnstart;
@@ -84,8 +81,12 @@ extern	char	actsyn[];
 extern	char	unmopr[];
 extern	char	reperr[];
 extern	char	eoferr[];
+
+/*
+ * Function definitions.
+ */
 extern	char	*alloc();
 extern	char	*ralloc();
 extern	char	*getident();
-extern	char	*malloc();
-extern	char	*realloc();
+
+/* end of lex.h */

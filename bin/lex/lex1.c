@@ -1,14 +1,15 @@
 /*
- * lex1.c
+ * lex/lex1.c
  * main and parsing routines
  */
+
 #include "lex.h"
 
 main(argc, argv)
 char **argv;
 {
-	register short i, s;
-	short pflag = 0, tflag = 0, vflag = 0;
+	register int i, s;
+	int pflag = 0, tflag = 0, vflag = 0;
 
 	while (argc>1 && **++argv=='-') {
 		while (*++*argv) switch (**argv) {
@@ -42,9 +43,9 @@ char **argv;
 	 */
 	loutput(0, "#include <stdio.h>");
 	loutput(0, "extern\tchar\t\tyytext[];");
-	loutput(0, "extern\tshort\t\tyyleng;");
-	loutput(0, "extern\tshort\t\tyyscon;");
-	loutput(0, "extern\tshort\t\tyyline;");
+	loutput(0, "extern\tint\t\tyyleng;");
+	loutput(0, "extern\tint\t\tyyscon;");
+	loutput(0, "extern\tint\t\tyyline;");
 	loutput(0, "#define\tinput()\t\tgetchar()");
 	loutput(0, "#define\toutput(c)\tputchar(c)");
 	loutput(0, "#define\tunput(c)\tyyback(c)");
@@ -152,7 +153,7 @@ char **argv;
  */
 yyparse()
 {
-	register short s = nxt;
+	register int s = nxt;
 	register struct def *nd, *pd = NULL;
 	register char *pc;
 
@@ -206,7 +207,7 @@ yyparse()
 			}
 			nfa[nxt][0] = LX_ACPT;
 			nfa[nxt++][1] = ++actn;
-			loutput(1, "case 0%o:", actn);
+			loutput(1, "case 0x%x:", actn);
 			outlnum(0);
 			eatspc();
 			if (look(0) == '\n')
@@ -269,7 +270,7 @@ yyparse()
  */
 rexparse(p)
 {
-	register short c, t, s;
+	register int c, t, s;
 
 	s = nxt;
 	for (c=yylex(); c!=LX_TERM; c=nfaclose(t)) {
@@ -315,10 +316,10 @@ rexparse(p)
  * nfa segement starting at t, ending at nxt
  */
 nfaclose(t)
-register short t;
+register int t;
 {
 	register c;
-	short v0, v1;
+	int v0, v1;
 
 	if ((c=yylex()) == LX_OPER) switch (yylval) {
 	case '*':
@@ -376,9 +377,9 @@ register short t;
  * create an epsilon transition at nfa state s to nxt
  */
 nfalink(s)
-register short s;
+register int s;
 {
-	register short i, j;
+	register int i, j;
 
 	j = nxt++;
 	while ((i=j--) > s) {
@@ -393,9 +394,9 @@ register short s;
  * replicate the nfa segment starting at t ending at nxt
  */
 nfacopy(t)
-register short t;
+register int t;
 {
-	register short s;
+	register int s;
 
 	for (s=nxt; t<s; ++t,++nxt) {
 		nfa[nxt][0] = nfa[t][0];
@@ -410,7 +411,7 @@ register short t;
  */
 inscons()
 {
-	register short t;
+	register int t;
 
 	nfa[nxt][0] = LX_SCON;
 	nfa[t=nxt++][1] = getstart();
@@ -423,3 +424,5 @@ inscons()
 		nfa[t][1] = nxt - t;
 	}
 }
+
+/* end of lex1.c */

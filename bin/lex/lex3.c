@@ -1,7 +1,8 @@
 /*
- * lex3.c
- * output and table generating routines
+ * lex/lex3.c
+ * Output and table generating routines.
  */
+
 #include "lex.h"
 
 /* VARARGS */
@@ -28,8 +29,8 @@ char *s;
  */
 ltable()
 {
-	register short c, i, l;
-	register short lookflag;
+	register int c, i, l;
+	register int lookflag;
 
 	l = 0;
 	i = 0;
@@ -70,11 +71,11 @@ ltable()
 	for (i=0; i<nxt; ++i)
 		if (nfa[i][0] < 0)
 			nfa[i][0] = -nfa[i][0];
-	loutput(0, "short *yy_clist[0%o];", l);
-	loutput(0, "short *yy_nlist[0%o];", l);
+	loutput(0, "int *yy_clist[%d];", l);
+	loutput(0, "int *yy_nlist[%d];", l);
 	if (lookflag == 0)
 		return;
-	loutput(0, "short *yy_llist[0%o];", l);
+	loutput(0, "int *yy_llist[%d];", l);
 }
 
 /*
@@ -112,7 +113,7 @@ sdefns()
 
 	pd = scnstart;
 	while ((pd=pd->d_next) != NULL)
-		loutput(0, "#define\t%s\t\t0%o", pd->d_name, pd->d_data);
+		loutput(0, "#define\t%s\t\t0x%x", pd->d_name, pd->d_data);
 }
 
 /*
@@ -121,15 +122,15 @@ sdefns()
 xdefns()
 {
 	register struct def *pd;
-	register short i = 0;
+	register int i = 0;
 
 	for (pd=ctxstart; pd!=NULL; pd=pd->d_next)
 		++i;
-	loutput(0, "#define\tyyswitch(x)\tyyctxt((x),(0%o))", i);
+	loutput(0, "#define\tyyswitch(x)\tyyctxt((x),(0x%x))", i);
 	i = 0;
 	pd = ctxstart;
 	while ((pd=pd->d_next) != NULL)
-		loutput(0, "#define\t%s\t\t0%o", pd->d_name, ++i);
+		loutput(0, "#define\t%s\t\t0x%x", pd->d_name, ++i);
 }
 
 /*
@@ -139,15 +140,11 @@ xtable()
 {
 	register struct def *pd;
 
-	loutput(0, "short yy_ctxtab[] = {");
-	output("00");
+	loutput(0, "int yy_ctxtab[] = {");
+	output("0");
 	pd = ctxstart;
 	while ((pd=pd->d_next) != NULL)
-		if (pd->d_data < 0)
-			output(",-%d", -pd->d_data);
-		else
-			output(",0%o", pd->d_data);
-
+		output(",\t0x%x", pd->d_data);
 	output("\n");
 	loutput(0, "};");
 }
@@ -159,13 +156,13 @@ xtable()
 btable()
 {
 	register unsigned char *index;
-	register short bit;
-	register short b, n, i, t;
+	register int bit;
+	register int b, n, i, t;
 
 	if (classptr == NULL)
 		return;
 	b = 1;
-	loutput(0, "short yy_lxctab[] = {");
+	loutput(0, "int yy_lxctab[] = {");
 	for (n=0; n<clas; ++n) {
 		index = classptr + classindex(n);
 		bit = classbit(n);
@@ -175,10 +172,7 @@ btable()
 			if (index[i]&bit)
 				t |= b;
 			if ((b<<=1) == 0) {
-				if (t < 0)
-					output("-%d", -t);
-				else
-					output("0%o", t);
+				output("\t0x%x", t);
 				if (n+1<clas || i<MAXUCHAR)
 					output(",");
 				if (++i%(8*NBINT) == 0)
@@ -193,13 +187,13 @@ btable()
 	/*
 	 * output the bit selector table
 	 */
-	loutput(0, "short yy_lxbtab[] = {");
+	loutput(0, "int yy_lxbtab[] = {");
 	i = 0;
 	while (i < NBINT) {
-		output("01<<0%02o", i);
+		output("\t1<<%d", i);
 		if (++i < NBINT)
 			output(",");
-		if (i%(NBINT/2) == 0)
+		if (i % 8 == 0)
 			output("\n");
 	}
 	loutput(0, "};");
@@ -212,15 +206,15 @@ btable()
  */
 ptable()
 {
-	register short i,s;
+	register int i,s;
 
-	loutput(0, "short yy_lextab[] = {");
+	loutput(0, "int yy_lextab[] = {");
 	for (s=0,i=0; i<nxt; ++s,++i) {
 		if (i)
 			output(",");
 		if (s && s%8 == 0)
 			output("\n");
-		output("0%o", nfa[i][0] | (nfa[i][1]<<LR_SHFT));
+		output("\t0x%x", nfa[i][0] | (nfa[i][1]<<LR_SHFT));
 	}
 	output("\n");
 	loutput(0, "};");
@@ -232,7 +226,7 @@ ptable()
  */
 printnfa()
 {
-	register short i;
+	register int i;
 
 	for (i=0; i<nxt; ++i) {
 		fprintf(stderr, "%d:\t", i);
@@ -311,3 +305,5 @@ printnfa()
 		putc('\n', stderr);
 	}
 }
+
+/* end of lex3.c */
