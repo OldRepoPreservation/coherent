@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__STROPTS_H__
 #define	__STROPTS_H__
 
@@ -14,7 +21,7 @@
  */
 
 #include <common/ccompat.h>
-#include <sys/types.h>
+#include <common/_uid.h>
 #include <sys/conf.h>
 #include <sys/stropts.h>
 #include <sys/poll.h>
@@ -28,7 +35,7 @@
 struct strbuf {
 	int		maxlen;		/* Maximum buffer length */
 	int		len;		/* Actual data length */
-	_VOID	      *	buf;		/* Points to data buffer */
+	__VOID__      *	buf;		/* Points to data buffer */
 };
 
 
@@ -68,14 +75,19 @@ __EXTERN_C_BEGIN__
 
 int	getmsg		__PROTO ((int fd, struct strbuf * ctlptr,
 				  struct strbuf * dataptr, int * flagsp));
+int	putmsg		__PROTO ((int fd, __CONST__ struct strbuf * ctlptr,
+				  __CONST__ struct strbuf * dataptr, int flags));
+
+#if	_SYSV4
+
 int	getpmsg		__PROTO ((int fd, struct strbuf * ctlptr,
 				  struct strbuf * dataptr, int * bandp,
 				  int * flagsp));
-int	putmsg		__PROTO ((int fd, __CONST__ struct strbuf * ctlptr,
-				  __CONST__ struct strbuf * dataptr, int flags));
 int	putpmsg		__PROTO ((int fd, const struct strbuf * ctlptr,
 				  __CONST__ struct strbuf * dataptr, int band,
 				  int flags));
+
+#endif	/* _SYSV4 */
 
 __EXTERN_C_END__
 

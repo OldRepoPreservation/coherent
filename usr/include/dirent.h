@@ -1,7 +1,8 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 
 #ifndef __DIRENT_H__
@@ -9,12 +10,9 @@
 
 #include <common/feature.h>
 #include <common/ccompat.h>
-
 #include <common/_uid.h>
 #include <common/_daddr.h>
 #include <common/__off.h>
-
-#if	_I386
 
 struct dirent {
 	n_ino_t		__NON_POSIX (d_ino);	/* i-node number */
@@ -31,27 +29,14 @@ typedef struct {
 } DIR;			/* stream data from opendir() */
 
 
-#if	! _POSIX_SOURCE
+#if	! _POSIX_C_SOURCE
 
 #define	DIRBUF		2048		/* buffer size for fs-indep. dirs */
 	/* must in general be larger than the filesystem buffer size */
 
 #define	MAXNAMLEN	14		/* maximum filename length */
 
-#endif	/* ! _POSIX_SOURCE */
-
-#else	/* if ! _I386 */
-
-#if	! DIRSIZ
-# define	DIRSIZ		14	/* Size of directory name */
-#endif
-
-struct dirent {
-	ino_t	 d_ino;			/* Inode number */
-	char	 d_name[DIRSIZ];	/* Name */
-};
-
-#endif	/* ! _I386 */
+#endif	/* ! _POSIX_C_SOURCE */
 
 
 __EXTERN_C_BEGIN__
@@ -59,9 +44,9 @@ __EXTERN_C_BEGIN__
 DIR	      *	opendir		__PROTO ((__CONST__ char * _dirname));
 struct dirent *	readdir		__PROTO ((DIR * _dirp));
 void		rewinddir	__PROTO ((DIR * _dirp));
-void		closedir	__PROTO ((DIR * _dirp));
+int		closedir	__PROTO ((DIR * _dirp));
 
-#if	! _POSIX_SOURCE
+#if	! _POSIX_C_SOURCE
 
 __off_t		telldir		__PROTO ((DIR * _dirp));
 void		seekdir		__PROTO ((DIR * _dirp, __off_t _loc));
