@@ -1,19 +1,21 @@
 /* (-lgl
- * 	COHERENT Version 3.2
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * U.S. standard AT keyboard code table.
+ *  Virtual console keyboard code table.
  *
  *	See header files for definitions and constants.
  *
- *	Version: 1.2, 07/02/91
+ *	Version: 1.2, 07/01/91
+ *	Version: 1.3, 06/25/92
+ *	Version: 1.4, 07/09/92
  */
 #include <sys/kbscan.h>
 #include <sys/kb.h>
 
-char	tbl_name[] = "U.S. AT keyboard table";
+char	tbl_name[] = "U.S. virtual console keyboard table";
 
 KBTBL	kbtbl[] = {
 /* AT                                                    Alt
@@ -54,8 +56,8 @@ KBTBL	kbtbl[] = {
 {K_31,	'a',   'A',   soh,   soh,   'a',   'A',   soh,   soh,   none,   C|T  },
 {K_32,	's',   'S',   dc3,   dc3,   's',   'S',   dc3,   dc3,   none,   C|T  },
 {K_33,	'd',   'D',   eot,   eot,   'd',   'D',   eot,   eot,   none,   C|T  },
-{K_34,	'f',   'F',   ack,   ack,   'f',   'F',   ack,   ack,   none,   C|T  },
-{K_35,	'g',   'G',   bel,   bel,   'g',   'G',   bel,   bel,   none,   C|T  },
+{K_34,	'f',   'F',   ack,   ack,   0xF4,   'F',   ack,   ack,   none,   C|T  },
+{K_35,	'g',   'G',   bel,   bel,   0xF5,   'G',   bel,   bel,   none,   C|T  },
 {K_36,	'h',   'H',   bs,    bs,    'h',   'H',   bs,    bs,    none,   C|T  },
 {K_37,	'j',   'J',   nl,    nl,    'j',   'J',   nl,    nl,    none,   C|T  },
 {K_38,	'k',   'K',   vt,    vt,    'k',   'K',   vt,    vt,    none,   C|T  },
@@ -84,8 +86,19 @@ KBTBL	kbtbl[] = {
 {K_61,	' ',   ' ',   ' ',   ' ',   ' ',   ' ',   ' ',   ' ',   none,   O|T  },
 {K_62,	ralt,  ralt,  ralt,  ralt,  ralt,  ralt,  ralt,  ralt,  ralt,   S|MB },
 /* key 63 undefined */
+/* Undefined this key for a junk keybord */
 {K_64,	rctrl, rctrl, rctrl, rctrl, rctrl, rctrl, rctrl, rctrl, rctrl,  S|MB },
-/* keys 65 through 74 undefined */
+/* keys 65 through 74 could be functional keys on XT type keyboard */
+{K_65,	f2,    f12,   f12,   f12,   vt1,   f12,   f12,   f12,   f12,    F|M  },
+{K_66,	f4,    f14,   f14,   f14,   vt3,   f14,   f14,   f14,   f14,    F|M  },
+{K_67,	f6,    f16,   f16,   f16,   vt5,   f16,   f16,   f16,   f16,    F|M  },
+{K_68,	f8,    f18,   f18,   f18,   vt7,   f18,   f18,   f18,   f18,    F|M  },
+{K_69,	f10,   f20,   f20,   f20,   vtn,   f20,   f20,   f20,   f20,    F|M  },
+{K_70,	f1,    f11,   f11,   f11,   vt0,   f11,   f11,   f11,   f11,    F|M  },
+{K_71,	f3,    f13,   f13,   f13,   vt2,   f13,   f13,   f13,   f13,    F|M  },
+{K_72,	f5,    f15,   f15,   f15,   vt4,   f15,   f15,   f15,   f15,    F|M  },
+{K_73,	f7,    f17,   f17,   f17,   vt6,   f17,   f17,   f17,   f17,    F|M  },
+{K_74,	f9,    f19,   f19,   f19,   f19,   f19,   f19,   f19,   f19,    F|M  },
 {K_75,	f40,   f40,   f40,   f40,   f40,   f40,   f40,   f40,   f40,    F|M  },
 {K_76,	f41,   f41,   f41,   f41,   f41,   f41,   reboot,f41,   f41,    F|M  },
 /* keys 77 and 78 undefined */
@@ -100,46 +113,46 @@ KBTBL	kbtbl[] = {
 /* keys 87 and 88 undefined */
 {K_89,	f36,   f36,   f36,   f36,   f36,   f36,   f36,   f36,   f36,    F|T  },
 {K_90,	num,   num,   num,   num,   num,   num,   num,   num,   num,    S|M  },
-{K_91,	f37,   f57,   f57,   f57,   f57,   f57,   f57,   f57,   f57,    F|N|M},
-{K_92,	f34,   f54,   f54,   f54,   f54,   f54,   f54,   f54,   f54,    F|N|M},
-{K_93,	f31,   f51,   f51,   f51,   f51,   f51,   f51,   f51,   f51,    F|N|M},
+{K_91,	f37,   f57,   vt7,   vt7,   f57,   f57,   f57,   f57,   f57,    F|N|M},
+{K_92,	f34,   f54,   vt4,   vt4,   f54,   f54,   f54,   f54,   f54,    F|N|M},
+{K_93,	f31,   f51,   vt1,   vt1,   f51,   f51,   f51,   f51,   f51,    F|N|M},
 /* key 94 undefined */
 {K_95,	'/',   '/',   none,  none,  none,  none,  none,  none,  none,   O|M  },
-{K_96,	f38,   f58,   f58,   f58,   f58,   f58,   f58,   f58,   f58,    F|N|M},
-{K_97,	f35,   f55,   f55,   f55,   f55,   f55,   f55,   f55,   f55,    F|N|M},
-{K_98,	f32,   f52,   f52,   f52,   f52,   f52,   f52,   f52,   f52,    F|N|M},
-{K_99,	f40,   f60,   f60,   f60,   f60,   f60,   f60,   f60,   f60,    F|N|M},
+{K_96,	f38,   f58,   vt8,   vt8,   f58,   f58,   f58,   f58,   f58,    F|N|M},
+{K_97,	f35,   f55,   vt5,   vt5,   f55,   f55,   f55,   f55,   f55,    F|N|M},
+{K_98,	f32,   f52,   vt2,   vt2,   f52,   f52,   f52,   f52,   f52,    F|N|M},
+{K_99,	f40,   f60,   vt0,   vt0,   f60,   f60,   f60,   f60,   f60,    F|N|M},
 {K_100,	'*',   '*',   none,  none,  none,  none,  none,  none,  none,   O|M  },
-{K_101,	f39,   f59,   f59,   f59,   f59,   f59,   f59,   f59,   f59,    F|N|M},
-{K_102,	f36,   f56,   f56,   f56,   f56,   f56,   f56,   f56,   f56,    F|N|M},
-{K_103,	f33,   f53,   f53,   f53,   f53,   f53,   f53,   f53,   f53,    F|N|M},
-{K_104,	f41,   f61,   f61,   f61,   f61,   f61,   reboot,reboot,f61,    F|N|M},
-{K_105,	'-',   '-',   none,  none,  none,  none,  none,  none,  none,   O|M  },
-{K_106,	'+',   '+',   none,  none,  none,  none,  none,  none,  none,   O|M  },
+{K_101,	f39,   f59,   vt9,   vt9,   f59,   f59,   f59,   f59,   f59,    F|N|M},
+{K_102,	f36,   f56,   vt6,   vt6,   f56,   f56,   f56,   f56,   f56,    F|N|M},
+{K_103,	f33,   f53,   vt3,   vt3,   f53,   f53,   f53,   f53,   f53,    F|N|M},
+{K_104,	f41,   f61,   vtt,   vtt,   f61,   f61,   reboot,reboot,f61,    F|N|M},
+{K_105,	f63,   f63,   vtp,   vtp,  none,  none,  none,  none,  none,   F|M  },
+{K_106,	f62,   f62,   vtn,   vtn,  none,  none,  none,  none,  none,   F|M  },
 /* key 107 undefined */
 {K_108,	cr,    cr,    nl,    nl,    cr,    cr,    nl,    nl,    none,   O|M  },
 /* key 109 undefined */
 {K_110,	esc,   esc,   none,  none,  esc,   esc,   none,  none,  none,   O|M  },
 /* key 111 undefined */
-{K_112,	f1,    f11,   f11,   f11,   f11,   f11,   f11,   f11,   f11,    F|M  },
-{K_113,	f2,    f12,   f12,   f12,   f12,   f12,   f12,   f12,   f12,    F|M  },
-{K_114,	f3,    f13,   f13,   f13,   f13,   f13,   f13,   f13,   f13,    F|M  },
-{K_115,	f4,    f14,   f14,   f14,   f14,   f14,   f14,   f14,   f14,    F|M  },
-{K_116,	f5,    f15,   f15,   f15,   f15,   f15,   f15,   f15,   f15,    F|M  },
-{K_117,	f6,    f16,   f16,   f16,   f16,   f16,   f16,   f16,   f16,    F|M  },
-{K_118,	f7,    f17,   f17,   f17,   f17,   f17,   f17,   f17,   f17,    F|M  },
-{K_119,	f8,    f18,   f18,   f18,   f18,   f18,   f18,   f18,   f18,    F|M  },
+{K_112,	f1,    f11,   f11,   f11,   vt0,   f11,   f11,   f11,   f11,    F|M  },
+{K_113,	f2,    f12,   f12,   f12,   vt1,   f12,   f12,   f12,   f12,    F|M  },
+{K_114,	f3,    f13,   f13,   f13,   vt2,   f13,   f13,   f13,   f13,    F|M  },
+{K_115,	f4,    f14,   f14,   f14,   vt3,   f14,   f14,   f14,   f14,    F|M  },
+{K_116,	f5,    f15,   f15,   f15,   vt4,   f15,   f15,   f15,   f15,    F|M  },
+{K_117,	f6,    f16,   f16,   f16,   vt5,   f16,   f16,   f16,   f16,    F|M  },
+{K_118,	f7,    f17,   f17,   f17,   vt6,   f17,   f17,   f17,   f17,    F|M  },
+{K_119,	f8,    f18,   f18,   f18,   vt7,   f18,   f18,   f18,   f18,    F|M  },
 {K_120,	f9,    f19,   f19,   f19,   f19,   f19,   f19,   f19,   f19,    F|M  },
-{K_121,	f10,   f20,   f20,   f20,   f20,   f20,   f20,   f20,   f20,    F|M  },
-{K_122,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|M  },
-{K_123,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|M  },
+{K_121,	f10,   f20,   f20,   f20,   vtn,   vtn,   f20,   f20,   f20,    F|M  },
+{K_122,	none,  none,  none,  none,  vtp,  vtp,  none,  none,  none,   F|M  },
+{K_123,	none,  none,  none,  none,  vtt,  vtt,  none,  none,  none,   F|M  },
 {K_124,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|M  },
 {K_125,	scroll,scroll,scroll,scroll,scroll,scroll,scroll,scroll,scroll, S|M  },
 {K_126,	none,  none,  none,  none,  none,  none,  none,  none,  none,   O|M  }
 };
 
 /*
- * Special and programable function key definitions:
+ * Special and programmable function key definitions:
  *
  * Notes:
  *   1) If a key outputs a multi-byte sequence in any mode, the key
@@ -212,10 +225,11 @@ unsigned char	*funkey[] = {
 /* 58 */	"8\377",	 	/* Keypad 8 */
 /* 59 */	"9\377",	 	/* Keypad 9 */
 /* 60 */	"0\377",	 	/* Keypad 0 */
-/* 61 */	".\377"		 	/* Keypad . */
+/* 61 */	".\377",	 	/* Keypad . */
+/* 62 */	"+\377",	 	/* Keypad + */
+/* 63 */	"-\377",	 	/* Keypad - */
 };
 
 int	numfun	= sizeof(funkey) / sizeof(funkey[0]);	/* # of Fn keys */
 int	numkey	= sizeof(kbtbl) / sizeof(kbtbl[0]);	/* # of actual keys */
 /* end of us.c */
-
