@@ -1,84 +1,104 @@
-SRC	= .
-CFLAGS	=-O -I$(SRC)
+# /usr/src/cmd/nroff/Makefile 3/29/91
+# Makefile for nroff and troff
 
-OFILES	= asctab.o div.o env.o expr.o extern.o getf.o hyphen.o hyptab.o\
-	main.o misc.o process.o reg.o req1.o req2.o reqmisc.o request.o\
-	table.o codebug.o req3.o
+# Targets.
 
-TFILES	= tty.o
+DESTDIR=/interim/bin/
 
-LDFLAGS	= -i
+ALL=\
+	nroff\
+	troff\
+	fwtable
 
-PFILES	= hpljet.o
+# Objects included in both nroff and troff images.
+OBJ=\
+	div.o\
+	env.o\
+	expr.o\
+	extern.o\
+	getf.o\
+	hyphen.o\
+	hyptab.o\
+	main.o\
+	misc.o\
+	process.o\
+	reg.o\
+	req1.o\
+	req2.o\
+	request.o\
+	table.o
 
-HFILES	= hhpljet.o
+# Objects in nroff only.
+NOBJ=	tty.o
 
-TSRCS	= asctab.c div.c env.c expr.c extern.c getf.c hyphen.c hyptab.c\
-	main.c misc.c process.c reg.c req1.c req2.c reqmisc.c request.c\
-	table.c hpljet.c codebug.c req3.c
+# Objects in troff only.
+TOBJ=\
+	fonts.o\
+	output.o
 
-NSRCS	= asctab.c div.c env.c expr.c extern.c getf.c hyphen.c hyptab.c\
-	main.c misc.c process.c reg.c req1.c req2.c reqmisc.c request.c\
-	table.c tty.c codebug.c req3.c
+# Too many header files.
+HDR=\
+	code.h\
+	codebug.h\
+	div.h\
+	env.h\
+	escapes.h\
+	fonts.h\
+	hyphen.h\
+	reg.h\
+	request.h\
+	roff.h\
+	str.h
 
-troff:	$(OFILES) $(PFILES)
-	exec $(CC) $(LDFLAGS) -o troff $(OFILES) $(PFILES)
+# fwtable objects.
+FWTOBJ=\
+	fwtable.o\
+	fwtableps.o
 
-hroff:	$(OFILES) $(HFILES)
-	exec $(CC) $(LDFLAGS) -o hroff $(OFILES) $(HFILES)
+# Primary target.
+all:	$(ALL)
+	: Done.
 
-nroff:	$(OFILES) $(TFILES)
-	exec $(CC) $(LDFLAGS) -o nroff $(OFILES) $(TFILES)
+# Secondary targets.
+troff:	$(OBJ) $(TOBJ)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)troff $(OBJ) $(TOBJ)
+	su root chmog 511 bin bin $(DESTDIR)troff
 
-hpljet.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/char.h $(SRC)/env.h \
-	$(SRC)/font.h $(SRC)/hpljet.c
+nroff:	$(OBJ) $(NOBJ)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)nroff $(OBJ) $(NOBJ)
+	su root chmog 511 bin bin $(DESTDIR)nroff
 
-hhpljet.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/char.h $(SRC)/env.h \
-	$(SRC)/font.h $(SRC)/hpljet.c
-	exec $(CC) -DOLDHP=1 $(CFLAGS) -c -o hhpljet.o $(SRC)/hpljet.c
+fwtable:	$(FWTOBJ)
+	cc -o $(DESTDIR)fwtable $(FWTOBJ) -f
+	su root chmog 511 bin bin $(DESTDIR)fwtable
 
-asctab.o: $(SRC)/roff.h $(SRC)/char.h $(SRC)/asctab.c
+strip:	$(ALL)
+	strip $(ALL)
 
-div.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/div.h $(SRC)/reg.h $(SRC)/str.h \
-	$(SRC)/div.c
-env.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/env.h $(SRC)/esc.h $(SRC)/env.c
+clean:
+	rm -f $(OBJ) $(TOBJ) $(NOBJ) fwtable.o fwtableps.o
 
-expr.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/div.h $(SRC)/env.h $(SRC)/expr.c
+# Unlinked objects.
+div.o:		$(HDR) div.c
+env.o:		$(HDR) env.c
+expr.o:		$(HDR) expr.c
+extern.o:	$(HDR) extern.c
+fonts.o:	$(HDR) fonts.c
+getf.o:		$(HDR) getf.c
+hyphen.o:	$(HDR) hyphen.c
+hyptab.o:	$(HDR) hyptab.c
+main.o:		$(HDR) main.c
+misc.o:		$(HDR) misc.c
+output.o:	$(HDR) output.c
+process.o:	$(HDR) process.c
+reg.o:		$(HDR) reg.c
+req1.o:		$(HDR) req1.c
+req2.o:		$(HDR) req2.c
+request.o:	$(HDR) request.c
+table.o:	$(HDR) table.c
+tty.o:		$(HDR) tty.c
 
-extern.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/env.h \
-	$(SRC)/div.h $(SRC)/reg.h $(SRC)/str.h $(SRC)/extern.c
+fwtable.o:	fwtable.c
+fwtableps.o:	fwtableps.c
 
-getf.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/env.h \
-	$(SRC)/esc.h $(SRC)/div.h $(SRC)/reg.h $(SRC)/str.h $(SRC)/getf.c
-
-hyphen.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/hyphen.h \
-	$(SRC)/char.h $(SRC)/roff.h $(SRC)/hyphen.c
-
-main.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/env.h $(SRC)/esc.h \
-	$(SRC)/div.h $(SRC)/reg.h $(SRC)/str.h $(SRC)/main.c
-
-misc.o: $(SRC)/roff.h $(SRC)/str.h $(SRC)/misc.c
-
-process.o: $(SRC)/roff.h $(SRC)/char.h $(SRC)/code.h $(SRC)/div.h \
-	$(SRC)/env.h $(SRC)/esc.h $(SRC)/hyphen.h $(SRC)/reg.h $(SRC)/process.c
-
-reg.o: $(SRC)/roff.h $(SRC)/reg.h $(SRC)/reg.c
-
-req1.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/div.h $(SRC)/env.h $(SRC)/esc.h \
-	$(SRC)/reg.h $(SRC)/str.h $(SRC)/req1.c
-
-req2.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/env.h $(SRC)/div.h $(SRC)/reg.h \
-	$(SRC)/str.h $(SRC)/esc.h $(SRC)/req2.c
-
-reqmisc.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/env.h $(SRC)/div.h $(SRC)/reg.h \
-	$(SRC)/str.h $(SRC)/reqmisc.c
-
-request.o: $(SRC)/roff.h $(SRC)/reg.h $(SRC)/str.h $(SRC)/request.c
-
-table.o: $(SRC)/roff.h $(SRC)/esc.h $(SRC)/table.c
-
-tty.o: $(SRC)/roff.h $(SRC)/code.h $(SRC)/char.h $(SRC)/env.h $(SRC)/tty.c
-
-codebug.o: $(SRC)/codebug.h $(SRC)/codebug.c
-
-req3.o: $(SRC)/code.h $(SRC)/char.h $(SRC)/roff.h $(SRC)/env.h $(SRC)/req3.c
+# end of /usr/src/cmd/nroff/Makefile
