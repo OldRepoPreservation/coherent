@@ -18,14 +18,18 @@
  * Includes.
  */ 
 #include	<coherent.h>
+#include	<sys/io.h>
+#include	<sys/sched.h>
+#include	<sys/uproc.h>
+#include	<sys/proc.h>
+#include	<sys/con.h>
+#include	<sys/stat.h>
+#include	<devices.h>		/* SCSI_MAJOR */
+#include	<errno.h>
+
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
-#include	<sys/con.h>
-#include	<sys/stat.h>
-#include	<sys/uproc.h>
-#include	<errno.h>
-#include	<devices.h>		/* SCSI_MAJOR */
 
 /*
  * Export Functions.
@@ -35,7 +39,7 @@
  * Export Variables - patch these to configure the driver.
  */
 int	SS_INT = 5;		/* ST01/ST02 use either IRQ3 or IRQ5 */
-int	SS_BASE_SEG = 0xDC00	/* Start of memory-mapped communication area */
+int	SS_BASE_SEG = 0xDE00;	/* Start of memory-mapped communication area */
 
 /*
  * Import Functions.
@@ -84,7 +88,8 @@ CON	sscon	= {
 	nulldev,			/* Powerfail */
 	sswatch,			/* Timeout */
 	ssload,				/* Load */
-	ssunload			/* Unload */
+	ssunload,			/* Unload */
+	nulldev				/* Poll */
 };
 
 /**
@@ -106,12 +111,28 @@ ssload()
 	/*
 	 * Allocate a selector to map into ST0x memory-mapped comm area.
 	 */
-	ss_base = (paddr_t)SS_BASE_SEG << 4;
+	ss_base = (paddr_t)((long)(unsigned)SS_BASE_SEG << 4);
 	ss_fp = ptov(ss_base, (fsize_t)SS_SEL_LEN);
 
 	ss_ram = ss_fp + SS_RAM;
 	ss_csr = ss_fp + SS_CSR;
 	ss_dat = ss_fp + SS_DAT;
+
+	/*
+	 * Primitive test of ST0x RAM.
+	 */
+	sfword(ss_ram, 0xA55A);
+	sfword(ss_ram + 2, 0x3CC3);
+	sfword(ss_ram + SS_RAM_LEN - 4, 0xA55A);
+	sfword(ss_ram + SS_RAM_LEN - 2, 0x3CC3);
+	if (ffword(ss_ram) != 0xA55A		/* fetch a "far" word */
+	||  ffword(ss_ram + 2) != 0x3CC3
+	||  ffword(ss_ram + SS_RAM_LEN - 4) != 0xA55A
+	||  ffword(ss_ram + SS_RAM_LEN - 2) != 0x3CC3) {
+		printf("Error - ST0x failed memory test\n");
+		return;
+	} else
+		printf("ST0x passed memory test\n");
 
 	/*
 	 * Initialize Drive Size.
@@ -256,5 +277,9 @@ register BUF	*bp;
  */
 static void
 ssintr()
+{
+}
+
+static void	sswatch()
 {
 }
