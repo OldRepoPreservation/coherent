@@ -2,10 +2,10 @@
 CFLAGS= -O -DNEWTTYS
 DESTDIR= /interim/bin/
 DESTDIR2= /interim/lib/
-CMDS= expr/expr conv/conv as/as awk/awk compiler \
+CMDS= expr/expr conv/conv as/as awk/awk  \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
       ed/ed find/find grep/grep lex/lex mail/mail make/make sed/sed sh/sh \
-      test/test tsort/tsort yacc/yacc nroff/nroff \
+      test/test tsort/tsort yacc/yacc nroff/nroff ld/ld\
       login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
       chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
       factor file fixstack from head help join kill lc ln look ls m4 mail man \
@@ -21,17 +21,21 @@ all:	$(CMDS)
 
 compiler:
 	SRC=/newbits/bin/cc/c ; export SRC
-	cd cc/work ; make 
-	mv cc/work/bin/cc $(DESTDIR)cc
+	sh /newbits/bin/cc/c/.profile
+	cd cc/work ; make
+	su root mv cc/work/bin/cc $(DESTDIR)cc
 	su root chmog 511 bin bin $(DESTDIR)cc
-	mv cc/work/bin/cc1 $(DESTDIR2)cc1
+	su root mv cc/work/bin/cc1 $(DESTDIR2)cc1
 	su root chmog 511 bin bin $(DESTDIR2)cc1
-	mv cc/work/bin/cc2 $(DESTDIR2)cc2
+	su root mv cc/work/bin/cc2 $(DESTDIR2)cc2
 	su root chmog 511 bin bin $(DESTDIR2)cc2
-	mv cc/work/bin/cc3 $(DESTDIR2)cc3
+	su root mv cc/work/bin/cc3 $(DESTDIR2)cc3
 	su root chmog 511 bin bin $(DESTDIR2)cc3
-	mv cc/work/bin/cpp $(DESTDIR2)cpp
+	su root mv cc/work/bin/cpp $(DESTDIR2)cpp
 	su root chmog 511 bin bin $(DESTDIR2)cpp
+
+ld/ld:
+	cd ld/objects ; export SRCPATH=.. ; make
 
 login:	login.c deftty.h
 	$(CC) $(CFLAGS) -o $(DESTDIR)login login.c
