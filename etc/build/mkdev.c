@@ -10,6 +10,12 @@
  *	-v	Verbose
  *
  * $Log:	mkdev.c,v $
+ * Revision 1.5  91/06/17  08:13:40  hal
+ * Allow for older Future Domain host adapters.
+ * 
+ * Revision 1.4  91/06/17  08:09:22  hal
+ * Shipped with 3.2.0.
+ * 
  * Revision 1.3  91/05/30  12:22:24  hal
  * Patch SS_INT and SS_BASE.
  * 
@@ -78,7 +84,6 @@ scsi()
 	int i, id, lun, rootflag;
 	int ss_dev = 0;
 	int fut_dev = 0;
-	int ss_host;
 	short nsdrive = 0;
 	int ss_int = 5, new_int;
 	unsigned int ss_base = 0xCA00, new_base;
@@ -98,10 +103,11 @@ again:
 "(1) Adaptec AHA-154x series\n"
 "(2) Seagate ST01 or ST02\n"
 "(3) Future Domain TMC-845/850/860/875/885\n"
+"(4) Future Domain TMC-840/841/880/881\n"
 "\n"
 		);
 retry:
-	switch(get_int(0, 3, "Enter a number from the above list or 0 to exit:")) {
+	switch(get_int(0, 4, "Enter a number from the above list or 0 to exit:")) {
 	case 0:
 		return;
 	case 1:
@@ -111,17 +117,22 @@ retry:
 		break;
 	case 2:
 		ss_dev = 1;
-		ss_host = 0x0080;	/* ST0[12] is SCSI id 7 */
 		drv = "/drv/ss";
 		coh = "ss";
 		break;
 	case 3:
 		ss_dev = 1;
 		fut_dev = 1;
-		ss_host = 0x0040;	/* TMC-8xx is SCSI id 6 */
 		drv = "/drv/ss";
 		coh = "ss";
 		nsdrive |= 0x8000;
+		break;
+	case 4:
+		ss_dev = 1;
+		fut_dev = 1;
+		drv = "/drv/ss";
+		coh = "ss";
+		nsdrive |= 0x4000;
 		break;
 	default:
 		goto retry;		/* should never happen */
@@ -277,8 +288,8 @@ newdev:
 
 		/* "ss" device driver requires patching to work at all. */
 		sprintf(ss_patch,
-			"NSDRIVE_=0x%04x SS_INT_=%d SS_BASE_=0x%04x SS_HOST_=0x%x",
-			nsdrive, ss_int, ss_base, ss_host);
+			"NSDRIVE_=0x%04x SS_INT_=%d SS_BASE_=0x%04x",
+			nsdrive, ss_int, ss_base);
 
 		/*
 		 * Write PATCHFILE which is run by build.

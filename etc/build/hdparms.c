@@ -10,6 +10,14 @@
  *	-s	Device uses "ss" driver (Seagate/Future Domain SCSI
  *
  * $Log:	hdparms.c,v $
+ * Revision 1.4  91/06/27  13:38:07  hal
+ * Steve-style printf call for long messages.
+ * Drop calculated default parameters.
+ * 
+ * Revision 1.3  91/06/27  13:21:24  hal
+ * Fix exit value if parameters are NOT changed.
+ * Use "success" not "exitval".
+ * 
  * Revision 1.2  91/06/03  04:32:58  hal
  * Patch drv_parm_ table for ss driver.
  * 
@@ -49,8 +57,10 @@ typedef unsigned long ulong;
  *	Export Functions.
  *	Local Functions.
  */
+#if DEFAULT_PARMS
 static void cam_parms();
 static void fd_parms();
+#endif
 static void getuint();
 static int hdparms();
 
@@ -72,7 +82,7 @@ int argc;
 char *argv[];
 {
 	uchar *s;
-	int exitval = 1;
+	int success = 1;
 
 	argv0 = argv[0];
 	usagemsg = USAGEMSG;
@@ -97,14 +107,14 @@ char *argv[];
 	}
 
 	while (--argc > 0) {
-		exitval &= hdparms(argv[1]);
+		success &= hdparms(argv[1]);
 		++argv;
 	}
 
 	/*
 	 * Exit with nonzero value if any call to hdparms() failed.
 	 */
-	exit(exitval == 0);
+	exit(success == 0);
 }
 
 /*
@@ -155,21 +165,24 @@ printf("\nHere are the current parameters for SCSI device %d:\n", s_id);
 printf("Number of cylinders = %d\n", ncyls);
 printf("Number of heads = %d\n", nheads);
 printf("Number of sectors per track = %d\n", nspt);
-printf("\nIf the values above do not agree with those used by your host\n");
-printf("adapter's BIOS programming, you will not be able to boot COHERENT\n");
-printf("from this hard drive.\n");
+
+printf(
+"\nIf the values above do not agree with those used by your host adapter's BIOS"
+"\nprogramming, you will not be able to boot COHERENT from this hard drive.\n");
 
 		if (ncyls > 1024) {
-printf("\nThis device has more than 1024 cylinders.  In order to use the\n");
-printf("entire drive from COHERENT, and possibly to be compatible with\n");
-printf("other operating systems, you will need to enter a set of\n");
-printf("translation-mode parameters.  Enter the parameters your BIOS uses,\n");
-printf("if possible.  Otherwise, you can accept the default values shown\n");
-printf("by pressing <Enter> at each prompt.\n\n");
+printf(
+"\nThis device has more than 1024 cylinders.  In order to use the entire drive"
+"\nfrom COHERENT, and possibly to be compatible with other operating systems,"
+"\nyou will need to enter a set of translation-mode parameters.  Enter the"
+"\nparameters your BIOS uses.  You can accept the default values shown by"
+"\npressing <Enter> at each prompt.\n\n");
+#if DEFAULT_PARMS
 			if (fflag)
 				fd_parms(&ncyls, &nheads, &nspt);
 			else
 				cam_parms(&ncyls, &nheads, &nspt);
+#endif				
 		}
 
 		if (yes_no("Do you want to modify drive parameters")) {
@@ -210,7 +223,8 @@ fprintf(cmd, "/conf/patch %s %s\n", drv, ss_patch);
 				}
 			}
 
-		}
+		} else
+			ret = 1;
 	}
 
 close_fd:
@@ -236,6 +250,7 @@ uchar * prompt;
 	sscanf(buf, "%d", np);
 }
 
+#if DEFAULT_PARMS
 /*
  * cam_parms()
  *
@@ -313,3 +328,4 @@ uint * p_ncyls, * p_nheads, * p_nspt;
 frotz:
 	return;
 }
+#endif
