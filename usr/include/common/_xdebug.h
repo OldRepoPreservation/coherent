@@ -246,7 +246,7 @@
 
 /*
  * Note that we terminate these strings with a "" so that they ALWAYS expand
- * to a valid ISO C string of some form. If we are using a C compiler than
+ * to a valid ISO C string of some form. If we are using a C compiler that
  * cannot merge constant strings, create a static string constant.
  */
 

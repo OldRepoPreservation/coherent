@@ -1,3 +1,9 @@
+/* is_fs.c */
+
+#define _KERNEL 1
+
+#include <sys/buf.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <canon.h>
 #include <sys/filsys.h>

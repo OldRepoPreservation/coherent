@@ -63,7 +63,7 @@ __fd_t	      *	fd_get		__PROTO ((fd_t _fd));
 int		fd_get_flags	__PROTO ((fd_t _fd));
 int		fd_set_flags	__PROTO ((fd_t _fd, int _flags));
 
-fd_t		fd_dup		__PROTO ((fd_t _old, fd_t _base));
+fd_t		fd_dup		__PROTO ((fd_t _old, fd_t _fbase));
 int		fd_recv		__PROTO ((fd_t fd, __fd_t * _fdp));
 fd_t		fd_get_free	__PROTO ((void));
 fd_t		fd_alloc	__PROTO ((void));

@@ -1,4 +1,4 @@
-#include <access.h>
+#include <unistd.h>
 #include <stdio.h>
 
 main(argc, argv)
@@ -13,13 +13,13 @@ int argc; char *argv[];
 	}
 	switch (*argv[2]) {
 	case 'x':
-		mode = AEXEC;
+		mode = X_OK;
 		break;
 	case 'w':
-		mode = AWRITE;
+		mode = W_OK;
 		break;
 	case 'r':
-		mode = AREAD;
+		mode = R_OK;
 		break;
 	default:
 		fprintf(stderr, 

@@ -1,3 +1,0 @@
-nucterm|rayterm|nuc|NUC homebrew,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L$<1>, el=^A, ed=^E, 
-	cud1=^J, home=^B, cub1=^H, cuf1=^C, ll=^K, cuu1=^N, ind=^J, 

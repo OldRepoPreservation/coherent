@@ -3,8 +3,11 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 #include "lexlib.h"
-yynext()
+
+int
+yynext ()
 {
-	return (qct(ll_tq)? qgt(ll_tq) : _llic());
+	return qct (ll_tq) ? qgt (ll_tq) : _llic ();
 }

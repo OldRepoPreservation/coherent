@@ -1,3 +1,0 @@
-hp-0|hewlett-packard for testing of curses and the like,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=\EH\EJ, cud1=^J, 
-	home=\E&a0c0Y, cub1=^H, cuf1=\EC, ind=^J, 

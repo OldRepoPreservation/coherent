@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #define display(x) dodisplay((double)(x), #x)

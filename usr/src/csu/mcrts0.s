@@ -1,39 +1,45 @@
 / (-lgl
-/ 	COHERENT Version 3.2
-/ 	Copyright (c) 1982, 1991 by Mark Williams Company.
+/ 	COHERENT Version 4.2
+/ 	Copyright (c) 1982, 1993 by Mark Williams Company.
+/	Copyright (c) Ciaran O'Donnell, Bievres, France, 1991.
 / 	All rights reserved. May not be copied without permission.
 / -lgl)
-/ C run-time start-off.
-/ Coherent native version.
-/ Must be loaded at 0000
-/ With profiling
+//////////
+/ csu/i386/mcrts0.s
+/ C run-time start-off with profiling.
+/ i386 COHERENT native version.
+//////////
 
-	.globl	main_
-	.globl	environ_
-	.globl	errno_
-	.globl	_exit_
+	.unixorder
 
-errno_	=	0002
+	.globl	_start
+	.globl	environ
+	.globl	main
+	.globl	exit
+	.globl	_exit
+	.globl	_profon
+	.globl	_profoff
 
-loc_0:	jmp	start
-	.blkw	3		/ spare space
+	.bss	environ, 4
 
-start:
-	mov	0, $0		/ clear location 0
-	mov	bp, sp
-	mov	ax, 4(bp)
-	mov	environ_, ax
-	call	_profon_
-	call	main_
-	push	ax
-	call	exit_
-_exit_:
-	call	_profoff_
-	sys	1
+	.text
+_start:	
+	popl	%eax				/ argc to EAX
+	mov	%esp, %ebp			/ argv to EBP
+	lea	4(%esp,%eax,4), %edx		/ envp to EDX
+	movl	%edx, environ			/ initialize environ
+	pushl	%edx
+	pushl	%ebp
+	pushl	%eax
+	call	_profon				/ enable profiling
+	call	main				/ main(argc, argv, envp)
+	addl	$12,%esp
+	pushl	%eax
+	call	exit				/ exit(status)
+_exit:
+	call	_profoff			/ disable profiling
+	movl	$1,%eax
+	lcall	$0x7,$0
+	hlt					/ NOTREACHED
 
-	.prvd
-environ_:
-	.word	0
-
-	.shrd
-	.blkw	4
+/ end of csu/i386/mcrts0.s

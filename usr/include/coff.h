@@ -23,7 +23,8 @@ typedef	struct	filehdr	{
 	long		f_nsyms;		/* Number of symbols	*/
 	unsigned short	f_opthdr;		/* Optional header size	*/
 	unsigned short	f_flags;		/* Flags		*/
-}	FILEHDR;
+}	FILHDR;
+#define	FILHSZ	(sizeof (FILHDR))
 
 /* Magic number. */
 #define	C_386_MAGIC	0x14C			/* Intel iAPX 80386	*/
@@ -203,7 +204,7 @@ typedef	struct	syment	{
 
 /* Fundimental types. */
 #define T_NULL		0
-#define T_ARG		1
+#define T_VOID		1
 #define T_CHAR		2
 #define T_SHORT		3
 #define T_INT		4

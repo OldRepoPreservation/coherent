@@ -1,7 +1,7 @@
 /*
  * Virtual memory system for Coherent.
  */
-#include "misc.h"
+#include "local_misc.h"
 #include <sys/stat.h>
 
 #define FILES 20
@@ -32,31 +32,31 @@ vinit(fname, ram)
 char *fname;	/* file name of virtual device e.g. /dev/rram1 */
 unsigned ram;	/* amount of storage to devote to ram */
 {
-	if(!(blocks = ram / (VBLK + sizeof(*map))))
+	if (!(blocks = ram / (VBLK + sizeof(*map))))
 		fatal("Virtual; workspace too small");
 	data = alloc(blocks << VBLKB);
 	map  = (struct mapper *)alloc(blocks * sizeof(*map));
 	ramsw = topf = initp = 0;	/* make code reusable */
 	
-	if((0 == stat(fname, &st)) && (st.st_mode & S_IFCHR)) {
-		switch(is_fs(fname)) {
+	if ((0 == stat(fname, &st)) && (S_IFCHR == (st.st_mode & S_IFCHR))) {
+		switch (is_fs(fname)) {
 		case -1:
 			fatal("Virtual; cannot seek %s", fname);
 		case 1:
 			fatal("Virtual; %s has a file system", fname);
 		case 0:
-			if(!strcmp(fname, "/dev/ram1"))
+			if (!strcmp(fname, "/dev/ram1"))
 				ramsw = 1;
-			if(-1 == (tmp = open(fname, 2)))
+			if (-1 == (tmp = open(fname, 2)))
 				fatal("Virtual; cannot open(%s, 2)", fname);
 		}
 		return;
 	}
 
-	if(-1 == (tmp = creat(fname, 0600)))
+	if (-1 == (tmp = creat(fname, 0600)))
 		fatal("Virtual; cannot creat(%s, 0600)", fname);
 	close(tmp);
-	if(-1 == (tmp = open(fname, 2)))
+	if (-1 == (tmp = open(fname, 2)))
 		fatal("Virtual; cannot open(%s, 2)", fname);
 	unlink(fname);
 	fstat(tmp, &st);
@@ -69,7 +69,7 @@ void
 vshutDown()
 {
 	close(tmp);
-	if(ramsw)
+	if (ramsw)
 		close(open("/dev/ram1close", 0));
 	free(map);
 	free(data);
@@ -84,24 +84,24 @@ unsigned
 vopen(vamt)
 unsigned long vamt;
 {
-	if(topf == FILES)
+	if (topf == FILES)
 		fatal("Too many vopen calls");
 	vamt = limit[topf + 1] = limit[topf] + vamt;
 	topf++;
 	vamt >>= VBLKB;
 	vamt /= blocks;		/* must fit in 15 bits */
-	if(vamt > 0x7fff)
+	if (vamt > 0x7fff)
 		fatal("Virtual; too much virtual space for buffers");
 
-	if(st.st_mode & S_IFCHR) {	/* character special file */
+	if (st.st_mode & S_IFCHR) {	/* character special file */
 		char work[VBLK];
 
 		memset(work, 0, VBLK);
-		for(; initp < limit[topf]; initp += VBLK)
-			if(VBLK != write(tmp, work, VBLK))
+		for (; initp < limit[topf]; initp += VBLK)
+			if (VBLK != write(tmp, work, VBLK))
 				fatal("Virtual; error writing to tmp file");
 	}
-	return(topf - 1);
+	return (topf - 1);
 }
 
 /*
@@ -123,9 +123,9 @@ int dirty;		/* 1 if character gotten to write */
 	unsigned long diskad;
 	char *where;
 
-	if(vid >= topf)
+	if (vid >= topf)
 		fatal("Virtual; invalid vfile");
-	if((disp += limit[vid]) >= limit[vid + 1])
+	if ((disp += limit[vid]) >= limit[vid + 1])
 		fatal("Virtual; request out of limits");
 		
 	byte_no = disp & (VBLK - 1);
@@ -134,14 +134,14 @@ int dirty;		/* 1 if character gotten to write */
 	what_in = disp / blocks;
 	where = data + (which << VBLKB);
 
-	if((diskad = map[which].what_in) != what_in)	{
-		if(map[which].dirty) {
+	if ((diskad = map[which].what_in) != what_in)	{
+		if (map[which].dirty) {
 			diskad *= blocks;
 			diskad += which;
 			diskad <<= VBLKB;
-			if(-1 == lseek(tmp, diskad, 0))
+			if (-1 == lseek(tmp, diskad, 0))
 				fatal("Virtual; error in seek");
-			if(VBLK != write(tmp, where, VBLK))
+			if (VBLK != write(tmp, where, VBLK))
 				fatal("Virtual; error in write");
 		}
 		map[which].dirty = 0;	/* clean */
@@ -149,16 +149,16 @@ int dirty;		/* 1 if character gotten to write */
 		diskad *= blocks;
 		diskad += which;
 		diskad <<= VBLKB;
-		if(-1 == lseek(tmp, diskad, 0))
+		if (-1 == lseek(tmp, diskad, 0))
 			fatal("Virtual; error in seek");
-		if(VBLK != read(tmp, where, VBLK))
-			if(st.st_mode & S_IFCHR) /* char special device */
+		if (VBLK != read(tmp, where, VBLK))
+			if (st.st_mode & S_IFCHR) /* char special device */
 				fatal("Virtual; error in read");
 			else
 				memset(where, 0, VBLK);
 	}
 	map[which].dirty |= dirty; /* maybe dirty */
-	return(where + byte_no);
+	return (where + byte_no);
 }
 
 #ifdef TEST
@@ -175,22 +175,22 @@ main()
 
 	vinit("/dev/ram1", atoi(ask(buf, "How much ram to reserve")));
 	f = atol(ask(buf, "How many virtual files?"));
-	for(i = 0; i < f; i++)
+	for (i = 0; i < f; i++)
 	   vid[i] = vopen(lim[i] = atol(ask(buf, "How big is file %d", i)));
 	tests = atol(ask(buf, "How many tests?"));
 	srandl(100L, 100L);
-	for(t = 0; t < tests; t++) {	/* set random locs */
+	for (t = 0; t < tests; t++) {	/* set random locs */
 		i = randl() % f; /* pick virtual file */
 		l = randl() % lim[i]; /* pick location */
 		c = i ^ l;
 		*(vfind(vid[i], l, 1)) = c;
 	}
 	srandl(100L, 100L);
-	for(t = 0; t < tests; t++) {	/* test same random locs */
+	for (t = 0; t < tests; t++) {	/* test same random locs */
 		i = randl() % f; /* pick virtual file */
 		l = randl() % lim[i]; /* pick location */
 		c = i ^ l;
-		if((d = *(vfind(vid[i], l, 0))) != c)
+		if ((d = *(vfind(vid[i], l, 0))) != c)
 			fatal("Expected %c got %c", c, d);
 	}
 	vshutDown();
