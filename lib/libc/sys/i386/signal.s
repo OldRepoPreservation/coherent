@@ -1,6 +1,9 @@
-/ C library - signal -	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
+//////////
+/ libc/sys/i386/signal.s
+/ Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991.
+//////////
 
-/ #include "sys/signal.h"
+/ #include <signal.h>
 
 	.globl	sighold
 	.globl	sigrelse
@@ -34,7 +37,6 @@ sigpause:
 	or	$SIGPAUSE,4(%esp)
 	jmp	signal
 
-
 /	sigset(sig, SIG_DFL)
 /	sigset(sig, SIG_IGN)
 /	sigset(sig, proc) 
@@ -42,20 +44,20 @@ sigpause:
 sigset:
 	or	$SIGDEFER,4(%esp)
 
-
 /	signal(sig, SIG_DFL)
 /	signal(sig, SIG_IGN)
 /	signal(sig, proc) 
-
 
 signal:
 	movl	$sigreturn,%edx		/ proc = &sigreturn
 	movl	$48, %eax
 	lcall	$0x7, $0		/ if old_sys = sigsys(sig)<0
-	jc	.cerror				/ return -1
+	jc	.cerror			/	return -1
 	orl	%eax,%eax
 	ret		
 
 sigreturn:
 	addl	$4, %esp
 	lcall	$0xf, $0
+
+/ end of libc/sys/i386/signal.s

@@ -1,5 +1,12 @@
-/ C library - wait -	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
-/	pid = wait(&status);
+//////////
+/ libc/sys/i386/wait.s
+/ Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991.
+//////////
+
+//////////
+/ int
+/ wait(statusp) int *statusp;
+//////////
 
         .text
 	.globl	wait
@@ -12,6 +19,9 @@ wait:
 
 	movl	4(%esp), %ecx
 	orl	%ecx,%ecx
-	je	nostat
+	je	?L1
 	movl	%edx,(%ecx)
-nostat:	ret
+?L1:
+	ret
+
+/ end of libc/sys/i386/wait.s

@@ -1,23 +1,21 @@
 /*
- * C library -- time() function recoded in C for sm90.
- * Copyright (c) Bureau d'Etudes Ciaran O'Donnell,1987,1990,1991
+ * libc/sys/i386/time.c
+ * Copyright (c) Bureau d'Etudes Ciaran O'Donnell,1987,1990,1991.
+ * time() function recoded in C for sm90.
  */
 
-/*
- * tvec = time(tloc);
- */
+#include <sys/types.h>
 
-#include "sys/types.h"
+extern	time_t _time();
 
-time_t time(tloc)
-register long *tloc;
+time_t
+time(tloc) register long *tloc;
 {
 	register time_t tvec;
-	time_t _time();
 
-	if((tvec = _time()) != -1L && tloc)
+	if ((tvec = _time()) != (time_t)-1L && tloc != (char *)0)
 		*tloc = tvec;
-
-	return(tvec);
+	return tvec;
 }
 
+/* end of libc/sys/i386/time.c */

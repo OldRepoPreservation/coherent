@@ -1,3 +1,7 @@
+/*
+ * libc/sys/i386/sememul.c
+ */
+
 #define _SEMCTL	0
 #define _SEMGET	1
 #define _SEMOP	2
@@ -16,3 +20,5 @@ semop(semid, sops, nsops)
 {
 	return _semsys(_SEMOP, semid, sops, nsops);
 }
+
+/* end of libc/sys/i386/sememul.c */

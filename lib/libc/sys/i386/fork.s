@@ -1,4 +1,7 @@
-/ C library - fork	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
+//////////
+/ libc/sys/i386/fork.s
+/ Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991.
+//////////
 
 	.globl	fork
 	.globl	.cerror
@@ -8,8 +11,10 @@ fork:
 	lcall	$0x7,$0
 	jc	.cerror
 	orl	%edx,%edx
-	jz	forkret				/ return pid	(parent)
+	jz	?L0				/ return pid	(parent)
 	xorl	%eax,%eax			/ return 0	(child)
-forkret:
+?L0:
 	orl	%eax,%eax
 	ret
+
+/ end of libc/sys/i386/fork.s
