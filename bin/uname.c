@@ -70,7 +70,8 @@ char	*argv[];
 			perror("uname");
 			exit(1);
 		}
-		printf("%.*s ", SYS_NMLN, tsname.sysname);
+		if (snf)
+			printf("%.*s ", SYS_NMLN, tsname.sysname);
 		if (nnf)
 			printf("%.*s ", SYS_NMLN, tsname.nodename);
 		if (srf)
