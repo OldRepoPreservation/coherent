@@ -13,7 +13,10 @@ char *envp[];
 	sarg0 = argc>0 ? argv[0] : "";
 	fakearg(0, argc, argv, envp);
 	if (argc>0 && argv[0][0]=='-') {
-		lgnflag++;
+		lgnflag = 1;
+		umask(ufmask=022);
+	} else if (argc>0 && argv[0][0]=='+') {
+		lgnflag = 2;
 		umask(ufmask=022);
 	} else {
 		umask(ufmask=umask(ufmask));
@@ -142,18 +145,21 @@ register char *p;
 
 	/* Loop on input */
 	for (;;) {
-		switch (rcode = setjmp(s.s_envl)) {
+		rcode = setjmp(s.s_envl);
+		switch (rcode) {
 		case RSET:	/* initial setjmp call */
-			if (lgnflag) {
-				static char shell[] = "SHELL";
+			switch (lgnflag) {
+			case 1:		/* - sign invocation */
 				lgnflag = 0;
 				if (ffind("/etc", "profile", 4))
 					session(SFILE, duplstr(strt, 0));
 				recover(IPROF);
 				if (*vhome && ffind(vhome, ".profile", 4))
 					session(SFILE, duplstr(strt, 0));
-				if (findvar(shell))
-					return exshell(findvar(shell));
+				break;
+			case 2:		/* + sign invocation */
+				lgnflag = 0;
+				return exshell( findvar("SHELL") );
 			}
 			checkmail();
 			comflag = 1;
@@ -327,6 +333,7 @@ char *a1;
  */
 ecantopen(s) char *s; { printe("Can't open %s", s); }
 ecantfind(s) char *s; { printe("Can't find %s", s); }
+e2big(s) char *s; { printe("File to big to execute: %s", s); }
 ecantmake(s) char *s; { printe("Can't create %s", s); }
 emisschar(c) { printe("Missing `%c'", c); }
 ecantfdop() { printe("Fdopen failed"); }
