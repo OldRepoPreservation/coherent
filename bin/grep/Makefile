@@ -1,11 +1,11 @@
 # /usr/src/cmd/grep/Makefile 2/20/91
-
+DESTDIR=/f1/bin/
 OBJ=\
 	grep1.o\
 	grep2.o
 
 grep:	$(OBJ)
-	$(CC) $(LDFLAGS) -o $* $(OBJ)
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$* $(OBJ)
 
 grep1.o: grep.h grep1.c
 grep2.o: grep.h grep2.c
