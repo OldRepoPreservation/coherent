@@ -17,11 +17,13 @@ MMUUPD	.macro
 /
 / USTART and ESP_START map kernel stack and u area within top 4k page
 / of virtual space.
-/ See also U_OFFSET in mmu.h
+/ NDP context starts 0x100 bytes below u area.
+/ See also U_OFFSET, NDP_OFFSET in uproc.h
 /
-	.set	USTART,0xFFFFFD00
+	.set	USTART,0xFFFFFC00
 	.set	ESP0_START,0xFFFFF300
-	.set	ESP1_START,0xFFFFFD00
+	.set	ESP1_START,USTART
+
 	.set	u,USTART
 	.set	PSW_VAL,0x1200	/ set system IOPL to 1, enable IRQ
 /	.set	PSW_VAL,0x3200	/ set system IOPL to 3, enable IRQ
@@ -508,9 +510,7 @@ conrest:
 	orb	$SEG_SRW,%al
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+UADDR
 
-	/ Will have let the GP fault handler do this one.
-
-	lcall	$SEG_MMUUPD,$0	/ gate to mmuupdfR0
+	lcall	$SEG_MMUUPD,$0	/ strobe CR3
 
 	/ Restore context
 
@@ -534,9 +534,7 @@ conrest:
 	mov	$1,%eax			/ We are restoring
 	iret				/ Return through PSW,CS,IP.
 
-
 / Save useful registers.
-
 
 / msysgen(p)
 / MGEN *p;
@@ -1464,9 +1462,9 @@ trap14:
 	jmp	trap
 
 trap16:
-	push	$0x10			/ General protection
+	push	$0x10			/ Floating point error
 	call	tsave
-	jmp	trap
+	jmp	fptrap
 
 syc:
 	push	$0x22			/ Old format system calls.
@@ -1492,7 +1490,7 @@ sig32:
 	orw    	$PSW_VAL,%ax
 	mov	%eax,FAKE_EFL(%esp)
 	pop	%eax
-	push	$0x20			/ New format system calls.
+	push	$0x20			/ New format signal return.
 	call	tsave
 	jmp	msigend
 
@@ -1570,6 +1568,9 @@ dev12:
 
 	.align	4
 dev13:
+	/ Used to be coprocessor exception interrupt
+	/ Coprocessor err had to be cleared by writing a 0 byte to port 0xF0
+	/
 	push	$0x0D40			/ Device 13:
 	call	tsave
 	icall	[13<<2]+vecs
@@ -2238,6 +2239,47 @@ read_dr6:
 read_dr7:
 	movl	%dr7,%eax
 	ret
+
+/ write to the EM bit of CR0
+/ this routine is a stub for the ring 0 code
+/ argument is 0 or 1
+/
+/	void setEm(int bit)
+	.globl	setEm
+	.globl	setEmfR0
+setEm:
+	movl	4(%esp),%eax	/ fetch argument
+	pushf
+	cli
+	pushl	%eax
+	lcall	$SEG_SET_EM,$0	/ gate to setEmfR0
+	popl	%eax
+	popf
+	ret
+
+/ Ring 0 write to CR0 EM bit.  Called via a gate.
+/ Want interrupts off when we arrive since the interrupt gates
+/ lead into Ring 1.
+setEmfR0:
+	movb	8(%esp),%cl	/ fetch argument
+
+	movl	12(%esp),%eax	/ make 4-byte arg list disappear
+	movl	%eax,8(%esp)
+	movl	16(%esp),%eax
+	movl	%eax,12(%esp)
+
+	cmpb	$0,%cl
+	movl	%cr0,%eax
+	jz	se00
+	orb	$4,%al		/ set EM bit
+	andb	$0xDF,%al	/ clear NE bit
+	jmp	se01
+se00:
+	andb	$0xFB,%al	/ clear EM bit
+	orb	$0x20,%al	/ set NE bit
+se01:
+	mov	%eax,%cr0
+	lret
 
 / enable/disable FPE traps
 /
