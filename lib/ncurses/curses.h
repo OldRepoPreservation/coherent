@@ -25,9 +25,12 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.2 92/04/13 14:40:04 bin Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 2.3 93/04/10 00:25:06 munk Exp Locker: bin $
  *
  *  $Log:	curses.h,v $
+ * Revision 2.3  93/04/10  00:23:00  munk
+ * SV.3 compatible color support
+ *
  * Revision 2.2  92/10/25  22:36:15  munk
  * Several changes to make it more SV.3 compatible
  *
@@ -104,7 +107,6 @@ struct _win_st {
 extern WINDOW	*stdscr, *curscr;
 
 extern int	LINES, COLS, COLORS, COLOR_PAIRS;
-extern short	pair, f, b, color, r, g, b;
 
 WINDOW  *initscr(), *newwin(), *subwin();
 char    *longname();
@@ -126,7 +128,7 @@ struct  screen  *newterm(), *set_term();
 #define winch(win)       	((win)->_line[(win)->_cury][(win)->_curx])
 #define wstandout(win)          (wattrset(win,A_STANDOUT))
 #define wstandend(win)          (wattrset(win,A_NORMAL))
-#define wattron(win,at)         ((win)->_attrs |= (at))
+#define wattron(win,at)         ((win)->_attrs = ((win)->_attrs & (~A_COLOR)) | (at))
 #define wattroff(win,at)        ((win)->_attrs &= ~(at))
 #define wattrset(win,at)        ((win)->_attrs = (at))
 
