@@ -12,7 +12,9 @@
 #define SLASH '\\'
 #endif
 
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <arcoff.h>
 #include <ar.h>
 #if !PORTAR
@@ -20,8 +22,8 @@
 #else
 #include <coff.h>
 #endif
-#include <types.h>
-#include <stat.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define	RO	0
 #define	RW	1
@@ -58,13 +60,8 @@ char	*rnpx = rnp;
 struct	ar_hdr ahb;
 #endif
 
-long	fsize();
-long	ftell();
-long	atol();
-char	*ctime();
-char	*strchr();
-char	*strrchr();
 int	usage();
+long	fsize();
 
 long	ranCt;	/* count of ranlib entrys for coff */
 
@@ -547,7 +544,7 @@ tfunc()
 					putchar(' ');
 #if COHERENT
 				printf("%5d %5d ", ahb.ar_gid, ahb.ar_uid);
-				printf("%03o ",  ahb.ar_mode);
+				printf("%03o ",  ahb.ar_mode & 0777);
 #endif
 				printf("%10ld ", ahb.ar_size);
 				printf("%s", ctime(&ahb.ar_date));
@@ -656,7 +653,7 @@ char *fn;
 		time(&ahb.ar_date);
 	ahb.ar_uid  = sb.st_uid;
 	ahb.ar_gid  = sb.st_gid;
-	ahb.ar_mode = sb.st_mode&0777;
+	ahb.ar_mode = sb.st_mode & 07777;
 	ahb.ar_size = sb.st_size;
 
 	return (fp);
@@ -794,7 +791,7 @@ geth()
 		&ahb.ar_date, &uid, &gid, &mode, &ahb.ar_size);
 	ahb.ar_uid  = uid;	/* use intermediate fields for shorts */
 	ahb.ar_gid  = gid;
-	ahb.ar_mode = mode;
+	ahb.ar_mode = mode & 07777;
 
 #else
 	if (fread(&ahb, sizeof(ahb), 1, afp) != 1) {
@@ -824,7 +821,7 @@ char *np;
 
 	sprintf(hdr.ar_date, "%-12ld%-6d%-6d%-8o%-10ld",
 		ahb.ar_date, ahb.ar_uid,
-		ahb.ar_gid, ahb.ar_mode, ahb.ar_size);
+		ahb.ar_gid, ahb.ar_mode & 07777, ahb.ar_size);
 	
 	memcpy(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag));
 
