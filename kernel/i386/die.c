@@ -1,4 +1,17 @@
+#if KLAATU
+#define SERIAL_CONSOLE	1
+#define INS8250 0x3f8	/* klaatu */
+#endif
+
+#if GORT
+#define SERIAL_CONSOLE	1
+#define	INS8250	0x290	/* gort */
+#endif
+
+#ifndef INS8250
 #define INS8250 0x3f8
+#endif
+
 /*
  * die.c -- Get information out from a very young kernel which probably
  * can't do printf()'s.
@@ -46,7 +59,7 @@ __putchar(c);
  */
 void
 chirp(c)
-	char c;
+char c;
 {
 	_chirp(c, 158);
 } /* chirp() */
@@ -62,7 +75,7 @@ chirp(c)
  */
 void
 strchirp(str)
-	char *str;
+char *str;
 {
 	char c;
 	
@@ -177,6 +190,12 @@ int n, hexdigits;
 	OUTCH(' ');
 }
 
+outch(c)
+int c;
+{
+	OUTCH(c);
+}
+
 #define	ASCII	1
 #define	XONXOFF	1
 #define	BAUD	9600
@@ -202,9 +221,6 @@ int n, hexdigits;
  *		allows user to control output
  *
  */
-#ifndef INS8250
-#define	INS8250	0x290
-#endif
 
 #define	THR	(INS8250+0)
 #define	IER	(INS8250+1)
@@ -239,7 +255,7 @@ __cinit()
 	outb(LCR, 0x03);
 	outb(MCR, 0x03);
 	__putchar('\007');
-	__putchar('G');
+	__putchar('g');
 #endif
 }
 #define CTLQ	0021

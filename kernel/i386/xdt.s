@@ -25,29 +25,14 @@ idtmap:					/ used after paging is enabled
 
 ////
 /
-/ Macro SEGMENT specifies a segment descriptor.
-/ base is 32 bits;  limit and attr are 16 bits.
-/
-////
-
-// Fix this!  High bits of limit are in attr!
-
-SEGMENT	.macro	base,limit,attr
-	.value	limit
-	.value	base
-	.byte	[base] >> 16
-	.value	attr
-	.byte	[base] >> 24
-	.endm
-
-////
-/
 / Macro MEM_SEG specifies a memory segment descriptor.
 / base is 32 bits
 / limit is 20 bits
 / type is 4 bits
 / dpl is 2 bits
 / flags is the 4 high bits of byte at descriptor + 6
+/   8's bit of flags is limit granularity (0:byte 1:click)
+/   4's bit of flags is default op size (0:16 bit 1:32 bit)
 /
 ////
 
@@ -57,6 +42,46 @@ MEM_SEG	.macro	base,limit,type,dpl,flags
 	.byte	[base] >> 16
 	.byte	0x90 | [[[dpl] & 3] << 5] | [[type] & 0xF]
 	.byte	[[[flags] << 4] & 0xF0] | [[[limit] >> 16] & 0xF]
+	.byte	[base] >> 24
+	.endm
+
+////
+/
+/ Macro TSS_SEG specifies a tss segment descriptor.
+/ base is 32 bits
+/ limit is 20 bits
+/ [type is 0x9]
+/ [dpl is 0]
+/ gran is limit granularity (0:byte 1:click)
+/
+////
+
+TSS_SEG	.macro	base,limit,gran
+	.value	limit
+	.value	base
+	.byte	[base] >> 16
+	.byte	0x89
+	.byte	[[[gran] << 7] & 0x80] | [[[limit] >> 16] & 0xF]
+	.byte	[base] >> 24
+	.endm
+
+////
+/
+/ Macro LDT_SEG specifies a tss segment descriptor.
+/ base is 32 bits
+/ limit is 20 bits
+/ [type is 0x2]
+/ [dpl is 0]
+/ gran is limit granularity (0:byte 1:click)
+/
+////
+
+LDT_SEG	.macro	base,limit,gran
+	.value	limit
+	.value	base
+	.byte	[base] >> 16
+	.byte	0x82
+	.byte	[[[gran] << 7] & 0x80] | [[[limit] >> 16] & 0xF]
 	.byte	[base] >> 24
 	.endm
 
@@ -123,7 +148,8 @@ gdt:
 	MEM_SEG	0,0xF,0x3,DPL_3,0x8
 
 	/ segment 0038 - SEG_TSS
-	SEGMENT	0xFFC00000,0xEB,0x0089
+	/ limit is 0x68 + (number of bytes in iomap) -1
+	TSS_SEG	0xFFC00000,0x16B,0
 
 	/ segment 0040 - SEG_ROM
 	MEM_SEG	0xFFFC0000,0xF,0x3,DPL_0,0x8
@@ -144,10 +170,9 @@ gdt:
 	MEM_SEG	0x400000,0xF,0xB,DPL_3,0x8
 
 	/ segment 0070 - SEG_LDT
-	SEGMENT	0xFFC00000,0xF,0x0082	/ ldt segment (2 descriptors)
+	LDT_SEG	0xFFC00000,0xF,0
 
 	/ segment 0078 - SEG_RNG0_STK
-	/ sloppy limit check on ring 0 stack
 	MEM_SEG	0,0xFFBFF,0x7,DPL_0,0xC
 
 	/ segment 0080 - SEG_RNG1_TXT
@@ -380,3 +405,5 @@ idt:
 	IRPT_GATE	SEG_RNG1_TXT,syc,0,DPL_3
 	.long	0
 idtend:
+	.align	4
+	.long	0,0,0,0

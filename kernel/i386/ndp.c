@@ -3,7 +3,10 @@
  *
  * Purpose:	all ndp-related functions, except for assembler routines
  *
- * $Log$
+ * $Log:	ndp.c,v $
+ * Revision 1.1  92/11/09  17:09:23  root
+ * Just before adding vio segs.
+ * 
  */
 
 /*
