@@ -110,10 +110,13 @@ daddr_t	masks[]		= {
  */
 ino_t	lookup();
 ino_t	numfile();
+daddr_t		balloc();
 char	*ctime();
 int	cleanup();
 struct	dlist *findnode();
 union	dumpdata *readdump();
+char	*calloc();
+DISCBUF	*dbimap();
 
 main(argc, argv)
 char *argv[];
@@ -446,7 +449,9 @@ restore()
 	 */
 	dbp = dbread((long) SUPERI);
 	fsp = (struct filsys *) dbp->db_data;
-	nindisc = INOPB * (fsp->s_isize-INODEI);
+	nindisc = fsp->s_isize;
+	canino(nindisc);
+	nindisc = INOPB * (nindisc-INODEI);
 	ningrab = dh.dh_nino;
 	if (ningrab > nindisc) {
 		message(0, "I-list too small, some I-nodes may be deleted");
@@ -792,6 +797,7 @@ char *afp;
  * block is returned. Usually this will be
  * a buffer created by `dbzero'.
  */
+DISCBUF *
 dbimap(dip, lb)
 struct dinode *dip;
 daddr_t lb;
