@@ -9,7 +9,7 @@ char workfile[15];
 char workstring[80];
 char getfiles[26][115];
 int place[MAXRECORDS];
-int limit, screen_num;
+int limit, screen_num, printflag;
 char open_mode;
 char state[52][15]={"Alabama","Alaska","Arizona","Arkansas","California",
 		     "Colorado","Connecticut","Delaware","Florida","Georgia",
