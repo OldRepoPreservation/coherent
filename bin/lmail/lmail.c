@@ -1,9 +1,12 @@
-static	char	*rcsrev = "$Revision: 1.2 $";
+static	char	*rcsrev = "$Revision: 1.1 $";
 static	char	*rcshdr =
-	"$Header: /newbits/bin/mail/lmail/RCS/lmail.c,v 1.2 92/01/07 08:46:20 bin Exp Locker: bin $";
+	"$Header: /src386/bin/lmail/RCS/lmail.c,v 1.1 92/03/13 12:19:15 bin Exp $";
 /*
- * $Header: /newbits/bin/mail/lmail/RCS/lmail.c,v 1.2 92/01/07 08:46:20 bin Exp Locker: bin $
+ * $Header: /src386/bin/lmail/RCS/lmail.c,v 1.1 92/03/13 12:19:15 bin Exp $
  * $Log:	lmail.c,v $
+ * Revision 1.1  92/03/13  12:19:15  bin
+ * Initial revision
+ * 
  * Revision 1.2  92/01/07  08:46:20  bin
  * Piggy changes for so that if an all caps sitename fails, it will try
  * lower case.
@@ -118,6 +121,8 @@ extern	char	*optarg;
 extern	char	getopt();
 char	*revnop();
 
+char BOBerrmsg[50];
+
 int	mflag;			/* `You have mail.' message to recipient */
 int	rflag;			/* Reverse order of print */
 int	qflag;			/* Exit after interrrupts */
@@ -172,6 +177,7 @@ char	*getlogin();
 char	*mktemp();
 int	catchintr();
 int	catchpipe();
+int	close_fds();
 char	asuser [32];
 
 main(argc, argv)
@@ -180,6 +186,7 @@ char *argv[];
 	register char *ap;
 	char	c, *foo;
 
+	close_fds(); 
 	logopen();
 
 	ap = argv[0];
@@ -292,10 +299,19 @@ int uid;
 
 	lockname = lock;
 	sprintf(lock, "/tmp/maillock%d", uid);
-	while (access(lockname, 0) == 0)
+
+	while (access(lockname, AEXISTS)){
+		sprintf(BOBerrmsg, "{%d} sleeping(1)\n",getpid());
+		logdump(BOBerrmsg);
 		sleep(1);
-	if ((fd = creat(lockname, 0)) >= 0)
+	}
+
+	if ((fd = creat(lockname, 0)) >= 0){
 		close(fd);
+		return(0);
+	}else{
+		return(1);
+	}
 }
 
 /*
@@ -332,9 +348,16 @@ int s;
 {
 	if (temp != NULL)
 		unlink(temp);
-	munlock();
 
-	logdump("About to exit, status = 0x%04x\n", s);
+	/* only unlock the mailbox if we are exiting normally. Remember,
+	 * the box may have been locked by another process.
+	 */
+
+	if(s == 0)
+		munlock(); 
+
+	sprintf(BOBerrmsg,"{%d} About to exit, status = 0x%04x\n", getpid(),s);
+	logdump(BOBerrmsg);
 	logclose();
 
 	exit(s);
@@ -367,8 +390,17 @@ catchpipe()
 intcheck()
 {
 	if (intrflag || pipeflag) {
-		if (intrflag)
+		if (intrflag){
 			putc('\n', stdout);
+			sprintf(BOBerrmsg,"{%d}	lmail caught interrupt signal\n",
+				getpid());
+		}else{
+			sprintf(BOBerrmsg,"{%d} lmail caught broken pipe signal", 
+				getpid());
+		}
+
+		logdump(BOBerrmsg);
+
 		intrflag = pipeflag = 0;
 		return (1);
 	}
@@ -391,4 +423,17 @@ revnop()
 		return (revnobuf);
 	} else
 		return("OOPS");
+}
+
+
+/* close any unwanted file descriptors that we may have inheritted */
+
+close_fds()
+{
+
+int i;
+
+	for(i = fileno(stderr) +1  ; i < _NFILE ; i++){
+		close(i);
+	}
 }
