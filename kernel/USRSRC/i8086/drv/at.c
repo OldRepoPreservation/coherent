@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.9  91/10/30  10:47:46  hal
+ * Get atparms from tboot.
+ * 
  * Revision 1.8  91/10/24  12:36:25  hal
  * Bump ATSECS from 4 to 6.
  * Poll HF_REG (3F6) rather than CSR_REG (1F6).
@@ -36,6 +39,7 @@
 #include	<sys/devices.h>
 #include	<sys/stat.h>
 #include	<sys/uproc.h>
+#include	<sys/typed.h>
 #include	<errno.h>
 
 extern	saddr_t	sds;		/* System Data Selector */
@@ -246,10 +250,10 @@ static char timeout_msg[] = "at%d: TO\n";
 static void
 atload()
 {
-	register int u;
-	register struct dparm_s * dp;
+	unsigned int u;
+	struct dparm_s * dp;
 	struct { unsigned off, seg; } p;
-
+	
 	/*
 	 * Obtain Drive Types.
 	 *
@@ -262,22 +266,75 @@ atload()
 	at.at_dtype[0] = u >> 4;
 	at.at_dtype[1] = u & 15;
 
-	/*
-	 * Interrupt Vector 0x41 points to Drive 0 Characteristics.
-	 */
-	pkcopy((paddr_t) (0x41*4), &p, sizeof p);
 
 	/*
 	 * Obtain Drive Characteristics.
 	 */
 	for (u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u) {
+		struct dparm_s int_dp;
 
 		if (dp->d_ncyl == 0) {
-			/* Not patched, use the ROM drive table values. */
+			/*
+			 * Not patched.
+			 *
+			 * If tertiary boot sent us parameters,
+			 *   Use "fifo" routines to fetch them.
+			 *   This only gives us ncyl, nhead, and nspt.
+			 *   Make educated guesses for other parameters:
+			 *   Set landc to ncyl, wpcc to -1.
+			 *   Set ctrl to 0 or 8 depending on head count.
+			 *
+			 * Follow INT 0x41/46 to get drive static BIOS drive
+			 * parameters, if any.
+			 *
+			 * If there were no parameters from tertiary boot,
+			 * or if INT 0x4? nhead and nspt match tboot parms,
+			 *   use "INT" parameters (will give better match on
+			 *   wpcc, landc, and ctrl fields, which tboot can't
+			 *   give us).
+			 */
+
+			FIFO *ffp;
+			typed_space *tp;
+			int found, parm_int;
+			extern typed_space boot_gift;
+
+			ffp = fifo_open(&boot_gift, 0); 
+	
+			for (found = 0;
+			!found && T_NULL != (tp = fifo_read(ffp));
+			) {	
+				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
+				if ((T_BIOS_DISK == tp->ts_type) &&
+				    (u == bdp->dp_drive) ) {
+					found = 1;
+					dp->d_ncyl = bdp->dp_cylinders;
+					dp->d_nhead = bdp->dp_heads;
+					dp->d_nspt = bdp->dp_sectors;
+					dp->d_wpcc = 0xffff;
+					dp->d_landc = dp->d_ncyl;
+					if (dp->d_nhead > 8)
+						dp->d_ctrl |= 8;
+				}
+			}
+			fifo_close(ffp);
+
+			if (u == 0)
+				parm_int = 0x41;
+			else /* (u == 1) */
+				parm_int = 0x46;
+			pkcopy((paddr_t)(parm_int*4), &p, sizeof p);
 			pkcopy((paddr_t) (p.seg << 4L) + p.off,
-				dp, sizeof(*dp));
-		}
-		else {
+				&int_dp, sizeof(int_dp));
+			if (!found || 
+			    (dp->d_nhead == int_dp.d_nhead
+			     && dp->d_nspt == int_dp.d_nspt)) {
+			     *dp = int_dp;
+				printf("Using INT 0x%x",parm_int);
+			} else
+				printf("Using INT 0x13(08)");
+		} else {
+			printf("Using patched");
 			/*
 			 * Avoid incomplete patching.
 			 */
@@ -290,24 +347,20 @@ atload()
 				dp->d_ctrl |= 8;
 #endif
 
-#if VERBOSE > 0
-			printf(
-	"at%d: ncyl=%d nhead=%d wpcc=%d eccl=%d ctrl=%d landc=%d nspt=%d\n",
-				u,
-				dp->d_ncyl,
-				dp->d_nhead,
-				dp->d_wpcc,
-				dp->d_eccl,
-				dp->d_ctrl,
-				dp->d_landc,
-				dp->d_nspt);
-#endif
 		}
-
-		/*
-		 * Interrupt Vector 0x46 points to Drive 1 Characteristics.
-		 */
-		pkcopy((paddr_t) (0x46*4), &p, sizeof p);
+#if VERBOSE > 0
+	printf(" drive %d parameters\n", u);
+	printf(
+	"at%d: ncyl=%d nhead=%d wpcc=%d eccl=%d ctrl=%d landc=%d nspt=%d\n",
+		u,
+		dp->d_ncyl,
+		dp->d_nhead,
+		dp->d_wpcc,
+		dp->d_eccl,
+		dp->d_ctrl,
+		dp->d_landc,
+		dp->d_nspt);
+#endif
 	}
 
 	/*
