@@ -522,9 +522,14 @@ int	mode;
 				if (sw3[unit_number])
 					break;
 				if (fl.fl_state != SIDLE)
+#ifdef _I386
+					x_sleep(&fl.fl_state,
+					  pridisk, slpriSigCatch, "flopen");
+#else
 					v_sleep(&fl.fl_state,
 					  CVBLKIO, IVBLKIO, SVBLKIO,
 					  "flopen");
+#endif
 				if (SELF->p_ssig && nondsig()) {  /* signal? */
 					u.u_error = EINTR;
 					goto badFlopen;

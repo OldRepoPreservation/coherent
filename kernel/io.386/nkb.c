@@ -869,7 +869,11 @@ unsigned cmd;
 	s = sphi();
 	KBDEBUG2(" kb_cmd(%x)", cmd);
 	while (kbstate != KB_IDLE) {
+#ifdef _I386
+		x_sleep(&kbstate, pritty, slpriSigLjmp, "nkbcmd");
+#else
 		v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "nkbcmd");
+#endif
 		/* The nkb driver is waiting for a command to complete.  */
 	}
 	kbstate = KB_SINGLE;
@@ -881,7 +885,11 @@ unsigned cmd;
 	else {
 		outb(KBDATA, cmd);
 		while (kbstate != KB_IDLE) {
+#ifdef _I386
+			x_sleep(&kbstate, pritty, slpriSigLjmp, "nkbcmd...");
+#else
 			v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "nkbcmd...");
+#endif
 		/* The nkb driver is still waiting for a command to complete.  */
 		}
 	}
@@ -900,7 +908,11 @@ unsigned cmd, arg;
 	s = sphi();
 	KBDEBUG3(" kb_cmd2(%x, %x)", cmd, arg);
 	while (kbstate != KB_IDLE) {
+#ifdef _I386
+		x_sleep(&kbstate, pritty, slpriSigLjmp, "nkbcmd2");
+#else
 		v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "nkbcmd2");
+#endif
 		/*
 		 * The nkb driver is waiting for a
 		 * 2 byte command to complete.
@@ -917,7 +929,11 @@ unsigned cmd, arg;
 	else {
 		outb(KBDATA, cmd);
 		while (kbstate != KB_IDLE) {
+#ifdef _I386
+			x_sleep(&kbstate, pritty, slpriSigLjmp, "nkbcmd2...");
+#else
 			v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "nkbcmd2...");
+#endif
 			/*
 			 * The nkb driver is still waiting for a
 			 * 2 byte command to complete.

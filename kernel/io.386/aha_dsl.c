@@ -25,7 +25,7 @@ void
 dsl_free( dsl_ptr )
 	P3 dsl_ptr;
 {
-	vaddr_t dsl_vaddr;	/* Virtual address of DSL.  */
+	caddr_t dsl_vaddr;	/* Virtual address of DSL.  */
 
 	T_PIGGY(0x4000, {
 		printf("dsl_free(%x:%x:%x)",

@@ -90,6 +90,7 @@ typedef struct pty {
  *	Local Functions.
  */
 int nulldev();
+void pollwake();
 
 /*
  * Configuration functions (local functions).
@@ -211,8 +212,13 @@ int mode;
 		for (;;) {	/* wait for carrier */
 			if (pp->p_mopen)
 				break;
+#ifdef _I386
+			x_sleep((char *)(&tp->t_open), pritty, slpriSigCatch,
+			  "ptycd");
+#else
 			v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
-				SVTTOUT, "ptycd");
+			  SVTTOUT, "ptycd");
+#endif
 			/* PTY driver is waiting for carrier.  */
 			if (SELF->p_ssig && nondsig()) {  /* signal? */
 				u.u_error = EINTR;
@@ -297,8 +303,13 @@ register IO * iop;
 				}
 				ttstart(tp);
 				pp->p_asleep = 1;
+#ifdef _I386
+				x_sleep(&pp->p_mopen, pritty, slpriSigCatch,
+				  "ptyread");
+#else
 				v_sleep(&pp->p_mopen, CVTTOUT, IVTTOUT,
-					SVTTOUT, "ptyread");
+				  SVTTOUT, "ptyread");
+#endif
 				/* The PTY driver is waiting for a read.  */
 				if (SELF->p_ssig && nondsig()) {
 					u.u_error = EINTR;
@@ -311,12 +322,17 @@ register IO * iop;
 		}
 read_done:;
 	} else {
+#if 0
 		if (pp->p_asleep) {
 			pp->p_asleep = 0;
 			wakeup(&pp->p_mopen);
 		}
 		pollwake(&pp->p_oev);
 		ttread(tp, iop);
+#else
+		pp->p_asleep = 0;	/* ttread0 will awaken the sleeper */
+		ttread0(tp,iop,wakeup,&pp->p_mopen,pollwake,&pp->p_oev);
+#endif
 	}
 }
 
@@ -345,8 +361,13 @@ register IO * iop;
 					goto write_done;
 				}
 				pp->p_asleep = 1;
+#ifdef _I386
+				x_sleep(&pp->p_mopen, pritty, slpriSigCatch,
+				  "ptywrite");
+#else
 				v_sleep(&pp->p_mopen, CVTTOUT, IVTTOUT,
-					SVTTOUT, "ptywrite");
+				  SVTTOUT, "ptywrite");
+#endif
 				/* The PTY driver is waiting for a write.  */
 				if (SELF->p_ssig && nondsig()) {  /* signal? */
 					u.u_error = EINTR;

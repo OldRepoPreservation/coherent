@@ -534,12 +534,14 @@ register dev_t	dev;
 		d = minor(dev) / NPARTN;
 
 	if ((d >= NDRIVE) || (at.at_dtype[d] == 0)) {
+printf("atopen: drive not present ");
 		u.u_error = ENXIO;
 		return;
 	}
 
-	if (minor(dev) & SDEV)
+	if (minor(dev) & SDEV) {
 		return;
+	}
 
 	/*
 	 * If partition not defined read partition characteristics.
@@ -552,12 +554,15 @@ register dev_t	dev;
 	 */
 	if ((pparm[p].p_base+pparm[p].p_size) > pparm[d+NDRIVE*NPARTN].p_size) {
 #ifdef _I386
+printf("atopen: p_size too big ");
 		u.u_error = EINVAL;
 #else
 		u.u_error = EBADFMT;
 #endif
-	} else if (pparm[p].p_size == 0)
+	} else if (pparm[p].p_size == 0) {
+printf("atopen: p_size zero ");
 		u.u_error = ENODEV;
+	}
 }
 
 /**

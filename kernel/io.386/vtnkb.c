@@ -1,3 +1,4 @@
+#define SWANFIX 1
 /*
  * User configurable AT keyboard/display driver.
  * 286/386 AT COHERENT
@@ -155,6 +156,10 @@ CON iscon ={
 	Patchable table entrys,
 	we go indirect in order to produce a label which can be addressed
 */
+#if SWANFIX
+int VTSWAN = 0;		/* patch to 1 for epstein's fix for Swan keyboard */
+#endif
+
 HWentry	VTVGA =		{ 4, 0, VT_VGAPORT, { 0, VT_VGABASE }, { 25, 80 } };
 HWentry	VTMONO =	{ 4, 0, VT_MONOPORT, { 0, VT_MONOBASE }, { 25, 80 } };
 
@@ -705,11 +710,16 @@ int msec;
 /*
  * Receive interrupt.
  */
+#define	K_E0ESC	0xE0		/* Swan Keyboard, Strange Escape Byte	*/
+
 isrint()
 {
 	register unsigned c;
 	register unsigned r;
 	static	char keyup;
+#if SWANFIX
+	static	char e0esc;
+#endif
 
 	/*
 	 * Schedule raw input handler if not already active.
@@ -775,8 +785,20 @@ isrint()
 			break;
 		}
 		break;
+#if SWANFIX
+	case K_E0ESC:
+		if (VTSWAN) {
+			e0esc = 1;
+			break;
+		}
+#endif
 	default:
+#if SWANFIX
+		process_key(r, keyup, e0esc);
+		e0esc = 0;
+#else
 		process_key(r, keyup);
+#endif
 		keyup = 0;
 	}
 }
@@ -789,9 +811,15 @@ isrint()
  * performed on a per-key basis with the increased memory requirements
  * associated with the table driven approach.
  */
+#if SWANFIX 1
+process_key(key, up, e0esc)
+unsigned key;
+char	 up, e0esc;
+#else
 process_key(key, up)
 unsigned key;
 int	 up;
+#endif
 {
 	register unsigned char *cp;
 	KBTBL	key_vals;			/* table values for this key */
@@ -804,6 +832,18 @@ int	 up;
 	if (!table_loaded)
 		return;				/* throw away key */
 #ifdef _I386
+	/*
+	 *  It's ugly but, if e0esc, then we use the ALT_GR field to point
+	 *  at the actual table entry we want.  We weren't really using the
+	 *  ALT_GR field anyway.  Trouble remapping shift keys because
+	 *  loader requires all entries to be identical, thus ALT_GR is
+	 *  by default being used.
+	 */
+
+#if SWANFIX
+	if ( VTSWAN && e0esc && !(kb[key].k_flags&S) )
+		key = kb[key].k_val[ALT_GR];   /* Ugly kludge */
+#endif
 	key_vals = kb[key];
 #else
 	fkcopy(kbsegp->s_faddr + (key * sizeof(KBTBL)),
@@ -1098,7 +1138,11 @@ unsigned cmd;
 	s = sphi();
 	KBDEBUG2(" kb_cmd(%x)", cmd);
 	while (kbstate != KB_IDLE)
+#ifdef _I386
+		x_sleep(&kbstate, pritty, slpriSigCatch, "kb a");
+#else
 		v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "kb a");
+#endif
 	kbstate = KB_SINGLE;
 	timeout = KBTIMEOUT;
 	while (--timeout > 0 && (inb(KBSTS_CMD) & STS_IBUF_FULL))
@@ -1108,7 +1152,11 @@ unsigned cmd;
 	else {
 		outb(KBDATA, cmd);
 		while (kbstate != KB_IDLE)
+#ifdef _I386
+			x_sleep(&kbstate, pritty, slpriSigCatch, "kb b");
+#else
 			v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "kb b");
+#endif
 	}
 	spl(s);
 }
@@ -1125,7 +1173,11 @@ unsigned cmd, arg;
 	s = sphi();
 	KBDEBUG3(" kb_cmd2(%x, %x)", cmd, arg);
 	while (kbstate != KB_IDLE)
+#ifdef _I386
+		x_sleep(&kbstate, pritty, slpriSigCatch, "kb c");
+#else
 		v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "kb c");
+#endif
 	kbstate = KB_DOUBLE_1;
 	cmd2 = arg;
 	prev_cmd = cmd;
@@ -1137,7 +1189,11 @@ unsigned cmd, arg;
 	else {
 		outb(KBDATA, cmd);
 		while (kbstate != KB_IDLE)
+#ifdef _I386
+			x_sleep(&kbstate, pritty, slpriSigCatch, "kb d");
+#else
 			v_sleep(&kbstate, CVTTIN, IVTTIN, SVTTIN, "kb d");
+#endif
 	}
 	spl(s);
 }

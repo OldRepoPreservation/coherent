@@ -63,11 +63,12 @@ static int s_id;
 /*
  * Includes.
  */
+#include	<sys/coherent.h>
+
 #ifdef _I386
 #include	<sys/fakeff.h>
 #include	<sys/dmac.h>
 #endif
-#include	<sys/coherent.h>
 #include	<sys/io.h>
 #include	<sys/sched.h>
 #include	<sys/uproc.h>

@@ -482,7 +482,11 @@ register scsi_cmd_t *sc;
 
 	/* Wait for this ccb to finish.  */
 	while( ccb->opcode != AHA_OP_INVALID ) {
+#ifdef _I386
+		x_sleep(ccb, pridisk, slpriNoSig, "aha:ccb" );
+#else
 		v_sleep( ccb, CVBLKIO, IVBLKIO, SVBLKIO, "aha:ccb" );
+#endif
 		/* The AHA-154x driver is waiting for a ccb to complete.  */
 	}
 	

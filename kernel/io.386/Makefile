@@ -6,7 +6,6 @@ USRINC=/usr/include
 SYSINC=$(USRINC)/sys
 AS=exec /bin/as
 CC=exec /bin/cc
-CFLAGS=
 ASFLAGS=-g
 
 IOOBJ = \
