@@ -13,7 +13,7 @@ shared memory segments.
 It will then print out the information based upon the arguments passed
 on the command line.
 
-This ipcs has on flag that is not part of SV, the 'v' or 'version'
+This ipcs has on flag that is not part of SV, the 'V' or 'version'
 flag, which will print the internal version number of the ipcs command.
 
 Warning: when requesting information on active message queues, the command

@@ -2,23 +2,33 @@
  * Module read all information about ipc.
  */
 #include <errno.h>
+#include <coff.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/msg.h>
 #include "ipcs.h"
+
+extern char	*calloc();
+
+struct msqid_ds	*msqbuf;
 
 /*
  * Get ipc and format ipc data
  */
-int get_data()
+int get_data(fname, corefile)
+char	*fname;	/* namelist */
+char	*corefile;
 {
-	if(mflag){
+	if (mflag) {
 		get_shmid_stats();
 	}
 
-	if(sflag){
+	if (sflag) {
 		get_sem_stats();
 	}
 
-	if(qflag){
-		get_msg_stats();
+	if (qflag) {
+		get_msg_stats(fname, corefile);
 	}
 
 	return 0;
@@ -73,66 +83,65 @@ int id;
 	}
 }
 
-
-/* get_msg_stats() is basically a loop that is used to build an
- * array of pointers to msqid_ds structs.
+/* 
+ * get_msg_stats() read msgq data from the corefile to msqbuf
  */
-
-get_msg_stats()
+get_msg_stats(fname, corefile)
+char	*fname;
+char	*corefile;
 {
+	SYMENT 	sym;		/* The table of names to find */
+	int	fd;		/* kernel file descriptor */
+	long	msqoffset;	/* offset to message queue headers */
 
-int x, y;
-struct msqid_ds dummy_msqid[OBSCENE_VALUE];
-int found[OBSCENE_VALUE];
+	/* Allocate space for message queues headers */
+	if (NULL == (msqbuf = (struct msqbuf *)
+	    calloc((unsigned) NMSQID, (unsigned) sizeof(struct msqid_ds)))) {
+		perror("ipcs");
+		exit(1);
+	}
+	sym._n._n_n._n_zeroes = 0;	/* stuff for coffnlist */
+	sym.n_type = -1;
 
-	/* initialize the variable that we will check in the print routines
-	 * to see if a given msqid was indeed found in this function.
-	 * We are also initializing another variable which will prevent from
-	 * later performing unnecessary msgctl()s.
+	/* "msqs" is internal kernel variable that points to message
+	 * queues headers.
 	 */
-
-	for(y = 0 ; y < NMSQID ; y++){
-		found[y] = 0;
-		valid_msqid[y] = 0;
+	strcpy(sym.n_name, "msqs");
+	/* do lookups. coffnlist returns 0 on error. */
+	if (!coffnlist(fname, &sym, NULL, 1)) {
+		fprintf(stderr, "ipcs: error obtaining values from %s\n", 
+									fname);
+		exit(1);
 	}
 
-	total_msgs = 0;
-
-	/* Here's the scoop: Coherent 4.0 numbers it's msqid sequence
-	 * numbers in steps of 256 (the identifier for the first msqid
-	 * is 0, the next is 256, then 512...) When a given queue has
-	 * been removed with a msgctl(id, IPC_RMID,o) command, its sequence
-	 * number is bumped by a value of 1. When this sequence number
-	 * is about to be increased into the next msqid sequence number,
-	 * the driver (is supposed to, according to Vlad) drops this number
-	 * back to its starting point. Example: if the first message queue
-	 * (sequence or id number of 0 when first initialized) is used,
-	 * removed and used again 255 times, it will not be increased to
-	 * 256 the 256th time someone RMID's it, it will be reduced back
-	 * to zero. (I don't believe that this actuall works yet, but I'll
-	 * get around to testing it...
+	/* Now we got addresses of the queues headers. So, we can go to corefile
+	 * and read proper values. 
 	 */
-
-	for (x = 0; x <256 ; x++){
-		for(y = 0; y< NMSQID; y++){
-
-			/* our possible msqid is ((y*256) + x). If we
-			 * find that a message queue is in use with this
-			 * id, we set 2 flags. The first flag (found[y]) tells
-			 * us that we needn't repeat the msgctl test which
-			 * follows. The second flag will be used to tell us in
-			 * the print function that this is a valid message
-			 * queue to print information on.
-			 */
-
-			if(!found[y]){
-				if(-1 != msgctl( ((y*256) + x), IPC_STAT, &dummy_msqid[y])){
-					msqbuf[y] = &dummy_msqid[y];
-					found[y] = 1;
-					valid_msqid[y] = 1;
-					total_msgs++;
-				}
-			}
-		}
+	if ((fd = open(corefile, O_RDONLY)) < 0) {
+		fprintf(stderr, "ipcs: cannot open /dev/kmem\n");
+		exit(1);
+	}
+	/* Get address of message queue data */
+	lseek(fd, sym.n_value, 0);
+	if (read(fd, &msqoffset, sizeof(int)) != sizeof(int)) {
+		fprintf(stderr, "ipcs: error getting message queue offset\n");
+		exit(1);
+	}
+	/* Before first request to msgget, msqs points to NULL.
+	 * So we cannot and should not read. 
+	 * After the first request to msgget, all queue headers are alloced.
+	 * At this point we will have to use IPC_ALLOC bit.
+	 */
+	usemsqs = msqoffset ? 1 : 0;
+	if (!usemsqs) {	/* There was no msq in use */
+		free(msqbuf);
+		return;
+	}
+	lseek(fd, msqoffset, 0);
+	if (read(fd, msqbuf, sizeof(struct msqid_ds) * NMSQID) !=
+ 				sizeof(struct msqid_ds) * NMSQID) {
+		fprintf(stderr, "ipcs: error getting message queue status\n");
+		exit(1);
 	}
 }
+
