@@ -1,4 +1,4 @@
-# /usr/src/libc/stdio/Makefile 11/12/92
+# /usr/src/libc/stdio/Makefile 11/13/92
 
 # The order of stdio objects in libc.a is significant and a bit complicated.
 # To reduce the size of linked objects when possible,
@@ -53,6 +53,7 @@ OBJ=\
 	rewind.o\
 	scanf.o\
 	setbuf.o\
+	tmpnam.o\
 	ungetc.o
 
 # N.B. The order of objects in $(OBJ2) is significant,
@@ -130,6 +131,7 @@ rewind.o:	rewind.c
 scanf.o:	scanf.c
 setbuf.o:	setbuf.c
 sprintf.o:	sprintf.c
+tmpnam.o:	tmpnam.c
 ungetc.o:	ungetc.c
 vprintf.o:	vprintf.c
 vfprintf.o:	vfprintf.c
