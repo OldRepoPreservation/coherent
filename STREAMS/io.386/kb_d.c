@@ -5,10 +5,12 @@
 #include <sys/coherent.h>
 #ifdef _I386
 #include <sys/reg.h>
+#else
+#include <sys/i8086.h>
 #endif
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <signal.h>
@@ -55,6 +57,10 @@
 #define	NFKEY	20			/* Number of settable functions */
 #define	NFCHAR	150			/* Number of characters settable */
 #define	NFBUF	(NFKEY*2+NFCHAR+1)	/* Size of buffer */
+
+#define	ESCAPE_CHAR	'\x1B'
+#define	ESCAPE_STRING	"\x1B"
+#define	HEXFF_STRING	"\xFF"
 
 /*
  * Functions.
@@ -157,7 +163,7 @@ unsigned char agmaptab[] ={					/* Alt Gr */
 };
 
 static unsigned char lmaptab[] ={
-	     '\33',  '1',  '2',  '3',  '4',  '5',  '6',		/* 1 - 7 */
+       ESCAPE_CHAR,  '1',  '2',  '3',  '4',  '5',  '6',		/* 1 - 7 */
 	 '7',  '8',  '9',  '0','\341','\'', '\b', '\t',		/* 8 - 15 */
 	 'q',  'w',  'e',  'r',  't',  'z',  'u',  'i',		/* 16 - 23 */
 	 'o',  'p','\201', '+', '\r',  XXX,  'a',  's',		/* 24 - 31 */
@@ -172,7 +178,7 @@ static unsigned char lmaptab[] ={
 };
 
 static unsigned char umaptab[] ={
-	     '\33',  '!',  '"','\025', '$',  '%',  '&',		/* 1 - 7 */
+       ESCAPE_CHAR,  '!',  '"','\025', '$',  '%',  '&',		/* 1 - 7 */
 	 '/',  '(',  ')',  '=',  '?',  '`', '\b',  SPC,		/* 8 - 15 */
 	 'Q',  'W',  'E',  'R',  'T',  'Z',  'U',  'I',		/* 16 - 23 */
 	 'O',  'P','\232',  '*', '\r',  XXX,  'A',  'S',	/* 24 - 31 */
@@ -258,26 +264,26 @@ isuload()
  * Default function key strings (terminated by -1 [\377])
  */
 static char *deffuncs[] = {
-	"\33[1x\377",	/* F1 */
-	"\33[2x\377",	/* F2 */
-	"\33[3x\377",	/* F3 */
-	"\33[4x\377", 	/* F4 */
-	"\33[5x\377",	/* F5 */
-	"\33[6x\377",	/* F6 */
-	"\33[7x\377",	/* F7 */
-	"\33[8x\377",	/* F8 */
-	"\33[9x\377",	/* F9 */
-	"\33[0x\377",	/* F10 - historical value */
-	"\33[1y\377",	/* F11 */
-	"\33[2y\377",	/* F12 */
-	"\33[3y\377",	/* F13 */
-	"\33[4y\377", 	/* F14 */
-	"\33[5y\377",	/* F15 */
-	"\33[6y\377",	/* F16 */
-	"\33[7y\377",	/* F17 */
-	"\33[8y\377",	/* F18 */
-	"\33[9y\377",	/* F19 */
-	"\33[0y\377"	/* F20 */
+	ESCAPE_STRING "[1x" HEXFF_STRING,	/* F1 */
+	ESCAPE_STRING "[2x" HEXFF_STRING,	/* F2 */
+	ESCAPE_STRING "[3x" HEXFF_STRING,	/* F3 */
+	ESCAPE_STRING "[4x" HEXFF_STRING, 	/* F4 */
+	ESCAPE_STRING "[5x" HEXFF_STRING,	/* F5 */
+	ESCAPE_STRING "[6x" HEXFF_STRING,	/* F6 */
+	ESCAPE_STRING "[7x" HEXFF_STRING,	/* F7 */
+	ESCAPE_STRING "[8x" HEXFF_STRING,	/* F8 */
+	ESCAPE_STRING "[9x" HEXFF_STRING,	/* F9 */
+	ESCAPE_STRING "[0x" HEXFF_STRING,	/* F10 - historical value */
+	ESCAPE_STRING "[1y" HEXFF_STRING,	/* F11 */
+	ESCAPE_STRING "[2y" HEXFF_STRING,	/* F12 */
+	ESCAPE_STRING "[3y" HEXFF_STRING,	/* F13 */
+	ESCAPE_STRING "[4y" HEXFF_STRING, 	/* F14 */
+	ESCAPE_STRING "[5y" HEXFF_STRING,	/* F15 */
+	ESCAPE_STRING "[6y" HEXFF_STRING,	/* F16 */
+	ESCAPE_STRING "[7y" HEXFF_STRING,	/* F17 */
+	ESCAPE_STRING "[8y" HEXFF_STRING,	/* F18 */
+	ESCAPE_STRING "[9y" HEXFF_STRING,	/* F19 */
+	ESCAPE_STRING "[0y" HEXFF_STRING	/* F20 */
 };
 
 /*
@@ -608,17 +614,17 @@ isrint()
  * and the third the alternate keypad sequence.
  */
 static char *keypad[][3] = {
-	{ "\33[H",  "7", "\33?w" },	/* 71 */
-	{ "\33[A",  "8", "\33?x" },	/* 72 */
-	{ "\33[V",  "9", "\33?y" },	/* 73 */
-	{ "\33[D",  "4", "\33?t" },	/* 75 */
-	{ "\0337",  "5", "\33?u" },	/* 76 */
-	{ "\33[C",  "6", "\33?v" },	/* 77 */
-	{ "\33[24H","1", "\33?q" },	/* 79 */
-	{ "\33[B",  "2", "\33?r" },	/* 80 */
-	{ "\33[U",  "3", "\33?s" },	/* 81 */
-	{ "\33[@",  "0", "\33?p" },	/* 82 */
-	{ "\33[P", ".",  "\33?n" }	/* 83 */
+	{ ESCAPE_STRING "[H",  "7", ESCAPE_STRING "?w" },	/* 71 */
+	{ ESCAPE_STRING "[A",  "8", ESCAPE_STRING "?x" },	/* 72 */
+	{ ESCAPE_STRING "[V",  "9", ESCAPE_STRING "?y" },	/* 73 */
+	{ ESCAPE_STRING "[D",  "4", ESCAPE_STRING "?t" },	/* 75 */
+	{ ESCAPE_STRING "7",  "5", ESCAPE_STRING "?u" },	/* 76 */
+	{ ESCAPE_STRING "[C",  "6", ESCAPE_STRING "?v" },	/* 77 */
+	{ ESCAPE_STRING "[24H","1", ESCAPE_STRING "?q" },	/* 79 */
+	{ ESCAPE_STRING "[B",  "2", ESCAPE_STRING "?r" },	/* 80 */
+	{ ESCAPE_STRING "[U",  "3", ESCAPE_STRING "?s" },	/* 81 */
+	{ ESCAPE_STRING "[@",  "0", ESCAPE_STRING "?p" },	/* 82 */
+	{ ESCAPE_STRING "[P", ".",  ESCAPE_STRING "?n" }	/* 83 */
 };
 
 isspecial(c)
@@ -632,7 +638,7 @@ int c;
 
 	switch (c) {
 	case 15:					/* cursor back tab */
-		cp = "\033[Z";
+		cp = ESCAPE_STRING "[Z";
 		break;
 	case 53:
 		if (extmode)
@@ -755,26 +761,27 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (ISIXON) {
+	if (_IS_IXON_MODE (tp)) {
 #if _I386
-		if (ISSTART || (ISIXANY && ISXSTOP)) {
+		if (_IS_START_CHAR (tp, c) ||
+		    (_IS_IXANY_MODE (tp) && (tp->t_flags & T_STOP) != 0)) {
 			tp->t_flags &= ~(T_STOP | T_XSTOP);
 			ttstart(tp);
 			cache_it = 0;
-		} else if (ISSTOP) {
+		} else if (_IS_STOP_CHAR (tp, c)) {
 			if ((tp->t_flags&T_STOP) == 0)
 				tp->t_flags |= (T_STOP | T_XSTOP);
 			cache_it = 0;
 		}
 #else
-		if (ISSTOP) {
+		if (_IS_STOP_CHAR (tp, c)) {
 			if ((tp->t_flags&T_STOP) == 0)
 				tp->t_flags |= T_STOP;
 			cache_it = 0;
 		}
-		if (ISSTART) {
+		if (_IS_START_CHAR (tp, c)) {
 			tp->t_flags &= ~T_STOP;
-			ttstart(tp);
+			ttstart (tp);
 			cache_it = 0;
 		}
 #endif
@@ -830,23 +837,18 @@ register TTY * tp;
 		else
 			in_silo.si_ox++;
 
-		if ( (islock == 0) || ISINTR || ISQUIT ) {
-			ttin( tp, c );
-		}
-
-		else if ( (c == 'b') && (lastc == '\033') ) {
+		if (islock == 0 || _IS_INTERRUPT_CHAR (tp, c) ||
+		    _IS_QUIT_CHAR (tp, c)) {
+			ttin (tp, c);
+		} else if (c == 'b' && lastc == ESCAPE_CHAR) {
 			islock = 0;
-			ttin( tp, lastc );
-			ttin( tp, c );
-		}
-
-		else if ( (c == 'c') && (lastc == '\033') ) {
-			ttin( tp, lastc );
-			ttin( tp, c );
-		}
-
-		else
-			putchar('\007');
+			ttin (tp, lastc);
+			ttin (tp, c);
+		} else if (c == 'c' && lastc == ESCAPE_CHAR) {
+			ttin (tp, lastc);
+			ttin (tp, c);
+		} else
+			putchar ('\a');
 
 		lastc = c;
 	}
