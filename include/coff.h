@@ -4,8 +4,11 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * coff.h
+ * /usr/include/coff.h
+ *
  * Common Object File Format (COFF) header for COHERENT.
+ *
+ * Revised Mon Mar 29 14:28:09 1993 CST
  */
 
 #ifndef __COFF_H__
@@ -227,7 +230,7 @@ typedef	struct	syment	{
 #define N_TMASK 	0x30			/* Derived type mask	*/
 #define N_TSHIFT	2			/* Shift for more derived bits */
 #define	N_BTSHFT	4			/* Shift for derived type */
-
+ 
 /* Type processing macros. */
 #define BTYPE(x)  ((x) & N_BTMASK)		/* Base type		*/
 #define ISPTR(x)  ((DT_PTR<<N_BTSHFT)==((x)&N_TMASK))	/* Pointer?	*/

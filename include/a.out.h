@@ -3,7 +3,14 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-/* COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90 */
+
+/*
+ * /usr/include/a.out.h
+ *
+ * COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90
+ *
+ * Revised Mon Mar 22 15:52:26 1993 CST
+ */
 #ifndef __A_OUT_H__
 #define __A_OUT_H__
 
@@ -71,7 +78,8 @@ struct scnhdr {
 #define	STYP_OVER	0x400			/* not supported */
 #define	STYP_LIB	0x800			/* not supported */
 
-	/* exechdr corresponds to the least commmon denominator
+	/*
+	 * xechdr corresponds to the least commmon denominator
 	 * of the COFF format and the <l.out> format 286 Coherent used
 	 */ 
 
@@ -88,6 +96,11 @@ struct	xechdr {
 	struct	xecseg segs[NUSEG+1];		/* text, data, bss, stack */ 
 };
 
+struct	xecnode {
+	int	segtype;			/* 0..NUSEG */
+	struct	xecseg xseg;
+	struct	xecnode *xn;
+};
 #define	XMAGIC(a, b)	((a<< 16) | b)
 
 #endif

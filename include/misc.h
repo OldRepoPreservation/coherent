@@ -5,9 +5,11 @@
  -lgl) */
 
 /*
- * misc.h
+ * /usr/include/misc.h
  * Miscellaneous useful user functions.
  * Sugggestions and additions are welcome.
+ *
+ * Revised Wed Mar 24 16:44:33 1993 CST
  */
 #ifndef __MISC_H__
 #define __MISC_H__

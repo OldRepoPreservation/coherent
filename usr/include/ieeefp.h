@@ -1,6 +1,16 @@
+/*
+ * /usr/include/ieeefp.h
+ *
+ * Describes the stack frame presented to a user signal handler,
+ * including (optional) floating point context.
+ *
+ * Revised Mon Mar 22 13:11:43 1993 CST
+ */
+
 #ifndef __IEEEFP_H__
 #define __IEEEFP_H__
 
+#include <sys/reg.h>
 /*
  * "fpem" objects are for floating point emulation.
  *
