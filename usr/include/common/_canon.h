@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__COMMON__CANON_H__
 #define	__COMMON__CANON_H__
 
@@ -12,11 +19,6 @@
  * efficient machine idioms can be used for particular target machines.
  * The routines in this file are oriented towards systems with 32-bit long-
  * integer arithmetic, but extensions should be trivial.
- *
- *	canonicalize	-> to make canonical
- *	canonical	-> according to the canons
- *	canons		-> the law
- *	canonize	-> to bestow sainthood
  */
 
 #include <common/feature.h>
@@ -61,6 +63,7 @@ typedef unsigned char *	__canon_t;
 #define __REVERSE_16_MAP	0x0001U
 #define	__I386_16_MAP		__IDENTITY_16_MAP
 #define	__M68K_16_MAP		__REVERSE_16_MAP
+#define	__NET_16_MAP		__REVERSE_16_MAP
 #define	__OCOH_16_MAP		__IDENTITY_16_MAP
 
 #define	__IDENTITY_32_MAP	0x03020100UL
@@ -68,13 +71,14 @@ typedef unsigned char *	__canon_t;
 #define	__SWAP16_32_MAP		0x01000302UL
 #define	__I386_32_MAP		__IDENTITY_32_MAP
 #define	__M68K_32_MAP		__REVERSE_32_MAP
+#define	__NET_32_MAP		__REVERSE_32_MAP
 #define	__OCOH_32_MAP		__SWAP16_32_MAP
 
 
 /*
  * The following primitive mapping functions use a map, and come in two
- * flavours; r-value oriented, and l-value oriented. The r-value-oriented
- * transformations have the special property of using only operations which
+ * flavors; r-value oriented, and l-value oriented.  The r-value-oriented
+ * transformations have the special property of using only operations that
  * are permitted in the restricted form of integral constant expression that
  * can be used in #if-expressions. Applying the r-value transformations to
  * constants yields other constants.
@@ -138,7 +142,7 @@ typedef unsigned char *	__canon_t;
 /*
  * We supply two versions of some of the following depending on whether or not
  * you care about not being able to use the %ebp, %esi, and %edi registers as
- * operands or not.
+ * operands.
  */
 
 __LOCAL__ __INLINE__ unsigned short __swap_bytes (unsigned short _number) {
@@ -166,7 +170,7 @@ __LOCAL__ __INLINE__ unsigned long __reverse_long (unsigned long _number) {
 	unsigned long	_result;
 #if	1
 	__NON_ISO (asm) ("rolw $8, %0\n"
-			 "roll $16, %0\n",
+			 "roll $16, %0\n"
 			 "rolw $8, %0\n" : "=r" (_result) : "0" (_number));
 #else
 	__NON_ISO (asm) ("xchg %h0, %b0\n"
@@ -196,7 +200,7 @@ __LOCAL__ __INLINE__ unsigned long __reverse_long (unsigned long _number) {
 
 /*
  * Now, use a variety of feature-tests to figure out the native format for the
- * host we are compiling for.
+ * host for which we are compiling.
  */
 
 #if	__MSDOS__ || _I386
@@ -224,4 +228,3 @@ __LOCAL__ __INLINE__ unsigned long __reverse_long (unsigned long _number) {
 
 
 #endif	/* ! defined (__COMMON__CANON_H__) */
-
