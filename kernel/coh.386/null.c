@@ -21,6 +21,7 @@
  *  Minor device 4 is /dev/boot_gift
  *  Minor device 5 is /dev/clock
  *  Minor device 6 is /dev/ps
+ *  Minor device 7 is /dev/kmemhi, virtual memory 0x8000_0000-0xFFFF_FFFF
  *
  * $Log:	null.c,v $
  * Revision 1.6  92/11/09  17:10:54  root
@@ -62,6 +63,10 @@
 #define DEV_BOOTGIFT	4	/* /dev/bootgift  */
 #define DEV_CLOCK	5	/* /dev/clock  */
 #define DEV_PS		6	/* /dev/ps  */
+#define DEV_KMEMHI	7	/* /dev/kmemhi  */
+
+#define KMEMHI_BASE	0x80000000
+#define PXCOPY_LIM	4096
 
 /*
  * CMOS devices are limited by an 8 bit address.
@@ -169,7 +174,7 @@ nlread(dev, iop)
 dev_t dev;
 register IO *iop;
 {
-	register unsigned 	bytes_read;
+	register unsigned 	bytesRead;
 	register SEG		*sp;		/* u area segment */
 	register PROC 		*pp1;		/* */
 	char			psBuf[ARGSZ];	/* buffer for command line
@@ -192,11 +197,22 @@ register IO *iop;
 		break;
 
 	case DEV_MEM:
-		bytes_read = pxcopy((long)iop->io_seek, iop->io.pbase,
-		  iop->io_ioc, SEG_386_UD);
-		iop->io_ioc -= bytes_read;
-		if (u.u_error == EFAULT)
-			u.u_error = 0;
+		while (iop->io_ioc) {
+			int src = iop->io_seek;
+			int dest = iop->io.pbase;
+			int numBytes = PXCOPY_LIM;
+			if (numBytes > iop->io_ioc)
+				numBytes = iop->io_ioc;
+
+			bytesRead = pxcopy(src, dest, numBytes, SEG_386_UD);
+			src += bytesRead;
+			dest += bytesRead;
+			iop->io_ioc -= bytesRead;
+			if (u.u_error == EFAULT) {
+				u.u_error = 0;
+				break;
+			}
+		}
 		break;
 
 	case DEV_KMEM:
@@ -256,17 +272,17 @@ register IO *iop;
 		 * Reads all from the data structure boot_gift.
 		 */
 		if (iop->io_seek < BG_LEN) {
-			bytes_read = iop->io_ioc;
+			bytesRead = iop->io_ioc;
 			/*
 			 * Copy no more than to the end of boot_gift.
 			 */
-			if (iop->io_seek + bytes_read > BG_LEN) {
-				bytes_read = BG_LEN - (iop->io_seek);
+			if (iop->io_seek + bytesRead > BG_LEN) {
+				bytesRead = BG_LEN - (iop->io_seek);
 			}
 
 			iowrite(iop,
 				(char *)(&boot_gift) + iop->io_seek,
-				bytes_read);
+				bytesRead);
 		}
 		break;
 
@@ -331,6 +347,11 @@ register IO *iop;
 		}
 		unlock(pnxgate);
 		break;
+	case DEV_KMEMHI:
+		iowrite(iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
+		if (u.u_error == EFAULT)
+			u.u_error = 0;
+		break;
 	default:
 		SET_U_ERROR(ENXIO, "nlread(): illegal minor device for null");
 	}
@@ -345,7 +366,7 @@ nlwrite(dev, iop)
 dev_t dev;
 register IO *iop;
 {
-	register unsigned n;
+	register unsigned bytesWrit;
 	unsigned write_cmos();
 	unsigned seek;
 	int	ch;
@@ -359,11 +380,22 @@ register IO *iop;
 		break;
 
 	case DEV_MEM:
-		n = xpcopy(iop->io.pbase, (long)iop->io_seek, iop->io_ioc,
-			SEG_386_UD);
-		iop->io_ioc -= n;
-		if (u.u_error == EFAULT)
-			u.u_error = 0;
+		while(iop->io_ioc) {
+			int src = iop->io.pbase;
+			int dest = iop->io_seek;
+			int numBytes = PXCOPY_LIM;
+			if (numBytes > iop->io_ioc)
+				numBytes = iop->io_ioc;
+
+			bytesWrit = xpcopy(src, dest, numBytes, SEG_386_UD);
+			src += bytesWrit;
+			dest += bytesWrit;
+			iop->io_ioc -= bytesWrit;
+			if (u.u_error == EFAULT) {
+				u.u_error = 0;
+				break;
+			}
+		}
 		break;
 
 	case DEV_KMEM:
@@ -428,6 +460,10 @@ register IO *iop;
 		/* We should not be able to open /dev/ps to write.
 		 * Just paranoya.
 		 */
+		break;
+
+	case DEV_KMEMHI:
+		ioread(iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
 		break;
 
 	default:
