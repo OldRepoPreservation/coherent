@@ -22,7 +22,7 @@ int fd, baud;
 	if ( (ttyb.sg_ispeed=findspeed(baud)) == 0 )
 		return( M_ILL_BD );
 	ttyb.sg_ospeed = ttyb.sg_ispeed;
-	ttyb.sg_flags = RAW;
+	ttyb.sg_flags = CBREAK;
 	ttyb.sg_erase = -1;
 	ttyb.sg_kill = -1;
 	if ( stty(fd, &ttyb) == -1 )

@@ -164,6 +164,7 @@ startup()
 	static char locbuf[SITELEN+1];
 	static char *readymsg = "Ready for transactions";
 
+	sysended = 0;
 	leavelock = 0;
 	if (role == MASTER) {
 		if ( rmsg(msg, BUFSIZ) < 0 )
@@ -490,6 +491,7 @@ sysend()
 	if ( !leavelock && lockexist(rmtname) )
 		lockrm(rmtname);
 	close_logfile();
+	sysended = 1;
 	return( (role == MASTER) ? 'I': 'A' );
 }
 
