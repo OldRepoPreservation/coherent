@@ -61,7 +61,7 @@ void display_mail(); 	/* this will display a mail record before deletion */
 int get_info();		/* this will get mail info to be added to Mailfile */
 void get_net_map();	/* this will get a selection of net map to read */
 void map_command();	/* this will generate uucp commands to grab net maps */
-
+void print();		/* this will be used to 'print' the Contents files */
 
 struct mail	{
 		char site[8];
@@ -95,7 +95,7 @@ extern char workfile[15];
 extern char workstring[80];
 extern char getfiles[26][115];
 extern int place[MAXRECORDS];
-extern int limit, screen_num;
+extern int limit, screen_num, printflag;
 extern char open_mode;
 
 extern char state[52][15];
