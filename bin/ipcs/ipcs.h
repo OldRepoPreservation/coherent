@@ -15,22 +15,19 @@
 #include <sys/typed.h>		/* /dev/boot_gift.			*/
 
 #define DEFAULT_KERNEL	"/coherent"	/* default kernel image to read */
-#define OBSCENE_VALUE	65
+#define OBSCENE_VALUE	100
 
-#define VERSION	"0.01"
+#define VERSION	"0.02"
 
 /*
  * shared memory stuff 
  */
-
-struct shmid_ds	shmid[OBSCENE_VALUE];	/* array of shmid_ds structs */
-int valid_shmid[OBSCENE_VALUE];		/* keep track of valid shared memory
+struct shmid_ds	*shmid;			/* array of shmid_ds structs */
+int 		*valid_shmid;		/* keep track of valid shared memory
 					   segments found */
-
 /* 
  * semaphore stuff 
  */
-
 struct semid_ds semid[OBSCENE_VALUE];	/* array of semaphore structs */
 int valid_semid[OBSCENE_VALUE];		/* track validly located semaphores */
 
@@ -51,7 +48,7 @@ extern char *	pick_nfile();	 /* get name of boot kernel from /tboot */
 extern FIFO *	fifo_open();	 /* open /dev/boot_gift */
 extern int	fifo_close();	 /* close boot_gift */
 extern typed_space *	fifo_read();	/* read boot_gift */
-
+extern int	iMemSeek();	/* Seek in the virtual memory */
 /* Option's flags. See man pages for more info */
 extern short	qflag,	/* message q */
 		mflag,	/* shared memory */
@@ -69,7 +66,7 @@ extern int	total_shmids, 	/* total valid shared memory segs found */
 		total_sems,	/* total valid semaphores found */
 		usemsqs;	/* is msqs in use */
 
-extern int	NSHMID,		/* max # of shared memory segments allowed */
+extern int	SHMMNI,		/* max # of shared memory segments allowed */
 		NSEMID,		/* max # of semaphores allowed */
 		NMSQID;		/* max # of message queues */
 
