@@ -17,7 +17,7 @@ extern SR allocp;
  */
 faddr_t
 map_pv(paddr, len)
-paddr_t paddr;
+__paddr_t paddr;
 fsize_t len;
 {
 	int s;			/* Return value of sphi().  */
