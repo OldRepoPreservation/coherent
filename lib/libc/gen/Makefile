@@ -1,6 +1,7 @@
-# /usr/src/libc/gen/Makefile 11/13/92
+# /usr/src/libc/gen/Makefile 11/16/92
 
 OBJ=\
+	__assertfail.o\
 	_addargs.o\
 	_cleanup.o\
 	_pow10.o\
@@ -15,6 +16,7 @@ OBJ=\
 	ctol.o\
 	decvax_d.o\
 	decvax_f.o\
+	ftok.o\
 	getcwd.o\
 	getenv.o\
 	getgrent.o\
@@ -36,7 +38,6 @@ OBJ=\
 	nlist.o\
 	notify.o\
 	path.o\
-	perror.o\
 	pnmatch.o\
 	putenv.o\
 	qsort.o\
@@ -68,6 +69,7 @@ genmalloc:
 	SRCPATH=$(SRCPATH)/malloc make -e
 
 # Secondary targets.
+__assertfail.o:	__assertfail.c
 _addargs.o:	_addargs.c
 _cleanup.o:	_cleanup.c
 _pow10.o:	_pow10.c
@@ -82,6 +84,7 @@ ctime.o:	ctime.c
 ctol.o:		ctol.c
 decvax_d.o:	decvax_d.c
 decvax_f.o:	decvax_f.c
+ftok.o:		ftok.c
 getcwd.o:	getcwd.c
 getenv.o:	getenv.c
 getgrent.o:	getgrent.c
@@ -103,7 +106,6 @@ mtype.o:	mtype.c
 nlist.o:	nlist.c
 notify.o:	notify.c
 path.o:		path.c
-perror.o:	perror.c
 pnmatch.o:	pnmatch.c
 putenv.o:	putenv.c
 qsort.o:	qsort.c
