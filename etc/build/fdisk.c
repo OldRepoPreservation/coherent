@@ -284,20 +284,35 @@ again:
 		printf("The current operating system type is %s.\n", sys_type(old));
 	if (yes_no("Do you want this to be a COHERENT partition"))
 		sys = SYS_COH;
+#if 0
+/* any partition they modify better be left as COH or empty! */
 	else if (old != SYS_COH && yes_no("Do you want the partition type left unchanged"))
 		sys = old;
 	else if (old != SYS_EMPTY && yes_no("Do you want the partition marked as unused"))
 		sys = SYS_EMPTY;
+#endif
+	else if (yes_no("Do you want the partition marked as unused"))
+		sys = SYS_EMPTY;
 	else {
 		printf(
+#if 0
 "This program can mark a partition as a COHERENT partition,\n"
 "leave its type unchanged, or mark it as unused.  It cannot\n"
 "initialize a partition for use by any other operating system;\n"
 "to do so, you must mark it as unused now and subsequently use\n"
 "the disk partitioning program provided by the other system\n"
 "to initialize it correctly.\n"
+#else
+"\nThis program can mark a partition as a COHERENT partition\n"
+"or mark it as unused.  It CANNOT initialize a partition for\n"
+"use by any other operating system.  To do so, you must mark\n"
+"it as unused now and subsequently use the disk partitioning\n"
+"program provided by the other system to initialize it correctly.\n\n"
+#endif
 			);
-		goto again;
+		if (yes_no("Do you still want to modify this partition"))
+			goto again;
+		return;
 	}
 	if (sys != old) {
 		p->p_sys = sys;
