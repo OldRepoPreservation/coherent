@@ -21,16 +21,16 @@
  */
 #include	<sys/coherent.h>
 
-#include	<errno.h>
+#include	<sys/errno.h>
 #include	<sys/buf.h>
 #include	<sys/con.h>
 #include	<sys/dmac.h>
 #include	<sys/devices.h>
 #include	<sys/fdc765.h>
 #include	<sys/fdioctl.h>
-#include	<sys/inode.h>
 #include	<sys/sched.h>
 #include	<sys/stat.h>
+#include	<sys/file.h>
 
 /*
  * ----------------------------------------------------------------------
@@ -453,7 +453,7 @@ int	mode;
 					x_sleep(&fl.fl_state,
 					  pridisk, slpriSigCatch, "flopen");
 
-				if (nondsig()) {  /* signal? */
+				if (nondsig ()) {  /* signal? */
 					u.u_error = EINTR;
 					drv_locked[unit_number] = 0;
 					goto badFlopen;
@@ -461,7 +461,7 @@ int	mode;
 			}
 
                         if (flbuf[unit_number].b_resid != 0) {
-				u.u_error = EDATTN;	/* Couldn't get drive */
+				u.u_error = EIO;	/* Couldn't get drive */
 				drv_locked[unit_number] = 0;
 				goto badFlopen;		/* status. */
 			}
@@ -988,8 +988,8 @@ TryRate:
 			fdcRate(fl.fl_rate_set);
 		}
 GetNextID:
-		/* Always read side 0. */
-		fdcReadID(fl.fl_unit, 0);
+		fdcPut(CMDRDID);
+		fdcPut(fl.fl_unit);		/* Always read side 0. */
 
 		break;				/* Wait for ID to arrive. */
 
@@ -1100,9 +1100,10 @@ T_HAL(0x40000, printf("SRDID "));
 
 		/*
 		 * --otherwise we check to see:
-		 * Try to read ANY sector ID from side two.
 		 */
-		fdcReadID(fl.fl_unit, 1);
+
+		fdcPut(CMDRDID); 		/* Just try to read ANY sector*/
+		fdcPut(fl.fl_unit | 0x04);	/* ID from side two.	      */
 		fl.fl_state = SSIDTST;
 		break;
 
@@ -1228,18 +1229,18 @@ T_HAL(0x40000, printf("SLOCK "));
 
 		fl.fl_time[fl.fl_unit] = 0;
 
-		flcmd = FDC_CMD_RDAT;
+		flcmd = CMDRDAT;
 		fl.fl_wflag = 0;
 
 		if (fl_clrng_cd == 0)
 			if (bp->b_req == BWRITE) {
 				fl.fl_wflag = 1;
-				flcmd = FDC_CMD_WDAT;
+				flcmd = CMDWDAT;
 			}
 
 			else if (bp->b_req == BFLFMT) {
 				fl.fl_wflag = 1;
-				flcmd = FDC_CMD_FMT;
+				flcmd = CMDFMT;
 
 				if(!dmaon(DMA_CH2, P2P(fl.fl_addr),bp->b_count,
 				  fl.fl_wflag))
@@ -1581,7 +1582,7 @@ flDrvStatus()
 	for (;;) {
 		/* Check for incoming signal. */
 		spl(s);
-		if (nondsig()) {  /* signal? */
+		if (nondsig ()) {  /* signal? */
 			u.u_error = EINTR;
 			break;
 		}
