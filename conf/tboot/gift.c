@@ -12,7 +12,7 @@
  *    data structure and write it into the ffp.  The routine should return 0
  *    if it ran out of space in the FIFO.  Other return values are permissible,
  *    but ignored.  Add arguments to prepare_gift() as needed.  It is called
- *    only from the end of main() in tboot.c
+ *    only from the end of execute() in execute.c.
  *
  * 3. Add a call to your routine to prepare_gift() in the section marked
  *    FILL THE BOX.  This is an if statement with || seperated calls.  The
@@ -105,8 +105,8 @@ prepare_gift(data_seg, offset, argv)
 	/* FILL THE BOX.  */
 	/* Stop filling in if we run out of space.  */
 	if ((0 == gift_drive_params(ffp)) ||
-	    (0 == gift_argf(ffp, argv)) ||
-	    (0 == gift_rootdev(ffp))
+	    (0 == gift_rootdev(ffp)) ||
+	    (0 == gift_argf(ffp, argv))
 	   ) {
 	   	puts("prepare_gift(): WARNING: not enough room for all arguments.\r\n");
 		puts("Only ");
@@ -135,6 +135,12 @@ gift_drive_params(ffp)
 	
 	
 	num_of_drives = get_num_of_drives();
+
+	if (verbose_flag) {
+		puts("Found 0x");
+		print16(num_of_drives);
+		puts(" drives.\r\n");
+	}
 
 	for (i = 0; i < num_of_drives; ++i) {
 	 
@@ -171,6 +177,7 @@ gift_drive_params(ffp)
 						 (int32) sizeof(BIOS_DISK),
 						 T_BIOS_DISK)
 		   ) {
+			puts("gift_drive_params() ran out of space.");
 			return(0);
 		}
 
@@ -197,8 +204,9 @@ TYPED_SPACE(argf, BLOCK, T_FIFO_SIC);
  */
 
 /*
- * Write an argument fifo into ffp from the command vector cmd_vect.
- * Returns 0 if it runs out of space, 1 on success.
+ * Write an argument fifo into ffp from the argument vector argv[].
+ * Returns 0 if it runs out of space, 1 on success, 2 if it could not
+ * open the local gift box for some reason.
  */
 int
 gift_argf(ffp, argv)
@@ -249,6 +257,7 @@ gift_argf(ffp, argv)
 
 	/* Write it into ffp.  */
 	if (T_NULL == fifo_write(ffp, &argf)) {
+		puts("gift_argf() ran out of space.");
 		return(0);
 	}
 

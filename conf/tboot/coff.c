@@ -45,7 +45,10 @@ coff2load(ip, table, data_seg)
 		return (1==2);
 	}
 
-	/* Pointless witticism:  */
+	/*
+	 * Pointless witticism:
+	 * (Actually, this helped us find a bug in ld.)
+	 */
 	if (fh.f_timdat < 0x1000) {
 		puts(
 	 "Wow!  An executable from the first few thousand seconds of time!\r\n"
@@ -187,6 +190,18 @@ wrap_coffnlist(fn, symbol)
 	coffnlist(fn, nlp, symbol, 2);
 
 	retval = ((uint32)nlp[1].n_value) - ((uint32)nlp[0].n_value);
+
+	if (verbose_flag) {
+		puts("sdata: ");
+		print32(nlp[0].n_value);
+		puts(" ");
+		puts(symbol);
+		puts(": ");
+		print32(nlp[1].n_value);
+		puts(" retval: ");
+		print32(retval);
+		puts("\r\n");
+	}
 
 	if (0L == nlp[1].n_value) {
 		return(0L);

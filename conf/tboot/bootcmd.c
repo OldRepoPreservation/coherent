@@ -1,7 +1,7 @@
-static char _version[]="bootcmd version 1.0";
+static char _version[]="boot_cmd version 1.0";
 /*
  * This is a standalone program to extract the
- * command line from /etc/bootgift.
+ * command line from /dev/boot_gift.
  *
  * Prints the command line on stdout with spaces between arguments.
  * If there was not command line (i.e. tboot ran /autoboot),
