@@ -71,25 +71,28 @@ void
 error_log(message)
 char *message;
 {
-	int fd;
+	FILE *fd;
 	char *logtime, tbuf[50];
 	char buff[2*MAXCLEN];
 	int cmask;
 
-	logtime = strcpy(tbuf, nows);
+/*	logtime = strcpy(tbuf, nows); */
+	strcpy(tbuf, nows);
+	logtime = tbuf;
 	logtime[16] = '\0';
 	logtime += 4;
 
 	cmask = umask(0);
-	fd = open(LOG, 1); /* Open for writing.  */
-	lseek(fd, 0L, 2); /* Seek to the end of file.  */
+	fd = fopen(LOG, "a"); /* Open for writing.  */
+/*	lseek(fd, 0L, 2); Seek to the end of file.  */
 	(void) umask(cmask);
 
 	if (fd != -1) {
-		(void) sprintf(buff, "%s\tpid:%d\t%s\n",
-			logtime, getpid(), message);
-		(void) write(fd, buff, strlen(buff));
-		(void) close(fd);
+		(void) fprintf(fd, "%s\tpid:%d\t%s\n",
+			tbuf, getpid(), message);
+		fflush(fd);	
+/*		(void) write(fd, buff, strlen(buff)); */
+		(void) fclose(fd);
 	}
 }
 # endif
@@ -134,7 +137,8 @@ setdates()
 	(void) strcpy(nows, ctime(&now));
 	gmt = gmtime(&now);
 	loc = localtime(&now);
-	(void) strcpy(arpanows, arpadate(nows));
+/*	(void) strcpy(arpanows, nows); */
+	(void) strcpy(arpanows, arpadate(nows)); 
 }
 
 /*
@@ -169,6 +173,7 @@ char *
 arpadate(ud)
 	register char *ud;
 {
+	char errmsg[70];
 	register char *p;
 	register char *q;
 	static char b[40];
@@ -232,7 +237,7 @@ arpadate(ud)
 
 				/* -PST or -PDT */
 #ifndef BSD
-	p = tzname[localtime(&t)->tm_isdst];
+	p = tzname[localtime(&t)->tm_isdst]; 
 #else
 	p = timezone(t.timezone, localtime(&t.time)->tm_isdst);
 #endif

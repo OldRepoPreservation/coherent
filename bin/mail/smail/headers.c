@@ -332,6 +332,7 @@ char **argv;
 
 			if(buf[0] != '\n') {
 				(void) fputs("\n", spoolfp);
+				fflush(spoolfp);
 			}
 		}
 
@@ -342,6 +343,7 @@ char **argv;
 
 		while(ieof != NULL) {
 			(void) fputs(buf, spoolfp);
+			fflush(spoolfp);
 			if((fgets(buf, SMLBUF, stdin) == NULL)
 			|| (buf[0] == '.' && buf[1] == '\n')) {
 				ieof = NULL;
@@ -563,6 +565,7 @@ char *buf;
 			haveheaders(buf);
 		}
 		(void) fputs(buf, spoolfp);
+		fflush(spoolfp);
 		if((fgets(buf, SMLBUF, stdin) == NULL)
 		|| (buf[0] == '.' && buf[1] == '\n')) {
 			ieof = NULL;
