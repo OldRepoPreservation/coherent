@@ -35,24 +35,24 @@
 #define	todigit(c) ((c)+'0')
 #define	NTZNAME	31		/* max time zone name size */
 
-long	timezone = 0L;
-static	char	tz0[NTZNAME+1] = "GMT";
-static	char	tz1[NTZNAME+1] = "";
-char	*tzname[2] = { tz0, tz1 };
-char	tzdstdef[] = "1.1.4:-1.1.10:2:60......";
+/* Static data. */
+static	char	daynames[3*NWDAY+1] = "SunMonTueWedThuFriSat";
+static	char	dpm[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+static	int	dstadjust = 60*60;	/* In seconds */
+static	char	dsthour = 2;
 static	struct	dsttimes {
 	char dst_month, dst_day, dst_occur;
-} dsttimes[2] = {
-	{  1, 0, 3 },	/* First sunday in april */
-	{ -1, 0, 9 }	/* Last sunday in october */
-};
-static	char	dsthour = 2;
+} dsttimes[2];
+static	char	months[3*NMON+1] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 static	char	timestr[] = "AAA AAA DD DD:DD:DD DDDD\n";
-static char daynames[3*NWDAY+1] = "SunMonTueWedThuFriSat";
-static char months[3*NMON+1] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-static char dpm[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-static	int	dstadjust = 60*60;	/* In seconds */
 static	struct	tm	tm;
+static	char	tz0[NTZNAME+1] = "GMT";
+static	char	tz1[NTZNAME+1] = "";
+
+/* Global data. */
+long	timezone = 0L;
+char	*tzname[2] = { tz0, tz1 };
+char	tzdstdef[] = "1.1.4:-1.1.10:2:60......";
 
 /* Set the timezone parameters, once is enough */
 void
@@ -320,30 +320,34 @@ register yr;
 
 /*
  * Check for daylight savings time.
+ * Watch out for the Southern Hemisphere, where start month > end month.
+ * This does not do the case where start == end correctly for all cases.
  */
 static
 isdaylight()
 {
-	register int xday;
+	register int month, start, end, xday;
 
-	if (tzname[1][0] == 0)		/* No name, no daylight time */
-		return 0;
-	if (tm.tm_mon < dsttimes[0].dst_month)
-		return 0;
-	else if (tm.tm_mon == dsttimes[0].dst_month) {
-		xday = nthday(&dsttimes[0]);
+	if (tzname[1][0] == 0)
+		return 0;			/* No name, no daylight time */
+	month = tm.tm_mon;
+	start = dsttimes[0].dst_month;
+	end = dsttimes[1].dst_month;
+	if ((start <= end && (month < start || month > end))
+	 || (start >  end && (month < start && month > end)))
+		return 0;			/* current month is never DST */
+	else if (month == start) {		/* DST starts this month */
+		xday = nthday(&dsttimes[0]);	/* DST starts on xday */
 		if (tm.tm_mday != xday)
 			return (tm.tm_mday > xday);
 		return (tm.tm_hour >= dsthour);
-	} else if (tm.tm_mon < dsttimes[1].dst_month)
-		return 1;
-	else if (tm.tm_mon == dsttimes[1].dst_month) {
-		xday = nthday(&dsttimes[1]);
+	} else if (month == end) {		/* DST ends this month */
+		xday = nthday(&dsttimes[1]);	/* DST ends on xday */
 		if (tm.tm_mday != xday)
 			return (tm.tm_mday < xday);
 		return (tm.tm_hour < dsthour-1);
-	}
-	return 0;
+	} else
+		return 1;			/* current month is always DST */
 }
 
 static
