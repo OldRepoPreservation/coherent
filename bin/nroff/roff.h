@@ -16,7 +16,7 @@
 #include "request.h"
 #include "str.h"
 
-#define	VERSION	"3.0"
+#define	VERSION	"3.2.16"
 
 /* Buffer sizes. */
 #define	ABFSIZE	128			/* Size of argument buffer	*/
@@ -75,12 +75,26 @@
 #define	IESTACKSIZE	20		/* .ie stack size		*/
 #define	INFINITY	32767
 
-/* Directories. */
+/* Kludge to avoid hanging PostScript printer on very large files. */
+#define	ZKLUDGE	1			/* Include Zflag kludge		*/
+#if	ZKLUDGE
+#define	ZPAGES	25			/* Default Zflag value		*/
+#endif
+
+/* System-dependent directory and file names. */
 #ifdef	MSDOS
 /* MSDOS */
-#define	TMACDIR "\\bin\\"
-#define	TMPLATE	"nroffX.tmp"
-#define	TMACFMT	"%s.tmc"
+#define	LIBDIR	"\\usr\\lib\\roff\\"	/* Configuration directory	*/
+#define	NRDIR	"nroff\\"		/* nroff subdirectory		*/
+#define	POST_L	"_post_land"		/* Landscape postfix filename	*/
+#define	POST_P	"_post"			/* Portrait postfix filename	*/
+#define	PRE_L	"_pre_land"		/* Landscape prefix filename	*/
+#define	PRE_P	"_pre"			/* Portrait prefix filename	*/
+#define	TMACDIR	"\\usr\\lib\\"		/* Macro library directory	*/
+#define	TMACFMT	"%s.tmc"		/* Macro filename format	*/
+#define	TMPLATE	"roffX.tmp"		/* Temp file template		*/
+#define	TPCLDIR	"troff_pcl\\"		/* PCL troff subdirectory	*/
+#define	TPSDIR	"troff_ps\\"		/* PS troff subdirectory	*/
 #else
 #ifdef	GEMDOS
 /* GEMDOS */
@@ -90,6 +104,10 @@
 /* COHERENT */
 #define	LIBDIR	"/usr/lib/roff/"	/* Configuration directory	*/
 #define	NRDIR	"nroff/"		/* nroff subdirectory		*/
+#define	POST_L	".post_land"		/* Landscape postfix filename	*/
+#define	POST_P	".post"			/* Portrait postfix filename	*/
+#define	PRE_L	".pre_land"		/* Landscape prefix filename	*/
+#define	PRE_P	".pre"			/* Portrait prefix filename	*/
 #define	TMACDIR	"/usr/lib/"		/* Macro library directory	*/
 #define	TMACFMT	"tmac.%s"		/* Macro filename format	*/
 #define	TMPLATE	"/tmp/rofXXXXXX"	/* Temp file template		*/
@@ -162,6 +180,9 @@ extern	unsigned long tmpseek;		/* Pointer into temp file	*/
 extern	int	T_reg;			/* .T register			*/
 extern	int	varsp;			/* Variable spacing		*/
 extern	int	xflag;			/* Suppress page eject on exit	*/
+#if	ZKLUDGE
+extern	int	Zflag;			/* PS save/restore kludge	*/
+#endif
 
 /* Global tables, defined in tables.c. */
 extern	char	esctab[];
