@@ -12,43 +12,83 @@
 #ifndef	__STRING_H__
 #define	__STRING_H__
 
-#ifndef	_SIZE_T
-#define	_SIZE_T
-typedef	unsigned int	size_t;		/* sizeof result type		*/
+#include <common/feature.h>
+#include <common/ccompat.h>
+#include <common/_size.h>
+#include <common/_null.h>
+
+
+__EXTERN_C_BEGIN__
+
+__VOID__      *	memcpy		__PROTO ((__VOID__ * _s1,
+					  __CONST__ __VOID__ * _s2,
+					  size_t _n));
+__VOID__      *	memmove		__PROTO ((__VOID__ * _s1,
+					  __CONST__ __VOID__ * _s2,
+					  size_t _n));
+char	      *	strcpy		__PROTO ((char * _s1, __CONST__ char * _s2));
+char	      *	strncpy		__PROTO ((char * _s1, __CONST__ char * _s2,
+					  size_t _n));
+char	      *	strcat		__PROTO ((char * _s1, __CONST__ char * _s2));
+char	      *	strncat		__PROTO ((char * _s1, __CONST__ char * _s2,
+					  size_t _n));
+int		memcmp		__PROTO ((__CONST__ __VOID__ * _s1,
+					  __CONST__ __VOID__ * _s2,
+					  size_t _n));
+int		strcmp		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2));
+int		strcoll		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2));
+int		strncmp		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2, size_t _n));
+size_t		strxfrm		__PROTO ((char * _s1, __CONST__ char * _s2,
+					  size_t _n));
+__VOID__      *	memchr		__PROTO ((__CONST__ __VOID__ * _s1, int _c,
+					  size_t _n));
+char	      *	strchr		__PROTO ((__CONST__ char * _s, int _c));
+size_t		strcspn		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2));
+char	      *	strpbrk		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2));
+char	      *	strrchr		__PROTO ((__CONST__ char * _s1, int _c));
+size_t		strspn		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2));
+char	      *	strstr		__PROTO ((__CONST__ char * _s1,
+					  __CONST__ char * _s2));
+char	      *	strtok		__PROTO ((char * _s1, __CONST__ char * _s2));
+__VOID__      *	memset		__PROTO ((__VOID__ * _s, int _c, size_t _n));
+char	      *	strerror	__PROTO ((int _errnum));
+size_t		strlen		__PROTO ((__CONST__ char * _s));
+
+#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+
+__VOID__      *	memccpy		__PROTO ((__VOID__ * _s1,
+					  __CONST__ __VOID__ * _s2, int _c,
+					  size_t _n));
+char	      *	strdup		__PROTO ((__CONST__ char * _s));
+
+/*
+ * While we are here, change calls to BSD-style string and memory functions
+ * into something more modern. Programs which attempt to take the address of
+ * the functions, or which attempt to access an underlying function, or
+ * which do not include this header *must* be changed.
+ */
+
+#define	index(s,c)		(strchr (s, c))
+#define	rindex(s,c)		(strrchr (s, c))
+#define	bcopy(s2,s1,c)		(memcpy (s1, s2, c))
+#define	bcmp(s1,s2,c)		(memcmp (s2, s1, c))
+#define	bzero(s,c)		(memset (s, 0, c))
+
 #endif
 
-#define	Void	char		/* Use "Void *" as generic pointer type	*/
-#define	const			/* Ignore type modifier "const"		*/
+__EXTERN_C_END__
 
-/* External declarations. */
-extern	Void	*memchr();		/* 4.11.5.1 */
-extern	int	memcmp();		/* 4.11.4.1 */
-extern	Void	*memcpy();		/* 4.11.2.1 */
-extern	Void	*memmove();		/* 4.11.2.2 */
-extern	Void	*memset();		/* 4.11.6.1 */
-extern	char	*strcat();		/* 4.11.3.1 */
-extern	char	*strchr();		/* 4.11.5.2 */
-extern	int	strcmp();		/* 4.11.4.2 */
-extern	int	strcoll();		/* 4.11.4.3 */
-extern	char	*strcpy();		/* 4.11.2.3 */
-extern	size_t	strcspn();		/* 4.11.5.3 */
-extern	char	*strerror();		/* 4.11.6.2 */
-extern	size_t	strlen();		/* 4.11.6.3 */
-extern	char	*strncat();		/* 4.11.3.2 */
-extern	int	strncmp();		/* 4.11.4.4 */
-extern	char	*strncpy();		/* 4.11.2.4 */
-extern	char	*strpbrk();		/* 4.11.5.4 */
-extern	char	*strrchr();		/* 4.11.5.5 */
-extern	size_t	strspn();		/* 4.11.5.6 */
-extern	char	*strstr();		/* 4.11.5.7 */
-extern	char	*strtok();		/* 4.11.5.8 */
-extern	size_t	strxfrm();		/* 4.11.4.5 */
-
-/* Non-ANSI functions. */
-extern	char	*memccpy();
-extern	char	*strdup();
+#if	1
 
 /* Internal function. */
 extern	void	_memxchg();
 
-#endif
+#endif	/* not permitted in this header */
+
+#endif	/* ! defined (__STRING_H__) */
