@@ -307,6 +307,7 @@ actvsig()
 	if (pp->p_flags&PFTRAC) {
 		pp->p_flags |= PFWAIT;
 		ptval = ptret();
+		T_HAL(0x10000, printf("ptret()=%x ", ptval));
 		pp->p_flags &= ~(PFWAIT|PFSTOP);
 		if (ptval == 0)
 			return;
@@ -436,6 +437,9 @@ int *addr;
  * This routine is called when a child that is being traced receives a signal
  * that is not caught or ignored.  It follows up on any requests by the parent
  * and returns when done.
+ *
+ * If the return value is nonzero, the current process (i.e., the traced child)
+ * will exit.
  */
 ptret()
 {
@@ -466,7 +470,8 @@ next:
 	unlock(pnxgate);
 	while (sign < 0) {
 		if (pts.pt_busy==0 || pp->p_pid!=pts.pt_pid) {
-			v_sleep((char *)&pts.pt_req, CVPTRET, IVPTRET, SVPTRET, "ptret");
+			v_sleep((char *)&pts.pt_req,
+			  CVPTRET, IVPTRET, SVPTRET, "ptret");
 			/* Something about signals to a traced child.  */
 			goto next;
 		}
@@ -483,11 +488,30 @@ next:
 		case PTRACE_RD_USR:
 			/* See ptrace.h for valid offsets. */
 			off = (unsigned)pts.pt_addr;
-			if (off < PTRACE_UEND && (off & 3) == 0) {
+
+			if (off & 3)
+				u.u_error = EINVAL;
+			else if (off < PTRACE_FP_CW) {
+				/* Reading CPU general register state */
 				if (off == PTRACE_SIG)
 					pts.pt_rval = u.u_signo;
 				else
 					pts.pt_rval = u.u_regl[off>>2];
+			} else if (off < PTRACE_DR0) {
+				/*
+				 * Reading NDP state.
+				 * If NDP state not already saved, save it.
+				 * Fetch desired info.
+				 * Restore NDP state in case we will resume.
+				 */
+				if (!rdNdpSaved()) {
+					ndpSave(&u.u_ndpCon);
+					wrNdpSaved(1);
+				}
+				pts.pt_rval =
+				  ((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2];
+				ndpRestore(&u.u_ndpCon);
+				wrNdpSaved(0);
 			} else
 				u.u_error = EINVAL;
 			break;
@@ -503,11 +527,30 @@ next:
 		case PTRACE_WR_USR:
 			/* See ptrace.h for valid offsets. */
 			off = (unsigned)pts.pt_addr;
-			if (off < PTRACE_UEND && (off & 3) == 0) {
+
+			if (off & 3)
+				u.u_error = EINVAL;
+			else if (off < PTRACE_FP_CW) {
+				/* Writing CPU general register state */
 				if (off == PTRACE_SIG)
 					u.u_error = EINVAL;
 				else
 					u.u_regl[off>>2] = pts.pt_data;
+			} else if (off < PTRACE_DR0) {
+				/*
+				 * Writing NDP state.
+				 * If NDP state not already saved, save it.
+				 * Store desired info.
+				 * Restore NDP state in case we will resume.
+				 */
+				if (!rdNdpSaved()) {
+					ndpSave(&u.u_ndpCon);
+					wrNdpSaved(1);
+				}
+				((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2]
+				  = pts.pt_data;
+				ndpRestore(&u.u_ndpCon);
+				wrNdpSaved(0);
 			} else
 				u.u_error = EINVAL;
 			break;
