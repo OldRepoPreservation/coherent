@@ -387,8 +387,10 @@ register NODE *np;
 	np = evalexpr(np);
 	if (np->n_flag & T_NUM) {
 		if (np->n_flag & T_INT)
-			return (sprintf(numbuf, "%D", np->t_INT)); else
-			return (sprintf(numbuf, "%.6g", np->t_FLOAT));
+			sprintf(numbuf, "%ld", np->t_INT);
+		else
+			sprintf(numbuf, "%.6g", np->t_FLOAT);
+		return(numbuf);
 	} else
 		return (np->t_STRING);
 }
