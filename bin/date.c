@@ -71,6 +71,7 @@ char *argv[];
 	else
 		tzone = TFCFLAG ? "UTC" : "GMT";
 	printf("%s %s\n", s, tzone);
+	exit(0);
 }
 
 /*
