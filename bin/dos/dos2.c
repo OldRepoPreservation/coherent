@@ -1,3 +1,4 @@
+/* #define DEBUG 1 */
 /* dos2.c */
 
 #include "dos0.h"
@@ -37,23 +38,23 @@ void
 cohtime(file, mdp) char *file; MDIR *mdp;
 {
 	time_t cohtime, times[2];
-	static int mdays[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+	static short mdays[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
 
 	settz();
 	cohtime = ((10 * 365L) + 2);		/* days 1/1/70 to 1/1/80 */
-	cohtime += (mdp->m_year * 365L);	/* to 1/1/year */
-	if (mdp->m_mon > 2)			/* leap year adjust */
-		cohtime += ((mdp->m_year+4)/4);
+	cohtime += (m_year(mdp) * 365L);	/* to 1/1/year */
+	if (m_month(mdp) > 2)			/* leap year adjust */
+		cohtime += ((m_year(mdp)+4)/4);
 	else
-		cohtime += ((mdp->m_year+3)/4);
-	cohtime += mdays[mdp->m_mon-1];		/* to mon/1/year */
-	cohtime += (mdp->m_day-1);		/* to mon/day/year */
+		cohtime += ((m_year(mdp)+3)/4);
+	cohtime += mdays[m_month(mdp)-1];		/* to mon/1/year */
+	cohtime += (m_day(mdp)-1);		/* to mon/day/year */
 	cohtime *= 24L;				/* hours */
-	cohtime += mdp->m_hour;
+	cohtime += m_hour(mdp);
 	cohtime *= 60L;
-	cohtime += mdp->m_min;			/* minutes */
+	cohtime += m_min(mdp);			/* minutes */
 	cohtime *= 60L;
-	cohtime += mdp->m_sec * 2;		/* seconds */
+	cohtime += m_sec(mdp) * 2;		/* seconds */
 	cohtime += timezone;
 	times[0] = times[1] = cohtime;
 	if (utime(file, times) == -1)
@@ -76,7 +77,7 @@ creatdir(name) char *name;
 
 	if ((mdp = find(name, root, &dp)) != NULL) {
 		if (!isdir(mdp))
-			fatal("replace: \"%s\" is an MS-DOS file, not a subdirectory", name);
+			fatal("\"%s\" is an MS-DOS file, not a subdirectory", name);
 		return dp;
 	}
 
@@ -114,7 +115,7 @@ MDIR *
 creatfile(name, dp) char *name; DIR *dp;
 {
 	register MDIR *mdp;
-	int n, ofiles, next;
+	unsigned short n, ofiles, next;
 
 	/* Check if file exists. */
 	dbprintf(("creatfile(%s, %s)\n", name, dp->d_dname));
@@ -155,7 +156,7 @@ creatfile(name, dp) char *name; DIR *dp;
  * Delete specified files.
  */
 void
-delete(nargs, args) int nargs; char *args[];
+delete(nargs, args) short nargs; char *args[];
 {
 	register MDIR *mdp;
 	register char **ap;
@@ -174,7 +175,7 @@ delete(nargs, args) int nargs; char *args[];
 					deletedir(mdp, dp, cohn(mdp->m_name));
 				else
 					deletefile(mdp, dp);
-			} while (mdp = findnext(&dp));
+ 			} while (mdp = findnext(&dp));
 		}
 	}
 }
@@ -188,7 +189,7 @@ deletedir(mdp, dp, name) MDIR *mdp; DIR *dp; char *name;
 {
 	register MDIR *mdp2;
 	register DIR **dpp;
-	int c;
+	short c;
 
 	/* Make sure subdirectory is empty. */
 	for (mdp2 = dp->d_dir; mdp2 < dp->d_edp; mdp2++)
@@ -220,7 +221,7 @@ deletedir(mdp, dp, name) MDIR *mdp; DIR *dp; char *name;
 void
 deletefile(mdp, dp) MDIR *mdp; DIR *dp;
 {
-	register int n, next;
+	register unsigned short n, next;
 
 	dp->d_dirflag = 1;
 	mdp->m_name[0] = MEMPTY;		/* zap the MDIR entry */
@@ -236,10 +237,10 @@ deletefile(mdp, dp) MDIR *mdp; DIR *dp;
 /*
  * Return the size in clusters of the directory starting at n.
  */
-unsigned int
+unsigned short
 dirclusters(mdp) MDIR *mdp;
 {
-	register unsigned int n, count;
+	register unsigned short n, count;
 
 	for (n = mdp->m_cluster, count = 1; (n = getcluster(n)) <= CLMAX; ++count)
 		;
@@ -271,7 +272,7 @@ dosname(name) register char *name;
 		for ( ; *name != '\0'; name++)
 			if (s < &buf[11])
 				*s++ = *name;	/* copy extension */
-	while (s < &buf[10])
+	while (s < &buf[11])
 		*s++ = ' ';			/* space-pad extension */
 	*s = '\0';				/* NUL terminate */
 	uppercase(buf);				/* map to UPPER */
@@ -297,19 +298,17 @@ dostime(mdp, file) register MDIR *mdp; char *file;
 	} else
 		t = time(NULL);
 	tmp = localtime(&t);
-	mdp->m_sec = tmp->tm_sec/2;
-	mdp->m_min = tmp->tm_min;
-	mdp->m_hour = tmp->tm_hour;
-	mdp->m_day = tmp->tm_mday;
-	mdp->m_mon = tmp->tm_mon+1;
-	mdp->m_year = tmp->tm_year-80;
+	mdp->m_time =
+	   c_sec(tmp->tm_sec/2) | c_min(tmp->tm_min) | c_hour(tmp->tm_hour);
+	mdp->m_date = 
+	   c_day(tmp->tm_mday)|c_month(tmp->tm_mon+1)|c_year(tmp->tm_year-80);
 }
 
 /*
  * creat a directory on a dos disk
  */
 void
-createdir(nargs, args) int nargs; char *args[];
+createdir(nargs, args) short nargs; char *args[];
 {
 	creatdir(*args);
 }
@@ -319,7 +318,7 @@ createdir(nargs, args) int nargs; char *args[];
  * Extract files from MS-DOS file system.
  */
 void
-extract(nargs, args) int nargs; char *args[];
+extract(nargs, args) short nargs; char *args[];
 {
 	register MDIR *mdp;
 	register char **ap;
@@ -336,21 +335,14 @@ extract(nargs, args) int nargs; char *args[];
 		if ((mdp = find(*ap, root, &dp)) == NULL)
 			nonfatal("extract: file \"%s\" not found", *ap);
 		else {
-			do {
-				if ((tmp = strrchr(*ap, '/')) != NULL) {
-					base = *ap;
-					*(tmp++) = '\0';
-				}
-				else {
-					base = NULL;
-					tmp = *ap;
-				}
-		
+			do {	
+				base = basehold;
+				strcpy(base,*ap);
 				if isdir(mdp)
 					extractdir(dp);
 				else
 					extractfile(mdp, dp);
-			} while (mdp = findnext(&dp));
+ 			} while (mdp = findnext(&dp));
 		}
 	}
 	free(clbuf);
@@ -367,7 +359,7 @@ extractdir(dp) register DIR *dp;
 	DIR *dp2;
 	unsigned char c;
 	struct stat s;
-	int freeflag;
+	short freeflag;
 
 	freeflag = 0;
 	if (!sflag) {
@@ -384,7 +376,7 @@ extractdir(dp) register DIR *dp;
 				if (system(strcat(strcpy(cmd, "mkdir "), cohfile)) != 0)
 					fatal("cannot create directory \"%s\"", cohfile);
 			} else if ((s.st_mode & S_IFDIR) == 0)
-				fatal("extract: \"%s\" exists but is not a directory",
+				fatal("\"%s\" exists but is not a directory",
 					cohfile);
 		}
 		for (dp2 = dp->d_child; dp2 != NULL; dp2 = dp2->d_sibling)
@@ -405,11 +397,11 @@ extractdir(dp) register DIR *dp;
 void
 extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 {
-	register int cluster;
-	int readsize;
+	register unsigned short cluster;
+	short readsize;
 	long size;
 	FILE *ofp;
-	char *tmp, tmp2[6];
+	char *tmp, tmp2[6], *mcohfile;
 
 	if (!bflag && ((tmp = strrchr(mdp->m_name, '.')) != NULL)) {
 		sprintf(tmp2, "%s.", tmp);
@@ -423,20 +415,20 @@ extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 		fprintf(stderr, "x %s\n", cohfile);
 	if (pflag)
 			ofp = stdout;
-	else if ((ofp = fopen(makef(cohfile), "w")) == NULL)
-		fatal("extract: cannot create file \"%s\"", cohfile);
+	else if ((ofp = fopen(mcohfile = makef(cohfile, 1), "w")) == NULL)
+		fatal("extract: cannot create file \"%s\"", mcohfile);
 
 	/* Read the MS-DOS file and write it to the COHERENT file. */
 	readsize = clsize * ssize;
 	size = mdp->m_size;
-	for (cluster = mdp->m_cluster; size > 0; cluster = getcluster(cluster)) {
+	for(cluster= mdp->m_cluster; size > 0; cluster = getcluster(cluster)){
 		if (cluster > CLMAX)
-			fatal("extract: premature EOF on file \"%s\"", cohfile);
+			fatal("extract: early EOF on file \"%s\"",mcohfile);
 		if (diskread(clbuf, cltosec(cluster), clsize))
-			fatal("extract: read error on file \"%s\"", cohfile);
+			fatal("extract: read error on file \"%s\"", mcohfile);
 		if (size < readsize)
 			readsize = size;
-		foutput(cohfile, ofp, clbuf, readsize);
+		foutput(mcohfile, ofp, clbuf, readsize);
 		size -= readsize;
 	}
 	if (!pflag)

@@ -12,36 +12,36 @@
 #include "dos0.h"
 
 /* Globals. */
-int		aflag;			/* ASCII text file		*/
-int		bflag;			/* Binary text file		*/
+short		aflag;			/* ASCII text file		*/
+short		bflag;			/* Binary text file		*/
 unsigned char	cohfile[NAMEMAX];	/* COHERENT filename		*/
 unsigned char	cmd[6 + NAMEMAX];	/* system() command buffer	*/
 char *		device = INFILE;	/* Input device filename	*/
-int		estat;			/* Exit status			*/
-int		(*fun)();		/* Function to execute		*/
-int		kflag;			/* Use mtime, not current time	*/
-int		nflag;			/* Sort by time, newest first	*/
+short		estat;			/* Exit status			*/
+short		(*fun)();		/* Function to execute		*/
+short		kflag;			/* Use mtime, not current time	*/
+short		nflag;			/* Sort by time, newest first	*/
 long		partseek;		/* Extended MS-DOS part. seek	*/
-int		pflag;			/* Extract/replace is piped	*/
+short		pflag;			/* Extract/replace is piped	*/
 DIR *		root;			/* Root directory		*/
-int		sflag;			/* Suppress subdirectory x/r	*/
+short		sflag;			/* Suppress subdirectory x/r	*/
 MDIR *		volume;			/* Volume label			*/
 
-int		xpart;			/* Extended MS-DOS partition	*/
-char *		base;			/* Base for path-including copies */
-char *		dest;			/* Dest for path-including copies */
+short		xpart;			/* Extended MS-DOS partition	*/
+char *		base, basehold[35];	/* Base for path-including copies */
+char *		base1;
 
 char		ext[512];		/* Ascii Extension list */
-int		sext = 0;		/* size of extension list */
+short		sext = 0;		/* size of extension list */
 
 char *tran_dev();
 char *tran_file();
-int die_signal();
+short die_signal();
 
-main(argc, argv) int argc; char *argv[];
+main(argc, argv) short argc; char *argv[];
 {
-	register int mode;
-	int tv, c, i = 0, dev = 2, j, k = 0;
+	register short mode;
+	short tv, c, i = 0, dev = 2, j, k = 0, dargs = 0;
 	char *tmp;
 
 	argv0 = argv[0];
@@ -54,6 +54,7 @@ main(argc, argv) int argc; char *argv[];
 		mode = 2;
 		tmp = argv[0];
 		if (*argv[1] == '-') {
+			dargs = 1;
 			while ((c = *argv[1]++) != '\0') {
 				switch (c) {
 					case 'a':
@@ -107,44 +108,44 @@ main(argc, argv) int argc; char *argv[];
 				else
 					tv=0;
 				tmp = &argv[dev];
-				base = argv[dev+1];
+				base1 = argv[dev+1];
 			}
 			else {
 				fun = replace;
 				device = tran_dev(argv[argc-1]);
-				dest = tran_file(argv[argc-1]);
+				base1 = tran_file(argv[argc-1]);
 				argv[argc-1] = NULL;
 				tv = argc - (1 + dev);
 				tmp = &argv[dev];
 			}
 		}
 		else if (strstr(tmp, "format")) {
-			tv=argc-2;
+			tv=argc - (2 + dargs);
 			tmp = &argv[dev+1];
 			device = tran_dev(argv[dev]);
 			fun = format;
 		}
 		else if (strstr(tmp, "mkdir")) {
-			if (argc > 2)
+			if (argc > 2 + dargs)
 				fatal("Too many arguments for MKDIR\n");
 
 			device = tran_dev(argv[dev]);
 			if ((argv[dev] = tran_file(argv[dev])) != NULL)
 				tv=1;
 			else
-				fatal("Must spcify a directory to create.\n");
+				fatal("Must specify a directory to create.\n");
 			tmp = &argv[dev];
 			fun = createdir;
 		}
 		else if (strstr(tmp, "cat")) {
-			if (argc > 2)
+			if (argc > 2 + dargs)
 				fatal("Too many arguments for CAT\n");
 
 			device = tran_dev(argv[dev]);
 			if ((argv[dev] = tran_file(argv[dev])) != NULL)
 				tv=1;
 			else
-				fatal("Must spcify a file to display.\n");
+				fatal("Must specify a file to display.\n");
 			tmp = &argv[dev];
 			fun = extract;
 			pflag++;
@@ -169,7 +170,7 @@ main(argc, argv) int argc; char *argv[];
 			mode = 0;
 		}
 		else if (strstr(tmp, "label")) {
-			tv=argc-2;
+			tv=argc - (2 + dargs);
 			tmp = &argv[dev+1];
 			device = tran_dev(argv[dev]);
 			fun = label;
@@ -212,24 +213,31 @@ main(argc, argv) int argc; char *argv[];
 
 
 #define DEFFILE "/etc/default/msdos"
-char dev[80];
+char adev[80], dev[80];
 char file[80];
 
 char *tran_dev(arg) char *arg;
 {
 	FILE *fp;
 	char *b, c[80];
-	int found = 0;
+	short found = 0;
 
 	strcpy(dev, arg);
-	*strchr(dev, ':') = '\0';
+	if ((b = strchr(dev, ':')) == NULL)
+		fatal1("Error: No device specified\n");
+
+	*b = '\0';
+
+	strcpy(adev, dev);
+	if (adev[0] != '/')
+		adev[0] = toupper(adev[0]);
 
 	if ((fp = fopen(DEFFILE, "r")) != NULL) {
 		while (!feof(fp)) {
 			if(fgets(c, 79, fp)) {
 				if ((c[0] != '#') && (c[0] != '\n')) {
 					if (c[0] == '.') {
-						int i = 0;
+						short i = 0;
 						while (c[i] != '\n')
 							ext[sext++] = c[i++];
 					}
@@ -263,6 +271,8 @@ char *tran_file(arg) char *arg;
 	char *t;
 
 	t = strchr(arg, ':') + 1;
+	if (*t == '/')
+		t++;
 	if (*t) {
 		if (strcpy(file, t));
 		return file;
@@ -272,17 +282,21 @@ char *tran_file(arg) char *arg;
 }
 
 
-#define SPOOLDIR	"/usr/spool/uucp"
+#define SPOOLDIR	"/tmp"
 #define	LOCKPRE	"LCK.."
 char lockfn[64];
 
 make_lock()
 {
-	int lockfd, i;
+	short lockfd, i;
 	char pidstring[6];
 	char *tmp = strrchr(device, '/') + 1;
 
+#ifdef _I386
+	for (i=1; i < MAXSIG; i++)
+#else
 	for (i=1; i < 12; i++)
+#endif
 		signal(i, die_signal);
 
 	sprintf(lockfn, "%s/%s%s", SPOOLDIR, LOCKPRE, tmp ? tmp : device);
@@ -294,16 +308,16 @@ make_lock()
 	close(lockfd);
 }
 
-int die_signal(s) int s;
+short die_signal(s) short s;
 {
 	fflush(stdout);
-	fatal("received signal %d, quiting.\n", s);
+	fatal("received signal %d, quitting.\n", s);
 }
 
 rm_lock()
 {
-	int lockfd;	/* pointer to file to read */
-	int chars_read;	/* Number of characters read().  */
+	short lockfd;	/* pointer to file to read */
+	short chars_read;	/* Number of characters read().  */
 
 	char gotpid[7];	/* String of the PID that was in the lockfile */
 

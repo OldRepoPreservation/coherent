@@ -1,3 +1,4 @@
+/* #define DEBUG 1 */
 /* dos3.c */
 
 #include "dos0.h"
@@ -5,6 +6,7 @@
 MDIR *smdp;
 DIR *sdp;
 char *scp, *sname;
+char *trim();
 
 /*
  * Find the given filename relative to the given directory.
@@ -19,19 +21,22 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 	register MDIR *mdp;
 	register char *s;
 	register char *cp;
+	char *tname;
 
-dbprintf(("find(%s)\n", name));
+	dbprintf(("find(%s)\n", name));
 	if ((s = strchr(name, '/')) == NULL) 
 	{
 		/* No pathname, look for name in the directory. */
-		cp = dosname(name);
+		tname = trim(name);
+		cp = dosname(tname);
 		for (mdp = dp->d_dir; mdp < dp->d_edp; mdp++) 
 		{
 			s = mdp->m_name;
-			if (*s == MEMPTY || *s == MFREE)
+			if ((*s == MEMPTY) || (*s == MFREE))
 				continue;
- 			dbprintf(("lmatch(%s,%s) = %d\n", name, cohn(s), lmatch(name, cohn(s))));
-			if (lmatch(name, cohn(s)) == 1) 
+ 			dbprintf(("lmatch(%s,%s) = %d\n", tname, cohn(s), 
+						    lmatch(name, cohn(s))));
+			if (lmatch(tname, cohn(s)) == 1) 
 			{
 				if((strncmp (s, cp, 11) ==0) && isdir(mdp))
 				{
@@ -53,7 +58,6 @@ dbprintf(("find(%s)\n", name));
 				scp = cp;
 				sdp = dp;
 				sname = name;
-dbprintf(("before findnext(%s)\t\mdp = %d\tdp->d_edp=%d\n", cp, mdp, dp->d_edp));
 				return mdp; 
 			}
 		}
@@ -83,11 +87,10 @@ findnext(dpp) DIR **dpp;
 	register char *cp = scp;
 	register DIR *dp = sdp;
 
-dbprintf(("during findnext(%s)\t\mdp = %d\tdp->d_edp=%d\n", cp, mdp, dp->d_edp));
 	for (; mdp < dp->d_edp; mdp++) 
 	{
 		s = mdp->m_name;
-		if (*s == MEMPTY || *s == MFREE)
+		if ((*s == MEMPTY) || (*s == MFREE))
 			continue;
 		dbprintf(("lmatch(%s,%s) = %d\n", sname, cohn(s), lmatch(sname, cohn(s))));
  		if (lmatch(sname, cohn(s)) == 1) 
@@ -123,12 +126,13 @@ lmatch(pp, sp)
 register char *pp;
 register char *sp;
 {
-	int c2;
-	register int c1;
-
- 	
+	short c2;
+	register short c1;
+	
+/*
  	if (*sp == '.')
  		return 0;
+*/
 	if ((strcspn(pp, " ") == 0) && (strcspn(sp, " ") == 0))
 		return 1;
 	while ((c1=*pp++)) {
@@ -185,23 +189,60 @@ register char *sp;
 	return (*sp=='\0');
 }
 
+
+char *
+trim(name) register char *name;
+{
+	register char *s, *dotp;
+	char c;
+	static char buf[16];
+
+	dotp = strrchr(name, '.');
+	if (dotp == name)
+		dotp = NULL;
+	for (s = buf; name != dotp && (c = *name) != '\0'; name++)
+		if (s < &buf[8])		/* copy name */
+			*s++ = (c == '.') ? '_' : c;
+	if (name++ == dotp) {
+		*s++ = '.';
+		for ( ; *name != '\0'; name++)
+			if (s < &buf[11])
+				*s++ = *name;	/* copy extension */
+	}
+	*s = '\0';				/* NUL terminate */
+	return buf;
+}
+
 char * cohn(name) char * name;
 {
-	static char lname[14];
+	static char lname[22];
 	char *tmp = lname;
-	int i = 0;
+	short i = 0;
 
 	do {
-		if ((i == 8) && (*name != ' '))
-			*(tmp++) = '.';
-		else if (*name == ' ')
+		if (*name == ' ')
 			*name++;
 		else {
 			*(tmp++) = tolower(*name);
 			name++;
 		}
 		i++;
-	} while ( *(name - 1) != '\0');
+	} while (i<8);
+
+	if ((*name != ' ')) {
+		*(tmp++) = '.';
+		do {
+			if (*name == ' ')
+				*name++;
+			else {
+				*(tmp++) = tolower(*name);
+				name++;
+			}
+			i++;
+		} while (i<11);
+	}
+	*tmp = '\0';
+
 	return lname;
 }
 
@@ -212,11 +253,11 @@ char * cohn(name) char * name;
  * Pad to nb characters with NUL or CTRLZ.
  * Return the number of characters actually read.
  */
-int
-finput(fp, bp, nb) FILE *fp; register char *bp; unsigned nb;
+short
+finput(fp, bp, nb) FILE *fp; register char *bp; unsigned short nb;
 {
-	register int c;
-	register unsigned n;
+	register short c;
+	register unsigned short n;
 	register char *ep;
 	static char needlf = 0;
 
@@ -254,12 +295,12 @@ finput(fp, bp, nb) FILE *fp; register char *bp; unsigned nb;
  * The optional argument is a boot block.
  */
 void
-format(nargs, args) int nargs; char *args[];
+format(nargs, args) short nargs; char *args[];
 {
 	register char *cp;
-	int i, c;
+	short i, c;
 	char *bp;
-	unsigned int nsize;
+	unsigned short nsize;
 	struct stat sbuf;
 
 	/* Prompt to make sure. */
@@ -314,7 +355,7 @@ format(nargs, args) int nargs; char *args[];
 	/* Write the FATs (media id and zero bytes). */
 	if (fatbytes != 1)
 		fatal("format: fatbytes=%d", fatbytes);
-	nsize = (maxcluster + 1) * sizeof(int);
+	nsize = (maxcluster + 1) * sizeof(short);
 	if (nsize < fatsize * ssize)
 		nsize = fatsize * ssize;
 	if ((fatcache = calloc(nsize, 1)) == NULL)
@@ -330,7 +371,7 @@ format(nargs, args) int nargs; char *args[];
 	/* Write the directory (all zero bytes). */
 	if ((cp = calloc(dirsize, ssize)) == NULL)
 		fatal("format: directory allocation failed");
-	diskwrite(cp, dirbase, dirsize, "directory");
+	diskwrite(cp, (long)dirbase, dirsize, "directory");
 	free(cp);
 }
 
@@ -339,10 +380,10 @@ format(nargs, args) int nargs; char *args[];
  * taking into account the ASCII flag.
  * Return the number of characters actually written.
  */
-int
-foutput(fn, fp, bp, nb) char *fn; FILE *fp; register char *bp; unsigned nb;
+short
+foutput(fn, fp, bp, nb) char *fn; FILE *fp; register char *bp; unsigned short nb;
 {
-	register unsigned n;
+	register unsigned short n;
 	register char *ep;
 
 	if (!aflag) {
@@ -368,10 +409,10 @@ foutput(fn, fp, bp, nb) char *fn; FILE *fp; register char *bp; unsigned nb;
  * Stick an EOF marker in the cluster.
  * Failure is fatal.
  */
-unsigned int
+unsigned short
 freecluster()
 {
-	register unsigned int n;
+	register unsigned short n;
 
 	for (n = 2; n <= maxcluster; n++)
 		if (getcluster(n) == CLFREE) {
@@ -386,12 +427,13 @@ freecluster()
  * Set globals accordingly.
  * Return the required device mode for the command.
  */
-int
+short
 key(s) register char *s;
 {
-	register int c, nfun;
+	register short c, nfun;
 
 	nfun = 0;
+	bflag = 1;			/* assume binary */
 	if (*s == '-')
 		++s;			/* ignore optional '-' */
 	while ((c = *s++) != '\0')
@@ -406,7 +448,7 @@ key(s) register char *s;
 		case 'x':	fun = extract;	++nfun;	break;
 
 		/* Flags. */
-		case 'a':	aflag++;		break;
+		case 'a':	aflag++;       bflag--;	break;
 		case 'c':	cflag++;		break;
 		case 'k':	kflag++;		break;
 		case 'n':	nflag++;		break;
@@ -443,17 +485,33 @@ key(s) register char *s;
  * Label a disk with a volume label.
  */
 void
-label(nargs, args) int nargs; char *args[];
+label(nargs, args) short nargs; char *args[];
 {
+	char tmp[13], *b;
+	short i;
+
 	if (nargs != 1)
 		fatal("label: single argument required");
-	if (find(args[0], root, NULL) != NULL)
-		fatal("label: file \"%s\" already exists", args[0]);
-	if (strchr(args[0], '/') != NULL)
+
+	if ((i = strlen(args[0])) > 8) {
+		if (i > 11)
+			args[0][11] = '\0';
+		strncpy(tmp, args[0], 8);
+		tmp[8] = '.';
+		strcpy(&tmp[9], &args[0][8]);
+				
+		b = tmp;
+	}
+	else
+		b= args[0];
+		
+	if (find(b, root, NULL) != NULL)
+		fatal("label: file \"%s\" already exists", b);
+	if (strchr(b, '/') != NULL)
 		fatal("label: label cannot use character '/'");
 	if (volume != NULL)
 		deletefile(volume, root);
-	volume = creatfile(args[0], root);
+	volume = creatfile(b, root);
 	volume->m_attr = MVOLUME;
 }
 
@@ -467,9 +525,9 @@ mdirinit(mdp, dp, name, attr, cluster)
 register MDIR *mdp;
 DIR *dp;
 char *name;
-unsigned int attr, cluster;
+unsigned short attr, cluster;
 {
-	register int i;
+	register short i;
 
 	dbprintf(("mdirinit(mdp=%x dp=\"%s\" name=\"%s\" attr=%x cl=%x)\n", mdp, dp->d_dname, name, attr, cluster));
 	strncpy(mdp->m_name, name, 11);
@@ -483,45 +541,3 @@ unsigned int attr, cluster;
 }
 
 /* end of dos3.c */
-
-#if 0
-MDIR *
-findnext(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
-{
-	register MDIR *mdp;
-	register char *s;
-	register char *cp;
-
-printf("findnext(%s)\n", sname);
-	cp = scp;
-	for (mdp = ++smdp; mdp < dp->d_edp; mdp++) 
-	{
-		s = mdp->m_name;
-		if (*s == MEMPTY || *s == MFREE)
-			continue;
-		printf("fn - lmatch(%s,%s) = %d\n", sname, cohn(s), lmatch(name, cohn(s)));
-		if (lmatch(sname, cohn(s)) == 1) 
-		{
-			if((strncmp (s, cp, 11) == 0) && isdir(mdp)) 
-			{
-				/* Subdirectory, find its DIR. */
-				for (dp = dp->d_child; dp != NULL; 
-						   dp = dp->d_sibling)
-					if (strncmp(dp->d_dname, cp, 11) == 0)
-						break;
-				if (dp == NULL)
-					fatal("find subdirectory botch");
-				/* Read in the MDIR if necessary. */
-				if (dp->d_dir == NULL)
-					readmdir(dp);
-			}
-			if (dpp != NULL)
-				*dpp = dp;
-			smdp = mdp;
-			return mdp; 
-		}
-		return NULL;
-	}
-}
-
-#endif
