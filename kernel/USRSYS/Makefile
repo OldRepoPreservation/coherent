@@ -12,31 +12,28 @@
 # Initial revision
 # 
 
-USRSYS=/usr/sys
-
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
 KERINC=/usr/src/sys/sys
 DRVINC=/usr/src/sys/i8086/sys
-USSINC=/usr/src/sys
 
 # Source directories
-COHSRC=/usr/src/sys/coh
-DRVSRC=/usr/src/sys/i8086/drv
-I86SRC=/usr/src/sys/i8086/src
-IBMATSRC=/usr/src/sys/i8086/ibm_at
-KERSRC=/usr/src/sys/ker
-TTYSRC=/usr/src/sys/ttydrv
+COHSRC=$(USRSRC)/coh
+DRVSRC=$(USRSRC)/i8086/drv
+I86SRC=$(USRSRC)/i8086/src
+IBMATSRC=$(USRSRC)/i8086/ibm_at
+KERSRC=$(USRSRC)/ker
+TTYSRC=$(USRSRC)/ttydrv
 
 # Object directories
-I86OBJ=/usr/src/sys/i8086/objects
-DRVOBJ=/usr/src/sys/i8086/drv/objects
-SRCOBJ=/usr/src/sys/i8086/src/objects
-IBMATOBJ=/usr/src/sys/i8086/ibm_at/objects
+I86OBJ=$(USRSRC)/i8086/objects
+DRVOBJ=$(USRSRC)/i8086/drv/objects
+SRCOBJ=$(USRSRC)/i8086/src/objects
+IBMATOBJ=$(USRSRC)/i8086/ibm_at/objects
 
 # Library directory
-DRVLIB=/usr/sys/lib
+DRVLIB=$(USRSYS)/lib
 
 # Compiler stuff
 CC=exec /bin/cc
@@ -150,7 +147,7 @@ $(SRCOBJ)/support.o: $(I86SRC)/support.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # this stuff was in the /usr/src/sys/i8086 Makefile before 90/08/08
-C86FLAGS=-c -DNOMONITOR=1 -I$(DRVINC) -I$(KERINC) -I$(SYSINC) -I$(USSINC)
+C86FLAGS=-c -DNOMONITOR=1 -I$(DRVINC) -I$(KERINC) -I$(SYSINC)
 #
 $(I86OBJ):
 	mkdir $(I86OBJ)
