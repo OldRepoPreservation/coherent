@@ -1,12 +1,16 @@
 /*
  * Reboot the processor by transferring to the reset vector of the 8088.
  *
- * $Log: $
+ * $Log:	/usr/src.inetco/etc/reboot.c,v $
+ * Revision 1.1	90/04/17  14:34:11 	root
+ * Initial revision
+ * 
  * 86/12/19	Allan Cornish		/usr/src/cmd/etc/reboot.c
  * reboot.s converted into reboot.c and rebootas.s to provide time for
  * disk drives to turn off before initiating reboot.
  */
 
+#include <stdio.h>
 #include <signal.h>
 
 sigquiet( sig )
@@ -15,9 +19,17 @@ int sig;
 	signal( sig, sigquiet );
 }
 
-main( argc, argv )
-register char ** argv;
+main (argc, argv) int argc; char *argv[];
 {
+	char buf[80];
+
+	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'p') {
+		/* Prompt before reboot. */
+		printf("Hit <Enter> and your system will reboot automatically... ");
+		fflush(stdout);
+		fgets(buf, sizeof buf, stdin);
+	}
+		
 	/*
 	 * Trap alarm signals.
 	 */
