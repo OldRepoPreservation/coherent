@@ -16,9 +16,11 @@
  */
 
 #include <common/_gregset.h>
+#include <common/ccompat.h>
 #include <common/feature.h>
 #include <common/__caddr.h>
 #include <common/__paddr.h>
+#include <sys/seg.h>
 
 #if	! _KERNEL
 # error	You must be compiling the kernel to use this header
@@ -111,8 +113,10 @@ typedef unsigned long	__sg_addr_t;
 #if __PTOV_DX
 
 /* Error reporting is in the function call, in ff.c */
-#define	__PTOV(phys)	__ptov((__caddr_t) phys)
+#define	__PTOV(phys)	__ptov((__paddr_t) phys)
 #define	P2P(addr)	__sg_to_p((__sg_addr_t)addr)
+
+__caddr_t	__ptov		__PROTO ((__paddr_t phys));
 
 #else
 
@@ -131,7 +135,7 @@ typedef unsigned long	__sg_addr_t;
  * These macros assume segment size <= 4 megabytes.
  *
  * MAPIO:absolute page table address, offset ->
- *       relative page table click# (20 bits) ... offset (12 bits)
+ *       relative page table page# (20 bits) ... offset (12 bits)
  * MAPIO converts (SEG.s_vmem, byte offset) to system global addr.
  *
  * P2P converts a system global address to a physical address.
@@ -146,7 +150,7 @@ struct __blocklist {
 	int	fill;			/* sizeof(BLOCKLIST) :: power of 2 */
 };
 
-#define	NBUDDY	12	/* segments of 2^NBUDDY 4 click chunks (16 megabytes) */
+#define	NBUDDY	12	/* segments of 2^NBUDDY 4 page chunks (16 megabytes) */
 #define	WCOUNT	32			/* number of bits in an int */
 #define	WSHIFT	5
 
@@ -175,13 +179,22 @@ struct __blocklist *arealloc();
 
 
 /*
- * How many clicks are free for allocation?
+ * How many pages are free for allocation?
  */
 #define allocno()	(sysmem.pfree - sysmem.tfree)
 
 __EXTERN_C_BEGIN__
 
 __paddr_t	__coh_vtop	__PROTO ((__caddr_t vaddr));
+void		areainit	__PROTO ((int budArenaBytes));
+void		doload		__PROTO ((SR * srp));
+unsigned int	read16_cmos	__PROTO ((unsigned int addr));
+void		unload		__PROTO ((SR * srp));
+
+/* From k0.s */
+
+void		mmuupdnR0	__PROTO ((void));
+void		mmuupd		__PROTO ((void));
 
 __EXTERN_C_END__
 
