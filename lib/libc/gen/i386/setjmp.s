@@ -47,6 +47,11 @@ longjmp:
 	pop	%edx			/ longjmp return address to bit bucket
 	pop	%edx			/ env to EDX
 	pop	%eax			/ return value to EAX
+	orl	%eax, %eax		/ check if return value 0
+	jnz	?0			/ nope, ok
+	incl	%eax			/ ANSI 4.6.2.1: return 1 if arg is 0
+
+?0:
 	mov	%ebp, SAVEEBP(%edx)	/ restore EBP
 	mov	%esp, SAVEESP(%edx)	/ restore ESP
 	mov	%esi, SAVEESI(%edx)	/ restore ESI
