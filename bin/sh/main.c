@@ -11,13 +11,13 @@ main(argc, argv, envp)
 char *argv[];
 char *envp[];
 {
-
 	sarg0 = argc>0 ? argv[0] : "";
 	fakearg(0, argc, argv, envp);
 	if (argc>0 && argv[0][0]=='-') {
 		lgnflag = 1;
 		umask(ufmask=022);
 	} else if (argc>0 && argv[0][0]=='+') {
+		dflttrp(IBACK);		/* for security, no <Ctrl-C> out of /etc/profile */
 		lgnflag = 2;
 		umask(ufmask=022);
 	} else {
@@ -142,7 +142,8 @@ register char *p;
 			s.s_flag = iflag;
 		else
 			iflag = s.s_flag;
-		dflttrp(IRDY);
+		if (lgnflag != 2)
+			dflttrp(IRDY);	/* allow <Ctrl-C> unless "+sh" */
 	}
 
 	/* Loop on input */
@@ -164,6 +165,7 @@ register char *p;
 				if (ffind("/etc", "profile", 4))
 					session(SFILE, duplstr(strt, 0));
 				recover(IPROF);
+				dflttrp(IRDY);	/* allow <Ctrl-C> in SHELL */
 				return exshell( findvar("SHELL") );
 			}
 			checkmail();
