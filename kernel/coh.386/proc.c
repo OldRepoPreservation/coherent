@@ -87,7 +87,7 @@ pcsinit()
 	procq.p_alrmtim.t_farg = NULL;
 
 	procq.p_prl = NULL;		/* Pending record lock */
-
+	procq.p_semu = NULL;		/* Semaphore undo */
 	for (lp=&linkq[0]; lp<&linkq[NHPLINK]; lp++) {
 		lp->p_lforw = lp;
 		lp->p_lback = lp;
@@ -109,6 +109,8 @@ process()
 	pp->p_flags = PFCORE;
 	pp->p_state = PSRUN;
 	pp->p_ttdev = NODEV;
+	pp->p_semu = NULL;		/* Semaphore undo */
+
 	lock(pnxgate);
 next:
 
@@ -318,6 +320,9 @@ pexit(s)
 
 	/* Detach remaining shared memory segments. */
 	shmAllDt();
+
+	/* Adjust(undo) all semaphores. */
+	semAllAdjust(pp);
 
 	/*
 	 * Wakeup our parent.  If we have any children, init will become the
