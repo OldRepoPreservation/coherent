@@ -1,7 +1,9 @@
-# /usr/src/libc/Makefile 7/23/91
+# /usr/src/libc/Makefile 1/9/92
 # Assumes $(SRCPATH) defines root libc source directory, e.g. /usr/src/libc.
+# Assumes $(MCH) defines target machine, e.g. i8086 or i386.
+# Assumes $(AR), $(AS), $(AFLAGS), $(CC), $(CFLAGS) defined appropriately.
 # To build a new libc.a, move to an empty object directory and
-# type "make SRCPATH=/usr/src/libc" (or other pathname as appropriate).
+# type "make -e SRCPATH=/usr/src/libc MCH=i8086" (or other pathname as appropriate).
 # This takes about 20 minutes from scratch on 20 MHz 386.
 
 # Copyright module is first entry in the archive.
@@ -21,18 +23,18 @@ all:	ROOT dcrt dstring dsys dgen dstdio
 # The upper case pseudotargets indicate when the objects in a given directory
 # were last made, allowing replacement of only the stale object files.
 ROOT:	$(OBJ)
-	ar rckus libc.a $?
+	$(AR) rckus libc.a $?
 	touch $@
 dcrt:	
-	make SRCPATH=$(SRCPATH)/crt
+	SRCPATH=$(SRCPATH)/crt make -e
 dgen:
-	make SRCPATH=$(SRCPATH)/gen
+	SRCPATH=$(SRCPATH)/gen make -e
 dstdio:
-	make SRCPATH=$(SRCPATH)/stdio
+	SRCPATH=$(SRCPATH)/stdio make -e
 dstring:
-	make SRCPATH=$(SRCPATH)/string
+	SRCPATH=$(SRCPATH)/string make -e
 dsys:
-	make SRCPATH=$(SRCPATH)/sys
+	SRCPATH=$(SRCPATH)/sys make -e
 
 # Secondary targets.
 copyright.o:	$(SRCPATH)/gen/copyright.c
