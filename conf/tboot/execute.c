@@ -192,7 +192,7 @@ seg_too_high( lseg )
 			lseg->load_length;
 	
 #if 0
-	printf("%x:%x + %X = %X\n",
+	printf("%x:%x + %lx = %lx\n",
 		lseg->load_toseg,
 		lseg->load_tooffset,
 		lseg->load_length, 
@@ -213,14 +213,14 @@ main()
 	lseg.load_length	= 128L*1024L;
 
 	if (seg_too_high(&lseg)) {
-		printf("BAD: %x:%x + %X > %X.\n", 
+		printf("BAD: %x:%x + %lx > %lx.\n", 
 			lseg.load_toseg,
 			lseg.load_tooffset,
 			lseg.load_length,
 			(((unsigned long)RBOOTS) << 4) );
 
 	} else {
-		printf("OK: %x:%x + %X < %X.\n", 
+		printf("OK: %x:%x + %lx < %lx.\n", 
 			lseg.load_toseg,
 			lseg.load_tooffset,
 			lseg.load_length,
