@@ -22,7 +22,6 @@
 #include <discbuf.h>
 #include <signal.h>
 
-#define	NXF	20			/* # of `x' files */
 #define	NRBUF	10			/* # of restore cache buffers */
 
 /*
@@ -55,6 +54,8 @@ char	*dtn	= DTAPE;		/* Dump file name */
 FILE	*dtp;				/* Its file pointer */
 struct	dumpheader dh;			/* Header buffer */
 int	reel	= 1;			/* Reel # */
+fsize_t	length = 512;			/* Length of volume */
+fsize_t	nread;				/* Bytes read from volume */
 char	tfn[30]	= "/tmp/ddxxxxxx";	/* Temp file name */
 FILE	*tfp;				/* Its file pointer */
 struct	dlist	*dlist;			/* List of directory nodes */
@@ -67,7 +68,7 @@ char	*map;				/* Directory map */
 int	nxf;				/* # of `x' files */
 ino_t	nindisc;			/* # of inodes on the disc */
 ino_t	ningrab;			/* # of inodes to grab */
-struct	xf xf[NXF];			/* Save for x names */
+struct	xf	*xfp;			/* Pointer for x names */
 
 /*
  * Block mapping tables.
@@ -119,6 +120,7 @@ char *argv[];
 {
 	register char *p;
 	register c, i;
+	register struct xf *rxfp;
 	char *name, *path;
 	ino_t ino;
 
@@ -149,6 +151,20 @@ char *argv[];
 			vflag = 1;
 			break;
 
+		case '-':
+		{
+			/* Cf. nextvol() */
+			extern long RESTMIN, RESTMAX;
+
+			if (++i >= argc)
+				usage();
+			RESTMIN = atoi(argv[i]);
+			if (++i >= argc)
+				usage();
+			RESTMAX = atoi(argv[i]);
+			break;
+		}
+
 		default:
 			usage();
 		}
@@ -162,11 +178,11 @@ char *argv[];
 		if (++i >= argc)
 			usage();
 		if ((dbfp = fopen(argv[i], "r+w")) == NULL)
-			message(1, "%s: cannot open filesystem", argv[1]);
+			message(1, "%s: cannot open filesystem", argv[i]);
 		dbclaim(NRBUF);
 		if (key == 'r') {
 			opendump();
-			readhead(1);
+			nextvol(1);
 		} else {
 			for (;;) {
 				reel = getreel();
@@ -183,12 +199,16 @@ char *argv[];
 	case 'x':
 	case 'X':
 		opendump();
-		readhead(1);
+		nextvol(1);
 		mktemp(tfn);
 		if ((tfp = fopen(tfn, "w")) == NULL
 		||  (tfp = freopen(tfn, "r+w", tfp)) == NULL)
 			message(1, "cannot create temporary file");
 		readdirs();
+		xfp = (struct xf *)malloc((argc-i)*sizeof(struct xf));
+		if (xfp == NULL)
+			message(1, "too many restore names");
+		rxfp = xfp;
 		while (++i < argc) {
 			name = argv[i];
 			if ((ino = numfile(name)) != 0) {
@@ -207,18 +227,15 @@ char *argv[];
 				message(0, "%s: not dumped", name);
 				continue;
 			}
-			if (nxf >= NXF) {
-				message(0, "%s: too many names", name);
-				continue;
-			}
-			xf[nxf].xf_path = path;
-			xf[nxf].xf_ino  = ino;
+			rxfp->xf_path = path;
+			rxfp->xf_ino = ino;
+			rxfp++;
 			++nxf;
 		}
 		if (nxf == 0)
 			break;
 		for (i=0; i<nxf; ++i)
-			printf("%u\t%s\n", xf[i].xf_ino, xf[i].xf_path);
+			printf("%u\t%s\n", xfp[i].xf_ino, xfp[i].xf_path);
 		if (key == 'x')
 			readfile(0);
 		else {
@@ -227,7 +244,7 @@ char *argv[];
 				reel = getreel();
 				opendump();
 				readfile(1);
-				for (i=0; i<nxf && xf[i].xf_ino==0; ++i)
+				for (i=0; i<nxf && xfp[i].xf_ino==0; ++i)
 					;
 				if (i == nxf)
 					break;
@@ -235,15 +252,15 @@ char *argv[];
 		}
 		fclose(dtp);
 		for (i=0; i<nxf; ++i)
-			if (xf[i].xf_ino != 0)
-				message(0, "%s: not restored", xf[i].xf_path);
+			if (xfp[i].xf_ino != 0)
+				message(0, "%s: not restored", xfp[i].xf_path);
 		break;
 
 	case 't':
 		opendump();
 		readhead(1);
-		printf("Dump since %s", ctime(&dh.dh_ddate));
-		printf("Dumped  on %s", ctime(&dh.dh_bdate));
+		fprintf(stderr, "Dump since %s", ctime(&dh.dh_ddate));
+		fprintf(stderr, "Dumped  on %s", ctime(&dh.dh_bdate));
 		break;
 
 	default:
@@ -293,7 +310,7 @@ getreel()
 	register c, flag, reel;
 
 	for (;;) {
-		printf("restor: desired reel? ");
+		fprintf(stderr, "restor: desired volume? ");
 		reel = 0;
 		flag = 0;
 		while ((c = getchar())>='0' && c<='9') {
@@ -315,6 +332,7 @@ getreel()
 /*
  * Do the hard work of a
  * restore.
+ * (NOTE: I think that the flag is now a fossil).
  */
 readfile(flag)
 {
@@ -326,18 +344,22 @@ readfile(flag)
 	char rfn[20];
 
 	if (flag) {
+		while ((ddp = readdump()) != NULL)
+			if (ddp->dd_type != DD_DATA)
+				break;
+#if 0
 		if (readhead(0) == 0)
 			return;
 		while ((ddp = readdump()) != NULL) {
-			canint(ddp->dd_type);
 			if (ddp->dd_type != DD_MAP)
 				break;
 			canino(ddp->dd_ino);
 			canint(ddp->dd_nmap);
 			setmap(ddp);
 		}
-	} else if ((ddp = readdump()) != NULL)
-		canint(ddp->dd_type);
+#endif
+	} else
+		ddp = readdump();
 	if (ddp==NULL || anyfiles()==0)
 		return;
 	outsync = 0;
@@ -357,17 +379,16 @@ readfile(flag)
 			else if (outsync != 0)
 				message(0, "skipped %d items", outsync);
 			outsync = 0;
-			for (i=0; i<nxf && xf[i].xf_ino!=ino; ++i)
+			for (i=0; i<nxf && xfp[i].xf_ino!=ino; ++i)
 				;
 			if (i != nxf) {
 				sprintf(rfn, "%u", ino);
 				if ((rfp = fopen(rfn, "w")) == NULL)
 					message(0, "%s: cannot create", rfn);
 				else
-					xf[i].xf_ino = 0;
+					xfp[i].xf_ino = 0;
 			}
 			while ((ddp = readdump()) != NULL) {
-				canint(ddp->dd_type);
 				if (ddp->dd_type != DD_DATA)
 					break;
 				canino(ddp->dd_ino);
@@ -435,7 +456,6 @@ restore()
 	 * Read in the map.
 	 */
 	while ((ddp=readdump()) != NULL) {
-		canint(ddp->dd_type);
 		if (ddp->dd_type != DD_MAP)
 			break;
 		canino(ddp->dd_ino);
@@ -467,8 +487,7 @@ restore()
 		if (ddp->dd_type != DD_INO) {
 			if (outsync++ == 0)
 				message(0, "inode sync");
-			if ((ddp=readdump()) != NULL)
-				canint(ddp->dd_type);
+			ddp = readdump();
 			continue;
 		}
 		/*
@@ -484,7 +503,6 @@ restore()
 			printskip(outsync);
 			outsync = 0;
 			while ((ddp=readdump()) != NULL) {
-				canint(ddp->dd_type);
 				if (ddp->dd_type != DD_DATA)
 					break;
 				canino(ddp->dd_ino);
@@ -503,7 +521,6 @@ restore()
 		printskip(outsync);
 		outsync = 0;
 		while ((ddp=readdump()) != NULL) {
-			canint(ddp->dd_type);
 			if (ddp->dd_type != DD_DATA)
 				break;
 			canino(ddp->dd_ino);
@@ -831,7 +848,7 @@ daddr_t lb;
 			return (NULL);
 		}
 	}
-	message(0, "fill too large to map");
+	message(0, "file too large to map");
 	return (NULL);
 }
 
@@ -860,7 +877,7 @@ anyfiles()
 	register i;
 
 	for (i=0; i<nxf; ++i) {
-		if ((ino = xf[i].xf_ino)!=0 && getmap(ino)!=0)
+		if ((ino = xfp[i].xf_ino)!=0 && getmap(ino)!=0)
 			return (1);
 	}
 	return (0);
@@ -870,16 +887,18 @@ anyfiles()
  * Read and validate tape header.
  * The `quit' flag is true if errors
  * are fatal.
+ * Only allocate the map first time.
  */
 readhead(quit)
 {
 	register char *p;
 	register checksum;
 
-	if (read(fileno(dtp), &dh, sizeof(dh)) != sizeof(dh)) {
+	if (read(fileno(dtp), &dh, sizeof dh) != sizeof dh) {
 		message(quit, "header read error");
 		return (0);
 	}
+	nread = sizeof dh;
 	canint(dh.dh_magic);
 	canino(dh.dh_nino);
 	cantime(dh.dh_bdate);
@@ -887,6 +906,7 @@ readhead(quit)
 	canint(dh.dh_level);
 	canint(dh.dh_reel);
 	canint(dh.dh_blocking);
+	cansize(dh.dh_nbyte);
 	canint(dh.dh_checksum);
 	if (dh.dh_magic != DH_MAG) {
 		message(quit, "not a dump");
@@ -905,17 +925,19 @@ readhead(quit)
 		return (0);
 	}
 	++reel;
-	if (map != NULL)
-		free(map);
+	length = dh.dh_nbyte;
+	if (map == NULL) {
+		if ((map = calloc(sizeof(char), dh.dh_nino)) == NULL)
+			message(1, "out of memory (map)");
+	}
 	if (ddbuf != NULL)
 		free(ddbuf);
-	if ((map = calloc(sizeof(char), dh.dh_nino)) == NULL)
-		message(1, "out of memory (map)");
 	ddnbuf = dh.dh_blocking * sizeof(union dumpdata);
 	if ((ddbuf = malloc(ddnbuf)) == NULL)
 		message(1, "out of memory (big buffer)");
 	ddend = &ddbuf[ddnbuf];
 	ddptr = (union dumpdata *) ddend;
+	return (1);
 }
 
 /*
@@ -928,13 +950,10 @@ readdirs()
 {
 	register union dumpdata *ddp;
 	register struct dlist *dlp;
-	int type;
 	unsigned short mode;
 
 	while ((ddp = readdump()) != NULL) {
-		type = ddp->dd_type;
-		canint(type);
-		switch (type) {
+		switch (ddp->dd_type) {
 
 		case DD_EOT:
 			--ddptr;
@@ -1014,34 +1033,74 @@ ino_t ino;
 
 /*
  * Read dump file.
+ * Canonize the type and look after
+ * multi-volume (reel) dumps.
  */
 union	dumpdata *
 readdump()
 {
 	register nb;
-	register c;
 
 	while ((char *) ddptr == ddend) {
+		if (length != 0 && (nread+ddnbuf) > length) {
+			nextvol(0);
+			continue;
+		}
 		if ((nb = read(fileno(dtp), ddbuf, ddnbuf)) != ddnbuf) {
 			if (nb != 0)
 				message(1, "dump read error");
-			for (;;) {
-				fclose(dtp);
-				printf("restor: mount reel %d ...", reel);
-				while ((c = getchar())!=EOF && c!='\n')
-					;
-				if (c == EOF)
-					delexit(1);
-				opendump();
-				if (readhead(0) != 0)
-					break;
-			}
+			nextvol(0);
 			continue;
 		}
 		ddptr = (union dumpdata *) ddbuf;
+		nread += nb;
 		break;
 	}
+	canint(ddptr->dd_type);
 	return (ddptr++);
+}
+
+/*
+ * Read the next volume (reel or diskette)
+ * from the dump.
+ * The flag is passed onto readhead for quiting.
+ *
+ * RESTMIN, RESTMAX, and restime are used to bound the time taken
+ * to restor a volume in hopes of preventing unbounded copies of
+ * Coherent dump distributions.  The values are passed with an
+ * undocumented '-' option which specifies RESTMIN and RESTMAX.
+ */
+long RESTMIN, RESTMAX, restime, time();
+
+nextvol(flag)
+int flag;
+{
+	register int c;
+	register char *vtype = "reel";
+
+	restime += time(NULL);
+	/* Spurious error to detect copies of dump volumes
+	 * made with ms-dos formatter/copier.  Activated by
+	 * '-' key modifier in command list.
+	 * Not documented in manual.
+	 */
+	if (RESTMIN && reel > 1 && (restime < RESTMIN || restime > RESTMAX))
+		message(1, "volume sync: %D", restime);
+	for (;;) {
+		fclose(dtp);
+		if (length != 0)
+			vtype = "volume";
+		fprintf(stderr, "restor: mount %s %d, type return key...",
+			vtype, reel);
+		while ((c = getchar())!=EOF && c!='\n')
+			;
+		if (c == EOF)
+			delexit(1);
+		restime = -time(NULL);
+		opendump();
+		if (readhead(flag) != 0)
+			break;
+	}
 }
 
 /*
