@@ -1,4 +1,4 @@
-char _version[] = "Version 1.3";
+char _version[] = "Version 1.4";
 /*
  * Look at a file and try to
  * figure out its type. Knows about the various
@@ -446,8 +446,8 @@ register struct filehdr *chp;
 	if ((chp->f_flags&F_NODF) != 0)
 		strcat(type, "no decision ");
 #else /* COFF_H_FIXED */
-	if ((chp->f_flags&F_AR32WR) != 0)
-		strcat(type, "i80x86 byte order ");
+	if ((chp->f_flags&F_AR32WR) == 0)
+		strcat(type, "non i80x86 byte order ");
 #endif /* COFF_H_FIXED */
 	if ((chp->f_flags&F_EXEC) != 0){
 		if ((chp->f_flags&F_LSYMS) != 0)
@@ -457,18 +457,14 @@ register struct filehdr *chp;
 		strcat(type, "object ");
 		if ((chp->f_flags&F_RELFLG) != 0)
 			strcat(type, "stripped relocation ");
-		
 		if ((chp->f_flags&F_LSYMS) != 0)
-			strcat(type, "stripped symbols ");
+			strcat(type, "stripped local symbols ");
 	}
 
 	if ((mch = coffmtype(chp->f_magic)) == NULL)
 		mch = "Unknown machine type";
 	sprintf(type, "%s(%s) ", type, mch);
 
-	if (chp->f_nsyms > 0) {
-		strcat(type, "not stripped ");
-	}
 	return (type);
 }
 
