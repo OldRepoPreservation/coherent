@@ -165,7 +165,7 @@ int VTSWAN = 0;		/* patch to 1 for epstein's fix for Swan keyboard */
 #if GREEKFIX
 static void ToggleGreek();
 static int ToGreek();
-int VTGREEK = 1;	/* patch to 1 for TECOP Greek mod */
+int VTGREEK = 0;	/* patch to 1 for TECOP Greek mod */
 #endif
 
 HWentry	VTVGA =		{ 4, 0, VT_VGAPORT, { 0, VT_VGABASE }, { 25, 80 } };

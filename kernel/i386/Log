@@ -1,3 +1,33 @@
+Changes to kernel and related files for version #76:
+
+NOTES:
+"dcore" utility groks r75 and later core files
+"dlout" utility is like "cdmp" for l.out's
+--
+04/15  fakedma.c: dmaout() sometimes wrote garbage over the start of a click
+04/14  sig.c: DUMP_TEXT if patched causes text segment to appear in core files
+
+Changes to kernel and related files for version #75:
+
+NOTES:
+New "file" command groks fixed core file format.
+New kbmain.o needed for Greek keyboards.
+New db needed from steve (later than 93/04/08) for revised core file format.
+--
+04/08  sem386.c,Makefiles,bld: vlad's new, improved semaphores
+04/08  sig.c: put magic number back at start of core file
+04/08  vtnkb.c,kbmain.c,kb.h: Greek keyboard, with patchable variable VTGREEK
+04/07  various headers: the definitive (!) paddr_t cleanup
+04/07  ndpas.s: change fdiv to fdivr to reflect change in assembler
+04/07  sys/kb.h: added function key definitions from mlk
+04/07  fl.c: further PS/1 fixes from mlk
+03/22  exec.c: exsread(): do only one iread() per section
+03/20  a.out.h,exec.c: allow more than 1 text section for coff executables
+03/18  var.c: change argument count for uwait() from 0 to 3 for waitpid()
+03/18  exec.c: delete redundant kkcopy()
+03/18  aha.c: nigel's fix to prevent defer overflows
+03/18  sys/__paddr.h added to header suite
+
 Changes to kernel and related files for version #74:
 
 NOTES:
