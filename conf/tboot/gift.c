@@ -26,10 +26,14 @@
  *
  *    ffp = fifo_open(&boot_gift, 0);	-- Open gift for reading. 
  * 
- *    while (T_NULL != (tp = fifo_read(ffp))) {	-- While not EOFIFO.
- *	  if (T_MYTYPE == tp->ts_type) {	-- Is this my type?
- *		my_handler(tp->ts_data);	-- Process the data.
- *	  }
+ *    if (F_NULL == ffp) {
+ *	  indicate_error("Could not open boot_gift.");
+ *    } else {
+ *        while (T_NULL != (tp = fifo_read(ffp))) {	-- While not EOFIFO.
+ *	      if (T_MYTYPE == tp->ts_type) {	-- Is this my type?
+ *		  my_handler(tp->ts_data);	-- Process the data.
+ *	      }
+ *        }
  *    }
  *
  *    Be sure to include fifo.c and typed.h into your kernel.
