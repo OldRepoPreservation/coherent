@@ -448,7 +448,9 @@ conversion:
 			cerror("mismatched conditional");
 		/* Make sure the condition type 'lt' is computational. */
 		gt.t_type = (cvdope[13 * (lt - T_CHAR) + lt - T_CHAR] & GOAL);
-		if (bitcompat(gt.t_type, lt) == 0)
+		gt.t_dp = lp->t_dp;
+		gt.t_ip = lp->t_ip;
+		if (bitcompat(tltype(&gt), lt) == 0)
 			lp = bcvt(lp, &gt);
 		/* then fall through... */
 
