@@ -22,11 +22,12 @@
 #include <sys/buf.h>
 #include <sys/con.h>
 
+int
 fdisk( fp )
 register FDISK_S *fp;
 {
 	register HDISK_S *hp;
-	BUF *bp;
+	BUF *bp, *xbread();
 	int i;
 	int ret = 0;
 

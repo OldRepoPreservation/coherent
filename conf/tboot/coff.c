@@ -197,6 +197,7 @@ wrap_coffnlist(fn, symbol)
 	return(0L);
 } /* wrap_coffnlist() */
 
+int
 coffnlist(fn, nlp, names, count)
 char *fn;	/* file name */
 SYMENT *nlp;	/* names to look up */

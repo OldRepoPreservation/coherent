@@ -14,6 +14,7 @@
 
 #define PROMPT ": "
 
+void
 monitor()
 {
 	int i, j;

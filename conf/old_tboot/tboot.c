@@ -19,12 +19,12 @@
 #include <l.out.h>
 #include <filehdr.h>
 #include <string.h>
+#include <sys/typed.h>
 
 #define MAIN
 #include "tboot.h"
 #undef MAIN
 
-#include "typed.h"
 
 /* Potentially communicated information from an earlier tboot.  */
 TYPED_SPACE(boot_gift, 8192, T_FIFO_SIC);	/* Static In-Core FIFO.  */

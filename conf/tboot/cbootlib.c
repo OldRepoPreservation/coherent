@@ -5,7 +5,6 @@
 
 #include <string.h>
 #include <ctype.h>
-#include "ptypes.h"
 #include "tboot.h"
 
 /* puts() -- put a NUL terminated string.
@@ -309,6 +308,7 @@ print8(my_int)
  *
  * For Intel 8086 Real Mode.
  */
+void
 ffcopy(to_offset, to_seg, from_offset, from_seg, length)
 	uint16 to_offset;
 	uint16 to_seg;

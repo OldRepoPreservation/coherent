@@ -16,7 +16,7 @@
 #ifndef TYPED_H	/* Rest of file.  */
 #define TYPED_H
 
-#include "ptypes.h"
+#include <sys/ptypes.h>
 
 /* TYPED_SPACE DECLARATIONS.  */
 typedef int16 space_type;		/* The type of a space.  */
@@ -120,6 +120,7 @@ typed_space *fifo_write();	/* Write a typed space into an open fifo.  */
 typed_space *fifo_write_untyped();  /* Write data into an open fifo.  */
 int fifo_rewind();		/* Go back to the start of the fifo.	*/
 int fifo_close();		/* Finish with using a typed space as a fifo.  */
+long fifo_len();		/* Find out how long a fifo is.  */
 
 /* USEFUL SYMBOLS.
  * If appropriate, be sure to define a form of NULL for your new data

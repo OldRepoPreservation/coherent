@@ -2,7 +2,7 @@
  * fifo_k.c -- Routines for reading interally typed fifos.
  * These are all that need to be included in the kernel.
  */
-#include "typed.h"
+#include <sys/typed.h>
 
 #ifdef KERNEL
 /* The input channel from tboot to the kernel.  */

@@ -3,7 +3,7 @@
  * Both fifo_b.c (boot fifo) and fifo_k.c (kernel fifo) are needed by the
  * boot code.
  */
-#include "typed.h"
+#include <sys/typed.h>
 
 /* How long is an open fifo?  */
 long
