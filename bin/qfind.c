@@ -1,6 +1,6 @@
 /*
  * qfind.c
- * 8/12/92
+ * 10/9/92
  * Find files with given name in filesystem using file database.
  * Usage: qfind [ -adp ] name ...
  * 	  qfind -b[v] [ -sname ] ...
@@ -23,7 +23,7 @@ extern	char	*malloc();
 extern	char	*mktemp();
 extern	char	*realloc();
 
-#define	VERSION	"1.7"
+#define	VERSION	"1.8"
 #define	MINSEEK	512			/* binary search threshold */
 #define	NBUF	512			/* buffer size		*/
 #define	NCHARS	128			/* first characters	*/
@@ -142,11 +142,11 @@ build()
 		fatal("cannot make temporary file name");
 
 	/* Generate "file /dir1/dir2" for each file /dir1/dir2/file. */
-	sys("find / ! -type d | sed -e '%s%s' >%s",
+	sys("find / ! -type d -print | sed -e '%s%s' >%s",
 		(sed_cmd == NULL) ? "" : sed_cmd, SED_F, tmpname);
 
 	/* Append "dir3/ /dir1/dir2" for each directory /dir1/dir2/dir3. */
-	sys("find / -type d | sed -e '%s%s' >>%s",
+	sys("find / -type d -print | sed -e '%s%s' >>%s",
 		(sed_cmd == NULL) ? "" : sed_cmd, SED_D, tmpname);
 
 	/* Create data file containing an empty seek table. */
