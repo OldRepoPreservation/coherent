@@ -15,6 +15,9 @@
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.43	91/05/16  01:08:22	root
+ * Needs assembler I/O most.
+ * 
  * Revision 1.42	91/05/15  23:58:22	root
  * COH fdisk command gives junk when DEBUG=1, ok if DEBUG=3
  * 
@@ -155,11 +158,7 @@ typedef struct ss {
 	int	cmdlen;
 	int	cmd_bytes_out;
 	int	cmdstat;
-	faddr_t	in_buf;
-	int	in_buf_len;
 	int	data_bytes_in;
-	faddr_t	out_buf;
-	int	out_buf_len;
 	int	data_bytes_out;
 	BUF	*bp;		/* current I/O request node, or NULL */
 	struct	fdisk_s parmp[NPARTN+1];
@@ -858,6 +857,7 @@ int s_id;
 	int s;
 	int bytes_to_send;
 	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
 	int xfer_good = 1;
 
 	ssp->cmd_bytes_out = 0;
@@ -926,28 +926,38 @@ int s_id;
 			 * If caller's buffer has room, keep incoming
 			 * data byte.  Else toss it.
 			 */
-			if (ssp->data_bytes_in < ssp->in_buf_len && ssp->in_buf) {
+if (bp->b_req == BREAD) {
+	if (bp->b_resid <= SS_DAT_LEN)
+		ss_get(ss_fp, bp->b_faddr, (uint)bp->b_resid);
+	else {
+			if (ssp->data_bytes_in < bp->b_count) {
 				uchar dat;
 
 				dat = ffbyte(ss_dat);
-				sfbyte(ssp->in_buf + ssp->data_bytes_in, dat);
+				sfbyte(bp->b_faddr + ssp->data_bytes_in, dat);
 				ssp->data_bytes_in++;
 			} else
 				ffbyte(ss_dat);
+	}
+} else
+	xfer_good = 0;
 			break;
 		case XP_DATA_OUT:
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
-			if (ssp->data_bytes_out < ssp->out_buf_len && ssp->out_buf) {
+if (bp->b_req == BWRITE) {
+			if (ssp->data_bytes_out < bp->b_count) {
 				uchar dat;
 
-				dat = ffbyte(ssp->out_buf + ssp->data_bytes_out);
+				dat = ffbyte(bp->b_faddr + ssp->data_bytes_out);
 				sfbyte(ss_dat, dat);
 				ssp->data_bytes_out++;
 			} else { /* This case should not happen. */
 				xfer_good = 0;
 			}
+} else
+	xfer_good = 0;
 			break;
 		default:
 			break;
@@ -1573,17 +1583,6 @@ int s_id;
 	ssp->avl_count = 0;
 	if (bp) {
 		bp->b_resid = bp->b_count;
-		if (bp->b_req == BREAD) {
-			ssp->in_buf_len = bp->b_count;
-			ssp->in_buf = bp->b_faddr;
-			ssp->out_buf_len = 0;
-			ssp->out_buf = NULL;
-		} else {
-			ssp->in_buf_len = 0;
-			ssp->in_buf = NULL;
-			ssp->out_buf_len = bp->b_count;
-			ssp->out_buf = bp->b_faddr;
-		}
 	}
 }
 
@@ -1680,7 +1679,6 @@ int s_id;
 	if (host_claimed == s_id)
 		host_claimed = -1;
 	ssp->busy = 0;
-	ssp->in_buf = ssp->out_buf = NULL;
 	if (bp) {
 		ssp->bp = NULL;
 		if (bp->b_req == BREAD)
@@ -1690,6 +1688,8 @@ int s_id;
 		bdone(bp);
 	}
 	ssp->state = SST_DEQUEUE;
+	do_sst_op = 0;
+	set_timeout(2);
 }
 
 /*
