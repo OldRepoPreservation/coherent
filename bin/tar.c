@@ -4,11 +4,11 @@
  */
 
 #include <stdio.h>
-#include <types.h>
+#include <sys/types.h>
 #include <errno.h>
 #include <canon.h>
 #include <sys/stat.h>
-#include <dir.h>
+#include <sys/dir.h>
 
 #define	S_PERM	07777		/* should be in stat.h */
 
@@ -607,8 +607,12 @@ char	*pathname;
 			return (0);
 		else
 			errno = ENOTDIR;
-	else if (errno == ENOENT)
-		return ((err=mkparent(pathname)) != 0 ? err : mkdir(pathname));
+	else if (errno == ENOENT) {
+		errno = 0;
+		if ((err=mkparent(pathname)) != 0)
+			return err;
+		return mkdir(pathname);
+	}
 	return (perror("Tar: %s", pathname));
 }
 
@@ -659,6 +663,7 @@ unsigned short	mode;
 	&& (errno != ENOENT
 	  || mkparent(pathname) == 0 && (fd = create(pathname, mode)) < 0))
 		perror("Tar: %s", pathname);
+	errno = 0;
 	return (fd);
 }
 
