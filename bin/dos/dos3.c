@@ -257,12 +257,17 @@ short
 finput(fp, bp, nb) FILE *fp; register char *bp; unsigned short nb;
 {
 	register short c;
-	register unsigned short n;
+	register unsigned short n, n2;
 	register char *ep;
 	static char needlf = 0;
 
 	if (!aflag) {
-		n = read(fileno(fp), bp, nb);
+		n2 = n = read(fileno(fp), bp, nb);
+		while (n2 && n < nb)
+		{
+			n2 = read(fileno(fp), bp + n, nb - n);
+			n += n2;
+		}
 		for (ep = bp+nb, bp += n; bp < ep; )
 			*bp++ = '\0';
 		return n;

@@ -56,9 +56,9 @@ main(argc, argv) short argc; char *argv[];
 
 		mode = 2;
 		tmp = argv[0];
-		if (*argv[1] == '-') {
-			dargs = 1;
+		if ((*argv[1] == '-') && (argv[1][1] != '\0')) {
 			while ((c = *argv[1]++) != '\0') {
+				dargs = 1;
 				switch (c) {
 					case 'a':
 					case 'm':	aflag++;	break;

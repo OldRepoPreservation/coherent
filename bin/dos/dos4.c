@@ -1,4 +1,4 @@
-/*#define DEBUG 1 */
+/* #define DEBUG 1*/
 /* dos4.c */
 
 #include "dos0.h"
@@ -137,7 +137,8 @@ replace(nargs, args) short nargs; char *args[];
 		fatal("cluster buffer allocation failed");
 	if (nargs == 0)
 		replacedir(NULL);
-	else if (pflag) {
+	else if (!strcmp(args[0], "-") || pflag) {
+		pflag = 1;
 		if (nargs!=1)
 			fatal("replace: exactly one file required with 'p' option");
 		replacefile(args[0]);
@@ -229,7 +230,7 @@ replacefile(file) char *file;
 	unsigned short next, prev;
 	char *tmp, tmp2[6], *files;
 
-	if (!oldstyle) {
+	if (!pflag && !oldstyle) {
 		if (!bflag && ((tmp = strrchr(file, '.')) != NULL)) {
 			sprintf(tmp2, "%s.", tmp);
 			if (!aflag)
@@ -252,7 +253,6 @@ replacefile(file) char *file;
 	}
 
 	mdp = creatfile(filename, dp);		/* create the file */
-
 
 	/* Read from the COHERENT file and write the MS-DOS file. */
 	if (vflag)
@@ -329,11 +329,22 @@ char * makef(name, cr) char * name; short cr;
 			mdp = find(base1,root,NULL);
 			deste = (mdp != NULL);
 			destd = isdir(mdp);
-			stat(base, &s);
-			srcd = (s.st_mode & S_IFDIR);
+			if (!pflag)
+			{
+				stat(base, &s);
+				srcd = (s.st_mode & S_IFDIR);
+			}
+			else
+				srcd = 0;
 		}
 
 /* dbprintf(("numargs = %d, deste = %d, destd = %d, srcd = %d\n",numargs,deste,destd,srcd));*/
+
+		if (pflag)
+			if (destd)
+				fatal("Error: <%s> is a directory", base1);
+			else
+				done = 1;
 
 		if ((numargs > 1) && (deste) && !(destd))
 			fatal("Error: <%s> is a file", base1);
