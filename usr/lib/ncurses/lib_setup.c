@@ -30,7 +30,10 @@
  *	Turn off the XTABS bit in the tty structure if it was on
  *	If XTABS was on, remove the tab and backtab capabilities.
  *
- *  $Log:	RCS/lib_setup.v $
+ *  $Log:	lib_setup.c,v $
+ * Revision 1.2  92/04/13  14:38:31  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  21:45:19  munk
  * Usage of register variables
  * Made the large arrays static
@@ -61,7 +64,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_setup.v  Revision 2.2  91/04/20  21:45:19  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_setup.c,v 1.2 92/04/13 14:38:31 bin Exp Locker: bin $";
 #endif
 
 #include <stdio.h>
@@ -91,12 +94,11 @@ char	*termname;
 int	filedes;
 int	*errret;
 {
-	static char	filename1[1024];
-	static char	filename2[1024];
-	char		*directory = SRCDIR;
+	char		filename[1024];
 	char		*malloc(), *getenv();
 	char		*terminfo;
 	struct term	*term_ptr;
+	int		got_code;
 
 #ifdef TRACE
 	_init_trace();
@@ -121,15 +123,16 @@ int	*errret;
 		ret_error(-1, "Not enough memory to create terminal structure.\n", "");
 	}
 
-	if ((terminfo = getenv("TERMINFO")) != NULL)
-	    directory = terminfo;
-
-	sprintf(filename1, "%s/%c/%s", directory, termname[0], termname);
-	sprintf(filename2, "%s/%c/%s", SRCDIR, termname[0], termname);
-
-	if (read_entry(filename1, term_ptr) < 0
-				    &&  read_entry(filename2, term_ptr) < 0)
-	    ret_error(0, "'%s': Unknown terminal type.\n", termname);
+	got_code = -1;
+	if ((terminfo = getenv("TERMINFO")) != NULL) {
+	    sprintf(filename, "%s/%c/%s", terminfo, termname[0], termname);
+	    got_code = read_entry(filename, term_ptr);
+	}
+	if (got_code < 0) {
+	    sprintf(filename, "%s/%c/%s", SRCDIR, termname[0], termname);
+	    if (read_entry(filename, term_ptr) < 0)
+		ret_error(0, "'%s': Unknown terminal type.\n", termname);
+	}
 
 	if (command_character  &&  getenv("CC"))
 	    do_prototype();
@@ -154,7 +157,6 @@ int	*errret;
 }
 
 
-
 /*
 **	do_prototype()
 **
@@ -162,7 +164,6 @@ int	*errret;
 **	and substitute it in for the prototype given in 'command_character'.
 **
 */
-
 static
 do_prototype()
 {
