@@ -17,10 +17,7 @@
 #include "helpscn.h"
 #include "comment.h"
 
-#define SENDPAIRS 6
-#define TIMEPAIRS 7
-
-#define LIMIT 79 /* Characters per output line */
+#define LIMIT 78 /* Characters per output line */
 
 #define UUNAME  fileList[0]
 #define DOMAIN  fileList[1]
@@ -48,7 +45,7 @@ static char *realFiles[] = { /* the real files */
   "/etc/passwd"
 };
 
-static char nameMod, lsysMod, devicesMod, permisMod;
+static int nameMod;	/* 1 if name modified */
 
 static char buf[1024];
 static char work[200];
@@ -63,11 +60,50 @@ struct line {
 	char str[1];	/* data in line */
 };
 
-static line *sysRoot, *devRoot, *permRoot;
-
 #define Trace showError
 #undef strlcpy
 #define strlcpy(to, from) cplim((to), (from), sizeof(to))
+
+/*
+ * Structure that describes multi line files.
+ */
+typedef struct fillin fillin;
+struct fillin {
+	int	fileno;		/* index into filelist */
+	int 	mod;		/* 1 if mod has been made */
+	line	*root;		/* beginning of line list */
+	void	(*zero)();	/* clear fields */
+	void	(*distrib)();	/* get fields from line */
+	void	(*clump)();	/* put fields back in line */
+	backGrnd *ch_data;	/* back ground table for choices */
+	loc	*ch_loc;	/* loc table for choices */
+	backGrnd *s_data;	/* back ground table for data */
+	loc	*s_loc;		/* loc table for data */
+};
+
+void zeroLsys(), showLsys(), clumpLsys();
+fillin lsys = {
+	2, 0, NULL,
+	zeroLsys, showLsys, clumpLsys,
+	choices2_data, choices2_locs,
+	lsys1_data, lsys1_locs
+};
+
+void zeroDev(), showDev(), clumpDev();
+fillin dev = {
+	3, 0, NULL,
+	zeroDev, showDev, clumpDev,
+	choices_data, choices_locs,
+	devices_data, devices_locs
+};
+
+void zeroPerm(), showPerm(), clumpPerm();
+fillin permis = {
+	4, 0, NULL,
+	zeroPerm, showPerm, clumpPerm,
+	choices1_data, choices1_locs,
+	permis_data, permis_locs
+};
 
 /*
  * Copy for limit if source not null.
@@ -117,31 +153,30 @@ char *fn, *s;
 /*
  * Inhale a file to a list.
  */
-line *
-inhale(fn)
-char *fn;
+static void
+inhale(f)
+fillin *f;
 {
-	line *this, *last, *root = NULL;
+	line *this, *last;
 	FILE *ifp;
 	char *s;
 	int lineNo;
 
-	if (NULL == (ifp = fopen(fn, "r"))) {
-		if (yn("Cannot open %s continue", fn))
-			return (NULL);
+	if (NULL == (ifp = fopen((s = fileList[f->fileno]), "r"))) {
+		if (yn("Cannot open %s continue", s))
+			return;
 		exit(1);
 	}
 	
 	for (lineNo = 1; NULL != (s = getline(ifp, &lineNo)); ) {
 		this = (line *)alloc(strlen(s) + sizeof(line));
-		if (NULL == root)
-			last = root = this;
+		if (NULL == f->root)
+			last = f->root = this;
 		else
 			last = last->next = this;
 		strcpy(this->str, s);
 	}
 	fclose(ifp);
-	return (root);
 }
 
 /*
@@ -168,6 +203,7 @@ zeroDev()
 	devBrand[0] = 0;
 }
 
+static void
 zeroPerm()
 {
 	perNoWrite = perComm = perRead =
@@ -178,38 +214,16 @@ zeroPerm()
 }
 
 /*
- * All comment lines start #.
- */
-static void
-showComment(l)
-register line *l;
-{
-	if (strlen(l->str) > sizeof(comment))
-		strcpy(comment, "Comment too long to show.");
-	else
-		strcpy(comment, l->str + 1);
-	clear();
-	showDefs(comment_data, comment_locs);
-}
-
-/*
  * Show off a permissions line.
  */
 static void
-showPerm(l)
-register line *l;
+showPerm()
 {
-	if ('#' == l->str[0]) {
-		showComment(l);
-		return;
-	}
-	zeroPerm();
-	strcpy(buf, l->str);
-	
-	grabKey("MACHINE=", perSite);
+	grabKey("MACHINE=", perSite, sizeof(perSite));
 
-	strcpy(perCallIn, (grabKey("LOGNAME=", perLogn) ? "y" : "n"));
-	if (!grabKey("MYNAME=", perMyName)) /* MYNAME defaults to MACHINE */
+	strcpy(perCallIn, 
+	  (grabKey("LOGNAME=", perLogn, sizeof(perLogn)) ? "y" : "n"));
+	if (!grabKey("MYNAME=", perMyName, sizeof(perMyName)))
 		strcpy(perMyName, perSite);
 	lgrabKey("COMMANDS=", &perComm);
 	lgrabKey("READ=", &perRead);
@@ -218,28 +232,18 @@ register line *l;
 	lgrabKey("NOWRITE=", &perNoWrite);
 	grabYn("SENDFILES=", perSendFiles, 'y');
 	grabYn("REQUEST=", perRequest, 'y');
-	clear();
-	showDefs(permis_data, permis_locs);
 }
 
 /*
  * Display a single system line.
  */
 static void
-showLsys(l)
-register line *l;
+showLsys()
 {
 	register char *w;
 	int j, k;
 	static char timeErr[] = "Invalid time field in file";
 
-	if ('#' == l->str[0]) {
-		showComment(l);
-		return;
-	}
-	zeroLsys();
-
-	strcpy(buf, l->str);
 	strlcpy(sys, strtok(buf, seps));
 	strlcpy(work, strtok(NULL, seps));
 	for ((w = work), (k = 0); *w && (k < TIMEPAIRS); k++) {
@@ -287,44 +291,35 @@ register line *l;
 		if (NULL == (send[j] = newcpy(strtok(NULL, seps))))
 			break;
 	}
-
-	clear();
-	showDefs(lsys1_data, lsys1_locs);
 }
 
 /*
  * show an device line.
  */
 static void
-showDev(l)
-register line *l;
+showDev()
 {
-	if ('#' == l->str[0]) {
-		showComment(l);
-		return;
+	char *p;
+	loc *f;
+
+	p = buf;
+	for (f = devices_locs; NULL != f->field; f++) {
+		cplim(f->field, strtok(p, seps), f->len);
+		p = NULL;
 	}
-	zeroDev();
-	strcpy(buf, l->str);
-	strlcpy(devType, strtok(buf, seps));
-	strlcpy(devLine, strtok(NULL, seps));
-	strlcpy(devRemote, strtok(NULL, seps));
-	strlcpy(devBaud, strtok(NULL, seps));
-	strlcpy(devBrand, strtok(NULL, seps));
-	clear();
-	showDefs(devices_data, devices_locs);
 }
 
 /*
  * Find a key on a buffer.
  */
-grabKey(key, to)
+grabKey(key, to, len)
 char *key, *to;
 {
 	register char *p, c;
 
 	if (NULL == (p = strstr(buf, key)))
 		return (to[0] = 0);
-	for (p += strlen(key); (c = *p++) && !isspace(c); )
+	for (p += strlen(key); --len && (c = *p++) && !isspace(c); )
 		*to++ = c;
 	*to = '\0';
 	return (1);
@@ -458,7 +453,7 @@ char *s;
 
 	if (!strcmp(s, "ACU") || !strcmp(s, "None"))
 		return (1);
-	for (l = devRoot; NULL != l; l = l->next) {
+	for (l = dev.root; NULL != l; l = l->next) {
 		if ('#' == l->str[0])
 			continue;
 		strcpy(buf, l->str);
@@ -467,7 +462,7 @@ char *s;
 		if (!strcmp(s, strtok(NULL, seps)))
 			return (1);
 	}
-	showError("Line must be ACU, None or DIR line in %s", DEVFILE);
+	showError("Line must be ACU, None, or DIR line in %s", DEVFILE);
 	return (0);
 }
 
@@ -485,53 +480,23 @@ register char *s;
 }
 
 /*
- * Split output lines with \
- */
-void
-splitter(ofp, line)
-FILE *ofp;
-char *line;
-{
-	int pos, i, j, c;
-
-	for (pos = j = i = 0; c = line[i]; i++) {
-		if ((pos >= LIMIT) && j) { /* split condition */
-			c = line[j];
-			line[j] = '\0';
-			fprintf(ofp, "%s\\\n", line);
-			line += j;
-			line[pos = i = j = 0] = c;
-		}
-		switch (c) {
-		case '\n':
-			pos = 0;
-			break;
-		case '\t':
-			pos |= 7;
-		case ' ':
-			j = i;
-		default:
-			pos++;
-		}
-	}
-	fprintf(ofp, "%s", line);
-}
-
-/*
  * Save a list of lines.
  */
 static void
-saveAll(fn, l, modsw)
-char *fn;
-register line *l;
+saveAll(f)
+register fillin *f;
 {
 	FILE *ofp;
+	register line *l;
 
-	if (!modsw)
+	if (!f->mod)
 		return;
-	ofp = xopen(fn, "w");
-	for (; NULL != l; l = l->next)
-		splitter(ofp, l->str);
+	ofp = xopen(fileList[f->fileno], "w");
+	for (l = f->root; NULL != l; l = l->next)
+		if ('#' == l->str[0])
+			fputs(l->str, ofp);
+		else
+			splitter(ofp, l->str, LIMIT);
 	fclose(ofp);
 }
 
@@ -578,6 +543,7 @@ line **root;
 /*
  * Put Lsys together into new line.
  */
+static void
 clumpLsys()
 {
 	int i;
@@ -605,17 +571,18 @@ clumpLsys()
 	}
 	strcat(s, "\n");
 
-	addLine(&sysRoot);
+	addLine(&lsys.root);
 }
 
 /*
  * Put device stuff together into new line.
  */
+static void
 clumpDev()
 {
 	sprintf(buf, "%s\t%s\t%s\t%s\t%s\n",
 		devType, devLine, devRemote, devBaud, devBrand);
-	addLine(&devRoot);
+	addLine(&dev.root);
 }
 
 /*
@@ -664,6 +631,7 @@ addPasswd()
 /*
  * Put Permissions together into new line.
  */
+static void
 clumpPerm()
 {
 	if ('y' == perCallIn[0])
@@ -704,7 +672,7 @@ clumpPerm()
 		((perRequest[0]   == 'y') ? "yes" : "no"));
 	strcat(buf, work);
 
-	addLine(&permRoot);
+	addLine(&permis.root);
 }
 
 /*
@@ -743,34 +711,48 @@ line *l;
 }
 
 /*
- * Fill in /usr/lib/uucp/L.sys
+ * Fill in a multi line file
  */
-getLsys1()
+getMulti(f)
+register fillin *f;
 {
 	register line *l;
 	line *onDisp = NULL;
 
-	l = sysRoot;
+	l = f->root;
 	clear();
 	for (;;) {
-		if ((NULL != l) && (onDisp != l))
-			showLsys(onDisp = l);
-		showBak(choices2_data);
-		getField(choices2_locs, code);
+		if ((NULL != l) && (onDisp != l)) {
+			if ('#' == l->str[0]) { /* show a comment */
+				comment = l->str + 1;
+				clear();
+				showDefs(comment_data, comment_locs);
+			}
+			else {	/* show a data page */
+				(*(f->zero))();
+				strcpy(buf, l->str);
+				onDisp = l;
+				(*(f->distrib))();
+				clear();
+				showDefs(f->s_data, f->s_loc);
+			}
+		}
+		showBak(f->ch_data);
+		getField(f->ch_loc, code);
 		switch (fixCode(code[0], l)) {
 		case 'm':
-			lsysMod = 1;
+			f->mod = 1;
 			if ('#' == l->str[0]) {
 				getAll(comment_locs);
-				clumpComment(&sysRoot);
+				clumpComment(&(f->root));
 			}
 			else {
-				clearBak(choices2_data, choices2_locs);
-				getAll(lsys1_locs);
-				clumpLsys();
+				clearBak(f->ch_data, f->ch_loc);
+				getAll(f->s_loc);
+				(*(f->clump))();
 			}
-			deleteEntry(&sysRoot, l);
-			l = sysRoot;
+			deleteEntry(&(f->root), l);
+			l = f->root;
 			break;
 		case 'n':
 			if (NULL == l->next)
@@ -781,11 +763,11 @@ getLsys1()
 		case 'p': {
 			line *p;
 
-			if (l == sysRoot) {
+			if (l == f->root) {
 				showError("No previous entrys on file");
 				break;
 			}
-			for (p = sysRoot; p != NULL; p = p->next)
+			for (p = f->root; p != NULL; p = p->next)
 				if (p->next == l) {
 					l = p;
 					break;
@@ -793,17 +775,17 @@ getLsys1()
 			break;
 			}
 		case 'a':
-			lsysMod = 1;
-			zeroLsys();
+			f->mod = 1;
+			(*(f->zero))();
 			clear();
-			showBak(lsys1_data);
-			getAll(lsys1_locs);
-			clumpLsys();
-			l = sysRoot;
+			showBak(f->s_data);
+			getAll(f->s_loc);
+			(*(f->clump))();
+			l = f->root;
 			break;
 		case 'c':
-			lsysMod = 1;
-			addComment(&sysRoot);
+			f->mod = 1;
+			addComment(&(f->root));
 			break;
 		case 'h':
 			clear();
@@ -812,14 +794,16 @@ getLsys1()
 			onDisp = NULL;
 			break;
 		case 'e':
-			showBak(escapes_data);
-			Query("Any key to continue");
-			onDisp = NULL;
+			if (&lsys == f) {
+				showBak(escapes_data);
+				Query("Any key to continue");
+				onDisp = NULL;
+			}
 			break;
 		case 'd':
-			lsysMod = 1;
-			deleteEntry(&sysRoot, l);
-			l = sysRoot;
+			f->mod = 1;
+			deleteEntry(&(f->root), l);
+			l = f->root;
 			break;
 		case 'x':
 			return;
@@ -881,166 +865,6 @@ uuName()
 }
 
 /*
- * Fill in /usr/lib/uucp/L-devices
- */
-getDevices()
-{
-	register line *l;
-	line *onDisp = NULL;
-
-	l = devRoot;
-	clear();
-	for (;;) {
-		if ((NULL != l) && (onDisp != l))
-			showDev(onDisp = l);
-		showBak(choices_data);
-		getField(choices_locs, code);
-		switch (fixCode(code[0], l)) {
-		case 'm':
-			devicesMod = 1;
-			if ('#' == l->str[0]) {
-				getAll(comment_locs);
-				clumpComment(&devRoot);
-			}
-			else {
-				clearBak(choices_data, choices_locs);
-				getAll(devices_locs);
-				clumpDev();
-			}
-			deleteEntry(&devRoot, l);
-			l = devRoot;
-			break;
-		case 'n':
-			if (NULL == l->next)
-				showError("No more entrys in file");
-			else
-				l = l->next;
-			break;
-		case 'p': {
-			line *p;
-
-			if (l == devRoot) {
-				showError("No previous entrys on file");
-				break;
-			}
-			for (p = devRoot; p != NULL; p = p->next)
-				if (p->next == l) {
-					l = p;
-					break;
-				}
-			break;
-			}
-		case 'a':
-			devicesMod = 1;
-			zeroDev();
-			clear();
-			showBak(devices_data);
-			getAll(devices_locs);
-			clumpDev();
-			l = devRoot;
-			break;
-		case 'c':
-			devicesMod = 1;
-			addComment(&devRoot);
-			break;
-		case 'h':
-			clear();
-			showBak(helpscn_data);
-			Query("Any key to continue");
-			onDisp = NULL;
-			break;
-		case 'd':
-			devicesMod = 1;
-			deleteEntry(&devRoot, l);
-			l = devRoot;
-			break;
-		case 'x':
-			return;
-		}
-	}
-}
-
-/*
- * Fill in /usr/lib/uucp/Permissions
- */
-getPerm()
-{
-	register line *l;
-	line *onDisp = NULL;
-
-	l = permRoot;
-	clear();
-	for (;;) {
-		if ((NULL != l) && (onDisp != l))
-			showPerm(onDisp = l);
-		showBak(choices1_data);
-		getField(choices1_locs, code);
-		switch (fixCode(code[0], l)) {
-		case 'm':
-			permisMod = 1;
-			if ('#' == l->str[0]) {
-				getAll(comment_locs);
-				clumpComment(&permRoot);
-			}
-			else {
-				clearBak(choices1_data, choices1_locs);
-				getAll(permis_locs);
-				clumpPerm();
-			}
-			deleteEntry(&permRoot, l);
-			l = permRoot;
-			break;
-		case 'n':
-			if (NULL == l->next)
-				showError("No more entrys in file");
-			else
-				l = l->next;
-			break;
-		case 'p': {
-			line *p;
-
-			if (l == permRoot) {
-				showError("No previous entrys on file");
-				break;
-			}
-			for (p = permRoot; p != NULL; p = p->next)
-				if (p->next == l) {
-					l = p;
-					break;
-				}
-			break;
-			}
-		case 'a':
-			permisMod = 1;
-			zeroPerm();
-			clear();
-			showBak(permis_data);
-			getAll(permis_locs);
-			clumpPerm();
-			l = permRoot;
-			break;
-		case 'c':
-			permisMod = 1;
-			addComment(&permRoot);
-			break;
-		case 'h':
-			clear();
-			showBak(helpscn_data);
-			Query("Any key to continue");
-			onDisp = NULL;
-			break;
-		case 'd':
-			permisMod = 1;
-			deleteEntry(&permRoot, l);
-			l = permRoot;
-			break;
-		case 'x':
-			return;
-		}
-	}
-}
-
-/*
  * Base Lsys screen.
  */
 uuinstall()
@@ -1060,24 +884,24 @@ uuinstall()
 			uuName();
 			break;
 		case 'l':
-			getLsys1();
+			getMulti(&lsys);
 			break;
 		case 'd':
-			getDevices();
+			getMulti(&dev);
 			break;
 		case 'p':
-			getPerm();
+			getMulti(&permis);
 			break;
 		case 'x':
-			if (!(nameMod | lsysMod | devicesMod | permisMod))
+			if (!(nameMod | lsys.mod | dev.mod | permis.mod))
 				return;
 			for (;;) {
 				switch (Query("Save changes <y/n> ")) {
 				case 'Y':
 				case 'y':
-					saveAll(DEVFILE, devRoot, devicesMod);
-					saveAll(SYSFILE, sysRoot, lsysMod);
-					saveAll(PERMISS, permRoot, permisMod);
+					saveAll(&dev);
+					saveAll(&lsys);
+					saveAll(&permis);
 					if (nameMod) {
 						saveLine(UUNAME, uuname);
 						saveLine(DOMAIN, uudomain);
@@ -1097,12 +921,12 @@ uuinstall()
 main(argc, argv)
 char **argv[];
 {
-	fileList = ((NULL != argv[1]) && !strcmp("-d", argv[1])) ?
+	fileList = ((1 < argc) && !strcmp("-d", argv[1])) ?
 		testFiles : realFiles;
 
-	sysRoot = inhale(SYSFILE);	/* load files */
-	devRoot = inhale(DEVFILE);
-	permRoot = inhale(PERMISS);
+	inhale(&lsys);	/* load files */
+	inhale(&dev);
+	inhale(&permis);
 	shortFile(UUNAME, uuname);
 	shortFile(DOMAIN, uudomain);
 
