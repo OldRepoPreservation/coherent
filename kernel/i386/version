@@ -1,4 +1,4 @@
 version=COHERENT
 revision=4.0
-level=1
+level="1/61"
 echo -n '-DVERSION="'$version'" -DRELEASE="'$revision'.'$level'" '

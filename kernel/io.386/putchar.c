@@ -32,6 +32,7 @@ dev_t condev = makedev(2,0);
 putchar(c)
 int c;
 {
+#if 1
 	IO iob;
 
 	/*
@@ -64,6 +65,9 @@ int c;
 #endif
 	iob.io_flag = 0;
 	dwrite(condev, &iob);
+#else
+__putchar(c);
+#endif
 } /* putchar() */
 
 /*

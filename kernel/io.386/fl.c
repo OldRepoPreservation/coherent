@@ -531,6 +531,7 @@ again:
 	switch (fl.fl_state) {
 
 	case SIDLE:
+T_HAL(0x100000, printf("SIDLE "));
 		drvl[FL_MAJOR].d_time = 1;
 
 		if ( bp == NULL )
@@ -575,6 +576,7 @@ again:
 		/* no break */
 
 	case SSEEK:
+T_HAL(0x100000, printf("SSEEK "));
 		fl.fl_time[fl.fl_unit] = 0;
 		outb(FDCDOR, DORNMR|DORIEN|fl.fl_mstatus|fl.fl_unit);
 		flsense();
@@ -626,6 +628,7 @@ again:
 		break;
 
 	case SHDLY:
+T_HAL(0x100000, printf("SHDLY "));
 		/*
 		 * Delay for minimum 15 milliseconds after seek before w/fmt.
 		 * 2 clock ticks would give 10-20 millisecond [100 Hz clock].
@@ -639,6 +642,7 @@ again:
 		/* no break */
 
 	case SRDWR:
+T_HAL(0x100000, printf("SRDWR "));
 		/*
 		 * Disable watchdog timer while waiting to lock DMA controller.
 		 */
@@ -656,6 +660,7 @@ again:
 			return;
 
 	case SLOCK:
+T_HAL(0x100000, printf("SLOCK "));
 		/*
 		 * Reset watchdog timer to restart timeout sequence.
 		 */
@@ -726,12 +731,15 @@ command:
 		break;
 
 	case SENDIO:
+T_HAL(0x100000, printf("SENDIO "));
 		fl.fl_time[fl.fl_unit] = 0;
 		dmaoff(2);
 		dmaunlock( &fldmalck );
 
 		if ((fl.fl_cmdstat[0]&ST0_IC) != ST0_NT) {
 			if (++fl.fl_nerr < 5) {
+T_HAL(0x100000, printf("fail #%d ", fl.fl_nerr));
+T_HAL(0x100000, flstatus());
 				fl.fl_incal[fl.fl_unit] = 0;
 				fl.fl_state = SSEEK;
 			}
@@ -766,6 +774,7 @@ command:
 		goto again;
 
 	case SDELAY:
+T_HAL(0x100000, printf("SDELAY "));
 		/*
 		 * Ignore interrupts until timeout occurs.
 		 */

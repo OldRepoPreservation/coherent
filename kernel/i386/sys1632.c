@@ -78,13 +78,8 @@ int	obrk();
 static long ualarm2();
 static long utick();
 
-#ifdef EVENTS
-oldsys(evp)
-register EVENT *evp;
-#else
 int
 oldsys()
-#endif
 {
 	register struct	systab	*stp;
 	register int syscall, callnum, nargs;
@@ -207,11 +202,7 @@ oldsys()
 
 	if (u.u_error)
 		return SIGSYS;
-#ifdef EVENTS
-	for (l=0; l<nargs; l++) evp->a[l+1] = u.u_args[l];
-	evp->a[0] = nargs;
-	evp->func = func;
-#endif
+
 	res = (*func)(u.u_args[0], u.u_args[1], u.u_args[2], u.u_args[3],
 		u.u_args[4], u.u_args[5]);
 	if (swap)
@@ -242,10 +233,6 @@ oldsys()
 	u.u_regl[EAX] = res;
 	u.u_regl[EDX] = u.u_rval2;
 done:
-#ifdef EVENTS
-	evp->err = u.u_error;
-	evp->res = u.u_regl[EAX];
-#endif
 	if (u.u_error) {
 		u.u_regl[EAX] = u.u_regl[EDX] = -1;
 		putubd(MUERR, u.u_error);

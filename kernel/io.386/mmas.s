@@ -19,7 +19,9 @@
 /
 ////////
 
-	.set	NCOL, 80		/ number of columns
+	.set	DPL_1,1		/ descriptor privilege level for SEG_VIDEOa/b
+
+	.set	NCOL,80		/ number of columns
 	.set	NCB, 2		/ number of horizontal bytes per char
 	.set	SCB, 1		/ log2(NCB)
 	.set	NCR, 1		/ number of horizontal lines per char
@@ -85,7 +87,7 @@ POS	.define	%edi	/* currently active display address */
 	.globl	mminit
 mmdata:	.long	mminit
 	.long	0x03B4
-	.long	SEG_VIDEOa
+	.long	[SEG_VIDEOa|DPL_1]
 	.long	0, 0
 	.long	0
 	.long	0x7, 0, 0, 0, 23, 24, 0, 0, 0, 23
@@ -104,7 +106,7 @@ LXXX:	.long	10		/ constant (imull)
 /
 ////////
 
-	.set	FRAME,28		/ ra, bx, si, di, ds, es, bp
+	.set	FRAME,32		/ ra, bx, si, di, ds, es, fs, bp
 
 	.globl	mmgo
 mmgo:
@@ -113,10 +115,15 @@ mmgo:
 	push	%edi
 	push	%ds
 	push	%es
+	push	%fs
 	push	%ebp
 	movl	%esp,%ebp
+
+	push	%ds		/ copy ds to fs
+	pop	%fs
+
 	cld
-	mov	FRAME(%ebp),%ebx		/ iop
+	mov	%fs:FRAME(%ebp),%ebx		/ iop
 	mov	IO_BASE(%ebx),%esi		/ iop->io_base
 	mov	IO_IOC(%ebx),%ecx		/ iop->io_ioc
 
@@ -126,10 +133,10 @@ mmgo:
 	movw	%ax,%ds
 loc1:
 	mov	$mmdata,%ebp
-	mov	MM_PORT(%ebp),%edx	/ turn video off if color board
+	mov	%fs:MM_PORT(%ebp),%edx	/ turn video off if color board
 	cmp	$0x3B4,%edx
 	je	loc2
-	cmpb	$0,MM_SLOW(%ebp)	/ check for slow [flicker-free]
+	cmpb	$0,%fs:MM_SLOW(%ebp)	/ check for slow [flicker-free]
 	je	loc3
 
 	mov	$0x3DA,%edx
@@ -141,24 +148,24 @@ loc3:
 	movb	$0x25,%al
 	outb	(%dx)
 loc2:
-	movb	MM_ROW(%ebp),ROW
-	movb	MM_COL(%ebp),COL
-	movw	MM_BASE(%ebp),%es
-	mov	MM_POS(%ebp),POS
+	movb	%fs:MM_ROW(%ebp),ROW
+	movb	%fs:MM_COL(%ebp),COL
+	movw	%fs:MM_BASE(%ebp),%es
+	mov	%fs:MM_POS(%ebp),POS
 	sub	%ebx,%ebx
-	movb	MM_ATTR(%ebp),ATTR
-	ijmp	MM_FUNC(%ebp)
+	movb	%fs:MM_ATTR(%ebp),ATTR
+	ijmp	%fs:MM_FUNC(%ebp)
 
 exit:	pop	%ebx
-	mov	%ebx,MM_FUNC(%ebp)
-	movb	ATTR,MM_ATTR(%ebp)
-	movb	ROW,MM_ROW(%ebp)		/ save row,column
-	movb	COL,MM_COL(%ebp)
-	mov	POS,MM_POS(%ebp)		/ save position
+	mov	%ebx,%fs:MM_FUNC(%ebp)
+	movb	ATTR,%fs:MM_ATTR(%ebp)
+	movb	ROW,%fs:MM_ROW(%ebp)		/ save row,column
+	movb	COL,%fs:MM_COL(%ebp)
+	mov	POS,%fs:MM_POS(%ebp)		/ save position
 
-	mov	MM_PORT(%ebp),%edx		/ adjust cursor location
+	mov	%fs:MM_PORT(%ebp),%edx		/ adjust cursor location
 	mov	POS,%ebx
-	or	MM_INVIS(%ebp),%ebx
+	or	%fs:MM_INVIS(%ebp),%ebx
 	shr	$1,%ebx
 
 	movb	$14,%al
@@ -173,18 +180,21 @@ exit:	pop	%ebx
 	movb	%bl,%al
 	outb	(%dx)
 
-	mov	MM_PORT(%ebp),%edx		/ turn video on
+	mov	%fs:MM_PORT(%ebp),%edx		/ turn video on
 	add	$4,%edx
 	movb	$0x29,%al
 	outb	(%dx)
-	mov	$600,%ss:mmvcnt		/ 600 seconds before video disabled
+	mov	$600,%fs:mmvcnt		/ 600 seconds before video disabled
 
 	mov	FRAME(%esp),%ebx
 	mov	%ecx,%eax
-	xchg	%ecx, %ss:IO_IOC(%ebx)
-	sub	%ss:IO_IOC(%ebx),%ecx
-	add	%ecx,%ss:IO_BASE(%ebx)
+	xchg	%ecx, %fs:IO_IOC(%ebx)
+	sub	%fs:IO_IOC(%ebx),%ecx
+	add	%ecx,%fs:IO_BASE(%ebx)
+
+	/ ra, bx, si, di, ds, es, fs, bp
 	pop	%ebp
+	pop	%fs
 	pop	%es
 	pop	%ds
 	pop	%edi
@@ -199,21 +209,21 @@ exit:	pop	%ebx
 /
 ////////
 	.globl	int11
-mminit:	movb	$0x63,%ss:mmesc		/ schedule keyboard initialization
+mminit:	movb	$0x63,%fs:mmesc		/ schedule keyboard initialization
 	call	int11			/ read equipment status
 	and	$0x30,%eax		/ isolate video bits
 	cmp	$0x30,%eax		/ if not monochrome
 	je	loc5
-	movl	$0x3D4,MM_PORT(%ebp)		/	set color port
-	movl	$SEG_VIDEOb,MM_BASE(%ebp)	/	set color base
-	movw	MM_BASE(%ebp),%es		/
+	movl	$0x3D4,%fs:MM_PORT(%ebp)		/	set color port
+	movl	$[SEG_VIDEOb|DPL_1],%fs:MM_BASE(%ebp)	/	set color base
+	movw	%fs:MM_BASE(%ebp),%es		/
 loc5:						/
-	mov	MM_PORT(%ebp),%edx		/ turn video off
+	mov	%fs:MM_PORT(%ebp),%edx		/ turn video off
 	add	$4,%edx
 	movb	$0x21,%al
 	outb	(%dx)
 
-	mov	MM_PORT(%ebp),%edx		/ zero display offset
+	mov	%fs:MM_PORT(%ebp),%edx		/ zero display offset
 	movb	$12,%al
 	outb	(%dx)
 	inc	%edx
@@ -226,7 +236,7 @@ loc5:						/
 	subb	%al,%al
 	outb	(%dx)
 
-	mov	MM_PORT(%ebp),%edx		/ reset border to black
+	mov	%fs:MM_PORT(%ebp),%edx		/ reset border to black
 	add	$5,%edx
 	subb	%al,%al
 	outb	(%dx)
@@ -234,16 +244,16 @@ loc5:						/
 	inc	%edx			/ reset TECMAR XMSR register
 	outb	(%dx)
 
-	movl	$0,MM_INVIS(%ebp)
+	movl	$0,%fs:MM_INVIS(%ebp)
 	movb	$0x07,ATTR
-	movb	ATTR,MM_ATTR(%ebp)
-	movb	$1,MM_WRAP(%ebp)
-	movb	MM_IBROW(%ebp),ROW
-	movb	ROW,MM_BROW(%ebp)
-	movb	MM_IEROW(%ebp),%bl
-	movb	%bl,MM_EROW(%ebp)
+	movb	ATTR,%fs:MM_ATTR(%ebp)
+	movb	$1,%fs:MM_WRAP(%ebp)
+	movb	%fs:MM_IBROW(%ebp),ROW
+	movb	ROW,%fs:MM_BROW(%ebp)
+	movb	%fs:MM_IEROW(%ebp),%bl
+	movb	%bl,%fs:MM_EROW(%ebp)
 	sub	%ebx,%ebx
-	movb	$2,MM_N1(%ebp)
+	movb	$2,%fs:MM_N1(%ebp)
 	jmp	mm_ed
 
 ////////
@@ -252,7 +262,7 @@ loc5:						/
 /
 ////////
 
-mmspec:	movb	%al,%ss:mmesc
+mmspec:	movb	%al,%fs:mmesc
 	jmp	eval
 
 ////////
@@ -261,7 +271,7 @@ mmspec:	movb	%al,%ss:mmesc
 /
 ////////
 
-mmbell:	movb	$-1,%ss:mmbeeps
+mmbell:	movb	$-1,%fs:mmbeeps
 	jmp	eval
 
 ////////
@@ -274,9 +284,9 @@ mmbell:	movb	$-1,%ss:mmbeeps
 ////////
 
 mm_cnl:	incb	ROW
-	cmpb	MM_EROW(%ebp),ROW
+	cmpb	%fs:MM_EROW(%ebp),ROW
 	jna	repos
-	movb	MM_EROW(%ebp),ROW
+	movb	%fs:MM_EROW(%ebp),ROW
 /	jmp	scrollup
 
 ////////
@@ -289,8 +299,8 @@ scrollup:
 	push	%ds
 	push	%esi
 	push	%ecx
-	movw	MM_BASE(%ebp),%ds
-	movb	MM_BROW(%ebp),%bl
+	movw	%fs:MM_BASE(%ebp),%ds
+	movb	%fs:MM_BROW(%ebp),%bl
 	mov	%cs:rowtab(,%ebx,4),%edi
 	mov	%cs:rowtab+4(,%ebx,4),%esi
 	movb	ROW,%bl
@@ -365,7 +375,7 @@ mmputc:	stosw				/ Update display memory.
 	jc	mmputc
 	ijmp	%cs:asctab(,%ebx,2)
 
-loc6:	cmpb	$0,MM_WRAP(%ebp)		/ Yes past, Wrap around?
+loc6:	cmpb	$0,%fs:MM_WRAP(%ebp)		/ Yes past, Wrap around?
 	jne	loc7
 	sub	$2,%edi			/ No wrap, adjust back to end of line.
 	decb	COL
@@ -379,7 +389,7 @@ loc6:	cmpb	$0,MM_WRAP(%ebp)		/ Yes past, Wrap around?
 
 loc7:	subb	COL,COL		/ Wrap to next line.
 	incb	ROW
-	cmpb	MM_EROW(%ebp),ROW	/ Past scrolling region?
+	cmpb	%fs:MM_EROW(%ebp),ROW	/ Past scrolling region?
 	jg	loc8
 	jcxz	ewait			/ Not past, evaluate next character.
 	dec	%ecx
@@ -389,7 +399,7 @@ loc7:	subb	COL,COL		/ Wrap to next line.
 	jc	mmputc
 	ijmp	%cs:asctab(,%ebx,2)
 
-loc8:	movb	MM_EROW(%ebp),ROW	/ Yes past, scroll up 1 line.
+loc8:	movb	%fs:MM_EROW(%ebp),ROW	/ Yes past, scroll up 1 line.
 	jmp	scrollup
 
 
@@ -423,10 +433,10 @@ mm_cub:	sub	$2,POS
 	jge	loc9
 	movb	$NCOL-1,COL
 	decb	ROW
-	cmpb	MM_BROW(%ebp),ROW
+	cmpb	%fs:MM_BROW(%ebp),ROW
 	jge	loc9
 	subb	COL,COL
-	movb	MM_BROW(%ebp),ROW
+	movb	%fs:MM_BROW(%ebp),ROW
 	movb	ROW,%bl
 	mov	%cs:rowtab(,%ebx,4),POS
 loc9:	jcxz	loc9a
@@ -449,8 +459,8 @@ loc10:	call	exit
 mm_esc:	jcxz	loc10
 	dec	%ecx
 	lodsb
-	movb	ZERO,MM_N1(%ebp)
-	movb	ZERO,MM_N2(%ebp)
+	movb	ZERO,%fs:MM_N1(%ebp)
+	movb	ZERO,%fs:MM_N2(%ebp)
 	movb	%al,%bl
 	shlb	$1,%bl
 	jc	mmputc
@@ -475,14 +485,14 @@ csi_n1:	jcxz	loc11
 	cmpb	$9,%bl
 	ja	csival
 
-	movb	MM_N1(%ebp),%al
+	movb	%fs:MM_N1(%ebp),%al
 	shlb	$2,%al
-	addb	MM_N1(%ebp),%al
+	addb	%fs:MM_N1(%ebp),%al
 	shlb	$1,%al	
 				/ n1 * 10
 
 	addb	%bl,%al		/ n1 * 10 + digit
-	movb	%al,MM_N1(%ebp)	/ n1 = (n1 * 10) + digit
+	movb	%al,%fs:MM_N1(%ebp)	/ n1 = (n1 * 10) + digit
 	jmp	csi_n1
 
 ////////
@@ -500,14 +510,14 @@ csi_n2:	jcxz	loc12
 	cmpb	$9,%bl
 	ja	csival
 
-	movb	MM_N2(%ebp),%al
+	movb	%fs:MM_N2(%ebp),%al
 	shlb	$2,%al
-	addb	MM_N2(%ebp),%al
+	addb	%fs:MM_N2(%ebp),%al
 	shlb	$1,%al	
 				/ n1 * 10
 
 	addb	%bl,%al		/ n2 * 10 + digit
-	movb	%al,MM_N2(%ebp)	/ n2 = (n2 * 10) + digit
+	movb	%al,%fs:MM_N2(%ebp)	/ n2 = (n2 * 10) + digit
 	jmp	csi_n2
 
 csival:	movb	%al,%bl
@@ -529,10 +539,10 @@ csi_gt:	jcxz	loc13
 	subb	$0x30,%bl
 	cmpb	$9,%bl
 	ja	loc14
-	mov	MM_N1(%ebp),%eax	/ n1 * 2
+	mov	%fs:MM_N1(%ebp),%eax	/ n1 * 2
 	imull	%cs:LXXX,%eax	/ n1 * 10
 	add	%ebx,%eax	/ n1 * 10 + digit
-	movb	%al,MM_N1(%ebp)	/ n1 = (n1 * 10) + digit
+	movb	%al,%fs:MM_N1(%ebp)	/ n1 = (n1 * 10) + digit
 	jmp	csi_gt
 
 loc14:	cmpb	$0x68,%al
@@ -555,10 +565,10 @@ csi_q:	jcxz	loc15
 	subb	$0x30,%bl
 	cmpb	$9,%bl
 	ja	loc16
-	mov	MM_N1(%ebp),%eax
+	mov	%fs:MM_N1(%ebp),%eax
 	imull	%cs:LXXX,%eax
 	add	%ebx,%eax	/ n1 * 10 + digit
-	movb	%al,MM_N1(%ebp)	/ n1 = (n1 * 10) + digit
+	movb	%al,%fs:MM_N1(%ebp)	/ n1 = (n1 * 10) + digit
 	jmp	csi_q
 
 loc16:	cmpb	$0x68,%al
@@ -591,9 +601,9 @@ loc17:	jmp	repos			/ reposition cursor
 /
 ////////
 
-mm_cgh:	cmpb	$13,MM_N1(%ebp)
+mm_cgh:	cmpb	$13,%fs:MM_N1(%ebp)
 	jne	loc18
-	movl	$1,%ss:mmcrtsav
+	movl	$1,%fs:mmcrtsav
 loc18:	jmp	eval
 
 ////////
@@ -604,9 +614,9 @@ loc18:	jmp	eval
 /
 ////////
 
-mm_cgl:	cmpb	$13,MM_N1(%ebp)
+mm_cgl:	cmpb	$13,%fs:MM_N1(%ebp)
 	jne	loc19
-	movl	$0,%ss:mmcrtsav
+	movl	$0,%fs:mmcrtsav
 loc19:	jmp	eval
 
 ////////
@@ -622,7 +632,7 @@ loc19:	jmp	eval
 /
 ////////
 
-mm_cha:	movb	MM_N1(%ebp),COL
+mm_cha:	movb	%fs:MM_N1(%ebp),COL
 	decb	COL
 	jge	loc20
 	subb	COL,COL
@@ -656,9 +666,9 @@ mm_cht:	push	%ecx
 	jb	loc22
 	subb	$NCOL,COL
 	incb	ROW
-	cmpb	MM_EROW(%ebp),ROW
+	cmpb	%fs:MM_EROW(%ebp),ROW
 	jna	loc22
-	movb	MM_EROW(%ebp),ROW
+	movb	%fs:MM_EROW(%ebp),ROW
 	jmp	scrollup
 loc22:	jmp	eval
 
@@ -673,9 +683,9 @@ loc22:	jmp	eval
 
 mm_cpl:	subb	COL,COL
 	decb	ROW
-	cmpb	MM_BROW(%ebp),ROW
+	cmpb	%fs:MM_BROW(%ebp),ROW
 	jnb	loc23
-	movb	MM_BROW(%ebp),ROW
+	movb	%fs:MM_BROW(%ebp),ROW
 	jmp	scrolldown
 loc23:	jmp	repos			/ reposition cursor
 
@@ -688,12 +698,12 @@ loc23:	jmp	repos			/ reposition cursor
 /
 ////////
 
-mm_cqh:	cmpb	$4,MM_N1(%ebp)		/ Smooth scroll.
+mm_cqh:	cmpb	$4,%fs:MM_N1(%ebp)		/ Smooth scroll.
 	jne	loc24
-	movb	$1,MM_SLOW(%ebp)
-loc24:	cmpb	$7,MM_N1(%ebp)		/ Wraparound.
+	movb	$1,%fs:MM_SLOW(%ebp)
+loc24:	cmpb	$7,%fs:MM_N1(%ebp)		/ Wraparound.
 	jne	loc25
-	movb	$1,MM_WRAP(%ebp)
+	movb	$1,%fs:MM_WRAP(%ebp)
 loc25:	jmp	eval
 
 ////////
@@ -705,12 +715,12 @@ loc25:	jmp	eval
 /
 ////////
 
-mm_cql:	cmpb	$4,MM_N1(%ebp)		/ Jump scroll.
+mm_cql:	cmpb	$4,%fs:MM_N1(%ebp)		/ Jump scroll.
 	jne	loc26
-	movb	$0,MM_SLOW(%ebp)
-loc26:	cmpb	$7,MM_N1(%ebp)		/ No wraparound.
+	movb	$0,%fs:MM_SLOW(%ebp)
+loc26:	cmpb	$7,%fs:MM_N1(%ebp)		/ No wraparound.
 	jne	loc27
-	movb	$0,MM_WRAP(%ebp)
+	movb	$0,%fs:MM_WRAP(%ebp)
 loc27:	jmp	eval
 
 ////////
@@ -723,9 +733,9 @@ loc27:	jmp	eval
 ////////
 
 mm_cud:	incb	ROW
-	cmpb	MM_EROW(%ebp),ROW
+	cmpb	%fs:MM_EROW(%ebp),ROW
 	jna	loc28
-	movb	MM_EROW(%ebp),ROW
+	movb	%fs:MM_EROW(%ebp),ROW
 loc28:	jmp	repos			/ reposition cursor
 
 ////////
@@ -741,9 +751,9 @@ mm_cuf:	incb	COL
 	jb	loc29
 	subb	$NCOL,COL
 	incb	ROW
-	cmpb	MM_EROW(%ebp),ROW
+	cmpb	%fs:MM_EROW(%ebp),ROW
 	jna	loc29
-	movb	MM_EROW(%ebp),ROW
+	movb	%fs:MM_EROW(%ebp),ROW
 	movb	$NCOL-1,COL
 loc29:	jmp	repos
 
@@ -752,23 +762,23 @@ loc29:	jmp	repos
 / mm_cup - cursor position
 /
 /	Moves the active position to the position specified by two parameters.
-/	The first parameter (mm_n1) specifies the vertical position (MM_ROW(%ebp)).
-/	The second parameter (mm_n2) specifies the horizontal position (MM_COL(%ebp)).
+/	The first parameter (mm_n1) specifies the vertical position (%fs:MM_ROW(%ebp)).
+/	The second parameter (mm_n2) specifies the horizontal position (%fs:MM_COL(%ebp)).
 /	A parameter value of 0 or 1 for the first or second parameter
 /	moves the active position to the first line or column in the
 /	display respectively.
 /
 ////////
 
-mm_cup:	movb	MM_N1(%ebp),ROW
+mm_cup:	movb	%fs:MM_N1(%ebp),ROW
 	decb	ROW
 	jg	loc30
 	subb	ROW,ROW
-loc30:	addb	MM_BROW(%ebp),ROW
-	cmpb	MM_EROW(%ebp),ROW
+loc30:	addb	%fs:MM_BROW(%ebp),ROW
+	cmpb	%fs:MM_EROW(%ebp),ROW
 	jb	loc31
-	movb	MM_EROW(%ebp),ROW
-loc31:	movb	MM_N2(%ebp),COL
+	movb	%fs:MM_EROW(%ebp),ROW
+loc31:	movb	%fs:MM_N2(%ebp),COL
 	decb	COL
 	jg	loc32
 	subb	COL,COL
@@ -787,9 +797,9 @@ loc33:	jmp	repos			/ reposition cursor
 ////////
 
 mm_cuu:	decb	ROW
-	cmpb	MM_BROW(%ebp),ROW
+	cmpb	%fs:MM_BROW(%ebp),ROW
 	jge	loc34
-	movb	MM_BROW(%ebp),ROW
+	movb	%fs:MM_BROW(%ebp),ROW
 loc34:	jmp	repos			/ reposition cursor
 
 ////////
@@ -805,11 +815,11 @@ loc34:	jmp	repos			/ reposition cursor
 mm_dl:	push	%ds
 	push	%esi
 	push	%ecx
-	movw	MM_BASE(%ebp),%ds
+	movw	%fs:MM_BASE(%ebp),%ds
 	movb	ROW,%bl
 	mov	%cs:rowtab(,%ebx,4),%edi
 	mov	%cs:rowtab+4(,%ebx,4),%esi
-	movb	MM_EROW(%ebp),%bl
+	movb	%fs:MM_EROW(%ebp),%bl
 	mov	%cs:rowtab(,%ebx,4),%ecx
 	sub	%edi,%ecx
 	jle	loc35
@@ -839,7 +849,7 @@ loc35:	pop	%ecx
 ////////
 
 mm_dmi:
-	movl	$1,%ss:islock
+	movl	$1,%fs:islock
 	jmp	eval
 
 ////////
@@ -854,20 +864,20 @@ mm_dmi:
 /
 ////////
 
-mm_ea:	movb	MM_N1(%ebp),%al
+mm_ea:	movb	%fs:MM_N1(%ebp),%al
 	cmpb	$0,%al
 	jne	loc36
-	movb	MM_EROW(%ebp),%bl
+	movb	%fs:MM_EROW(%ebp),%bl
 	jmp	mm_e0
 loc36:	cmpb	$1,%al
 	jne	loc37
-	movb	MM_BROW(%ebp),%bl
+	movb	%fs:MM_BROW(%ebp),%bl
 	jmp	mm_e1
 loc37:	subb	COL,COL
-	movb	MM_BROW(%ebp),ROW
+	movb	%fs:MM_BROW(%ebp),ROW
 	movb	ROW,%bl
 	mov	%cs:rowtab(,%ebx,4),POS
-	movb	MM_EROW(%ebp),%bl
+	movb	%fs:MM_EROW(%ebp),%bl
 	subb	ROW,%bl
 	jmp	mm_e2
 
@@ -884,19 +894,19 @@ loc37:	subb	COL,COL
 /
 ////////
 
-mm_ed:	movb	MM_N1(%ebp),%al
+mm_ed:	movb	%fs:MM_N1(%ebp),%al
 	cmpb	$0,%al
 	jne	loc38
-	movb	MM_LROW(%ebp),%bl
+	movb	%fs:MM_LROW(%ebp),%bl
 	jmp	mm_e0
 loc38:	cmpb	$1,%al
 	jne	loc39
 	subb	%bl,%bl
 	jmp	mm_e1
 loc39:	subb	COL,COL
-	movb	MM_BROW(%ebp),ROW
+	movb	%fs:MM_BROW(%ebp),ROW
 	sub	POS,POS
-	movb	MM_LROW(%ebp),%bl
+	movb	%fs:MM_LROW(%ebp),%bl
 	jmp	mm_e2
 
 ////////
@@ -911,7 +921,7 @@ loc39:	subb	COL,COL
 /
 ////////
 
-mm_el:	movb	MM_N1(%ebp),%al
+mm_el:	movb	%fs:MM_N1(%ebp),%al
 	movb	ROW,%bl
 	cmpb	$0,%al
 	je	mm_e0
@@ -964,7 +974,7 @@ loc42:	pop	%ecx
 ////////
 
 mm_emi:
-	movl	$0,%ss:islock
+	movl	$0,%fs:islock
 	jmp	eval
 
 ////////
@@ -981,8 +991,8 @@ scrolldown:
 mm_il:	push	%ds
 	push	%esi
 	push	%ecx
-	movw	MM_BASE(%ebp),%ds
-	movb	MM_EROW(%ebp),%bl
+	movw	%fs:MM_BASE(%ebp),%ds
+	movb	%fs:MM_EROW(%ebp),%bl
 	mov	%cs:rowtab(,%ebx,4),%esi
 	mov	%esi,%ecx
 	sub	$2,%esi
@@ -1020,7 +1030,7 @@ loc43:	pop	%ecx
 /
 ////////
 
-mm_hpa:	movb	MM_N1(%ebp),COL
+mm_hpa:	movb	%fs:MM_N1(%ebp),COL
 	decb	COL
 	jg	loc44
 	subb	COL,COL
@@ -1039,7 +1049,7 @@ loc45:	jmp	repos			/ reposition cursor
 /
 ////////
 
-mm_hpr:	movb	MM_N1(%ebp),%al
+mm_hpr:	movb	%fs:MM_N1(%ebp),%al
 	orb	%al,%al
 	jne	loc46
 	incb	%al
@@ -1054,21 +1064,21 @@ loc47:	jmp	repos			/ reposition cursor
 / mm_hvp - horizontal and vertical position
 /
 /	Moves the active position to the position specified by two parameters.
-/	The first parameter specifies the vertical position (MM_ROW(%ebp)).
-/	The second parameter specifies the horizontal position (MM_COL(%ebp)).
+/	The first parameter specifies the vertical position (%fs:MM_ROW(%ebp)).
+/	The second parameter specifies the horizontal position (%fs:MM_COL(%ebp)).
 /	A parameter value of zero or one moves the active position to the
 /	first line or column in the display.
 /
 ////////
 
-mm_hvp:	movb	MM_N1(%ebp),ROW
+mm_hvp:	movb	%fs:MM_N1(%ebp),ROW
 	decb	ROW
 	jg	loc48
 	subb	ROW,ROW
-loc48:	cmpb	MM_LROW(%ebp),ROW
+loc48:	cmpb	%fs:MM_LROW(%ebp),ROW
 	jna	loc49
-	movb	MM_LROW(%ebp),ROW
-loc49:	movb	MM_N2(%ebp),COL
+	movb	%fs:MM_LROW(%ebp),ROW
+loc49:	movb	%fs:MM_N2(%ebp),COL
 	decb	COL
 	jg	loc50
 	subb	COL,COL
@@ -1087,10 +1097,10 @@ loc51:	jmp	repos			/ reposition cursor
 ////////
 
 mm_ind:	incb	ROW
-	cmpb	MM_EROW(%ebp),ROW
+	cmpb	%fs:MM_EROW(%ebp),ROW
 	jg	loc52
 	jmp	repos
-loc52:	movb	MM_EROW(%ebp),ROW
+loc52:	movb	%fs:MM_EROW(%ebp),ROW
 	jmp	scrollup
 
 ////////
@@ -1099,8 +1109,8 @@ loc52:	movb	MM_EROW(%ebp),ROW
 /
 ////////
 
-mm_new:	movb	COL,MM_SCOL(%ebp)
-	movb	ROW,MM_SROW(%ebp)
+mm_new:	movb	COL,%fs:MM_SCOL(%ebp)
+	movb	ROW,%fs:MM_SROW(%ebp)
 	jmp	eval
 
 ////////
@@ -1109,8 +1119,8 @@ mm_new:	movb	COL,MM_SCOL(%ebp)
 /
 ////////
 
-mm_old:	movb	MM_SCOL(%ebp),COL
-	movb	MM_SROW(%ebp),ROW
+mm_old:	movb	%fs:MM_SCOL(%ebp),COL
+	movb	%fs:MM_SROW(%ebp),ROW
 	jmp	repos
 
 ////////
@@ -1123,9 +1133,9 @@ mm_old:	movb	MM_SCOL(%ebp),COL
 ////////
 
 mm_ri:	decb	ROW
-	cmpb	MM_BROW(%ebp),ROW
+	cmpb	%fs:MM_BROW(%ebp),ROW
 	jge	loc53
-	movb	MM_BROW(%ebp),ROW
+	movb	%fs:MM_BROW(%ebp),ROW
 	jmp	scrolldown
 loc53:	jmp	repos
 
@@ -1139,13 +1149,13 @@ loc53:	jmp	repos
 /					1 - cursor invisible
 ////////
 
-mm_scr:	decb	 MM_N1(%ebp)
+mm_scr:	decb	 %fs:MM_N1(%ebp)
 	je	loc54
 	jg	loc55
-	movl	$0,MM_INVIS(%ebp)
+	movl	$0,%fs:MM_INVIS(%ebp)
 	jmp	eval
 
-loc54:	movl	$-1,MM_INVIS(%ebp)
+loc54:	movl	$-1,%fs:MM_INVIS(%ebp)
 loc55:	jmp	eval
 
 ////////
@@ -1168,7 +1178,7 @@ loc55:	jmp	eval
 /
 ////////
 
-mm_sgr:	movb	MM_N1(%ebp),%al
+mm_sgr:	movb	%fs:MM_N1(%ebp),%al
 
 	cmpb	$0,%al			/ reset all = 0
 	jne	loc56
@@ -1182,7 +1192,7 @@ loc56:	cmpb	$1,%al			/ bold =  1
 
 loc58:	cmpb	$4,%al			/ underline = 4
 	jne	loc59
-	cmp	$0x03D4,MM_PORT(%ebp)	/ color card?
+	cmp	$0x03D4,%fs:MM_PORT(%ebp)	/ color card?
 	je	loc57			/ yes, ignore underline
 	andb	$0x88,ATTR
 	orb	$0x01,ATTR
@@ -1196,7 +1206,7 @@ loc59:	cmpb	$5,%al			/ blinking = 5
 loc60:	cmpb	$7,%al			/ reverse video = 7
 	jne	loc61
 	movb	$0x70,%al
-	cmp	$0x3D4,MM_PORT(%ebp)	/ color card?
+	cmp	$0x3D4,%fs:MM_PORT(%ebp)	/ color card?
 	jne	loc62
 	movb	ATTR,%al		/ yes, exchange foreground/background
 	andb	$0x77,%al
@@ -1210,7 +1220,7 @@ loc62:	andb	$0x88,ATTR
 
 loc61:	cmpb	$8,%al			/ concealed on = 8
 	jne	loc63
-	cmp	$0x3D4,MM_PORT(%ebp)	/ color card?
+	cmp	$0x3D4,%fs:MM_PORT(%ebp)	/ color card?
 	jne	loc64
 
 	andb	$0x70,ATTR		/ Yes,	Set foreground color
@@ -1225,7 +1235,7 @@ loc61:	cmpb	$8,%al			/ concealed on = 8
 loc64:	andb	$0x80,ATTR		/ No, set attributes to non-display.
 	jmp	loc57			/	retain blink attribute.
 
-loc63:	cmp	$0x03D4,MM_PORT(%ebp)	/ color card?
+loc63:	cmp	$0x03D4,%fs:MM_PORT(%ebp)	/ color card?
 	jne	loc57			/ no, ignore remaining options
 loc65:	subb	$30,%al			/ foreground color
 	jl	loc66
@@ -1250,7 +1260,7 @@ loc68:	subb	$10,%al
 	movb	%al,%bl
 	movb	%cs:fcolor(%ebx),%al
 	push	%edx
-	mov	MM_PORT(%ebp),%edx
+	mov	%fs:MM_PORT(%ebp),%edx
 	add	$5,%edx
 	outb	(%dx)
 	pop	%edx
@@ -1264,22 +1274,22 @@ loc66:	jmp	eval
 /
 ////////
 
-mm_ssr:	movb	MM_N1(%ebp),%al
+mm_ssr:	movb	%fs:MM_N1(%ebp),%al
 	decb	%al
 	jge	loc70
 	subb	%al,%al
-loc70:	cmpb	MM_LROW(%ebp),%al
+loc70:	cmpb	%fs:MM_LROW(%ebp),%al
 	ja	loc71
-	movb	MM_N2(%ebp),%bl
+	movb	%fs:MM_N2(%ebp),%bl
 	decb	%bl
 	jge	loc72
 	subb	%bl,%bl
-loc72:	cmpb	MM_LROW(%ebp),%bl
+loc72:	cmpb	%fs:MM_LROW(%ebp),%bl
 	ja	loc71
 	cmpb	%bl,%al
 	ja	loc71
-	movb	%al,MM_BROW(%ebp)
-	movb	%bl,MM_EROW(%ebp)
+	movb	%al,%fs:MM_BROW(%ebp)
+	movb	%bl,%fs:MM_EROW(%ebp)
 	movb	%al,ROW
 	subb	COL,COL
 loc71:	jmp	repos
@@ -1295,13 +1305,13 @@ loc71:	jmp	repos
 /
 ////////
 
-mm_vpa:	movb	MM_N1(%ebp),ROW
+mm_vpa:	movb	%fs:MM_N1(%ebp),ROW
 	decb	ROW
 	jg	loc73
 	subb	ROW,ROW
-loc73:	cmpb	MM_LROW(%ebp),ROW
+loc73:	cmpb	%fs:MM_LROW(%ebp),ROW
 	jna	loc74
-	movb	MM_LROW(%ebp),ROW
+	movb	%fs:MM_LROW(%ebp),ROW
 loc74:	jmp	repos			/ reposition cursor
 
 ////////
@@ -1315,14 +1325,14 @@ loc74:	jmp	repos			/ reposition cursor
 /
 ////////
 
-mm_vpr:	movb	MM_N1(%ebp),%al
+mm_vpr:	movb	%fs:MM_N1(%ebp),%al
 	orb	%al,%al
 	jne	loc75
 	incb	%al
 loc75:	addb	%al,ROW
-	cmpb	MM_LROW(%ebp),ROW
+	cmpb	%fs:MM_LROW(%ebp),ROW
 	jb	loc76
-	movb	MM_LROW(%ebp),ROW
+	movb	%fs:MM_LROW(%ebp),ROW
 loc76:	jmp	repos			/ reposition cursor
 
 ////////
