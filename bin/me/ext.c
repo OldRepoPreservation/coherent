@@ -3,7 +3,6 @@
  */
 #include <stdio.h>
 #include <ed.h>
-
 /*
  * Table of function names and comments.
  */
@@ -372,7 +371,8 @@ buildTab()
 		while ((NULL != nameCom[n += 2]) && ('*' == *nameCom[n]))
 			fprintf(doc, "\t\t\t\t%-16s\n", nameCom[n + 1] + 1);
 		if (-1 != k->k_code) {
-			for (;; k = keytab + k->k_synonym) { /* to end of chain */
+			 /* to end of chain */
+			for (;; k = keytab + k->k_synonym) {
 				if (i == k->k_code) {
 					fprintf(stderr, "Duplucate code for %s\n", p->keyn);
 					error = 1;

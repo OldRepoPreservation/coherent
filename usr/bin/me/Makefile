@@ -30,6 +30,8 @@ comtab.c : ext.o
 	rm ext
 
 ext.o: ext.c ed.h
+	$(CC)  -VPSTR -c `srcpath ext.c`
+
 comtab.o: comtab.c ed.h
 execute.o: execute.c ed.h
 ansi.o: ansi.c ed.h
