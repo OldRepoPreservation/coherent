@@ -31,10 +31,9 @@ m68000cc: cc.c
 z8001cc: cc.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o z8001cc -DZ8001CC cc.c $(CLIB)
 # code table generator
-tabgen: tabgen.c
-	$(CC) -I../h -I../h/i386 $(LDFLAGS) -o tabgen tabgen.c
+tabgen: tabgen.o
+	$(CC) $(LDFLAGS) -o tabgen tabgen.o
 tabgen.o: tabgen.c
-	$(CC) -I../h -I../h/i386 $(LDFLAGS) -o tabgen.o tabgen.c
 # intel 8086 omf disassembler
 ojed:	ojed.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o ojed ojed.c
