@@ -9,7 +9,6 @@
 /* WARNING!  Fix references to dev_loaded if ever NDRV > 8*sizeof(int) */
 #define NDRV	32			/* Number of major device entries */
 #define NOFILE	60			/* Number of user open files */
-#define NUFILE	NOFILE			/* For historical reasons */
 #define	NEXREAD	6			/* Read ahead */
 
 #ifdef KERNEL			/* These set in *con.c */
@@ -50,6 +49,9 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 #define	NPID		30000		/* Maximum process id */
 #define	MAXU		((unsigned)0177777)
 
+/*
+ * Commands for system call cohcall()
+ */
 #define COH_PRINTF	1
 #define COH_DEVLOAD	2
 #define COH_SETFPE	3
@@ -59,7 +61,7 @@ extern	int	ISTSIZE;		/* Initial stack size (bytes) */
 /*
  * There must be an even number of HZ in a second.
  */
-#define	HZ		100		/* 8253 ticks per second */
+#define	HZ		100
 #endif
 
 #endif

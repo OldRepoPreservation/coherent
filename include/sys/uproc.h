@@ -47,7 +47,13 @@ typedef struct sr {
  * User process structure.
  *
  * Remember to update UPROC_VERSION whenever you change this struct.
+ *
+ * UPROC_OFFSET is the byte offset of uproc within segment SIUSERP.
+ * See also the definition of "u" at start of as.s.
  */
+#define UPROC_OFFSET	0xD00
+#define U_COMM_LEN	10
+
 typedef struct uproc {
 #ifdef _I386
 	/* Magic number UPROC_VERSION identifies this uproc struct.  */
@@ -99,7 +105,7 @@ typedef struct uproc {
 	/*
 	 * Accounting fields.
 	 */
-	char	 u_comm[10];		/* Command name */
+	char	 u_comm[U_COMM_LEN];	/* Command name */
 #ifdef _I386
 	char	 u_sleep[10];		/* Reason for sleeping */
 #endif
