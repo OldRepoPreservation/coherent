@@ -9,6 +9,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.13	91/03/18  17:43:18	root
+ * add retry logic to scsicmd(); general cleanup
+ * 
  * Revision 1.12	91/03/14  17:22:28	root
  * Test Ready now works, including Req Sense
  * 
@@ -76,12 +79,13 @@
 #define RS_BUSY  	0x01
 
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
-#define HIPRI_RETRIES	100	/* # of times to retry while hogging CPU */
+#define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 
 #define G0CMDLEN	6	/* Group 0 commands are 6 bytes long  */
 #define G1CMDLEN	10	/* Group 1 commands are 10 bytes long */
 #define SENSELEN	22	/* number of bytes returned w/ req sense */
+#define INQUIRYLEN	54	/* number of bytes returned w/ inquiry */
 
 				/* Message types */
 #define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
@@ -183,7 +187,9 @@ static int	bus_pre_xfer();
 static int	bus_info_xfer();
 static void	ss_start_timing();
 static void	ss_stop_timing();
-
+static int	req_sense();
+static int	inquiry();
+static int	read_cap();
 static void	ssintr();
 
 /*
@@ -226,11 +232,12 @@ CON	sscon	= {
 /*
  * A per-drive structure - ss
  */
-#define IN_BUF_SIZE	22
+#define IN_BUF_SIZE	100
 typedef unsigned char	uchar;
 
 static struct ss	{
 	long	capacity;
+	long	blocklen;
 	int	msg_in;
 	uchar	cmdbuf[G1CMDLEN];
 	int	cmdlen;
@@ -547,7 +554,7 @@ unsigned short flags;
 
 	if (!found)
 		printf("ST0x timeout;  flags=%x status=%x\n", flags, status);
-
+PUSHI;
 	return found;
 }
 
@@ -579,13 +586,37 @@ int s_id;
 	int retval = 0;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
-	if (!testready(s_id))
-		devmsg(dev, "Test Unit Ready failed");
-	else {
-		devmsg(dev, "Unit initialized");
+	if (testready(s_id)) {
 		retval = 1;
-	}
-POPI;
+	} else
+		devmsg(dev, "Test Unit Ready Failed");
+
+	if (retval)
+		if (req_sense(s_id)) {
+			devmsg(dev, "Sense Requested");
+			retval = 1;
+		} else
+			devmsg(dev, "Request Sense Failed");
+
+	if (retval)
+		if (inquiry(s_id)) {
+			ss[s_id]->in_buf[INQUIRYLEN] = 0;
+			devmsg(dev, ss[s_id]->in_buf + 8);
+			if (ss[s_id]->in_buf[0] == 0) {
+				devmsg(dev, "Inquiry Complete");
+				retval = 1;
+			} else
+				devmsg(dev, "Not Direct Access Device");
+		} else
+			devmsg(dev, "Inquiry Failed");
+
+	if (retval)
+		if (read_cap(s_id)) {
+			devmsg(dev, "Read Capacity Done");
+			retval = 1;
+		} else
+			devmsg(dev, "Read Capacity Failed");
+
 	return retval;
 }
 
@@ -631,21 +662,10 @@ int s_id;
 	}
 SSDUMP(ssp, "command sent");
 	if (ssp->cmdstat == CS_CHECK) {
-		if (bus_pre_xfer(s_id)) {
-			rqs.cmdbuf[0] = ScmdREQUESTSENSE;
-			rqs.cmdbuf[1] = rqs.cmdbuf[2] = rqs.cmdbuf[3] =
-				rqs.cmdbuf[5] = 0;
-				rqs.cmdbuf[4] = SENSELEN;
-			rqs.cmdlen = G0CMDLEN;
-			rqs.in_buf_len = SENSELEN;
-			bus_info_xfer(&rqs);
-			if (rqs.data_bytes_in == SENSELEN
-			&& (rqs.in_buf[2] & 0x0F) == 0x06
-			&& rqs.in_buf[12] == 0x29)
-				retval = (ssp->cmdlen == ssp->cmd_bytes_out);
-		}
-SSDUMP((&rqs), "sense req");
+		if (req_sense(s_id))
+			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
 	}
+
 	return retval;
 }
 
@@ -654,6 +674,7 @@ SSDUMP((&rqs), "sense req");
  *
  * Reset the SCSI bus.
  * Allow settling time when turning reset on/off.
+ * Settling times were determined empirically.
  * Each tick is 10 msec.
  */
 #define RESET_TICKS	40
@@ -824,12 +845,22 @@ struct ss *ssp;
 			ssp->cmdstat = ffbyte(ss_dat);
 			break;
 		case XP_CMD_OUT:
+#if 0
 			if (ssp->cmd_bytes_out < ssp->cmdlen)
 				sfbyte(ss_dat, ssp->cmdbuf[ssp->cmd_bytes_out++]);
 			else {	/* This case should not happen. */
 SSDUMP(ssp, "Command overrun");
 				scsireset();
 			}
+#else
+{int diff = ssp->cmdlen - ssp->cmd_bytes_out;
+	if(diff > 0) {
+		sfbyte(ss_dat, ssp->cmdbuf[ssp->cmd_bytes_out++]);
+		if (diff == 1)
+			ssdelay(1);
+	}
+}
+#endif
 			break;
 		case XP_DATA_IN:
 			/*
@@ -853,6 +884,7 @@ SSDUMP(ssp, "Command overrun");
 			break;
 		} /* endswitch */
 	}
+POPI;
 	return (bus_timeout) ? 0 : 1 ;
 }
 /*
@@ -890,4 +922,99 @@ int *to_ptr;
 		printf("ST0x info xfer timeout;  status=%x\n", status);
 PUSHI;
 	return req_found;
+}
+
+/*
+ * req_sense()
+ *
+ * Request Sense for a device.  The main reason for doing this is to
+ * clear a standing Command Status of Device Check.
+ *
+ * Full results are discarded.  Return 1 if Device returns No Sense or
+ * or Unit Attention.  Else return 0.
+ *
+ */
+static int req_sense(s_id)
+int s_id;
+{
+	int ret = 0;
+
+	rqs.cmdbuf[0] = ScmdREQUESTSENSE;
+	rqs.cmdbuf[1] = rqs.cmdbuf[2] = rqs.cmdbuf[3] =
+		rqs.cmdbuf[5] = 0;
+		rqs.cmdbuf[4] = SENSELEN;
+	rqs.cmdlen = G0CMDLEN;
+	rqs.in_buf_len = SENSELEN;
+
+	if (bus_pre_xfer(s_id)) {
+		bus_info_xfer(&rqs);
+		if (rqs.data_bytes_in == SENSELEN) {
+			if (rqs.in_buf[2] == 0x00)	/* No Sense.  AOK */
+				ret = 1;
+			else if (rqs.in_buf[2] == 0x06 && rqs.in_buf[12] == 0x29)
+				ret = 1;
+		}
+	}
+SSDUMP((&rqs), "sense req");
+	return ret;
+}
+
+/*
+ * inquiry()
+ *
+ * Inquiry command for a device.
+ * Find out if device is direct access, removable, etc.
+ *
+ * Return 1 if command succeeds, else 0.
+ */
+static int inquiry(s_id)
+int s_id;
+{
+	int ret = 0;
+	struct ss * ssp = ss[s_id];
+
+	ssp->cmdbuf[0] = ScmdINQUIRY;
+	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] =
+		ssp->cmdbuf[5] = 0;
+		ssp->cmdbuf[4] = INQUIRYLEN;
+	ssp->cmdlen = G0CMDLEN;
+	ssp->in_buf_len = INQUIRYLEN;
+
+	ret = scsicmd(s_id);
+SSDUMP(ssp, "inquiry");
+	return ret;
+}
+
+/*
+ * read_cap()
+ *
+ * Read Capacity command for a device.
+ *
+ * Return 1 if command succeeds, else 0.
+ */
+static int read_cap(s_id)
+int s_id;
+{
+	int ret = 0;
+	struct ss * ssp = ss[s_id];
+
+	ssp->cmdbuf[0] = ScmdREADCAPACITY;
+	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
+	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[7] = ssp->cmdbuf[8] = 0;
+	ssp->cmdbuf[9] = 0;
+	ssp->cmdlen = G1CMDLEN;
+	ssp->in_buf_len = 8;
+
+	ret = scsicmd(s_id);
+	if (ret) {
+		ssp->capacity = ssp->in_buf[3] | (ssp->in_buf[2] << 8)
+		| (((long)(ssp->in_buf[1])) << 16)
+		| (((long)(ssp->in_buf[0])) << 24);
+		ssp->blocklen = ssp->in_buf[7] | (ssp->in_buf[6] << 8)
+		| (((long)(ssp->in_buf[5])) << 16)
+		| (((long)(ssp->in_buf[4])) << 24);
+printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
+	}
+SSDUMP(ssp, "read_cap");
+	return ret;
 }
