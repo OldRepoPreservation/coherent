@@ -2,11 +2,13 @@
  * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
- *	set host_claimed conscientiously
  *	make ssinit() more rugged
  *	nonzero LUN's
  *
  * $Log:	ss.c,v $
+ * Revision 2.7  91/05/21  19:10:43  hal
+ * Balance host_claimed - needs debugging.
+ * 
  * Revision 2.6  91/05/21  13:53:22  root
  * Patch NSDRIVE for Future Domain.  Call per/id queue fns.
  * 
@@ -36,7 +38,7 @@
  * DEBUG = 4	Print info xfer phases and msg_in values.
  */
 #if (DEBUG >= 1)
-#define PR1(str)		printf(str)
+#define PR1(str)		printf("%s%d ", str, s_id)
 #else
 #define PR1(str)
 #endif
@@ -46,12 +48,12 @@
 #define PR2(str)
 #endif
 #if (DEBUG >= 3)
-#define PR3(str)		printf(str)
+#define PR3(str)		printf("%s%d ", str, s_id)
 #else
 #define PR3(str)
 #endif
 #if (DEBUG >= 4)
-#define PR4(str)		printf(str)
+#define PR4(str)		printf("%s%d ", str, s_id)
 #else
 #define PR4(str)
 #endif
@@ -138,7 +140,7 @@
 #define DELAY_RES	40
 #define DELAY_RST	40
 
-#define MAX_AVL_COUNT	10
+#define MAX_AVL_COUNT	100
 #define MAX_BDR_COUNT	2
 #define MAX_BSY_COUNT	2
 #define MAX_TRY_COUNT	7
@@ -234,10 +236,12 @@ static int	chk_reconn();
 static void	do_connect();
 static int	far_info_xfer();
 static int	host_ident();
+static int	init_call();
 static void	init_pointers();
 static int	inquiry();
 static int	local_info_xfer();
 static int	mode_sense();
+static void	next_req();
 static void	nonpolled();
 static int	read_cap();
 static void	recover();
@@ -281,14 +285,14 @@ CON	sscon	= {
  * ST1126N, SCSI 0  LUN 0  (Unit 0)
  * CP340,   SCSI 3  LUN 0  (Unit 3)
  */
-int	NSDRIVE = 0x8001;	/* Bitmap of attached SCSI drives. */
+int	NSDRIVE = 0x8003;	/* Bitmap of attached SCSI drives. */
 				/* Set NSDRIVE highest bit for Future Domain */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
 /* ncyl, nhead, nspt */
 drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
-	{ 1068, 9, 36},		/* Unit 0 */
+	{ 987, 20, 17},		/* Unit 0 */
 	{ 1004, 4, 52},		/* Unit 1 */
 	{ 0, 0, 0},
 	{ 964, 5, 17},		/* Unit 3 */
@@ -324,7 +328,7 @@ static ss_type  *ss[MAX_SCSI_ID-1];
  * host is released at:
  *	end of SCSI bus reset
  *	completion (successful or not) of block i/o request (ss_finished)
- *	disconnect
+ *	disconnect <-- temporarily disabled
  */
 static int	host_claimed;
 
@@ -646,7 +650,10 @@ char * vec;
 
 	switch(cmd) {
 	case HDGETA:
-PR3("HDGETA ");
+		/*
+		 * Get hard disk attributes.
+		 */
+PR3("HDGETA");
 		fdp = ssp->parmp;
 		*(short *)&hdparm.landc[0] =
 		*(short *)&hdparm.ncyl[0] = drv_parm[s_id].ncyl;
@@ -656,7 +663,23 @@ PR3("HDGETA ");
 printf("ncyl=%d nhead=%d nspt=%d\n",
   hdparm.ncyl[0]+((int)hdparm.ncyl[1]<<8), (int)hdparm.nhead, (int)hdparm.nspt);
 #endif
-		kucopy( &hdparm, vec, sizeof hdparm );
+		kucopy(&hdparm, vec, sizeof hdparm);
+		ret = 0;
+		break;
+	case HDSETA:
+		/*
+		 * Set hard disk attributes.
+		 */
+PR3("HDSETA");
+		fdp = ssp->parmp;
+		ukcopy(vec, &hdparm, sizeof hdparm);
+		drv_parm[s_id].ncyl = *(short *)&hdparm.ncyl[0];
+		drv_parm[s_id].nhead = hdparm.nhead;
+		drv_parm[s_id].nspt = hdparm.nspt;
+#if (DEBUG >= 3)
+printf("ncyl=%d nhead=%d nspt=%d\n",
+  hdparm.ncyl[0]+((int)hdparm.ncyl[1]<<8), (int)hdparm.nhead, (int)hdparm.nspt);
+#endif
 		ret = 0;
 		break;
 	default:
@@ -707,12 +730,12 @@ if (bp->b_count != BSIZE)
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
-PR1("BF1 ");
+PR1("BF1");
 				bp->b_flag |= BFERR;
 				goto bad_open;
 			}
 		} else {
-PR2("BF2 ");
+PR1("BF2");
 			devmsg(dev, "no partition table");
 			bp->b_flag |= BFERR;
 			goto bad_open;
@@ -732,7 +755,7 @@ PR2("BF2 ");
 	 */
 	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
-PR3("BF3 ");
+PR1("BF3");
 		bp->b_flag |= BFERR;
 		goto bad_open;
 	}
@@ -851,8 +874,39 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
+/* FOO */
+int foo, junk, phase_type;
+	if ((foo=chk_reconn()) != -1) {
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+		if (bus_wait(RS_SELECT << 8 | 0)) {
+			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+			if (req_wait(&junk)) {
+phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+printf("phase type=%d\n", phase_type);
+if (phase_type == XP_MSG_IN) {
+	junk = ffbyte(ss_dat);
+	printf("msg in=%x\n", junk);
+	req_wait(&junk);
+	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+	printf("phase type=%d\n", phase_type);
+}
+if (phase_type == XP_MSG_OUT) {
+	sfbyte(ss_dat, MSG_ABORT);
+	printf("MSG_ABORT sent\n");
+	ssdelay(30);
+	junk = ffbyte(ss_csr);
+	printf("status=%x\n", junk);
+}
+			} else
+printf("req_wait failed\n");
+		} else {
+			printf("rsel_handshake failed\n");
+		}
+		printf("** id %d tried to reselect **\n", foo);
+	}
+/* FOO */
 	if (retval)
-		if (inquiry(s_id, query_buf)) {
+		if (init_call(inquiry, s_id, query_buf)) {
 			query_buf[INQUIRYLEN] = 0;
 #if (debug >= 2)
 			devmsg(dev, query_buf + 8);
@@ -865,7 +919,7 @@ int s_id;
 			devmsg(dev, "Inquiry Failed");
 
 	if (retval)
-		if (read_cap(s_id, query_buf)) {
+		if (init_call(read_cap, s_id, query_buf)) {
 			retval = 1;
 			ssp->capacity = query_buf[3] | (query_buf[2] << 8)
 			| (((long)(query_buf[1])) << 16)
@@ -880,7 +934,7 @@ printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
 			devmsg(dev, "Read Capacity Failed");
 
 	if (retval)
-		if (mode_sense(s_id, query_buf)) {
+		if (init_call(mode_sense, s_id, query_buf)) {
 #if (DEBUG >= 3)
 #define FMT_PG	(4+8+8+12)
 #define DDG_PG	(4+8+8+12+24)
@@ -953,41 +1007,40 @@ int block_done=0;
 		}
 		switch (phase_type) {
 		case XP_MSG_IN:
-PR4("MI");
 			msg_in = ffbyte(ss_dat);
 			switch(msg_in){
 			case MSG_CMD_CMPLT:
-PR4("cc ");
+PR4("Mcc");
 				ssp->msg_in = msg_in;
 				sfbyte(ss_csr, WC_ENABLE_IRPT);
 				break;
 			case MSG_DISCONNECT:
-PR4("dc ");
+PR4("Mdc");
 				ssp->msg_in = msg_in;
 				sfbyte(ss_csr, WC_ENABLE_IRPT);
 				break;
 			case MSG_SAVE_DPTR:
-PR4("sd ");
+PR4("Msd");
 				break;
 			case MSG_RSTOR_DPTR:
-PR4("rd ");
+PR4("Mrd");
 				break;
 			case MSG_ABORT:
-PR4("ab ");
+PR4("Mab");
 				break;
 			case MSG_DEV_RESET:
-PR4("dr ");
+PR4("Mdr");
 				break;
 			case MSG_IDENTIFY:
-PR4("mi ");
+PR4("Mmi");
 				break;
 			case MSG_IDENT_DC:
-PR4("md ");
+PR4("Mmd");
 				break;
 			}
 			break;
 		case XP_MSG_OUT:
-PR4("MO ");
+PR4("MO");
 			/*
 			 * This case shouldn't happen.  We weren't
 			 * asserting ATTENTION.  Abort the bus cycle.
@@ -996,7 +1049,7 @@ PR4("MO ");
 			sfbyte(ss_dat, MSG_ABORT); 
 			break;
 		case XP_STAT_IN:
-PR4("SI ");
+PR4("SI");
 			ssp->cmdstat = ffbyte(ss_dat);
 			break;
 		case XP_CMD_OUT:
@@ -1011,7 +1064,7 @@ PR4("SI ");
 				 * If just sent last byte, allow interrupts.
 				 */
 				if (bytes_to_send == 1) {
-PR4("CO ");
+PR4("CO");
 					if (bp->b_req == BREAD) {
 						if (irpts_masked) {
 							spl(s);
@@ -1024,7 +1077,7 @@ PR4("CO ");
 			}
 			break;
 		case XP_DATA_IN:
-PR4("DI ");
+PR4("DI");
 			/*
 			 * If caller's buffer has room, keep incoming
 			 * data byte.
@@ -1044,7 +1097,7 @@ block_done=1;
 			if (bp->b_req == BWRITE) {
 #if 1
 				int res=0;
-PR4("DO ");
+PR4("DO");
 if (block_done)
 	printf("Data out overrun ");
 block_done=1;
@@ -1062,16 +1115,6 @@ block_done=1;
 					printf("p%d ", res);
 #endif
 #endif
-#else
-				uchar dat;
-if (i==0)
-	PR4("DO");
-/***FOOO***/
-				dat = ffbyte(bp->b_faddr + xfer_count + i);
-				sfbyte(ss_dat, dat);
-				i++;
-if (i==BSIZE)
-	PR4("n ");
 #endif
 			} else /* This case should not happen. */
 				xfer_good = 0;
@@ -1286,8 +1329,7 @@ static int bus_dev_reset(s_id)
 	int bdr_ok = 1;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
-PR1("bdr");
-
+PR1("BDR");
 	if (bdr_ok) {
 		/*
 		 * Do ST0x arbitration.
@@ -1383,7 +1425,7 @@ int s_id;
 		 * Polling states execute whether ssp->waiting or not.
 		 */
 		case SST_POLL_ARBITN:
-PR3("PA ");
+PR3("XPAR");
 			if (ffbyte(ss_csr) & RS_ARBIT_COMPL) {
 				ssp->waiting = 0;
 				if (host_ident(s_id, 1))
@@ -1399,7 +1441,7 @@ PR3("PA ");
 			}
 			break;
 		case SST_POLL_RESELECT:
-PR3("PR ");
+PR3("XPRS");
 			if ((host_claimed == -1 || host_claimed == s_id)
 			&& TGT_RSEL) {
 				ssp->waiting = 0;
@@ -1418,7 +1460,7 @@ PR3("PR ");
 			}
 			break;
 		case SST_POLL_BEGIN_IO:
-PR3("PBI ");
+PR3("XPBI");
 			if (bp == NULL)
 				ssp->state = SST_DEQUEUE;
 			else {
@@ -1480,7 +1522,7 @@ int s_id;
 
 	switch (ssp->state) {
 	case SST_BUS_DEV_RESET:
-PR3("BDR ");
+PR3("XBDR");
 		if (bus_dev_reset(s_id)) {
 			do_sst_op = 0;
 			set_timeout(s_id, DELAY_BDR);
@@ -1490,7 +1532,7 @@ PR3("BDR ");
 		break;
 	case SST_DEQUEUE:
 		if(bufq_rd_head(s_id) != NULL && !ssp->busy) {
-PR3("DQ ");
+PR3("XDQU");
 			ssp->busy = 1;
 			bp = bufq_rm_head(s_id);
 			ssp->bp = bp;
@@ -1527,19 +1569,22 @@ PR3("DQ ");
 		break;
 	case SST_HIPRI_RESET:
 	case SST_LOPRI_RESET:
-PR1("rst");
+PR1("XRST");
 		/*
 		 * SST_LOPRI_RESET is same as SST_HIPRI_RESET for now.
 		 * Later, can implement a delay to allow other targets to
 		 * finish pending operations.
 		 */
-		host_claimed = s_id;
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
-		ssp->state = SST_RESET_OFF;
-		set_timeout(s_id, DELAY_RST);
+		if (host_claimed == s_id || host_claimed == -1) {
+			host_claimed = s_id;
+			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
+			ssp->state = SST_RESET_OFF;
+			set_timeout(s_id, DELAY_RST);
+		} else
+			set_timeout(s_id, DELAY_RST);
 		break;
 	case SST_REQ_SENSE:
-PR1("RQS ");
+PR1("XRQS");
 		/*
 		 * Come here at end of SCSI Bus reset (and at other times).
 		 * If we have host claimed, release it.
@@ -1552,7 +1597,7 @@ PR1("RQS ");
 			recover(s_id, RV_P_TIMEOUT);
 		break;
 	case SST_RESET_OFF:
-PR3("RFF ");
+PR3("XRFF");
 		sfbyte(ss_csr, 0); /* reset OFF */
 		ssp->state = SST_REQ_SENSE;
 		set_timeout(s_id, DELAY_RST);
@@ -1812,8 +1857,42 @@ int s_id;
 		ssp->cmdbuf[3] = ssp->bno >> 16;
 		ssp->cmdbuf[4] = ssp->bno >>  8;
 		ssp->cmdbuf[5] = ssp->bno;
-	} else
+	} else {
+		/*
+		 * After processing a kernel i/o request, stop the
+		 * state machine for the current id.  Then start
+		 * this or some other machine which has a request
+		 * pending.
+		 */
+		do_sst_op =  0;
 		ssp->state = SST_DEQUEUE;
+		next_req(s_id);
+	}
+}
+
+/*
+ * next_req()
+ *
+ * Given the SCSI id where an i/o request just completed, start handling
+ * another i/o request - which may be for the same or other SCSI id.
+ * For now, use round-robin scheduling.
+ */
+static void next_req(s_id)
+int s_id;
+{
+	int next_id = s_id;
+
+	while (1) {
+		next_id++;
+		if (next_id >= MAX_SCSI_ID - 1)
+			next_id = 0;
+		if (ss[next_id] && bufq_rd_head(next_id)) {
+			defer(ss_mach, next_id);
+			break;
+		}
+		if (next_id == s_id)
+			break;
+	}
 }
 
 /*
@@ -1836,8 +1915,10 @@ int s_id;
 	else if (ssp->msg_in == MSG_DISCONNECT) {
 		ssp->state = SST_POLL_RESELECT;
 		set_timeout(s_id, DELAY_RES);
+#if 1
 		if (host_claimed == s_id)
 			host_claimed = -1;
+#endif
 	} else if (ssp->msg_in == MSG_CMD_CMPLT && ssp->cmdstat == CS_GOOD)
 		ss_finished(s_id);
 	else if (ssp->cmdstat == CS_BUSY)
@@ -1956,6 +2037,9 @@ uint cmdlen, inlen, outlen;
  */
 static void scsireset()
 {
+#if (DEBUG >= 1)
+printf("scsireset ");
+#endif
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
 	ssdelay(RESET_TICKS);
 	sfbyte(ss_csr, 0);
@@ -1976,4 +2060,41 @@ int ticks;
 {
 	timeout(&delay_tim, ticks, wakeup, (int)&delay_tim);
 	sleep((char *)&delay_tim, CVPAUSE, IVPAUSE, SVPAUSE);
+}
+
+/*
+ * init_call()
+ *
+ * Call SCSI command function during initialization, with error recovery.
+ * If the simple command fails, try a Bus Device Reset, then SCSI Bus reset.
+ */
+static int init_call(fn, s_id, buf)
+int (*fn)();
+int s_id;
+uchar * buf;
+{
+	int ret = 1;
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		if ((*fn)(s_id, buf))
+			goto init_call_done;
+
+		if (bus_dev_reset(s_id)) {
+			ssdelay(RESET_TICKS);
+			req_sense(s_id);
+			if ((*fn)(s_id, buf))
+				goto init_call_done;
+		}
+
+		scsireset();
+		req_sense(s_id);
+		if ((*fn)(s_id, buf))
+			goto init_call_done;
+	}
+
+	ret = 0;
+
+init_call_done:
+	return ret;
 }
