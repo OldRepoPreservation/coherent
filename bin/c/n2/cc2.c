@@ -189,6 +189,7 @@ cc2a()
 	nuseless = 0;
 	for (i=0; i<NSEG; ++i)
 		seg[i].s_dot = 0;
+	gendbgt(-1);
 #endif
 	outinit();
 	work2();
