@@ -15,7 +15,7 @@
  *  Various definitions of Global Strings and Values
  */
 
-#define	VERSION		"3.2.20"
+#define	VERSION		"3.2.22"
 
 #define PUBDIR		"/usr/spool/uucppublic"
 #define SPOOLDIR	"/usr/spool/uucp"
@@ -82,6 +82,7 @@ extern	int	terminatelevel;	/* Indicates return code for one call	*/
 extern	char	cfile[CTLFLEN];	/* Current C.* Control Work File Name	*/
 extern	FILE	*cfp;		/* FILE Pointer for C.* files		*/
 extern	char	*devname;	/* Communications Device Name Connected	*/
+extern	char	*rdevname;	/* Remote Device Name Connected	*/
 extern	char	*nodename;	/* UUCP node name (or MYNAME, perhaps)	*/
 extern	char	*version;	/* Version Character String		*/
 extern	int	stripflg;	/* Flag to strip chars to 7bits on read */
