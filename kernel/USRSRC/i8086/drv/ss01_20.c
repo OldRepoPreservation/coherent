@@ -2,6 +2,9 @@
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.6	91/03/07  16:41:31	root
+ * sends Test Ready, Starts to Request Sense
+ * 
  * Revision 1.5	91/03/07  11:48:39	root
  * Now sends Identify and Abort messages & completes a SCSI bus cycle
  *
@@ -162,8 +165,11 @@ ssload()
 	char status;
 	int await_bus;
 	int data1, data2;
-#define CMDLEN 6
+	int inbytes;
+#define CMDLEN		6
+#define SENSELEN	22
 	unsigned char cmd[CMDLEN];
+	unsigned char sense[SENSELEN];
 
 	/*
 	 * Claim IRQ vector.
@@ -196,7 +202,7 @@ ssload()
 	} else
 		printf("ST0x passed memory test\n");
 
-#if 1
+#if 0
 { long x;
 	/*
 	 * Reset the SCSI bus.
@@ -265,7 +271,7 @@ for (i = 0; i < CMDLEN; i++) cmd[i] = 0; /* send Test Unit Ready command */
 	bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
 		(RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE));
 	data2 = ffbyte(ss_dat);
-bus_wait(RS_BUSY, 0);
+bus_wait(RS_BUSY << 8 | 0);
 status = ffbyte(ss_csr);
 SSTATUS;
 printf("data1=%x data2=%x\n",data1,data2);
@@ -300,8 +306,8 @@ POPI;
 		sfbyte(ss_csr, WC_ENABLE_SCSI);
 		sfbyte(ss_dat, MSG_IDENT_DC);
 
-for (i = 0; i < CMDLEN; i++) cmd[i] = 0; /* send Test Unit Ready command */
-cmd[0] = 3;
+for (i = 0; i < CMDLEN; i++) cmd[i] = 0; /* send Request Sense command */
+cmd[0] = 3;  cmd[4] = SENSELEN;
 
 		for (i = 0; i < CMDLEN; i++) {
 			bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
@@ -309,16 +315,27 @@ cmd[0] = 3;
 			sfbyte(ss_dat, cmd[i]);
 		}
 
+		for (inbytes = 0; inbytes < SENSELEN;  inbytes++) {
+			if (bus_wait(
+			((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
+			(RS_I_O)))
+				sense[inbytes] = ffbyte(ss_dat);
+			else
+				break;
+		}
 		bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
 			(RS_REQUEST|RS_CTRL_DATA|RS_I_O));
 		data1 = ffbyte(ss_dat);
 		bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8) |
 			(RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE));
 		data2 = ffbyte(ss_dat);
-bus_wait(RS_BUSY, 0);
+bus_wait(RS_BUSY << 8 | 0);
 status = ffbyte(ss_csr);
 SSTATUS;
 printf("data1=%x data2=%x\n",data1,data2);
+printf("%d:", inbytes);
+for (i = 0; i < inbytes; i++) printf(" %x",sense[i]);
+printf("\n");
 POPI;
 	}
 
