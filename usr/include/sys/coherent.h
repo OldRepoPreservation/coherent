@@ -104,7 +104,7 @@ extern	__paddr_t	 holetop;	/* Top of I/O memory */
 extern	daddr_t	 swapbot;		/* Bottom of swap */
 extern	daddr_t	 swaptop;		/* Top of swap */
 extern	__paddr_t	 clistp;	/* Base of clists */
-extern	ALL	 *allkp;		/* Alloc space */
+extern	heap_t	      *	allkp;		/* Alloc space */
 extern	int	 NSLOT;			/* Num of loadable driver data slots */
 extern	int	 slotsz;		/* Size of loadable driver data slot */
 extern	int *	 slotp;			/* Loadable driver pids/data space */

@@ -14,10 +14,14 @@
 #ifndef	 __SYS_SEG_H__
 #define	 __SYS_SEG_H__
 
-#include <sys/__paddr.h>
+#include <common/feature.h>
+#include <common/__paddr.h>
 #include <sys/types.h>
 #include <sys/ksynch.h>
 
+#if	! __KERNEL__
+# error	You must be compiling the kernel to use this header
+#endif
 
 /*
  * NIGEL: for some reason the type "cseg_t" was in <sys/types.h>. It belongs
@@ -39,7 +43,7 @@ typedef struct seg {
 	short	 s_flags;		/* Flags */
 	short	 s_urefc;		/* Reference count of segment */
 	short	 s_lrefc;		/* Lock reference count */
-#ifdef _I386
+#if	_I386
 	off_t	 s_size;		/* Size in bytes */
 	cseg_t	 *s_vmem;		/* page table address */
 #else
@@ -66,7 +70,6 @@ typedef struct seg {
 #define	SFNSWP	0x4000			/* Don't swap */
 #define SFNCLR	0x8000			/* Don't clear segment */
 
-#ifdef KERNEL
 /*
  * Functions.
  */
@@ -93,15 +96,13 @@ extern	SEG	segmq;			/* Memory segment queue */
 extern	SEG	segdq;			/* Segment disk queue */
 extern	SEG	segiom;			/* I/O memory segment */
 
-#endif
-
 /*
  * Open segment structure.
  */
 typedef struct sr {
 	int	 sr_flag;		/* Flags for this reference */
 	caddr_t	 sr_base;		/* Virtual address base */
-#ifdef _I386
+#if	_I386
 	off_t	 sr_size;		/* Mapped in window size */
 #else
 	vaddr_t	 sr_size;		/* Mapped in window size */
@@ -118,4 +119,4 @@ typedef struct sr {
 #define	SRFRODT	0x08			/* Data, read-only (used by shm) */
 #define	SRFBERM	0x10			/* Segment to be removed (used by shm) */
 
-#endif
+#endif	/* ! defined (__SYS_SEG_H__) */

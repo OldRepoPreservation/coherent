@@ -14,7 +14,7 @@
 #include <common/feature.h>
 #include <common/ccompat.h>
 #include <sys/types.h>
-/* #include <sys/inode.h> */
+#include <sys/inode.h>
 
 #if	! __KERNEL__
 # error	You must be compiling the kernel to use this header

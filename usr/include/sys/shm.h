@@ -1,15 +1,17 @@
-/* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
+/*
+ * /usr/include/sys/shm.h
+ *
+ * Shared memory support.
+ *
+ * Revised: Thu Jul 15 14:05:25 1993 CDT
+ */
 #ifndef __SYS_SHM_H__
 #define	__SYS_SHM_H__
 /*
 **	IPC Shared Memory Facility.
 */
 #include <sys/ipc.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 
 extern int shmfd;		/* file descriptor to access shared memory */
 
@@ -38,23 +40,42 @@ extern int shmfd;		/* file descriptor to access shared memory */
 #define	SHM_LOCK	3	/* lock shared memory segment in core */
 #define SHM_UNLOCK	4	/* unlock shared memory segment */
 
+#if _I386
+
 /*
 **	There is a shared mem id data structure for each segment in the system.
 */
 struct shmid_ds {
 	struct ipc_perm	shm_perm;	/* operation permission struct */
 	int		shm_segsz;	/* segment size */
-#ifdef _I386
 	unsigned short	shm_cpid;	/* pid of creator */
 	unsigned short	shm_lpid;	/* pid of last shmop */
-#else
-	unsigned short	shm_lpid;	/* pid of last shmop */
-	unsigned short	shm_cpid;	/* pid of creator */
-#endif
 	unsigned short	shm_nattch;	/* current # attached */
-#ifndef _I386
-	unsigned short	shm_cnattch;	/* in memory # attached */
+	time_t		shm_atime;	/* last shmat time */
+	time_t		shm_dtime;	/* last shmdt time */
+	time_t		shm_ctime;	/* last change time */
+};
+
+#ifdef __KERNEL__
+
+/* Patchable kernel values. */
+
+extern int SHMMAX;	/* Max size in bytes of shared memory segment */
+			/* Not more than 4 Megs, please! */
+
+extern int SHMMNI;	/* Maximum # of shared memory segments, systemwide */
+
 #endif
+
+#else /* !_I386 */
+
+struct shmid_ds {
+	struct ipc_perm	shm_perm;	/* operation permission struct */
+	int		shm_segsz;	/* segment size */
+	unsigned short	shm_lpid;	/* pid of last shmop */
+	unsigned short	shm_cpid;	/* pid of creator */
+	unsigned short	shm_nattch;	/* current # attached */
+	unsigned short	shm_cnattch;	/* in memory # attached */
 	time_t		shm_atime;	/* last shmat time */
 	time_t		shm_dtime;	/* last shmdt time */
 	time_t		shm_ctime;	/* last change time */
@@ -69,4 +90,7 @@ struct shmid_ds {
 #define	SHMAT	(SHMIOC+'A')
 #define	SHMDT	(SHMIOC+'D')
 
-#endif
+
+#endif /* !_I386 */
+
+#endif /* !defined(__SYS_SHM_H__) */

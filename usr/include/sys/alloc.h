@@ -19,19 +19,27 @@
 # error	You must be compiling the kernel to use this header
 #endif
 
+#define	NEXT_FIT	1
+
 /*
  * Structure for allocator.
  */
 
-typedef union all_u {
-	__ptr_arith_t	a_link;
-} ALL;
+#if	NEXT_FIT
+
+typedef	struct _heap	heap_t;
+
+#else
+
+typedef	__VOID__      *	heap_t;
+
+#endif
 
 
 __EXTERN_C_BEGIN__
 
-ALL	      *	setarena	__PROTO ((__VOID__ * _base, __size_t _size));
-__VOID__      *	alloc		__PROTO ((ALL * _arena, __size_t _size));
+heap_t	      *	setarena	__PROTO ((__VOID__ * _base, __size_t _size));
+__VOID__      *	alloc		__PROTO ((heap_t * _arena, __size_t _size));
 
 __EXTERN_C_END__
 
