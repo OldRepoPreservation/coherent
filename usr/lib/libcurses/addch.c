@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)addch.c	5.4 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)addch.c	5.4 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -29,7 +29,7 @@ static char sccsid[] = "@(#)addch.c	5.4 (Berkeley) 6/30/88";
  */
 waddch(win, c)
 WINDOW	*win;
-char		c;
+uchar		c;
 {
     return waddbytes(win, &c, 1);
 }

@@ -1,4 +1,4 @@
-# $Header: /newbits/usr/lib/libcurses/Makefile,v 1.1 91/04/03 12:41:06 bin Exp $
+# $Header: /usr/src/lib/libcurses/RCS/Makefile,v 1.3 89/11/07 17:47:19 src Exp $
 #
 # Copyright (c) 1987 Regents of the University of California.
 # All rights reserved.
@@ -19,10 +19,7 @@
 #
 # Modifications Copyright INETCO Systems Ltd. (c) 1989
 #
-# $Log:	/newbits/usr/lib/libcurses/Makefile,v $
-# Revision 1.1	91/04/03  12:41:06 	bin
-# Initial revision
-
+# $Log:	/usr/src/lib/libcurses/RCS/Makefile,v $
 # Revision 1.3	89/11/07  17:47:19 	src
 # Bug:	Make install would always update modification times of include files.
 # Fix:	Now use "cpdir -d" to avoid updating modification times (ABC).
@@ -38,65 +35,63 @@ RCSPATH=$${CMDPATH-/usr/src/lib}/libcurses
 CC=exec /bin/cc
 
 LIBC=/lib/libc.a
-INCDIR=/interim/usr/include
-DESTDIR=/interim/usr/lib/
-CFLAGS=-O -I$(SRCPATH)
+INCDIR=/usr/include
 
-OBJS=	addbytes.o	\
-	addch.o		\
-	addstr.o	\
-	bcopy.o		\
-	beep.o		\
-	box.o		\
-	clear.o		\
-	clrtobot.o	\
-	clrtoeol.o	\
-	copyright.o	\
-	cr_put.o	\
-	cr_tty.o	\
-	curses.o	\
-	delch.o		\
-	deleteln.o	\
-	delwin.o	\
-	endwin.o	\
-	erase.o		\
-	fullname.o	\
-	getch.o		\
-	getkey.o	\
-	getstr.o	\
-	id_subwins.o	\
-	idlok.o		\
-	initscr.o	\
-	insch.o		\
-	insertln.o	\
-	longname.o	\
-	move.o		\
-	mvprintw.o	\
-	mvscanw.o	\
-	mvwin.o		\
-	need.o		\
-	newwin.o	\
-	overlay.o	\
-	overwrite.o	\
-	printw.o	\
-	putchar.o	\
-	refresh.o	\
-	scanw.o		\
-	scroll.o	\
-	standout.o	\
-	tflgtab.o	\
-	tkeytab.o	\
-	toucholap.o	\
-	touchwin.o	\
-	tstp.o		\
-	tstrtab.o	\
+CFLAGS=-A -O -I$(SRCPATH)
+
+OBJS=	addbytes.o \
+	addch.o \
+	addstr.o \
+	bcopy.o \
+	beep.o \
+	box.o \
+	clear.o \
+	clrtobot.o \
+	clrtoeol.o \
+	copyright.o \
+	cr_put.o \
+	cr_tty.o \
+	curses.o \
+	delch.o \
+	deleteln.o \
+	delwin.o \
+	endwin.o \
+	erase.o \
+	fullname.o \
+	getch.o \
+	getkey.o \
+	getstr.o \
+	id_subwins.o \
+	idlok.o \
+	initscr.o \
+	insch.o \
+	insertln.o \
+	longname.o \
+	move.o \
+	mvprintw.o \
+	mvscanw.o \
+	mvwin.o \
+	need.o \
+	newwin.o \
+	overlay.o \
+	overwrite.o \
+	printw.o \
+	putchar.o \
+	refresh.o \
+	scanw.o \
+	scroll.o \
+	standout.o \
+	tflgtab.o \
+	tkeytab.o \
+	toucholap.o \
+	touchwin.o \
+	tstp.o \
+	tstrtab.o \
 	unctrl.o
 
 libcurses.a: $(OBJS)
-	rm -f $(DESTDIR)libcurses.a
-	ar q $(DESTDIR)libcurses.a $(OBJS)
-	su root cp -d curses.h $(INCDIR)
-	su root cp -d unctrl.h $(INCDIR)
+	rm -f libcurses.a
+	ar rcs libcurses.a $(OBJS)
 
 install: libcurses.a curses.h unctrl.h
 	su root cp -d libcurses.a /usr/lib

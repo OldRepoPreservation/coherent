@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)box.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)box.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -30,11 +30,11 @@ static char sccsid[] = "@(#)box.c	5.3 (Berkeley) 6/30/88";
  */
 box(win, vert, hor)
 reg WINDOW	*win;
-char		vert, hor; {
+uchar		vert, hor; {
 
 	reg int		i;
 	reg int		endy, endx;
-	reg char	*fp, *lp;
+	reg uchar	*fp, *lp;
 
 	endx = win->_maxx;
 	endy = win->_maxy - 1;

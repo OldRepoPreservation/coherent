@@ -17,7 +17,7 @@
 
 beep()
 {
-	register char * s;
+	register uchar * s;
 
 # ifdef	DEBUG
 	fprintf( outf, "BEEP\n");
@@ -32,7 +32,7 @@ beep()
 
 flash()
 {
-	register char * s;
+	register uchar * s;
 
 # ifdef	DEBUG
 	fprintf( outf, "FLASH\n");

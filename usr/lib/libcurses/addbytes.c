@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)addbytes.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)addbytes.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -29,7 +29,7 @@ static char sccsid[] = "@(#)addbytes.c	5.3 (Berkeley) 6/30/88";
  */
 waddbytes(win, bytes, count)
 reg WINDOW	*win;
-reg char	*bytes;
+reg uchar	*bytes;
 reg int		count;
 {
 #define	SYNCH_OUT()	{win->_cury = y; win->_curx = x;}
@@ -43,7 +43,7 @@ reg int		count;
 # endif
 	while (count--) {
 	    register int c;
-	    static char blanks[] = "        ";
+	    static uchar blanks[] = "        ";
 
 	    c = *bytes++;
 	    switch (c) {
