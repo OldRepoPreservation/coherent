@@ -175,6 +175,8 @@ daddr_t b;
 	register int n;
 
 	if (badn >= badm) {
+		if ( badm >= (2*badm) )		/* catch wordlength rollover */
+			panic("too many bad blocks");
 		badm *= 2;
 		if ((badl=realloc(badl, badm*sizeof(*badl))) == NULL)
 			panic("out of memory");
@@ -303,7 +305,7 @@ copymd()
 	canshort(dip->di_uid);
 	dip->di_gid = inol.i_gid;
 	canshort(dip->di_gid);
-	dip->di_size = badn*BSIZE;
+	dip->di_size = ((fsize_t)badn)*BSIZE;
 	cansize(dip->di_size);
 	ltol3(dip->di_addr, inol.i_a.i_addr, NADDR);
 	dip->di_atime = inol.i_atime;

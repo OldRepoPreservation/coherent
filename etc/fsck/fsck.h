@@ -82,6 +82,7 @@ extern 	int	daction;	/* default action for current file system */
 extern  int 	writeflg;	/* system write ok or read-only */
 extern  int	qflag;		/* quiet fsck flag */
 extern	int	fflag;		/* fast fsck flag */
+extern	int	sflag;		/* force free list salvation	*/
 extern	daddr_t	fsize;		/* file system size in blocks */
 extern	int	isize;		/* first block not in inode list */
 				/* isize is NOT unsigned so that comparisons */
