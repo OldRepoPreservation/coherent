@@ -1,5 +1,8 @@
 /*
- * Standard I/O library printf/fprint/sprintf.
+ * libc/stdio/printf.c
+ * C standard i/o library.
+ * printf(), fprint(), sprintf().
+ * Not ANSI compatible!
  * Non-portable things:
  * 1) alignment of arguments is assumed to be completely contiguous.
  * 2) the smallest number is assumed to negate to itself.
@@ -10,11 +13,28 @@
 #include <stdio.h>
 #include <sys/mdata.h>
 #include <ctype.h>
+#include <string.h>
 
 /* Avoid calling the new style toupper() function on MSDOS and GEMDOS */
 #ifdef _toupper
 #define toupper(c) _toupper(c)
 #endif
+
+/* External. */
+extern	char	*_dtefg();
+
+/*
+ * NXBUF is the size of the buffer for a single conversion item.
+ * ANSI requires at least 509 characters for a single conversion;
+ * note that e.g. "%f" of 1E300 requires a 300+ character buffer.
+ * NIBUF and NLBUF must be long enough to hold a converted int and long;
+ * a 32-bit value converts to maximum of 11 octal digits + NUL.
+ */
+#define	NXBUF	512		/* xprintf() buffer size */
+#define	NIBUF	12		/* printi() buffer size */
+#define	NLBUF	12		/* printl() buffer size */
+
+#define	NULLFMT	"{NULL}"
 
 union	alltypes {
 	char	c;
@@ -25,19 +45,16 @@ union	alltypes {
 	char	*s;
 };
 
-#define	bump(p,s)	(p+=sizeof(s)/sizeof(int))
+#define	bump(p,s)	(p += sizeof(s)/sizeof(int))
 
+/* Forward. */
 char	*printi();
 char	*printl();
-char	*_dtefg();
-
-static readonly char null[] = "{NULL}";
 
 /*
  * Formatted print to standard output.
  */
-printf(args)
-union alltypes args;
+printf(args) union alltypes args;
 {
 	xprintf(stdout, &args);
 }
@@ -45,9 +62,7 @@ union alltypes args;
 /*
  * Formatted print to a specific file.
  */
-fprintf(fp, args)
-FILE *fp;
-union alltypes args;
+fprintf(fp, args) FILE *fp; union alltypes args;
 {
 	xprintf(fp, &args);
 }
@@ -56,9 +71,7 @@ union alltypes args;
  * Formatted print into given string.
  * Handcrafted file structure created for putc.
  */
-sprintf(sp, args)
-char *sp;
-union alltypes args;
+sprintf(sp, args) char *sp; union alltypes args;
 {
 	FILE	file;
 
@@ -68,9 +81,7 @@ union alltypes args;
 }
 
 static
-xprintf(fp, argp)
-FILE *fp;
-union alltypes *argp;
+xprintf(fp, argp) FILE *fp; union alltypes *argp;
 {
 	register char *cbp;
 	int *iap;
@@ -84,17 +95,16 @@ union alltypes *argp;
 	int isnumeric;
 	register char *fmt;
 	union alltypes elem;
-	char cbuf[64];
+	char cbuf[NXBUF];
 
 	iap = (int *)argp;
 	fmt = *(char **)iap;
 	bump(iap, char*);
 	for (;;) {
 		while((c = *fmt++) != '%') {
-			if(c == '\0') {
-				return;
-			}
-			putc(c, fp);
+			if (c == '\0')
+				return;		/* end of format string, done */
+			putc(c, fp);		/* copy non-conversion char */
 		}
 		pad = ' ';
 		fwidth = -1;
@@ -192,11 +202,11 @@ union alltypes *argp;
 		case 's':
 			isnumeric = 0;
 			if ((s = *(char **)iap) == NULL)
-				s = null;
+				s = NULLFMT;
 			bump(iap, char*);
 			cbp = cbs = s;
 			while (*cbp++ != '\0')
-				if (prec>=0 && cbp-s>prec)
+				if (prec >= 0 && cbp-s > prec)
 					break;
 			cbp--;
 			break;
@@ -241,44 +251,37 @@ static readonly char digits[] = {
  */
 static
 char *
-printi(cp, n, b)
-char *cp;
-register unsigned n;
+printi(cp, n, b) register char *cp; register unsigned int n; register int b;
 {
-	register a;
+	register unsigned int a;
 	register char *ep;
-	char pbuf[10];
+	char pbuf[NIBUF];
 
-	ep = &pbuf[10];
-	*--ep = 0;
-	for ( ; a = n/b; n=a)
-		*--ep = digits[n%b];
-	*--ep = digits[n];
-	while (*ep)
-		*cp++ = *ep++;
-	return (cp);
-}
-
-/*
- * Print an unsigned long in base b.
- */
-static
-char *
-printl(cp, n, b)
-register char *cp;
-unsigned long n;
-register b;
-{
-	char pbuf[13];
-	unsigned long a;
-	register char *ep;
-
-	ep = &pbuf[13];
+	ep = &pbuf[NIBUF];
 	*--ep = '\0';
 	for ( ; (a = n/b) != 0; n = a)
 		*--ep = digits[n%b];
 	*--ep = digits[n];
-	while (*ep)
-		*cp++ = *ep++;
-	return (cp);
+	return strcpy(cp, ep);
 }
+
+/*
+ * Print an unsigned long integer in base b.
+ */
+static
+char *
+printl(cp, n, b) register char *cp; register unsigned long n; register int b;
+{
+	register unsigned long a;
+	register char *ep;
+	char pbuf[NLBUF];
+
+	ep = &pbuf[NLBUF];
+	*--ep = '\0';
+	for ( ; (a = n/b) != 0; n = a)
+		*--ep = digits[n%b];
+	*--ep = digits[n];
+	return strcpy(cp, ep);
+}
+
+/* end of libc/stdio/printf.c */
