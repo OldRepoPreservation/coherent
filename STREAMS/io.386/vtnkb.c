@@ -8,9 +8,11 @@
 #include <sys/coherent.h>
 #ifdef _I386
 #include <sys/reg.h>
+#else
+#include <sys/i8086.h>
 #endif
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <signal.h>
@@ -19,6 +21,7 @@
 #include <sys/kb.h>
 #include <sys/devices.h>
 #include <sys/silo.h>
+#include <stddef.h>
 
 #include <sys/vt.h>
 
@@ -78,7 +81,7 @@ int	KBCMDBYTE = 0x05;		/* no translation */
 static	unsigned shift;			/* state of all shift/lock keys */
 static	unsigned char	**funkeyp = 0;	/* ptr to array of func. keys ptrs */
 static	FNKEY	*fnkeys = 0;		/* pointer to structure of values */
-static	unsigned fklength;		/* length of k_fnval field in fnkeys */
+static	unsigned fklength;		/* length of function key text */
 static	unsigned prev_cmd;		/* previous command sent to KBD */
 static	unsigned cmd2;			/* 2nd byte of command to KBD */
 static	unsigned sh_index;		/* shift/lock state index */
@@ -96,6 +99,9 @@ int		isbusy;			/* Raw input conversion busy */
 static	char	table_loaded;		/* true == keyboard table resident */
 static	char	fk_loaded;		/* true == function keys resident */
 static	int	kbstate = KB_IDLE;	/* current keyboard state */
+
+#define	ESCAPE_CHAR	'\x1B'
+#define	ESCAPE_STRING	"\x1B"
 
 /*
  * Functions.
@@ -666,8 +672,12 @@ FNKEY *v;
 		if (funkeyp != NULL)
 			kfree(funkeyp);		/* free old ptr array */
 		ukcopy(&v->k_nfkeys, &numkeys, sizeof(numkeys));
-		fklength = sizeof(FNKEY);
-		cp = v->k_fnval;
+		/*
+		 * I'd use offsetof (), but right now it is broken due to a
+		 * compiler bug.
+		 */
+		fklength = sizeof (FNKEY);
+		cp = (char *) (v + 1);
 		for (i = 0; i < numkeys; i++) {
 			do {
 				++fklength;
@@ -687,8 +697,8 @@ FNKEY *v;
 			u.u_error = ENOMEM;
 			return;
 		}
-		cp = fnkeys->k_fnval;			/* point to Fn ... */
-		v = v->k_fnval;				/* ... key arena */
+		cp = (char *) (fnkeys + 1);		/* point to Fn ... */
+		v = (char *) (v + 1);			/* ... key arena */
 		for (i = 0; i < numkeys; i++) {
 			funkeyp[i] = cp;	           /* save pointer */
 			while ((*cp++ = getubd(v++)) != DELIM)  /* copy key */
@@ -730,8 +740,8 @@ isrint()
 	/*
 	 * Schedule raw input handler if not already active.
 	 */
-	if (!isbusy) {
-		defer(isbatch, 	vttty[vtactive]);
+	if (! isbusy) {
+		defer (isbatch, vttty [vtactive]);
 		isbusy = 1;
 	}
 
@@ -740,54 +750,64 @@ isrint()
 	 * port. Pulse the KBFLAG in the control
 	 * port to reset the data buffer.
 	 */
-	r = inb(KBDATA) & 0xFF;
-	c = inb(KBCTRL);
-	outb(KBCTRL, c|KBFLAG);
-	outb(KBCTRL, c);
+
+	r = inb (KBDATA) & 0xFF;
+	c = inb (KBCTRL);
+	outb (KBCTRL, c | KBFLAG);
+	outb (KBCTRL, c);
 
 	/*
 	 * check returned value from keyboard to see if it's a command
 	 * or status back to us. If not, it we assume that it's a key code.
 	 */
-	KBDEBUG2("\nintr(%x) ", r);
+	KBDEBUG2 ("\nintr(%x) ", r);
 	switch (r) {
+
 	case K_BREAK:
 		keyup = 1;			/* key going up */
 		break;
+
 	case K_ECHO_R:
 	case K_BAT_OK:
 		break;				/* very nice, but ignored */
+
 	case K_BAT_BAD:
-		printf("kb: keyboard BAT failed\n");
+		printf ("kb: keyboard BAT failed\n");
 		break;
+
 	case K_RESEND:
-		KBDEBUG("\nkb: request to resend command\n");
-		outb(KBDATA, prev_cmd);
+		KBDEBUG ("\nkb: request to resend command\n");
+		outb (KBDATA, prev_cmd);
 		break;
+
 	case K_OVERRUN_23:
-		printf("kb: keyboard buffer overrun\n");
+		printf ("kb: keyboard buffer overrun\n");
 		break;
+
 	case K_ACK:
 		/*
 		 * we received an ACKnowledgement from the keyboard.
 		 * advance the state machine and continue.
 		 */
-		KBDEBUG(" ACK ");
+		KBDEBUG (" ACK ");
 		switch (kbstate) {
 		case KB_IDLE:			/* shouldn't happen */
-			printf("vtnkb: ACK while idle ");
+			printf ("vtnkb: ACK while idle ");
 			break;
+
 		case KB_SINGLE:			/* done with 1-byte command */
 		case KB_DOUBLE_2:		/* done w/ 2nd of 2-byte cmd */
 			kbstate = KB_IDLE;
-			wakeup(&kbstate);
+			wakeup (& kbstate);
 			break;
+
 		case KB_DOUBLE_1:
 			kbstate = KB_DOUBLE_2;
-			outb(KBDATA, cmd2);
+			outb (KBDATA, cmd2);
 			break;
+
 		default:
-			printf("kb: bad kbstate %d\n", kbstate);
+			printf ("kb: bad kbstate %d\n", kbstate);
 			break;
 		}
 		break;
@@ -800,10 +820,10 @@ isrint()
 #endif
 	default:
 #if SWANFIX
-		process_key(r, keyup, e0esc);
+		process_key (r, keyup, e0esc);
 		e0esc = 0;
 #else
-		process_key(r, keyup);
+		process_key (r, keyup);
 #endif
 		keyup = 0;
 	}
@@ -847,60 +867,62 @@ int	 up;
 	 */
 
 #if SWANFIX
-	if ( VTSWAN && e0esc && !(kb[key].k_flags&S) )
-		key = kb[key].k_val[ALT_GR];   /* Ugly kludge */
+	if (VTSWAN && e0esc && (kb [key].k_flags & S) == 0)
+		key = kb [key].k_val [ALT_GR];   /* Ugly kludge */
 #endif
-	key_vals = kb[key];
+	key_vals = kb [key];
 #else
-	fkcopy(kbsegp->s_faddr + (key * sizeof(KBTBL)),
-		&key_vals, sizeof(key_vals));
+	fkcopy (kbsegp->s_faddr + (key * sizeof(KBTBL)),
+		& key_vals, sizeof (key_vals));
 #endif
 	if (key_vals.k_key != key)		/* empty entry */
 		return;
 	flags = key_vals.k_flags;
 
 	if (flags & S) {			/* some shift/lock key ? */
-		switch (key_vals.k_val[BASE]) {
+		switch (key_vals.k_val [BASE]) {
 		case caps:
 		case num:
 			if (!up) {
 				shift ^= (1 << key_vals.k_val[BASE]);
-				updleds2();
+				updleds2 ();
 			}
 			break;
+
 		case scroll:
-			if (!up) {
+			if (! up) {
 				shift ^= (1 << key_vals.k_val[BASE]);
-				updleds2();
-				if (!(tp->t_sgttyb.sg_flags&RAWIN)) {
-					if (tp->t_flags & T_STOP) {
-						isin(tp->t_tchars.t_startc);
-					} else {
-						isin(tp->t_tchars.t_stopc);
-					}
+				updleds2 ();
+				if (_IS_RAW_INPUT_MODE (tp)) {
+					if (tp->t_flags & T_STOP)
+						isin (tp->t_tchars.t_startc);
+					else
+						isin (tp->t_tchars.t_stopc);
 				}
 			}
 			break;
 		default:
 			if (up)
-				shift &= ~(1 << key_vals.k_val[BASE]);
+				shift &= ~ (1 << key_vals.k_val [BASE]);
 			else
-				shift |= (1 << key_vals.k_val[BASE]);
+				shift |= (1 << key_vals.k_val [BASE]);
 			break;
 		}
+
 		/*
 		 * Calculate the shift index based upon the state of
 		 * the shift and lock keys.
 		 */
+
 		sh_index = BASE;		/* default condition */
 		if (shift & (1 << altgr))
 			sh_index = ALT_GR;
 		else {
-			if (shift & ((1 << lalt)|(1 << ralt)))
+			if (shift & ((1 << lalt) | (1 << ralt)))
 				sh_index |= ALT;
-			if (shift & ((1 << lctrl)|(1 << rctrl)))
+			if (shift & ((1 << lctrl) | (1 << rctrl)))
 				sh_index |= CTRL;
-			if (shift & ((1 << lshift)|(1 << rshift)))
+			if (shift & ((1 << lshift) | (1 << rshift)))
 				sh_index |= SHIFT;
 		}
 		T_CON(2, printf("shift=%x sh_index=%d\n", shift, sh_index));
@@ -911,44 +933,44 @@ int	 up;
 	 * If the key has no value in the current
 	 * shift state, the key is just tossed away.
 	 */
-	if (up || key_vals.k_val[sh_index] == none)
+	if (up || key_vals.k_val [sh_index] == none)
 		return;
 
-	if (((flags & C) && (shift & (1 << caps)))
-	   || ((flags & N) && (shift & (1 << num))))
-		val = key_vals.k_val[sh_index^SHIFT];
+	if (((flags & C) != 0 && (shift & (1 << caps)) != 0) ||
+	    ((flags & N) != 0 && (shift & (1 << num))) != 0)
+		val = key_vals.k_val [sh_index ^ SHIFT];
 	else
-		val = key_vals.k_val[sh_index];
+		val = key_vals.k_val [sh_index];
 
 	/*
 	 * Check for function key or special key implemented as
 	 * a function key (reboot == f0, tab and back-tab, etc).
 	 */
 	if (flags & F) {
-		PRINTV( "<{F%d}>", val );
-		if (VTKEY(val))	{
+		PRINTV ("<{F%d}>", val);
+		if (VTKEY (val)) {
 			T_CON(4,
 			  printf( "<{F%d !!}>\b\b\b\b\b\b\b\b\b\b", val));
-			defer( isvtswitch, val );
+			defer (isvtswitch, val);
 			return;
 		}
 		/* If the tty is not open, ignore it */
-		if( !tp->t_open )
+		if (! tp->t_open)
 			return;
 #if GREEKFIX
 		if (VTGREEK && val == fgk) {
-			ToggleGreek();
+			ToggleGreek ();
 			return;
 		}
 #endif /* GREEKFIX */
-		if (val == 0 && !up && KBBOOT)
-			boot();
-		if (!fk_loaded || val >= fnkeys->k_nfkeys)
+		if (val == 0 && ! up && KBBOOT)
+			boot ();
+		if (! fk_loaded || val >= fnkeys->k_nfkeys)
 			return;
-		if ((cp = funkeyp[val]) == NULL) /* has a value? */
+		if ((cp = funkeyp [val]) == NULL) /* has a value? */
 			return;
-		while (*cp != DELIM)
-			isin(*cp++);		/* queue up Fn key value */
+		while (* cp != DELIM)
+			isin (* cp ++);		/* queue up Fn key value */
 		return;
 	}
 
@@ -957,15 +979,15 @@ int	 up;
 	 */
 	/* If the tty is not open, ignore it */
 #if GREEKFIX
-	if( tp->t_open )
+	if (tp->t_open)
 		if (VTGREEK) {
-			if (ToGreek(&val))
-				isin(val);
+			if (ToGreek (& val))
+				isin (val);
 		} else
-			isin(val);
+			isin (val);
 #else
-	if( tp->t_open )
-		isin(val);		 /* send the char */
+	if (tp->t_open)
+		isin (val);		 /* send the char */
 #endif /* GREEKFIX */
 }
 
@@ -983,15 +1005,18 @@ register int c;
 	switch (c) {
 	case 't':	/* Enter numlock */
 		shift |= (1 << num);
-		updleds();			/* update LED status */
+		updleds ();			/* update LED status */
 		break;
+
 	case 'u':	/* Leave numlock */
-		shift &= ~(1 << num);
-		updleds();			/* update LED status */
+		shift &= ~ (1 << num);
+		updleds ();			/* update LED status */
 		break;
+
 	case '=':			/* Enter alternate keypad -- ignored */
 	case '>':			/* Exit alternate keypad -- ignored */
 		break;
+
 	case 'c':	/* Reset terminal */
 		islock = 0;
 		break;
@@ -1016,26 +1041,27 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (ISIXON) {
+	if (_IS_IXON_MODE (tp)) {
 #if _I386
-		if (ISSTART || (ISIXANY && ISXSTOP)) {
-			tp->t_flags &= ~(T_STOP | T_XSTOP);
-			ttstart(tp);
+		if (_IS_START_CHAR (tp, c) ||
+		    (_IS_IXANY_MODE (tp) && (tp->t_flags & T_STOP) != 0)) {
+			tp->t_flags &= ~ (T_STOP | T_XSTOP);
+			ttstart (tp);
 			cache_it = 0;
-		} else if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		} else if (_IS_STOP_CHAR (tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= (T_STOP | T_XSTOP);
 			cache_it = 0;
 		}
 #else
-		if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		if (_IS_STOP_CHAR (tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= T_STOP;
 			cache_it = 0;
 		}
-		if (ISSTART) {
-			tp->t_flags &= ~T_STOP;
-			ttstart(tp);
+		if (_IS_START_CHAR (tp, c)) {
+			tp->t_flags &= ~ T_STOP;
+			ttstart (tp);
 			cache_it = 0;
 		}
 #endif
@@ -1045,9 +1071,9 @@ register int c;
 	 * Cache received character.
 	 */
 	if (cache_it) {
-		in_silo.si_buf[ in_silo.si_ix ] = c;
+		in_silo.si_buf [in_silo.si_ix] = c;
 
-		if (++in_silo.si_ix >= sizeof(in_silo.si_buf))
+		if (++ in_silo.si_ix >= sizeof (in_silo.si_buf))
 			in_silo.si_ix = 0;
 	}
 }
@@ -1085,24 +1111,25 @@ register TTY * tp;
 		/*
 		 * Get next cached char.
 		 */
-		c = in_silo.si_buf[ in_silo.si_ox ];
+		c = in_silo.si_buf [in_silo.si_ox];
 
-		if (in_silo.si_ox >= sizeof(in_silo.si_buf) - 1)
+		if (in_silo.si_ox >= sizeof (in_silo.si_buf) - 1)
 			in_silo.si_ox = 0;
 		else
-			in_silo.si_ox++;
+			in_silo.si_ox ++;
 
-		if ((islock == 0) || ISINTR || ISQUIT) {
-			ttin(tp, c);
-		} else if ((c == 'b') && (lastc == '\033')) {
+		if (islock == 0 || _IS_INTERRUPT_CHAR (tp, c) ||
+		    _IS_QUIT_CHAR (tp, c)) {
+			ttin (tp, c);
+		} else if ((c == 'b') && lastc == ESCAPE_CHAR) {
 			islock = 0;
-			ttin(tp, lastc);
-			ttin(tp, c);
-		} else if ((c == 'c') && (lastc == '\033')) {
-			ttin(tp, lastc);
-			ttin(tp, c);
+			ttin (tp, lastc);
+			ttin (tp, c);
+		} else if (c == 'c' && lastc == ESCAPE_CHAR) {
+			ttin (tp, lastc);
+			ttin (tp, c);
 		} else
-			putchar('\007');
+			putchar ('\a');
 		lastc = c;
 	}
 }
@@ -1113,9 +1140,10 @@ register TTY * tp;
  * this flavor of routine is called while processing a system call on
  * behalf of the user.
  */
+
 updleds()
 {
-	kb_cmd2(K_LED_CMD, (shift >> 1) & 0x7);
+	kb_cmd2 (K_LED_CMD, (shift >> 1) & 0x7);
 }
 
 /*
@@ -1134,8 +1162,8 @@ updleds2()
 	kbstate = KB_DOUBLE_1;
 	cmd2 = (shift >> 1) & 0x7;
 	prev_cmd = K_LED_CMD;
-	outb(KBDATA, K_LED_CMD);
-	spl(s);
+	outb (KBDATA, K_LED_CMD);
+	spl (s);
 }
 
 /*
@@ -1143,8 +1171,8 @@ updleds2()
  */
 kbunscroll()
 {
-	shift &= ~(1 << scroll);
-	updleds();
+	shift &= ~ (1 << scroll);
+	updleds ();
 }
 
 /*
@@ -1448,8 +1476,8 @@ register VTDATA	*vp_new, *vp_old;
 	VTDATA	*vpi;
 
 	/* store old screen contents in memory segment */
-	FFCOPY( vp_old->vmm_voff, vp_old->vmm_vseg,
-		vp_old->vmm_moff, vp_old->vmm_mseg, TEXTBLOCK );
+	ffcopy (vp_old->vmm_voff, vp_old->vmm_vseg,
+		vp_old->vmm_moff, vp_old->vmm_mseg, TEXTBLOCK);
 
 	/*
 	 * if changing to another screen on same video board
@@ -1500,21 +1528,21 @@ VTDATA *vp;
 	 * copy from screen contents from heap segment to video memory 
 	 * only if necessary
 	 */
-	if ( vp->vmm_visible == VNKB_FALSE )
-		FFCOPY( vp->vmm_moff, vp->vmm_mseg,
-			vp->vmm_voff, vp->vmm_vseg, TEXTBLOCK );
+	if (vp->vmm_visible == VNKB_FALSE)
+		ffcopy (vp->vmm_moff, vp->vmm_mseg,
+			vp->vmm_voff, vp->vmm_vseg, TEXTBLOCK);
 
-	for (i = 0; i < vtcount; ++i) {
-		vpi = vtdata[i];
+	for (i = 0 ; i < vtcount ; ++ i) {
+		vpi = vtdata [i];
 		if (vpi->vmm_port == vp->vmm_port) {
 			vpi->vmm_invis = -1;
 			vpi->vmm_visible = VNKB_FALSE;
 			vpi->vmm_seg = vpi->vmm_mseg;
 			vpi->vmm_off = vpi->vmm_moff;
-			if( vpi->vmm_seg == 0 )
-				printf( "[2]vpi->vmm_seg = 0\n" );
-			PRINTV( "vt.back seg %x off %x\n",
-				vpi->vmm_seg, vpi->vmm_off );
+			if (vpi->vmm_seg == 0)
+				printf ("[2]vpi->vmm_seg = 0\n");
+			PRINTV ("vt.back seg %x off %x\n",
+				vpi->vmm_seg, vpi->vmm_off);
 		}		
 	}
 	/*
@@ -1524,8 +1552,8 @@ VTDATA *vp;
 	vp->vmm_visible = VNKB_TRUE;
 	vp->vmm_seg = vp->vmm_vseg;
 	vp->vmm_off = vp->vmm_voff;
-	if( vp->vmm_seg == 0 )
-		printf( "vp->vmm_seg = 0\n" );
+	if (vp->vmm_seg == 0)
+		printf ("vp->vmm_seg = 0\n");
 }
 
 /*
@@ -1536,69 +1564,6 @@ int index;
 {
 	updscreen(index);
 	updleds2();
-}
-
-#undef	si
-asmdump( cs, ds, es, di, si, bp, sp, bx, dx, cx, i, ip, ax )
-int	cs, ds, es, di, si, bp, sp, bx, dx, cx, i, ip, ax;
-{
-	if( vt_verbose < 2 )
-		return;
-
-	printf( "asmdump %d: es %x, ds %x, cs:ip %x:%x\n", i, es, ds, cs, ip );
-	printf( "   ax %x, bx %x, cx %x, dx %x\n", ax, bx, cx, dx );
-	printf( "   di %x, si %x, bp %x, sp %d\n", di, si, bp, sp );
-#if	USING_RS232
-	if( vt_verbose > 2 )
-		getchar();
-#endif
-}
-
-vtdataprint( vp )
-register VTDATA *vp;
-{
-	if( vt_verbose < 2 )
-		return;
-
-	printf( "VTDATA:    @%x, esc %x, func %x()\n",
-		vp, vp->vmm_esc, vp->vmm_func );
-	printf( "       hw: port %x, seg %x, off %x\n",
-		vp->vmm_port, vp->vmm_vseg, vp->vmm_voff );
-	printf( "   memory: size %x, seg %x, off %x\n",
-		0/*vp->vmm_size*/, vp->vmm_mseg, vp->vmm_moff );
-	printf( "   cursor: seg %x, off %x, visible %d\n",
-		vp->vmm_seg, vp->vmm_off, !vp->vmm_invis );
-	printf( "           row %d, col %d = offset %d.\n",
-		vp->vmm_rowl, vp->vmm_col, vp->vmm_pos );
-	printf( "     saved row %d, col %d\n",
-		vp->vmm_srow, vp->vmm_scol );
-	printf( "   screen: visible %d, attr %x, wrap %d, slow %d\n",
-		vp->vmm_visible, vp->vmm_attr, vp->vmm_wrap, vp->vmm_slow );
-	printf( "           row base %d, end %d, limit %d\n",
-		vp->vmm_brow, vp->vmm_erow, vp->vmm_lrow ); 
-	printf( "           row initial base %d, initial end %d\n",
-		vp->vmm_ibrow, vp->vmm_ierow ); 
-#if	USING_RS232
-	if( vt_verbose > 2 )
-		getchar();
-#endif
-}
-
-FFCOPY( src_off, src_seg, dst_off, dst_seg, count )
-{
-	register i;
-
-#if	0
-	i = ffcopy( src_off, src_seg, dst_off, dst_seg, count );
-#else
-	for( i = 0; i < count; i += 2 ) {
-		register word = ffword( src_off, src_seg );
-		sfword( dst_off, dst_seg, word );
-		src_off += 2;
-		dst_off += 2;
-	}
-#endif
-	return i;	
 }
 
 /*
