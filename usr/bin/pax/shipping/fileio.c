@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/fileio.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/fileio.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * fileio.c - file I/O functions for all archive interfaces
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	fileio.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/fileio.c,v $
+ * Revision 1.1	91/02/05  11:56:02 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:04:31  mark
  * 1.2 release fixes
  * 
@@ -184,7 +187,7 @@ int             ispass;
     char            sname[PATH_MAX + 1];
 #endif	/* S_IFLNK */
 
-    if (exists = (LSTAT(name, &osb) == 0)) {
+   if (exists = (LSTAT(name, &osb) == 0)) {
 	if (ispass && osb.sb_ino == asb->sb_ino && osb.sb_dev == asb->sb_dev) {
 	    warn(name, "Same file");
 	    return (-1);
@@ -231,7 +234,7 @@ int             ispass;
     }
     perm = asb->sb_mode & S_IPERM;
     switch (asb->sb_mode & S_IFMT) {
-    case S_IFBLK:
+    case S_IFBLK: /* block/character special file */
     case S_IFCHR:
 	fd = 0;
 	if (exists) {
@@ -265,7 +268,6 @@ int             ispass;
 		return (-1);
 	    }
 	}
-	return(0);
 	break;
     case S_IFDIR:
 	if (exists) {
@@ -281,7 +283,7 @@ int             ispass;
 	} else {
 	    warn(name, "Directories are not being created (-d option)");
 	}
-	return (0);
+	break;
 #ifdef	S_IFIFO
     case S_IFIFO:
 	fd = 0;
@@ -306,7 +308,6 @@ int             ispass;
 		return (-1);
 	    }
 	}
-	return(0);
 	break;
 #endif				/* S_IFIFO */
 #ifdef	S_IFLNK
@@ -381,8 +382,10 @@ int             ispass;
 	return (-1);
     }
     if (f_owner) {
-	if (!exists || asb->sb_uid != osb.sb_uid || asb->sb_gid != osb.sb_gid) {
+	if (!exists || (asb->sb_uid != osb.sb_uid) || 
+					(asb->sb_gid != osb.sb_gid)) {
 	    chown(name, (int) asb->sb_uid, (int) asb->sb_gid);
+	    chmod(name, perm);
 	}
     }
     return (fd);
