@@ -1,5 +1,8 @@
-#ifndef	__SYS_TYPES_H__
-#define	__SYS_TYPES_H__
+/*
+ * /usr/include/sys/types.h
+ *
+ * Revised: Wed Apr  7 15:15:05 1993 CDT
+ */
 
 /*
  * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990, and as
@@ -36,6 +39,8 @@
  * set of data declarations even when attempting to provide a service which
  * uses conflicting definitions.
  */
+#ifndef	__SYS_TYPES_H__
+#define	__SYS_TYPES_H__
 
 typedef	unsigned short	o_dev_t;
 typedef	unsigned long	n_dev_t;
@@ -49,7 +54,8 @@ typedef	unsigned long	n_ino_t;
 
 /*
  * "ssize_t" and "size_t" are defined by several other headers. We appeal to
- * the common definition.
+ * the common definition.  Here we also pull in internal definitions that
+ * are kept in special system headers.
  */
 
 #include <sys/_ssize.h>
@@ -124,12 +130,18 @@ typedef	o_ino_t		ino_t;
 #if	(! _POSIX_SOURCE) && (defined (__KERNEL__) || _DDI_DKI)
 
 /*
- * Old Coherent kernel code defined several random here that conflict with
+ * Old Coherent kernel code defined several types here that conflict with
  * DDI/DKI usage. Most have been changed to more portable equivalents, but
- * since this has a corresponding DDI/DKI definition it has been left.
+ * since this does not have a corresponding DDI/DKI definition it has been
+ * left.
+ *
+ * Developers are advised to read the cautionary notice in <sys/__paddr.h>.
+ * The nature of physical memory management is likely to undergo substantial
+ * revision soon.
  */
 
-typedef	long		paddr_t;
+#include <sys/__paddr.h>
+typedef __paddr_t	paddr_t;
 
 #endif
 

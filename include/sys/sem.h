@@ -3,32 +3,33 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * /usr/include/sys/sem.h
+ *
+ * IPC Semaphore Facility
+ *
+ * Revised: Thu Apr  8 15:28:34 1993 CDT
+ */
 #ifndef __SYS_SEM_H__
 #define __SYS_SEM_H__
 
-/*
-**	IPC Semaphore Facility
-*/
 #include <sys/ipc.h>
 #include <sys/_time.h>
 
 /*
-**	Permission Definitions.
-*/
-
+ *	Permission Definitions.
+ */
 #define	SEM_A	0200		/* alter permission */
 #define	SEM_R	0400		/* read permission */
 
 /*
-**	Semaphore Operation Flags.
-*/
-
-/* #define SEM_UNDO 010000 */	/* set up adjust on exit entry */
+ *	Semaphore Operation Flags.
+ */
+#define SEM_UNDO 010000	/* set up adjust on exit entry */
 
 /*
-**	Semctl Command Definitions.
-*/
-
+ *	Semctl Command Definitions.
+ */
 #define	GETNCNT	3		/* get semncnt */
 #define	GETPID	4		/* get sempid  */
 #define	GETVAL	5		/* get semval  */
@@ -38,13 +39,12 @@
 #define	SETALL	9		/* set all semval's */
 
 /*
-**	Structure Definitions.
-*/
+ *	Structure Definitions.
+ */
 
 /*
-**	There is one semaphore structure for each semaphore in the system.
-*/
-
+ *	There is one semaphore structure for each semaphore in the system.
+ */
 struct sem {
 
 	unsigned short	semval;		/* semaphore text map address */
@@ -54,10 +54,9 @@ struct sem {
 };
 
 /*
-**	There is one semaphore id data structure for each set of semaphores
-**		in the system.
-*/
-
+ *	There is one semaphore id data structure for each set of semaphores
+ *		in the system.
+ */
 struct semid_ds {
 
 	struct ipc_perm	sem_perm;	/* operation permission struct */
@@ -68,9 +67,8 @@ struct semid_ds {
 };
 
 /*
-**	There is one undo structure per process in the system.
-*/
-
+ *	There is one undo structure per process in the system.
+ */
 struct sem_undo {
 
 	struct sem_undo *un_np;		/* ptr to next active undo structure */
@@ -83,9 +81,8 @@ struct sem_undo {
 };
 
 /*
-**	User semaphore template for semop system calls.
-*/
-
+ *	User semaphore template for semop system calls.
+ */
 struct sembuf {
 
 	unsigned short	sem_num;	/* semaphore # */
@@ -94,12 +91,11 @@ struct sembuf {
 };
 
 /*
-** Ioctl commands issued to Semaphore device driver (Coherent specific).
-*/
-
+ * Ioctl commands issued to Semaphore device driver (Coherent 286 specific).
+ */
 #define	SEMIOC	('S'<<8)
 #define	SEMCTL	(SEMIOC|0)
 #define	SEMGET	(SEMIOC|1)
 #define	SEMOP	(SEMIOC|2)
 
-#endif
+#endif /* __SYS_SEM_H__ */

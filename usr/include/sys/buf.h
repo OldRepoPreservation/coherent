@@ -4,11 +4,16 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * /usr/include/sys/buf.h
+ *
  * Buffer header.
+ *
+ * Revised: Wed Apr  7 15:05:36 1993 CDT
  */
 #ifndef  __SYS_BUF_H__
 #define  __SYS_BUF_H__
 
+#include <sys/__paddr.h>
 #include <sys/types.h>
 #include <sys/ksynch.h>
 
@@ -27,11 +32,11 @@ typedef struct buf {
 	vaddr_t  b_count;		/* Size of I/O */
 	vaddr_t  b_resid;		/* Driver returns count here */
 	faddr_t	 b_faddr;		/* Far Virtual address */
-	paddr_t	 b_paddr;		/* Physical address */
+	__paddr_t	 b_paddr;	/* Physical address */
 #else
 	off_t	 b_count;		/* Size of I/O */
 	off_t	 b_resid;		/* Driver returns count here */
-	paddr_t	 b_paddr;		/* 	physical  address (bytes) */
+	__paddr_t	 b_paddr;	/* 	physical  address (bytes) */
 	caddr_t	 b_vaddr;		/* kernel virtual address (bytes) */
 	unsigned long b_hashval;	/* used to index into hasharray[] */
 	struct	 buf *b_LRUf;		/* Next (older) in LRU chain */
