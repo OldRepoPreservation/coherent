@@ -10,20 +10,11 @@
 #define ENDOF(x) (((char *)(x))+sizeof(x)) /* end of some thing */
 #define SETIN(a, b) !((a) & ~(b))	/* a in b */
 
-#ifdef M68000
-#define ptrdiff(a, b) ((long)a - (long)b)
-#else
-#ifdef LARGE
-#define ptrdiff(a, b) (((((long)a>>16)-((long)b>>16))<<4)+((int)a-(int)b))
-#else
-#define ptrdiff(a, b) ((int)a - (int)b)
-#endif
-#endif
-
 #include <stdio.h>
+#include <sys/types.h>
 #include <time.h>
 
-extern fatal();		/* like fprintf(stderr, ...); exit(1); */
+extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);
 			 * gets lines off a file treats # to end of line
 			 * as comment, discards \ [ \t\n] through end of
@@ -71,6 +62,7 @@ extern char * skip();	/* skip(s1, matcher, fin)
 			 * matcher. Looks like match. */
 extern void tocont();	/* Enter NL to continue */
 extern approx();	/* approx(double a, double b) 1 if == within epsilon */
+extern if_COHERENT();	/* returns 1 if Coherent else 0 */
 extern double epsilon;
 extern int is_fs();	/* is_fs(char *special) test if special is filesystem */
 extern void vinit();	/* vinit(char * workFileName, unsigned storAmt);
@@ -91,7 +83,7 @@ extern strchrtr();
 			 * Find c in from and return the corresponding char
 			 * in to or def if there is none.
 			 */
-
+char *kernelName();	/* return name of current kernel file */
 /*
  * Julian day structure consists of the days and seconds since
  * Greenwich mean noon of January 1st 4713 BC.

@@ -122,8 +122,8 @@ int pid;
  *  lockrm(resource)  char *resource;
  *
  *  Simply remove the lock on the given resource.
- *  Returns (-1) if not locked or error in unlocking.
- *          ( 0) if all ok, resource lock removed.
+ *  Returns (0) if not locked or error in unlocking.
+ *          (1) if all ok, resource lock removed.
  *
  *
  * Open the lock file for read operations to try to read the pid
@@ -145,8 +145,8 @@ char *resource;
  *  Remove the lock on the given resource, using pid as the process id to
  *  look for.
  *
- *  Returns (-1) if not locked or error in unlocking.
- *          ( 0) if all ok, resource lock removed.
+ *  Returns (0) if not locked or error in unlocking.
+ *          (1) if all ok, resource lock removed.
  *
  *  Open the lock file for read operations to try to read the pid
  *  stored in the file. If the open fails, abort. If the read fails, 
@@ -367,6 +367,7 @@ char *buff;
 
 
 #ifdef PGM
+static char _version[]="lock version 1.0";
 /*
  * executable file to lock and unlock uucp resources.
  * must be owned by uucp and setuid.
@@ -383,9 +384,16 @@ char *argv[];
 	for (rc = 0; EOF != (c = getopt(argc, argv, "l:u:t:"));) {
 		if (NULL == optarg || !*optarg)
 			usage(umsg);
+		/*
+		 * Strip off a possible leading "/dev/".
+		 */
+		if (0 == strncmp(optarg, "/dev/", strlen("/dev/") )) {
+			optarg += strlen("/dev/");
+		}
+
 		switch (c) {
 		case 'l':
-			if (-1 == lockntty(optarg, 0)) {
+			if (0 == lockntty(optarg, 0)) {
 				fprintf(stderr, "%s locked\n", optarg);
 				rc |= 1;
 			}
@@ -394,7 +402,7 @@ char *argv[];
 			unlockntty(optarg, 0);
 			break;
 		case 't':
-			rc |= lockexist(optarg);
+			rc |= lockttyexist(optarg);
 			break;
 		default:
 			usage(umsg);
