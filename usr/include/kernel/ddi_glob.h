@@ -1,33 +1,27 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__KERNEL_DDI_GLOB_H__
 #define	__KERNEL_DDI_GLOB_H__
 
 /*
  * This internal header file defines structures and an access procedure for
- * DDI/DKI global data that must be shared between all CPUs. Note that this
+ * DDI/DKI global data that must be shared between all CPUs.  Note that this
  * may not be all the truly global context; examine the STREAMS header files
  * for additional global data specific to STREAMS.
- */
-
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__EXTERN_C_BEGIN__
- *		__EXTERN_C_END__
- *		__PROTO ()
- *	<kernel/_lock.h>
- *		lock_t
- *	<kernel/_toid.h>
- *		toid_t
- *	<kernel/x86lock.h>
- *		atomic_uchar_t
  */
 
 #include <common/ccompat.h>
 #include <kernel/x86lock.h>
 #include <kernel/_lock.h>
+#include <kernel/_sv.h>
 #include <kernel/_toid.h>
 #include <kernel/ddi_data.h>
-
+#include <kernel/st_alloc.h>
 
 /*
  * Timeout events are stored on a global queue, both while they are pending
@@ -51,6 +45,8 @@ typedef struct tlist {
  * data).
  */
 
+typedef	struct ddi_global_data	dgdata_t;
+
 struct ddi_global_data {
 	/*
 	 * The defer-table data is at the front of the structure because it is
@@ -60,17 +56,26 @@ struct ddi_global_data {
 	defer_t		dg_defint;		/* interrupt-level defers */
 	defer_t		dg_defproc;		/* process-level defers */
 
+	atomic_uchar_t	dg_run_bufcalls;	/* bufcall check deferred */
+	atomic_uchar_t	dg_run_strsched;	/* STREAMS service deferred */
+	atomic_uchar_t	dg_run_time;		/* timeout check deferred */
+	atomic_uchar_t	dg_init_flag;		/* initialization spin-lock */
+
+	unsigned long	dg_reserved_2 [4];
+
 	__lock_t      *	dg_polllock;		/* global lock on polling */
 	__lock_t      *	dg_proclock;		/* process reference count */
 
 	timelist_t	dg_timeouts;		/* timeout data */
 
-	atomic_uchar_t	dg_run_bufcalls;	/* bufcall check deferred */
-	atomic_uchar_t	dg_run_strsched;	/* STREAMS service deferred */
-	atomic_uchar_t	dg_run_time;		/* timeout check deferred */
+	__lock_t      *	dg_kmem_lock;		/* basic lock for heap */
+	_ST_HEAP_CONTROL_P dg_kmem_heap;
+	__sv_t	      *	dg_kmem_sv;		/*
+						 * synchronization variable for
+						 * waiting for free memory.
+						 */
+	__size_t	dg_kmem_required;	/* Level of memory required */
 };
-
-typedef	struct ddi_global_data	dgdata_t;
 
 
 __EXTERN_C_BEGIN__
