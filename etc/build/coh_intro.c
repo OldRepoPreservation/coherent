@@ -1,6 +1,6 @@
 /*
  * coh_intro.c
- * 11/9/90
+ * 6/5/91
  * Usage: coh_intro
  * Uses routines in build0.c: cc -o coh_intro coh_intro.c build0.c
  */
@@ -8,7 +8,11 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION	"1.3"
+#define	VERSION		"1.5"
+#define	DEFPAGER	"exec more -d"
+
+/* External. */
+extern	char	*getenv();
 
 /* Forward. */
 int	lcdir();
@@ -16,6 +20,7 @@ void	mycls();
 void	tour();
 
 /* Global. */
+char	*pager;
 int	ttyflag;
 
 main(argc, argv) int argc; char *argv[];
@@ -23,6 +28,8 @@ main(argc, argv) int argc; char *argv[];
 	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'V')
 		fprintf(stderr, "%s: V%s\n", argv[0], VERSION);
 	ttyflag = isatty(fileno(stdout));
+	if ((pager = getenv("PAGER")) == NULL || *pager == '\0')
+		pager = DEFPAGER;
 	if (!ttyflag || yes_no("Would you like an introductory tour of COHERENT"))
 		tour();
 	exit(0);
@@ -31,14 +38,18 @@ main(argc, argv) int argc; char *argv[];
 /*
  * List the contents of a directory.
  * Flush stdout in case output is redirected.
+ * If pflag is true (big directory), pipe output through PAGER.
  */
 int
-lcdir(dir, msg) char *dir, *msg;
+lcdir(dir, msg, pflag) char *dir, *msg; int pflag;
 {
 	mycls(1);
 	printf(msg);
 	fflush(stdout);
-	sprintf(cmd, "lc %s", dir);
+	if (ttyflag && pflag)
+		sprintf(cmd, "lc %s | %s", dir, pager);
+	else
+		sprintf(cmd, "lc %s", dir);
 	return sys(cmd, S_IGNORE);
 }
 
@@ -85,8 +96,8 @@ tour()
 	/* Root. */
 	lcdir("/", 
 "Now we will take a quick tour of your COHERENT filesystem.\n"
-"The root directory / contains:\n\n"
-		);
+"The root directory / contains:\n\n",
+		0);
 	printf(
 "\n"
 "COHERENT executes file /.profile when the superuser root logs in.\n"
@@ -127,16 +138,28 @@ tour()
 "\twc\tcount words, lines, characters in a file\n"
 "The next screen lists all the commands in /bin.\n"
 		);
-	lcdir("/bin", "");
+	lcdir("/bin", "", 1);
+	putchar('\n');
 
 	/* /conf. */
-	lcdir("/conf", "Directory /conf contains:\n\n");
-	printf("\n");
+	lcdir("/conf", "Directory /conf contains:\n\n", 0);
+	putchar('\n');
 
-	/* /dev. */
-	lcdir("/dev", "Directory /dev contains COHERENT devices:\n\n");
+	/* /conf/kbd. */
+	lcdir ("/conf/kbd",
+		"Subdirectory /conf/kbd contains keyboard support:\n\n",
+		0);
 	printf(
 "\n"
+"You can change the operation of various keys on your keyboard by changing\n"
+"the appropriate file in /conf/kbd and running /etc/kbdinstall.\n"
+		);
+
+	/* /dev. */
+	lcdir("/dev", "Directory /dev contains COHERENT devices:\n\n", 0);
+	putchar('\n');
+	mycls(1);
+	printf(
 "Some important devices are:\n"
 "\t/dev/at*\tCooked (block-by-block) hard disk partitions\n"
 "\t/dev/com*\tSerial port devices (COM1, COM2, COM3, COM4)\n"
@@ -150,13 +173,16 @@ tour()
 		);
 
 	/* /drv. */
-	lcdir("/drv", "Directory /drv contains loadable device drivers:\n\n");
-	printf("\n");
+	lcdir("/drv", "Directory /drv contains loadable device drivers:\n\n", 0);
+	putchar('\n');
 
 	/* /etc. */
-	lcdir("/etc", "Directory /etc contains files and program used in system administration:\n\n");
+	lcdir("/etc",
+"Directory /etc contains files and programs used in system administration:\n\n",
+		0);
+	putchar('\n');
+	mycls(1);
 	printf(
-"\n"
 "Files of particular interest in /etc include:\n"
 "\t/etc/brc\tExecuted when the system comes up single-user\n"
 "\t/etc/group\tDefines user group membership information\n"
@@ -168,11 +194,15 @@ tour()
 		);
 
 	/* /lib. */
-	lcdir("/lib", "Directory /lib contains libraries and C compiler phases:\n\n");
-	printf("\n");
+	lcdir("/lib",
+		"Directory /lib contains libraries and C compiler phases:\n\n",
+		0);
+	putchar('\n');
 
 	/* /usr. */
-	lcdir("/usr", "Directory /usr contains a number of subdirectories:\n\n");
+	lcdir("/usr",
+		"Directory /usr contains a number of subdirectories:\n\n",
+		0);
 	printf(
 "\n"
 "\t/usr/adm\tSystem administration files\n"
@@ -186,6 +216,7 @@ tour()
 "\t/usr/pub\tPublic information\n"
 "\t/usr/spool\tWork area for daemon processes\n"
 "\t/usr/src\tSome sources and sample programs\n"
+"\t/usr/tmp\tTemporary file directory\n"
 "\n"
 		);
 
