@@ -22,6 +22,7 @@ short		estat;			/* Exit status			*/
 short		(*fun)();		/* Function to execute		*/
 short		kflag;			/* Use mtime, not current time	*/
 short		nflag;			/* Sort by time, newest first	*/
+short		fflag;			/* Force removal of rdonly files*/
 long		partseek;		/* Extended MS-DOS part. seek	*/
 short		pflag;			/* Extract/replace is piped	*/
 DIR *		root;			/* Root directory		*/
@@ -65,6 +66,7 @@ main(argc, argv) short argc; char *argv[];
 					case 'b':
 					case 'r':	bflag++;	break;
 					case 'k':	kflag++;	break;
+					case 'f':	fflag++;	break;
 					case 's':	sflag++;	break;
 					case 'n':	nflag++;	break;
 					case 'v':	vflag++;	break;
