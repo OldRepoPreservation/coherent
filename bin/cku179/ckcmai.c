@@ -640,11 +640,15 @@ main(argc,argv) int argc; char **argv;
     local = dfloc;                      /* And whether it's local or remote. */
     parity = dfprty;                    /* Set initial parity, */
     flow = dfflow;                      /* and flow control. */
+
+#ifndef COHERENT
     if (local) if (ttopen(ttname,&local,0,0) < 0) { /* If default tty line */
 	printf("%s: Can't open device\n",ttname);   /* is external, open it */
 	local = 0;			            /* now... */
 	strcpy(ttname,CTTNAM);
     }
+#endif
+
     speed = ttgspd();			/* Get transmission speed. */
 
 #ifdef SUNX25
