@@ -23,6 +23,6 @@ O = \
 libl.a: $O
 	su root rm -f $(DESTDIR)libl.a
 	ar q $(DESTDIR)libl.a $O
-	su root chmog 644 root root $(DESTDIR)$@
+	su root chmog 444 bin bin $(DESTDIR)$@
 	su root ranlib $(DESTDIR)$@
-	
+	mv *.o objects/	
