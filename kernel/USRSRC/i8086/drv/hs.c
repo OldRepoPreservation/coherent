@@ -17,7 +17,7 @@
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/timeout.h>	/* TIM */
-#include <sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
+#include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
 #include <poll_clk.h>
 
 /*

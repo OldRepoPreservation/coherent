@@ -10,7 +10,7 @@
  * Shipped with COH 3.1.0
  * 
  */
-#include <sys/coherent.h>
+#include "coherent.h"
 #include <sys/buf.h>
 #include <sys/sched.h>
 

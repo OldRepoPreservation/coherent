@@ -9,11 +9,11 @@
 
 #include <coherent.h>
 #include <sys/timeout.h>
-#include <sched.h>
-#include <types.h>
-#include <uproc.h>
+#include <sys/sched.h>
+#include <sys/types.h>
+#include <sys/uproc.h>
 #include <errno.h>
-#include <con.h>
+#include <sys/con.h>
 
 int grread();
 int grwrite();

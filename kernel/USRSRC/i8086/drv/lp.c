@@ -5,12 +5,12 @@
  */
 #include <coherent.h>
 #include <i8086.h>
-#include <con.h>
+#include <sys/con.h>
 #include <errno.h>
-#include <io.h>
-#include <proc.h>
-#include <uproc.h>
-#include <stat.h>
+#include <sys/io.h>
+#include <sys/proc.h>
+#include <sys/uproc.h>
+#include <sys/stat.h>
 #include <sys/timeout.h>
 
 #define	LPMAJ	3				/* major device # */
