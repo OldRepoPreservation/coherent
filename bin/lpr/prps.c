@@ -1,9 +1,10 @@
 /*
  * prps.c
- * 1/28/92
+ * 7/10/92
  * Produce PostScript pages containing input files.
  * By default, each page has a header line and text enclosed in a box.
  * See usage() for usage and options.
+ * Requires fp output: cc prps.c -f
  */
 
 #include <stdio.h>
@@ -13,7 +14,7 @@
 #endif
 
 /* Manifest constants. */
-#define	VERSION		"2.2"
+#define	VERSION		"2.3"
 #define	DEFFONT		"Courier"	/* default font			*/
 #define	DEFFONTB	"-Bold"		/* default boldface font suffix	*/
 #define	DEFFONTI	"-Oblique"	/* default italic font suffix	*/
@@ -36,6 +37,9 @@ void	init();
 int	printline();
 char	*PSstring();
 void	usage();
+
+/* External. */
+double	atof();
 char	*index();
 
 /* Global. */
@@ -55,7 +59,7 @@ char	*hdrname = NULL;		/* Name for header line.	*/
 int	indent;				/* Indent.			*/
 int	lflag;				/* Landscape mode.		*/
 int	nlines;				/* Lines per page.		*/
-int	ptsize;				/* Point size.			*/
+double	ptsize;				/* Point size.			*/
 int	rhpage;				/* Right-hand page flag.	*/
 int	skip;				/* Output pages to skip.	*/
 int	tab = DEFTAB;			/* Tab setting.			*/
@@ -156,10 +160,13 @@ main(argc, argv) int argc; char *argv[];
 				fprintf(stderr, "%s: V%s\n", argv0, VERSION);
 				continue;
 			default:
-				if (c >= '1' && c <= '9')
-					ptsize = atoi(--s);
-				else
-					usage();
+				if (c >= '1' && c <= '9') {
+					ptsize = atof(--s);
+					break;
+				}
+				/* else fall through... */
+			case '?':
+				usage();
 				break;
 			}
 			while (*++s)
@@ -375,7 +382,7 @@ init()
 		nlines = p->p_textdy * 72 / ptsize;
 
 	/* Center text in the box. */
-	p->p_textdy = ptsize * nlines / 72.;	/* adjust length for roundoff */
+	p->p_textdy = ptsize * nlines / 72;	/* adjust length for roundoff */
 	texty = p->p_boxy + p->p_boxdy - (p->p_boxdy - p->p_textdy) / 2;
 
 	/* PostScript globals. */
@@ -385,7 +392,7 @@ init()
 		"/FS { findfont ptsize scalefont } bind def\n"
 		"/S { show } bind def\n"
 		);
-	printf("/ptsize %d def\n", ptsize);
+	printf("/ptsize %.2f def\n", ptsize);
 	printf("/fontH /%s findfont %d scalefont def\n",
 		DEFFONT, (lflag==2) ? DEFPTSIZEL2 : DEFPTSIZE);
 	printf("/fontR /%s%s FS def\n", fontname, fontRsuffix);
@@ -447,7 +454,7 @@ init()
 	if (lflag == 2)
 		printf("/lhpage {90 rotate 0 %d translate startpage} bind def\n",
 			inch(-PAGEDX));
-	printf("/nl {0 %d translate 0 0 moveto} bind def\n", -ptsize);
+	printf("/nl {0 %.2f translate 0 0 moveto} bind def\n", -ptsize);
 	printf("/BS { stringwidth pop neg 0 rmoveto } bind def\n");
 	printf("/N {show nl} bind def\n");
 	if (lflag == 2)
@@ -466,7 +473,7 @@ init()
 	printf("\t%d%s %d translate\n",
 		inch(p->p_textx),
 		(indent) ? " indent add" : "",
-		inch(texty) - ptsize);
+		inch(texty) - (int)ptsize);
 	printf("\t0 0 moveto\n\tfR\n} bind def\n");
 	printf("\n%% Text.\n");
 }
