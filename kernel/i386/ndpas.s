@@ -72,7 +72,7 @@ ndpSense:
 / Find out which.  Remember, exceptions are now masked.
 	fld1
 	fldz
-	fdiv				/ leave 1.0/0.0 on FP stack
+	fdivr				/ leave 1.0/0.0 on FP stack
 	fld	%st			/ duplicate infinity
 	fchs				/ negate
 	fcompp				/ compare and pop FP
