@@ -101,9 +101,10 @@ struct _win_st {
 
 #define WINDOW  struct _win_st
 
-WINDOW	*stdscr, *curscr;
+extern WINDOW	*stdscr, *curscr;
 
-int	LINES, COLS, COLORS, COLOR_PAIRS;
+extern int	LINES, COLS, COLORS, COLOR_PAIRS;
+extern short	pair, f, b, color, r, g, b;
 
 WINDOW  *initscr(), *newwin(), *subwin();
 char    *longname();
