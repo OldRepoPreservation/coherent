@@ -191,6 +191,7 @@ typedef struct BIND {
 	int	tabsiz;			/* tabsize 			*/
 	int	tabsize;		/* Tab size (0: use real tabs)	*/
 	int	autoindent;		/* Autoindent			*/
+	int	dispmode;		/* display char < ' ' directly  */
 } BIND;
 extern BIND bind;
 

@@ -25,7 +25,6 @@ int	vtrow	= 0;			/* Row location of SW cursor	*/
 int	vtcol	= 0;			/* Column location of SW cursor	*/
 int	ttrow	= HUGE;			/* Row location of HW cursor	*/
 int	ttcol	= HUGE;			/* Column location of HW cursor	*/
-
 VIDEO	**vscreen;			/* Virtual screen.		*/
 VIDEO	**pscreen;			/* Physical screen.		*/
 
@@ -87,34 +86,68 @@ vtmove(row, col)
 }
 
 /*
+ * If bind.dispmode == 1 chars < ' ' are displayed directly
+ * else they are displayed whit preceeding ^ and ^= '@'
+ */
+displaymod()
+{
+	bind.dispmode ^= 1;
+}
+
+/*
+ * Return 2 if char is tab 1 if it needs ^ for ansi emulation.
+ */
+dblchr(c)
+register unsigned c;
+{
+	if (bind.dispmode) {
+		switch(c) {
+		case '\n':
+		case '\f':
+		case '\r':
+		case 0x1b:
+			return (1);
+		case '\t':
+			return (2);
+		}
+		return (0);
+	}
+	return (((c < ' ') || (c == 0x7f)) ? ((c == '\t') ? 2 : 1) : 0);
+}
+
+/*
  * Write a character to the virtual screen.  The virtual row and
  * column are updated.  If the line is too long put a "$" in the last column.
  * This routine only puts printing characters into the virtual terminal buffers.
  * Only column overflow is checked.
  */
 vtputc(c)
-register int	c;
+unsigned c;
 {
 	register VIDEO	*vp;
 
 	vp = vscreen[vtrow];
-	if (c < 0x20 || c == 0x7F) {
-		if (c == '\t') {
-			do {
-				if (vtcol >= term.t_ncol) {
-					vp->v_text[term.t_ncol - 1] = '$';
-					return;
-				} else
-					vp->v_text[vtcol++] = ' ';		
-			} while (vtcol % bind.tabsiz);
-		} else {
-			vtputc('^');
-			vtputc(c ^ 0x40);
-		}
-	} else if (vtcol >= term.t_ncol)
-		vp->v_text[term.t_ncol - 1] = '$';
-	else
-		vp->v_text[vtcol++] = c;		
+	switch (dblchr(c)) {
+	case 0:		/* normal character */
+		if (vtcol >= term.t_ncol)
+			vp->v_text[term.t_ncol - 1] = '$';
+		else
+			vp->v_text[vtcol++] = c;
+		break;
+	case 2:		/* tab */
+		do {
+			if (vtcol >= term.t_ncol) {
+				vp->v_text[term.t_ncol - 1] = '$';
+				break;
+			} else
+				vp->v_text[vtcol++] = ' ';		
+		} while (vtcol % bind.tabsiz);
+		break;
+	case 1:		/* needs ^ */
+		vtputc('^');
+		vtputc(c ^ 0x40);
+		break;
+	}
 }
 
 /*
@@ -567,7 +600,7 @@ uchar	*buf;
 			tflush();
 			return (ABORT);
 
-		case 0x7F:			/* Rubout, erase	*/
+		case 0x7f:			/* Rubout, erase	*/
 		case 0x08:			/* Backspace, erase	*/
 			if (cpos != 0) {
 				tputc('\b');
@@ -685,13 +718,18 @@ LINE *what;
 truecol(clp, col)
 LINE *clp;
 {
-	int i, tcol, c;
+	register int i, tcol;
+	unsigned c;
 
 	for (i = tcol = 0; i < col; i++) {
-		if ('\t' == (c = lgetc(clp, i)))
+		c = lgetc(clp, i);
+		switch (dblchr(c)) {
+		case 2:
 			taber(tcol);
-		else if ((c < ' ') || (c == 0x7f))
+			break;
+		case 1:
 			tcol++;
+		}
 		tcol++;
 	}
 	if (tcol >= term.t_ncol)	/* too far out */
