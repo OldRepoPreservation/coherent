@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/fs2.c,v 1.2 92/01/06 11:59:27 hal Exp $ */
+/* $Header: /y/coh.386/RCS/fs2.c,v 1.2 92/01/06 11:59:27 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -215,6 +215,7 @@ unsigned mode;
 	for (;;) {
 		lock(mp->m_ilock);
 		if (sbp->s_ninode == 0) {
+			isync(dev);
 			ino = 1;
 			inop = sbp->s_inode;
 			inope = &sbp->s_inode[NICINOD];
@@ -252,12 +253,15 @@ unsigned mode;
 		ino = sbp->s_inode[--sbp->s_ninode];
 		--sbp->s_tinode;
 		sbp->s_fmod = 1;
-/*		unlock(mp->m_ilock);	*/
-		if (ip=iattach(dev, ino)) {
-			if (ip->i_mode) {
-				unlock(mp->m_ilock);
+		unlock(mp->m_ilock);
+		if ((ip=iattach(dev, ino)) != NULL) {
+			if (ip->i_mode != 0) {
 				devmsg(dev, "Inode %u busy", ino);
 				idetach(ip);
+				lock(mp->m_ilock);
+				++sbp->s_tinode;
+				sbp->s_fmod = 1;
+				unlock(mp->m_ilock);
 				continue;
 			}
 			ip->i_flag = 0;
@@ -266,8 +270,7 @@ unsigned mode;
 			ip->i_uid = u.u_uid;
 			ip->i_gid = u.u_gid;
 		}
-		unlock(mp->m_ilock);
-		return ip;
+		return (ip);
 	}
 }
 

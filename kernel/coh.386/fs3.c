@@ -188,8 +188,8 @@ register IO *iop;
 	lbn = blockn(iop->io_seek);
 	off = blocko(iop->io_seek);
 	res = ip->i_size - iop->io_seek;
-	if (blk!=0 || res>iop->io_ioc)
-		res = iop->io_ioc;
+	if ( (blk!=0) || ((res>0) && (res>iop->io_ioc)) )  /* unsigned prob */
+		res = iop->io_ioc;			   /* with io_ioc   */
 	if (res <= 0)
 		return;
 	if (res+off <= BSIZE) {
