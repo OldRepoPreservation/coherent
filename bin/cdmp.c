@@ -1,6 +1,6 @@
 /*
  * cdmp.c
- * 8/12/92
+ * 8/13/92
  * Requires libmisc functions: cc cdmp.c -lmisc
  * Read and print COFF files.
  * Usage: cdmp [ -adlrsx ] filename ...
@@ -18,7 +18,7 @@
 #include <coff.h>
 #include <errno.h>
 
-#define	VERSION	"V2.0"
+#define	VERSION	"V2.1"
 #define VHSZ	48		/* line size in vertical hex dump */
 typedef	char	SECNAME[9];	/* NUL-terminated 8 character section name */
 
@@ -33,7 +33,6 @@ extern	long	ftell();
 extern	char	*optarg;
 
 /* Forward. */
-void	fatal();
 char	*checkStr();
 void	optHeader();
 void	readHeaders();
@@ -68,7 +67,6 @@ char	xswitch;		/* Dump aux entries in hex		*/
  * Print fatal error message and die.
  */
 /* VARARGS */
-void
 fatal(s) char *s;
 {
 	register int save;
@@ -516,21 +514,19 @@ print_aux(n, sep) int n; register SYMENT *sep;
 void
 print_sym(se, n) register SYMENT *se; register long n;
 {
-	register int i, c, eflag, derived;
+	register int i, c, flag, derived;
 	
 	if (se->n_sclass == C_FILE && n > 0)
 		putchar('\n');			/* for readability */
 	printf("%4ld\t", n);			/* index number */
-
-	eflag = 0;				/* no errors */
 	if (se->n_zeroes != 0) {		/* name in place */
-		for (i = 0; i < SYMNMLEN; i++) {
-			if ((' ' < (c = se->n_name[i])) && ('~' >= c))
+		for (flag = i = 0; i < SYMNMLEN; i++) {
+			if (flag)
+				;
+			else if ((' ' < (c = se->n_name[i])) && ('~' >= c))
 				putchar(c);
-			else {
-				eflag = c ? 1 : -1;
-				break;
-			}
+			else
+				flag = c ? 1 : -1;
 		}
 		putchar('\t');
 	} else					/* name in string table */
@@ -560,7 +556,7 @@ print_sym(se, n) register SYMENT *se; register long n;
 			derived = 1;
 			putchar('<');
 		}
-		switch(i & N_TMASK) {
+		switch((i & N_TMASK) >> N_BTSHFT) {
 		cs(DT_PTR)
 		cs(DT_FCN)
 		cs(DT_ARY)
@@ -650,7 +646,7 @@ print_sym(se, n) register SYMENT *se; register long n;
 #endif
 	putchar('\n');
 
-	if (1 == eflag) {
+	if (1 == flag) {
 		printf("*** Bad data in name **\n");
 		dump(se, SYMESZ);
 	}
