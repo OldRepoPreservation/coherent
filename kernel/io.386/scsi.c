@@ -1,41 +1,6 @@
 /*
  * This is the generic SCSI part of the
  * Adaptec AHA154x host adapter driver for the AT.
- *
- * $Log:	scsi.c,v $
- * Revision 1.10  92/01/17  11:38:37  bin
- * update by hal... looks like final 321 version
- * 
- * Revision 1.10  92/01/17  03:51:13  hal
- * Cleanup for 3.2.1.
- * 
- * Revision 1.9  91/11/11  12:32:58  hal
- * Get SD_HDS and SD_SPT from tboot.
- * 
- * Revision 1.8  91/10/25  14:50:39  hal
- * Make DMA channel patchable.
- *
- * Revision 1.7  91/10/22  13:40:36  hal
- * Use sys on kernel header includes.
- *
- * Revision 1.6  91/06/10  13:28:11  hal
- * Refix startup problem with HDGETA.  Text cleanup.
- *
- * Revision 1.5  91/06/10  12:58:04  hal
- * Partial fix for HDGETA failing if partition table absent.
- *
- * Revision 1.4  91/06/03  13:50:06  hal
- * Add HDSETA.
- *
- * Revision 1.3	91/05/08  11:00:30	root
- * Make number of heads - SD_HDS - patchable for Tandy.
- *
- * Revision 1.2	91/05/01  04:50:11	root
- * Debug code and d_time/sw_active imbalance fixed.
- *
- * Revision 1.1	91/04/30  11:02:22	root
- * Shipped with COH 3.1.0
- *
  */
 
 #include	<sys/coherent.h>

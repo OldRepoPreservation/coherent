@@ -1,33 +1,17 @@
 /*
+ * io.386/ss.c
+ *
  * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
+ * Revised: Wed May 26 16:57:51 1993 CDT
+ */
+
+/*
  * To do:
  *	nonzero LUN's
  *	start new command during disconnect
  *	rewrite as single state machine, instead of 7 of them
  *	separate SCSI layer from host-dependent stuff
- *
- * $Log:	ss.c,v $
- * Revision 3.5  91/11/11  12:31:26  hal
- * Translation-mode parameters from tboot.
- * 
- * Revision 3.4  91/11/05  16:02:25  hal
- * Allow access to WHOLE_DRIVE even if no partition table.
- * Delete lbolt test code.
- *
- * Revision 3.3  91/06/21  10:46:27  hal
- * Now talks to TMC-881 + ST4350N.
- *
- * Revision 3.2  91/06/20  17:10:32  hal
- * First version for TMC-881.
- *
- * Revision 3.1  91/06/17  07:43:25  hal
- * Add TMC-840 code.
- *
- * Revision 1.1  91/06/17  07:42:27  hal
- * Add TMC-840 code.
- *
- *
  */
 
 /*
@@ -152,10 +136,6 @@ static int s_id;
 #define INL_MAX_REQ_POLL	800000L
 #define WKG_MAX_REQ_POLL	20000L
 
-typedef unsigned char	uchar;
-typedef unsigned int	uint;
-typedef unsigned long	ulong;
-
 typedef enum {			/* values for current driver state */
 	SST_DEQUEUE =0,
 	SST_BUS_DEV_RESET,
@@ -183,7 +163,7 @@ typedef struct ss {
 	ulong	bno;
 	int	msg_in;
 	int	dr_watch;
-	uchar	cmdbuf[G1CMDLEN];
+	unchar	cmdbuf[G1CMDLEN];
 	int	cmdlen;
 	int	cmd_bytes_out;
 	int	cmdstat;
@@ -191,10 +171,10 @@ typedef struct ss {
 	struct	fdisk_s parmp[NPARTN+1];
 	SST_TYPE state;
 	TIM	tim;		/* for target-specific timers */
-	uchar	avl_count;
-	uchar	bdr_count;
-	uchar	bsy_count;
-	uchar	try_count;
+	unchar	avl_count;
+	unchar	bdr_count;
+	unchar	bsy_count;
+	unchar	try_count;
 	uint	busy:1;		/* 1 if command uses local buffer */
 	uint	expired:1;	/* 1 if target's timer has expired */
 	uint	ptab_read:1;	/* 1 if partition table has been read */
@@ -203,8 +183,8 @@ typedef struct ss {
 
 typedef struct {
 	uint	ncyl;
-	uchar	nhead;
-	uchar	nspt;
+	unchar	nhead;
+	unchar	nspt;
 }	drv_parm_type;
 
 /*
@@ -266,7 +246,7 @@ static void	ssintr();
 static int	start_arb();
 static void	stop_timeout();
 static void	tbparms();
-static uchar	xpmod();
+static unchar	xpmod();
 
 /*
  * Global Data.
@@ -330,8 +310,8 @@ static int	ss_expired;	/* 1 after local timeout */
 
 static uint	max_req_poll;	/* this changes after initialization */
 
-static uchar	host_id;	/* Host is SCSI ID #7 for Seagate, 6 for FD */
-static uchar	swap_status_bits;
+static unchar	host_id;	/* Host is SCSI ID #7 for Seagate, 6 for FD */
+static unchar	swap_status_bits;
 
 static ss_type	*ss_tbl;	/* points to block of "ss" structs */
 static ss_type  *ss[MAX_SCSI_ID];
@@ -520,7 +500,7 @@ register dev_t	dev;
 	struct	fdisk_s	*fdp;
 	ss_type * ssp;
 	int s_id;
-	uchar * msg;
+	unchar * msg;
 
 	/*
 	 * Set up local variables.
@@ -773,7 +753,7 @@ register BUF	*bp;
 	int partition, drive, s_id;
 	dev_t dev;
 	ss_type * ssp;
-	uchar * msg = NULL;
+	unchar * msg = NULL;
 
 	T_PIGGY( 0x20,
 		printf("ssblock(bp->b_vaddr: %x, bp->b_paddr: %x)",
@@ -901,7 +881,7 @@ static void dummy_reconn(s_id)
 int s_id;
 {
 	int bus_timeout;
-	uchar phase_type;
+	unchar phase_type;
 	int s;
 	int msg_in;
 	int cmdstat;
@@ -1016,7 +996,7 @@ static int ssinit(s_id)
 int s_id;
 {
 	int retval = 1;
-	uchar query_buf[MODESENSELEN];
+	unchar query_buf[MODESENSELEN];
 	ss_type * ssp = ss[s_id];
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
@@ -1056,7 +1036,7 @@ int s_id;
 			 */
 #define FMT_PG	(4+8+8+12)
 #define DDG_PG	(4+8+8+12+24)
-			uchar heads;
+			unchar heads;
 			unsigned short spt;
 			ulong cyls;
 
@@ -1115,8 +1095,8 @@ static int far_info_xfer(s_id)
 int s_id;
 {
 	int bus_timeout;
-	uchar phase_type;
-	uchar msg_in;
+	unchar phase_type;
+	unchar msg_in;
 	int s;
 	int bytes_to_send;
 	ss_type * ssp = ss[s_id];
@@ -1382,8 +1362,8 @@ int *to_ptr;
 static int req_sense(s_id)
 int s_id;
 {
-	uchar sense_buf[SENSELEN];
-	uchar cmdbuf[G0CMDLEN];
+	unchar sense_buf[SENSELEN];
+	unchar cmdbuf[G0CMDLEN];
 	int ret = 0;
 
 	cmdbuf[0] = ScmdREQUESTSENSE;
@@ -1459,10 +1439,10 @@ rqs_done:
  */
 static int inquiry(s_id, buf)
 int s_id;
-uchar * buf;
+unchar * buf;
 {
 	int ret = 0;
-	uchar cmdbuf[G0CMDLEN];
+	unchar cmdbuf[G0CMDLEN];
 
 	cmdbuf[0] = ScmdINQUIRY;
 	cmdbuf[1] = 0;
@@ -1492,10 +1472,10 @@ uchar * buf;
  */
 static int mode_sense(s_id, buf)
 int s_id;
-uchar * buf;
+unchar * buf;
 {
 	int ret = 0;
-	uchar cmdbuf[G0CMDLEN];
+	unchar cmdbuf[G0CMDLEN];
 
 	cmdbuf[0] = ScmdMODESENSE;
 	cmdbuf[1] = 0;
@@ -1520,10 +1500,10 @@ uchar * buf;
  */
 static int read_cap(s_id, buf)
 int s_id;
-uchar * buf;
+unchar * buf;
 {
 	int ret = 0;
-	uchar cmdbuf[G1CMDLEN];
+	unchar cmdbuf[G1CMDLEN];
 
 	cmdbuf[0] = ScmdREADCAPACITY;
 	cmdbuf[1] = 0;
@@ -1618,7 +1598,7 @@ PR1("BDR");
  */
 static int chk_reconn()
 {
-	uchar csr, dat;
+	unchar csr, dat;
 	int s_id = -1;
 
 	csr = ffbyte(ss_csr);
@@ -2213,11 +2193,11 @@ int s_id;
  *
  */
 static int local_info_xfer(cmdbuf, cmdlen, inbuf, inlen, outbuf, outlen)
-uchar * cmdbuf, * inbuf, * outbuf;
+unchar * cmdbuf, * inbuf, * outbuf;
 uint cmdlen, inlen, outlen;
 {
 	int bus_timeout;
-	uchar phase_type;
+	unchar phase_type;
 	int s;
 	int cmd_bytes_out = 0;
 	int data_bytes_in = 0;
@@ -2228,7 +2208,7 @@ uint cmdlen, inlen, outlen;
 	int msg_in = -1;
 #if (DEBUG >= 1)
 int x, xct=0;
-uchar xch[100];
+unchar xch[100];
 #endif
 
 	s = sphi();
@@ -2387,7 +2367,7 @@ int ticks;
 static int init_call(fn, s_id, buf)
 int (*fn)();
 int s_id;
-uchar * buf;
+unchar * buf;
 {
 	int ret = 1;
 	int i;
@@ -2431,10 +2411,10 @@ spl(s);
  * Command/Data and Message bits are swapped on-board (outside the chip)
  * on older Future Domain host boards.
  */
-static uchar xpmod(oldphase)
-uchar oldphase;
+static unchar xpmod(oldphase)
+unchar oldphase;
 {
-	uchar ret = oldphase;
+	unchar ret = oldphase;
 
 	if (swap_status_bits) {
 		ret &= ~(RS_CTRL_DATA | RS_MESSAGE);

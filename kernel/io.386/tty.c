@@ -291,8 +291,8 @@ int (*func1)(), arg1, (*func2)(), arg2;
 	int time0 = lbolt;
 	int timing = 0;		/* a boolean flag */
 	int got_ch = 0;		/* a boolean flag */
-	char vtime = tp->t_termio.c_cc[VTIME];
-	char vmin = tp->t_termio.c_cc[VMIN];
+	unsigned char vtime = tp->t_termio.c_cc[VTIME];
+	unsigned char vmin = tp->t_termio.c_cc[VMIN];
 #endif
 
 	while (iop->io_ioc) {
@@ -320,22 +320,26 @@ int (*func1)(), arg1, (*func2)(), arg2;
 
 #ifdef _I386
 			/*
-			 * T_BRD must give way for VMIN/VTIME in S5.
+			 * [T_BRD handling in COH 286 is replaced by
+			 * VMIN/VTIME handling in COH 386.]
 			 *
-			 * If vmin is nonzero, see if that many chars have been
-			 * received.
+			 * If vmin is nonzero, and at least vmin characters
+			 * have been received, return.
 			 *
-			 * If vmin is zero and vtime is also zero, return
+			 * If vmin is zero and vtime is zero, return
 			 * whether characters have been received or not.
 			 *
 			 * If vmin is zero, and we got a char, return.
 			 *
-			 * If vtime timer is in use, see if it has expired,
-			 * i.e. if vtime 10th seconds have elapsed.
+			 * If vtime is nonzero, and vtime 10th seconds have
+			 * elapsed, return.
+			 *
+			 * Otherwise, go to sleep until more input arrives.
 			 */
 			if (ISBBYB) {
 				if (vmin) {
-					if ((vmin + iop->io_ioc) <= sioc) {
+					/* received vmin or more characters? */
+					if ((sioc - iop->io_ioc) >= vmin) {
 						spl(o);
 						goto read_done;
 					}
@@ -445,7 +449,8 @@ read_done:
  *
  *	Write routine.
  */
-void ttwrite(tp, iop)
+void
+ttwrite(tp, iop)
 register TTY *tp;
 register IO *iop;
 {
@@ -458,7 +463,8 @@ register IO *iop;
  *	Move data from user (in IO struct) to clists.
  *	Do wakeups on functions supplied when write is blocked or completed.
  */
-void ttwrite0(tp, iop, func1, arg1, func2, arg2)
+void
+ttwrite0(tp, iop, func1, arg1, func2, arg2)
 register TTY *tp;
 register IO *iop;
 int (*func1)(), arg1, (*func2)(), arg2;
@@ -1033,7 +1039,7 @@ register int c;
 			s = sphi();
 			tp->t_flags &= ~T_INPUT;
 			spl(s);
-			defer(wakeup, (char *) &tp->t_iq);
+			wakeup(&tp->t_iq);
 		}
 		if (tp->t_ipolls.e_procp) {
 			tp->t_ipolls.e_procp = 0;
@@ -1098,7 +1104,7 @@ register TTY *tp;
 
 		if (tp->t_flags & T_INPUT) {
 			tp->t_flags &= ~T_INPUT;
-			defer(wakeup, (char *) &tp->t_iq);
+			wakeup(&tp->t_iq);
 		}
 
 		if (tp->t_ipolls.e_procp) {
@@ -1131,7 +1137,7 @@ register TTY *tp;
 		s = sphi();
 		tp->t_flags &= ~T_DRAIN;
 		spl(s);
-		defer(wakeup, (char *) &tp->t_oq);
+		wakeup(&tp->t_oq);
 		goto stdone;
 	}
 
@@ -1144,7 +1150,7 @@ register TTY *tp;
 		s = sphi();
 	   	tp->t_flags &= ~T_HILIM;
 		spl(s);
-		defer(wakeup, (char *) &tp->t_oq);
+		wakeup(&tp->t_oq);
 	}
 
 	if (tp->t_opolls.e_procp) {
@@ -1180,7 +1186,7 @@ register TTY *tp;
 	clrq(&tp->t_iq);
 
 	if (tp->t_flags & T_INPUT) {
-		defer(wakeup, (char *) &tp->t_iq);
+		wakeup(&tp->t_iq);
 	}
 
 	if (tp->t_ipolls.e_procp) {
@@ -1204,7 +1210,7 @@ register TTY *tp;
 	clrq(&tp->t_oq);
 
 	if (tp->t_flags & (T_DRAIN|T_HILIM)) {
-		defer(wakeup, (char *) &tp->t_oq);
+		wakeup(&tp->t_oq);
 	}
 
 	if (tp->t_opolls.e_procp) {

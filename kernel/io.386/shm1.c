@@ -3,7 +3,10 @@
  *
  * Purpose: System V Compatible Shared Memory Device Driver
  *
- * $Log$
+ * $Log:	shm1.c,v $
+ * Revision 1.3  93/04/14  10:23:10  root
+ * r75
+ * 
  */
 
 /*
@@ -69,6 +72,7 @@ SEG		**shmsegs;		/* Array of pointers to segments */
 /*
  * Shmctl - Shared Memory Control Operations.
  */
+int
 ushmctl(iShmId, iCmd, pstShmId)
 int 		iShmId,		/* Shared memory id */
 		iCmd;		/* Command */
@@ -134,16 +138,23 @@ struct shmid_ds	*pstShmId;	/* User shmid_ds buffer */
 			iRet = -1;
 			break;
 		}
-		/* We do not want to dealloc segment if it is attached */
-		if (rstIdp->shm_nattch > 0) {
-			u.u_error = EINVAL;
-			return -1;
-		}
+		
+		/* SVR3 allows removing an attached segment. Even worse, the
+		 * process that has the segment attached can keep using it. 
+		 * Some buggy third party software uses this "feature". 
+		 * So, we have to make it available too;-(
+		 */
 		rstIdp->shm_perm.seq = 0;
-		shmFree(shmsegs[iShmId]);
-		shmsegs[iShmId] = NULL;
 		rstIdp->shm_perm.mode = 0;
+
+		/* If segment is attached, set flag to be removed */
+		if (rstIdp->shm_nattch > 0)
+			shmsegs[iShmId]->s_flags |= SRFBERM;
+		else	/* remove it otherwise */
+			shmFree(shmsegs[iShmId]);
+		shmsegs[iShmId] = NULL;
 		break;
+
 	/* SHM_LOCK and SHM_UNLOCK: lock/unlock shared memory segement 
 	 * in core. Is not a part of iBCS2.
 	 * Has no meaning for current 4.0.* release of COHERENT.
@@ -174,7 +185,8 @@ struct shmid_ds	*pstShmId;	/* User shmid_ds buffer */
  * Shmget - Get Shared Memory Segment
  * Return shared memory id if succed, -1 and set u_error otheriwse.
  */
-int ushmget(kShmKey, iShmSize, iShmFlg)
+int
+ushmget(kShmKey, iShmSize, iShmFlg)
 key_t	kShmKey;	/* Shared memory key */
 int	iShmSize;	/* Shared memory segment size */
 int	iShmFlg;	/* Flags */
@@ -276,6 +288,7 @@ int	iShmFlg;	/* Flags */
 /*
  * Allocate space for shared memory data structures.
  */
+int
 shminit()
 {
 	shmids = (struct shmid_ds *) kalloc(sizeof(struct shmid_ds) * SHMMNI);
@@ -294,7 +307,8 @@ shminit()
 /*
  * Attach shared memory segment.
  */
-char *ushmat(iSysId, pcShmAddr, iShmFlg)
+char *
+ushmat(iSysId, pcShmAddr, iShmFlg)
 int	iSysId;		/* System segment id */
 char	*pcShmAddr;	/* Address to attach */
 int	iShmFlg;	/* Flags */
@@ -374,7 +388,7 @@ int	iShmFlg;	/* Flags */
 		/* We will use the addresses starting from SHMBASE. 
 		 * Each new address can be SHMMAX + NBPC appart.
 		 */
-		vAttAddr = SHMBASE + i * (SHMMAX + NBPC);
+		vAttAddr = (caddr_t) (SHMBASE + i * (SHMMAX + NBPC));
 	} else {
 		/* Requst attach to a specific address. This is none portable 
 		 * way to use a shared memory. 
@@ -403,7 +417,8 @@ int	iShmFlg;	/* Flags */
  * Check requested address for attach.
  * Just fail for the first release.
  */
-caddr_t vCheckReqAdd(pcAdd, iFlg)
+caddr_t
+vCheckReqAdd(pcAdd, iFlg)
 char	*pcAdd;	/* Address to atatch */
 int	iFlg;	/* Mode flag */
 {
@@ -414,7 +429,8 @@ int	iFlg;	/* Mode flag */
  * Check permissions of the shared memory segment.
  * Return 0 on success, -1 and set errno on error.
  */
-int iShmPerm(pstShmId, iShmFlg)
+int
+iShmPerm(pstShmId, iShmFlg)
 struct shmid_ds	*pstShmId;
 int		iShmFlg;
 {
@@ -462,49 +478,61 @@ int		iShmFlg;
 }
 
 /*
- * Detach shared memory segment.
+ * ushmdt() - Detach shared memory segment.
+ * Find segment number and call shmDetach() (shm0.c).
  */
-int ushmdt(cpShmAddr)
-char	*cpShmAddr;
+int
+ushmdt(cpShmAddr)
+char	*cpShmAddr;	/* Pointer to a segment */
 {
 	register PROC		*rpstProc;	/* Current process */
 	register struct sr	*rpstSr;	/* Shared memory segments */
-	register SEG		*rpstSeg;
-	struct shmid_ds		*pstShmId;	/* Shared memory structure */
-	int			iShmId;		/* Shared memory id */
-	int			i, j;		/* Loop indexes */
+	int			i;		/* Loop indexe */
 
-	/* Check is cpShmAddr a valid pointer to attached segment. */
 	rpstProc = SELF;	/* Get pointer to our process */
 
 	/* Go through all segments. */
-	for (rpstSr = rpstProc->p_shmsr, i = 0; i < NSHMSEG; i++, rpstSr++) 
-			if (rpstSr->sr_base != (off_t) cpShmAddr)
-				continue;
-			else {	/* We found the segment */
-				/* Find shared memory id */
-				rpstSeg = rpstSr->sr_segp;
-				for (j = 0; j < SHMMNI; j++)
-					if (shmsegs[j] == rpstSeg)
-						break;
-				/* We should have this segment. If we do not
-				 * find it something is to bad already.
-				 */
-				if (j >= SHMMNI)
-					break;
-				iShmId = j;
-				pstShmId = shmids + iShmId;
-				/* Set proper values */
-				pstShmId->shm_lpid = SELF->p_pid;
-				pstShmId->shm_dtime = timer.t_time;
-				pstShmId->shm_atime = 0;
-				pstShmId->shm_nattch = rpstSeg->s_urefc - 2;
-				shmDetach(i);
-				return;
-			}
-		
+	for (rpstSr = rpstProc->p_shmsr, i = 0; i < NSHMSEG; i++, rpstSr++) {
+		if (rpstSr->sr_base == (caddr_t) cpShmAddr) {
+ 			shmDetach(i);
+                        return 0;
+		}
+	}
+
 	/* We can come here only if we have invalid address */
 	u.u_error = EINVAL;
 	return;
 }
 
+/*
+ * shmSetDs(). Called from shm0.c.
+ *
+ * Given a pointer to shared memory segment, set shmid_ds.
+ */
+void
+shmSetDs(rpstSeg)
+register SEG	*rpstSeg;
+{
+	struct shmid_ds		*pstShmId;	/* Shared memory structure */
+	int			iShmId;		/* Shared memory id */
+	int			j;		/* Loop indexe */
+
+	for (j = 0; j < SHMMNI; j++)
+		if (shmsegs[j] == rpstSeg)
+			break;
+
+	/* We should have this segment. */
+	if (j >= SHMMNI) {
+		u.u_error = EINVAL;
+		return;
+	}
+
+	iShmId = j;
+	pstShmId = shmids + iShmId;
+
+	/* Set proper values */
+	pstShmId->shm_lpid = SELF->p_pid;
+	pstShmId->shm_dtime = timer.t_time;
+	pstShmId->shm_nattch = rpstSeg->s_urefc - 1;
+	return;
+}
