@@ -1,4 +1,4 @@
-# /usr/src/libc/stdio/Makefile 1/9/92
+# /usr/src/libc/stdio/Makefile 11/6/92
 
 # The order of stdio objects in libc.a is significant and a bit complicated.
 # To reduce the size of linked objects when possible,
@@ -48,6 +48,8 @@ OBJ=\
 	putc.o\
 	putchar.o\
 	puts.o\
+	remove.o\
+	rename.o\
 	rewind.o\
 	scanf.o\
 	setbuf.o\
@@ -116,6 +118,8 @@ printf.o:	printf.c
 putc.o:		putc.c
 putchar.o:	putchar.c
 puts.o:		puts.c
+remove.o:	remove.c
+rename.o:	rename.c
 rewind.o:	rewind.c
 scanf.o:	scanf.c
 setbuf.o:	setbuf.c
