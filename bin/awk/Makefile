@@ -1,6 +1,6 @@
 # awk/Makefile 2/6/91
 
-SRC=/usr.src/cmd/awk
+SRC=/newbits/bin/awk
 
 CFLAGS=-O -I$(SRC)
 LDFLAGS=-f
