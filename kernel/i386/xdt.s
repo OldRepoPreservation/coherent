@@ -203,7 +203,8 @@ IRPT_GATE	.macro	selector,offset,dwdcount,dpl
 
 idt:
 	IRPT_GATE	SEG_RNG1_TXT,trap0,0,DPL_3
-	IRPT_GATE	SEG_RNG0_TXT,trap1,0,DPL_3	/ Ring 0!
+/	IRPT_GATE	SEG_RNG0_TXT,trap1_ker,0,DPL_3	/ Ring 0
+	IRPT_GATE	SEG_RNG1_TXT,trap1_usr,0,DPL_3	/ Ring 1
 	IRPT_GATE	SEG_RNG1_TXT,trap2,0,DPL_3
 	IRPT_GATE	SEG_RNG1_TXT,trap3,0,DPL_3
 	IRPT_GATE	SEG_RNG1_TXT,trap4,0,DPL_3
