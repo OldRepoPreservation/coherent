@@ -328,11 +328,11 @@ dont_c_grow:
  */
 segsize(sp, s2)
 register SEG *sp;
-vaddr_t s2;
+caddr_t s2;
 {
-	register vaddr_t s1;
+	register caddr_t s1;
 
-	s1 = (vaddr_t) sp->s_size;
+	s1 = (caddr_t) sp->s_size;
 	if (s2 == 0 || seggrow(sp, (off_t)s2) == 0) {
 		SET_U_ERROR( ENOMEM, "can not grow segment" );
 		return;
@@ -471,7 +471,7 @@ off_t  n;
 	SELF->p_flags |= PFSWIO;
 	bp->b_paddr = p;
 
-	while (n != 0) {
+	while (n) {
 		nb = (n > SCHUNK) ? SCHUNK : n;
 		/*
 		 * Prevent I/O transfer from crossing 64 Kbyte boundary.
@@ -487,7 +487,7 @@ off_t  n;
 		s = sphi();
 		dblock(swapdev, bp);
 		while ((bp->b_flag&BFNTP) != 0) {
-			v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "swap");
+			x_sleep((char *)bp, pridisk, slpriNoSig, "swap");
 			/* Sleeping in the swapper.  */
 		}
 		spl(s);

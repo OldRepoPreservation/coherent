@@ -9,7 +9,7 @@ AR=exec /bin/ar
 ARFLAGS=rs
 AS=exec /bin/as
 CC=exec /bin/cc
-CFLAGS=-VPSTR
+CFLAGS=-VPSTR -D__COHERENT__
 
 USRSRC=/usr/src
 USRINC=/usr/include

@@ -315,7 +315,7 @@ register IO *iop;
 			} 
 
 			/* Find u area for process pp1 */
-			sp = pp1->p_segp[0];
+			sp = pp1->p_segp[SIUSERP];
 			ndpUseg = MAPIO(sp->s_vmem, U_OFFSET);
 			work = workAlloc();
 			ptable1_v[work] = 
@@ -323,7 +323,7 @@ register IO *iop;
 			mmuupd();
 			uprc = (UPROC *) (ctob(work) + U_OFFSET);
 			kkcopy(uprc->u_comm, psData.u_comm, ARGSZ);
-			kkcopy(uprc->u_sleep, psData.u_sleep, 10);
+			kkcopy(uprc->u_sleep, psData.u_sleep, U_SLEEP_LEN);
 			workFree(work);
 
 			/* fill up stMonitor */
@@ -340,10 +340,15 @@ register IO *iop;
 			psData.p_nice = pp1->p_nice;
 			psData.size = (short) (uLen>>10);
 			psData.rsize = (short) (uLenR>>10);
+			psData.p_schedPri = pp1->p_schedPri;
+#if 0
+			psData.p_schedPri = pp1->p_schedPri;
+
 			psData.p_cval = pp1->p_cval;
 			psData.p_sval = pp1->p_sval;
 			psData.p_ival = pp1->p_ival;		
 			psData.p_rval = pp1->p_rval;
+#endif
 			psData.p_utime = pp1->p_utime;
 			psData.p_stime = pp1->p_stime;
 			kkcopy(psBuf, psData.pr_argv, ARGSZ);
