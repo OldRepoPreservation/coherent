@@ -123,7 +123,6 @@ char *argv[];
 	int		c;
 	char 		*token;
 
-
 	while ((c = getopt(argc, argv, opstring)) != EOF)
 		switch (c) {
 		case 'a':
@@ -214,8 +213,10 @@ void vPrintHeader()
 	if (ilFlag)
 		printf(" %5s%9s%5s%5s%2s%9s",
 			"PPID", "UID", "K", "F", "S", "EVENT");
+#if 0
 	if (imFlag)
 		printf(" %8s %8s %8s %8s", "CVAL", "SVAL", "IVAL", "RVAL");
+#endif
 	if (itFlag)
 		printf(" UTIME STIME");
 	printf("\n");
@@ -283,12 +284,13 @@ stMonitor	*pMonLine;
 	}
 
 	/* Scheduling fields */
-	if (imFlag) {
+#if 0
+	if (imFlag) 
 		printf(" %8x %8x %8x %8x", pMonLine->p_cval,
 				pMonLine->p_sval,
 				pMonLine->p_ival,
 				pMonLine->p_rval);
-	}
+#endif
 	if (itFlag) {
 		ptime(pMonLine->p_utime);
 		ptime(pMonLine->p_stime);
@@ -325,15 +327,16 @@ ptime(l)
 int iState(pMon)
 stMonitor	*pMon;
 {
-	register unsigned	us;
 
-	us = pMon->p_state;
-	if (us == PSSLEEP) {
+	if (ASLEEP(pMon)) {
 		if (pMon->rrun)
 			return 'S';
 		if ((pMon->p_flags & PFSTOP) != 0)
 			return 'T';
-		return 'W';
+		if (pMon->p_state == PSSLEEP)
+			return 'W';
+		else
+			return 'w';
 	}
 		
 	if (pMon->p_state == PSRUN)
@@ -446,7 +449,7 @@ int pnum;
 
 usage()
 {
-	printf("usage: ps [-aefglmnrtwx]\n");
+	printf("usage: ps [-][aefglmnrtwx][p#[,#]...]\n");
 	exit(1);
 }
 
