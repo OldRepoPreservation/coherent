@@ -1,4 +1,4 @@
-# /usr/src/libc/sys/i386/Makefile 4/30/92
+# /usr/src/libc/sys/i386/Makefile 8/4/92
 
 ASFLAGS=
 
@@ -19,13 +19,12 @@ OBJ=\
 	time.o\
 	uname.o\
 	ustat.o\
-	utsemul.o\
 	wait.o
 
 # These objects are built from sources generated automatically by mkscall.
 # N.B. getdents.o is not in this list for now, libc.a uses ndir version instead.
+# _exit.o used to be included but now is part of crts0.o instead.
 AUTOOBJ=\
-	_exit.o\
 	_msgsys.o\
 	_pgrp.o\
 	_semsys.o\
@@ -84,7 +83,7 @@ AUTOOBJ=\
 	write.o
 
 # Primary target.
-SYSI386:	SYSI386AUTO $(OBJ)
+SYSI386:	mkscall SYSI386AUTO $(OBJ)
 	$(AR) rkus libc.a $(AUTOOBJ) $(OBJ)
 	touch $@
 	: libc/sys/i386 done
