@@ -1,112 +1,125 @@
 /*
- * Quicker sort algorithm (from C. A. R. Hoare)
- * This uses linear insertion sort for number of elements
- * smaller than M in some partitioning.
+ * C general utilities library.
+ * qsort()
+ * ANSI 4.10.5.2.
+ * Quicksort.
+ * Algorithm from C. A. R. Hoare, cf. Knuth Vol. 3, pp. 114 ff.
  */
 
-char	*qmedian();
+/*
+ * qsort chooses a pivot element (Knuth recommends random choice),
+ * partitions the input into sets less than and greater than the pivot,
+ * puts the pivot into the correct slot in the sorted set,
+ * and recursively sorts the two subpartitions.
+ * For small numbers of elements, a linear insertion sort is more efficient.
+ * The obvious recursive implementation of qsort can easily use a lot of
+ * stack space.  The nonrecursive implementation here is less obvious
+ * but more efficient.  It is based on two observations:
+ * (1) Using ordinary recursion on the smaller of the subpartitions and
+ * tail recursion on the larger reduces recursion nesting to at most
+ * log2(nmemb) levels.  This reduces stack usage enormously.
+ * (2) Since the maximum number of recursion levels is known by (1),
+ * the recursion can be faked with auto arrays of fixed size.
+ * This provides additional efficiency because the constant
+ * "size" and "compar" args need not be passed recursively.
+ */
 
-#define	M	10
+#if	__STDC__
+#include <stdlib.h>
+#include <limits.h>
+#else
+#define	CHAR_BIT	8		/* in <limits.h> */
+#endif
+#include <string.h>
 
-qsort(base, nel, width, compar)
-register char *base;
-unsigned nel, width;
+#define	SSIZE	(CHAR_BIT * sizeof(size_t))	/* max recursion stack size */
+typedef	struct	{
+	Void *	s_base;
+	size_t	s_nmemb;
+} STACK;
+
+/* Use quicksort for M or more elements, linear insertion sort for fewer. */
+/* The value is arrived at empirically and may differ for other processors. */
+#define	M	8
+
+void
+qsort(base, nmemb, size, compar)
+register Void *base;
+size_t nmemb, size;
 int (*compar)();
 {
 	register char *bot, *top;
+	register size_t n;
+	STACK stack[SSIZE], *sp;
 
-	bot = base;
-	top = base + nel*width;
-	if (nel < M) {
-		if (nel > 1)
-			qlinsert(bot, nel, width, compar);
-		return;
+	/* Initialize the stack of base and nmemb args to be sorted. */
+	sp = &stack[0];
+	sp->s_base = base;
+	sp->s_nmemb = nmemb;
+
+	while (sp >= &stack[0]) {
+
+		/* Pop a base and nmemb pair from the stack. */
+		base = sp->s_base;
+		nmemb = sp->s_nmemb;
+		sp--;
+
+		while (nmemb >= M) {
+
+			bot = (char *)base;
+			top = bot + nmemb * size;
+
+			/* Put middle element into *base.  Helps on sorted input. */
+			_memxchg(bot, bot + (nmemb/2)*size, size);
+
+			/* Partition into sets less than and greater than *base. */
+			for (;;) {
+				while ((*compar)((Void *)(top -= size), base)>=0 && top > base)
+					;
+				while ((*compar)(base, (Void *)(bot += size))>=0 && bot < top)
+					;
+				if (bot < top)
+					_memxchg(bot, top, size);
+				else
+					break;
+			}
+
+			/* Put *base into its correct place. */
+			_memxchg(top, (char *)base, size);
+
+			/*
+			 * "Recusively" sort partitions.
+			 * Fake recursion on local stack for the larger,
+			 * tail recursion for the smaller.
+			 */
+			n = (top - (char *)base)/size;
+			nmemb -= (bot - (char *)base) / size;
+			if (n > nmemb) {
+				/* qsort(base, n, size, compar); */
+				sp++;
+				sp->s_base = base;
+				sp->s_nmemb = n;
+				/* qsort(bot, nmemb, size, compar); */
+				base = (Void *)bot;
+			} else {
+				/* qsort(bot, nmemb, size, compar); */
+				sp++;
+				sp->s_base = bot;
+				sp->s_nmemb = nmemb;
+				/* qsort(base, n, size, compar); */
+				nmemb = n;
+			}
+		}
+
+		/* Use linear insertion sort for less than M elements. */
+		while (nmemb-- > 1) {
+			top = bot = (char *)base;
+			for (n = nmemb; n--; )
+				if ((*compar)((Void *)(top += size), (Void *)bot) < 0)
+					bot = top;
+			if (bot != (char *)base)
+				_memxchg(bot, (char *)base, size);
+			base = (Void *)(((char *)base) + size);
+		}
 	}
-	qexchange(bot, qmedian(compar, bot, bot+(nel/2)*width, top-width), width);
-	for (;;) {
-		while ((*compar)(base, bot+=width)>=0 && bot<top)
-			;
-		while ((*compar)(top-=width, base)>=0 && top>base)
-			;
-		if (bot < top)
-			qexchange(bot, top, width);
-		else
-			break;
-	}
-	qexchange(top, base, width);
-	qsort(base, (top-base)/width, width, compar);
-	qsort(bot, nel - (bot-base)/width, width, compar);
-}
-
-/*
- * Exchange two records pointed to by
- * `p1' and `p2'.  Each record is of `width'
- * bytes.
- */
-static
-qexchange(p1, p2, width)
-register char *p1, *p2;
-register unsigned width;
-{
-	int save;
-
-	if (width)
-		do {
-			save = *p1;
-			*p1++ = *p2;
-			*p2++ = save;
-		} while (--width);
-}
-
-/*
- * Produce the median of the first, middle,
- * and last elements of a file by calling
- * the compare routine.
- */
-static char *
-qmedian(comp, a, b, c)
-int (*comp)();
-char *a, *b, *c;
-{
-	register char *bmin, *bmax;
-
-	if ((*comp)(a, b) < 0) {
-		bmin = a;
-		bmax = b;
-	} else {
-		bmin = b;
-		bmax = a;
-	}
-	if ((*comp)(bmax, c) < 0)
-		return (bmax);
-	return ((*comp)(bmin, c) < 0 ? c : bmin);
-}
-
-/*
- * Linear insertion sort used to speed up
- * final sorts when parititions get relatively small.
- */
-static
-qlinsert(base, nel, width, compar)
-char *base;
-register unsigned nel;
-unsigned width;
-int (*compar)();
-{
-	register char *min, *mbase;
-	int n;
-
-	--nel;
-	do {
-		n = nel;
-		min = base;
-		mbase = min+width;
-		do {
-			if ((*compar)(mbase, min) < 0)
-				min = mbase;
-			mbase += width;
-		} while (--n);
-		qexchange(min, base, width);
-		base += width;
-	} while (--nel);
 }
