@@ -301,10 +301,10 @@ LEAF:
 			[ZCALL]		[GID _idcvt]
 			[TN ZMOVSX]	[REGNO EAX], [TN REGNO EAX]
 
-/ Shrink double to unsigned long integer.
+/ Shrink double to unsigned long integer or pointer.
 / Cf. comment above re EDX.
 %	PVALUE|PEFFECT|PDECVAX|PIEEE
-	FU32		EDXEAX	EDX	*	EAX
+	FU32|PTX	EDXEAX	EDX	*	EAX
 		ADR|IMM		FF64
 		*		*
 			[ZMOV]	[REGNO EDX], [HI AL]
@@ -339,9 +339,9 @@ LEAF:
 			[ZCALL]		[GID _ifcvt]
 			[TN ZMOVSX]	[R], [TN R]
 
-/ Shrink float to unsigned long integer.
+/ Shrink float to unsigned long integer or pointer.
 %	PVALUE|PEFFECT|PDECVAX|PIEEE
-	FU32		EAX	*	*	TEMP
+	FU32|PTX	EAX	*	*	TEMP
 		ADR|IMM		FF32
 		*		*
 			[ZMOV]	[R], [AL]
