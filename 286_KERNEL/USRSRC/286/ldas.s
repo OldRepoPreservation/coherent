@@ -17,6 +17,9 @@
 / Add ld_call()
 /
 / $Log:	/usr/src/sys/i8086/src/RCS/ldas.s,v $
+/ Revision 1.2	91/03/01  09:23:04	root
+/ Part of COHERENT 3.1.0 kernel
+/ 
 / Revision 1.1	88/03/24  17:39:39	src
 / Initial revision
 / 
@@ -91,6 +94,8 @@ ldrvint_:			/ Loadable Driver Interrupt Entry Points.
 	.word	ld_intr13
 	.word	ld_intr14
 	.word	ld_intr15
+
+foo:	.ascii	"I%d %x:%x\n\000"	
 
 ////////
 /
@@ -671,10 +676,24 @@ ld_intr15:
 /	Input:	bx = interrupt number * 2.
 /
 ////////
-
+	.globl	printf_	/ for debugging
+	.globl	ld_intr	/ for debugging
 ld_intr:
 	push	bp		/
 	mov	bp, sp		/
+	
+/ Diagnostic call: printf(foo, bx/2, ldrvics[bx], ldrvipc[bx])
+push	bx
+push	ldrvipc_(bx)
+push	ldrvics_(bx)
+mov	ax,bx
+shr	ax,$1
+push	ax
+push	$foo
+call	printf_
+add	sp,$8
+pop	bx
+/ End of diagnostic call	
 				/
 	mov	cx,ldrvics_(bx)	/ Prepare driver interface CS:IP.
 	jcxz	0f		/
