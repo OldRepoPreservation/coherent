@@ -3,14 +3,16 @@
  * remaining space available on a file system.
  * This command also considers a directory
  * to represent the filesystem.
+ *
+ * 4-24-92 Fixed minor bug for looking /etc/mtab table. Vlad
  */
 
 #include <stdio.h>
 #include <sys/filsys.h>
 #include <sys/stat.h>
 #include <sys/dir.h>
-#include <canon.h>
 #include <mnttab.h>
+#include <canon.h>
 #if 1
 #include <mtab.h>
 #endif
@@ -22,7 +24,7 @@ int	iflag;				/* Print information on i-nodes */
 int	tflag;				/* Print total device size */
 
 char	buf[BSIZE];			/* Basic file system reading buffer */
-struct	mnttab	mtab[NMOUNT];
+struct	mnttab	m_tab[NMOUNT];
 struct	mnttab	*emtabp;
 
 char	*devname();
@@ -35,7 +37,7 @@ char *argv[];
 	register int i;
 	register int estat = 0;
 
-	while (argc>1 && *argv[1]=='-') {
+	while (argc > 1 && *argv[1] == '-') {
 		for (ap = &argv[1][1]; *ap != '\0'; ap++)
 			switch (*ap) {
 			case 'a':
@@ -64,7 +66,7 @@ char *argv[];
 		else
 			estat = df(".");
 	} else {
-		for (i=1; i<argc; i++)
+		for (i = 1; i < argc; i++)
 			estat |= df(argv[i]);
 		if (aflag)
 			estat |= dfmtab();
@@ -80,10 +82,10 @@ dfmtab()
 {
 	register struct mnttab *mp;
 	int estat;
-	int name[MNAMSIZ+10];
+	int name[MNAMSIZ + 10];
 
 	estat = 0;
-	for (mp = mtab; mp < emtabp; mp++) {
+	for (mp = m_tab; mp < emtabp; mp++) {
 		if (mp->mt_dev[0]=='\0' || mp->mt_filsys[0]=='\0')
 			continue;
 		sprintf(name, "/dev/%s", mp->mt_filsys);
@@ -184,18 +186,17 @@ minit()
 	register int fd;
 	register int n;
 
-	emtabp = &mtab[0];
+	emtabp = &m_tab[0];
 	if ((fd = open("/etc/mnttab", 0)) >= 0) {
-		if ((n = read(fd, (char *)&mtab[0], sizeof mtab)) > 0)
-			emtabp = (char *)(&mtab[0]) + n;
+		if ((n = read(fd, (char *)&m_tab[0], sizeof m_tab)) > 0)
+			emtabp = (char *)(&m_tab[0]) + n;
 		close(fd);
 		return;
 	}
 #if 1
 	if ((fd = open("/etc/mtab", 0)) >= 0) {
-		register struct mtab *mp;
-
-		while (read(fd, (char *)emtabp, sizeof(*mp)) == sizeof(*mp))
+		while (read(fd, (char *)emtabp, sizeof(struct mtab)) 
+						== sizeof(struct mtab)) 
 			emtabp++;
 		close(fd);
 	}
