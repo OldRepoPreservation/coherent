@@ -15,8 +15,6 @@
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
-KERINC=/usr/src/sys/sys
-DRVINC=/usr/src/sys/i8086/sys
 
 # Source directories
 COHSRC=$(USRSRC)/coh
@@ -37,7 +35,7 @@ DRVLIB=$(USRSYS)/lib
 
 # Compiler stuff
 CC=exec /bin/cc
-CFLAGS= -I$(DRVINC) -I$(KERINC) -I$(SYSINC)
+CFLAGS=
 
 HERE=	$(IBMATOBJ)/md2.o \
 	$(IBMATOBJ)/dmac.o \
@@ -87,7 +85,7 @@ $(IBMATOBJ):
 	mkdir $(IBMATOBJ)
 
 $(DRVOBJ)/pccon.o: \
-	$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 				$(SYSINC)/machine.h $(SYSINC)/param.h \
 				$(SYSINC)/fun.h \
 	$(SYSINC)/con.h		\
@@ -97,7 +95,7 @@ $(DRVOBJ)/pccon.o: \
 	$(CC) $(CFLAGS) -c -o $@ $(DRVSRC)/pccon.c
 
 $(DRVOBJ)/console.o:	\
-	$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 				$(SYSINC)/machine.h $(SYSINC)/param.h \
 				$(SYSINC)/fun.h \
 	$(SYSINC)/con.h		\
@@ -109,11 +107,11 @@ $(DRVOBJ)/console.o:	\
 
 $(DRVOBJ)/dmareq.o:	\
 	$(SYSINC)/buf.h		\
-	$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 				$(SYSINC)/machine.h $(SYSINC)/param.h \
 				$(SYSINC)/fun.h \
 	$(SYSINC)/con.h		\
-	$(DRVINC)/dmac.h	\
+	$(SYSINC)/dmac.h	\
 	$(USRINC)/errno.h	\
 	$(SYSINC)/io.h		\
 	$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
@@ -147,7 +145,7 @@ $(SRCOBJ)/support.o: $(I86SRC)/support.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # this stuff was in the /usr/src/sys/i8086 Makefile before 90/08/08
-C86FLAGS=-c -DNOMONITOR=1 -I$(DRVINC) -I$(KERINC) -I$(SYSINC)
+C86FLAGS=-c -DNOMONITOR=1
 #
 $(I86OBJ):
 	mkdir $(I86OBJ)
