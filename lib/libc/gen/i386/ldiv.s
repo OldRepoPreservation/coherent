@@ -34,7 +34,7 @@ div:
 ldiv:
 	movl	%eax, numer(%esp)	/ Dividend to EAX
 	cdq				/ Sign-extend to EDX:EAX
-	idiv	denom(%esp)		/ Divide by divisor
+	idivl	denom(%esp)		/ Divide by divisor
 	movl	quot, %eax		/ Store quotient
 	movl	rem, %edx		/ Store remainder
 	movl	%eax, $quot		/ Return pointer to result in EAX
