@@ -1,17 +1,5 @@
-/ $Header: /usr/src/sys/i8086/src/RCS/ldas.s,v 1.1 88/03/24 17:39:39 src Exp $
+/ /usr/src/sys/i8086/src/ldas.s
 / 
-/	The  information  contained herein  is a trade secret  of INETCO
-/	Systems, and is confidential information.   It is provided under
-/	a license agreement,  and may be copied or disclosed  only under
-/	the terms of that agreement.   Any reproduction or disclosure of
-/	this  material  without  the express  written  authorization  of
-/	INETCO Systems or persuant to the license agreement is unlawful.
-/ 
-/	Copyright (c) 1987
-/	An unpublished work by INETCO Systems, Ltd.
-/	All rights reserved.
-/
-
 ////////
 /
 /	Loadable Driver Interface Routines.
@@ -25,6 +13,8 @@
 /	and then perform a far return to the driver service stub routine.
 /	The driver service stub routine then does a near return to the driver.
 /
+/ 90/09/11  Hal Snyder
+/ Add ld_call()
 /
 / $Log:	/usr/src/sys/i8086/src/RCS/ldas.s,v $
 / Revision 1.1	88/03/24  17:39:39	src
@@ -40,6 +30,7 @@
 ////////
 
 	.globl	ld_xcall_
+	.globl	ld_call_
 	.globl	xcalled
 	.globl	ldtimcall_
 	.globl	ld_open_
@@ -63,6 +54,7 @@
 	B_FLAG	= 6			/ Offset(buf,b_flag).
 	B_DEV	= 8			/ Offset(buf,b_dev ).
 	BFERR	= 4			/ buf.b_flag bit set on I/O error.
+	DRV_J	= 4			/ offset in driver of dispatcher
 
 ////////
 /
@@ -107,7 +99,6 @@ ldrvint_:			/ Loadable Driver Interrupt Entry Points.
 ////////
 
 	.prvd
-four:	.word	4
 	.shri
 
 ////////
@@ -145,6 +136,46 @@ ld_xcall_:
 
 ////////
 /
+/ call a driver function from the kernel
+/   sel		- CS selector for the driver
+/   fn		- offset in the driver of the function we want
+/   arg[1-3]    - optional arguments
+/
+/ ld_call(sel, fn, arg1, arg2, arg3)
+/ int sel;
+/ int (*fn)(void);
+/ int arg1, arg2, arg3;
+/
+////////
+
+/ stack when ld_call() is called:
+/	arg3
+/	arg2
+/	arg1
+/	fn
+/	sel
+/	return IP
+
+ld_call_:			/ PARAMETERS (arg[1-3]) MUST BE FOUND AT 4(BP).
+	push	bp		/ DRIVER RESIDENT CODE RELIES ON THIS.
+/	lea	bp, 4(sp)	/ this is what the next 2 instructions do
+	mov	bp, sp
+	add	bp, $4
+				/
+	push	0(bp)		/ Push sel to allow far call
+	push	$DRV_J		/
+				/
+	mov	ax, 2(bp)	/ Push fn
+				/
+	xcall	-8(bp)		/ Invoke driver interface, which will
+				/	in turn invoke driver function.
+				/
+	lea	sp, -4(bp)	/
+	pop	bp		/
+	ret			/
+
+////////
+/
 /
 / ldtimcall( arg, tp )  - service timed far function.
 /
@@ -157,7 +188,7 @@ ldtimcall_:				/
 	mov	bx, 6(bp)		/
 	mov	ax, T_LDRV+2(bx)	/
 	push	ax			/ Loadable driver code selector.
-	push	four			/ Loadable driver invocation offset.
+	push	$DRV_J			/ Loadable driver invocation offset.
 	mov	ax, T_LDRV(bx)		/ Desired far function.
 					/
 	xcall	-4(bp)			/
@@ -217,7 +248,7 @@ ld_open_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -256,7 +287,7 @@ ld_close_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -296,7 +327,7 @@ ld_read_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -336,7 +367,7 @@ ld_write_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -376,7 +407,7 @@ ld_block_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -418,7 +449,7 @@ ld_ioctl_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -457,7 +488,7 @@ ld_power_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -496,7 +527,7 @@ ld_time_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -537,7 +568,7 @@ ld_poll_:			/ PARAMETERS MUST REMAIN AT 4(BP).
 	mov	cx, ldrvsel_(bx)/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	bx, ldrvcon_(bx)/ Identify driver configuration.
 	or	bx, bx		/
@@ -648,7 +679,7 @@ ld_intr:
 	mov	cx,ldrvics_(bx)	/ Prepare driver interface CS:IP.
 	jcxz	0f		/
 	push	cx		/
-	push	four		/
+	push	$DRV_J		/ Loadable driver invocation offset.
 				/
 	mov	ax,ldrvipc_(bx)	/ Identify interrupt handler to be invoked.
 	or	ax, ax		/
