@@ -217,6 +217,9 @@ union alltypes *argp;
 					retval++;
 					continue;
 				}
+			case 'r':
+				retval += xscanf(fp, *(union alltypes **)argp++);
+				continue;
 			}
 			break;
 		}
