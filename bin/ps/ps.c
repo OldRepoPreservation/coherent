@@ -1,3 +1,4 @@
+static char _version[]="ps version 2.3";
 /*
  *	Modifications copyright INETCO Systems Ltd.
  *
@@ -40,6 +41,7 @@
  * Initial version.
  */
 
+#include <sys/coherent.h>
 #include <sys/param.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
@@ -49,6 +51,7 @@
 #include <sys/uproc.h>
 #include <sys/signal.h>
 #include <sys/mmu.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <coff.h>
@@ -154,6 +157,7 @@ char *malloc();
 char *uname();
 unsigned cval();
 cseg_t	pt_index();
+char *pick_nfile();
 
 main(argc, argv)
 	int argc;
@@ -219,6 +223,7 @@ main(argc, argv)
 			}
 		}
 	}
+
 	execute();
 	exit(0);
 }
@@ -236,7 +241,7 @@ initialise()
 	mflag = 0;
 	nflag = 0;
 	xflag = 0;
-	nfile = "/coherent";
+	nfile = pick_nfile();
 	kfile = "/dev/kmem";
 	mfile = "/dev/mem";
 	dfile = "/dev/swap";
@@ -267,6 +272,7 @@ usage()
 	panic("Usage: ps [-][acdfgklmnrtwx]");
 }
 
+
 /*
  * Print out information about processes.
  */
@@ -274,6 +280,11 @@ execute()
 {
 	int c, l;
 	register PROC *pp1, *pp2;
+
+#if 0
+	printf("execute()\n");
+	fflush(stdout);
+#endif /* 0 */
 
 	coffnlist(nfile, nl, "", NUM_SYMS);
 
@@ -290,6 +301,11 @@ execute()
 	 */
 	dfd = open(dfile, 0);
 
+#if 0
+	printf("Fetch the head of the process queue.\n");
+	fflush(stdout);
+#endif /* 0 */
+
 	/* Fetch the head of the process queue.  */
 	kread((long)aprocq, &cprocq, sizeof (cprocq));
 	/* Fetch information about system memory.  */
@@ -299,8 +315,14 @@ execute()
 	/* Take a snapshot of kernel memory.  */
 	kread((unsigned long)aallocp, &callocp, sizeof (callocp));
 
-	if ((allp=malloc(callocp.sr_size)) == NULL)
+#if 0
+	fprintf(stderr, "callocp.sr_size: %x\n", callocp.sr_size);
+	fflush(stderr);
+#endif /* 0 */
+
+	if ((allp=malloc(callocp.sr_size)) == NULL) {
 		panic( "Out of core or invalid kernel specified" );
+	}
 
 	kread((unsigned long)callocp.sr_base, allp, callocp.sr_size);
 
@@ -393,8 +415,7 @@ execute()
 			printf(" %c", c=state(pp1, pp2));
 			fflush(stdout);
 			if (c == 'S') {
-				printf(" 0x%8x", pp1->p_event);
-				fflush(stdout);
+				print_event(pp1);
 			} else {
 				if (fflag)
 					printf("          -");
@@ -414,9 +435,7 @@ execute()
 			ptime(pp1->p_stime);
 		}
 		printf("  ");
-#if 1
 		printl(pp1, (wflag?132:80)-l-1);
-#endif /* 0 */
 
 		putchar('\n');
 		fflush(stdout);
@@ -557,12 +576,12 @@ rttys()
 ptty( pp )
 	register PROC *pp;
 {
-	register int d;
+	register dev_t d;
 
 	/* when supplied with a device number, look for the name
 	   of the special file from the dev directory */
 	   
-	if( ( d = pp->p_ttdev ) == NODEV ) {
+	if( ((dev_t)( d = pp->p_ttdev )) == NODEV ) {
 		printf( "-------");
 		return;
 	}
@@ -712,6 +731,25 @@ ptime(l)
 }
 
 /*
+ * Print out the reason for a sleep.
+ */
+print_event(pp)
+	register PROC *pp;
+{
+	/* Only print the u.u_sleep field if it is non-empty.  */
+
+	if (	(u_init(pp->p_segp[SIUSERP], &u) != 0) &&
+		('\0' != u.u_sleep[0]) ) {
+			printf(" %10.10s", u.u_sleep );
+	} else {
+		/* Otherwise, print the address we are sleeping on.  */
+		printf(" 0x%8x", pp->p_event);
+	}
+
+	fflush(stdout);
+} /* print_event() */
+
+/*
  * Print out the command line of a process.
  */
 printl(pp, m)
@@ -733,7 +771,7 @@ printl(pp, m)
 	if (u_init(pp->p_segp[SIUSERP], &u) == 0)
 		return;
 
-	printf(" %s ", u.u_comm);
+	printf(" %s", u.u_comm);
 	return;
 
 	/*
@@ -756,7 +794,7 @@ printl(pp, m)
 	n = segread(&u.u_segl[SISTACK], u.u_argp, argp, 64);
 
 	if (n == 0) {
-		printf("Bad segread()\n");	/* DEBUG */
+		fprintf(stderr, "Bad segread()\n");	/* DEBUG */
 		return;
 	}
 
@@ -798,7 +836,7 @@ u_init(sp, bp)
 	register SEG *sp1;
 
 #if 0
-	printf("u_init(sp:%x, bp:%x)\n", sp, bpx);
+	printf("u_init(sp:%x, bp:%x)\n", sp, bp);
 	fflush(stdout);
 #endif /* 0 */
 
@@ -819,6 +857,7 @@ u_init(sp, bp)
 	} else if (dread((long)sp1->s_daddr*BSIZE, bp, sizeof(UPROC)) < 0 ){
 			return( 0 );
 	}
+
 	return (1);
 }
 
@@ -930,13 +969,9 @@ panic(a1)
 {
 	fflush(stdout);
 	sleep(2);
-#if 0
-	fprintf(stdout, "%r", &a1);
-	fprintf(stdout, "\n");
-#else
+
 	fprintf(stderr, "%r", &a1);
 	fprintf(stderr, "\n");
-#endif /* 0 */
 
 	fflush(stderr);
 	exit(1);
@@ -997,6 +1032,7 @@ pt_mread(table, s, bp, n)
 	pt_entry = pt_index(table, s>>BPCSHIFT);
 
 	if (!PT_PRESENT(pt_entry)) {
+		printf("partition not present: %x\n", pt_entry);
 		return(0);
 	}
 	pt_entry &= PT_CLICK_ADDR;	/* Extract Address of click.  */
@@ -1004,9 +1040,10 @@ pt_mread(table, s, bp, n)
 	to_read = LESSER(n, ONE_CLICK - page_offset); /* How far to end of click?  */
 	
 	while (n > 0) {
+
 #if 0
-	printf("pt_mread(): mread(from: %x, to: %x, for: %x))\n",
-	       pt_entry+page_offset, bp, to_read);
+		printf("pt_mread(): mread(from: %x, to: %x, for: %x))\n",
+		       pt_entry+page_offset, bp, to_read);
 		fflush(stdout);
 		sleep(1);
 #endif /* 0 */
@@ -1019,12 +1056,14 @@ pt_mread(table, s, bp, n)
 
 		pt_entry = pt_index(table, s>>BPCSHIFT);
 		if (!PT_PRESENT(pt_entry)) {
+			printf("partition not present: %x.\n", pt_entry);
 			return(0);
 		}
 		pt_entry &= PT_CLICK_ADDR;	/* Extract Address of click.  */
 		page_offset = s & CLICK_OFFSET;	/* Extract offset into click. */
 		to_read = LESSER(n, ONE_CLICK);
 	} /* while (n > 0) */
+
 	return(1);
 } /* pt_mread() */
 
