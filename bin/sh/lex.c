@@ -12,6 +12,14 @@ int	lastget = '\0';		/* Pushed back character */
 int	eolflag = 0;		/* End of line */
 
 /*
+ * For processing here documents.
+ */
+char	*hereeof = NULL;	/* Here document EOF mark */
+int	herefd;			/* Here document fd */
+char	*heretmp;		/* Here document tempfile name */
+int	hereqflag;		/* Here document quoted */
+
+/*
  * Keyword table.
  */
 typedef	struct	key {
@@ -102,6 +110,29 @@ again:
 		return (isnext('|', _NOPEN));
 #endif
 	default:
+		if (hereeof != NULL) {
+			/* Read here document. */
+			for (;;) {
+				strp = strt;
+				if ((c = collect('\n', 2)) < 0)
+					break;
+				*strp = '\0';
+				if (strcmp(strt, hereeof)==0)
+					break;
+				if (herefd < 0)
+					continue;
+				if (!hereqflag && strp > strt + 1 && strp[-2]=='\\')
+					*(strp-=2) = '\0';
+				if (!hereqflag && *strt=='\\' && strcmp(hereeof, strt+1)==0)
+					write(herefd, strt+1, strp-strt-1);
+				else
+					write(herefd, strt, strp-strt);
+			}
+			close(herefd);
+			cleanup(0, heretmp);
+			hereeof = NULL;
+			return '\n';
+		}
 		return (c);
 	}
 }
@@ -183,10 +214,14 @@ lexname()
 			continue;
 		case '`':
 			strp = cp;
-			if ((c = collect('`', 0)) != '`')
+			if ((c = collect('`', 1)) != '`')
 				break;
 			cp = strp;
 			continue;
+		case '\n':
+			if (q)
+				continue;
+			break;
 		}
 		break;
 	}
@@ -222,9 +257,7 @@ lexiors(c1)
 {
 	register int c;
 	register char *name;
-	char *tmp, *iors;
-	int hfd, quote;
-	BUF **bpp;
+	char *iors;
 
 	*strp++ = c = getn();
 	if (c=='&') {
@@ -254,6 +287,29 @@ lexiors(c1)
 	if (c < 0) return (c);
 	if (c1!='<'+0200)
 		return (_IORS);
+#if	1
+	/*
+	 * Set up here document processing.
+	 * Modified by steve 1/25/91 so that
+	 * the actual processing happens at the '\n' ending the line,
+	 * otherwise the common "foo <<SHAR_EOF >baz\n" does not work.
+	 * This code is anything but obvious, it could doubtless be simpler.
+	 */
+	strp = strt;
+	/* Simplify quoted here document iors from ?<<file to ?<file. */
+	if (hereqflag = any(name, "\"\\'"))
+		*++strp = *strt;
+	heretmp = name;
+	name = duplstr(name, 0);
+	strcpy(heretmp, shtmp());
+	iors = duplstr(strp, 0);
+	heretmp += iors - strp;
+	eval(name, EWORD);
+	hereeof = duplstr(strcat(strt, "\n"), 0);
+	if ((herefd = creat(heretmp, 0666)) < 0)
+		ecantmake(heretmp);
+	strcpy(strt, iors);
+#else
 	/* Collect here document */
 	if ((c=getn())!='\n') {
 		eredir();
@@ -264,7 +320,7 @@ lexiors(c1)
 	bpp = savebuf();
 	strp = strt;
 	/* Simplify quoted to ?<file from ?<<file */
-	if (quote = (int)any(name, "\"\\'"))
+	if (quote = any(name, "\"\\'"))
 		*++strp = *strt;
 	tmp = name;
 	name = duplstr(name, 0);
@@ -298,6 +354,7 @@ lexiors(c1)
 	freebuf(bpp);
 	/* Check for interrupt, since EOF is legal for once */
 	if (c < 0 && ! recover(ILEX)) return (c);
+#endif
 	return (_IORS);
 }
 
@@ -406,7 +463,7 @@ ungetn(c)
  * Returns true if the intersection of two
  * strings is non-NULL, otherwise 0.
  */
-char *
+int
 any(s, spcl)
 char *s, *spcl;
 {
@@ -415,7 +472,7 @@ char *s, *spcl;
 	for (p1 = s; *p1; p1++)
 		for (p2 = spcl; *p2; p2++)
 			if (*p2 == *p1)
-				return (p1);
-	return (NULL);
+				return 1;
+	return 0;
 }
 
