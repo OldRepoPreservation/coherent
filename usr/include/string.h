@@ -67,6 +67,7 @@ __VOID__      *	memccpy		__PROTO ((__VOID__ * _s1,
 					  size_t _n));
 char	      *	strdup		__PROTO ((__CONST__ char * _s));
 
+
 /*
  * While we are here, change calls to BSD-style string and memory functions
  * into something more modern. Programs which attempt to take the address of

@@ -53,9 +53,11 @@ __VOID__      *	calloc		__PROTO ((size_t _nmemb, size_t _size));
 void		free		__PROTO ((__VOID__ * _ptr));
 __VOID__      *	malloc		__PROTO ((size_t _size));
 __VOID__      *	realloc		__PROTO ((__VOID__ * _ptr, size_t _size));
-void		abort		__PROTO ((void));
+__NO_RETURN__ void
+		abort		__PROTO ((void));
 int		atexit		__PROTO ((void (* _func) (void)));
-int		exit		__PROTO ((int _status));
+__NO_RETURN__ int
+		exit		__PROTO ((int _status));
 char	      *	getenv		__PROTO ((__CONST__ char * _name));
 int		system		__PROTO ((__CONST__ char * _string));
 __VOID__      *	bsearch		__PROTO ((__CONST__ __VOID__ * _key,

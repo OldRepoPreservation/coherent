@@ -42,12 +42,14 @@ typedef	int	sigjmp_buf [_SIGJBLEN];
 __EXTERN_C_BEGIN__
 
 int		setjmp		__PROTO ((jmp_buf _env));
-void		longjmp		__PROTO ((jmp_buf _env, int _val));
+__NO_RETURN__ void
+		longjmp		__PROTO ((jmp_buf _env, int _val));
 
 #if	! _STDC_SOURCE && _SIGJBLEN
 
 int		sigsetjmp	__PROTO ((sigjmp_buf _env, int _savemask));
-int		siglongjmp	__PROTO ((sigjmp_buf _env, int _val));
+__NO_RETURN__ int
+		siglongjmp	__PROTO ((sigjmp_buf _env, int _val));
 
 #endif
 

@@ -5,10 +5,7 @@
  -lgl) */
 /*
  * /usr/include/errno.h
- *
- * User-Level Error codes.
- *
- * Revised: Mon Jul 12 07:17:12 1993 CDT
+ * Error codes.
  */
 
 #ifndef	__ERRNO_H__

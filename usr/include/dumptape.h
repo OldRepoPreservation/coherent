@@ -21,7 +21,7 @@
 /*
  * Be warned! This header uses several magic numbers related to raw filesystem
  * structure that are not portable. Since raw filesystem structure is used,
-[B * this command will /not/ run on any filesystems other than the old-style
+ * this command will /not/ run on any filesystems other than the old-style
  * Coherent filesystem.
  */
 
