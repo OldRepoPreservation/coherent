@@ -72,9 +72,11 @@ I386OBJ1 =\
 	$(K386OBJ)/mmu.o \
 	$(K386OBJ)/ndp.o \
 	$(K386OBJ)/ndpas.o \
+	$(K386OBJ)/shm0.o \
 	$(K386OBJ)/sys1632.o \
 	$(K386OBJ)/tioc.o \
-	$(K386OBJ)/trap.o
+	$(K386OBJ)/trap.o \
+	$(K386OBJ)/work.o
 
 I386OBJ = $(I386OBJ0) $(I386OBJ1)
 
@@ -235,6 +237,16 @@ $(K386OBJ)/as.o: as.s as.inc
 $(K386OBJ)/xdt.o: xdt.s as.inc
 	$(AS) -g -o $@ xdt.s
 
+$(K386OBJ)/atcon.o:			\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/reg.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/mtype.h	\
+		$(SYSINC)/stat.h	\
+		atcon.c
+	$(CC) $(CFLAGS) -c -o $@ atcon.c
+
 $(K386OBJ)/defer.o: defer.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -252,6 +264,43 @@ $(K386OBJ)/fakedma.o:	fakedma.c
 
 $(K386OBJ)/ff.o: ff.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/fvcon.o:			\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/reg.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/mtype.h	\
+		$(SYSINC)/stat.h	\
+		fvcon.c
+	$(CC) $(CFLAGS) -c -o $@ fvcon.c
+
+$(K386OBJ)/md.o: md.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/mem_cache.o: mem_cache.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/memcpy.o: memcpy.s
+	$(AS) -g -o $@ memcpy.s
+
+$(K386OBJ)/memset.o: memset.s
+	$(AS) -g -o $@ memset.s
+
+$(K386OBJ)/mmu.o: mmu.c
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
+
+$(K386OBJ)/ndpas.o: ndpas.s
+	$(AS) -g -o $@ ndpas.s
+
+$(K386OBJ)/ndp.o: ndp.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/shm0.o: shm0.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/stubs.o: stubs.s
+	$(AS) -g -o $@ stubs.s
 
 $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
@@ -278,52 +327,11 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(USRINC)/sgtty.h
 	$(CC) $(CFLAGS) -c -o $@ sys1632.c
 
-$(K386OBJ)/stubs.o: stubs.s
-	$(AS) -g -o $@ stubs.s
-
-$(K386OBJ)/ndpas.o: ndpas.s
-	$(AS) -g -o $@ ndpas.s
-
-$(K386OBJ)/ndp.o: ndp.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(K386OBJ)/mmu.o: mmu.c
-	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
-
-$(K386OBJ)/md.o: md.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(K386OBJ)/mem_cache.o: mem_cache.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(K386OBJ)/memcpy.o: memcpy.s
-	$(AS) -g -o $@ memcpy.s
-
-$(K386OBJ)/memset.o: memset.s
-	$(AS) -g -o $@ memset.s
-
 $(K386OBJ)/tioc.o: tioc.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/trap.o: trap.c
 	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
 
-$(K386OBJ)/atcon.o:			\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/reg.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h \
-		$(SYSINC)/con.h		\
-		$(USRINC)/mtype.h	\
-		$(SYSINC)/stat.h	\
-		atcon.c
-	$(CC) $(CFLAGS) -c -o $@ atcon.c
-
-$(K386OBJ)/fvcon.o:			\
-		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
-					$(SYSINC)/reg.h $(SYSINC)/param.h \
-					$(SYSINC)/fun.h \
-		$(SYSINC)/con.h		\
-		$(USRINC)/mtype.h	\
-		$(SYSINC)/stat.h	\
-		fvcon.c
-	$(CC) $(CFLAGS) -c -o $@ fvcon.c
+$(K386OBJ)/work.o: work.c
+	$(CC) $(CFLAGS) -c -o $@ $<
