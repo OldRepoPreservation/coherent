@@ -1,14 +1,15 @@
 /*
  * qfind.c
- * 3/21/91
+ * 8/12/92
  * Find files with given name in filesystem using file database.
  * Usage: qfind [ -adp ] name ...
- * 	  qfind -b[v]
+ * 	  qfind -b[v] [ -sname ] ...
  * Options:
- *	-a	All: search for files or directories.
+ *	-a	All: search for files or directories (default: files only).
  *	-b	Build file database.
  *	-d	Search for directories only.
  *	-p	Partial name matching.
+ *	-sname	Suppress name (and its subdirectories) when building database.
  *	-v	Verbose information.
  * Run as root when using -b to find everything.
  * Uses find, sed, sort.
@@ -18,13 +19,16 @@
 #include <stdio.h>
 #include <string.h>
 
+extern	char	*malloc();
 extern	char	*mktemp();
+extern	char	*realloc();
 
-#define	VERSION	"1.6"
-#define	USAGE	"Usage:\tqfind [ -adp ] name ...\n\tqfind -b[v]\n"
+#define	VERSION	"1.7"
 #define	MINSEEK	512			/* binary search threshold */
 #define	NBUF	512			/* buffer size		*/
 #define	NCHARS	128			/* first characters	*/
+#define	SED_D	"s/\\(.*\\)\\/\\(.*\\)/\\2\\/ \\1/"
+#define	SED_F	"s/\\(.*\\)\\/\\(.*\\)/\\2 \\1/"
 #define	QFFILES	"/usr/adm/qffiles"	/* database filename	*/
 #define	QFNEW	"/usr/adm/qffiles.new"	/* new database filename */
 #define	QFTMP	"/tmp/qfXXXXXX"		/* tmpname prototype	*/
@@ -33,8 +37,10 @@ extern	char	*mktemp();
 int	build();
 void	fatal();
 void	fpseek();
+void	nonfatal();
 int	qfind();
 int	qseek();
+void	suppress();
 void	sys();
 void	usage();
 
@@ -45,8 +51,10 @@ char	buf[NBUF];			/* command buffer	*/
 int	dflag;				/* look for directories	*/
 FILE	*ifp;				/* input FILE		*/
 int	pflag;				/* partial match	*/
+char	*sed_cmd = NULL;		/* sed command string	*/
 long	seektab[NCHARS];		/* seek table		*/
-char	*tmpname;			/* temporary filename	*/
+int	sflag;				/* suppress		*/
+char	tmpname[] = QFTMP;		/* temporary filename	*/
 int	vflag;				/* verbose information	*/
 
 main(argc, argv) int argc; char *argv[];
@@ -62,18 +70,41 @@ main(argc, argv) int argc; char *argv[];
 			case 'b':	++bflag;	break;
 			case 'd':	++dflag;	break;
 			case 'p':	++pflag;	break;
+			case 's':
+				++sflag;
+				suppress(&argv[1][2]);
+				s += strlen(s) - 1;
+				break;
 			case 'v':	++vflag;	break;
 			case 'V':
 				fprintf(stderr, "qfind: V%s\n", VERSION);
 				break;
+			case '?':
 			default:	usage();
 			}
 		}
 		--argc;
 		++argv;
 	}
-	if ((bflag && argc != 1) || (!bflag && argc == 1))
-		usage();
+
+	/* Arg sanity check. */
+	if (bflag) {
+		if (argc != 1)
+			usage();
+		if (aflag)
+			nonfatal("-a option ignored with -b");
+		if (dflag)
+			nonfatal("-d option ignored with -b");
+		if (pflag)
+			nonfatal("-p option ignored with -b");
+	} else {
+		if (argc == 1)
+			usage();
+		if (vflag)
+			nonfatal("-v option ignored without -b");
+		if (sflag)
+			nonfatal("-s option ignored without -b");
+	}
 
 	/* Build new database. */
 	if (bflag)
@@ -107,16 +138,16 @@ build()
 	int last;
 	long lastseek;
 
-	if ((tmpname = mktemp(QFTMP)) == NULL)
+	if (mktemp(tmpname) == NULL)
 		fatal("cannot make temporary file name");
 
 	/* Generate "file /dir1/dir2" for each file /dir1/dir2/file. */
-	sys("find / ! -type d | sed -e 's/\\(.*\\)\\/\\(.*\\)/\\2 \\1/' >%s",
-		tmpname);
+	sys("find / ! -type d | sed -e '%s%s' >%s",
+		(sed_cmd == NULL) ? "" : sed_cmd, SED_F, tmpname);
 
 	/* Append "dir3/ /dir1/dir2" for each directory /dir1/dir2/dir3. */
-	sys("find / -type d | sed -e 's/\\(.*\\)\\/\\(.*\\)/\\2\\/ \\1/' >>%s",
-		tmpname);
+	sys("find / -type d | sed -e '%s%s' >>%s",
+		(sed_cmd == NULL) ? "" : sed_cmd, SED_D, tmpname);
 
 	/* Create data file containing an empty seek table. */
 	if ((fp = fopen(QFNEW, "w")) == NULL)
@@ -171,8 +202,7 @@ void
 fatal(s) char *s;
 {
 	fprintf(stderr, "qfind: %r\n", &s);
-	if (tmpname != NULL)
-		unlink(tmpname);
+	unlink(tmpname);
 	if (bflag)
 		unlink(QFNEW);
 	exit(1);
@@ -186,6 +216,16 @@ fpseek(fp, where, how) FILE *fp; long where; int how;
 {
 	if (fseek(fp, where, how) == -1)
 		fatal("seek failed");
+}
+
+/*
+ * Cry but don't die.
+ */
+/* VARARGS */
+void
+nonfatal(s) char *s;
+{
+	fprintf(stderr, "qfind: %r\n", &s);
 }
 
 /*
@@ -252,7 +292,6 @@ qseek(key) char *key;
 	if ((min = seektab[i]) == 0L)		/* lower bound for search */
 		return 0;		/* no entries with right first char */
 
-#if	1
 	/* Binary search. */
 	for (++i; i < NCHARS; ++i) {
 		if (seektab[i] != 0L) {
@@ -281,9 +320,45 @@ qseek(key) char *key;
 		else
 			min = new;
 	}
-#endif
+
 	fpseek(ifp, min, SEEK_SET);
 	return 1;
+}
+
+/*
+ * Suppress a directory.
+ * This appends the sed delete command "/^name/d;" to sed_cmd.
+ */
+void
+suppress(name) register char *name;
+{
+	register int len;
+	register char *s;
+
+	/* Allocate space for additional command in sed_cmd. */
+	len = strlen(name) + 6;		/* for "/^name/d;" + NUL */
+	for (s = name; *s != '\0'; s++)
+		if (*s == '/')
+			++len;		/* bump count for each slash in name */
+	if (sed_cmd == NULL)
+		s = sed_cmd = malloc(len);
+	else {
+		s = sed_cmd = realloc(sed_cmd, strlen(sed_cmd) + len);
+		s += strlen(sed_cmd);
+	}
+
+	/* Append the sed delete command "/^name/d;" to the sed_cmd string. */
+	*s++ = '/';
+	*s++ = '^';
+	while (*name != '\0') {
+		if (*name == '/')
+			*s++ = '\\';
+		*s++ = *name++;
+	}
+	*s++ = '/';
+	*s++ = 'd';
+	*s++ = ';';
+	*s = '\0';
 }
 
 /*
@@ -294,7 +369,7 @@ void
 sys(s) char *s;
 {
 	sprintf(buf, "%r", &s);
-#if	0
+#if	DEBUG
 	fprintf(stderr, "%s\n", buf);		/* for debugging */
 #endif
 	if (system(buf) != 0)
@@ -307,7 +382,17 @@ sys(s) char *s;
 void
 usage()
 {
-	fprintf(stderr, USAGE);
+	fprintf(stderr, 
+		"Usage:\tqfind [ -adp ] name ...\n"
+		"\tqfind -b[v] [ -sname ] ...\n"
+		"Options:\n"
+		"\t-a\tAll: search for files or directories (default: files only).\n"
+		"\t-b\tBuild file database.\n"
+		"\t-d\tSearch for directories only.\n"
+		"\t-p\tPartial name matching.\n"
+		"\t-sname\tSuppress name (and its subdirectories) when building database.\n"
+		"\t-v\tVerbose information.\n"
+		);
 	exit(1);
 }
 
