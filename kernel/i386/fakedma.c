@@ -95,8 +95,8 @@ caddr_t	vaddr;
 	unsigned off;
 	unsigned	n, n1;
 	cseg_t* base;
-	int save = setspace(SEG_386_KD);
 	int work = workAlloc();	/* Get a virtual click pair. */
+	int save = setspace(SEG_386_KD);
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
@@ -192,8 +192,8 @@ caddr_t	vaddr;
 	unsigned off;
 	unsigned	n, n1;
 	cseg_t *base;
-	int save = setspace(SEG_386_KD);
 	int work = workAlloc();	/* Get a virtual click pair. */
+	int save = setspace(SEG_386_KD);
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
@@ -250,6 +250,10 @@ caddr_t	vaddr;
 			vaddr += NBPC;
 			nbytes -= NBPC;
 		}
+
+		/* now the transfer to memory is click-aligned */
+		off = 0;
+
 		/*
 		 * page n-1 (last one)
 		 *
@@ -262,6 +266,7 @@ caddr_t	vaddr;
 		if (n = nbytes & ~(sizeof(long)-1)) {
 			copyseg_d(n, vaddr, ctob(work));
 			vaddr += n;
+			off += n;
 			nbytes -= n;
 		}
 		if (nbytes)
