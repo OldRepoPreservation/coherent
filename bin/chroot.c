@@ -1,3 +1,4 @@
+static char _version[]="chroot version 1.0";
 /*
  * chroot - Change root
  *
