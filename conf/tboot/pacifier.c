@@ -57,7 +57,9 @@ pacifier()
 		} /* switch (substate) */
 
 		if (++count > THRESHOLD) {
+#if 0
 			subliminal("Buy COHware!");
+#endif
 			puts(" \010\010");
 			state = REVERSE;
 			count = 0;
@@ -114,11 +116,11 @@ pacifier()
 /*
  * Print a subliminal message on the console.
  * It does this by printing the message, backspacing over it,
- * spacing over it, and the backspacing again.
+ * spacing over it, and then backspacing again.
  */
 void
 subliminal(msg)
-	char *msg;
+char *msg;
 {
 	int i, len;
 

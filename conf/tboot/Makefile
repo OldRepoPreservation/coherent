@@ -3,30 +3,39 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
-CC=cc286
-LD=cc286
-AR=/bin/286/ar
-RANLIB=/bin/286/ranlib
-CP=cp
-AS=/bin/286/as
 
-DESTDIR=/
+#CC=cc286
+#LD=cc286
+#AR=/bin/286/ar
+#RANLIB=/bin/286/ranlib
+CP=cp
+#AS=/bin/286/as
+
+CC=cc
+LD=ld
+AR=/bin/ar
+RANLIB=/bin/ranlib
+AS=/bin/as
+
+DESTDIR=/bin386/
+DESTDIR2=/bin386/etc/
 
 LIBOBJECTS=bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
 	l.out.o coff.o bio.o gift.o objects.o pacifier.o \
 	fifo_b.o fifo_k.o sys.o fdisk.o arg_exist.o execute.o \
-	cpu_type.o
+	cpu_type.o printf.o
 
 LIBSOURCES=bootlib.m cbootlib.c diskio.c indirect.c intcall.m monitor.c \
 	l.out.c coff.c bio.c gift.c objects.c pacifier.c \
 	fifo_b.c fifo_k.c sys.c fdisk.c arg_exist.c execute.c \
-	cpu_type.s
+	cpu_type.s printf.c
 
 OBJECTS=Startup.o $(LIBOBJECTS)
 
 SOURCES=Startup.s $(LIBSOURCES)
 
-LIBS=libtboot.a libtboot.a libtboot.a /lib/286/libc.a
+LIBS=libtboot.a /lib/libc.a
+#LIBS=libtboot.a libtboot.a libtboot.a /lib/286/libc.a
 INCLUDE=-I.
 CFLAGS=$(INCLUDE)
 
@@ -36,10 +45,10 @@ all: tboot bootcmd
 # NB: Startup.o must come first in the link line, so the entry
 # point in Startup lines up correctly.
 tboot: sys/ptypes.h  Startup.o tboot.o builtin.o libtboot.a
-	$(LD) -o tboot Startup.o tboot.o builtin.o $(LIBS)
+	$(LD) -o $(DESTDIR)tboot Startup.o tboot.o builtin.o $(LIBS)
 
 bootcmd: bootcmd.o fifo_k.o
-	$(LD) -o bootcmd bootcmd.o fifo_k.o
+	$(LD) -o $(DESTDIR2)bootcmd bootcmd.o fifo_k.o
 
 libtboot.a: $(LIBOBJECTS) 
 	rm -f $@
