@@ -10,5 +10,5 @@
 
 int isgraph(c) int c;
 {
-	return ((_ctype+1)[c]&(_P|_A|_D));
+	return ((_ctype+1)[c]&(_P|_A|_N));
 }

@@ -21,24 +21,24 @@ unsigned char _ctype[_CTYPEN] = {
 	_C,	_C,	_C,	_C,	/* DC4	NAK	SYN	ETB	*/
 	_C,	_C,	_C,	_C,	/* CAN	EM	SUB	ESC	*/
 	_C,	_C,	_C,	_C,	/* FS	GS	RS	US	*/
-	_S|_X,	_P,	_P,	_P,	/* SP	!	"	#	*/
+	_S|_B,	_P,	_P,	_P,	/* SP	!	"	#	*/
 	_P,	_P,	_P,	_P,	/* $	%	&	'	*/
 	_P,	_P,	_P,	_P,	/* (	)	*	+	*/
 	_P,	_P,	_P,	_P,	/* ,	-	.	/	*/
-	_D|_H,	_D|_H,	_D|_H,	_D|_H,	/* 0	1	2	3	*/
-	_D|_H,	_D|_H,	_D|_H,	_D|_H,	/* 4	5	6	7	*/
-	_D|_H,	_D|_H,	_P,	_P,	/* 8	9	:	;	*/
+	_N|_X,	_N|_X,	_N|_X,	_N|_X,	/* 0	1	2	3	*/
+	_N|_X,	_N|_X,	_N|_X,	_N|_X,	/* 4	5	6	7	*/
+	_N|_X,	_N|_X,	_P,	_P,	/* 8	9	:	;	*/
 	_P,	_P,	_P,	_P,	/* <	=	>	?	*/
-	_P,	_U|_H,	_U|_H,	_U|_H,	/* @	A	B	C	*/
-	_U|_H,	_U|_H,	_U|_H,	_U,	/* D	E	F	G 	*/
+	_P,	_U|_X,	_U|_X,	_U|_X,	/* @	A	B	C	*/
+	_U|_X,	_U|_X,	_U|_X,	_U,	/* D	E	F	G 	*/
 	_U,	_U,	_U,	_U,	/* H	I	H	K	*/
 	_U,	_U,	_U,	_U,	/* L	M	N	O	*/
 	_U,	_U,	_U,	_U,	/* P	Q	R	S	*/
 	_U,	_U,	_U,	_U,	/* T	U	V	W	*/
 	_U,	_U,	_U,	_P,	/* X	Y	Z	[	*/
 	_P,	_P,	_P,	_P,	/* \	]	^	_	*/
-	_P,	_L|_H,	_L|_H,	_L|_H,	/* `	a	b	c	*/
-	_L|_H,	_L|_H,	_L|_H,	_L,	/* d	e	f	g	*/
+	_P,	_L|_X,	_L|_X,	_L|_X,	/* `	a	b	c	*/
+	_L|_X,	_L|_X,	_L|_X,	_L,	/* d	e	f	g	*/
 	_L,	_L,	_L,	_L,	/* h	i	j	k	*/
 	_L,	_L,	_L,	_L,	/* l	m	n	o	*/
 	_L,	_L,	_L,	_L,	/* p	q	r	s	*/

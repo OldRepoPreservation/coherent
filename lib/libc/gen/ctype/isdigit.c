@@ -10,5 +10,5 @@
 
 int isdigit(c) int c;
 {
-	return ((_ctype+1)[c]&_D);
+	return ((_ctype+1)[c]&_N);
 }
