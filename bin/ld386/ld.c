@@ -7,14 +7,16 @@
 #include "ld.h"
 #include <signal.h>
 #include <ctype.h>
+#include <path.h>
 
 flag_t	reloc,	/* Combine input into a new .o not an executable */
 	nosym,	/* No symbol table out. */
 	watch,	/* Produce a trace */
 	noilcl, /* Discard C local symbols beginning .L */
 	nolcl,	/* Discard all local symbols */
-	qflag, /* No warn on commons of different length */
-	auxflg,	/* Pass through aux symbols */
+	qflag,	/* No warn on commons of different length */
+	Qflag,	/* Absolute silence on everything */
+	debflg,	/* Create debug data */
 	drvld,	/* Called as drvld */
 	fource = -1;	/* halt on error */
 
@@ -31,20 +33,23 @@ long comnb, comns, comnl;	/* common lengths */
 char *entrys;			/* entry string */
 sym_t	*symtable[NHASH];	/* hashed symbol table */
 
-int osegs = NLSEG;			/* the number of output segments */
+unsigned short osegs = NLSEG;	/* the number of output segments */
 FILEHDR fileh;
 AOUTHDR aouth;
 SCNHDR  *secth;		/* output segments */
 
 static long str_length;
 static int ofd;
+static long *file_value = NULL, file_first;
 char *argv0;
 
 /*
  * Write or die.
  */
+void
 xwrite(loc, size)
 char *loc;
+unsigned int size;
 {
 	if (size != write(ofd, loc, size))
 		fatal("write error"); /**/
@@ -113,8 +118,9 @@ getsys()
  */
 baseall()
 {
-	register int i;
-	long daddr, vaddr, size, inc;
+	register SCNHDR  *sh;
+	int i;
+	unsigned long daddr, vaddr, size, inc;
 
 	time(&fileh.f_timdat);
 	fileh.f_nscns = osegs;
@@ -136,10 +142,11 @@ baseall()
 
 	/* set s_vaddr, s_paddr, s_size, and s_scnptr for all segments */
 	for (i = 0; i < osegs; i++) {
+		sh = secth + i;
 		switch (i) {
 		case S_TEXT:
-			aouth.text_start = secth[i].s_vaddr = vaddr;
-			aouth.tsize = size = secth[i].s_size;		
+			aouth.text_start = sh->s_vaddr = vaddr;
+			aouth.tsize = size = sh->s_size;		
 			break;
 
 		case S_DATA:	/* data adjustment */
@@ -150,37 +157,49 @@ baseall()
 					vaddr = (vaddr & 0x0fff) + DATABASE;
 			}
 
-			aouth.data_start = secth[i].s_vaddr = vaddr;
-			aouth.dsize = size = secth[i].s_size;		
+			aouth.data_start = sh->s_vaddr = vaddr;
+			aouth.dsize = size = sh->s_size;		
 			break;
 
 		case S_BSSD: /* round up bssd */
 			vaddr = (vaddr + inc) & ~inc;
 
-			secth[i].s_paddr = secth[i].s_vaddr = vaddr;
-			vaddr += aouth.bsize = secth[i].s_size;
-			secth[i].s_scnptr = 0;
+			sh->s_paddr = sh->s_vaddr = vaddr;
+			vaddr += aouth.bsize = sh->s_size;
+			sh->s_scnptr = 0;
 			continue;
 
 		default:
-			secth[i].s_vaddr = vaddr;
-			size = secth[i].s_size;
+			sh->s_vaddr = vaddr;
+			size = sh->s_size;
 		}
 
-		secth[i].s_paddr = secth[i].s_vaddr;
-		secth[i].s_scnptr = daddr;
+		sh->s_paddr = sh->s_vaddr;
+		sh->s_scnptr = daddr;
 		daddr += size;
 		vaddr += size;
 	}
 
 	/* set relocations for all segments */
 	for (i = 0; i < osegs; i++) {
-		if (!reloc || (S_BSSD == i) || !secth[i].s_nreloc) {
-			secth[i].s_relptr = 0;
+		sh = secth + i;
+		if (!reloc || (S_BSSD == i) || !sh->s_nreloc) {
+			sh->s_relptr = 0;
 			continue;
 		}
-		secth[i].s_relptr = daddr;
-		daddr += secth[i].s_nreloc * RELSZ;
+		sh->s_relptr = daddr;
+		daddr += sh->s_nreloc * RELSZ;
+	}
+
+	/* set line numbers for all segments */
+	for (i = 0; i < osegs; i++) {
+		sh = secth + i;
+		if (!debflg || !sh->s_nlnno) {
+			sh->s_nlnno = sh->s_lnnoptr = 0;
+			continue;
+		}
+		sh->s_lnnoptr = daddr;
+		daddr += sh->s_nlnno * LINESZ;
 	}
 
 	if (!nosym)
@@ -291,6 +310,7 @@ char *s;
 /*
  * Show undefined symbols.
  */
+void
 showUndef(sp, sym)
 register sym_t *sp;
 register SYMENT *sym;
@@ -316,17 +336,17 @@ int (*fun)();
 	 * Do symbols connected to modules in module order.
 	 * Only process a global symbol for it's owner.
 	 */
-	for (mp = head; mp != NULL; mp = mp->next) {
+	for (mp = head; mp != (mod_t *)NULL; mp = mp->next) {
 		sym = ((SYMENT *)(mp->f->f_symptr));
 		symEnd = sym + mp->f->f_nsyms;
 		for (; sym < symEnd; sym += sym->n_numaux + 1) {
 			if (1 == sym->n_zeroes) { /* pointer to original */
 				sp = (sym_t *)sym->n_offset;
 				if (sp->mod == mp)
-					(*fun)(sp, &(sp->sym));
+					(*fun)(sp, &(sp->sym), mp, sym);
 			}
 			else
-				(*fun)(NULL, sym);
+				(*fun)(NULL, sym, mp, sym);
 		}
 	}
 
@@ -337,19 +357,56 @@ int (*fun)();
 	for (i = 0; i < NHASH; i++)
 		for (sp = symtable[i]; NULL != sp; sp = sp->next)
 			if (NULL == sp->mod)
-				(*fun)(sp, &(sp->sym));
+				(*fun)(sp, &(sp->sym), sp->mod, NULL);
 }
 
 /*
  * Fixup a symbol between passes.
  */
-symFix(sp, sym)
+void
+symFix(sp, sym, mp, auxp)
 sym_t *sp;
-register SYMENT *sym;
+register SYMENT *sym, *auxp;
+mod_t *mp;
 {
 	int segn, len;
 
 	segn = sym->n_scnum;
+	if (debflg && NULL != auxp) {
+		static long file_start;
+		int aux, has_fcn = 0, has_fsize = 0;
+
+		switch(sym->n_sclass) {
+		case C_FILE:
+			file_start = fileh.f_nsyms;
+			if (NULL != file_value)	/* files point in a circle */
+				*file_value = fileh.f_nsyms;
+			else
+				file_first = fileh.f_nsyms;
+			file_value = &(sym->n_value);
+			fileh.f_nsyms += sym->n_numaux + 1;
+			return;
+
+		case C_STRTAG:
+		case C_UNTAG:
+		case C_ENTAG:
+		case C_BLOCK:
+			has_fcn = 1;
+			break;
+		default:
+			if (ISFCN(sym->n_type))
+				has_fcn = has_fsize = 1;
+		}
+		for (aux = 1; aux <= sym->n_numaux; aux++) {
+			AUXENT *a = auxp + aux;
+
+			if (a->ae_tagndx)
+				a->ae_tagndx += file_start;
+
+			if (has_fcn && a->ae_endndx)
+				a->ae_endndx += file_start;
+		}
+	}
 	if (!reloc && common(sym)) {
 		switch ((len = sym->n_value) & 3) {
 		case 2:	/* 2 byte aligned */
@@ -369,8 +426,11 @@ register SYMENT *sym;
 	else if (segn > 0)
 		sym->n_value += secth[segn - 1].s_vaddr;
 
-	if (NULL != sp && !nosym)
+	if (NULL != sp && !nosym) {
 		sp->symno = fileh.f_nsyms++;
+		if (debflg)
+			fileh.f_nsyms += sym->n_numaux;
+	}
 }
 
 /*
@@ -380,14 +440,17 @@ void
 betweenPass()
 {
 	if (reloc)
-		fileh.f_flags |= F_LNNO | F_AR32WR;
+		fileh.f_flags |= F_AR32WR;
 	else {
-		fileh.f_flags |= F_RELFLG | F_LNNO | F_EXEC | F_AR32WR;
+		fileh.f_flags |= F_RELFLG | F_EXEC | F_AR32WR;
 		comnb += (4 - ((comnb + comns) & 3)) & 3;
 		secth[S_BSSD].s_size += comnb + comns + comnl;
 	}
 	if (nosym)
 		fileh.f_flags |= F_LSYMS;
+
+	if (!debflg)
+		fileh.f_flags |= F_LNNO;
 
 	if (drvld)
 		getsys();	/* get segment base information from system */
@@ -402,7 +465,7 @@ betweenPass()
 			char end_name[20], c, *p;
 
 			sprintf(end_name, "__end%.8s", secth[i].s_name);
-			for (p = end_name; c = *p; p++)
+			for (p = end_name; '\0' != (c = *p); p++)
 				if (!isalnum(c))
 					*p = '_';
 
@@ -438,26 +501,33 @@ betweenPass()
 	fileh.f_nsyms = 0;
 	allSym(symFix);
 
+	if (NULL != file_value)
+		*file_value = file_first;
+
 	aouth.entry = lentry(entrys);
 }
 
 /*
  * output symbol table.
  */
-static
-outputSym(s, sm)
+static void
+outputSym(s, sm, mp, auxp)
 register sym_t *s;
 register SYMENT *sm;
+mod_t *mp;
+SYMENT *auxp;
 {
 	int i;
 	char *name, work[SYMNMLEN + 1];
 	SYMENT sym;
 
-	if (NULL == s)
+	if (NULL == (char *)s)
 		return;
 
+	/* build writeable copy */
 	memcpy(&sym, sm, sizeof(sym));
 	name = symName(sm, work);
+
 	if (SYMNMLEN < (i = strlen(name))) {
 		sym.n_offset = str_length;
 		str_length += i + 1;
@@ -465,23 +535,18 @@ register SYMENT *sm;
 	else
 		memcpy(sym.n_name, name, SYMNMLEN);
 
-	if (auxflg && sym.n_numaux) {
-		SYMENT *aux;
-
-		xwrite(&sym, SYMESZ, 1);
-		aux = (SYMENT *)sym.n_offset;
-		xwrite(aux + 1, SYMESZ, 1);
-	}
-	else {
+	if (!debflg)
 		sym.n_numaux = 0;
-		xwrite(&sym, SYMESZ, 1);
-	}
+	xwrite(&sym, SYMESZ);
+
+	if (sym.n_numaux)
+		xwrite(auxp + 1, SYMESZ * sym.n_numaux);
 }
 
 /*
  * output long symbols.
  */
-static
+static void
 longSym(s, sm)
 register sym_t *s;
 register SYMENT *sm;
@@ -494,12 +559,13 @@ register SYMENT *sm;
 
 	name = symName(sm, work);
 	if (SYMNMLEN < (i = strlen(name)))
-		xwrite(name, i + 1, 1);
+		xwrite(name, i + 1);
 }
 
 /*
  * Do relocations
  */
+static void
 relocations(mp, segn)
 mod_t *  mp;
 {
@@ -533,9 +599,7 @@ mod_t *  mp;
 		sym_t *sp;
 		SYMENT *s, *sym;
 		long relf, w, at;
-		long	workl;
 		int   undef;
-		short	works;
 		char work[SYMNMLEN + 1], *name;
 		static char *pcrel = "pcrel";
 
@@ -581,6 +645,9 @@ mod_t *  mp;
 		else if (!undef && ((NULL == sp) || (sp->mod == mp)))
 			relf -= mp->s[s->n_scnum - 1].s_vaddr;
 
+/* relocate what the pointer is aimed at and leave a record */
+#define relocate(type) *(type *)ptr = (w = *(type *)ptr) + relf
+
 		if (reloc) {
 			rel->r_vaddr = w + orsp->s_vaddr;
 			rel->r_symndx = sp->symno;
@@ -591,8 +658,7 @@ mod_t *  mp;
 				relf = fixr;
 
 			case R_RELBYTE:
-				w = *ptr;
-				*ptr = w + relf;
+				relocate(char);
 				break;
 
 			case R_PCRWORD:
@@ -601,10 +667,7 @@ mod_t *  mp;
 
 			case R_DIR16:
 			case R_RELWORD:
-				memcpy(&works, ptr, 2);
-				w = works;
-				works += relf;
-				memcpy(ptr, &works, 2);
+				relocate(short);
 				break;
 
 			case R_PCRLONG:
@@ -613,16 +676,12 @@ mod_t *  mp;
 
 			case R_DIR32:
 			case R_RELLONG:
-				memcpy(&workl, ptr, 4);
-				w = workl;
-				workl += relf;
-				memcpy(ptr, &workl, 4);
+				relocate(long);
 				break;
 
 			case R_NONREL:
 				mtype = "nonrel";
-				memcpy(&workl, ptr, 4);
-				w = workl;
+				w = *(long *)ptr;
 				relf = 0;
 				break;
 
@@ -655,33 +714,25 @@ mod_t *  mp;
 				mtype = pcrel;
 				relf -= orsp->s_vaddr;
 			case R_RELBYTE:
-				w = *ptr;
-				*ptr = w + relf;
+				relocate(char);
 				break;
 			case R_PCRWORD:
 				mtype = pcrel;
 				relf -= orsp->s_vaddr;
 			case R_RELWORD:
 			case R_DIR16:
-				memcpy(&works, ptr, 2);
-				w = works;
-				works += relf;
-				memcpy(ptr, &works, 2);
+				relocate(short);
 				break;
 			case R_PCRLONG:
 				mtype = pcrel;
 				relf -= orsp->s_vaddr;
 			case R_RELLONG:
 			case R_DIR32:
-				memcpy(&workl, ptr, 4);
-				w = workl;
-				workl += relf;
-				memcpy(ptr, &workl, 4);
+				relocate(long);
 				break;
 			case R_NONREL:
 				mtype = "nonrel";
-				memcpy(&workl, ptr, 4);
-				w = workl;
+				w = *(long *)ptr;
 				relf = 0;
 				break;
 			default:
@@ -699,8 +750,10 @@ mod_t *  mp;
 				w);
 		}
 	}
+#undef relocate
+
 	orsp->s_vaddr += size;
-	xwrite(t, (int)size, 1);
+	xwrite(t, (int)size);
 }
 
 /*
@@ -710,6 +763,7 @@ outputAll()
 {
 	register mod_t *mp;
 	register SCNHDR *scn;
+	long fptr;
 	int i;
 	struct stat statbuf;
 
@@ -717,9 +771,8 @@ outputAll()
 	ofd = qopen(ofname, 1);
 
 	/* write header */
-	if (watch)
-		w_message("before header %lx", lseek(ofd, 0, 2));
-	xwrite(&fileh, sizeof(fileh), 1);
+	w_message("before header %lx", lseek(ofd, 0, 2));
+	xwrite(&fileh, sizeof(fileh));
 
 	if (!reloc) {	/* if executable set bits and write opt header */
 		stat(ofname, &statbuf);
@@ -731,8 +784,7 @@ outputAll()
 	}
 
 	/* write sector headers */
-	if (watch)
-		w_message("before sect headers %lx", lseek(ofd, 0, 2));
+	w_message("before sect headers %lx", lseek(ofd, 0, 2));
 	xwrite(secth, sizeof(* secth) * osegs);
 
 	/* write corrected text segments */
@@ -753,16 +805,47 @@ outputAll()
 		}
 	}
 
+	/* write lines if required */
+	fptr = lseek(ofd, 0, 2);
+	for (i = (debflg ? 0 : osegs); i < osegs; i++) {
+		for (mp = head; mp != NULL; mp = mp->next) {
+			int j;
+			AUXENT *a;
+			SYMENT *sym;
+			LINENO *l;
+
+			if (mp->f->f_nscns <= i)
+				continue;
+			scn = mp->s + i;
+			if (!scn->s_nlnno)
+				continue;
+
+			/* set up n_lnnoptr in symbol table to point
+			 * to line records */
+			l = (LINENO *)scn->s_lnnoptr;
+			for (j = 0; j < scn->s_nlnno; j++, l++) {
+				if (!l->l_lnno) {
+					sym = ((SYMENT *)(mp->f->f_symptr)) + 
+						l->l_addr.l_symndx;
+					if (sym->n_numaux) {
+						a = (AUXENT *)sym + 1;
+						a->ae_lnnoptr = fptr;
+					}
+				}
+				fptr += LINESZ;
+			}
+			xwrite(scn->s_lnnoptr, LINESZ * scn->s_nlnno);
+		}
+	}
+
 	if (!nosym) {
 		str_length = 4;
 
-		if (watch)
-			w_message("before symbols %ld", lseek(ofd, 0, 2));
+		w_message("before symbols %ld", lseek(ofd, 0, 2));
 		allSym(outputSym);
 		if (4 != str_length) {
-			if (watch)
-				w_message("before long syms %ld", 
-					lseek(ofd, 0, 2));
+			w_message("before long syms %ld", 
+				lseek(ofd, 0, 2));
 			xwrite(&str_length, sizeof(str_length));
 			allSym(longSym);
 		}
@@ -779,18 +862,16 @@ char *argv[];
 {
 	int	c;
 	char	*specialList = NULL;
-	char	*argString = "?ae:finKl:L:o:rsu:wXxZ:q";
+	char	*argString = "?ge:finKl:L:o:rsu:wXxZ:qQ";
+	char	*env;
 
-#if 0
-	/* We use a lot of storage, this makes malloc() faster */
-	free(alloc(1024 * 256));
-#endif
 	/* find program name */
 	if (NULL == (argv0 = strrchr(argv[0], '/')))
 		argv0 = argv[0];
 	else
 		argv0++;
 
+	env = getenv("LIBPATH");
 	/*
 	 * drvld is an alternative name for ld.
 	 * In this mode ld will load the kernel's symbol table, so
@@ -803,7 +884,7 @@ char *argv[];
 #if 0
 		ofname = tmpnam(NULL);
 #endif
-		argString = "?ae:l:L:u:wd";
+		argString = "?ge:l:L:u:wdq";
 		fileh.f_flags |= F_KER;
 		drvld = 1;
 		/* read kernel for symbol table but don't load */
@@ -825,8 +906,8 @@ char *argv[];
 			fource = 0;
 			continue;
 
-		case 'a':	/* save extra segments and aux symbols */
-			auxflg ^= 1;
+		case 'g':	/* save extra segments and aux symbols */
+			debflg ^= 1;
 			continue;
 
 		case 'e':
@@ -872,10 +953,11 @@ char *argv[];
 				sprintf(xp, "lib%s.a", optarg);
 				lp = NULL;
 				if (NULL != specialList)
-					lp = pathn(xp, NULL, specialList, "r");
+					lp = path(specialList, xp, AREAD);
+				if (NULL == lp && NULL != env)
+					lp = path(env, xp, AREAD);
 				if (NULL == lp)
-					lp = pathn(xp, "LIBPATH",
-						DEFLIBPATH, "r");
+					lp = path(DEFLIBPATH, xp, AREAD);
 				if (NULL == lp)
 				   fatal("can't find '%s'", xp);
 				   /* Can't locate requested library. */
@@ -901,15 +983,15 @@ char *argv[];
 			undef(optarg);
 			continue;
 
+		case 'Q':
+			Qflag = 1;
+
 		case 'q':
 			qflag = 1;
 			continue;
 
 		case 'w':
-			if (watch ^= 1)
-				w_message("Watch messages on");
-			else
-				w_message("Watch messages off");
+			watch ^= 1;
 			continue;
 
 		case 'X':
@@ -930,7 +1012,7 @@ char *argv[];
 	if (nosym)
 		nolcl = 1;
 
-	if (reloc)
+	if (reloc || debflg)
 		nosym = nolcl = noilcl = 0;
 
 	if (!fileh.f_magic)
