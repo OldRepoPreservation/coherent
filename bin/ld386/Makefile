@@ -1,4 +1,5 @@
 O = ld.o pass1.o message.o fake.o
+LI = ld.c pass1.c message.c fake.c
 S = Makefile ld.h ld.c pass1.c message.c fake.c script
 D = ld.c pass1.c
 CFLAGS = -AO
@@ -9,6 +10,9 @@ drvld: ld
 ld : $O
 	rm -f ld
 	cc -so ld $O -lmisc
+
+pick : $(LI)
+	lint -I/usr/include co $(LI) > pick
 
 # save on mwc!
 save : $S

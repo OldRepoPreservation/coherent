@@ -5,6 +5,7 @@
  * By Charles Fiterman for Mark Williams 3/30/92.
  */
 #include "ld.h"
+#include <stdlib.h>
 #include <signal.h>
 #include <ctype.h>
 #include <path.h>
@@ -120,19 +121,16 @@ baseall()
 {
 	register SCNHDR  *sh;
 	int i;
-	unsigned long daddr, vaddr, size, inc;
+	unsigned long daddr, vaddr, size;
 
 	time(&fileh.f_timdat);
 	fileh.f_nscns = osegs;
 
 	size = 0;
 	daddr = sizeof(fileh) + (sizeof(* secth) * osegs);
-	if (reloc) {
-		inc = 3;		/* object file */
+	if (reloc)
 		vaddr = 0;
-	}
 	else {
-		inc = 15;
 		daddr += fileh.f_opthdr = sizeof(aouth);
 		if (fileh.f_flags & F_KER)	/* kernel */
 			vaddr = KERBASE;
@@ -161,9 +159,7 @@ baseall()
 			aouth.dsize = size = sh->s_size;		
 			break;
 
-		case S_BSSD: /* round up bssd */
-			vaddr = (vaddr + inc) & ~inc;
-
+		case S_BSSD:
 			sh->s_paddr = sh->s_vaddr = vaddr;
 			vaddr += aouth.bsize = sh->s_size;
 			sh->s_scnptr = 0;
@@ -321,6 +317,7 @@ register SYMENT *sym;
 
 /*
  * Pass all symbols through a function.
+ * In a really elaborite order.
  */
 void
 allSym(fun)
@@ -332,21 +329,76 @@ int (*fun)();
 	register i;
 	SYMENT *symEnd;
 
-	/*
-	 * Do symbols connected to modules in module order.
-	 * Only process a global symbol for it's owner.
-	 */
-	for (mp = head; mp != (mod_t *)NULL; mp = mp->next) {
-		sym = ((SYMENT *)(mp->f->f_symptr));
-		symEnd = sym + mp->f->f_nsyms;
-		for (; sym < symEnd; sym += sym->n_numaux + 1) {
-			if (1 == sym->n_zeroes) { /* pointer to original */
-				sp = (sym_t *)sym->n_offset;
-				if (sp->mod == mp)
-					(*fun)(sp, &(sp->sym), mp, sym);
+	if (reloc) {	/* We are producing another .o */
+		/*
+		 * Do symbols connected to modules in module order.
+		 * Only process a global symbol for it's owner.
+		 */
+		for (mp = head; mp != (mod_t *)NULL; mp = mp->next) {
+			sym = ((SYMENT *)(mp->f->f_symptr));
+			symEnd = sym + mp->f->f_nsyms;
+			for (; sym < symEnd; sym += sym->n_numaux + 1) {
+				if (1 == sym->n_zeroes) { /* pointer to original */
+					sp = (sym_t *)sym->n_offset;
+					if (sp->mod == mp)
+						(*fun)(sp, &(sp->sym), mp, sym);
+				}
+				else
+					(*fun)(NULL, sym, mp, sym);
 			}
-			else
-				(*fun)(NULL, sym, mp, sym);
+		}
+	}
+	else {
+		/*
+		 * Producing an executable maybe for debug.
+		 * Remove all symbol entries from non debug modules.
+		 * place all C_EXT at the end.
+		 */
+		for (mp = head; mp != (mod_t *)NULL; mp = mp->next) {
+			char symnoSw;
+
+			sym = ((SYMENT *)(mp->f->f_symptr));
+			symEnd = sym + mp->f->f_nsyms;
+
+			/*
+			 * If first entry is not C_FILE supress 
+			 * all non C_EXT entries
+			 */
+			symnoSw = C_FILE == sym->n_sclass;
+
+			for (; sym < symEnd; sym += sym->n_numaux + 1) {
+				if (C_EXT == sym->n_sclass)
+					continue;	/* do later */
+
+				/* pointer to original */
+				if (1 == sym->n_zeroes) {
+					sp = (sym_t *)sym->n_offset;
+					if (sp->mod == mp)
+						(*fun)(symnoSw ? sp : NULL,
+							 &(sp->sym), mp, sym);
+				}
+				else
+					(*fun)(NULL, sym, mp, sym);
+			}
+		}
+
+		/* now process C_EXT entries */
+		for (mp = head; mp != (mod_t *)NULL; mp = mp->next) {
+			sym = ((SYMENT *)(mp->f->f_symptr));
+			symEnd = sym + mp->f->f_nsyms;
+			for (; sym < symEnd; sym += sym->n_numaux + 1) {
+				if (C_EXT != sym->n_sclass)
+					continue;
+
+				 /* pointer to original */
+				if (1 == sym->n_zeroes) {
+					sp = (sym_t *)sym->n_offset;
+					if (sp->mod == mp)
+						(*fun)(sp, &(sp->sym), mp, sym);
+				}
+				else
+					(*fun)(NULL, sym, mp, sym);
+			}
 		}
 	}
 
@@ -830,6 +882,13 @@ outputAll()
 					if (sym->n_numaux) {
 						a = (AUXENT *)sym + 1;
 						a->ae_lnnoptr = fptr;
+						if (1 == sym->n_zeroes) {
+						    sym_t *sp;
+
+						    sp = (sym_t *)sym->n_offset;
+						    l->l_addr.l_symndx =
+								sp->symno;
+						}
 					}
 				}
 				fptr += LINESZ;
