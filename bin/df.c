@@ -172,7 +172,7 @@ long total;
 {
 	long percent;
 
-	printf("%6lu/%6lu = ", free, total);
+	printf(" %6lu/%6lu = ", free, total);
 	percent = (free * 1000L) / total;
 	printf("%2ld.%1ld%%", percent/10L, percent%10L);
 }
