@@ -288,10 +288,12 @@ req_cs(argc, argv) int argc; char *argv[];
 
 /*
  * Continous underline.
+ * This just does a .ul.
+ * This is wrong, .cu is supposed to underline spaces as well as words.
  */
 req_cu(argc, argv) int argc; char *argv[];
 {
-	ulc = INFINITY;
+	req_ul(argc, argv);
 }
 
 /*

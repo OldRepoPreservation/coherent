@@ -31,7 +31,7 @@ request()
 	for (i = 0; i < ARGSIZE; i++)
 		argp[i] = "";
 	ap = abuf = nalloc(ABFSIZE);
-	abufend = &abuf[ABFSIZE];
+	abufend = &abuf[ABFSIZE-1];
 	mp = miscbuf;
 	mpend = &mp[MSCSIZE-1];
 	while (c != '\n') {

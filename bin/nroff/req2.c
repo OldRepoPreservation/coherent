@@ -5,7 +5,7 @@
  */
 
 #include <ctype.h>
-#include <ascii.h>
+#include <sys/ascii.h>
 #include "roff.h"
 
 /*
@@ -147,12 +147,16 @@ req_nx(argc, argv) int argc; char *argv[];
 			return;
 		}
 	} while (sp->x2.s_type != SFILE);
-	if ((fp=fopen(argv[1], "r")) == NULL) {
+	if ((fp = fopen(argv[1], "r")) == NULL) {
 		printe("cannot open %s", argv[1]);
 		return;
 	}
 	fclose(sp->x2.s_fp);
 	sp->x2.s_fp = fp;
+	nfree(sp->x2.s_fname);
+	sp->x2.s_fname = duplstr(argv[1]);
+	sp->x2.s_clnc = 1;
+	sp->x2.s_nlnc = 1;
 }
 
 /*
@@ -363,20 +367,27 @@ req_rm(argc, argv) int argc; char *argv[];
 
 /*
  * Rename the given request or macro.
+ * Lookup is hashed, so just changing the name field does not work.
  */
 req_rn(argc, argv) int argc; char *argv[];
 {
-	register REG *rp;
-	char name[2];
+	register REG *orp, *nrp;
+	char oname[2], nname[2];
 
-	argname(argv[1], name);
-	if ((rp=findreg(name, RTEXT)) == NULL) {
-		printe("cannot find register %s", argv[1]);
+	argname(argv[1], oname);
+	if ((orp = findreg(oname, RTEXT)) == NULL) {
+		printe("cannot find request %s", argv[1]);
 		return;
 	}
-	argname(argv[2], name);
-	rp->t_reg.r_name[0] = name[0];
-	rp->t_reg.r_name[1] = name[1];
+	argname(argv[2], nname);
+	if ((nrp = makereg(nname, RTEXT)) == NULL) {
+		printe("cannot make request %s", argv[2]);
+		return;
+	}
+	nrp->t_reg.r_maxh = orp->t_reg.r_maxh;
+	nrp->t_reg.r_maxw = orp->t_reg.r_maxw;
+	nrp->t_reg.r_macd = orp->t_reg.r_macd;
+	reltreg(oname);
 }
 
 /*
@@ -566,6 +577,7 @@ req_tl(argc, argv) int argc; char *argv[];
 	ind = 0;
 	lln = tln;
 	fill = 0;
+	setfont("R", 1);
 	bp = nextarg(miscbuf, NULL, 0);
 	if ((endc = *bp) != '\0')
 		bp++;
@@ -668,9 +680,15 @@ req_uf(argc, argv) int argc; char *argv[];
  */
 req_ul(argc, argv) int argc; char *argv[];
 {
-	ufp = curfont;
-	setfontnum(ufn, 0);
-	ulc = number(argv[1], SMUNIT, SDUNIT, 0, 0, 1);
+	register int n;
+
+	n = number(argv[1], SMUNIT, SDUNIT, 0, 0, 1);
+	if (n != 0) {
+		ufp = curfont;		/* save current font */
+		setfontnum(ufn, 0);	/* set underline font */
+	} else if (ulc != 0)
+		setfontnum(ufp, 1);	/* restore previous font */
+	ulc = n;			/* set underline count */
 }
 
 /*

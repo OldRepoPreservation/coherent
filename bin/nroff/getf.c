@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include "roff.h"
 
+#define	ok_name(name) ((name[0]>0 && name[0]<128) && (name[1]>=0 && name[1]<128))
+
 /*
  * Get a character handling escapes.
  * Flag bit 0: 0 means die if EOF seen, 1 means return EOF.
@@ -56,13 +58,19 @@ getf(flags) int flags;
 				name[0] = getf(0);
 				name[1] = getf(0);
 			}
-			if ((rp=findreg(name, RTEXT)))
+			if (!ok_name(name)) {
+				printe("illegal string name");
+				break;
+			} else if ((rp=findreg(name, RTEXT)))
 				adstreg(rp);
 			continue;
 		case ECHR:
 			name[0] = getf(0);
 			name[1] = getf(0);
-			if ((sp = spc_find(name)) != NULL)
+			if (!ok_name(name)) {
+				printe("illegal special character name");
+				break;
+			} else if ((sp = spc_find(name)) != NULL)
 				adscore(sp->spc_val);
 			continue;
 		case ENUM:
@@ -81,7 +89,10 @@ getf(flags) int flags;
 				name[0] = getf(0);
 				name[1] = getf(0);
 			}
-			if ((rp=findreg(name, RNUMR)) == NULL)
+			if (!ok_name(name)) {
+				printe("illegal register name");
+				break;
+			} else if ((rp=findreg(name, RNUMR)) == NULL)
 				spcnreg(name);
 			else {
 				rp->n_reg.r_nval += n*rp->n_reg.r_incr;
@@ -140,17 +151,46 @@ getwidth(cp) char *cp;
 }
 
 /*
- * Given a buffer pointer, 'bp', and the size of the buffer, 'n',
- * get an argument surrounded by delimeters and store it in the buffer.
+ * Like scandel(), except the delimiter is optional.
+ * Accepts digits with optional sign without delimiter.
+ * Currently called only for pointsize changes, e.g. "\s10" or "\s+1".
  */
-scandel(cp, n)
-register char *cp;
+scanoptdel(cp, n) register char *cp; int n;
 {
-	int r;
+	register int c, retval;
+	static char buf[2];
+
+	c = getf(0);
+	if (c != '-' && c != '+' && !isdigit(c)) {
+		buf[0] = c;
+		adscore(buf);			/* push back c */
+		return scandel(cp, n);		/* and use scandel() */
+	}
+	retval = 1;
+	do {
+		if (--n == 0) {
+			printe("delimiter argument too large");
+			retval = 0;
+		} else
+			*cp++ = c;
+		c = getf(0);
+	} while (isdigit(c));
+	buf[0] = c;
+	adscore(buf);				/* push back nondigit */
+	return retval;
+}
+
+/*
+ * Given a buffer pointer, 'bp', and the size of the buffer, 'n',
+ * get an argument surrounded by delimiters and store it in the buffer.
+ */
+scandel(cp, n) register char *cp; int n;
+{
+	int retval;
 	register int c;
 	register int endc;
 
-	r = 1;
+	retval = 1;
 	endc = getf(0);
 	while ((c=getf(0)) != endc) {
 		if (c == '\n') {
@@ -159,12 +199,12 @@ register char *cp;
 		}
 		if (--n == 0) {
 			printe("delimiter argument too large");
-			r = 0;
+			retval = 0;
 		} else if (n > 0)
 			*cp++ = c;
 	}
 	*cp++ = '\0';
-	return r;
+	return retval;
 }
 
 /*
@@ -203,6 +243,7 @@ getl(eofflag) int eofflag;
 		case SFILE:
 			if ((c=getc(sp->x2.s_fp)) == EOF) {
 				fclose(sp->x2.s_fp);
+				nfree(sp->x2.s_fname);
 				break;
 			}
 			goto ret;
@@ -316,11 +357,12 @@ char *file;
 	register STR *sp;
 	register FILE *fp;
 
-	if ((fp=fopen(file, "r")) == NULL) {
+	if ((fp = fopen(file, "r")) == NULL) {
 		printe("cannot open file \"%s\"", file);
 		return 0;
 	}
 	sp = allstr(SFILE);
+	sp->x2.s_fname = duplstr(file);
 	sp->x2.s_fp = fp;
 	return 1;
 }
@@ -333,6 +375,7 @@ adsunit(fp) FILE *fp;
 	register STR *sp;
 
 	sp = allstr(SFILE);
+	sp->x2.s_fname = duplstr("<stdin>");
 	sp->x2.s_fp = fp;
 }
 
@@ -378,6 +421,14 @@ char name[2];
 				--n;
 			break;
 		case 'A':	n = A_reg;			break;
+		case 'F':			/* Filename, not in V7. */
+			for (sp=strp; sp; sp=sp->x1.s_next) {
+				if (sp->x1.s_type == SFILE) {
+					adscore(sp->x2.s_fname);
+					return;
+				}
+			}
+			return;
 		case 'H':	n = unit(SMHRES, SDHRES);	break;
 		/* case 'L': TO_DO */
 		/* case 'P': TO_DO */

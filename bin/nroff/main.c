@@ -31,6 +31,7 @@ unsigned long _stksize = 0x8000L;
 #endif
 
 static	int	kflag;		/* keep tmp file for debug purposes	*/
+static	char	template[sizeof(TMPLATE)+1] = TMPLATE;
 static	char	*tempname;	/* temp file name			*/
 
 main(argc, argv) int argc; char *argv[];
@@ -65,7 +66,9 @@ main(argc, argv) int argc; char *argv[];
 		c = *++cp;			/* argv[i][1] */
 		cp++;				/* &argv[i][2] */
 		if (c == 'i')
-			iflag = 1;		/* Process stdin when done */
+			iflag = 1;		/* process stdin when done */
+		else if (c == 'f')
+			++i;			/* ignore tempfile arg */
 		else if (c == 'm') {
 			/* Process "-m" macro package argument. */
 			sprintf(miscbuf, TMACFMT, cp);
@@ -187,7 +190,10 @@ initialize(argc, argv) int argc; char *argv[];
 			continue;
 #endif
 		default:
-			panic("illegal option: %s", argv[i]);
+			fprintf(stderr, "%s: illegal option: %s\n", argv0, argv[i]);
+			/* fall through... */
+		case '?':
+			usage();
 		}
 	}
 
@@ -195,7 +201,7 @@ initialize(argc, argv) int argc; char *argv[];
 #ifdef	GEMDOS
 	tempname = (tmparg) ? argv[tmparg] : tempnam(0L, "nroff");
 #else
-	tempname = (tmparg) ? argv[tmparg] : mktemp(TMPLATE);
+	tempname = (tmparg) ? argv[tmparg] : mktemp(template);
 #endif
 	dprint2(DBGFILE, "temp file name = %s\n", tempname);
 	if ((tmp=fopen(tempname, "wb")) == NULL)
@@ -360,6 +366,31 @@ leave(n)
 		unlink(tempname);
 #endif
 	exit(n);
+}
+
+/*
+ * Print a fatal usage message and die.
+ */
+usage()
+{
+	fprintf(stderr, "Usage: %s [ option ... ] [ file ... ]\n",
+		ntroff == NROFF ? "nroff" : "troff");
+	fprintf(stderr, "Options:\n");
+	fprintf(stderr, "\t-d\tDebug: print each request before executing\n");
+	if (ntroff == TROFF)
+		fprintf(stderr, "\t-D\tDisplay available fonts\n");
+	fprintf(stderr, "\t-f name\tWrite temporary file in file name\n");
+	fprintf(stderr, "\t-i\tRead stdin after each file has been read\n");
+	fprintf(stderr, "\t-k\tKeep temporary file\n");
+	if (ntroff == TROFF)
+		fprintf(stderr, "\t-l\tLandscape mode\n");
+	fprintf(stderr, "\t-mname\tRead macro package /usr/lib/tmac.name\n");
+	fprintf(stderr, "\t-nN\tNumber first page of output N (default, 1)\n");
+	if (ntroff == TROFF)
+		fprintf(stderr, "\t-p\tProduce PostScript output\n");
+	fprintf(stderr, "\t-raN\tSet number register a to value N\n");
+	fprintf(stderr, "\t-x\tDo not eject to bottom of final page\n");
+	leave(1);
 }
 
 /*

@@ -49,11 +49,11 @@ enddivn()
 	register REG *rp;
 	register DIV *dp;
 
-	if ((dp=cdivp) == mdivp) {
+	if ((dp = cdivp) == mdivp) {
 		printe("cannot end diversion");
 		return;
 	}
-	if ((rp=findreg(dp->d_name)) != (REG *)NULL) {
+	if ((rp = findreg(dp->d_name, RTEXT)) != (REG *)NULL) {
 		rp->t_reg.r_maxh = cdivp->d_maxh;
 		rp->t_reg.r_maxw = cdivp->d_maxw;
 	}
