@@ -2,7 +2,7 @@
  * The Bourne shell.
  * Main program, initialization and miscellaneous routines.
  */
-#include <param.h>
+#include <sys/param.h>
 #include "sh.h"
 
 main(argc, argv, envp)
