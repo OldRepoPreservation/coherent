@@ -27,7 +27,10 @@
 **
 **	The routine endwin().
 **
-** $Log:	RCS/lib_endwin.v $
+** $Log:	lib_endwin.c,v $
+ * Revision 1.2  92/04/13  14:37:24  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/02/09  13:54:50  munk
  * pavel don't output reset strings 1..3 ? (added)
  * and added code to mark the screen as clear
@@ -43,11 +46,11 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_endwin.v  Revision 2.2  91/02/09  13:54:50  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_endwin.c,v 1.2 92/04/13 14:37:24 bin Exp Locker: bin $";
 #endif
 
 #ifdef COHERENT
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #else
 #include <fcntl.h>
 #endif

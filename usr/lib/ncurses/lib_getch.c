@@ -27,7 +27,10 @@
 **
 **	The routine getch().
 **
-** $Log:	RCS/lib_getch.v $
+** $Log:	lib_getch.c,v $
+ * Revision 1.2  92/04/13  14:37:30  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/02/09  13:37:40  munk   
  * Conditional code added for systems that don't support ioctl with
  * the command FIONREAD (use fcntl O_NDELAY).
@@ -45,12 +48,12 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/lib_getch.v  Revision 2.2  91/02/09  13:37:40  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_getch.c,v 1.2 92/04/13 14:37:30 bin Exp Locker: bin $";
 #endif
 
 #include <signal.h>
 #ifdef COHERENT
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #else
 #include <fcntl.h>
 #endif
