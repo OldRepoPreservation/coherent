@@ -16,8 +16,8 @@ if errors were found, but fixed (system should then be rebooted).
 #include <stdio.h>
 #include <check.h>
 
-char	icheck[] = "/etc/icheck";
-char	dcheck[] = "/etc/dcheck";
+char	icheck[] = "/bin/icheck";
+char	dcheck[] = "/bin/dcheck";
 char	fixopt[] = "-s";
 
 int	sflag;
