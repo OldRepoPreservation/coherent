@@ -21,15 +21,16 @@ void		vPrintLine();	/* Print ps data */
 dev_t		dvtGetTerminal();/* Get ps controlling terminal */
 int		iState();	/* Is the process asleep, running, or zombie? */
 void 		ReadDevDir();	 /* Read device directory */
-int		iOkToPrint();	/* Is the process one we want to display? */
+unsigned	uOkToPrint();	/* Is the process one we want to display? */
 
 stMonitor	*pMonData = NULL; 	/* Pointer to an array of data for ps */
 int		iRet;			/* Number of bytes read */
 dev_t		dvtPs;			/* ps device */
 
-#define		MAXPROCESSES	40
-int		aiProcessP[MAXPROCESSES];	/* List of process to print */
-int		iNumProcessP;		/* Number of process to print */
+#define		MAXPROCESSES	40		/* # max number of precesses */
+
+unsigned	auProcessP[MAXPROCESSES];	/* List of process to print */
+int		iNumProcessP = 0;		/* Number of process to print */
 
 static stDevices	*pstDevFirst= NULL;	/* List of character devices. */
 
@@ -55,12 +56,18 @@ int	argc;
 char	*argv[];
 {
 	/*
+	 * To preserve compatibility with older versions of COHERENT ps
+	 * we will fake minus here. Be aware that it adds '-' not only to
+	 * the command line options but to their arguments as well ;-(
+	 * See 'p' case.
+	 */
+	fakeMinus(argc, argv);
+	/*
 	 * Digest the command line.
 	 *
 	 * This routine will not return if there are errors in
 	 * the command line.
 	 */
-	fakeMinus(argc, argv);
 	vCvtArgs(argc, argv);
 
 	/* This function will not return if error occurs */
@@ -154,10 +161,14 @@ char *argv[];
 		case 'p':
 			ipFlag = iaFlag = 1;
 
+			/* Take out the '-' that fakeMinus puts in */
+			while (*optarg == '-')
+				optarg++;
+
 			token = strtok(optarg, ",");
-			while((token != NULL) && (iNumProcessP < MAXPROCESSES))
+			while((token != NULL) && (iNumProcessP < MAXPROCESSES)) 
 			{
-				aiProcessP[iNumProcessP++] = atoi(token);
+				auProcessP[iNumProcessP++] = atoi(token);
 				token = strtok(NULL, ",");
 			}
 			if (iNumProcessP == 0)
@@ -196,7 +207,7 @@ void vPrintPs()
 
 	for (pMonTmp = pMonData + iRet / sizeof(stMonitor) - 1;
 					pMonTmp >= pMonData; pMonTmp--) {
-		if(iOkToPrint(pMonTmp->p_pid))
+		if (uOkToPrint(pMonTmp->p_pid))
 			vPrintLine(pMonTmp);
 	}
 }
@@ -219,7 +230,7 @@ void vPrintHeader()
 #endif
 	if (itFlag)
 		printf(" UTIME STIME");
-	printf("\n");
+	puts("  COMMAND");
 }
 
 /*
@@ -253,7 +264,7 @@ stMonitor	*pMonLine;
 	} else
 		if (!ixFlag && !strcmp("-------", cpTty))
 			return;
-	printf("%-8s%5d", cpTty, pMonLine->p_pid);
+	printf("%-8s%5u", cpTty, pMonLine->p_pid);
 
 	if (igFlag)
 		printf(" %5d", pMonLine->p_rgid);
@@ -296,7 +307,7 @@ stMonitor	*pMonLine;
 		ptime(pMonLine->p_stime);
 	}
 				
-	printf("  %s\n", pMonLine->u_comm);
+	printf("  %.*s\n", U_COMM_LEN, pMonLine->u_comm);
 }
 
 /*
@@ -432,17 +443,20 @@ dev_t dvtGetTerminal()
 	return 0;
 }
 
-/* If ipflag is set, only print specified processes */
-iOkToPrint(pnum)
-int pnum;
+/* 
+ * Return 1 if ipFlag is not set or ipFlag is set and process is specified, 
+ * 0 otherwise.
+ */
+unsigned uOkToPrint(pnum)
+unsigned pnum;
 {
-	int i = 0;
+	int	i;
 
 	if (!ipFlag)
 		return 1;
 	
-	while (i < iNumProcessP)
-		if (aiProcessP[i++] == pnum)
+	for (i = 0; i < iNumProcessP; i++)
+		if (auProcessP[i] == pnum)
 			return 1;
 	return 0;
 }
