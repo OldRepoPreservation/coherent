@@ -16,9 +16,9 @@
 #include <sys/dir.h>
 #endif
 
-#define OLD_ARMAG	0177535			/* Magic number */
+#define ARMAG	0177535			/* Magic number */
 
-struct	old_ar_hdr {
+struct	ar_hdr {
 	char	ar_name[DIRSIZ];	/* Member name */
 	time_t	ar_date;		/* Time inserted */
 	short	ar_gid;			/* Group id */
