@@ -14,8 +14,25 @@
 #include <stdio.h>
 #include <coff.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "ipcs.h"
+/*
+ * ----------------------------------------------------------------------
+ * Definitions.
+ *	Constants.
+ *	Macros with argument lists.
+ *	Typedefs.
+ *	Enums.
+ */
 
+/*
+ * ----------------------------------------------------------------------
+ * Functions.
+ *	Import Functions.
+ *	Export Functions.
+ *	Local Functions.
+ */
+int	iMemSeek();	/* Seek in the virtual memory */
 /*
  * ----------------------------------------------------------------------
  *	Global data
@@ -38,18 +55,21 @@ int	total_shmids = 0,	/* total shared memory segs found */
 	total_sems = 0,		/* total semaphores found */
 	usemsqs = 0;		/* is msq in use */
 
-int	NSHMID,			/* total # shared memory segments */
+int	SHMMNI,		/* total # shared memory segments */
 	NSEMID,			/* total # semaphores */
 	NMSQID;			/* total # message queues */
 
+/*
+ * ----------------------------------------------------------------------
+ * Code.
+ */
 main(argc, argv)
 int	argc;
 char	*argv[];
 {
 	char		*opstring = "qmsbcoptaVC:N: ";
 	extern char	*optarg;
-	char		*namelist = NULL,
-			*corefile = "/dev/kmem";/* default vlue */
+	char		*namelist = NULL;
 	char		*fname;			/* kernel name */
 	int		c;
 
@@ -103,9 +123,8 @@ char	*argv[];
 
 	set_flags();
 	fname = Nflag ? namelist : pick_nfile();
-	getmaxnum(fname, corefile);
-
-	get_data(fname, corefile);
+	getmaxnum(fname);
+	get_data(fname);
 
 	/* Now we can print */
 	if (qflag)
@@ -134,13 +153,12 @@ set_flags()
 
 /*
  * Get the following values from the corefile:
- *	NSHMID:		max number of allowable shared memory segments
+ *	SHMMNI:		max number of allowable shared memory segments
  *	NSEMID:		max number of allowable semaphores
  *	NMSQID:		max number of allowable message queues
  */
-getmaxnum(fname, corefile)
+getmaxnum(fname)
 char	*fname;		/* Kernel file name */
-char	*corefile;	/* Core file name (/dev/kmem by default) */
 {
 	SYMENT 	sym[3];	/* The table of names to find */
 	int	fd;	/* corefile file descriptor */
@@ -152,7 +170,7 @@ char	*corefile;	/* Core file name (/dev/kmem by default) */
 		sym[i]._n._n_n._n_zeroes = 0;	/* stuff for coffnlist */
 		sym[i].n_type = -1;
 	}
-	strcpy(sym[0].n_name, "NSHMID");
+	strcpy(sym[0].n_name, "SHMMNI");
 	strcpy(sym[1].n_name, "NSEMID");
 	strcpy(sym[2].n_name, "NMSQID");
 
@@ -163,40 +181,79 @@ char	*corefile;	/* Core file name (/dev/kmem by default) */
 		exit(1);
 	}
 
-	/* Now we got addresses of the variables. So, we can go to corefile
+	/* Now we got addresses of the variables. So, we can go to memory
 	 * and read proper values. sym[i].n_value contains addresses of
 	 * variables.
 	 */
-	if ((fd = open(corefile, O_RDONLY)) < 0) {
-		fprintf(stderr, "ipcs: cannot open %s\n", corefile);
-		exit(1);
-	}
 	/* Get max number of allowable shared memory segments */
-	lseek(fd, sym[0].n_value, 0);
+	if ((fd = iMemSeek(sym[0].n_value, 0)) < 0) 	/* Open and seek the */
+		exit(1);				/* proper file */
 	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
-		fprintf(stderr, "ipcs: read value of NSHMID error\n");
+		fprintf(stderr, "ipcs: read value of SHMMNI error\n");
 		exit(1);
 	}
-	NSHMID = val;
+	close(fd);
+	SHMMNI = val;
 	/* Get max number of allowable semaphores */
-	lseek(fd, sym[1].n_value, 0);
+	if ((fd = iMemSeek(sym[1].n_value, 0)) < 0) 	/* Open and seek the */
+		exit(1);				/* proper file */
 	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
 		fprintf(stderr, "ipcs: read value of NSEMID error\n");
 		exit(1);
 	}
+	close(fd);
 	NSEMID = val;
 	/* Get max number of allowable message queues */
-	lseek(fd, sym[2].n_value, 0);
+	if ((fd = iMemSeek(sym[2].n_value, 0)) < 0) 	/* Open and seek the */
+		exit(1);				/* proper file */
 	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
-		fprintf(stderr, "ipcs: read value of NSHMID error\n");
+		fprintf(stderr, "ipcs: read value of SHMMNI error\n");
 		exit(1);
 	}
 	NMSQID = val;
 	close(fd);
 }
 
+/*
+ * iMemSeek opens file and seeks in the memory. Uses /dev/kmem for low memory
+ * and /dev/kmemhi for the high memory.
+ * Return descriptor to the proper memory device or -1 on error.
+ */
+int	iMemSeek(lWhere, iHow)
+long	lWhere;	
+int	iHow;
+{
+	int	fd;				/* File descriptor */
+	char	*cpMemLow = "/dev/kmem";	/* Low memory device */
+	char	*cpMemHigh = "/dev/kmemhi";	/* High memory device */
+	char	*cpMem = cpMem;			/* Memory to use */
+	long	lMemBorder = 0x80000000;	/* Border between devices */
+	long	lMemWhere;			/* Point to seek */
 
-/* ipcs usage. Print message and die */
+	if (lWhere & lMemBorder) { 
+		cpMem = cpMemHigh;
+		lMemWhere = lWhere ^ lMemBorder;
+	} else {
+		cpMem = cpMemLow;
+		lMemWhere = lWhere;
+	}
+	/* Open proper memory device */
+	if ((fd = open(cpMem, O_RDONLY)) < 0) {
+		perror("ipcs");
+		return -1;
+	}
+	/* Seek to the requested position */
+	if (lseek(fd, lMemWhere, iHow) < 0) {
+		perror("ipcs");
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
+/* 
+ * ipcs usage. Print message and die 
+ */
 usage(c) 
 int	c;
 {

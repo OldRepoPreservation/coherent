@@ -5,6 +5,8 @@
 #include <coff.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <errno.h>
+#include <sys/shm.h>
 #include <sys/msg.h>
 #include "ipcs.h"
 
@@ -28,7 +30,7 @@ char	*corefile;
 	}
 
 	if (qflag) {
-		get_msg_stats(fname, corefile);
+		get_msg_stats(fname);
 	}
 
 	return 0;
@@ -37,25 +39,35 @@ char	*corefile;
 
 /* 
  * get shared memory information.
- *
  */
 
 int get_shmid_stats()
 {
 
-int id = NSHMID -1;	/* shared memory identifier number */
+int id = SHMMNI - 1;	/* shared memory identifier number */
 
 	total_shmids = 0;
+	
+	/* Allocate space for shared memory data struct */
+	if (NULL == (shmid = (struct shmid_ds *)
+	    calloc(SHMMNI, sizeof(struct shmid_ds)))) {
+		perror("ipcs1");
+		exit(1);
+	}
+	/* Alocate space to keep track about shm segments */
+	if (NULL == (valid_shmid = (int *) calloc(SHMMNI, sizeof(int)))) {
+		perror("ipcs1");
+		exit(1);
+	}
 
 	/* loop through all shared memory segments available to system.
 	 * increment total_shmid counter when we find one.
 	 */
-
-	for (id = NSHMID -1; id >= 0 ; id --){
-		if( -1 != (shmctl(id, IPC_STAT, &shmid[id]))){
+	for (id = SHMMNI - 1; id >= 0 ; id --){
+		if ( -1 != (shmctl(id, IPC_STAT, &shmid[id]))){
 			total_shmids++;
 			valid_shmid[id] = 1;
-		}else{
+		} else {
 			valid_shmid[id] = 0;
 		}			
 	}
@@ -66,7 +78,6 @@ int id = NSHMID -1;	/* shared memory identifier number */
  * allocated semaphores.
  *
  */
-
 get_sem_stats()
 {
 
@@ -86,9 +97,8 @@ int id;
 /* 
  * get_msg_stats() read msgq data from the corefile to msqbuf
  */
-get_msg_stats(fname, corefile)
+get_msg_stats(fname)
 char	*fname;
-char	*corefile;
 {
 	SYMENT 	sym;		/* The table of names to find */
 	int	fd;		/* kernel file descriptor */
@@ -97,7 +107,7 @@ char	*corefile;
 	/* Allocate space for message queues headers */
 	if (NULL == (msqbuf = (struct msqbuf *)
 	    calloc((unsigned) NMSQID, (unsigned) sizeof(struct msqid_ds)))) {
-		perror("ipcs");
+		perror("ipcs1");
 		exit(1);
 	}
 	sym._n._n_n._n_zeroes = 0;	/* stuff for coffnlist */
@@ -117,16 +127,16 @@ char	*corefile;
 	/* Now we got addresses of the queues headers. So, we can go to corefile
 	 * and read proper values. 
 	 */
-	if ((fd = open(corefile, O_RDONLY)) < 0) {
-		fprintf(stderr, "ipcs: cannot open /dev/kmem\n");
+	/* Get address of message queue data */
+	if ((fd = iMemSeek(sym.n_value, 0)) < 0) {
+		perror("ipcs2");
 		exit(1);
 	}
-	/* Get address of message queue data */
-	lseek(fd, sym.n_value, 0);
 	if (read(fd, &msqoffset, sizeof(int)) != sizeof(int)) {
 		fprintf(stderr, "ipcs: error getting message queue offset\n");
 		exit(1);
 	}
+	close(fd);
 	/* Before first request to msgget, msqs points to NULL.
 	 * So we cannot and should not read. 
 	 * After the first request to msgget, all queue headers are alloced.
@@ -137,11 +147,15 @@ char	*corefile;
 		free(msqbuf);
 		return;
 	}
-	lseek(fd, msqoffset, 0);
+	if ((fd = iMemSeek(msqoffset, 0)) < 0) {
+		perror("ipcs3");
+		exit(1);
+	}
 	if (read(fd, msqbuf, sizeof(struct msqid_ds) * NMSQID) !=
  				sizeof(struct msqid_ds) * NMSQID) {
 		fprintf(stderr, "ipcs: error getting message queue status\n");
 		exit(1);
 	}
+	close(fd);
 }
 
