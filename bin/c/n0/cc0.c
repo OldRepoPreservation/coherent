@@ -162,10 +162,18 @@ main(argc, argv) int argc; char *argv[];
 	kinit();
 	time(&curtime);
 	newtree(sizeof(TREE));
+
+	/* Wired-in cpp definitions. */
 	cppd(MACHINE, deftrue);
 	cppd(SYSTEM, deftrue);
 	cppd(LOCATION, deftrue);
 	cppd(FPFORMAT, deftrue);
+	/* And again, this time ISO-compliant versions for nigel. */
+	cppd("_"  MACHINE  "__", deftrue);	/* NB MACHINE has leading '_' */
+	cppd("__" SYSTEM   "__", deftrue);
+	cppd("__" LOCATION "__", deftrue);
+	cppd("_"  FPFORMAT "__", deftrue);	/* NB FPFORMAT has leading '_' */
+
 	cppi(argv2);			/* source directory will be parsed later */
 	for (i=4; i<argc; ++i) {
 		if (argv[i][0] != '-')
