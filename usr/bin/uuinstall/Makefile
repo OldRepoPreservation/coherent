@@ -6,9 +6,10 @@ S = Makefile lsys1 uuin uunam helpscn devices permis \
 
 CFLAGS = -I.
 L = -lscn  -lcurses -lterm -lmisc
+DESTDIR= /interim/usr/bin/
 
 uuinstall : $P uuinstall.o
-	cc -o uuinstall uuinstall.o $P $L
+	cc -o $(DESTDIR)uuinstall uuinstall.o $P $L
 
 uuinstall.o : uuinstall.c
 
