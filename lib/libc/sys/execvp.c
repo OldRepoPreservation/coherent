@@ -1,62 +1,59 @@
-/*
- * Version of execv that mimics the
- * actions of the shell in using search
- * rules and running a shell file.
- */
+/* libc/sys/execvp.c */
 
 #include <stdio.h>
 #include <errno.h>
+#include <path.h>
+#include <string.h>
 
-#define	NFNAME	100		/* Largest filename */
+extern	char	*getenv();
 
-static	char	srch[] = ":/bin";
-static	char	shell[] = "/bin/sh";
+#define	SHELL	"/bin/sh"		/* shell name */
 
-extern	int	errno;
-
-execvp(name, argp)
-char *name;
-char *argp[];
+/*
+ * execvp() is a version of execv()
+ * which mimics the actions of the shell
+ * in using PATH search rules and running a shell file.
+ */
+execvp(name, argp) char *name; char *argp[];
 {
-	char *getenv();
-	register char *p1, *p2;
-	register char *sp;
-	char fname[NFNAME];
+	register char *p1, *p2, *sp;
+	char fname[MAXPATH];
+	int isabs;
 
-	if ((sp = getenv("PATH")) == NULL)
-		sp = srch;
+	if ((sp = getenv("PATH")) == NULL)		/* find PATH */
+		sp = DEFPATH;				/* or take default */
+	isabs = (strchr(name, PATHSEP) != NULL);	/* iff name is absolute */
 	for (;;) {
-		p2 = fname;
-		while (*sp!='\0' && *sp!=':')
-			*p2++ = *sp++;
-		p1 = name;
-		if (p2 != fname)
-			*p2++ = '/';
-		while (*p1 != '\0')
-			*p2++ = *p1++;
-		*p2 = '\0';
-		if (*name == '/') {
-			execv(name, argp);
-			if (errno != ENOEXEC)
-				break;
-		} else
-			execv(fname, argp);
-		if (errno == ENOEXEC) {
-			register char *sv1, *sv2;
-
-			sv1 = argp[-1];
-			sv2 = argp[0];
-			argp[-1] = shell;
+		if (isabs)
+			strcpy(fname, name);		/* use given name */
+		else {
+			for (p2 = fname; *sp != '\0' && *sp != LISTSEP; )
+				*p2++ = *sp++;		/* copy pathname component */
+			if (p2 != fname)
+				*p2++ = PATHSEP;	/* append PATHSEP if nonempty */
+			for (p1 = name; *p1 != '\0'; )
+				*p2++ = *p1++;		/* append name */
+			*p2 = '\0';			/* and NUL-terminate */
+		}
+		execv(fname, argp);			/* go for it */
+		if (isabs && errno != ENOEXEC)
+			break;				/* failed */
+		if (errno == ENOEXEC) {			/* try again with sh */
+			p1 = argp[-1];
+			p2 = argp[0];
+			argp[-1] = SHELL;
 			argp[0] = fname;
-			execv(shell, argp-1);
-			argp[-1] = sv1;
-			argp[0] = sv2;
-			break;
+			execv(argp[-1], argp-1);
+			argp[-1] = p1;
+			argp[0] = p2;
+			break;				/* failed */
 		}
 		if (*sp == '\0')
-			break;
-		if (*sp == ':')
+			break;				/* end of PATH, failed */
+		if (*sp == LISTSEP)
 			sp++;
 	}
-	return (-1);
+	return -1;					/* failed */
 }
+
+/* end of execvp.c */
