@@ -189,6 +189,7 @@ static char rcs_ident[] = "$Header: compress.c,v 4.1 85/12/05 09:00:00 kent Rele
 int n_bits;				/* number of bits/code */
 code_int maxcode;			/* maximum code, given n_bits */
 code_int maxmaxcode = 1L << BITS;	/* should NEVER generate this code */
+char outbuf[512];
 #ifdef COMPATIBLE		/* But wrong! */
 # define MAXCODE(n_bits)	(1L << (n_bits) - 1)
 #else
@@ -209,7 +210,7 @@ code_int maxmaxcode = 1L << BITS;	/* should NEVER generate this code */
 
 #define VBLKB 6
 #define VBLK (1 << VBLKB)	/* bytes in a virtual block */
-#define MBKS 727		/* number of virtual blocks */
+#define MBKS 512		/* number of virtual blocks */
 
 struct mapper {
 	unsigned dirty:1;
@@ -220,9 +221,9 @@ static int tmpf, ramsw = 0;
 static int maxbits = 12;	/* user settable max bits code */
 static char *tmpn = NULL;
 
+static char ram1[] = "/dev/ram1";
 static char data[MBKS][VBLK];
 static struct mapper map[MBKS];
-
 /*
  * Init file system for virtual arrays.
  * On compress data is ordered htab then codetab
@@ -232,19 +233,28 @@ initV(hsize, codesiz)
 long hsize, codesiz;
 {
 	extern char *tempnam();
+	static int fts = 0;
+
+	if(fts || (12 >= maxbits))
+		return;
+
+	codedsp = hsize;
+	codelim = codedsp + codesiz;
+
+	fts = 1;
 
 	if(NULL == tmpn)
 #ifdef GEMDOS
 		tmpn = tempnam("d:", NULL); /* I had space here on my ST */
 #else
-		switch(is_fs(tmpn = "/dev/ram1")) {
+		switch(is_fs(tmpn = ram1)) {
 		case -1:
-			fprintf(stderr, "Error opening /dev/ram1\n");
+			fprintf(stderr, "Error opening %s\n", ram1);
 			fprintf(stderr, "Use the -w workf option\n");
 			exit(1);
 			break;
 		case 1:
-			fprintf(stderr, "Possible file system on /dev/ram1\n");
+			fprintf(stderr, "Possible file system on %s", ram1);
 			fprintf(stderr, "Remove file system or use -w workf option\n");
 			exit(1);
 			break;
@@ -267,83 +277,28 @@ long hsize, codesiz;
 		fprintf(stderr, "Cannot open %s\n", tmpn);
 		exit(1);
 	}
-
-	codedsp = hsize;
-	codelim = codedsp + codesiz;
 }
 
-enum vact { grabHtab, setHtab, grabCode, setCode, grabSuff, setSuff };
+ioError(s)
+char *s;
+{
+	fprintf(stderr, "Error in %s on %s\n", s, tmpn);
+	if(!strcmp(ram1, tmpn))
+		fprintf(stderr, "Use the -w workfile option\n");
+	myExit(1);
+}
 
-#define htabof(i) (count_int)findblock((long)(i), grabHtab)
-#define sethtab(i, v) findblock((long)(i), setHtab, (unsigned long)(v))
-#define codetabof(i) (unsigned short)findblock((long)(i), grabCode)
-#define setcodtab(i, v) findblock((long)(i), setCode, (unsigned long)(v))
-#define HSIZE12 5003
 /*
- * All actions for virtual array
+ * Find spot on virtual array
  */
-unsigned long
-findblock(bp, action, odata)
+char *
+virtual(bp, dirty)
 long bp;	/* data address */
-enum vact action;	/* what to do */
-unsigned long odata;	/* optional data */
+int dirty;
 {
 	unsigned which, what_in, byte_no;
 	unsigned long diskad;
-	char *cp;
 	extern long lseek();
-
-	if(12 >= maxbits) {
-		if(bp >= HSIZE12) {
-			fprintf(stderr, "Invalid index %ld\n", bp);
-			myExit(1);
-		}
-		switch(action) {
-		case grabHtab:
-		case setHtab:
-			bp <<= 2;
-		case grabSuff:
-		case setSuff:
-			break;
-		case grabCode:
-		case setCode:
-			bp <<= 1;
-			bp += (HSIZE12 * sizeof(count_int));
-		}
-		cp = data[0] + bp;
-
-		switch(action) {
-		case grabSuff:
-			return(*cp);
-		case setSuff:
-			return(*cp = odata);
-		case grabHtab:
-			return(*((count_int *)cp));
-		case grabCode:
-			return(*((short *)cp));
-		case setHtab:
-			return(*((count_int *)cp) = odata);
-		case setCode:
-			return(*((short *)cp) = odata);
-		}
-	}
-
-	switch(action) {	/* use displacment to correct part of file */
-	case grabHtab:
-	case setHtab:
-		bp <<= 2;	/* long or unsigned long shift 4 */
-	case grabSuff:		/* suffixes are byte */
-	case setSuff:
-		assert((bp >= 0) && (bp < codedsp));
-		break;
-	case grabCode:
-	case setCode:
-		bp <<= 1;	/* code is always short */
-		assert(bp >= 0);
-		bp += codedsp;
-		assert(bp < codelim);
-		break;
-	}
 
 	byte_no = bp & (VBLK - 1);
 	bp >>= VBLKB;
@@ -355,49 +310,41 @@ unsigned long odata;	/* optional data */
 			diskad *= MBKS;
 			diskad += which;
 			diskad <<= VBLKB;
-			if(-1 == lseek(tmpf, diskad, 0)) {
-				fprintf(stderr, "Error in seek\n");
-				myExit(1);
-			}
-			if(VBLK != write(tmpf, &data[which][0], VBLK)) {
-				fprintf(stderr, "Error in write\n");
-				myExit(1);
-			}
+			if(-1 == lseek(tmpf, diskad, 0))
+				ioError("seek");
+			if(VBLK != write(tmpf, &data[which][0], VBLK))
+				ioError("write");
 		}
 		diskad = what_in;
 		diskad *= MBKS;
 		diskad += which;
 		diskad <<= VBLKB;
-		if(-1 == lseek(tmpf, diskad, 0)) {
-			fprintf(stderr, "Error in seek\n");
-			myExit(1);
-		}
+		if(-1 == lseek(tmpf, diskad, 0))
+			ioError("seek");
+
 		if(VBLK != read(tmpf, &data[which][0], VBLK))
 			memset(&data[which][0], 0, VBLK);
 
 		map[which].what_in = what_in;
 		map[which].dirty = 0; /* clean */
 	}
-	cp = data[which] + byte_no;
-
-	switch(action) {
-	case grabHtab:
-		return(*((long *)cp));
-	case setHtab:
-		map[which].dirty = 1;
-		return(*((long *)cp) = odata);
-	case grabSuff:
-		return(*cp);
-	case setSuff:
-		map[which].dirty = 1;
-		return(*cp = odata);
-	case grabCode:
-		return(*((short *)cp));
-	case setCode:
-		map[which].dirty = 1;
-		return(*((short *)cp) = odata);
-	}
+	map[which].dirty |= dirty;
+	return(data[which] + byte_no);
 }
+#define HSIZE12 5003
+
+#define htabof(bp) (*(count_int *)((12 >= maxbits) ? \
+	(data[0] + ((int)(bp) << 2)) : virtual(((long)(bp) << 2), 0)))
+#define sethtab(bp, v) (*(count_int *)((12 >= maxbits) ? \
+	(data[0] + ((int)(bp) << 2)) : virtual(((long)(bp) << 2), 1)) = (v))
+
+#define codetabof(bp) (*(unsigned short *)((12 >= maxbits) ? \
+ (data[0] + ((int)(bp) << 1) + (HSIZE12 * sizeof(count_int))) : \
+ virtual(((long)(bp) << 1) + codedsp, 0)))
+#define setcodtab(bp, v) (*(unsigned short *)((12 >= maxbits) ? \
+ (data[0] + ((int)(bp) << 1) + (HSIZE12 * sizeof(count_int))) : \
+ virtual(((long)(bp) << 1) + codedsp, 1)) = (v))
+
 #else	/* Normal machine */
 	int maxbits = BITS;	/* user settable max bits code */
 	count_int *htab;
@@ -427,8 +374,12 @@ count_int fsize;
  */
 #ifdef VIRTUAL
 #define tab_prefixof(i)	codetabof(i)
-#define tab_suffixof(i) (char_type)findblock((long)(i), grabSuff)
-#define setsuffix(i, v) findblock((long)(i), setSuff, (unsigned long)(v))
+
+#define tab_suffixof(bp) (*(char_type *)((12 >= maxbits) ? \
+	(data[0] + (bp)) : virtual((long)(bp), 0)))
+#define setsuffix(bp, v) (*(char_type *)((12 >= maxbits) ? \
+	(data[0] + (bp)) : virtual((long)(bp), 1)) = (v))
+
 char_type de_stack[8192];
 
 #else /* normal machine */
@@ -500,13 +451,12 @@ int
 
 int do_decomp = 0;
 
-
 void main( argc, argv )
 REGISTER int argc; char **argv;
 {
     int overwrite = 0;	/* Do not overwrite unless given -f flag */
     char tempname[100];
-    char **filelist, **fileptr;
+    char filesw, **filelist, **fileptr;
     char *cp;extern char *strrchr(), *malloc();
     struct stat statbuf;
 #ifndef METAWARE
@@ -517,6 +467,7 @@ REGISTER int argc; char **argv;
     }
 #endif
 
+	setbuf(stdout, outbuf);
 #ifdef AZTEC86
 #ifdef METAWARE
 	_setmode(NULL,_ALL_FILES_BINARY);
@@ -530,8 +481,9 @@ REGISTER int argc; char **argv;
     nomagic = 1;	/* Original didn't have a magic number */
 #endif /* COMPATIBLE */
 
-    filelist = fileptr = (char **)(malloc((unsigned)(argc * sizeof(*argv))));
-    *filelist = NULL;
+    fileptr = filelist = (char **)(malloc((unsigned)(argc * sizeof(*argv))));
+    *fileptr = NULL;
+	filesw = 0;
 
     if((cp = strrchr(argv[0], SLASH)) != 0) {
 	cp++;
@@ -639,18 +591,21 @@ REGISTER int argc; char **argv;
 		{		/* Input file name */
 		    *fileptr++ = *argv;	/* Build input file list */
 		    *fileptr = NULL;
+			filesw = 1;
 		    /* process nextarg; */
 		}
 		nextarg: continue;
     }
 
     if(maxbits < INIT_BITS) maxbits = INIT_BITS;
+#if BITS == 16
+    if (maxbits > 15) maxbits = 15;
+#else
     if (maxbits > BITS) maxbits = BITS;
+#endif
     maxmaxcode = 1L << maxbits;
 
-#ifdef VIRTUAL
-    initV((long)HTABSIZE, (long)CODETABSIZE);
-#else
+#ifndef VIRTUAL
     if (NULL == (htab = (count_int *)malloc((unsigned)HTABSIZE)))
     {
         fprintf(stderr,"Can't allocate htab\n");
@@ -663,7 +618,7 @@ REGISTER int argc; char **argv;
     }
 #endif /* VIRTUAL */
 
-    if (*filelist != NULL) 
+    if (filesw)
     {
         for (fileptr = filelist; *fileptr; fileptr++) 
 		{
@@ -874,6 +829,7 @@ REGISTER int argc; char **argv;
 				    }
 				}
 		    }
+
 		    if(zcat_flg == 0) 
 			{		/* Open output file */
 				if (freopen(ofname, "wb", stdout) == NULL) 
@@ -896,14 +852,19 @@ REGISTER int argc; char **argv;
 				decompress();
 		    else			
 				printcodes();
+
 		    if (verbose)		
 				dump_tab();
 #endif /* DEBUG */
 		    if(zcat_flg == 0) 
 			{
 				copystat(*fileptr, ofname);	/* Copy stats */
+
 				if((exit_stat == 1) || (!quiet))
 					putc('\n', stderr);
+
+				if(!exit_stat) /* kill old version */
+					unlink(*fileptr);
 		    }
 		}
     } else 
@@ -986,6 +947,10 @@ void compress()
     REGISTER long disp;
     code_int hsize_reg;
     int hshift;
+
+#ifdef VIRTUAL
+    initV((long)HTABSIZE, (long)CODETABSIZE);
+#endif
 
 #ifndef COMPATIBLE
     if (nomagic == 0) 
@@ -1272,6 +1237,10 @@ void decompress() {
     REGISTER long finchar;
     REGISTER code_int code, oldcode, incode;
 
+#ifdef VIRTUAL
+    initV((long)HTABSIZE, (long)CODETABSIZE);
+#endif
+
     /*
      * As above, initialize the first 256 entries in the table.
      */
@@ -1343,7 +1312,6 @@ void decompress() {
 	 */
 	oldcode = incode;
     }
-    fflush( stdout );
     if(ferror(stdout))
 	writeerr();
 }
@@ -1653,13 +1621,19 @@ int foreground()
 	}
 #endif
 }
-myExit(n)
+
+closeRam()
 {
 	if(ramsw) {
 		close(tmpf);
 		tmpf = open("/dev/ram1close", 0);
 		close(tmpf);
 	}
+}
+
+myExit(n)
+{
+	closeRam();
 	exit(n);
 }
 
