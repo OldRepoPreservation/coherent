@@ -53,6 +53,7 @@ int eflag;			/* make environ macros protected */
 /* Globals. */
 unsigned char	backup[NBACKUP];
 int		defining;	/* nonzero => do not expand macros */
+int		instring;	/* Are we in the middle of a string? */
 SYM		*deflt;
 char		*deftarget;
 FILE		*fd;
@@ -220,12 +221,18 @@ Again:
 		putback(c);
 		return '\\';
 	}
-	if (c=='#') {
+	if ((c=='#') && !instring) {
 		do
 			c = readc();
 		while (c != '\n' && c != EOF);
 	}
+	if ((c=='"') || (c=='\''))
+	{
+		instring = !instring;
+		return c;
+	}
 	if (c == '\n') {
+		instring = 0;
 Again2:
 		if ((c = readc()) != ' ' && c != '\t') {
 			putback(c);
@@ -263,6 +270,7 @@ Again2:
 			unreads(s);
 		goto Again;
 	}
+
 	return(c);
 }
 
