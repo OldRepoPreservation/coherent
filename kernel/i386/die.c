@@ -35,9 +35,12 @@ static int chirp_off;
  */
 void
 _chirp(c, off)
-	char c;
+char c;
+int off;
 {
-#if 1
+#if SERIAL_CONSOLE
+	__putchar(c);
+#else
 	if (!paging()) {
 		*(COLOR + off) = c;
 		*(MONO + off) = c;
@@ -45,8 +48,6 @@ _chirp(c, off)
 		*((char *) (ctob(VIDEOa) + off)) = c;
 		*((char *) (ctob(VIDEOb) + off)) = c;
 	}
-#else
-__putchar(c);
 #endif
 } /* _chirp() */
 
@@ -167,7 +168,7 @@ void print32(num)	{hexprint(num,8);}
 void print16(num)	{hexprint(num,4);}
 void print8(num)	{hexprint(num,2);}
 
-#ifdef SERIAL_CONSOLE
+#if SERIAL_CONSOLE
 #define OUTCH(c)	__putchar(c)
 #else
 #define OUTCH(c)	mchirp(c)
@@ -239,7 +240,7 @@ int c;
 
 __cinit()
 {
-#ifdef SERIAL_CONSOLE
+#if SERIAL_CONSOLE
 	register rate;
 
 #if	BAUD
@@ -258,8 +259,10 @@ __cinit()
 	__putchar('g');
 #endif
 }
+
 #define CTLQ	0021
 #define CTLS	0023
+
 __getchar()
 {
 	register c;
