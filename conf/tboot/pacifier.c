@@ -4,7 +4,8 @@
 #include "tboot.h"
 #include "pac_states.h"
 
-extern int slow_flag;
+int slow_flag = FALSE;		/* Slow down pacifier.  */
+int feet_flag = FALSE;		/* Print footprints?  */
 
 void pac_init();		/* Initialise the state machine.  */
 void pac_cleanup();		/* Clean up after the state machine.  */
@@ -30,19 +31,23 @@ pacifier()
 	case FORWARD:
 		switch (substate) {
 		case N_S:
-			puts("_|\010");
+			FOOTPRINT;
+			puts("|\010");
 			substate = NE_SW;
 			break;
 		case NE_SW:
-			puts("_/\010");
+			FOOTPRINT;
+			puts("/\010");
 			substate = E_W;
 			break;
 		case E_W:
-			puts("_-\010");
+			FOOTPRINT;
+			puts("-\010");
 			substate = NW_SE;
 			break;
 		case NW_SE:
-			puts("_\\\010");
+			FOOTPRINT;
+			puts("\\\010");
 			substate = NE_SW;
 			break;
 		default:
@@ -64,19 +69,23 @@ pacifier()
 	case REVERSE:
 		switch (substate) {
 		case N_S:
-			puts(" \010\010|\010");
+			UNFOOTPRINT;
+			puts("|\010");
 			substate = NW_SE;
 			break;
 		case NW_SE:
-			puts(" \010\010\\\010");
+			UNFOOTPRINT;
+			puts("\\\010");
 			substate = E_W;
 			break;
 		case E_W:
-			puts(" \010\010-\010");
+			UNFOOTPRINT;
+			puts("-\010");
 			substate = NE_SW;
 			break;
 		case NE_SW:
-			puts(" \010\010/\010");
+			UNFOOTPRINT;
+			puts("/\010");
 			substate = N_S;
 			break;
 		default:
