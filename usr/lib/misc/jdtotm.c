@@ -3,7 +3,7 @@
  * Algorithm from Duffett-Smith, Practical Astronomy With Your Calculator
  * Also Meeus, Astronomical Formulae for Calculators
  */
-#include "misc.h"
+#include "local_misc.h"
 tm_t *
 jday_to_tm(jd)
 jday_t jd;
