@@ -342,7 +342,7 @@ INFO	**aip;
 			skip();
 			continue;
 		}
-		sp = deflookup(SL_VAR, LL_EXT);
+		sp = deflookup(SL_VAR, ll);
 		lex();
 		if (s == ASSIGN) {
 			lex();
