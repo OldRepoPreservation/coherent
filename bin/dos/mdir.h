@@ -38,9 +38,9 @@ typedef	struct	mdir	{
 
 
 /* Special values for m_name[0]. */
-#define MFREE	(char)0x00			/* Never used		*/
-#define MMDIR	(char)0x2E			/* Directory file	*/
-#define	MEMPTY	(char)0xE5			/* Empty name		*/
+#define MFREE	(unsigned char)0x00		/* Never used		*/
+#define MMDIR	(unsigned char)0x2E		/* Directory file	*/
+#define	MEMPTY	(unsigned char)0xE5		/* Empty name		*/
 
 /* Attributes in m_attr. */
 #define MRONLY	0x01			/* Read only		*/
