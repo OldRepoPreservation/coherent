@@ -9,7 +9,10 @@
 #define TRUE		1
 #define FALSE		0
 
-main()
+main(argc, argv)
+int argc;
+char * argv[];
+
 {
 struct stat sbuf;
 int status;
@@ -22,15 +25,33 @@ int counter = 1;
 typedef short int bool;
 bool justsep;
 
-	printf("mailbox to convert? ");
-	scanf("%s", filename);
+	if(argc == 1){
+		printf("mailbox to convert? ");
+		scanf("%s", filename);
+		strcpy(fullname, filename);
+	}else{
+		if (argc ==2){
+			strcpy(fullname, argv[1]);
+		}
 
-	if(! strchr(MPATH, filename)){
-		strcpy(fullname,MPATH);
-		strcat(fullname,filename);
-		TRACE ("mailbox is at: %s\n",fullname);
+		if (argc == 3){
+			if(strlen(argv[1]) <= 2){
+				if( (argv[1][0] == 'm') || (argv[1][1] == 'm')){
+					strcpy(fullname,MPATH);
+					strcat(fullname,argv[2]);
+				}else{
+					printf("invalid argument %s\n",
+						argv[1]);
+					exit(1);
+				}
+			}else{
+				printf("Usage: cvmail [-m] filename\n");
+				exit(1);
+			}
+		}
 	}
 
+	TRACE("Converting file %s\n", fullname);
 	/* get owner & group information */
 	if( status = stat(fullname,&sbuf)){
 		printf("Cannot stat file %s\n",fullname);
