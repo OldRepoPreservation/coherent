@@ -2,13 +2,13 @@
 # part of uucheck the uucp sanity checker.
 #
 # Destination directory for installing executable files
-BIN=/bin/
+BIN=./install/bin/
 # Destination directory for installing data files
 # BTW if LIB= anything other than /usr/lib/uucheck/, you will have to edit
 # uucheck by hand.
-LIB=/usr/lib/uucheck/
+LIB=./install/usr/lib/uucheck/
 
-SUBPROGS=checkperms/checkperms uucheckname/uucheckname
+SUBPROGS=checkperms/checkperms uucheckname/uucheckname uuchecklock/uuchecklock
 #
 uucheck:	$(SUBPROGS)
 	touch $@
@@ -19,12 +19,19 @@ checkperms/checkperms:
 uucheckname/uucheckname:
 	(cd uucheckname; make)
 
+uuchecklock/uuchecklock:
+	(cd uuchecklock; make)
+
 install: uucheck
 	(cd checkperms; make install)
 	(cd uucheckname; make install)
-	cp uucheck $(BIN)
+	(cd uuchecklock; make install)
+	cp -d uucheck $(BIN)
+	chown bin $(BIN)/uucheck
+	chgrp bin $(BIN)/uucheck
 
 clean:
 	(cd checkperms; make clean)
 	(cd uucheckname; make clean)
+	(cd uuchecklock; make clean)
 	rm -f *.o core
