@@ -26,7 +26,11 @@
 #define USE_NDATA	1
 #define SUNLOAD		0
 
-int HACK_LIMIT = (16*ONE_MEG);
+/*
+ * DMA will not work to memory above 16M, so limit the amount of memory
+ * above 1M to 15M.  A much cleverer scheme should be implemented.
+ */
+int HACK_LIMIT = (15*ONE_MEG);
 
 /*
  * For 0 < i < 64, buddysize[i] is log(base 2) of nearest power of two
@@ -221,7 +225,11 @@ register cseg_t *pp;
 	}
 #endif
 
-	if (!(osz & (osz-1))) {
+	/*
+	 * If the old size was a power of 2, it has used up an entire
+	 * buddy area, so we will need to allocate more space.
+	 */
+	if (IS_POW2(osz)) {
 		if ((pp1 = (cseg_t*) arealloc(osz+1))==0)
 			goto no_c_extend;
 		for (i=0; i < osz; i++)
@@ -458,6 +466,8 @@ register	BLOCKLIST *sp;
 #undef	ptable0_v
 #define	ptable0_v	((long *)(&stext[ctob(-1)]))
 
+int total_clicks;	/* How many clicks did we start with?  */
+
 void
 mchinit()
 {
@@ -468,7 +478,7 @@ mchinit()
 	register int zero = 0;
 	register int	i;
 	register	long *ptable1_v;
-	register int	base;
+	register unsigned short	base;
 	int	sysseg, codeseg, stackseg, ramseg, ptable1;
 	int	ptoff;	/* An offset into ptable0_v[]  */
 #if USE_NDATA
@@ -498,9 +508,9 @@ mchinit()
 	 * Can now access the .data segment from C.
 	 * If not, next loop will hang the kernel.
 	 */
-	chirp('A');
+	CHIRP('A');
 	while (digtab[0]!='0');
-	chirp('B');
+	CHIRP('*');
 
 	/*
 	 * 2. Zero the bss
@@ -515,6 +525,9 @@ mchinit()
 	do
 		*pe++ = zero;
 	while (pe != stext);
+
+	CHIRP('2');
+
 	/*
 	 * 3. Calculate total system memory in taking
 	 *    into account the space used by the system and the page
@@ -529,28 +542,67 @@ mchinit()
 	 * lo is the size in bytes of memory between the end of the kernel
 	 *	and the end of memory below 640K.
 	 * hi is the size in bytes of memory over 1 Megabyte (Extended memory).
+	 *
+	 * Round the sizes from the CMOS down to the next click.  This
+	 * compensates for systems where the CMOS reports sizes that are
+	 * not multiples of 4K.
 	 */
-	lo = (read16_cmos(LOMEM) * ONE_K) - ctob(sysmem.lo);
-	hi = read16_cmos(EXTMEM) * ONE_K;
+	lo = ctob(read16_cmos(LOMEM) >> 2) - ctob(sysmem.lo);
+	hi = ctob(read16_cmos(EXTMEM) >> 2);
 
-#ifndef SUPRESS_UGLY_HACK
-	/*** UGLY HACK ****** UGLY HACK ****** UGLY HACK ***
-	 * For some reason, we die horribly if there is too much memory.
+	T_PIGGY( 0x400, {
+		strchirp(" cmos lo: ");
+		print16(read16_cmos(LOMEM));
+		strchirp(" cmos hi: ");
+		print16(read16_cmos(EXTMEM));
+		strchirp(" lo: ");
+		print32(lo);
+		strchirp(" hi: ");
+		print32(hi);
+	} );
+
+	/*
+	 * Sometimes, we die horribly if there is too much memory.
 	 * Artificially limit hi to HACK_LIMIT.
 	 */
 	if (hi > HACK_LIMIT)
 		hi = HACK_LIMIT;
-	/*** END UGLY HACK ***/
-#endif /* SUPRESS_UGLY_HACK */
 
+	CHIRP('z');
 	zero_fill(ctob(sysmem.lo+SBASE-PBASE), lo);
+	CHIRP('Z');
 	zero_fill(ONE_MEG+ctob(SBASE-PBASE), hi);
+	CHIRP('Y');
 	
 	/* Record the total memory for later use.  */
 	total_mem = ctob(sysmem.lo) + lo + hi;
 
 	nalloc = (lo+hi) / (sizeof(short) + SPLASH*sizeof(long) + NBPC);
+	/*
+	 * ASSERT:
+	 * For the moment we want only to assure that the
+	 * BUDDY arena and the stack of free pages will fit below
+	 * 640K.
+	 */
+#define SIZEOF_BUDDY ( (unsigned)SPLASH*nalloc*sizeof(long) )
+#define SIZEOF_FREE_PAGES ( ( btoc(hi) + btoc(lo) )* sizeof(short) )
+	T_PIGGY( 0x800, {
+		if ( SIZEOF_BUDDY + SIZEOF_FREE_PAGES >= lo ) {
+			strchirp("Too much memory");
+			panic("Too much memory");
+		}
+	} );
+
+
+	/*
+	 * Initialize the buddy system arena.  This memory is used
+	 * for the compressed page tables.
+	 */
 	areainit(SPLASH*nalloc*sizeof(long));
+
+	/*
+	 * Initialize the stack of free pages.
+	 */
 	sysmem.tfree = sysmem.pfree = 
 		(unsigned short *)(__end + SPLASH*nalloc*sizeof(long));
 
@@ -559,20 +611,88 @@ mchinit()
 	diff = ((lo + hi) >> BPCSHIFT) - nalloc;
 	sysmem.lo += diff;	
 	sysmem.vaddre = ctob(sysmem.lo+SBASE-PBASE);
-		/* include in system area pages for arena, free area */
+	/* include in system area pages for arena, free area */
+
+	CHIRP('3');
+
 	/*
 	 * 4.
 	 *  Free the memory from [end, 640) kilobytes
 	 *  Free the memory from [1024, 16*1024) kilobytes
+	 *
+	 *  We are building a stack of free pages bounded below
+	 *  by sysmem.tfree and above by sysmem.efree.  sysmem.pfree
+	 *  is the top of the stack.  The stack grows upwards.
 	 */
-	while (base > sysmem.lo)
+	total_clicks = 0;
+	while (base > sysmem.lo) {
 		*sysmem.pfree++ = --base;
+		++total_clicks;
+	}
 
 	base = btoc(1024*1024);
-	while (base < sysmem.hi)
+	while (base < sysmem.hi) {
 		*sysmem.pfree++ = base++;
+		++total_clicks;
+	}
 
 	sysmem.efree = sysmem.pfree;
+
+	T_PIGGY( 0x400, {
+		strchirp("  sysmem.efree: ");
+		print32(sysmem.efree);
+		strchirp("  nalloc: ");
+		print32(nalloc);
+		strchirp("  total_clicks: ");
+		print32(total_clicks);
+		strchirp("  allocno(): ");
+		print32(allocno());
+	} );
+
+	T_PIGGY( 0x800, {
+		/*
+		 * ASSERT:  The stack of free pages should end within a click
+		 * of the lowest available memory.
+		 */
+		if ( (cseg_t *)ctob(sysmem.lo+SBASE-PBASE) < sysmem.efree ) {
+			strchirp("sysmem.lo is too low: ");
+			print32(ctob(sysmem.lo+SBASE-PBASE));
+			strchirp("  sysmem.efree: ");
+			print32(sysmem.efree);
+			panic("sysmem.lo is too low");
+		}
+
+		if ( sysmem.efree < (cseg_t *)ctob(sysmem.lo+SBASE-PBASE - 1)){
+			strchirp("sysmem.efree is too low: ");
+			print32(sysmem.efree);
+			strchirp("  sysmem.lo-1: ");
+			print32(ctob(sysmem.lo+SBASE-PBASE - 1));
+			panic("sysmem.efree is too low");
+		}
+
+		/*
+		 * ASSERT:  There should be nalloc total_clicks.
+		 */
+		if ( nalloc != total_clicks ) {
+			strchirp("nalloc != total_clicks: ");
+			print32(nalloc);
+			strchirp(" != ");
+			print32(total_clicks);
+			panic("nalloc != total_clicks ");
+		}
+	} );
+
+	/*
+	 * We may want to be able to stop at this point so we can see
+	 * anything that has just been printed.
+	 */
+	T_PIGGY( 0x80, {
+		for (;;) {
+			/* DO NOTHING FOREVER */
+		}
+	} );
+
+	CHIRP('4');
 
 	/*
 	 * 5. allocate page entries and initialize level 0 ^'s
@@ -605,6 +725,8 @@ mchinit()
 	sysseg = clickseg(*--sysmem.pfree);		/* 5.e */
 	ptable0_v[0x3FF] = sysseg  | DIR_RW;
 
+	CHIRP('5');
+
 	/*
 	 * 6. initialize  level 2 ^'s to [5.d]
 	 */
@@ -630,6 +752,9 @@ mchinit()
 	}
 
 	ptable1_v[0x3FF] = sysseg  | SEG_SRW;
+
+	CHIRP('6');
+
 	/*
 	 * 7.
 	 * b. map kernel code and data
@@ -649,8 +774,11 @@ mchinit()
 	init_phy_seg(ptable1_v, ROM-SBASE,   0x0000F0000);	/* 7.e. */
 	init_phy_seg(ptable1_v, VIDEOa-SBASE,0x0000B0000);
 	init_phy_seg(ptable1_v, VIDEOb-SBASE,0x0000B8000);
+
+	CHIRP('7');
+
 	/*
-	 * 9. allocate and map U area
+	 * 8. allocate and map U area
 	 */
 
 	uinit.s_flags = SFSYST|SFCORE;
@@ -658,6 +786,8 @@ mchinit()
 	uinit.s_vmem = c_alloc(btoc(UPASIZE));
 	ptable1_v[0x3FF] = *uinit.s_vmem | SEG_SRW;
 	procq.p_segp[SIUSERP] = &uinit;
+
+	CHIRP('8');
 
 	/*
 	 * 9. make FFC00000 and 00002000 map to the same address
@@ -667,13 +797,18 @@ mchinit()
 
 	ptable1_v  = (long *)(codeseg + ctob(SBASE-PBASE));
 	ptable1_v[PBASE] = clickseg(PBASE) | SEG_SRW;
+
+	CHIRP('9');
+
 	/*
 	 * 10. load page table base address into MMU
 	 *	fix up the interrupt vectors
 	 */
 
 	mmuupd();
+	CHIRP('U');
 	idtinit();
+	CHIRP('I');
 }
 
 typedef struct
@@ -858,6 +993,16 @@ valloc(srp)
 SR	*srp;
 {
 	register int npage;
+
+	/*
+	 * If we've run out of virtual memory space, panic().
+	 *
+	 * A more graceful solution is needed, but valloc() does
+	 * not provide a return value.
+	 */
+	if (sysmem.vaddre + srp->sr_size > MAX_VADDR) {
+		panic("valloc: out of virtual memory space");
+	}
 
 	npage = btoc(srp->sr_size);
 
@@ -1141,19 +1286,25 @@ FRAME16 *fp, *fmin, *fmax;
 	}
 }
 
-/* Fill a region of memory with zeros.  */
-void zero_fill(from, len)
-char *from;
-int len;
+/*
+ * Fill a 4-byte-aligned region of memory with zeros.
+ *
+ * Arguments are the starting address and the size in bytes of the region
+ * to be cleared.
+ */
+void
+zero_fill(from, len)
+register long *from;
+register int len;
 {
-        while (len-->0) {
-                *from = 0;
-                from++;
-        }
+	len /= sizeof(long);
+        while (len-->0)
+                *from++ = 0;
 }
 
 /* Read a 16 byte number from the CMOS.  */
-unsigned int read16_cmos(addr)
+unsigned int
+read16_cmos(addr)
 unsigned int addr;
 {
         unsigned char read_cmos();
