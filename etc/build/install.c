@@ -1,6 +1,6 @@
 /*
  * install.c
- * 4/4/90
+ * 4/5/90
  * Install COHERENT disks on a system.
  * The first part of the initial install procedure is in build.c.
  * Uses common routines in build0.o: cc install.c build0.c
@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.3"
+#define	VERSION		"1.5"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
@@ -131,7 +131,7 @@ again:
 		goto again;
 	}
 	printf("Copying disk %d.  This will take a few minutes...\n", i);
-	sprintf(cmd, "cpdir -%sd -smnt /mnt /", (vflag) ? "v" : "");
+	sprintf(cmd, "cpdir -ad%s -smnt /mnt /", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
 	sprintf(cmd, "/etc/umount %s", device);
 	sys(cmd, S_NONFATAL);
