@@ -8,7 +8,8 @@
 
 #define	NSBRK	512		/* Size of each sbrk -- allocator */
 #define BADSBRK ((char *)-1)		/* fail return from sbrk */
-#define	LAST	((unsigned)MININT) /* Marks last of each hash-equivalence class*/
+	/* Marks last of each hash-equivalence class */
+#define	LAST	((unsigned)MININT)
 				/* Assume MININT is a single bit */
 
 static	char	partial[] = "diff: partial line omitted from %s\n";
@@ -19,23 +20,23 @@ static	char	jackpot[] = "Jackpot %d %d\n";
  * This is used as the hash of the input lines
  * and should be relatively uniform statistically.
  */
-static	unsigned crctab1[] = {
+static	unsigned short crctab1[] = {
 	0000000,	0140301,	0140601,	0000500,
 	0141401,	0001700,	0001200,	0141101,
 	0143001,	0003300,	0003600,	0143501,
-	0002400,	0142701,	0142201,	0002100,	
+	0002400,	0142701,	0142201,	0002100
 };
 
-static	unsigned crctab2[] = {
+static	unsigned short crctab2[] = {
 	0000000,	0146001,	0154001,	0012000,
 	0170001,	0036000,	0024000,	0162001,
 	0120001,	0066000,	0074000,	0132001,
-	0050000,	0116001,	0104001,	0043000,
+	0050000,	0116001,	0104001,	0043000
 };
 
 typedef	struct	LINES {
 	unsigned	l_num;
-	unsigned	l_hash;
+	unsigned short	l_hash;
 }	LINES;
 
 /*
@@ -48,7 +49,7 @@ typedef	struct	CAND {
 }	CAND;
 
 int	compar();
-unsigned inhash();
+unsigned short inhash();
 CAND	*candidate();
 
 char	line1[LSIZE];		/* First file's input line buffer */
@@ -93,7 +94,7 @@ char **args;
 diff(fp1, fp2)
 FILE *fp1, *fp2;
 {
-	register unsigned hash;
+	register unsigned short hash;
 	register unsigned ln1;
 	register unsigned ln2;
 	register LINES *V;
@@ -106,7 +107,7 @@ FILE *fp1, *fp2;
 	 * Calculate the hash tables for
 	 * the second file
 	 * and sort with hash as primary key,
-	 * line-number secondary.
+	 * line-number secondary.
 	 */
 	V = (LINES *)alloc(sizeof (LINES));
 	V->l_num = V->l_hash = 0;	/* unneeded? */
@@ -130,13 +131,14 @@ FILE *fp1, *fp2;
 		register unsigned *Pp;
 		register unsigned lo, mid, hi;
 
-		Pp = (unsigned *)alloc(sizeof (unsigned));
+		Pp = (unsigned *)alloc(sizeof(unsigned));
 		lo = 1;
 		hi = ln2;
 		while (lo <= hi) {
 			mid = (lo+hi)/2;
 			if (hash <= V[mid].l_hash)
-				hi = mid-1; else
+				hi = mid-1; 
+			else
 				lo = mid+1;
 		}
 		if (hi!=0 && V[hi].l_hash==V[hi+1].l_hash)
@@ -145,6 +147,7 @@ FILE *fp1, *fp2;
 			*Pp = hi; else
 			*Pp = 0;
 	}
+
 	/*
 	 * Throw away the hash values.
 	 * Mark the last line of each hash-equivalent
@@ -190,6 +193,7 @@ FILE *fp1, *fp2;
 		for (i=1; i<=ln1; i++)
 			if (P[i] != 0)
 				k = merge(K, k, i, E, P[i]);
+
 		/*
 		 * `k' is the length of the maximal
 		 * common subsequence, thus K[k] points
@@ -277,14 +281,14 @@ FILE *fp1, *fp2;
  * means EOF or error and thus will not
  * be returned as a hash value.
  */
-unsigned
+unsigned short
 inhash(fp, fn)
 register FILE *fp;
 char *fn;
 {
 	register int c;
 	register int tmp;
-	register int hash;
+	register int short hash;
 	register int space;
 
 	space = hash = 0;
