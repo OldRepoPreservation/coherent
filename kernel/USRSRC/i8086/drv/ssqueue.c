@@ -5,13 +5,17 @@
  *	Queueing routines for Seagate SCSI driver.
  *	Should be generalizable for other hard drives.
  *
- * $Log$
+ * $Log:	/usr/src/sys/i8086/drv/RCS/ssqueue.c,v $
+ * Revision 1.1	91/03/22  17:39:06	root
+ * Initial code - not tested yet
+ * 
  */
 
 /*
  * Includes.
  */
 #include <coherent.h>
+#include <sys/buf.h>
 #include <scsiwork.h>
 
 /*
@@ -94,7 +98,7 @@ scsi_work_t * ssq_rm_head()
 			ssq_head = ssq_tail = NULL;
 		} else {
 			ssq_head = ssq_head->sw_actf;
-			ssq_head->sw_actl = NULL
+			ssq_head->sw_actl = NULL;
 		}
 		ssq_count--;
 	} else
