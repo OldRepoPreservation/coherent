@@ -58,7 +58,7 @@ typedef int fd_set[2];
 #endif
 /* end of select() support */
 
-extern fatal();		/* like fprintf(stderr, ...); exit(1); */
+extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);
 			 * gets lines off a file treats # to end of line
 			 * as comment, discards \ [ \t\n] through end of
