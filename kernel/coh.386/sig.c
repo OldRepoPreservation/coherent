@@ -402,7 +402,6 @@ ptset(req, pid, addr, data)
 unsigned req;
 int *addr;
 {
-
 	register PROC *pp;
 
 	lock(pnxgate);
@@ -471,48 +470,63 @@ next:
 			goto next;
 		}
 		switch (pts.pt_req) {
-		case 1:
+		case PTRACE_RD_TXT:
 			if (XMODE_286) {
 				pts.pt_rval = getuwd(NBPS+pts.pt_addr);
 				break;
 			}
-		case 2:
+			/* Fall through for 386 mode processes. */
+		case PTRACE_RD_DAT:
 			pts.pt_rval = getuwd(pts.pt_addr);
 			break;
-		case 3:
+		case PTRACE_RD_USR:
+			/* See ptrace.h for valid offsets. */
 			off = (unsigned)pts.pt_addr;
-			if (off < UPASIZE)
-				pts.pt_rval = *(int *)((char *)&u+off);
-			else
+			if (off < PTRACE_UEND && (off & 3) == 0) {
+				if (off == PTRACE_SIG)
+					pts.pt_rval = u.u_signo;
+				else
+					pts.pt_rval = u.u_regl[off>>2];
+			} else
 				u.u_error = EINVAL;
 			break;
-		case 4:
+		case PTRACE_WR_TXT:
 			if (XMODE_286) {
 				putuwd(NBPS+pts.pt_addr, pts.pt_data);
 				break;
 			}
-		case 5:
+			/* Fall through for 386 mode processes. */
+		case PTRACE_WR_DAT:
 			putuwd(pts.pt_addr, pts.pt_data);
 			break;
-		case 6:
-			if (msetuof(pts.pt_addr, pts.pt_data) == 0)
+		case PTRACE_WR_USR:
+			/* See ptrace.h for valid offsets. */
+			off = (unsigned)pts.pt_addr;
+			if (off < PTRACE_UEND && (off & 3) == 0) {
+				if (off == PTRACE_SIG)
+					u.u_error = EINVAL;
+				else
+					u.u_regl[off>>2] = pts.pt_data;
+			} else
 				u.u_error = EINVAL;
 			break;
-		case 7:
+		case PTRACE_RESUME:
 			goto sig;
-		case 8:
+		case PTRACE_TERM:
 			sign = SIGKILL;
 			break;
-		case 9:
-			msigsin();
+		case PTRACE_SSTEP:
+			u.u_regl[EFL] |= MFTTB;
 		sig:
 			if (pts.pt_data<0 || pts.pt_data>NSIG) {
 				u.u_error = EINVAL;
 				break;
 			}
 			sign = pts.pt_data;
-			if (pts.pt_addr != SIG_IGN)
-				msetppc((vaddr_t)pts.pt_addr);
+			if (pts.pt_addr != SIG_IGN) {
+printf("sig new eip:%x<=%x  ", u.u_regl + EIP, pts.pt_addr);
+				u.u_regl[EIP] = pts.pt_addr;
+			}
 			break;
 		default:
 			u.u_error = EINVAL;
