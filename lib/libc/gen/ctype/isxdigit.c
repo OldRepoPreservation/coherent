@@ -10,5 +10,5 @@
 
 int isxdigit(c) int c;
 {
-	return ((_ctype+1)[c]&_H);
+	return ((_ctype+1)[c]&_X);
 }

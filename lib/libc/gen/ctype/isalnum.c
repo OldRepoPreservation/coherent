@@ -10,5 +10,5 @@
 
 int isalnum(c) int c;
 {
-	return ((_ctype+1)[c]&(_A|_D));
+	return ((_ctype+1)[c]&(_A|_N));
 }

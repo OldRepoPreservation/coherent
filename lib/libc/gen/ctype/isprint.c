@@ -10,5 +10,5 @@
 
 int isprint(c) int c;
 {
-	return ((_ctype+1)[c]&(_P|_X|_A|_D));
+	return ((_ctype+1)[c]&(_P|_B|_A|_N));
 }
