@@ -6,7 +6,11 @@
  *	independent aspects of a typewriter, including tandem flow control,
  *	erase and kill, stop and start, and common ioctl functions.
  *
- * $Log$
+ * $Log:	tty.c,v $
+ * Revision 1.7  91/09/13  17:58:00  hal
+ * Drop 3rd arg (was writing PSW directly from it!) for ttread/ttwrite.
+ * General face lift.
+ *
  *
  * Bug: no support for 8-bit characters.
  * Fix: don't strip keyboard input. 01/22/91.  (norm)
@@ -19,17 +23,17 @@
  *
  * Revision 1.5  91/06/06  18:28:53  norm
  * Restore 8-bit fix.
- * 
+ *
  * Revision 1.2	89/07/17  11:51:20 	src
  * Bug:	Terminal could lock up when setting it to RAWIN mode, if
  * 	output was suspended due to X-OFF, and output data was present.
  * Fix:	Setting terminal to RAWIN mode now clears X-OFF, starts output
  * 	BEFORE waiting for output to drain.  Received signals now cause
  * 	operation to complete without waiting for drain. (ABC)
- * 
+ *
  * Revision 1.1	88/03/24  16:18:12	src
  * Initial revision
- * 
+ *
  * 86/12/12	Allan Cornish		/usr/src/sys/drv/tty.c
  * Added 3rd argument to ttpoll() to support non-blocking polls.
  *
@@ -70,7 +74,7 @@
  *	Typedefs.
  *	Enums.
  */
- 
+
 /* NEAR_OR_FAR_CALL is for invoking t_param and t_start */
 #define	 NEAR_OR_FAR_CALL(tp_fn)  {\
 	if (tp->t_cs_sel) \
@@ -208,7 +212,7 @@ register IO *iop;
 		while ((c = getq(&tp->t_iq)) < 0) {
 			if ((tp->t_flags & T_CARR) == 0) {
 			   u.u_error = EIO;  /* error since no carrier */
-			   spl(o);  
+			   spl(o);
 			   return;
 			}
 
@@ -216,11 +220,11 @@ register IO *iop;
 			/* have the special "blocking read" bit set for */
 			/* these modes, and we read at least one byte   */
 		        /* of input, return immediately, since we have  */
-			/* run out of characters from the clist.	*/ 
+			/* run out of characters from the clist.	*/
 
-			if (ISBBYB && ((tp->t_flags & T_BRD) == 0) 
+			if (ISBBYB && ((tp->t_flags & T_BRD) == 0)
 			   && iop->io_ioc < sioc) {
-			   spl(o);  
+			   spl(o);
 			   return;
 			}
 
@@ -337,7 +341,7 @@ void ttioctl(tp, com, vec)
 register TTY *tp;
 register struct sgttyb *vec;
 {
-	register int	flush = 0;  
+	register int	flush = 0;
 	register int	drain = 0;
 	register char	*p1, *p2;
 		 int    rload = 0;
@@ -388,25 +392,25 @@ register struct sgttyb *vec;
 		break;
 	case TIOCHPCL:		/* set hangup on last close */
 		tp->t_flags |= T_HPCL;
-		break;	
+		break;
 	case TIOCCHPCL:		/* don't hangup on last close */
 		if (!super())   /* only superuser may do this */
-		   u.u_error = EPERM;        /* not su */ 
+		   u.u_error = EPERM;        /* not su */
 		else
  	   	   tp->t_flags &= ~T_HPCL;   /* turn off hangup bit */
 		break;
 	case TIOCGETTF:		/* get tty flag word */
 		kucopy(&tp->t_flags, (unsigned *) vec, sizeof(unsigned));
-		break;	
-	case TIOCFLUSH: 
+		break;
+	case TIOCFLUSH:
 		++flush;        /* flush both input and output */
-		++drain;	
+		++drain;
 		break;
 	case TIOCBREAD:		/* blocking read for CBREAK/RAW mode */
-		tp->t_flags |= T_BRD;		
+		tp->t_flags |= T_BRD;
 		break;
 	case TIOCCBREAD:	/* turn off CBREAK/RAW blocking read mode */
-		tp->t_flags &= ~T_BRD;		
+		tp->t_flags &= ~T_BRD;
 		break;
 	default:
 		u.u_error = EINVAL;
@@ -580,15 +584,21 @@ register c;
 			ttsignal(tp, SIGQUIT);
 			return;
 		}
-		if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
-				tp->t_flags |= T_STOP;
-			return;
-		} 
-		if (ISSTART) {
-			tp->t_flags &= ~T_STOP;
-			ttstart(tp);
-			return;
+
+		/*
+		 * Only do flow control if TANDEM is set.
+		 */
+		if (ISTAND) {
+			if (ISSTOP) {
+				if ((tp->t_flags&T_STOP) == 0)
+					tp->t_flags |= T_STOP;
+				return;
+			}
+			if (ISSTART) {
+				tp->t_flags &= ~T_STOP;
+				ttstart(tp);
+				return;
+			}
 		}
 	}
 	if ((tp->t_flags&T_ISTOP) != 0)
