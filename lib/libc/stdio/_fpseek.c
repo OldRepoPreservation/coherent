@@ -17,7 +17,7 @@ register FILE	*fp;
 		(*fp->_gt)(fp);
 	if (fp->_dp <= fp->_cp)
 		return (fflush(fp));
-	if (lseek(fileno(fp), (long)(fp->_cp-fp->_dp), 1) == -1L)
+	if (lseek(fileno(fp), (long)(fp->_cp-fp->_dp), SEEK_CUR) == -1L)
 		return (EOF);
 	fp->_dp = fp->_cp;
 	fp->_cc = 0;
