@@ -151,6 +151,9 @@ genprolog()
  * If it does, the epilogue includes an FWAIT to assure completion;
  * otherwise, a store into a local variable could complete after the exit,
  * when the allocated stack space has been reused for something else.
+ * The peephole optimizer knows the details of epilogue code generation,
+ * because it suppresses a stack adjust which immediately precedes LEAVE;
+ * if the generated code here changes, change i386/peep.c/noeffect() too.
  */
 genepilog()
 {
