@@ -16,8 +16,10 @@
 #ifndef __TERMIO_H__
 #define __TERMIO_H__
 
-#if (defined _I386 || defined KERNEL)
-#define _COH_TERMIO
+#include <common/feature.h>
+
+#if	_I386 || __KERNEL__
+#define _COH_TERMIO	1
 #endif
 
 /*
@@ -27,7 +29,7 @@
  *   drivers and line discipline with COHERENT 286 and need termio constants
  *   for these modules, then define _COH_TERMIO before this file is included.
  */
-#ifdef _COH_TERMIO
+#if	_COH_TERMIO
 
 /*
  *	Terminal Input/Output Parameters
@@ -190,7 +192,7 @@ struct	termio {
 				   arg=2 -> flush both input and output queues
 				 */
 
-#if !(_POSIX_SOURCE)
+#if	! _POSIX_SOURCE
 
 #define TIOCGWINSZ	(TIOC | 104)
 #define TIOCSWINSZ	(TIOC | 103)
@@ -202,7 +204,8 @@ struct winsize {
 	unsigned short ws_ypixel;	/* pixels per column */
 };
 
-#endif
+#endif	/* ! _POSIX_SOURCE */
 
-#endif _COH_TERMIO
-#endif __TERMIO_H__
+#endif	/* _COH_TERMIO */
+
+#endif	/* ! defined (__TERMIO_H__) */

@@ -42,6 +42,24 @@ int		sigprocmask	__PROTO ((int _how,
 					  sigset_t * _oset));
 int		sigsuspend	__PROTO ((__CONST__ sigset_t * _sigmask));
 
+#if	_SYSV3
+
+/*
+ * Pre-SVR4 systems make these available as inlines. For us, this is optional
+ * but still legal. For SVR4 systems, we require proper error checking. For
+ * this to work, we depend on __SIGSET_UNIT (ss, n) not evaluating "n".
+ */
+
+#define	sigfillset(set)		((set)->_sigbits [0] = -1UL, 0)
+#define	sigemptyset(set)	((set)->_sigbits [0] = 0)
+#define	sigismember(set, signo)	((set)->_sigbits [0] & __SIGSET_MASK (signo))
+#define sigaddset(set, signo)	((set)->_sigbits [0] |= \
+					__SIGSET_MASK (signo), 0)
+#define	sigdelset(set, signo)	((set)->_sigbits [0] &= \
+					~ __SIGSET_MASK (signo), 0)
+
+#endif	/* _SYSV3 */
+
 #endif	/* ! _STDC_SOURCE */
 
 __EXTERN_C_END__
