@@ -1,5 +1,5 @@
 # /usr/src/cmd0/sh/Makefile 2/19/91
-DESTDIR=/f1/bin/
+DESTDIR=/interim/bin/
 # Version number compiled into var.o.
 VERSION=3.1.1
 
@@ -50,6 +50,7 @@ sh: $(OBJ)
 	su root chown bin $(DESTDIR)$@
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
+	mv *.o objects/
 
 psh: $(OBJ)
 	cc -n -o psh -O -DPARANOID $(OBJ)
@@ -74,6 +75,6 @@ y.tab.o:	sh.h y.tab.c
 
 # Etc.
 clean:
-	rm $(OBJ)
+	mv *.o objects/
 
 # end of /usr/src/cmd0/sh/Makefile
