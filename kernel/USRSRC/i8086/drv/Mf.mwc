@@ -16,10 +16,11 @@ ARCHIVES=$(USRSYS)/lib/aha154x.a \
 	$(USRSYS)/lib/at.a \
 	$(USRSYS)/lib/ati.a \
 	$(USRSYS)/lib/fl.a \
-	$(USRSYS)/lib/gkb.a \
 	$(USRSYS)/lib/gr.a \
 	$(USRSYS)/lib/hs.a \
 	$(USRSYS)/lib/kb.a \
+	$(USRSYS)/lib/kb_d.a \
+	$(USRSYS)/lib/kb_f.a \
 	$(USRSYS)/lib/lp.a \
 	$(USRSYS)/lib/mm.a \
 	$(USRSYS)/lib/ms.a \
@@ -43,8 +44,9 @@ DRVOBJ=	$(KOBJ)/aha.o \
 	$(KOBJ)/gr.o $(KOBJ)/gras.o \
 	$(KOBJ)/hs.o \
 	$(KOBJ)/nkb.o \
-	$(KOBJ)/gkb.o \
 	$(KOBJ)/kb.o \
+	$(KOBJ)/kb_d.o \
+	$(KOBJ)/kb_f.o \
 	$(KOBJ)/mm.o \
 	$(KOBJ)/lp.o \
 	$(KOBJ)/mmas.o \
@@ -90,9 +92,6 @@ $(USRSYS)/lib/ati.a: $(KOBJ)/mm.o $(KOBJ)/ati.o
 $(USRSYS)/lib/fl.a: $(KOBJ)/fl.o
 	rm -f $(USRSYS)/lib/fl.a
 	ar rc $(USRSYS)/lib/fl.a $(KOBJ)/fl.o
-$(USRSYS)/lib/gkb.a: $(KOBJ)/gkb.o
-	rm -f $@
-	ar rc $@ $<
 $(USRSYS)/lib/gr.a: $(KOBJ)/mm.o $(KOBJ)/gr.o $(KOBJ)/gras.o \
 				$(KOBJ)/fontw.o
 	rm -f $@
@@ -101,6 +100,12 @@ $(USRSYS)/lib/hs.a: $(KOBJ)/hs.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/kb.a: $(KOBJ)/kb.o
+	rm -f $@
+	ar rc $@ $<
+$(USRSYS)/lib/kb_d.a: $(KOBJ)/kb_d.o
+	rm -f $@
+	ar rc $@ $<
+$(USRSYS)/lib/kb_f.a: $(KOBJ)/kb_f.o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/lp.a: $(KOBJ)/lp.o
@@ -317,7 +322,7 @@ $(KOBJ)/kb.o:				\
 		kb.c
 	$(CC) $(CFLAGS) -c -o $@ kb.c
 
-$(KOBJ)/gkb.o:				\
+$(KOBJ)/kb_d.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
@@ -329,8 +334,23 @@ $(KOBJ)/gkb.o:				\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
-		gkb.c
-	$(CC) $(CFLAGS) -c -o $@ gkb.c
+		kb_d.c
+	$(CC) $(CFLAGS) -c -o $@ kb_d.c
+
+$(KOBJ)/kb_f.o:				\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/machine.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/i8086.h	\
+		$(SYSINC)/sched.h	\
+		$(USRINC)/signal.h	\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
+		$(SYSINC)/uproc.h	\
+		kb_f.c
+	$(CC) $(CFLAGS) -c -o $@ kb_f.c
 
 $(KOBJ)/nkb.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
