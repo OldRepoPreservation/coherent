@@ -311,3 +311,60 @@ ifread(ip, toseg, tooffset, offset, lenarg)
 		brelease(bp);
 	}
 } /* ifread() */
+
+
+/* Aligning xbread.
+ * Disk addresses are relative to the start of the disk, rather than
+ * the start of the partition.
+ * Reads 1 block into an arbitrary buffer.  The assembly language
+ * routine xbread() needs a buffer aligned on a 4K boundary.
+ */
+BUF *
+xbread(blockno)
+	daddr_t blockno;	/* Block number.  */
+{
+	BUF *retval = NULL;
+
+	/* If not already aligned, align buffer on a 4K boundary.  */
+	if (NULL == lbuf) {
+		lbuf = bufspace + FOURK;
+		(short) lbuf &= FOURKBOUNDRY;
+	}
+
+	sanity_check("xbread() entry");
+	/*
+	 * Get a buffer to cache this in.
+	 */
+
+	retval = bclaim(blockno);
+
+ 	sanity_check("xbread() returning from bclaim()");
+
+	/*
+	 * If the buffer has the right block number,
+	 * we need not go further.
+	 */
+	if ((THE_XDEV == retval->b_dev) && (blockno == retval->b_bno)) {
+		return(retval);
+	}
+
+	/* Read the block, ignoring
+	 * the return value.
+	 */
+	sanity_check("xbread() to _xbread()");
+	_xbread(blockno, lbuf);
+	sanity_check("xbread() from _xbread()");
+
+	/* Copy to the unaligned buffer.  */
+	sanity_check("xbread() to memcpy()");
+	memcpy((uint16) (retval->b_paddr), lbuf, BLOCK);
+	sanity_check("xbread() from memcpy()");
+
+	retval->b_dev	= THE_XDEV;	/* Associate it with a device, */
+	retval->b_bno	= blockno;	/* and block number.  */
+
+	sanity_check("xbread() about to return");
+	/* Return the buffer we just filled in.  */
+	return(retval);
+} /* xbread() */
+
