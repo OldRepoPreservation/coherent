@@ -45,20 +45,25 @@ struct passwd *
 getpwent()
 {
 	register char *cp, *xp;
-	register c;
+	register int c, nseps;
 
 	if (pwfile == NULL)
 		if ((pwfile = fopen(PWFILE, "r")) == NULL)
 			return NULL;
+again:
 	cp = pwline;
-	while ((c = getc(pwfile))!=EOF && c!='\n') {
-		if (c == ':')
+	for (nseps = 0; (c = getc(pwfile))!=EOF && c!='\n'; ) {
+		if (c == ':') {
 			c = '\0';
+			++nseps;
+		}
 		if (cp < &pwline[NPWLINE-1])
 			*cp++ = c;
 	}
 	if (c == EOF)
 		return NULL;
+	if (nseps != 6)
+		goto again;		/* accept only lines with six ':'s */
 	*cp = '\0';
 	cp = pwline;
 	field(pw.pw_name);
