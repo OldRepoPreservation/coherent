@@ -1,6 +1,6 @@
 /*
  * build.c
- * 10/29/90
+ * 12/20/90
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
  * Uses common routines in build0.c,
@@ -38,7 +38,7 @@
 #define	DOSSHRINK	0		/* punt dosshrink for now	*/
 
 /* Manifest constants. */
-#define	VERSION		"1.7"
+#define	VERSION		"1.8"
 #define	USAGE		"Usage: /etc/build [ -dvx ]\n"
 #define	ATDEVS		(NPARTN+NPARTN)	/* number of AT disk devices	*/
 #define	BSIZE		512		/* sector size			*/
@@ -849,7 +849,22 @@ again:
 		);
 	sys("/bin/date `/etc/ATclock`", S_NONFATAL);
 	if (!yes_no("Is this correct")) {
+		n = 0;
 		do {
+			if (++n > 3) {
+				printf(
+"The command which sets the internal real-time clock of your system is\n"
+"failing repeatedly.  Either you are entering the date and time incorrectly\n"
+"or your clock hardware is not completely AT-compatible.  If your clock\n"
+"hardware is incompatible, you can continue with the installation without\n"
+"setting the clock correctly.  However, if you do so, subsequent clock\n"
+"references (including file access and modification time information) will be\n"
+"incorrect and some commands (such as \"date\") will not function correctly.\n"
+					);
+				if (yes_no("Do you want to proceed without setting the clock correctly"))
+					break;
+				n = 0;
+			}
 			s = get_line(
 "Enter the correct date and time in the form YYMMDDHHMM.SS:"
 				);
