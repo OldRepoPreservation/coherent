@@ -44,8 +44,11 @@
  */
 
 #include <sys/coherent.h>
+#ifndef _I386
+#include <sys/i8086.h>
+#endif
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/clist.h>

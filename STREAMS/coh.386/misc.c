@@ -1,39 +1,9 @@
-/* $Header: /y/coh.386/RCS/misc.c,v 1.4 93/04/14 10:06:36 root Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- -lgl) */
 /*
- * Coherent.
+ * coh.386/misc.c
+ *
  * Miscellaneous routines.
  *
- * $Log:	misc.c,v $
- * Revision 1.4  93/04/14  10:06:36  root
- * r75
- * 
- * Revision 1.3  92/11/09  17:10:53  root
- * Just before adding vio segs.
- * 
- * Revision 1.2  92/01/06  11:59:45  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.1	88/03/24  16:14:01	src
- * Initial revision
- * 
- * 87/05/08	Allan Cornish		/usr/src/sys/coh/misc.c
- * System code and data segments no longer reported in panic messages.
- *
- * 87/02/17	Allan Cornish		/usr/src/sys/coh/misc.c
- * Panic message now includes system code and data segments.
+ * Revised: Thu Jul 15 14:18:13 1993 CDT
  */
 #include <sys/coherent.h>
 #include <sys/acct.h>
@@ -146,9 +116,6 @@ char *a1;
 {
 	printf("(%d,%d): %r", major(dev), minor(dev), &a1);
 	printf("\n");
-#ifdef	TRACER
-	backtrace (0);
-#endif
 }
 
 /*

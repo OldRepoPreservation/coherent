@@ -1,13 +1,13 @@
 /*
- * Keyboard/display driver for German keyboard.
- * Coherent, IBM PC/XT/AT (286 and 386).
+ * io.386/vtkb_d.c
+ *
+ * Keyboard driver, virtual consoles, no loadable tables, German.
+ *
+ * Revised: Fri Jul 16 08:39:12 1993 CDT
  */
+
 #include <sys/coherent.h>
-#ifdef _I386
 #include <sys/reg.h>
-#else
-#include <sys/i8086.h>
-#endif
 #include <sys/con.h>
 #include <sys/devices.h>
 #include <sys/errno.h>
@@ -59,13 +59,14 @@
 #define	AGS	0x100			/* Alt Graphics on */
 
 /* Function key information */
-#define	NFKEY	20			/* Number of settable functions */
+#define	NFKEY	50			/* Number of settable functions */
 #define	NFCHAR	150			/* Number of characters settable */
 #define	NFBUF	(NFKEY*2+NFCHAR+1)	/* Size of buffer */
 
 #define	ESCAPE_CHAR	'\x1B'
 #define	ESCAPE_STRING	"\x1B"
-
+#define	HEXFF_STRING	"\xFF"
+#define	DELETE_STRING	"\x7F"
 
 /*
  * Functions.
@@ -118,13 +119,8 @@ int isturbo = 0;
 #define VT_VGAPORT	0x3D4
 #define VT_MONOPORT	0x3B4
 
-#ifdef	_I386
-#define VT_MONOBASE	SEG_VIDEOa
-#define VT_VGABASE	SEG_VIDEOb
-#else
-#define VT_MONOBASE	0xB000
-#define VT_VGABASE	0xB800
-#endif
+#define VT_MONOBASE	(SEG_VIDEOa|DPL_1)
+#define VT_VGABASE	(SEG_VIDEOb|DPL_1)
 
 /*
 	Patchable table entrys,
@@ -177,6 +173,7 @@ static	int	extended;		/* extended key scan count */
 static	char	extmode;		/* use extended mode for this key */
 static	char	ext0seen;		/* 0xE0 prefix seen */
 static	char	fk_loaded;		/* true == funcion keys resident */
+static	int	xlate =1;		/* scan code translation flag */
 
 /*
  * Tables for converting key code to ASCII.
@@ -255,8 +252,8 @@ static unsigned char smaptab[] ={
 	 LET,  LET,  LET,  LET,  LET,  LET,  LET,  SES,		/* 32 - 39 */
 	 SES,  SS1, SHFT,  SS1,  LET,  LET,  LET,  LET,		/* 40 - 47 */
 	 LET,  LET,  LET,  SES,  SES,  SES, SHFT,  SES,		/* 48 - 55 */
-	SHFT,  SS1, SHFT,  SS0,  SS0,  SS0,  SS0,  SS0,		/* 56 - 63 */
-	 SS0,  SS0,  SS0,  SS0,  SS0, SHFT,  KEY,  KEY,		/* 64 - 71 */
+	SHFT,  SS1, SHFT,  SS1,  SS1,  SS1,  SS1,  SS1,		/* 56 - 63 */
+	 SS1,  SS1,  SS1,  SS1,  SS1, SHFT,  KEY,  KEY,		/* 64 - 71 */
 	 KEY,  KEY,  SS0,  KEY,  KEY,  KEY,  SS0,  KEY,		/* 72 - 79 */
 	 KEY,  KEY,  KEY,  KEY,  SS0,  SS0,  SES,  SS0,		/* 80 - 87 */
 	 SS0
@@ -426,26 +423,70 @@ isuload()
  */
 
 static char *deffuncs[] = {
-	ESCAPE_STRING "[1x\377",	/* F1 */
-	ESCAPE_STRING "[2x\377",	/* F2 */
-	ESCAPE_STRING "[3x\377",	/* F3 */
-	ESCAPE_STRING "[4x\377", 	/* F4 */
-	ESCAPE_STRING "[5x\377",	/* F5 */
-	ESCAPE_STRING "[6x\377",	/* F6 */
-	ESCAPE_STRING "[7x\377",	/* F7 */
-	ESCAPE_STRING "[8x\377",	/* F8 */
-	ESCAPE_STRING "[9x\377",	/* F9 */
-	ESCAPE_STRING "[0x\377",	/* F10 - historical value */
-	ESCAPE_STRING "[1y\377",	/* F11 */
-	ESCAPE_STRING "[2y\377",	/* F12 */
-	ESCAPE_STRING "[3y\377",	/* F13 */
-	ESCAPE_STRING "[4y\377", 	/* F14 */
-	ESCAPE_STRING "[5y\377",	/* F15 */
-	ESCAPE_STRING "[6y\377",	/* F16 */
-	ESCAPE_STRING "[7y\377",	/* F17 */
-	ESCAPE_STRING "[8y\377",	/* F18 */
-	ESCAPE_STRING "[9y\377",	/* F19 */
-	ESCAPE_STRING "[0y\377"	/* F20 */
+	/* Normal function keys */
+	ESCAPE_STRING "[M" HEXFF_STRING,	/* F1 */
+	ESCAPE_STRING "[N" HEXFF_STRING,	/* F2 */
+	ESCAPE_STRING "[O" HEXFF_STRING,	/* F3 */
+	ESCAPE_STRING "[P" HEXFF_STRING, 	/* F4 */
+	ESCAPE_STRING "[Q" HEXFF_STRING,	/* F5 */
+	ESCAPE_STRING "[R" HEXFF_STRING,	/* F6 */
+	ESCAPE_STRING "[S" HEXFF_STRING,	/* F7 */
+	ESCAPE_STRING "[T" HEXFF_STRING,	/* F8 */
+	ESCAPE_STRING "[U" HEXFF_STRING,	/* F9 */
+	ESCAPE_STRING "[V" HEXFF_STRING,	/* F10 - historical value */
+	/* No F11 or F12 on these keyboards */
+
+	/* Shifted function keys */
+	ESCAPE_STRING "[Y" HEXFF_STRING,	/* sF1 */
+	ESCAPE_STRING "[Z" HEXFF_STRING,	/* sF2 */
+	ESCAPE_STRING "[a" HEXFF_STRING,	/* sF3 */
+	ESCAPE_STRING "[b" HEXFF_STRING, 	/* sF4 */
+	ESCAPE_STRING "[c" HEXFF_STRING,	/* sF5 */
+	ESCAPE_STRING "[d" HEXFF_STRING,	/* sF6 */
+	ESCAPE_STRING "[e" HEXFF_STRING,	/* sF7 */
+	ESCAPE_STRING "[f" HEXFF_STRING,	/* sF8 */
+	ESCAPE_STRING "[g" HEXFF_STRING,	/* sF9 */
+	ESCAPE_STRING "[h" HEXFF_STRING,	/* sF10 */
+
+	/* Ctrl-ed function keys */
+	ESCAPE_STRING "[k" HEXFF_STRING,	/* cF1 */
+	ESCAPE_STRING "[l" HEXFF_STRING,	/* cF2 */
+	ESCAPE_STRING "[m" HEXFF_STRING,	/* cF3 */
+	ESCAPE_STRING "[n" HEXFF_STRING,	/* cF4 */
+	ESCAPE_STRING "[o" HEXFF_STRING,	/* cF5 */
+	ESCAPE_STRING "[p" HEXFF_STRING,	/* cF6 */
+	ESCAPE_STRING "[q" HEXFF_STRING,	/* cF7 */
+	ESCAPE_STRING "[r" HEXFF_STRING,	/* cF8 */
+	ESCAPE_STRING "[s" HEXFF_STRING,	/* cF9 */
+	ESCAPE_STRING "[t" HEXFF_STRING,	/* cF10 */
+
+	/* Ctrl-shifted function keys */
+	ESCAPE_STRING "[w" HEXFF_STRING,	/* csF1 */
+	ESCAPE_STRING "[x" HEXFF_STRING,	/* csF2 */
+	ESCAPE_STRING "[y" HEXFF_STRING,	/* csF3 */
+	ESCAPE_STRING "[z" HEXFF_STRING,	/* csF4 */
+	ESCAPE_STRING "[@" HEXFF_STRING,	/* csF5 */
+	ESCAPE_STRING "[[" HEXFF_STRING,	/* csF6 */
+	ESCAPE_STRING "[\\" HEXFF_STRING,	/* csF7 */
+	ESCAPE_STRING "[]" HEXFF_STRING,	/* csF8 */
+	ESCAPE_STRING "[^" HEXFF_STRING,	/* csF9 */
+	ESCAPE_STRING "[_" HEXFF_STRING,	/* csF10 */
+
+	/* Alt keys -- use original 83 key setting since these are
+	 * not defined for virtual terms; actually, many will never
+	 * be used since intercepted by virtual term code, but
+	 * should be here in case someone defines like 1 virtual term
+ 	 * so the keys return something semi-useful */
+	ESCAPE_STRING "[1y" HEXFF_STRING,	/* aF1 */
+	ESCAPE_STRING "[2y" HEXFF_STRING,	/* aF2 */
+	ESCAPE_STRING "[3y" HEXFF_STRING,	/* aF3 */
+	ESCAPE_STRING "[4y" HEXFF_STRING,	/* aF4 */
+	ESCAPE_STRING "[5y" HEXFF_STRING,	/* aF5 */
+	ESCAPE_STRING "[6y" HEXFF_STRING,	/* aF6 */
+	ESCAPE_STRING "[7y" HEXFF_STRING,	/* aF7 */
+	ESCAPE_STRING "[8y" HEXFF_STRING,	/* aF8 */
+	ESCAPE_STRING "[9y" HEXFF_STRING,	/* aF9 */
+	ESCAPE_STRING "[0y" HEXFF_STRING	/* aF10 */
 };
 
 /*
@@ -535,6 +576,49 @@ IO *iop;
 /*
  * Ioctl routine.
  */
+/*
+ * special struct for the KDMAPDISP call
+ */
+
+#define KDMAPDISP       (('K' << 8) | 2)      /* map display into user space */
+#define KDSKBMODE       (('K' << 8) | 6)      /* turn scan code xlate on/off */
+#define KDMEMDISP       (('K' << 8) | 7)      /* dump byte of virt/phys mem  */
+#define KDENABIO        (('K' << 8) | 60)     /* enable IO                   */
+#define KIOCSOUND       (('K' << 8) | 63)     /* start sound generation      */ 
+#define KDSETLED        (('K' << 8) | 66)     /* set leds	             */
+
+#define TIMER_CTL    0x43                     /* Timer control */
+#define TIMER_CNT    0x42                     /* Timer counter */
+#define SPEAKER_CTL  0x61                     /* Speaker control */
+
+struct kd_memloc {
+        char    *vaddr;         /* virtual address to map to */
+        char    *physaddr;      /* physical address to map to */
+        long    length;         /* size in bytes to map */
+        long    ioflg;          /* enable I/O addresses if non-zero */
+};
+
+static TIM tp;
+int
+kbstate(action)
+   int action;
+{
+   int i;
+   if (action == 1) {
+      timeout(&tp,20,kbstate,2);
+      outb(KBCTRL, 0xCC);             /* Clock high */
+   }
+   if (action == 2) {
+      i = inb(KBDATA);
+      outb(KBCTRL, 0xCC);                     /* Clear keyboard */
+      outb(KBCTRL, 0x4D);                     /* Enable keyboard */
+   }
+}
+
+
+static int X11led;
+
+
 isioctl(dev, com, vec)
 dev_t dev;
 struct sgttyb *vec;
@@ -542,6 +626,67 @@ struct sgttyb *vec;
 	register int s;
 
 	switch(com) {
+#define KDDEBUG 0
+#if KDDEBUG
+        case KDMEMDISP:
+	{
+		struct kd_memloc* mem;
+		unsigned char ub, pb;
+		mem = vec;
+                pxcopy( mem->physaddr, &pb, 1, SEG_386_KD );
+		ub = getubd( mem->vaddr );
+ 		printf( "User's byte %x(%x), Physical byte %x, Addresses %x %x\n",
+ 			mem->ioflg, ub, pb, mem->vaddr, mem->physaddr );
+                goto ioc_done;;
+ 	}
+#endif
+        case KDMAPDISP:
+	{
+ 		struct kd_memloc* mem;
+ 		mem = vec;
+#if KDDEBUG
+ 		printf( "mapPhysUser(%x, %x, %x) = %d\n",
+ 		         mem->vaddr, mem->physaddr, mem->length,  
+#endif
+                 mapPhysUser(mem->vaddr, mem->physaddr, mem->length)
+#if KDDEBUG
+ 		)
+#endif
+;
+	}
+        case KDENABIO:
+ 	{
+ 		int i;
+ 	        for (i = 0 ; i < 64 ; i++ )
+ 		    iomapAnd(0,i);
+                goto ioc_done;;
+ 	}
+        case KIOCSOUND:
+ 	{
+ 		if (vec) {
+                  outb(TIMER_CTL, 0xB6); 
+                  outb(TIMER_CNT, (int)vec&0xFF);
+                  outb(TIMER_CNT, (int)vec>>8);
+                  outb(SPEAKER_CTL, inb(SPEAKER_CTL) | 03); /* Turn speaker on */
+ 		}
+ 		else 
+                  outb(SPEAKER_CTL, inb(SPEAKER_CTL) & ~03 ); /* speaker off */
+                 goto ioc_done;;
+ 	}
+        case KDSKBMODE:
+ 	{
+                outb(KBCTRL, 0x0C);             /* Clock low */
+ 		timeout(&tp,3,kbstate,1);	/* wait about 20-30ms */
+ 		xlate = (int)vec;
+ 		goto ioc_done;;	
+ 	}
+	case KDSETLED:
+        {
+ 		X11led = (int)vec;
+ 		updleds();
+ 		goto ioc_done;;
+        }
+
 	case TIOCSETF:
 	case TIOCGETF:
 		isfunction(com, (char *)vec);
@@ -641,6 +786,18 @@ isrint()
 	c = inb(KBCTRL);
 	outb(KBCTRL, c|KBFLAG);
 	outb(KBCTRL, c);
+        if (!xlate) {
+           if (ledcmd) {
+                ledcmd = 0;
+                if (r == KBACK) {               /* output to status LEDS */
+                    outb(KBDATA, X11led);
+                    return;
+                }
+	   }
+           isin(r);
+           return;
+        }
+
 #if	KBDEBUG
 	printf("kbd: %d\n", r);			/* print scan code/direction */
 #endif
@@ -734,9 +891,10 @@ isrint()
 	else if (shift & CTS) {
 		if (s == CTS)			/* Map Ctrl (BS | NL) */
 			c = (c == BACKSP) ? 0x7F : 0x0A;
-		else if (s==SS1 || s==LET)	/* Normal Ctrl map */
-			c = umaptab[c]&0x1F;	/* Clear bits 5-6 */
-		else { if (s==KEY || s==SS0) 
+		else if (s==SS1 || s==LET) {	
+			if((c = umaptab[c]) != SPC)   /* Normal Ctrl map */
+				c &= 0x1F;	/* Clear bits 5-6 */
+		} else { if (s==KEY || s==SS0) 
 				vtnumeric(r);
 			return;			/* Ignore this char */
 		}
@@ -782,20 +940,38 @@ vtnumeric(c)
 int	c;
 {
 	switch (c) {
-	case 71: case 72: case 73:	/* ctrl 7/8/9 (vt7, vt8, vt9) */
-		defer(isvtswitch, c + 16);
+	case 71:			/* ctrl-7 */
+		defer(isvtswitch, vt7);
+		break;
+	case 72:			/* ctrl-8 */
+		defer(isvtswitch, vt8); 
+		break;
+	case 73:			/* ctrl-9 */
+		defer(isvtswitch, vt9);
 		break;
 	case 74:			/* ctrl - */
 		defer(isvtswitch, vtp);
 		break;
-	case 75: case 76: case 77:	/* ctrl 4/5/6 (vt5, vt6, vt7) */
-		defer(isvtswitch, c + 10);
+	case 75:			/* ctrl-4 */
+		defer(isvtswitch, vt4);
+		break;
+	case 76:			/* ctrl-5 */
+		defer(isvtswitch, vt5);
+		break;
+	case 77:			/* ctrl-6 */
+		defer(isvtswitch, vt6);
 		break;
 	case 78:			/* ctrl + */
 		defer(isvtswitch, vtn);
 		break;
-	case 79: case 80: case 81:	/* ctrl 1/2/3 */
-		defer(isvtswitch, c + 2);
+	case 79:			/* ctrl-1 */
+		defer(isvtswitch, vt1);
+		break;
+	case 80:			/* ctrl-2 */
+		defer(isvtswitch, vt2);
+		break;
+	case 81:			/* ctrl-3 */
+		defer(isvtswitch, vt3);
 		break;
 	case 82: 			/* ctrl 0  (vt0) */
 		defer(isvtswitch, vt0);
@@ -818,15 +994,15 @@ int	c;
 static char *keypad[][3] = {
 	{ ESCAPE_STRING "[H",  "7", ESCAPE_STRING "?w" },	/* 71 */
 	{ ESCAPE_STRING "[A",  "8", ESCAPE_STRING "?x" },	/* 72 */
-	{ ESCAPE_STRING "[V",  "9", ESCAPE_STRING "?y" },	/* 73 */
+	{ ESCAPE_STRING "[I",  "9", ESCAPE_STRING "?y" },	/* 73 */
 	{ ESCAPE_STRING "[D",  "4", ESCAPE_STRING "?t" },	/* 75 */
 	{ ESCAPE_STRING "7",   "5", ESCAPE_STRING "?u" },	/* 76 */
 	{ ESCAPE_STRING "[C",  "6", ESCAPE_STRING "?v" },	/* 77 */
-	{ ESCAPE_STRING "[24H","1", ESCAPE_STRING "?q" },	/* 79 */
+	{ ESCAPE_STRING "[F",  "1", ESCAPE_STRING "?q" },	/* 79 */
 	{ ESCAPE_STRING "[B",  "2", ESCAPE_STRING "?r" },	/* 80 */
-	{ ESCAPE_STRING "[U",  "3", ESCAPE_STRING "?s" },	/* 81 */
-	{ ESCAPE_STRING "[@",  "0", ESCAPE_STRING "?p" },	/* 82 */
-	{ ESCAPE_STRING "[P", ".",  ESCAPE_STRING "?n" }	/* 83 */
+	{ ESCAPE_STRING "[G",  "3", ESCAPE_STRING "?s" },	/* 81 */
+	{ ESCAPE_STRING "[L",  "0", ESCAPE_STRING "?p" },	/* 82 */
+	{ DELETE_STRING ,      ".",  ESCAPE_STRING "?n" }	/* 83 */
 };
 
 isspecial(c)
@@ -858,17 +1034,67 @@ int c;
 	case 64: case 65: case 66: 
 		/* offset to function string */
 		/* Magic numbers 21 and 61 to mach vtnkb constants */
-		if ( shift & ALS ) 
-			defer(isvtswitch, c + 21);
-		else
-			cp = isfval[c-59];
+		if ( shift & ALS )  {
+			switch(c) {
+				case 59:	/* Alt-F1 */
+					defer(isvtswitch, vt0);
+					break;
+				case 60:	/* Alt-F2 */
+					defer(isvtswitch, vt1);
+					break;
+				case 61:	/* Alt-F3 */
+					defer(isvtswitch, vt2);
+					break;
+				case 62:	/* Alt-F4 */
+					defer(isvtswitch, vt3);
+					break;
+				case 63:	/* Alt-F5 */
+					defer(isvtswitch, vt4);
+					break;
+				case 64:	/* Alt-F6 */
+					defer(isvtswitch, vt5);
+					break;
+				case 65:	/* Alt-F7 */
+					defer(isvtswitch, vt6);
+					break;
+				case 66:	/* Alt-F8 */
+					defer(isvtswitch, vt7);
+					break;
+				default:
+					break;
+			}
+		}
+		else { if((shift & (SES)) && (shift & CTS)) /* ctrl-shft-Fx */
+			cp = isfval[c-29];
+		else { if(shift & CTS)			/* ctrl-Fx */
+			cp = isfval[c-39];
+		else { if(shift & (SES))		/* shift-Fx */
+			cp = isfval[c-49];
+		else cp = isfval[c-59];			/* Plain Fx */
+		}}}
 		break;
 	case 67: case 68:
 		/* offset to function string */
-		if ( shift & ALS ) 
-			defer(isvtswitch, c + 61);
-		else
-			cp = isfval[c-59];
+		if ( shift & ALS )  {
+			switch(c) {
+				case 67:	/*  Alt-F9 */
+					defer(isvtswitch, vt8);
+					break;
+				case 68:	/* Alt-F10 */
+					defer(isvtswitch, vt9);
+					break;
+				default:
+					break;
+			}
+		}
+		else { if ((shift & (SES)) && (shift & CTS)) /* cs-Fx */
+			cp = isfval[c-29];
+		else { if (shift & CTS)		/* c-Fx */
+			cp = isfval[c-39];
+		else { if (shift & (SES))	/* s-Fx */
+			cp = isfval[c-49];
+		else cp = isfval[c-59];		/* Fx */
+		}}}
 		break;
 	case 70:		/* Scroll Lock -- stop/start output */
 	{

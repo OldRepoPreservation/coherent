@@ -19,11 +19,13 @@
  *
  * Revised: Tue May 11 11:12:03 1993 CDT
  */
+
+#include <kernel/sigproc.h>
 #include <sys/coherent.h>
 #include <sys/acct.h>
 #include <sys/con.h>
 #include <sys/wait.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
 #include <sys/seg.h>
@@ -363,7 +365,7 @@ unull()
  */
 upause()
 {
-	x_sleep((char *)&u, prilo, slpriSigLjmp, "pause");
+	x_sleep ((char *) & u, prilo, slpriSigLjmp, "pause");
 }
 
 /*
@@ -544,16 +546,19 @@ char *np;
  * Unlike the libc interface, this routine expects a time_t value
  * as an arg, not a time_t pointer.
  */
-ustime(tp)
-time_t tp;
+
+int
+ustime (newtime)
+time_t newtime;
 {
 	register int s;
 
 	if (super() == 0) {
 		return;
 	}
+
 	s = sphi();
-	ukcopy(&tp, &timer.t_time, sizeof(tp));
+	timer.t_time = newtime;
 	spl(s);
 	return 0;
 }
@@ -620,9 +625,8 @@ uwait(arg1, arg2, arg3)
 	T_HAL(8, printf("[%d]waits ", SELF->p_pid));
 	ppp = SELF;
 	for (;;) {
-		int x_s;
-
 		/* Look at all processes. */
+again:
 		lock(pnxgate);
 		cpp = NULL;
 		pp = &procq;
@@ -658,9 +662,12 @@ uwait(arg1, arg2, arg3)
 				work = workAlloc();
 				ptable1_v[work] =
 				  sysmem.u.pbase[btocrd(childUseg)] | SEG_RW;
+#if	_NIGEL_MM_HACK
 				mmuupd();
+#endif
 				uprc = (UPROC *) (ctob(work) + U_OFFSET);
 				u.u_rval2 = ((uprc->u_signo)<<8) | 0177;
+
 				workFree(work);
 
 				unlock(pnxgate);
@@ -675,13 +682,14 @@ uwait(arg1, arg2, arg3)
 				pid = pp->p_pid;
 				unlock(pnxgate);
 				relproc(pp);
-				if (SIG_BIT(SIGCLD) & ppp->p_isig)
-					continue;
-				else {
-					T_HAL(8, printf("[%d]ends waiting,"
+
+				if ((proc_signal_misc (ppp) &
+				     __SF_NOCLDWAIT) != 0)
+					goto again;
+
+				T_HAL(8, printf("[%d]ends waiting,"
 					  " %d died ", SELF->p_pid, pid));
-					return pid;
-				}
+				return pid;
 			}
 			cpp = pp;
 		}
@@ -692,7 +700,7 @@ uwait(arg1, arg2, arg3)
 			u.u_error = ECHILD;
 			return;
 		}
-		x_s = x_sleep((char *)ppp, prilo, slpriSigLjmp, "wait");
+		(void) x_sleep ((char *) ppp, prilo, slpriSigLjmp, "wait");
 		/* Wait for a child to terminate.  */
 	}
 }
@@ -729,9 +737,8 @@ int	*stat_loc, options;
 	/* Wait for a child to stop or die. */
 	ppp = SELF;
 	for (;;) {
-		int x_s;
-
 		/* Look at all processes. */
+again:
 		lock(pnxgate);
 		cpp = NULL;
 		pp = &procq;
@@ -799,11 +806,12 @@ int	*stat_loc, options;
 				pid = pp->p_pid;
 				unlock(pnxgate);
 				relproc(pp);
-				if (SIG_BIT(SIGCLD) & ppp->p_isig)
-					continue;
-				else {
-					return pid;
-				}
+
+				if ((proc_signal_misc (ppp) &
+				     __SF_NOCLDWAIT) != 0)
+					goto again;
+
+				return pid;
 			}
 			cpp = pp;
 		}
@@ -817,9 +825,9 @@ int	*stat_loc, options;
                		u.u_rval2 = 0;
 			return 0;
 		}
-		else
-			/* Wait for a child to terminate. */
-			x_s = x_sleep((char *)ppp, prilo, slpriSigLjmp,
-			  "waitpid");
+
+		/* Wait for a child to terminate. */
+		(void) x_sleep ((char *) ppp, prilo, slpriSigLjmp,
+				"waitpid");
 	}
 }

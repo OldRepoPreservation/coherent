@@ -19,7 +19,7 @@
  * gets called every tick at high priority.  It does the minimum it
  * can and returns as soon as possible.  The second routine, `stand',
  * gets called whenever we are about to return from an interrupt to
- * user mode a low priority.  It can look at flags that the clock set
+ * user mode at low priority.  It can look at flags that the clock set
  * and do the things the clock really wanted to do but didn't have time.
  * Stand is truly the kernel of the system.
  *
@@ -45,17 +45,19 @@
  * 86/11/19	Allan Cornish		/usr/src/sys/coh/clock.c
  * Stand() calls defend() to execute functions deferred from interrupt level.
  */
+
+#include <common/_gregset.h>
+#include <kernel/sigproc.h>
 #include <sys/coherent.h>
 #include <sys/con.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
 #include <sys/stat.h>
 #include <sys/timeout.h>
-#include <sys/mdata.h>
 
 int (*altclk)();	/* pointer to higher-speed clock function */
 
-#ifndef _I386
+#if	! _I386
 int altsel;	/* if nonzero, CS for LOADABLE driver owning altclk() */
 #endif
 
@@ -135,9 +137,13 @@ caddr_t pc;
 /*
  * stand()
  *
- * Called when there is an interrupt or trap.
+ * Called when there is an interrupt or trap, and the system is about to
+ * return to user mode (or to the idle process).
  */
-stand()
+
+void
+stand (regset)
+gregset_t	regset;
 {
 	int s;
 
@@ -200,8 +206,8 @@ stand()
 	/*
 	 * Check the timed function queue if necessary.
 	 */
-	if (clocks > 0)
-	do {
+
+	while (clocks) {
 		register TIM * np;
 		register TIM * tp;
 
@@ -254,7 +260,7 @@ stand()
 
 		STREAMS_TIMEOUT ();
 
-	} while (clocks);
+	}
 
 	/*
 	 * Timeout any devices.
@@ -303,16 +309,20 @@ stand()
 #endif		/* profiling */
 
 	/*
-	 * Check for signals and execute them.
+	 * Check for signals and execute them; we pass in the address of the
+	 * user's process context rather than depend on the state of the
+	 * "u.u_regl" global idiocy.
 	 */
-	if (SELF->p_ssig) {
-		actvsig();
-	}
+
+	curr_check_signals (& regset);
+
 
 	/*
 	 * Execute deferred functions.
 	 */
+
 	defend();
+
 
 	/*
 	 * Should we dispatch?

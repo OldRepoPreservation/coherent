@@ -17,11 +17,11 @@
  */
 
 #include <sys/coherent.h>
-#include <errno.h>
-#include <sys/inode.h>
+#include <sys/errno.h>
 #include <sys/fdisk.h>
 #include <sys/buf.h>
 #include <sys/con.h>
+#include <sys/file.h>
 
 fdisk(dev, fp)
 dev_t dev;

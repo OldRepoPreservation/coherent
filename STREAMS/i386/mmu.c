@@ -6,7 +6,7 @@
 
 #include <sys/coherent.h>
 #include <sys/clist.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/inode.h>
 #include <sys/seg.h>
 #include <signal.h>
@@ -67,7 +67,6 @@ void		idtinit();
 void		init_phy_seg();
 void		mchinit();
 void		msigend();
-void		msigstart();
 void		physMemInit();
 SR		*loaded();
 unsigned int	read16_cmos();
@@ -76,7 +75,6 @@ void		sunload();
 void		unload();
 void		valloc();
 
-#define		zero_fill(from, len)	memset(from, 0, len)
 
 /*
  * "load" a handle "hp"  to a segment into the space tree for a process
@@ -896,13 +894,15 @@ mchinit()
 		hi = HACK_LIMIT;
 
 	/* clear base memory above the kernel */
+#if	0
 	CHIRP('z');
-	zero_fill(ctob(sysmem.lo+SBASE-PBASE), lo);
+	memset (ctob (sysmem.lo + SBASE - PBASE), 0, lo);
 	CHIRP('Z');
 
 	/* clear extended memory */
-	zero_fill(ONE_MEG+ctob(SBASE-PBASE), hi);
+	memset (ONE_MEG + ctob (SBASE - PBASE), 0, hi);
 	CHIRP('Y');
+#endif
 	
 	/* Record total memory for later use.  */
 	total_mem = ctob(sysmem.lo) + lo + hi;
@@ -1592,8 +1592,8 @@ int new_bytes;
 			   );
 	); /* T_PIGGY() */
 
-	dmaclear(ctob(new_clicks - old_clicks),
-	  MAPIO(sp->s_vmem, ctob(old_clicks)), 0);
+	dmaclear (ctob (new_clicks - old_clicks),
+		  MAPIO(sp->s_vmem, ctob(old_clicks)));
 
 ok_c_grow:
 	return 0;

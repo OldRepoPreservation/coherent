@@ -1,20 +1,5 @@
-/* $Header: /y/i386/RCS/sys1632.c,v 1.16 93/04/14 10:29:37 root Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- *
- *	Intel 386 port and extensions (16/32 bit compatibility)
- *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
- -lgl)
+/*
+ * i386/sys1632.c
  *
  * This file contains the code for those system calls whose implementation
  * must vary, according to system call arguments size (16 or 32 bits)
@@ -24,10 +9,13 @@
  * ftime:alignment of longs
  * lseek:argument is a long pointer
  * dup, dup2: old implementation
+ *
+ * Revised: Fri Jul 16 12:23:39 1993 CDT
  */
 
 #include <common/_tricks.h>
 #include <common/_gregset.h>
+#include <sys/debug.h>
 
 #include <sys/coherent.h>
 #include <sys/acct.h>
@@ -45,7 +33,7 @@
 #include <signal.h>
 #include <sys/systab.h>
 #include <sys/oldstat.h>
-#include <sys/oldtimeb.h>
+#include <sys/timeb.h>
 #include <sys/fd.h>
 
 /*
@@ -62,7 +50,7 @@ static char cvtsig [] =
 	SIGEMT, /* SIGOVFL */
 	SIGUSR1,
 	SIGUSR2,
-	SIGUSR2,
+	SIGUSR2
 };
 
 int	ostat();
@@ -150,86 +138,107 @@ oldsys()
 	case 7:
 		nargs = 1;
 		goto update;
+
 	case 17:		/* brk(0)  was used in old Coherent */
 		func = obrk;
 		break;	
+
 	case 18:		/* stat and fstat have 32 bit alignment now */
 		func = ostat;
 		break;
+
 	case 25:		/* ustime() 386 takes a value, not a ptr */
-		u.u_args[0] = getuwd(u.u_args[0]);
+		u.u_args [0] = getuwd (u.u_args [0]);
 		break;
+
 	case 28:
 		func = ofstat;
 		break;
+
 	case 35:		/* ftime system call has gone away */
 		func = oftime;
 		nargs = 1;
 		goto update;
+
 	case 41:		/* kludge second argument for dup2() */
 		nargs = 2;
 		func = coh286dup;
 		goto update;
+
 	case 42:		/* pipe - store thru pointer */
 		nargs = 1;
 		goto update;
+
 	case 72:		/* ualarm2 and utick have disappeared */
 		func = ualarm2;
 		nargs = 1;
 		goto update;
+
 	case 73:
 		func = utick;
 		nargs = 1;
 		goto update;
+
 	case 62:	/* setpgrp */
 		u.u_args[0] = 1;
 		nargs = 1;
 		func = upgrp;
 		break;
+
 	case 63:	/* getpgrp */
 		u.u_args[0] = 0;
 		nargs = 1;
 		func = upgrp;
 		break;
+
 	case 24:		/* getuid and geteuid are together now */
 	case 57:
 		swap = callnum==57;
 		func = ugetuid;
 		break;
+
 	case 47:
 	case 56:		/* getgid & getegid are together now */
 		swap = callnum==56;
 		func = ugetgid;
 		break;
+
 	case 45:		/* unique is a sys-86 call now */
 		func = usysi86;
 		u.u_args[0] = SYI86UNEEK;
 		nargs = 1;
 		break;
+
 	case 37:		/* kill - signal#'s have changed */
-		u.u_args[0] = (signed short) u.u_args[0]; /* Sign extend pid. */
-		u.u_args[1] = cvtsig[u.u_args[1]];
+		u.u_args[0] = (signed short) u.u_args [0]; /* Sign extend pid. */
+		u.u_args[1] = cvtsig [u.u_args [1]];
 		break;
+
 	case 48:		/* signal - signal#'s have changed */
-		u.u_args[0] = cvtsig[u.u_args[0]];
+		u.u_args[0] = cvtsig [u.u_args [0]];
 		break;	
+
 	case 53:		/* ulock has moved */	
 		func = ulock;
 		nargs = 1;
 		goto update;
+
 	case 66:		/* fcntl has moved */	
 		func = ufcntl;
 		nargs = 3;
 		goto update;
+
 	case 11:		/* exec has only one entry point now */
 		func = uexece;
 		nargs = 3;
 		goto update;
+
 	case 19:		/* seek offset is 32 bits now ; shift */
 		u.u_args[1] |= u.u_args[2]<<16;
 		u.u_args[2] = (unsigned short)
 			getuwd(u.u_regl[UESP]+4*sizeof(short));
 		break;
+
 	update:
 		for (l=0; l<nargs; l++)
 			u.u_args[l] = (unsigned short)
@@ -252,9 +261,11 @@ oldsys()
 			putubd(u.u_args[0]+1, u.u_rval2>>8);
 		}
 		break;
+
 	case 19:		/* lseek - upper 16 bits of result in dx */
 		u.u_rval2 = res >> 16;
 		break;
+
 	case 42:		/* pipe - store thru pointer */
 		putubd(u.u_args[0],   res);
 		putubd(u.u_args[0]+1, res>>8);
@@ -262,6 +273,7 @@ oldsys()
 		putubd(u.u_args[0]+3, u.u_rval2>>8);
 		res = 0;
 		break;
+
 	default:
 			/* msgsys, shmsys, and semsys are not emulated */
 			/* poll is not emulated;NOTE:the code calls putuwd */
@@ -282,6 +294,7 @@ done:
 /*
  * Given a file descriptor, return a status structure.
  */
+
 ofstat(fd, stp)
 struct oldstat *stp;
 {
@@ -289,12 +302,12 @@ struct oldstat *stp;
 	register FD *fdp;
 	struct oldstat stat;
 
-	if ((fdp=fdget(fd)) == NULL)
-		return;
+	if ((fdp = fdget(fd)) == NULL)
+		return -1;
 	ip = fdp->f_ip;
-	oistat(ip, &stat);
-	kucopy(&stat, stp, sizeof(stat));
-	return (0);
+	oistat (ip, & stat);
+	kucopy (& stat, stp, sizeof (stat));
+	return 0;
 }
 
 /*
@@ -308,7 +321,7 @@ struct oldstat *stp;
 	struct oldstat stat;
 
 	if (ftoi(np, 'r') != 0)
-		return;
+		return -1;
 	ip = u.u_cdiri;
 	oistat(ip, &stat);
 	kucopy(&stat, stp, sizeof(stat));
@@ -390,7 +403,7 @@ long n;
 	/*
 	 * Return time left before previous alarm timeout.
 	 */
-	return(s);
+	return s;
 }
 
 /*
@@ -399,7 +412,7 @@ long n;
 long
 utick()
 {
-	return(lbolt);
+	return (lbolt);
 }
 
 /*
@@ -410,8 +423,7 @@ oldsigstart (n, func, regsetp)
 __sigfunc_t	func;
 gregset_t     *	regsetp;
 {
-	int i;
-	register int	usp;
+	int		i;
 	struct {
 		ushort_t	sf_signo;
 		ushort_t	sf_prev_ip;
@@ -433,8 +445,6 @@ gregset_t     *	regsetp;
 
 	signal_frame.sf_prev_ip = regsetp->_i286._ip;
 	signal_frame.sf_flags = regsetp->_i286._flags;
-	kucopy (& signal_frame, usp - sizeof (signal_frame),
-		sizeof (signal_frame));
 
 	/*
 	 * Turn off single-stepping in signal handler.
@@ -442,7 +452,11 @@ gregset_t     *	regsetp;
 
 	regsetp->_i286._flags &= ~ MFTTB;
 	regsetp->_i286._ip = (ushort_t) func;
-	regsetp->_i286._sp -= sizeof (signal_frame);
+	regsetp->_i286._usp -= sizeof (signal_frame);
+
+	i = kucopy (& signal_frame, regsetp->_i286._usp,
+		    sizeof (signal_frame));
+	ASSERT (i == sizeof (signal_frame));
 }
 
 /*

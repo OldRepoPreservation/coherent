@@ -1,9 +1,45 @@
+/* $Header: /y/coh.386/RCS/fs1.c,v 1.8 93/04/14 10:06:28 root Exp $ */
+/* (lgl-
+ *	The information contained herein is a trade secret of Mark Williams
+ *	Company, and  is confidential information.  It is provided  under a
+ *	license agreement,  and may be  copied or disclosed  only under the
+ *	terms of  that agreement.  Any  reproduction or disclosure  of this
+ *	material without the express written authorization of Mark Williams
+ *	Company or persuant to the license agreement is unlawful.
+ *
+ *	COHERENT Version 2.3.37
+ *	Copyright (c) 1982, 1983, 1984.
+ *	An unpublished work by Mark Williams Company, Chicago.
+ *	All rights reserved.
+ -lgl) */
 /*
- * coh.386/fs1.c
+ * Coherent.
+ * Filesystem (mostly handling of in core inodes).
  *
- * Coherent filesystem (mostly handling of in core inodes).
+ * $Log:	fs1.c,v $
+ * Revision 1.8  93/04/14  10:06:28  root
+ * r75
+ * 
+ * Revision 1.7  93/02/23  15:50:51  root
+ * after caddr_t change, before blclear
+ * 
+ * Revision 1.4  92/07/16  16:33:32  hal
+ * Kernel #58
+ * 
+ * Revision 1.3  92/02/06  17:55:36  vlad
+ * Fix typo in ialloc panic.
+ * 
+ * Revision 1.2  92/01/06  11:59:17  hal
+ * Compile with cc.mwc.
+ * 
+ * Revision 1.1	88/03/24  16:13:47	src
+ * Initial revision
+ * 
+ * 86/12/13	Allan Cornish		/usr/src/sys/coh/fs1.c
+ * isync() no longer updates the disk image of a character device inode.
  *
- * Revised: Mon Jul 12 08:15:06 1993 CDT
+ * 86/11/19	Allan Cornish		/usr/src/sys/coh/fs1.c
+ * idirent() initializes the (new) (IO).io_flag field to 0.
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
@@ -69,9 +105,10 @@ int	doRmdir;
 	u.u_cdirn = 0;
 	u.u_cdiri = NULL;
 	u.u_pdiri = NULL;
-	if ((c=ftoic(np++)) != '/')
+
+	if ((c=ftoic(np++)) != '/') {
 		cip = u.u_cdir;
-	else {
+	} else {
 		c = ftoic(np++);
 		cip = u.u_rdir;
 	}
@@ -79,6 +116,7 @@ int	doRmdir;
 		c = ftoic(np++);
 	ilock(cip);
 	cip->i_refc++;
+
 	if (c == '\0') {
 		if (t == 'r') {
 			u.u_cdiri = cip;
@@ -108,6 +146,7 @@ int	doRmdir;
 			else
 				iaccess(cip, IPE);
 		}
+
 		if (u.u_error) {
 			idetach(cip);
 			return (u.u_error);
@@ -491,17 +530,18 @@ register INODE *ip;
 	struct dinode dinode;
 	caddr_t v;
 
-	if (getment(ip->i_dev, 0) == NULL)
+	if (getment (ip->i_dev, 0) == NULL)
 		return;
 
 	ino = ip->i_ino;
-	if (ip->i_refc==0 && ip->i_nlink==0 && ino!=BADFIN && ino!=ROOTIN) {
-		iclear(ip);
+	if (ip->i_refc == 0 && ip->i_nlink == 0 && ino != BADFIN &&
+	    ino != ROOTIN) {
+		iclear (ip);
 		ip->i_lrt = 0;
 		ip->i_mode = 0;
 	}
 
-	dip = &dinode;
+	dip = & dinode;
 	dip->di_mode = ip->i_mode;
 	canshort(dip->di_mode);
 	dip->di_nlink = ip->i_nlink;
@@ -544,16 +584,17 @@ register INODE *ip;
 	dip->di_ctime = ip->i_ctime;
 	cantime(dip->di_ctime);
 
-	if ((bp=bread(ip->i_dev, (daddr_t)iblockn(ino), 1)) == NULL)
+	if ((bp = bread (ip->i_dev, (daddr_t) iblockn (ino), 1)) == NULL)
 		return;
 
 	v = (char *)((struct dinode *)bp->b_vaddr + iblocko(ino));
-	kkcopy(dip, v, sizeof(dinode));
+	memcpy (v, dip, sizeof (dinode));
 	bp->b_flag |= BFMOD;
-	brelease(bp);
-	ip->i_flag &= ~(IFACC|IFMOD|IFCRT);
-	if (ip->i_refc==0 && ip->i_nlink==0 && ino!=BADFIN && ino!=ROOTIN)
-		ifree(ip->i_dev, ino);
+	brelease (bp);
+	ip->i_flag &= ~ (IFACC | IFMOD | IFCRT);
+	if (ip->i_refc == 0 && ip->i_nlink == 0 && ino != BADFIN &&
+	    ino != ROOTIN)
+		ifree (ip->i_dev, ino);
 }
 
 /*
@@ -564,56 +605,59 @@ register dev_t dev;
 {
 	register INODE *ip;
 
-	for (ip=&inodep[NINODE-1]; ip>=inodep; --ip) {
+	for (ip = & inodep [NINODE - 1] ; ip >= inodep ; -- ip) {
 		if (ip->i_refc == 0)
 			continue;
 		if (ip->i_dev != dev)
 			continue;
-		if ( (ip->i_mode & IFMT) == IFCHR )
+		if ((ip->i_mode & IFMT) == IFCHR)
 			continue;
-		if ((ip->i_flag&(IFACC|IFMOD|IFCRT)) == 0)
+		if ((ip->i_flag & (IFACC | IFMOD | IFCRT)) == 0)
 			continue;
-		icopymd(ip);
+		icopymd (ip);
 	}
 }
 
 /*
  * Clear the given inode and all space associated with it.
  */
-iclear(ip)
+
+iclear (ip)
 register INODE *ip;
 {
 	register int n;
 	register daddr_t b;
 
-	switch (ip->i_mode&IFMT) {
+	switch (ip->i_mode & IFMT) {
 	case IFPIPE:
 		ip->i_pnc = ip->i_prx = ip->i_pwx = 0;
 		n = ND;
 		while (n > 0) {
-			if ((b=ip->i_pipe[--n]) != 0)
-				bfree(ip->i_dev, b);
+			if ((b = ip->i_pipe [-- n]) != 0)
+				bfree (ip->i_dev, b);
 		}
-		kclear(ip->i_pipe, sizeof(ip->i_pipe));
+		memset (ip->i_pipe, 0, sizeof (ip->i_pipe));
 		break;
+
 	case IFDIR:
 	case IFREG:
 		n = NADDR;
 		while (n > ND) {
-			if ((b=ip->i_a.i_addr[--n]) != 0)
-				indfree(ip->i_dev, b, 1+n-ND);
+			if ((b = ip->i_a.i_addr [-- n]) != 0)
+				indfree (ip->i_dev, b, 1 + n - ND);
 		}
 		while (n > 0) {
-			if ((b=ip->i_a.i_addr[--n]) != 0)
-				bfree(ip->i_dev, b);
+			if ((b = ip->i_a.i_addr [-- n]) != 0)
+				bfree (ip->i_dev, b);
 		}
-		kclear(ip->i_a.i_addr, sizeof(ip->i_a.i_addr));
+		memset (ip->i_a.i_addr, 0, sizeof (ip->i_a.i_addr));
 		break;
+
 	default:
 		return;
 	}
 	ip->i_size = 0;
-	iamc(ip);	/* creat/pipe - atime/mtime/ctime */
+	iamc (ip);	/* creat/pipe - atime/mtime/ctime */
 }
 
 /*

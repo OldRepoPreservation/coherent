@@ -5,10 +5,12 @@
  * Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
  */
 
+#include <sys/debug.h>
+
 #include <sys/coherent.h>
 #include <sys/reg.h>
 #include <sys/clist.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/inode.h>
 #include <sys/proc.h>
 #include <sys/seg.h>
@@ -23,61 +25,62 @@
  *
  * Copy "npage" 4 kbyte pages from phys addr "from" to phys addr "to".
  */
+
 dmacopy(npage, from, to) 
 long	npage;
 cseg_t	*from, *to;
 {
-	int save = setspace(SEG_386_KD);
+	int work = workAlloc ();	/* Get a virtual click pair. */
 
-	while (npage--) {
-		int work = workAlloc();	/* Get a virtual click pair. */
-		ptable1_v[work] = *from++ | SEG_SRW;
-		ptable1_v[work + 1] = *to++ | SEG_SRW;
-		mmuupd();
-		copyseg_d(NBPC, ctob(work), ctob(work + 1));
-		workFree(work);
+	ASSERT (npage > 0);
+
+	for (;;) {
+		ptable1_v [work] = * from ++ | SEG_SRW;
+		ptable1_v [work + 1] = * to ++ | SEG_SRW;
+		memcpy (ctob (work + 1), ctob (work), NBPC);
+
+		if (-- npage == 0)
+			break;
+
+		mmuupd ();		/* flush paging TLB */
 	}
-	setspace(save);
+
+	workFree(work);
 }
 
 /*
  * dmaclear()
  *
- * Given a byte count, a system global address, and a fill value,
- * write the fill value through the given range of memory.
+ * Given a byte count, and a system global address, zero-fill the memory.
  */
-dmaclear(nbytes, to, fill)
-long	nbytes, fill;
+
+void
+dmaclear (nbytes, to)
+long	nbytes;
 paddr_t	to;
 {
 	unsigned off;
 	int	n;
 	cseg_t *base;
-	int save = setspace(SEG_386_KD);
 	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 	n = min(nbytes, NBPC-off);
 	ptable1_v[work] = *base++ | SEG_SRW;
-	mmuupd();
-	
-	clearseg_d(n, ctob(work)+off, fill);
+
+	memset (ctob (work) + off, 0, n);
 	nbytes -= n;
 
-	while (nbytes >= NBPC) {
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-		clearseg_d(NBPC, ctob(work), fill);
-		nbytes -= NBPC;
+	while (nbytes > 0) {
+		n = min (nbytes, NBPC);
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		mmuupd ();
+
+		memset (ctob (work), 0, n);
+		nbytes -= n;
 	}
 
-	if (nbytes) {
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-		clearseg_d(nbytes, ctob(work), fill);
-	}
-	setspace(save);
 	workFree(work);
 }
 
@@ -96,85 +99,27 @@ caddr_t	vaddr;
 	unsigned	n, n1;
 	cseg_t* base;
 	int work = workAlloc();	/* Get a virtual click pair. */
-	int save = setspace(SEG_386_KD);
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 
 	n = min(nbytes, NBPC-off);
 	ptable1_v[work] = *base++ | SEG_SRW;
-	mmuupd();
 
-	if (nbytes==n) {
-		/*
-		 * only one page
-		 * n = min(n & (sizeof(long)-1), n)
-		 * copy n bytes; nbytes -= n;
-		 * copy (nbytes >> 2) long words; nbytes &= sizeof(long)-1
-		 * copy nbytes bytes
-		 */
-		if (n >= sizeof(long))
-			n &= sizeof(long)-1;
-		if (n)
-			copyseg_b(n, ctob(work)+off, vaddr);
-		off += n;
+	memcpy (vaddr, ctob (work) + off, n);
+	vaddr += n;
+	nbytes -= n;
+
+	while (nbytes > 0) {
+		n = min (nbytes, NBPC);
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		mmuupd ();
+
+		memcpy (vaddr, ctob (work), n);
 		vaddr += n;
 		nbytes -= n;
-		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, ctob(work)+off, vaddr);
-			off += n;
-			vaddr += n;
-			nbytes -= n;
-		}
-	} else {
-		/*
-		 * more than one page
-		 * copy n&3 bytes
-		 * copy n >> 2 long words
-		 * in the first page
-		 */			
-		if (n1 = n & 3)
-			copyseg_b(n1, ctob(work)+off, vaddr);
-		off += n1;
-		vaddr += n1;
-		nbytes -= n1;
-		if (n = n & ~(sizeof(long)-1)) {
-			copyseg_d(n, ctob(work)+off, vaddr);
-			off += n;
-			vaddr += n;
-			nbytes -= n;
-		}
-
-		/*
-		 * copy nbytes>>BPCSHIFT full pages
-		 */
-		while (nbytes >= NBPC) {
-			ptable1_v[work] = *base++ | SEG_SRW;
-			mmuupd();
-	
-			copyseg_d(NBPC, ctob(work), vaddr);
-			vaddr += NBPC;
-			nbytes -= NBPC;
-		}
-		/*
-		 * page n-1 (last one)
-		 *
-		 * copy nbytes>>2 long words
-		 * copy nbytes & 3 bytes
-		 */
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-	
-		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, ctob(work), vaddr);
-			vaddr += n;
-			nbytes -= n;
-		}
-		if (nbytes)
-			copyseg_b(nbytes, ctob(work)+n, vaddr);
 	}
 
-	setspace(save);
 	workFree(work);
 }
 
@@ -193,87 +138,27 @@ caddr_t	vaddr;
 	unsigned	n, n1;
 	cseg_t *base;
 	int work = workAlloc();	/* Get a virtual click pair. */
-	int save = setspace(SEG_386_KD);
 
 	off = to & (NBPC-1);
 	base = &sysmem.u.pbase[btocrd(to)];
 
 	n = min(nbytes, NBPC-off);
 	ptable1_v[work] = *base++ | SEG_SRW;
-	mmuupd();
 
-	if (nbytes==n) {
-		/*
-		 * only one page
-		 * n = min(n & (sizeof(long)-1), n)
-		 * copy n bytes; nbytes -= n;
-		 * copy (nbytes >> 2) long words; nbytes &= sizeof(long)-1
-		 * copy nbytes bytes
-		 */
-		if (n1 = n & (sizeof(long)-1))
-			copyseg_b(n1, vaddr, ctob(work)+off);
-		off += n1;
-		vaddr += n1;
-		nbytes -= n1;
-		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, vaddr, ctob(work)+off);
-			off += n;
-			vaddr += n;
-			nbytes -= n;
-		}
-	} else {
-		/*
-		 * more than one page
-		 * copy n&3 bytes
-		 * copy n >> 2 long words
-		 * in the first page
-		 */			
-		if (n1 = n & (sizeof(long)-1))
-			copyseg_b(n1, vaddr, ctob(work)+off);
-		off += n1;
-		vaddr += n1;
-		nbytes -= n1;
-		if (n = n & ~(sizeof(long)-1)) {
-			copyseg_d(n, vaddr, ctob(work)+off);
-			off += n;
-			vaddr += n;
-			nbytes -= n;
-		}
+	memcpy (ctob (work) + off, vaddr, n);
+	vaddr += n;
+	nbytes -= n;
 
-		/*
-		 * copy nbytes>>BPCSHIFT full pages
-		 */
-		while (nbytes >= NBPC) {
-			ptable1_v[work] = *base++ | SEG_SRW;
-			mmuupd();
-			copyseg_d(NBPC, vaddr, ctob(work));
-			vaddr += NBPC;
-			nbytes -= NBPC;
-		}
+	while (nbytes > 0) {
+		n = min (nbytes, NBPC);
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		mmuupd ();
 
-		/* now the transfer to memory is click-aligned */
-		off = 0;
-
-		/*
-		 * page n-1 (last one)
-		 *
-		 * copy nbytes>>2 long words
-		 * copy nbytes & 3 bytes
-		 */
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-	
-		if (n = nbytes & ~(sizeof(long)-1)) {
-			copyseg_d(n, vaddr, ctob(work));
-			vaddr += n;
-			off += n;
-			nbytes -= n;
-		}
-		if (nbytes)
-			copyseg_b(nbytes, vaddr, ctob(work)+off);
+		memcpy (ctob (work), vaddr, n);
+		vaddr += n;
+		nbytes -= n;
 	}
 
-	setspace(save);
 	workFree(work);
 }
 
@@ -290,7 +175,6 @@ paddr_t	to;
 	unsigned off;
 	int	n;
 	cseg_t *base;
-	int save = setspace(SEG_386_KD);
 	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
@@ -298,24 +182,18 @@ paddr_t	to;
 
 	n = min(nbytes, NBPC-off);
 	ptable1_v[work] = *base++ | SEG_SRW;
-	mmuupd();
 	
 	io2seg(n, ctob(work)+off, port);
 	nbytes -= n;
 
-	while (nbytes >= NBPC) {
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-		io2seg(NBPC, ctob(work), port);
-		nbytes -= NBPC;
+	while (nbytes > 0) {
+		n = min (nbytes, NBPC);
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		mmuupd ();
+		io2seg(n, ctob (work), port);
+		nbytes -= n;
 	}
 
-	if (nbytes) {
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-		io2seg(nbytes, ctob(work), port);
-	}
-	setspace(save);
 	workFree(work);
 }
 
@@ -332,7 +210,6 @@ paddr_t	to;
 	unsigned off;
 	int	n;
 	cseg_t *base;
-	int save = setspace(SEG_386_KD);
 	int work = workAlloc();	/* Get a virtual click pair. */
 
 	off = to & (NBPC-1);
@@ -340,24 +217,18 @@ paddr_t	to;
 
 	n = min(nbytes, NBPC-off);
 	ptable1_v[work] = *base++ | SEG_SRW;
-	mmuupd();
 	
 	seg2io(n, ctob(work)+off, port);
 	nbytes -= n;
 
-	while (nbytes >= NBPC) {
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-		seg2io(NBPC, ctob(work), port);
-		nbytes -= NBPC;
+	while (nbytes > 0) {
+		n = min (nbytes, NBPC);
+		ptable1_v [work] = * base ++ | SEG_SRW;
+		mmuupd ();
+		seg2io (n, ctob (work), port);
+		nbytes -= n;
 	}
 
-	if (nbytes) {
-		ptable1_v[work] = *base++ | SEG_SRW;
-		mmuupd();
-		seg2io(nbytes, ctob(work), port);
-	}
-	setspace(save);
 	workFree(work);
 }
 
@@ -395,11 +266,11 @@ register int n;
 		ptable1_v[work] = (uo&~(NBPC-1)) + SEG_SRW;
 		ptable1_v[work + 1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
 	}
-	mmuupd();
-	save = setspace(space);
 
+	save = setspace(space);
 	err = ukcopy(ctob(work) + (uo&(NBPC-1)), v, n);
 	setspace(save);
+
 	workFree(work);
 	return err;
 }
@@ -438,11 +309,11 @@ register int n;
 		ptable1_v[work] = (uo&~(NBPC-1)) + SEG_SRW;
 		ptable1_v[work + 1] = (uo&~(NBPC-1)) + NBPC + SEG_SRW;
 	}
-	mmuupd();
-	save = setspace(space);
 
+	save = setspace(space);
 	err = kucopy(v, ctob(work) + (uo&(NBPC-1)), n);
 	setspace(save);
+
 	workFree(work);
 	return err;
 }

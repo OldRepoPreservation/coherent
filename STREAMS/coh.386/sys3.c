@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys3.c,v 1.9 93/04/14 10:08:02 root Exp $ */
+/* $Header: /y/coh.386/RCS/sys3.c,v 2.2 93/07/12 09:32:00 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -504,7 +504,7 @@ unsigned n;
 	return (sysio(fd, bp, n, 1));
 }
 
-/**
+/*
  *
  * int
  * useracc(base, count, writeUsr) -- determine user accessibility
@@ -542,6 +542,32 @@ int writeUsr, count;
 
 	return accdata(base, count) || accstack(base, count)
 	  || accShm(base, count);
+}
+
+/*
+ * strUserAcc(str, writeUsr) - Check user accessibility of 0 terminated string.
+ *
+ * char	*str;		null-terminated string,
+ * int	writeUsr;	0 if read access to be checked, else write.
+ *
+ * Returns string size on success (without 0), -1 otherwise.
+ *
+ * It is interface to useracc() when count is not known.
+ */
+int strUserAcc(str, writeUsr)
+char	*str;
+int	writeUsr;
+{
+	register char	*ch;
+
+	if (!useracc(str, 1, writeUsr))
+		return -1;
+
+	for (ch = str; *ch != 0; ch++) 
+		if (!useracc(ch+1, 1, writeUsr)) 
+			return -1;
+
+	return (ch - str);
 }
 
 /*

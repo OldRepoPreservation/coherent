@@ -9,9 +9,12 @@
  * Shared parts of IBM async port drivers.
  */
 #include <sys/coherent.h>
+#ifndef _I386
+#include <sys/i8086.h>
+#endif
 #include <sys/al.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/timeout.h>
@@ -229,12 +232,13 @@ register TTY	*tp, **irqtty;
 	  (com_usage[AL_NUM].hcls ||
 	  ((minor_h & NMODC) == 0 && (inb(b+MSR) & MS_RLSD) == 0))) {
 #ifdef _I386
-		x_sleep((char *)(&tp->t_open), pritty, slpriSigCatch, "alxopn1");
+		if (x_sleep ((char *) & tp->t_open, pritty, slpriSigCatch,
+			     "alxopn1") == PROCESS_SIGNALLED) {
 #else
 		v_sleep((char *)(&tp->t_open),
 		  CVTTOUT, IVTTOUT, SVTTOUT, "alxopn1");
+		if (nondsig ()) {  /* signal? */
 #endif
-		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			u.u_error = EINTR;
 			goto bad_open;
 		}
@@ -327,13 +331,14 @@ register TTY	*tp, **irqtty;
 
 				/* wait for carrier */
 #ifdef _I386
-	   	  		x_sleep((char *)(&tp->t_open),
-				  pritty, slpriSigCatch, "alxopn2");
+				if (x_sleep ((char *) & tp->t_open, pritty,
+					     slpriSigCatch, "alxopn2")
+				    == PROCESS_SIGNALLED) {
 #else
 	   	  		v_sleep((char *)(&tp->t_open),
 				  CVTTOUT, IVTTOUT, SVTTOUT, "alxopn2");
+		 		if (nondsig ()) {  /* signal? */
 #endif
-		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 					outb(b+MCR, 0);
 			    		outb(b+IER, 0);
 					u.u_error = EINTR;
@@ -435,11 +440,12 @@ TTY	*tp;
 			break;
 CDUMP("slp cls", tp)
 #ifdef _I386
-		x_sleep((char *)out_silo, pritty, slpriSigCatch, "alxcls1");
+		if (x_sleep ((char *) out_silo, pritty, slpriSigCatch,
+			     "alxcls1") == PROCESS_SIGNALLED) {
 #else
 		v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT, "alxcls1");
+		if (nondsig ()) {  /* signal? */
 #endif
-		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			RAWOUT_FLUSH(out_silo);
 			break;
 		}
@@ -472,8 +478,8 @@ CDUMP("slp cls", tp)
 		drvl[maj].d_time = 1;
 CDUMP("slp DTR", tp)
 #ifdef _I386
-		x_sleep((char *)&drvl[maj].d_time,
-		  pritty, slpriNoSig, "alxcls2");
+		x_sleep ((char *) & drvl [maj].d_time, pritty, slpriNoSig,
+			 "alxcls2");
 #else
 		v_sleep((char *)&drvl[maj].d_time,
 		  CVTTOUT, IVTTOUT, SVTTOUT, "alxcls2");
@@ -934,11 +940,11 @@ rescan:
 			 * Must recognize XOFF quickly to avoid transmit overrun.
 			 * Recognize XON here as well to avoid race conditions.
 			 */
-			if (ISIXON) {
+			if (_IS_IXON_MODE (tp)) {
 				/*
 				 * XOFF.
 				 */
-				if (ISSTOP) {
+				if (_IS_STOP_CHAR (tp, c)) {
 					tp->t_flags |= T_STOP;
 					goto rescan;
 				}
@@ -946,7 +952,7 @@ rescan:
 				/*
 				 * XON.
 				 */
-				if (ISSTART) {
+				if (_IS_START_CHAR (tp, c)) {
 					tp->t_flags &= ~T_STOP;
 					goto rescan;
 				}
@@ -1147,11 +1153,11 @@ register TTY * tp;
 		 * Must recognize XOFF quickly to avoid transmit overrun.
 		 * Recognize XON here as well to avoid race conditions.
 		 */
-		if (ISIXON) {
+		if (_IS_IXON_MODE (tp)) {
 			/*
 			 * XOFF.
 			 */
-			if (ISSTOP) {
+			if (_IS_STOP_CHAR (tp, c)) {
 				tp->t_flags |= T_STOP;
 				continue;
 			}
@@ -1159,7 +1165,7 @@ register TTY * tp;
 			/*
 			 * XON.
 			 */
-			if (ISSTART) {
+			if (_IS_START_CHAR (tp, c)) {
 				tp->t_flags &= ~T_STOP;
 				continue;
 			}

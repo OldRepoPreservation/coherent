@@ -188,7 +188,7 @@ __sigfunc_t func;
 			u.u_error = EINVAL;
 			return 0;
 		}
-		u.u_sigreturn = u.u_regl [EDX];
+		u.u_sigreturn = (__sigfunc_t) u.u_regl [EDX];
 
 		if (signal == SIGCHLD) {
 			/*
@@ -214,7 +214,7 @@ __sigfunc_t func;
 		return signal_action.sa_handler;		
 
 	case SIGSET:
-		u.u_sigreturn = u.u_regl [EDX];
+		u.u_sigreturn = (__sigfunc_t) u.u_regl [EDX];
 
 		if (__SIGSET_TSTMASK (signal_mask, signal, mask))
 			func = SIG_HOLD;
@@ -359,10 +359,11 @@ gregset_t     *	regsetp;
 
 		if (signal_action.sa_handler != SIG_DFL) {
 			if (__xmode_286 (regsetp))
-				oldsigstart(signum, signal_action.sa_handler);
+				oldsigstart (signum, signal_action.sa_handler,
+					     regsetp);
 			else
-				msigstart(signum, signal_action.sa_handler,
-					  regsetp);
+				msigstart (signum, signal_action.sa_handler,
+					   regsetp);
 
 	/*
 	 * If the signal needs to be reset after delivery, do so. Note that
@@ -437,19 +438,19 @@ sigdump()
 	struct ch_info chInfo;
 
 	if (SELF->p_flags&PFNDMP)
-		return (0);
+		return 0;
 	u.u_io.io_seg  = IOSYS;
 	u.u_io.io_flag = 0;
 	/* Make the core with the real owners */
 	schizo();
 	if (ftoi("core", 'c')) {
 		schizo();
-		return (0);
+		return 0;
 	}
 	if ((ip=u.u_cdiri) == NULL) {
 		if ((ip=imake(IFREG|0644, 0)) == NULL) {
 			schizo();
-			return (0);
+			return 0;
 		}
 	} else {
 		if ((ip->i_mode&IFMT)!=IFREG
@@ -457,7 +458,7 @@ sigdump()
 		 || getment(ip->i_dev, 1)==NULL) {
 			idetach(ip);
 			schizo();
-			return (0);
+			return 0;
 		}
 		iclear(ip);
 	}
@@ -475,9 +476,7 @@ sigdump()
 	u.u_io.io_ioc = sizeof(chInfo);
 	u.u_io.io_flag = 0;
 
-	sp->s_lrefc++;
 	iwrite(ip, &u.u_io);
-	sp->s_lrefc--;
 
 	/*
 	 * Added to aid in kernel debugging - if DUMP_TEXT is nonzero,
@@ -488,7 +487,7 @@ sigdump()
 	if (DUMP_TEXT)
 		u.u_segl[SISTEXT].sr_flag |= SRFDUMP;
 
-	for (srp=u.u_segl; u.u_error==0 && srp<&u.u_segl[NUSEG]; srp++) {
+	for (srp=u.u_segl + 1; u.u_error==0 && srp < u.u_segl + NUSEG; srp++) {
 
 		if ((srp->sr_flag & SRFDUMP)==0)
 			continue;
@@ -504,11 +503,16 @@ sigdump()
 			srp->sr_flag &= ~SRFDUMP;
 	}
 
-	for (srp=u.u_segl; u.u_error==0 && srp<&u.u_segl[NUSEG]; srp++) {
+	/* Always dump the U segment. */
+	u.u_segl[SIUSERP].sr_flag |= SRFDUMP;
+
+	for (srp=u.u_segl; u.u_error==0 && srp < u.u_segl + NUSEG; srp++) {
 
 		/* Only dump segments flagged for dumping. */
 		if ((srp->sr_flag & SRFDUMP)==0)
 			continue;
+
+		sp = srp->sr_segp;
 
 		ssize = sp->s_size;
 		u.u_io.io_seg = IOPHY;
@@ -619,10 +623,10 @@ next:
 			/* If a signal bit is set now, just exit - let
 			 * actvsig() handle it next time through.
 			 * Doing sleep and goto next will stick us in a loop */
-			if (nondsig ())
+			if (nondsig())
 				return 0;
-			x_sleep ((char *) & pts.pt_req, primed, slpriSigCatch,
-				 "ptret");
+			x_sleep((char *)&pts.pt_req,
+			  primed, slpriSigCatch, "ptret");
 			goto next;
 		}
 		switch (pts.pt_req) {
@@ -665,9 +669,11 @@ pts.pt_rval = ((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2];
 				} else if (fstp) {
 pts.pt_rval = getuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2));
 					/* if emulating */
-				} else /* no ndp state to display */
+				} else { /* no ndp state to display */
 					pts.pt_rval = 0;
-			} else
+					u.u_error = EFAULT;
+				}
+			} else /* Bad pseudo offset. */
 				u.u_error = EINVAL;
 			break;
 		case PTRACE_WR_TXT:
@@ -709,8 +715,10 @@ pts.pt_rval = getuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2));
 				} else if (fstp && ndpKfrstor) {
 putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
 					doEmUnpack = 1;
+				} else { /* No NDP state to modify. */
+					u.u_error = EFAULT;
 				}
-			} else
+			} else /* Bad pseudo offset. */
 				u.u_error = EINVAL;
 			break;
 		case PTRACE_RESUME:

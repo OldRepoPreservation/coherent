@@ -77,7 +77,7 @@ int FT_ACKBLAB = 0;
 #include	<sys/dmac.h>
 #include	<sys/fdc765.h>
 #include	<sys/fdioctl.h>
-#include	<sys/inode.h>
+#include	<sys/file.h>
 #include	<sys/sched.h>
 #include	<sys/stat.h>
 #include	<sys/xl.h>
@@ -534,6 +534,7 @@ ftread(dev, iop)
 dev_t dev;
 IO * iop;
 {
+#if 0
 	unchar	drvStatus;
 	uint	calTries;
 	int	segsWanted;
@@ -646,6 +647,7 @@ XXX
 badFtRead:
 	SET_U_ERROR(EIO, "ftread");
 	return;
+#endif
 }
 
 /************************************************************************

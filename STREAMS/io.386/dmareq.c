@@ -22,7 +22,7 @@
 #include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/io.h>
 #include <sys/proc.h>
 #include <sys/sched.h>

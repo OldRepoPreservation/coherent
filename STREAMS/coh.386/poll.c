@@ -98,6 +98,7 @@ pollinit()
  * pollopen(qp) -- enable polling by current process on given event queue
  * event_t * qp;
  */
+void
 pollopen(qp)
 register event_t * qp;
 {
@@ -156,6 +157,7 @@ register event_t * qp;
  * Go through extra step of deferring the pollwake to avoid race condition
  * (in case interrupt handler does a pollwake() during upoll()).
  */
+void
 pollwake(qp)
 event_t * qp;
 {

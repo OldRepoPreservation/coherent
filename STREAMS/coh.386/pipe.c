@@ -30,14 +30,17 @@
  * Added check for non-blocking read and write if (io_flag & IPNDLY) set.
  * Eliminated use of i_a inode field since now included in inode macros.
  */
+
+#include <kernel/_sleep.h>
 #include <sys/coherent.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/io.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
+#include <sys/file.h>
 #include <signal.h>
 
 /*
@@ -61,10 +64,10 @@ pmake(mode)
 {
 	register INODE *ip;
 
-	if ((ip=ialloc(pipedev, IFPIPE|mode)) != NULL)
-		pclear(ip);
-	pdump("M", ip, mode);
-	return(ip);
+	if ((ip = ialloc (pipedev, IFPIPE | mode)) != NULL)
+		pclear (ip);
+	pdump ("M", ip, mode);
+	return ip;
 }
 
 pclear(ip)
@@ -110,50 +113,52 @@ register INODE *ip;
 popen(ip, mode)
 register INODE *ip;
 {
-	pdump("OA", ip, mode);
-	switch ( mode&(IPR|IPW) ) {
+	pdump ("OA", ip, mode);
+	switch (mode & (IPR | IPW)) {
 	case IPR:
 		++ip->i_par;
-		while ( !ip->i_paw && !ip->i_psw ) {
-			if ( mode & IPNDLY )
+		while (! ip->i_paw && ! ip->i_psw) {
+			if (mode & (IPNDLY | IPNONBLOCK))
 				break;
 			else {
-				if ( psleep(ip, IFWFW) < 0 ) {
-					--ip->i_par;
+				if (psleep (ip, IFWFW) < 0) {
+					-- ip->i_par;
 					goto popen_done;
 				}
-				if ( ip->i_pnc != 0 )
+				if (ip->i_pnc != 0)
 					break;
 			}
 		}
-		pwake(ip, IFWFR);
+		pwake (ip, IFWFR);
 		break;
+
 	case IPW:
-		++ip->i_paw;
-		if ( !ip->i_par && !ip->i_psr ) {
-			if ( mode & IPNDLY ) {
+		++ ip->i_paw;
+		if (! ip->i_par && ! ip->i_psr) {
+			if (mode & (IPNDLY | IPNONBLOCK)) {
 				u.u_error = ENXIO;
-				--ip->i_paw;
+				-- ip->i_paw;
 				goto popen_done;
 			} else {
-				if ( psleep(ip, IFWFR) < 0 ) {
-					--ip->i_paw;
+				if (psleep (ip, IFWFR) < 0) {
+					-- ip->i_paw;
 					goto popen_done;
 				}
 			}
 		}
-		pwake(ip, IFWFW);
+		pwake (ip, IFWFW);
 		break;
-	case IPR|IPW:
-		++ip->i_par;
-		++ip->i_paw;
-		pwake(ip, IFWFW);
-		pwake(ip, IFWFR);
+
+	case IPR | IPW:
+		++ ip->i_par;
+		++ ip->i_paw;
+		pwake (ip, IFWFW);
+		pwake (ip, IFWFR);
 		break;
 	}
 
 popen_done:
-	pdump("OZ", ip, mode);
+	pdump ("OZ", ip, mode);
 	return;
 }
 
@@ -170,19 +175,19 @@ popen_done:
 pclose(ip, mode)
 register INODE *ip;
 {
-	pdump("CA", ip, mode);
-	pwake(ip, IFWFR);
-	pwake(ip, IFWFW);
-	if ( mode & IPR )
-		if ( --ip->i_par < 0 )
-			panic("Out of sync IPR in pclose");
-	if ( mode & IPW )
-		if ( --ip->i_paw < 0 )
-			panic("Out of sync IPW in pclose");
+	pdump ("CA", ip, mode);
+	pwake (ip, IFWFR);
+	pwake (ip, IFWFW);
+	if (mode & IPR)
+		if (-- ip->i_par < 0)
+			panic ("Out of sync IPR in pclose");
+	if (mode & IPW)
+		if (-- ip->i_paw < 0)
+			panic ("Out of sync IPW in pclose");
 
-	if ( !ip->i_paw && !ip->i_psw && !ip->i_par && !ip->i_psr )
-		pclear(ip);
-	pdump("CZ", ip, mode);
+	if (! ip->i_paw && ! ip->i_psw && ! ip->i_par && ! ip->i_psr)
+		pclear (ip);
+	pdump ("CZ", ip, mode);
 }
 
 
@@ -213,29 +218,42 @@ register IO *iop;
 	register unsigned n;
 	register unsigned ioc;
 
-	pdump("R", ip, 0);
+	pdump ("R", ip, 0);
 	while (ip->i_pnc == 0) {
-		if ( iop->io_flag & IONDLY )
+		/*
+		 * If we are in O_NDELAY mode, just return and uread () will
+		 * see nothing read, returning 0 to the user.
+		 */
+		if ((iop->io_flag & IONDLY) != 0)
 			goto pread_done;
-		if ( !ip->i_paw && !ip->i_psw )
+		/*
+		 * If we are in O_NONBLOCK mode, set u.u_error so that upon
+		 * returning to user level the return value of uread () gets
+		 * forced to -1. Layering? What layering?
+		 */
+		if ((iop->io_flag & IONONBLOCK) != 0) {
+			u.u_error = EAGAIN;
 			goto pread_done;
-		if ( psleep(ip, IFWFW) < 0 )
+		}
+		if (! ip->i_paw && ! ip->i_psw)
+			goto pread_done;
+		if (psleep (ip, IFWFW) < 0)
 			goto pread_done;
 	}
 
 	ioc = iop->io_ioc;
-	while ( !u.u_error && (ioc > 0) && (ip->i_pnc > 0) ) {
-		if ( (n = (PIPSIZE-ip->i_prx)) > ioc )
+	while (! u.u_error && ioc > 0 && ip->i_pnc > 0) {
+		if ((n = (PIPSIZE - ip->i_prx)) > ioc)
 			n = ioc;
-		if ( n > ip->i_pnc )
+		if (n > ip->i_pnc)
 			n = ip->i_pnc;
 		iop->io_ioc = n;
 		iop->io_seek = ip->i_prx;
-		fread(ip, iop);
+		fread (ip, iop);
 		n -= iop->io_ioc;
-		if ( (ip->i_prx+=n) == PIPSIZE )
+		if ((ip->i_prx += n) == PIPSIZE)
 			ip->i_prx = 0;
-		if ( (ip->i_pnc-=n) == 0 ) {
+		if ((ip->i_pnc -= n) == 0) {
 			ip->i_prx =
 			ip->i_pwx = 0;
 		}
@@ -243,8 +261,8 @@ register IO *iop;
 	}
 	iop->io_ioc = ioc;
 
-	if ( ip->i_pnc < PIPSIZE )
-		pwake(ip, IFWFR);
+	if (ip->i_pnc < PIPSIZE)
+		pwake (ip, IFWFR);
 
 pread_done:
 	return;
@@ -252,7 +270,7 @@ pread_done:
 
 
 /*
- *  pwrite(ip, iop)  --  Writes to a pipe inode, accoring to the IO info.
+ *  pwrite(ip, iop)  --  Writes to a pipe inode, according to the IO info.
  *			 Note:  The inode is locked upon entry.
  *
  *  This routine follows the requirements concerning writing to pipes.
@@ -285,36 +303,49 @@ register IO *iop;
 	register unsigned n;
 	register unsigned ioc;
 
-	pdump("W", ip, 0);
+	pdump ("W", ip, 0);
 	ioc = iop->io_ioc;
-	while ( !u.u_error && (ioc > 0) ) {
-		if ( !ip->i_par && !ip->i_psr ) {
+	while (! u.u_error && (ioc > 0)) {
+		if (! ip->i_par && ! ip->i_psr) {
 			u.u_error = EPIPE;
-			sendsig(SIGPIPE, SELF);
+			sendsig (SIGPIPE, SELF);
 			goto pwrite_done;
 		}
-		if ( (n = (PIPSIZE-ip->i_pwx)) > ioc )
+		if ((n = PIPSIZE - ip->i_pwx) > ioc)
 			n = ioc;
-		if ( n > (PIPSIZE-ip->i_pnc) )
+		if (n > PIPSIZE - ip->i_pnc)
 			n = PIPSIZE - ip->i_pnc;
-		if ( (n == 0) || ((ioc <= PIPSIZE) && (n != ioc)) ) {
-			if ( iop->io_flag & IONDLY )
+		if (n == 0 || (ioc <= PIPSIZE && n != ioc)) {
+			/*
+			 * If we are in O_NDELAY mode, just return and all
+			 * uwrite () will see is 0 bytes written.
+			 */
+			if ((iop->io_flag & IONDLY) != 0)
 				goto pwrite_done;
-			if ( psleep(ip, IFWFR) < 0 )
+			/*
+			 * If we are in O_NONBLOCK mode, set u.u_error so that
+			 * the return from system-call code will force the
+			 * return value of uwrite () to -1.
+			 */
+			if ((iop->io_flag & IONONBLOCK) != 0) {
+				u.u_error = EAGAIN;
+				goto pwrite_done;
+			}
+			if (psleep (ip, IFWFR) < 0)
 				goto pwrite_done;
 			continue;
 		}
 		iop->io_ioc = n;
 		iop->io_seek = ip->i_pwx;
-		fwrite(ip, iop);
+		fwrite (ip, iop);
 		n -= iop->io_ioc;
-		if ( (ip->i_pwx+=n) == PIPSIZE )
+		if ((ip->i_pwx += n) == PIPSIZE)
 			ip->i_pwx = 0;
 		ip->i_pnc += n;
 		ioc -= n;
 
-		if ( ip->i_pnc > 0 )
-			pwake(ip, IFWFW);
+		if (ip->i_pnc > 0)
+			pwake (ip, IFWFW);
 	}
 pwrite_done:
 	iop->io_ioc = ioc;
@@ -331,29 +362,36 @@ pwrite_done:
 psleep(ip, who)
 register INODE *ip;
 {
-	pdump("SA", ip, 0);
-	iunlock(ip);
-	switch ( who ) {
+	__sleep_t	sleep;
+
+	pdump ("SA", ip, 0);
+	iunlock (ip);
+	switch (who) {
 	case IFWFW:
-		--ip->i_par;  ++ip->i_psr;
-		x_sleep((char *)&ip->i_psw, primed, slpriSigCatch, "pipe wx");
-		++ip->i_par;  --ip->i_psr;
+		-- ip->i_par;  ++ ip->i_psr;
+		sleep = x_sleep ((char *) & ip->i_psw, primed, slpriSigCatch,
+				 "pipe wx");
+		++ ip->i_par;  -- ip->i_psr;
 		break;
+
 	case IFWFR:
-		--ip->i_paw;  ++ip->i_psw;
-		x_sleep((char *)&ip->i_psr, primed, slpriSigCatch, "pipe rx");
-		++ip->i_paw;  --ip->i_psw;
+		-- ip->i_paw;  ++ ip->i_psw;
+		sleep = x_sleep ((char *) & ip->i_psr, primed, slpriSigCatch,
+				 "pipe rx");
+		++ ip->i_paw;  -- ip->i_psw;
 		break;
+
 	default:
-		panic("psleep() internal error");
+		panic ("psleep() internal error");
 	}
-	ilock(ip);
-	pdump("SZ", ip, 0);
-	if ( SELF->p_ssig && nondsig() ) {
+	ilock (ip);
+	pdump ("SZ", ip, 0);
+
+	if (sleep == PROCESS_SIGNALLED) {
 		u.u_error = EINTR;
 		return -1;
 	}
-	return(0);
+	return 0;
 }
 
 
@@ -365,24 +403,26 @@ register INODE *ip;
 pwake(ip, who)
 register INODE *ip;
 {
-	pdump("KA", ip, 0);
-	switch ( who ) {
+	pdump ("KA", ip, 0);
+	switch (who) {
 	case IFWFW:
-		if ( ip->i_psr )
-			wakeup((char *)&ip->i_psw);
-		if ( ip->i_pnc > 0 )
-			pollwake(&ip->i_iev);
+		if (ip->i_psr)
+			wakeup ((char *) & ip->i_psw);
+		if (ip->i_pnc > 0)
+			pollwake (& ip->i_iev);
 		break;
+
 	case IFWFR:
-		if ( ip->i_psw )
-			wakeup((char *)&ip->i_psr);
-		if ( (ip->i_pnc<PIPSIZE) && (ip->i_par || ip->i_psr) )
-			pollwake(&ip->i_oev);
+		if (ip->i_psw)
+			wakeup ((char *) & ip->i_psr);
+		if (ip->i_pnc < PIPSIZE && (ip->i_par || ip->i_psr) )
+			pollwake (& ip->i_oev);
 		break;
+
 	default:
-		panic("pwake() internal error");
+		panic ("pwake() internal error");
 	}
-	pdump("KZ", ip, 0);
+	pdump ("KZ", ip, 0);
 }
 
 
@@ -406,19 +446,19 @@ int ev, msec;
 {
 	register int rval = 0;
 
-	if ( ev & POLLIN ) {
-		if ( ip->i_pnc > 0 )
+	if (ev & POLLIN) {
+		if (ip->i_pnc > 0)
 			rval |= POLLIN;
-		else if ( msec != 0 )
-			pollopen(&ip->i_iev);
+		else if (msec != 0)
+			pollopen (& ip->i_iev);
 	}
-	if ( ev & POLLOUT ) {
-		if ( (ip->i_pnc<PIPSIZE) && (ip->i_par || ip->i_psr) )
+	if (ev & POLLOUT) {
+		if (ip->i_pnc < PIPSIZE && (ip->i_par || ip->i_psr))
 			rval |= POLLOUT;
-		else if ( msec != 0 )
-			pollopen(&ip->i_oev);
+		else if (msec != 0)
+			pollopen (& ip->i_oev);
 	}
-	return( rval );
+	return rval;
 }
 
 /*

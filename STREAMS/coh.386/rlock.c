@@ -5,13 +5,16 @@
  * All record locking functions meet the system V standard.
  */
 
+#include <kernel/_sleep.h>
 #include <sys/coherent.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <fcntl.h>
 #include <sys/fd.h>
 #include <sys/proc.h>
 #include <sys/rlock.h>
 #include <sys/sched.h>
+#include <sys/file.h>
+#include <sys/inode.h>
 #include <sys/uproc.h>
 #include <unistd.h>
 
@@ -37,7 +40,7 @@ static	int	waiting();
  * Record locking.
  */
 int
-rlock(fdp, cmd, flp) register FD *fdp; register FLOCK *flp;
+rlock(fdp, cmd, flp) register FD *fdp; register struct flock *flp;
 {
 	register RLOCK	*org;
 	register int	retval;
@@ -93,7 +96,7 @@ rlock(fdp, cmd, flp) register FD *fdp; register FLOCK *flp;
 	else if (!nextblock(&rlp, &srl))
 		retval = addlock(org, &srl);
 	else
-		u.u_error = EAGAIN;
+		u.u_error = EACCES;
 	unlock(rlgate);
 	if (cmd != F_GETLK)
 		wakeup(org);
@@ -328,6 +331,8 @@ waitlock(list, srl) RLOCK *list, *srl;
 		rl->rl_next = org;
 		SELF->p_prl = rl;
 		do {
+			__sleep_t	sleep;
+
 			do {
 				if (waiting(list->rl_proc)) {
 					u.u_error = EDEADLK;
@@ -336,9 +341,9 @@ waitlock(list, srl) RLOCK *list, *srl;
 				}
 			} while (nextblock(&list, rl));
 			unlock(rlgate);
-			x_sleep(org, primed, slpriSigCatch, "rlock");
+			sleep = x_sleep (org, primed, slpriSigCatch, "rlock");
 			lock(rlgate);
-			if (SELF->p_ssig && nondsig()) {
+			if (sleep == PROCESS_SIGNALLED) {
 				u.u_error = EINTR;
 				cleanup();
 				return -1;

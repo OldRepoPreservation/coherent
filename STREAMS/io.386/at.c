@@ -24,7 +24,7 @@
 #include	<sys/devices.h>
 #include	<sys/stat.h>
 #include	<sys/typed.h>
-#include	<errno.h>
+#include	<sys/errno.h>
 
 /*
  * -----------------------------------------------------------------
@@ -160,6 +160,10 @@ static void	atdone();
  */
 extern typed_space	boot_gift;
 extern short		n_atdr;
+
+#ifndef _I386
+extern saddr_t		sds;
+#endif
 
 CON	atcon	= {
 	DFBLK|DFCHR,			/* Flags */
@@ -678,7 +682,7 @@ atwatch()
 		spl(s);
 		return;
 	}
-	printf("at%d%c: bno=%U head=%u cyl=%u <Watchdog Timeout>\n",
+	printf("at%d%c: bno=%lu head=%u cyl=%u <Watchdog Timeout>\n",
 		at.at_drv,
 		(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
 		bp->b_bno, at.at_head, at.at_cyl);
@@ -904,7 +908,7 @@ atstart()
 	  && (at.at_cyl  == at.at_bad_cyl)
 	  && (at.at_head == at.at_bad_head)) {
 	  	BUF * bp = at.at_actf;
-		printf("at%d%c: bno=%U head=%u cyl=%u <Track Flagged Bad>\n",
+		printf("at%d%c: bno=%lu head=%u cyl=%u <Track Flagged Bad>\n",
 			at.at_drv,
 			(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
 			bp->b_bno,
@@ -1126,7 +1130,7 @@ aterror()
 		else if (++at.at_tries < SOFTLIM)
 			return 1;
 
-		printf("at%d%c: bno=%U head=%u cyl=%u",
+		printf("at%d%c: bno=%lu head=%u cyl=%u",
 			at.at_drv,
 			(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
 			(bp->b_count/BSIZE) + bp->b_bno

@@ -826,6 +826,11 @@ off_t		*offset;
 
 	ilock(ip);	/* We do not want file changes during the read */
 
+	/*
+	 * NIGEL: The initialization of io_seg was missing up until r79+.
+	 */
+	u.u_io.io_seg = IOSYS;
+
 	u.u_io.io_seek = fdp->f_seek;
 	u.u_io.io.vbase = bp;
 	u.u_io.io_ioc  = n;

@@ -5,16 +5,19 @@
  *
  * Revised: Fri Jun  4 10:41:40 1993 CDT
  */
+
+#include <kernel/sigproc.h>
 #include <sys/coherent.h>
 #include <sys/acct.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <fcntl.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
+#include <sys/file.h>
 #include <a.out.h>
 #include <l.out.h>
 #include <sys/proc.h>
@@ -238,19 +241,25 @@ u.u_error = 0;
 		pp->p_flags &= ~PFTRAC;
 	}
 
-	for (i=0; i < NOFILE; i++) {
-		if (u.u_filep[i]!=NULL && (u.u_filep[i]->f_flag2&FD_CLOEXEC))  {
+	for (i = 0 ; i < NOFILE; i ++) {
+		int		j = fdgetflags (i);
+		if (j != -1 && (j & FD_CLOEXEC) != 0)
 			fdclose(i);	/* close fd on exec bit set */
-		}
 	}
 
 	/*
 	 * Default every signal that is not ignored.
 	 */
+
 	for (i = 1; i <= NSIG; ++i) {
-		if (u.u_sfunc[i - 1] != SIG_IGN) {
-			u.u_sfunc[i - 1] = SIG_DFL;
-			pp->p_dfsig |= SIG_BIT(i);
+		__sigaction_t	act;
+
+		curr_signal_action (i, NULL, & act);
+		if (act.sa_handler != SIG_IGN) {
+			act.sa_handler = SIG_DFL;
+			act.sa_flags = 0;
+			__SIGSET_EMPTY (act.sa_mask);
+			curr_signal_action (i, & act, NULL);
 		}
 	}
 
@@ -295,9 +304,8 @@ out:
 	 * Return through the "sys exit" code with a "SIGSYS", or with the
 	 * signal actually received if we are aborting due to interrupted exec.
 	 */
-	if (u.u_error == EINTR)
-		pexit(nondsig());
-	pexit(SIGSYS);
+
+	pexit (u.u_error == EINTR ? curr_signal_pending () : SIGSYS);
 
 done:
 	return 0;	
@@ -549,7 +557,14 @@ int shrdSz;
 		iread(ip, &u.u_io);
 		sp->s_lrefc--;
 	}
-	if (nondsig())
+
+	/*
+	 * NIGEL: This perturbs me. This check seems to really belong
+	 * somewhere at the top-level, and/or from testing the return values
+	 * from the read calls. Why isn't the residual from the read tested?
+	 */
+
+	if (curr_signal_pending ())
 		u.u_error = EINTR;
 
 	if (u.u_error == 0)
@@ -750,6 +765,7 @@ eveinit()
 	if (sproto(0) == 0)
 		panic("eveinit()");
 	segload();
+	setspace(SEG_386_UD | R_USR);
 	kucopy(aicodep, 0, icodes);
 }
 

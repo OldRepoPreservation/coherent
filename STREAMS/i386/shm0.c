@@ -12,6 +12,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/reg.h>
+#include <sys/shm.h>
 
 /*
  * ----------------------------------------------------------------------
@@ -21,7 +22,6 @@
  *	Typedefs.
  *	Enums.
  */
-#define SHMMAX	0x100000	/* one meg limit on shm seg size */
 
 /*
  * ----------------------------------------------------------------------

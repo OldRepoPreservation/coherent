@@ -2,16 +2,11 @@
 	.globl	aicodep		/ Position of code.
 	.globl	aicodes		/ Size of code.
 	.globl	boot
-	.globl	bootfR0
-	.globl	clearseg_b
-	.globl	clearseg_d
 	.globl	clk
 	.globl	clrq
 	.globl	cltinit
 	.globl	conrest
 	.globl	consave
-	.globl	copyseg_b
-	.globl	copyseg_d
 	.globl	cs_sel
 	.globl	dev1
 	.globl	dev10
@@ -123,7 +118,7 @@
 	.set	PX_OPND,	0x66	/ register values & immediates
 	.set	R_USR,		3	/ user level ring number
 	.set	SBASE,		0xFFC00
-	.set	TSS_IOMAP_LEN,	0x1A00	/ number of port addresses mapped
+	.set	TSS_IOMAP_LEN,	0x0800	/ number of port addresses mapped
 	.set	TSS_IOMAP_OFF,	0x68	/ byte offset of io bitmap in tss
 	.set	VIDEO,		0x10	/ Video BIOS interrupt for early debugging.
 
@@ -155,7 +150,6 @@
 	.set	SEG_RNG1_STK,	0x89	/ Stack for ring 1 CPL
 	.set	SEG_MMUUPD,	0x91	/ call gate into ring 0
 	.set	SEG_SET_EM,	0x99	/ call gate into ring 0
-	.set	SEG_BOOT,	0xA1	/ call gate into ring 0
 
 	.set	SEG_SRW,	0x03
 

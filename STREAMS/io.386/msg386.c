@@ -180,40 +180,43 @@ int msgflg;
 		}
 		if (qp->msg_perm.key != mykey) 	
 			continue;
+
 		if (mykey == qp->msg_perm.key) {	/* found! */
 			if ((msgflg & IPC_CREAT) && (msgflg & IPC_EXCL)) {
 				u.u_error = EEXIST;	/* We cannot creat */
 				return -1;		/* exclusive queue */
 			}
+
 			/* PERMISSIONS */
 			/* For super-user or if mode is 0 */
 			if (u.u_uid == 0 || !rwmode) 
 				return qp->msg_perm.seq;
+
 			/* For owner or creator */
 			T_MSGQ(0x02, printf("Q%o", qp->msg_perm.mode));
 			if (u.u_uid == qp->msg_perm.uid 
-						|| u.u_uid == qp->msg_perm.cuid)
-				if (
-				  ((rwmode & 0600)<=(qp->msg_perm.mode & 0600))
-				  &&((rwmode & 060)<=(qp->msg_perm.mode & 060))
-				  &&((rwmode & 06)<=(qp->msg_perm.mode & 06)))
+			  || u.u_uid == qp->msg_perm.cuid) {
+				if ((rwmode & 0600) & (qp->msg_perm.mode & 0600))
 					return qp->msg_perm.seq;
 				else {
 					u.u_error = EACCES;
 					return -1;
 				}
+			}
+
 			/* For group */		
 			if (u.u_gid == qp->msg_perm.gid 
-						|| u.u_gid == qp->msg_perm.cgid)
-				if (((rwmode & 0660)<=(qp->msg_perm.mode & 060))
-				   &&((rwmode & 06)<=(qp->msg_perm.mode & 06)))
+			  || u.u_gid == qp->msg_perm.cgid) {
+				if ((rwmode & 060) & (qp->msg_perm.mode & 060))
 					return qp->msg_perm.seq;
 				else {
 					u.u_error = EACCES;
 					return -1;
 				}
+			}
+
 			/* For the rest of the world */
-			if ((rwmode & 0666) <= (qp->msg_perm.mode & 06))
+			if ((rwmode & 06) & (qp->msg_perm.mode & 06)) 
 				return qp->msg_perm.seq;
 			else {
 				u.u_error = EACCES;
@@ -531,7 +534,7 @@ int 		msgflg;	/* Message flag		*/
 	
 		/* Can't wait to receive mesg */
 		if (msgflg & IPC_NOWAIT) {
-			u.u_error = EAGAIN;
+			u.u_error = ENOMSG;
 			unlock(msg_gate[q_num]);
 			return -1;
 		}

@@ -50,7 +50,7 @@
 #include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/io.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
@@ -72,33 +72,6 @@ static	BUF	*lastbuf;		/* pointer to last in LRU chain */
  */
 #define	HASH(device, blockno)	((device * 257) + blockno)
 
-#if BDEBUG
-#include <sys/bufdebug.h>
-
-static	BUFDEBUG	bufdebug;	/* actual counters used in profiling */
-
-/*
- * Perform buffer cache debugging ioctl's.
- * These will not stay in the production release!
- */
-bufioctl(cmd, vec)
-BUFDEBUG *vec;
-{
-	switch (cmd) {
-	case BDINIT:			/* clear (init) all counters */
-		kclear(&bufdebug, sizeof(bufdebug));
-		bufdebug.nbuf = NBUF;
-		bufdebug.version = BDVERSION;
-		break;
-	case BDGETVAL:			/* return current counters to user */
-		kucopy(&bufdebug, vec, sizeof(bufdebug));
-		break;
-	default:
-		SET_U_ERROR(EINVAL, "bufioctl()");
-	}
-}
-#endif
-
 /*
  * Allocate and initialize buffer headers.
  */
@@ -117,8 +90,8 @@ bufinit()
 	if (NHASH < 32)
 		panic("NHASH not set correctly");
 
-	bufl = kalloc(NBUF * sizeof(BUF));
-	hasharray = kalloc(NHASH * sizeof(BUF *));
+	bufl = kalloc (NBUF * sizeof(BUF));
+	hasharray = kalloc (NHASH * sizeof(BUF *));
 	if (bufl == BNULL || hasharray == BNULL)
 		panic("bufinit: insufficient memory for %d buffers", NBUF);
 
@@ -131,8 +104,9 @@ bufinit()
 	 * hash chain pointers, and pointers to the successor and
 	 * predecessor of the current node.
 	 */
-	firstbuf = &bufl[0];
-	for (bp = lastbuf = &bufl[NBUF-1]; bp >= bufl; --bp) {
+
+	firstbuf = & bufl [0];
+	for (bp = lastbuf = & bufl [NBUF - 1]; bp >= bufl; -- bp) {
 		bp->b_dev = NODEV;
 		bp->b_paddr = p;
 		bp->b_vaddr = v;
@@ -140,14 +114,20 @@ bufinit()
 		bp->b_hashb = BNULL;
 		bp->b_LRUf = bp + 1;		/* next entry in chain */
 		bp->b_LRUb = bp - 1;		/* prev entry in chain */
+
+		__GATE_INIT (bp->b_gate);
+
 		p += BSIZE;
 		v += BSIZE;
 	}
+
+
 	/*
 	 * the first and last headers are special cases.
 	 */
-	bufl[0].b_LRUb = BNULL;			/* no predecessor */
-	bufl[NBUF-1].b_LRUf = BNULL;		/* no successor */
+
+	bufl [0].b_LRUb = BNULL;		/* no predecessor */
+	bufl [NBUF - 1].b_LRUf = BNULL;		/* no successor */
 }
 
 /*
@@ -157,16 +137,13 @@ bsync()
 {
 	register BUF *bp;
 
-#if BDEBUG
-	++bufdebug.bsync;
-#endif
-	for (bp = &bufl[NBUF-1]; bp >= bufl; --bp) {
-		if ((bp->b_flag&BFMOD) == 0)
+	for (bp = & bufl [NBUF - 1] ; bp >= bufl ; -- bp) {
+		if ((bp->b_flag & BFMOD) == 0)
 			continue;
-		lock(bp->b_gate);
-		if (bp->b_flag&BFMOD)
-			bwrite(bp, 1);
-		unlock(bp->b_gate);
+		lock (bp->b_gate);
+		if (bp->b_flag & BFMOD)
+			bwrite (bp, 1);
+		unlock (bp->b_gate);
 	}
 }
 
@@ -179,19 +156,16 @@ register dev_t dev;
 {
 	register BUF *bp;
 
-#if BDEBUG
-	++bufdebug.bflush;
-#endif
-	for (bp = &bufl[NBUF-1]; bp >= bufl; --bp) {
+	for (bp = & bufl [NBUF - 1] ; bp >= bufl ; -- bp) {
 		if (bp->b_dev != dev)
 			continue;
-		lock(bp->b_gate);
+		lock (bp->b_gate);
 		if (bp->b_dev == dev) {
-			if (bp->b_flag&BFMOD)
-				bwrite(bp, 1);
+			if (bp->b_flag & BFMOD)
+				bwrite (bp, 1);
 			bp->b_dev = NODEV;
 		}
-		unlock(bp->b_gate);
+		unlock (bp->b_gate);
 	}
 }
 
@@ -208,11 +182,8 @@ register int sync;
 	register BUF *bp;
 	register int s;
 
-#if BDEBUG
-	++bufdebug.bread;
-#endif
-	bp = bclaim(dev, bno);
-	if (bp->b_flag&BFNTP) {
+	bp = bclaim (dev, bno);
+	if (bp->b_flag & BFNTP) {
 		if (sync)
 			bp->b_flag &= ~BFASY;
 		else {
@@ -221,31 +192,22 @@ register int sync;
 		}
 		bp->b_req = BREAD;
 		bp->b_count = BSIZE;
-/*
- * NIGEL: It is my sincere hope that whoever put this sphi () here (and in the
- * corresponding places lower down) was simply having a bad day and that there
- * is no real reason for this. Delete this comment and the bad code as soon as
- * we have determined that it isn't really important. Look for the sign of the
- * good and bad magicians below...
- *
- * BAD MAGIC		s = sphi();
- */
 		dblock(dev, bp);
-		if (!sync) {
-/* BAD MAGIC			spl(s); */
+		if (! sync)
 			return (NULL);
-		}
+
 		/*
 		 * If buffer is not valid, wait for it.
 		 */
 
-		s = sphi ();	/* GOOD MAGIC */
-		while (bp->b_flag&BFNTP) {
-			x_sleep((char *)bp, pridisk, slpriNoSig, "bpwait");
+		s = sphi ();
+		while (bp->b_flag & BFNTP) {
+			x_sleep ((char *) bp, pridisk, slpriNoSig, "bpwait");
 			/* If buffer is not valid, wait for it.  */
 		}
 		spl(s);
-		if (bp->b_flag&BFERR) {
+
+		if (bp->b_flag & BFERR) {
 			SET_U_ERROR(bp->b_err ? bp->b_err : EIO, "bread()");
 			brelease(bp);
 			return (NULL);
@@ -336,36 +298,32 @@ register daddr_t bno;
 	unsigned long hashval;
 	static GATE bufgate;			/* better than sphi()/spl() */
 
-#if BDEBUG
-	++bufdebug.bclaim;
-#endif
 	hashval = HASH(dev, bno) % NHASH;	/* select a hash bucket */
 
 again:
 	lock(bufgate);				/* avoid pointer updates */
 
-	for (bp = hasharray[hashval]; bp != BNULL; bp = bp->b_hashf) {
-#if BDEBUG
-		++bufdebug.compares;
+	for (bp = hasharray [hashval]; bp != BNULL; bp = bp->b_hashf) {
+		if (bp->b_bno == bno && bp->b_dev == dev) {
+#if	! NIGEL_TEST
+			unlock (bufgate);
 #endif
-		if (bp->b_bno == bno  &&  bp->b_dev == dev) {
 			lock(bp->b_gate);
-			if (bp->b_bno != bno  ||  bp->b_dev != dev) {
-#if BDEBUG
-				++bufdebug.fails;
+#if	! NIGEL_TEST
+			lock (bufgate);
 #endif
-				unlock(bp->b_gate);
-				unlock(bufgate);
+			if (bp->b_bno != bno || bp->b_dev != dev) {
+				unlock (bp->b_gate);
+				unlock (bufgate);
 				goto again;
 			}
-#if BDEBUG
-			++bufdebug.hits;
-#endif
+
 			/*
 			 * Now that we have located the buffer in the cache,
 			 * unlink it from its current location in the
 			 * LRU chain and move it to the front.
 			 */
+
 			LRUupdate(bp);
 
 			/*
@@ -373,17 +331,15 @@ again:
 			 * invalid.  Unlock the buffer gate and return
 			 * the buffer to the requestor.
 			 */
-			if (bp->b_flag&BFERR)
+
+			if (bp->b_flag & BFERR)
 				bp->b_flag |= BFNTP;
-			unlock(bufgate);
-			bsmap(bp);
+			unlock (bufgate);
+			bsmap (bp);
 			return (bp);
 		}
 	}
-	unlock(bufgate);
-#if BDEBUG
-	++bufdebug.misses;
-#endif
+	unlock (bufgate);
 
 	/*
 	 * The requested buffer is not resident in our cache.  Locate the
@@ -394,20 +350,21 @@ again:
 	 * the buffer as invalid, unlock our buffer gate and return the
 	 * buffer to the requestor.
 	 */
+
 	for (;;) {				/* loop until successful */
 		lock(bufgate);
 		for (bp = lastbuf; bp != BNULL; bp = bp->b_LRUb) {
-			if (locked(bp->b_gate))
+			if (locked (bp->b_gate))
 				continue;	/* not available */
-			s = sphi();
-			if (locked(bp->b_gate)) {
-				spl(s);
+			s = sphi ();
+			if (locked (bp->b_gate)) {
+				spl (s);
 				continue;	/* they snuck in ;-) */
 			}
-			lock(bp->b_gate);
-			spl(s);
-			if (bp->b_flag&BFMOD)
-				bwrite(bp, 0);	/* flush dirty buffer */
+			lock (bp->b_gate);
+			spl (s);
+			if (bp->b_flag & BFMOD)
+				bwrite (bp, 0);	/* flush dirty buffer */
 			else {
 				/*
 				 * Update the hash chain for this old
@@ -429,10 +386,7 @@ again:
 				return (bp);
 			}
 		}
-		unlock(bufgate);
-#if BDEBUG
-		++bufdebug.needbuf;
-#endif
+		unlock (bufgate);
 		s = sphi();
 		bufneed = 1;
 		x_sleep((char *)&bufneed, pridisk, slpriNoSig, "bufneed");
@@ -451,9 +405,6 @@ register BUF *bp;
 {
 	register int s;
 
-#if BDEBUG
-	++bufdebug.bwrite;
-#endif
 	if (sync)
 		bp->b_flag &= ~BFASY;
 	else {
@@ -463,18 +414,18 @@ register BUF *bp;
 	bp->b_flag |= BFNTP;
 	bp->b_req = BWRITE;
 	bp->b_count = BSIZE;
-/* BAD MAGIC 	s = sphi(); */
+
 	dblock(bp->b_dev, bp);
-	if (!sync) {
-/* BAD MAGIC		spl(s); */
+
+	if (! sync)
 		return;
-	}
-	s = sphi ();	/* GOOD MAGIC */
-	while (bp->b_flag&BFNTP) {
-		x_sleep((char *)bp, pridisk, slpriNoSig, "bwrite");
+
+	s = sphi ();
+	while (bp->b_flag & BFNTP) {
+		x_sleep ((char *) bp, pridisk, slpriNoSig, "bwrite");
 		/* Waiting for a buffer write to finish.  */
 	}
-	spl(s);
+	spl (s);
 }
 
 /*
@@ -483,9 +434,6 @@ register BUF *bp;
 bdone(bp)
 register BUF *bp;
 {
-#if BDEBUG
-	++bufdebug.bdone;
-#endif
 	if (bp->b_req == BWRITE)
 		bp->b_flag &= ~BFMOD;
 	if (bp->b_req == BREAD) {
@@ -506,19 +454,16 @@ register BUF *bp;
 brelease(bp)
 register BUF *bp;
 {
-#if BDEBUG
-	++bufdebug.brelease;
-#endif
-	if (bp->b_flag&BFERR) {
-		bp->b_flag &= ~BFERR;
+	if (bp->b_flag & BFERR) {
+		bp->b_flag &= ~ BFERR;
 		bp->b_dev = NODEV;
 	}
-	bp->b_flag &= ~BFNTP;
-	bumap(bp);
-	unlock(bp->b_gate);
+	bp->b_flag &= ~ BFNTP;
+	bumap (bp);
+	unlock (bp->b_gate);
 	if (bufneed) {
 		bufneed = 0;
-		wakeup((char *)&bufneed);
+		wakeup ((char *) & bufneed);
 	}
 }
 
@@ -556,26 +501,16 @@ register IO *iop;
 register char *v;
 register unsigned n;
 {
-#if BDEBUG
-	++bufdebug.ioread;
-#endif
 	switch (iop->io_seg) {
 	case IOSYS:
-#if BDEBUG
-		++bufdebug.iosys;
-#endif
 		iop->io.vbase += kkcopy(iop->io.vbase, v, n);
 		break;
+
 	case IOUSR:
-#if BDEBUG
-		++bufdebug.iousr;
-#endif
 		iop->io.vbase += ukcopy(iop->io.vbase, v, n);
 		break;
+
 	case IOPHY:
-#if BDEBUG
-		++bufdebug.iophy;
-#endif
 		dmain(n, iop->io.pbase, v);
 		iop->io.pbase += n;
 		break;
@@ -584,34 +519,60 @@ register unsigned n;
 }
 
 /*
+ * Clear I/O space.
+ */
+
+#if	__USE_PROTO__
+void ioclear (IO * iop, size_t size)
+#else
+void
+ioclear (iop, size)
+IO	      *	iop;
+size_t		size;
+#endif
+{
+	switch (iop->io_seg) {
+	case IOSYS:
+		(void) memset (iop->io.vbase, 0, size);
+		iop->io.vbase += size;
+		break;
+
+	case IOUSR:
+		(void) umemclear (iop->io.vbase, size);
+		iop->io.vbase += size;
+		break;
+
+	case IOPHY:
+		dmaclear (size, iop->io.pbase);
+		iop->io.pbase += size;
+		break;
+	}
+	iop->io_ioc -= size;
+}
+
+
+/*
  * Write data from kernel space to the I/O segment.
  */
+
+void
 iowrite(iop, v, n)
 register IO *iop;
 register char *v;
 register unsigned n;
 {
-#if BDEBUG
-	++bufdebug.iowrite;
-#endif
 	switch (iop->io_seg) {
 	case IOSYS:
-#if BDEBUG
-		++bufdebug.iosys;
-#endif
-		iop->io.vbase += kkcopy(v, iop->io.vbase, n);
+		memcpy (iop->io.vbase, v, n);
+		iop->io.vbase += n;
 		break;
+
 	case IOUSR:
-#if BDEBUG
-		++bufdebug.iousr;
-#endif
-		iop->io.vbase += kucopy(v, iop->io.vbase, n);
+		iop->io.vbase += kucopy (v, iop->io.vbase, n);
 		break;
+
 	case IOPHY:
-#if BDEBUG
-		++bufdebug.iophy;
-#endif
-		dmaout(n, iop->io.pbase, v);
+		dmaout (n, iop->io.pbase, v);
 		iop->io.pbase += n;
 		break;
 	}
@@ -626,20 +587,17 @@ register IO *iop;
 {
 	register int c;
 
-#if BDEBUG
-	++bufdebug.iogetc;
-#endif
 	if (iop->io_ioc == 0)
-		return (-1);
-	--iop->io_ioc;
+		return -1;
+	-- iop->io_ioc;
 	if (iop->io_seg == IOSYS)
-		c = *(char*) iop->io.vbase++ & 0377;
+		c = * (unsigned char *) iop->io.vbase ++;
 	else {
-		c = getubd(iop->io.vbase++);
+		c = getubd (iop->io.vbase ++);
 		if (u.u_error)
-			return (-1);
+			return -1;
 	}
-	return (c);
+	return c;
 }
 
 /*
@@ -648,20 +606,17 @@ register IO *iop;
 ioputc(c, iop)
 register IO *iop;
 {
-#if BDEBUG
-	++bufdebug.ioputc;
-#endif
 	if (iop->io_ioc == 0)
-		return (-1);
-	--iop->io_ioc;
+		return -1;
+	-- iop->io_ioc;
 	if (iop->io_seg == IOSYS)
-		* (char *)iop->io.vbase++ = c;
+		* (char *) iop->io.vbase ++ = c;
 	else {
-		putubd(iop->io.vbase++, c);
+		putubd (iop->io.vbase ++, c);
 		if (u.u_error)
-			return (-1);
+			return -1;
 	}
-	return (c);
+	return c;
 }
 
 /*
@@ -678,47 +633,44 @@ dev_t dev;
 	register CON *cp;
 	dold_t dold;
 
-#if BDEBUG
-	++bufdebug.ioreq;
-#endif
-	if ((cp=drvmap(dev, &dold)) == NULL)
+	if ((cp = drvmap (dev, & dold)) == NULL)
 		return;
-	lock(bp->b_gate);
+	lock (bp->b_gate);
 	n = cp->c_flag;	/* n should do something with that flag */
-	drest(dold);
+	drest (dold);
 	if (iop) {
-		if (f&BFBLK) {
-			if (blocko(iop->io_seek)) {
-				SET_U_ERROR(EIO, "ioreq()");
+		if (f & BFBLK) {
+			if (blocko (iop->io_seek)) {
+				SET_U_ERROR (EIO, "ioreq()");
 				goto out;
 			}
 		}
-		if (f&BFIOC) {
-			if (!iomapvp(iop, bp)) {
-				SET_U_ERROR(EIO, "ioreq()");
+		if (f & BFIOC) {
+			if (! iomapvp (iop, bp)) {
+				SET_U_ERROR (EIO, "ioreq()");
 				goto out;
 			}
 		}
 	}
-	bp->b_flag = f|BFNTP;
+	bp->b_flag = f | BFNTP;
 	bp->b_req = req;
 	bp->b_dev = dev;
 	if (iop) {
-		bp->b_bno = blockn(iop->io_seek);
+		bp->b_bno = blockn (iop->io_seek);
 		bp->b_count = iop->io_ioc;
 	}
-/*BAD MAGIC	s = sphi(); */
-	dblock(dev, bp);
-	s = sphi ();	/* GOOD MAGIC */
-	while (bp->b_flag&BFNTP) {
-		x_sleep((char *)bp, pridisk, slpriNoSig, "ioreq");
-		/* Ask norm what this sleep means.  */
-	}
-	spl(s);
+
+	dblock (dev, bp);
+
+	s = sphi ();
+	while (bp->b_flag & BFNTP)
+		x_sleep ((char *) bp, pridisk, slpriNoSig, "ioreq");
+	spl (s);
+
 	if (stimer.t_last)
 		wakeup((char *)&stimer);
-	if (bp->b_flag&BFERR) {
-		SET_U_ERROR(bp->b_err ? bp->b_err : EIO, "ioreq()");
+	if (bp->b_flag & BFERR) {
+		SET_U_ERROR (bp->b_err ? bp->b_err : EIO, "ioreq()");
 		goto out;
 	}
 	if (iop) {
@@ -727,7 +679,7 @@ dev_t dev;
 		iop->io_ioc -= n;
 	}
 out:
-	unlock(bp->b_gate);
+	unlock (bp->b_gate);
 }
 
 /*
@@ -1052,20 +1004,3 @@ nonedev()
 nulldev()
 {
 }
-
-#if 0
-/* debugging utility.  given a system global addr (e.g. iop->io.pbase),
-   return the first int at the address */
-grabDB(paddr)
-{
-	int ret;
-	int work = workAlloc();
-	cseg_t * base = sysmem.u.pbase + btocrd(paddr);
-
-	ptable1_v[work] = *base | SEG_SRW;
-	mmuupd();
-	ret = *(int*)(ctob(work)+(paddr&(NBPC-1)));
-	workFree(work);
-	return ret;
-}
-#endif

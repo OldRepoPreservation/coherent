@@ -1,4 +1,5 @@
-#include <sys/coherent.h>
+#define	__KERNEL__	1
+
 #include <sys/al.h>
 /*
  * the following kernel resident parts are shared by loadable serial drivers

@@ -20,7 +20,7 @@
 #endif
 #include <sys/types.h>
 #include <sys/uproc.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/con.h>
 #include <sys/sem.h>
@@ -600,7 +600,7 @@ unsigned short	*usSleepEvent;	/* Could be semcnt or semzcnt */
 	}
 	(*usSleepEvent)--;
 
-	if (SELF->p_ssig && nondsig()) {	/* Signal received */
+	if (nondsig ()) {	/* Signal received */
 		u.u_error = EINTR;
 		return -1;
 	}

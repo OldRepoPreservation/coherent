@@ -60,7 +60,7 @@ static int s_id;
 #include	<sys/con.h>
 #include	<sys/stat.h>
 #include	<sys/devices.h>		/* SCSI_MAJOR */
-#include	<errno.h>
+#include	<sys/errno.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
@@ -652,8 +652,6 @@ static void ssread(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	T_PIGGY( 0x20, printf("ssread(iop->io.vbase: %x)", iop->io.vbase); );
-
 	ioreq( &dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC );
 }
 
@@ -669,8 +667,6 @@ static void sswrite(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	T_PIGGY( 0x20, printf("sswrite(iop->io.vbase: %x)", iop->io.vbase); );
-
 	ioreq( &dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC );
 }
 
@@ -754,11 +750,6 @@ register BUF	*bp;
 	dev_t dev;
 	ss_type * ssp;
 	unchar * msg = NULL;
-
-	T_PIGGY( 0x20,
-		printf("ssblock(bp->b_vaddr: %x, bp->b_paddr: %x)",
-			bp->b_vaddr, bp->b_paddr);
-	);
 
 	/*
 	 * Set up local variables.

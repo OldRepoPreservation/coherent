@@ -16,8 +16,11 @@
  * ----------------------------------------------------------------------
  * Includes.
  */
+
+#include <common/_gregset.h>
+
 #include <sys/coherent.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/seg.h>
 
 /*
@@ -121,30 +124,29 @@ static PROC *	ndpOwner;	/* process whose stuff is now in ndp */
  * instruction.
  */
 void
-ndpNewOwner()
+ndpNewOwner ()
 {
 	UPROC *		up;
 
 	/* disable further emulator traps for this process */
-	wrNdpUser(1);
-	ndpEmTraps(0);
+	wrNdpUser (1);
+	ndpEmTraps (0);
 
 	/* save old ndp status, if any process was using it */
 	if (ndpOwner) {
-		int work = workAlloc();
-		ptable1_v[work] = sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
-		mmuupd();
-		up = (UPROC *)(ctob(work) + U_OFFSET);
-		ndpSave(&up->u_ndpCon);
-		wrNdpSavedU(1, up);
-		workFree(work);
+		int work = workAlloc ();
+		ptable1_v [work] = sysmem.u.pbase [btocrd (ndpUseg)] | SEG_RW;
+		up = (UPROC *) (ctob(work) + U_OFFSET);
+		ndpSave (& up->u_ndpCon);
+		wrNdpSavedU (1, up);
+		workFree (work);
 	}
 
 	/* Make current process NDP owner */
-	ndpMine();
+	ndpMine ();
 
 	/* give process a clean ndp */
-	ndpInit(ndpCW);
+	ndpInit (ndpCW);
 }
 
 /*
@@ -156,10 +158,10 @@ void
 ndpNewProc()
 {
 	/* default for a process is to trap on NDP instructions */
-	ndpEmTraps(1);
-	wrNdpUser(0);
-	wrNdpSaved(0);
-	wrEmTrapped(0);
+	ndpEmTraps (1);
+	wrNdpUser (0);
+	wrNdpSaved (0);
+	wrEmTrapped (0);
 }
 
 /*
@@ -172,7 +174,7 @@ ndpConRest()
 	UPROC *		up;
 
 	/* make CR0 EM bit match what this process needs */
-	ndpEmTraps(rdNdpUser() ? 0 : 1);
+	ndpEmTraps (rdNdpUser () ? 0 : 1);
 
 	/*
 	 * If current process uses ndp, may need to fix ndp state
@@ -183,28 +185,28 @@ ndpConRest()
 	 * So, we have to be careful (1) not to save twice, and (2) to
 	 * restore, even if we are NDP owner, if NDP state is saved.
 	 */
-	if (rdNdpUser()) {
+
+	if (rdNdpUser ()) {
 		if (ndpOwner != SELF) {
 			if (ndpOwner) {		/* save old ndp state */
-				int work = workAlloc();
-				ptable1_v[work] =
-				  sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
-				mmuupd();
-				up = (UPROC *)(ctob(work) + U_OFFSET);
-				if (!rdNdpSavedU(up)) {
-					ndpSave(&up->u_ndpCon);
-					wrNdpSavedU(1, up);
+				int work = workAlloc ();
+				ptable1_v [work] =
+				  sysmem.u.pbase [btocrd (ndpUseg)] | SEG_RW;
+				up = (UPROC *) (ctob(work) + U_OFFSET);
+				if (! rdNdpSavedU (up)) {
+					ndpSave (& up->u_ndpCon);
+					wrNdpSavedU (1, up);
 				}
-				workFree(work);
+				workFree (work);
 			}
 
 			/* Make current process NDP owner and reload ndp state */
-			ndpMine();
-			ndpRestore(&u.u_ndpCon);
-			wrNdpSaved(0);
+			ndpMine ();
+			ndpRestore (& u.u_ndpCon);
+			wrNdpSaved (0);
 		} else if (rdNdpSaved()) {
-			ndpRestore(&u.u_ndpCon);
-			wrNdpSaved(0);
+			ndpRestore (& u.u_ndpCon);
+			wrNdpSaved (0);
 		}
 	}
 }
@@ -230,38 +232,29 @@ ndpEndProc()
  * Entered when NDP generates a CPU error.
  * err is either SIFP or 0x0D40
  */
-#define RDUMP() { \
-  printf("\neax=%x  ebx=%x  ecx=%x  edx=%x\n", eax, ebx, ecx, edx); \
-  printf("esi=%x  edi=%x  ebp=%x  esp=%x\n", esi, edi, ebp, esp); \
-  printf("cs=%x  ds=%x  es=%x  ss=%x  fs=%x  gs=%x\n", \
-    cs&0xffff, ds&0xffff, es&0xffff, ss&0xffff, fs&0xffff, gs&0xffff); \
-  printf("err #%d eip=%x  uesp=%x  cmd=%s\n", err, eip, uesp, u.u_comm); \
-  printf("efl=%x  ", efl); }
 
 void
-fptrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
-  eip, cs, efl, uesp, ss)
-char *eip;
+fptrap (regset)
+gregset_t	regset;
 {
 	unsigned short	sw;		/* ndp status word */
-	struct _fpstate * fsp = &u.u_ndpCon;
+	struct _fpstate * fsp = & u.u_ndpCon;
 
-	if (err == SIFP)
-		u.u_regl = &gs;	/* hook in register set for consave/conrest */
-
+	/* NIGEL: removed set of u.u_regl here */
 	/*
 	 * Send user a signal.
 	 */
-	ndpSave(fsp);
+
+	ndpSave (fsp);
 	/* Clear exception flag in NDP to prevent runaway trap. */
 	sw = fsp->status = fsp->sw;
 	fsp->sw &= 0x7f00;
-	wrNdpSaved(1);
+	wrNdpSaved (1);
 	if (ndpDump) {
-		RDUMP();
-		printf("\nfcs=%x  fip=%x  fos=%x  foo=%x\n",
-		  fsp->cssel&0xffff, fsp->ipoff,
-		  fsp->datasel&0xffff, fsp->dataoff);
+		curr_register_dump (& regset);
+		printf ("\nfcs=%x  fip=%x  fos=%x  foo=%x\n",
+			fsp->cssel & 0xffff, fsp->ipoff,
+			fsp->datasel & 0xffff, fsp->dataoff);
 		printf("User Floating Point Trap: ");
 		if (sw & 1)
 			printf("Invalid Operation");
@@ -278,7 +271,7 @@ char *eip;
 		else
 			printf("???");
 	}
-	sendsig(SIGFPE, SELF);
+	sendsig (SIGFPE, SELF);
 }
 
 /*
@@ -288,23 +281,24 @@ char *eip;
  * err is SIXNP (Device Not Available Fault)
  */
 void
-emtrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
-  eip, cs, efl, uesp, ss)
-char *eip;
+emtrap (regset)
+gregset_t	regset;
 {
 	switch (ndpType) {
 	case NDP_TYPE_287:
 	case NDP_TYPE_387:
 	case NDP_TYPE_486:
-		ndpNewOwner();
+		ndpNewOwner ();
 		break;
+
 	default:
 		if (ndpDump) {
-			RDUMP();
+			curr_register_dump (& regset);
+			printf ("emulation trap\n");
 		}
-		if (!rdEmTrapped()) {
-			wrEmTrapped(1);
-			emFinit(&u.u_ndpCon);
+		if (! rdEmTrapped ()) {
+			wrEmTrapped (1);
+			emFinit (& u.u_ndpCon);
 		}
 		if (ndpEmFn) {
 			int looker = 1;
@@ -313,9 +307,10 @@ char *eip;
 			 * No emulator lookahead if ptraced or
 			 * single step process.
 			 */
-			if ((SELF->p_flags & PFTRAC) || (u.u_regl[EFL] & MFTTB))
+			if ((SELF->p_flags & PFTRAC) != 0 ||
+			    (regset._i386._eflags & MFTTB) != 0)
 				looker = 0;
-			(*ndpEmFn)(&gs, &u.u_ndpCon, looker);
+			(* ndpEmFn) (& regset, & u.u_ndpCon, looker);
 		} else
 			sendsig(ndpEmSig, SELF);
 	}
@@ -429,7 +424,7 @@ int n;
 {
 	if (kerEm != n) {
 		kerEm = n;
-		setEm(n);
+		setEm (n);
 	}
 }
 
@@ -449,11 +444,11 @@ ndpDetach()
 void
 ndpMine()
 {
-	SR *		srp = &(u.u_segl[SIUSERP]);
+	SR *		srp = & u.u_segl [SIUSERP];
 	SEG *		sp = srp->sr_segp;
 
 	ndpOwner = SELF;
-	ndpUseg = MAPIO(sp->s_vmem, U_OFFSET);
+	ndpUseg = MAPIO (sp->s_vmem, U_OFFSET);
 }
 
 /*
@@ -472,13 +467,12 @@ void
 senseNdp()
 {
 	if (ndpType == NDP_TYPE_UNPATCHED) {
-		ndpEmTraps(0);		/* Will need to do some FP code. */
-		ndpType = ndpSense();	/* Rely on assembler tricks now. */
-		ndpEmTraps(1);
+		ndpEmTraps (0);		/* Will need to do some FP code. */
+		ndpType = ndpSense ();	/* Rely on assembler tricks now. */
+		ndpEmTraps (1);
 	}
-	if (ndpType == NDP_TYPE_387 || ndpType == NDP_TYPE_287) {
-		setivec(NDP_IRQ, ndpIrq);
-	}
+	if (ndpType == NDP_TYPE_387 || ndpType == NDP_TYPE_287)
+		setivec (NDP_IRQ, ndpIrq);
 }
 
 /*

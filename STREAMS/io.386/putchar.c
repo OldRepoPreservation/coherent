@@ -12,12 +12,23 @@
  * *** empty log message ***
  * 
  */
+
+#if KLAATU
+#define SERIAL_CONSOLE	1
+#define INS8250 0x3f8	/* klaatu */
+#endif
+
+#if GORT
+#define SERIAL_CONSOLE	1
+#define	INS8250	0x290	/* gort */
+#endif
+
 #include <sys/coherent.h>
-#include <sys/inode.h>
 #include <sys/stat.h>
 #include <sys/con.h>
 #include <sys/io.h>
 #include <sys/devices.h>
+#include <sys/file.h>
 
 #define P_LEN 1024
 /*
@@ -35,7 +46,7 @@ dev_t condev = makedev(2,0);
 putchar(c)
 int c;
 {
-#if SERIAL_CONSOLE || GORT || KLAATU
+#if SERIAL_CONSOLE
 __putchar(c);
 #else
 	IO iob;

@@ -101,6 +101,10 @@ int w;
 
 	if (w > START_WORK || w <= START_WORK - MAX_WORK_PAIRS)
 		panic("workFree(%x)", w);
+
+	ptable1_v [w + 1] = ptable1_v [w] = SEG_ILL;
+	mmuupd ();
+
 	s = sphi();
 	if (numWorkPairs == 0)
 		panic("Work pair pool exploded");

@@ -80,8 +80,6 @@ I386OBJ1 =\
 	$(K386OBJ)/trap.o \
 	$(K386OBJ)/work.o \
 	$(K386OBJ)/memory.o
-#	$(K386OBJ)/memcpy.o \
-#	$(K386OBJ)/memset.o
 
 I386OBJ = $(I386OBJ0) $(I386OBJ1)
 
@@ -98,6 +96,8 @@ OPTS =\
 	$(K386OBJ)/at.o \
 	$(K386OBJ)/com1.o \
 	$(K386OBJ)/com2.o \
+	$(K386OBJ)/ft.o \
+	$(K386OBJ)/hai.o \
 	$(K386OBJ)/hs.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/kb.o \
@@ -121,8 +121,8 @@ OPTS =\
 	$(K386OBJ)/vtkb_f.o \
 	$(K386OBJ)/vtnkb.o \
 	$(K386OBJ)/xla.o \
-	$(K386OBJ)/xl_dec.o 
-#	$(K386OBJ)/xlft.o
+	$(K386OBJ)/xl_dec.o \
+	$(K386OBJ)/xlft.o
 
 # LIBLIST is the .a files needed for 386 installation.
 # k386.a is an aggregate used since 92/11/11 for driver kit kernel links.
@@ -205,6 +205,8 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/at.o \
 	$(K386OBJ)/fdc.o \
 	$(K386OBJ)/fl386.o \
+	$(K386OBJ)/ft.o \
+	$(K386OBJ)/hai.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/lp.o \
 	$(K386OBJ)/msg.o \
@@ -219,12 +221,10 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/xla.o \
 	$(K386OBJ)/xl_dec.o \
+	$(K386OBJ)/xlft.o \
 	$(K386OBJ)/memory.o
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
-#	$(K386OBJ)/memcpy.o \
-#	$(K386OBJ)/memset.o
-#	$(K386OBJ)/xlft.o
 
 $(K386LIB)/ker386.o: $(I386OBJ) coh io conf $(STUBS)
 	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ) $(STREAMSOBJ)
@@ -242,7 +242,6 @@ libs:	$(LIBLIST)
 	@/bin/echo "Installation libraries up to date."
 
 $(K386OBJ)/as.o: as.s as.inc
-	echo $(K386OBJ)
 	$(AS) -g -o $@ as.s
 
 $(K386OBJ)/xdt.o: xdt.s as.inc
@@ -295,12 +294,6 @@ $(K386OBJ)/mem_cache.o: mem_cache.c
 $(K386OBJ)/memory.o: memory.s
 	$(AS) -o $@ memory.s
 
-#$(K386OBJ)/memcpy.o: memcpy.s
-#	$(AS) -g -o $@ memcpy.s
-#
-#$(K386OBJ)/memset.o: memset.s
-#	$(AS) -g -o $@ memset.s
-
 $(K386OBJ)/mmu.o: mmu.c
 	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
 
@@ -339,7 +332,7 @@ $(K386OBJ)/sys1632.o: sys1632.c \
 		$(SYSINC)/reg.h		\
 		$(SYSINC)/systab.h	\
 		$(SYSINC)/oldstat.h	\
-		$(SYSINC)/oldtimeb.h	\
+		$(SYSINC)/timeb.h	\
 		$(SYSINC)/fd.h		\
 		$(USRINC)/sgtty.h
 	$(CC) $(CFLAGS) -c -o $@ sys1632.c

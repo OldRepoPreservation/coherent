@@ -1,3 +1,12 @@
+Changes to kernel and related files for version #80:
+
+07/19  haiscsi.h,haiinst.h,hai154x.c,haicfg.c,haict.c,haisd.c,haiscsi.c:
+       revision 2 from Chris Hilton
+07/19  rlock.c: return EACCES, not EAGAIN when locking fails.
+07/19  reg.h,as.s: make setspace() stuff part of saved context.
+07/19  sys5.c: io_seg was uninitialized in dirio.
+07/19  sys2.c: upoll() needed to use fdget().
+
 Changes to kernel and related files for version #79:
 
 NOTE (Nigel): The outstanding issue is the [pre-Chris-Hilton] Adaptec

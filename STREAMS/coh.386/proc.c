@@ -14,9 +14,16 @@
 /*
  * Process handling and scheduling.
  */
+
+#include <common/_wait.h>
+#include <kernel/_sleep.h>
+#include <kernel/ker_data.h>
+#include <kernel/sigproc.h>
+#include <sys/wait.h>
+
 #include <sys/coherent.h>
 #include <sys/acct.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/inode.h>
 #include <sys/ptrace.h>
 #include <sys/sched.h>
@@ -33,10 +40,13 @@ pcsinit()
 	register PLINK *lp;
 
 	/*
-	 * Explicitly initialize everything in the first process.
+	 * Explicitly initialize everything in the first process. We use the
+	 * kernel initialize routine with SELF set to NULL so that the first
+	 * process gets started out with default values for fields that are
+	 * normally inherited.
 	 */
+
 	pp = &procq;
-	SELF = pp;
 	procq.p_nforw = pp;
 	procq.p_nback = pp;
 	procq.p_lforw = pp;
@@ -45,71 +55,34 @@ pcsinit()
 	/* Segments are initialized in mchinit() and eveinit().	*/
 	/* procq is static, so p_shmsr[] initializes to nulls.	*/
 
-	procq.p_uid = 0;		/* Effective uid */
-	procq.p_ruid = 0;		/* Real uid */
-	procq.p_rgid = 0;		/* Real gid */
-	procq.p_state = 0;		/* Scheduling state */
-	procq.p_flags = 0;		/* Flags */
-	procq.p_ssig = (sig_t) 0;	/* Signals which have been set */
+	PROC_INIT (& procq);
 
-	procq.p_dfsig = (sig_t) 0xffffffff;  /* All signals are defaulted.  */
-	procq.p_hsig = (sig_t) 0;	/* Signals which are being held */
-	procq.p_dsig = (sig_t) 0;	/* Signals which are being deferred */
-
-	procq.p_isig = (sig_t) 0;	/* Signals which are being ignored */
-	procq.p_event = NULL;		/* Wakeup event channel */
-	procq.p_alarm = 0;		/* Timer for alarms */
-	procq.p_group = 0;		/* Process group */
-/*
- * Set ttdev to null so that we do not accidentally set a tty for init.
- */
-	procq.p_ttdev = makedev(0,0);	/* Controlling terminal */
-	procq.p_nice = 0;		/* Nice value */
-	procq.p_lctim = 0;		/* Last time cval was updated */
-	procq.p_utime = 0L;		/* User time (HZ) */
-	procq.p_stime = 0L;		/* System time */
-	procq.p_cutime = 0L;		/* Sum of childs user time */
-	procq.p_cstime = 0L;		/* Sum of childs system time */
-	procq.p_exit = 0;		/* Exit status */
-	procq.p_polls = NULL;		/* Enabled polls */
-	/* Poll  timer */
-	procq.p_polltim.t_next = NULL;
-	procq.p_polltim.t_last = NULL;
-	procq.p_polltim.t_lbolt = 0L;
-	procq.p_polltim.t_func = NULL;
-	procq.p_polltim.t_farg = NULL;
-
-	/* Alarm timer */
-	procq.p_alrmtim.t_next = NULL;
-	procq.p_alrmtim.t_last = NULL;
-	procq.p_alrmtim.t_lbolt = 0L;
-	procq.p_alrmtim.t_func = NULL;
-	procq.p_alrmtim.t_farg = NULL;
-
-	procq.p_prl = NULL;		/* Pending record lock */
-	procq.p_semu = NULL;		/* Semaphore undo */
 	for (lp=&linkq[0]; lp<&linkq[NHPLINK]; lp++) {
 		lp->p_lforw = lp;
 		lp->p_lback = lp;
 	}
+
+	/*
+	 * After we have set things up, we can have a current process.
+	 */
+
+	SELF = pp;
 }
 
 /*
  * Initiate a process.
  */
-PROC *
-process()
+
+static PROC *
+process ()
 {
 	register PROC *pp1;
 	register PROC *pp;
 
-	if ((pp=kalloc(sizeof(PROC))) == NULL)
-		return (NULL);
+	if ((pp = kalloc (sizeof (PROC))) == NULL)
+		return NULL;
 
-	pp->p_flags = PFCORE;
-	pp->p_state = PSRUN;
-	pp->p_ttdev = NODEV;
-	pp->p_semu = NULL;		/* Semaphore undo */
+	PROC_INIT (pp);
 
 	lock(pnxgate);
 next:
@@ -141,7 +114,7 @@ next:
 	pp->p_nforw = pp1;
 	pp1->p_nback = pp;
 	unlock(pnxgate);
-	return (pp);
+	return pp;
 }
 
 /*
@@ -198,78 +171,67 @@ pfork()
 	register int s;
 	MCON mcon;
 
-	if ((cpp=process()) == NULL) {
+	if ((cpp = process ()) == NULL) {
 		SET_U_ERROR( EAGAIN, "no more process table entries" );
 		return -1;
 	}
 
-	pp = SELF;
 	s = sphi();	/* put current interrupt level into s before segadup */
 	spl(s);
+
 	/*
 	 * As stated above, no auto variable may be changed between calls
 	 * to segadup() and consave().
 	 */
+
 	if (segadup(cpp) == 0) {
 		SET_U_ERROR( EAGAIN, "can not duplicate segments" );
 		relproc(cpp);
 		return -1;
 	}
+
 	shmDup(cpp);	/* copy shared memory info & update ref counts */
+
 	if (u.u_rdir)
-		u.u_rdir->i_refc++;
+		u.u_rdir->i_refc ++;
 	if (u.u_cdir)
-		u.u_cdir->i_refc++;
-	fdadupl();
-	cpp->p_uid   = pp->p_uid;
-	cpp->p_ruid  = pp->p_ruid;
-	cpp->p_rgid  = pp->p_rgid;
-	cpp->p_ppid  = pp->p_pid;
-	cpp->p_ttdev = pp->p_ttdev;
-	cpp->p_group = pp->p_group;
-	cpp->p_ssig  = pp->p_ssig;
+		u.u_cdir->i_refc ++;
+	fdadupl ();
 
-	cpp->p_dfsig  = pp->p_dfsig;
-	cpp->p_dsig  = pp->p_dsig;
-	cpp->p_hsig  = pp->p_hsig;
-	cpp->p_prl = NULL;
-
-	cpp->p_isig  = pp->p_isig;
-
-	sphi();		/* s = sphi() was done before segadup() */
-	consave(&mcon);
-	spl(s);
+	sphi ();		/* s = sphi() was done before segadup() */
+	consave (& mcon);
+	spl (s);
 
 	/*
 	 * Parent process.
 	 */
+
 	if ((pp = SELF) != cpp) {
-		segfinm(cpp->p_segp[SIUSERP]);
-		dmaout(sizeof(mcon), 
-		  MAPIO(cpp->p_segp[SIUSERP]->s_vmem,
-		  U_OFFSET + offset(uproc,u_syscon)),
-		  (char *)&mcon);
-		s = sphi();
-		setrun(cpp);
-		spl(s);
+		segfinm (cpp->p_segp [SIUSERP]);
+		dmaout (sizeof (mcon),
+			MAPIO (cpp->p_segp [SIUSERP]->s_vmem,
+			       U_OFFSET + offset (uproc, u_syscon)),
+			(char *) & mcon);
+		s = sphi ();
+		setrun (cpp);
+		spl (s);
 
 		u.u_rval2 = 0;
-		return(cpp->p_pid);
-	}
+		return cpp->p_pid;
+	} else {
+		/*
+		 * Child process.
+		 */
 
-	/*
-	 * Child process.
-	 */
-	else {
 		u.u_btime = timer.t_time;
 		u.u_flag = AFORK;
 
 #ifdef UPROC_VERSION
 		u.u_version = UPROC_VERSION;
 #endif /* UPROC_VERSION */
-		u.u_sleep[0] = '\0'; /* We are not sleeping to start with.  */
-		sproto(0);
-		segload();
+		u.u_sleep [0] = '\0'; /* We are not sleeping to start with.  */
+		sproto (0);
+		segload ();
 		u.u_rval2 = SELF->p_ppid;
 		return 0;
 	}
@@ -284,12 +246,12 @@ pexit(s)
 	register PROC *pp;
 	register SEG  *sp;
 	register int n;
-	PROC *parent;
+	PROC	      *	parent = NULL;
 
 	pp = SELF;
 	T_PIGGY( 0x1, printf("%s:pexit(%x)", u.u_comm, s); );
 
-	ndpEndProc();
+	ndpEndProc ();
 
 	/*
 	 * Cancel alarm and poll timers [if any].
@@ -361,26 +323,44 @@ pexit(s)
 	 * If this is a process group leader, inform all members of the group
 	 * of the recent death with a HUP signal.
 	 */
-	if (pp->p_group == pp->p_pid) {
+	if (pp->p_group == pp->p_pid)
 		ukill(-pp->p_pid, SIGHUP);
-	}
 
 	/*
 	 * If the parent is ignoring SIGCLD, 
 	 * remove the zombie right away.
 	 */
-	if (SIG_BIT(SIGCLD) & parent->p_isig) {
+
+	if (parent == NULL)
+		panic ("%d (@ %x) has no parent!\n", SELF->p_pid, SELF);
+
+	if ((proc_signal_misc (parent) & __SF_NOCLDWAIT) != 0) {
+		/*
+		 * The parent has requested that no zombie processes be
+		 * created out of childen.
+		 */
+
 		parent->p_cutime += pp->p_utime + pp->p_cutime;
 		parent->p_cstime += pp->p_stime + pp->p_cstime;
-		relproc(pp);
+		relproc (pp);
 	} else {
 		/*
-		 * If SIGCLD is not defaulted, notify our parent
-		 * of our demise.
+		 * Send parent a notification of our demise.
 		 */
-		if (!(SIG_BIT(SIGCLD) & parent->p_dfsig)) {
-			sendsig(SIGCLD, parent );
+		__siginfo_t	sigchld;
+
+		sigchld.__si_signo = SIGCHLD;
+		sigchld.__si_errno = 0;
+		if (__WIFEXITED (s)) {
+			sigchld.__si_code = __CLD_EXITED;
+			sigchld.__si_status = __WEXITSTATUS (s);
+		} else {
+			sigchld.__si_code = __WCOREDUMP (s) ? __CLD_DUMPED :
+							      __CLD_KILLED;
+			sigchld.__si_status = __WTERMSIG (s);
 		}
+		sigchld.__si_pid = SELF->p_pid;
+		proc_send_signal (parent, & sigchld);
 	}
 
 	dispatch();
@@ -403,13 +383,14 @@ pexit(s)
  *	reason:		up to 10 chars of text for ps command "event"
  *
  * Return values:
- *	0		wakeup received
- *	1		signal (other than SIGSTOP/SIGCONT) received
- *	2		SIGSTOP/SIGCONT (unimplemented now)
+ *	PROCESS_NORMAL_WAKE	wakeup received
+ *	PROCESS_SIGNALLED	signal (other than SIGSTOP/SIGCONT) received
+ *	PROCESS_CONTINUED	SIGSTOP/SIGCONT (unimplemented now)
  *
  * If longjmp occurs, won't return from x_sleep!
  */
-int
+
+__sleep_t
 x_sleep(event, schedPri, sleepPri, reason)
 char * event;
 int schedPri;
@@ -441,7 +422,6 @@ char * reason;
 	pp->p_state = (sleepPri == slpriNoSig) ? PSSLEEP : PSSLSIG;
 	pp->p_schedPri = schedPri;
 	pp->p_event = event;
-	pp->p_lctim = utimer;
 	fp = &linkq[hash(event)];
 	bp = fp->p_lback;
 	pp->p_lforw = fp;
@@ -452,26 +432,25 @@ char * reason;
 
 	/* Here is sleep if signals may *not* interrupt. */
 	if (sleepPri == slpriNoSig) {
-		dispatch();
-		u.u_sleep[0] = '\0';
-		return 0;
+		dispatch ();
+		u.u_sleep [0] = '\0';
+		return PROCESS_NORMAL_WAKE;
 	}
 
 	/* Here is sleep if signals *may* interrupt. */
 	/* Don't sleep at all if there is already a signal pending. */
-	if (!nondsig()) {
-		dispatch();
-		u.u_sleep[0] = '\0';
-		if (!nondsig()) {
-			return 0;
-		}
+
+	if (curr_signal_pending () == 0) {
+		dispatch ();
+		u.u_sleep [0] = '\0';
+		if (curr_signal_pending () == 0)
+			return PROCESS_NORMAL_WAKE;
 	}
 
 	/* The process has been interrupted from sleep by a signal. */
 
-	if (sleepPri == slpriSigCatch) {
-		return 1;
-	}
+	if (sleepPri == slpriSigCatch)
+		return PROCESS_SIGNALLED;
 
 	/* Do longjmp to beginning of system call. */
 	T_HAL(8, printf("[%d]Ljmps ", SELF->p_pid));
@@ -577,17 +556,19 @@ dispatch()
 		 * 2nd time is after our context is restored by another proc.
 		 * Conrest() forces a context switch to a new process.
 		 */
-		s = sphi();
+		s = sphi ();
 		SELF = pp;
-		if (consave(&u.u_syscon) == 0) {
-			conrest(*pp->p_segp[SIUSERP]->s_vmem, &u.u_syscon);
+		if (consave (& u.u_syscon) == 0) {
+			conrest (* pp->p_segp [SIUSERP]->s_vmem,
+				 & u.u_syscon);
 		}
 
 		if (SELF->p_pid) {	/* init is special! */
-			ndpConRest();
-			segload();
+			ndpConRest ();
+			segload ();
 		}
-		spl(s);
+
+		spl (s);
 	}
 }
 
@@ -615,6 +596,10 @@ register GATE g;
 
 	s = sphi();
 	while (g[0]) {
+#ifdef	TRACER
+		if (g [0] != 1)
+			panic ("Uninitialised gate");
+#endif
 		g[1] = 1;
 		x_sleep((char *)g, primed, slpriNoSig, "lock");
 		/* Waiting for a gate to unlock.  */
@@ -629,8 +614,16 @@ register GATE g;
 unlock(g)
 register GATE g;
 {
+#ifdef	TRACER
+	if (g [0] == 0)
+		panic ("Gate not locked!");
+#endif
 	g[0] = 0;
 	if (g[1]) {
+#ifdef	TRACER
+		if (g [1] != 1)
+			panic ("Uninitialised gate");
+#endif
 		g[1] = 0;
 		disflag = 1;
 		wakeup((char *)g);

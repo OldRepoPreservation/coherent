@@ -45,7 +45,7 @@
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
@@ -53,6 +53,7 @@
 #include <sys/mount.h>
 #include <sys/proc.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 
 #define _INODE_BUSY_DUMP 1
 
@@ -62,13 +63,24 @@
 fsminit()
 {
 	register MOUNT *mp;
+	INODE	      *	ip;
+
+	/*
+	 * NIGEL: We begin by setting up all the inodes in the system.
+	 */
+
+	for (ip = inodep + NINODE - 1 ; ip >= inodep ; ip --) {
+		ip->i_refc = 0;
+		__GATE_INIT (ip->i_gate);
+	}
+
 
 	/*
 	 * Mount the root file system.
 	 */
-	if ( (mp = fsmount(rootdev, ronflag)) == NULL )
-		panic(	"fsminit: no rootdev(%d,%d)",
-			major(rootdev), minor(rootdev) );
+	if ((mp = fsmount (rootdev, ronflag)) == NULL)
+		panic ("fsminit: no rootdev(%d,%d)",
+		       major (rootdev), minor (rootdev));
 
 	/*
 	 * Set system time from the super block.
@@ -78,16 +90,16 @@ fsminit()
 	/*
 	 * Access the root directory.
 	 */
-	if ( (u.u_rdir = iattach(rootdev, ROOTIN)) == NULL )
-		panic(	"fsminit: no / on rootdev(%d,%d)",
-			major(rootdev), minor(rootdev) );
+	if ((u.u_rdir = iattach (rootdev, ROOTIN)) == NULL)
+		panic ("fsminit: no / on rootdev(%d,%d)",
+		       major (rootdev), minor (rootdev));
 
 	/*
 	 * Record current directory.
 	 */
 	u.u_cdir = u.u_rdir;
 	u.u_cdir->i_refc++;
-	iunlock(u.u_rdir);
+	iunlock (u.u_rdir);
 }
 
 /*
@@ -100,31 +112,36 @@ register dev_t dev;
 	register MOUNT *mp;
 	register BUF *bp;
 
-	if ((mp=kalloc(sizeof(MOUNT))) == NULL) {
-		printf("fsmount(%x,%x): kalloc failed ", dev, f);
+	if ((mp = kalloc (sizeof (MOUNT))) == NULL) {
+		printf ("fsmount(%x,%x): kalloc failed ", dev, f);
 		return NULL;
 	}
-	dopen(dev, (f?IPR:IPR|IPW), DFBLK);
+	dopen (dev, (f ? IPR : IPR | IPW), DFBLK);
 	if (u.u_error) {
 		printf("fsmount(%x,%x): dopen failed ", dev, f);
-		kfree(mp);
+		kfree (mp);
 		return NULL;
 	}
-	if ((bp=bread(dev, (daddr_t)SUPERI, 1)) == NULL) {
-		dclose(dev, (f?IPR:IPR|IPW), DFBLK);	/* NIGEL */
-		kfree(mp);
+	if ((bp = bread (dev, (daddr_t) SUPERI, 1)) == NULL) {
+		dclose (dev, (f ? IPR : IPR | IPW), DFBLK);	/* NIGEL */
+		kfree (mp);
 		return NULL;
 	}
-	kkcopy(bp->b_vaddr, &mp->m_super, sizeof(struct filsys));
-	brelease(bp);
-	cansuper(&mp->m_super);
+	kkcopy (bp->b_vaddr, &mp->m_super, sizeof (struct filsys));
+	brelease (bp);
+	cansuper (& mp->m_super);
+
 	mp->m_ip = NULL;
 	mp->m_dev = dev;
 	mp->m_flag = f;
 	mp->m_super.s_fmod = 0;
 	mp->m_next = mountp;
+
+	__GATE_INIT (mp->m_ilock);
+	__GATE_INIT (mp->m_flock);
+
 	mountp = mp;
-	return (mp);
+	return mp;
 }
 
 /*
@@ -222,9 +239,9 @@ unsigned mode;
 	int	xninode, xtinode;
 #endif
 
-	if ((mp=getment(dev, 1)) == NULL)
+	if ((mp = getment (dev, 1)) == NULL)
 		return NULL;
-	sbp = &mp->m_super;
+	sbp = & mp->m_super;
 
 #if _INODE_BUSY_DUMP
 	eninode = sbp->s_ninode;
@@ -232,7 +249,7 @@ unsigned mode;
 #endif
 
 	for (;;) {
-		lock(mp->m_ilock);
+		lock (mp->m_ilock);
 
 #if _INODE_BUSY_DUMP
 		lninode = sbp->s_ninode;
@@ -240,37 +257,37 @@ unsigned mode;
 #endif
 
 		if (sbp->s_ninode == 0) {
-			isync(dev);
+			isync (dev);
 			ino = 1;
 			inop = sbp->s_inode;
-			inope = &sbp->s_inode[NICINOD];
-			for (b=INODEI; b<sbp->s_isize; b++) {
-				if (bad(dev, b)) {
+			inope = & sbp->s_inode [NICINOD];
+			for (b = INODEI ; b < sbp->s_isize ; b ++) {
+				if (bad (dev, b)) {
 					ino += INOPB;
 					continue;
 				}
-				if ((bp=bread(dev, b, 1)) == NULL) {
+				if ((bp = bread (dev, b, 1)) == NULL) {
 					ino += INOPB;
 					continue;
 				}
 				dip = bp->b_vaddr;
-				dipe = &dip[INOPB];
-				for (; dip<dipe; dip++, ino++) {
+				dipe = & dip [INOPB];
+				for (; dip < dipe ; dip ++, ino ++) {
 					if (dip->di_mode != 0)
 						continue;
 					if (inop >= inope)
 						break;
-					*inop++ = ino;
+					* inop ++ = ino;
 				}
-				brelease(bp);
+				brelease (bp);
 				if (inop >= inope)
 					break;
 			}
 			sbp->s_ninode = inop - sbp->s_inode;
 			if (sbp->s_ninode == 0) {
 				sbp->s_tinode = 0;
-				unlock(mp->m_ilock);
-				devmsg(dev, "Out of inodes");
+				unlock (mp->m_ilock);
+				devmsg (dev, "Out of inodes");
 				u.u_error = ENOSPC;
 				return NULL;
 			}
@@ -281,11 +298,11 @@ unsigned mode;
 		xtinode = sbp->s_tinode;
 #endif
 
-		ino = sbp->s_inode[--sbp->s_ninode];
-		--sbp->s_tinode;
+		ino = sbp->s_inode [-- sbp->s_ninode];
+		-- sbp->s_tinode;
 		sbp->s_fmod = 1;
-		unlock(mp->m_ilock);
-		if ((ip=iattach(dev, ino)) != NULL) {
+		unlock (mp->m_ilock);
+		if ((ip = iattach(dev, ino)) != NULL) {
 			if (ip->i_mode != 0) {
 				devmsg(dev, "Inode %u busy", ino);
 
@@ -296,11 +313,11 @@ printf("%x %x rf=%x fl=%x md=%x nl=%x en=%x et=%x ln=%x lt=%x xn=%x xt=%x n=%x t
 	sbp->s_ninode, sbp->s_tinode);
 #endif
 
-				idetach(ip);
-				lock(mp->m_ilock);
-				++sbp->s_tinode;
+				idetach (ip);
+				lock (mp->m_ilock);
+				++ sbp->s_tinode;
 				sbp->s_fmod = 1;
-				unlock(mp->m_ilock);
+				unlock (mp->m_ilock);
 				continue;
 			}
 			ip->i_flag = 0;
@@ -309,7 +326,7 @@ printf("%x %x rf=%x fl=%x md=%x nl=%x en=%x et=%x ln=%x lt=%x xn=%x xt=%x n=%x t
 			ip->i_uid = u.u_uid;
 			ip->i_gid = u.u_gid;
 		}
-		return (ip);
+		return ip;
 	}
 }
 
@@ -323,15 +340,15 @@ ino_t ino;
 	register struct filsys *sbp;
 	register MOUNT *mp;
 
-	if ((mp=getment(dev, 1)) == NULL)
+	if ((mp = getment(dev, 1)) == NULL)
 		return;
-	lock(mp->m_ilock);
-	sbp = &mp->m_super;
+	lock (mp->m_ilock);
+	sbp = & mp->m_super;
 	sbp->s_fmod = 1;
 	if (sbp->s_ninode < NICINOD)
-		sbp->s_inode[sbp->s_ninode++] = ino;
-	sbp->s_tinode++;
-	unlock(mp->m_ilock);
+		sbp->s_inode [sbp->s_ninode ++] = ino;
+	sbp->s_tinode ++;
+	unlock (mp->m_ilock);
 }
 
 /*
@@ -350,22 +367,39 @@ register unsigned l;
 
 	if (b == 0)
 		return;
-	if (l-->0 && (bp=bread(dev, b, 1))!=NULL) {
+	if (l -- > 0 && (bp = bread(dev, b, 1)) != NULL) {
 		i = NBN;
-		while (i-- > 0) {
+		while (i -- > 0) {
 			dp = bp->b_vaddr;
-			if ((b1 = dp[i]) == 0)
+			if ((b1 = dp [i]) == 0)
 				continue;
-			candaddr(b1);
+			candaddr (b1);
 			if (l == 0)
-				bfree(dev, b1);
+				bfree (dev, b1);
 			else
-				indfree(dev, b1, l);
+				indfree (dev, b1, l);
 		}
-		brelease(bp);
+		brelease (bp);
 	}
-	bfree(dev, b);
+	bfree (dev, b);
 }
+
+/*
+ * Experimental routine to read free block lists blocks (ahead of time, but
+ * if it works we'll subsume the synchronous read as well).
+ */
+
+static BUF *
+read_free_block_list (super, dev, block_no, sync_flag)
+struct filsys *	super;
+dev_t		dev;
+daddr_t		block_no;
+int		sync_flag;
+{
+	return block_no < super->s_fsize && block_no >= super->s_isize ?
+			bread (dev, block_no, sync_flag) : NULL;
+}
+
 
 /*
  * Allocate a block from the filesystem mounted of device `dev'.
@@ -380,43 +414,52 @@ dev_t dev;
 	register BUF *bp;
 	register MOUNT *mp;
 
-	if ((mp=getment(dev, 1)) == NULL)
-		return (0);
-	lock(mp->m_flock);
-	sbp = &mp->m_super;
+	if ((mp = getment(dev, 1)) == NULL)
+		return 0;
+	lock (mp->m_flock);
+	sbp = & mp->m_super;
 	if (sbp->s_nfree == 0) {
 enospc:
 		sbp->s_nfree = 0;
-		devmsg(dev, "Out of space");
+		devmsg (dev, "Out of space");
 		u.u_error = ENOSPC;
 		b = 0;
 	} else {
 		sbp->s_fmod = 1;
-		if ((b=sbp->s_free[--sbp->s_nfree]) == 0)
+		if ((b = sbp->s_free [-- sbp->s_nfree]) == 0)
 			goto enospc;
 		if (sbp->s_nfree == 0) {
-			if (b >= sbp->s_fsize
-			 || b < sbp->s_isize
-			 || (bp = bread(dev, b, 1)) == NULL) {
+			if (b >= sbp->s_fsize || b < sbp->s_isize ||
+			    (bp = bread(dev, b, 1)) == NULL) {
 ebadflist:
 				devmsg(dev, "Bad free list");
 				goto enospc;
 			}
 			fbp = bp->b_vaddr;
 			sbp->s_nfree = fbp->df_nfree;
-			canshort(sbp->s_nfree);
-			if ((unsigned)sbp->s_nfree > NICFREE)
+			canshort (sbp->s_nfree);
+			if ((unsigned) sbp->s_nfree > NICFREE)
 				goto ebadflist;
-			kkcopy(fbp->df_free, sbp->s_free, sizeof(sbp->s_free));
-			canndaddr(sbp->s_free, sbp->s_nfree);
-			brelease(bp);
+			memcpy (sbp->s_free, fbp->df_free,
+				sizeof (sbp->s_free));
+			canndaddr (sbp->s_free, sbp->s_nfree);
+			brelease (bp);
+
+			/*
+			 * NIGEL: As an experiment, try reading ahead on the
+			 * free block list.
+			 */
+
+			if (sbp->s_nfree > 0)
+				read_free_block_list (sbp, dev,
+						      sbp->s_free [0], 0);
 		}
-		--sbp->s_tfree;
+		-- sbp->s_tfree;
 		if (b >= sbp->s_fsize || b < sbp->s_isize)
 			goto ebadflist;
 	}
-	unlock(mp->m_flock);
-	return (b);
+	unlock (mp->m_flock);
+	return b;
 }
 
 /*
@@ -431,30 +474,30 @@ daddr_t b;
 	register BUF *bp;
 	register MOUNT *mp;
 
-	if ((mp=getment(dev, 1)) == NULL)
+	if ((mp = getment (dev, 1)) == NULL)
 		return;
-	sbp = &mp->m_super;
-	if (b>=sbp->s_fsize || b<sbp->s_isize) {
-		devmsg(dev, "Bad block %u (free)", (unsigned)b);
+	sbp = & mp->m_super;
+	if (b >= sbp->s_fsize || b < sbp->s_isize) {
+		devmsg (dev, "Bad block %u (free)", (unsigned) b);
 		return;
 	}
-	lock(mp->m_flock);
+	lock (mp->m_flock);
 	if (sbp->s_nfree == 0 || sbp->s_nfree == NICFREE) {
-		bp = bclaim(dev, b);
-		kclear(bp->b_vaddr, BSIZE);
+		bp = bclaim (dev, b);
+		memset (bp->b_vaddr, 0, BSIZE);
 		fbp = bp->b_vaddr;
 		fbp->df_nfree = sbp->s_nfree;
-		canshort(fbp->df_nfree);
-		kkcopy(sbp->s_free, fbp->df_free, sizeof(fbp->df_free));
-		canndaddr(fbp->df_free, sbp->s_nfree);
+		canshort (fbp->df_nfree);
+		memcpy (fbp->df_free, sbp->s_free, sizeof (fbp->df_free));
+		canndaddr (fbp->df_free, sbp->s_nfree);
 		bp->b_flag |= BFMOD;
-		brelease(bp);
+		brelease (bp);
 		sbp->s_nfree = 0;
 	}
-	sbp->s_free[sbp->s_nfree++] = b;
-	sbp->s_tfree++;
+	sbp->s_free [sbp->s_nfree ++] = b;
+	sbp->s_tfree ++;
 	sbp->s_fmod = 1;
-	unlock(mp->m_flock);
+	unlock (mp->m_flock);
 }
 
 /*
@@ -471,36 +514,36 @@ daddr_t b;
 	register int n;
 	daddr_t l;
 
-	if ((ip=iattach(dev, 1)) == NULL)
-		panic("bad()");
-	n = blockn(ip->i_size);
+	if ((ip = iattach (dev, 1)) == NULL)
+		panic ("bad()");
+	n = blockn (ip->i_size);
 	if ((m=n) > ND)
 		m = ND;
-	for (i=0; i<m; i++) {
-		--n;
-		if (b == ip->i_a.i_addr[i]) {
-			idetach(ip);
-			return (1);
+	for (i = 0 ; i < m ; i ++) {
+		-- n;
+		if (b == ip->i_a.i_addr [i]) {
+			idetach (ip);
+			return 1;
 		}
 	}
-	l = ip->i_a.i_addr[ND];
-	idetach(ip);
+	l = ip->i_a.i_addr [ND];
+	idetach (ip);
 	if (n == 0)
-		return (0);
-	if ((bp=bread(dev, l, 1)) == NULL)
-		return (0);
-	if ((m=n) > NBN)
+		return 0;
+	if ((bp = bread (dev, l, 1)) == NULL)
+		return 0;
+	if ((m = n) > NBN)
 		m = NBN;
-	for (i=0; i<m; i++) {
-		l = ((daddr_t *)bp)[i];
-		candaddr(l);
+	for (i = 0 ; i < m ; i ++) {
+		l = ((daddr_t *) bp) [i];
+		candaddr (l);
 		if (b == l) {
-			brelease(bp);
-			return (1);
+			brelease (bp);
+			return 1;
 		}
 	}
-	brelease(bp);
-	return (0);
+	brelease (bp);
+	return 0;
 }
 
 /*
@@ -510,9 +553,9 @@ canndaddr(dp, n)
 register daddr_t *dp;
 register int n;
 {
-	while (n--) {
-		candaddr(*dp);
-		dp++;
+	while (n --) {
+		candaddr (* dp);
+		dp ++;
 	}
 }
 
@@ -532,10 +575,10 @@ long l;
 	register int exp;
 
 	if (l < 0)
-		return (0);
-	for (exp = 0; l > MAXMANT; exp++)
+		return 0;
+	for (exp = 0 ; l > MAXMANT ; exp ++)
 		l >>= 3;
-	return ((exp<<13) | l);
+	return (exp << 13) | l;
 }
 
 /*

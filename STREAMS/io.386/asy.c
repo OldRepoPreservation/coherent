@@ -21,7 +21,7 @@
 #include <sys/tty.h>
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <poll.h>
 #include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
 #include <sys/asy.h>
@@ -462,12 +462,13 @@ int mode;
 	while (a1->a_in_use && (a1->a_hcls ||
 	  ((dev & NMODC) == 0 && (inb(port+MSR) & MS_RLSD) == 0))) {
 #ifdef _I386
-		x_sleep((char *)(&tp->t_open), pritty, slpriSigCatch, "asyblk");
+		if (x_sleep ((char *) & tp->t_open, pritty, slpriSigCatch,
+			     "asyblk") == PROCESS_SIGNALLED) {
 #else
 		v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT, SVTTOUT,
 		  "asyblk");
+		if (nondsig ()) {  /* signal? */
 #endif
-		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			u.u_error = EINTR;
 			goto bad_open;
 		}
@@ -549,13 +550,14 @@ int mode;
 					break;
 				/* wait for carrier */
 #ifdef _I386
-	   	  		x_sleep((char *)(&tp->t_open), pritty,
-				  slpriSigCatch, "need CD");
+				if (x_sleep ((char *) & tp->t_open, pritty,
+					     slpriSigCatch, "need CD")
+				    == PROCESS_SIGNALLED) {
 #else
 	   	  		v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
 				  SVTTOUT, "need CD");
+		 		if (nondsig ()) {  /* signal? */
 #endif
-		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 					outb(port+MCR, 0);
 			    		outb(port+IER, 0);
 					u.u_error = EINTR;
@@ -662,12 +664,13 @@ int mode;
 			break;
 		need_wake[chan] |= NW_OUTSILO;
 #ifdef _I386
-		x_sleep((char *)out_silo, pritty, slpriSigCatch, "asyclose");
+		if (x_sleep ((char *) out_silo, pritty, slpriSigCatch,
+			     "asyclose") == PROCESS_SIGNALLED) {
 #else
 		v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
 		  "asyclose");
+		if (nondsig ()) {  /* signal? */
 #endif
-		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			RAWOUT_FLUSH(out_silo);
 			break;
 		}
@@ -701,8 +704,8 @@ int mode;
 		maj = major(dev);
 		drvl[maj].d_time = 1;
 #ifdef _I386
-		x_sleep((char *)&drvl[maj].d_time, pritty, slpriNoSig,
-		  "drop DTR");
+		x_sleep ((char *) & drvl [maj].d_time, pritty, slpriNoSig,
+			 "drop DTR");
 #else
 		v_sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT,
 		  "drop DTR");
@@ -847,13 +850,13 @@ int	com; struct sgttyb *vec;
 				break;
 			need_wake[chan] |= NW_OUTSILO;
 #ifdef _I386
-			x_sleep((char *)out_silo, pritty, slpriSigCatch,
-			  "asydrain");
+			if (x_sleep ((char *) out_silo, pritty, slpriSigCatch,
+				     "asydrain") == PROCESS_SIGNALLED) {
 #else
 			v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
 			  "asydrain");
+			if (nondsig ()) {  /* signal? */
 #endif
-			if (SELF->p_ssig && nondsig()) {  /* signal? */
 				break;
 			}
 		}
@@ -957,7 +960,7 @@ int	com; struct sgttyb *vec;
 		timeout(&tp->t_sbrk, HZ/4, endbrk, chan);
 		while(a1->a_brk) {
 #ifdef _I386
-			x_sleep(a1, pritty, slpriNoSig, "asybreak");
+			x_sleep (a1, pritty, slpriNoSig, "asybreak");
 #else
 			v_sleep(a1, CVTTOUT, IVTTOUT, SVTTOUT, "asybreak");
 #endif
@@ -1598,17 +1601,19 @@ rescan:
 		 * Must recognize XOFF quickly to avoid transmit overrun.
 		 * Recognize XON here as well to avoid race conditions.
 		 */
-		if (ISIXON) {
+		if (_IS_IXON_MODE (tp)) {
 			/*
 			 * XON.
 			 */
 #if _I386
-			if (ISSTART || (ISIXANY && ISXSTOP)) {
+			if (_IS_START_CHAR (tp, c) ||
+			    (_IS_IXANY_MODE (tp) &&
+			     (tp->t_flags & T_STOP) != 0)) {
 				tp->t_flags &= ~(T_STOP | T_XSTOP);
 				goto rescan;
 			}
 #else
-			if (ISSTART) {
+			if (_IS_START_CHAR (tp, c)) {
 				tp->t_flags &= ~T_STOP;
 				goto rescan;
 			}
@@ -1617,7 +1622,7 @@ rescan:
 			/*
 			 * XOFF.
 			 */
-			if (ISSTOP) {
+			if (_IS_STOP_CHAR (tp, c)) {
 				tp->t_flags |= T_STOP;
 				goto rescan;
 			}
@@ -1823,11 +1828,11 @@ int chan;
 		 * Must recognize XOFF quickly to avoid transmit overrun.
 		 * Recognize XON here as well to avoid race conditions.
 		 */
-		if (ISIXON) {
+		if (_IS_IXON_MODE (tp)) {
 			/*
 			 * XOFF.
 			 */
-			if (ISSTOP) {
+			if (_IS_STOP_CHAR (tp, c)) {
 				tp->t_flags |= T_STOP;
 				continue;
 			}
@@ -1835,7 +1840,7 @@ int chan;
 			/*
 			 * XON.
 			 */
-			if (ISSTART) {
+			if (_IS_START_CHAR (tp, c)) {
 				tp->t_flags &= ~T_STOP;
 				continue;
 			}
