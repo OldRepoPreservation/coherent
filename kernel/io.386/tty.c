@@ -96,10 +96,12 @@ void ttclose();
 void ttflush();
 void tthup();
 void ttin();
+void ttinflush();
 int  ttinp();
 void ttioctl();
 void ttopen();
 int  ttout();
+void ttoutflush();
 int  ttoutp();
 int  ttpoll();
 void ttread();
@@ -152,7 +154,9 @@ register TTY *tp;
 	tp->t_tchars.t_stopc   = DEF_T_STOPC;
 	tp->t_tchars.t_eofc    = DEF_T_EOFC;
 	tp->t_tchars.t_brkc    = DEF_T_BRKC;
+
 #ifdef _I386
+	tp->t_termio.c_lflag |= ICANON;
 	make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 	if (tp->t_flags & T_HPCL)
 		tp->t_termio.c_cflag |= HUPCL;
@@ -160,6 +164,7 @@ register TTY *tp;
 		tp->t_termio.c_cflag &= ~HUPCL;
 	tp->t_termio.c_cflag |= (CS8|CREAD);
 #endif
+
 	if (tp->t_param)
 		NEAR_OR_FAR_CALL(t_param)
 }
@@ -242,6 +247,10 @@ register IO *iop;
 	ttread0(tp, iop, 0, 0, 0, 0);
 }
 
+/* VTIME value is in 10ths of a second */
+/* VTICKS is number of cpu ticks per VTIME unit */
+#define VTICKS	(HZ/10)
+
 /*
  * ttread0()
  *
@@ -257,15 +266,42 @@ int (*func1)(), arg1, (*func2)(), arg2;
 	int o;
 	int sioc = iop->io_ioc;  /* number of bytes to read */
 
+#ifdef _I386
+	int time0 = lbolt;
+	int timing = 0;		/* a boolean flag */
+	char vtime = tp->t_termio.c_cc[VTIME];
+	if (ISBBYB && vtime)
+		timing = 1;
+#endif
+
 	while (iop->io_ioc) {
+		if (timing) {	/* start timer before each read from queue */
+			time0 = lbolt;
+			timeout(&tp->t_vtime, vtime*VTICKS, wakeup, &tp->t_iq);
+		}
+
 		o = sphi();
 		while ((c = getq(&tp->t_iq)) < 0) {
 			if ((tp->t_flags & T_CARR) == 0) {
 			   u.u_error = EIO;  /* error since no carrier */
-			   spl(o);
-			   return;
+				spl(o);
+				goto read_done;
 			}
 
+#ifdef _I386
+			/* T_BRD must give way for VMIN/VTIME in S5.    */
+			if (ISBBYB
+			  && (tp->t_termio.c_cc[VMIN] + iop->io_ioc) <= sioc) {
+				spl(o);
+				goto read_done;
+			}
+
+			/* Have vtime tenths of a second elapsed? */
+			if (timing && ((lbolt - time0)/VTICKS) >= vtime) {
+				spl(o);
+				goto read_done;
+			}
+#else
 			/* If we're in CBREAK or RAW mode, and we don't */
 			/* have the special "blocking read" bit set for */
 			/* these modes, and we read at least one byte   */
@@ -274,10 +310,10 @@ int (*func1)(), arg1, (*func2)(), arg2;
 
 			if (ISBBYB && ((tp->t_flags & T_BRD) == 0)
 			   && iop->io_ioc < sioc) {
-			   spl(o);
-			   return;
+				spl(o);
+				goto read_done;
 			}
-
+#endif
 			/*
 			 * Non-blocking reads.
 			 * Tell user process to try again later.
@@ -285,7 +321,7 @@ int (*func1)(), arg1, (*func2)(), arg2;
 			if (iop->io_flag & IONDLY) {
 				u.u_error = EAGAIN;
 				spl(o);
-				return;
+				goto read_done;
 			}
 
 			tp->t_flags |= T_INPUT;  /* wait for more data */
@@ -301,9 +337,10 @@ int (*func1)(), arg1, (*func2)(), arg2;
 				if (iop->io_ioc == sioc)
 					u.u_error = EINTR;
 				spl(o);
-				return;
+				goto read_done;
 			}
 		}
+
 		/*
 		 * Flow control - can we turn on input from the driver yet?
 		 */
@@ -327,11 +364,19 @@ int (*func1)(), arg1, (*func2)(), arg2;
 		if (!ISBBYB && (c=='\n' || ISBRK))
 			goto read_done;
 	}
+
 read_done:
+
+#ifdef _I386
+	if (timing)	/* turn off the VTIME timer */
+		timeout(&tp->t_vtime, 0, 0, 0);
+#endif
+
 	if (func1)
 		(*func1)(arg1);
 	if (func2)
 		(*func2)(arg2);
+	return;
 }
 
 /*
@@ -429,11 +474,11 @@ register TTY *tp;
 int com;
 register struct sgttyb *vec;
 {
-	register int	flush = 0;
-	register int	drain = 0;
+	register int	outDrain = 0;
 	int s;
 	int rload = 0;
 	int was_bbyb;
+	int inFlush = 0, outFlush = 0;
 
 	/*
 	 * Keep sgttyb, t_chars, AND termio structs for each tty device.
@@ -451,8 +496,8 @@ register struct sgttyb *vec;
 		kucopy(&tp->t_termio, vec, sizeof(struct termio));
 		break;
 	case TCSETA:
-		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
 		was_bbyb = ISBBYB;	/* previous mode */
+		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
 		++rload;
@@ -460,11 +505,11 @@ register struct sgttyb *vec;
 			ttrtp(tp);
 		break;
 	case TCSETAW:
-		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
 		was_bbyb = ISBBYB;	/* previous mode */
+		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
-		++drain;	  /* delay for output */
+		++outDrain;	/* delay for output */
 		++rload;
 		if (!was_bbyb && ISBBYB)
 			ttrtp(tp);
@@ -473,8 +518,8 @@ register struct sgttyb *vec;
 		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
-	        ++flush;          /* flush input */
-		++drain;	  /* delay for output */
+	        ++inFlush;	/* flush input */
+		++outDrain;	/* delay for output */
 		++rload;
 		break;
 #endif
@@ -486,15 +531,15 @@ register struct sgttyb *vec;
 		break;
 	case TIOCSETP:
 		DUMPSGTTY(&tp->t_sgttyb);
-	        ++flush;          /* flush input */
-		++drain;	  /* delay for output */
+	        ++inFlush;	/* flush input */
+		++outDrain;	/* delay for output */
 		++rload;
 		ukcopy(vec, &tp->t_sgttyb, SGTTY_CPY_LEN);
 		make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 		break;
 	case TIOCSETN:
-		DUMPSGTTY(&tp->t_sgttyb);
 		was_bbyb = ISBBYB;	/* previous mode */
+		DUMPSGTTY(&tp->t_sgttyb);
 		++rload;
 		ukcopy(vec, &tp->t_sgttyb, SGTTY_CPY_LEN);
 		make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
@@ -506,7 +551,7 @@ register struct sgttyb *vec;
 		break;
 	case TIOCSETC:
 		++rload;
-		++drain;
+		++outDrain;
 		ukcopy(vec, &tp->t_tchars, sizeof (struct tchars));
 		make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 		break;
@@ -544,12 +589,24 @@ register struct sgttyb *vec;
 		kucopy(&tp->t_flags, (unsigned *) vec, sizeof(unsigned));
 		break;
 #ifdef _I386
-	case TCFLSH:	/* sleazy - should look at 2nd arg but don't yet */
+	case TCFLSH:
+		switch ((int)vec) {
+		case 0:  inFlush++;  break;
+		case 1:  outFlush++;  break;
+		case 2:  inFlush++; outFlush++;  break;
+		default: u.u_error = EINVAL;
+		}
+		break;
+	case TCSBRK:
+		++outDrain;
+		break;
 #endif
 	case TIOCFLUSH:
-		++flush;        /* flush both input and output */
-/*		++drain;	Why? - hws - 91/11/22	*/
+		++inFlush;	/* flush both input and output */
+		++outFlush;
+/*		++outDrain;	Why? - hws - 91/11/22	*/
 		break;
+#ifndef _I386
 	case TIOCBREAD:		/* blocking read for CBREAK/RAW mode */
 		s = sphi();
 		tp->t_flags |= T_BRD;
@@ -560,6 +617,7 @@ register struct sgttyb *vec;
 		tp->t_flags &= ~T_BRD;
 		spl(s);
 		break;
+#endif
 	/*
 	 * The following is a hack so that the process group for /dev/console
 	 * contains the current login shell running on it.
@@ -590,8 +648,13 @@ register struct sgttyb *vec;
 
 	/*
 	 * Wait for output to drain, or signal to arrive.
+	 *
+	 * NOTE:  This stuff is properly done within the device driver,
+	 * *before* ttioctl() is called.  This paragraph should disappear
+	 * from tty.c, with maybe an entry point added for the driver to
+	 * drain the queue while draining the peripheral device. -hws-
 	 */
-	if (drain) {
+	if (outDrain) {
 		while (tp->t_oq.cq_cc) {
 			s = sphi();
 			tp->t_flags |= T_DRAIN;
@@ -605,10 +668,12 @@ register struct sgttyb *vec;
 	}
 
 	/*
-	 * Flush input.
+	 * Flush.
 	 */
-	if (flush)
-		ttflush(tp);
+	if (inFlush)
+		ttinflush(tp);
+	if (outFlush)
+		ttoutflush(tp);
 
 	/*
 	 * Re-initialize hardware.
@@ -704,6 +769,8 @@ register TTY *tp;
 			if (c=='\n' && ISONLCR) {
 				tp->t_flags |= T_INL;
 				c = '\r';
+			} else if (c=='\r' && ISOCRNL) {
+				c = '\n';
 			} else if (c=='\t' && ISXTABS) {
 				tp->t_nfill = ~(tp->t_hpos|~07);
 				tp->t_fillb = ' ';
@@ -993,23 +1060,29 @@ stdone:
 /*
  * ttflush()
  *
- *	Flush a tty.
- *	Called to clear out queues.
+ *	Flush tty input and output queues.
  */
-void ttflush(tp)
+void
+ttflush(tp)
 register TTY *tp;
 {
-	int s;
+	ttinflush(tp);
+	ttoutflush(tp);
+}
 
+/*
+ * ttinflush()
+ *
+ *	Flush input queues.
+ */
+void
+ttinflush(tp)
+register TTY *tp;
+{
 	clrq(&tp->t_iq);
-	clrq(&tp->t_oq);
 
 	if (tp->t_flags & T_INPUT) {
 		defer(wakeup, (char *) &tp->t_iq);
-	}
-
-	if (tp->t_flags & (T_DRAIN|T_HILIM)) {
-		defer(wakeup, (char *) &tp->t_oq);
 	}
 
 	if (tp->t_ipolls.e_procp) {
@@ -1017,16 +1090,29 @@ register TTY *tp;
 		defer(pollwake, (char *) &tp->t_ipolls);
 	}
 
+	tp->t_ibx = 0;
+	tp->t_escape = 0;
+}
+
+/*
+ * ttoutflush()
+ *
+ *	Flush tty output queues.
+ */
+void
+ttoutflush(tp)
+register TTY *tp;
+{
+	clrq(&tp->t_oq);
+
+	if (tp->t_flags & (T_DRAIN|T_HILIM)) {
+		defer(wakeup, (char *) &tp->t_oq);
+	}
+
 	if (tp->t_opolls.e_procp) {
 		tp->t_opolls.e_procp = 0;
 		defer(pollwake, (char *) &tp->t_opolls);
 	}
-
-	tp->t_ibx = 0;
-	tp->t_escape = 0;
-	s = sphi();
-	tp->t_flags &= T_SAVE;  /* reset most flag bits */
-	spl(s);
 }
 
 /*
@@ -1078,6 +1164,16 @@ struct sgttyb * sgp;
 struct tchars * tcp;
 struct termio * trp;
 {
+	char	vmin = 1, vtime = 0;
+
+	/*
+	 * If VMIN/VTIME are active, save now for possible restore.
+	 */
+	if ((trp->c_lflag & ICANON) == 0) {
+		vmin = trp->c_cc[VMIN];
+		vtime = trp->c_cc[VTIME];
+	}
+
 	trp->c_cc[VINTR] = tcp->t_intrc;
 	trp->c_cc[VQUIT] = tcp->t_quitc;
 	trp->c_cc[VEOF ] = tcp->t_eofc;
@@ -1134,6 +1230,14 @@ struct termio * trp;
 
 	if (sgp->sg_flags & ECHO)
 		trp->c_lflag |= ECHO;
+
+	/*
+	 * If not doing canonical processing, set VMIN/VTIME.
+	 */
+	if ((trp->c_lflag & ICANON) == 0) {
+		trp->c_cc[VMIN] = vmin;
+		trp->c_cc[VTIME] = vtime;
+	}
 }
 
 /*
