@@ -25,7 +25,7 @@ typedef struct	FILE {
 }	FILE;
 
 /* Manifest constants. */
-#define	_NFILE	20
+#define	_NFILE	60
 #define	BUFSIZ	(1<<9)
 #define	EOF	(-1)
 #ifndef	NULL
