@@ -10,9 +10,9 @@
 
 int
 coff2load(ip, table, data_seg)
-	struct inode *ip;		/* input: File to read.		*/
-	struct load_segment table[];	/* output: How to read it.	*/
-	uint16 *data_seg;	/* output: Where to point es.	*/
+struct inode *ip;		/* input: File to read.		*/
+struct load_segment table[];	/* output: How to read it.	*/
+uint16 *data_seg;		/* output: Where to point es.	*/
 {
 	FILHDR	fh;	/* COFF file header.		*/
 	AOUTHDR oh;	/* COFF optional header.	*/
@@ -30,19 +30,19 @@ coff2load(ip, table, data_seg)
 	if (I386MAGIC != fh.f_magic) {
 		puts("COFF COFF!  File header bad magic.\r\n");
 		puts("This is not an i386 COFF file.\r\n");
-		return (1==2);
+		return 0;
 	}
 
 	/* Is this an executable COFF file?  */
 	if (!(fh.f_flags & F_EXEC)) {
 		puts("Non-executable COFF file.\r\n");
-		return (1==2);
+		return 0;
 	}
 
 	/* Does it have the information we need to execute it?  */
 	if (sizeof(oh) != fh.f_opthdr) {
 		puts("COFF optional header is wrong size.\r\n");
-		return (1==2);
+		return 0;
 	}
 
 	/*
@@ -66,7 +66,7 @@ coff2load(ip, table, data_seg)
 	if (NORMAL_MAGIC != oh.magic) {
 		puts("COFF COFF!  Optional header bad magic.\r\n");
 		puts("This isn't a normal executable file.\r\n");
-		return(1==2);
+		return 0;
 	}
 
 	/* Read through the section headers,
@@ -78,7 +78,7 @@ coff2load(ip, table, data_seg)
 #define DATA table[1]
 
 	/* Loop until we have both the sections we want, at most twice.  */
-	for (TEXT.valid = (1==2), DATA.valid = (1==2), j = 0;
+	for (TEXT.valid = 0, DATA.valid = 0, j = 0;
 	    !(TEXT.valid && DATA.valid) && j < 2;
 	    ++j) {
 
@@ -89,7 +89,7 @@ coff2load(ip, table, data_seg)
 		iread(ip, &sh, section_seek, SCNHSZ);
 		switch ((int) sh.s_flags) {
 		case STYP_TEXT:
-			TEXT.valid = (1==1);
+			TEXT.valid = 1;
 			TEXT.message = "\r\nLoading COHERENT.\r\n";
 			TEXT.load_toseg = sys_base;
 			TEXT.load_tooffset = 0;
@@ -102,7 +102,7 @@ coff2load(ip, table, data_seg)
 			 * put meaningful numbers here.
 			 */
 			if (TEXT.valid) {
-				DATA.valid = (1==1);
+				DATA.valid = 1;
 				DATA.message = "\r\nLoading COHERENT data.\r\n";
 				/* Round up to next paragraph beyond end
 				 * of text.
@@ -129,17 +129,17 @@ coff2load(ip, table, data_seg)
 	
 	if (!TEXT.valid) {
 		puts("Failed to find COFF text section.\r\n");
-		return (1==2);
+		return 0;
 	}
 
 	if (!DATA.valid) {
 		puts("Failed to find COFF data section.\r\n");
-		return (1==2);
+		return 0;
 	}
 
-	table[2].valid = (1==2);	/* Terminate the list.  */
+	table[2].valid = 0;	/* Terminate the list.  */
 
-	return(1==1);
+	return 1;
 }
 
 
@@ -170,8 +170,8 @@ char *str_tab, *work;
  */
 uint32
 wrap_coffnlist(fn, symbol)
-	char *fn;	/* file name */
-	char *symbol;	/* symbol to look up */
+char *fn;	/* file name */
+char *symbol;	/* symbol to look up */
 {
 	/* Something goes wrong with looking up symbol if
 	 * nlp is automatic rather than static, even with a huge stack.
@@ -191,22 +191,14 @@ wrap_coffnlist(fn, symbol)
 
 	retval = ((uint32)nlp[1].n_value) - ((uint32)nlp[0].n_value);
 
-	if (verbose_flag) {
-		puts("sdata: ");
-		print32(nlp[0].n_value);
-		puts(" ");
-		puts(symbol);
-		puts(": ");
-		print32(nlp[1].n_value);
-		puts(" retval: ");
-		print32(retval);
-		puts("\r\n");
-	}
+	if (verbose_flag)
+		printf("sdata=%lx  %s=%lx  retval=%lx\r\n",
+		  nlp[0].n_value, symbol, nlp[1].n_value, retval);
 
 	if (0L == nlp[1].n_value) {
 		return(0L);
 	} else {
-		return(retval);
+		return retval;
 	}
 	puts("Unreachable code in wrap_coffnlist().\r\n");
 	return(0L);
@@ -221,18 +213,21 @@ int count;	/* size of passed table */
 {
 	FILHDR head;
 	int fp;
-	/* str_tab should be malloc'd.  Blows up silently if longer than 2k.  */
-#define STR_TAB_SIZE 2048
+	/* str_tab should be malloc'd. Blows up if file's sym table too big. */
+#define STR_TAB_SIZE 5000
 	char str_tab[STR_TAB_SIZE];
 	long str_length;
 	int aux, i;
 
-	if (-1 == (fp = open(fn, 0)))
-		return(0);
+	if (-1 == (fp = open(fn, 0))) {
+		puts("coffnlist open failed\r\n");
+		return 0;
+	}
 
 	if (FILHSZ != read(fp, &head, FILHSZ) || head.f_magic != I386MAGIC) {
 		close (fp);
-		return (0);
+		printf("coffnlist header read (%d) failed\r\n", FILHSZ);
+		return 0;
 	}
 
 	lseek(fp, head.f_symptr + (SYMESZ * head.f_nsyms), 0);
@@ -245,12 +240,15 @@ int count;	/* size of passed table */
 		len = str_length -= 4;
 		if (len != str_length || len > STR_TAB_SIZE) {
 			close (fp);
-			return (0);
+			printf("coffnlist str table overflow, len = %d\r\n",
+			  len);
+			return 0;
 		}
 
 		if (len != read(fp, str_tab, len)) {
 			close (fp);
-			return (0);
+			puts("coffnlist str read failed\r\n");
+			return 0;
 		}
 	}
 
@@ -261,7 +259,8 @@ int count;	/* size of passed table */
 
 		if (SYMESZ != read(fp, &sym, SYMESZ)) {
 			close (fp);
-			return (0);
+			puts("coffnlist sym read failed\r\n");
+			return 0;
 		}
 
 		if (aux) {
@@ -291,7 +290,7 @@ int count;	/* size of passed table */
 		}
 	}
 	close (fp);
-	return (1);
+	return 1;
 }
 
 #ifdef TEST
