@@ -8,6 +8,9 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 2.10  91/05/29  11:14:24  hal
+ * Send MSG_NOP's for slow machines.  More debug output.
+ * 
  * Revision 2.9  91/05/22  01:38:55  hal
  * Overlapping disconnects give bad reads.
  * 
@@ -299,6 +302,7 @@ int	NSDRIVE = 0x0000;	/* Bitmap of attached SCSI drives. */
 				/* Set NSDRIVE highest bit for Future Domain */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
+int	SS_DELAY = 10000;	/* Loop counter during ssload() only */
 
 /* ncyl, nhead, nspt */
 drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
@@ -745,7 +749,7 @@ if (bp->b_count != BSIZE)
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
-				msg = "invlaid request";
+				msg = "invalid request";
 				bp->b_flag |= BFERR;
 				goto bad_open;
 			}
@@ -1268,14 +1272,48 @@ int s_id;
 	cmdbuf[4] = SENSELEN;
 	cmdbuf[5] = 0;
 
-	if (start_arb() && host_ident(s_id, 0) &&
-	local_info_xfer(cmdbuf, G0CMDLEN, sense_buf, SENSELEN, NULL, 0)) {
+#if (DEBUG >= 2)
+{int i; for (i=0; i<SENSELEN; i++) sense_buf[i]=0;}
+#endif
+
+PR2("rqs:");
+	if (!start_arb()) {
+PR2("NO arb");
+#if (DEBUG >= 2)
+printf("status=%x ", ffbyte(ss_csr));
+#endif
+		goto rqs_done;
+	}
+
+	if (!host_ident(s_id, 0)) {
+PR2("NO host ident");
+#if (DEBUG >= 2)
+printf("status=%x ", ffbyte(ss_csr));
+#endif
+		goto rqs_done;
+	}
+
+	if(!local_info_xfer(cmdbuf, G0CMDLEN, sense_buf, SENSELEN, NULL, 0)) {
+PR2("NO local xfer");
+		goto rqs_done;
+	} else {
 		if (sense_buf[2] == 0x00)	/* No Sense.  AOK */
 			ret = 1;
 		else if (sense_buf[2] == 0x06 && sense_buf[12] == 0x29)
 			ret = 1;
 	}
 
+rqs_done:
+#if (DEBUG >= 2)
+{
+	int i;
+
+	printf("rqs: ");
+	for (i=0; i<SENSELEN;i++)
+		printf("%x ", sense_buf[i]);
+	printf("\n");
+}
+#endif
 	return ret;
 }
 
@@ -2182,7 +2220,7 @@ int ticks;
 	int i, j;
 
 	for (i = 0; i < ticks; i++)
-		for (j = 0; j < 4000; j++);
+		for (j = 0; j < SS_DELAY; j++);
 #endif
 }
 
