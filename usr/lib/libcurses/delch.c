@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)delch.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)delch.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,8 +31,8 @@ static char sccsid[] = "@(#)delch.c	5.3 (Berkeley) 6/30/88";
 wdelch(win)
 reg WINDOW	*win; {
 
-	reg char	*temp1, *temp2;
-	reg char	*end;
+	reg uchar	*temp1, *temp2;
+	reg uchar	*end;
 
 	end = &win->_y[win->_cury][win->_maxx - 1];
 	temp1 = &win->_y[win->_cury][win->_curx];
