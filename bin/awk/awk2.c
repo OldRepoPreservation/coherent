@@ -102,7 +102,7 @@ awkinit()
 	sassign(RSp = install("RS", (INT)0), "\n");
 	sassign(OFSp = install("OFS", (INT)0), " ");
 	sassign(ORSp = install("ORS", (INT)0), "\n");
-	sassign(OFMTp = install("OFMT", (INT)0), "%D");
+	sassign(OFMTp = install("OFMT", (INT)0), "%ld");
 }
 
 /*
