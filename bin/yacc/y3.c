@@ -5,7 +5,6 @@
  *  "Efficient computation of LALR(1) lookahead sets",
  *   SIGPLAN conference 1979.
  */
-
 #include "yacc.h"
 #include <assert.h>
 
@@ -15,7 +14,7 @@
    on RSX traverse takes up about 18 bytes per call which means that
    with a 1024 byte stack we can probably make 50-55 levels of recursion
 */
-#define SMAX 100
+#define SMAX 300
 
 #define INFINITY 10000		/* infinity is small for a mathematician */
 #define INITCODE 1
