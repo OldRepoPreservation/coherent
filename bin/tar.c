@@ -12,6 +12,10 @@
 
 #define	S_PERM	07777		/* should be in stat.h */
 
+/* Possible actions for do_checksum_error().  */
+#define CLEAR 0	/* Print all pending messages.  */
+#define ADD 1	/* Add another pending message.  */
+
 #define	MAXBLK	20
 #define	roundup(n, r)	(((n)+(r)-1)/(r))
 
@@ -213,12 +217,18 @@ char	*argv[];
 		append(prefix, args);
 		flushtar();
 	}
+	/* Flush any remaining checksum messages.  */
+	do_checksum_error(NULL, CLEAR);
+
 	exit(errno);
 }
 
 fatal(args)
 char	*args;
 {
+	/* Flush any remaining checksum messages.  */
+	do_checksum_error(NULL, CLEAR);
+
 	fprintf(stderr, "tar: %r\n", &args);
 	exit(-1);
 }
@@ -261,17 +271,17 @@ register dirhd_t *args;
 	register tarhd_t *header;
 
 	for (;  (header = readhdr()) != NULL;  skipfile(header)) {
-		if (argcont(args, header->th_name, 0) < 0)
+		if (argcont(args, header->th_info.th_name, 0) < 0)
 			continue;
 		if (verbose) {
-			register unsigned short	mode = getoct(header->th_mode);
-			unsigned short	uid = getoct(header->th_uid),
-					gid = getoct(header->th_gid);
-			fsize_t	size = getoctl(header->th_size);
-			time_t	mtime = getoctl(header->th_mtime);
+			register unsigned short	mode = getoct(header->th_info.th_mode);
+			unsigned short	uid = getoct(header->th_info.th_uid),
+					gid = getoct(header->th_info.th_gid);
+			fsize_t	size = getoctl(header->th_info.th_size);
+			time_t	mtime = getoctl(header->th_info.th_mtime);
 			char	*timestr = ctime(&mtime);
 	
-			if (header->th_name[strnlen(header->th_name, 100)-1]
+			if (header->th_info.th_name[strnlen(header->th_info.th_name, 100)-1]
 					== '/')
 				putchar('d');
 			else
@@ -298,13 +308,13 @@ register dirhd_t *args;
 				timestr,
 				mtime > recently ? timestr+11 : timestr+19);
 		}
-		printf("%.100s", header->th_name);
-		if (header->th_islink)
+		printf("%.100s", header->th_info.th_name);
+		if (header->th_info.th_islink)
 			if (verbose)
 				printf("\n%33s link to %s\n", "",
-					header->th_link);
+					header->th_info.th_link);
 			else
-				printf(" link to %s\n", header->th_link);
+				printf(" link to %s\n", header->th_info.th_link);
 		else
 			putchar('\n');
 	}
@@ -318,13 +328,13 @@ register dirhd_t *args;
 
 	while ((header = readhdr()) != NULL) {
 		register char	name[101];
-		unsigned short	namelen = strnlen(header->th_name, 100),
+		unsigned short	namelen = strnlen(header->th_info.th_name, 100),
 				mode,
 				uid,
 				gid;
 
-		if (!skipping || contains(name, header->th_name) >= 0) {
-			strncpy(name, header->th_name, namelen);
+		if (!skipping || contains(name, header->th_info.th_name) >= 0) {
+			strncpy(name, header->th_info.th_name, namelen);
 			name[namelen--] = '\0';
 			if ((skipping = argcont(args, name, 0)) >= 0)
 				skipping = disallow('x', name);
@@ -338,25 +348,36 @@ register dirhd_t *args;
 		}
 		if (verbose)
 			printf("x %s\n", name);
-		mode = getoct(header->th_mode);
-		uid = getoct(header->th_uid);
-		gid = getoct(header->th_gid);
-		oldtime[1] = getoctl(header->th_mtime);
+		mode = getoct(header->th_info.th_mode);
+		uid = getoct(header->th_info.th_uid);
+		gid = getoct(header->th_info.th_gid);
+		oldtime[1] = getoctl(header->th_info.th_mtime);
 		if (name[namelen] == '/') {
 			name[namelen] = '\0';
 			makepath(name);
 			chmod(name, mode);
 			name[namelen] = '/';
-		} else if (header->th_islink == '\0') {
+		} else if (header->th_info.th_islink == '\0') {
 			int	fd = recreate(name, mode);
-			fsize_t	size = getoctl(header->th_size);
+			fsize_t	size = getoctl(header->th_info.th_size);
 	
 			for (;  size > 0;  size -= sizeof (tarhd_t)) {
-				header = readblk();
-				if (fd >= 0 && write(fd, header->th_data,
-						size > sizeof (tarhd_t)
-						 ? sizeof (tarhd_t)
-						 : (int)size) <= 0)
+				int	my_size;
+
+				/* Handle unexpected EOF - mods by vlad@kiev.mwc.com */
+				if ((header = readblk()) == NULL) {
+					fprintf(stderr, 
+					 "Unexpected end of the file %s\n",
+						name);
+					break;
+				}
+				if (size > sizeof(tarhd_t))
+					my_size = sizeof(tarhd_t);
+				else
+					my_size = (int) size;
+				if (fd >= 0 && (write(fd, header->th_data,
+						my_size) != my_size))
+
 					perror("Tar: %s", name);
 			}
 			if (fd >= 0)
@@ -365,19 +386,19 @@ register dirhd_t *args;
 			struct	stat	statbuf;
 			flag_t	xlink = 1;
 	
-			if (stat(header->th_link, &statbuf) < 0)
-				close(recreate(header->th_link, mode));
+			if (stat(header->th_info.th_link, &statbuf) < 0)
+				close(recreate(header->th_info.th_link, mode));
 			else if (havelink(statbuf.st_dev, statbuf.st_ino, 0)
 					!= NULL)
 				xlink = 0;
 			if (xlink)
 				fprintf(stderr, "Tar: Must extract %s\n",
-					header->th_link);
+					header->th_info.th_link);
 			unlink(name);
 			mkparent(name);
-			if (link(header->th_link, name) < 0)
+			if (link(header->th_info.th_link, name) < 0)
 				fprintf(stderr, "Tar: Can't link %s to %s\n",
-					name, header->th_link);
+					name, header->th_info.th_link);
 		}
 		if (modtime)
 			utime(name, oldtime);
@@ -403,7 +424,7 @@ tarhd_t	*header;
 		register dirhd_t *argp;
 
 	case S_IFREG:
-		if (args->t_mtime <= getoctl(header->th_mtime))
+		if (args->t_mtime <= getoctl(header->th_info.th_mtime))
 			args->t_nlink = 0;
 		skipfile(header);
 		continue;
@@ -412,7 +433,7 @@ tarhd_t	*header;
 			name[namelen] = '/';
 			donedir++;
 		}
-		if ((arg = argcont(args, header->th_name+namelen+donedir, -1))
+		if ((arg = argcont(args, header->th_info.th_name+namelen+donedir, -1))
 				>= 0) {
 			strcpy(name+namelen+donedir,
 				(argp=args->t_cont[arg])->t_name);
@@ -424,7 +445,7 @@ tarhd_t	*header;
 			skipfile(header);
 		name[namelen+donedir] = '\0';
 	} while ((header=readhdr()) != NULL
-		&& contains(name, header->th_name));
+		&& contains(name, header->th_info.th_name));
 	if (header != NULL)
 		ungetblk();
 	if (args->t_nlink == 0) {
@@ -729,23 +750,37 @@ readhdr()
 	register tarhd_t *header;
 
 	while ((header = readblk()) != NULL) {
-		if (header->th_name[0] == '\0')
+		if (header->th_info.th_name[0] == '\0')
 			if (unixbug) {
 				ungetblk();
 				return (NULL);
 			} else
 				continue;
 		else {
-			int	check = getoct(header->th_check);
+			int	check = getoct(header->th_info.th_check);
 	
-			strncpy(header->th_check, "        ",
-				sizeof(header->th_check));
-			if (checksum(header->th_data, sizeof(tarhd_t)) != check)
-				fprintf(stderr, "Tar: %.100s: bad checksum\n",
-					header->th_name);
-			else
+			strncpy(header->th_info.th_check, "        ",
+				sizeof(header->th_info.th_check));
+			if (checksum(header->th_data, sizeof(tarhd_t)) != check){
+				do_checksum_error(header->th_info.th_name, ADD);
+			} else {
+				do_checksum_error(NULL, CLEAR);
 				break;
+			}
 		}
+	}
+	/* We shouldn't have to check EVERY header, but if we do it here
+	 * it gets done for every routine.
+	 * Newer tar programs use the first eight bytes of the
+	 * pad field as magic to indicate the type of archive.
+	 * With old tar archives, these eight characters should be
+	 * NUL.  We'll only check the first one.
+	 */
+	/* Check to see if this is a v7 style tar archive.  */
+	if ((char)0 != header->th_info.th_pad[0]) {
+		fatal("%.8s archive, not v7 archive.",
+			header->th_info.th_pad);
+		
 	}
 	return (header);
 }
@@ -755,9 +790,9 @@ tarhd_t	*header;
 {
 	register fsize_t	size;
 
-	if (header->th_islink)
+	if (header->th_info.th_islink)
 		return;
-	for (size = getoctl(header->th_size);
+	for (size = getoctl(header->th_info.th_size);
 		size > 0 && readblk() != NULL;
 		size -= sizeof (tarhd_t))
 		;
@@ -772,15 +807,15 @@ char	*link;
 
 	if (verbose)
 		fprintf(stderr, "a %s", name);
-	strncpy(header->th_name, name, sizeof(header->th_name));
-	putoct(header->th_mode, args->t_mode&S_PERM);
-	putoct(header->th_uid, args->t_uid);
-	putoct(header->th_gid, args->t_gid);
-	putoctl(header->th_size, args->t_size);
-	putoctl(header->th_mtime, args->t_mtime);
-	strncpy(header->th_check, "        ", sizeof(header->th_check));
+	strncpy(header->th_info.th_name, name, sizeof(header->th_info.th_name));
+	putoct(header->th_info.th_mode, args->t_mode&S_PERM);
+	putoct(header->th_info.th_uid, args->t_uid);
+	putoct(header->th_info.th_gid, args->t_gid);
+	putoctl(header->th_info.th_size, args->t_size);
+	putoctl(header->th_info.th_mtime, args->t_mtime);
+	strncpy(header->th_info.th_check, "        ", sizeof(header->th_info.th_check));
 	if (*link == '\0') {
-		header->th_islink = 0;
+		header->th_info.th_islink = 0;
 		if (verbose)
 			if (args->t_size == 0)
 				putc('\n', stderr);
@@ -789,13 +824,13 @@ char	*link;
 					roundup(args->t_size, BUFSIZ),
 					args->t_size <= BUFSIZ ? "" : "s");
 	} else {
-		header->th_islink = '1';
+		header->th_info.th_islink = '1';
 		if (verbose)
 			fprintf(stderr, " link to %s\n", link);
 	}
-	strncpy(header->th_link, link, sizeof(header->th_link));
-	strncpy(header->th_pad, "", sizeof(header->th_pad));
-	putoct(header->th_check, checksum(header->th_data, sizeof(tarhd_t)));
+	strncpy(header->th_info.th_link, link, sizeof(header->th_info.th_link));
+	strncpy(header->th_info.th_pad, "", sizeof(header->th_info.th_pad));
+	putoct(header->th_info.th_check, checksum(header->th_data, sizeof(tarhd_t)));
 }
 
 writefil(name, size)
@@ -837,7 +872,7 @@ readblk()
 		current = &buffer[0];
 		blocks = fread((char *) buffer,
 				sizeof (tarhd_t), MAXBLK, tarfile);
-		if (ferror(tarfile)) {
+		if (ferror(tarfile) || feof(tarfile)) {
 			exit(perror("Tar: %s", archive));
 		} else if (feof(tarfile)) {
 			return (NULL);
@@ -857,7 +892,7 @@ writeblk()
 	if (current == &buffer[blocking]) {
 		current = &buffer[0];
 		fwrite((char *)buffer, sizeof (tarhd_t), blocking, tarfile);
-		if (ferror(tarfile)) {
+		if (ferror(tarfile) || feof(tarfile)) {
 			exit(perror("Tar: %s", archive));
 		}
 	}
@@ -1049,3 +1084,79 @@ register char	*dname,
 	else
 		return (0);
 }
+
+/* Handle the processing of a checksum error.
+ * This is special because sometimes end of archive will look like
+ * a lot of checksum errors.
+ */
+int
+do_checksum_error(name, action)
+	char *name;
+	int action;
+{
+#define MSG_SIZE (100 + sizeof("Tar: %.100s: bad checksum\n") + 1)
+#define MAX_CHECKERR	5 /* Give up after 5 consecutive checksum errors.  */
+
+	static error_count = 0;	/* Number of checksums we've seen.  */
+	static char *msg_list = NULL; /* Error message we've queued.  */
+	char tmp_buf[MSG_SIZE];	/* Someplace to build new errors. */
+
+	
+	switch (action) {
+	case ADD:
+		/* If there have been too many checksum errors, or if
+		 * we can't allocate more memory for more error messages,
+		 * throw away the existing messages, and look for another
+		 * valid block.
+		 */
+		if (++error_count > MAX_CHECKERR ||
+		    (msg_list = (char *)realloc(msg_list,
+					strlen(msg_list) + MSG_SIZE +1)) ==
+		    NULL) {
+			fprintf(stderr,
+			    "Tar: %s: This doesn't look like a tar archive.\n",
+			    archive);
+			free(msg_list);
+			msg_list = 0;
+			error_count = 0;
+			fprintf(stderr, "Tar: Scanning for next file.\n");
+			scan_for_next();
+		}
+
+		sprintf(tmp_buf, "Tar: %.100s: bad checksum\n",
+			name);
+		strcat(msg_list, tmp_buf);
+		break;
+	case CLEAR:
+		if (NULL != msg_list) {
+			fprintf(stderr, "%s", msg_list);
+			free(msg_list);
+			msg_list = NULL;
+		}
+		error_count = 0;
+		break;
+	} /* switch (action) */
+} /* do_checksum_error() */
+
+/* Find the next valid block.  */
+int
+scan_for_next()
+{
+	int	check;
+	tarhd_t	*header;
+
+	while ( (header = readblk()) != NULL ) {
+		check = getoct(header->th_info.th_check);
+
+		strncpy(header->th_info.th_check, "        ",
+			sizeof(header->th_info.th_check));
+		if (checksum(header->th_data, sizeof(tarhd_t)) == check){
+			/* Found a good header!  */
+			ungetblk();
+			return;
+		}
+	} /* while (more blocks to read) */
+	/* If we got here, it means we ran out of things to read.  */
+	fatal("no more valid blocks");
+
+} /* scan_for_next() */
