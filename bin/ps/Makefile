@@ -2,14 +2,14 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, November 1991
 
-DESTDIR=/
+DESTDIR=/bin386/bin/
 LIB=/usr/local/lib
 
 TARGETS=ps
 
-OBJECTS=ps.o coffnlist.o
+OBJECTS=ps.o coffnlist.o fifo.o pick_nfile.o
 
-SOURCES=ps.c coffnlist.c
+SOURCES=ps.c coffnlist.c fifo.c pick_nfile.c
 
 AR=ar
 RANLIB=ranlib
@@ -21,7 +21,7 @@ all: $(TARGETS)
 	@true	# nop
 
 ps:	$(OBJECTS)
-	$(CC) -o ps $(OBJECTS) $(LIBS)
+	$(CC) -o $(DESTDIR)ps $(OBJECTS) $(LIBS)
 
 readker: readker.o
 	$(CC) -o readker readker.o $(LIBS)
