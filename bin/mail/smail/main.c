@@ -221,3 +221,13 @@ char *argv[];
 */
 	return( exitstat );
 }
+
+
+void
+close_fds()
+{
+	int fd;
+	for (fd = fileno(stderr) + 1; fd <= _NFILE; ++fd) {
+		(void) close(fd);
+	} /* for fd = stderr to number_of_file_descriptors */
+} /* close_fds() */
