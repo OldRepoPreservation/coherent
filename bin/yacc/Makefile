@@ -1,7 +1,7 @@
 # /usr/src/cmd/yacc/Makefile 2/20/91
 # For i8086: LFLAGS=-n.
 
-DESTDIR=
+DESTDIR=/bin386/bin/
 CFLAGS=-O
 LDFLAGS=
 
@@ -14,8 +14,8 @@ install: yacc
 	su root `srcpath installer`
 
 y0.o y1.o y4.o:	yacc.h
-y3.o:		yacc.h assert.h
-y2.o y6.o:	yacc.h action.h
-y5.o:		yacc.h assert.h action.h
+y3.o:		yacc.h
+y2.o y6.o:	yacc.h
+y5.o:		yacc.h
 
 # end of /usr/src/cmd/yacc/Makefile
