@@ -314,7 +314,7 @@ long x;
 	register STRING *a;
 
 	a = makestr();
-	sprintf(a->s_body, "%D", x);
+	sprintf(a->s_body, "%ld", x);
 	pushstr(a);
 	decstr(a);
 }
