@@ -21,7 +21,8 @@ IOOBJ = \
 	$(K386OBJ)/ct.o \
 	$(K386OBJ)/dmareq.o \
 	$(K386OBJ)/fdisk.o \
-	$(K386OBJ)/fl.o \
+	$(K386OBJ)/fdc.o \
+	$(K386OBJ)/fl386.o \
 	$(K386OBJ)/hs.o \
 	$(K386OBJ)/ipc.o \
 	$(K386OBJ)/kb.o \
@@ -45,7 +46,10 @@ IOOBJ = \
 	$(K386OBJ)/vtnkb.o \
 	$(K386OBJ)/vtkb.o \
 	$(K386OBJ)/vtkb_d.o \
-	$(K386OBJ)/vtkb_f.o
+	$(K386OBJ)/vtkb_f.o \
+	$(K386OBJ)/xlft.o \
+	$(K386OBJ)/xla.o \
+	$(K386OBJ)/xl_dec.o
 
 all: $(IOOBJ)
 	@echo "io objects up to date"
@@ -123,22 +127,31 @@ $(K386OBJ)/fdisk.o:			\
 		fdisk.c
 	$(CC) $(CFLAGS) -c -o $@ fdisk.c
 
-$(K386OBJ)/fl.o:				\
+$(K386OBJ)/fdc.o:				\
 		$(SYSINC)/buf.h		\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/reg.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
 		$(SYSINC)/con.h		\
-		$(SYSINC)/dmac.h	\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/fdc765.h		\
+		$(SYSINC)/uproc.h	\
+		fdc.c
+	$(CC) $(CFLAGS) -c -o $@ fdc.c
+
+$(K386OBJ)/fl386.o:				\
+		$(SYSINC)/buf.h		\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/reg.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/fdioctl.h	\
-		$(SYSINC)/reg.h	\
 		$(SYSINC)/sched.h	\
-		$(SYSINC)/stat.h	\
-		$(SYSINC)/timeout.h	\
+		$(SYSINC)/fdc765.h		\
 		$(SYSINC)/uproc.h	\
-		fl.c
-	$(CC) $(CFLAGS) -c -o $@ fl.c
+		fl386.c
+	$(CC) $(CFLAGS) -c -o $@ fl386.c
 
 $(K386OBJ)/fontw.o: fontgen.c
 	$(CC) -i fontgen.c -o fontgen
@@ -240,8 +253,8 @@ $(K386OBJ)/lp.o:				\
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
 		$(SYSINC)/uproc.h	\
-		lp.c
-	$(CC) $(CFLAGS) -c -o $@ lp.c
+		lp386.c
+	$(CC) $(CFLAGS) -c -o $@ lp386.c
 
 $(K386OBJ)/mm.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
@@ -327,3 +340,12 @@ $(K386OBJ)/vtmmas.o:	vtmmas.s
 
 $(K386OBJ)/vtnkb.o: vtnkb.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/xlft.o: xlft.c
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
+
+$(K386OBJ)/xl_dec.o: xl_dec.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/xla.o:	xla.s
+	$(AS) -g -o $@ $<
