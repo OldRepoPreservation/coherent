@@ -68,6 +68,7 @@ WINDOW *
 newwin(num_lines, num_columns, begy, begx)
 int	num_lines, num_columns, begy, begx;
 {
+	void		free();
 	register WINDOW	*win;
 	chtype		*ptr;
 	register int	i, j;
@@ -170,6 +171,7 @@ static WINDOW *
 makenew(num_lines, num_columns, begy, begx)
 int	num_lines, num_columns, begy, begx;
 {
+	void		free();
 	register int	i;
 	register WINDOW	*win;
 

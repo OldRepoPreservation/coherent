@@ -107,7 +107,7 @@ int	filedes;
 int	*errret;
 {
 	char		filename[1024];
-	char		*malloc(), *getenv();
+	char		*malloc(), *getenv(), *strncpy();
 	char		*terminfo;
 	struct term	*term_ptr;
 	int		got_code;

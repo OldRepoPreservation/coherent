@@ -143,6 +143,7 @@ typedef unsigned char uchar;
 expand(str)
 uchar	*str;
 {
+	char		*strcpy();
     	static char	buffer[1024];
 	int		bufp;
 	uchar		*ptr;
@@ -172,5 +173,5 @@ uchar	*str;
 	}
 
 	buffer[bufp] = '\0';
-	strcpy(ptr, buffer);
+	strcpy((char *) ptr, buffer);
 }

@@ -151,6 +151,7 @@ tparm(string, parms)
 register char	*string;
 int		parms;
 {
+	char		*strcpy();
 	char		len;
 	int		number;
 	int		level;

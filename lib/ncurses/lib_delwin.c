@@ -55,6 +55,7 @@ static char RCSid[] =
 delwin(win)
 register WINDOW	*win;
 {
+	void		free();
 	register int	i;
 
 #ifdef TRACE

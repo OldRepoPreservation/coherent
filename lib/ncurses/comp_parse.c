@@ -141,7 +141,7 @@ compile()
 	    err_abort("File does not start with terminal names in column one");
 	
 	while (token_type != EOF)
-	    token_type = do_entry(NULL);
+	    token_type = do_entry((struct use_item *) 0);
 
 	DEBUG(2, "Starting handling of forward USE's\n", "");
 
@@ -441,6 +441,7 @@ char	Booleans[];
 short	Numbers[];
 short	Strings[];
 {
+	char		*strcpy();
 	struct stat	statbuf;
 	FILE		*fp;
 	static char	name_list[1024];
@@ -619,12 +620,13 @@ short	Strings[];
 		Strings[i] = swap(Strings[i]);
 	}
 
-	if (fwrite(Numbers, sizeof(short), NUMCOUNT, fp) != NUMCOUNT
-	       ||  fwrite(Strings, sizeof(short), STRCOUNT, fp) != STRCOUNT
-	       ||  fwrite(string_table, sizeof(char), next_free, fp)
+	if (fwrite((char *) Numbers, sizeof(short), NUMCOUNT, fp) != NUMCOUNT
+	       ||  fwrite((char *) Strings, sizeof(short), STRCOUNT, fp) != STRCOUNT
+	       ||  fwrite((char *) string_table, sizeof(char), next_free, fp)
 								  != next_free)
 	    return(-1);
 
+	return(0);
 }
 
 
@@ -664,7 +666,7 @@ int
 save_str(string)
 char	*string;
 {
-	char	*malloc(), *realloc();
+	char	*malloc(), *realloc(), *strcpy();
 	int	old_next_free = next_free;
 
 	if (table_size == 0)
@@ -798,4 +800,5 @@ short		Strings[];
 	    }
 
 	}
+	return(0);
 }

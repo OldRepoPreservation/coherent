@@ -442,8 +442,13 @@ struct term
    char	 *term_names;	/* offset in str_table of terminal names */
    char	 *str_table;	/* pointer to string table */
    short Filedes;	/* file description being written to */
+#ifdef USE_TERMIO
+   struct termio Otermio,
+                 Ntermio;
+#else
    SGTTY Ottyb,		/* original state of the terminal */
 	 Nttyb;		/* current state of the terminal */
+#endif
 
    char		 Booleans[37];
    short	 Numbers[30];
