@@ -2,12 +2,12 @@
  * Block or character device RAM disk driver.
  */
 
-#include	<coherent.h>
-#include	<buf.h>
+#include	<sys/coherent.h>
+#include	<sys/buf.h>
 #include	<errno.h>
-#include	<uproc.h>
-#include	<seg.h>
-#include	<con.h>
+#include	<sys/uproc.h>
+#include	<sys/seg.h>
+#include	<sys/con.h>
 #include	<sys/inode.h>
 #include	<sys/stat.h>
 
@@ -170,14 +170,17 @@ rmblock(bp) register BUF *bp;
 	osize = rmp->rm_size;
 	if (osize == 0 || asize != osize)
 		bp->b_flag |= BFERR;
-	else if (bp->b_bno >= asize*ASIZE)
+	/*
+	 * Make sure last block requested is within range of device.
+	 */	
+	else if ((bp->b_bno + bp->b_count/BSIZE - 1) >= asize*ASIZE)
 		bp->b_flag |= BFERR;
 	else {
 		base = rmp->rm_paddr + (paddr_t)bp->b_bno * BSIZE;
 		if (bp->b_req == BREAD)
-			plrcopy(base, bp->b_paddr, (fsize_t)BSIZE);
+			plrcopy(base, bp->b_paddr, (fsize_t)bp->b_count);
 		else
-			plrcopy(bp->b_paddr, base, (fsize_t)BSIZE);
+			plrcopy(bp->b_paddr, base, (fsize_t)bp->b_count);
 	}
 	bdone(bp);
 }
