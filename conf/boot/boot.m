@@ -8,7 +8,10 @@
 / (128K above the fixed memory used by the ROM). The system image is read
 / in beginning at paragraph 0x0060.
 /
-/ $Log:	/usr/src/sys/i8086/boot/RCS/boot.s,v $
+/ $Log:	/newbits/conf/boot/RCS/boot.m,v $
+/ * Revision 1.1	91/05/29  08:30:19 	bin
+/ * Initial revision
+/ * 
 / Revision 1.1	88/03/24  16:44:09	src
 / Initial revision
 / 
