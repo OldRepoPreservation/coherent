@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)cr_put.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)cr_put.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -25,7 +25,7 @@ static char sccsid[] = "@(#)cr_put.c	5.3 (Berkeley) 6/30/88";
 
 # define	HARDTABS	8
 
-extern char	*tgoto();
+extern uchar	*tgoto();
 int		plodput();
 
 /*
@@ -61,7 +61,7 @@ int	ly, lx, y, x; {
 
 fgoto()
 {
-	reg char	*cgp;
+	reg uchar	*cgp;
 	reg int		l, c;
 
 	if (destcol >= COLS) {
@@ -381,7 +381,7 @@ out:
 		outcol = soutcol;
 		outline = soutline;
 	}
-	return(plodcnt);
+	return (plodcnt);
 }
 
 /*
