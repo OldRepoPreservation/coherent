@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 2.3  91/12/05  09:35:06  hal
+ * Working 16550A code.  Nfg on GeeSee.
+ * 
  * Revision 2.2  91/12/02  19:21:45  hal
  * Last version before FIFO testing.
  *
@@ -804,108 +807,138 @@ register TTY * tp;
 	int port = ALPORT;
 	unsigned char msr;
 	int xmit_count;
+
+	if (tp) {
 rescan:
-	switch (inb(port+IIR) & 0x07) {
+		switch (inb(port+IIR) & 0x07) {
 
-	case LS_INTR:
-		if (inb(port+LSR) & LS_BREAK)
-			defer(alxbreak, tp);
-		goto rescan;
-
-	case Rx_INTR:
-		c = inb(port+DREG);
-		if (tp->t_open == 0)
+		case LS_INTR:
+			if (inb(port+LSR) & LS_BREAK)
+				defer(alxbreak, tp);
 			goto rescan;
-		/*
-		 * Must recognize XOFF quickly to avoid transmit overrun.
-		 * Recognize XON here as well to avoid race conditions.
-		 */
-		if (!ISRIN) {
-			/*
-			 * XOFF.
-			 */
-			if (ISSTOP) {
-				tp->t_flags |= T_STOP;
+
+		case Rx_INTR:
+			c = inb(port+DREG);
+			if (tp->t_open == 0)
 				goto rescan;
+			/*
+			 * Must recognize XOFF quickly to avoid transmit overrun.
+			 * Recognize XON here as well to avoid race conditions.
+			 */
+			if (!ISRIN) {
+				/*
+				 * XOFF.
+				 */
+				if (ISSTOP) {
+					tp->t_flags |= T_STOP;
+					goto rescan;
+				}
+
+				/*
+				 * XON.
+				 */
+				if (ISSTART) {
+					tp->t_flags &= ~T_STOP;
+					goto rescan;
+				}
 			}
 
 			/*
-			 * XON.
+			 * Save char in raw input buffer.
 			 */
-			if (ISSTART) {
-				tp->t_flags &= ~T_STOP;
+			if (tp->t_rawin.SILO_CHAR_COUNT < MAX_SILO_CHARS) {
+				tp->t_rawin.si_buf[tp->t_rawin.si_ix] = c;
+				if (tp->t_rawin.si_ix < MAX_SILO_INDEX)
+					tp->t_rawin.si_ix++;
+				else
+					tp->t_rawin.si_ix = 0;
+				tp->t_rawin.SILO_CHAR_COUNT++;
+			}
+
+			/*
+			 * If using hardware flow control, see if we need to drop RTS.
+			 */
+			if ( (tp->t_flags & T_CFLOW)
+			&& (tp->t_rawin.SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
+				unsigned char mcr = inb(port+MCR);
+				if (mcr & MC_RTS) {
+					outb(port+MCR, mcr & ~MC_RTS);
+				}
+			}
+			goto rescan;
+
+		case Tx_INTR:
+			/*
+			 * Do nothing if output is stopped.
+			 */
+			if (tp->t_flags & T_STOP)
 				goto rescan;
-			}
-		}
+			if (com_usage[AL_NUM].ohlt)
+				goto rescan;
 
-		/*
-		 * Save char in raw input buffer.
-		 */
-		if (tp->t_rawin.SILO_CHAR_COUNT < MAX_SILO_CHARS) {
-			tp->t_rawin.si_buf[tp->t_rawin.si_ix] = c;
-			if (tp->t_rawin.si_ix < MAX_SILO_INDEX)
-				tp->t_rawin.si_ix++;
-			else
-				tp->t_rawin.si_ix = 0;
-			tp->t_rawin.SILO_CHAR_COUNT++;
-		}
-
-		/*
-		 * If using hardware flow control, see if we need to drop RTS.
-		 */
-		if ( (tp->t_flags & T_CFLOW)
-		&& (tp->t_rawin.SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
-			unsigned char mcr = inb(port+MCR);
-			if (mcr & MC_RTS) {
-				outb(port+MCR, mcr & ~MC_RTS);
-			}
-		}
-		goto rescan;
-
-	case Tx_INTR:
-		/*
-		 * Do nothing if output is stopped.
-		 */
-		if (tp->t_flags & T_STOP)
-			goto rescan;
-		if (com_usage[AL_NUM].ohlt)
-			goto rescan;
-
-		/*
-		 * Transmit next char in raw output buffer.
-		 */
-		xmit_count = (com_usage[AL_NUM].uart_type == US_16550A)?16:1;
-		for (;(tp->t_rawout.si_ix != tp->t_rawout.si_ox) && xmit_count;
-		  xmit_count--) {
-			outb(port+DREG,
-				tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
 			/*
-			 * Adjust raw output buffer output index.
+			 * Transmit next char in raw output buffer.
 			 */
-			if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
-				tp->t_rawout.si_ox = 0;
-		}
+			xmit_count = (com_usage[AL_NUM].uart_type == US_16550A)?16:1;
+			for (;(tp->t_rawout.si_ix != tp->t_rawout.si_ox) && xmit_count;
+			  xmit_count--) {
+				outb(port+DREG,
+					tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
+				/*
+				 * Adjust raw output buffer output index.
+				 */
+				if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
+					tp->t_rawout.si_ox = 0;
+			}
 
-		goto rescan;
+			goto rescan;
 
-	case MS_INTR:
+		case MS_INTR:
+			/*
+			 * Get status (and clear interrupt).
+			 */
+			msr = inb(port+MSR);
+
+			/*
+			 * Hardware flow control.
+			 *	Check CTS to see if we need to halt output.
+			 */
+			if (tp->t_flags & T_CFLOW) {
+				if (msr & MS_CTS)
+					com_usage[AL_NUM].ohlt = 0;
+				else
+					com_usage[AL_NUM].ohlt = 1;
+			}
+
+			goto rescan;
+		} /* endswitch */
+	} else {
 		/*
-		 * Get status (and clear interrupt).
+		 * If tp is zero, an interrupt occurred before things
+		 * are fully set up.  Just try to clear all pending
+		 * interrupts from ANY serial ports.
 		 */
-		msr = inb(port+MSR);
-
-		/*
-		 * Hardware flow control.
-		 *	Check CTS to see if we need to halt output.
-		 */
-		if (tp->t_flags & T_CFLOW) {
-			if (msr & MS_CTS)
-				com_usage[AL_NUM].ohlt = 0;
-			else
-				com_usage[AL_NUM].ohlt = 1;
+		int com_num;
+		for (com_num = 1; com_num < 4; com_num++) {
+			switch(com_num) {
+			case 1:
+				port = 0x3F8;
+				break;
+			case 2:
+				port = 0x2F8;
+				break;
+			case 3:
+				port = 0x3E8;
+				break;
+			case 4:
+				port = 0x2E8;
+				break;
+			}
+			inb(port+IIR);
+			inb(port+LSR);
+			inb(port+MSR);
+			inb(port+DREG);
 		}
-
-		goto rescan;
 	}
 }
 
