@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/clock.c,v 1.4 92/04/03 13:19:16 hal Exp $ */
+/* $Header: /y/coh.386/RCS/clock.c,v 1.6 92/07/16 16:33:29 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -64,8 +64,7 @@ static int clocks;
 /*
  * This routine is called once every tick (1/HZ seconds).
  * It gets called with the program counter that was interrupted
- * a flag telling whether we were in user or kernel mode and the
- * previous priority we were in.
+ * and the CPL of the interrupted code (0..3).
  */
 clock(pc, umode)
 vaddr_t pc;
@@ -122,7 +121,7 @@ vaddr_t pc;
 	 */
 	pp = SELF;
 	pp->p_cval >>= 1;
-	if (umode) {
+	if (umode == R_USR) {
 		pp->p_utime++;
 		u.u_ppc = pc;
 	} else
@@ -175,7 +174,6 @@ stand()
 		LOGLIST();
 	}
 #endif
-
 
 	u.u_error = 0;
 

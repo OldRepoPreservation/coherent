@@ -128,8 +128,10 @@ int (*f)();
 {
 	register PROC *pp1;
 	register PROC *pp;
+#ifndef _I386
 	register SEG *sp;
 	MCON mcon;
+#endif
 
 	if ((pp=kalloc(sizeof(PROC))) == NULL)
 		return (NULL);
@@ -141,7 +143,7 @@ int (*f)();
 	/*
 	 * What is this, and why is it 286 only?
 	 */
-	if (f != NULL) {
+	if (f) {
 		pp->p_flags |= PFKERN;
 		sp = salloc((fsize_t)UPASIZE, SFSYST|SFHIGH|SFNSWP);
 		if (sp == NULL) {
@@ -207,7 +209,7 @@ register PROC *pp;
 	/*
 	 * Child process still has a user-area.
 	 */
-	if ((sp = pp->p_segp[SIUSERP]) != NULL) {
+	if (sp = pp->p_segp[SIUSERP]) {
 
 		/*
 		 * Detach user-area from child process.
@@ -277,9 +279,9 @@ pfork()
 		relproc(cpp);
 		return -1;
 	}
-	if (u.u_rdir != NULL)
+	if (u.u_rdir)
 		u.u_rdir->i_refc++;
-	if (u.u_cdir != NULL)
+	if (u.u_cdir)
 		u.u_cdir->i_refc++;
 	fdadupl();
 	cpp->p_uid   = pp->p_uid;
@@ -313,15 +315,23 @@ pfork()
 	if ((pp = SELF) != cpp) {
 		segfinm(cpp->p_segp[SIUSERP]);
 #ifdef _I386
+#if 0
+		printf("dmaout(%d,0x%x,0x%x) ", 
+		  sizeof(mcon), 
+		  MAPIO(cpp->p_segp[SIUSERP]->s_vmem,
+		  U_OFFSET + offset(uproc,u_syscon)),
+		  (char *)&mcon);
+		printf("mc_sp=%x ", mcon.mc_sp);
+#endif
 		dmaout(sizeof(mcon), 
-		   MAPIO(cpp->p_segp[SIUSERP]->s_vmem,offset(uproc,u_syscon)),
-			(char *)&mcon);
+		  MAPIO(cpp->p_segp[SIUSERP]->s_vmem,
+		  U_OFFSET + offset(uproc,u_syscon)),
+		  (char *)&mcon);
 #else
 		kfcopy((char *)&mcon,
 			cpp->p_segp[SIUSERP]->s_faddr + offset(uproc,u_syscon),
 			sizeof(mcon));
 #endif
-		mfixcon(cpp);
 		s = sphi();
 		setrun(cpp);
 		spl(s);
@@ -389,7 +399,7 @@ pexit(s)
 	 * Free all segments in reverse order, except for user-area.
 	 */
 	for (n = NUSEG; --n > 0;) {
-		if ((sp = pp->p_segp[n]) != NULL) {
+		if (sp = pp->p_segp[n]) {
 			pp->p_segp[n] = NULL;
 			sfree(sp);
 		}
@@ -411,7 +421,7 @@ pexit(s)
 			pp1->p_ppid = 1;
 			if (pp1->p_state == PSDEAD)
 				wakeup((char *)eprocp);
-			if ((pp1->p_flags&PFTRAC) != 0)
+			if (pp1->p_flags&PFTRAC)
 				wakeup((char *)&pts.pt_req);
 		}
 	}
@@ -419,7 +429,7 @@ pexit(s)
 	/*
 	 * Wake up swapper if swap timer is active.
 	 */
-	if (stimer.t_last != 0)
+	if (stimer.t_last)
 		wakeup((char *) &stimer);
 
 	/*
@@ -676,14 +686,34 @@ dispatch()
 		SELF = pp1;
 		if (consave(&u.u_syscon) == 0) {
 #ifdef _I386
+#if 0
+printf("after consave proc %d mc_sp=%x\n", pp1->p_pid, u.u_syscon.mc_sp);
+printf("before conrest(%x,%x)\n", *pp1->p_segp[SIUSERP]->s_vmem, &u.u_syscon);
+{
+	int sg_addr;
+	MCON mcon;
+
+	sg_addr = MAPIO(pp1->p_segp[SIUSERP]->s_vmem,
+	  U_OFFSET + offset(uproc,u_syscon));
+	printf("sg_addr = %x = MAPIO(%x,%x)\n", sg_addr,
+	  pp1->p_segp[SIUSERP]->s_vmem,
+	  U_OFFSET + offset(uproc,u_syscon));
+	printf("before pxcopy(0x%x, 0x%x, %d)\n",
+	  sg_addr, &mcon, sizeof(mcon));
+	pxcopy(sg_addr, &mcon, sizeof(mcon), SEG_386_KD|SEG_VIRT);
+	printf("after pxcopy(0x%x, 0x%x, %d) mc_sp=%x\n",
+	  sg_addr, &mcon, sizeof(mcon), mcon.mc_sp);
+}
+#endif
 			conrest(*pp1->p_segp[SIUSERP]->s_vmem, &u.u_syscon);
 #else
 			conrest(
 			  FP_SEL(pp1->p_u->s_faddr), offset(uproc,u_syscon));
 #endif
 		}
-		if (SELF->p_pid != 0)
+		if (SELF->p_pid) {
 			segload();
+		}
 		spl(s);
 	}
 }
