@@ -128,16 +128,16 @@ char *argv[];
 		if (Sflag)
 			used /= 512; else
 			used /= 100*12;
-		fprintf(stderr, "dump: length is %D ", used);
+		fprintf(stderr, "dump: length is %ld ", used);
 		if (Sflag)
 			fprintf(stderr, "blocks\n");
 		else if (used == 1)
 			fprintf(stderr, "foot\n");
 		else
 			fprintf(stderr, "feet\n");
-		fprintf(stderr, "dump: %D inodes, ",  ninodes);
-		fprintf(stderr, "%D real blocks, ",   nblocks);
-		fprintf(stderr, "%D sparse blocks\n", nsparse);
+		fprintf(stderr, "dump: %ld inodes, ",  ninodes);
+		fprintf(stderr, "%ld real blocks, ",   nblocks);
+		fprintf(stderr, "%ld sparse blocks\n", nsparse);
 	}
 	exit(0);
 }
