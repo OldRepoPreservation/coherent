@@ -361,23 +361,28 @@ atreset()
 
 		/*
 		 * Set drive characteristics.
+		 * 0x1F1 - AUX_REG
+		 * 0x1F2 - NSEC_REG
+		 * 0x1F3 - SEC_REG
+		 * 0x1F4 - LCYL_REG
+		 * 0x1F5 - HCYL_REG
+		 * 0x1F6 - HDRV_REG
+		 * 0x1F7 - CSR_REG
 		 */
 		outb( HF_REG,	dp->d_ctrl );
 		outb( AUX_REG,  dp->d_wpcc / 4 );
 		outb( NSEC_REG, dp->d_nspt );
+		outb( SEC_REG, 0x01 );
+		outb( LCYL_REG, (char)(dp->d_ncyl) );
+		outb( HCYL_REG, (char)(dp->d_ncyl >> 8) );
 		outb( HDRV_REG, 0xA0 + (u<<4) + dp->d_nhead - 1 );
 		outb( CSR_REG,  SETPARM_CMD );
-
 		myatbsyw(u);
 
 		/*
-		 * Seek to cylinder 0, set step rate to 35 microseconds.
+		 * Restore heads.
 		 */
-		outb( LCYL_REG, 0 );
-		outb( HCYL_REG, 0 );
-		outb( HDRV_REG, (u << 4) + 0xA0 );
-		outb( CSR_REG, SEEK(0) );
-
+		outb( CSR_REG, RESTORE(0) );
 		myatbsyw(u);
 	}
 }
@@ -551,19 +556,20 @@ atwatch()
 		spl(s);
 		return;
 	}
-
-#if EBUG > 0
-	printf("at%d%c: bno=%U head=%u cyl=%u reset controller\n",
+	printf("at%d%c: bno=%U head=%u cyl=%u <Watchdog Timeout>\n",
 		at.at_drv,
 		(bp->b_dev & SDEV) ? 'x' : at.at_partn % NPARTN + 'a',
-		bp->b_bno,
-		at.at_head, at.at_cyl );
-#endif
+		bp->b_bno, at.at_head, at.at_cyl );
 
 	/*
 	 * Reset hard disk controller.
-	 * Retry operation.
+	 *
+	 * Mark current cylinder as bad so atstart() will fail.
+	 * Otherwise would lock up if this track NEVER gives enough IRQ's.
 	 */
+	at.at_bad_drv	= at.at_drv;
+	at.at_bad_head	= at.at_head;
+	at.at_bad_cyl	= at.at_cyl;
 	atreset();
 	atstart();
 	spl(s);
@@ -971,11 +977,8 @@ aterror()
 			at.at_bad_head	= at.at_head;
 			at.at_bad_cyl	= at.at_cyl;
 		}
-
-#if EBUG == 0
 		else if ( ++at.at_tries < SOFTLIM )
 			return 1;
-#endif
 
 		printf( "at%d%c: bno=%U head=%u cyl=%u",
 			at.at_drv,
