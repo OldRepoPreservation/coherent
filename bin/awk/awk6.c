@@ -9,7 +9,7 @@
 
 #include "awk.h"
 #include <math.h>
-#include <mdata.h>
+#include <sys/mdata.h>
 
 NODE *
 f_length(np, na)

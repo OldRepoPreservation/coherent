@@ -2,7 +2,7 @@
 #line 24 "awk.y"
 typedef union {
 	int	u_char;
-	char	*u_charp;
+	CHAR	*u_charp;
 	NODE	*u_node;
 	int	(*u_func)();
 } YYSTYPE;

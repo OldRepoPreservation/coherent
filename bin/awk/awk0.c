@@ -5,10 +5,10 @@
 #include "awk.h"
 #include "y.tab.h"
 
-CHAR	*parg;		/* Program argument pointer */
-FILE	*pfp;		/* Program file pointer */
-int	lexre;		/* On when yylex reading a regular expression */
-CHAR	wordbuf[NWORD];	/* yylex string and identifer buffer */
+CHAR	*parg;			/* Program argument pointer */
+FILE	*pfp;			/* Program file pointer */
+int	lexre;			/* On when yylex reading a regular expression */
+CHAR	wordbuf[NWORD];		/* yylex string and identifer buffer */
 NODE	*codep;			/* Head of interpreted code tree */
 int	beginflag;		/* On before files read */
 int	endflag;		/* On after files read */
@@ -24,7 +24,6 @@ jmp_buf	fwenv[NNEST];		/* For/while environment for break/continue */
 int	fwlevel = -1;		/* For/while nesting level */
 int	brlevel;		/* Brace nesting level */
 int	outflag;		/* '>' is output vs. relational (kludge) */
-
 TERM	*symtab[NHASH];		/* Heads of symbol table hash chains */
 NODE	*tempnodes;		/* List of temporary nodes during running */
 CHAR	SNULL[] = "";		/* Awk's null STRING */
@@ -45,10 +44,7 @@ NODE	*FSp;			/* Input field separator */
 NODE	*OFMTp;			/* Output format string (a la printf) */
 
 /*
- * Built-in variables and
- * constants.
+ * Built-in variables and constants.
  */
-
-/* Constants 0 and 1 */
-TERM	xzero, xone;
+TERM	xzero, xone;		/* Constants 0 and 1 */
 NODE	xfield0;

@@ -58,7 +58,6 @@ register FILE *fp;
 	register STRING ret;
 	register int nf = 0;
 	register int spcflag = 0;
-	extern int whitesw;
 
 	if ((rs = RS[0]) == '\0') {
 		rs = '\n';

@@ -274,7 +274,6 @@ STRING asval;
 	register CHAR *as, *s1, *s2;
 	register int c, i1;
 	register unsigned nb;
-	extern int whitesw;
 
 	if ((s1 = inline) == NULL) {
 		awkwarn("field, $%d, illegal in BEGIN or END", i);
