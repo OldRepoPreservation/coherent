@@ -1,5 +1,25 @@
+/*
+ * File:	ipcs.c
+ *
+ * Purpose:	main driver for ipcs utility.
+ * Revision 1.1  92/10/08 bin
+ * Initial revision
+ * 
+ */
+
+/*
+ * ----------------------------------------------------------------------
+ * Includes.
+ */
 #include <stdio.h>
+#include <coff.h>
+#include <fcntl.h>
 #include "ipcs.h"
+
+/*
+ * ----------------------------------------------------------------------
+ *	Global data
+ */
 
 /* Option's flags. See man pages for more info */
 short	qflag =	0,	/* message q */
@@ -15,8 +35,8 @@ short	qflag =	0,	/* message q */
 	Nflag = 0;	/* namelist */
 
 int	total_shmids = 0,	/* total shared memory segs found */
-	total_sems = 0;		/* total semaphores found */
-	total_msgs = 0;		/* total message queues found */
+	total_sems = 0,		/* total semaphores found */
+	usemsqs = 0;		/* is msq in use */
 
 int	NSHMID,			/* total # shared memory segments */
 	NSEMID,			/* total # semaphores */
@@ -26,17 +46,17 @@ main(argc, argv)
 int	argc;
 char	*argv[];
 {
-	char		*opstring = "qmsbcoptavC:N: ";
+	char		*opstring = "qmsbcoptaVC:N: ";
 	extern char	*optarg;
 	char		*namelist = NULL,
-			*corefile = NULL;
+			*corefile = "/dev/kmem";/* default vlue */
+	char		*fname;			/* kernel name */
 	int		c;
 
 	while ((c = getopt(argc, argv, opstring)) != EOF)
 		switch (c) {
 		case 'q':
 			qflag = 1;
-			printf("Qflag set!\n");
 			break;
 		case 'm':
 			mflag = 1;
@@ -67,13 +87,14 @@ char	*argv[];
  *			corefile = optarg;
  *			break;
  */
-			printf("ipcs: Corefile option NOT yet supported\n");
+			fprintf(stderr, 
+				"ipcs: Corefile option NOT yet supported\n");
 			exit(1);
 		case 'N':
 			Nflag = 1;
 			namelist = optarg;
 			break;
-		case 'v':
+		case 'V':
 			printf("ipcs version %s\n", VERSION);
 			exit(0);
 		default: 
@@ -81,17 +102,10 @@ char	*argv[];
 	}
 
 	set_flags();
+	fname = Nflag ? namelist : pick_nfile();
+	getmaxnum(fname, corefile);
 
-	/* get max values for shared memory, semaphores and message queues */
-
-	NSHMID = get_krnl_vals("NSHMID",Nflag ? namelist : pick_nfile() );
-	NSEMID = get_krnl_vals("NSEMID",Nflag ? namelist : pick_nfile() );
-	NMSQID = get_krnl_vals("NMSQID",Nflag ? namelist : pick_nfile() );
-
-	/* Get ipc ids and data */
-	/* We should check the return status from them */
-
-	get_data();
+	get_data(fname, corefile);
 
 	/* Now we can print */
 	if (qflag)
@@ -118,3 +132,76 @@ set_flags()
 		bflag = cflag = oflag = pflag = tflag = 1;
 }
 
+/*
+ * Get the following values from the corefile:
+ *	NSHMID:		max number of allowable shared memory segments
+ *	NSEMID:		max number of allowable semaphores
+ *	NMSQID:		max number of allowable message queues
+ */
+getmaxnum(fname, corefile)
+char	*fname;		/* Kernel file name */
+char	*corefile;	/* Core file name (/dev/kmem by default) */
+{
+	SYMENT 	sym[3];	/* The table of names to find */
+	int	fd;	/* corefile file descriptor */
+	int	val;	/* Read values buffer */
+	int	i;	/* Loop index */
+
+	/* Initialise SYMENT array */
+	for (i = 0; i < 3; i++) {
+		sym[i]._n._n_n._n_zeroes = 0;	/* stuff for coffnlist */
+		sym[i].n_type = -1;
+	}
+	strcpy(sym[0].n_name, "NSHMID");
+	strcpy(sym[1].n_name, "NSEMID");
+	strcpy(sym[2].n_name, "NMSQID");
+
+	/* do lookups. coffnlist returns 0 on error. */
+	if (!coffnlist(fname, sym, NULL, 3)) {
+		fprintf(stderr, "ipcs: error obtaining values from %s\n", 
+									fname);
+		exit(1);
+	}
+
+	/* Now we got addresses of the variables. So, we can go to corefile
+	 * and read proper values. sym[i].n_value contains addresses of
+	 * variables.
+	 */
+	if ((fd = open(corefile, O_RDONLY)) < 0) {
+		fprintf(stderr, "ipcs: cannot open %s\n", corefile);
+		exit(1);
+	}
+	/* Get max number of allowable shared memory segments */
+	lseek(fd, sym[0].n_value, 0);
+	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
+		fprintf(stderr, "ipcs: read value of NSHMID error\n");
+		exit(1);
+	}
+	NSHMID = val;
+	/* Get max number of allowable semaphores */
+	lseek(fd, sym[1].n_value, 0);
+	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
+		fprintf(stderr, "ipcs: read value of NSEMID error\n");
+		exit(1);
+	}
+	NSEMID = val;
+	/* Get max number of allowable message queues */
+	lseek(fd, sym[2].n_value, 0);
+	if (read(fd, &val, sizeof(int)) != sizeof(int)) {
+		fprintf(stderr, "ipcs: read value of NSHMID error\n");
+		exit(1);
+	}
+	NMSQID = val;
+	close(fd);
+}
+
+
+/* ipcs usage. Print message and die */
+usage(c) 
+int	c;
+{
+	fprintf(stderr, "ipcs:  illegal option - %c\n", c);
+	fprintf(stderr, "usage: "
+		 "ipcs [-abcmopqstV] [-C corefile] [-N namelist]\n");
+	exit(1);
+}

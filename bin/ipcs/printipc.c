@@ -10,128 +10,117 @@
 struct group *grp;
 struct passwd *pstp;
 
+struct msqid_ds	*msqbuf;	/* message queue data */
 /* 
  * Print information about active message queues
  */
 print_q() 
 {
-int x;				/* counter */
-char date[30];			/* date string */
+	int 	x;		/* counter */
+	char 	date[30];	/* date string */
 
 	printf("MESSAGE QUEUES:\n");
 
-	if(total_msgs){
-		printf("T\tID\tKEY\tMODE\tOWNER\tGROUP\t");
+	/* Check if msq were in use */
+	if (!usemsqs)
+		return; 
 
-		if(cflag){
-			printf("CREATOR\tCGROUP\t");
-		}
+	fputs("T\tID\tKEY\tMODE\tOWNER\tGROUP\t", stdout);
 
-		if(oflag){
-			printf("CBYTES\tQNUM\t");
-		}
+	if (cflag) 
+		fputs("CREATOR\tCGROUP\t", stdout);
 
-		if(bflag){
-			printf("QBYTES\t");
-		}
+	if (oflag) 
+		fputs("CBYTES\tQNUM\t", stdout);
 
-		if(pflag){
-			printf("LSPID\tLRPID\t");
-		}
+	if (bflag)
+		fputs("QBYTES\t", stdout);
 
-		if(tflag){
-			printf("STIME\tRTIME\tCTIME\t");
-		}
+	if (pflag)
+		fputs("LSPID\tLRPID\t", stdout);
 
-		printf("\n");
+	if (tflag)
+		fputs("STIME\tRTIME\tCTIME\t", stdout);
 
-		for(x = 0 ; x < NMSQID; x++){
-			if(valid_msqid[x]){
-				printf("q\t%d\t%d\t", /* sequence & key */
-					msqbuf[x]->msg_perm.seq,
-					msqbuf[x]->msg_perm.key);	
+	puts("");
+
+	for (x = 0 ; x < NMSQID; x++) {
+		if (msqbuf[x].msg_perm.mode & IPC_ALLOC) {
+			printf("q\t%d\t%d\t", msqbuf[x].msg_perm.seq,
+					msqbuf[x].msg_perm.key);	
 	
-				/* print message queue mode, and any flag indicating
-				 * that a process is waiting on a msgrcv() or
-				 * msgsnd().
-				 */	
+			/* print message queue mode, and any flag indicating
+			 * that a process is waiting on a msgrcv() or
+			 * msgsnd().
+			 */	
+			if (msqbuf[x].msg_perm.mode & MSG_RWAIT) {
+				printf("R "); /* pid waiting for msgrcv() */
+			} else {
+				if (msqbuf[x].msg_perm.mode & MSG_WWAIT) {
+					printf("S "); /* waiting for msgsnd() */
+				} else {
+					printf("- "); /* no flag set */
+				}	
 
-				if(msqbuf[x]->msg_perm.mode & MSG_RWAIT){
-					printf("R"); /* pid waiting for msgrcv() */
-				}else{
-					if(msqbuf[x]->msg_perm.mode & MSG_WWAIT){
-						printf("S"); /* pid waiting for msgsnd() */
-					}else{
-						printf("-"); /* no flag set */
-					}	
-
-				}
+			}
 			
-				printf("0%o\t",	msqbuf[x]->msg_perm.mode & 0777);
+			printf("0%o\t",	msqbuf[x].msg_perm.mode & 0777);
 
-				/* get owner's name from /etc/passwd */
-				if((pstp = getpwuid(msqbuf[x]->msg_perm.uid)) == NULL){
+			/* get owner's name from /etc/passwd */
+			if ((pstp = getpwuid(msqbuf[x].msg_perm.uid)) == NULL) {
+				fprintf(stderr,"Error reading password file!\n");
+				exit(1);
+			}
+			printf("%s\t",pstp->pw_name);
+	
+			/* get group name of owner */
+			if ((grp = getgrgid(msqbuf[x].msg_perm.gid)) == NULL) {
+				fprintf(stderr, "Error reading group file!\n");
+				exit(1);
+			}
+			printf("%s\t",grp->gr_name);
+
+			if (cflag) {
+			/* get creator's name from /etc/passwd */
+				if ((pstp = getpwuid(msqbuf[x].msg_perm.cuid)) == NULL){
 					printf("Error reading password file!\n");
 					exit(1);
 				}
 				printf("%s\t",pstp->pw_name);
-	
-				/* get group name of owner */
-	
-				if((grp = getgrgid(msqbuf[x]->msg_perm.gid)) == NULL){
+
+				/* get group name of creator */
+				if ((grp = getgrgid(msqbuf[x].msg_perm.cgid)) == NULL){
 					printf("Error reading group file!\n");
 					exit(1);
 				}
 				printf("%s\t",grp->gr_name);
-
-				if(cflag){
-				/* get creator's name from /etc/passwd */
-					if((pstp = getpwuid(msqbuf[x]->msg_perm.cuid)) == NULL){
-						printf("Error reading password file!\n");
-						exit(1);
-					}
-					printf("%s\t",pstp->pw_name);
-
-					/* get group name of creator */
-					if((grp = getgrgid(msqbuf[x]->msg_perm.cgid)) == NULL){
-						printf("Error reading group file!\n");
-						exit(1);
-					}
-					printf("%s\t",grp->gr_name);
-				}
-
-				/* current bytes & # of messages */
-				if(oflag){
-					printf("%d\t%d\t",
-						msqbuf[x]->msg_cbytes,
-						msqbuf[x]->msg_qnum);
-				}
-
-				/* max # bytes on queue */
-				if(bflag){
-					printf("%d\t",msqbuf[x]->msg_qbytes);
-				}
-
-				/* last send & receive processes */
-				if(pflag){ 
-					printf("%d\t%d\t",
-					msqbuf[x]->msg_lspid,
-					msqbuf[x]->msg_lrpid);
-				}
-
-				/* times of last send and receive and modification*/
-				if(tflag){
-					sprintf(date,"%s", ctime(&msqbuf[x]->msg_stime));
-					printf("%.5s\t",date + 11);
-					sprintf(date,"%s", ctime(&msqbuf[x]->msg_rtime));
-					printf("%.5s\t",date + 11);
-					sprintf(date,"%s", ctime(&msqbuf[x]->msg_ctime));
-					printf("%.5s",date + 11);
-				}
-				printf("\n");
 			}
+
+			/* current bytes & # of messages */
+			if (oflag) 
+				printf("%d\t%d\t", msqbuf[x].msg_cbytes,
+					msqbuf[x].msg_qnum);
+
+			/* max # bytes on queue */
+			if (bflag)
+				printf("%d\t",msqbuf[x].msg_qbytes);
+
+			/* last send & receive processes */
+			if (pflag) 
+				printf("%d\t%d\t", msqbuf[x].msg_lspid,
+							msqbuf[x].msg_lrpid);
+
+			/* times of last send and receive and modification*/
+			if (tflag) {
+				sprintf(date,"%s", ctime(&msqbuf[x].msg_stime));
+				printf("%.5s\t",date + 11);
+				sprintf(date,"%s", ctime(&msqbuf[x].msg_rtime));
+				printf("%.5s\t",date + 11);
+				sprintf(date,"%s", ctime(&msqbuf[x].msg_ctime));
+				printf("%.5s",date + 11);
+			}
+			printf("\n");
 		}
-/*		printf("\n"); */
 	}
 	printf("\n");
 }

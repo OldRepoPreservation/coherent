@@ -34,15 +34,10 @@ int valid_shmid[OBSCENE_VALUE];		/* keep track of valid shared memory
 struct semid_ds semid[OBSCENE_VALUE];	/* array of semaphore structs */
 int valid_semid[OBSCENE_VALUE];		/* track validly located semaphores */
 
-
 /*
  * message queue stuff
  */
-
-struct msqid_ds * msqbuf[OBSCENE_VALUE];	/* array of pointers to message
-						 * queue structs
-						 */
-int valid_msqid[OBSCENE_VALUE];			/* track valid message queues */
+extern struct msqid_ds	*msqbuf;	/* array of message queue structs */
 
 /* Functions */
 extern int	get_data();	 /* Get ipc data */
@@ -52,8 +47,6 @@ extern int	get_sem_stats(); /* get semaphore stats */
 extern int	print_q();	 /* print message queue stats */
 extern int	print_m();	 /* print shared memory stats */
 extern int	print_s();	 /* printf semaphore stats */
-extern int	get_krnl_vals(); /* get max values for SHMIDS, SEMS, MSGS */
-extern int	coffpatch();	 /* go into kernel and get values */
 extern char *	pick_nfile();	 /* get name of boot kernel from /tboot */
 extern FIFO *	fifo_open();	 /* open /dev/boot_gift */
 extern int	fifo_close();	 /* close boot_gift */
@@ -74,8 +67,11 @@ extern short	qflag,	/* message q */
 
 extern int	total_shmids, 	/* total valid shared memory segs found */
 		total_sems,	/* total valid semaphores found */
-		total_msgs;	/* total valid message queues found */
+		usemsqs;	/* is msqs in use */
 
 extern int	NSHMID,		/* max # of shared memory segments allowed */
 		NSEMID,		/* max # of semaphores allowed */
 		NMSQID;		/* max # of message queues */
+
+extern char	*fname;		/* name of the namelist file */
+extern struct msqid_ds	*msqbuf;/* pointer to the message q data */
