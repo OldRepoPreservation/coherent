@@ -17,8 +17,8 @@ extern SR allocp;
  */
 faddr_t
 map_pv(paddr, len)
-	paddr_t paddr;
-	fsize_t len;
+paddr_t paddr;
+fsize_t len;
 {
 	int s;			/* Return value of sphi().  */
 	int npage;		/* Number of pages we must allocate.  */
@@ -71,18 +71,13 @@ map_pv(paddr, len)
 
 /*
  * Release a virtual address that we previously obtained with function
- * map_pv().  It is a fatal error to release a virtual address
- * more than once.  Only 8,192 virtual addresses can be allocated at any
- * one time.
- *
- * The last two sentences are lies.
+ * map_pv().
  */
 void
 unmap_pv(faddr)
-	faddr_t faddr;
+faddr_t faddr;
 {
-	faddr = faddr;	/* lint food.  */
-	return;	/* For the moment, this function does nothing.  */
+	/* For the moment, this function does nothing.  */
 }		
 
 /*
@@ -93,7 +88,7 @@ unmap_pv(faddr)
  */
 paddr_t
 vtop(vaddr)
-	vaddr_t vaddr;
+vaddr_t vaddr;
 {
 	paddr_t	retval;
 	unsigned int ptable_idx;	/* Index into ptable1_v[].  */
@@ -115,12 +110,11 @@ vtop(vaddr)
 	 */
 	retval = 0;	/* Assume entry not found.  */
 
-
-	if (0 != (ptable0_v[btosrd(vaddr)] & SEG_SRO)) {
+	if (ptable0_v[btosrd(vaddr)] & SEG_SRO) {
 		/*
 		 * ASSERTION:  The portion of ptable1_v[] we want is valid.
 		 */
-		if (0 != (ptable1_v[ptable_idx] & SEG_SRO)) {
+		if (ptable1_v[ptable_idx] & SEG_SRO) {
 
 			/*
 			 * ASSERTION:  'vaddr' corresponds to some
@@ -139,23 +133,15 @@ vtop(vaddr)
 	return(retval);
 } /* vtop() */	
 
-
 /*
- * Translate virtual-physical address 'vpaddr' to physical address.
+ * Translate system global address 'vpaddr' to physical address.
  *
  * May cause a panic if 'vpaddr' does not correspond to a real physical
  * address.
- *
- * Virtual-physical space is a system of simulated physical addresses with
- * two important properties:  addresses are constant w.r.t. physical memory
- * no matter what process is running (unlike true virtual addresses), and
- * they are completely contigious wrt virtual addresses (unlike true
- * physical addresses--two adjacent physical addresses may correspond to
- * wildly different virtual addresses.)
  */
 paddr_t
 vptop(vpaddr)
-	paddr_t vpaddr;
+paddr_t vpaddr;
 {
 	paddr_t	retval;
 	cseg_t pte;	/* Page table entry from sysmem.u.pbase[].  */
@@ -173,14 +159,14 @@ vptop(vpaddr)
 } /* vptop() */
 
 /*
- * Convert from virtual address to virtual-physical.  Similar to MAPIO(),
+ * Convert from virtual address to system global address.  Similar to MAPIO(),
  * but does not require separate segment and offset.
  *
  * Only works for Kernel Space virtual addresses.
  */
 paddr_t
 vtovp(vaddr)
-	vaddr_t vaddr;
+vaddr_t vaddr;
 {
 	paddr_t	retval;
 
