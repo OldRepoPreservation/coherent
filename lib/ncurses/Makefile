@@ -22,7 +22,7 @@
 #                decvax!cornell!pavel       (UUCPnet)                *
 #********************************************************************/
 
-# RCSid: $Header:   RCS/Makefile.v  Revision 2.3  91/12/07  20:09:50  munk  Exp$
+# RCSid: $Header: /src386/usr/lib/ncurses/RCS/Makefile,v 1.2 92/04/13 14:42:19 bin Exp Locker: bin $
 
 SRCDIR= /usr/lib/terminfo
 #CFLAGS= -A -O -DSRCDIR='"$(SRCDIR)"' -DTRACE	# compile with trace
@@ -60,21 +60,13 @@ LIBOBJS= lib_setup.o lib_fixterm.o lib_tparm.o read_entry.o lib_tputs.o \
 COMPOBJS= comp_main.o comp_hash.o comp_captab.o comp_scan.o comp_error.o \
 	comp_parse.o read_entry.o
 
-CTOIIBJS= captoinfo.c getcap.c putinfo.c tget.c
+CTOIOBJS= captoinfo.o getcap.o putinfo.o tget.o
 
 all:	tic infocmp lib captoinfo
 	@echo "all done"
 
 install: all
-	sed -e 's/include *"curses.h" *$$/include <ncurses.h>/' \
-		`srcpath term.h' > /usr/include/term.h
-	sed -e 's/include *"terminfo.h" *$$/include <terminfo.h>/' \
-		`srcpath curses.h` > /usr/include/ncurses.h
-	cp `srcpath terminfo.h` /usr/include/terminfo.h
-	cp `srcpath unctrl.h` /usr/include/unctrl.h
-	cp tic $(SRCDIR)/tic
-	cp infocmp $(SRCDIR)/infocmp
-	cp libcurses.a /usr/lib/libncurses.a
+	su root `srcpath installer`
 
 lib:	libcurses.a	
 	@echo "lib done"
@@ -101,6 +93,14 @@ putinfo.c: Caps MKnames.awk
 	awk -f `srcpath MKinfo.awk` Caps
 	cat boolnames numnames strnames infotail > putinfo.c
 	-rm -f boolnames numnames strnames
+
+save : $(SRCS) Makefile
+	tar cf - $< | compress -c > /tmp/ncurses.tar.Z
+	uucp -r /tmp/ncurses.tar.Z mwc!/v/cef
+
+list : $(SRCS) Makefile
+	ph $?
+	touch list
 
 captoinfo.o:	captoinfo.c
 
