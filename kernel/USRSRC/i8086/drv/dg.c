@@ -1,6 +1,22 @@
 /*
  * dg - device driver for Digiboard PC/Xe intelligent multiport controller
  *
+ * $Header$
+ *
+ */
+ 
+/*
+ * Various notes:
+ *
+ *	FEP = front-end-processor (the 80186 on the Digiboard)
+ *
+ *	At port DG_IOB:
+ *		the 2's bit is 1 to enable DPRAM, 0 to disable
+ *		the 4's bit is 1 to reset FEP, 0 to clear reset 
+ *
+ *	There is a bug in the current ldlib.a version of setivec and clrivec:
+ *	they only work during xxload() and xxunload() due to use of "ucs"
+ *	instead of "getcs()" to determine the CS for the interrupt routine.
  */
 
 /*
@@ -9,8 +25,6 @@
  */
 #define	DG_RAM_LENGTH	0x10000L
 #define DG_MEMORY_SEG	0xF000		/* dual-port ram base on FEP side */
-#define DG_BIOS_FILE	"/drv/xabios.bin"
-#define DG_FEPOS_FILE	"/drv/xafep.bin"
 #define DG_BIOS_ADDR	0xF800
 #define DG_FEPOS_ADDR	0x2000
 #define DG_BIOS_LOADER	0x80		/* minor number to write to BIOS */
@@ -58,7 +72,7 @@
  */
 long	DG_RAM = 0xF0000L;	/* segment for 64k of dual-port RAM */
 int	DG_IOB = 0x200;		/* address of i/o byte for controller */
-int	DG_INT = 12;		/* IRQ number for board's interrupt */
+int	DG_INT = 15;		/* IRQ number for board's interrupt */
 
 /*
  * Import Functions
@@ -97,6 +111,7 @@ static int	board_ready;	/* TRUE when all board initialization done */
 static int	dg_bios_wait;	/* TRUE if waiting for BIOS to be loaded */
 static int	dg_fepos_wait;	/* TRUE if waiting for FEPOS to be loaded */
 static int	nport;		/* number of ports on the Digiboard */
+static int	test_irq;	/* TRUE during startup */
 
 /*
  * Configuration table - another export variable.
@@ -124,6 +139,7 @@ static dgload()
 {
 	char v;
 
+	setivec(DG_INT, dgintr);
 	/*
 	 * Allocate a selector to map onto the dual-port RAM.  ptov() will
 	 * return the first available selector of the 8,192 possible.
@@ -152,7 +168,7 @@ static dgload()
 			printf("Error - board type is PC/Xm\n");
 			return;
 		} else
-			printf("Digiboard PC/Xe ID found\n");
+			printf("PC/Xe ID found\n");
 	}
 	
 	/*
@@ -162,7 +178,7 @@ static dgload()
 	dg_start_timing(100);	/* start 1-second timer */
 	while ((inb(DG_IOB) & 0x0E) != 0x04) {
 		if (dg_expired) {
-			printf("Error - Digiboard failed to reset\n");
+			printf("Error - PC/Xe failed to reset\n");
 			return;
 		}
 		dgdelay(10);
@@ -181,7 +197,7 @@ static dgload()
 	||  ffword(dg_ram_fp + 2) != 0x3CC3
 	||  ffword(dg_ram_fp + 0xFFFC) != 0xA55A
 	||  ffword(dg_ram_fp + 0xFFFE) != 0x3CC3) {
-		printf("Error - Digiboard failed memory test\n");
+		printf("Error - PC/Xe failed memory test\n");
 		return;
 	} else
 		printf("PC/Xe passed memory test\n");
@@ -198,22 +214,14 @@ static dgunload()
 {
 	if (board_ready) {
 		board_ready = 0;
-		/*
-		 * Turn off and unhook interrupts from FEPOS
-		 */
-#if 0		 
-		clrivec(DG_INT);
-#else
-	clrivec(03);	
-	clrivec(04);	
-	clrivec(05);	
-	clrivec(07);	
-	clrivec(10);	
-	clrivec(11);	
-	clrivec(12);	
-	clrivec(15);	
-#endif	
 	}
+	
+	/*
+	 * Turn off and unhook interrupts from FEPOS
+	 */
+	sfword(dg_ram_fp+INTERVAL, 0);	/* stop host interrupts */
+	outb(DG_IOB, 0x04);		/* Disable DPRAM and hold FEP reset */
+	clrivec(DG_INT);
 
 	/*
 	 * We have to free up the selector now that we're done using it.
@@ -434,13 +442,13 @@ static int dginit2()
 
 	while (ffword(dg_ram_fp + DG_BIOS_CONFIRM) != BIOS_GOOD) {
 		if (dg_expired) {
-			printf("Error - Digiboard BIOS won't start\n");
+			printf("Error - PC/Xe BIOS won't start\n");
 			return 0;
 		}
 		dgdelay(10);
 	}
 	printf("PC/Xe BIOS started\n");
-	
+
 	return 1;
 }
 
@@ -466,7 +474,7 @@ static int dginit3()
 	dg_start_timing(100);			/* start 1-second timer */
 	while (ffword(dg_ram_fp + DG_BIOS_REQ) != 0) {
 		if (dg_expired) {
-			printf("Error - Digiboard FEPOS move failed\n");
+			printf("Error - PC/Xe FEPOS move failed\n");
 			return;
 		}
 		dgdelay(10);
@@ -485,7 +493,7 @@ static int dginit3()
 	dg_start_timing(500);			/* start 5-second timer */
 	while (ffword(dg_ram_fp + DG_FEP_CONFIRM) != FEPOS_GOOD) {
 		if (dg_expired) {
-			printf("Error - Digiboard FEPOS won't start\n");
+			printf("Error - PC/Xe FEPOS won't start\n");
 			printf("Failure code (%x)\n",
 				ffword(dg_ram_fp + DG_BIOS_REQ));
 			return 0;
@@ -494,48 +502,26 @@ static int dginit3()
 	}
 	printf("PC/Xe FEPOS started\n");
 	nport = ffbyte(dg_ram_fp+NPORT);
-	printf("Board is PC/%de\n", nport);
 
 	/*
 	 * Enable and test interrupts from FEP
 	 */
-
-printf("about to setivec\n");
-#if 0
-	setivec(DG_INT, dgintr);
-#else
-	setivec(03,dgintr);	
-	setivec(04,dgintr);	
-	setivec(05,dgintr);	
-	setivec(07,dgintr);	
-	setivec(10,dgintr);	
-	setivec(11,dgintr);	
-	setivec(12,dgintr);	
-	setivec(15,dgintr);	
-#endif	
-printf("about to enable host irq's\n");	
 	sfword(dg_ram_fp+INTERVAL, 1);		/* request host interrupts */
-printf("getting command pointer\n");	
 	cmd = ffword(dg_ram_fp+CIN);		/* get command pointer */
-printf("about to send invalid command\n");	
 	sfword(dg_ram_fp+CSTART+cmd, 0xA1FF);	/* send an invalid command */
 	sfword(dg_ram_fp+CSTART+cmd+2, 0xC3B2);
 	sfword(dg_ram_fp+CIN, (cmd+4)&0x3ff);	/* update command pointer */
-printf("invalid command sent\n");	
-	dgdelay(100);				/* wait 1 second */
-	sfword(dg_ram_fp+INTERVAL, 0);		/* stop host interrupts */
-#if 0
-{ int t;
-	sfword(dg_ram_fp+INTERVAL, 1);		/* request host interrupts */
-	t = ffword(dg_ram_fp+0x0D18);		/* get command pointer */
-	sfword(dg_ram_fp+0x400+t, 0xA1FF);	/* send an invalid command */
-	sfword(dg_ram_fp+0x402+t, 0xC3B2);
-	sfword(dg_ram_fp+0xD18, (t+4)&0x3ff);	/* update command pointer */
-	dgdelay(1000);				/* wait 10 seconds */
-	sfword(dg_ram_fp+INTERVAL, 0);		/* stop host interrupts */
-	dgintr();
-}	
-#endif
+	dg_start_timing(100);			/* start 1-second timer */
+	test_irq = 1;
+	while (test_irq) {
+		if (dg_expired) {
+			printf("Error - PC/Xe no FEPOS interrupts\n");
+			return 0;
+		}
+		dgdelay(10);
+	}
+	printf("PC/Xe interrupts working\n");
+	
 	return 1;
 }
 
@@ -548,23 +534,30 @@ printf("invalid command sent\n");
 static void dgintr()
 {
 	int cin, cout, ein, eout;
-	char event[EVENT_LEN];
-	int i,j=0;
-#define ILIMIT 5	
+	unsigned char event[EVENT_LEN];
+	int i;
 
-	printf("Interrupt handler called\n");
 	cin = ffword(dg_ram_fp+CIN);
 	cout = ffword(dg_ram_fp+COUT);
 	ein = ffword(dg_ram_fp+EIN);
 	eout = ffword(dg_ram_fp+EOUT);
-	printf("cin=%x cout=%x ein=%x eout=%x\n",cin,cout,ein,eout);
 
-	while (ffword(dg_ram_fp+EIN) != ffword(dg_ram_fp+EOUT)&&j < ILIMIT) {
-		eout = ffword(dg_ram_fp+EOUT);
-		for (i = 0; i < EVENT_LEN; i++)
-			event[i] = ffbyte(dg_ram_fp+ISTART+eout+i);
-		printf("%x %x %x %x\n", event[0],event[1],event[2],event[3]);	
-		sfword(dg_ram_fp+EOUT, (eout+4)&0x3ff);
-		j++;
+	if (board_ready) {
+		/*
+		 * Remove all packets from event queue.
+		 */
+		while (ffword(dg_ram_fp+EIN) != ffword(dg_ram_fp+EOUT)) {
+			eout = ffword(dg_ram_fp+EOUT);
+			for (i = 0; i < EVENT_LEN; i++)
+				event[i] = ffbyte(dg_ram_fp+ISTART+eout+i);
+			printf("%x %x %x %x\n", event[0],event[1],event[2],event[3]);	
+			sfword(dg_ram_fp+EOUT, (eout+4)&0x3ff);
+		}
+	} else {	/* e.g., if test_irq is TRUE */
+		test_irq = 0;
+		/*
+		 * Attempt to clear the IRQ condition in the FEP.
+		 */
+		sfword(dg_ram_fp+EOUT, ffword(dg_ram_fp+EIN));
 	}
 }
