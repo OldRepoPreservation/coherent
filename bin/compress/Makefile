@@ -1,9 +1,10 @@
-DESTDIR= /f1/bin/
+compress : compress.o is_fs.o
+	cc -o compress $<
 
-compress : compress.c is_fs.o
-	cc -A -DVIRTUAL -DBITS=16 -o $(DESTDIR)compress compress.c is_fs.o
-	su root chown bin $(DESTDIR)compress
-	su root chgrp bin $(DESTDIR)compress
-	su root chmod 511 $(DESTDIR)compress
-	su root ln -f $(DESTDIR)compress $(DESTDIR)uncompress
-	su root ln -f $(DESTDIR)compress $(DESTDIR)zcat
+compress.o : compress.c
+	cc -c -O -DVIRTUAL -DBITS=16 $<
+
+install : compress
+	su root cp compress /bin
+	su root ln -f /bin/compress /bin/zcat
+	su root ln -f /bin/compress /bin/decompress
