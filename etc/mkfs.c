@@ -32,6 +32,9 @@
 #define inodei(i)	(((i)-1)%8)
 #define	NDLEV	25			/* Maximum directory nesting */
 
+char s755[20];
+char sB[20];
+
 struct protoargs {	/* Parameter management */
 	char	*p_bname, *p_fname, *p_fpack;
 	char	*p_fsize, *p_nino, *p_intn, *p_intm;
@@ -182,6 +185,10 @@ char *argv[];
 	int anyopts = 0;
 	if (argc < 1)
 		return eusage();
+
+	strcpy(s755, "\nd--755 0 0\n$\n");
+	strcpy(sB, "B----- 0 0\n");
+
 	argv0 = argv[0];
 	/*
 	 * Collect options.
@@ -318,7 +325,7 @@ mkproto()
 			while (*p = *p1++) ++p;
 		}
 	}
-	p1 = "\nd--755 0 0\n$\n";
+	p1 = s755;
 	while (*p = *p1++) ++p;
 	getopen(p0, NULL, 0);
 	return (0);
@@ -419,7 +426,7 @@ getbad()
 	static char mymsg1[] = "illegal bad block number '%s'";
 	static char mymsg2[] = "out of bounds bad block number '%s'";
 
-	if (getxnode("B----- 0 0\n") != BADFIN)
+	if (getxnode(sB) != BADFIN)
 		return efatal("bad block file != inode %d", BADFIN);
 	xexpand(X[BADFIN-1]);
 	for (;;) {
@@ -1142,6 +1149,17 @@ gettoken()
 	pfp.p_ln += pfp.p_dln;
 	pfp.p_dln = 0;
 	p = pfp.p_cp;
+
+	/* DEBUG - this code is writing into string literals! */
+#if _I386 && !NDEBUG
+	if ((int)pfp.p_cp < 0x400000) {
+		fprintf(stderr, "pfp.p_cp=%x:%s\n",
+		  pfp.p_cp, pfp.p_cp);
+		fflush(stderr);
+		exit(1);
+	}
+#endif
+
 	while ((c = *p) == ' ' || c == '\t')
 		*p++ = 0;
 	pfp.p_cp = tp = p;
