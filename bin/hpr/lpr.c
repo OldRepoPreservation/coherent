@@ -7,7 +7,7 @@
 #include <pwd.h>
 #include <signal.h>
 #ifndef	TYPES_H
-#include <types.h>
+#include <sys/types.h>
 #endif
 
 /* Schizo is missing so -r doesn't check access privileges */
@@ -21,7 +21,7 @@ char	dfname[20];
 char	*tfname;		/* Control file during lpr */
 char	*wd;
 char	*myuname;
-char *argv0;
+char	*argv0;
 FILE	*cfp;			/* Control file stream */
 #ifdef LASER
 char	spooldir[] = "/usr/spool/hpd";
@@ -277,8 +277,7 @@ usage()
 /* VARARGS */
 lperr(x)
 {
-	fprintf(stderr, "%s: %r", argv0, &x);
-	putc('\n', stderr);
+	fprintf(stderr, "%s: %r\n", argv0, &x);
 	rmexit(1);
 }
 
