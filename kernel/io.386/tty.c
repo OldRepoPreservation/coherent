@@ -56,6 +56,8 @@
 #include <termio.h>
 #include <sys/inode.h>
 #else
+#define kucopyS(k, u, n)	kucopy(k, u, n)
+#define ukcopyS(u, k, n)	ukcopy(u, k, n)
 #endif
 
 #ifdef TRACER
@@ -541,11 +543,13 @@ register struct sgttyb *vec;
 	switch (com) {
 #ifdef _I386
 	case TCGETA:
-		kucopy(&tp->t_termio, vec, sizeof(struct termio));
+		if (!kucopyS(&tp->t_termio, vec, sizeof(struct termio)))
+			return;
 		break;
 	case TCSETA:
 		was_bbyb = ISBBYB;	/* previous mode */
-		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
+		if(!ukcopyS(vec, &tp->t_termio, sizeof(struct termio)))
+			return;
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
 		++rload;
@@ -554,7 +558,8 @@ register struct sgttyb *vec;
 		break;
 	case TCSETAW:
 		was_bbyb = ISBBYB;	/* previous mode */
-		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
+		if(!ukcopyS(vec, &tp->t_termio, sizeof(struct termio)))
+			return;
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
 		++outDrain;	/* delay for output */
@@ -563,7 +568,8 @@ register struct sgttyb *vec;
 			ttrtp(tp);
 		break;
 	case TCSETAF:
-		ukcopy(vec, &tp->t_termio, sizeof(struct termio));
+		if(!ukcopyS(vec, &tp->t_termio, sizeof(struct termio)))
+			return;
 		make_sg(vec, &tp->t_sgttyb, &tp->t_tchars);
 		SET_HPCL;
 	        ++inFlush;	/* flush input */
@@ -572,12 +578,20 @@ register struct sgttyb *vec;
 		break;
 #endif
 	case TIOCQUERY:
-		kucopy(&tp->t_iq.cq_cc, vec, sizeof(int));
+		kucopyS(&tp->t_iq.cq_cc, vec, sizeof(int));
 		break;
 	case TIOCGETP:
+		if (XMODE_386 && !useracc(vec, sizeof(struct sgttyb), 1)) {
+			u.u_error = EFAULT;
+			return;
+		}
 		kucopy(&tp->t_sgttyb, vec, SGTTY_CPY_LEN);
 		break;
 	case TIOCSETP:
+		if (XMODE_386 && !useracc(vec, sizeof(struct sgttyb), 0)) {
+			u.u_error = EFAULT;
+			return;
+		}
 		DUMPSGTTY(&tp->t_sgttyb);
 	        ++inFlush;	/* flush input */
 		++outDrain;	/* delay for output */
@@ -589,18 +603,23 @@ register struct sgttyb *vec;
 		was_bbyb = ISBBYB;	/* previous mode */
 		DUMPSGTTY(&tp->t_sgttyb);
 		++rload;
+		if (XMODE_386 && !useracc(vec, sizeof(struct sgttyb), 0)) {
+			u.u_error = EFAULT;
+			return;
+		}
 		ukcopy(vec, &tp->t_sgttyb, SGTTY_CPY_LEN);
 		make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 		if (!was_bbyb && ISBBYB)
 			ttrtp(tp);
 		break;
 	case TIOCGETC:
-		kucopy(&tp->t_tchars, vec, sizeof (struct tchars));
+		kucopyS(&tp->t_tchars, vec, sizeof (struct tchars));
 		break;
 	case TIOCSETC:
 		++rload;
 		++outDrain;
-		ukcopy(vec, &tp->t_tchars, sizeof (struct tchars));
+		if(!ukcopyS(vec, &tp->t_tchars, sizeof (struct tchars)))
+			return;
 		make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 		break;
 	case TIOCEXCL:
@@ -634,7 +653,7 @@ register struct sgttyb *vec;
 		}
 		break;
 	case TIOCGETTF:		/* get tty flag word */
-		kucopy(&tp->t_flags, (unsigned *) vec, sizeof(unsigned));
+		kucopyS(&tp->t_flags, (unsigned *) vec, sizeof(unsigned));
 		break;
 #ifdef _I386
 	case TCFLSH:

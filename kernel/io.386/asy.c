@@ -9,27 +9,6 @@
  *		.x.. ....	1 for polled operation (no irq service), "p"
  *		..x. ....	1 for RTS/CTS flow control, "f"
  *		...x xxxx	channel number - 0..31
- *
- * $Log:	asy.c,v $
- * Revision 1.8  92/11/09  17:12:18  root
- * Just before adding vio segs.
- * 
- * Revision 1.7  92/07/16  16:34:44  hal
- * Kernel #58
- * 
- * Revision 1.6  92/07/07  09:04:30  root
- * Allow up to 16 slots per group.
- * Support Digiboard as fourth group type.
- * 
- * Revision 1.5  92/06/11  17:28:05  root
- * Temporary fling with condev & asy_putchar.
- * 
- * Revision 1.4  92/06/10  17:26:59  hal
- * Conditional logging to screen of opens and closes.  Ker #55.
- * 
- * Revision 1.3  92/06/06  12:39:33  hal
- * Last before adding termio field to tty struct.
- * 
  */
 
 /*
@@ -661,9 +640,15 @@ int mode;
 	 * Allow signal to break the sleep.
 	 */
 	for (;;) {
+		int chipEmpty = 0, siloEmpty = 0;
+
 		lsr = inb(port + LSR);
-		if ((lsr & LS_TxIDLE)
-		  && (out_silo->si_ix == out_silo->si_ox))
+		chipEmpty = (lsr & LS_TxIDLE);
+		T_HAL(0x400, printf("ch%d chipEmpty=%d\n", chan, chipEmpty));
+		siloEmpty = (out_silo->si_ix == out_silo->si_ox);
+		T_HAL(0x400, printf("ch%d siloEmpty=%d\n", chan, siloEmpty));
+
+		if (chipEmpty && siloEmpty)
 			break;
 		need_wake[chan] |= NW_OUTSILO;
 		v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
