@@ -1,118 +1,85 @@
 /*
+ * tty.c
  * Nroff/Troff.
  * TTY driver.
  */
-#include <stdio.h>
+
 #include <ctype.h>
 #include "roff.h"
-#include "code.h"
-#include "char.h"
-#include "env.h"
-#include "font.h"
-#include "codebug.h"
 
 /*
  * Device parameters.
  */
 int	ntroff	=	NROFF;		/* Programme is NROFF type */
-long	sinmul	=	120;		/* Multiplier for inch */
-long	sindiv	=	1;		/* Divisor for inch */
 long	semmul	=	3;		/* Multiplier for em space */
 long	semdiv	=	5;		/* Divisor for em space */
 long	senmul	=	3;		/* Multiplier for en space */
 long	sendiv	=	5;		/* Divisor for en space */
-long	snrmul	=	0;		/* Narrow space (mul) */
-long	snrdiv	=	1;		/* Narrow space (div) */
 long	shrmul	=	12;		/* Horizontal resolution (mul) */
 long	shrdiv	=	1;		/* Horizontal resolution (div) */
+long	sinmul	=	120;		/* Multiplier for inch */
+long	sindiv	=	1;		/* Divisor for inch */
+long	snrmul	=	0;		/* Narrow space (mul) */
+long	snrdiv	=	1;		/* Narrow space (div) */
 long	svrmul	=	20;		/* Vertical resolution (mul) */
 long	svrdiv	=	1;		/* Vertical resolution (div) */
 
 /*
- * For mapping user fonts to real fonts.
+ * Map user fontnames to font numbers.
  */
-FTB fontab[] ={
+FTB fontab[NFNAMES] ={
 	{ 'R',  '\0', TRMED },
 	{ 'I',  '\0', TRITL },
-	{ 'B',  '\0', TRBLD },
-	{ '\0' }
-};
-
-/* Some names for the fonts */
-char *fnames[] = {
-	"Medium",
-	"Italic",
-	"Bold",
-	"Nothing"
-};
-
-/*
- * Table to convert from the internal character set to ASCII.
- */
-char intasc[] ={
-	  0,  '0',  '1',  '2',  '3',  '4',  '5',  '6',  '7',  '8',
-	'9',  'A',  'B',  'C',  'D',  'E',  'F',  'G',  'H',  'I',
-	'J',  'K',  'L',  'M',  'N',  'O',  'P',  'Q',  'R',  'S',
-	'T',  'U',  'V',  'W',  'X',  'Y',  'Z',  'a',  'b',  'c',
-	'd',  'e',  'f',  'g',  'h',  'i',  'j',  'k',  'l',  'm',
-	'n',  'o',  'p',  'q',  'r',  's',  't',  'u',  'v',  'w',
-	'x',  'y',  'z',  '!',  '"',  '#',  '$',  '%',  '&',  '(',
-	')',  '*',  '+',  ',',  '-',  '.',  '/',  ':',  ';',  '<',
-	'=',  '>',  '?',  '@',  '[', '\\',  ']',  '^',  '_',  '{',
-	'|',  '}',  '~',  '`', '\'', '\'',  '`',  '^',  '-'
+	{ 'B',  '\0', TRBLD }
 };
 
 /*
  * Width table.
+ * Initialized in devparm().
  */
-unsigned char widtab[] ={
-	  0,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12,   12,
-	 12,   12,   12,   12,   12,   12,   12,   12,   12
-};
+unsigned char widtab[NWIDTH];
 
 /*
- * Set up the non constant parameters that are dependent on a
- * particular device.  Namely pointsize and font.
+ * Set up the non-constant parameters that depend on a particular device.
  */
 devparm()
 {
+	register int i;
+
+	for (i = 0; i < NWIDTH; i++)
+		widtab[i] = 12;		/* initialize font width table */
+	fonwidt = widtab;		/* width table for all fonts */
+	swdmul	= 1;			/* multiplier for width table */
+	swddiv	= 20;			/* divisor for width table */
 	devfont(TRMED);
+	oldpsz = psz = unit(SMINCH, 6*SDINCH);
+	vls = unit(SMINCH, 6*SDINCH);
 }
 
 /*
- * Given a font, consisting of the font number, set the new font
- * to the one given.
+ * Given a font number, change to the given font.
  */
-devfont(font)
+devfont(n) register int n;
 {
-	swdmul	= 1;		/* Multiplier for width tables */
-	swddiv	= 20;		/* Divisor for width tables */
-	fonwidt = widtab;
-	newfont = font;
+	addidir(DFONT, fontype = n);
 }
 
 /*
  * Change the pointsize to the one specified.
+ * A nop for nroff.
  */
-devpsze(n)
+devpsze(n) int n;
 {
-	psz = newpsz = unit(SMINCH, 6*SDINCH);
+	/* psz initialized in devparm() */
 }
 
 /*
  * Change the vertical spacing.
+ * A nop for nroff.
  */
 devvlsp(n)
 {
-	vls = unit(SMINCH, 6*SDINCH);
+	/* vls initialized in devparm() */
 }
 
 /*
@@ -124,54 +91,47 @@ flushl(buffer, bufend)
 CODE *buffer;
 CODE *bufend;
 {
-	static int	hpos=0, hres=0, vres=0, font=0;
+	static int hpos;
+	static int hres;
+	static int vres;
+	static int font;
 	register CODE	*cp;
 	register int	n;
+
 #if	(DDEBUG & DBGFUNC)
 	printd(DBGFUNC, "flushl: hpos=%d, hres=%d, vres=%d, font=%d\n",
 		hpos, hres, vres, font);
 #endif
 	for (cp=buffer; cp<bufend; cp++) {
 #if	(DDEBUG & DBGCODE)
-		codebug(cp->c_code, cp->c_iarg, cp->c_csp);
+		codebug(cp->l_arg.c_code, cp->l_arg.c_iarg, cp->c_csp);
 #endif
-		switch (cp->c_code) {
+#if	0
+		fprintf(stderr, "output: %d arg=%d\n", cp->l_arg.c_code, cp->l_arg.c_iarg);
+#endif
+		switch (cp->l_arg.c_code) {
 		case DNULL:
 		case DHYPH:
 			continue;
 		case DHMOV:
 		case DPADC:
-			hres += cp->c_iarg;
-			if ((hpos+=cp->c_iarg)<0) {
+			hres += cp->l_arg.c_iarg;
+			if ((hpos+=cp->l_arg.c_iarg)<0) {
 				hres -= hpos;
 				hpos = 0;
 			}
 			continue;
 		case DVMOV:
-			vres += cp->c_iarg;
-			continue;
-		case DFPOS:
+			vres += cp->l_arg.c_iarg;
 			continue;
 		case DFONT:
-			font = cp->c_iarg;
+			font = cp->l_arg.c_iarg;
 			continue;
 		case DPSZE:
 			continue;
-		case DTRAN:			/* trans char (dag)	*/
-			putchar(cp->c_iarg);
-			continue;
-		case DTRAB:			/* trans line (dag)	*/
-			{
-				char *tp;
-				tp = cp->c_bufp;
-				while (*tp)
-					putchar( *tp++ );
-				free(cp->c_bufp);
-				continue;
-			}
 		case DSPAR:
 			hpos = hres = 0;
-			vres += cp->c_iarg;
+			vres += cp->l_arg.c_iarg;
 			if (vres >= 0) {
 				n = (vres+10) / 20;
 				vres -= n*20;
@@ -213,13 +173,12 @@ CODE *bufend;
 				while (n--)
 					putchar('\b');
 			}
-			if (cp->c_code==DHYPC)
-				n = CMINUS;
+			if (cp->l_arg.c_code==DHYPC)
+				n = '-';
 			else
-				n = cp->c_code;
-			if (n<=0 || n>=sizeof intasc)
-				panic("Bad directive %d", n);
-			n = intasc[n];
+				n = cp->l_arg.c_code;
+			if (n < 0 || n >= NWIDTH)
+				panic("bad directive %d", n);
 			if ((font != TRMED)
 			&&  (isascii(n))
 			&&  (isupper(n) || islower(n) || isdigit(n)))
@@ -228,67 +187,51 @@ CODE *bufend;
 					printf("%c\b", n);
 					break;
 				case TRITL:
+#if	1
+					printf("_\b");
+#else
+					n |= 0x80;
+#endif
+					break;
+#if	0
+				case HELV:
 					printf("_\b");
 					break;
+#endif
 				default:
-					panic("Bad font %d", font);
+					panic("bad font %d", font);
 				}
 			putchar(n);
-			if (enbldn) {		/* Universal bolding.	*/
-				int q;
-				for (q=0; q<enbldn; q++) {
-					printf("\b");
-					putchar(n);
-				}
-			}
-			hres += cp->c_move-12;
-			hpos += cp->c_move;
+			hres += cp->c_arg.c_move-12;
+			hpos += cp->c_arg.c_move;
 		}
 	}
 }
 
 /*
- *	Reset device before leaving. Unecessary in nroff.
- *
+ * Display available fonts.
  */
-
 void
-resetdev()
+font_display()
 {
-	return;
+	fprintf(stderr,
+		"Fonts available in this version:\n R  Roman\n I  Italic\n B  Bold\n"
+		);
 }
 
 /*
- * A bunch of dummy routines for TROFF compatibility
+ * The following troff functions are nops for nroff.
  */
-assign_font()
-{
-	printe(".rf not in NROFF");
-}
+dev_cs(){}
+dev_fz(){}
+newpsze(){}
+load_font(){}
+void resetdev(){}
 
-/*
- * Return false.
- */
-int is_varspace()
-{
-	return (0==1);
-}
-
-int font_number()
+int
+is_varspace(t) int t;
 {
 	return 0;
 }
 
-font_display()
-{
-	register FTB *fntb = fontab;
-	register char a, b;
-
-	fprintf(stderr, "Fonts available in NROFF\n");
-	while ((a=fntb->f_name[0]) != 0) {
-		if ((b = fntb->f_name[1]) == 0)
-			b = ' ';
-		fprintf(stderr, " %c%c %s\n", a, b, fnames[fntb->f_font]);
-		fntb++;
-	}
-}
+/* end of tty.c */

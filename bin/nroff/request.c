@@ -1,13 +1,11 @@
 /*
+ * request.c
  * Nroff/Troff.
  * Request handler.
  */
-#include <stdio.h>
+
 #include <ctype.h>
 #include "roff.h"
-#include "reg.h"
-#include "str.h"
-#include "codebug.h"
 
 /*
  * This is called when the user gives a request.  It collects the
@@ -28,7 +26,7 @@ request()
 	}
 	argc = 0;
 	for (i=0; i<ARGSIZE; i++)
-		argp[i] = null;
+		argp[i] = "";
 	ap = abuf = nalloc(ABFSIZE);
 	abufend = &abuf[ABFSIZE];
 	mp = miscbuf;
@@ -52,7 +50,7 @@ request()
 		}
 		while (c!='\n' && isascii(c) && isspace(c)) {
 			if (ap>=abufend || mp>=mpend) {
-				printe("Arguments too long");
+				printe("arguments too long");
 				nfree(abuf);
 				while (c != '\n')
 					c = getf(0);
@@ -75,19 +73,19 @@ request()
 	}
 #endif
 	argname(argp[0], name);
-	if (d00flag)
+	if (dflag)
 		fprintf(stderr, "%s\n", miscbuf);
 	if ((rp=findreg(name, RTEXT)) == NULL)
-		printe("Request `%s' not found", argp[0]);
+		printe("request '%s' not found", argp[0]);
 	else {
-		if (rp->r_macd.m_type == MREQS)
-			(*rp->r_macd.m_func)(argc, argp);
+		if (rp->t_reg.r_macd.r_div.m_type == MREQS)
+			(*rp->t_reg.r_macd.r_div.m_func)(argc, argp);
 		else {
 			if (adstreg(rp) != 0) {
-				strp->s_argc = argc;
+				strp->x1.s_argc = argc;
 				for (i=0; i<ARGSIZE; i++)
-					strp->s_argp[i] = argp[i];
-				strp->s_abuf = abuf;
+					strp->x1.s_argp[i] = argp[i];
+				strp->x1.s_abuf = abuf;
 			}
 			return;
 		}
@@ -96,8 +94,8 @@ request()
 }
 
 /*
- * Store the next argument from the given line `lp' in the given
- * argument buffer, `ap'.  `n' is the length of the buffer.
+ * Store the next argument from the given line 'lp' in the given
+ * argument buffer, 'ap'.  'n' is the length of the buffer.
  * Trailing space characters are skipped over and the new line
  * pointer is returned.
  */
@@ -121,3 +119,5 @@ register char *lp, *ap;
 		lp++;
 	return (lp);
 }
+
+/* end of request.c */
