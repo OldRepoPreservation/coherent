@@ -1,3 +1,14 @@
+12/30/92	Version 0.02 	Vlad
+
+Fixed minor output bugs. Made ipcs work with SVR3 compatible
+shared memory and message queues. Semaphore part is still working
+with old 286 semaphores. Output layaout for semaphores may be wrong.
+
+shmemul.c is included because the proper interface was not
+included in libc.a. It should be removed as soon as libc.a will
+be fixed.
+
+
 09/22/92:	Version 0.01
 
 This ipcs command does not yet support the Corefile option.

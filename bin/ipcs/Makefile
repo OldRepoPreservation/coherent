@@ -5,13 +5,15 @@ SRC = 	fifo.c \
 	getipc.c \
 	ipcs.c \
 	pick_nfile.c \
-	printipc.c
+	printipc.c \
+	shmemul.c
 
 OBJ = 	obj/fifo.o \
 	obj/getipc.o \
 	obj/ipcs.o \
 	obj/pick_nfile.o \
-	obj/printipc.o
+	obj/printipc.o \
+	obj/shmemul.o
 
 bin/ipcs: $(OBJ) $(COMMON)
 	cc $(OBJ) -o bin/ipcs 
@@ -31,3 +33,6 @@ obj/ipcs.o : ipcs.c $(COMMON)
 
 obj/printipc.o : printipc.c $(COMMON)
 	cc -c printipc.c -o obj/printipc.o
+
+obj/shmemul.o : shmemul.c $(COMMON)
+	cc -c shmemul.c -o obj/shmemul.o
