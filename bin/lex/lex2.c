@@ -354,8 +354,11 @@ getactn()
 			setltype();
 			if (bct==0)
 				return;
-			if (ltype!=LN_LSPC)
-				error(actsyn);
+			if (ltype != LN_LSPC)
+				if ('#' == look(0))
+					ltype = LN_LSPC;
+				else
+					error(actsyn);
 		}
 	}
 }
