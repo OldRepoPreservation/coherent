@@ -1,16 +1,13 @@
-: /etc/shutdown 7/11/91
+: /etc/shutdown 7/14/92
 : Take the system to single user mode.
 : Unmount devices mounted by /etc/rc.
-
-/etc/wall <<EOF
-System going down!
-EOF
 
 /bin/echo -n 'Do you wish to shut the system down? '
 read ans
 
 case $ans in
 y|Y|yes|YES)
+	echo 'System going down!\007' | /etc/wall &
 	cd /
 	/etc/umount.all
 	/bin/echo 'Wait for the # prompt on the console.'

@@ -1,23 +1,16 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON___VALIST_H__
 #define	__COMMON___VALIST_H__
 
 /*
- * This internal header file defines the internal data type '__va_alist'.
- * This type is equivalent to the ISO C data type 'va_alist', but has an
- * internal name so that headers can refer to it without exporting the name
- * to user-level.
+ * This internal header file is intended as the sole point of definition for
+ * the internal data type "__va_alist", exactly equivalent to the ISO C data
+ * type "va_alist" but given an internal name so that headers may refer to
+ * the type without exporting the name to user-level unnecessarily.
  *
- * In most cases where we perform this subterfuge, we do it as a matter of
- * good style; here, however, we do it to comply with the namespace
- * provisions of POSIX.1, because the name of the user-level type does
- * not end in "_t" and thus is not implicitly reserved by POSIX.1, as
+ * Unlike most other cases where we perform this subterfuge, where we do it
+ * as a matter of good style, here we do it as a matter of compliance with
+ * the namespace provisions of POSIX.1, since the name of the user-level type
+ * does not end in "_t" and thus is not implicitly reserved by POSIX.1 as
  * most other type-names are.
  */
 

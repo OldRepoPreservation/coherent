@@ -23,49 +23,6 @@ for dir in uucico uux uuxqt uucp; do
 		fi
 	done
 done
-
-
-# move the uucp transfer stats and uucico debug files
-
-	for site in xferstats audit.local ; do
-		file=/usr/spool/uucp/.Admin/$site
-		if [ $1 -ge 2 ] ; then
-			for days in `from $1 to 2 by -1`; do
-				new=`expr $days - 1`
-				if [ -f $file.$new ] ; then
-					echo moving $file.$new to $file.$days >>$tmp
-					mv $file.$new $file.$days >>$tmp 2>&1
-				fi
-			done
-		fi
-		if [ -f $file ] ; then
-			echo moving $file to $file.1 >>$tmp
-			mv $file $file.1 >>$tmp 2>&1
-			>$file
-		fi
-	done
-
-# move the mail logs
-
-	for site in lmail mail ; do
-		file=/usr/spool/uucp/.Log/mail/$site
-		if [ $1 -ge 2 ] ; then
-			for days in `from $1 to 2 by -1`; do
-				new=`expr $days - 1`
-				if [ -f $file.$new ] ; then
-					echo moving $file.$new to $file.$days >>$tmp
-					mv $file.$new $file.$days >>$tmp 2>&1
-				fi
-			done
-		fi
-		if [ -f $file ] ; then
-			echo moving $file to $file.1 >>$tmp
-			mv $file $file.1 >>$tmp 2>&1
-			>$file
-		fi
-	done
-
-
 cat $tmp
 rm $tmp
 exit 0

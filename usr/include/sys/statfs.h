@@ -1,17 +1,16 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef	__SYS_STATFS_H__
-#define __SYS_STATFS_H__
 
 /*
  * Structure for "generic superblock".
  * This structure is used by statfs and fstatfs system calls.
  */
+
+#ifndef	__SYS_STATFS_H__
+#define __SYS_STATFS_H__
 
 struct statfs {
 	short	f_fstyp;	/* File system type. 1 for 512 bytes blocks */
@@ -25,4 +24,4 @@ struct statfs {
 	char	f_fpack[6];	/* Pack name */
 };
 
-#endif	/* ! defined (__SYS_STATFS_H__) */
+#endif

@@ -1,16 +1,20 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__SYS_KMEM_H__
 #define	__SYS_KMEM_H__
 
 /*
- * This header deals with kernel memory-management functions defined by the
- * DDI/DKI.
+ * This header deals with kernel memory-management functions.
+ */
+/*
+ *-IMPORTS:
+ *	<common/ccompat.h>
+ *		__EXTERN_C_BEGIN__
+ *		__EXTERN_C_END__
+ *		__VOID__
+ *		__PROTO ()
+ *	<common/_size.h>
+ *		size_t
+ *	<common/_null.h>
+ *		NULL
  */
 
 #include <common/ccompat.h>
@@ -23,8 +27,7 @@
  * lock-allocation functions in <sys/ksynch.h>
  */
 
-enum {
-	KM_SLEEP,
+enum {	KM_SLEEP,
 	KM_NOSLEEP
 };
 
@@ -36,5 +39,6 @@ void		kmem_free	__PROTO ((__VOID__ * _addr, size_t _size));
 __VOID__      *	kmem_zalloc	__PROTO ((size_t _size, int _flag));
 
 __EXTERN_C_END__
+
 
 #endif	/* ! defined (__SYS_KMEM_H__) */

@@ -1,10 +1,3 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__SYS_TYPES_H__
 #define	__SYS_TYPES_H__
 
@@ -24,9 +17,9 @@
  * controlled by feature-test macros such as _SYSV3 for iBCS2, and _SYSV4 for
  * System V, Release 4.
  *
- * System headers that depend on this file for definitions should take care
- * when using symbols that have different definitions under the _SYSV3 and
- * _SYSV4 environments. This header defines both versions under internal names
+ * System headers which depend on this file for definitions should take care
+ * when using symbols that have different definitions under the _SVR3 and
+ * _SVR4 environments. This header defines both versions under internal names
  * beginning with o_ for SVR3 and n_ for SVR4, and then uses one of those
  * definitions as the base for the external definition.
  */
@@ -36,7 +29,7 @@
  * the System V, Release 4 Multiprocessor DDI/DKI, which defines additional
  * symbols. The visibility of symbols unique to the DDI/DKI is controlled by
  * the _DDI_DKI feature-test macro. Headers in the DDI/DKI are part of the
- * kernel environment, and should not depend on the _SYSV3 or _SYSV4 feature-
+ * kernel environment, and should not depend on the _SVR3 or _SVR4 feature-
  * tests.
  *
  * The rationale for all of this is to ease the transition between providing
@@ -61,7 +54,7 @@ typedef	__ino_t		ino_t;
 typedef	__mode_t	mode_t;
 
 
-#if	! _POSIX_C_SOURCE
+#if	! _POSIX_SOURCE
 
 /*
  * We build our definitions of 'uchar_t' and friends from a common base type.
@@ -76,31 +69,26 @@ typedef	__mode_t	mode_t;
 #include <common/_daddr.h>
 #include <common/_time.h>
 #include <common/_fsize.h>
-#include <common/_caddr.h>
 
 typedef	__uchar_t	uchar_t;
 typedef	__ushort_t	ushort_t;
 typedef	__uint_t	uint_t;
 typedef	__ulong_t	ulong_t;
 
-typedef	__uchar_t	u_char;
-typedef	__ushort_t	u_short;
-typedef	__uint_t	u_int;
-typedef	__ulong_t	u_long;
-
 typedef	__uchar_t	unchar;
 typedef	__ushort_t	ushort;
 typedef	__uint_t	uint;
 typedef	__ulong_t	ulong;
 
+typedef	char	      *	caddr_t;
 typedef	__pid_t		id_t;
-typedef	__key_t		key_t;		/* for System V IPC */
+typedef	int		key_t;		/* for System V IPC */
 
 
 /*
- * Internal COHERENT kernel code here defines several types that conflict with
+ * Old Coherent kernel code defined several types here that conflict with
  * DDI/DKI usage. Most have been changed to more portable equivalents, but
- * since these do not have a corresponding DDI/DKI definition, they have been
+ * since these does not have a corresponding DDI/DKI definition it has been
  * left.
  *
  * Developers are advised to read the cautionary notice in <common/__paddr.h>.
@@ -115,35 +103,10 @@ typedef	char	      *	vaddr_t;
 
 typedef	__VOID__	_VOID;		/* for System V */
 
-/*
- * Satisfy BSD requirements.
- */
-
-#include <sys/select.h>
-
 #endif
 
 
-/*
- * The major/minor device number concepts have been altered a little under
- * System V release 4 to encompass the idea of internal and external minor
- * device numbers.
- *
- * Under this concept the "bdevsw" and "cdevsw" can map down from 32-bit
- * device numbers to some smaller internal major/minor space.
- */
-
-typedef	unsigned short	minor_t;	/* external minor device number */
-typedef	unsigned short	major_t;	/* external major device number */
-
-#if	_DDI_DKI || _KERNEL
-
-#include <kernel/_pl.h>
-#include <kernel/_buf.h>
-
 #if	_DDI_DKI
-
-# define	NODEV		((major_t) -1)
 
 /*
  * We keep the DDI/DKI definitions in a separate header, since they are
@@ -153,6 +116,5 @@ typedef	unsigned short	major_t;	/* external major device number */
 #include <kernel/v_types.h>
 
 #endif	/* _DDI_DKI */
-#endif	/* _DDI_DKI || _KERNEL */
 
 #endif	/* ! defined (__SYS_TYPES_H__) */

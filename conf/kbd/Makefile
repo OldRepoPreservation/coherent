@@ -78,51 +78,67 @@ print:
 # Insert any keyboard specific instructions below
 #
 us:	us.o $(LDLIBS)
-	$(CC) -so $@ us.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 uk:	uk.o $(LDLIBS)
-	$(CC) -so $@ uk.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 german:	german.o $(LDLIBS)
-	$(CC) -so $@ german.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 french:	french.o $(LDLIBS)
-	$(CC) -so $@ french.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 belgian:	belgian.o $(LDLIBS)
-	$(CC) -so $@ belgian.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 italian:	italian.o $(LDLIBS)
-	$(CC) -so $@ italian.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 spanish:	spanish.o $(LDLIBS)
-	$(CC) -so $@ spanish.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 swedish:	swedish.o $(LDLIBS)
-	$(CC) -so $@ swedish.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 danish:	danish.o $(LDLIBS)
-	$(CC) -so $@ danish.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 norwegian:	norwegian.o $(LDLIBS)
-	$(CC) -so $@ norwegian.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 swiss_french:	swiss_french.o $(LDLIBS)
-	$(CC) -so $@ swiss_french.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 swiss_german:	swiss_german.o $(LDLIBS)
-	$(CC) -so $@ swiss_german.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 canadian:	canadian.o $(LDLIBS)
-	$(CC) -so $@ canadian.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 dutch:	dutch.o $(LDLIBS)
-	$(CC) -so $@ dutch.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 latin_am:	latin_am.o $(LDLIBS)
-	$(CC) -so $@ latin_am.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 portuguese:	portuguese.o $(LDLIBS)
-	$(CC) -so $@ portuguese.o $(LDLIBS)
+	$(CC) -o $@ $<
+	strip $@
 
 # end of /conf/kbd/Makefile

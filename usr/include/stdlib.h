@@ -1,10 +1,10 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0.2
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * stdlib.h
  * C general utilities library header.
  * Draft Proposed ANSI C Standard, Section 4.10, 12/7/88 draft.
  */
@@ -13,7 +13,6 @@
 #define	__STDLIB_H__
 
 #include <common/ccompat.h>
-#include <common/xdebug.h>
 #include <common/_size.h>
 #include <common/_wchar.h>
 #include <common/_null.h>
@@ -29,7 +28,6 @@
 /* Types. */
 typedef	struct { int quot; int rem; } div_t;	/* div result type	*/
 typedef	struct { long quot; long rem; } ldiv_t;	/* ldiv result type	*/
-
 
 /*
  * Functions in /lib/libc.a corresponding to ANSI <stdlib.h>.
@@ -55,9 +53,11 @@ __VOID__      *	calloc		__PROTO ((size_t _nmemb, size_t _size));
 void		free		__PROTO ((__VOID__ * _ptr));
 __VOID__      *	malloc		__PROTO ((size_t _size));
 __VOID__      *	realloc		__PROTO ((__VOID__ * _ptr, size_t _size));
-__NO_RETURN__	abort		__PROTO ((void));
+__NO_RETURN__ void
+		abort		__PROTO ((void));
 int		atexit		__PROTO ((void (* _func) (void)));
-__NO_RETURN__	exit		__PROTO ((int _status));
+__NO_RETURN__ void
+		exit		__PROTO ((int _status));
 char	      *	getenv		__PROTO ((__CONST__ char * _name));
 int		system		__PROTO ((__CONST__ char * _string));
 __VOID__      *	bsearch		__PROTO ((__CONST__ __VOID__ * _key,
@@ -87,14 +87,7 @@ size_t		mbstowcs	__PROTO ((wchar_t * _pwcs,
 size_t		wcstombs	__PROTO ((char * _s,
 					  __CONST__ wchar_t * _pwcs,
 					  size_t _n));
-
 #endif	/* not implemented */
-
-#if	! _POSIX_C_SOURCE && ! _STDC_SOURCE
-
-int		putenv		__PROTO ((char * _name));
-
-#endif	/* ! _POSIX_C_SOURCE && ! _STDC_SOURCE */
 
 __EXTERN_C_END__
 
@@ -106,41 +99,5 @@ extern	void		(**_atexitfp)();
 extern	double		_pow10	   ();
 
 #endif		/* not permitted in this header */
-
-
-#if	__GNUC__ && _I386
-
-__LOCAL__ __INLINE__ div_t __div (int _numerator, int _denominator) {
-	div_t		_result;
-	__NON_ISO (asm) ("cltd;idiv %3" :
-			 "=a" (_result.quot), "=d" (_result.rem) :
-			 "0" (_numerator), "c" (_denominator));
-	return _result;
-}
-
-__LOCAL__ __INLINE__ ldiv_t __ldiv (long _numerator, long _denominator) {
-	ldiv_t		_result;
-	__NON_ISO (asm) ("cltd;idiv %3" :
-			 "=a" (_result.quot), "=d" (_result.rem) :
-			 "0" (_numerator), "c" (_denominator));
-	return _result;
-}
-
-#if	__cplusplus
-
-__LOCAL__ __INLINE__ div_t div (int _numerator, int _denominator) {
-	return __div (_numerator, _denominator);
-}
-__LOCAL__ __INLINE__ ldiv_t ldiv (long _numerator, long _denominator) {
-	return __ldiv (_numerator, _denominator);
-}
-
-#else
-
-#define	div(num, den)		__div (num, den)
-#define	ldiv(num, den)		__ldiv (num, den)
-
-#endif	/* ! __cplusplus */
-#endif	/* ! (__GNUC__ && __I386__) */
 
 #endif	/* ! defined (__STDLIB_H__) */

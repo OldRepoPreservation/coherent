@@ -1,10 +1,8 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
 #ifndef	__SYS_AHA154X_H__
 #define	__SYS_AHA154X_H__
 
@@ -196,6 +194,7 @@ typedef	struct	{
 	unsigned char	buffer[1];
 }	ccb_t;
  
+#ifdef _I386
 /* These macros are for stashing away P3 addresses for ccbs.  */
 #define ccb_forget( a_ccb )	mem_forget( a_ccb )
 #define ccb_remember( a_ccb, a_p3 ) \
@@ -206,5 +205,6 @@ typedef struct {
 	P3 size;
 	P3 addr;
 } DSL_ENTRY;	
+#endif /* _I386 */
 
-#endif	/* ! defined (__SYS_AHA154X_H__) */
+#endif	/* of AHA154X_H */

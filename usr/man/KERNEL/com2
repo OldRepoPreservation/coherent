@@ -1,0 +1,34 @@
+ccoomm22 -- Device Name
+
+
+This article applies  if the aall11 device driver is  used.  It does _n_o_t apply
+if  the aassyy  device  driver is  used.  /ddeevv/ccoomm22 is  the COHERENT  system's
+standard  interface to  asynchronous serial  line  COM2.  The  interface is
+accessed as a character-special device and is assigned major device 5 under
+COHERENT 386  and major device 6  under COHERENT 286.  The  I/O address for
+the  corresponding 8250  UART is  0x2F8  (COM2).  ccoomm22  generates interrupt
+IRQ3.
+
+Depending upon which  release of COHERENT you use, up  to eight versions of
+device ccoomm22 are in directory /ddeevv, as follows:
+
+                            _M_o_d_e_m     _F_l_o_w
+     _D_e_v_i_c_e _N_a_m_e_I/_O _T_y_p_e  _C_o_n_t_r_o_l?  _C_o_n_t_r_o_l?
+     /ddeevv/ccoomm22ffllInterrupts    No        Yes
+     /ddeevv/ccoomm22ffppllPolled      No        Yes
+     /ddeevv/ccoomm22ffpprrPolled      Yes       Yes
+     /ddeevv/ccoomm22ffrrInterrupts    Yes       Yes
+     /ddeevv/ccoomm22llInterrupts    No        No
+     /ddeevv/ccoomm22ppll Polled      No        No
+     /ddeevv/ccoomm22pprr Polled      Yes       No
+     /ddeevv/ccoomm22rrInterrupts    Yes       No
+
+For details on how these versions differ, see the entry for ccoomm.
+
+_S_e_e _A_l_s_o
+aassyy, ccoomm, hhss, ssttttyy
+
+_N_o_t_e_s
+Serial  port  access under  COHERENT  386  uses the  driver  aassyy, which  is
+described in  its own  Lexicon entry.   Under COHERENT 286,  device drivers
+aall00, aall11, and hhss are used.

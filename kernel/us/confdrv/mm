@@ -1,3 +1,0 @@
-:
-: 'Memory Mapped (Text) Video - excludes Keyboard'
-UNDEF="${UNDEF} lib/mm.a"

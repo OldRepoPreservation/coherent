@@ -1,9 +1,10 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
+/*
+ * /usr/include/sys/wait.h
+ *
+ * Support for wait() and waitpid() system calls.
+ *
+ * Revised Mon Mar 22 13:10:53 1993 CST
+ */
 
 #ifndef	__SYS_WAIT_H__
 #define	__SYS_WAIT_H__

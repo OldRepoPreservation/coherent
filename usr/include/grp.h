@@ -1,16 +1,14 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef	__GRP_H__
-#define	__GRP_H__
-
 /*
  * Structure for the /etc/group file.
  */
+
+#ifndef	__GRP_H__
+#define	__GRP_H__
 
 #include <common/feature.h>
 #include <common/ccompat.h>
@@ -33,13 +31,9 @@ __EXTERN_C_BEGIN__
 struct group  *	getgrgid	__PROTO ((__gid_t _gid));
 struct group  *	getgrnam	__PROTO ((__CONST__ char * _name));
 
-#if	! _POSIX_C_SOURCE
+#if	! _POSIX_SOURCE
 
 struct group  *	getgrent	__PROTO ((void));
-void		setgrent	__PROTO ((void));
-void		endgrent	__PROTO ((void));
-int		initgroups	__PROTO ((__CONST__ char * _name,
-					  __gid_t _basegid));
 
 #endif
 

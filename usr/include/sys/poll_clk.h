@@ -1,18 +1,16 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * poll_clk.h - include file for drivers using altclk_in()/altclk_out()
+ */
 
 #ifndef	__SYS_POLL_CLK_H__
 #define	__SYS_POLL_CLK_H__
 
-/*
- * include file for drivers using altclk_in()/altclk_out()
- */
 #include <sys/silo.h>
-
 /*
  * bit fields in com_usage[0..3]
  *   in_use is incremented each time open is attempted, and decremented
@@ -52,6 +50,4 @@ typedef struct {
 extern com_usage_t	com_usage[];    /* COM_UNUSED/COM_IRQ/COM_POLLED */
 extern int	poll_rate;	/* used by "prate" command */
 extern int	poll_owner;	/* checked during *open() of port */
-
-#endif	/* ! defined (__SYS_POLL_CLK_H__) */
-
+#endif

@@ -1,21 +1,19 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
+/*
+ * ss.h
+ *
+ * Header for Seagate ST01/ST02 and Future Domain SCSI host adapters.
+ */
 #ifndef __SYS_SS_H__
 #define __SYS_SS_H__
 
 /*
- * Header for Seagate ST01/ST02 and Future Domain SCSI host adapters.
- */
-
-/*
  * Constants.
  */
-
 #define SS_RAM		0x1800	/* Offset of parameter RAM */
 #define SS_CSR		0x1A00	/* Offset of control/status register */
 #define SS_DAT		0x1C00	/* Offset of data port */
@@ -42,15 +40,17 @@
 #define RS_MESSAGE  	0x02
 #define RS_BUSY  	0x01
 
-#if	_KERNEL
+/*
+ * Import Functions.
+ */
 
+/* functions from ssqueue.c */
 extern void ssq_wr_tail();
 extern BUF * ssq_rd_head();
 extern BUF * ssq_rm_head();
 
+/* functions from ssas.s */
 extern void ss_get();
 extern int ss_put();
 
 #endif
-
-#endif	/* ! defined (__SYS_SS_H__) */

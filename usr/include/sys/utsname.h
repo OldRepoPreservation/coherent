@@ -1,17 +1,15 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
+/*
+ * /usr/include/sys/utsname.h
+ *
+ * Revised: Wed May 19 10:29:48 1993 CDT
+ */
 #ifndef	__SYS_UTSNAME_H__
 #define	__SYS_UTSNAME_H__
 
 /*
- * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990; and, as
- * such, client programs that include it should not use any symbols
- * that end in "_t".
+ * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990, and as
+ * such client programs which include this header should not use any symbols
+ * which end in "_t".
  */
 
 /*
@@ -33,7 +31,7 @@
 #endif
 
 
-#if	! _POSIX_C_SOURCE
+#if	!defined(_POSIX_SOURCE)
 # define	SYS_NMLN	__SYS_NMLN
 #endif
 

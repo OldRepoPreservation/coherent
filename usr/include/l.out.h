@@ -1,10 +1,10 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * l.out.h
  * This defines the format of the 'l.out' file
  * (assembler output, linkage editor input and output).
  * It also gives the namelist structure for the nlist routine.
@@ -13,7 +13,7 @@
 #ifndef	 __L_OUT_H__
 #define	 __L_OUT_H__
 
-#include <common/__fsize.h>
+#include <sys/types.h>
 
 #define	NCPLN	16		/* Chars in loader name		*/
 #define NLSEG	9		/* No. of segments		*/
@@ -30,7 +30,7 @@ struct	ldheader {
 	short		l_flag;		/* Flags		*/
 	short		l_machine;	/* Type of target machine */
 	unsigned short	l_entry;	/* Entrypoint		*/
-	__fsize_t	l_ssize [NLSEG]; /* Segment sizes	*/
+	fsize_t		l_ssize[NLSEG];	/* Segment sizes	*/
 };
 
 /* Flags. */
@@ -97,4 +97,6 @@ struct nlist	{
 #define LR_BYTE	(0<<5)		/* Rel. a byte			*/
 #define LR_WORD	(1<<5)		/* Rel. a word			*/
 
-#endif	/* ! defined (__L_OUT_H__) */
+#endif
+
+/* end of l.out.h */

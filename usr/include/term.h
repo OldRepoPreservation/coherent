@@ -9,7 +9,7 @@
 #include <common/feature.h>
 #include <common/ccompat.h>
 
-#if	_POSIX_C_SOURCE || _STDC_SOURCE
+#if	_POSIX_SOURCE || _STDC_SOURCE
 # define	__TERM(member)	__CONCAT (_, member)
 #else
 # define	__TERM(member)	member
@@ -476,7 +476,7 @@ struct term {
 extern	struct term	__first_term;
 extern	struct term   *	__cur_term;
 
-#if	! _POSIX_C_SOURCE && ! _STDC_SOURCE
+#if	! _POSIX_SOURCE && ! _STDC_SOURCE
 # define	BOOLCOUNT 37
 # define	NUMCOUNT  30
 # define	STRCOUNT  355

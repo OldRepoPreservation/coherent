@@ -1,10 +1,3 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__KERNEL_DDI_DATA_H__
 #define	__KERNEL_DDI_DATA_H__
 
@@ -14,6 +7,15 @@
  * separate header for each type, because these are normally incomplete types
  * anyway, and the <sys/ddi...> mechanisms are only for internal use.
  */
+/*
+ *-IMPORTS:
+ *	<kernel/_defer.h>
+ *		deffuncp_t
+ *	<kernel/_lock.h>
+ *		__lock_t
+ *	<kernel/x86lock.h>
+ *		atomic_uchar_t
+ */
 
 #include <kernel/_defer.h>
 #include <kernel/_lock.h>
@@ -21,13 +23,13 @@
 
 
 /*
- * Defer tables operate at both the per-CPU and global levels.  This is the
+ * Defer tables operate at both the per-CPU and global levels. This is the
  * type of a defer table, and the type used to index the table for reading
  * and writing.
  *
  * The defer tables use short atomic indices because that is considerably
  * simpler and more portable than dealing with atomic pointer types (as they
- * are implemented in this system, anyway).  The extra scaling operation to
+ * are implemented in this system, anyway). The extra scaling operation to
  * index the table seems worth it, since it's cheap and for many common CPUs
  * is available as an address mode anyway.
  */
@@ -35,8 +37,8 @@
 typedef	atomic_uchar_t	deftabidx_t;
 
 /*
- * The per-CPU defer-function tables need locks for writing because they are
- * used to bind routines to specific processors.  The global defer-function
+ * The per-CPU defer-function tables need locks for writing since they are
+ * used to bind routines to specific processors. The global defer-function
  * tables need read and write locks. The read lock is typically a simple test-
  * and-set lock because the table is tested on the way out of interrupts and
  * we are concerned about the overhead this imposes.
@@ -45,10 +47,11 @@ typedef	atomic_uchar_t	deftabidx_t;
 typedef	atomic_uchar_t	defrlock_t;
 typedef	__lock_t      *	defwlock_t;
 
+
 /*
- * The deferred-operation tables come in separate per-CPU and global flavors
- * due to different locking requirements.  In addition, deferred operations
- * can run at different priority levels, most easily managed by having separate
+ * The deferred-operation tables come in separate per-CPU and global flavours
+ * due to different locking requirements. In addition, deferred operations can
+ * run at different priority levels, most easily managed by having separate
  * tables.
  *
  * One priority level has operations indended to be lower than any interrupt
@@ -57,10 +60,10 @@ typedef	__lock_t      *	defwlock_t;
  * than any kernel-level operation but higher priority than any user-level
  * operation.
  *
- * Because the only difference between the per-CPU and global tables is the
- * read lock, we can use the same structure for all the deferred functions
- * (the read lock takes no extra space under COFF due to the structure
- * alignment rules).
+ * Since the only difference between the per-CPU and global tables is the read
+ * lock, we can use the same structure for all the deferred functions (the
+ * read lock takes no extra space under COFF due to the structure alignment
+ * rules).
  */
 
 typedef struct {

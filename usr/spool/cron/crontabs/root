@@ -6,6 +6,12 @@
 
 # Rebuild the qfind database at 2 AM daily.
 # Remove the comment delimiter on the command line below as desired.
-# 00 02 * * *	/bin/qfind -b
+00 02 * * *	/bin/qfind -b
+
+# build 286 source archives on Wednesday night
+#00 21 * * 3 /usr/bin/bld286
+
+# build 386 source archives on Thursday night
+#00 21 * * 4 /usr/bin/bld386
 
 # end of root crontab

@@ -1,1 +1,2 @@
-06/18/93 11:00 - Add Printer: disk, device=/dev/null, backend=disk
+07/19/93 07:03 - Add Printer: disk, device=/dev/null, backend=disk
+07/19/93 07:03 - MLP Scheduler Started, PID: 16580

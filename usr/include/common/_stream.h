@@ -1,18 +1,11 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON__STREAM_H__
 #define	__COMMON__STREAM_H__
 
 /*
- * This internal header file declares the STREAMS data types exported to
- * drivers via the header <sys/stream.h>.  Several high-profile kernel data
- * structures need to declare pointers to these items, so we export the
- * following incomplete type declarations.
+ * This internal header file is intended as the sole point of declaration for
+ * the STREAMS data types exported to drivers via the <sys/stream.h> header.
+ * Several high-profile kernel data structures need to declare pointers to
+ * these items, and so we export the following incomplete type declarations.
  */
 
 typedef struct msgb	mblk_t;

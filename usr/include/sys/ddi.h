@@ -1,17 +1,10 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__SYS_DDI_H__
 #define	__SYS_DDI_H__
 
 /*
- * This header removes macro definitions of functions, to enhance the
- * portablity of user-driver binaries by removing dependencies
- * on many system definitions, such as structure lengths.  Because many simple
+ * This header deals in removing macro definitions of functions in order to
+ * enhance the portablity of user driver binaries by removing dependencies
+ * on many system definitions such as structure lengths. Since many simple
  * functions are implemented as macros to remove the source-level dependency
  * while keeping performance, inclusion of the <sys/ddi.h> header indicates
  * that the user wishes to make trade off speed and time against binary
@@ -26,10 +19,11 @@
  * subsystem they were appropriated from) that have been elevated to DDI/DKI
  * preferred status.
  *
- * Clients of this header should use the new DDI/DKI functions to reduce
- * dependency on system data structure layout, but here we deal with the
- * simple transformation of macros to function calls, by subsystem.
+ * Clients of this header *should* be using the new DDI/DKI functions so as
+ * to reduce dependency on system data structure layout, but here we deal
+ * with the simple transformation of macros to function calls, by subsystem.
  */
+
 
 
 #ifdef	__SYS_STREAM_H__

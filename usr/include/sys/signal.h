@@ -1,9 +1,3 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
 #ifndef	__SYS_SIGNAL_H__
 #define	__SYS_SIGNAL_H__
 
@@ -12,8 +6,8 @@
 
 /*
  * Signal numbers, to be used by DDI/DKI device drivers, as described in
- * signals(D5DK). The numeric values are taken from the System V, Release 4
- * "Programmer's Reference Manual".
+ * signals(D5DK). The numeric values and additional commentary are taken from
+ * the System V, Release 4 "Programmer's Reference Manual".
  *
  * If the values in this header are to be imported from <signal.h>, then the
  * signal-number constants are required to be macros expanding to positive
@@ -121,7 +115,7 @@
 				 * register to receive this signal (DDI/DKI).
 				 * Default action: terminate.
 				 */
-#define	SIGIO		SIGPOLL	/* Obsolete BSD definition */
+#define	SIGIO		SIGPOLL	/* Obsolete BSD brain damage */
 #define	SIGSTOP		23	/*
 				 * Stop. Discards pending SIGCONT.
 				 * Default action: stop.
@@ -148,7 +142,7 @@
 				 * SIGCONT.
 				 * Default action: stop.
 				 */
-#define	SIGVTALRM	28	/*
+#define	SIGVTALARM	28	/*
 				 * Virtual timer expired.
 				 * Default action: terminate.
 				 */
@@ -165,21 +159,21 @@
 				 * Default action: terminate with core image.
 				 */
 
-#if	! _STDC_SOURCE && ! _POSIX_C_SOURCE
-#define NSIG		(_SIGNAL_MAX + 1)	/* Number of signals */
+#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+#define NSIG		_SIGNAL_MAX		/* Number of signals */
 #endif
 
 /*
  * Special arguments to signal.
  */
 
-#define SIG_DFL		((__sighand_t *) 0)	/* Default */
-#define SIG_IGN		((__sighand_t *) 1)	/* Ignore */
+#define SIG_DFL		((__sigfunc_t) 0)	/* Default */
+#define SIG_IGN		((__sigfunc_t) 1)	/* Ignore */
 
 #if	! _STDC_SOURCE
 
-#define SIG_ERR		((__sighand_t *) -1)	/* Error */
-#define SIG_HOLD	((__sighand_t *) 2)	/* Hold */
+#define SIG_ERR		((__sigfunc_t) -1)	/* Error */
+#define SIG_HOLD	((__sigfunc_t) 2)	/* Hold */
 
 #if	_SYSV4 && ! _SYSV3
 
@@ -187,14 +181,14 @@ typedef	n_sigset_t	sigset_t;
 
 struct sigaction {
 	int		sa_flags;
-	__sighand_t   *	sa_handler;
+	__sigfunc_t	sa_handler;
 	sigset_t	sa_mask;
 	int		__NON_POSIX (sa_resv) [2];
 };
 
 #define	SA_NOCLDSTOP	((long) __SF_NOCLDSTOP) << 16)
 
-#if	! _POSIX_C_SOURCE
+#if	! _POSIX_SOURCE
 
 #define	SA_ONSTACK	__SA_ONSTACK
 #define	SA_RESETHAND	__SA_RESETHAND
@@ -210,7 +204,7 @@ struct sigaction {
 typedef	o_sigset_t	sigset_t;
 
 struct sigaction {
-	__sighand_t   *	sa_handler;
+	__sigfunc_t	sa_handler;
 	sigset_t	sa_mask;
 	int		sa_flags;
 };
