@@ -73,10 +73,18 @@ indirect(ind_level, ind_table_ptr, vblockno)
 	daddr_t vblockno;
 {
 	int i;
-	static daddr_t localtable[NBN]; /* Static is OK, because indirect()
+
+	/* This is a place to remember what the contents of local_table are.
+	 * Note that -1 should be an impossible block number.
+	 */
+	static daddr_t local_table_ptr = (daddr_t *)-1;
+
+	/* This is a table of block numbers.  */
+	static daddr_t local_table[NBN]; /* Static is OK, because indirect()
 					 * tail recurses.  It is done with
 					 * the table by the time it recurses.
 					 */
+	
 
 	/* Base case.  Direct block.  */
 	if (0 == ind_level) {
@@ -88,15 +96,25 @@ indirect(ind_level, ind_table_ptr, vblockno)
 	}
 
 	/* Recursive case.  Some level of indirection.  */
-	/* Read the table into memory.  */
-	bread(ind_table_ptr, (char *)localtable);
-	/* Canonicalize it.  */
-	for (i = 0; i < NBN; ++i) {
-		candaddr(localtable[i]);
+
+	/* We only read the block if we don't already have it.
+	 * For sequential reads, this generally means we have to go out to
+	 * disk for indirect blocks only about once per 128 blocks.
+	 */
+	if (local_table_ptr != ind_table_ptr) {
+		bread(ind_table_ptr, (char *)local_table);
+
+		/* Canonicalize it.  */
+		for (i = 0; i < NBN; ++i) {
+			candaddr(local_table[i]);
+		}
+
+		/* Remember what we just read for next time.  */
+		local_table_ptr = ind_table_ptr;
 	}
 
 	indirect(ind_level - 1,
-		 ind_lookup(ind_level, localtable, vblockno),
+		 ind_lookup(ind_level, local_table, vblockno),
 		 vblockno);
 } /* indirect() */
 
