@@ -15,16 +15,21 @@
 #define	NFNAME	400		/* Longest filename allowed */
 
 char	*banners[NBAN];
-
 char	tfspace[20];
 char	cfname[20];
 char	dfname[20];
 char	*tfname;		/* Control file during lpr */
 char	*wd;
 char	*myuname;
+char	*argv0;
 FILE	*cfp;			/* Control file stream */
+#ifdef LASER
+char	spooldir[] = "/usr/spool/hpd";
+char	lpd[] = "/usr/lib/hpd";
+#else
 char	spooldir[] = "/usr/spool/lpd";
 char	lpd[] = "/usr/lib/lpd";
+#endif
 char	tmb[] = "Too many banners, `%s' ignored";
 
 int	Bflag;		/* Suppress banners */	
@@ -47,6 +52,7 @@ char *argv[];
 	register char *ap;
 	register int i, j;
 
+	argv0 = argv[0];
 	signal(SIGINT, rmexit);
 	signal(SIGHUP, rmexit);
 	for (i=1; i<argc; i++) {
@@ -266,14 +272,14 @@ char *fn;
 
 usage()
 {
-	lperr("Usage: lpr [-cmrn] [-b banner] [file ...]");
+	fprintf(stderr, "Usage: %s [-Bcmnr] [-b banner] [file ...]\n", argv0);
+	rmexit(1);
 }
 
 /* VARARGS */
 lperr(x)
 {
-	fprintf(stderr, "lpr: %r", &x);
-	putc('\n', stderr);
+	fprintf(stderr, "%s: %r\n", argv0, &x);
 	rmexit(1);
 }
 
