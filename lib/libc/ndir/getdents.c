@@ -283,7 +283,7 @@ getdents( fildes, buf, nbyte )		/* returns # bytes read;
 					     );	/* adds NUL padding */
 
 #if DBG
-	printf("getdents: Name=%s; inode = %D; offset = %D; len=%d\n",bp->d_name,
+	printf("getdents: Name=%s; inode = %ld; offset = %ld; len=%d\n",bp->d_name,
 		bp->d_ino, bp->d_off, bp->d_reclen );
 #endif
 				bp = (struct dirent *)((char *)bp + reclen);

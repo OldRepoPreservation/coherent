@@ -32,8 +32,8 @@ char **argv;
 	for (i=1, dp=readdir(dirp); dp != NULL ;i++, dp=readdir(dirp) ) {
 	   if (dp ) {	
 		printf ("%d\t",i);
-		printf ("%D\t",dp->d_ino);
-		printf ("%D\t",dp->d_off);
+		printf ("%ld\t",dp->d_ino);
+		printf ("%ld\t",dp->d_off);
 		printf ("%d\t",dp->d_reclen);
 		printf ("%s\n",dp->d_name);
 	   } else {
