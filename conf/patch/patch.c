@@ -1,5 +1,5 @@
 static char Copyright[] =	"$Copyright: (c) 1985, INETCO Systems, Ltd.$";
-static char version[] =	"patch version 2.5 for COHERENT v.4.0";
+static char version[] =	"patch version 2.6 for COHERENT v.4.0";
 
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
@@ -58,7 +58,7 @@ explicitly specify a char, short, int, or long sized patch.\n\
 #include <coff.h>
 #include <canon.h>
 #include <ctype.h>
-
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "patch.h"
@@ -391,9 +391,16 @@ setkmem(n)
 	char *symname;	/* Name of symbol in LHS being patched.  */
 
 	/* Open up live memory for patching.  */
-	if ((u=open("/dev/kmem", 2)) < 0) {
-		fprintf(stderr, "Cannot open /dev/kmem\n");
-		return;
+	if (peek) {
+		if ((u=open("/dev/kmem", O_RDONLY)) < 0) {
+			fprintf(stderr, "Cannot open /dev/kmem for reading.\n");
+			return;
+		}
+	} else {
+		if ((u=open("/dev/kmem", O_RDWR)) < 0) {
+			fprintf(stderr, "Cannot open /dev/kmem.\n");
+			return;
+		}
 	}
 
 	/* Walk through pl[] blasting the new values into live memory.  */
@@ -405,6 +412,7 @@ setkmem(n)
 	}
 	close(u);
 }
+
 
 /*
  * Modify the file attached to descriptor 'fd' to match the single patch
@@ -450,10 +458,10 @@ patch(fd, p, file, sym)
 
 		printf("%s: ", sym);
 	    	switch (p->p_type) {
-		case 'c':	printf("0x%x", old_val.p_char);	break;
-		case 's':	printf("0x%x", old_val.p_short);	break;
-		case 'i':	printf("0x%x", old_val.p_int);	break;
-		case 'l':	printf("0x%x", old_val.p_long);	break;
+		case 'c':	printf("0x%02x", old_val.p_char);	break;
+		case 's':	printf("0x%04x", old_val.p_short);	break;
+		case 'i':	printf("0x%08x", old_val.p_int);	break;
+		case 'l':	printf("0x%08x", old_val.p_long);	break;
 		} /* switch */
 
 		printf("\n");
@@ -461,13 +469,13 @@ patch(fd, p, file, sym)
 		if (!peek) {	/* If only peeking, there is no new value.  */
 			printf("%s: new value: ", file);
 		    	switch (p->p_type) {
-			case 'c':	printf("0x%x", p->p_val.p_char);
+			case 'c':	printf("0x%02x", p->p_val.p_char);
 					break;
-			case 's':	printf("0x%x", p->p_val.p_short);
+			case 's':	printf("0x%04x", p->p_val.p_short);
 					break;
-			case 'i':	printf("0x%x", p->p_val.p_int);
+			case 'i':	printf("0x%08x", p->p_val.p_int);
 					break;
-			case 'l':	printf("0x%x", p->p_val.p_long);
+			case 'l':	printf("0x%08x", p->p_val.p_long);
 					break;
 			} /* switch */
 
