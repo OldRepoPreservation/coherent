@@ -24,12 +24,10 @@ void open_monitor_file()	/* Create a new monitor file.  */
 		/* Do something useful in the way of error handling.  */
 	} /* if we can open the tmp file.  */
 	
-#if 0 /* disable unlink */
 	/* Now unlink the tmp file so that we can just
 	 * close it to make it go away.
 	 */
 	unlink(tmp_file);
-#endif /* 0 disable unlink */
 
 	/* CHECKPOINT - we've got an open file pointer on a nameless
 	 * file.  */
