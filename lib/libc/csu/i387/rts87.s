@@ -1,4 +1,4 @@
-s//////////
+//////////
 / rts87.s
 / cc386 80x87 runtime support.
 //////////
@@ -12,6 +12,7 @@ s//////////
 	.globl	_fdcvt
 	.globl	_vdcvt
 	.globl	_ldcvt
+	.globl	_pdcvt
 	.globl	_udcvt
 	.globl	_idcvt
 	.globl	_dfcvt
@@ -19,6 +20,7 @@ s//////////
 	.globl	_dlcvt
 	.globl	_ducvt
 	.globl	_dicvt
+	.globl	_dpcvt
 	.globl	ldexp
 	.globl	frexp
 	.globl	modf
@@ -90,6 +92,7 @@ _dp87:
 //////////
 / _dicvt()	Convert integer to double.
 / _ducvt()	Convert unsigned integer to double.
+/ _dpcvt()	Convert pointer to double.
 / _dlcvt()	Convert long integer to double.
 / _dvcvt()	Convert unsigned long integer to double.
 / _dfcvt()	Convert float to double.
@@ -118,6 +121,7 @@ UARG	=	RASIZE+EBPSIZE
 INT64	=	-8			/ Auto int64 offset.
 
 _ducvt:
+_dpcvt:
 _fucvt:
 _dvcvt:
 _fvcvt:
@@ -153,6 +157,7 @@ _dfcvt:
 //////////
 / _idcvt()	Convert double to integer.
 / _udcvt()	Convert double to unsigned integer.
+/ _pdcvt()	Convert double to pointer.
 / _ldcvt()	Convert double to long integer.
 / _vdcvt()	Convert double to unsigned long integer.
 / _fdcvt()	Convert double to float.
@@ -191,6 +196,7 @@ _ldcvt:
 SAVECW	=	-10			/ Auto saved control word offset.
 INT64	=	-8			/ Auto int64 offset.
 
+_pdcvt:
 _udcvt:
 _vdcvt:
 	push	%ebp
