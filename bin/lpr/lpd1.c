@@ -6,7 +6,7 @@
  */
 
 #include <stdio.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <pwd.h>
 #include <sgtty.h>
 #include <signal.h>
@@ -102,11 +102,11 @@ register char *cfname;
 	FILE *cfp;
 	char mbuf[MAXCOM+40];
 	char *message = "Listing complete: %.*s\n";
+	int state;	/* 0 to suppress header, 1 before first banner, 2 after */
 
 	if ((cfp = fopen(cfname, "r")) != NULL) {
 again:
-		printing = 1;
-		fprintf(lp, "%s\n\n", cfname);
+		printing = state = 1;
 		while (lgets(cfline, sizeof cfline, cfp) != NULL) {
 			if (!printing)
 				message = "Listing killed by order: %.*s\n";
@@ -117,10 +117,17 @@ again:
 			}
 			switch (cfline[0]) {
 			case 'A':
+				if (state)
+					putc(FF, lp);	/* FF after banner */
 				if (print(cfline+1)) {
 					message = "Printer file error: %.*s\n";
 					strcpy(comment, cfline+1);
 				}
+				putc(FF, lp);		/* FF after file */
+				break;
+
+			case 'B':
+				state = 0;		/* suppress header */
 				break;
 
 			case 'D':
@@ -128,6 +135,12 @@ again:
 				break;
 
 			case 'L':
+				if (state == 0)
+					break;
+				if (state == 1) {
+					state = 2;
+					fprintf(lp, "%s\n\n", cfname);
+				}
 				if (printing > 0) {
 					cfline[BANWID+1] = '\0';
 /* Paper tiger controls
@@ -158,7 +171,6 @@ again:
 			}
 		}
 		fclose(cfp);
-		putc(FF, lp);
 		printing = 0;
 	}
 	unlink(cfname);
