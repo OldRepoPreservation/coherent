@@ -71,8 +71,6 @@
  */
 extern	ival_t	framesize;		/* Size of frame	*/
 extern	PREGSET	usedregs;		/* Registers used	*/
-#if	NDP
-extern	int	hasfloat;		/* fp code used		*/
-#endif
+extern	int	hasfloat;		/* -VNDP fp code used	*/
 
 /* end of h/i386/cc2mch.h */
