@@ -1,6 +1,6 @@
 #include "mprec.h"
 #include <assert.h>
-#include <mdata.h>
+#include <sys/mdata.h>
 
 
 /*
@@ -173,7 +173,6 @@ mint *q;
  *	Note that "a" is assumed to be negative and have length atleast
  *	three.
  */
-
 static int
 est(a)
 register mint *a;

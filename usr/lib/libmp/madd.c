@@ -8,7 +8,6 @@
  *	contents of the mint pointed to by "c" are valid.  Also note that
  *	there is no assumption made on the distinctness of "a", "b" and "c".
  */
-
 void
 madd(a, b, c)
 mint *a, *b, *c;
