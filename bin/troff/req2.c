@@ -5,8 +5,10 @@
  */
 
 #include <ctype.h>
-#include "ascii.h"
 #include "roff.h"
+
+#define A_BEL	0x07	/* Bell			*/
+#define A_DEL	0x7F	/* Delete		*/
 
 /*
  * Turn adjust mode off.
