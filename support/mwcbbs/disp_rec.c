@@ -44,8 +44,8 @@ int x;
 	waddch(win2,record.date[2]);
 	waddch(win2,record.date[3]);
 	waddch(win2,'/');
-	waddch(win2,record.date[0]);
-	waddch(win2,record.date[1]);
+	waddch(win2,record.date[4]);
+	waddch(win2,record.date[5]);
 
 	
 	wmove(win2,SIZEHI);
