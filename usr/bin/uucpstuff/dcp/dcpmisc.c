@@ -36,6 +36,7 @@ fatal(x)
 		}
 	}
 	close_logfile();
+	exec_xqt();
 	exit(1);
 }
 
@@ -61,7 +62,7 @@ catchhup()
 		close(2);
 		close(3);
 	}
-
+	exec_xqt();
 	exit(1);
 
 }
