@@ -1360,16 +1360,16 @@ char	*p;
 			fprintf(stderr,	"egrep: cant open tmp file");
 			exit(1);
 		}
-		fprintf(tmpFile, "%ld: %s: egrep\n", nlines, file);
+		fprintf(tmpFile, "%ld:%s: egrep\n", nlines, file);
 		return (TRUE);
 	}
 	if (cflag)
 		return (TRUE);
 	printfile();
 	if (nflag)
-		printf("%ld: ", nlines);
+		printf("%ld:", nlines);
 	if (bflag)
-		printf("%ld: ", seekpos/BUFSIZ);
+		printf("%ld:", seekpos/BUFSIZ);
 	q = cbuf;
 	n = p - q;
 	while (q < p)
@@ -1395,7 +1395,7 @@ printfile()
 {
 
 	if (! hflag)
-		printf("%s: ", file);
+		printf("%s:", file);
 }
 
 /*
