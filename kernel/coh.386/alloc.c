@@ -110,9 +110,23 @@ char *cp;
 	register ALL *ap;
 	extern char __end;
 
+#if 0
 	ap = ((ALL *)cp) - 1;
 	if (ap<(ALL *)&__end || tstfree(ap))
 		panic("Bad free %x\n", (unsigned)cp);
+#else
+	ap = ((ALL *)cp) - 1;
+	if (ap<(ALL *)&__end) {
+		int *r = (int *)(&cp);	/* return address */
+		printf("cp=%x ap=%x &__end=%x\n", cp, ap, &__end);
+		panic("Bad free() from eip=%x\n", *(r-1));
+	}
+	if (tstfree(ap)) {
+		int *r = (int *)(&cp);	/* return address */
+		printf("cp=%x tstfree(%x)=%x\n", cp, ap, tstfree(ap));
+		panic("Bad free() from eip=%x\n", *(r-1));
+	}
+#endif
 	setfree(ap);
 }
 
