@@ -8,6 +8,9 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 2.11  91/05/30  15:43:17  hal
+ * Add SS_DELAY and slow down delays for 486.
+ * 
  * Revision 2.10  91/05/29  11:14:24  hal
  * Send MSG_NOP's for slow machines.  More debug output.
  * 
@@ -864,13 +867,13 @@ PR1("DUM");
 			switch(msg_in){
 			case MSG_CMD_CMPLT:
 			case MSG_DISCONNECT:
-				sfbyte(ss_csr, WC_ENABLE_IRPT);
+				sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_IRPT);
 				break;
 			}
 			break;
 		case XP_MSG_OUT:
 			sfbyte(ss_dat, MSG_NOP); 
-			sfbyte(ss_csr, WC_ENABLE_SCSI);
+			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 			break;
 		case XP_STAT_IN:
 			cmdstat = ffbyte(ss_dat);
@@ -1079,12 +1082,12 @@ int block_done=0;
 			case MSG_CMD_CMPLT:
 PR4("Mcc");
 				ssp->msg_in = msg_in;
-				sfbyte(ss_csr, WC_ENABLE_IRPT);
+				sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_IRPT);
 				break;
 			case MSG_DISCONNECT:
 PR4("Mdc");
 				ssp->msg_in = msg_in;
-				sfbyte(ss_csr, WC_ENABLE_IRPT);
+				sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_IRPT);
 				break;
 			case MSG_SAVE_DPTR:
 PR4("Msd");
@@ -1113,7 +1116,7 @@ PR4("MO");
 			 * asserting ATTENTION.  Abort the bus cycle.
 			 */
 			sfbyte(ss_dat, MSG_NOP); 
-			sfbyte(ss_csr, WC_ENABLE_SCSI);
+			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 			break;
 		case XP_STAT_IN:
 PR4("SI");
@@ -1428,10 +1431,14 @@ PR1("BDR");
 	if (bdr_ok) {
 		/*
 		 * Do ST0x arbitration.
+		 *
+		 * De-assert SCSI enable bit.
+		 * Write my SCSI id to port.
+		 * Start arbitration.
 		 */
-		sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
-		sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
-		sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+		sfbyte(ss_csr, WC_ENABLE_PRTY);
+		sfbyte(ss_dat, HOST_ID);
+		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);
 
 		/*
 		 * SCSI spec says there is "no maximum" to the wait for
@@ -1447,14 +1454,14 @@ PR1("BDR");
 	 */
 	if (bdr_ok) {
 		sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
+		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
 		if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
 			bdr_ok = 0;
 	}
 
 	if (bdr_ok) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION);
 
 		if (!bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
 		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
@@ -1462,7 +1469,7 @@ PR1("BDR");
 	}
 
 	if (bdr_ok) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI);
+		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 		sfbyte(ss_dat, MSG_DEV_RESET);
 		if (!bus_wait((0xFF << 8) | 0))
 			bdr_ok = 0;
@@ -1684,7 +1691,7 @@ PR1("XRST");
 		 */
 		if (host_claimed == s_id || host_claimed == -1) {
 			host_claimed = s_id;
-			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
+			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
 			ssp->state = SST_RESET_OFF;
 			set_timeout(s_id, DELAY_RST);
 PR1("+");
@@ -1706,7 +1713,7 @@ PR1("XRQS");
 		break;
 	case SST_RESET_OFF:
 PR3("XRFF");
-		sfbyte(ss_csr, 0); /* reset OFF */
+		sfbyte(ss_csr, WC_ENABLE_PRTY); /* reset OFF */
 		ssp->state = SST_REQ_SENSE;
 		set_timeout(s_id, DELAY_RST);
 	} /* endswitch */
@@ -1722,9 +1729,9 @@ static int start_arb()
 {
 	int ret;
 
-	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
-	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
-	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+	sfbyte(ss_csr, WC_ENABLE_PRTY);
+	sfbyte(ss_dat, HOST_ID);
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);
 
 	/*
 	 * SCSI spec says there is "no maximum" to the wait for arbitration
@@ -1756,13 +1763,13 @@ int disconnect;
 	 * Arbitration complete.  Now select, with ATN to allow messages.
 	 */
 	sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
 	if (bus_wait(RS_BUSY << 8 | RS_BUSY)) {
 		/*
 		 * Assert ATTN so target expects incoming message byte.
 		 */
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION);
 
 		if (bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
 		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE))) {
@@ -1770,7 +1777,7 @@ int disconnect;
 				sfbyte(ss_dat, MSG_IDENT_DC);
 			else
 				sfbyte(ss_dat, MSG_IDENTIFY);
-			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
+			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ENABLE_IRPT);
 			ret = 1;
 		} else {
 PR1("oHI2");
@@ -1793,9 +1800,9 @@ static int rsel_handshake()
 {
 	int ret = 0;
 
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_BUSY);
 	if (bus_wait(RS_SELECT << 8 | 0)) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI);
+		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 		ret = 1;
 	}
 	return ret;
@@ -2097,7 +2104,7 @@ if (xct < 100)
 			switch(msg_in){
 			case MSG_CMD_CMPLT:
 			case MSG_DISCONNECT:
-				sfbyte(ss_csr, WC_ENABLE_IRPT);
+				sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_IRPT);
 				break;
 			}
 			break;
@@ -2107,7 +2114,7 @@ if (xct < 100)
 			 * asserting ATTENTION.
 			 */
 			sfbyte(ss_dat, MSG_NOP); 
-			sfbyte(ss_csr, WC_ENABLE_SCSI);
+			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 			break;
 		case XP_STAT_IN:
 			cmdstat = ffbyte(ss_dat);
@@ -2137,9 +2144,13 @@ if (xct < 100)
 			 * data byte.  Else toss it.
 			 */
 			if (data_bytes_in < inlen) {
+#if 0
 				do {
 					inbuf[data_bytes_in++] = ffbyte(ss_dat);
 				} while (data_bytes_in < inlen);
+#else
+				inbuf[data_bytes_in++] = ffbyte(ss_dat);
+#endif
 			} else
 				xfer_good = 0;
 			break;
@@ -2195,9 +2206,9 @@ static void scsireset()
 #if (DEBUG >= 1)
 printf("scsireset ");
 #endif
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
+	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_SCSI_RESET);
 	ssdelay(RESET_TICKS);
-	sfbyte(ss_csr, 0);
+	sfbyte(ss_csr, WC_ENABLE_PRTY);
 	ssdelay(RESET_TICKS);
 }
 
