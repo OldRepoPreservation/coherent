@@ -59,6 +59,8 @@
 #define NCTRL	21			/* Control statement in list */
 #define NRPIPE	22			/* Named pipe for read */
 #define NWPIPE	23			/* Named pipe for write */
+#define	NFUNC	24			/* Shell function */
+#define	NRET	25			/* Return */
 
 /*
  * Node.
@@ -172,6 +174,16 @@ typedef struct ses {
 #define EPATT	3	/* Evaluate for pattern match */
 
 /*
+ * Shell functions.
+ */
+typedef struct shfunc {
+	struct	shfunc	*fn_link;
+	int		fn_hash;
+	char		*fn_name;
+	NODE		*fn_body;
+} SHFUNC;
+
+/*
  * Global variables.
  *	Run time and set time flags.
  */
@@ -200,6 +212,9 @@ extern	char	shfnams[];		/* Flag name array */
 
 /* Shell status housekeeping */
 extern	jmp_buf	restart;		/* Restart execution context */
+extern	SHFUNC	*sh_fnp;		/* User-defined shell function list */
+extern	int	in_sh_fn;		/* Executing shell function */
+extern	int	ret_done;		/* "return" executed */
 extern	int	sargc;			/* Argument count to shell */
 extern	char	*sarg0;			/* Name shell called with */
 extern	char	**sargv;		/* Argument vector to shell */
@@ -265,7 +280,7 @@ extern	VAR	*flagvar();		/* in var.c */
 extern	VAR	*assnvar();		/* in var.c */
 extern	char	*convvar();		/* in var.c */
 extern	char	**envlvar();		/* in var.c */
-extern	char	*getwd();		/* in /lib/libc.a */
+extern	char	*_getwd();		/* in /lib/libc.a */
 #define	index(cp, c)	strchr((cp), (c))
 #define	rindex(cp, c)	strrchr((cp), (c))
 
