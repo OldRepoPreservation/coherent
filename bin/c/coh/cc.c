@@ -17,9 +17,9 @@
  *	*u	marks an option unrecognized by cc, ie passed to linker
  *		with no interpretation or processing.
  *
- * Still up for grabs:
+ * Options still up for grabs:
  * [  C  FGH J       R    W Y ]
- * [ b    gh j  m        v  yz]
+ * [ b     h j  m        v  yz]
  *
  *	A		run in auto edit mode
  *7c	Bstring		use string to find compiler passes
@@ -45,6 +45,7 @@
  *	d		loader: define common space
  *7	e name		loader: entry point specification
  *7c	f		fake floating point operations
+ *	g		generate debug info, same as -VDB
  *7u	i		loader: separate i and d spaces
  *	k[system]	loader: bind as kernel process
  *7c	lname		loader: library specification
@@ -60,7 +61,7 @@
  *	x		loader: remove local symbols from symbol table
  */
 
-#if GEMDOS
+#if	GEMDOS
 #ifndef VERS
 #define VERS	"2.1"
 #endif
@@ -120,7 +121,7 @@
 #define P_LIB	4	/* Take pass from LIBPATH */
 #define P_BIN	8	/* Take pass from BIN */
 
-#define PTMP	16	/* Pass name buffer size */
+#define PTMP	32	/* Pass name buffer size */
 
 char	dnul[] = "";		/* Global null string */
 char	dmch[PTMP] = PREFIX;	/* Cross compiler prefix */
@@ -175,8 +176,10 @@ struct pass {
 #define FLAG_A	0x040		/* Auto edit mode */
 #define FLAG_Z	0x080		/* Floppy change prompts */
 #define FLAG_V	0x100		/* Verbose flag */
+#if	GEMDOS
 #define FLAG_GEMAPP	0x200	/* Gem application compile */
 #define FLAG_GEMACC	0x400	/* Gem accessory compile */
+#endif
 #define	FLAG_a	0x800		/* Suppress output file name to ld */
 
 struct option {			/* option table */
@@ -195,27 +198,36 @@ struct option {			/* option table */
 	{ 0,	CCOPT,	"VSLCON",	VSLCON	},
 	{ 0,	CCOPT,	"VSPVAL",	VSPVAL	},
 	{ 0,	CCOPT,	"VSCCON",	VSCCON	},
-/* Debug */
-	{ 0,	CCOPT,	"VDEBUG",	VDEBUG  },
+/*
+ * Debug.
+ * The -VDB option turns on all of these;
+ * no earlier option may start with "VD",
+ * and the next non-debug option must not start with "VD".
+ */
+	{ 0,	CCOPT,	"VDEBUG",	VDEBUG  },	
 	{ 0,	CCOPT,	"VDLINE",	VLINES	},
 	{ 0,	CCOPT,	"VDTYPE",	VTYPES	},
 	{ 0,	CCOPT,	"VDSYMB",	VDSYMB	},
 	{ 0,	CCOPT,	"VDCALL",	VCALLS	},
 /* Miscellaneous */
 	{ 0,	CCOPT,	"VSTAT",	VSTAT	},
-	{ 0,	CCOPT,	"VSINU",	VSINU	},
+	{ 0,	CCOPT,	"VWIDEN",	VWIDEN	},
 	{ 0,	CCOPT,	"VPEEP",	VPEEP	},
 	{ 0,	CCOPT,	"VCOMM",	VCOMM	},
 	{ 0,	CCOPT,	"VQUIET",	VQUIET	},
 	{ 0,	CCOPT,	"VPSTR",	VPSTR	},
 	{ 0,	CCOPT,	"VROM",		VROM	},
 	{ 0,	CCOPT,	"VASM",		VASM	},
+
+	{ 0,	CCOPT,	"VLIB",		VLIB	},
 	{ 0,	CCOPT,	"VPROF",	VPROF	},
 	{ 0,	CCOPT,	"VALIEN",	VALIEN	},
+	{ 0,	CCOPT,	"VSINU",	VSINU	},
 	{ 0,	CCOPT,	"VNOOPT",	VNOOPT	},
-	{ 0,	CCOPT,	"VCHASM",	VCHASM	},
-	{ 0,	CCOPT,	"VCPP",		VCPP	},
+	{ 0,	CCOPT,	"VCPLUS",	VCPLUS	},
 	{ 0,	CCOPT,	"VCPPE",	VCPPE	},
+	{ 0,	CCOPT,	"VCPPC",	VCPPC	},
+	{ 0,	CCOPT,	"VCPP",		VCPP	},
 	{ 0,	CCOPT,	"VTPROF",	VTPROF	},
 	{ 0,	CCOPT,	"V3GRAPH",	V3GRAPH	},
 #if 1
@@ -230,14 +242,17 @@ struct option {			/* option table */
 	{ 0,	CCOPT,	"VALIGN",	VALIGN	},
 	{ 0,	CCOPT,	"VEMU87",	VEMU87	},
 #endif
+#if	GEMDOS
 /* Motorola and Gemdos flags */
 	{ 12,	CCOPT,	"VGEMACC",	FLAG_GEMACC	},
 	{ 12,	CCOPT,	"VGEMAPP",	FLAG_GEMAPP	},
 	{ 12,	CCOPT,	"VGEM",		FLAG_GEMAPP	},
 	{ 10,	CCOPT,	"VSPLIM",	VSPLIM	},
 	{ 10,	CCOPT,	"VNOTRAPS",	VNOTRAPS	},
+#endif
 /* More miscellaneous flags */
 	{ 2,	CCOPT,	"VDB",		VDB	},
+	{ 2,	CCOPT,	"g",		VDB	},
 	{ 2,	CCOPT,	"VS",		VS	},
 	{ 12,	CCOPT,	"A",		FLAG_A	},
 	{ 12,	CCOPT,	"a",		FLAG_a	},
@@ -325,8 +340,10 @@ int	partial;			/* Partial link specified */
 #define	Qflag	isvariant(VQUIET)
 #define	Aflag	((ccvariant&FLAG_A)!=0)
 #define	Zflag	((ccvariant&FLAG_Z)!=0)
+#if	GEMDOS
 #define GEMAPPflag	((ccvariant&FLAG_GEMAPP)!=0)
 #define GEMACCflag	((ccvariant&FLAG_GEMACC)!=0)
+#endif
 
 int	qpass = NONE;		/* Quit after this pass */
 int	nload;			/* No load phase */
@@ -576,7 +593,7 @@ main(argc, argv) int argc; char *argv[];
 			}
 		}
 	}
-#if GEMDOS
+#if	GEMDOS
 	if (Vflag) {
 	 fprintf(stderr, "Mark Williams C for the Atari ST, %s\n", VERS);
 	 fprintf(stderr, "Copyright 1984-1987, Mark Williams Co., Chicago\n");
@@ -648,7 +665,7 @@ resolve()
 			pass[i].p_dir = dpath;
 		strcpy(cmdb, pass[i].p_mch);
 		strcat(cmdb, pass[i].p_pln);
-#if GEMDOS
+#if	GEMDOS
 		if (i <= ED && strchr(pass[i].p_pln, '.') == NULL)
 			strcat(cmdb, i==ED ? ".tos" : ".prg");
 #endif
@@ -668,10 +685,12 @@ resolve()
 		setvariant(VSMALL);
 	}
 #endif
+#if	GEMDOS
 	if (GEMAPPflag && GEMACCflag)
 		cquit("specify VGEMAPP or VGEMACC, not both");
 	if (GEMAPPflag) getpass('N', "rcrtsg.o");
 	if (GEMACCflag) getpass('N', "rcrtsd.o");
+#endif
 	if (pflag) getpass('N', "rmcrts0.o");
 	if (Eflag) setvariant(VCPP);
 	if (qpass == NONE) {
@@ -1116,7 +1135,7 @@ char *argv[];
 
 	cp = cmda;
 	p1 = makepass(LD, *cp++ = cmdb, AEXEC);
-	*cp++ = "-X";
+	*cp++ = ((ccvariant&VDB) != 0) ? "-g" : "-X";
 #if	_I386
 	if (Qflag)
 		*cp++ = "-Q";
@@ -1124,15 +1143,15 @@ char *argv[];
 	if (outf == NULL && !aflag) {
 		*cp++ = "-o";
 		if (partial || doutf == NULL) {
-#if COHERENT
+#if	COHERENT
 			*cp++ = "l.out";
 #endif
-#if GEMDOS
+#if	GEMDOS
 			*cp++ = "l.prg";
 #endif
 		} else {
 			basename(doutf, buff);
-#if GEMDOS
+#if	GEMDOS
 			strcat(buff, ".prg");
 #endif
 			*cp++ = buff;
@@ -1170,10 +1189,12 @@ char *argv[];
 			*cp++ = p2;
 		}
 	}
+#if	GEMDOS
 	if ( ! partial && (GEMAPPflag || GEMACCflag)) {
 		p1 = makelib(LIB, *cp++ = p1, "aes");
 		p1 = makelib(LIB, *cp++ = p1, "vdi");
 	}
+#endif
 	p1 = makelib(LIB, *cp++ = p1, "c");
 #if	_I386
 	if (Kflag == 0 && nldob == 1 && newo[0] != 0) {
@@ -1603,10 +1624,17 @@ int pn;
 char *cp;
 char *lp;
 {
+#if	_I386
+	/* Let ld do the work, just pass -lwhatever. */
+	strcpy(cp, "-l");
+	strcat(cp, lp);
+	return cp + strlen(cp) + 1;
+#else
 	strcpy(cp, pass[pn].p_pln);
 	strcat(cp, lp);
 	strcat(cp, ".a");
 	return ccpath(cp, pass[pn].p_dir, cp, AREAD);
+#endif
 }
 
 makeft(op, ip, ft)
