@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__KERNEL_X86IO_H__
 #define	__KERNEL_X86IO_H__
 
@@ -8,23 +15,9 @@
  * For simplicity, this has been factored out into a separate file for this
  * implementation, and <sys/types.h> pulls this file in.
  */
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__EXTERN_C_BEGIN__
- *		__EXTERN_C_END__
- *		__PROTO ()
- *		__NON_ISO ()
- *		__INLINE__
- *	<common/xdebug.h>
- *		__LOCAL__
- *	<common/__types.h>
- *		__uchar_t
- *		__ushort_t
- *		__ulong_t
- */
 
 #include <common/ccompat.h>
+#include <common/feature.h>
 #include <common/xdebug.h>
 #include <common/__types.h>
 
@@ -34,14 +27,41 @@
  * functions are defined in <sys/inline.h>
  */
 
-#if	__GNUC__ && (defined (i386) || _I386)	/* 80386 with GNU CC */
+#if	__GNUC__ && _I386	/* 80386 with GNU CC */
 
 /*
- * The Coherent 'as' assembler is a little stupid about which instruction
- * forms it will accept.
+ * It appears that the code GCC produces is sufficiently good that we can
+ * run into problems with I/O recovery times on older boards, especially with
+ * 386's. So, we allow for the possibility of delaying for a brief time.
  */
 
-# define	__GAS_OR_AS(g,a)	g
+#if	1
+
+#define	__IO_RECOVER	""
+
+#else
+
+#define	__IO_RECOVER	";jmp LIO%=a;LIO%=a:;jmp LIO%=b;LIO%=b:"
+
+#endif
+
+
+/*
+ * Similarly to the above, it may be that using the REP instruction prefix
+ * with I/O instructions may cause problems with motherboards or peripheral
+ * failure to meet bus timings. To permit investigation of this problem we
+ * allow either the REP prefix or the LOOP instruction to be used.
+ */
+
+#if	_USE_REP_PREFIX
+
+#define	__REPEAT(instr)	";rep;" instr
+
+#else
+
+#define	__REPEAT(instr)	";LX%=: " instr "; loop LX%="
+
+#endif
 
 
 /*
@@ -51,78 +71,78 @@
 
 __LOCAL__ __INLINE__ __uchar_t __inb (int _port) {
 	__uchar_t	_result;
-	__NON_ISO (asm) volatile (__GAS_OR_AS ("in %1,%0", "inb (%1)") :
+	__NON_ISO (asm) volatile ("in %1,%0" __IO_RECOVER :
 				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 
 __LOCAL__ __INLINE__ __ulong_t __inl (int _port) {
 	__ulong_t	_result;
-	__NON_ISO (asm) volatile (__GAS_OR_AS ("in %1,%0", "inl (%1)") :
+	__NON_ISO (asm) volatile ("in %1,%0" __IO_RECOVER :
 				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 
 __LOCAL__ __INLINE__ __ushort_t __inw (int _port) {
 	__ushort_t	_result;
-	__NON_ISO (asm) volatile (__GAS_OR_AS ("in %1,%0", "inw (%1)") :
+	__NON_ISO (asm) volatile ("in %1,%0" __IO_RECOVER :
 				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 
 __LOCAL__ __INLINE__ void __outb (int _port, __uchar_t value) {
-	__NON_ISO (asm) volatile (__GAS_OR_AS ("out %1,%0", "outb (%0)") : :
+	__NON_ISO (asm) volatile ("out %1,%0" __IO_RECOVER : :
 				  "d" ((__ushort_t) _port), "a" (value));
 }
 
 __LOCAL__ __INLINE__ void __outl (int _port, __ulong_t value) {
-	__NON_ISO (asm) volatile (__GAS_OR_AS ("out %1,%0", "outl (%0)") : :
+	__NON_ISO (asm) volatile ("out %1,%0" __IO_RECOVER : :
 				  "d" ((__ushort_t) _port), "a" (value));
 }
 
 __LOCAL__ __INLINE__ void __outw (int _port, __ushort_t value) {
-	__NON_ISO (asm) volatile (__GAS_OR_AS ("out %1,%0", "outw (%0)") : :
+	__NON_ISO (asm) volatile ("out %1,%0" __IO_RECOVER : :
 				  "d" ((__ushort_t) _port), "a" (value));
 }
 
 __LOCAL__ __INLINE__
 void __repinsb (int _port, __uchar_t * _addr, int _cnt) {
-	__NON_ISO (asm) volatile ("mov %1,%%edi;rep;insb" : :
+	__NON_ISO (asm) volatile ("mov %1,%%edi" __REPEAT ("insb") : :
 				  "d" ((__ushort_t) _port), "g" (_addr),
 				  "c" (_cnt) : "di");
 }
 
 __LOCAL__ __INLINE__
 void __repinsd (int _port, __ulong_t * _addr, int _cnt) {
-	__NON_ISO (asm) volatile ("mov %1,%%edi;rep;insl" : :
+	__NON_ISO (asm) volatile ("mov %1,%%edi" __REPEAT ("insl") : :
 				  "d" ((__ushort_t) _port), "g" (_addr),
 				  "c" (_cnt) : "di");
 }
 
 __LOCAL__ __INLINE__
 void __repinsw (int _port, __ushort_t * _addr, int _cnt) {
-	__NON_ISO (asm) volatile ("mov %1,%%edi;rep;insw" : :
+	__NON_ISO (asm) volatile ("mov %1,%%edi" __REPEAT ("insw") : :
 				  "d" ((__ushort_t) _port), "g" (_addr),
 				  "c" (_cnt) : "di");
 }
 
 __LOCAL__ __INLINE__
 void __repoutsb (int _port, __uchar_t * _addr, int _cnt) {
-	__NON_ISO (asm) volatile ("mov %1,%%esi;rep;outsb" : :
+	__NON_ISO (asm) volatile ("mov %1,%%esi" __REPEAT ("outsb") : :
 				  "d" ((__ushort_t) _port), "g" (_addr),
 				  "c" (_cnt) : "si");
 }
 
 __LOCAL__ __INLINE__
 void __repoutsd (int _port, __ulong_t * _addr, int _cnt) {
-	__NON_ISO (asm) volatile ("movl %1,%%esi;rep;outsl" : :
+	__NON_ISO (asm) volatile ("movl %1,%%esi" __REPEAT ("outsl") : :
 				  "d" ((__ushort_t) _port), "g" (_addr),
 				  "c" (_cnt) : "si");
 }
 
 __LOCAL__ __INLINE__
 void __repoutsw (int _port, __ushort_t * _addr, int _cnt) {
-	__NON_ISO (asm) volatile ("movl %1,%%esi;rep;outsw" : :
+	__NON_ISO (asm) volatile ("movl %1,%%esi" __REPEAT ("outsw") : :
 				  "d" ((__ushort_t) _port), "g" (_addr),
 				  "c" (_cnt) : "si");
 }
@@ -242,16 +262,6 @@ void	__emit__	(unsigned char __byte, ...);
 #define	__FORWARD_repoutsb__
 #define	__FORWARD_repoutsd__
 #define	__FORWARD_repoutsw__
-
-#elif	__COHERENT__
-
-/*
- * Under Coherent, the inb ()/inw ()/inl () and outb ()/outw ()/outl ()
- * operations are already available under those names in the standard system.
- *
- * The rep... () operations are provided in a supplemental file that should be
- * linked in if you are building a DDI/DKI kernel.
- */
 
 #endif
 
