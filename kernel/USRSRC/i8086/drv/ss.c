@@ -2,10 +2,15 @@
  * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
- *	make ssinit() more rugged
  *	nonzero LUN's
+ *	start new command during disconnect
+ *	rewrite as single state machine, instead of 7 of them
+ *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 2.9  91/05/22  01:38:55  hal
+ * Overlapping disconnects give bad reads.
+ * 
  * Revision 2.8  91/05/21  23:13:15  hal
  * Round robin scheduler.  HDSETA.  Bump MAX_AVL_COUNT.
  * 
@@ -41,6 +46,7 @@
  * DEBUG = 4	Print info xfer phases and msg_in values.
  */
 #if (DEBUG >= 1)
+static int s_id;
 #define PR1(str)		printf("%s%d ", str, s_id)
 #else
 #define PR1(str)
@@ -237,6 +243,7 @@ static void	ssunload();
 static int	bus_dev_reset();	/* additional support functions */
 static int	chk_reconn();
 static void	do_connect();
+static void	dummy_reconn();
 static int	far_info_xfer();
 static int	host_ident();
 static int	init_call();
@@ -286,19 +293,23 @@ CON	sscon	= {
  * Two test drives in use:
  *
  * ST1126N, SCSI 0  LUN 0  (Unit 0)
- * CP340,   SCSI 3  LUN 0  (Unit 3)
+ * ST1201N, SCSI 1  LUN 0  (Unit 1)
  */
-int	NSDRIVE = 0x8003;	/* Bitmap of attached SCSI drives. */
+int	NSDRIVE = 0x0000;	/* Bitmap of attached SCSI drives. */
 				/* Set NSDRIVE highest bit for Future Domain */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
 /* ncyl, nhead, nspt */
 drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
+#if 0
 	{ 987, 20, 17},		/* Unit 0 */
 	{ 1004, 4, 52},		/* Unit 1 */
+#endif
 	{ 0, 0, 0},
-	{ 964, 5, 17},		/* Unit 3 */
+	{ 0, 0, 0},
+	{ 0, 0, 0},
+	{ 0, 0, 0},
 	{ 0, 0, 0},
 	{ 0, 0, 0},
 	{ 0, 0, 0}
@@ -347,12 +358,6 @@ static void ssload()
 	int i;
 	int max_id = -1;
 	int num_drives = 0;
-
-
-	/*
-	 * Claim IRQ vector.
-	 */
-	setivec(SS_INT, ssintr);
 
 	/*
 	 * Allocate a selector to map into ST0x memory-mapped comm area.
@@ -416,6 +421,11 @@ static void ssload()
 			if ((NSDRIVE >> i) & 1)
 				ss[i] = foo++;
 	}
+
+	/*
+	 * Claim IRQ vector.
+	 */
+	setivec(SS_INT, ssintr);
 
 	/*
 	 * Initialize drives we know about (i.e. in NSDRIVE bitmap).
@@ -489,6 +499,7 @@ devmsg(dev, "ssopen");
 	 * SCSI id must have corresponding 1 in NSDRIVE bitmapped variable.
 	 */
 	if (DEV_LUN(dev) != 0 || ((1 << drive) & NSDRIVE) == 0) {
+PR1("bad LUN or SCSI id");
 		u.u_error = ENXIO;
 		valid_open = 0;
 	}
@@ -497,6 +508,7 @@ devmsg(dev, "ssopen");
 	 * If "special" bit is set, partition field must be zero.
 	 */
 	if (valid_open && DEV_SPECIAL(dev) && partn != 0) {
+PR1("bad special partition");
 		u.u_error = ENXIO;
 		valid_open = 0;
 	}
@@ -539,6 +551,7 @@ devmsg(dev, "ssopen");
 			fdp[WHOLE_DRIVE].p_base = 0;
 			ssp->ptab_read = 1;
 		} else {
+PR1("bad partition table");
 			u.u_error = ENXIO;
 			valid_open = 0;
 		}
@@ -551,11 +564,13 @@ devmsg(dev, "ssopen");
 	 */
 	if (valid_open && partn != WHOLE_DRIVE
 	&& (fdp[partn].p_base+fdp[partn].p_size) > fdp[WHOLE_DRIVE].p_size) {
+PR1("partition overrun");
 		u.u_error = EBADFMT;
 		valid_open = 0;
 	}
 
 	if (valid_open && partn != WHOLE_DRIVE && fdp[partn].p_size == 0) {
+PR1("partition not found");
 		u.u_error = ENODEV;
 		valid_open = 0;
 	}
@@ -631,11 +646,7 @@ IO	*iop;
  *	Input:	dev = disk device to be operated on.
  *		cmd = input/output request to be performed.
  *		vec = (pointer to) optional argument.
- *
- *	Action:	Validate the minor device.
- *		Update the paritition table if necessary.
  */
-
 static int ssioctl(dev, cmd, vec)
 register dev_t	dev;
 int cmd;
@@ -708,6 +719,7 @@ register BUF	*bp;
 	int partition, drive, s_id;
 	dev_t dev;
 	ss_type * ssp;
+	uchar * msg = NULL;
 
 	/*
 	 * Set up local variables.
@@ -733,13 +745,12 @@ if (bp->b_count != BSIZE)
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
-PR1("BF1");
+				msg = "invlaid request";
 				bp->b_flag |= BFERR;
 				goto bad_open;
 			}
 		} else {
-PR1("BF2");
-			devmsg(dev, "no partition table");
+			msg = "no partition table";
 			bp->b_flag |= BFERR;
 			goto bad_open;
 		}
@@ -758,7 +769,7 @@ PR1("BF2");
 	 */
 	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
-PR1("BF3");
+		msg = "partition overrun";
 		bp->b_flag |= BFERR;
 		goto bad_open;
 	}
@@ -767,6 +778,7 @@ PR1("BF3");
 	 * Fail if request is for zero bytes or is not even # of blocks.
 	 */
 	if ((bp->b_count % BSIZE) || bp->b_count == 0) {
+		msg = "invalid byte count";
 		bp->b_flag |= BFERR;
 		goto bad_open;
 	}
@@ -784,7 +796,9 @@ PR1("BF3");
 	 * Value of "bp->b_flag" tells caller if error occurred.
 	 */
 bad_open:
-		bdone(bp);
+	if (msg)
+		devmsg(dev, msg);
+	bdone(bp);
 
 end_open:
 	return;
@@ -803,9 +817,75 @@ static void ssintr()
 
 	s_id = chk_reconn();
 	if (s_id != -1) {
-		defer(ss_mach, s_id);
+		if (ss[s_id]->state == SST_POLL_RESELECT)
+			defer(ss_mach, s_id);
+		else
+			defer(dummy_reconn, s_id);
 PR3("!");
 	}
+}
+
+/*
+ * dummy_reconn()
+ *
+ * Somehow we are in a state where the driver software does not expect
+ * a reconnect but a device is trying one anyway.  Go thru the motions
+ * of reconnect because not servicing a hanging reselect seems to leave
+ * the target hung - in such a way that it fails to respond to reset
+ * messages and to reset on the SCSI bus.
+ */
+static void dummy_reconn(s_id)
+int s_id;
+{
+	int bus_timeout;
+	uchar phase_type;
+	int s;
+	int msg_in;
+	int cmdstat;
+	int xfer_good = 1;
+PR1("DUM");
+	if (ss[s_id]->state == SST_POLL_RESELECT) {
+		defer(ss_mach, s_id);
+		goto dum_done;
+	}
+	if (!rsel_handshake())
+		goto dum_done;
+
+	s = sphi();
+	while (req_wait(&bus_timeout) && xfer_good) {
+		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+		switch (phase_type) {
+		case XP_MSG_IN:
+			msg_in = ffbyte(ss_dat);
+			switch(msg_in){
+			case MSG_CMD_CMPLT:
+			case MSG_DISCONNECT:
+				sfbyte(ss_csr, WC_ENABLE_IRPT);
+				break;
+			}
+			break;
+		case XP_MSG_OUT:
+			sfbyte(ss_dat, MSG_NOP); 
+			sfbyte(ss_csr, WC_ENABLE_SCSI);
+			break;
+		case XP_STAT_IN:
+			cmdstat = ffbyte(ss_dat);
+			break;
+		case XP_CMD_OUT:
+		case XP_DATA_OUT:
+			xfer_good = 0;
+			break;
+		case XP_DATA_IN:
+			ffbyte(ss_dat);
+			break;
+		default:
+			break;
+		} /* endswitch */
+	} /* endwhile */
+	spl(s);
+
+dum_done:
+	return;
 }
 
 /*
@@ -877,45 +957,7 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
-/* FOO */
-int foo, junk, phase_type;
-	if ((foo=chk_reconn()) != -1) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY | WC_ATTENTION);
-		if (bus_wait(RS_SELECT << 8 | 0)) {
-			sfbyte(ss_csr, WC_ENABLE_SCSI);
-			if (req_wait(&junk)) {
-phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-printf("phase type=%d\n", phase_type);
-if (phase_type == XP_MSG_IN) {
-	junk = ffbyte(ss_dat);
-	printf("msg in=%x\n", junk);
-	req_wait(&junk);
-	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-}
-if (phase_type == XP_MSG_OUT) {
-	sfbyte(ss_dat, MSG_ABORT);
-	printf("MSG_ABORT sent\n");
-	if (!req_wait(&junk))
-		printf("req_wait failed\n");
-	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-}
-if (phase_type == XP_DATA_IN) {
-	junk = ffbyte(ss_dat);
-	printf("data_in=%x\n", junk);
-	if (!req_wait(&junk))
-		printf("req_wait failed\n");
-	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-}
-junk = ffbyte(ss_csr);
-printf("status=%x\n", junk);
-			} else
-printf("req_wait failed\n");
-		} else {
-			printf("rsel_handshake failed\n");
-		}
-		printf("** id %d tried to reselect **\n", foo);
-	}
-/* FOO */
+	printf("SCSI ID %d  LUN 0\n", s_id);
 	if (retval)
 		if (init_call(inquiry, s_id, query_buf)) {
 			query_buf[INQUIRYLEN] = 0;
@@ -938,28 +980,38 @@ printf("req_wait failed\n");
 			ssp->blocklen = query_buf[7] | (query_buf[6] << 8)
 			| (((long)(query_buf[5])) << 16)
 			| (((long)(query_buf[4])) << 24);
-#if (DEBUG >= 3)
-printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
-#endif
+
+			printf("Capacity=%ld blocks  Block length=%ld\n",
+				ssp->capacity, ssp->blocklen);
 		} else
 			devmsg(dev, "Read Capacity Failed");
 
 	if (retval)
 		if (init_call(mode_sense, s_id, query_buf)) {
-#if (DEBUG >= 3)
+			/*
+			 * Display physical drive parameters.
+			 */
 #define FMT_PG	(4+8+8+12)
 #define DDG_PG	(4+8+8+12+24)
+			uchar heads;
+			unsigned short spt;
+			ulong cyls;
 
-uchar heads;
-unsigned short spt;
-ulong cyls;
-
-spt=((int)query_buf[FMT_PG+10]<<8) + query_buf[FMT_PG+11];
-cyls=((int)query_buf[DDG_PG+2]<<16) + ((int)query_buf[DDG_PG+3]<<8) + query_buf[DDG_PG+4];
-heads=query_buf[DDG_PG+5];
-printf("%d sectors per track\n", spt);
-printf("%ld cylinders\n", cyls);
-printf("%d heads\n", heads);
+			spt=((int)query_buf[FMT_PG+10]<<8)
+				+ query_buf[FMT_PG+11];
+			cyls=((int)query_buf[DDG_PG+2]<<16)
+				+ ((int)query_buf[DDG_PG+3]<<8)
+				+ query_buf[DDG_PG+4];
+			heads=query_buf[DDG_PG+5];
+			if (drv_parm[s_id].ncyl == 0) {
+				drv_parm[s_id].ncyl = cyls;
+				drv_parm[s_id].nhead = heads;
+				drv_parm[s_id].nspt = spt;
+			}
+#if (DEBUG >= 1)
+			printf("Physical: %d sectors per track  ", spt);
+			printf("%ld cylinders  ", cyls);
+			printf("%d heads\n\n", heads);
 #endif
 		} else
 			devmsg(dev, "Mode Sense Failed");
@@ -1056,8 +1108,8 @@ PR4("MO");
 			 * This case shouldn't happen.  We weren't
 			 * asserting ATTENTION.  Abort the bus cycle.
 			 */
+			sfbyte(ss_dat, MSG_NOP); 
 			sfbyte(ss_csr, WC_ENABLE_SCSI);
-			sfbyte(ss_dat, MSG_ABORT); 
 			break;
 		case XP_STAT_IN:
 PR4("SI");
@@ -1088,47 +1140,39 @@ PR4("CO");
 			}
 			break;
 		case XP_DATA_IN:
-PR4("DI");
 			/*
 			 * If caller's buffer has room, keep incoming
 			 * data byte.
 			 */
-if (block_done)
-printf("Data in overrun ");
-block_done=1;
-			if (bp->b_req == BREAD)
-				ss_get(ss_dat, bp->b_faddr + xfer_count);
-			else
+			if (block_done) {
 				xfer_good = 0;
+PR1("Data in overrun");
+			} else if (bp->b_req != BREAD) {
+				xfer_good = 0;
+			} else {
+				block_done=1;
+				ss_get(ss_dat, bp->b_faddr + xfer_count);
+PR4("DI");
+			}
 			break;
 		case XP_DATA_OUT:
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
-			if (bp->b_req == BWRITE) {
-#if 1
-				int res=0;
-PR4("DO");
-if (block_done)
-	printf("Data out overrun ");
-block_done=1;
-/*				res=ss_put(ss_dat, bp->b_faddr + xfer_count);*/
+			if (block_done) {
+				xfer_good = 0;
+PR1("Data out overrun");
+			} else if (bp->b_req != BWRITE) {
+				xfer_good = 0;
+			} else {
+				block_done=1;
 				ss_get(bp->b_faddr + xfer_count, ss_dat);
+PR4("DO");
 				if (irpts_masked) {
 					spl(s);
 					irpts_masked = 0;
 				}
-#if (DEBUG >= 3)
-				printf("p%d ", res);
-#else
-#if (DEBUG >= 1)
-				if(res!=0)
-					printf("p%d ", res);
-#endif
-#endif
-#endif
-			} else /* This case should not happen. */
-				xfer_good = 0;
+			}
 			break;
 		default:
 			break;
@@ -1136,25 +1180,27 @@ block_done=1;
 	}
 	if (irpts_masked)
 		spl(s);
+
 #if (DEBUG >= 1)
-switch(ssp->cmdstat) {
-case -1:
-	if (msg_in != MSG_DISCONNECT)
-		printf("CS-",ssp->cmdstat);
-	break;
-case CS_GOOD:
-	break;
-case CS_CHECK:
-	printf("CSK",ssp->cmdstat);
-	break;
-case CS_BUSY:
-	printf("CSY",ssp->cmdstat);
-	break;
-case CS_RESERVED:
-default:
-	printf("CS%x",ssp->cmdstat);
+	switch(ssp->cmdstat) {
+	case -1:
+		if (msg_in != MSG_DISCONNECT)
+			printf("CS-",ssp->cmdstat);
+		break;
+	case CS_GOOD:
+		break;
+	case CS_CHECK:
+		printf("CSK",ssp->cmdstat);
+		break;
+	case CS_BUSY:
+		printf("CSY",ssp->cmdstat);
+		break;
+	case CS_RESERVED:
+	default:
+		printf("CS%x",ssp->cmdstat);
+	}
 #endif
-}
+
 	return (bus_timeout) ? 0 : 1 ;
 }
 
@@ -1499,10 +1545,13 @@ PR3("XPBI");
 	 * If arbitration does not succeed right away, it is usually
 	 * because another drive is trying to reselect the host.
 	 */
-/*						ssp->state = SST_POLL_ARBITN;*/
 						set_timeout(s_id, DELAY_ARB);
 					}
 				} else { /* host busy or bus not free */
+					int o_id;
+
+					if ((o_id = chk_reconn()) != -1)
+						defer(dummy_reconn, s_id);
 					++ssp->avl_count;
 					if (ssp->avl_count >= MAX_AVL_COUNT)
 						recover(s_id, RV_BF_TIMEOUT);
@@ -1633,6 +1682,8 @@ PR3("XRFF");
  */
 static int start_arb()
 {
+	int ret;
+
 	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
 	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
 	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
@@ -1641,7 +1692,12 @@ static int start_arb()
 	 * SCSI spec says there is "no maximum" to the wait for arbitration
 	 * complete.
 	 */
-	return bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL);
+	if (bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL))
+		ret = 1;
+	else {
+		ret = 0;
+PR1("oSA");
+	}
 }
 
 /*
@@ -1678,7 +1734,11 @@ int disconnect;
 				sfbyte(ss_dat, MSG_IDENTIFY);
 			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
 			ret = 1;
+		} else {
+PR1("oHI2");
 		}
+	} else {
+PR1("oHI1");
 	}
 	return ret;
 }
@@ -1981,10 +2041,18 @@ uint cmdlen, inlen, outlen;
 	int xfer_good = 1;
 	int cmdstat = -1;
 	int msg_in = -1;
+#if (DEBUG >= 1)
+int x, xct=0;
+uchar xch[100];
+#endif
 
 	s = sphi();
 	while (req_wait(&bus_timeout) && xfer_good) {
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+#if (DEBUG >= 1)
+if (xct < 100)
+	xch[xct++]=phase_type;
+#endif
 		switch (phase_type) {
 		case XP_MSG_IN:
 			msg_in = ffbyte(ss_dat);
@@ -1998,10 +2066,10 @@ uint cmdlen, inlen, outlen;
 		case XP_MSG_OUT:
 			/*
 			 * This case shouldn't happen.  We weren't
-			 * asserting ATTENTION.  Abort the bus cycle.
+			 * asserting ATTENTION.
 			 */
+			sfbyte(ss_dat, MSG_NOP); 
 			sfbyte(ss_csr, WC_ENABLE_SCSI);
-			sfbyte(ss_dat, MSG_ABORT); 
 			break;
 		case XP_STAT_IN:
 			cmdstat = ffbyte(ss_dat);
@@ -2012,6 +2080,7 @@ uint cmdlen, inlen, outlen;
 			 */
 			if (cmd_bytes_out < cmdlen) {
 				sfbyte(ss_dat, cmdbuf[cmd_bytes_out++]);
+#if 1
 				/*
 				 * If just sent last byte, allow interrupts.
 				 */
@@ -2019,6 +2088,7 @@ uint cmdlen, inlen, outlen;
 					spl(s);
 					s = sphi();
 				}
+#endif
 			} else {	/* This case should not happen. */
 				xfer_good = 0;
 			}
@@ -2029,9 +2099,11 @@ uint cmdlen, inlen, outlen;
 			 * data byte.  Else toss it.
 			 */
 			if (data_bytes_in < inlen) {
-				inbuf[data_bytes_in++] = ffbyte(ss_dat);
+				do {
+					inbuf[data_bytes_in++] = ffbyte(ss_dat);
+				} while (data_bytes_in < inlen);
 			} else
-				ffbyte(ss_dat);
+				xfer_good = 0;
 			break;
 		case XP_DATA_OUT:
 			/*
@@ -2049,8 +2121,25 @@ uint cmdlen, inlen, outlen;
 	}
 	spl(s);
 
-	if (!bus_timeout && xfer_good && cmdstat == CS_GOOD)
+	if (bus_timeout) {
+PR1("oLX1");
+	} else if (!xfer_good) {
+PR1("oLX2");
+	} else if (cmdstat != CS_GOOD) {
+PR1("oLX3");
+#if (DEBUG >= 1)
+printf("cmdstat=%x ", cmdstat);
+#endif
+	} else
 		ret = 1;
+#if (DEBUG >= 1)
+if (!ret) {
+	printf("csr=%x ", ffbyte(ss_csr));
+	printf("xct=%d  ", xct);
+	for (x=0; x < xct; x++)
+		printf("%x ", xch[x]);
+}
+#endif
 
 	return ret;
 }
@@ -2086,8 +2175,15 @@ printf("scsireset ");
 static void ssdelay(ticks)
 int ticks;
 {
+#if 0
 	timeout(&delay_tim, ticks, wakeup, (int)&delay_tim);
 	sleep((char *)&delay_tim, CVPAUSE, IVPAUSE, SVPAUSE);
+#else
+	int i, j;
+
+	for (i = 0; i < ticks; i++)
+		for (j = 0; j < 4000; j++);
+#endif
 }
 
 /*
@@ -2103,8 +2199,13 @@ uchar * buf;
 {
 	int ret = 1;
 	int i;
-
+	int o_id;
+int s;
+s=sphi();
 	for (i = 0; i < 2; i++) {
+		o_id = chk_reconn();
+		if (o_id != -1)
+			dummy_reconn(s_id);
 		if ((*fn)(s_id, buf))
 			goto init_call_done;
 
@@ -2124,5 +2225,6 @@ uchar * buf;
 	ret = 0;
 
 init_call_done:
+spl(s);
 	return ret;
 }
