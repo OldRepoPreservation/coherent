@@ -96,6 +96,6 @@ dpdata_t      *	ddi_proc_data	__PROTO ((void));
 
 __EXTERN_C_END__
 
-#define	ddi_proc_data()		((dpdata_t *) CURRENT_PROCESS ()->p_nigel)
+#define	ddi_proc_data()	((dpdata_t *) & CURRENT_PROCESS ()->p_ddi_space)
 
 #endif	/* ! defined (__KERNEL_DDI_PROC_H__) */

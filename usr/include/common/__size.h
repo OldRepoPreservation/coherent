@@ -12,7 +12,7 @@
 
 typedef	unsigned	__size_t;
 
-#elif	defined (__GNUC__)
+#elif	__GNUDOS__
 
 typedef	unsigned long	__size_t;
 

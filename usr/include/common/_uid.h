@@ -23,6 +23,20 @@ typedef	n_uid_t		n_gid_t;
 typedef	unsigned short	o_mode_t;
 typedef	unsigned long	n_mode_t;
 
+
+/*
+ * The major/minor device number concepts have been altered a little under
+ * System V release 4 to encompass the idea of internal and external minor
+ * device numbers.
+ *
+ * Under this concept the "bdevsw" and "cdevsw" can map down from 32-bit
+ * device numbers to some smaller internal major/minor space.
+ */
+
+typedef	unsigned short	__minor_t;	/* external minor device number */
+typedef	unsigned short	__major_t;	/* external major device number */
+
+
 #if	(_SYSV4 && ! _SYSV3) || _DDI_DKI
 
 typedef	n_uid_t		__uid_t;

@@ -48,7 +48,7 @@ typedef	struct {
 } o_sigset_t;
 
 typedef struct {
-	__sigmask_t	_sigbits [__DIVIDE_ROUNDUP (_SIGNAL_MAX,
+	__sigmask_t	_sigbits [__DIVIDE_ROUNDUP_CONST (_SIGNAL_MAX,
 				   __CHAR_BIT * sizeof (__sigmask_t))];
 } __sigset_t;
 

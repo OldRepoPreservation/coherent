@@ -36,6 +36,13 @@
 
 #if	__GNUC__ && (defined (i386) || _I386)	/* 80386 with GNU CC */
 
+/*
+ * The Coherent 'as' assembler is a little stupid about which instruction
+ * forms it will accept.
+ */
+
+# define	__GAS_OR_AS(g,a)	g
+
 
 /*
  * Note that the definitions for the string-input instructions assume that
@@ -44,37 +51,37 @@
 
 __LOCAL__ __INLINE__ __uchar_t __inb (int _port) {
 	__uchar_t	_result;
-	__NON_ISO (asm) volatile ("in %1,%0" : "=a" (_result) :
-				  "d" ((__ushort_t) _port));
+	__NON_ISO (asm) volatile (__GAS_OR_AS ("in %1,%0", "inb (%1)") :
+				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 
 __LOCAL__ __INLINE__ __ulong_t __inl (int _port) {
 	__ulong_t	_result;
-	__NON_ISO (asm) volatile ("in %1,%0" : "=a" (_result) :
-				  "d" ((__ushort_t) _port));
+	__NON_ISO (asm) volatile (__GAS_OR_AS ("in %1,%0", "inl (%1)") :
+				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 
 __LOCAL__ __INLINE__ __ushort_t __inw (int _port) {
 	__ushort_t	_result;
-	__NON_ISO (asm) volatile ("in %1,%0" :
+	__NON_ISO (asm) volatile (__GAS_OR_AS ("in %1,%0", "inw (%1)") :
 				  "=a" (_result) : "d" ((__ushort_t) _port));
 	return _result;
 }
 
 __LOCAL__ __INLINE__ void __outb (int _port, __uchar_t value) {
-	__NON_ISO (asm) volatile ("out %1,%0" : :
+	__NON_ISO (asm) volatile (__GAS_OR_AS ("out %1,%0", "outb (%0)") : :
 				  "d" ((__ushort_t) _port), "a" (value));
 }
 
 __LOCAL__ __INLINE__ void __outl (int _port, __ulong_t value) {
-	__NON_ISO (asm) volatile ("out %1,%0" : :
+	__NON_ISO (asm) volatile (__GAS_OR_AS ("out %1,%0", "outl (%0)") : :
 				  "d" ((__ushort_t) _port), "a" (value));
 }
 
 __LOCAL__ __INLINE__ void __outw (int _port, __ushort_t value) {
-	__NON_ISO (asm) volatile ("out %1,%0" : :
+	__NON_ISO (asm) volatile (__GAS_OR_AS ("out %1,%0", "outw (%0)") : :
 				  "d" ((__ushort_t) _port), "a" (value));
 }
 

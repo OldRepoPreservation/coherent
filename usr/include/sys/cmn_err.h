@@ -1,7 +1,6 @@
 #ifndef	__SYS_CMN_ERR_H__
 #define	__SYS_CMN_ERR_H__
 
-
 /*
  *-IMPORTS:
  *	<common/ccompat.h>

@@ -16,29 +16,29 @@
 #include <common/_time.h>
 #include <kernel/_sleep.h>
 #include <sys/types.h>
-#include <sys/param.h>
-#include <sys/fun.h>
 #include <sys/mmu.h>
 #include <sys/uproc.h>
-#include <sys/alloc.h>
+#include <kernel/alloc.h>
 #if	_I386
-#include <sys/reg.h>
+#include <kernel/reg.h>
+#include <kernel/param.h>
 #define v_sleep(a1,a2,a3,a4,a5)		w_sleep(a1,a2,a5)
 #else
-#include <sys/machine.h>
+#include <kernel/machine.h>
+#include <kernel/const.h>
 #define v_sleep(a1,a2,a3,a4,a5)		sleep(a1,a2,a3,a4)
 #endif
 
 #ifdef TRACER
 #include <sys/mwc_coherent.h>
 #else
-#define SET_U_ERROR(errno, msg)	{ u.u_error = errno; }
-#define T_HAL(f,c)
-#define T_PIGGY(f,c)
-#define T_VLAD(f,c)
-#define T_CON(f,c)
-#define T_MSGQ(f,c)
-#define DV(v)
+#define SET_U_ERROR(errno, msg)		((void) (u.u_error = errno))
+#define T_HAL(f,c)			((void) 0)
+#define T_PIGGY(f,c)			((void) 0)
+#define T_VLAD(f,c)			((void) 0)
+#define T_CON(f,c)			((void) 0)
+#define T_MSGQ(f,c)			((void) 0)
+#define DV(v)				((void) 0)
 #endif /* TRACER */
 
 #if	_I386
@@ -50,8 +50,8 @@
 
 #else
 
-#define CHIRP(ch)
-#define _CHIRP(ch, locn)
+#define CHIRP(ch)		((void) 0)
+#define _CHIRP(ch, locn)	((void) 0)
 
 #endif	/* ! _I386 */
 

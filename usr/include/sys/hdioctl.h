@@ -1,9 +1,10 @@
-/* (-lgl
- * 	COHERENT Version 3.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
-
+/*
+ * /usr/include/sys/hdioctl.h
+ *
+ * Ioctl support for hard disk devices.
+ *
+ * Revised: Sun Aug  1 17:24:39 1993 CDT
+ */
 #ifndef __SYS_HDIOCTL_H__
 #define	__SYS_HDIOCTL_H__
 
@@ -15,10 +16,9 @@
  * Drive attributes
  * Note: all fields defined as bytes to prevent compiler arith probs.
  *	All multi-byte fields are stored low-byte first.
- *	ie: number of cylinders - (hd_ncyl [1] << 8) + hc_ncyl[0]
+ * This struct is configured for binary compatibility with ROM data!
  */
-typedef
-struct hdparm_s {
+typedef struct hdparm_s {
 	unsigned char	ncyl[2];	/* number of cylinders */
 	unsigned char	nhead;		/* number heads */
 	unsigned char	rwccp[2];	/* reduced write curr cyl */
@@ -30,4 +30,23 @@ struct hdparm_s {
 	unsigned char	nspt;		/* number of sectors per track */
 	unsigned char	hdfill3;
 } hdparm_t;
+
+/* Macro for initializing drive parameter tables. */
+#define _HDPARMS(cyl,hd,spt,ctl,pcomp)	{ \
+	{ (cyl) & 0xFF, (cyl) >> 8 }, hd, { 0, 0 }, \
+	{ (pcomp) & 0xFF, (pcomp) >> 8 }, 0, ctl, \
+	{ 0, 0, 0 }, { 0 , 0 }, spt, 0 }
+
+/* Convert from a 2-element unsigned char array to unsigned short. */
+#define _CHAR2_TO_USHORT(c_array)	\
+	((unsigned short) ((c_array)[1] << 8) | (c_array)[0])
+
+/* Copy number into a 2-element unsigned char array. */
+#define _NUM_TO_CHAR2(c_array, num) \
+	(((c_array)[0] = num & 0xFF), ((c_array)[1] = num >> 8))
+
+#if __KERNEL__
+#define N_ATDRV	2			/* only two drives supported */
 #endif
+
+#endif /* ndef __SYS_HDIOCTL_H__ */

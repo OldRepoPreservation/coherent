@@ -17,6 +17,15 @@
 #include <common/feature.h>
 
 /*
+ * Language spec for non-loadable keyboard drivers.
+ */
+enum {
+	kb_lang_us = 0,
+	kb_lang_de = 1,
+	kb_lang_fr = 2
+};
+
+/*
  * ASCII Macro Definitions - stolen from <ascii.h>
  */
 #define nul	0x00	/* Null			*/

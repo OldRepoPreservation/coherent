@@ -16,9 +16,9 @@
 #define	__SYS_PROC_H__
 
 #include <common/feature.h>
+#include <kernel/timeout.h>
 #include <sys/poll.h>
 #include <sys/types.h>
-#include <sys/timeout.h>
 #include <sys/seg.h>
 #include <sys/ksynch.h>
 #include <sys/signal.h>
@@ -105,7 +105,9 @@ typedef struct proc {
 	struct	 rlock *p_prl;		/* Pending record lock */
 	struct	 sr p_shmsr[NSHMSEG];	/* Shared Memory Segments */
 	struct   sem_undo *p_semu;	/* Sem. undo link list */
-	char     p_nigel [32];		/* He made me do it! -hws- */
+	struct {
+		char	_space [32];
+	} p_ddi_space;
 #endif
 } PROC;
 
@@ -193,7 +195,6 @@ typedef struct plink {
 #if	__KERNEL__
 
 #define SELF		cprocp
-#define locked(gate)	((gate)[0])
 
 #if	! _I386
 #define p_u		p_segp[SIUSERP]

@@ -1,8 +1,3 @@
-/*
- * /usr/include/sys/errno.h
- *
- * Revised: Mon Jul 12 07:15:19 1993 CDT
- */
 #ifndef	__SYS_ERRNO_H__
 #define	__SYS_ERRNO_H__
 

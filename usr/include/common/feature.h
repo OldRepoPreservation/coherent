@@ -96,10 +96,11 @@
 
 /*
  * The MWC port of GCC botches -ansi mode by not defining _I386; here we put
- * it back in again.
+ * it back in again. This also serves to define _I386 for those systems that
+ * traditionally just define "i386".
  */
 
-#if	defined (__GNUC__) && ! defined (_I386)
+#if	__GNUC__ && (defined (i386) || __COHERENT__) && ! defined (_I386)
 # define	_I386	1
 #endif
 

@@ -25,7 +25,6 @@
 #define	MASKOFF	0x00			/* Mask bit off */
 #define	MASKON	0x04			/* Mask bit on */
 
-#if 1
 /* For compatibility with other DDK's. */
 #define DMA_Wrmode      0x48    /* single, read, increment, no auto-init */
 #define DMA_Rdmode      0x44    /* single, write, increment, no auto-init */
@@ -41,11 +40,11 @@
 #define DMA_CH5		5
 #define DMA_CH6		6
 #define DMA_CH7		7
-#endif
 
-#ifdef _I386
+#if	_I386
+
 #define DMASEG_SIZE	NBPC		/* Size of a DMA segment.  */
-#include <sys/param.h>
+#include <kernel/param.h>
 /*
  * Identify the dma segment of a physical address.
  */
@@ -54,4 +53,5 @@
 #define dmaseg(p)	((p)&0xF0000L)
 #endif
                                
-#endif
+#endif	/* ! defined (__SYS_DMAC_H__) */
+

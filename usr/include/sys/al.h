@@ -10,7 +10,7 @@
 #ifndef	__SYS_AL_H__
 #define	__SYS_AL_H__
 
-#include <sys/timeout.h>
+#include <kernel/timeout.h>
 #include <sys/ktty.h>
 #include <sys/poll_clk.h>
 

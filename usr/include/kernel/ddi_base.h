@@ -16,12 +16,30 @@
  *		__EXTERN_C_BEGIN__
  *		__EXTERN_C_END__
  *		__PROTO ()
+ *	<common/_cred.h>
+ *		cred_t
+ *	<sys/uio.h>
+ *		uio_t
+ *		iovec_t
  */
 
 #include <common/ccompat.h>
-
+#include <common/_cred.h>
+#include <sys/uio.h>
 
 #if	__COHERENT__
+
+/*
+ *-IMPORTS:
+ *	<sys/io.h>
+ *		IO
+ *	<sys/uproc.h>
+ *		UPROC
+ *		u.u_uid
+ *		u.u_gid
+ */
+
+#include <sys/io.h>
 
 #define	__KERNEL__	2
 #include <sys/uproc.h>
@@ -60,6 +78,10 @@ typedef struct ddi_base_data	dbdata_t;
 __EXTERN_C_BEGIN__
 
 dbdata_t      *	ddi_base_data	__PROTO ((void));
+void		DESTROY_UIO	__PROTO ((uio_t * _uiop, IO * _iop));
+cred_t	      *	MAKE_CRED	__PROTO ((cred_t * _cred));
+uio_t	      *	MAKE_UIO	__PROTO ((uio_t * _uiop, iovec_t * _iovp,
+					  int _mode, IO * _iop));
 
 __EXTERN_C_END__
 

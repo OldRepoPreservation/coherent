@@ -163,8 +163,23 @@ __EXTERN_C_END__
  * table!
  */
 
+#if	! _I386
+
 typedef	unsigned char	GATE [2];
 
-#define	__GATE_INIT(g)	((g) [1] = (g) [0] = 0)
+#else	/* if _I386 */
+
+typedef	struct {
+	unsigned char	_lock [2];
+	unsigned	_count;
+	char	      *	_name;
+} GATE [1];
+
+#define	__GATE_INIT(g, name)	((g)->_lock [1] = (g)->_lock [0] = 0, \
+				 (g)->_name = (name), (g)->_count = 0)
+#define	__GATE_LOCK_COUNT(g)	((g)->_count ++)
+#define __GATE_LOCKED(gate)	((gate)->_lock [0])
+
+#endif	/* ! _I386 */
 
 #endif	/* ! defined (__SYS_KSYNCH_H__) */

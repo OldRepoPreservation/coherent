@@ -8,24 +8,14 @@
  * These are identical to the pdp11 parameters except that there is no MAP
  * parameter for claiming the unibus map.
  */
+
 #ifndef	__SYS_SCHED_H__
 #define	__SYS_SCHED_H__
 
-#if _I386
-#include <sys/ksynch.h>
+#if	_I386
 
-/*
- * scheduler priorities for sleeping processes
- */
-enum {
-	prilo	= 3,			/* low priority */
-	pritape	= 10,			/* appropriate for tape driver */
-	primed	= 17,			/* medium priority */
-	pritty	= 24,			/* appropriate for terminal driver */
-	pridisk = 31,			/* appropriate for disk driver */
-	prinet	= 38,			/* appropriate for network driver */
-	prihi	= 45			/* high priority */
-};
+#include <kernel/pri.h>
+#include <sys/ksynch.h>
 
 /*
  * sleep priorities
@@ -61,7 +51,8 @@ enum {
 #define CVPAUSE	0		/* Pause.				*/
 #define CVWAIT	128		/* Wait.				*/
 
-#else
+#else	/* if ! _I386 */
+
 /*
  * Update parameters.  All values are in ticks.  The processor value
  * update interval is always 1.
@@ -162,5 +153,7 @@ enum {
 #define IVWAIT	-128
 #define SVWAIT	4096
 
-#endif _I386
-#endif _SYS_SCHED_H
+#endif	/* ! _I386 */
+
+#endif	/* ! defined (__SYS_SCHED_H__) */
+

@@ -13,6 +13,7 @@
 #ifndef	__SYS_MMU_H__
 #define	__SYS_MMU_H__
 
+#include <common/_gregset.h>
 #include <common/feature.h>
 
 #if	! __KERNEL__
@@ -137,11 +138,7 @@ typedef	long		cseg_t;
 #define	regload(n, v)	{ ptable0_v[(n)>>BPC1SHIFT] = v; mmuupd(); }
 
 #define	__xmode_286(regp)	((regp)->_i386._ds == (SEG_286_UD | R_USR))
-#define	xmode(ty)	((u.u_regl[DS]&0xffff) \
-  == ((ty)==286 ? (SEG_286_UD|R_USR) : (SEG_386_UD|R_USR)))
-#define	XMODE_286	((u.u_regl[DS]&0xffff) == (SEG_286_UD|R_USR))
-#define	XMODE_386	((u.u_regl[DS]&0xffff) == (SEG_386_UD|R_USR))
-#define	wdsize()	((XMODE_286) ? sizeof(short) : sizeof(int))
+
 
 /*
  * These macros assume segment size <= 4 megabytes.

@@ -15,6 +15,8 @@
  *		__PROTO ()
  *	<common/__size.h>
  *		__size_t
+ *	<common/_intmask.h>
+ *		intmask_t
  *	<kernel/_lock.h>
  *		__lock_t
  *		__MAX_HIERARCHY__
@@ -27,6 +29,7 @@
 
 #include <common/ccompat.h>
 #include <common/__size.h>
+#include <common/_intmask.h>
 #include <kernel/_cpuid.h>
 #include <kernel/_lock.h>
 #include <kernel/ddi_data.h>
@@ -55,16 +58,6 @@
  * system state to re-establish some of the certainty about system state that
  * is lost in the move to gain extra concurrency.
  */
-
-/*
- * If we are using interrupt masking to define our interrupt priority scheme,
- * then we need a type sufficient to hold a bitmask for at least 16 vectors
- * (for the IBM PC). Defining this as a long integer should be sufficient
- * for now.
- */
-
-typedef	unsigned long	intmask_t;
-
 
 /*
  * Returns true if we are at base level or if the system cannot distinguish

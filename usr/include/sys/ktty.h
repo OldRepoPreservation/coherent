@@ -1,14 +1,11 @@
 /*
- * <sys/ktty.h>
- *
  * Kernel portion of typewriter structure.
- *
- * Revised: Mon Jul 12 06:29:59 1993 CDT
  */
 #ifndef	 __SYS_KTTY_H__
 #define	 __SYS_KTTY_H__
 
 #include <common/feature.h>
+#include <kernel/timeout.h>
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/clist.h>
@@ -16,7 +13,6 @@
 #if	_I386
 #include <termio.h>
 #endif
-#include <sys/timeout.h>
 
 #define	NCIB	256		/* Input buffer */
 #define	OHILIM	128		/* Output buffer hi water mark */

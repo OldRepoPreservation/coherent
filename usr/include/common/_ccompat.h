@@ -214,8 +214,8 @@
 /*
  * As above, this is a feature supported in old systems by ill-advised hacks,
  * so ISO C has a special operator just for the job. We define __CONCAT3 ()
- * as a primitive just for fun; it's handy, and nested calls to __CONCAT ()
- * are just too messy to be practical.
+ * and __CONCAT4 () as primitives just for fun; it's handy, and nested calls
+ * to __CONCAT () are just too messy to be practical.
  */
 
 #ifndef	__CONCAT
@@ -223,11 +223,13 @@
 
 #  define __CONCAT(x,y)		x##y
 #  define __CONCAT3(x,y,z)	x##y##z
+#  define __CONCAT4(a,b,c,d)	a##b##c##d
 
 # else
 
 #  define __CONCAT(x,y)		x/**/y
 #  define __CONCAT3(x,y,z)	x/**/y/**/z
+#  define __CONCAT4(a,b,c,d)	a/**/b/**/c/**/d
 
 # endif
 #endif
@@ -335,8 +337,16 @@
 
 # else	/* void with a pointer is not supported */
 
+#  if	__COHERENT__ && ! __GNUC__	/* stroke a bug in Coherent 'cc' */
+
+#   define  __VOID__		char
+
+#else
+
 typedef	struct __deep_magic__	__void__;
-#  define  __VOID__		__void__
+#   define  __VOID__		__void__
+
+#  endif
 
 # endif
 #endif	/* ! defined (__VOID__) */
@@ -628,13 +638,20 @@ typedef	struct __deep_magic__	__void__;
  */
 
 #if	_POSIX_SOURCE
-
 # define	__NON_POSIX(name)	__CONCAT (_, name)
-
 #else
-
 # define	__NON_POSIX(name)	name
+#endif
 
+
+/*
+ * GCC has a special feature for declaring functions as not ever returning.
+ */
+
+#if	__GNUC__
+# define	__NO_RETURN__	volatile
+#else
+# define	__NO_RETURN__
 #endif
 
 

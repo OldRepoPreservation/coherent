@@ -34,19 +34,14 @@
 #include <common/xdebug.h>
 
 
-/*
- * Older versions of the MWC C compiler had problems with the use of void
- * expressions in ternary expressions, so the type of __assert_fail has been
- * make "int" to satisfy that. This has no effect elsewhere, as long as the
- * entire assert expression is cast to void the results are identical.
- */
-
 __EXTERN_C_BEGIN__
 
-int		__assert_fail2	__PROTO ((__CONST__ char * _exp,
+__NO_RETURN__ void
+		__assert_fail2	__PROTO ((__CONST__ char * _exp,
 					  __CONST__ char * _info,
 					  int _lineno));
-int		__assert_fail	__PROTO ((__CONST__ char * _exp));
+__NO_RETURN__ void
+		__assert_fail	__PROTO ((__CONST__ char * _exp));
 
 __EXTERN_C_END__
 
@@ -64,10 +59,10 @@ __EXTERN_C_END__
 
 #ifndef	NDEBUG
 # if	__NO_FILE_INFO__
-#  define ASSERT(exp)		((void) ((exp) ? 0 : \
+#  define ASSERT(exp)		((void) ((exp) ? (void) 0 : \
 				 __assert_fail (__STRING (exp), NULL, 0)))
 # else
-#  define ASSERT(exp)		((void) ((exp) ? 0 : \
+#  define ASSERT(exp)		((void) ((exp) ? (void) 0 : \
 				 __assert_fail2 (__STRING (exp), __FILE_INFO__)))
 # endif
 #else
