@@ -506,7 +506,13 @@ dump_brief()
 
 	f = t.c_oflag;
 	strcat(lbuf, (f&OPOST)?"opost\t":"-opost\t");
-	strcat(lbuf, (f&ONLCR)?"onlcr\n":"-onlcr\n");
+	strcat(lbuf, (f&ONLCR)?"onlcr\t":"-onlcr\t");
+	switch(f&TABDLY) {
+	case 0x0000:  strcat(lbuf, "tab0\n");  break;
+	case 0x0800:  strcat(lbuf, "tab1\n");  break;
+	case 0x1000:  strcat(lbuf, "tab2\n");  break;
+	case 0x1800:  strcat(lbuf, "tab3\n");  break;
+	}
 	fputs(lbuf, stdout);
 
 
