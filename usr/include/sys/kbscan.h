@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 3.2
+ * 	COHERENT Device Driver Kit version 1.2.0
  * 	Copyright (c) 1982, 1991 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */

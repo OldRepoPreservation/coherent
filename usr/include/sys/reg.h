@@ -84,6 +84,20 @@
 #define	GS	0
 
 /*
+ * These are not put on the stack, but they have slots in the table
+ * global_reg[].  These numbers are the offsets into that table.
+ */
+#define RCR0	19
+#define RCR1	20
+#define RCR2	21
+#define RCR3	22
+
+/*
+ * How many register slots do we recognise?
+ */
+#define NUM_REG 23
+
+/*
  * Buffers are not mapped.
  */
 #define	bsave(o)

@@ -20,6 +20,64 @@ struct ptrace {
 	GATE	 pt_gate;		/* Gate */
 };
 
+
+/*
+ * Commands for ptrace() system call.  First argument is one of these.
+ */
+#define PTRACE_SETUP	0	/* init called by child */
+#define PTRACE_RD_TXT	1	/* parent reads child text */
+#define PTRACE_RD_DAT	2	/* parent reads child data */
+#define PTRACE_RD_USR	3	/* parent reads child u area */
+#define PTRACE_WR_TXT	4	/* parent writes child text */
+#define PTRACE_WR_DAT	5	/* parent writes child data */
+#define PTRACE_WR_USR	6	/* parent writes child u area */
+#define PTRACE_RESUME	7	/* resume child, maybe fake signal to child */
+#define PTRACE_TERM	8	/* terminate child */
+#define PTRACE_SSTEP	9	/* single-step child, maybe fake sig to child */
+
+/*
+ * Pseudo offsets of registers in USR segment.
+ *
+ * When ptracing a process, the parent can access the register set
+ * of the child using PTRACE_RD_USR and PTRACE_WR_USR commands and
+ * an addr (third argument to the system call) from the following list.
+ *
+ * There are two ESP values available:
+ *	PTRACE_UESP selects the user stack pointer - value from the child
+ *	  process saved on entry to, e.g., the debug trap handler.
+ *	  PTRACE_SS gives access to the corresponding stack selector.
+ *	PTRACE_ESP is the stack pointer used by the trap handler itself.
+ *
+ * PTRACE_ERR will have the fault or trap number in case of exceptions.
+ *
+ * PTRACE_SIG is the current signal number.
+ *
+ * PTRACE_UEND is the size of accessible u area plus one - addresses
+ *   greater than or equal to this value are not valid in ptrace
+ *   read/write of USR segment.
+ */
+#define	PTRACE_UEND	80	/* Offsets >= UEND are not valid */
+#define	PTRACE_SIG	76
+#define	PTRACE_SS	72
+#define	PTRACE_UESP	68
+#define	PTRACE_EFL	64
+#define	PTRACE_CS	60
+#define	PTRACE_EIP	56
+#define	PTRACE_ERR	52
+#define PTRACE_TRAPNO	48
+#define	PTRACE_EAX	44
+#define	PTRACE_ECX	40
+#define	PTRACE_EDX	36
+#define	PTRACE_EBX	32
+#define	PTRACE_ESP	28
+#define	PTRACE_EBP	24
+#define	PTRACE_ESI	20
+#define	PTRACE_EDI	16
+#define	PTRACE_DS	12
+#define	PTRACE_ES	8
+#define	PTRACE_FS	4
+#define	PTRACE_GS	0
+
 #ifdef KERNEL
 /*
  * Global variables.
