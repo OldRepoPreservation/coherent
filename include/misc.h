@@ -10,11 +10,46 @@
 #define ENDOF(x) (((char *)(x))+sizeof(x)) /* end of some thing */
 #define SETIN(a, b) !((a) & ~(b))	/* a in b */
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/time.h>
+#ifdef M68000
+#define ptrdiff(a, b) ((long)a - (long)b)
+#else
+#ifdef LARGE
+#define ptrdiff(a, b) (((((long)a>>16)-((long)b>>16))<<4)+((int)a-(int)b))
+#else
+#define ptrdiff(a, b) ((int)a - (int)b)
+#endif
+#endif
 
-extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
+#include <stdio.h>
+
+/*
+ * Needed for select()
+ */
+struct timeval {
+	long tv_sec;
+	long tv_usec;
+};
+
+#include <sys/param.h>
+
+#if NOFILE <= 32
+typedef int fd_set;
+
+#define FD_ZERO(fdp)	{*fdp = 0;}
+#define FD_SET(b,fdp)	(*fdp |= 1 << (b))
+#define FD_ISSET(b,fdp)	(*fdp & 1 << (b))
+#define FD_SETSIZE 32
+#else
+typedef int fd_set[2];
+
+#define FD_ZERO(fdp)	{(*fdp)[0]=(*fdp)[1]=0;}
+#define FD_SET(b,fdp)	((*fdp)[((b)>>5)&1] |= 1 << ((b)&0x1F))
+#define FD_ISSET(b,fdp)	((*fdp)[((b)>>5)&1] & 1 << ((b)&0x1F))
+#define FD_SETSIZE 64
+#endif
+/* end of select() support */
+
+extern fatal();		/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);
 			 * gets lines off a file treats # to end of line
 			 * as comment, discards \ [ \t\n] through end of
@@ -62,7 +97,6 @@ extern char * skip();	/* skip(s1, matcher, fin)
 			 * matcher. Looks like match. */
 extern void tocont();	/* Enter NL to continue */
 extern approx();	/* approx(double a, double b) 1 if == within epsilon */
-extern if_COHERENT();	/* returns 1 if Coherent else 0 */
 extern double epsilon;
 extern int is_fs();	/* is_fs(char *special) test if special is filesystem */
 extern void vinit();	/* vinit(char * workFileName, unsigned storAmt);
@@ -83,22 +117,6 @@ extern strchrtr();
 			 * Find c in from and return the corresponding char
 			 * in to or def if there is none.
 			 */
-char *kernelName();	/* return name of current kernel file */
-/*
- * Julian day structure consists of the days and seconds since
- * Greenwich mean noon of January 1st 4713 BC.
- * COHERENT time_t is a variation of Julian time:
- * it counts seconds from Julian day 2,440,587.5 (January 1, 1970).
- */
-typedef struct tm tm_t;
-typedef struct { long j_d, j_s; } jday_t;
-#define COHEPOCH 2440587L		/* Julian day 1969.12.31 12h00m00s */
-
-jday_t time_to_jday();			/* COHERENT time into Julian date */
-time_t jday_to_time();			/* Julian date to COHERENT time */
-jday_t tm_to_jday();			/* tm structure into Julian date */
-tm_t  *jday_to_tm();			/* Julian date into tm_t structure */
-
 /*
  * Definitions etc. for regexp(3) routines.
  *
