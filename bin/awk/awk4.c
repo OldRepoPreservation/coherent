@@ -178,21 +178,35 @@ isfloat(np)
 register NODE *np;
 {
 	register char *cp;
-	register int isfloat = 0;
+	register int isfloat = 0, sawDigit = 0;
 
 	if (np->t_flag & T_NUM)
-		if (np->t_flag & T_INT)
-			return (0); else
-			return (1);
-	for (cp = np->t_STRING; *cp != '\0'; cp++) {
-		if ((*cp=='e' || *cp=='E') && cp!=np->t_STRING)
-			isfloat++;
-		else if (*cp == '.')
-			isfloat++;
-		else if (!isdigit(*cp) && *cp!='-')
+		return (!(np->t_flag & T_INT));
+
+	for (cp = np->t_STRING;;cp++) {
+		switch(*cp) {
+		case 0:
+			return (isfloat);
+		case 'e':
+		case 'E':
+			if (!sawDigit)
+				return (0);
+		case '.':
+			sawDigit = isfloat = 1;
+			break;
+		case ' ':
+		case '\t':
+			if (sawDigit)
+				return (0);
+			break;
+		default:
+			if (isdigit(*cp) || '-' == *cp) {
+				sawDigit = 1;
+				break;
+			}
 			return (0);
+		}
 	}
-	return (isfloat);
 }
 
 /*
