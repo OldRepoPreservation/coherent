@@ -1,8 +1,11 @@
 /*
  * mkdir.c
  * 5/10/90
- * Usage: mkdir [ -r ] dir ...
+ * Usage: mkdir [ -rp ] dir ...
  * Make directories.
+ *
+ * Changes by michael 5/10/93
+ *      implemented -p option
  *
  * Changes by steve 5/10/90:
  *	in getchild(), bumped strncpy count by 1 to return NUL-terminated result
@@ -49,13 +52,14 @@ register char	**argv;
 	catch(SIGHUP);
 	signal(SIGQUIT, SIG_IGN);
 
-	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'r') {
+	if (argc > 1 && argv[1][0] == '-' &&
+			(argv[1][1] == 'r' || argv[1][1] == 'p')) {
 		++rflag;
 		--argc;
 		++argv;
 	}
 	if (*++argv == NULL) {
-		fprintf(stderr, "Usage: mkdir [ -r ] dir ...\n");
+		fprintf(stderr, "Usage: mkdir [-rp] dir ...\n");
 		exit(1);
 	} else
 		while (*argv) {
