@@ -1,7 +1,7 @@
 # /usr/src/cmd/yacc/Makefile 2/20/91
 # For i8086: LFLAGS=-n.
 
-DESTDIR=
+DESTDIR=/bin386/bin/
 CFLAGS=-O
 LDFLAGS=
 
