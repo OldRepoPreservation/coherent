@@ -9,74 +9,107 @@
 /*
  * qsort chooses a pivot element (Knuth recommends random choice),
  * partitions the input into sets less than and greater than the pivot,
- * puts the pivot into the correct slot in the sorted set,
- * and recursively sorts the two subpartitions.
- * For small numbers of elements, a linear insertion sort is more efficient.
- * The obvious recursive implementation of qsort can easily use a lot of
- * stack space.  The nonrecursive implementation here is less obvious
- * but more efficient.  It is based on two observations:
+ * puts the pivot into the correct slot in the sorted set, and
+ * recursively sorts the two subpartitions. For small numbers of
+ * elements, a shell sort is more efficient. The obvious recursive
+ * implementation of qsort can easily use a lot of stack space.
+ * The nonrecursive implementation here is less obvious but more
+ * efficient.  It is based on two observations:
+ *
  * (1) Using ordinary recursion on the smaller of the subpartitions and
  * tail recursion on the larger reduces recursion nesting to at most
  * log2(nmemb) levels.  This reduces stack usage enormously.
- * (2) Since the maximum number of recursion levels is known by (1),
- * the recursion can be faked with auto arrays of fixed size.
- * This provides additional efficiency because the constant
- * "size" and "compar" args need not be passed recursively.
+ *
+ * (2) Since the maximum number of recursion levels is known by (1), the
+ * recursion can be faked with auto arrays of fixed size. This provides
+ * additional efficiency because the constant "size" and "compar" args
+ * need not be passed recursively.
+ *
+ * This version of qsort reacts to conditions that make normal qsort run
+ * slowly. These include repetative keys and strange cases like data
+ * split into two sorted sets. It does this by checking how well pivot
+ * choices do. First choose a center pivot, if there is order this is a
+ * good guess and leads to a very efficient qsort. If this is a bad pick
+ * we try 1/4 of the way in, then 1/8 of the way in. At some point qsort
+ * assumes that all pivots are bad, as in a set of 1000 elements all 7
+ * and 8. Qsort then reverts to shellsort. This is better than insertion
+ * sort on large sets. This qsort has been tuned to the data provided
+ * by tryqsort.c in masstest. I expect that other data might produce
+ * other tuning values (M, FC, BC) and might even result in other
+ * alternative sorts rather than shellsort.
  */
 
-#if	__STDC__
-#include <stdlib.h>
+#include <stdio.h>
 #include <limits.h>
-#else
-#define	CHAR_BIT	8		/* in <limits.h> */
-#endif
 #include <string.h>
 
-#define	SSIZE	(CHAR_BIT * sizeof(size_t))	/* max recursion stack size */
-typedef	struct	{
-	Void *	s_base;
-	size_t	s_nmemb;
-} STACK;
+#define inOrder(h, l) ((*compar)((Void *)(h), (Void *)(l)) >= 0)
+#define ptrToIx(p) (((p) - (char *)base) / size)
+#define ixToPtr(d) (base + ((d) * size))
 
-/* Use quicksort for M or more elements, linear insertion sort for fewer. */
-/* The value is arrived at empirically and may differ for other processors. */
-#define	M	8
+#ifdef EXPERIMENT
+int M, FC, BC;
+#else
+/* Experimentaly obtained values */
+#define M  9	/* if (nmemb < M) shellsort() */
+#define FC 2	/* if ((larger >> FC) > smaller) badPivot++ */
+#define BC 5	/* if (badPivot >= BC) shellsort() */
+#endif
+
+extern void _memxchg();
+
+/* Recursion stack frame */
+typedef struct STACK {
+	Void *s_base;
+	size_t s_nmemb;
+	int s_badPivot;
+} STACK;
 
 void
 qsort(base, nmemb, size, compar)
-register Void *base;
+Void *base;
 size_t nmemb, size;
 int (*compar)();
 {
 	register char *bot, *top;
-	register size_t n;
-	STACK stack[SSIZE], *sp;
+	register STACK *sp;
+	char *end;
+	int badPivot;
+	size_t n;
+	STACK stack[CHAR_BIT * sizeof(size_t)];
 
-	/* Initialize the stack of base and nmemb args to be sorted. */
-	sp = &stack[0];
+	/*
+	 * Initialize the stack, base, nmemb and badness.
+	 */
+	sp = stack;
 	sp->s_base = base;
 	sp->s_nmemb = nmemb;
+	sp->s_badPivot = 1;	/* Lowest badness count */
 
-	while (sp >= &stack[0]) {
-
-		/* Pop a base and nmemb pair from the stack. */
-		base = sp->s_base;
+	while (sp >= stack) {
+		/* pop a base and nmemb pair off the stack */
 		nmemb = sp->s_nmemb;
+		base = sp->s_base;
+		badPivot = sp->s_badPivot;
 		sp--;
 
-		while (nmemb >= M) {
+		while ((nmemb >= M) && (badPivot < BC)) {
+			/* Select pivot element */
+			_memxchg(base, ixToPtr(nmemb >> badPivot), size);
 
-			bot = (char *)base;
-			top = bot + nmemb * size;
-
-			/* Put middle element into *base.  Helps on sorted input. */
-			_memxchg(bot, bot + (nmemb/2)*size, size);
-
-			/* Partition into sets less than and greater than *base. */
+			/* 
+			 * Partition set into <= base, == base and >= base.
+			 *			     ^            ^
+			 *			    top		 bot
+			 */
+			end = top = ixToPtr(nmemb);
+			bot = ixToPtr(0);
 			for (;;) {
-				while ((*compar)((Void *)(top -= size), base)>=0 && top > base)
+				while (((top -= size) > base) &&
+				       inOrder(top, base))
 					;
-				while ((*compar)(base, (Void *)(bot += size))>=0 && bot < top)
+				while (end > (bot += size) &&
+				       inOrder(base, bot))
 					;
 				if (bot < top)
 					_memxchg(bot, top, size);
@@ -84,42 +117,34 @@ int (*compar)();
 					break;
 			}
 
-			/* Put *base into its correct place. */
+			/* Put pivot into its correct place. */
 			_memxchg(top, (char *)base, size);
 
 			/*
-			 * "Recusively" sort partitions.
-			 * Fake recursion on local stack for the larger,
-			 * tail recursion for the smaller.
+			 * Recusively sort the partitions pushing stack
+			 * for larger, recursion for smaller.
 			 */
-			n = (top - (char *)base)/size;
-			nmemb -= (bot - (char *)base) / size;
-			if (n > nmemb) {
-				/* qsort(base, n, size, compar); */
-				sp++;
+			sp++;
+			if ((n = ptrToIx(top)) < (nmemb -= ptrToIx(bot))) {
+				sp->s_base = (Void *)bot;
+				sp->s_nmemb = nmemb;
+				nmemb = n;
+			} else {
 				sp->s_base = base;
 				sp->s_nmemb = n;
-				/* qsort(bot, nmemb, size, compar); */
 				base = (Void *)bot;
-			} else {
-				/* qsort(bot, nmemb, size, compar); */
-				sp++;
-				sp->s_base = bot;
-				sp->s_nmemb = nmemb;
-				/* qsort(base, n, size, compar); */
-				nmemb = n;
 			}
-		}
 
-		/* Use linear insertion sort for less than M elements. */
-		while (nmemb-- > 1) {
-			top = bot = (char *)base;
-			for (n = nmemb; n--; )
-				if ((*compar)((Void *)(top += size), (Void *)bot) < 0)
-					bot = top;
-			if (bot != (char *)base)
-				_memxchg(bot, (char *)base, size);
-			base = (Void *)(((char *)base) + size);
+			/*
+			 * Test for very bad (unequal size) cuts
+			 */
+			if ((sp->s_nmemb >> FC) > nmemb)
+				++badPivot;	/* bad pivot */
+			else
+				badPivot = 1;	/* good pivot */
+			sp->s_badPivot = badPivot;
 		}
+		/* Use shellsort where qsort isn't working out */
+		shellsort(base, nmemb, size, compar);
 	}
 }
