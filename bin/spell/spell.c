@@ -82,9 +82,7 @@ again:
 		if (c == '\n')
 			break;
 		*s1++ = c;
-		if (!isalpha(c) && c!='\'')
-			continue;
-		*s2++ = tolower(c);
+		*s2++ = isalpha(c) ? tolower(c) : c;
 	}
 	*s1 = '\0';
 	*s2 = '\0';
