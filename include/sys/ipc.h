@@ -3,12 +3,11 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef IPC_H
-#define	IPC_H
-/*
- * Inter Process Communication: Common Declarations.
- */
-typedef long key_t;
+#ifndef _IPC_H
+#define	_IPC_H
+#ifndef _TYPES_H
+#include <sys/types.h>
+#endif
 
 /*
 ** Common IPC Access Structure

@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 3.2.2
+ * 	COHERENT Version 4.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
@@ -28,19 +28,23 @@ typedef struct inode {
 	unsigned i_lrt;			/* Last reference time */
 	GATE	i_gate;			/* Gate */
 	int	i_flag;			/* Flags */
-	int	i_mode;			/* Mode and type */
-	int	i_nlink;		/* Number of links */
-	int	i_uid;			/* Owner's user id */
-	int	i_gid;			/* Owner's group id */
+	short	i_mode;			/* Mode and type */
+	short	i_nlink;		/* Number of links */
+	short	i_uid;			/* Owner's user id */
+	short	i_gid;			/* Owner's group id */
 	fsize_t	i_size;			/* Size of file in bytes */
 	union ia_u {
 		daddr_t	i_addr[13];	/* Disk addresses */
 		dev_t	i_rdev;		/* Real device */
 		struct ip_s {		/* Pipes */
 			daddr_t ip_pipe[10];
-			int	ip_pnc;
-			int	ip_prx;
-			int	ip_pwx;
+			short	ip_pnc;	/* Number Characters */
+			short	ip_prx;	/* Reader Offset */
+			short	ip_pwx;	/* Writer Offset */
+			short	ip_par; /* Number Awake Readers */
+			short	ip_paw; /* Number Awake Writers */
+			short	ip_psr; /* Number Sleeping Readers */
+			short	ip_psw; /* Number Sleeping Writers */
 		}	i_p;
 	}	i_a;			/* Addresses */
 	time_t	i_atime;		/* Last access time */
@@ -58,6 +62,10 @@ typedef struct inode {
 #define i_pnc	i_a.i_p.ip_pnc
 #define i_prx	i_a.i_p.ip_prx
 #define i_pwx	i_a.i_p.ip_pwx
+#define i_par	i_a.i_p.ip_par
+#define i_paw	i_a.i_p.ip_paw
+#define i_psr	i_a.i_p.ip_psr
+#define i_psw	i_a.i_p.ip_psw
 
 /*
  * Flags.
@@ -66,9 +74,6 @@ typedef struct inode {
 #define	IFMOD	0x2			/* File has been modified */
 #define	IFCRT	0x4			/* File has been created */
 #define IFMNT	0x8			/* Contains mounted file system */
-#define	IFWFR	0x10			/* Sleeping on pipe full */
-#define	IFWFW	0x20			/* Sleeping on pipe empty */
-#define	IFEOF	0x40			/* End of file on pipe */
 #ifdef _I386
 #define	IFEXCL	0x80			/* Exclusive open */
 #endif /* _I386 */

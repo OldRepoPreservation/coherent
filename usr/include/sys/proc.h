@@ -14,12 +14,14 @@
 #include <sys/types.h>
 #include <poll.h>
 #include <sys/timeout.h>
+#include <sys/seg.h>
 
 /*
  * Number of user segments.
  */
 #ifdef _I386
 #define NUSEG	4
+#define NSHMSEG	6
 #else
 #define NUSEG	6
 #endif
@@ -69,6 +71,7 @@ typedef struct proc {
 	TIM	 p_alrmtim;		/* Alarm timer */
 #ifdef _I386
 	struct	 rlock	*p_prl;		/* Pending record lock */
+	struct	 sr p_shmsr[NSHMSEG];	/* Shared Memory Segments */
 #endif
 } PROC;
 

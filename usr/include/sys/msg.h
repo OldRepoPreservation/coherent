@@ -3,14 +3,14 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef MSG_H
-#define	MSG_H
+#ifndef _MSG_H
+#define	_MSG_H
 /*
 **	IPC Message Facility.
 */
-
+#ifndef _IPC_H
 #include <sys/ipc.h>
-#include <sys/types.h>
+#endif
 
 /*
 **	Permission Definitions.

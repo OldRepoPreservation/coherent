@@ -6,11 +6,11 @@
  * 91/10/17 - Adapt for 386 COHERENT.
  *
  -lgl) */
-#ifndef TERMIO_H
-#define TERMIO_H
+#ifndef _TERMIO_H
+#define _TERMIO_H
 
 #if (defined _I386 || defined KERNEL)
-#define USE_TERMIO
+#define _COH_TERMIO
 #endif
 
 /*
@@ -18,9 +18,9 @@
  *   shipped with COHERENT 286;  sgtty.h command codes are used instead.  This
  *   header is for use principally with COHERENT 386.  If you are using custom
  *   drivers and line discipline with COHERENT 286 and need termio constants
- *   for these modules, then define USE_TERMIO before this file is included.
+ *   for these modules, then define _COH_TERMIO before this file is included.
  */
-#ifdef USE_TERMIO
+#ifdef _COH_TERMIO
 
 /*
  *	Terminal Input/Output Parameters

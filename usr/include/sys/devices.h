@@ -3,12 +3,9 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-/*
- * devices.h
- */
 
-#ifndef	DEVICES_H
-#define	DEVICES_H
+#ifndef	_DEVICES_H
+#define	_DEVICES_H
 
 /* Device major numbers. */
 #define	MEM_MAJOR	0	/* memory				*/
@@ -28,18 +25,19 @@
 #define	ST_MAJOR	12	/* archive streaming tape		*/
 #define	SCSI_MAJOR	13	/* SCSI					*/
 /*			14	   currently unassigned			*/
-/*			15	   currently unassigned			*/
+/*			15	may be used for bitmapped device	*/
 /*			16	   currently unassigned			*/
 /*			17	   currently unassigned			*/
 /*			18	   currently unassigned			*/
 /*			19	   currently unassigned			*/
 #define	TN_MAJOR	20	/* Tiac PC-234/6 ARCNET LAN		*/
 #define	PE_MAJOR	21	/* Emulex/Persyst fast serial (DCP/MUX)	*/
+#define	SBP_MAJOR	21	/* Sound Blaster Pro			*/
 /*			22	   currently unassigned			*/
 #define	SEM_MAJOR	23	/* S-V compatible semaphores		*/
 #define	SHM_MAJOR	24	/* S-V subset shared memory		*/
 #define	MSG_MAJOR	25	/* S-V compatible messaging		*/
-/*			26	   currently unassigned			*/
+/*			26	may be used for socket driver		*/
 /*			27	   currently unassigned			*/
 /*			28	   currently unassigned			*/
 /*			29	   currently unassigned			*/
