@@ -5,18 +5,15 @@
  * If the error is a `q' just
  * give up.
  */
-err(c)
+err(c, msg)
+char *msg;
 {
 	if (pass == 2) {
 		++nerr;
-		if (lflag)
-			stoerr(c);
-		else {
-			printf("%04d %c", line, c);
-			if (ifn != NULL)
-				printf(" %s", ifn);
-			putchar('\n');
-		}
+		if (ifn != NULL)
+			fprintf(efp, "%d: %s: %s\n", line, ifn, msg);
+		else
+			fprintf(efp, "%d: %s\n", line, msg);
 	}
 	if (c == 'q')
 		longjmp(env, 1);
@@ -30,58 +27,47 @@ err(c)
 uerr(id)
 char *id;
 {
-	if (pass == 2) {
-		++nerr;
-		if (lflag)
-			stoerr('u');
-		else {
-			printf("%04d u %.*s", line, NCPLN, id);
-			if (ifn != NULL)
-				printf(" %s", ifn);
-			putchar('\n');
-		}
-	}
+	char work[40];
+
+	sprintf(work, "undefined symbol '%s'", id);
+	err('u', work);
 }
 
 /*
  * Note an 'r' error.
  */
-rerr()
+rerr(msg)
+char *msg;
 {
-	err('r');
+	err('r', msg);
 }
 
 /*
  * Note an 'a' error.
  */
-aerr()
+aerr(msg)
+char *msg;
 {
-	err('a');
+	err('a', msg);
 }
 
 /*
  * Note a 'q' error.
  */
-qerr()
+qerr(msg)
+char *msg;
 {
-	err('q');
+	err('q', msg);
 }
 
+static int lastline = 0;
 /*
- * Store an error tag into the
- * listing error buffer.
+ * Note Data in bssd
  */
-stoerr(c)
-register c;
+serr()
 {
-	register char *p;
-
-	p = eb;
-	while (p < ep)
-		if (*p++ == c)
-			return;
-	if (p < &eb[NERR]) {
-		*p++ = c;
-		ep = p;
+	if(line != lastline) {
+		err('s', "data in bssd");
+		lastline = line;
 	}
 }
