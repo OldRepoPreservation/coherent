@@ -71,7 +71,7 @@ char *argv[];
 		exit(1);
 	}
 	strcpy(luser, whoami());
-	while((c = getopt(argc, argv, "a:bcCg:jnprS:s:x:z")) != EOF) {
+	while( (c=getopt(argc, argv, "a:bcCg:jnprS:s:vVx:z")) != EOF ) {
 		switch(c) {
 		case 'a':
 			strcpy(luser, optarg);
@@ -112,6 +112,9 @@ char *argv[];
 			fprintf (stderr, "debug is %d\n", debug);
 			fprintf(stderr, "uux version %s\n", VERSION);
 			break;
+		case 'v':
+		case 'V':
+			fatal("uux: Version %s", VERSION);
 		case 'z':
 			notifysucceed = 1;
 			break;

@@ -11,6 +11,7 @@
 #include <pwd.h>
 #include <signal.h>
 #include <errno.h>
+#include "dcp.h"
 
 #ifndef NULL
 #define	NULL	((char*) 0)
@@ -107,6 +108,9 @@ register char	** argv;
 			mflag = TRUE;
 			mode  = readmode(*++argv, mode);
 			break;
+		case 'v':
+		case 'V':
+			fatal("uumkdir: Version %s", VERSION);
 		default:
 			fatal(usage);
 		}
@@ -740,22 +744,4 @@ register int m;
 	if (m1 & S_ISUID)
 		m |= S_ISGID;
 	return(m);
-}
-
-/**
- * void
- * fatal(mesg)
- * char	* mesg;
- *	Input:	mesg	- error message.
- *	Action:	Display error message.
- *	Return:	Never returns, always exit.
- *	Note:	None.
- */
-
-void
-fatal(mesg)
-register char	* mesg;
-{
-	write(2, mesg, strlen(mesg));
-	exit(1);
 }
