@@ -1,7 +1,7 @@
 Things that could be done to the teritiary boot as of November 1991:
 
-The buffer hit rate for indirect blocks when loading a COFF kernel is
-about 50%.  Something is clearly wrong.  It should be nearly 100%.
+For some reason COFF files load at a lower rate.  The buffer hit rate is
+just as high as with l.out files.  This should be examined.
 
 This code blows up if there are bad blocks in the inode list (I think).
 Routine iopen() needs fixing.  See the comments there for helpful pointers.
@@ -10,7 +10,9 @@ Support for other object formats (n.out, ELF, etc...) would be nice.
 Support for COFF has been added, and there are hooks for other formats.
 
 There is little or no error checking at low levels, especially at the
-BIOS levels.  All calls to "sanity_check()" could be removed, but they
+BIOS levels.
+
+All calls to "sanity_check()" could be removed, but they
 don't seem to cost very much CPU time.
 
 The name to inode lookup routine (namei()) could be taught how to
@@ -28,9 +30,14 @@ routines ffcopy() and ifread() might bear redesign.
 Where possible, routines which have similar functionality to kernel
 routines have the same or similar names.  The arguments and return
 values do not match very well.  Some work has been done in this
-direction, but more could be done.
+direction, but more could be done.  This effort has proven worthwhile
+by grabbing code from the kernel with only minor modifications.
 
 The mini-monitor "monitor()" could be turned into a full-scale debugger.
 This would greatly facilitate debugging.
+
+The include files should be normalized in some way.  The files typed.h and
+ptypes.h both should both be included as <sys/>.  The Makefile would have
+to then be tuned as well.
 
 La Monte H. Yarroll <piggy@mwc.com>
