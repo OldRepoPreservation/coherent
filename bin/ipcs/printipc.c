@@ -66,14 +66,14 @@ print_q()
 		printf("0%o", msqbuf[x].msg_perm.mode&0777);			
 		/* get owner's name from /etc/passwd */
 		if ((pstp = getpwuid(msqbuf[x].msg_perm.uid)) == NULL) {
-			perror("ipcs");
+			perror("ipcs: cannot get owner name:");
 			exit(1);
 		}
 		printf("%7s", pstp->pw_name);
 	
 		/* get group name of owner */
 		if ((grp = getgrgid(msqbuf[x].msg_perm.gid)) == NULL) {
-			perror("ipcs");
+			perror("ipcs: cannot get group name");
 			exit(1);
 		}
 		printf("%7s", grp->gr_name);
@@ -81,14 +81,14 @@ print_q()
 		if (cflag) {
 		/* get creator's name from /etc/passwd */
 			if ((pstp = getpwuid(msqbuf[x].msg_perm.cuid)) == NULL){
-				perror("ipcs");
+				perror("ipcs: cannot get creator name");
 				exit(1);
 			}
 			printf("%8s", pstp->pw_name);
 
 			/* get group name of creator */
 			if ((grp = getgrgid(msqbuf[x].msg_perm.cgid)) == NULL){
-				perror("ipcs");
+				perror("ipcs: cannot get creator group");
 			exit(1);
 			}
 			printf("%7s",grp->gr_name);
@@ -162,7 +162,7 @@ print_m()
 					shmid[x].shm_perm.mode & 0777);
 		/* get owner's name from /etc/passwd */
 		if ((pstp = getpwuid(shmid[x].shm_perm.uid)) == NULL) {
-			perror("ipcs");
+			perror("ipcs: cannot get owner name");
 			exit(1);
 		}
 		printf("%7s",pstp->pw_name);
@@ -170,7 +170,7 @@ print_m()
 		/* get group name of owner */
 
 		if ((grp = getgrgid(shmid[x].shm_perm.gid)) == NULL) {
-			perror("ipcs");
+			perror("ipcs: cannot get owner group");
 			exit(1);
 		}
 		printf("%7s",grp->gr_name);
@@ -178,14 +178,14 @@ print_m()
 		if (cflag) {
 			/* get creator's name from /etc/passwd */
 			if ((pstp = getpwuid(shmid[x].shm_perm.cuid)) == NULL) {
-				perror("ipcs");
+				perror("ipcs: cannot get creator name");
 				exit(1);
 			}
 			printf("%8s",pstp->pw_name);
 	
 			/* get group name of creator */
 			if ((grp = getgrgid(shmid[x].shm_perm.cgid)) == NULL) {
-				perror("ipcs");
+				perror("ipcs: cannot get creator group");
 				exit(1);
 			}
 			printf("%7s",grp->gr_name);

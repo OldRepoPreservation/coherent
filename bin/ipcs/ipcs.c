@@ -15,6 +15,7 @@
 #include <coff.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <string.h>
 #include "ipcs.h"
 /*
  * ----------------------------------------------------------------------
@@ -70,7 +71,8 @@ char	*argv[];
 	char		*opstring = "qmsbcoptaVC:N: ";
 	extern char	*optarg;
 	char		*namelist = NULL;
-	char		*fname;			/* kernel name */
+	char		*fname,
+			*tmpfname;			/* kernel name */
 	int		c;
 
 	while ((c = getopt(argc, argv, opstring)) != EOF)
@@ -122,7 +124,15 @@ char	*argv[];
 	}
 
 	set_flags();
-	fname = Nflag ? namelist : pick_nfile();
+
+	/* Get kernel name. */
+	tmpfname = (Nflag ? namelist : pick_nfile());
+	if ((fname = malloc(strlen(tmpfname) + 1)) == NULL) {
+		perror("ipcs: cannot malloc kernel name:");
+		exit(1);
+	}
+	strcpy(fname, tmpfname);
+
 	getmaxnum(fname);
 	get_data(fname);
 
@@ -194,6 +204,7 @@ char	*fname;		/* Kernel file name */
 	}
 	close(fd);
 	SHMMNI = val;
+
 	/* Get max number of allowable semaphores */
 	if ((fd = iMemSeek(sym[1].n_value, 0)) < 0) 	/* Open and seek the */
 		exit(1);				/* proper file */
@@ -226,9 +237,10 @@ int	iHow;
 	int	fd;				/* File descriptor */
 	char	*cpMemLow = "/dev/kmem";	/* Low memory device */
 	char	*cpMemHigh = "/dev/kmemhi";	/* High memory device */
-	char	*cpMem = cpMem;			/* Memory to use */
+	char	*cpMem;				/* Memory to use */
 	long	lMemBorder = 0x80000000;	/* Border between devices */
 	long	lMemWhere;			/* Point to seek */
+	char	cErrBuf[32];			/* Error buffer */
 
 	if (lWhere & lMemBorder) { 
 		cpMem = cpMemHigh;
@@ -239,12 +251,13 @@ int	iHow;
 	}
 	/* Open proper memory device */
 	if ((fd = open(cpMem, O_RDONLY)) < 0) {
-		perror("ipcs");
+		sprintf(cErrBuf, "ipcs: cannot open %s", cpMem);
+		perror(cErrBuf);
 		return -1;
 	}
 	/* Seek to the requested position */
 	if (lseek(fd, lMemWhere, iHow) < 0) {
-		perror("ipcs");
+		perror("ipcs: seek failed:");
 		close(fd);
 		return -1;
 	}

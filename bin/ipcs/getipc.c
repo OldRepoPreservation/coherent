@@ -51,12 +51,12 @@ int id = SHMMNI - 1;	/* shared memory identifier number */
 	/* Allocate space for shared memory data struct */
 	if (NULL == (shmid = (struct shmid_ds *)
 	    calloc(SHMMNI, sizeof(struct shmid_ds)))) {
-		perror("ipcs1");
+		perror("ipcs");
 		exit(1);
 	}
 	/* Alocate space to keep track about shm segments */
 	if (NULL == (valid_shmid = (int *) calloc(SHMMNI, sizeof(int)))) {
-		perror("ipcs1");
+		perror("ipcs");
 		exit(1);
 	}
 
@@ -107,7 +107,7 @@ char	*fname;
 	/* Allocate space for message queues headers */
 	if (NULL == (msqbuf = (struct msqbuf *)
 	    calloc((unsigned) NMSQID, (unsigned) sizeof(struct msqid_ds)))) {
-		perror("ipcs1");
+		perror("ipcs");
 		exit(1);
 	}
 	sym._n._n_n._n_zeroes = 0;	/* stuff for coffnlist */
@@ -129,7 +129,7 @@ char	*fname;
 	 */
 	/* Get address of message queue data */
 	if ((fd = iMemSeek(sym.n_value, 0)) < 0) {
-		perror("ipcs2");
+		perror("ipcs");
 		exit(1);
 	}
 	if (read(fd, &msqoffset, sizeof(int)) != sizeof(int)) {
@@ -148,7 +148,7 @@ char	*fname;
 		return;
 	}
 	if ((fd = iMemSeek(msqoffset, 0)) < 0) {
-		perror("ipcs3");
+		perror("ipcs");
 		exit(1);
 	}
 	if (read(fd, msqbuf, sizeof(struct msqid_ds) * NMSQID) !=
