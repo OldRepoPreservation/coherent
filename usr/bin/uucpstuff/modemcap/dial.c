@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include <signal.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include "modemcap.h"
 #include "dial.h"
 #include "dcp.h"
@@ -92,25 +92,29 @@ int	fd;
 
 	/* If lock removal fails, print message. */
 
-	if ( (strcmp(rdevname,"-") != 0) && lockttyexist(rdevname) ){
-		if(unlocktty(rdevname) == -1){
-			printmsg(M_DEBUG,"Undial: tty lock file removal failed");
-			plog(M_CALL,"Undial: tty lock file removal failed");
-		}
+	/* unlock the port. If it fails, note this in the logfiles, but don't
+	 * abort, we will want to continue through uucico so that uuxqt
+	 * gets invoked as uucico exits.
+	 */
+
+	if (lockttyexist(devname) && (unlocktty(devname) == -1) ){
+		printmsg(M_DEBUG,"Undial(): %s lock file removal failed.",devname);
+		plog(M_CALL,"%s lock file removal failed.",devname);
 	}
+
 	/* If lock removal failed, then do not re enable the port because we
 	 * no longer know who did what to the remote port. Re enabling the
 	 * port could result in a race condition we don't want.
 	*/
 
-	if ((enableme[0] != '\0') && (lockttyexist(rdevname) == 0)){
+	if ((enableme[0] != '\0') && (lockttyexist(devname) == 0)){
 		plog(M_CALL, "Enabling tty line %s", enableme);
 		exec_stat("enable", enableme);
 		strcpy(enableme, "");
 	}else{
-		if(enableme[0] != '\0'){
+		if((enableme[0] != '\0') && (rdevname[0] != '\0') && (rdevname[0] != '-')){
 		printmsg(M_DEBUG,"Undial: Can not re-enable port due to tty lock file.");
-		plog(M_CALL,"Undial: Could not re-enable port due to tty lock file.");
+		plog(M_CALL,"Could not re-enable port due to tty lock file.");
 		}
 	}
 	rdevname = NULL;
@@ -160,45 +164,47 @@ char **brand;
 		}
 		++tried;		/* found device at desired baud rate */
 
+	/* July 29, 1992: I have removed the previous locking code. This code
+	 * looked for a remote device to enable and disable and would build a
+	 * lockfile if a remote device was specified. However, the advent of
+	 * locking kermit has changed our needs. Now we will always have to 
+	 * check for and lock the LOCAL device we are dialing out with. This
+	 * will, if anything, make things a bit more stable with regards to
+	 * locking. Bob H.
+	 */
 
-		/* If the Ldev remote line is not a '-', then see if a lock
-		 * exists on the remote device. If a lock exists, then we don't
-		 * want to disable the remote before calling out on the local
-		 * local device for fear of booting off a logged in process.
-		*/
+	if (lockttyexist(l_lline)){
+		plog(M_CALL,"Device %s already locked by another process", l_lline);
+		exit(1);
+	}
 
-		/* Check for a lock on the remote device */
-		if ((strcmp(l_rline,"-")!=0) && (0 != lockttyexist(l_rline))) {
-			plog(M_CALL,"Remote tty device %s locked, cannot disable.",
-				l_rline);
-			continue;
-		} else {
-			enableme[0] = '\0';
-			if(strcmp(l_rline,"-") !=0){
-	/* Disable the remote device and then create a lock on it.
-	 * If the lock fails, abort.
+	if (!locktty(l_lline)){
+		plog(M_CALL,"Attempt to create lock file failed.");
+		if(lockexist(rmtname)){
+			lockrm(rmtname);
+		}
+		exit(1);
+	}
+		
+	enableme[0] = '\0';
+	if(strcmp(l_rline,"-") !=0){
+	/* Disable the remote device.
 	 * Note that we will then sleep for 5 seconds to make sure that
 	 * the port gets closed after the disable.
 	 */
-				if (locktty(l_rline) < 0) {
-					plog(M_CALL,"Remote tty device %s locked, cannot disable.",
-						l_rline);
-					continue;
-				}
 
-				/* Note that disable could be terminated by
-				 * a SIGHUP when the port is disabled.
-				 */
-				if (0!=(retval=exec_stat("disable", l_rline)) &&
-				    SIGHUP<<8 != retval) {
-					plog(M_CALL,"Disable of tty line %s failed",
-					     l_rline);
-					continue;
-				}else{
+	/* Note that disable could be terminated by
+	 * a SIGHUP when the port is disabled.
+	 */
+			if (0!=(retval=exec_stat("disable", l_rline)) &&
+			    SIGHUP<<8 != retval) {
+				plog(M_CALL,"Disable of tty line %s failed",
+				     l_rline);
+				continue;
+			}else{
 				plog(M_CALL,"Disabling tty line %s", l_rline);
 					sleep(5);
 					strcpy(enableme,l_rline);
-				}
 			}
 		}
 		devname = l_lline;
