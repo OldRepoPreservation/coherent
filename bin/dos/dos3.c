@@ -492,29 +492,39 @@ label(nargs, args) short nargs; char *args[];
 	char tmp[13], *b;
 	short i;
 
-	if (nargs != 1)
+	if (nargs > 1)
 		fatal("label: single argument required");
-
-	if ((i = strlen(args[0])) > 8) {
-		if (i > 11)
-			args[0][11] = '\0';
-		strncpy(tmp, args[0], 8);
-		tmp[8] = '.';
-		strcpy(&tmp[9], &args[0][8]);
-				
-		b = tmp;
+	else if (nargs == 0) {
+		if (volume == NULL)
+			printf("Volume in Drive %s is unlabeled.\n",adev);
+		else {
+			strncpy(tmp, volume->m_name, 11);
+			tmp[11] = '\0';
+			printf("Volume in Drive %s is labeled %s.\n",adev,tmp);
+		}
 	}
-	else
-		b= args[0];
+	else {
+		if ((i = strlen(args[0])) > 8) {
+			if (i > 11)
+				args[0][11] = '\0';
+			strncpy(tmp, args[0], 8);
+			tmp[8] = '.';
+			strcpy(&tmp[9], &args[0][8]);
+				
+			b = tmp;
+		}
+		else
+			b= args[0];
 		
-	if (volume != NULL)
-		deletefile(volume, root);
-	if (find(b, root, NULL) != NULL)
-		fatal("label: file \"%s\" already exists", b);
-	if (strchr(b, '/') != NULL)
-		fatal("label: label cannot use character '/'");
-	volume = creatfile(b, root);
-	volume->m_attr = MVOLUME;
+		if (volume != NULL)
+			deletefile(volume, root);
+		if (find(b, root, NULL) != NULL)
+			fatal("label: file \"%s\" already exists", b);
+		if (strchr(b, '/') != NULL)
+			fatal("label: label cannot use character '/'");
+		volume = creatfile(b, root);
+		volume->m_attr = MVOLUME;
+	}
 }
 
 /*

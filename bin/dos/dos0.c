@@ -77,7 +77,8 @@ main(argc, argv) short argc; char *argv[];
 					case '8':
 					case '9':	xpart = c - '0';
 							break;
-
+					default:	break;
+/*	fatal("Invalid argument %c", c); */
 				}
 			}
 		}
@@ -196,6 +197,7 @@ main(argc, argv) short argc; char *argv[];
 	make_lock();
 	if ((fsfd = open(device, mode)) < 0)
 		fatal("cannot open device %s", device);
+
 	if (fun != format) {
 		/* Read the FAT and the root directory. */
 		readfat();
