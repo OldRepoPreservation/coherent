@@ -1,8 +1,3 @@
-/* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
  * Block or character device RAM disk driver.
  */
@@ -115,7 +110,8 @@ rmopen(dev, mode) dev_t dev; int mode;
 	 * If asize!=0 && asize==osize, just bump the open count.
 	 */
 	if (asize != 0 && osize == 0) {
-		segp = rmp->rm_segp = salloc((fsize_t)ASIZE*BSIZE*asize, SFSYST|SFNSWP|SFNCLR);
+		segp = rmp->rm_segp = salloc((fsize_t)ASIZE*BSIZE*asize,
+			SFSYST|SFNSWP|SFNCLR|SFHIGH);
 		if (segp == NULL) {
 			u.u_error = ENOMEM;
 			return;
