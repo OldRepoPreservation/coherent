@@ -31,6 +31,8 @@ typedef	unsigned address;
  * Symbol flags.
  */
 #define	S_OBL	0200		/* w:s literal usable */
+#define	S_NW	0201		/* Floating point no wait ops. */
+#define	S_FIX	0202		/* Kludge for fdiv, fdivr, fsub, fsubr. */
 
 /*
  * Symbol kinds.
@@ -63,6 +65,15 @@ typedef	unsigned address;
 #define	S_ODD	75		/* .odd */
 #define	S_SYS	76		/* sys */
 #define S_OUT	77		/* out */
+#define S_FP_F	78		/* Floating fixed format */
+#define S_FP_S	79		/* Floating stack format */
+#define S_FP_SP	80		/* Floating stack pop */
+#define S_FP_S1	81		/* Floating stack single operand format */
+#define S_FP_M	82		/* Floating memory format */
+#define	S_PROT0	83		/* Protection Control 0 */
+#define	S_PROT1	84		/* Protection Control 1 */
+#define	S_PROTR 85		/* Protection Control to register */
+#define	S_ENTER 86		/* Enter procedure */
 
 /*
  * Register names.
@@ -97,6 +108,14 @@ typedef	unsigned address;
 #define	SS	022
 #define	DS	023
 
+#define ST	040
+#define ST1	041
+#define ST2	042
+#define ST3	043
+#define ST4	044
+#define ST5	045
+#define ST6	046
+#define ST7	047
 
 /*
  * Address modes.
@@ -132,9 +151,12 @@ typedef	unsigned address;
 #define	AAM	0324
 #define	AAD	0325
 #define	APB	0012
+#define FWAIT	0233
+#define FNOP	0220
 #define	S	02
 #define	SEGPFX	0046
 #define	SHL	0320
+#define	SHLI	0300
 #define	TESTB	0204
 #define	TESTAB	0250
 #define	TESTMB	0366
@@ -158,6 +180,8 @@ typedef	unsigned address;
 #define	INT	0315
 #define	PUSHSR	0006
 #define	PUSHR	0120
+#define	PUSHIW	0150
+#define	PUSHIB	0152
 #define	PUSHF	0234
 #define	PUSH	0377
 #define	POPSR	0007
@@ -172,3 +196,11 @@ typedef	unsigned address;
 #define	MVI	0306
 #define	MOVAM	0242
 #define	MOVMA	0240
+#define	ARPL	0143
+#define	CLTS	0006
+#define	ENTER	0310
+
+/* Floating point two-byte opcodes. */
+#define	FOP(x,y)	(((x)<<8)|(y))
+#define	BYTE1(x)	((x)>>8)
+#define	BYTE2(x)	((x)&0xFF)
