@@ -1,4 +1,4 @@
-static char _version[]="ps version 2.6";
+static char _version[]="ps version 2.8";
 /*
  *	Modifications copyright INETCO Systems Ltd.
  *
@@ -900,7 +900,7 @@ print_event(pp)
 			printf(" %10.10s", u.u_sleep );
 	} else {
 		/* Otherwise, print the address we are sleeping on.  */
-		printf(" 0x%8x", pp->p_event);
+		printf(" 0x%08X", pp->p_event);
 	}
 
 	fflush(stdout);
@@ -918,15 +918,19 @@ printl(pp, m)
 	register int n;
 	static SR *srp;
 
-	if (pp->p_state == PSDEAD)
+	if (pp->p_state == PSDEAD) {
+		printf("<zombie>");
 		return;
+	}
 	if (pp->p_pid == 0) {
 		printf("<idle>");
 		return;
 	}
 
-	if (u_init(pp->p_segp[SIUSERP], &u) == 0)
+	if (u_init(pp->p_segp[SIUSERP], &u) == 0) {
+		printf("<ghost>");
 		return;
+	}
 
 	printf(" %s", u.u_comm);
 	return;
@@ -990,6 +994,11 @@ u_init(sp, bp)
 	SEG *sp;
 	char *bp;
 {
+#ifdef UPROC_VERSION
+	/* Have we verrified the uproc version number?  */
+	static version_ok = FALSE;
+#endif /* UPROC_VERSION */
+
 	register SEG *sp1;
 
 #if 0
@@ -1016,16 +1025,30 @@ u_init(sp, bp)
 	}
 
 #ifdef UPROC_VERSION
-	if ( ((UPROC *) bp)->u_version != UPROC_VERSION) {
-		static int printed_once = FALSE;
-		if (!printed_once) {
-			fprintf( stderr,
+	/*
+	 * Check the version number on this U area.
+	 * I.e. does this ps match this kernel?
+	 */
+	if ( ((UPROC *) bp)->u_version != UPROC_VERSION ) {
+		/*
+		 * Only print the warning if we have not yet seen
+		 * a valid version number, and then only once.
+		 *
+		 * If we have seen at least one valid version number,
+		 * it probably means that this process was dying.
+		 */
+		if (!version_ok) {
+			static int printed_once = FALSE;
+			if (!printed_once) {
+				fprintf( stderr,
 				"\nps WARNING: u area version is %x, not %x.\n",
 				((UPROC *) bp)->u_version, UPROC_VERSION );
-			printed_once = TRUE;
+				printed_once = TRUE;
+			}
 		}
 		return (0);
 	}
+	version_ok = TRUE;	/* We've now seen one valid version number.  */
 #endif /* UPROC_VERSION */
 		
 	return (1);
@@ -1202,11 +1225,13 @@ pt_mread(table, s, bp, n)
 	pt_entry = pt_index(table, s>>BPCSHIFT);
 
 	if (!Pflag && !PT_PRESENT(pt_entry)) {
+#if 0	/* If the page is not present, the proess probably died already.  */
 		static printed_once = FALSE;
 		if (!printed_once) {
-			printf("\npartition not present: %x\n", pt_entry);
+			printf("\npage not present: %x\n", pt_entry);
 			printed_once = TRUE;
 		}
+#endif /* 0 */
 		return(0);
 	}
 	pt_entry &= PT_CLICK_ADDR;	/* Extract Address of click.  */
