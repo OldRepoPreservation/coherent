@@ -28,7 +28,7 @@
  *		T - reg feild of modR/M selects test register
  *		X - memory addressed by DS:ESI
  *		Y - memory addressed by ES:EDI
- *		Z - assembler instruction mneumonic size qualifier
+ *		Z - assembler instruction mnemonic size qualifier
  *		2 - prefix of two-byte opcode
  *
  *	For the following first characters after the %, the second after the %
@@ -71,15 +71,15 @@
 char *op_map_1[] = {
 	/* 0 */
 	"add%Zb %Eb,%Gb",    "add%Zv %Ev,%Gv",	  "add%Zb %Gb,%Eb",   "add%Zv %Gv,%Ev",
-	"add%Zb al,%Ib",     "add%Zv %eax,%Iv",	  "pushw es",         "popw es",
+	"add%Zb al,%Ib",     "add%Zv %eax,%Iv",	  "push es",         "pop es",
 	"or%Zb %Eb,%Gb",     "or%Zv %Ev,%Gv",	  "or%Zb %Gb,%Eb",    "or%Zv %Gv,%Ev",
-	"or%Zb al,%Ib",      "or%Zv %eax,%Iv",	  "pushw cs",         "%2 ",
+	"or%Zb al,%Ib",      "or%Zv %eax,%Iv",	  "push cs",         "%2 ",
 
 	/* 1 */
 	"adc%Zb %Eb,%Gb",    "adc%Zv %Ev,%Gv",	  "adc%Zb %Gb,%Eb",   "adc%Zv %Gv,%Ev",
-	"adc%Zb al,%Ib",     "adc%Zv %eax,%Iv",	  "pushw ss",	      "popw ss",
+	"adc%Zb al,%Ib",     "adc%Zv %eax,%Iv",	  "push ss",	      "pop ss",
 	"sbb%Zb %Eb,%Gb",    "sbb%Zv %Ev,%Gv",	  "sbb%Zb %Gb,%Eb",   "sbb%Zv %Gv,%Ev",
-	"sbb%Zb al,%Ib",     "sbb%Zv %eax,%Iv",	  "pushw ds",	      "popw ds",
+	"sbb%Zb al,%Ib",     "sbb%Zv %eax,%Iv",	  "push ds",	      "pop ds",
 
 	/* 2 */
 	"and%Zb %Eb,%Gb",    "and%Zv %Ev,%Gv",	  "and%Zb %Gb,%Eb",   "and%Zv %Gv,%Ev",
@@ -108,7 +108,7 @@ char *op_map_1[] = {
 	/* 6 */
 	"pusha%Zv",          "popa%Zv",		  "bound%Zv %Gv,%Ma", "arpl %Ew,%Gw",
 	"fs:",		     "gs:",		  "%so",	      "%sa",
-	"push%Zv %Iv",       "imul%Zv %Gv,%Ev,%Iv", "push%Zb %Ib",    "imul%Zv %Gv,%Ev,%Ib",
+	"push%Zv %Iv",     "imul%Zv %Gv,%Ev,%Iv", "push%Zb %Ib",      "imul%Zv %Gv,%Ev,%Ib",
 	"ins%Zb %Yb",        "ins%Zv %Yv",	  "outs%Zb %Xb",      "outs%Zv %Xv",
 
 	/* 7 */
@@ -172,7 +172,8 @@ char *op_map_2[] = {
 	/* 0 */
 	"%g6",		"%g7",		"lar%Zv %Gv,%Ew",	"lsl%Zv %Gv,%Ew", 
 	NULL,		NULL,		"clts",			NULL,
-	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,
+	"invd",		"wbinvd",	NULL,			NULL,
+	NULL,		NULL,		NULL,			NULL,
 
 	/* 1 */
 	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,
@@ -216,10 +217,12 @@ char *op_map_2[] = {
 	"setl %Eb",	"setge %Eb",	"setle %Eb",	"setg %Eb",
 
 	/* A */
-	"pushw fs",	"popw fs",	NULL,		"bt%Zv %Ev,%Gv",
-	"shld%Zv %Ev,%Gv,%Ib", "shld%Zv %Ev,%Gv,cl", NULL,	NULL,
-	"pushw gs",	"popw gs",	NULL,		"bts%Zv %Ev,%Gv",
-	"shrd%Zv %Ev,%Gv,%Ib", "shrd%Zv %Ev,%Gv,cl", NULL, "imul%Zv %Gv,%Ev",
+	"push fs",	"pop fs",	NULL,		"bt%Zv %Ev,%Gv",
+	"shld%Zv %Ev,%Gv,%Ib",	"shld%Zv %Ev,%Gv,cl",
+				"cmpxchg%Zb %Eb,%Gb",	"cmpxchg%Zb %Ev,%Gv",
+	"push gs",	"pop gs",	NULL,		"bts%Zv %Ev,%Gv",
+	"shrd%Zv %Ev,%Gv,%Ib",	"shrd%Zv %Ev,%Gv,cl",
+					NULL, 		"imul%Zv %Gv,%Ev",
 
 	/* B */
 	NULL,		NULL,		"lss%Zv %Mp",	"btr%Zv %Ev,%Gv",
@@ -228,8 +231,10 @@ char *op_map_2[] = {
 	"bsf%Zv %Gv,%Ev", "bsr%Zv %Gv,%Ev", "movsx%Zb %Gv,%Eb", "movsx%Zw %Gv,%Ew",
 
 	/* C */
-	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,
-	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,
+	"xadd%Zb %Eb,%Gb",	"xadd%Zb %Ev,%Gv",	NULL,		NULL,
+	NULL,			NULL,			NULL,		NULL,
+	"bswap%Zb %Eb,%Gb",	"bswap%Zb %Ev,%Gv",	NULL,		NULL,
+	NULL,			NULL,			NULL,		NULL,
 
 	/* D */
 	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,	NULL,
@@ -278,7 +283,7 @@ char	*grp_map[9][8] = {
 
 	/* grp[7][] */
 	"sgdt %Ms",	"sidt %Ms",	"lgdt%Zv %Ms",	"lidt%Zv %Ms",
-	"smsw %Ew",	NULL,		 "lmsw %Ew",	NULL,
+	"smsw %Ew",	NULL,		"lmsw %Ew",	"invlpg %Ms",
 
 	/* grp[8][] */
 	NULL,	NULL,	NULL,	NULL,	"bt",	"bts",	"btr",	"btc"

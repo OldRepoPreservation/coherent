@@ -11,6 +11,7 @@
  * Global variables.
  */
 BIN	bin = { TRAP };			/* Breakpoint instruction	*/
+ADDR_T	sys_add;			/* Address of op after syscall	*/
 int	sys_flag;			/* Executing a system call	*/
 BIN	sys_in;				/* Instruction after sys call	*/
 UREG	ureg;				/* Child program registers	*/
@@ -22,19 +23,19 @@ char *formtab[4][4] ={
 	"%4d",				/* "bd" */
 	"%3u",				/* "bu" */
 	"%04o",				/* "bo" */
-	"%02x",				/* "bx" */
+	"%02X",				/* "bx" */
 	"%6d",				/* "wd" */
 	"%5u",				/* "wu" */
 	"%07o",				/* "wo" */
-	"%04x",				/* "wx" */
+	"%04X",				/* "wx" */
 	"%10ld",			/* "ld" */
 	"%11lu",			/* "lu" */
 	"%012lo",			/* "lo" */
-	"%08lx",			/* "lx" */
+	"%08lX",			/* "lx" */
 	"%8ld",				/* "vd" */
 	"%8lu",				/* "vu" */
 	"%09lo",			/* "vo" */
-	"%06lx"				/* "vx" */
+	"%06lX"				/* "vx" */
 };
 
 /*

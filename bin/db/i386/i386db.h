@@ -128,6 +128,7 @@ extern	double	get_fp_reg	__((struct _fpreg *fpregp));
  * which are referenced by machine-independent code.
  */
 /* i386db0.c */
+extern	ADDR_T	sys_add;		/* Address of op after syscall	*/
 extern	BIN	sys_in;			/* Instruction after sys call	*/
 extern	UREG	ureg;			/* Child program registers	*/
 
