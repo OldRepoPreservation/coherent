@@ -84,6 +84,7 @@ char	acRealUser[MAX_UNAME];	/* Real user name */
 
 int	mailFlag = TRUE;
 int	flag320 = FALSE;
+int	logflag;
 
 struct	tm *tm;
 time_t	clock;
@@ -111,14 +112,14 @@ main()
 	sigsetup();
 
 	tokbuf = malloc(buflen);
-	/* Check if crond should be in COHERENT 3.2.0 mode */
+	/* Check if cron should be in COHERENT 3.2.0 mode */
 	if ((f = fopen(crontab, "r")) != NULL) {
 		fclose(f);
 		chdir("/bin");	/* Under 3.2.0 cron started from /bin. */
 		flag320 = TRUE;
 	} else  /* Check if cron was fired. Do it only for SV cron. */
 		if (lock(F_LOCK) == FALSE) {
-			fprintf(stderr, "crond: locked.\n");
+			fprintf(stderr, "cron: locked.\n");
 			exit(1);
 		}
 
@@ -129,13 +130,21 @@ main()
 	bedaemon();
 #endif			
 	/* Open spool directory. SV mode  */
-	if (flag320 == FALSE)
+	if (flag320 == FALSE) {
+		sleep(10);	/* Allows to mount all */
 		if ((dirp = opendir(D_SPOOL)) == NULL) {
-			system("echo crond: cannot open spool directory"
+			system("echo cron: cannot open spool directory"
 			   " > /dev/console");
 			exit(1);
 		}
-
+		if (logflag = if_log()) 
+			if (freopen(F_LOG, "a", stderr) == NULL) {
+				fprintf(stderr, 
+				   "cron: cannot open log file %s\n", F_LOG);
+				exit(1);
+			}
+	}
+			
 	time(&clock);
 	tm = localtime(&clock);
 	alarm(61 - tm->tm_sec);
@@ -164,7 +173,7 @@ main()
 				if (errno == ECHILD)
 					pause();
 			} else
-				fprintf(stderr, "crond: cannot open %s\n", 
+				fprintf(stderr, "cron: cannot open %s\n", 
 						crontab);
 		} else {			/* Run SV mode */
 			while ((dp = readdir(dirp)) != NULL) {
@@ -176,14 +185,12 @@ main()
 					continue;
 		
 				strcpy(acRealUser, dp->d_name);
-				sprintf(Dbuf, "echo X%s > /dev/console", 
-							acRealUser);
-				system("/bin/sh -c 'echo XXXX  >/dev/console'");
+
 				Dprint("User name is %s\n", acRealUser);
 				set_uid_flag = FALSE; 
 
 				if ((f = fpOpenTable("r")) == NULL) {
-					sprintf(Dbuf,"crond: cannot open table"
+					sprintf(Dbuf,"cron: cannot open table"
 					   " '%s' > /dev/console", acRealUser);
 					system(Dbuf);
 				}
@@ -199,10 +206,18 @@ main()
 				Dprint("\nmain: child id %d",child_pid);
 				Dprint("\treturn is %d\n", n);
 				pstDone = find_entry(child_pid);
-				if (n && ifmail(pstDone))
-					mail_entry(pstDone);
-
+				if (n) {
+					if (ifmail(pstDone))
+						mail_entry(pstDone);
+					if (logflag == TRUE)
+						fprintf(stderr, "User %s."
+						 "Time %sCommand \"%s\".\n\n", 
+						      pstDone->name, 
+						      ctime(&(pstDone->time)), 
+						      pstDone->command);
+				}
 				current = del_entry(pstDone);
+				Dprint("main: current is %d\n", current->pid);
 			} /* while wait */
 			if (errno == ECHILD)
 				pause();
@@ -221,11 +236,13 @@ child_id	*entry;
 	int	fd;	/* Descriptor of lock file */
 
 	if ((cBuf = malloc(sizeof(D_MAIN) + strlen(entry->name) + 1)) == NULL) {
-		fprintf(stderr, "crond: out of memory\n");
+		fprintf(stderr, "cron: out of memory\n");
 		return(0);	
 	}
 	sprintf(cBuf, "%s/%s", D_MAIN, entry->name);
-	if ((fd = open(cBuf, 0)) == -1) 
+	fd = open(cBuf, 0);
+	free(cBuf);
+	if (fd == -1)
 		return(1);
 	close(fd);
 	return(0);
@@ -406,6 +423,7 @@ gettoken()
 	while ((c = fetch()) != EOF  &&  c != NEWLINE  &&  c != PERCENT) {
 		if (sp == mark) {
 			posn = sp - tokbuf;
+			Dprint("cron: realloc on %d bytes\n", 128);
 			tokbuf = realloc(tokbuf, (buflen += 128));
 			sp = tokbuf + posn;
 			mark = sp + buflen;
@@ -480,7 +498,7 @@ do_it()
 	Dprint("Tokken is %s\n", tokbuf);
 
 	if ((fp = cronpipe(tokbuf, "w")) == NULL) {
-		fprintf(stderr, "crond:\tCould not popen: %s\n\t\
+		fprintf(stderr, "cron:\tCould not popen: %s\n\t\
 				errno = %d: %s.\n", tokbuf, errno, perror());
 		return (skip_it());
 	}
