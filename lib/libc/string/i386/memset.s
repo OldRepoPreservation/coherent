@@ -27,7 +27,7 @@ memset:
 
 	movl	%ecx, Count(%esp)	/ Count to ECX
 	movl	%edi, String(%esp)	/ String address to EDI
-	movzx	%eax, Char(%esp)	/ Char to EAX
+	movzxb	%eax, Char(%esp)	/ Char to EAX
 	mull	%eax, fourx		/ Char:Char:Char:Char in EAX
 	movl	%edx, %ecx		/ Save Count in EDX
 	shrl	%ecx, $2		/ Count/4

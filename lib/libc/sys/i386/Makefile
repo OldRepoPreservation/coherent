@@ -1,13 +1,13 @@
-# /usr/src/libc/sys/i386/Makefile 8/4/92
+# /usr/src/libc/sys/i386/Makefile 9/28/92
 
 ASFLAGS=
 
 # Objects built from sources in sys/i386.
 OBJ=\
+	_execve.o\
 	brk.o\
 	cerror.o\
 	dup2.o\
-	execve.o\
 	fork.o\
 	gtty.o\
 	msgemul.o\
@@ -100,13 +100,13 @@ SYSI386AUTO:	scall.s5
 # Secondary targets.
 # This does not need to include sources built in object directory by mkscall.
 # The .s sources have explicit actions to avoid using -f in ASFLAGS.
+_execve.o:	_execve.s
+	$(AS) -o $@ $<
 brk.o:		brk.s
 	$(AS) -o $@ $<
 cerror.o:	cerror.s
 	$(AS) -o $@ $<
 dup2.o:		dup2.c
-execve.o:	execve.s
-	$(AS) -o $@ $<
 fork.o:		fork.s
 	$(AS) -o $@ $<
 gtty.o:		gtty.c
