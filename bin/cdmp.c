@@ -1,6 +1,6 @@
 /*
  * cdmp.c
- * 8/4/92
+ * 8/12/92
  * Requires libmisc functions: cc cdmp.c -lmisc
  * Read and print COFF files.
  * Usage: cdmp [ -adlrsx ] filename ...
@@ -18,15 +18,15 @@
 #include <coff.h>
 #include <errno.h>
 
-#define	VERSION	"V1.6"
+#define	VERSION	"V2.0"
 #define VHSZ	48		/* line size in vertical hex dump */
 typedef	char	SECNAME[9];	/* NUL-terminated 8 character section name */
 
 /* Some shortcut display stuff. */
 #define show(flag, msg) if (fh.f_flags & flag) printf("\t" msg "\n");
 #define cs(x) case x: printf(#x); break;
-#define cx(x) case x: printf(#x "\tvalue=%ld ", se->n_value); break;
-#define cX(x) case x: printf(#x "\tvalue=0x%lx ", se->n_value); break;
+#define cd(x) case x: printf(#x "\tvalue=%ld ", se->n_value); break;
+#define cx(x) case x: printf(#x "\tvalue=0x%lx ", se->n_value); break;
 
 /* Externals. */
 extern	long	ftell();
@@ -428,6 +428,7 @@ print_aux(n, sep) int n; register SYMENT *sep;
 	register long l;
 	int has_fsize, has_fcn;
 	unsigned short *sp;
+	char fname[FILNMLEN + 1];
 
 	if (1 != fread(&ae, AUXESZ, 1, fp))
 		fatal("error reading symbol aux entry");
@@ -444,7 +445,9 @@ print_aux(n, sep) int n; register SYMENT *sep;
 	type = sep->n_type;
 
 	if (class == C_FILE) {				/* .file */
-		printf("\tfilename=%.8s\n", checkStr(ae.ae_fname));
+		strncpy(fname, ae.ae_fname, FILNMLEN);
+		fname[FILNMLEN] = '\0';
+		printf("\tfilename=%s\n", checkStr(fname));
 		return;
 	} else if (class == C_STAT && type == T_NULL) {	/* section name */
 		printf("\tlength=%lx\trelocs=%d\tlinenos=%d\n",
@@ -487,7 +490,7 @@ print_aux(n, sep) int n; register SYMENT *sep;
 	/* Print fcn or ary info. */
 	if (has_fcn) {
 		if (l = ae.ae_lnnoptr)
-			printf("\tlnnoptr=%ld", l);
+			printf("\tlnnoptr=0x%lx", l);
 		if (l = ae.ae_endndx)
 			printf("\tend=%ld", l);
 	} else {
@@ -513,26 +516,29 @@ print_aux(n, sep) int n; register SYMENT *sep;
 void
 print_sym(se, n) register SYMENT *se; register long n;
 {
-	register int i, c, flag, derived;
+	register int i, c, eflag, derived;
 	
 	if (se->n_sclass == C_FILE && n > 0)
 		putchar('\n');			/* for readability */
 	printf("%4ld\t", n);			/* index number */
+
+	eflag = 0;				/* no errors */
 	if (se->n_zeroes != 0) {		/* name in place */
-		for (flag = i = 0; i < SYMNMLEN; i++) {
-			if (flag)
-				putchar(' ');
-			else if ((' ' < (c = se->n_name[i])) && ('~' >= c))
+		for (i = 0; i < SYMNMLEN; i++) {
+			if ((' ' < (c = se->n_name[i])) && ('~' >= c))
 				putchar(c);
-			else
-				flag = c ? 1 : -1;
+			else {
+				eflag = c ? 1 : -1;
+				break;
+			}
 		}
+		putchar('\t');
 	} else					/* name in string table */
-		printf("%s", checkStr(str_tab + se->n_offset - 4));
+		printf("%s ", checkStr(str_tab + se->n_offset - 4));
 
 	/* Print section. */
 	i = se->n_scnum;
-	printf(" section=");
+	printf("section=");
 	if (i >= 1 && i <= num_sections)
 		printf("%s", sec_name[i-1]);
 	else
@@ -598,28 +604,28 @@ print_sym(se, n) register SYMENT *se; register long n;
 	printf("\tclass=");
 	switch (i = se->n_sclass) {
 
-	cx(C_EFCN)
-	cx(C_NULL)
-	cx(C_AUTO)
-	cX(C_STAT)
-	cx(C_REG)
-	cx(C_EXTDEF)
-	cx(C_LABEL)
-	cx(C_ULABEL)
-	cx(C_MOS)
-	cx(C_ARG)
-	cx(C_STRTAG)
-	cx(C_MOU)
-	cx(C_UNTAG)
-	cx(C_TPDEF)
-	cx(C_ENTAG)
-	cx(C_MOE)
-	cx(C_REGPARM)
-	cx(C_FIELD)
-	cx(C_BLOCK)
-	cx(C_FCN)
-	cx(C_EOS)
-	cx(C_FILE)
+	cd(C_EFCN)
+	cd(C_NULL)
+	cd(C_AUTO)
+	cx(C_STAT)
+	cd(C_REG)
+	cd(C_EXTDEF)
+	cd(C_LABEL)
+	cd(C_ULABEL)
+	cd(C_MOS)
+	cd(C_ARG)
+	cd(C_STRTAG)
+	cd(C_MOU)
+	cd(C_UNTAG)
+	cd(C_TPDEF)
+	cd(C_ENTAG)
+	cd(C_MOE)
+	cd(C_REGPARM)
+	cd(C_FIELD)
+	cd(C_BLOCK)
+	cd(C_FCN)
+	cd(C_EOS)
+	cd(C_FILE)
 
 	case C_EXT:
 		if (se->n_scnum != N_UNDEF)
@@ -638,9 +644,13 @@ print_sym(se, n) register SYMENT *se; register long n;
 
 	}
 
+#if	0
+	if (se->n_numaux)
+		printf("\tnaux=%d", se->n_numaux);
+#endif
 	putchar('\n');
 
-	if (1 == flag) {
+	if (1 == eflag) {
 		printf("*** Bad data in name **\n");
 		dump(se, SYMESZ);
 	}
