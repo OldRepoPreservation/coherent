@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <access.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include "dcp.h"
@@ -83,6 +84,20 @@ char *argv[], *envp[];
 		default:
 			fatal("Improper option usage: %c", optopt);
 		}
+	}
+
+	/*
+	 * This program is often invoked from a remote uucico login.
+	 * Disconnect uuxqt from its parent so it doesn't get signals
+	 * it shouldn't and doesn't keep the port open after the caller
+	 * disconnects.
+	 */
+	{
+		int fd;
+
+		for (fd = 0; fd < NUFILE; fd++)
+			close(fd);
+		setpgrp();
 	}
 	zenvp = envp;
 	processid = getpid();
