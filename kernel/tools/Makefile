@@ -1,5 +1,8 @@
 # makefile for i/o tools
 
+DESTDIR1=/bin386/etc/
+DESTDIR2=/bin386/conf/
+
 asypatch:	asypatch.o coffpatch.o
 	cc -o $@ $<
 asypatch.286:	asypatch.o loutpatch.o
@@ -12,4 +15,6 @@ setfpe:		setfpe.o cohcall.o
 	cc -o $@ $<
 setbp:		setbp.o cohcall.o
 	cc -o $@ $<
+reboot:		reboot.o cohcall.o
+	cc -o $(DESTDIR1)$@ $<
 cohcall.o:	cohcall.s
