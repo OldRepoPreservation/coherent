@@ -102,7 +102,10 @@ typedef	struct	lnnum	{
 	unsigned short	ln_lnnum;	/* Line number, 0 for fn */
 	unsigned short	ln_val;		/* Refnum or fn syminx	*/
 	ADDRESS		ln_addr;	/* Address		*/
+	char		ln_flag;	/* LN_FUNC or LN_LINE	*/
 } LNNUM;
+#define	LN_FUNC	0
+#define	LN_LINE	1
 
 /* Linked list of symbols, used for .bb and tag lists. */
 typedef	struct	symlist	{
@@ -703,7 +706,7 @@ db_func(dp) register DBSYM *dp;
 {
 	register LNNUM *lp;
 
-	lp = new_ln();
+	lp = new_ln(LN_FUNC);
 	lp->ln_val = dp->db_ref;
 	fn_dp = dp;
 	dp = new_sym(".bf", (ival_t)0, C_TEXT_SEG+1, T_NULL, C_FCN);
@@ -785,7 +788,7 @@ db_line(line) register int line;
 	}
 
 	/* Generate a new line number item. */
-	lp = new_ln();
+	lp = new_ln(LN_LINE);
 	lp->ln_dp = dp;		/* adjust value of DBSYM when addr is known */
 	lp->ln_lnnum = line - fn_line + 1;
 	lp->ln_val = refnum;
@@ -886,7 +889,7 @@ new_aux()
  * Allocate a new LNNUM item, initialize it to 0 and link it into the list.
  */
 LNNUM *
-new_ln()
+new_ln(flag) int flag;
 {
 	register LNNUM *lp;
 
@@ -897,6 +900,7 @@ new_ln()
 	*ln_lastp = lp;
 	ln_lastp = &(lp->ln_next);
 	++scn_hdr[C_TEXT_SEG].s_nlnno;
+	lp->ln_flag = flag;
 	return lp;
 }
 
@@ -1037,7 +1041,7 @@ outdloc(n) register int n;
 
 	/* Find matching refnum in line number list. */
 	for (lp = ln_list; lp != NULL; lp = lp->ln_next) {
-		if (lp->ln_lnnum != 0 && lp->ln_val == n)
+		if (lp->ln_flag == LN_LINE && lp->ln_val == n)
 			break;
 	}
 	if (lp == NULL)
@@ -1379,10 +1383,12 @@ write_lnnums()
 
 	while ((lp = ln_list) != NULL) {
 		lineno.l_lnno = lp->ln_lnnum;
-		if (lp->ln_lnnum == 0)		/* function index */
+		if (lp->ln_flag == LN_FUNC)		/* function index */
 			lineno.l_addr.l_symndx = lp->ln_val;
-		else				/* line physical address */
+		else if (lp->ln_flag == LN_LINE)	/* line physical address */
 			lineno.l_addr.l_paddr = lp->ln_addr;
+		else
+			cbotch("write_lnnums");
 		owrite(&lineno, sizeof lineno);
 		ln_list = lp->ln_next;
 		free(lp);		
