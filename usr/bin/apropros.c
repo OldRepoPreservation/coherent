@@ -1,14 +1,3 @@
-
-From lepanto!fred  Tue Jun  8 18:17:42 1993 remote from mwc
-Received: by dalek.mwc.com (smail2.5.3-coh) id AA06356; 8 Jun 93 18:17:42 GMT (Tue)
-Received: by mwc.com (smail2.5.3-coh) id AA11845; 8 Jun 93 13:13:34 
-Received: by lepanto.mwc.com (smail2.5.3-coh) id AA02070; 8 Jun 93 12:26:41 CDT (Tue)
-Message-Id: <9306081226.AA2067.V1.4@lepanto.mwc.com>
-Date: 8 Jun 93 12:26:40
-From: fred@lepanto.mwc.com (Fred Butzen)
-To: bob
-Status: RO
-
 /*
  * apropos.c
  *
@@ -89,12 +78,3 @@ int argc; char **argv;
 	exit(EXIT_SUCCESS);
 }
 
-
-fred@lepanto.mwc.com                  --   Fred Butzen   --
-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-Conloqui et conridere et vicissim benevole obsequi, simul legel libros
-dulciloquos, simul nugari et simul honestari. - St. Augustine
-Chatting and laughing and taking kindly turns; reading sweet-worded books
-together, sharing both foolishness and dignity.
-
-
