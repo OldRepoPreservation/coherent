@@ -402,8 +402,9 @@ extractdir(dp) register DIR *dp;
 				/* COHERENT directory not found, create it. */
 				if (vflag)
 					fprintf(stderr, "x %s/\n", cohfile);
-				if (system(strcat(strcpy(cmd, "mkdir "), cohfile)) != 0)
-					fatal("cannot create directory \"%s\"", cohfile);
+				if (oldstyle) 
+					if (system(strcat(strcpy(cmd, "mkdir "), cohfile)) != 0)
+						fatal("cannot create directory \"%s\"", cohfile);
 			} else if ((s.st_mode & S_IFDIR) == 0)
 				fatal("\"%s\" exists but is not a directory",
 					cohfile);

@@ -147,6 +147,12 @@ replace(nargs, args) short nargs; char *args[];
 		if (strncmp(*ap, "./", 2) == 0)
 			*ap += 2;
 
+		if (strcmp(*ap, ".") == 0)
+		{
+			replacedir(NULL);
+			break;
+		}
+
 		base = basehold;
 		strcpy(base,*ap);
 

@@ -145,16 +145,17 @@ main(argc, argv) short argc; char *argv[];
 		}
 		else if (strstr(tmp, "cat")) {
 			if (argc > 2 + dargs)
-				fatal("Too many arguments for CAT\n");
+				fatal1("Too many arguments for doscat\n");
 
 			device = tran_dev(argv[dev]);
 			if ((argv[dev] = tran_file(argv[dev])) != NULL)
 				tv=1;
 			else
-				fatal("Must specify a file to display.\n");
+				fatal1("Must specify a file to display.\n");
 			tmp = &argv[dev];
 			fun = extract;
 			pflag++;
+			mode = 0;
 		}
 		else if ((strstr(tmp, "rm")) || (strstr(tmp, "del"))) {
 			device = tran_dev(argv[dev]);
