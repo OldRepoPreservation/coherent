@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 4.0.2
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -25,7 +25,7 @@
 #endif
 #define	ALIGNMENT (1<<BLOCKSIZE) /* maximum alignment for any data type	*/
 #define	BADSBRK   ((char *)-1)	/* sbrk() failure return value		*/
-#define	DECRSIZE	256	/* arena size decrement at end		*/
+#define	DECRSIZE	4096	/* arena size decrement at end		*/
 #define	FREE		1	/* free block marker			*/
 #define	LEASTFREE (2*sizeof(unsigned))	/* free nothing smaller		*/
 
