@@ -50,6 +50,7 @@
  *	s		loader: strip symbol table
  *7c	t[p012adlrt]	take specified passes from -Bdirectory
  *7	u name		loader: enter name into symbol table
+ *	w		loader: watch
  *	x		loader: remove local symbols from symbol table
  */
 #if GEMDOS
@@ -243,6 +244,7 @@ struct option {			/* option table */
 	{ 5,	LDOPT,	"o"	},
 	{ 4,	LDOPT,	"r"	},
 	{ 4,	LDOPT,	"s"	},
+	{ 4,	LDOPT,	"w"	},
 	{ 4,	LDOPT,	"x"	},
 	{ 4,	LDOPT,	"X"	},
 #if 0
