@@ -115,12 +115,21 @@ elvis$E: $(OBJS) $(EXTRA) $(EXTRA2)
 
 ctags$E: ctags.c
 	$(CC) $(CFLAGS) $(SORT) $(OF) $(DESTDIR)ctags$E ctags.c
+	su root chown bin $(DESTDIR)ctags
+	su root chgrp bin $(DESTDIR)ctags
+	su root chmod 511 $(DESTDIR)ctags
 
 ref$E: ref.c
 	$(CC) $(CFLAGS) $(OF) $(DESTDIR)ref$E ref.c
+	su root chown bin $(DESTDIR)ref
+	su root chgrp bin $(DESTDIR)ref
+	su root chmod 511 $(DESTDIR)ref
 
 virec$E: virec.c
 	$(CC) $(CFLAGS) $(OF) $(DESTDIR)virec$E virec.c $(EXTRA2)
+	su root chown bin $(DESTDIR)virec
+	su root chgrp bin $(DESTDIR)virec
+	su root chmod 511 $(DESTDIR)virec
 
 view$E: $(ALIAS)
 	$(CC) $(CFLAGS) $(OF) view$E $(ALIAS)
