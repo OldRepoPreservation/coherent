@@ -1,4 +1,4 @@
-# c/coh/Makefile 3/26/92
+# c/coh/Makefile 2/11/93
 
 # Monolithic compiler phases as archives.
 MLIB=\
@@ -19,7 +19,7 @@ cc.o:	cc.c
 
 # Monolithic cc.
 mcc:	$(MLIB) $(CLIB)
-	cc -o $@ $<
+	$(CC) -o $@ $<
 
 # i8086 cross compiler
 i8086cc: cc.c
