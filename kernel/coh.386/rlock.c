@@ -336,7 +336,7 @@ waitlock(list, srl) RLOCK *list, *srl;
 				}
 			} while (nextblock(&list, rl));
 			unlock(rlgate);
-			sleep(org, CVGATE, IVGATE, SVGATE);
+			x_sleep(org, primed, slpriSigCatch, "rlock");
 			lock(rlgate);
 			if (SELF->p_ssig && nondsig()) {
 				u.u_error = EINTR;
