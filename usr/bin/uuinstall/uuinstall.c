@@ -25,6 +25,7 @@
 #define SYSFILE fileList[2]
 #define DEVFILE fileList[3]
 #define PERMISS fileList[4]
+#define PASSWD  fileList[5]
 
 static char **fileList;
 static *testFiles[] = {	/* use these files if uuinstall -d */
@@ -32,7 +33,8 @@ static *testFiles[] = {	/* use these files if uuinstall -d */
   "../domain",
   "../L.sys",
   "../L-devices",
-  "../Permissions"
+  "../Permissions",
+  "../passwd"
 };
 
 static char *realFiles[] = { /* the real files */
@@ -40,14 +42,15 @@ static char *realFiles[] = { /* the real files */
   "/etc/domain",
   "/usr/lib/uucp/L.sys",
   "/usr/lib/uucp/L-devices",
-  "/usr/lib/uucp/Permissions"
+  "/usr/lib/uucp/Permissions",
+  "/etc/passwd"
 };
 
 static char nameMod, lsysMod, devicesMod, permisMod;
 
 static char buf[1024];
-static char work[80];
-static char schedule[80];
+static char work[200];
+static char schedule[200];
 
 static int pos, lineNo;	/* current screen position */
 static char seps[] = " \t\n";	/*strtok seperators */
@@ -168,8 +171,8 @@ zeroPerm()
 	perNoWrite = perComm = perRead =
 	perNoRead = perWrite = NULL;
 
-	perSite[0] = perMyName[0] = perLogn[0] = code[0] = 
-	perCallIn[1] = perSendFiles[1] = perRequest[1] = 0;
+	perSite[0] = perMyName[0] = perLogn[0] = perEtc[0] =
+	code[0] = perCallIn[1] = perSendFiles[1] = perRequest[1] = 0;
 }
 
 /*
@@ -581,6 +584,39 @@ clumpDev()
 }
 
 /*
+ * Add passwd.
+ */
+void
+addPasswd()
+{
+	FILE *fp;
+	char *p;
+
+	if (!perLogn[0]) {
+		showMsg("Must have LOGNAME to add to /etc/passwd");
+		return;
+	}
+
+	if (NULL == (fp = fopen(PASSWD, "rw"))) {
+		showMsg("Cannot open /etc/passwd");
+		return;
+	}
+
+	while (NULL != fgets(work, sizeof(work), fp)) {
+		if (NULL != (p = strchr(work, ':'))) {
+			*p = '\0';
+			if (!strcmp(work, perLogn)) {
+				showMsg("%s already in /etc/passwd", perLogn);
+				return;
+			}
+		}
+	}
+	fprintf(fp, "%s::6:6::/usr/spool/uucp:/usr/lib/uucp/uucico\n", perLogn);
+	fclose(fp);
+	showMsg("%s added to /etc/passwd successfully", perLogn);
+}
+
+/*
  * Put Permissions together into new line.
  */
 clumpPerm()
@@ -590,6 +626,9 @@ clumpPerm()
 			perSite, perLogn);
 	else
 		sprintf(buf, "MACHINE=%s \\\n", perSite);
+
+	if ('y' == perEtc[0])
+		addPasswd();
 
 	if (perMyName[0] && strcmp(perSite, perMyName)) {
 		sprintf(work, "\tMYNAME=%s \\\n", perMyName);

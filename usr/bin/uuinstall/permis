@@ -1,6 +1,7 @@
 perSite 20 verify vSite
 perCallIn 1 verify yesNo help "Allow remote login?"
 perLogn 20 readonly
+perEtc 1 verify yesNo default "n"
 perMyName 20
 perRequest 1 verify yesNoCall
 perSendFiles 1 verify yesNo
@@ -15,10 +16,10 @@ perNoWrite 70 long verify noWhite help "eg: /tmp/private"
  Remote site name !
  Provide an entry for that site calling in <y/n> !
       LOGNAME	  !
+ Add an entry to /etc/passwd <y/n> !
  Identify myself as !
  Can the remote site request file transfers from this computer <y/n/c> !
  Can this computer initiate file transfers to the remote site <y/n> !
-
 
 
  Commands which can be executed at this computer by this remote site
