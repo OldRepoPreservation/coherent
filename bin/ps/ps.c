@@ -1,4 +1,4 @@
-static char _version[]="ps version 2.9";
+static char _version[]="ps version 2.10";
 /*
  *	Modifications copyright INETCO Systems Ltd.
  *
@@ -943,7 +943,7 @@ printl(pp, m)
 		return;
 	}
 
-	printf(" %s", u.u_comm);
+	printf(" %.10s", u.u_comm);
 	return;
 
 	/*
