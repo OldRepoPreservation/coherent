@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #define	LONGLEN	12		/* max length of NUL-terminated ASCII long */
 #define	CODELEN	512		/* initial length of code buffer */
@@ -196,10 +197,18 @@ register char *e1, *e2;
 		v1 *= v2;
 		break;
 	case '/':
-		v1 /= v2;
+		if (v2 == 0) {
+			divzero ();
+			v1 = LONG_MAX;
+		} else
+			v1 /= v2;
 		break;
 	case '%':
-		v1 %= v2;
+		if (v2 == 0) {
+			divzero ();
+			v1 = 0;
+		} else
+			v1 %= v2;
 		break;
 	}
 	return ltoa(v1);
@@ -262,7 +271,12 @@ char *e1, *e2;
 				break;
 #endif
 	if (b == NULL)
+#if	1
+		/* If \(\) used, string-valued return */
+		return brcount == 0 ? "0" : "";
+#else
 		return "0";
+#endif
 	if (brcount == 0)
 		return ltoa((long)(b - a));
 
@@ -281,11 +295,12 @@ register char *e;
 {
 	register int c;
 
-	if ((c = *e) == '-' || c == '+') 
-		++e;
-	while ((c = *e++) != '\0')
-		if (!isdigit(c))
+	if ((c = * e ++) == '-')	/* || c == '+' Removed for POSIX */
+		c = * e ++;
+	do
+		if (! isdigit (c))
 			return FALSE;
+	while ((c = * e ++) != 0);
 	return TRUE;
 }
 
@@ -653,12 +668,20 @@ regerror()
 	--avx;
 	errexit();
 }
-errexit()
-{
-	output("syntax error at argument # ", 2);
+void dieat () {
 	output(ltoa((long) avx), 2);
 	output("\n", 2);
 	exit(2);
+}
+divzero() {
+	output ("Attempt to divide by zero at argument # ", 2);
+	-- avx;
+	dieat ();
+}
+errexit()
+{
+	output("syntax error at argument # ", 2);
+	dieat ();
 }
 
 /* end of cmd/expr.y */
