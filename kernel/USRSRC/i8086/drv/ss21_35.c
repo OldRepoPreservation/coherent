@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.27	91/04/16  16:38:47	root
+ * Typos fixed.  Locks up CPU on first open
+ * 
  * Revision 1.26	91/04/16  16:13:10	root
  * First clean compile with block routine.
  * 
@@ -328,7 +331,7 @@ register dev_t	dev;
 	s_id = DEV_SCSI_ID(dev);
 	ssp = ss[s_id];
 	fdp = ssp->parmp;
-
+devmsg(dev, "ssopen");
 	/*
 	 * LUN must be zero.
 	 * SCSI id must have corresponding 1 in NSDRIVE bitmapped variable.
@@ -351,16 +354,23 @@ register dev_t	dev;
 	 */
 	if (valid_open && dev & SDEV)
 		partn = WHOLE_DRIVE;
-
+printf("adj partn=%d\n", partn);
 	/*
 	 * If not accessing whole drive and the partition table has not
 	 * been read yet, try to read it now.
+	 * Do this by calling fdisk() with partition table device on the drive
+	 * that is being accessed.
 	 */
-	if (valid_open && partn != WHOLE_DRIVE && !(ssp->ptab_read))
-		if (fdisk(dev, fdp)) {
+	if (valid_open && partn != WHOLE_DRIVE && !(ssp->ptab_read)) {
+		int fdisk_dev;
+
+		fdisk_dev = (dev | SDEV) & 0xfff0;
+devmsg(fdisk_dev, "calling fdisk");
+		if (fdisk(fdisk_dev, fdp)) {
 int p;
+			fdp[WHOLE_DRIVE].p_size = ssp->capacity;
 printf("fdisk() succeeded\n");
-for (p=0; p<WHOLE_DRIVE; p++)
+for (p=0; p<=WHOLE_DRIVE; p++)
 	printf("p=%d base=%ld size=%ld\n", p, fdp[p].p_base, fdp[p].p_size);
 			ssp->ptab_read = 1;
 		} else {
@@ -368,17 +378,19 @@ printf("fdisk() failed\n");
 			u.u_error = ENXIO;
 			valid_open = 0;
 		}
+	}
 
 	/*
 	 * Ensure partition lies within drive boundaries and is non-zero size.
 	 */
-	if (valid_open
+	if (valid_open && partn != WHOLE_DRIVE
 	&& (fdp[partn].p_base+fdp[partn].p_size) > fdp[WHOLE_DRIVE].p_size) {
 		u.u_error = EBADFMT;
 		valid_open = 0;
+printf("BARF\n");
 	}
 
-	if (valid_open && fdp[partn].p_size == 0) {
+	if (valid_open && partn != WHOLE_DRIVE && fdp[partn].p_size == 0) {
 		u.u_error = ENODEV;
 		valid_open = 0;
 	}
@@ -402,6 +414,7 @@ dev_t dev;
 	 * Decrement the number of watchdog timer requests open for host board.
 	 */
 	--drvl[SCSI_MAJOR].d_time;	
+devmsg(dev, "ssclose");
 }
 
 /*
@@ -444,14 +457,38 @@ IO	*iop;
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
+#define NHEAD	7
+#define NSEC	28
+#define NCYL	1066
+
 static int ssioctl(dev, cmd, vec)
 register dev_t	dev;
 int cmd;
 char * vec;
 {
 	int ret = 0;
+	hdparm_t hdparm;
+	struct	fdisk_s	*fdp;
+	int s_id;
+	ss_type * ssp;
+
+	s_id = DEV_SCSI_ID(dev);
+	ssp = ss[s_id];
+	fdp = ssp->parmp;
 
 	switch(cmd) {
+	case HDGETA:
+printf("HDGETA\n");
+		fdp = ssp->parmp;
+		*(short *)&hdparm.landc[0] =
+		*(short *)&hdparm.ncyl[0] = NCYL;
+		hdparm.nhead = NHEAD;
+		hdparm.nspt = NSEC;
+printf("ncyl=%d nhead=%d nspt=%d\n",
+  hdparm.ncyl[0] + hdparm.ncyl[1]<<8, (int)hdparm.nhead, (int)hdparm.nspt);
+		kucopy( &hdparm, vec, sizeof hdparm );
+		ret = 0;
+		break;
 	default:
 		u.u_error = EINVAL;
 		ret = -1;
@@ -471,7 +508,6 @@ char * vec;
 static void ssblock(bp)
 register BUF	*bp;
 {
-	register scsi_work_t *sw;
 	register int s;
 	struct	fdisk_s	*fdp;
 	int partition, drive, s_id;
@@ -499,10 +535,12 @@ register BUF	*bp;
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
+printf("BFERR 1\n");
 				bp->b_flag |= BFERR;
 				valid_op = 0;
 			}
 		} else {
+printf("BFERR 2\n");
 			devmsg(dev, "no partition table");
 			bp->b_flag |= BFERR;
 			valid_op = 0;
@@ -520,6 +558,7 @@ register BUF	*bp;
 	 */
 	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
+printf("BFERR 3\n");
 		bp->b_flag |= BFERR;
 		valid_op = 0;
 	}
@@ -530,10 +569,10 @@ register BUF	*bp;
 	 */
 	if (valid_op) {
 
-printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
-	drive, (long)sw->sw_bno, bp, bp->b_flag);
+printf("ssblock: drv=%x bno=%lx bp=%x flag=%x\n",
+	drive, bp->b_bno, bp, bp->b_flag);
 
-		ssq_wr_tail(sw);
+		ssq_wr_tail(bp);
 		ss_start();
 	/*
 	 * Operation cannot be done.  Release the kernel buffer structure.
@@ -578,6 +617,7 @@ printf("*");
 		if (ssp && ssp->dr_watch) {
 			ssp->dr_watch--;
 			if (ssp->dr_watch == 0) {
+printf("BFERR 4\n");
 				bus_dev_reset(s_id);
 				ssp->bp->b_flag |= BFERR;
 				ss_done(s_id);
@@ -1190,6 +1230,7 @@ static void ss_start()
 				if (ssp->msg_in != MSG_DISCONNECT)
 					ss_done(s_id);
 			} else {
+printf("BFERR 5\n");
 				bp->b_flag |= BFERR;
 				ss_done(s_id);
 			}
@@ -1213,6 +1254,8 @@ int s_id;
 	ssp->dr_watch = 0;
 	ssp->in_buf = ssp->out_buf = NULL;
 	if (bp) {
+if (bp->b_flag & BFERR)
+  printf("BFERR\n");
 		bdone(bp);
 		ssp->bp = NULL;
 	}
@@ -1344,6 +1387,7 @@ int s_id;
 				else
 					ss_done(s_id);
 			} else {
+printf("BFERR 6\n");
 				bp->b_flag |= BFERR;
 				ss_done(s_id);
 			}
@@ -1362,7 +1406,7 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
 	int retval;
-
+printf("ss_rw(%d)\n", s_id);
 	if (bp->b_req == BREAD) {
 		ssp->cmdbuf[0] = ScmdREADEXTENDED;
 		ssp->in_buf_len = bp->b_count;
@@ -1383,15 +1427,22 @@ int s_id;
 	ssp->cmdbuf[9] = 0;
 	ssp->cmdlen = G1CMDLEN;
 	if (retval = bus_pre_xfer(s_id)) {
+printf("ss_rw(): bus_pre_xfer ok\n");
 		bus_info_xfer(ssp);
-		retval = (ssp->cmdlen == ssp->cmd_bytes_out
-			&& ssp->cmdstat == CS_GOOD);
-	}
+printf("cmdlen=%d cmd_bytes_out=%d cmdstat=%d\n", ssp->cmdlen,
+	ssp->cmd_bytes_out, ssp->cmdstat);
+		retval = (ssp->cmdlen == ssp->cmd_bytes_out);
+	} else
+printf("ss_rw(): bus_pre_xfer not ok\n");
 
 	if (ssp->cmdstat == CS_CHECK) {
+printf("ss_rw(): requesting sense\n");
 		if (req_sense(s_id))
 			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
 	}
 
+	retval = (retval &&
+		(ssp->cmdstat == CS_GOOD || ssp->msg_in == MSG_DISCONNECT));
+printf("ss_rw(): retval=%d\n", retval);
 	return retval;
 }
