@@ -393,13 +393,18 @@ long size;
 		errCount--;
 		modmsg(fname, mname, "adding");	/* NODOC */
 	}
+	if (size < sizeof(FILEHDR)) {
+		modmsg(fname, mname, "not an object file - length %d", size);
+		/* This cannot be an object file */
+		exit(1);
+	}
 	mp    = alloc(sizeof(*mp));	/* allocate our header */
 	mp->f = alloc((int)size);	/* allocate space for file */
 	endmod = mp->f + size;		/* end of space for file */
 	xread(mp->f, (int)size);	/* inhale file */
 
 	if (mp->f->f_magic != C_386_MAGIC) {
-		modmsg(fname, mname, "bad header - %x found", mp->f->f_magic);
+		modmsg(fname, mname, "not an object file - header starts %x", mp->f->f_magic);
 		/* Coff headers are expected to start 0x14C,
 		 * which is called the magic number.
 		 * This started with the stated hex number. */
