@@ -1,17 +1,13 @@
-# misc/Makefile 10/11/90
+# /usr/src/liby/Makefile 2/12/92
 
 DESTDIR=/interim/usr/lib/
 
-# Objects.
-O = \
-	yyerror.o\
-	yylex.o\
+OBJ=\
+	yyerror.o \
+	yylex.o \
 	yymain.o
 
-# Primary target.
-liby.a: $O
-	su root rm -f $(DESTDIR)liby.a
-	ar q $(DESTDIR)liby.a $O
-	su root chmog 444 bin bin $(DESTDIR)$@
-	su root ranlib $(DESTDIR)$@
-	mv *.o objects/	
+liby.a:	$(OBJ)
+	$(AR) rckus $(DESTDIR)$@ $?
+
+# end of /usr/src/liby/Makefile
