@@ -93,7 +93,7 @@ union alltypes *argp;
 			supprf = (fc = *fmt++) == '*';
 			if (supprf)
 				fc = *fmt++;
-			for (width = 0;  '0'<=fc && fc<='9';  fc = *fmt++)
+			for (width = 0; '0'<=fc && fc<='9'; fc = *fmt++)
 				width = width*10 + fc - '0';
 			longf = fc=='l';
 			shortf = fc=='h';
@@ -101,7 +101,7 @@ union alltypes *argp;
 				fc = *fmt++;
 			switch (fc) {
 			default:
-				fputs("Bad format in scanf\n", stderr); 
+				fputs("Bad format in scanf\n", stderr);
 				abort();
 			case '\0':
 				break;
@@ -138,9 +138,9 @@ union alltypes *argp;
 					if (longf)
 						**(long **)argp++ = longn;
 					else if (shortf)
-						**(short **)argp++ = longn;
+						**(short **)argp++ = (short)longn;
 					else
-						**(int **)argp++ = longn;
+						**(int **)argp++ = (int)longn;
 					retval++;
 					continue;
 				}
@@ -197,7 +197,7 @@ union alltypes *argp;
 						cp = *(char **)argp++;
 					gotany = 0;
 					while (gc!=EOF
-					 && (index(s, gc)==NULL) == breakf) {
+					    && (index(s, gc)==NULL)==breakf) {
 						gotany++;
 						if (!supprf)
 							*cp++ = gc;
@@ -259,12 +259,12 @@ int	*got;
 		base = 16;
 		c = getc(fp), ++*got;
 	}
-	for (;  *got < width;  ++*got) {
+	for (; *got < width; ++*got) {
 		if ((10<=(i=c-('a'-10))
 		 || 10<=(i=c-('A'-10))
 		 || 0<=(i=c-'0') && i<=9)
 		 && i<base
-		 || base==16 && val==0 && (i=c-'x')==0) {
+		 || base==16 && val==0L && (i=c-'x')==0) {
 			val = val*base - i;
 			c = getc(fp);
 		} else
@@ -319,7 +319,7 @@ int	width, *got;
 
 	if (width<=0 || 32<width)
 		width = 32;
-	for (*got = 0;  *got < width;  ++*got) {
+	for (*got = 0; *got < width; ++*got) {
 		switch (c=getc(fp)) {
 		case '\t':
 		case '\n':
