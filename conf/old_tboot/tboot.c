@@ -17,6 +17,7 @@
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <l.out.h>
+#include <coff/filehdr.h>
 
 #include "tboot.h"
 
@@ -48,24 +49,24 @@ unsigned short sys_base;	/* Segment into which to load the kernel.  */
 
 main()
 {
-	struct inode imageinode;	/* Inode structure for the boot image.  */
-	ino_t imageinum;		/* inode number of the boot image.  */
-	struct ldheader imageheader;	/* l.out header for boot image.  */
-	int imageok;			/* Flag to identify usable executables.  */
-	unsigned short data_seg;	/* Data segment register for image.  */
 	int i;				/* A loop counter.  */
 
-	/* Holders for arguments to ifread.  */
-	unsigned short load_toseg;
-	unsigned short load_tooffset;
-	fsize_t	load_offset;
-	fsize_t load_lenarg;
-
 	char imagename[5*DIRSIZ+1] = "autoboot";	/* File to boot.  */
+	ino_t imageinum;		/* inode number of the boot image.  */
+	struct inode imageinode;	/* Inode structure for the boot image.  */
+	int imageok;			/* Flag to identify usable executables.  */
+
+	unsigned int filemagic;		/* Magic number from file.  */
+	struct load_segment imagetable[MAX_SEGS]; /* How to load a file.  */
+	struct load_segment *cur_segment; /* Pointer for walking imagetable.  */ 
+
+	unsigned short data_seg;	/* Data segment register for image.  */
+	char outbuff[LINESIZE];		/* Place to build output messages.  */
+
 
 	sys_base = DEF_SYS_BASE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 0.9\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 0.9b\r\n");
 
 	/* Look for a valid executable.  */
 	do {
@@ -98,23 +99,27 @@ main()
 			continue;
 		}
 
-		/* Read the header.  */
-		iread(&imageinode, &imageheader,
-		      (fsize_t) 0, (unsigned short) sizeof(struct ldheader));
+		/* Read the magic number.  */
+		iread(&imageinode, &filemagic,
+			(fsize_t) 0, (unsigned short) sizeof (int));
+		canint(filemagic);	/* Harmless on 80386.  */
 
-		/* Canonicalize the header.  */
-		canint(imageheader.l_magic);
-		canint(imageheader.l_flag);
-		canint(imageheader.l_machine);
-		canvaddr(imageheader.l_entry);
-		for(i = 0; i < NLSEG; ++i) {
-			cansize(imageheader.l_ssize[i]);
-		}
-
+		switch (filemagic) {
+		/* Is this an i386 COFF executable?  */
+		case I386MAGIC:
+			puts("COFF!  COFF!\r\n");
+			imageok = 
+				coff2load(&imageinode, imagetable, &data_seg);
+			break;
+			
 		/* Is this an l.out executable?  */
-		if (L_MAGIC == imageheader.l_magic) {
-			imageok = (1==1);
-		} else {
+		case L_MAGIC:
+			puts("l.out!\r\n");
+			imageok =
+				lout2load(&imageinode, imagetable, &data_seg);
+			break;
+
+		default:
 			imageok = (1==2);
 			puts("File ");
 			puts(imagename);
@@ -122,79 +127,30 @@ main()
 
 			puts("Please choose another.\r\n");
 			imagename[0] = '\0';
-		}
+			break;
+		} /* switch (filemagic) */
 	} while (!imageok);
 
-	/* ASSERTION: the inode in imageinode points at a valid l.out file.  */
+	/* ASSERTION: imageinode and imagetable describe a valid executable.  */
 
 	puts("OK!  Loading ");
 	puts(imagename);
 	puts("...\r\n");
 
-	if (imageheader.l_flag & LF_SEP) { /* if sep i/d executable */
-		puts("\r\nLoading code segments...\r\n");
-		/* Load the shared and private code segments as one.  */
-		load_toseg = sys_base; /* This is where we want the OS.  */
-		load_tooffset = 0;
-		load_offset = sizeof(struct ldheader); /* Skip the header.  */
-		load_lenarg = imageheader.l_ssize[L_SHRI] + /* Both segments as one.  */
-			      imageheader.l_ssize[L_PRVI];
-		
-		ifread(&imageinode, load_toseg, load_tooffset,
-			load_offset, load_lenarg);
-		
-		puts("\r\nLoading data segments...\r\n");
-		/* Load both data segments.  */
+	/* Now actually load everything into memory.  */
+	for (cur_segment = &imagetable[0]; cur_segment->valid; ++cur_segment) {
+		puts(cur_segment->message);
 
-		/* Round up to next 16 byte paragraph.  */
-		load_toseg = (sys_base +
-			(imageheader.l_ssize[L_SHRI] + /* Shared code */
-			imageheader.l_ssize[L_PRVI] +  /* Private code */
-			15) / 16),
-		load_tooffset = 0,
-
-		load_offset = (fsize_t) sizeof(struct ldheader) + /* l.out header */
-			imageheader.l_ssize[L_SHRI] + /* Shared code */
-			imageheader.l_ssize[L_PRVI]; /* Private code */
-
-		load_lenarg = imageheader.l_ssize[L_SHRD] + /* Both segments as one.  */
-			imageheader.l_ssize[L_PRVD];
-
-		ifread(&imageinode, load_toseg, load_tooffset,
-			load_offset, load_lenarg);
-		
-	} else { /* if not sep i/d executable */
-		
-		puts("\r\nLoading all segments...\r\n");
-		/* Load the shared and private code segments as one.  */
-		load_toseg = sys_base, /* This is where we want the OS.  */
-		load_tooffset = 0,
-	
-		load_offset = (fsize_t) sizeof(struct ldheader), /* Skip the header.  */
-		load_lenarg = imageheader.l_ssize[L_SHRI] +
-		       imageheader.l_ssize[L_PRVI] +
-		       imageheader.l_ssize[L_SHRD] +
-		       imageheader.l_ssize[L_PRVD];
-
-		ifread(&imageinode, load_toseg, load_tooffset,
-			load_offset, load_lenarg);
-
-	} /* if not sep i/d executable */
+		ifread(&imageinode,
+			cur_segment->load_toseg,
+			cur_segment->load_tooffset,
+			cur_segment->load_offset,
+			cur_segment->load_length);
+	}
 
 	puts("\r\nRunning ");
 	puts(imagename);
 	puts("...\r\n");
-
-	/* Be sure to set the data segement appropriately.  */
-	if (imageheader.l_flag & LF_SEP) { /* if sep i/d executable */
-		data_seg = (unsigned short) (sys_base +
-			(imageheader.l_ssize[L_SHRI] +	/* Shared code */
-			 imageheader.l_ssize[L_PRVI] +	/* Private code */
-			 15) / 16);	/* Rounded up a paragraph.  */
-	} else {
-		/* Tiny model: ds = cs */
-		data_seg = sys_base;
-	}
 
 	/* Run the image (the kernel).  */
 	gotoker(SYS_START, sys_base, data_seg);
