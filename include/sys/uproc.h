@@ -118,7 +118,7 @@ typedef struct uproc {
 	int	*u_regl;
 	int	u_rval2;
 	void	(*u_sigreturn)();
-	struct _fpstate	u_ndpCon;	/* ndp state */
+	union _fpcontext	u_ndpCon;	/* ndp state */
 	int	u_ndpFlags;
 	int	u_bpfmax;		/* max blocks per file */
 #endif

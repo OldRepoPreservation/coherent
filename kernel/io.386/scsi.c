@@ -209,7 +209,7 @@ sdload()
 		SD_HDS = DEF_AHA_HDS;
 		SD_SPT = DEF_AHA_SPT;
 		if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
-			if (T_NULL != (tp = fifo_read(ffp))) {
+			if (tp = fifo_read(ffp)) {
 				BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
 				if ((T_BIOS_DISK == tp->ts_type) &&
 				    (n_atdr == bdp->dp_drive) ) {

@@ -1,3 +1,8 @@
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /* typed.h -- Data structures for an implimentation of internally
  * typed data structures.
  *
@@ -128,10 +133,6 @@ int fifo_close();		/* Finish with using a typed space as a fifo.  */
  *
  * If you need any other symbols define them here.
  */
-
-#ifndef T_NULL	/* Work around an incompatibiltiy with <coff.h>.  */
-#define T_NULL	((typed_space *) 0)	/* The empty typed_space.  */
-#endif /* T_NULL */
 
 /* Useful symbols for FIFOS.  */
 #define F_NULL	((FIFO *) 0)	/* The void FIFO.  */

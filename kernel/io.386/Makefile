@@ -39,8 +39,7 @@ IOOBJ = \
 	$(K386OBJ)/scsi.o \
 	$(K386OBJ)/sem.o \
 	$(K386OBJ)/semcon.o \
-	$(K386OBJ)/shm.o \
-	$(K386OBJ)/shmcon.o \
+	$(K386OBJ)/shm1.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/vtmm.o \
@@ -316,10 +315,7 @@ $(K386OBJ)/sem.o: sem.c
 $(K386OBJ)/semcon.o: semcon.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(K386OBJ)/shm.o: shm.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(K386OBJ)/shmcon.o: shmcon.c
+$(K386OBJ)/shm1.o: shm1.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/ss.o: ss.c

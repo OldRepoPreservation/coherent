@@ -24,9 +24,9 @@
  * Patchable variables for 386.
  * Starting addresses in kernel data and size for each ram disk.
  */
-int	RAM0=0x80000000;
-int	RAM1=0x80800000;
+int	RAM0=0x88000000;
 int	RAMSIZE=0x800000;
+#define RAM1	(RAM0 + RAMSIZE)
 #endif
 
 /*
