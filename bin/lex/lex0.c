@@ -1,17 +1,18 @@
-#include "lex.h"
-
 /*
- * lex0.c
+ * lex/lex0.c
  * external variables
  */
-short	nxt;
-short	yylval;
-short	ltype;
-short	inquotes;
-short	indefs;
-short	actn;
-short	clas;
-short	nfa[ARRSZ][2];
+
+#include "lex.h"
+
+int	nxt;
+int	yylval;
+int	ltype;
+int	inquotes;
+int	indefs;
+int	actn;
+int	clas;
+int	nfa[ARRSZ][2];
 struct	def *defstart;
 struct	def *ctxstart;
 struct	def *scnstart;
@@ -36,3 +37,5 @@ char	actsyn[] = "action syntax";
 char	unmopr[] = "unmatched `%c' in regular expression";
 char	reperr[] = "improper repetition specification";
 char	eoferr[] = "unexpected EOF";
+
+/* end of lex0.c */
