@@ -61,7 +61,7 @@ register struct expr *esp;
 	if ((c = getnb()) == '(') {
 		addrx(esp);
 		if (esp->e_mode==IDX || esp->e_mode==ICL)
-			aerr();
+			aerr("invalid index register");
 		return (esp->e_mode & MMASK);
 	}
 	unget(c);
@@ -87,16 +87,16 @@ struct expr *esp;
 	do {
 		getid(id, -1);
 		if ((sp=lookup(id, 0))==NULL || sp->s_type!=E_AREG)
-			aerr();
+			aerr("index by non-register");
 		else {
 			mask = 01 << reg(sp->s_addr);
 			if ((mode&mask) != 0)
-				aerr();
+				aerr("invalid index register");
 			mode |= mask;
 		}
 	} while ((c = getnb()) == ',');
 	if (c != ')')
-		qerr();
+		qerr("missing ')'");
 	if (mode == (01<<reg(CL))) {
 		esp->e_mode = ICL;
 		return;
@@ -111,6 +111,6 @@ struct expr *esp;
 			return;
 		}
 	}
-	aerr();
+	aerr("invalid index");
 	esp->e_mode = D;
 }
