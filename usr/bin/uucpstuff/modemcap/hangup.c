@@ -2,6 +2,11 @@
  *  hangup.c
  */
 
+/* hangup is called by sysend() to hangup the modem. Hangup then calls
+ * undial() to remove any remote device lock files and to re enable
+ * a previously disabled port. Bob H. 11/22/91.
+ */
+
 #include "dcp.h"
 #include "modemcap.h"
 
@@ -9,6 +14,7 @@ hangup (fd)
 int	fd;
 {
 	if ( (HU == NULL) && (HC == 0) ) {
+		printmsg(M_DEBUG,"hangup: (level1) about to drop line.");
 		undial(fd);
 		return(0);
 	}
@@ -31,9 +37,11 @@ int	fd;
 			if (ID)
 				sleep (ID);
 		}
+		printmsg(M_DEBUG,"hangup: (level2) about to drop line.");
 		undial (fd);
 		return (1);
 	}
+	printmsg(M_DEBUG,"hangup: (level3) about to drop line.");
 	undial(fd);
 	ttyexit(fd);
 	return(1);

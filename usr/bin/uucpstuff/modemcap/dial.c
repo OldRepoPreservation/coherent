@@ -15,14 +15,10 @@
 #include "dcp.h"
 #include "ldev.h"
 
-#define	TRUE (1 == 1)
-#define FALSE (1 == 2)
-#define LCKTMOUT 10	/* Wait 10 seconds for init to blow away our lock.  */
 
 char	*devname = NULL;	/* Communications Device Name Connected	*/
 char	*rdevname = NULL;	/* Remote device name */
 
-static  int	timed_out;	/* Has this wait timed out? */
 static	char	login_lock[15];
 static	char	enableme[16];
 static	int	modemfd = -1;
@@ -84,23 +80,37 @@ error:
 	return (merrno = err);
 }
 
-/* undial()
+/* undial()	
  * removes the lock on the remote device if it exists and reenables
- * the port.
+ * the port. Undial() is called by hangup(), which was called by 
+ * sysend(). Bob H. 11/22/91.
 */
 undial (fd)
 int	fd;
 {
 	if (fd > 2)
 		close (fd);
-	if ( (strcmp(rdevname,"-") != 0) && lockexist(rdevname) )
-		lockrm(rdevname);
 
-	if (enableme[0] != '\0') {
-		plog(M_CALL, "Enabling line %s", enableme);
-		exec_stat("enable", enableme);
+	/* If lock removal fails, print message. */
+
+	if ( (strcmp(rdevname,"-") != 0) && lockttyexist(rdevname) ){
+		if(unlocktty(rdevname) == -1){
+			printmsg(M_DEBUG,"Undial: tty lock file removal failed");
+			plog(M_CALL,"Undial: tty lock file removal failed");
+		}
 	}
+	/* If lock removal failed, then do not re enable the port because we
+	 * no longer know who did what to the remote port. Re enabling the
+	 * port could result in a race condition we don't want.
+	*/
 
+	if ((enableme[0] != '\0') && (lockttyexist(rdevname) == 0)){
+		plog(M_CALL, "Enabling tty line %s", enableme);
+		exec_stat("enable", enableme);
+	}else{
+		printmsg(M_DEBUG,"Undial: Can not re-enable port due to tty lock file.");
+		plog(M_CALL,"Undial: Could not re-enable port due to tty lock file.");
+	}
 	rdevname = NULL;
 }
 
@@ -117,10 +127,7 @@ char **brand;
 	char	*l_type;		/* ACU, DIR, etc. */
 	char	*l_brand;		/* modemcap brand name */
 	int	l_baud;			/* tty baud rate */
-
-	int lock_alarm();
-	int (*last_alarm)();	/* Previous alarm handling function.  */
-	unsigned last_time;	/* Time remaining on a previous alarm().  */
+	int	retval;			/* Place to stash return of exec_stat */
 
 	ldev_open();
 	if ( ((devflag=(callp->line != NULL)) &&
@@ -156,12 +163,11 @@ char **brand;
 		 * exists on the remote device. If a lock exists, then we don't
 		 * want to disable the remote before calling out on the local
 		 * local device for fear of booting off a logged in process.
-		 * Bob H. 11/4/91.
 		*/
 
 		/* Check for a lock on the remote device */
-		if ((strcmp(l_rline,"-")!=0) && (0 != lockexist(l_rline))) {
-			plog(M_CALL,"Remote device %s locked, cannot disable.",
+		if ((strcmp(l_rline,"-")!=0) && (0 != lockttyexist(l_rline))) {
+			plog(M_CALL,"Remote tty device %s locked, cannot disable.",
 				l_rline);
 			continue;
 		} else {
@@ -169,48 +175,26 @@ char **brand;
 			if(strcmp(l_rline,"-") !=0){
 	/* Disable the remote device and then create a lock on it.
 	 * If the lock fails, abort.
-	 * Note that init will remove the lock after we run disable,
-	 * so we have to create one lock, wait for init to remove it,
-	 * and then create another.
+	 * Note that we will then sleep for 5 seconds to make sure that
+	 * the port gets closed after the disable.
 	 */
-				if (lockit(l_rline) < 0) {
-					plog(M_CALL,"Remote device %s locked, cannot disable.",
+				if (locktty(l_rline) < 0) {
+					plog(M_CALL,"Remote tty device %s locked, cannot disable.",
 						l_rline);
 					continue;
 				}
 
-				if (exec_stat("disable", l_rline) != 0){
-					plog(M_CALL,"Disabling line %s",l_rline);
-
-					/* Set up an alarm so we don't loop
-					 * forever.
-					 */
-					timed_out = FALSE;
-					last_alarm = signal(SIGALRM,lock_alarm);
-					last_time = alarm(LCKTMOUT);
-
-					/* Wait for init to remove
-					 * the lock file.
-					 */
-					while ((lockexist(l_rline)) &&
-					       (!timed_out)){
-						/* do nothing */
-					}
-					
-					/* Put back the old alarm stuff.  */
-					signal(SIGALRM, last_alarm);
-					alarm(last_time);
-
-					/* Only need to lock it if
-					 * our lock didn't get clobbered.
-					 */
-					if (!timed_out) {
-						if (lockit(l_rline) < 0){
-							plog(M_CALL,"Could not lock remote device %s",
-								l_rline);
-							continue;
-						}
-					}
+				/* Note that disable could be terminated by
+				 * a SIGHUP when the port is disabled.
+				 */
+				if (0!=(retval=exec_stat("disable", l_rline)) &&
+				    SIGHUP<<8 != retval) {
+					plog(M_CALL,"Disable of tty line %s failed",
+					     l_rline);
+					continue;
+				}else{
+				plog(M_CALL,"Disabling tty line %s", l_rline);
+					sleep(5);
 					strcpy(enableme,l_rline);
 				}
 			}
@@ -250,18 +234,7 @@ char	*line;
 		exit(1);
 	} else 
 		wait(&waitstat);
-	/* plog("Command returned value of %d", waitstat);
-	 */
+	 
 	return waitstat;
 }
 
-
-/* Mark the appearance of an alarm signal.  This is an argument to signal.  */
-int
-lock_alarm()
-{
-	timed_out = TRUE;
-	return (0);	/* The return value of signal handlers
-			 * is not documented.
-			 */
-}
