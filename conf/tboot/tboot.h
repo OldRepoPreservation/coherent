@@ -19,7 +19,6 @@
 #define TRUE	(1==1)
 #define FALSE	(1==2)
 #define WS	" \t"
-#define BIGINT	((int32) 65535L)	/* Largest unsigned int.  */
 #define	NULL	((char *)0)
 #define	FOURK	0x1000	/* 4k page.  Needed for alignment purposes.  */
 #define FOURKBOUNDRY	0xf000
@@ -69,7 +68,7 @@
 #define THE_XDEV	((dev_t)0x02)	/* The whole disk device, rather than partition.  */
 
 /* WAIT_DELAY is how long to wait after finding autoboot before booting.  */
-#define WAIT_DELAY	182	/* 10 seconds * 18.2 clicks per second.  */
+#define WAIT_DELAY	91	/* 5 seconds * 18.2 clicks per second.  */
 
 /* Useful macros.  */
 #define GREATEST(a, b, c) (a > (b>c?b:c) ? a : (b>c?b:c))
