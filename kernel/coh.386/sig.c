@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sig.c,v 1.4 92/10/06 23:48:53 root Exp $ */
+/* $Header: /y/coh.386/RCS/sig.c,v 1.5 92/11/09 17:10:59 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Signal handling.
  *
  * $Log:	sig.c,v $
+ * Revision 1.5  92/11/09  17:10:59  root
+ * Just before adding vio segs.
+ * 
  * Revision 1.4  92/10/06  23:48:53  root
  * Ker #64
  * 
@@ -100,7 +103,7 @@ register void (*func)();
 	case SIGRELSE:
 		pp->p_hsig &= ~s;
 		if (nondsig()) {
-			T_PIGGY( 0x100, printf("a(s)"); );
+			T_PIGGY(0x100, printf("a(s)"););
 			actvsig();
 		}
 	case SIGIGNORE:
@@ -155,10 +158,12 @@ register PROC *pp;
 	register sig_t f;
 	register int s;
 
-	T_PIGGY( 0x40000000,
-	    printf("<send sig: %d, id: %d, state: %x, flags: %x, event: %x>",
+	T_PIGGY(0x40000000,
+	    printf("<send sig: %d, id: %d, state: %x, flags: %x, event: %x, ",
 		   sig, pp->p_pid, pp->p_state, pp->p_flags, pp->p_event);
 	); /* T_PIGGY() */
+
+	T_PIGGY(0x40000000, printf("p_isig=%x>", pp->p_isig));
 
 	/*
 	 * Convert the signal to a bit position.
@@ -168,7 +173,7 @@ register PROC *pp;
 	/*
 	 * If the signal is ignored, do nothing.
 	 */
-	if (pp->p_isig&f) {
+	if (pp->p_isig & f) {
 		goto sendSigDone;
 	}
 
@@ -238,36 +243,40 @@ nondsig()
  */
 actvsig()
 {
-	register int n;
+	register int signum;
 	register PROC *pp;
 	register int (*func)();
 	sig_t s;
+	int ptval;
 
 	/*
 	 * Fetch an unprocessed signal.
 	 * Return if there are none.
 	 */
-	if ((n = nondsig()) == 0)
+	if ((signum = nondsig()) == 0)
 		return;
 
 	pp = SELF;
 
 	/*
 	 * Reset the signal to indicate that it has been processed.
+	 * Bit table p_ssig uses 0-based signals, while signal.h
+	 * lists 1-based signals.
 	 */
-	--n;
-	pp->p_ssig &= ~((sig_t)1<<n);
+	pp->p_ssig &= ~((sig_t)1<<(signum-1));
 
 	/*
 	 * Fetch the user function that goes with this signal.
+	 * Function table u_sfunc uses 0-based signals, while signal.h
+	 * lists 1-based signals.
 	 */
-	func = u.u_sfunc[n];
+	func = u.u_sfunc[signum-1];
 
 	/*
-	 * Store the signal number in the u area.  This is how
-	 * a core dump records the death signal.
+	 * Store the (1-based) signal number in the u area.
+	 * This is how a core dump records the death signal.
 	 */
-	u.u_signo = ++n;
+	u.u_signo = signum;
 
 	/*
 	 * If the signal is not defaulted, go run the requested
@@ -275,9 +284,10 @@ actvsig()
 	 */
 	if (func != SIG_DFL) {
 		if (XMODE_286)
-			oldsigstart(n, func);
-		else
-			msigstart(n, func);
+			oldsigstart(signum, func);
+		else {
+			msigstart(signum, func);
+		}
 		return;
 	}
 
@@ -296,16 +306,16 @@ actvsig()
 	 */
 	if (pp->p_flags&PFTRAC) {
 		pp->p_flags |= PFWAIT;
-		n = ptret();
+		ptval = ptret();
 		pp->p_flags &= ~(PFWAIT|PFSTOP);
-		if (n == 0)
+		if (ptval == 0)
 			return;
 	}
 
 	/*
 	 * Some signals cause a core file to be written.
 	 */
-	switch(n) {
+	switch(signum) {
 	case SIGQUIT:
 	case SIGILL:
 	case SIGTRAP:
@@ -314,10 +324,10 @@ actvsig()
 	case SIGSEGV:
 	case SIGSYS:
 		if (sigdump())
-			n |= 0200;
+			signum |= 0x80;
 		break;
 	}
-	pexit(n);
+	pexit(signum);
 }
 
 /*
@@ -516,7 +526,6 @@ next:
 			}
 			sign = pts.pt_data;
 			if (pts.pt_addr != SIG_IGN) {
-printf("sig new eip:%x<=%x  ", u.u_regl + EIP, pts.pt_addr);
 				u.u_regl[EIP] = pts.pt_addr;
 			}
 			break;

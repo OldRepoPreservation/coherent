@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/seg.c,v 1.2 92/01/06 12:00:15 hal Exp $ */
+/* $Header: /y/coh.386/RCS/seg.c,v 1.7 92/11/09 17:10:57 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -226,11 +226,6 @@ register SEG *sp;
 	lock(seglink);
 
 	--sp->s_lrefc;
-	if (--sp->s_urefc != 0) {
-/*printf("IT SHOULD NEVER HAPPENS\n");*/
-		unlock(seglink);
-		return;
-	}
 
 	sp->s_back->s_forw = sp->s_forw;
 	sp->s_forw->s_back = sp->s_back;
@@ -238,7 +233,7 @@ register SEG *sp;
 	c_free(sp->s_vmem, btoc(sp->s_size));
 
 	unlock(seglink);
-	if (sp->s_lrefc != 0)
+	if (sp->s_lrefc)
 		panic("Bad segment count");
 
 	/*
