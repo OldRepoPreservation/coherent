@@ -2,7 +2,7 @@
 
 # CFLAGS for PDP11
 CFLAGS= -O
-
+DESTDIR= /f1/bin/
 UTILS=\
 	check\
 	clri\
@@ -21,15 +21,15 @@ all:	$(UTILS)
 	: all done
 
 check:	check.o
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
 clri:	clri.o
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
 dcheck:	dcheck.o
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
 icheck:	icheck.o
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
 ncheck:	ncheck.o
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
 
 check.o:	check.h check.c
 clri.o:		clri.c
