@@ -1,15 +1,11 @@
 	.globl	ATSREG
 	.globl	_canl
-	.globl	_idle
 	.globl	aicodep		/ Position of code.
 	.globl	aicodes		/ Size of code.
 	.globl	atbsyw
 	.globl	atdrqw
 	.globl	atrecv
 	.globl	atsend
-	.globl	bdt
-	.globl	bdtend
-	.globl	bdtmap 
 	.globl	boot
 	.globl	clearseg_b
 	.globl	clearseg_d
@@ -58,7 +54,7 @@
 	.globl	kucopy
 	.globl	ldt
 	.globl	ldtend
-	.globl	loc10 
+/	.globl	loc10 
 	.globl	mmuupd
 	.globl	msysgen
 	.globl	outb
@@ -104,6 +100,7 @@
 	.globl	vecs
 	.globl	vret
 	.globl	waitq
+	.globl	write_cmos
 
 	.set	VIDEO,		0x10	/ Video BIOS interrupt for early debugging.
 	.set	BPC1SHIFT,	10	/ BPCSHIFT - log2(sizeof(long))
@@ -143,7 +140,8 @@
 	.set	SEG_386_UI,	0x08	/ 32 bit code segment descriptor (user) 
 	.set	SEG_386_UD,	0x10 	/ 32 bit data segment descriptor (user) 
 	.set	SEG_386_KI,	0x18	/ 32 bit code segment descriptor (kernel)
-	.set	SEG_386_KD,	0x20	/ 32 bit data segment descriptor (kernel)
+	.set	SEG_RNG0_TXT,	0x18	/ synonym for SEG_386_KI
+	.set	SEG_386_KD,	0x21	/ 32 bit data segment descriptor (kernel)
 	.set	SEG_286_UI,	0x28 	/ 16 bit code segment descriptor (user) 
 	.set	SEG_286_UD,	0x30 	/ 16 bit data segment descriptor (user) 
 	.set	SEG_TSS,	0x38 	/ task segment descriptor (386 mode)
@@ -154,6 +152,10 @@
 	.set	SEG_386_ID,	0x60	/ 32 bit data segment (kernel init)
 	.set	SEG_286_UII,	0x68 	/ 16 bit code, sep I/D (user) 
 	.set	SEG_LDT,	0x70	/ local descriptor table index in GDT
+	.set	SEG_RNG0_STK,	0x78	/ Stack for ring 0 CPL
+	.set	SEG_RNG1_TXT,	0x81	/ Text for ring 1
+	.set	SEG_RNG1_STK,	0x89	/ Stack for ring 1 CPL
+
 	.set	SEG_SRW,	0x03
 
 	.set	SEL,	0x08
