@@ -12,7 +12,7 @@
 #include <sys/seg.h>
 #include <signal.h>
 
-
+/* opcodes recognized, and partially emulated, in gp fault handler */
 #define READ_CR0	1
 #define WRITE_CR0	2
 #define READ_CR2	3
@@ -20,11 +20,23 @@
 #define WRITE_CR3	5
 #define HALT		6
 #define IRET		7
-#define WRITE_DR7	8
+#define READ_DR0	8
+#define READ_DR1	9
+#define READ_DR2	10
+#define READ_DR3	11
+#define READ_DR6	12
+#define READ_DR7	13
+#define WRITE_DR0	14
+#define WRITE_DR1	15
+#define WRITE_DR2	16
+#define WRITE_DR3	17
+#define WRITE_DR6	18
+#define WRITE_DR7	19
 
 #define ENTER_OP	0xC8	/* Opcode for 'enter' instruction.  */
 #define IRET_RETRY_LIM	10
 #define RESUME_FLAG	0x10000	/* RF bit in PSW */
+#define TRAP_FLAG	0x00100	/* TF bit in PSW */
 
 extern unsigned char selkcopy();
 extern unsigned int DR0,DR1,DR2,DR3,DR7;
@@ -32,10 +44,8 @@ static int trap_op();
 
 /*
  * Macro RDUMP does register dump, followed by final message.
- * If "do_panic" is nonzero, the macro ends with a panic;
- * otherwise, keep going.
  *
- * Callable only from within trap().
+ * Callable only from within trap() or one of its cousins.
  */
 #define RDUMP() { \
   printf("\neax=%x  ebx=%x  ecx=%x  edx=%x\n", eax, ebx, ecx, edx); \
@@ -64,11 +74,15 @@ extern unsigned int	__xtrap_on__;
 extern unsigned int	__xtrap_break__;
 extern unsigned int	__xtrap_off__;
 extern unsigned int	_Idle;
+extern unsigned int	syc32;
+extern unsigned int	sig32;
 
 /*
  * iretct is cleared in trap(), incremented and tested in gpfault().
+ * iret_flt is set when first bad iret is detected.
  */
 static int iretct;
+static int iret_flt;
 
 /*
  * Trap handler.
@@ -249,14 +263,6 @@ char *eip;
 		 */
 		sigcode = SIGKILL;
 		break;
-#if 0
-	case SIGP:
-		/*
-		 * General protection.
-		 */
-		sigcode = SIGSEGV;
-		break;
-#endif
 	case SIPF:
 		cr2 = read_cr2();
 		/*
@@ -357,46 +363,18 @@ char *eip;
 	}
 
 trapend:
+	/*
+	 * Send user a signal.
+	 * If not a breakpoint, do console register dump.
+	 */
 	if (sigcode) {
-		RDUMP();
-		printf("sigcode=#%d  User Trap\n", sigcode);
+		if (sigcode != SIGTRAP) {
+			RDUMP();
+			printf("sigcode=#%d  User Trap\n", sigcode);
+		}
 		sendsig(sigcode, SELF);
 	}
-	if (efl&0x10000) {
-#if 0
-		RDUMP();
-		panic("Ring 1 V8086");
-#endif
-		efl &= 0xffff;
-	}
 }
-
-/*
- * Debug-only routine to report every IRQPDth occurrence of all irq's.
- *
- */
-#if 0
-static int irqct[16];
-int 	IRQPD=64;
-
-void
-irqblab(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax,
-  trapno, err, eip, cs, efl, uesp, ss)
-{
-	int irqno = (err >> 8) & 0xff;
-
-	/* flag every IRQPDth interrupt of any kind */
-	if (t_hal & 0x20000) {
-		if ((err & 0xff) == 0x40) { /* if hardware interrupt */
-			if ((irqno & 0xf0) == 0) {
-				irqct[irqno]++;
-				if ((irqct[irqno] % IRQPD) == 0)
-					printf("I%d ", irqno);
-			}
-		}
-	}
-}
-#endif
 
 /*
  * trap_op()
@@ -406,6 +384,7 @@ irqblab(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax,
  * Otherwise, return 0.
  *
  * This could be fancier, but all we want to look for is:
+ * (for CRx and DRx, second operand is limited to %eax).
  *	0F 20 C0	READ_CR0
  *	0F 22 C0	WRITE_CR0
  *	0F 20 D0	READ_CR2
@@ -413,7 +392,18 @@ irqblab(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax,
  *	0F 22 D8	WRITE_CR3
  *	CF		IRET
  *	F4		HALT
+ *	0F 23 C0	WRITE_DR0
+ *	0F 23 C8	WRITE_DR1
+ *	0F 23 D0	WRITE_DR2
+ *	0F 23 D8	WRITE_DR3
+ *	0F 23 F0	WRITE_DR6
  *	0F 23 F8	WRITE_DR7
+ *	0F 21 C0	READ_DR0
+ *	0F 21 C8	READ_DR1
+ *	0F 21 D0	READ_DR2
+ *	0F 21 D8	READ_DR3
+ *	0F 21 F0	READ_DR6
+ *	0F 21 F8	READ_DR7
  */
 static int
 trap_op(cs,eip)
@@ -437,6 +427,28 @@ unsigned int cs, eip;
 				break;
 			}
 			break;
+		case 0x21:
+			switch (selkcopy(cs,eip+2)) {
+			case 0xC0:
+				ret = READ_DR0;
+				break;
+			case 0xC8:
+				ret = READ_DR1;
+				break;
+			case 0xD0:
+				ret = READ_DR2;
+				break;
+			case 0xD8:
+				ret = READ_DR3;
+				break;
+			case 0xF0:
+				ret = READ_DR6;
+				break;
+			case 0xF8:
+				ret = READ_DR7;
+				break;
+			}
+			break;
 		case 0x22:
 			switch (selkcopy(cs,eip+2)) {
 			case 0xC0:
@@ -449,6 +461,21 @@ unsigned int cs, eip;
 			break;
 		case 0x23:
 			switch (selkcopy(cs,eip+2)) {
+			case 0xC0:
+				ret = WRITE_DR0;
+				break;
+			case 0xC8:
+				ret = WRITE_DR1;
+				break;
+			case 0xD0:
+				ret = WRITE_DR2;
+				break;
+			case 0xD8:
+				ret = WRITE_DR3;
+				break;
+			case 0xF0:
+				ret = WRITE_DR6;
+				break;
 			case 0xF8:
 				ret = WRITE_DR7;
 				break;
@@ -471,14 +498,15 @@ unsigned int cs, eip;
  *
  * Runs in ring 0.
  */
-__debug__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
+__debug_ker__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
   err, eip, cs, efl, uesp, ss)
 {
-	unsigned int dr6 = read_dr6();
+	unsigned int	dr6 = read_dr6();
+	unsigned	cpl = cs & SEG_PL;
+	int		do_rdump = 1;
 
-	RDUMP();
-	printf("Breakpoint  ");
 	if (dr6 & 0xf) {	/* report breakpoint exception(s) */
+		printf("Breakpoint  ");
 		if (dr6 & 1)
 			printf("DR0=%x  ", DR0);
 		if (dr6 & 2)
@@ -492,15 +520,46 @@ __debug__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 	if (dr6 &  0xf000) {	/* report other debug exception(s) */
 		if (dr6 & 0x8000)
 			printf("Switch to debugged task\n");
-		if (dr6 & 0x4000)
-			printf("Single step\n");
+		if (dr6 & 0x4000) {
+			/* Single Step */
+			switch(cpl) {
+			/*
+			 * If user code trapped, send signal
+			 * and suppress console register dump.
+			 */
+			case DPL_1:
+				/*
+				 * Turn off single-stepping when entering
+				 * Ring 1.
+				 */
+				if (eip == &syc32 || eip == &sig32) {
+					do_rdump = 0;
+				} else {
+printf("/nefl=%x  No single stepping the kernel.\n", efl);
+					SDUMP(uesp);
+				}
+				efl &= ~TRAP_FLAG;
+				break;
+			case DPL_3:
+				do_rdump = 0;
+if (t_hal & 0x20000) {
+	printf("Kernel SSTEP eip=%x efl=%x  ", eip, efl);
+}
+				sendsig(SIGTRAP, SELF);
+				break;
+			}
+		}
 		if (dr6 & 0x2000) {
 			printf("ICE in use\n");
 			eip += 3;
 		}
 	}
+	if (do_rdump) {
+		RDUMP();
+	}
 	write_dr6(0);
 	efl |= RESUME_FLAG;
+	return;
 }
 
 /*
@@ -511,12 +570,11 @@ gpfault(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
   eip, cs, efl, uesp, ss)
 char *eip;
 {
-	unsigned short cpl;
+	unsigned cpl = cs & SEG_PL;
 
 	/*
 	 * Switch on CPL of code that trapped.
 	 */
-	cpl = cs & SEG_PL;
 	switch(cpl) {
 	case DPL_0:
 		/*
@@ -524,7 +582,7 @@ char *eip;
 		 */
 		RDUMP();
 		T_HAL(0x1000, SDUMP(&uesp));
-		panic("System GP Fault 0");
+		panic("System GP Fault from Ring 0");
 		break;
 	case DPL_1:
 		/*
@@ -561,13 +619,67 @@ char *eip;
 			 * from inner ring to ring 3.
 			 * Fix is to retry the instruction a few times.
 			 */
+			if (!iret_flt) {
+				iret_flt = 1;
+				printf("CPU Bug:  "
+				  "Spurious GP Fault on Iret to Ring 3.\n");
+			}
 			iretct++;
 			if (iretct > IRET_RETRY_LIM) {
 				RDUMP();
 				SDUMP(uesp);
-				panic("System GP Fault 1 - iret");
+				panic("System GP Fault from Ring 1 - iret");
 			}
 			break;
+		case READ_DR0:
+			eax = read_dr0();
+			eip += 3;
+			break;
+		case READ_DR1:
+			eax = read_dr1();
+			eip += 3;
+			break;
+		case READ_DR2:
+			eax = read_dr2();
+			eip += 3;
+			break;
+		case READ_DR3:
+			eax = read_dr3();
+			eip += 3;
+			break;
+		case READ_DR6:
+			eax = read_dr6();
+			eip += 3;
+			break;
+		case READ_DR7:
+			eax = read_dr7();
+			eip += 3;
+			break;
+		case WRITE_DR0:
+			write_dr0(eax);
+			eip += 3;
+			break;
+		case WRITE_DR1:
+			write_dr1(eax);
+			eip += 3;
+			break;
+		case WRITE_DR2:
+			write_dr2(eax);
+			eip += 3;
+			break;
+		case WRITE_DR3:
+			write_dr3(eax);
+			eip += 3;
+			break;
+		case WRITE_DR6:
+			write_dr6(eax);
+			eip += 3;
+			break;
+		case WRITE_DR7:
+			write_dr7(eax);
+			eip += 3;
+			break;
+#if 0
 		case WRITE_DR7:
 			/*
 			 * Expect breakpoint info in globals DR0-3,DR7.
@@ -581,6 +693,7 @@ printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
 			write_dr7(DR7);
 			eip += 3;
 			break;
+#endif
 		default:
 			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
 				SET_U_ERROR(EFAULT, "copy service");
@@ -588,7 +701,7 @@ printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
 			} else {
 				RDUMP();
 				T_HAL(0x1000, SDUMP(uesp));
-				panic("System GP Fault 1");
+				panic("System GP Fault from Ring 1");
 			}
 		}
 		goto gpdone;
@@ -607,8 +720,74 @@ printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
 		break;
 	}
 gpdone:
-	if (efl & 0xffff0000) {
-		efl &= 0xffff;
+	return;
+}
+
+/*
+ * User debugger.
+ *
+ * Runs in ring 1.
+ */
+__debug_usr__(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
+  err, eip, cs, efl, uesp, ss)
+{
+	unsigned int	dr6 = read_dr6();
+	unsigned	cpl = cs & SEG_PL;
+	int		do_rdump = 1;
+
+	if (dr6 & 0xf) {	/* report breakpoint exception(s) */
+		printf("Breakpoint  ");
+		if (dr6 & 1)
+			printf("DR0=%x  ", DR0);
+		if (dr6 & 2)
+			printf("DR1=%x  ", DR1);
+		if (dr6 & 4)
+			printf("DR2=%x  ", DR2);
+		if (dr6 & 8)
+			printf("DR3=%x  ", DR3);
+		printf("DR7=%x\n", DR7);
 	}
+	if (dr6 &  0xf000) {	/* report other debug exception(s) */
+		if (dr6 & 0x8000)
+			printf("Switch to debugged task\n");
+		if (dr6 & 0x4000) {
+			/* Single Step */
+			switch(cpl) {
+			/*
+			 * If user code trapped, send signal
+			 * and suppress console register dump.
+			 */
+			case DPL_1:
+				/*
+				 * Turn off single-stepping when entering
+				 * Ring 1.
+				 */
+				if (eip == &syc32 || eip == &sig32) {
+					do_rdump = 0;
+				} else {
+printf("/nefl=%x  No single stepping the kernel.\n", efl);
+					SDUMP(uesp);
+				}
+				efl &= ~TRAP_FLAG;
+				break;
+			case DPL_3:
+				do_rdump = 0;
+if (t_hal & 0x20000) {
+	printf("User SSTEP eip=%x efl=%x  ", eip, efl);
+}
+				sendsig(SIGTRAP, SELF);
+				break;
+			}
+		}
+		if (dr6 & 0x2000) {
+			printf("ICE in use\n");
+			eip += 3;
+		}
+	}
+	if (do_rdump) {
+		RDUMP();
+	}
+	write_dr6(0);
+	efl |= RESUME_FLAG;
 	return;
 }
