@@ -17,7 +17,7 @@
 */
 
 #ifndef VERSION
-#define	VERSION	"smail2.5-coherent"
+#define	VERSION	"smail2.5.2-coh"
 #endif
 
 /* COHERENT is compiler a defined symbol.  */
@@ -161,7 +161,7 @@
 #endif
 
 #define LOG	"/usr/spool/uucp/.Log/mail/mail"	/* log of uucp mail */
-/*#define RECORD	"/tmp/mail.log"		/* record of uucp mail */
+/* #define RECORD	"/log/mail.log"		/* record of uucp mail */
 
 /*
 **  Mailer options:
@@ -175,17 +175,17 @@
 */	
 
 #ifndef UUX
-#define UUX		"exec /usr/bin/uux"	/* location of uux command   */
+#define UUX		"/usr/bin/uux"	/* location of uux command   */
 #endif
 
 #ifndef SMAIL
-#define SMAIL		"exec /bin/smail"	/* location of smail command */
+#define SMAIL		"/bin/smail"	/* location of smail command */
 #endif
 
 /*
 ** command used to retry failed mail, flag is used to set the routing level.
 */
-#define VFLAG		((debug == VERBOSE)?"-v":"")
+#define VFLAG		((debug == YES)?"-d":((debug == VERBOSE)?"-v":""))
 #define RETRY(flag)	"%s %s %s -f %s ", SMAIL, VFLAG, flag, spoolfile
 
 /*
@@ -219,7 +219,7 @@
 #ifdef BSD
 #define LMAIL(frm,sys)		"/bin/mail"	/* BSD local delivery agent */
 #else
-#define LMAIL(frm,sys)		"exec /bin/lmail"	/* SV  local delivery agent */
+#define LMAIL(frm,sys)		"/bin/lmail"	/* SV  local delivery agent */
 #endif
 
 #define LARG(user)		" '%s'",postmaster(user)
@@ -250,7 +250,10 @@
 #define DEFQUEUE			/* default is to queue uux jobs */
 
 #define QUEUECOST		100	/* deliver immediately if the cost
-					/* is DEDICATED+LOW or better */
+					** is DEDICATED+LOW or better
+					*/
+
+#define DEFCOST		QUEUECOST + 1	/* Default cost value.  */
 
 #define MAXNOQUEUE		1	/* max UUX_NOQUEUE jobs         */
 
@@ -300,6 +303,7 @@
 #define MAXPATH	32	/* number of elements in ! path */
 #define MAXDOMS	16	/* number of subdomains in . domain */
 #define MAXARGS	500	/* number of arguments */
+#define WS	" \t"	/* white space for paths file */
 #ifndef NULL
 #define NULL	0
 #endif
