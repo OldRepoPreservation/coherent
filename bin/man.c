@@ -1,6 +1,6 @@
 /*
  * maninx.c
- * 5/2/90
+ * 10/15/90
  * Usage: man [ -w ] [ topic ... ]
  * Quick and dirty man hack.
  * Reads manual index, scats manual section.
@@ -9,10 +9,13 @@
 #include <stdio.h>
 
 #define	BBBIGBUF	32000			/* manual index buffer */
+#define	DEFPAGER	"exec /bin/scat -s"	/* default $PAGER */
+#define	MANHELP		"/usr/man/man.help"	/* manual help file */
+#define	MANINX		"/usr/man/man.index"	/* manual index */
 #define	NBUF		80			/* other buffers */
-#define	MANHELP	"/usr/man/man.help"
-#define	MANINX	"/usr/man/man.index"
+#define	VERSION		"1.2"			/* version id */
 
+extern	char	*getenv();
 extern	char	*index();
 
 /* Globals. */
@@ -20,6 +23,7 @@ char	buf[NBUF];
 char	cmd[NBUF];
 char	*indexp;
 char	manindex[BBBIGBUF];
+char	*pager;
 int	wflag;
 
 /* Forward. */
@@ -34,17 +38,28 @@ main(argc, argv) int argc; char *argv[];
 	int	found;
 
 	status = 0;
+
+	/* Look for environmental $PAGER. */
+	if ((pager = getenv("PAGER")) == NULL)
+		pager = DEFPAGER;
+		
 	if (argc > 1 && strcmp(argv[1], "-w") == 0) {
 		++wflag;
 		--argc;
 		++argv;
-	}	
+	}
+	if (argc > 1 && strcmp(argv[1], "-V") == 0) {
+
+		fprintf(stderr, "man: V%s\n", VERSION);
+		--argc;
+		++argv;
+	}
 	if (argc == 1) {
 		/* No args: print manual help information. */
 		if (wflag)
 			printf("%s\n", MANHELP);
 		else {
-			sprintf(cmd, "scat %s", MANHELP);
+			sprintf(cmd, "%s %s", pager, MANHELP);
 			system(cmd);
 		}
 		exit(status);
@@ -77,7 +92,7 @@ main(argc, argv) int argc; char *argv[];
 			if (wflag)
 				printf("/usr/man/%s\n", lp);
 			else {
-				sprintf(cmd, "scat -s '/usr/man/%s'", lp);
+				sprintf(cmd, "%s '/usr/man/%s'", pager, lp);
 #if	DEBUG
 				nonfatal("command=%s", cmd);
 #endif
