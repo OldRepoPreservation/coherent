@@ -1,4 +1,4 @@
-static char _version[]="ps version 2.4";
+static char _version[]="ps version 2.6";
 /*
  *	Modifications copyright INETCO Systems Ltd.
  *
@@ -49,8 +49,8 @@ static char _version[]="ps version 2.4";
 #include <sys/seg.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
-#include <sys/signal.h>
 #include <sys/mmu.h>
+#include <signal.h>
 #include <access.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -85,7 +85,7 @@ struct handle {
  * Functions to see if a pointer is in alloc space and to map a
  * pointer from alloca space to this process.
  */
-#define map(p)		(&(allp[(char *)p - (char *) callocp.sr_base]))
+#define map(p)		(&(allp[(char *)(p) - (char *) callocp.sr_base]))
 
 /*
  * For easy referencing.
@@ -168,7 +168,13 @@ main(argc, argv)
 	register int i;
 	register char *cp;
 
+#if 0
+fprintf(stderr, "initialise()\n");	/* DEBUG */
+#endif /* 0 */
 	initialise();
+#if 0
+fprintf(stderr, "parse args()\n");	/* DEBUG */
+#endif /* 0 */
 	for (i=1; i<argc; i++) {
 		for (cp=&argv[i][0]; *cp; cp++) {
 			switch (*cp) {
@@ -229,7 +235,14 @@ main(argc, argv)
 		}
 	}
 
+#if 0
+fprintf(stderr, "execute()\n");	/* DEBUG */
+#endif /* 0 */
 	execute();
+
+#if 0
+fprintf(stderr, "exit(0)\n");	/* DEBUG */
+#endif /* 0 */
 	exit(0);
 }
 
@@ -284,7 +297,9 @@ usage()
  */
 execute()
 {
+	int fd;
 	int c, l;
+	int loop_count;		/* Keep track of the number of entries read.  */
 	register PROC *pp1, *pp2;
 
 #if 0
@@ -294,11 +309,17 @@ execute()
 
 	/*
 	 * Check to see if the desired kernel exists and is accessable.
+	 * NB: the access() system call uses the REAL uid to check
+	 * permissions--it will not work here.
 	 */
-	if (0 != access(nfile, AREAD)) {
+	if (-1 == (fd = open(nfile, O_RDONLY))) {
 		panic("%s is not readable or does not exist.", nfile);
 	}
+	close(fd);
 
+#if 0
+fprintf(stderr, "Extract symbol information from the kernel %s.\n", nfile);	/* DEBUG */
+#endif /* 0 */
 	/*
 	 * Extract symbol information from the kernel.
 	 */
@@ -310,6 +331,10 @@ execute()
 		panic("Bad namelist file %s", nfile);
 	}
 
+#if 0
+fprintf(stderr, "Open the physical memory device.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 	/*
 	 * Open the physical memory device.
 	 */
@@ -317,6 +342,10 @@ execute()
 		panic("Cannot open %s", mfile);
 	}
 
+#if 0
+fprintf(stderr, "Open the virtual memory device.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 	/*
 	 * Open the virtual memory device.
 	 */
@@ -330,10 +359,9 @@ execute()
 	dfd = open(dfile, 0);
 
 #if 0
-	printf("Fetch the head of the process queue.\n");
-	fflush(stdout);
+fprintf(stderr, "Fetch the head of the process queue.\n");	/* DEBUG */
+fflush(stderr);
 #endif /* 0 */
-
 	/*
 	 * Fetch the head of the process queue.
 	 */
@@ -345,6 +373,11 @@ execute()
 	kread((long)asysmem, &sysmem, sizeof (sysmem));
 
 	
+
+#if 0
+fprintf(stderr, "Take a snapshot of kernel memory.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 	/*
 	 * Take a snapshot of kernel memory.
 	 */
@@ -359,18 +392,42 @@ execute()
 		panic( "Out of core or invalid kernel specified" );
 	}
 
+#if 0
+fprintf(stderr, "kread(%x, %x, %x)\n",	/* DEBUG */
+		(unsigned long)callocp.sr_base, allp, callocp.sr_size);
+fflush(stderr);
+#endif /* 0 */
+
 	kread((unsigned long)callocp.sr_base, allp, callocp.sr_size);
 
 
-	/* Fetch the current tick time.  */
+#if 0
+fprintf(stderr, "Fetch the current tick time.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+	/*
+	 * Fetch the current tick time.
+	 */
 	kread((long)autime, &cutime, sizeof (cutime));
 
-	/* Find out what our controlling terminal is.  */
+#if 0
+fprintf(stderr, "Find out what our controlling terminal is.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+	/*
+	 * Find out what our controlling terminal is.
+	 */
 	settdev();
 
 	fttys( "/dev");	/* load all the devices in dev */
 
-	/* Calculate the length of the output line.  */
+#if 0
+fprintf(stderr, "Calculate the length of the output line.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+	/*
+	 * Calculate the length of the output line.
+	 */
 	l = strlen("TTY       PID");
 	if (dbflag)
 		l += strlen("0xffffffff ");
@@ -398,9 +455,22 @@ execute()
 		fflush(stdout);
 	}
 
-	/* Walk through the process queue printing out each entry.  */
+#if 0
+fprintf(stderr, "Walk through the process queue printing out each entry.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+	/*
+	 * Walk through the process queue printing out each entry.
+	 */
+	loop_count = 0;	/* How many PROC entries have we seen?  */
 	pp1 = &cprocq;
 	while ((pp2=pp1->p_nback) != (PROC *) aprocq) {
+		loop_count++;
+
+#if 0
+fprintf(stderr, "count: %d\n", loop_count);	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 
 		if (range((char *)pp2) == 0)
 			panic("Fragmented list");
@@ -410,27 +480,47 @@ execute()
 		 * Kernel process - display only if '-d' argument given.
 		 */
 		if ( pp1->p_flags & PFKERN ) {
-			if ( dflag == 0 )
+#if 0
+fprintf(stderr, "PFKERN\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+			if ( dflag == 0 ) {
 				continue;
+			}
 		}
 
 		/*
 		 * Unattached process - display only if '-x' argument given.
 		 */
 		else if ( pp1->p_ttdev == NODEV ) {
-			if ( xflag == 0 )
+#if 0
+fprintf(stderr, "NODEV\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+			if ( xflag == 0 ) {
 				continue;
+			}
 		}
 
 		/*
 		 * Attached to other terminal - display only if '-a' arg given.
 		 */
 		else if ( pp1->p_ttdev != ttdev ) {
+#if 0
+fprintf(stderr, "Other tty\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 			if ( aflag == 0 )
 				continue;
 		}
 
-		/* ASSERTION: pp1 is a proc entry we want to print.  */
+#if 0
+fprintf(stderr, "ASSERTION: pp1 is a proc entry we want to print.\n");	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+		/*
+		 * ASSERTION: pp1 is a proc entry we want to print.
+		 */
 
 		if (dbflag)
 			printf("0x%8x ", pp2);
@@ -485,13 +575,45 @@ settdev()
 {
 	register PROC *pp1, *pp2;
 	register int p;
+	int loop_count;
 
 	p = getpid();
 	pp1 = &cprocq;
+
+	loop_count = 0;	/* How many PROC entries have we seen?  */
 	while ((pp2=pp1->p_nforw) != (PROC *) aprocq) {
+		loop_count++;
+#if 0
+fprintf(stderr, "settdev() count: %d\n", loop_count);	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+		
+#if 0
+fprintf(stderr, "range():sr_base: %x < %x < sr_base + sr_size: %x\n",
+		callocp.sr_base, pp2, callocp.sr_base + callocp.sr_size);	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 		if (range((char *)pp2) == 0)
 			break;
+
+#if 0
+fprintf(stderr, "About to map %x\n", pp2);	/* DEBUG */
+fflush(stderr);
+
+fprintf(stderr, "offset = (%x - sr_base) = %x \n",
+		pp2, ((char *)pp2) - callocp.sr_base );	/* DEBUG */
+fflush(stderr);
+fprintf(stderr, "(allp:%x + offset): \n",
+		allp, allp + ( ((char *) pp2) - ( (char *) callocp.sr_base) ) );	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
+
 		pp1 = map(pp2);
+
+#if 0
+fprintf(stderr, "mapped %x to %x\n", pp2, pp1);	/* DEBUG */
+fflush(stderr);
+#endif /* 0 */
 		if (pp1->p_pid == p) {
 			ttdev = pp1->p_ttdev;
 			return;
@@ -1031,7 +1153,7 @@ panic(a1)
  */
 int
 range(p)
-	char *p;	/* Ignored. */
+	char *p;
 {
 	return (p>=(char *)(callocp.sr_base) &&
 			 p<(char*)(callocp.sr_base + callocp.sr_size));
