@@ -1,424 +1,385 @@
 /*
- * main.c
- * Nroff/Troff.
- * Main program and initialization.
+ * sh/main.c
+ * The Bourne shell.
+ * Main program, initialization and miscellaneous routines.
  */
 
-#include <ctype.h>
-#if	MSDOS
-#include <types.h>
-#include <stat.h>
-#else
-#include <sys/types.h>
-#include <sys/stat.h>
-#endif
-#include <time.h>
-#include <path.h>
-#include <string.h>
-#include "roff.h"
+#include <sys/param.h>
+#include "sh.h"
 
-extern	char	*getenv();
-extern	char	*path();
-extern	time_t	time();
-#ifdef	GEMDOS
-extern	char	*tempnam();
-#else
-extern	char	*mktemp();
-#endif
-
-#ifdef	GEMDOS
-unsigned long _stksize = 0x8000L;
-#endif
-
-static	int	kflag;		/* keep tmp file for debug purposes	*/
-static	char	template[sizeof(TMPLATE)+1] = TMPLATE;
-static	char	*tempname;	/* temp file name			*/
-
-main(argc, argv) int argc; char *argv[];
+main(argc, argv, envp)
+char *argv[];
+char *envp[];
 {
-	register int i, fileflag, iflag;
-	register char *libpath, *cp;
-	register REG *rp;
-	char c, name[2];
-
-	argv0 = (ntroff == NROFF) ? "nroff" : "troff";
-	cp = getenv((ntroff == NROFF) ? "NROFF" : "TROFF");
-	if (cp != NULL && *cp != '\0')
-		addargs(cp, &argc, &argv);
-	initialize(argc, argv);
-
-	/*
-	 * Process specified input files.
-	 * initialize() already handled most options.
-	 */
-	fileflag = iflag = 0;
-	for (i = 1; i < argc; i++) {
-		cp = argv[i];
-		if (*cp != '-') {
-			/* Process non-option argument. */
-			fileflag = 1;
-			if (adsfile(cp) != 0)
-				process();
-			continue;
-		}
-
-		/* Process '-'-option argument. */
-		c = *++cp;			/* argv[i][1] */
-		cp++;				/* &argv[i][2] */
-		if (c == 'i')
-			iflag = 1;		/* process stdin when done */
-		else if (c == 'f')
-			++i;			/* ignore tempfile arg */
-		else if (c == 'm') {
-			/* Process "-m" macro package argument. */
-			sprintf(miscbuf, TMACFMT, cp);
-			libpath = DEFLIBPATH;
-			if ((libpath = path(libpath, miscbuf, AREAD)) != NULL)
-				strcpy(miscbuf, libpath);
-#if	(DDEBUG & DBGFILE)
-			printd(DBGFILE, "tmac file = %s\n", miscbuf);
-#endif
-			adsfile(miscbuf);
-			process();
-		} else if (c == 'n') {
-			/* Reset page number. */
-			pno = atoi(cp);
-			npn = pno + 1;
-		} else if (c == 'r' && *cp != '\0') {
-			/* Reset register value. */
-			name[0] = *cp++;
-			if (isdigit(*cp))
-				name[1] = '\0';
-			else
-				name[1] = *cp++;
-			rp = getnreg(name);
-			rp->n_reg.r_nval = atoi(cp);
-			if (rp == nrpnreg)		/* Page # register */
-				npn = pno + 1;		/* Set next page # */
-		}
+	sarg0 = argc>0 ? argv[0] : "";
+	fakearg(0, argc, argv, envp);
+	if (argc>0 && argv[0][0]=='-') {
+		lgnflag = 1;
+		umask(ufmask=022);
+	} else if (argc>0 && argv[0][0]=='+') {
+		dflttrp(IBACK);		/* for security, no <Ctrl-C> out of /etc/profile */
+		lgnflag = 2;
+		umask(ufmask=022);
+	} else {
+		umask(ufmask=umask(ufmask));
 	}
-	if (fileflag == 0 || iflag != 0) {
-		/* Process standard input. */
-		adsunit(stdin);
-		process();
+
+	if (setjmp(restart) != 0) {
+		/* reentry for shell command file execution */
+		fakearg(1, nargc, nargv, nenvp);
+		argc = nargc;
+		argv = nargv;
+		envp = nenvp;
+		cmdflag++;
+		nllflag = 0;
 	}
-	if (iestackx != -1)
-		printe(".ie without matching .el");
-	leave(0);
+
+	shpid = getpid();
+	initvar(envp);
+	cleanup(1, NULL);
+	if (set(argc, argv, 1))
+		return(1);
+	if (cflag) {
+		if (sargp[0]==NULL) {
+			printe("No string for -c?");
+			return(1);
+		}
+		--sargc;
+		session(SARGS, *sargp++);
+	} else if (!sflag && !iflag && sargc!=0) {
+		sarg0 = *sargp++;
+		--sargc;
+		if (scmdp == NULL)
+			scmdp = sarg0;
+		session(SFILE, scmdp);
+	} else {
+		session(SSTR, stdin);
+	}
+	cleanup(2, NULL);
+	return (slret);
 }
 
 /*
- * Open temp file, set up registers and general initialization.
+ * Make the arg listing of ps come out right.
+ *	f == 0, first entry, determine buffer limits.
+ *	f != 0, later entry, fill buffer with lies.
  */
-initialize(argc, argv) int argc; char *argv[];
+fakearg(f, argc, argv, envp)
+int f, argc;
+char **argv, **envp;
 {
-	register REG *rp;
-	register REQ *qp;
-	register int i;
-	int Dflag, tmparg;
-	char *s;
-
-	A_reg = ntroff==NROFF;
-
-	/*
-	 * Pass over args, process those dealing with global initialization.
-	 * main() makes another pass over the arg list to process input files.
-	 */
-	Dflag = tmparg = 0;
-	for (i = 1; i < argc; i++) {
-		if (argv[i][0] != '-')
-			continue;
-		switch (argv[i][1]) {
-		case 'a':
-			A_reg = 1;
-			continue;
-		case 'd':
-#if	DDEBUG
-			if (argv[i][2] != '\0') {
-				dbglvl = atoi(&argv[i][2]);
-				dbginit();
-			} else
-#endif
-				dflag++;
-			continue;
-		case 'D':
-			Dflag = 1;
-			continue;
-		case 'f':
-			if (i < (argc-1))
-				tmparg = ++i;
-			else
-				panic("-f option requires file argument");
-			continue;
-		case 'i':
-			continue;	/* handled in main() */
-		case 'K':
-		case 'k':
-			kflag++;
-			continue;
-		case 'l':
-			lflag = 1;
-			continue;
-		case 'm':
-			continue;	/* handled in main() */
-		case 'n':
-			continue;	/* handled in main() */
-		case 'p':
-			pflag = 1;
-			continue;
-		case 'r':
-			continue;	/* handled in main() */
-#ifndef GEMDOS
-		case 'T':
-			if (ntroff == NROFF)
-				T_reg = 1;
-			continue;
-#endif
-		case 'x':
-			xflag++;
-			continue;
-		case 'V':
-		case 'v':
-			fprintf(stderr, "%s: V%s\n", argv0, VERSION);
-			continue;
-#if	ZKLUDGE
-		case 'Z':
-			if (argv[i][2] != '\0')
-				Zflag = atoi(&argv[i][2]);
-			else
-				Zflag = ZPAGES;
-			continue;
-#endif
-		default:
-			fprintf(stderr, "%s: illegal option: %s\n", argv0, argv[i]);
-			/* fall through... */
-		case '?':
-			usage();
-		}
-	}
-
-	/* Initialize tempfile. */
-#ifdef	GEMDOS
-	tempname = (tmparg) ? argv[tmparg] : tempnam(0L, "nroff");
-#else
-	tempname = (tmparg) ? argv[tmparg] : mktemp(template);
-#endif
-	dprint2(DBGFILE, "temp file name = %s\n", tempname);
-	if ((tmp=fopen(tempname, "wb")) == NULL)
-		panic("cannot create temp file");
-	else if (freopen(tempname, "rwb", tmp) == NULL)
-		panic("cannot reopen temp file");
-	tmpseek = ENVSIZE * sizeof (ENV);
-	tmpseek = (tmpseek+DBFSIZE+DBFSIZE-1) & ~(DBFSIZE-1);
-
-#ifdef	GEMDOS
-	/*
-	 * GEMDOS lseek does not produce sparse files;
-	 * this makes it necessary to write the beginning of nroff's work file.
-	 */
-	memset(diskbuf, '\0', DBFSIZE);
-	for (i = 0; i < tmpseek; i += DBFSIZE) {
-		dprintd(DBGFILE, "initializing tempfile\n");
-		if (write(fileno(tmp), diskbuf, DBFSIZE) != DBFSIZE)
-			panic("temp file write error");
-	}
-#endif
-#ifdef	COHERENT
-	/*
-	 * Unlinking temp file immediately under COHERENT makes it
-	 * go away if program is interrupted with <Ctrl-C>;
-	 * under GEMDOS it would destroy the file immediately,
-	 * so it is done under leave() below.
-	 */
-	if (kflag == 0)
-		unlink(tempname);
-#endif
-
-	/* Copy .pre-file if it exists. */
-	if (!Dflag) {
-		s = (lflag) ? PRE_L : PRE_P;
-		if (lib_file(s, 0) == 0 & ntroff == TROFF)
-			printe("file \"%s\" not found", s);
-	}
-	
-	/* Initialize globals. */
-	dev_init();		/* output writer-specific initialization */
-	for (i = 0; i < NWIDTH; i++)
-		trantab[i] = i;				/* translation table */
-	for (i = 0; i < RHTSIZE; i++)
-		regt[i] = NULL;				/* request hash table */
-	for (qp = reqtab; qp->q_name[0]; qp++) {	/* built-in requests */
-		rp = makereg(qp->q_name, RTEXT);
-		rp->t_reg.r_macd.r_div.m_next = NULL;
-		rp->t_reg.r_macd.r_div.m_type = MREQS;
-		rp->t_reg.r_macd.r_div.m_func = qp->q_func;
-	}
-
-	/* Create built in registers. */
-	/* UNDONE: "c.", same as ".c" */
-	nrpnreg = getnreg("%");
-	nrctreg = getnreg("ct");
-	nrdlreg = getnreg("dl");
-	nrdnreg = getnreg("dn");
-	nrdwreg = getnreg("dw");
-	nrdyreg = getnreg("dy");
-	nrhpreg = getnreg("hp");
-	nrlnreg = getnreg("ln");
-	nrmoreg = getnreg("mo");
-	nrnlreg = getnreg("nl");
-	nrsbreg = getnreg("sb");
-	nrstreg = getnreg("st");
-	nryrreg = getnreg("yr");
-	setnreg();
-
-	/* Environment initialization. */
-	envset();
-	envinit[0] = 1;
-
-	/* Etc. */
-	iestackx = -1;
-	cdivp = NULL;
-	newdivn("\0\0");
-	mdivp = cdivp;
-#ifdef	GEMDOS
-	if (((long)mdivp) & 1L)
-		panic("diversion buffer odd alignment");
-#endif
-	endtrap[0] = '\0';
-	strp = NULL;
-	pgl = (lflag) ? unit(17*SMINCH, 2*SDINCH) : unit(11*SMINCH, SDINCH);
-	pno = 1;
-	npn = 2;
-	esc = '\\';
-
-	/* Load default fonts for troff, initialize font numbers. */
-	i = lib_file("fonts.r", 1);
-	if (ntroff == TROFF && i == 0)
-		panic("fonts.r not found");
-	if (Dflag) {
-		font_display();
-		exit(0);
-	}
-	if (setfont("R", 1) == -1)
-		leave(1);			/* font R is mandatory */
-	tfn = curfont;				/* tab character font */
-	if ((ufn = font_num("I")) == -1)	/* underline font number */
-		ufn = curfont;
-
-	/* Process special character definitions. */
-	lib_file("specials.r", 1);		/* special characters */
-#if	(DDEBUG & DBGCHEK)
-	printd(DBGFUNC, "initialized...\n");
-#endif
-}
-
-/*
- * Initialize pre-defined number registers.
- */
-setnreg()
-{
-	time_t curtime;
-	register struct tm *tmp;
-
-	curtime = time((time_t *)0);
-	tmp = localtime(&curtime);
-	nryrreg->n_reg.r_nval = tmp->tm_year % 100;
-	nrmoreg->n_reg.r_nval = tmp->tm_mon + 1;
-	nrdyreg->n_reg.r_nval = tmp->tm_mday;
-	nrdwreg->n_reg.r_nval = tmp->tm_wday + 1;
-}
-
-/*
- * Leave.
- */
-leave(n)
-{
-	char name[2];
-	static int depth = 0;
-
-	if(n == 0 && depth++ == 0) {
-		if (endtrap[0] != '\0') {
-			name[0] = endtrap[0];
-			name[1] = endtrap[1];
-			endtrap[0] = '\0';
-			execute(name);
-		}
-		setbreak();
-		if (xflag == 0) {
-			byeflag = 1;
-			pspace();
-		}
-	}
-
-#ifndef COHERENT
-#if	(DDEBUG & DBGFILE)
-	{
-		struct stat statblk;
-
-		fclose(tmp);			/* Close the temp file.	*/
-		stat(tempname, &statblk);	/* so we can stat it.	*/
-		printd(DBGFILE, "deleting temporary file %s, size = %ld\n",
-			tempname, statblk.st_size);
-	}
-#endif
-	/* Unlink temp file if not COHERENT. */
-	if (kflag == 0)
-		unlink(tempname);
-#endif
-	exit(n);
-}
-
-/*
- * Print a fatal usage message and die.
- */
-usage()
-{
-	fprintf(stderr, "Usage: %s [ option ... ] [ file ... ]\n",
-		ntroff == NROFF ? "nroff" : "troff");
-	fprintf(stderr, "Options:\n");
-	fprintf(stderr, "\t-d\tDebug: print each request before executing\n");
-	if (ntroff == TROFF)
-		fprintf(stderr, "\t-D\tDisplay available fonts\n");
-	fprintf(stderr, "\t-f name\tWrite temporary file in file name\n");
-	fprintf(stderr, "\t-i\tRead stdin after each file has been read\n");
-	fprintf(stderr, "\t-k\tKeep temporary file\n");
-	if (ntroff == TROFF)
-		fprintf(stderr, "\t-l\tLandscape mode\n");
-	fprintf(stderr, "\t-mname\tRead macro package /usr/lib/tmac.name\n");
-	fprintf(stderr, "\t-nN\tNumber first page of output N (default, 1)\n");
-	if (ntroff == TROFF)
-		fprintf(stderr, "\t-p\tProduce PostScript output\n");
-	fprintf(stderr, "\t-raN\tSet number register a to value N\n");
-	fprintf(stderr, "\t-x\tDo not eject to bottom of final page\n");
-	leave(1);
-}
-
-/*
- * cp contains space-separated environmental args to be added to argv.
- * Change argc/argv accordingly.
- */
-addargs(cp, argcp, argvp) char *cp; int *argcp; char ***argvp;
-{
+	static char *fbuf;
+	static int nbuf;
 	register int n;
-	register char *s, **nargv, **np;
 
-	for (s = cp, n = 1; *s != '\0'; s++)
-		if (*s == ' ')
-			++n;		/* number of added args */
-	*argcp += n;			/* bump argc */
-	np = nargv = (char **)nalloc((*argcp + 1) * sizeof (char *)); /* allocate */
-	*np++ = *(*argvp)++;		/* copy old argv0 */
-	for (s = cp; *s != '\0'; ) {
-		*np++ = s;		/* store pointer to new arg */
-		while (*s != '\0' && *s != ' ')
-			s++;		/* scan to NUL or space */
-		if (*s == ' ')
-			*s++ = '\0';	/* NUL-terminate space-separated args */
+	if (f == 0) {
+		fbuf = argv[0];
+		nbuf = 0;
+		if (envp != NULL && envp[0] != NULL) {
+			while (envp[1] != NULL)
+				envp += 1;
+			nbuf = envp[0] - fbuf + strlen(envp[0]) - 1;
+		} else if (argc > 0)
+			nbuf = argv[argc-1] - fbuf + strlen(argv[argc-1]) - 1;
+	} else {
+		if (fbuf == NULL || nbuf == 0)
+			return;
+		n = 0;
+		fbuf[0] = 0;
+		while (--argc > 0) {
+			argv += 1;
+			n += strlen(argv[0]) + 1;
+			if (n >= nbuf)
+				break;
+			strcat(fbuf, argv[0]);
+			strcat(fbuf, " ");
+		}
+		strcat(fbuf, "\1");	/* non-ascii terminator */
 	}
-	while (**argvp != NULL)
-		*np++ = *(*argvp)++;	/* copy old argv */
-	*np = NULL;			/* NULL-terminate new argv */
-	*argvp = nargv;			/* pass back new argv */
 }
 
-/* end of main.c */
+/*
+ * Loop on input.
+ */
+session(t, p)
+register char *p;
+{
+	SES s;
+	register int rcode;
+
+	s.s_next = sesp;
+	sesp = &s;
+	s.s_bpp = savebuf();
+
+	switch (s.s_type = t) {
+	case SARGS:
+		s.s_strp = p;
+		s.s_flag = 0;
+		break;
+	case SARGV:
+		s.s_argv = (char **) p;
+		if ((s.s_strp = s.s_argv[0]) == NULL)
+			return (0);
+		s.s_flag = 0;
+		break;
+	case SFILE:
+		s.s_strp = p;
+		if ((s.s_ifp = fopen(s.s_strp, "r")) == NULL) {
+			ecantopen(s.s_strp);
+			return (1);
+		}
+		s.s_flag = isatty(fileno(s.s_ifp)) && isatty(2);
+		break;
+	case SSTR:
+		s.s_strp = NULL;
+		s.s_ifp = (FILE *) p;
+		s.s_flag = isatty(fileno(s.s_ifp)) && isatty(2);
+		break;
+	}
+
+	if (s.s_next == NULL) {		/* Initial entry */
+		if (iflag)
+			s.s_flag = iflag;
+		else
+			iflag = s.s_flag;
+		if (lgnflag != 2)
+			dflttrp(IRDY);	/* allow <Ctrl-C> unless "+sh" */
+	}
+
+	/* Loop on input */
+	for (;;) {
+		rcode = setjmp(s.s_envl);
+		switch (rcode) {
+		case RSET:	/* initial setjmp call */
+			switch (lgnflag) {
+			case 1:		/* - sign invocation */
+				lgnflag = 0;
+				if (ffind("/etc", "profile", 4))
+					session(SFILE, duplstr(strt, 0));
+				recover(IPROF);
+				if (*vhome && ffind(vhome, ".profile", 4))
+					session(SFILE, duplstr(strt, 0));
+				break;
+			case 2:		/* + sign invocation */
+				lgnflag = 0;
+				if (ffind("/etc", "profile", 4))
+					session(SFILE, duplstr(strt, 0));
+				recover(IPROF);
+				dflttrp(IRDY);	/* allow <Ctrl-C> in SHELL */
+				return exshell( findvar("SHELL") );
+			}
+			checkmail();
+			comflag = 1;
+			errflag = 0;
+			recover(IRDY);
+			freebuf(s.s_bpp);
+			s.s_bpp = savebuf();
+			if (yyparse() != 0)
+				syntax();
+		case REOF:
+			recover(IRDY);
+			break;
+		case RCMD:
+			recover(IRDY);
+			s.s_con = NULL;
+			command(s.s_node);
+			if ((tflag && tflag++ >= 2))
+				break;
+			continue;
+		case RERR:
+			recover(IRDY);
+			if ( ! errflag)
+				syntax();
+			if ( ! iflag || (tflag && tflag++ >= 2))
+				break;
+			continue;
+		case RINT:
+			if (s.s_next != NULL) {
+				sesp = s.s_next;
+				reset(RINT);
+				NOTREACHED;
+			}
+			prpflag = 2;
+			if ( ! iflag || (tflag && tflag++ >= 2))
+				break;
+			continue;
+		case RUEXITS:
+		case RUABORT:
+			if (s.s_next != NULL) {
+				sesp = s.s_next;
+				reset(rcode);
+				NOTREACHED;
+			}
+			if (rcode == RUEXITS || !iflag || (tflag && tflag++ >= 2))
+				break;
+			continue;
+		case RNOSBRK:
+		case RSYSER:
+		case RBRKCON:
+		case RNOWAY:
+		default:
+			if (s.s_next!=NULL)
+				break;
+			if ( ! iflag || (tflag && tflag++ >= 2))
+				break;
+			continue;
+		}
+		break;
+	}
+	freebuf(s.s_bpp);
+	if (s.s_type == SFILE)
+		fclose(s.s_ifp);
+	if (s.s_next == NULL) {
+		sigintr(0);
+		recover(IRDY);
+	}
+	sesp = s.s_next;
+	return (slret);
+}
+
+reset(f)
+{
+	longjmp(sesp->s_envl, f);
+	NOTREACHED;
+}
+
+/*
+ * Kludge cleanup.
+ */
+cleanup(flag, file)
+char *file;
+{
+	static char *files[8];
+	static int nfiles = 0;
+	register char **pp;
+
+	if (flag) {
+		for (pp=files; pp<files+8; pp+=1)
+			if (*pp != NULL) {
+				if (flag==2)
+					unlink(*pp);
+				sfree(*pp);
+				*pp = NULL;
+			}
+		nfiles = 0;
+	} else {
+		pp = files + nfiles;
+		if (*pp != NULL) {
+			unlink(*pp);
+			sfree(*pp);
+		}
+		*pp = duplstr(file, 1);
+		nfiles = (nfiles + 1) & 7;
+	}
+}
+
+/*
+ * Make a temp file name.
+ */
+char *
+shtmp()
+{
+	static char tmpfile[] = "/tmp/shXXXXXX";
+	static int tmpflag = 0;
+
+	sprintf(tmpfile+6, "%05d%c", shpid, (tmpflag++%26) + 'a');
+	return (tmpfile);
+}
+
+/*
+ * Print formatted.
+ */
+/*
+printv(av)
+register char **av;
+{
+	while (*av) prints("\t%s\n", *av++);
+}
+*/
+
+prints(a1)
+char *a1;
+{
+	fprintf(stderr, "%r", &a1);
+}
+
+/*
+ * Make a core dump in /tmp and longjmp back to session -
+ *	there's a possibility we'll die horribly.
+ */
+panic(i) register int i;
+{
+#ifdef PARANOID
+	register int f;
+
+	if ((f=fork())==0) {
+		abort();
+		NOTREACHED;
+	}
+	waitc(f);
+#endif
+	printe("Internal shell assertion %d failed", i);
+	reset(RNOWAY);
+	NOTREACHED;
+}
+
+/*
+ * Print out an error message.
+ */
+printe(a1)
+char *a1;
+{
+	errflag += 1;
+	if (! noeflag)
+		fprintf(stderr, "%r\n", &a1);
+}
+
+/*
+ * Some familiar errors.
+ */
+ecantopen(s) char *s; { printe("Cannot open %s", s); }
+ecantfind(s) char *s; { printe("Cannot find %s", s); }
+e2big(s) char *s; { printe("File to big to execute: %s", s); }
+ecantmake(s) char *s; { printe("Cannot create %s", s); }
+emisschar(c) { printe("Missing `%c'", c); }
+ecantfdop() { printe("Fdopen failed"); }
+enotdef(s) char *s; { printe("Cannot find variable %s", s); }
+eillvar(s) char *s; { printe("Illegal variable name: %s", s); }
+eredir() { printe("Illegal redirection"); }
+etoolong() { printe("Argument too long: %.*s", STRSIZE, strt); }
+
+/*
+ * Don't print out an error message.
+ */
+yyerror()
+{
+}
+
+/*
+ * print out the prompt given the prompt to write
+ */
+prompt(vps)
+char *vps;
+{
+	prints("%s", vps);
+#if RSX
+	fflush(stdout);
+#endif
+}
+
+/*
+ * Syntax error message - print line number and file if
+ *	not interactive.
+ */
+syntax()
+{
+	if (sesp->s_type == SFILE) {
+		if (feof(sesp->s_ifp))
+			printe("%s: Syntax error at EOF", sesp->s_strp);
+		else
+			printe("%s: Syntax error in line %d", sesp->s_strp, yyline);
+	} else
+		printe("Syntax error");
+}
+
+/* end of sh/main.c */
