@@ -8,7 +8,7 @@
 int
 fwrite(bp, size, nitems, fp)
 register unsigned char	*bp;
-int	size, nitems;
+unsigned int	size, nitems;
 register FILE	*fp;
 {
 	register unsigned int	nb = size*nitems;
