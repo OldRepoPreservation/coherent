@@ -3,7 +3,7 @@ CFLAGS= -c -v -A
 
 OBJECTS= main.o disp_rec.o getflname.o lite.o map_cmd.o states.o
 
-mwcbbs:	$(OBJECTS)
+beta/mwcbbs:	$(OBJECTS)
 	cc -v -A $< $(LDFLAGS) -o $@
 
 main.o:	main.c

@@ -18,6 +18,7 @@ char choice;
 FILE *infp;
 int x;
 
+
 	if ((infp = fopen(workfile,"r")) == NULL)
 		{
 		printf("\007ERROR opening file for input!\n");
