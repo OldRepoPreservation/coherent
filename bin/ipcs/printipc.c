@@ -248,7 +248,7 @@ print_s()
 	}
 
 	if (tflag) {
-		printf("    OTIME");
+		printf("    OTIME    CTIME");
 	}
 	printf("\n");
 
@@ -295,9 +295,17 @@ print_s()
 				printf("%6d",semid[x].sem_nsems);
 		}
 
-		if(tflag) {	/* time of last semop */
-			sprintf(date,"%s", ctime(&semid[x].sem_ctime));
-			printf(" %.8s",date + 11);
+		if (tflag) {	/* time */
+			if (semid[x].sem_otime) {/* semop time */
+				sprintf(date,"%s", ctime(&semid[x].sem_otime));
+				printf(" %.8s",date + 11);
+			} else
+				printf(" no-entry");
+			if (semid[x].sem_ctime) { /* Change time */
+				sprintf(date,"%s", ctime(&semid[x].sem_ctime));
+				printf(" %.8s",date + 11);
+			} else
+				printf(" no-entry");
 		}
 		printf("\n");
 	}
