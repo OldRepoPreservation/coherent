@@ -1,18 +1,19 @@
 /*
  *	Manifest constants.
  */
-
 #ifndef NULL
 #define	NULL		((char *)0)
 #endif
-#define TRUE		(0 == 0)
-#define FALSE		(0 != 0)
+#define TRUE		1
+#define FALSE		0
 #define	BASE		128
 #define	L2BASE		7
 #define	NEFL		(BASE - 1)	/* leading byte of negative numbers */
+#if _I386
+#define	NORSIZ		6		/* maximum size for int value */
+#else
 #define	NORSIZ		4		/* maximum size for int value */
-
-
+#endif
 /*
  *	Multi-precision integer type.
  */
