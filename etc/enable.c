@@ -32,7 +32,6 @@
 #include <stdio.h>
 #include <signal.h>
 
-
 #define	TTYS	"/etc/ttys"
 #define DIRSIZ	14
 
@@ -45,7 +44,9 @@ struct terms {
 	char gettype;
 	char name[DIRSIZ];
 } t[200];
+
 extern	char	*rindex();
+
 main(argc, argv)
 int argc;
 char **argv;
@@ -114,6 +115,8 @@ char **argv;
 	myname = rindex(ttyname(0), '/') + 1;
 
 	for (cp = *(++argv); --argc; cp = *(++argv)) {
+		if (strncmp(cp, "/dev/", 5) == 0)
+			cp += 5;
 		found = 0;
 		for (tp = t; *tp->name; tp++) {
 		   if (strncmp(cp, tp->name, DIRSIZ) == 0) 
