@@ -4,6 +4,10 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 2.4  91/12/10  08:04:13  hal
+ * Make interrupt routine clear all UART irq conditions if it gets an
+ * interrupt without an argument telling which port interrupted.
+ * 
  * Revision 2.3  91/12/05  09:35:06  hal
  * Working 16550A code.  Nfg on GeeSee.
  * 
@@ -72,6 +76,7 @@ int	alxintr();
 static	int alxclk();
 static	set_poll_rate();
 static	void alxpoll();
+static	void alx_send();
 
 /*
  * Baud rate table and polling rate table.
@@ -708,7 +713,7 @@ printf("+");
 			break;
 
 		s = sphi();
-		tp->t_rawout.si_buf[ tp->t_rawout.si_ix ] = b;
+		tp->t_rawout.si_buf[tp->t_rawout.si_ix] = b;
 		if (tp->t_rawout.si_ix >= sizeof(tp->t_rawout.si_buf) - 1)
 			tp->t_rawout.si_ix = 0;
 		else
@@ -737,7 +742,7 @@ register TTY * tp;
 	int b;
 	int s;
 	extern alxbreak();
-	int need_xirq = 1;		/* True if should enable xmit irpt */
+	int need_xmit = 1;	/* True if should start sending data now. */
 	unsigned char ier_stat;
 
 	/*
@@ -759,24 +764,25 @@ register TTY * tp;
 	 */
 	if (tp->t_rawout.si_ix == tp->t_rawout.si_ox) {
 		wakeup((char *)&tp->t_rawout);
-		need_xirq = 0;
+		need_xmit = 0;
 	}
 
 	/*
 	 * Do nothing if output is stopped.
 	 */
 	if (tp->t_flags & T_STOP)
-		need_xirq = 0;
+		need_xmit = 0;
 	if (com_usage[AL_NUM].ohlt)
-		need_xirq = 0;
+		need_xmit = 0;
 
 	/*
-	 * Toggle Tx interrupt status from chip.
+	 * Start data transmission by writing to UART xmit reg.
 	 */
-	if (com_usage[AL_NUM].has_irq && need_xirq) {
-		ier_stat = inb(ALPORT + IER);
-		outb(ALPORT + IER, ier_stat & ~IE_TxI);
-		outb(ALPORT + IER, ier_stat | IE_TxI);
+	if ((b & LS_TxRDY) && need_xmit) {
+		int xmit_count;
+
+		xmit_count = (com_usage[AL_NUM].uart_type == US_16550A)?16:1;
+		alx_send(&(tp->t_rawout), ALPORT+DREG, xmit_count);
 	}
 
 	spl(s);
@@ -804,7 +810,7 @@ alxintr(tp)
 register TTY * tp;
 {
 	int c;
-	int port = ALPORT;
+	register int port = ALPORT;
 	unsigned char msr;
 	int xmit_count;
 
@@ -879,18 +885,9 @@ rescan:
 			/*
 			 * Transmit next char in raw output buffer.
 			 */
-			xmit_count = (com_usage[AL_NUM].uart_type == US_16550A)?16:1;
-			for (;(tp->t_rawout.si_ix != tp->t_rawout.si_ox) && xmit_count;
-			  xmit_count--) {
-				outb(port+DREG,
-					tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
-				/*
-				 * Adjust raw output buffer output index.
-				 */
-				if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
-					tp->t_rawout.si_ox = 0;
-			}
-
+			xmit_count =
+			  (com_usage[AL_NUM].uart_type == US_16550A)?16:1;
+			alx_send(&(tp->t_rawout), port+DREG, xmit_count);
 			goto rescan;
 
 		case MS_INTR:
@@ -1091,17 +1088,7 @@ register TTY * tp;
 		 * Transmit next char in raw output buffer.
 		 */
 		xmit_count = (com_usage[AL_NUM].uart_type == US_16550A)?16:1;
-		for (;(tp->t_rawout.si_ix != tp->t_rawout.si_ox) && xmit_count;
-		  xmit_count--) {
-			outb(port+DREG,
-				tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
-			/*
-			 * Adjust raw output buffer output index.
-			 */
-			if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
-				tp->t_rawout.si_ox = 0;
-		}
-
+		alx_send(&(tp->t_rawout), port+DREG, xmit_count);
 	}
 
 	/*
@@ -1113,5 +1100,33 @@ register TTY * tp;
 			com_usage[AL_NUM].ohlt = 0;
 		else
 			com_usage[AL_NUM].ohlt = 1;
+	}
+}
+
+/*
+ * alx_send()
+ *
+ * Write to xmit data register of the UART.
+ * Assume all checking about whether it's time to send has been done already.
+ * Called by time-critical IRQ and polling routines!
+ *
+ * "rawout" is the output silo for the TTY struct supplying data to the port.
+ * "dreg" is the i/o address of the UART xmit data register.
+ * "xmit_count" is the max number of chars we can write (16 for FIFO parts).
+ */
+static void alx_send(rawout, dreg, xmit_count)
+register silo_t * rawout;
+int dreg, xmit_count;
+{
+	/*
+	 * Transmit next chars in raw output buffer.
+	 */
+	for (;(rawout->si_ix != rawout->si_ox) && xmit_count; xmit_count--) {
+		outb(dreg, rawout->si_buf[rawout->si_ox]);
+		/*
+		 * Adjust raw output buffer output index.
+		 */
+		if (++rawout->si_ox >= sizeof(rawout->si_buf))
+			rawout->si_ox = 0;
 	}
 }
