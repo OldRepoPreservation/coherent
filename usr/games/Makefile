@@ -28,8 +28,8 @@ ttt:
 rubik:
 	co $(DESTDIR)rubik
 	su root chmog 511 bin bin $(DESTDIR)$@
-	cd lib ; co $(DESTDIR)lib/fortunes 
-	cd $(DESTDIR)lib ; su root chmog 644 bin bin fortunes
+	cd lib ; co $(DESTDIR)lib/rubik.m4
+	cd $(DESTDIR)lib ; su root chmog 644 bin bin rubik.m4
 
 chase:
 	cd pacman ; make
