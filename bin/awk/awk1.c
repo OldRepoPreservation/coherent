@@ -112,7 +112,7 @@ CHAR *s;
 	NODE *left, *right;
 
 	cp = s;
-	if (!(('_' == c) || isalpha(c)))
+	if (!isalpha(*cp))
 		return (0);
 	for (; (c = *cp)!='='; cp++) {
 		if (c == '\0')
@@ -121,7 +121,7 @@ CHAR *s;
 			*cp = '\0';
 			continue;
 		}
-		if (!(isalnum(c) || ('_' == c)))
+		if (!(isalpha(c) || isdigit(c)))
 			return (0);
 	}
 	*cp++ = '\0';
@@ -193,12 +193,12 @@ again:
 	else if (isdigit(c) || c=='.') {
 		yylval.u_node = innumber(c);
 		t = NUMBER_;
-	} else if (isalpha(c) || ('_' == c)) {
+	} else if (isalpha(c)) {
 		cp = wordbuf;
 		do {
 			*cp++ = c;
 			c = pgetc();
-		} while (isalnum(c) || ('_' == c));
+		} while (isalpha(c) || isdigit(c));
 		pungetc(c);
 		*cp = '\0';
 		np = lookup(wordbuf);
@@ -221,6 +221,7 @@ again:
 	case '#':
 		while ((c = pgetc())!=EOF && c!='\n')
 			;
+		pungetc(c);
 		goto again;
 
 	case '{':
@@ -440,9 +441,11 @@ readclass()
 			pc = c;
 		}
 	}
-	if (comp)
+	if (comp) {
+		cc[0] ^= 1;
 		for (i=0; i<NCLASS; i++)
 			cc[i] ^= -1;
+	}
 	return (cc);
 }
 
