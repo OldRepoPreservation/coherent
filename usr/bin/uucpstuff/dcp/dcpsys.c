@@ -114,13 +114,17 @@ int maxlen;
 	int i;
 
 	for (i=0; i<MAXDROP; i++) {
-		if ( sread(&ch, 1, MSGTIME) != 1 )
+		if ( sread(&ch, 1, MSGTIME) != 1 ){
 			goto badrmsg;
+		}
 		if ( ch == DLE )
 			break;
 	}
-	if ( ch != DLE )
+
+	
+	if ( ch != DLE ){
 		goto nodle;
+	}
 
 	for (cp=msg,i=1; i<maxlen; i++) {
 		if ( sread(&ch, 1, MSGTIME) != 1 )
@@ -134,11 +138,13 @@ int maxlen;
 	return( strlen(msg) );
 
 badrmsg:
-	*cp = '\0';
+/*	*cp = '\0';  this is a NONO, cp never has valid characters here
+ *	             when we've determined that we were missing DLE
+ */
 	printmsg(M_CALL, "Bad received message {%s}", visib(msg));
 	return(-1);
 nodle:
-	*cp = '\0';
+/*	*cp = '\0';  this is a NONO, cp never has valid characters here */
 	printmsg(M_CALL, "Remote machine not sending DLE startup (uucico)");
 	return(-1);
 }
@@ -173,12 +179,13 @@ startup()
 	sysended = 0;
 	leavelock = 0;
 	if (role == MASTER) {
-		if ( rmsg(msg, BUFSIZ) < 0 )
+		if ( rmsg(msg, BUFSIZ) < 0 ){
 			FAIL1("Logon failed: 1st msg (broken communication?)");
+		}
 		printmsg(M_CALLMSG, "1st msg = {%s}", visib(msg));
-
-		if ( strncmp(msg, "Shere", 5) )
+		if ( strncmp(msg, "Shere", 5) ){
 			FAIL1("Bad format for 1st msg");
+		}
 		if ( (msg[5] == '\0') || (msg[5] == '\n') ||
 		     (msg[6] == '\0') || (msg[6] == '\n') )
 			plog(M_CALL, "Warning: Null sitename contacted");
@@ -434,8 +441,9 @@ char *str;
 		}
 		slash = 0;
 	}
-	if ( !nocr )
+	if ( !nocr ){
 		swrite("\r", 1);
+	}
 }
 
 /*
