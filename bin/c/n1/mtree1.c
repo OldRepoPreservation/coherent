@@ -24,14 +24,10 @@ TREE *foldaddr();
 
 /*
  * Fancy folder.
- * Gathers up all the constants that
- * in can, by digging through the
- * subtrees of commutative/associative
- * operations. Simpler things are
- * done for operations that are not quite
- * so friendly.
- * Returns a pointer to the new
- * tree.
+ * This gathers up all the constants that it can
+ * by digging through the subtrees of commutative/associative operations.
+ * Simpler things are done for operations that are not quite so friendly.
+ * Returns a pointer to the new tree.
  */
 TREE *
 modfold(tp)
@@ -118,9 +114,8 @@ register TREE *tp;
 }
 
 /*
- * Collect up an associative
- * operator cluster. Pack it into the
- * supplied buffers.
+ * Collect up an associative operator cluster.
+ * Pack it into the supplied buffers.
  */
 cluster(tp, op, type, ann, anl, onodes, leaves)
 register TREE *tp;
@@ -161,144 +156,90 @@ register TREE *onodes[], *leaves[];
 
 /*
  * Fold an operation.
- * Return a pointer to the folded
- * tree, or NULL if no fold is
- * possible.
+ * Return a pointer to the folded tree,
+ * or NULL if no fold is possible.
+ * FIX_ME This should pay attention to unsigned types like n0/fold.c/fold0().
  */
 TREE *
-fold1(op, lp, rp)
-TREE *lp, *rp;
+fold1(op, lp, rp) int op; TREE *lp, *rp;
 {
 	register TREE *fp;
-	register sop, lrf;
-	register tt;
-	lval_t c1, c2;
+	register int sop, lflag, tt, bool;
+	lval_t lv, rv;
 
 	if ((fp = foldaddr(op, lp, rp)) != NULL)
 		return fp;
-	lrf = 0;
-	if ((sop=lp->t_op)!=ICON && sop!=LCON)
+	if ((sop = lp->t_op)!=ICON && sop!=LCON)
 		return NULL;
-	c1 = grabnval(lp);
+	lv = grabnval(lp);
 	tt = lp->t_type;
-	if (sop == LCON)
-		++lrf;
+	lflag = (sop == LCON);
 	if (op == QUEST)
-		return (c1) ? rp->t_lp : rp->t_rp;
+		return (lv) ? rp->t_lp : rp->t_rp;
 	if (rp != NULL) {
-		if ((sop=rp->t_op)!=ICON && sop!=LCON)
+		if ((sop = rp->t_op)!=ICON && sop!=LCON)
 			return NULL;
-		c2 = grabnval(rp);
+		rv = grabnval(rp);
 		if (rp->t_type > tt)
 			tt = rp->t_type;
 		if (sop == LCON)
-			++lrf;
+			++lflag;
 	}
+	bool = -1;
+
+	/* Perform the folding, result to lv or bool. */
 	switch (op) {
 
-	case COM:
-		c1 = ~c1;
-		break;
-
-	case NOT:
-		c1 = !c1;
-		break;
-
-	case NEG:
-		c1 = -c1;
-		break;
-
-	case ADD:
-		c1 += c2;
-		break;
-
-	case SUB:
-		c1 -= c2;
-		break;
-
-	case MUL:
-		c1 *= c2;
-		break;
+	case COM:	lv = ~lv;		break;
+	case NEG:	lv = -lv;		break;
+	case ADD:	lv += rv;		break;
+	case SUB:	lv -= rv;		break;
+	case MUL:	lv *= rv;		break;
+	case AND:	lv &= rv;		break;
+	case OR:	lv |= rv;		break;
+	case XOR:	lv ^= rv;		break;
+	case SHL:	lv <<= rv;		break;
+	case SHR:	lv >>= rv;		break;
 
 	case DIV:
-		if (c2 == 0)
+		if (rv == 0)
 			return NULL;
-		c1 /= c2;
+		lv /= rv;
 		break;
 
 	case REM:
-		if (c2 == 0)
+		if (rv == 0)
 			return NULL;
-		c1 %= c2;
+		lv %= rv;
 		break;
 
-	case AND:
-		c1 &= c2;
-		break;
-
-	case OR:
-		c1 |= c2;
-		break;
-
-	case XOR:
-		c1 ^= c2;
-		break;
-
-	case SHL:
-		c1 <<= c2;
-		break;
-
-	case SHR:
-		c1 >>= c2;
-		break;
-
-	case EQ:
-		c1 = c1==c2;
-		break;
-
-	case NE:
-		c1 = c1!=c2;
-		break;
-
-	case LT:
-		c1 = c1<c2;
-		break;
-
-	case LE:
-		c1 = c1<=c2;
-		break;
-
-	case GT:
-		c1 = c1>c2;
-		break;
-
-	case GE:
-		c1 = c1>=c2;
-		break;
-
-	case ANDAND:
-		c1 = (c1 && c2);
-		break;
-
-	case OROR:
-		c1 = (c1 || c2);
-		break;
+	case NOT:	bool = !lv;		break;
+	case EQ:	bool = lv == rv;	break;
+	case NE:	bool = lv != rv;	break;
+	case LT:	bool = lv <  rv;	break;
+	case LE:	bool = lv <= rv;	break;
+	case GT:	bool = lv >  rv;	break;
+	case GE:	bool = lv >= rv;	break;
+	case ANDAND:	bool = (lv && rv);	break;
+	case OROR:	bool = (lv || rv);	break;
 
 	default:
 		return NULL;
 	}
-	if (lrf && op!=ANDAND && op!=OROR && !isrelop(op))
-		fp = lvalnode(c1);
+
+	if (bool != -1)
+		fp = ivalnode((ival_t)bool);
+	else if (lflag)
+		fp = lvalnode(lv);
 	else
-		fp = ivalnode((ival_t) c1);
+		fp = ivalnode((ival_t) lv);
 	fp->t_type = tt;
 	return fp;
 }
 
 /*
- * Fold things that look like
- * `&array[constant]' where the array
- * is an external or a static.
+ * Fold things that look like '&array[constant]'
+ * where the array is an external or a static.
  */
 TREE *
 foldaddr(op, lp, rp)
