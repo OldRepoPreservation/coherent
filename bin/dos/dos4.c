@@ -143,10 +143,13 @@ replace(nargs, args) int nargs; char *args[];
 	} else for (ap=args; *ap != NULL; ap++) {
 		if (stat(*ap, &s) == -1)
 			fatal("replace: \"%s\" not found", *ap);
-		else if (s.st_mode & S_IFDIR)
+		else if ((s.st_mode & S_IFDIR) == S_IFDIR)
 			replacedir(*ap);
-		else
+		else if ((s.st_mode & S_IFREG) == S_IFREG)
 			replacefile(*ap);
+		else
+			nonfatal("replace: \"%s\" not ordinary file: suppressed",
+				*ap);
 	}
 	free(clbuf);
 }
