@@ -2,7 +2,7 @@
 # Does not include header file dependencies.
 
 # CFLAGS=-DDEBUG
-DESTDIR= /f1/bin/
+DESTDIR= /interim/bin/
 
 OBJ=\
 	dos0.o\
