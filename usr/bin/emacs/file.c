@@ -338,6 +338,9 @@ uchar	*fn;
 		}
 	} else					/* Ignore close error	*/
 		ffclose();			/* if a write error.	*/
+
+	sync();					/* protect filesystem */
+
 	if (s != FIOSUC)			/* Some sort of error.	*/
 		return (FALSE);
 	return (TRUE);
