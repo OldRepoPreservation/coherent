@@ -9,14 +9,14 @@
 
 #include "awk.h"
 #include <math.h>
-#include <sys/mdata.h>
+#include <mdata.h>
 
 NODE *
 f_length(np, na)
 NODE *np;
 int na;
 {
-	register char *s;
+	register CHAR *s;
 
 	if (na == 0)
 		s = inline; else
@@ -81,11 +81,11 @@ f_substr(np, na)
 NODE *np;
 int na;
 {
-	register char *cp;
-	register char *ocp;
+	register CHAR *cp;
+	register CHAR *ocp;
 	register unsigned m;
 	register unsigned n;
-	register char *acp;
+	register CHAR *acp;
 
 	m = MAXUINT;
 	if (na > 2)
@@ -100,7 +100,7 @@ int na;
 	n = strlen(cp);
 	if (n > m)
 		n = m;
-	acp = ocp = xalloc(n + sizeof(char));
+	acp = ocp = xalloc(n + sizeof(CHAR));
 	while (n--)
 		*ocp++ = *cp++;
 	*ocp = '\0';
@@ -118,8 +118,8 @@ f_index(np, na)
 register NODE *np;
 int na;
 {
-	register char *s1, *s2;
-	register char *ss1;
+	register CHAR *s1, *s2;
+	register CHAR *ss1;
 	register unsigned n;
 
 	ss1 = s1 = evalstring(fargn(np, 1));
@@ -141,10 +141,10 @@ f_sprintf(np, na)
 register NODE *np;
 int na;
 {
-	register char *ap;
+	register CHAR *ap;
 
 	xprintf(np, NULL, wordbuf);
-	ap = xalloc(strlen(wordbuf) + sizeof(char));
+	ap = xalloc(strlen(wordbuf) + sizeof(CHAR));
 	strcpy(ap, wordbuf);
 	fsmapinit(FS);
 	return (snode(ap, T_ALLOC));
@@ -165,10 +165,10 @@ f_split(np, na)
 NODE *np;
 int na;
 {
-	register unsigned char *cp;
+	register CHAR *cp;
 	register int c;
-	register char *scp;
-	register char *acp;
+	register CHAR *scp;
+	register CHAR *acp;
 	NODE *array;
 	NODE *index;
 	STRING string;
@@ -189,7 +189,7 @@ int na;
 		while ((c = *cp++)!='\0' && !FSMAP[c])
 			;
 		cp--;
-		acp = string = xalloc(cp-scp + sizeof(char));
+		acp = string = xalloc(cp-scp + sizeof(CHAR));
 		while (scp < cp)
 			*acp++ = *scp++;
 		*acp = '\0';
