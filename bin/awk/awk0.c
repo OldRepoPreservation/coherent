@@ -17,6 +17,7 @@ int	yflag;			/* `-y' option - dual case pattern matching */
 int	nlskip;			/* Skip newlines until next token */
 int	exitflag;		/* On if exit done */
 int	lineno;			/* Current input line # */
+int	whitesw = 1;		/* 1 if whitespace field seperator else 0 */
 char	*inline;		/* Input line */
 jmp_buf	nextenv;		/* Environment for next */
 jmp_buf	fwenv[NNEST];		/* For/while environment for break/continue */

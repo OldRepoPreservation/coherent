@@ -38,7 +38,7 @@
 %type <u_node>	linelist line pattern regexp re
 %type <u_node>	stat stlist compound assignment
 %type <u_node>	variable terminal constant exp e
-%type <u_node>	output elist error
+%type <u_node>	output elist altlst error
 %type <u_char>	reclosure assignop
 
 %left	SCON_
@@ -52,6 +52,7 @@
 %left	'*' '/' '%'
 %nonassoc '!' INC_ DEC_
 %nonassoc '$'
+%nonassoc '('
 
 /*
  * Special tokens for
@@ -196,20 +197,14 @@ stat:
 	}
       | compound
       | e ';'
-      | PRINT_ {outflag++;} elist output {
+      | PRINT_ {outflag++;} altlst output {
 		$$ = node(APRINT, $3, $4);
-	}
-      | PRINT_ '(' {outflag++;} elist ')' output {
-		$$ = node(APRINT, $4, $6);
 	}
       | PRINT_ {outflag++;} output {
 		$$ = node(APRINT, &xfield0, $3);
 	}
-      | PRINTF_ {outflag++;} elist output {
+      | PRINTF_ {outflag++;} altlst output {
 		$$ = node(APRINTF, $3, $4);
-	}
-      | PRINTF_ '(' {outflag++;} elist ')' output {
-		$$ = node(APRINTF, $4, $6);
 	}
       | NEXT_ ';' {
 		$$ = node(ANEXT);
@@ -390,6 +385,14 @@ output:
 		$$ = NULL;
 	}
 	;
+
+altlst : '(' elist ')' {
+		$$ = $2;
+	 }
+	| elist {
+		$$ = $1;
+	 }
+	 ;
 
 elist:
 	exp {
