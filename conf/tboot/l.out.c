@@ -48,7 +48,7 @@ lout2load(ip, table, data_seg)
 		puts("Generating table for sep i/d l.out.\r\n");
 #endif /* VERBOSE */
 		L_TEXT.valid = (1==1);
-		L_TEXT.message = "\r\nLoading l.out code segments...\r\n";
+		L_TEXT.message = "\r\nLoading 286 COHERENT...\r\n";
 		/* Load the shared and private code segments as one.  */
 		L_TEXT.load_toseg = sys_base; /* This is where we want the OS.  */
 		L_TEXT.load_tooffset = 0;
@@ -58,7 +58,7 @@ lout2load(ip, table, data_seg)
 
 		
 		L_DATA.valid = (1==1);
-		L_DATA.message = "\r\nLoading l.out data segments...\r\n";
+		L_DATA.message = "\r\nLoading 286 COHERENT data...\r\n";
 		/* Load both data segments.  */
 
 		/* Round up to next 16 byte paragraph.  */
@@ -88,7 +88,7 @@ lout2load(ip, table, data_seg)
 #endif /* VERBOSE */
 
 		SEGMENT.valid = (1==1);
-		SEGMENT.message = "\r\nLoading all l.out segments...\r\n";
+		SEGMENT.message = "\r\nLoading ancient COHERENT...\r\n";
 		/* Load the shared and private code segments as one.  */
 		SEGMENT.load_toseg = sys_base; /* This is where we	*/
 		SEGMENT.load_tooffset = 0;	/* want the OS.		*/
