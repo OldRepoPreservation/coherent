@@ -6,7 +6,6 @@
 
 #include "sh.h"
 #include <errno.h>
-#include <sys/param.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <fcntl.h>

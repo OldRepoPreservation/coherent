@@ -5,6 +5,7 @@ typedef union {
 	char	*yu_strp;
 	int	yu_nval;
 } YYSTYPE;
+#define	YYSTYPE	YYSTYPE
 #define _ANDF 256
 #define _ASGN 257
 #define _CASE 258

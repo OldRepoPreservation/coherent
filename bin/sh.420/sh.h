@@ -1,7 +1,6 @@
 /*
  * sh/sh.h
  * Bourne shell.
- * Header file.
  */
 
 #include <stdio.h>
@@ -13,29 +12,36 @@
 #define	DSTACKN	30			/* Directory stack depth */
 #define NOTREACHED	return
 
+
 /*
  * Masks for looking up lextab.
  */
-#define MNQUO	0001		/* Special in argument */
-#define MDQUO	0002		/* Special in double quotes */
-#define MHERE	0004		/* Special in here document */
-#define MRVAR	(MBVAR|MDIGI)		/* Valid in regular variable name */
-#define MSVAR	0010		/* Valid in special variable name */
-#define MDIGI	0020		/* Is an ascii digit */
-#define MBVAR	0040		/* Valid 1st char in regular var name */
-#define MNAME	0100		/* Does not start a name */
-#define MGLOB	0200		/* Must call glob */
+
+#define MNQUO	0x01		/* Special in argument */
+#define MDQUO	0x02		/* Special in double quotes */
+#define MHERE	0x04		/* Special in here document */
+#define MRVAR	(MBVAR | MDIGI)	/* Valid in regular variable name */
+/* 0x08 was MSVAR, now is spare */
+#define MDIGI	0x10		/* Is an ascii digit */
+#define MBVAR	0x20		/* Valid 1st char in regular var name */
+#define MNAME	0x40		/* Does not start a name */
+#define MGLOB	0x80		/* Must call glob */
+
+#define	SPECIAL_VAR_CHARS	"!#$*-0123456789?@"
+
 
 /*
  * Determine if a character is a member of the given class.
  * (This depends of the fact that EOF == -1).
  */
+
 #define class(c, m)	((unsigned) (c - EOF) <= (unsigned) (0x7F - EOF) && \
 			 (lextab [c - EOF] & m) != 0)
 
 /*
  * Types of nodes.
  */
+
 #define NNULL	0			/* Null */
 #define NFOR	1			/* For */
 #define NCASE	2			/* Case */
@@ -63,9 +69,11 @@
 #define	NFUNC	24			/* Shell function */
 #define	NRET	25			/* Return */
 
+
 /*
  * Node.
  */
+
 typedef	struct	node {
 	int	n_type;			/* Type of node */
 	struct	node *n_next;		/* Pointer to next */
@@ -77,34 +85,42 @@ typedef	struct	node {
 #define	n_auxp	n_u.nu_auxp
 #define	n_strp	n_u.nu_strp
 
+
 /*
  * Flags in variables.
  */
+
 #define VEXP	001			/* Variable is exported */
 #define VRDO	002			/* Read only */
 #define VSET	004			/* Variable is used by shell */
 
+
 /*
  * Enviroment list and variable structure.
  */
+
 typedef	struct	var {
 	int	v_flag;			/* Flags */
 	struct	var *v_next;		/* Pointer to next entry */
 	char	*v_strp;		/* Pointer to string */
 } VAR;
 
+
 /*
  * Buffer structure.
  */
+
 typedef	struct	buf {
 	struct	buf *b_next;		/* Pointer to next */
 	int	b_size;			/* Size of buffer */
 } BUF;
 
+
 /*
  * Per executing command data structure.
  * Used for break/continue.
  */
+
 typedef	struct	con {
 	struct	con *c_next;		/* Pointer to next */
 	NODE	*c_node;		/* Node which created this control */
@@ -112,18 +128,22 @@ typedef	struct	con {
 	jmp_buf	c_envl;			/* Enviroment list */
 } CON;
 
+
 /*
  * Session types.
  */
+
 #define SINIT	0	/* Initial session */
 #define SARGS	1	/* String */
 #define SARGV	2	/* Vector of strings */
 #define SFILE	3	/* File name */
 #define SSTR	4	/* Open stream */
 
+
 /*
  * Per session information structure.
  */
+
 typedef struct ses {
 	struct	ses	*s_next;
 	int		s_type;
@@ -137,9 +157,11 @@ typedef struct ses {
 	FILE		*s_ifp;
 } SES;
 
+
 /*
  * Session long jump codes
  */
+
 #define RSET	0	/* Initial setjmp call */
 #define REOF	1	/* parse matched start */
 #define RCMD	2	/* parse matched command line */
@@ -152,10 +174,12 @@ typedef struct ses {
 #define RBRKCON	9	/* break or continue beyond program */
 #define RNOWAY	10	/* Shell assertion failed */
 
+
 /*
  * Interrupt recovery and set contexts.
  * Used to determine recovery action and default signals.
  */
+
 #define IRDY	0	/* In session */
 #define	ILEX	1	/* Parse in progress */
 #define ICMD	2	/* Prior to next command execution */
@@ -164,9 +188,11 @@ typedef struct ses {
 #define IFORK	5	/* Child after fork */
 #define IPROF	6	/* Reading /etc/profile for login */
 
+
 /*
  * Evaluation contexts.
  */
+
 #define EWORD	0	/* Evaluate $N, `cmd`, strip quotes */
 #define EHERE	1	/* Evaluate $N, `cmd`, ignore quotes */
 #define EARGS	2	/* Evaluete $N, `cmd`, strip quotes, *?[, blanks */
@@ -213,6 +239,7 @@ struct temp_file {
 /*
  * Shell functions.
  */
+
 typedef struct shfunc {
 	struct	shfunc	*fn_link;
 	int		fn_hash;
@@ -271,6 +298,7 @@ enum {
  * Global variables.
  *	Run time and set time flags.
  */
+
 extern 	char	shflags[];		/* Flag array */
 extern	char	shfnams[];		/* Flag name array */
 
@@ -294,7 +322,9 @@ extern	char	shfnams[];		/* Flag name array */
 #define nllflag shflags[15]		/* Forked shell */
 #define cmdflag	shflags[16]		/* Command file processor */
 
+
 /* Shell status housekeeping */
+
 extern	jmp_buf	restart;		/* Restart execution context */
 extern	SHFUNC	*sh_fnp;		/* User-defined shell function list */
 extern	int	in_sh_fn;		/* Executing shell function */
@@ -317,14 +347,18 @@ extern	int	slret;			/* Exit status of last command */
 extern	int	sback;			/* Pid of last background command */
 extern	int	spipe;			/* Pid of last pipe process */
 extern	int	ufmask;			/* File creation mask */
+
 /* Other internal flags. */
+
 extern	int	comflag;		/* Command line is complete?? */
 extern	int	errflag;		/* Set by call to printe */
 extern	int	keyflag;		/* Look for keyword in next word */
 extern	int	noeflag;		/* Turn off errors */
 extern	int	prpflag;		/* Do prompt before next read */
 extern	int	readflag;		/* Doing read command? */
+
 /* Parameters used by shell. */
+
 extern	char	*vhome;			/* Home directory */
 extern	char	*vpath;			/* Search pathname */
 extern	char	*vmail;			/* Mail file */
@@ -332,7 +366,9 @@ extern	char	*vps1;			/* Prompt string 1 */
 extern	char	*vps2;			/* Prompt string 2 */
 extern	char	*vifs;			/* Internal field seperators */
 extern	char	*vshell;		/* Shell to use */
+
 /* Shell data */
+
 extern	char	strt[STRSIZE];		/* String buffer */
 extern	char	*strp;			/* Pointer in string buffer */
 extern	VAR	*varp;			/* Pointer to shell variables */
@@ -340,14 +376,19 @@ extern	char	*dstack[DSTACKN];	/* Directory stack */
 extern	int	dstkp;			/* Directory stack pointer */
 
 /* Tables */
+
 extern	unsigned char	lextab[];		/* Character type table */
+
 /* Data external to shell */
+
 extern	int	errno;			/* System call error number */
 extern	char	*signame[];		/* Wait status message table */
+
 
 /*
  * Functions.
  */
+
 extern	char	*shtmp();		/* in main.c */
 extern	char	*salloc();		/* in alloc.c */
 extern	char	*balloc();		/* in alloc.c */
@@ -366,7 +407,9 @@ extern	char	*convvar();		/* in var.c */
 extern	char	**envlvar();		/* in var.c */
 extern	char	*_getwd();		/* in /lib/libc.a */
 
+
 /* NB: new stuff for shell functions */
+
 extern	TEMP_FILE     *	capture_temp ();	/* main.c */
 extern	void		unlink_temp ();		/* main.c */
 extern	void		cleanup_shell_fns ();	/* exec3.c */
@@ -386,5 +429,3 @@ struct alloc_debug {
 # define	ALLOC_ALLOC(x)
 # define	ALLOC_FREE(x)
 #endif
-
-/* end of sh/sh.h */

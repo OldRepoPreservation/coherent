@@ -6,11 +6,11 @@
 
 #include "sh.h"
 #include <sys/times.h>
-#include <sys/const.h>		/* HZ defined here */
+#include <time.h>
 
-#define HOUR	(60L*60L*HZ)
-#define MINUTE	(60L*HZ)
-#define SECOND	HZ
+#define HOUR	(60L * 60L * CLK_TCK)
+#define MINUTE	(60L * CLK_TCK)
+#define SECOND	CLK_TCK
 
 NODE	*copy_node();
 char	*cd();
@@ -209,7 +209,7 @@ s_dirs()
 
 	for (i = dstkp; i >= 0; i--)
 		printf ("%s ", dstack[i]);
-	fputc('\n', stderr);
+	fputc('\n', stdout);
 }
 
 s_eval()
@@ -654,13 +654,13 @@ long t;
 {
 	register int ticks, tenths, seconds;
 
-	printf ("%ldm", t/MINUTE);
-	ticks = t%MINUTE;
-	seconds = ticks/SECOND;
-	tenths = (ticks%SECOND + SECOND/20)/(SECOND/10);
+	printf ("%ldm", t / MINUTE);
+	ticks = t % MINUTE;
+	seconds = ticks / SECOND;
+	tenths = (ticks % SECOND + SECOND / 20) / (SECOND / 10);
 	if (tenths == 10) {
 		tenths = 0;
-		seconds++;
+		seconds ++;
 	}
 	printf ("%d.%ds ", seconds, tenths);
 }

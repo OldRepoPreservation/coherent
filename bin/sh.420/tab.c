@@ -2,9 +2,12 @@
 
 /*
  * Table for determining type of character.
+ * NIGEL: In addition to changing the table to use symbolic constants rather
+ * than magic octal values, I have removed the MSVAR category from use; the
+ * one place where this category was used was equally-well served by strchr ()
+ * and a spare bit is going to be needed for planned lexer improvements.
  */
 unsigned char lextab[] ={
-#if 1
 	/* EOF */        MNQUO | MDQUO | MNAME,
 	/* 0x00, ^@ */   0,
 	/* 0x01, ^A */   0,
@@ -39,38 +42,38 @@ unsigned char lextab[] ={
 	/* 0x1e, ^^ */   0,
 	/* 0x1f, ^_ */   0,
 	/* 0x20, ' ' */  MNQUO | MNAME,
-	/* 0x21, '!' */  MSVAR,
+	/* 0x21, '!' */  0,
 	/* 0x22, '"' */  MNQUO | MDQUO,
-	/* 0x23, '#' */  MSVAR,
-	/* 0x24, '$' */  MNQUO | MDQUO | MHERE | MSVAR,
+	/* 0x23, '#' */  0,
+	/* 0x24, '$' */  MNQUO | MDQUO | MHERE,
 	/* 0x25, '%' */  0,
 	/* 0x26, '&' */  MNQUO | MNAME,
 	/* 0x27, ''' */  MNQUO,
 	/* 0x28, '(' */  MNQUO | MNAME,
 	/* 0x29, ')' */  MNQUO | MNAME,
-	/* 0x2a, '*' */  MSVAR | MGLOB,
+	/* 0x2a, '*' */  MGLOB,
 	/* 0x2b, '+' */  0,
 	/* 0x2c, ',' */  0,
-	/* 0x2d, '-' */  MSVAR,
+	/* 0x2d, '-' */  0,
 	/* 0x2e, '.' */  0,
 	/* 0x2f, '/' */  0,
-	/* 0x30, '0' */  MSVAR | MDIGI,
-	/* 0x31, '1' */  MSVAR | MDIGI,
-	/* 0x32, '2' */  MSVAR | MDIGI,
-	/* 0x33, '3' */  MSVAR | MDIGI,
-	/* 0x34, '4' */  MSVAR | MDIGI,
-	/* 0x35, '5' */  MSVAR | MDIGI,
-	/* 0x36, '6' */  MSVAR | MDIGI,
-	/* 0x37, '7' */  MSVAR | MDIGI,
-	/* 0x38, '8' */  MSVAR | MDIGI,
-	/* 0x39, '9' */  MSVAR | MDIGI,
+	/* 0x30, '0' */  MDIGI,
+	/* 0x31, '1' */  MDIGI,
+	/* 0x32, '2' */  MDIGI,
+	/* 0x33, '3' */  MDIGI,
+	/* 0x34, '4' */  MDIGI,
+	/* 0x35, '5' */  MDIGI,
+	/* 0x36, '6' */  MDIGI,
+	/* 0x37, '7' */  MDIGI,
+	/* 0x38, '8' */  MDIGI,
+	/* 0x39, '9' */  MDIGI,
 	/* 0x3a, ':' */  0,
 	/* 0x3b, ';' */  MNQUO | MNAME,
 	/* 0x3c, '<' */  MNQUO | MNAME,
 	/* 0x3d, '=' */  0,
 	/* 0x3e, '>' */  MNQUO | MNAME,
-	/* 0x3f, '?' */  MSVAR | MGLOB,
-	/* 0x40, '@' */  MSVAR,
+	/* 0x3f, '?' */  MGLOB,
+	/* 0x40, '@' */  0,
 	/* 0x41, 'A' */  MBVAR,
 	/* 0x42, 'B' */  MBVAR,
 	/* 0x43, 'C' */  MBVAR,
@@ -134,23 +137,4 @@ unsigned char lextab[] ={
 	/* 0x7d, '}' */  0,
 	/* 0x7e, '~' */  0,
 	/* 0x7f */       0
-#else
-	                                          0103,	/* EOF */
-	0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000,	/* 0x00 to 0x07 */
-	0000, 0101, 0103, 0000, 0000, 0000, 0000, 0000,	/* 0x08 to 0x0F */
-	0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000,	/* 0x10 to 0x17 */
-	0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000,	/* 0x18 to 0x1F */
-	0101, 0010, 0003, 0010, 0017, 0000, 0101, 0001,	/* 0x20 to 0x27 */
-	0101, 0101, 0210, 0000, 0000, 0010, 0000, 0000,	/* 0x28 to 0x2F */
-	0030, 0030, 0030, 0030, 0030, 0030, 0030, 0030,	/* 0x30 to 0x37 */
-	0030, 0030, 0000, 0101, 0101, 0000, 0101, 0210,	/* 0x38 to 0x3F */
-	0010, 0040, 0040, 0040, 0040, 0040, 0040, 0040,	/* 0x40 to 0x47 */
-	0040, 0040, 0040, 0040, 0040, 0040, 0040, 0040,	/* 0x48 to 0x4F */
-	0040, 0040, 0040, 0040, 0040, 0040, 0040, 0040,	/* 0x50 to 0x57 */
-	0040, 0040, 0040, 0200, 0007, 0200, 0000, 0040,	/* 0x58 to 0x5F */
-	0007, 0040, 0040, 0040, 0040, 0040, 0040, 0040,	/* 0x60 to 0x67 */
-	0040, 0040, 0040, 0040, 0040, 0040, 0040, 0040,	/* 0x68 to 0x6F */
-	0040, 0040, 0040, 0040, 0040, 0040, 0040, 0040,	/* 0x70 to 0x77 */
-	0040, 0040, 0040, 0000, 0101, 0000, 0000, 0000	/* 0x78 to 0x7F */
-#endif
 };
