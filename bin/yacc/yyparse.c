@@ -1,4 +1,3 @@
-#include "action.h"
 #define YYNOCHAR (-1000)
 #define	yyerrok	yyerrflag=0
 #define	yyclearin	yylval=YYNOCHAR
