@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)standout.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)standout.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,7 +31,7 @@ static char sccsid[] = "@(#)standout.c	5.3 (Berkeley) 6/30/88";
 /*
  * enter standout mode
  */
-char *
+uchar *
 wstandout(win)
 reg WINDOW	*win;
 {
@@ -45,7 +45,7 @@ reg WINDOW	*win;
 /*
  * exit standout mode
  */
-char *
+uchar *
 wstandend(win)
 reg WINDOW	*win;
 {

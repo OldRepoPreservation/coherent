@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)scanw.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)scanw.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -32,7 +32,7 @@ static char sccsid[] = "@(#)scanw.c	5.3 (Berkeley) 6/30/88";
  *	This routine implements a scanf on the standard screen.
  */
 scanw(fmt, args)
-char	*fmt;
+uchar	*fmt;
 int	args; {
 
 	return _sscans(stdscr, &fmt);
@@ -43,7 +43,7 @@ int	args; {
  */
 wscanw(win, fmt, args)
 WINDOW	*win;
-char	*fmt;
+uchar	*fmt;
 int	args; {
 
 	return _sscans(win, &fmt);
@@ -60,10 +60,10 @@ int	args; {
  */
 _sscans(win, fmtp)
 WINDOW	*win;
-char	**fmtp;
+uchar	**fmtp;
 {
 
-	char buf[128];
+	uchar buf[128];
 
 	if (wgetstr(win, buf) == ERR)
 		return ERR;

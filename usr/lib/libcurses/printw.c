@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)printw.c	5.4 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)printw.c	5.4 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -32,9 +32,9 @@ static char sccsid[] = "@(#)printw.c	5.4 (Berkeley) 6/30/88";
  *	This routine implements a printf on the standard screen.
  */
 printw(fmt /*, args */)
-char	*fmt;
+uchar	*fmt;
 {
-	char	buf[128];
+	uchar	buf[128];
 
 	(void) sprintf(buf, "%r", &fmt );
 	return waddstr(stdscr, buf);
@@ -45,9 +45,9 @@ char	*fmt;
  */
 wprintw(win, fmt /*, args */)
 WINDOW	*win;
-char	*fmt;
+uchar	*fmt;
 {
-	char	buf[128];
+	uchar	buf[128];
 
 	(void) sprintf(buf, "%r", &fmt );
 	return waddstr(win, buf);

@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)unctrl.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)unctrl.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -27,7 +27,7 @@ static char sccsid[] = "@(#)unctrl.c	5.3 (Berkeley) 6/30/88";
  */
 
 /* LINTLIBRARY */
-char	*_unctrl[]	= {	/* unctrl codes for ttys		*/
+unsigned char	*_unctrl[]	= {	/* unctrl codes for ttys		*/
 	"^@", "^A", "^B", "^C", "^D", "^E", "^F", "^G", "^H", "^I", "^J", "^K",
 	"^L", "^M", "^N", "^O", "^P", "^Q", "^R", "^S", "^T", "^U", "^V", "^W",
 	"^X", "^Y", "^Z", "^[", "^\\", "^]", "^~", "^_",
