@@ -219,18 +219,23 @@ autoind(f, n)
 tab(f, n)
 register int n;
 {
-	if (n < 0) {
+	if (n == 1)		/* normal tabbing */
+		return (bind.tabsize ?
+			linsert(bind.tabsize - (getccol(FALSE)%bind.tabsize),' ') :
+			linsert(1, '\t'));
+
+	if (n < 0) {	/* change the meaning of tab character */
 		bind.tabsiz = -n;
 		curwp->w_flag |= WFMODE|WFFORCE|WFHARD;
 		return (TRUE);
 	}
-	if (n != 1) {
-		bind.tabsize = n;
-		return (TRUE);
+
+	/* change the meaning of tab key */
+	if (!(bind.tabsize = n)) {
+		bind.tabsiz = 8;	/* back to the default for 0 */
+		curwp->w_flag |= WFMODE|WFFORCE|WFHARD;
 	}
-	if (!bind.tabsize)
-		return (linsert(1, '\t'));
-	return (linsert(bind.tabsize - (getccol(FALSE) % bind.tabsize), ' '));
+	return (TRUE);
 }
 
 /*
@@ -319,7 +324,7 @@ deblank(f, n)
 		return (TRUE);
 	lcurwp->w_dotp = lforw(lp1);
 	lcurwp->w_doto = 0;
-	return (ldelete(nld));
+	return (ldelete(nld, FALSE));
 }
 
 /*
