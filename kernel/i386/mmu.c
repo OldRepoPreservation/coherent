@@ -145,7 +145,7 @@ unsigned	clicks_wanted;
 	cseg_t *pp;
 	register cseg_t *qp;
 
-	/* Do we have enough free phsycial clicks for this request?  */
+	/* Do we have enough free physical clicks for this request?  */
 	if (clicks_wanted > allocno())
 		goto no_c_alloc;
 
@@ -292,7 +292,7 @@ mapPhysUser(virtAddr, physAddr, numBytes)
 			  virtAddr + ctob(i)));
 		}
 		*qp = (physAddr + ctob(i)) | (SEG_RW | SEG_NPL);
-		ptable1_v[btocrd(physAddr) + i] = *qp | SEG_RW;
+		ptable1_v[btocrd(virtAddr) + i] = *qp;
 	}
 	mmuupd();
 	ret = 1;
@@ -716,6 +716,8 @@ void
 mchinit()
 {
 	extern char __end[], __end_data[], stext[], __end_text[], sdata[];
+	extern int RAM0, RAMSIZE;
+
 	int lo;		/* Number of bytes of physical memory below 640K.  */
 	int hi;		/* Number of bytes of physical memory above 1M.  */
 	register char *pe; 
@@ -1040,7 +1042,8 @@ mchinit()
 	 * This ram disk stuff should go away once the scheme
 	 * for allocating pieces of virtual memory space is in place.
 	 */
-	for (ptoff = 0x200; ptoff < 0x204; ++ptoff) {
+	for (ptoff = btosrd(RAM0) & 0x3ff;
+	  ptoff < (btosrd(RAM0 + 2 * RAMSIZE) & 0x3ff); ++ptoff) {
 		ramseg =  clickseg(*--sysmem.pfree);		/* 5.c.i */
 		pageDir[ptoff] = ramseg  | DIR_RW; 
 		ptable1_v[ptoff] = ramseg | SEG_SRW;
@@ -1410,13 +1413,33 @@ unsigned	base;
 	return base>=srp->sr_base && base+count <= srp->sr_base+srp->sr_size;
 }
 
+#if 0
 /*
  * msigstart(signum, func)
  *
  * signum is 1-based signal number
  * func points to signal handler in user text,
  *   or func is magic value (SIG_DFL, etc.)
+ *
+ * This routine will set up the stack as shown before entering the user
+ * signal handler:
+ *
+ *	ndp/emulator context (struct _fpstate or struct _fpemstate or absent)
+ *	ndp/emulator flags
+ *	fpstackframe:
+ *		wsp (Weitek context pointer - always null, but part of BCS)
+ *		fpsp (floating point context pointer, possibly null)
+ *		CPU register set (SS+1 long registers)
+ *		1-based signal number
+ *	u.u_sigreturn (in place of user return address)
  */
+
+/*
+ * A special define for signal stack arithmetic:
+ * Will copy at least u_sigreturn, _fpstackframe, and ndpFlags.
+ */
+#define SIG_AREA_BASE	(sizeof(struct _fpstackframe) + 2 * sizeof(long))
+
 void
 msigstart(signum, func)
 {
@@ -1432,25 +1455,15 @@ msigstart(signum, func)
 		SELF->p_hsig |= 1 << signum;
 
 	/*
-	 * Make room on user stack for a struct _fpstackframe.
-	 * And a fake return address (u_sigreturn).
-	 * And current EM.
-	 * Call this user area "fpf".
-	 * Weitek state pointer fpf.wsp = NULL.
-	 * Copy register set into fpf.regs[].
-	 * Copy 1-based signal number into fpf.signo.
-	 * Copy u.u_sigreturn into user stack just below fpf.
-	 * Copy current Em just above fpf.
-	 * Maybe copy ndp state above current EM.
+	 * Will copy at least u_sigreturn, _fpstackframe, and ndpFlags.
+	 * If using ndp, need room for an _fpstate.
+	 * If emulating, need room for an _fpemstate.
 	 */
-
-	/*
-	 * Will copy at least an _fpstackframe, u_sigreturn, and currentEM.
-	 * If process is using ndp, will also copy an _fpstate.
-	 */
-	sigArea = sizeof(struct _fpstackframe) + 2 * sizeof(long);
+	sigArea = SIG_AREA_BASE;
 	if (rdNdpUser())
 		sigArea += sizeof(struct _fpstate);
+	else if (rdEmTrapped())
+		sigArea += sizeof(struct _fpemstate);
 	uesp = u.u_regl[UESP] - sigArea;
 
 	/* Add a click to user stack if necessary. */
@@ -1477,12 +1490,21 @@ msigstart(signum, func)
 		segload();
 	}
 
-	if (rdNdpUser())
-		fpsp = uesp + (SS+6)*sizeof(long);
+	/*
+	 * Set the ndp/emulator context pointer fpsp.
+	 * Fp context is immediately above SIG_AREA_BASE.
+	 */
+	if (rdNdpUser() || rdEmTrapped())
+		fpsp = uesp + SIG_AREA_BASE;
 	else
 		fpsp = 0;
+
+	/*
+	 * Write fpsp and wsp (Weitek state pointer always null).
+	 */
 	putuwd(uesp + (SS+3) * sizeof(long), fpsp);
 	putuwd(uesp + (SS+4) * sizeof(long), 0);
+
 	kucopy(u.u_regl, uesp + 2*sizeof(long), (SS+1) * sizeof(long));
 	putuwd(uesp+sizeof(long), signum+1);
 	putuwd(uesp, u.u_sigreturn);
@@ -1495,8 +1517,14 @@ msigstart(signum, func)
 	/*
 	 * We are about to enter a signal handling function for the process.
 	 * If current process is using ndp
+	 *   copy ndp state and related flags into signal handler stack
 	 *   mark the process as not using ndp
 	 *   arm EM traps in case signal handler uses ndp
+	 * Else if process is using emulator
+	 *   copy emulator state and flags into signal handler stack
+	 *   mark the process as not using emulator
+	 * Else
+	 *   put ndp/emulator flags on stack
 	 */
 	if (rdNdpUser()) {
 		/* if ndp state not saved yet for this process, save it now */
@@ -1507,13 +1535,18 @@ msigstart(signum, func)
 
 		putuwd(uesp + (SS+5) * sizeof(long), u.u_ndpFlags);
 
-		kucopy(&u.u_ndpCon, uesp + (SS+6)*sizeof(long),
-		  sizeof(u.u_ndpCon));
+		kucopy(&u.u_ndpCon, fpsp, sizeof(struct _fpstate));
 		ndpDetach();
 
 		wrNdpUser(0);
 		wrNdpSaved(0);
 		ndpEmTraps(1);
+	} else if (rdEmTrapped()) {
+		putuwd(uesp + (SS+5) * sizeof(long), u.u_ndpFlags);
+
+		kucopy(&u.u_ndpCon, fpsp, sizeof(struct _fpemstate));
+
+		wrEmTrapped(0);
 	} else {
 		putuwd(uesp + (SS+5) * sizeof(long), u.u_ndpFlags);
 	}
@@ -1545,6 +1578,7 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 
 	sigNdpUser = rdNdpUser();
 	u.u_ndpFlags = savedNdpFlags;
+
 	/*
 	 * We are about to leave a signal handling function for this process.
 	 * If signal function for this process was using ndp
@@ -1553,6 +1587,8 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 	 *   Restore current EM to its pre-signal value.
 	 * If main process *was* using ndp
 	 *   restore its ndp state and make it ndp owner again.
+	 * If main process was using emulator
+	 *   restore emulator state.
 	 */
 	if (sigNdpUser && !rdNdpUser()) {
 		ndpDetach();
@@ -1562,10 +1598,13 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 	if (rdNdpUser()) {
 		ndpEmTraps(0);
 		ukcopy(uesp + (SS+4)*sizeof(long), &u.u_ndpCon,
-		  sizeof(u.u_ndpCon));
+		  sizeof(struct _fpstate));
 		ndpRestore(&u.u_ndpCon);
 		wrNdpSaved(0);
 		ndpMine();
+	} else if (rdEmTrapped()) {
+		ukcopy(uesp + (SS+4)*sizeof(long), &u.u_ndpCon,
+		  sizeof(struct _fpemstate));
 	}
 
 	/* Restore process state to pre-signal values. */
@@ -1582,6 +1621,7 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 		}
 	}
 }
+#endif
 
 printhex(v, max)
 unsigned long v;
