@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 1.12  92/11/09  17:12:12  root
+ * Just before adding vio segs.
+ * 
  * Revision 1.11  92/04/30  08:59:18  hal
  * Add asy.  Remove silos from tty struct.
  * 
@@ -968,7 +971,7 @@ rescan:
 			 * Must recognize XOFF quickly to avoid transmit overrun.
 			 * Recognize XON here as well to avoid race conditions.
 			 */
-			if (!ISRIN) {
+			if (ISIXON) {
 				/*
 				 * XOFF.
 				 */
@@ -1181,7 +1184,7 @@ register TTY * tp;
 		 * Must recognize XOFF quickly to avoid transmit overrun.
 		 * Recognize XON here as well to avoid race conditions.
 		 */
-		if (!ISRIN) {
+		if (ISIXON) {
 			/*
 			 * XOFF.
 			 */

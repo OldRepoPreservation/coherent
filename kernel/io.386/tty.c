@@ -6,38 +6,6 @@
  *	independent aspects of a typewriter, including tandem flow control,
  *	erase and kill, stop and start, and common ioctl functions.
  *
- * $Log:	tty.c,v $
- * Revision 1.12  92/06/06  12:39:28  hal
- * Last before adding termio field to tty struct.
- * 
- * Revision 1.11  92/04/30  08:58:50  hal
- * Add asy.  Remove silos from tty struct.
- * 
- * Revision 1.10  92/04/13  10:14:01  hal
- * Kernel #52.
- * 
- * Revision 1.9  92/03/18  07:44:47  hal
- * ttwrite0() needed to break pty deadlock.
- * 
- * Revision 1.8  92/03/18  05:27:05  hal
- * Add ttrtp(), ttinp(), ttoutp().
- * Fix ctrl-s/ctrl-q transposition in termio routine.
- * TIOCSET[PN] now sets RAW depending on RAWIN&RAWOUT & vice versa.
- * 
- * Revision 1.7  92/02/20  20:25:36  hal
- * Minor fixes
- * 
- * Revision 1.6  92/02/20  19:43:30  piggy
- * Add "mode" arg to ttsetgrp() for NOCTTY support.
- * 
- * Revision 1.5  92/02/16  23:14:23  hal
- * Initial termio support.
- * 
- * Revision 1.4  92/02/16  18:27:33  hal
- * Binary compatibility with Sys V sgtty
- * 
- * Revision 1.3  92/02/15  15:43:46  root
- * Merge with 286 kernel tty.c.
  */
 
 /*
@@ -613,7 +581,7 @@ register struct sgttyb *vec;
 	 * If ioctl just put device into RAWIN mode, make sure device
 	 * is not still waiting for startc.
 	 */
-	if (ISRIN && (tp->t_flags & T_STOP) && !(tp->t_flags & T_HOPEN)) {
+	if ((!ISIXON) && (tp->t_flags & T_STOP) && !(tp->t_flags & T_HOPEN)) {
 		s = sphi();
 		tp->t_flags &= ~T_STOP;
 		ttstart(tp);
@@ -646,11 +614,6 @@ register struct sgttyb *vec;
 	 * Re-initialize hardware.
 	 */
 	if (rload) {
-		if ((tp->t_sgttyb.sg_flags & RAWIN)
-		  && (tp->t_sgttyb.sg_flags & RAWOUT))
-			tp->t_sgttyb.sg_flags |= RAW;
-		if (tp->t_sgttyb.sg_flags & RAW)
-			tp->t_sgttyb.sg_flags |= (RAWIN|RAWOUT);
 		if (tp->t_param)
 			NEAR_OR_FAR_CALL(t_param)
 	}
@@ -738,7 +701,7 @@ register TTY *tp;
 		if ((c=getq(&tp->t_oq)) < 0)
 			return -1;
 		if (!ISROUT) {
-			if (c=='\n' && ISCRMOD) {
+			if (c=='\n' && ISONLCR) {
 				tp->t_flags |= T_INL;
 				c = '\r';
 			} else if (c=='\t' && ISXTABS) {
@@ -781,24 +744,28 @@ register int c;
 	int dc, i, n;
 	int s;
 
-	if (!ISRIN) {
-#if NOT_8_BIT
-		c &= 0177;
-#endif
-		if (ISINTR) {
-			ttsignal(tp, SIGINT);
-			goto ttin_ret;
-		}
-		if (ISQUIT) {
-			ttsignal(tp, SIGQUIT);
-			goto ttin_ret;
-		}
+	if (ISISTRIP)
+		c &= 0x7F;
+
+	if (ISISIG && ISQUIT) {
+		ttsignal(tp, SIGQUIT);
+		goto ttin_ret;
 	}
+
+	if (ISISIG && ISINTR) {
+		ttsignal(tp, SIGINT);
+		goto ttin_ret;
+	}
+
 	if (tp->t_flags & T_ISTOP)
 		goto ttin_ret;
-	if (!ISRIN) {
-		if (c=='\r' && ISCRMOD)
+
+	if (ISICRNL && !ISIGNCR) {
+		if (c=='\r')
 			c = '\n';
+	}
+
+	if (!ISRIN) {
 		if (tp->t_escape) {
 			if (c == ESC)
 				++tp->t_escape;
@@ -1126,8 +1093,10 @@ struct termio * trp;
 	if (sgp->sg_flags & TANDEM)
 		trp->c_iflag |= IXOFF;
 
-	if (sgp->sg_flags & CRMOD)
+	if (sgp->sg_flags & CRMOD) {
 		trp->c_iflag |= ICRNL;
+		trp->c_oflag |= ONLCR;
+	}
 
 	if (sgp->sg_flags & LCASE) {
 		trp->c_lflag |= XCASE;
@@ -1135,17 +1104,20 @@ struct termio * trp;
 		trp->c_oflag |= OLCUC;
 	}
 
-	if (sgp->sg_flags & RAWIN)
-		trp->c_iflag &= ~IXON;
+	if (sgp->sg_flags & (RAW|RAWIN)) {
+		trp->c_iflag = 0;
+		trp->c_cflag &= ~(PARODD|PARENB);
+		trp->c_cflag |= (CS8|CREAD);
+		trp->c_lflag &= ~(ECHONL|ISIG|ICANON);
+	}
 
-	if (sgp->sg_flags & RAWOUT)
+	if (sgp->sg_flags & (RAW|RAWOUT)) {
 		trp->c_oflag &= ~OPOST;
+		trp->c_lflag &= ~(XCASE);
+	}
 
 	if (sgp->sg_flags & XTABS)
 		trp->c_oflag |= XTABS;
-
-	if (sgp->sg_flags & CRMOD)
-		trp->c_oflag |= ONLCR;
 
 	if (sgp->sg_flags & (EVENP|ODDP)) {
 		trp->c_cflag |= PARENB;
@@ -1156,9 +1128,6 @@ struct termio * trp;
 
 	if (sgp->sg_flags & CRT)
 		trp->c_lflag |= ECHOE;
-
-	if (sgp->sg_flags & RAWIN)
-		trp->c_lflag &= ~(ISIG|ICANON);
 
 	if (sgp->sg_flags & CBREAK)
 		trp->c_lflag &= ~ICANON;

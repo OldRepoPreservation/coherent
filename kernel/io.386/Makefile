@@ -32,7 +32,6 @@ IOOBJ = \
 	$(K386OBJ)/mm.o \
 	$(K386OBJ)/mmas.o \
 	$(K386OBJ)/msg.o \
-	$(K386OBJ)/msgcon.o \
 	$(K386OBJ)/nkb.o \
 	$(K386OBJ)/pty.o \
 	$(K386OBJ)/putchar.o \
@@ -106,7 +105,7 @@ $(K386OBJ)/dmareq.o:			\
 		$(SYSINC)/dmac.h	\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/io.h		\
-		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
+		$(SYSINC)/proc.h	$(SYSINC)/types.h $(USRINC)/poll.h \
 		$(SYSINC)/sched.h	\
 		$(SYSINC)/seg.h		\
 		$(SYSINC)/stat.h	\
@@ -240,7 +239,7 @@ $(K386OBJ)/lp.o:				\
 		$(USRINC)/errno.h	\
 		$(SYSINC)/reg.h	\
 		$(SYSINC)/io.h		\
-		$(SYSINC)/proc.h	$(SYSINC)/types.h $(SYSINC)/poll.h \
+		$(SYSINC)/proc.h	$(SYSINC)/types.h $(USRINC)/poll.h \
 		$(SYSINC)/stat.h	\
 		$(SYSINC)/timeout.h	\
 		$(SYSINC)/uproc.h	\
@@ -264,10 +263,7 @@ $(K386OBJ)/mm.o:				\
 $(K386OBJ)/mmas.o:	mmas.s
 	$(AS) -g -o $@ $<
 
-$(K386OBJ)/msg.o: msg.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(K386OBJ)/msgcon.o: msgcon.c
+$(K386OBJ)/msg.o: msg386.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(K386OBJ)/nkb.o:				\
