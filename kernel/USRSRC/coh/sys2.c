@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys2.c,v 1.2 88/08/02 15:00:22 src Exp $ */
+/* $Header: /usr/src/sys/coh/RCS/sys2.c,v 1.1 91/04/30 13:56:54 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,7 +17,10 @@
  * Coherent.
  * System calls (filesystem related).
  *
- * $Log$
+ * $Log:	/usr/src/sys/coh/RCS/sys2.c,v $
+ * Revision 1.1	91/04/30  13:56:54	root
+ * Shipped with COH 3.1.0.
+ * 
  */
 #include <coherent.h>
 #include <errno.h>
@@ -26,6 +29,7 @@
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/mount.h>
+#include <sys/poll.h>
 #include <sys/sched.h>
 #include <sys/stat.h>
 #include <sys/uproc.h>
@@ -591,9 +595,17 @@ int msec;
 			 * Poll message queue.
 			 */
 			else if ( fd >= NUFILE ) {
+#ifdef MSGPOLL
+/*
+ * this code only good if msgpoll() is available to the kernel -
+ * no good with loadable msg driver
+ */
 				rev = msgpoll(  fd,
 						getuwd( &pollp->events),
 						msec );
+#else
+				rev = POLLNVAL;
+#endif
 			}
 
 			/*
