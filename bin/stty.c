@@ -444,14 +444,10 @@ dump_cc()
 	if (t.c_lflag & ICANON) {
 		dump_ch("eof", t.c_cc[VEOF]);
 		dump_ch("eol", t.c_cc[VEOL]);
-#if 1
 		dump_ch("eol2", t.c_cc[VEOL2]);
-#endif
 	} else {
-		printf("min=%d\ttime=%d\t", t.c_cc[VMIN], t.c_cc[VTIME]);
-#if 1
+		printf("min=%d  time=%d  ", t.c_cc[VMIN], t.c_cc[VTIME]);
 		dump_ch("swtch", t.c_cc[VSWTCH]);
-#endif
 	}
 	putchar('\n');
 }
