@@ -499,7 +499,7 @@ inpath(file) char *file;
 time_t
 getmdate(name) char *name;
 {
-#if	COHERENT || GEMDOS
+#if	COHERENT3 || GEMDOS
 	char	*subname;
 	char	*lwa;
 	int	fd;
@@ -510,7 +510,9 @@ getmdate(name) char *name;
 
 	if (stat(name, &statbuf) == 0)
 		return(statbuf.st_mtime);
-#if	COHERENT || GEMDOS
+
+
+#if	COHERENT3 || GEMDOS
 	subname = index(name, '(');
 	if (subname == NULL)
 		return (0);
@@ -537,13 +539,14 @@ getmdate(name) char *name;
 		if (strcmp(hdrbuf.ar_name, subname) == 0) {
  			cantime(hdrbuf.ar_date); 
 			result = hdrbuf.ar_date;
-printf("%s %s\n", hdrbuf.ar_name, ctime(&hdrbuf.ar_date));
+
 			break;
 		}
 		canlong(hdrbuf.ar_size);
 		lseek(fd, hdrbuf.ar_size, SEEK_CUR);
 	}
 	*lwa = ')';
+printf("%s %s\n", hdrbuf.ar_name, ctime(&hdrbuf.ar_date));
 	return (result);
 #else
 	return 0;
@@ -1051,10 +1054,6 @@ main(argc, argv, envp) int argc; char *argv[], *envp[];
 	SYM	*sp;
 	DEP	*d;
 	MACRO	*mp;
-
-
-	getmdate("mm.a(z.o)");
-	exit(1);
 
 	time(&now);
 	++argv;
