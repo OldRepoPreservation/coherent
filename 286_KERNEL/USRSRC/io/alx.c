@@ -1,0 +1,914 @@
+/* (-lgl
+ * 	COHERENT Driver Kit Version x.x.x
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ *
+ * $Log:	alx.c,v $
+ *
+ -lgl) */
+/*
+ * Shared parts of IBM async port drivers.
+ */
+#include <sys/coherent.h>
+#include <sys/i8086.h>
+#include <sys/al.h>
+#include <sys/con.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/tty.h>
+#include <sys/uproc.h>
+#include <sys/timeout.h>
+#include <sys/clist.h>
+#include <sys/ins8250.h>
+#include <sys/sched.h>
+
+#define ALPORT	(((COM_DDP *)(tp->t_ddp))->port)
+#define AL_TIM	(((COM_DDP *)(tp->t_ddp))->tim)
+#define AL_NUM	(((COM_DDP *)(tp->t_ddp))->com_num)
+#define AL_MSR_DELTAS	(((COM_DDP *)(tp->t_ddp))->msr_deltas)
+
+#define DTRTMOUT  3	/* DTR timeout interval in seconds for close */
+#define	IENABLE	(IE_RxI+IE_TxI+IE_LSI+IE_MSI)
+
+/*
+ * For rawin silo (see ktty.h), use last element of si_buf to count the number
+ * of characters in the silo.
+ */
+#define SILO_CHAR_COUNT	si_buf[SI_BUFSIZ-1]
+#define SILO_HIGH_MARK	(SI_BUFSIZ-SI_BUFSIZ/4)
+#define SILO_LOW_MARK	(SI_BUFSIZ/4)
+#define MAX_SILO_INDEX	(SI_BUFSIZ-2)
+#define MAX_SILO_CHARS	(SI_BUFSIZ-1)
+
+int	al_sg_set = 0;
+int	al_sg_clr = 0;
+static int poll_divisor;  /* set by set_poll_rate(), read by alxclk() */
+
+/*
+ * functions herein
+ */
+int	alxopen();
+int	alxclose();
+int	alxtimer();
+int	alxioctl();
+int	alxparam();
+int	alxcycle();
+int	alxstart();
+int	alxbreak();
+int	alxintr();
+static	int alxclk();
+static	set_poll_rate();
+
+/*
+ * Baud rate table and polling rate table.
+ * Indexed by ioctl bit rates.
+ */
+int albaud[] ={
+	0,				/* 0 */
+	2304,				/* 50 */
+	1536,				/* 75 */
+	1047,				/* 110 */
+	857,				/* 134.5 */
+	768,				/* 150 */
+	576,				/* 200 */
+	384,				/* 300 */
+	192,				/* 600 */
+	96,				/* 1200 */
+	64,				/* 1800 */
+	58,				/* 2000 */
+	48,				/* 2400 */
+	32,				/* 3600 */
+	24,				/* 4800 */
+	16,				/* 7200 */
+	12,				/* 9600 */
+	6,				/* 19200 */
+	0,				/* EXTA */
+	0				/* EXTB */
+};
+
+/*
+ *	alp_rate[] is tied to albaud[] - it gives the minimum polling
+ *	rate for the corresponding port speed; it must be a multiple
+ *	of 100 (system clock Hz) and >= baud/6
+ */
+int alp_rate[] ={			/* baud/6 or zero */
+	0,				/* 0 */
+	1*HZ,				/* 50 */
+	1*HZ,				/* 75 */
+	1*HZ,				/* 110 */
+	1*HZ,				/* 134.5 */
+	1*HZ,				/* 150 */
+	1*HZ,				/* 200 */
+	1*HZ,				/* 300 */
+	1*HZ,				/* 600 */
+	2*HZ,				/* 1200 */
+	3*HZ,				/* 1800 */
+	4*HZ,				/* 2000 */
+	4*HZ,				/* 2400 */
+	6*HZ,				/* 3600 */
+	8*HZ,				/* 4800 */
+	12*HZ,				/* 7200 */
+	16*HZ,				/* 9600 */
+	0,				/* 19200 */
+	0,				/* EXTA */
+	0				/* EXTB */
+};
+
+/*
+ *	the following is for debug only
+ */
+#if 0
+#define CDUMP(text)	cdump(text);
+
+cdump(message)
+char *message;
+{
+	int i, b;
+
+	for (i = 0; i < NUM_AL_PORTS; i++) {
+		b = ((COM_DDP *)(tp_table[i]->t_ddp))->port;
+		printf("%x:%x:%x:%x ", i+1, b, inb(b+MCR), inb(b+IER));
+	}
+	printf("poll=%d ", poll_rate);
+	printf("%s\n", message);
+}
+#else
+#define CDUMP(text)
+#endif
+
+/*
+ * alxopen()
+ */
+alxopen(dev, mode, tp, irqtty)
+dev_t	dev;
+int	mode;
+register TTY	*tp, **irqtty;
+{
+	int	s;
+	int	b;
+	int	minor_h;  /* minor device number including high bit */
+	unsigned char	msr;
+	int	my_t_flags;
+	com_usage_t old_usage;
+
+	minor_h = minor(dev);     /* complete minor number */
+	b = ALPORT;
+	old_usage = com_usage[AL_NUM];
+
+	if (inb(b+IER) & ~IENABLE) { /* chip not found */
+		u.u_error = ENXIO;
+		goto bad_open;
+	}
+
+	if ((tp->t_flags & T_EXCL) && !super()) {
+		u.u_error = ENODEV;
+		goto bad_open;
+	}
+
+	if (drvl[major(dev)].d_time != 0) {	/* Modem settling */
+		u.u_error = EDBUSY;
+		goto bad_open;
+	}
+
+	/*
+	 * Can't open a polled port if another driver is using polling.
+	 */
+	if (dev & CPOLL && poll_owner & ~ POLL_AL) {
+		u.u_error = EDBUSY;
+		goto bad_open;
+	}
+
+	/*
+	 * Can't have both com[13] or both com[24] IRQ at once.
+	 */
+	if ( !(dev & CPOLL)
+	&& com_usage[AL_NUM^2].irq
+	&& com_usage[AL_NUM^2].in_use) {
+		u.u_error = EDBUSY;
+		goto bad_open;
+	}
+
+	/*
+	 * If port already in use, are new and old open modes compatible?
+	 */
+	if (com_usage[AL_NUM].in_use) {
+		int oldmode = 0, newmode = 0; /* mctl:1 poll:2 flow:4 */
+
+		if (tp->t_flags & T_MODC)
+			oldmode += 1;
+		if (com_usage[AL_NUM].irq == 0)	
+			oldmode += 2;
+		if (tp->t_flags & T_CFLOW)
+			oldmode += 4;
+		if ((minor_h & NMODC) == 0)
+			newmode += 1;
+		if (dev & CPOLL)
+			newmode += 2;
+		if (minor_h & CFLOW)
+			newmode += 4;
+		if (oldmode != newmode) {
+			u.u_error = EDBUSY;
+			goto bad_open;
+		}
+	}
+
+	if (tp->t_open == 0) {        /* not already open */
+		/*
+		 * Save modes for this open attempt to avoid future conflicts.
+		 */
+		if (!com_usage[AL_NUM].in_use) {
+			com_usage[AL_NUM].in_use = 1;
+			if (dev & CPOLL)
+				com_usage[AL_NUM].irq = 0;
+			else	
+				com_usage[AL_NUM].irq = 1;
+			if (minor_h & CFLOW)
+				tp->t_flags |= T_CFLOW;
+			else	
+				tp->t_flags &= ~T_CFLOW;
+			if (minor_h & NMODC)
+				tp->t_flags &= ~T_MODC;
+			else
+				tp->t_flags |= T_MODC;
+		}
+
+		/*
+		 * Wait for pending last close (if any) to finish.
+		 */
+		while (com_usage[AL_NUM].hcls) {
+   	  		sleep((char *)(com_usage+AL_NUM), CVTTOUT, IVTTOUT,
+				SVTTOUT);
+		}
+		s = sphi();
+		/*
+		 * Raise basic modem control lines even if modem
+		 * control hasn't been specified.
+		 * MC_OUT2 turns on NON-open-collector IRQ line from the UART.
+		 * since we can't have two UART's on same IRQ with MC_OUT2 on
+		 */
+		if (dev & CPOLL) {
+			outb(b+MCR, MC_RTS|MC_DTR);
+		} else {
+			*irqtty = tp_table[AL_NUM];
+			outb(b+MCR, MC_RTS|MC_DTR|MC_OUT2);
+		}
+
+		outb(b+IER, IENABLE);        /* enable interrupts */
+
+		if ((minor_h & NMODC) == 0) {	/* want modem control? */
+			my_t_flags = tp->t_flags |= T_HOPEN | T_STOP;
+			while (1) {	/* wait for carrier */
+				msr = inb(b+MSR);
+				AL_MSR_DELTAS |= msr;
+				/*
+				 * If carrier detect present
+				 *   if port not already open
+				 *     break out of loop and finish first open
+				 *   else
+				 *     do second (or third, etc.) open
+				 */
+				if (msr & MS_RLSD) {
+					if (tp->t_open == 0)
+						break;
+					else 	
+						goto already_open;
+				}
+
+	   	  		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
+					SVTTOUT);	/* wait for carrier */
+		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
+					outb(b+MCR, inb(b+MCR)&MC_OUT2);
+	                    		/*
+					 * make sure port is hung up
+					 * disable all ints except for TxI
+					 */
+			    		outb(b+IER, IE_TxI);
+					u.u_error = EINTR;
+					spl(s);
+					goto bad_open;
+				}
+			}
+			/*
+			 * Restore flags in case something else
+			 * opened the port and closed it while we slept.
+			 * And mark that we are no longer hanging in open.
+			 * Allow output over the port unless hardware flow
+			 * control says not to.
+			 */
+			tp->t_flags = my_t_flags;
+			tp->t_flags &= ~T_HOPEN;
+			tp->t_flags &= ~T_STOP;
+			if (!(tp->t_flags & T_CFLOW) || (msr & MS_CTS))
+				com_usage[AL_NUM].ohlt = 0;
+			else	
+				com_usage[AL_NUM].ohlt = 1;
+		}
+	        tp->t_flags |= T_CARR;			/* carrier on */
+		ttopen(tp);				/* stty inits */
+
+		/*
+		 * Allow custom modification of defaults.
+		 */
+		tp->t_sgttyb.sg_flags |=  al_sg_set;
+		tp->t_sgttyb.sg_flags &= ~al_sg_clr;
+		alxparam(tp);
+		spl(s);
+	}
+already_open:	
+	tp->t_open++;
+	ttsetgrp(tp, dev);
+
+	/*
+	 * Turn on polling for the port.
+	 */
+	if (dev & CPOLL) {
+		com_usage[AL_NUM].poll = 1;
+		set_poll_rate();
+	}
+
+	CDUMP((dev&CPOLL)?"open polled":"open irq")
+	return;
+bad_open:
+	com_usage[AL_NUM] = old_usage;
+	return;
+}
+
+/*
+ * alxclose()
+ *
+ *	Called at high priority on last close for the device.
+ */
+alxclose(dev, mode, tp)
+dev_t	dev;
+int	mode;
+TTY	*tp;
+{
+	register int b;
+	int state, maj;
+
+	/*
+	 * Called at high priority by alclose after al_buff is drained
+	 */
+	com_usage[AL_NUM].hcls = 1;			/* disallow reopen til done closing */
+	ttclose(tp);			/* clear flags */
+	b = ALPORT;
+	/*
+	 * ttclose() only emptied the output queue tp->t_oq;
+	 * now wait for the silo tp->rawout to empty
+	 * and allow a delay for the UART on-chip xmit buffer to empty
+	 * state 2: waiting for silo to empty
+	 * state 1: stalling so UART can empty xmit buffer
+	 * state 0: done!  ok to shut off IRQ for this chip by clearing MC_OUT2
+	 */
+	state = 2;
+	while (state) {
+		timeout(&AL_TIM, 10, wakeup, (int)&AL_TIM);
+		sleep((char *)&AL_TIM, CVTTOUT, IVTTOUT, SVTTOUT);
+		if (tp->t_rawout.si_ix == tp->t_rawout.si_ox  && state)
+			state--;
+	}
+
+	/*
+	 * If not hanging in open
+	 */
+	if ((tp->t_flags & T_HOPEN) == 0) {
+		/*
+		 * Disable interrupts.
+		 */
+		outb(b+IER, 0);
+		outb(b+MCR, inb(b+MCR)&(~MC_OUT2));
+	}
+
+	/*
+	 * If hupcls
+	 */
+	if (tp->t_flags & T_HPCL) {
+		/*
+		 * Hangup port - drop DTR and RTS.
+		 */
+		outb(b+MCR, inb(b+MCR)&MC_OUT2);
+
+		/*
+		 * Hold dtr low for timeout
+		 */
+		maj = major(dev);
+		drvl[maj].d_time = 2;
+		sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT);
+		drvl[maj].d_time = 0;
+	}
+	com_usage[AL_NUM].poll = 0;
+	set_poll_rate();
+	if ((tp->t_flags & T_HOPEN) == 0)
+		com_usage[AL_NUM].in_use = 0;
+	com_usage[AL_NUM].hcls = 0;	/* allow reopen - done closing */
+	wakeup((char *)com_usage+AL_NUM);
+	CDUMP("closed")
+}
+
+/*
+ * Common c_timer routine for async ports.
+ */
+alxtimer(dev)
+dev_t dev;
+{
+	if (++drvl[major(dev)].d_time > DTRTMOUT)
+		wakeup((char *)&drvl[major(dev)].d_time);
+}
+
+
+/*
+ * Common c_ioctl routine for async ports.
+ */
+alxioctl(dev, com, vec, tp)
+dev_t	dev;
+struct sgttyb *vec;
+register TTY 	*tp;
+{
+	register int	s, b;
+	int stat1, stat2;
+	unsigned char	msr;
+	unsigned char ier_save;
+
+	s = sphi();
+	b = ALPORT;
+	ier_save=inb(b+IER);
+	stat1 = inb(b+MCR);		/* get current MCR register status */
+	stat2 = inb(b+LCR);		/* get current LCR register status */
+
+	switch(com) {
+	case TIOCSBRK:			/* set BREAK */
+		outb(b+LCR, stat2|LC_SBRK);
+		break;
+	case TIOCCBRK:			/* clear BREAK */
+		outb(b+LCR, stat2 & ~LC_SBRK);
+		break;
+	case TIOCSDTR:			/* set DTR */
+		outb(b+MCR, stat1|MC_DTR);
+		break;
+	case TIOCCDTR:			/* clear DTR */
+		outb(b+MCR, stat1 & ~MC_DTR);
+		break;
+	case TIOCSRTS:			/* set RTS */
+		outb(b+MCR, stat1|MC_RTS);
+		break;
+	case TIOCCRTS:			/* clear RTS */
+		outb(b+MCR, stat1 & ~MC_RTS);
+		break;
+	case TIOCRSPEED:		/* set "raw" I/O speed divisor */
+		outb(b+LCR, stat2|LC_DLAB);  /* set speed latch bit */
+		outb(b+DLL, (unsigned) vec);
+		outb(b+DLH, (unsigned) vec >> 8);
+		outb(b+LCR, stat2);       /* reset latch bit */
+		break;
+	case TIOCWORDL:		/* set word length and stop bits */
+		outb(b+LCR, ((stat2&~0x7) | ((unsigned) vec & 0x7)));
+		break;
+	case TIOCRMSR:		/* get CTS/DSR/RI/RLSD (MSR) */
+		msr = inb(b+MSR);
+		AL_MSR_DELTAS |= msr;
+		stat1 = msr >> 4;
+		kucopy(&stat1, (unsigned *) vec, sizeof(unsigned));
+		break;
+	default:
+		ttioctl(tp, com, vec);
+	}
+	outb(b+IER, ier_save);
+	spl(s);
+}
+
+alxparam(tp)
+TTY	*tp;
+{
+	register int	b;
+	register int	baud;
+	int s;
+
+	b = ALPORT;
+
+	/*
+	 * error if input speed not the same as output speed
+	 */
+	if (tp->t_sgttyb.sg_ispeed!=tp->t_sgttyb.sg_ospeed) {
+		u.u_error = ENODEV;
+		return;
+ 	}
+
+	if ((baud = albaud[tp->t_sgttyb.sg_ispeed]) == 0) {
+		if (tp->t_flags & T_MODC) {  /* modem control? */
+			s = sphi();
+			tp->t_flags &= ~T_CARR;  /* indicate no carrier */
+			outb(b+MCR, inb(b+MCR) & MC_OUT2); /* hangup */
+			spl(s);
+		}
+	}
+
+	if (baud) {
+		unsigned char ier_save;
+
+		s=sphi();
+		ier_save=inb(b+IER);	/* some chips need this */
+		outb(b+LCR, LC_DLAB);
+		outb(b+DLL, baud);
+		outb(b+DLH, baud >> 8);
+		switch (tp->t_sgttyb.sg_flags & (EVENP|ODDP|RAW)) {
+		case EVENP:
+			outb(b+LCR, LC_CS7 + LC_PARENB + LC_PAREVEN);
+			break;
+
+		case ODDP:
+			outb(b+LCR, LC_CS7 + LC_PARENB);
+			break;
+
+		default:
+			outb(b+LCR, LC_CS8);
+			break;
+		}
+		outb(b+IER, ier_save);
+		spl(s);
+	}
+	set_poll_rate();
+}
+
+/*
+ * Middle level processor.
+ *
+ *	Invoked 10 times per second.  (Once every ten clock ticks.)
+ *	Tranfers rawin buffer [from intr level] to canonical input queue.
+ *	Checks modem status for loss of carrier.
+ *	Transfers output queue to rawout buffer [for intr level].
+ */
+alxcycle(tp)
+register TTY * tp;
+{
+	register int b;
+	register int n;
+	unsigned char msr, mcr;
+	int s;
+
+	/*
+	 * Empty raw input buffer.
+	 *
+	 * The line discipline module (tty.c) will set T_ISTOP true when the
+	 * tt input queue is nearly full (tp->t_iq.cq_cc >= IHILIM), and make
+	 * T_ISTOP false when it's ready for more input.
+	 *
+	 * When T_ISTOP is true, ttin() simply discards the character passed.
+	 */
+	if (!(tp->t_flags & T_ISTOP)) {
+		while (tp->t_rawin.SILO_CHAR_COUNT > 0) {
+			s = sphi();
+			ttin(tp, tp->t_rawin.si_buf[tp->t_rawin.si_ox]);
+			if (tp->t_rawin.si_ox < MAX_SILO_INDEX)
+				tp->t_rawin.si_ox++;
+			else
+				tp->t_rawin.si_ox = 0;
+			tp->t_rawin.SILO_CHAR_COUNT--;
+			spl(s);
+		}
+	}
+
+	/*
+	 * Check Carrier Detect (RLSD).
+	 *
+	 * Modem status interrupts were not enabled due to 8250 hardware bug.
+	 * Enabling modem status and receive interrupts may cause lockup
+	 * on older parts.
+	 */
+	if (tp->t_flags & T_MODC) {
+
+		/*
+		 * Get status
+		 */
+		msr = inb(ALPORT+MSR);
+		AL_MSR_DELTAS |= msr;
+
+		/*
+		 * Carrier changed.
+		 */
+		if (AL_MSR_DELTAS & MS_DRLSD) {
+			AL_MSR_DELTAS &= ~MS_DRLSD;
+			/*
+			 * wakeup open
+			 */
+			if (tp->t_open == 0) {
+				wakeup((char *)(&tp->t_open));
+			}
+
+			/*
+			 * carrier off?
+			 */
+			else if ((msr & MS_RLSD) == 0) {
+				/*
+				 * clear carrier flag; send hangup signal
+				 */
+				s = sphi();
+				tp->t_rawin.si_ox = tp->t_rawin.si_ix;
+				tp->t_rawin.SILO_CHAR_COUNT = 0;
+				spl(s);
+				tthup(tp);
+			}
+		}
+	}
+
+	/*
+	 * Hardware flow control.
+	 *	Check CTS to see if we need to halt output.
+	 *	(MS_INTR should have done this - repeat code here to be sure)
+	 *	Check input silo to see if we need to raise RTS.
+	 */
+	if (tp->t_flags & T_CFLOW) {
+
+		/*
+		 * Get status
+		 */
+		msr = inb(ALPORT+MSR);
+		AL_MSR_DELTAS |= msr;
+
+		s = sphi();
+		if (msr & MS_CTS)
+			com_usage[AL_NUM].ohlt = 0;
+		else	
+			com_usage[AL_NUM].ohlt = 1;
+		spl(s);
+
+		/*
+		 * If using hardware flow control, see if we need to drop RTS.
+		 */
+		if ( (tp->t_flags & T_CFLOW)
+		&& (tp->t_rawin.SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
+			mcr = inb(ALPORT+MCR);
+			outb(ALPORT+MCR, mcr & ~MC_RTS);
+		}
+
+		/*
+		 * If input silo below low mark, assert RTS.
+		 */
+		if (tp->t_rawin.SILO_CHAR_COUNT <= SILO_LOW_MARK) {
+			s = sphi();
+			mcr = inb(ALPORT+MCR);
+			outb(ALPORT+MCR, mcr | MC_RTS);
+			spl(s);
+		}
+	}
+
+	/*
+	 * Calculate free output slot count.
+	 */
+	n  = sizeof(tp->t_rawout.si_buf) - 1;
+	n += tp->t_rawout.si_ox - tp->t_rawout.si_ix;
+	n %= sizeof(tp->t_rawout.si_buf);
+
+	/*
+	 * Fill raw output buffer.
+	 */
+	for (;;) {
+		if (--n < 0) 
+			break;
+		s = sphi();
+		b = ttout(tp);
+		spl(s);
+		if (b < 0)
+			break;
+
+		s = sphi();
+		tp->t_rawout.si_buf[ tp->t_rawout.si_ix ] = b;
+		if (tp->t_rawout.si_ix >= sizeof(tp->t_rawout.si_buf) - 1)
+			tp->t_rawout.si_ix = 0;
+		else
+			tp->t_rawout.si_ix++;
+		spl(s);
+	}
+
+	/*
+	 * (Re)start output, wake sleeping processes, etc.
+	 */
+	ttstart(tp);
+
+	/*
+	 * Schedule next cycle.
+	 */
+	timeout(&tp->t_rawtim, HZ/10, alxcycle, tp);
+}
+
+/*
+ * Serial Transmit Start Routine.
+ */
+alxstart(tp)
+register TTY * tp;
+{
+	register int b;
+	register int s;
+	extern alxbreak();
+
+	/*
+	 * Read line status register AFTER disabling interrupts.
+	 */
+	s = sphi();
+	b = inb(ALPORT+LSR);
+
+	/*
+	 * Process break indication.
+	 * NOTE: Break indication cleared when line status register was read.
+	 */
+	if (b & LS_BREAK)
+		defer(alxbreak, tp);
+
+	/*
+	 * Transmitter is empty, output data is pending.
+	 */
+	if ((b & LS_TxRDY) && (tp->t_rawout.si_ix != tp->t_rawout.si_ox)) {
+		outb(	ALPORT+DREG,
+			tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
+		if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
+			tp->t_rawout.si_ox = 0;
+	}
+	spl(s);
+}
+
+/*
+ * Serial Received Break Handler.
+ */
+alxbreak(tp)
+TTY * tp;
+{
+	ttsignal(tp, SIGINT);
+}
+
+/*
+ * Serial Interrupt Handler.
+ */
+alxintr(tp)
+register TTY * tp;
+{
+	int c;
+	int port = ALPORT;
+	unsigned char mcr, msr;
+
+rescan:
+	switch (inb(port+IIR)) {
+
+	case LS_INTR:
+		if (inb(port+LSR) & LS_BREAK)
+			defer(alxbreak, tp);
+		goto rescan;
+
+	case Rx_INTR:
+		c = inb(port+DREG);
+		if (tp->t_open == 0)
+			goto rescan;
+		/*
+		 * Must recognize XOFF quickly to avoid transmit overrun.
+		 * Recognize XON here as well to avoid race conditions.
+		 */
+		if (!ISRIN) {
+			/*
+			 * XOFF.
+			 */
+			if (ISSTOP) {
+				tp->t_flags |= T_STOP;
+				goto rescan;
+			}
+
+			/*
+			 * XON.
+			 */
+			if (ISSTART) {
+				tp->t_flags &= ~T_STOP;
+				goto rescan;
+			}
+		}
+
+		/*
+		 * Save char in raw input buffer.
+		 */
+		if (tp->t_rawin.SILO_CHAR_COUNT < MAX_SILO_CHARS) {
+			tp->t_rawin.si_buf[tp->t_rawin.si_ix] = c;
+			if (tp->t_rawin.si_ix < MAX_SILO_INDEX)
+				tp->t_rawin.si_ix++;
+			else
+				tp->t_rawin.si_ix = 0;
+			tp->t_rawin.SILO_CHAR_COUNT++;
+		}
+
+		/*
+		 * If using hardware flow control, see if we need to drop RTS.
+		 */
+		if ( (tp->t_flags & T_CFLOW)
+		&& (tp->t_rawin.SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
+			mcr = inb(port+MCR);
+			outb(port+MCR, mcr & ~MC_RTS);
+		}
+		goto rescan;
+
+	case Tx_INTR:
+		/*
+		 * Do nothing if no raw output data or output is stopped.
+		 */
+		if (tp->t_rawout.si_ix == tp->t_rawout.si_ox) {
+			goto rescan;
+		}
+		if (tp->t_flags & T_STOP)
+			goto rescan;
+		if (com_usage[AL_NUM].ohlt)
+			goto rescan;
+
+		/*
+		 * Transmit next char in raw output buffer.
+		 */
+		outb(port+DREG,
+			tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
+
+		/*
+		 * Adjust raw output buffer output index.
+		 */
+		if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
+			tp->t_rawout.si_ox = 0;
+
+		/*
+		 * Try to fill buffer if now empty.
+		 */
+		if (tp->t_rawout.si_ox == tp->t_rawout.si_ix) {
+			defer(alxcycle, tp);
+		}
+		goto rescan;
+
+	case MS_INTR:
+		/*
+		 * Get status
+		 */
+		msr = inb(port+MSR);
+		AL_MSR_DELTAS |= msr;
+
+		/*
+		 * Hardware flow control.
+		 *	Check CTS to see if we need to halt output.
+		 */
+		if (tp->t_flags & T_CFLOW) {
+			if (msr & MS_CTS)
+				com_usage[AL_NUM].ohlt = 0;
+			else	
+				com_usage[AL_NUM].ohlt = 1;
+		}
+		goto rescan;
+	}
+}
+
+/*
+ * alxclk will be called every time T0 interrupts - if it returns 0,
+ * the usual system timer interrupt stuff is done
+ */
+static int alxclk()
+{
+	static int count;
+	int i;
+
+	for (i = 0; i < NUM_AL_PORTS;  i++)
+		if (com_usage[i].poll)
+			alxintr(tp_table[i]);
+	count++;
+	if (count >= poll_divisor)
+		count = 0;
+	return count;
+}
+
+/*
+ * set_poll_rate is called when a port is opened or closed or changes speed
+ * it sets the polling rate only as fast as needed, and shuts off polling
+ * whenever possible
+ */
+static set_poll_rate()
+{
+	int port_num, max_rate, port_rate;
+
+	/*
+	 * If another driver has the polling clock, do nothing.
+	 */
+	if (poll_owner & ~ POLL_AL)
+		return;
+
+	/*
+	 * find highest valid polling rate in units of HZ/10
+	 */
+	max_rate = 0;
+	for (port_num = 0; port_num < NUM_AL_PORTS; port_num++) {
+		if (com_usage[port_num].poll) {
+			port_rate = alp_rate[(tp_table[port_num])->t_sgttyb.sg_ispeed];
+			if (max_rate < port_rate)
+				max_rate = port_rate;
+		}
+	}
+	/*
+	 * if max_rate is not current rate, adjust the system clock
+	 */
+	if (max_rate != poll_rate) {
+		poll_rate = max_rate;
+		poll_divisor = poll_rate/HZ;  /* used in alxclk() */
+		altclk_out();		/* stop previous polling */
+		poll_owner &= ~ POLL_AL;
+		if (max_rate) {	/* resume polling at new rate if needed */
+			poll_owner |= POLL_AL;
+			altclk_in(poll_rate, alxclk);
+		}
+		CDUMP("new rate")
+	}
+}
