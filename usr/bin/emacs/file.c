@@ -148,9 +148,11 @@ uchar	fname[];
 		return (s);
 	bp->b_flag &= ~(BFTEMP|BFCHG|BFTRUNC);
 	strcpy(bp->b_fname, fname);
-	if ((s=ffropen(fname)) == FIOERR) 	/* Hard file open.	*/
+	switch (s=ffropen(fname)) { /* file open */
+	case FIOERR: 	/* file exists but cannot read */
+		mlwrite("[Cannot read %s]", fname);
 		goto out;
-	if (s == FIOFNF) {			/* File not found.	*/
+	case FIOFNF:	/* File not found. */
 		mlwrite("[New file: %s]", fname);
 		goto out;
 	}
@@ -315,7 +317,7 @@ uchar	*fn;
 	register LINE	*lp;
 	register int	nline;
 
-	if ((s=ffwopen(fn, "w")) != FIOSUC)		/* Open writes message.	*/
+	if ((s=ffwopen(fn, "w")) != FIOSUC)	/* Open writes message.	*/
 		return (FALSE);
 	lp = lforw(curbp->b_linep);		/* First line.		*/
 	nline = 0;				/* Number of lines.	*/
