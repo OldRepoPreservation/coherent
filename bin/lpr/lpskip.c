@@ -10,7 +10,12 @@
 #include <stdio.h>
 #include <signal.h>
 
+#ifdef LASER
+char	lockfile[] = "/usr/spool/hpd/dpid";
+#else
 char	lockfile[] = "/usr/spool/lpd/dpid";
+#endif
+char *argv0;
 
 main(argc, argv)
 char *argv[];
@@ -19,6 +24,7 @@ char *argv[];
 	register int fd;
 	register int sig = SIGTRAP;
 
+	argv0 = argv[0];
 	if (argc>1 && *argv[1]=='-') {
 		if (argv[1][1]=='r' && argv[1][2]=='\0')
 			sig = SIGREST;
@@ -35,6 +41,6 @@ char *argv[];
 
 usage()
 {
-	fprintf(stderr, "Usage: lpskip [-r]\n");
+	fprintf(stderr, "Usage: %s [-r]\n", argv0);
 	exit(1);
 }
