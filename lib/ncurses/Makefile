@@ -23,12 +23,19 @@
 #********************************************************************/
 
 # RCSid: $Header: /src386/usr/lib/ncurses/RCS/Makefile,v 1.2 92/04/13 14:42:19 bin Exp Locker: bin $
+DESTDIR=/bin386/usr/lib/
+DESTDIR2=/bin386/usr/bin/
 
 SRCDIR= /usr/lib/terminfo
-#CFLAGS= -A -O -DSRCDIR='"$(SRCDIR)"' -DTRACE	# compile with trace
-CFLAGS= -A -O -DSRCDIR='"$(SRCDIR)"'
 LIB=/usr/lib
 INCL=/usr/include
+
+#
+# Additional flags which could be defined in CFLAGS:
+#	TRACE	compile library with trace function
+#	RCSHDR	compile the RCS headers into the functions
+#
+CFLAGS= -O -DSRCDIR='"$(SRCDIR)"' -I. -I..
 
 SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	comp_parse.c read_entry.c \
@@ -42,7 +49,7 @@ SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	lib_printw.c lib_scanw.c lib_erase.c lib_getch.c lib_options.c \
 	lib_box.c lib_clear.c lib_delch.c lib_deleteln.c lib_insch.c \
 	lib_insertln.c lib_getstr.c lib_mvwin.c lib_longname.c lib_tstp.c \
-	lib_newterm.c lib_set_term.c lib_overlay.c lib_scrreg.c
+	lib_newterm.c lib_set_term.c lib_overlay.c lib_scrreg.c lib_setacs.c
 
 #
 # Normal, optimised object files
@@ -55,14 +62,14 @@ LIBOBJS= lib_setup.o lib_fixterm.o lib_tparm.o read_entry.o lib_tputs.o \
 	lib_scanw.o lib_erase.o lib_getch.o lib_options.o \
 	lib_box.o lib_clear.o lib_delch.o lib_deleteln.o lib_insch.o \
 	lib_insertln.o lib_getstr.o lib_mvwin.o lib_longname.o lib_tstp.o \
-	lib_newterm.o lib_set_term.o lib_overlay.o lib_scrreg.o
+	lib_newterm.o lib_set_term.o lib_overlay.o lib_scrreg.o lib_setacs.o
 
 COMPOBJS= comp_main.o comp_hash.o comp_captab.o comp_scan.o comp_error.o \
 	comp_parse.o read_entry.o
 
 CTOIOBJS= captoinfo.o getcap.o putinfo.o tget.o
 
-all:	tic infocmp lib captoinfo
+all:	tic infocmp captoinfo lib
 	@echo "all done"
 
 install: all
@@ -72,35 +79,27 @@ lib:	libcurses.a
 	@echo "lib done"
 
 libcurses.a:	$(LIBOBJS)
-	rm -f libcurses.a
-	ar rcs libcurses.a $(LIBOBJS)
+	rm -f $(DESTDIR)libcurses.a
+	ar rcs $(DESTDIR)libcurses.a $(LIBOBJS)
 
-term.h: Caps MKterm.h.awk
-	awk -f `srcpath MKterm.h.awk` Caps > term.h
+term.h: MKterm.h.awk Caps 
+	awk -f `srcpath MKterm.h.awk` `srcpath Caps` > term.h
 
 tic: $(COMPOBJS)
-	cc -o tic $(COMPOBJS)
+	cc -s -o $(DESTDIR2)tic $(COMPOBJS)
 
 comp_captab.c: Caps MKcaptab.awk
-	awk -f `srcpath MKcaptab.awk` Caps > comp_captab.c
+	awk -f `srcpath MKcaptab.awk` `srcpath Caps` > comp_captab.c
 
 comp_captab.o: comp_captab.c
 
 captoinfo:	$(CTOIOBJS)
-		cc $(CFLAGS) $(CTOIOBJS) -o captoinfo
+		cc -s $(CFLAGS) $(CTOIOBJS) -o $(DESTDIR2)captoinfo
 
-putinfo.c: Caps MKnames.awk
-	awk -f `srcpath MKinfo.awk` Caps
-	cat boolnames numnames strnames infotail > putinfo.c
+putinfo.c: Caps infotail.src MKinfo.awk
+	awk -f `srcpath MKinfo.awk` `srcpath Caps`
+	cat boolnames numnames strnames `srcpath infotail.src` > putinfo.c
 	-rm -f boolnames numnames strnames
-
-save : $(SRCS) Makefile
-	tar cf - $< | compress -c > /tmp/ncurses.tar.Z
-	uucp -r /tmp/ncurses.tar.Z mwc!/v/cef
-
-list : $(SRCS) Makefile
-	ph $?
-	touch list
 
 captoinfo.o:	captoinfo.c
 
@@ -111,14 +110,14 @@ putinfo.o:	putinfo.c
 tget.o:		tget.c
 
 infocmp: dump.o dump_names.o read_entry.o
-	cc -o infocmp dump.o dump_names.o read_entry.o
+	cc -s -o $(DESTDIR2)infocmp dump.o dump_names.o read_entry.o
 
 dump.o: dump.c term.h compiler.h
 
 dump_names.o: dump_names.c
 
 dump_names.c: Caps MKnames.awk
-	awk -f `srcpath MKnames.awk` Caps
+	awk -f `srcpath MKnames.awk` `srcpath Caps`
 	cat boolnames numnames strnames > dump_names.c
 	-rm -f boolnames numnames strnames
 
@@ -126,27 +125,36 @@ lint: $(SRCS)
 	lint $(DFLAGS) $(SRCS) > lint.out
 
 clean:
-	-rm -f *.[od] term.h comp_captab.c tags dump_names.c tic infocmp libcurses.a
+	-rm -f *.[od] term.h comp_captab.c dump_names.c putinfo.c tags \
+	tic infocmp captoinfo libcurses.a
 
 tags:	*.c *.h
 	ctags *.c *.h
 
+save : $(SRCS) Makefile
+	tar cf - $< | compress -c > /tmp/ncurses.tar.Z
+	uucp -r /tmp/ncurses.tar.Z mwc!/v/cef
+
+list : $(SRCS) Makefile
+	ph $?
+	touch list
+
 depend:	$(SRCS)
-	grep "^#include" $< \
+	grep "^\#include" $< \
 		| sed 's/\([^:]*\).c:[^"]*"\([^"]*\)".*/\1.o: \2/' \
-		| sed '/#include/d' > makedep
-	echo '/^# DO NOT DELETE THIS LINE/+2,$$d' > eddep
+		| sed '/\#include/d' > makedep
+	echo '/^\# DO NOT DELETE THIS LINE/+2,$$d' > eddep
 	echo '$$r makedep' >> eddep
-	echo '/^# DO NOT DELETE THIS LINE/+2,$$s/\.o/.d/' >> eddep
-	echo '$$r makedep' >> eddep
+#	echo '/^\# DO NOT DELETE THIS LINE/+2,$$s/\.o/.d/' >> eddep
+#	echo '$$r makedep' >> eddep
 	echo 'w' >> eddep
 	cp Makefile Makefile.bak
-	ex - Makefile < eddep
+	ed Makefile < eddep
 	rm makedep eddep
 	echo >> Makefile
-	echo "# DEPENDENCIES MUST END AT END OF FILE" >> Makefile
-	echo "# IF YOU PUT STUFF HERE, IT WILL GO AWAY" >> Makefile
-	echo "# See make depend, above" >> Makefile
+	echo "\# DEPENDENCIES MUST END AT END OF FILE" >> Makefile
+	echo "\# IF YOU PUT STUFF HERE, IT WILL GO AWAY" >> Makefile
+	echo "\# See make depend, above" >> Makefile
 
 # DO NOT DELETE THIS LINE - make depend needs it
 
@@ -265,6 +273,8 @@ lib_overlay.o: curses.h
 lib_overlay.o: curses.priv.h
 lib_scrreg.o: curses.h
 lib_scrreg.o: curses.priv.h
+lib_setacs.o: curses.h
+lib_setacs.o: term.h
 
 # DEPENDENCIES MUST END AT END OF FILE
 # IF YOU PUT STUFF HERE, IT WILL GO AWAY
