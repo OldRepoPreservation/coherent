@@ -231,7 +231,8 @@ replacefile(file) char *file;
 	if (!oldstyle) {
 		if (!bflag && ((tmp = strrchr(file, '.')) != NULL)) {
 			sprintf(tmp2, "%s.", tmp);
-			aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
+			if (!aflag)
+				aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
 		}
 	}
 

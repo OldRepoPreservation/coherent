@@ -445,7 +445,8 @@ extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 			}
 			tmp2[i+1] = '.';
 			tmp2[i+2] = '\0';
-			aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
+			if (!aflag)
+				aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
 		}
 	}
 
