@@ -14,28 +14,11 @@
  * user mode.  SIG_QUIT causes /etc/ttys to be reread.
  * All other signals are ignored.
  */
-
-/* Define SWAPPER if init should start the swapper running.  */
-#ifndef SWAPPER
-#define	NOSWAPPER
-#endif /* SWAPPER */
-
-/* Define DRIVERS if init should load the loadable drivers.  This is
- * generally done in /etc/brc, not in init.
- */
-#ifndef DRIVERS
-#define	NODRIVERS
-#endif /* DRIVERS */
-
-/* Define DEBUG to 1 if you want debugging output on the console.  */
-#ifndef DEBUG
-#define	DEBUG	0
-#endif /* DEBUG	*/
-
-
-#ifndef NEWTTYS
 #define NEWTTYS	1
-#endif
+#define	NOSWAPPER
+#define	NODRIVERS
+#define	DEBUG	0
+
 /*
  * Init
  *
@@ -254,8 +237,7 @@ dbmsg(("About to access brc file  ", NULL));
 				 * if it was locked by somebody else,
 				 * locknrm() won't remove the lock.
 				 */
-				locknrm(strrchr(tp->t_tty, '/')+1, n);
-
+ 				unlockntty(strrchr(tp->t_tty, '/')+1, n);
 				/* See if we panicked */
 				if ((status>>8) == 0377)
 					tp->t_flag = 0;
@@ -372,6 +354,7 @@ scantty()
 
 	extern char *sbrk();
 
+	dbmsg(("Rescan", NULL));
 	if ((fd=open("/etc/ttys", 0)) < 0)
 		return;
 	while (readtty(&tty, fd) != 0) {
@@ -394,12 +377,14 @@ scantty()
 			/* If this tty is locked, and we want to start a
 			 * getty, do not do it until the lock goes away.
 			 */
-			if (lockexist(strrchr(tty.t_tty, '/')+1) &&
+			if (lockttyexist(strrchr(tty.t_tty, '/')+1) &&
 			    0 != tty.t_flag) {
+				dbmsg(("Setting an alarm", NULL));
 				/* Check again in a few seconds.  */
 				signal(SIGALRM, mulsigalrm);
 				alarm(10);
 			} else {
+				dbmsg(("Starting getty", NULL));
 				tp->t_flag = tty.t_flag;
 				tp->t_baud[0] = tty.t_baud[0];
 					tp->t_linetype = tty.t_linetype;
@@ -627,6 +612,11 @@ kill9(pid) register int pid;
 }
 
 #if	DEBUG
+#define SCREEN_ADDR	0xb0000L	/* Physical address of screen.
+					 * Use 0xb8000 for color screen.
+					 */
+#define SCREEN_SIZE	(80*25*2)	/* Size of screen in bytes.  */
+
 /*
  * Write a debug message to the console.
  * The args should be a NULL-terminated list of strings.
@@ -635,11 +625,11 @@ msg(cp) char *cp;
 {
 	register char **cpp;
 	int fd;
-	static long mp = 0xb0000L;
+	static long mp = SCREEN_ADDR;
 	int i;
 
-	if (mp >= 0xb0000L + (80*25*2))
-		mp = 0xb0000L;
+	if (mp >= SCREEN_ADDR + SCREEN_SIZE)
+		mp = SCREEN_ADDR;
 	fd = open("/dev/mem", 2);
 	lseek(fd, mp, 0);
 	write(fd, ":", 1);
