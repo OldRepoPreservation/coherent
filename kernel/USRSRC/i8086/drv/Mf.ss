@@ -10,6 +10,7 @@ AS=exec /bin/as
 CC=exec /bin/cc
 CPP=exec /lib/icpp
 CFLAGS=-I.. -I../sys -I../.. -I../../sys -I/usr/include/sys
+DEBUG=1
 AFLAGS=-gx
 OBJECTS=objects/ss.o objects/fdisk.o objects/ssqueue.o
 
@@ -45,7 +46,7 @@ objects/ss.o:				\
 		$(SYSINC)/buf.h		\
 		$(DRVINC)/scsiwork.h	\
 		ss.c
-	$(CC) $(CFLAGS) -DVERBOSE=1 -c -o objects/ss.o ss.c
+	$(CC) $(CFLAGS) -DDEBUG=$(DEBUG) -c -o objects/ss.o ss.c
 
 objects/ssqueue.o:			\
 		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
