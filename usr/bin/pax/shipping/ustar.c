@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/tar.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/ustar.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * ustar.c - tar specific functions for archive handling
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	tar.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/ustar.c,v $
+ * Revision 1.1	91/02/05  11:59:47 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:06:05  mark
  * 1.2 release fixes
  * 
@@ -144,8 +147,8 @@ char          **argv;		/* argument list (argv from main) */
 	case 'm':		/* don't restore modification times */
 	    f_modified = 1;
 	    break;
-	case 'o':		/* take on user's group rather than
-				 * archives */
+	case 'o':		/* take on user's group rather than */
+	    f_owner = 1;		/* archives */
 	    break;
 	case 'r':		/* named files are appended to archive */
 	    f_append = 1;

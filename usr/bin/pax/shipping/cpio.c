@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/cpio.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/cpio.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * cpio.c - Cpio specific functions for archive handling
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	cpio.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/cpio.c,v $
+ * Revision 1.1	91/02/05  11:55:26 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:04:13  mark
  * 1.2 release fixes
  * 
@@ -106,6 +109,7 @@ char          **argv;
 	switch (c) {
 	case 'i':
 	    f_extract = 1;
+	    f_owner = 1;
 	    break;
 	case 'o':
 	    f_create = 1;
