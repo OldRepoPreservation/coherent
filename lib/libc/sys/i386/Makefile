@@ -1,4 +1,4 @@
-# /usr/src/libc/sys/i386/Makefile 2/24/93
+# /usr/src/libc/sys/i386/Makefile 6/4/93
 
 ASFLAGS=-x
 
@@ -58,6 +58,7 @@ AUTOOBJ=\
 	mkdir.o\
 	mknod.o\
 	mount.o\
+	nap.o\
 	nice.o\
 	open.o\
 	pause.o\
