@@ -54,7 +54,9 @@ main()
 	sys_base = DEF_SYS_BASE;
 	sys_base_set = FALSE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.6\r\n");
+	want_monitor = FALSE;	/* Don't invoke mini-monitor before execution.  */
+
+	puts("\r\nCOHERENT Tertiary boot Version 1.0.7\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
@@ -68,7 +70,7 @@ main()
 				puts("\r\nCan't find \"");
 				puts(cmd_name);
 				puts("\".  Type \"dir\" for a list of files.\r\n");
-				puts("If installing COHERENT, please type begin.\r\n");
+				puts("If installing COHERENT, please type \"begin\".\r\n");
 			}
 
 			/* Fetch new file names, executing them
@@ -155,7 +157,7 @@ main()
 	/* Does the program we just loaded want more info?  */
 
 	/* Look up the variable "boot_gift" in the image.  */	
-	puts("\r\nChecking for argument compatibility.\r\n");
+	puts("\r\nPlease wait...\r\n");
 	boot_value = object_nlist(filemagic, cmd_name, "boot_gift");
 
 
@@ -172,6 +174,18 @@ main()
 	puts(cmd_name);
 	puts("...\r\n");
 #endif /* VERBOSE */
+
+	if (want_monitor) {
+		puts("The kernel is ready to run.\r\n");
+		puts("SYS_START: ");
+		print16(SYS_START);
+		puts(" sys_base: ");
+		print16(sys_base);
+		puts(" data_seg: ");
+		print16(data_seg);
+		puts("\r\n");
+		monitor();
+	}
 
 	/* Run the image (the kernel).  */
 	gotoker(SYS_START, sys_base, data_seg);
