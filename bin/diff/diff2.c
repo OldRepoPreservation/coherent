@@ -12,6 +12,7 @@
 #else
 #include <sys/types.h>
 #endif
+#include <path.h>
 
 int	dflag;			/* Dynamic decision about -h or not */
 int	bflag;			/* Strip trailing blanks, multiple blanks */
@@ -191,11 +192,12 @@ again:
 		for (cp = ofn; *cp != '\0'; cp++)
 			;
 		while (cp > ofn)
-			if (*--cp == '/') {
+			if (*--cp == PATHSEP) {
 				cp++;
 				break;
 			}
-		fn = sprintf(fname, "%s/%s", fn, cp);
+		sprintf(fname, "%s%c%s", fn, PATHSEP, cp);
+		fn = fname;
 		goto again;
 
 	case S_IFREG:
