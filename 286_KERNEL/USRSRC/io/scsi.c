@@ -3,6 +3,9 @@
  * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.6  91/06/10  13:28:11  hal
+ * Refix startup problem with HDGETA.  Text cleanup.
+ * 
  * Revision 1.5  91/06/10  12:58:04  hal
  * Partial fix for HDGETA failing if partition table absent.
  * 
@@ -20,7 +23,7 @@
  * 
  */
 
-#include	<coherent.h>
+#include	<sys/coherent.h>
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/sdioctl.h>
@@ -29,7 +32,7 @@
 #include	<sys/stat.h>
 #include	<sys/uproc.h>
 #include	<errno.h>
-#include	<scsiwork.h>
+#include	<sys/scsiwork.h>
 
 extern	saddr_t sds;
 
