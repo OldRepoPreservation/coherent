@@ -45,7 +45,7 @@ int		ushmdt();
 int		ushmctl();
 int		ushmget();
 int		iShmPerm();	/* Check permissions */
-vaddr_t		vCheckReqAdd();	/* Check attach address for shmat */
+caddr_t		vCheckReqAdd();	/* Check attach address for shmat */
 /*
  * ----------------------------------------------------------------------
  * Global Data.
@@ -133,6 +133,11 @@ struct shmid_ds	*pstShmId;	/* User shmid_ds buffer */
 			u.u_error = EPERM;
 			iRet = -1;
 			break;
+		}
+		/* We do not want to dealloc segment if it is attached */
+		if (rstIdp->shm_nattch > 0) {
+			u.u_error = EINVAL;
+			return -1;
 		}
 		rstIdp->shm_perm.seq = 0;
 		shmFree(shmsegs[iShmId]);
@@ -300,8 +305,9 @@ int	iShmFlg;	/* Flags */
 	SEG			*pstSegSh;	/* Segment to attach */
 	struct shmid_ds		*pstShmId;	/* Pointer to a system segment*/
 	unsigned int		uSegId;		/* Segment id */
-	vaddr_t			vAttAddr;	/* Address to attach */
+	caddr_t			vAttAddr;	/* Address to attach */
 	int			i;		/* Loop index */
+	int			iReadOnly = 0;	/* 1 - read only, 0 - rw */
 		
 	/* Check if iSysId is a valid shared memory id. */
 	if (iSysId < 0 || iSysId > SHMMNI) {
@@ -315,9 +321,18 @@ int	iShmFlg;	/* Flags */
 		return;
 	}
 	/* Check permissions. */
-	if (iShmPerm(pstShmId, iShmFlg)) {
-		u.u_error = EACCES;
-		return;
+	if (iShmFlg & SHM_RDONLY)
+		iReadOnly = 1;
+	if (iReadOnly) {
+		if (iShmPerm(pstShmId, 0444)) {
+			u.u_error = EACCES;
+			return;
+		}
+	} else {
+		if (iShmPerm(pstShmId, 0666)) {
+			u.u_error = EACCES;
+			return;
+		}
 	}
 	/* Check if process has free shm index. */
 	rpstProc = SELF;
@@ -364,7 +379,7 @@ int	iShmFlg;	/* Flags */
 		/* Requst attach to a specific address. This is none portable 
 		 * way to use a shared memory. 
 	 	 */
-		if ((vAttAddr = vCheckReqAdd(pcShmAddr, iShmFlg)) < 0) {
+		if ((vAttAddr = vCheckReqAdd(pcShmAddr, iReadOnly)) < 0) {
 			printf("%s: attempt attach to 0x%x\n", 
 			u.u_comm, pcShmAddr);
 			u.u_error = EINVAL;
@@ -372,7 +387,7 @@ int	iShmFlg;	/* Flags */
 		} 
 	}
 
-	if (!shmAtt(uSegId, vAttAddr, pstSegSh)) {
+	if (!shmAtt(uSegId, vAttAddr, pstSegSh, iReadOnly)) {
 		u.u_error = EINVAL;
 		return;
 	}
@@ -388,11 +403,11 @@ int	iShmFlg;	/* Flags */
  * Check requested address for attach.
  * Just fail for the first release.
  */
-vaddr_t vCheckReqAdd(pcAdd, iFlg)
+caddr_t vCheckReqAdd(pcAdd, iFlg)
 char	*pcAdd;	/* Address to atatch */
 int	iFlg;	/* Mode flag */
 {
-	return (vaddr_t) -1;
+	return (caddr_t) -1;
 }
 
 /*
