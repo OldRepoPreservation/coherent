@@ -3,6 +3,7 @@
  * This section is common to nm and size.
  * And should be common to ndis.
  */
+
 #include <stdio.h>
 #include <ar.h>
 #include <canon.h>
@@ -468,7 +469,7 @@ nm()
 readsym(lsp)
 register struct ldsym *lsp;
 {
-	short vaddr;
+	unsigned short vaddr;
 
 	fread(lsp->ls_id, NCPLN, 1, fp);
 	fread((char *)&lsp->ls_type, sizeof(int), 1, fp);
