@@ -20,7 +20,8 @@ IOOBJ =\
 	$(K386OBJ)/ct.o \
 	$(K386OBJ)/dmareq.o \
 	$(K386OBJ)/fdisk.o \
-	$(K386OBJ)/msg.o
+	$(K386OBJ)/msg.o \
+	$(K386OBJ)/shm1.o
 
 COHOBJ =\
 	$(K386OBJ)/alloc.o \
@@ -70,6 +71,7 @@ I386OBJ1 =\
 	$(K386OBJ)/memcpy.o \
 	$(K386OBJ)/memset.o \
 	$(K386OBJ)/mmu.o \
+	$(K386OBJ)/msig.o \
 	$(K386OBJ)/ndp.o \
 	$(K386OBJ)/ndpas.o \
 	$(K386OBJ)/shm0.o \
@@ -106,8 +108,6 @@ OPTS =\
 	$(K386OBJ)/scsi.o \
 	$(K386OBJ)/sem.o \
 	$(K386OBJ)/semcon.o \
-	$(K386OBJ)/shm.o \
-	$(K386OBJ)/shmcon.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/vtmm.o \
@@ -207,8 +207,7 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/scsi.o \
 	$(K386OBJ)/sem.o \
 	$(K386OBJ)/semcon.o \
-	$(K386OBJ)/shm.o \
-	$(K386OBJ)/shmcon.o \
+	$(K386OBJ)/shm1.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
 	$(K386OBJ)/memcpy.o \
@@ -289,6 +288,9 @@ $(K386OBJ)/memset.o: memset.s
 
 $(K386OBJ)/mmu.o: mmu.c
 	$(CC) $(CFLAGS) -VSUVAR -c -o $@ $<
+
+$(K386OBJ)/msig.o: msig.c $(SYSINC)/coherent.h
+	$(CC) $(CFLAGS) -VSUVAR -c -o $@ msig.c
 
 $(K386OBJ)/ndpas.o: ndpas.s
 	$(AS) -g -o $@ ndpas.s
