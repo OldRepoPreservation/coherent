@@ -7,33 +7,13 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
+ *	COHERENT Version 5.0
+ *	Copyright (c) 1982, 1993.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  -lgl) */
 /*
- * Coherent.
  * Signal handling.
- *
- * $Log:	sig.c,v $
- * Revision 1.5  92/11/09  17:10:59  root
- * Just before adding vio segs.
- * 
- * Revision 1.4  92/10/06  23:48:53  root
- * Ker #64
- * 
- * Revision 1.2  92/01/06  12:00:24  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.1	88/03/24  16:14:24	src
- * Initial revision
- * 
- * 87/11/05	Allan Cornish		/usr/src/sys/coh/sig.c
- * New seg struct now used to allow extended addressing.
- *
- * 86/11/19	Allan Cornish		/usr/src/sys/coh/sig.c
- * sigdump() initializes the (new) (IO).io_flag field to 0.
  */
 #include <sys/coherent.h>
 #include <errno.h>
@@ -91,9 +71,9 @@ register void (*func)();
 	}
 
 	s = (sig_t)1 << --signal;
-	if (pp->p_isig&s)
+	if (pp->p_isig & s)
 		old_sig = SIG_IGN;
-	else if (pp->p_hsig&s)
+	else if (pp->p_hsig & s)
 		old_sig = SIG_HOLD;
 	else
 		old_sig = u.u_sfunc[signal];
@@ -173,9 +153,9 @@ register PROC *pp;
 	f = ((sig_t)1) << (sig-1);
 
 	/*
-	 * If the signal is ignored, do nothing.
+	 * If the signal is ignored, and is not SIGCLD, do nothing.
 	 */
-	if (pp->p_isig & f) {
+	if ((pp->p_isig & f) && sig != SIGCLD) {
 		goto sendSigDone;
 	}
 
@@ -194,11 +174,13 @@ register PROC *pp;
 	 * If the process is sleeping, wake it up so that
 	 * it can process this signal.
 	 */
-	if (pp->p_state == PSSLEEP) {
+	if (pp->p_state == PSSLSIG) {
 		s = sphi();
 		pp->p_lback->p_lforw = pp->p_lforw;
 		pp->p_lforw->p_lback = pp->p_lback;
+#ifndef _I386
 		addu(pp->p_cval, (utimer-pp->p_lctim)*CVCLOCK);
+#endif
 		setrun(pp);
 		spl(s);
 	}
@@ -217,10 +199,12 @@ nondsig()
 
 	pp = SELF;
 	signo = 0;
+
 	/*
-	 * Turn off all ignored signals.
+	 * Turn off all ignored signals except SIGCLD.
 	 */
-	pp->p_ssig &= ~pp->p_isig;
+	pp->p_ssig &= ~(pp->p_isig & ~(1 << (SIGCLD - 1)));
+
 	/*
 	 * If any signals have arrived, but which are not held,
 	 * figure out what they are.
@@ -237,7 +221,7 @@ nondsig()
 			signo += 1;
 		}
 	}
-	return (signo);
+	return signo;
 }
 
 /*
@@ -272,6 +256,12 @@ actvsig()
 	 * lists 1-based signals.
 	 */
 	func = u.u_sfunc[signum-1];
+
+	/*
+	 * SIGCLD causes no work here if defaulted or ignored.
+	 */
+	if (signum == SIGCLD && (func == SIG_DFL || func == SIG_IGN))
+		return;
 
 	/*
 	 * Store the (1-based) signal number in the u area.
@@ -426,7 +416,7 @@ int *addr;
 	pts.pt_busy = 1;
 	wakeup((char *)&pts.pt_req);
 	while (pts.pt_busy) {
-		v_sleep((char *)&pts.pt_busy, CVPTSET, IVPTSET, SVPTSET, "ptrace");
+		x_sleep((char *)&pts.pt_busy, primed, slpriSigCatch, "ptrace");
 		/* Send a ptrace command to the child.  */
 	}
 	u.u_error = pts.pt_errs;
@@ -470,7 +460,7 @@ next:
 		}
 		if (pp1->p_pid != pp->p_ppid)
 			continue;
-		if (pp1->p_state == PSSLEEP)
+		if (ASLEEP(pp1))
 			wakeup((char *)pp1);
 		break;
 	}
@@ -478,8 +468,8 @@ next:
 
 	while (sign < 0) {
 		if (pts.pt_busy==0 || pp->p_pid!=pts.pt_pid) {
-			v_sleep((char *)&pts.pt_req,
-			  CVPTRET, IVPTRET, SVPTRET, "ptret");
+			x_sleep((char *)&pts.pt_req,
+			  primed, slpriSigCatch, "ptret");
 			/* Something about signals to a traced child.  */
 			goto next;
 		}

@@ -85,12 +85,12 @@ unsigned n;
  */
 char *
 ubrk(cp)
-vaddr_t cp;
+caddr_t cp;
 {
 	register SEG *sp;
-	register vaddr_t sb;
+	register caddr_t sb;
 	register SR	*stack_sr;
-	vaddr_t top_of_stack;
+	caddr_t top_of_stack;
 
 	T_HAL(0x8000, printf("%s:ubrk(%x) ", u.u_comm, cp));
 
@@ -375,8 +375,7 @@ unull()
  */
 upause()
 {
-	for (;;)
-		v_sleep((char *)&u, CVPAUSE, IVPAUSE, SVPAUSE, "pause");
+	x_sleep((char *)&u, prilo, slpriSigCatch, "pause");
 	/* The pause system call.  */
 }
 
@@ -581,12 +580,14 @@ struct tms *tp;
 	register PROC *pp;
 	struct tms tbuffer;
 
-	pp = SELF;
-	tbuffer.tms_utime = pp->p_utime;
-	tbuffer.tms_stime = pp->p_stime;
-	tbuffer.tms_cutime = pp->p_cutime;
-	tbuffer.tms_cstime = pp->p_cstime;
-	kucopy(&tbuffer, tp, sizeof(tbuffer));
+	if (tp) {
+		pp = SELF;
+		tbuffer.tms_utime = pp->p_utime;
+		tbuffer.tms_stime = pp->p_stime;
+		tbuffer.tms_cutime = pp->p_cutime;
+		tbuffer.tms_cstime = pp->p_cstime;
+		kucopyS(&tbuffer, tp, sizeof(tbuffer));
+	}
 	return lbolt;
 }
 
@@ -602,39 +603,74 @@ register int m;
 	return 0;
 }
 
-
 /*
  * Wait for a child to terminate.
+ *
+ * iBCS2 says the same system call number is wait() and waitpid(), the
+ * distinction being in how the psw is set on entry.
+ *
+ * Do wait() unless (ZF|PF|SF|OF) (=WPMASK) are set in psw.
  */
-uwait()
+#define	WPMASK	0x8C4
+
+uwait(arg1, arg2, arg3)
 {
 	register PROC *pp;
 	register PROC *ppp;
 	register PROC *cpp;
 	register int pid;
 
+	if ((u.u_regl[EFL] & WPMASK) == WPMASK)
+		return uwaitpid(arg1, arg2, arg3);
+
+	/* Wait for a child to stop or die. */
 	ppp = SELF;
 	for (;;) {
+		int x_s;
+
+		/* Look at all processes. */
 		lock(pnxgate);
 		cpp = NULL;
 		pp = &procq;
 		while ((pp=pp->p_nforw) != &procq) {
+
+			/* Ignore the current process. */
 			if (pp == ppp)
 				continue;
+			/*
+			 * Ignore processes that aren't children of the
+			 * current one.
+			 */
 			if (pp->p_ppid != ppp->p_pid)
 				continue;
-			if ((pp->p_flags&PFSTOP) != 0)
+			if (pp->p_flags&PFSTOP)
 				continue;
-			if ((pp->p_flags&PFWAIT) != 0) {
+
+			/* Here is a child that hit a breakpoint. */
+			if (pp->p_flags&PFWAIT) {
+				int work;	/* virtual click number */
+				int childUseg;	/* system global addr */
+				UPROC * uprc;
+				SEG * sp;
+
 				pp->p_flags &= ~PFWAIT;
 				pp->p_flags |= PFSTOP;
+
+				/* fetch u.u_signo from the child */
+
+				/* Find u area for child process pp */
+				sp = pp->p_segp[SIUSERP];
+				childUseg = MAPIO(sp->s_vmem, U_OFFSET);
+				work = workAlloc();
+				ptable1_v[work] = 
+				  sysmem.u.pbase[btocrd(childUseg)] | SEG_RW;
+				mmuupd();
+				uprc = (UPROC *) (ctob(work) + U_OFFSET);
+				u.u_rval2 = ((uprc->u_signo)<<8) | 0177;
+				workFree(work);
+
 				unlock(pnxgate);
-				u.u_rval2 = 0177;
-T_PIGGY(0x100,
-	printf("<uwait(WAIT): pid: %d ppid: %d rval2: 0x%x, signo: %d>",
-	       pp->p_pid, pp->p_ppid, u.u_rval2, u.u_signo);
-);
-				return (pp->p_pid);
+				return pp->p_pid;
 			}
 			if (pp->p_state == PSDEAD) {
 				ppp->p_cutime += pp->p_utime + pp->p_cutime;
@@ -643,25 +679,27 @@ T_PIGGY(0x100,
 				pid = pp->p_pid;
 				unlock(pnxgate);
 				relproc(pp);
-T_PIGGY(0x100,
-	printf("<uwait(DEAD): pid: %d ppid: %d rval2: 0x%x, signo: %d>",
-	       pp->p_pid, pp->p_ppid, u.u_rval2, u.u_signo);
-);
-				return (pid);
+				if ((1<<(SIGCLD-1)) & ppp->p_isig)
+					continue;
+				else {
+					return pid;
+				}
 			}
 			cpp = pp;
 		}
 		unlock(pnxgate);
 		if (cpp == NULL) {
 			u.u_error = ECHILD;
-#if 0 /* This error happens so often it tends to run away.  */
-			SET_U_ERROR( ECHILD,
-				     "there are no children to wait for" );
-#endif /* 0 */
-			T_PIGGY( 0x100, printf(";"); );
 			return;
 		}
-		v_sleep((char *)ppp, CVWAIT, IVWAIT, SVWAIT, "wait");
+		x_s = x_sleep((char *)ppp, prilo, slpriSigLjmp, "wait");
 		/* Wait for a child to terminate.  */
 	}
+}
+
+int
+uwaitpid(arg1, arg2, arg3)
+int arg1, arg2, arg3;
+{
+	printf("waitpid(%d,%d,%d): unsupported\n", arg1, arg2, arg3);
 }
