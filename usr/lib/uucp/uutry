@@ -32,11 +32,10 @@ su uucp touch /usr/spool/uucp/.Admin/audit.local
 # now invoke uucico and tell the user to press the interrupt key when
 # the transaction has completed.
 
-echo"
-Invoking uucico to call $SYS with a debug level of $X. Press the
+echo \
+" Invoking uucico to call $SYS with a debug level of $X. Press the
 interrupt key to abort printing the debug information to the screen
-or to exit this program when the call has completed.
-"
+or to exit this program when the call has completed."
 
 /usr/lib/uucp/uucico -S$SYS $X &
 
