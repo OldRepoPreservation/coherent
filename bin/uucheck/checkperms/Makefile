@@ -7,7 +7,7 @@ BIN=../install/usr/lib/uucheck/
 # BTW if LIB= anything other than /usr/lib/uucheck/, you will have to edit
 # uucheck by hand.
 LIB=../install/usr/lib/uucheck/
-
+DESDTIR=/usr/lib/uucheck/
 OBJS=y.tab.o lex.yy.o main.o monitor.o hosts.o do_check.o messages.o \
 	chmod_chk.o util.o parse_args.o copyright.o
 LIBS=-ly -ll
@@ -18,7 +18,8 @@ LEXFLAGS=
 CFLAGS=-O -I..
 #
 checkperms:	$(OBJS)
-	$(CC) -o checkperms $(CFLAGS) $(OBJS) $(LIBS)
+	$(CC) -o $(DESTDIR)checkperms $(CFLAGS) $(OBJS) $(LIBS)
+	su root chmog 511 bin bin $(DESTDIR)$@
 
 y.tab.o:	checkperms.y
 	$(YACC) $(YACCFLAGS) checkperms.y
