@@ -32,8 +32,9 @@
  *
  * 0x0001 0000 profiling system call
  * 0x0002 0000 log every 64th irq of each type to console
- * 0x0004 0000 panic during startup (to test register dumps)
+ * 0x0004 0000
  * 0x0008 0000 profiling clock ticks
+ * 0x0010 0000 floppy driver state machine
  *
  * t_vlad bits:
  *	0x0001

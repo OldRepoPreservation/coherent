@@ -27,6 +27,7 @@
  * 86/12/18	Allan Cornish		/usr/src/sys/i8086/ibm_at/dmac.c
  * Full support for DMA channels 5..7 added.
  */
+#include	<sys/coherent.h>
 #include	<sys/types.h>
 #include	<sys/dmac.h>
 
