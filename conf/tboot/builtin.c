@@ -32,36 +32,46 @@ interpret(command)
 		char lbuf[5]; /* 5 == strlen("0000") + 1 */
 		if (NULL != strchr(command, '=')){
 			puts("Setting sys_base.\r\n");
-			sys_base = (unsigned short)
+			sys_base_set = (1==1);
+			sys_base = (uint16)
 				basetoi(1 + strchr(command, '='), 16);
 		}
-		puts("sys_base is ");
-		itobase((unsigned) sys_base, lbuf, 16);
-		puts(lbuf);
-		puts("\r\n");
-
+		if (!sys_base_set) {
+			puts("sys_base will default to ");
+			print16(DEF_SYS_BASE);
+			puts(" for l.out executables,\r\n and to ");
+			print16(COFF_SYS_BASE);
+			puts(" for COFF executables.\r\n");
+		} else {
+			puts("sys_base is ");
+			itobase((uint16) sys_base, lbuf, 16);
+			puts(lbuf);
+			puts("\r\n");
+		}
 		return(TRUE);
 	} else if (0 == strcmp(command, "monitor")) {
 		monitor();
 		return(TRUE);
+	} else if ((0 == strcmp(command, "gift"))) {
+		dump_gift();	/* Dump boot_gift.  */
+		return(TRUE);
 	} else if ((0 == strcmp(command, "help")) ||
 		   (0 == strcmp(command, "?")) ) {
-		   puts("info          Disk information.\r\n");
-		   puts("dir           List contents of /.\r\n");
-		   puts("ls            List contents of /.\r\n");
-		   puts("lc            List contents of /.\r\n");
-		   puts("sys_base      Print current load segement.\r\n");
-		   puts("scs           Print current load segement.\r\n");
+		   puts("info          Print disk information.\r\n");
+		   puts("dir|ls        List contents of /.\r\n");
+		   puts("?|help        Print this list.\r\n");
+		   return(TRUE);
+	} else if (0 == strcmp(command, "??")) {
+		   puts("UNSUPPORTED FEATURES:  (don't call :-)\r\n");
+		   puts("sys_base|scs  Print current load segement.\r\n");
 		   puts("sys_base=tttt Set current load segement to 0xtttt.\r\n");
-		   puts("scs=tttt      Set current load segement to 0xtttt.\r\n");
 		   puts("monitor       Invoke the mini-monitor.\r\n");
-		   puts("help          Print this list.\r\n");
-		   puts("?             Print this list.\r\n");
 		   return(TRUE);
 	} else {
 		return(FALSE);
 	}
 	puts("\r\nUNREACHABLE CODE IN interpret() EXECUTED.\r\n");
+	puts("There is probably a missing return() in interpret().\r\n");
 	return(FALSE);	/* This should be an unreachable line.  */
 } /* interpret() */
 
@@ -90,7 +100,7 @@ dpb()
 		intcall(&r, &r, DISKINT);	/* Ask the BIOS.  */
 
 		puts("Drive ");
-		itobase((unsigned int) i, buffer, 10);
+		itobase((uint16) i, buffer, 10);
 		puts(buffer);
 	
 
@@ -101,7 +111,7 @@ dpb()
 		 * The cylinder count is actually 1 short.
 		 */
 		puts(":  Cylinders=");
-		itobase((unsigned int) (
+		itobase((uint16) (
 			  ((LOW(r.r_cx) >> 6) * 256) + /* Top two bits...  */
 			  (HIGH(r.r_cx) + 1)
 			),
@@ -110,12 +120,12 @@ dpb()
 	
 		/* The head count is actually 1 short.  */
 		puts("  Heads=");
-		itobase((unsigned int) HIGH(r.r_dx) + 1, buffer, 10);
+		itobase((uint16) HIGH(r.r_dx) + 1, buffer, 10);
 		puts(buffer);
 	
 		/* Only the lower 6 bits of cl are the sectors per track.  */
 		puts("  Sectors per track=");
-		itobase((unsigned int) SIXBITS & LOW(r.r_cx), buffer, 10);
+		itobase((uint16) SIXBITS & LOW(r.r_cx), buffer, 10);
 		puts(buffer);
 	
 		puts("\r\n");
@@ -155,7 +165,7 @@ dir()
 	for (i = 0; i < rootinode.i_size; i += sizeof(struct direct)) {
 
 		iread(&rootinode, (char *) &dirent, (fsize_t) i,
-		      (unsigned short) sizeof(struct direct));
+		      (uint16) sizeof(struct direct));
 		
 		/* If the entry is not active, skip the rest.  */
 		if (0 == dirent.d_ino) {
