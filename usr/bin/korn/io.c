@@ -9,7 +9,7 @@ static char *RCSid = "$Header: io.c,v 3.1 88/11/03 09:16:11 egisin Exp $";
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <setjmp.h>
 #if __STDC__

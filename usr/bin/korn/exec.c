@@ -12,7 +12,7 @@ static char *RCSid = "$Header: exec.c,v 3.1 88/11/03 09:15:46 egisin Exp $";
 #include <signal.h>
 #include <setjmp.h>
 #include <unistd.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include "sh.h"
 #include "lex.h"
 #include "tree.h"
@@ -93,7 +93,11 @@ execute(t, flags)
 		(void) dup2(e.savefd[1], 1); /* stdout of last */
 		exchild(t, flags);
 		(void) dup2(e.savefd[0], 0); /* close pipe in */
-		rv = waitlast();
+		/*
+		 * added background check to avoid waiting on unwanted pipelines
+		 */
+		if (!(flags & XBGND))
+			rv = waitlast();
 		break;
 
 	  case TLIST:
@@ -286,8 +290,10 @@ comexec(t, vp, ap, flags)
 
 		if ((flags&XEXEC)) {
 			j_exit();
+#if !COHERENT
 			signal(SIGINT, SIG_DFL);
 			signal(SIGQUIT, SIG_DFL);
+#endif
 		}
 
 		/* to fork we set up a TEXEC node and call execute */

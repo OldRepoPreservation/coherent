@@ -410,6 +410,7 @@ comsub(xp, cp)
 		xp->split = 0;	/* no waitlast() */
 	} else {
 		int ofd1, pv[2];
+
 		openpipe(pv);
 		fi = fdopen(pv[0], "r");
 		ofd1 = savefd(1);
@@ -421,6 +422,9 @@ comsub(xp, cp)
 		execute(t, XFORK|XXCOM|XPIPEO);
 #endif
 		dup2(ofd1, 1);
+#if COHERENT
+		close(ofd1);
+#endif
 		xp->split = 1;	/* waitlast() */
 	}	
 
