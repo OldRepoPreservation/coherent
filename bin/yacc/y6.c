@@ -110,7 +110,7 @@ int *a, n, sw;
 			}
 		}
 	}
-	fprintf(tabout, "unsigned %s %s[%d] = {\n", type, s, n--);
+	fprintf(tabout, "readonly unsigned %s %s[%d] = {\n", type, s, n--);
 
 	i = 0;
 	do {
