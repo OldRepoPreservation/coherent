@@ -1,3 +1,9 @@
+Changes to kernel and related files for version #77:
+
+04/19  proc.h,sem.h,proc.c,sem386.c: sem_undo and other semaphore final test
+       changes from Vlad.
+04/20  fl.c: FL_AUTO_PARM added by Michael for PS/2-L40 compatibility.
+
 Changes to kernel and related files for version #76:
 
 NOTES:
