@@ -1,11 +1,13 @@
 /*
  * from - generate a list of numbers
+ * usage - from number to number [ by number ]
  */
-
 #include <stdio.h>
 
 #define sign(x)	(x<0?-1:1)	/* returns sign of number */
-#define	USAGE	"Usage: from number to number [ by number ]"
+
+char usage[] = "Usage: from number to number [by number]\n";
+char signmsg[] = "Increment has wrong sign\n";
 
 main(argc, argv)
 char *argv[];
@@ -21,22 +23,22 @@ char *argv[];
 
 	case 6:
 		if ( strcmp(argv[4], "by") )
-			usage();
+			error(usage);
 		else
 			if ( (incr = numeric(argv[5])) == 0 )
-				error("increment must be non-zero");
+				error("Increment must be non-zero\n");
 		break;
 
 	default:
-		usage();
+		error(usage);
 		break;
 	}
 	if ( strcmp(argv[2], "to") )
-		usage();
+		error(usage);
 	start = numeric(argv[1]);
 	end = numeric(argv[3]);
-	if (start != end && sign(end-start) * sign(incr) < 0)
-		error("increment has wrong sign");
+	if ( sign(end-start) * sign(incr) < 0 )
+		error(signmsg);
 
 	if ( incr > 0 )
 		for ( i = start; i <= end; i += incr )
@@ -61,18 +63,12 @@ register char *s;
 		s++;
 	for ( ; *s; s++)
 		if (*s<'0' || *s>'9')
-			usage();
+			error(usage);
 	return(n);
 }
 
-error(x) char *x;
+error(x)
 {
-	fprintf(stderr, "from: %r\n", &x);
-	exit(1);
-}
-
-usage()
-{
-	fprintf(stderr, "%s\n", USAGE);
+	fprintf(stderr, "%r", &x);
 	exit(1);
 }
