@@ -88,8 +88,7 @@ error:
 undial (fd)
 int	fd;
 {
-	if (fd > 2)
-		close (fd);
+	close (fd); /* close the port */
 
 	/* If lock removal fails, print message. */
 
