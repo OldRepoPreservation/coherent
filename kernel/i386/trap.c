@@ -156,15 +156,17 @@ char *eip;
 
 		T_PIGGY(4, printf("{%d}", callnum));
 
-		if (callnum >= NMICALL) {
-			if (callnum == COHCALL)
-				stp = &cohcall;
-			else {
-				sigcode = SIGSYS;
-				goto trapend;
-			}
-		} else
+		if (callnum < NMICALL)
 			stp = sysitab + callnum;
+		else if ( callnum == COHCALL )
+			stp = &cohcall;
+		else if ( ((callnum&0xFF)==0x28) && ((callnum>>8)<=H28CALL) )
+			stp = h28itab + ((callnum>>8) - 1);
+		else {
+			sigcode = SIGSYS;
+			goto trapend;
+		}
+
 		ukcopy(uesp+sizeof(long),u.u_args, stp->s_nargs*sizeof(long));
 		if (u.u_error) {
 			sigcode = SIGSYS;
@@ -172,9 +174,9 @@ char *eip;
 		}
 
 		u.u_io.io_seg = IOUSR;
-		if (envsave(&u.u_sigenv))
+		if (envsave(&u.u_sigenv)) {
 			u.u_error = EINTR;
-		else {
+		} else {
 			eax = (*stp->s_func)(u.u_args[0],
 			      u.u_args[1],
 			      u.u_args[2],
