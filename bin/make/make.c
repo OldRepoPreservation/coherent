@@ -14,17 +14,27 @@
  *			archive searches, allowed ${NAME} in actions for
  *			shell to expand, put macro definitions in malloc,
  *			entered environ into macros.
+ *	17-Oct-86	Very minor MS-DOS changes by steve: add _cmdname[],
+ *			conditionalize archive code as #if COHERENT || GEMDOS.
  *	 8-Dec-86	Rec makes inpath() search current directory first,
  *			and allows : in dependency list under MSDOS && GEMDOS.
+ *	 8-Feb-91	steve: fix comment handling, allow "\#", allow ${VAR}.
+ *			Add docmd0() to make $< and $* work in Makefiles.
+ *	12-Feb-91	steve: add $SRCPATH source path searching.
  */
 
 #include	"make.h"
 
-char usage[] = "Usage: make [-isrntqpd] [-f file] [macro=value] [target]";
-char nospace[] = "Out of space";
-char badmac[] = "Bad macro name";
-char incomp[] = "Incomplete line at end of file";
+#if	MSDOS
+char	_cmdname[] = "make";
+#endif
 
+char usage[] = "Usage: make [-deinpqrst] [-f file] [macro=value] [target]";
+char nospace[] = "out of space";
+char badmac[] = "bad macro name";
+char incomp[] = "incomplete line at end of file";
+
+/* Command line flags. */
 int iflag;			/* ignore command errors */
 int sflag;			/* don't print command lines */
 int rflag;			/* don't read built-in rules */
@@ -35,80 +45,58 @@ int pflag;			/* print macro defns, target descriptions */
 int dflag;			/* debug mode -- verbose printout */
 int eflag;			/* make environ macros protected */
 
+/* Globals. */
+unsigned char	backup[NBACKUP];
+int		defining;	/* nonzero => do not expand macros */
+SYM		*deflt;
+char		*deftarget;
+FILE		*fd;
+int		lastc;
+int		lineno;
+MACRO		*macro;
+char		macroname[NMACRONAME+1];
+char		*mvarval[4];		/* list of macro variable values */
+int		nbackup;
+time_t		now;
+char		*srcpath;
+struct stat	statbuf;
+SYM		*suffixes;
+SYM		*sym;
+char		tokbuf[NTOKBUF];
+char		*token;
+int		toklen;
+char		*tokp;
 
-FILE *fd;
-int defining = 0;		/* nonzero => do not expand macros */
-time_t now;
-unsigned char backup[NBACKUP];
-int nbackup = 0;
-int lastc;
-int lineno;
-char macroname[NMACRONAME+1];
-struct token{
-	struct token *next;
-	char *value;
-};
-char *token;
-char tokbuf[NTOKBUF];
-int toklen;
-char *tokp;
-struct macro {
-	struct macro *next;
-	char *value;
-	char *name;
-	int protected;
-};
-struct macro *macro;
-char *deftarget = NULL;
-struct sym{
-	struct sym *next;
-	char *action;
-	char *name;
-	struct dep *deplist;
-	int type;
-	time_t moddate;
-};
-struct sym *sym = NULL;
-struct sym *suffixes;
-struct sym *deflt;
-
-struct dep{
-	struct dep *next;
-	char *action;
-	struct sym *symbol;
-};
-
-struct stat statbuf;
-char	*mvarval[4];		/* list of macro variable values */
-
-/* Interesting function declarations */
-
-char *mexists();
-char *extend();
-char *mmalloc();
-struct token *listtoken();
-struct sym *sexists();
-struct sym *dexists();
-struct sym *lookup();
-struct dep *adddep();
+/* Forward function declarations. */
+DEP	*adddep();
+SYM	*dexists();
+char	*extend();
+char	*fpath();
+TOKEN	*listtoken();
+SYM	*lookup();
+char	*mexists();
+char	*mmalloc();
+SYM	*sexists();
 
 /* cry and die */
-die(str)
-char	*str;
+/* VARARGS */
+die(s) char *s;
 {
-	fprintf(stderr, "make: %r\n", &str);
+	fprintf(stderr, "make: %r\n", &s);
 	exit(ERROR);
 }
+
 /* print lineno, cry and die */
-err(s)
-char *s;
+/* VARARGS */
+err(s) char *s;
 {
 	fprintf(stderr, "make: %d: %r\n", lineno, &s);
 	exit(ERROR);
 }
 
 /* Malloc nbytes and abort on failure */
-char *mmalloc(n) int n;
+char *
+mmalloc(n) int n;
 {
 	char *p;
 	if (p = malloc(n))
@@ -119,7 +107,6 @@ char *mmalloc(n) int n;
 /* read characters from backup (where macros have been expanded) or from
  * whatever the open file of the moment is. keep track of line #s.
  */
-
 readc()
 {
 	if(nbackup!=0)
@@ -131,20 +118,17 @@ readc()
 }
 
 /* put c into backup[] */
-
 putback(c)
 {
 	if(c==EOF)
 		return;
 	if (nbackup == NBACKUP)
-		err("Macro definition too long");
+		err("macro definition too long");
 	backup[nbackup++]=c;
 }
 
 /* put s into backup */
-
-unreads(s)
-register char *s;
+unreads(s) register char *s;
 {
 	register char *t;
 
@@ -156,10 +140,10 @@ register char *s;
 /* return a pointer to the macro definition assigned to macro name s.
  * return NULL if the macro has not been defined.
  */
-
-char *mexists(s) register char *s;
+char *
+mexists(s) register char *s;
 {
-	register struct macro *i;
+	register MACRO *i;
 
 	for (i = macro; i != NULL; i=i->next) 
 		if (Streq(s, i->name)) 
@@ -171,11 +155,9 @@ char *mexists(s) register char *s;
 /* install macro with name name and value value in macro[]. Overwrite an
  * existing value if it is not protected.
  */
-
-define(name, value, protected)
-register char *name, *value;
+define(name, value, protected) register char *name, *value; int protected;
 {
-	register struct macro *i;
+	register MACRO *i;
 
 	if(dflag)
 		printf("define %s = %s\n", name, value);
@@ -189,7 +171,7 @@ register char *name, *value;
 				printf("... definition suppressed\n");
 			return;
 		}
-	i = (struct macro *)mmalloc(sizeof(*i));
+	i = (MACRO *)mmalloc(sizeof(*i));
 	i->name = name;
 	i->value = value;
 	i->protected = protected;
@@ -200,56 +182,62 @@ register char *name, *value;
 /* Accept single letter user defined macros */
 ismacro(c) register int c;
 {
-	if ((c>='0'&&c<='9')
-	 || (c>='a'&&c<='z')
-	 || (c>='A'&&c<='Z'))
-		return 1;
-	return 0;
+	return ((c>='0'&&c<='9')
+		|| (c>='a'&&c<='z')
+		|| (c>='A'&&c<='Z'));
 }
-/* return the next character from the input file. eat comments, return EOS
- * for a newline not followed by an action, \n for newlines that are followed
- * by actions;  if not in a macro definition or action specification
- * then expand the macro in backup or complain about the name.
- */
 
+/*
+ * Return the next character from the input file.
+ * Eat comments.
+ * Return EOS for newline not followed by an action.
+ * Return '\n' for newline followed by an action.
+ * If not in a macro definition or action specification,
+ * then expand macro in backup or complain about the name.
+ */
 nextc()
 {
 	register char *s;
 	register c;
 
 Again:
-	if((c=readc())=='#'){
-		do
-			c=readc();
-		while(c!='\n' && c!=EOF);
-	}
-	if(c=='\n'){
-		if((c=readc())!=' ' && c!='\t'){
-			putback(c);
-			return(EOS);
-		}
-		do
-			c=readc();
-		while(c==' ' || c=='\t');
-		putback(c);
-		return('\n');
-	}
-	if(c=='\\'){
-		c=readc();
-		if(c=='\n') {
+	if ((c = readc()) == '\\') {
+		c = readc();
+		if (c == '\n') {		/* escaped newline */
 			while ((c=readc())==' ' || c=='\t')
-				;
+				;		/* eat following whitespace */
 			putback(c);
 			return(' ');
-		}
+		} else if (c == '#')
+			return c;		/* "\#" means literal '#' */
 		putback(c);
-		return('\\');
+		return '\\';
+	}
+	if (c=='#') {
+		do
+			c = readc();
+		while (c != '\n' && c != EOF);
+	}
+	if (c == '\n') {
+		if ((c = readc()) != ' ' && c != '\t') {
+			putback(c);
+			if (c == '#')
+				goto Again;	/* "\n# comment" */
+			return EOS;		/* no action follows */
+		}
+		do
+			c = readc();
+		while (c == ' ' || c == '\t');	/* skip whitespace */
+		putback(c);
+		if (c == '#')
+			goto Again;		/* "\n\t# comment" */
+		return '\n';			/* action follows */
 	}
 	if(!defining && c=='$'){
 		c=readc();
-		if(c=='(') {
+		if (c == '(') {
 			s=macroname;
-			while(' '<(c=readc()) && c<0177 && c!=')')
+			while (' ' < (c = readc()) && c < 0177 && c != ')')
 				if(s!=&macroname[NMACRONAME])
 					*s++=c;
 			if (c != ')')
@@ -270,10 +258,8 @@ Again:
 /* Get a block of l0+l1 bytes copy s0 and s1 into it, and return a pointer to
  * the beginning of the block.
  */
-
 char *
-extend(s0, l0, s1, l1)
-char *s0, *s1;
+extend(s0, l0, s1, l1) char *s0, *s1; int l0, l1;
 {
 	register char *t;
 
@@ -288,10 +274,7 @@ char *s0, *s1;
 }
 
 /* Return 1 if c is EOS, EOF, or one of the characters in s */
-
-delim(c, s)
-register char	c;
-char	*s;
+delim(c, s) register char c; char *s;
 {
 	return (c == EOS || c == EOF || index(s, c) != NULL);
 }
@@ -299,7 +282,6 @@ char	*s;
 /* Prepare to copy a new token string into the token buffer; if the old value
  * in token wasn't saved, tough matzohs.
  */
-
 starttoken()
 {
 	token=NULL;
@@ -310,7 +292,6 @@ starttoken()
 /* Put c in the token buffer; if the buffer is full, copy its contents into
  * token and start agin at the beginning of the buffer.
  */
-
 addtoken(c)
 {
 	if(tokp==&tokbuf[NTOKBUF]){
@@ -322,7 +303,6 @@ addtoken(c)
 }
 
 /* mark the end of the token in the buffer and save it in token. */
-
 endtoken()
 {
 	addtoken('\0');
@@ -333,16 +313,13 @@ endtoken()
  * a pointer to the beginning of the list, which is the one just installed if
  * next was NULL.
  */
-
-struct token *
-listtoken(value, next)
-char *value;
-struct token *next;
+TOKEN *
+listtoken(value, next) char *value; TOKEN *next;
 {
-	register struct token *p;
-	register struct token *t;
+	register TOKEN *p;
+	register TOKEN *t;
 
-	t=(struct token *)mmalloc(sizeof *t);	/*Necessaire ou le contraire?*/
+	t=(TOKEN *)mmalloc(sizeof *t);	/*Necessaire ou le contraire?*/
 	t->value=value;
 	t->next=NULL;
 	if(next==NULL)
@@ -353,9 +330,10 @@ struct token *next;
 }
 
 /* Free the overhead of a token list */
-struct token *freetoken(t) register struct token *t;
+TOKEN *
+freetoken(t) register TOKEN *t;
 {
-	register struct token *tp;
+	register TOKEN *tp;
 	while (t != NULL) {
 		tp = t->next;
 		free(t);
@@ -371,17 +349,15 @@ struct token *freetoken(t) register struct token *t;
  * its depedencies go in a list pointed to by dp, and the action to recreate
  * it in token, and the whole shmear is installed.
  */
-
-input(file)
-char *file;
+input(file) char *file;
 {
-	struct token *tp = NULL, *dp = NULL;
+	TOKEN *tp = NULL, *dp = NULL;
 	register c;
 	char *action;
 	int twocolons;
 
 	if(file!=NULL && (fd=fopen(file, "r"))==NULL)
-		die("can't open %s", file);
+		die("cannot open %s", file);
 	lineno=1;
 	lastc=EOF;
 	for(;;){
@@ -409,7 +385,7 @@ char *file;
 			if(tp==NULL)
 				break;
 		case '\n':
-			err("Newline after target or macroname");
+			err("newline after target or macroname");
 		case ';':
 			err("; after target or macroname");
 		case '=':
@@ -441,11 +417,6 @@ char *file;
 				if(delim(c, "=:;\n"))
 					break;
 				starttoken();
-#if MSDOS || GEMDOS
-#define TDELIM	" \t\n=;"
-#else
-#define TDELIM	" \t\n=:;"
-#endif
 				while(!delim(c, TDELIM)){
 					addtoken(c);
 					c=nextc();
@@ -454,7 +425,7 @@ char *file;
 				dp=listtoken(token, dp);
 			}
 			switch(c){
-#if ! MSDOS && ! GEMDOS
+#if	!MSDOS && !GEMDOS
 			case ':':
 				err("::: or : in or after dependency list");
 #endif
@@ -493,14 +464,13 @@ inlib(file) char *file;
 	input(cp ? cp : file);
 }
 
-/* Input first file in list which is found via path */
+/* Input first file in list which is found via SRCPATH. */
 /* Look in current directory first */
 inpath(file) char *file;
 {
-	register char **vp, *p, *cp;
+	register char **vp, *cp;
+
 	cp = NULL;
-	if ((p = getenv("PATH")) == NULL)
-		p = DEFPATH;
 	for (vp = &file; *vp != NULL; vp += 1)
 		if (access(*vp, AREAD) >= 0) {
 			cp = *vp;
@@ -508,7 +478,7 @@ inpath(file) char *file;
 		}
 	if ( ! cp)
 		for (vp = &file; *vp != NULL; vp += 1)
-			if ((cp = path(p, *vp, AREAD)) != NULL)
+			if ((cp = path(srcpath, *vp, AREAD)) != NULL)
 				break;
 	input(cp ? cp : file);
 }
@@ -516,20 +486,21 @@ inpath(file) char *file;
 /* Return the last modified date of file with name name. If it's an archive,
  * open it up and read the insertion date of the pertinent member.
  */
-
 time_t
-getmdate(name)
-char	*name;
+getmdate(name) char *name;
 {
+#if	COHERENT || GEMDOS
 	char	*subname;
 	char	*lwa;
 	int	fd;
 	int	magic;
 	time_t	result;
 	struct ar_hdr	hdrbuf;
+#endif
 
 	if (stat(name, &statbuf) ==0)
 		return(statbuf.st_mtime);
+#if	COHERENT || GEMDOS
 	subname = index(name, '(');
 	if (subname == NULL)
 		return (0);
@@ -559,28 +530,52 @@ char	*name;
 			break;
 		}
 		canlong(hdrbuf.ar_size);
-		lseek(fd, hdrbuf.ar_size, REL);
+		lseek(fd, hdrbuf.ar_size, SEEK_CUR);
 	}
 	*lwa = ')';
 	return (result);
+#else
+	return 0;
+#endif
 }
 
 
 /* Does file name exist? */
-
-fexists(name)
-char *name;
+fexists(name) char *name;
 {
-	return(stat(name, &statbuf)>=0);
+	return stat(name, &statbuf) >= 0;
+}
+
+/*
+ * Find name on srcpath.
+ * Return 'name' unchanged if file exists as 'name', 'name' is absolute,
+ * or 'name' not found on sourcepath.
+ * If successful, return pointer to allocated copy.
+ */
+char *
+fpath(name) char *name;
+{
+	register char *s;
+
+	if (fexists(name)
+	 || *name == '/'
+	 || srcpath == NULL
+	 || (s = path(srcpath, name, AREAD)) == NULL)
+		return name;
+	starttoken();
+	while (*s)
+		addtoken(*s++);
+	endtoken();
+	return token;
 }
 
 /* Return a pointer to the symbol table entry with name "name", NULL if it's
  * not there.
  */
-
-struct sym *sexists(name) register char *name;
+SYM *
+sexists(name) register char *name;
 {
-	register struct sym *sp;
+	register SYM *sp;
 
 	for(sp=sym;sp!=NULL;sp=sp->next)
 		if(Streq(name, sp->name))
@@ -592,7 +587,8 @@ struct sym *sexists(name) register char *name;
  * Return a pointer to the member of deplist which has name as the last
  * part of it's pathname, otherwise return NULL.
  */
-struct sym *dexists(name, dp) register char *name; register struct dep *dp;
+SYM *
+dexists(name, dp) register char *name; register DEP *dp;
 {
 	register char *p;
 	while (dp != NULL) {
@@ -603,21 +599,21 @@ struct sym *dexists(name, dp) register char *name; register struct dep *dp;
 	}
 	return NULL;
 }
+
 /* Look for symbol with name "name" in the symbol table; install it if it's
  * not there; initialize the action and dependency lists to NULL, the type to
  * unknown, zero the modification date, and return a pointer to the entry.
  */
-
-struct sym *
-lookup(name)
-char *name;
+SYM *
+lookup(name) char *name;
 {
-	register struct sym *sp;
+	register SYM *sp;
 
 	if((sp=sexists(name))!=NULL)
 		return(sp);
-	sp = (struct sym *)mmalloc(sizeof (*sp));	/*necessary?*/
+	sp = (SYM *)mmalloc(sizeof (*sp));	/*necessary?*/
 	sp->name=name;
+	sp->filename=fpath(name);
 	sp->action=NULL;
 	sp->deplist=NULL;
 	sp->type=T_UNKNOWN;
@@ -632,28 +628,25 @@ char *name;
  * been noted as a file in the dependency list, install action. Return a 
  * pointer to the beginning of the dependency list.
  */
-
-struct dep *
-adddep(name, action, next)
-char *name, *action;
-struct dep *next;
+DEP *
+adddep(name, action, next) char *name, *action; DEP *next;
 {
-	register struct dep *v;
-	register struct sym *s;
-	struct dep *dp;
+	register DEP *v;
+	register SYM *s;
+	DEP *dp;
 
 	s=lookup(name);
 	for(v=next;v!=NULL;v=v->next)
 		if(s==v->symbol){
 			if (action != NULL) {
 				if(v->action!=NULL)
-					err("Multiple detailed actions for %s",
+					err("multiple detailed actions for %s",
 						s->name);
 				v->action=action;
 			}
 			return(next);
 		}
-	v = (struct dep *)malloc(sizeof (*v));	/*necessary?*/
+	v = (DEP *)malloc(sizeof (*v));	/*necessary?*/
 	v->symbol=s;
 	v->action=action;
 	v->next=NULL;
@@ -671,13 +664,10 @@ struct dep *next;
  * action slot for cons in the latter case. Call adddep() to actually create
  * the dependency list.
  */
-
-install(cons, ante, action, twocolons)
-struct token *ante, *cons;
-char *action;
+install(cons, ante, action, twocolons) TOKEN *ante, *cons; char *action;
 {
-	struct sym *cp;
-	struct token *ap;
+	SYM *cp;
+	TOKEN *ap;
 
 	if(deftarget==NULL && cons->value[0]!='.')
 		deftarget=cons->value;
@@ -715,10 +705,10 @@ char *action;
 				if(cp->type==T_UNKNOWN)
 					cp->type=T_NODETAIL;
 				else if(cp->type!=T_NODETAIL)
-					err("Must use '::' for %s", cp->name);
+					err("must use '::' for %s", cp->name);
 				if (action != NULL) {
 					if(cp->action != NULL)
-						err("Multiple actions for %s",
+						err("multiple actions for %s",
 							cp->name);
 					cp->action = action;
 				}
@@ -736,57 +726,59 @@ char *action;
  * Otherwise, put the dependencies that are newer than s in token ($?), 
  * make s if it doesn't exist, and call docmd.
  */
-
-make(s)
-register struct sym *s;
+make(s) register SYM *s;
 {
-	register struct dep *dep;
-	register char *t;
+	register DEP *dep;
+	register char *t, *name;
 	int update;
 	int type;
 
 	if(s->type==T_DONE)
 		return;
-	if(dflag)
-		printf("Making %s\n", s->name);
+	name = s->filename;
+	if(dflag) {
+		if (s->name == name)
+			printf("Making %s\n", name);
+		else
+			printf("Making %s (file %s)\n", s->name, name);
+	}
 	type=s->type;
 	s->type=T_DONE;
-	s->moddate=getmdate(s->name);
+	s->moddate=getmdate(name);
 	for(dep=s->deplist;dep!=NULL;dep=dep->next)
 		make(dep->symbol);
 	if(type==T_DETAIL){
 		implicit(s, "", 0);
 		for(dep=s->deplist;dep!=NULL;dep=dep->next)
 			if(dep->symbol->moddate>s->moddate)
-				docmd(s, dep->action, s->name,
-					dep->symbol->name, "", "");
+				docmd0(s, dep->action, name, dep->symbol->filename);
 	} else {
 		update=0;
 		starttoken();
 		for(dep=s->deplist;dep!=NULL;dep=dep->next){
 			if(dflag)
 				printf("%s time=%ld %s time=%ld\n",
-				    dep->symbol->name, dep->symbol->moddate,
-				    s->name, s->moddate);
+				    dep->symbol->filename, dep->symbol->moddate,
+				    name, s->moddate);
 			if(dep->symbol->moddate>s->moddate){
 				update++;
 				addtoken(' ');
-				for(t=dep->symbol->name;*t;t++)
+				for(t=dep->symbol->filename;*t;t++)
 					addtoken(*t);
 			}
 		}
 		endtoken();
 		t = token;
-		if (!update && !fexists(s->name)) {
+		if (!update && !fexists(name)) {
 			update = TRUE;
 			if (dflag)
 				printf("'%s' made due to non-existence\n",
-					s->name);
+					name);
 		}
 		if(s->action==NULL)
 			implicit(s, t, update);
 		else if(update)
-			docmd(s, s->action, s->name, t, "", "");
+			docmd0(s, s->action, name, t);
 		free(t);
 	}
 }
@@ -798,20 +790,24 @@ expand(str) register char *str;
 {
 	register int c;
 	register char *p;
+	int end;
+
 	while (c = *str++) {
 		if (c == '$') {
 			c = *str++;
 			switch (c) {
 			case 0: err(badmac);
 			case '$': addtoken(c); continue;
-			case '{': addtoken('$'); addtoken(c); continue;
 			case '@': p = mvarval[0]; break;
 			case '?': p = mvarval[1]; break;
 			case '<': p = mvarval[2]; break;
 			case '*': p = mvarval[3]; break;
+			case '{':
 			case '(':
+				end = (c == '(') ? ')' : '}';
+				c = '(';
 				p = str;
-				do c = *str++; while (c!=0 && c!=')');
+				do c = *str++; while (c != 0 && c != end);
 				if (c == 0)
 					err(badmac);
 				*--str = 0;
@@ -834,15 +830,42 @@ expand(str) register char *str;
 	}
 }
 
+/* Like docmd(), except builds its own dependency list and prefix args. */
+docmd0(s, cmd, at, ques) SYM *s; char *cmd, *at, *ques;
+{
+	register char *cp;
+	register DEP *dep;
+	char *less, *prefix;
+
+	/* Build dependency list. */
+	starttoken();
+	for (dep = s->deplist; dep != NULL; dep = dep->next) {
+		addtoken(' ');
+		for (cp = dep->symbol->filename; *cp; cp++)
+			addtoken(*cp);
+	}
+	endtoken();
+	less = token;
+
+	/* Build prefix. */
+	starttoken();
+	for (cp = s->name; *cp; cp++)
+		addtoken(*cp);
+	endtoken();
+	prefix = token;
+
+	if ((cp = rindex(prefix, '.')) != NULL)
+		*cp = '\0';
+	docmd(s, cmd, at, ques, less, prefix);
+	free(less);
+	free(prefix);
+}
+
 /* Mark s as modified; if tflag, touch s, otherwise execute the necessary
  * commands.
  */
-docmd(s, cmd, at, ques, less, star)
-struct sym *s;
-char *cmd, *at, *ques, *less, *star;
+docmd(s, cmd, at, ques, less, star) SYM *s; char *cmd, *at, *ques, *less, *star;
 {
-	static char	touch[] = "touch $@";
-
 	if (dflag)
 		printf("ex '%s'\n\t$@='%s'\n\t$?='%s'\n\t$<='%s'\n\t$*='%s'\n",
 			cmd, at, ques, less, star);
@@ -850,7 +873,7 @@ char *cmd, *at, *ques, *less, *star;
 		exit(NOTUTD);
 	s->moddate = now;
 	if (tflag)
-		cmd = touch;
+		cmd = "touch $@";
 	if (cmd == NULL)
 		return;
 	mvarval[0] = at;
@@ -868,9 +891,7 @@ char *cmd, *at, *ques, *less, *star;
 /* look for '-' (ignore errors) and '@' (silent) in cmd, then execute it
  * and note the return status.
  */
-
-doit(cmd)
-register char	*cmd;
+doit(cmd) register char *cmd;
 {
 	register char *mark;
 	int sflg, iflg, rstat;
@@ -915,16 +936,13 @@ register char	*cmd;
  * Then make obj according to the rule from makeactions. If we can't find 
  * any rules, use .DEFAULT, provided we're definite.
  */
-
-implicit(obj, ques, definite)
-struct sym *obj;
-char *ques;
+implicit(obj, ques, definite) SYM *obj; char *ques; int definite;
 {
 	register char *s;
-	register struct dep *d;
+	register DEP *d;
 	char *prefix, *file, *rulename, *suffix;
-	struct sym *rule;
-	struct sym *subj;
+	SYM *rule;
+	SYM *subj;
 
 	if(dflag)
 		printf("Implicit %s (%s)\n", obj->name, ques);
@@ -956,10 +974,14 @@ char *ques;
 			addtoken(*s);
 		endtoken();
 		file=token;
+		if ((s = fpath(file)) != file) {
+			free(file);
+			file = s;
+		}
 		subj=NULL;
 		if(fexists(file) || (subj=dexists(file, obj->deplist))){
 			starttoken();
-			for(s=d->symbol->name;*s!='\0';s++)
+			for(s=d->symbol->filename;*s!='\0';s++)
 				addtoken(*s);
 			for(s=suffix;*s!='\0';s++)
 				addtoken(*s);
@@ -988,32 +1010,27 @@ char *ques;
 		defalt(obj, ques);
 }
 
-
 /*
  * Deflt uses the commands associated to '.DEFAULT' to make the object
  * 'obj'.
  */
-
-defalt(obj, ques)
-struct sym	*obj;
-char		*ques;
+defalt(obj, ques) SYM *obj; char *ques;
 {
 	if (deflt == NULL)
-		die("Don't know how to make %s", obj->name);
-	docmd(obj, deflt->action, obj->name, ques, "", "");
+		die("do not know how to make %s", obj->name);
+	docmd0(obj, deflt->action, obj->name, ques);
 }
 
-
-main(argc, argv, envp) char *argv[], *envp[];
+main(argc, argv, envp) int argc; char *argv[], *envp[];
 {
 	register char	*s, *value;
 	register char	*namesave;
 	register int c;
-	int len;
-	struct token	*fp = NULL;
-	struct sym	*sp;
-	struct dep	*d;
-	struct macro	*mp;
+	int	len;
+	TOKEN	*fp = NULL;
+	SYM	*sp;
+	DEP	*d;
+	MACRO	*mp;
 
 	time(&now);
 	++argv;
@@ -1021,15 +1038,15 @@ main(argc, argv, envp) char *argv[], *envp[];
 	while (argc > 0 && argv[0][0] == '-')
 		for (--argc, s = *argv++; *++s != NUL;)
 			switch (*s) {
-			case 'i': iflag++; break;
-			case 's': sflag++; break;
-			case 'r': rflag++; break;
-			case 'n': nflag++; break;
-			case 't': tflag++; break;
-			case 'q': qflag++; break;
-			case 'p': pflag++; break;
 			case 'd': dflag++; break;
 			case 'e': eflag++; break;
+			case 'i': iflag++; break;
+			case 'n': nflag++; break;
+			case 'p': pflag++; break;
+			case 'q': qflag++; break;
+			case 'r': rflag++; break;
+			case 's': sflag++; break;
+			case 't': tflag++; break;
 			case 'f':
 				if (--argc < 0)
 					Usage();
@@ -1069,6 +1086,7 @@ main(argc, argv, envp) char *argv[], *envp[];
 		}
 		++envp;
 	}
+	srcpath = mexists("SRCPATH");
 	suffixes=lookup(".SUFFIXES");
 	if (!rflag)
 		inlib(MACROFILE);
@@ -1119,10 +1137,10 @@ main(argc, argv, envp) char *argv[], *envp[];
 }
 
 /* Whine about usage and then quit */
-
 Usage()
 {
 	fprintf(stderr, "%s\n", usage);
 	exit(1);
 }
 
+/* end of make.c */
