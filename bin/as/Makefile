@@ -1,7 +1,8 @@
-# as/Makefile 2/7/91
+# /usr/src/cmd/as/Makefile 2/20/91
 # A previous needlessly complicated Makefile made any of several
 # machine-dependent versions.
-# This is much simpler but may need adjusting for non-i8086 versions.
+# This is much simpler but probably needs adjusting for non-i8086 versions.
+# Does not include header file dependencies.
 
 # SRC defines the root directory of as source, MCH the target machine.
 SRC=/newbits/bin/as
@@ -28,7 +29,7 @@ MCHOBJ=\
 
 # Primary target.
 as:	$(OBJ) $(MCHOBJ)
-	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(MCHOBJ)
+	$(CC) $(LDFLAGS) -o $@ $<
 
 # Secondary targets.
 # Machine independent.
@@ -45,8 +46,9 @@ addr.o:		$(SRC)/$(MCH)/addr.c
 asmout.o:	$(SRC)/$(MCH)/asmout.c
 machine.o:	$(SRC)/$(MCH)/machine.c
 pst.o:		$(SRC)/$(MCH)/pst.c
+
 # Other.
 clean:
 	rm $(OBJ) $(MCHOBJ)
 
-# end of as/Makefile
+# end of /usr/src/cmd/as/Makefile
