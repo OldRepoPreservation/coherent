@@ -18,14 +18,15 @@
 	 * a segment is a 4 megabyte paragraph (level 1 page table entry)
 	 */
 
+#if 0
 #define	DESC_4096	0x00800000L
 #define	DESC_32I	0x00C09b00L
 #define	DESC_32D	0x00C09300L
 #define	DESC_16I	0x00809b00L
 #define	DESC_16D	0x00809300L
 #define	DESC_TSS_32A	0x00008900L	/* available 386 TSS */
-
 #define	D_USR		0x00006000L
+#endif
 
 #define UII_BASE	0x00400000L	/* base for sep I/D l.out text */
 
@@ -42,10 +43,10 @@
 #define	DIR_RW		0x07 /* us=us0|us1; rw=rw0&rw1; Intel's sOOO logical*/
 
 
-#define	SEG_386_UI	0x08		/* [ 0000 0000 .. FFFF FFFF ]   */
-#define	SEG_386_UD	0x10					/* ditto */
-#define	SEG_386_KI	0x18		/* [ 0000 0000 .. F000 0000 )   */
-#define	SEG_386_KD	0x20					/* ditto */
+#define	SEG_386_UI	0x08	/* [ 0000 0000 .. FFFF FFFF ]		*/
+#define	SEG_386_UD	0x10
+#define	SEG_386_KI	0x18
+#define	SEG_386_KD	0x21	/* kernel data in ring 1		*/
 #define	SEG_286_UI	0x28
 #define	SEG_286_UD	0x30
 #define	SEG_TSS		0x38
@@ -56,11 +57,19 @@
 #define	SEG_386_ID	0x60
 #define	SEG_286_UII	0x68		/* UI -i */
 #define	SEG_LDT		0x70
+#define SEG_RNG0_STK	0x78	/* lower limit of 0xFFFFE000		*/
+#define SEG_RNG0_TXT	0x80
+#define SEG_RNG1_STK	0x88
 
 #define	SEG_VIRT	0x100		/* pseudo bit for kxcopy */
 
-#define	R_USR		0x03
+#define	R_USR		0x03		/* user privilege level		*/
+#define	SEG_PL		0x03		/* privilege level mask		*/
 
+#define	DPL_0		0x00		/* privilege level 0		*/
+#define	DPL_1		0x01		/* privilege level 1		*/
+#define	DPL_2		0x02		/* privilege level 2		*/
+#define	DPL_3		0x03		/* privilege level 3		*/
 
 /*
  * These addresses are all in clicks.
@@ -72,7 +81,7 @@
 #define	PTABLE0_P	0x00001	/* Page directory physical address.	*/
 #define	PBASE		0x00002	/* Start of kernel, physical address.	*/
 
-#define	UADDR		0xFFFFF	/* u area virtual address.		*/
+#define U_OFFSET	0xD00	/* offset of u area in top 4k page	*/
 #define	PTABLE0_V	0xFFFFE	/* Page directory virtual address.	*/
 #define	PPTABLE1_V	0xFFFFC	/* Virtual address of the page table
 				 * for the virtual page table.
@@ -112,9 +121,9 @@
 	{ ptable1_v[WORK0-SBASE] = clickseg(v) | SEG_SRW; mmuupd(); }
 
 #define	xmode(ty)	((u.u_regl[DS]&0xffff) \
-  == ((ty)==286 ? SEG_286_UD+R_USR : SEG_386_UD+R_USR))
-#define	XMODE_286	((u.u_regl[DS]&0xffff) == (SEG_286_UD+R_USR))
-#define	XMODE_386	((u.u_regl[DS]&0xffff) == (SEG_386_UD+R_USR))
+  == ((ty)==286 ? (SEG_286_UD|R_USR) : (SEG_386_UD|R_USR)))
+#define	XMODE_286	((u.u_regl[DS]&0xffff) == (SEG_286_UD|R_USR))
+#define	XMODE_386	((u.u_regl[DS]&0xffff) == (SEG_386_UD|R_USR))
 #define	wdsize()	((XMODE_286) ? sizeof(short) : sizeof(int))
 
 /*
@@ -122,8 +131,9 @@
  *
  * MAPIO:absolute page table address, offset ->
  *       relative page table click# (20 bits) ... offset (12 bits)
+ * MAPIO converts (SEG.s_vmem, byte offset) to system global addr.
  */
-#define	MAPIO(seg, off)	((seg+((int)(off)>>BPCSHIFT) - sysmem.u.pbase) << \
+#define	MAPIO(seg, off)	(((seg)+((int)(off)>>BPCSHIFT) - sysmem.u.pbase) << \
 		BPCSHIFT | ((off) & (NBPC-1)))
 #define	P2P(addr) ((sysmem.u.pbase[btocrd(addr)]&~(NBPC-1)) |(addr&(NBPC-1)))
 
