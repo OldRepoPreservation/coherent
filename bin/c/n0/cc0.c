@@ -416,8 +416,12 @@ xdef()
 			dbdecl(sp);
 		}
 		if (s != COMMA) {
-			if (s != SEMI)
-				cerror("missing semicolon");
+			if (s != SEMI) {
+				if (c==C_TYPE)
+					cerror("illegal typedef");
+				else
+					cerror("missing semicolon");
+			}
 			break;
 		}
 		lex();
