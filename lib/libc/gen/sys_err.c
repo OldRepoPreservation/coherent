@@ -38,11 +38,13 @@ char	*sys_errlist[] = {
 	"broken pipe",
 	"math argument",
 	"result too large",
+#ifndef	_I386
 	"out of kernel space",
 	"driver not loaded",
 	"bad exec format",
 	"device needs attention",
 	"device busy"
+#endif
 };
 
 int	sys_nerr = sizeof (sys_errlist)/sizeof (sys_errlist[0]);
