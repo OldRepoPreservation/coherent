@@ -121,13 +121,16 @@ char *eip;
 	if (ds == (SEG_286_UD | R_USR))
 		uesp = (unsigned short)uesp;
 
-	if (err==SINMI)
-		panic("Parity error: cs=%x ip=%x\n", cs, eip);
+	if (err==SINMI) {
+		printf("Parity error\n");
+		RDUMP();
+		panic("...");
+	}
 
 	/*
 	 * Expect this to never happen!
 	 */
-	if ((SELF->p_flags&PFKERN) != 0) {
+	if (SELF->p_flags & PFKERN) {
 		panic("pid%d: kernel process trap: err=%x, ip=%x ax=%d",
 			SELF->p_pid, err, eip, eax);
 	}
@@ -163,13 +166,13 @@ char *eip;
 		} else
 			stp = sysitab + callnum;
 		ukcopy(uesp+sizeof(long),u.u_args, stp->s_nargs*sizeof(long));
-		if (u.u_error != 0) {
+		if (u.u_error) {
 			sigcode = SIGSYS;
 			goto trapend;
 		}
 
 		u.u_io.io_seg = IOUSR;
-		if (envsave(&u.u_sigenv) != 0)
+		if (envsave(&u.u_sigenv))
 			u.u_error = EINTR;
 		else {
 			eax = (*stp->s_func)(u.u_args[0],
@@ -275,119 +278,6 @@ char *eip;
 		 */
 		sigcode = SIGKILL;
 		break;
-	case SIPF:
-		/*
-		 * Page fault
-		 */
-		cr2 = read_cr2();
-		if (cpl < 2) {
-			/*
-			 * If page fault during Ring 1 copy service routine,
-			 * such as kucopy or ukcopy, set u_error and abort
-			 * the copy, but don't send signal to the user.
-			 */
-			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
-				T_HAL(0x1000, printf("copy trapped "));
-				SET_U_ERROR(EFAULT, "copy service");
-				eip = &__xtrap_break__;
-				goto trapend;
-			} else {
-				printf("cr2=%x", cr2);
-				RDUMP();
-				panic("Kernel Page Fault");
-			}
-		}
-
-		/* Check for stack underflow. */
-
-		T_HAL(0x1000, printf("Page Fault cr2=%x", cr2));
-		T_HAL(0x1000, RDUMP());
-		/*
-		 * I think 'splo' is being calculated in a bass-ackwards way,
-		 * and that 'datahi' is just wrong, but I'm not certain,
-		 * so the fixes are #if 0'd out. -piggy
-		 *
-		 * I'll take out the 0 some day and test these changes.
-		 */
-		segp = u.u_segl[SISTACK].sr_segp;
-#if 0
-		splo = u.u_segl[SISTACK].sr_base - segp->s_size;
-		datahi = u.u_segl[SIPDATA].sr_base + u.u_segl[SIPDATA].sr_size;
-#else
-		splo = (XMODE_286) ? ISP_286 : ISP_386;
-		splo -= segp->s_size;
-		datahi = u.u_segl[SIPDATA].sr_size;
-#endif /* 0 */
-
-		/*
-		 * Catch bad function pointer here - don't want to restart
-		 * the user instruction and get runaway segv's.
-		 *
-		 * For 286 executables, eip starts at 0, but cs points to
-		 * descriptor SEG_286_UII which adds 0x400000 (UII_BASE).
-		 */
-		txtlo = u.u_segl[SISTEXT].sr_base;
-		if (XMODE_286)
-			txtlo -= UII_BASE;
-		txthi = txtlo + u.u_segl[SISTEXT].sr_size;
-		if (eip < txtlo || eip > txthi) {
-			T_HAL(0x1000, printf("Bad eip, txtlo=%x txthi=%x\n",
-			  txtlo, txthi));
-			goto bad_pf;
-		}
-
-		/*
-		 * Catch bad data pointer here - don't want to restart
-		 * the user instruction and get runaway segv's.
-		 */
-		if (cr2 > splo) {
-			T_HAL(0x1000, printf("Bad data, splo=%x datahi=%x\n",
-			  splo, datahi));
-			goto bad_pf;
-		}
-
-		/*
-		 * If we trapped on an 'enter' instruction, the stack
-		 * pointer (uesp) has not yet been decremented.  In
-		 * order to correctly process such a stack overflow,
-		 * we must look at the _expected_ value for uesp.
-		 * NB: We COPY uesp, because that arg gets loaded back
-		 * into the real esp--when we return from the trap the
-		 * enter instruction will decrement the esp.
-		 */
-		newsp = uesp;
-		opcode = selkcopy(cs, eip);
-		if (ENTER_OP == opcode) {
-			e_arg = (selkcopy(cs, eip+2)<<8) + selkcopy(cs, eip+1);
-			newsp -= e_arg;
-		}
-
-		if (newsp<=splo && newsp>datahi && btoc(datahi)<btocrd(splo)) {
-			pp = c_extend(segp->s_vmem, btoc(segp->s_size));
-			if (pp==0) {
-				T_HAL(0x1000, printf("c_extend(%x,%x)=0 ",
-				  segp->s_vmem, btoc(segp->s_size)));
-				goto bad_pf;
-			}
-
-			segp->s_vmem = pp;
-			segp->s_size += NBPC;
-			if (sproto(0)==0) {
-				T_HAL(0x1000, printf("sproto(0)=0 "));
-				goto bad_pf;
-			}
-
-			segload();
-			goto trapend;
-		}
-	bad_pf:
-		/*
-		 * User generated unacceptable page fault.
-		 */
-		sigcode = SIGSEGV;
-		printf("\ncr2=%x  ", cr2);
-		break;
-
 	default:
 		RDUMP();
 		panic("Fatal Trap");
@@ -830,5 +720,172 @@ irqblab(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
 		print8(irqno);
 	} else if (err == 2) {
 		puts("NMI ");
+	}
+}
+
+pagefault(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
+  eip, cs, efl, uesp, ss)
+char *eip;
+{
+	register struct	systab	*stp;
+	register int	callnum;
+	register int	sigcode;
+	extern int	trapcode;
+	extern	*mmdata[], mminit;
+	cseg_t *pp;
+	register SEG *segp;
+	int	splo, datahi;
+	unsigned int	txtlo, txthi;
+	unsigned char opcode;	/* Opcode we trapped on.	*/
+	unsigned short e_arg;	/* Argument to 'enter' opcode.  */
+	unsigned long newsp;	/* Anticipated value for stack pointer.  */
+	unsigned int cr2 = 0;
+	unsigned int cpl = cs & SEG_PL;
+
+	/*
+	 * Avoid sign extension confusion on 286 ds
+	 */
+	if (ds == (SEG_286_UD | R_USR))
+		uesp = (unsigned short)uesp;
+
+	/*
+	 * Expect this to never happen!
+	 */
+	if (SELF->p_flags&PFKERN) {
+		panic("pid%d: kernel process trap: err=%x, ip=%x ax=%d",
+			SELF->p_pid, err, eip, eax);
+	}
+
+	T_HAL(0x4000, printf("T%d ", err));
+	sigcode = 0;
+
+	u.u_regl = &gs;	/* hook in register set for consave/conrest */
+
+	{
+		/*
+		 * Page fault
+		 */
+		cr2 = read_cr2();
+		if (cpl < 2) {
+			/*
+			 * If page fault during Ring 1 copy service routine,
+			 * such as kucopy or ukcopy, set u_error and abort
+			 * the copy, but don't send signal to the user.
+			 */
+			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
+				T_HAL(0x1000, printf("copy trapped "));
+				SET_U_ERROR(EFAULT, "copy service");
+				eip = &__xtrap_break__;
+				goto pf_end;
+			} else {
+				printf("&uesp=>\n");
+				SDUMP(&uesp);
+				printf("*(&uesp + 2)=>\n");
+				SDUMP(*((&uesp) + 2));
+				printf("cr2=%x", cr2);
+				RDUMP();
+				panic("Kernel Page Fault");
+			}
+		}
+
+		/* Check for stack underflow. */
+
+		T_HAL(0x1000, printf("Page Fault cr2=%x", cr2));
+		T_HAL(0x1000, RDUMP());
+		/*
+		 * I think 'splo' is being calculated in a bass-ackwards way,
+		 * and that 'datahi' is just wrong, but I'm not certain,
+		 * so the fixes are #if 0'd out. -piggy
+		 *
+		 * I'll take out the 0 some day and test these changes.
+		 */
+		segp = u.u_segl[SISTACK].sr_segp;
+#if 0
+		splo = u.u_segl[SISTACK].sr_base - segp->s_size;
+		datahi = u.u_segl[SIPDATA].sr_base + u.u_segl[SIPDATA].sr_size;
+#else
+		splo = (XMODE_286) ? ISP_286 : ISP_386;
+		splo -= segp->s_size;
+		datahi = u.u_segl[SIPDATA].sr_size;
+#endif /* 0 */
+
+		/*
+		 * Catch bad function pointer here - don't want to restart
+		 * the user instruction and get runaway segv's.
+		 *
+		 * For 286 executables, eip starts at 0, but cs points to
+		 * descriptor SEG_286_UII which adds 0x400000 (UII_BASE).
+		 */
+		txtlo = u.u_segl[SISTEXT].sr_base;
+		if (XMODE_286)
+			txtlo -= UII_BASE;
+		txthi = txtlo + u.u_segl[SISTEXT].sr_size;
+		if (eip < txtlo || eip > txthi) {
+			T_HAL(0x1000, printf("Bad eip, txtlo=%x txthi=%x\n",
+			  txtlo, txthi));
+			goto bad_pf;
+		}
+
+		/*
+		 * Catch bad data pointer here - don't want to restart
+		 * the user instruction and get runaway segv's.
+		 */
+		if (cr2 > splo) {
+			T_HAL(0x1000, printf("Bad data, splo=%x datahi=%x\n",
+			  splo, datahi));
+			goto bad_pf;
+		}
+
+		/*
+		 * If we trapped on an 'enter' instruction, the stack
+		 * pointer (uesp) has not yet been decremented.  In
+		 * order to correctly process such a stack overflow,
+		 * we must look at the _expected_ value for uesp.
+		 * NB: We COPY uesp, because that arg gets loaded back
+		 * into the real esp--when we return from the trap the
+		 * enter instruction will decrement the esp.
+		 */
+		newsp = uesp;
+		opcode = selkcopy(cs, eip);
+		if (ENTER_OP == opcode) {
+			e_arg = (selkcopy(cs, eip+2)<<8) + selkcopy(cs, eip+1);
+			newsp -= e_arg;
+		}
+
+		if (newsp<=splo && newsp>datahi && btoc(datahi)<btocrd(splo)) {
+			pp = c_extend(segp->s_vmem, btoc(segp->s_size));
+			if (pp==0) {
+				T_HAL(0x1000, printf("c_extend(%x,%x)=0 ",
+				  segp->s_vmem, btoc(segp->s_size)));
+				goto bad_pf;
+			}
+
+			segp->s_vmem = pp;
+			segp->s_size += NBPC;
+			if (sproto(0)==0) {
+				T_HAL(0x1000, printf("sproto(0)=0 "));
+				goto bad_pf;
+			}
+
+			segload();
+			goto pf_end;
+		}
+	bad_pf:
+		/*
+		 * User generated unacceptable page fault.
+		 */
+		sigcode = SIGSEGV;
+		printf("\ncr2=%x  ", cr2);
+	}
+
+pf_end:
+	/*
+	 * Send user a signal.
+	 * If not a breakpoint, do console register dump.
+	 */
+	if (sigcode) {
+		RDUMP();
+		printf("sigcode=#%d  User Page Fault\n", sigcode);
+		sendsig(sigcode, SELF);
 	}
 }

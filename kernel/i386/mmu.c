@@ -22,6 +22,9 @@
 #define ONE_MEG	1048576
 #define USE_NDATA	1
 
+#define DISP_VAR(v)	{ strchirp("  "#v"="); print32(v); }
+#define DV(v)		T_PIGGY(0x400, DISP_VAR(v))
+
 /*
  * DMA will not work to memory above 16M, so limit the amount of memory
  * above 1M to 15M.  A much cleverer scheme should be implemented.
@@ -697,10 +700,15 @@ unsigned int numBytes;
 	}
 	return ret;
 }
+/***************/
 
 #undef	ptable1_v
-#undef	ptable0_v
-#define	ptable0_v	((long *)(&stext[ctob(-1)]))
+
+/*
+ * pageDir is the physical address of the click in use for the page
+ * directory, offset by ctob(SBASE - PBASE)
+ */
+#define	pageDir		((long *)(&stext[ctob(-1)]))
 
 int total_clicks;	/* How many clicks did we start with?  */
 
@@ -716,7 +724,7 @@ mchinit()
 	register	long *ptable1_v;
 	register unsigned short	base;
 	int	sysseg, codeseg, stackseg, ramseg, ptable1;
-	int	ptoff;	/* An offset into ptable0_v[]  */
+	int	ptoff;	/* An offset into pageDir[]  */
 #if USE_NDATA
 	int	dataseg[NDATA];
 #else
@@ -760,15 +768,12 @@ mchinit()
 	 * Zero the level 0 page directory, which occupies the click
 	 * of virtual space immediately below kernel text.
 	 */
-	pe = (char *) ptable0_v;
+	pe = (char *) pageDir;
 	do
 		*pe++ = zero;
 	while (pe != stext);
 
 	CHIRP('2');
-
-#define DISP_VAR(v)	{ strchirp("  "#v"="); print32(v); }
-#define DV(v)		T_PIGGY(0x400, DISP_VAR(v))
 
 	/*
 	 * 3. Calculate total system memory.
@@ -985,26 +990,33 @@ mchinit()
 	 * e. [ FFC00000 .. FFFFFFFF)		system process addresses
 	 */
 	codeseg = clickseg(*--sysmem.pfree);		/* 5.a */
-	ptable0_v[0x000] = codeseg  | DIR_RW; 
+	pageDir[0x000] = codeseg  | DIR_RW; 
 
 #if USE_NDATA
 	for (i = 0; i < NDATA; i++) {
 		dataseg[i] = clickseg(*--sysmem.pfree);	/* 5.b */
-		ptable0_v[0x001+i] = dataseg[i] | DIR_RW;
+		pageDir[0x001+i] = dataseg[i] | DIR_RW;
 	}
 #else
 	dataseg = clickseg(*--sysmem.pfree);		/* 5.b */
-	ptable0_v[0x001] = dataseg | DIR_RW;
+	pageDir[0x001] = dataseg | DIR_RW;
 #endif
 
 	stackseg = clickseg(*--sysmem.pfree);		/* 5.c */
-	ptable0_v[0x1FF] = stackseg  | DIR_RW; 
+	pageDir[0x1FF] = stackseg  | DIR_RW; 
 
+	/*
+	 * ptable1 is a handle for the click containing page table
+	 * entries for the page table.
+	 *
+	 * allocate a click for ptable1
+	 * Then point at it from the page directory.
+	 */
 	ptable1 = clickseg(*--sysmem.pfree);		/* 5.d */
-	ptable0_v[0x3FE] = ptable1 | DIR_RW; 
+	pageDir[0x3FE] = ptable1 | DIR_RW; 
 
 	sysseg = clickseg(*--sysmem.pfree);		/* 5.e */
-	ptable0_v[0x3FF] = sysseg  | DIR_RW;
+	pageDir[0x3FF] = sysseg  | DIR_RW;
 
 	CHIRP('5');
 
@@ -1013,6 +1025,8 @@ mchinit()
 	 */
 
 	ptable1_v  = (long *)(ptable1 + ctob(SBASE-PBASE));
+	DV(pageDir);
+	DV(ptable1_v);
 	ptable1_v[0x000] = codeseg | SEG_SRW;
 #if USE_NDATA
 	for (i = 0; i < NDATA; i++)
@@ -1028,7 +1042,7 @@ mchinit()
 	 */
 	for (ptoff = 0x200; ptoff < 0x204; ++ptoff) {
 		ramseg =  clickseg(*--sysmem.pfree);		/* 5.c.i */
-		ptable0_v[ptoff] = ramseg  | DIR_RW; 
+		pageDir[ptoff] = ramseg  | DIR_RW; 
 		ptable1_v[ptoff] = ramseg | SEG_SRW;
 	}
 
@@ -1046,6 +1060,7 @@ mchinit()
 	 */ 
 
 	ptable1_v  = (long *)(sysseg + ctob(SBASE-PBASE));	/* 7.b */
+	DV(ptable1_v);
 	for (i = PBASE; i <sysmem.lo; i++)
 		ptable1_v[i-PBASE] = clickseg(i) | SEG_SRW;
 
@@ -1076,6 +1091,7 @@ mchinit()
 	 * paging from causing a page fault
 	 */
 	ptable1_v  = (long *)(codeseg + ctob(SBASE-PBASE));
+	DV(ptable1_v);
 	ptable1_v[PBASE] = clickseg(PBASE) | SEG_SRW;
 
 	CHIRP('9');
@@ -1196,6 +1212,9 @@ segload()
 			start++;
 		}
 	}
+
+	/* 3.  Update shm segment information. */
+	shmLoad();
 }
 
 SR *
@@ -1224,6 +1243,10 @@ i8086()
 	unsigned	csize, isize, ssize, allsize;
 	vaddr_t	base;
 	unsigned int	calc_mem, boost;
+
+	/* This is the first C code executed after paging is turned on. */
+
+	workPoolInit();
 
 	/*
 	 * Allocate contiguous physical memory if PHYS_MEM is patched
