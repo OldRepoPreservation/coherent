@@ -198,8 +198,18 @@ main(argc, argv) int argc; char *argv[];
 		slowexit(1);
 	}
 
+	/*
+	 * If login has been exec()'d by a login shell, there will
+	 * already be a lock file.  Fortunately, this lock file belongs
+	 * to us, so we can remove it.  If there is a lock file that
+	 * doesn't belong to us, unlocktty() won't remove it, and the
+	 * subsequent locktty() will fail, as it should.  We are
+	 * explicitly ignoring the return value of unlocktty().
+	 */
+	(void) unlocktty(strrchr(s_tty, '/') + 1);
+
 	/* Let's lock this tty, so nobody else grabs it until we log out.  */
-	if (-1 == lockit(strrchr(s_tty, '/') + 1) ){
+	if (-1 == locktty(strrchr(s_tty, '/') + 1) ){
 		fprintf(stderr, "%s: cannot lock terminal.\n", argv0);
 		slowexit(1);
 	}
@@ -416,7 +426,9 @@ slowexit(status)
     char *s_tty;
 
     if ((s_tty = ttyname(2)) != NULL) {
-	lockrm(strrchr(s_tty, '/') + 1);
+	if (-1 == unlocktty(strrchr(s_tty, '/') + 1)) {
+		fprintf(stderr, "Trouble unlocking tty %s.\n", s_tty);
+	}
     }
 
     sleep(2);
