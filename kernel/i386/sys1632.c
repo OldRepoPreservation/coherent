@@ -86,6 +86,7 @@ oldsys()
 	int	l;
 	int	(*func)();
 	int	swap, res;
+	int	temp;
 
 	u.u_error = 0;
 	syscall = getuwd(NBPS+u.u_regl[EIP]-sizeof(short));
@@ -121,6 +122,9 @@ oldsys()
 		break;	
 	case 18:		/* stat and fstat have 32 bit alignment now */
 		func = ostat;
+		break;
+	case 25:		/* ustime() 386 takes a value, not a ptr */
+		u.u_args[0] = getuwd(u.u_args[0]);
 		break;
 	case 28:
 		func = ofstat;
