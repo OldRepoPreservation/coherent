@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys2.c,v 1.9 92/06/11 18:25:58 root Exp $ */
+/* $Header: /y/coh.386/RCS/sys2.c,v 1.10 92/10/06 23:48:57 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,6 +16,9 @@
  * System calls (filesystem related).
  *
  * $Log:	sys2.c,v $
+ * Revision 1.10  92/10/06  23:48:57  root
+ * Ker #64
+ * 
  * Revision 1.9  92/06/11  18:25:58  root
  * Add close on exec code.
  * 
@@ -486,16 +489,12 @@ register off_t off;
 		u.u_error = EINVAL;
 		return;
 	}
-/*
- * The following test is no longer reasonable.
- * May want to seek to kernel text, which is in range 0xFFxxyyyy.
- */
-#if 0
+
 	if (off < 0) {
 		u.u_error = EINVAL;
 		return;
 	}
-#endif
+
 	fdp->f_seek = off;
 	return (off);
 }
