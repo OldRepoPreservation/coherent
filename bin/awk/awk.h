@@ -140,6 +140,7 @@ NODE	*xfield();
 NODE	*xassign();
 NODE	*xinca();
 NODE	*xdeca();
+NODE	*xneg();
 
 /*
  * Declaration of built-in
@@ -271,3 +272,4 @@ extern	NODE	*OFMTp;
 #define	ATERM	64		/* Terminal */
 #define	AFUNC	65		/* Function */
 #define	AKEYW	66		/* Dummy type for keyword */
+#define ANEG	67		/* - a */

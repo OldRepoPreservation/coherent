@@ -317,6 +317,9 @@ e:
       | '!' e {
 		$$ = node(ANOT, $2);
 	}
+      | '-' e %prec '!' {
+		$$ = node(ANEG, $2);
+	}
       | terminal
       | assignment
       | e '+' e {

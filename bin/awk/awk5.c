@@ -414,6 +414,18 @@ register NODE *n1, *n2;
 }
 
 /*
+ * Negation
+ */
+NODE *
+xneg(n1)
+register NODE *n1;
+{
+	if (isfloat(n1))
+		return (fnode(-evalfloat(n1)));
+	return (inode(-evalint(n1)));
+}
+
+/*
  * Division
  * If either numeric is of internal FLOAT type,
  * the division will be a float one, otherwise use

@@ -332,6 +332,10 @@ register NODE *np;
 		np = xmul(evalexpr(np->n_O1), evalexpr(np->n_O2));
 		break;
 
+	case ANEG:
+		np = xneg(evalexpr(np->n_O1));
+		break;
+
 	case ADIV:
 		np = xdiv(evalexpr(np->n_O1), evalexpr(np->n_O2));
 		break;
