@@ -19,7 +19,7 @@ phase3()
 			markchildren(i);
 		}
 
-	for (i=FIRSTIN; i<ninodes; i++)
+	for (i=FIRSTIN; i<=ninodes; i++)
 		if ( (flags(i)&(UNREFDIR|CHILDDIR)) == UNREFDIR )
 			unrefdir(i);
 }
