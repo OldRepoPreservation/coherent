@@ -4,6 +4,10 @@
  */
 #include <math.h>
 
+#if	EMU87
+#include "emumath.h"
+#endif
+
 double
 atan2(y, x)
 double x;

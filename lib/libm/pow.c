@@ -1,7 +1,13 @@
 /*
+ * libm/pow.c
  * Raise x to the power y.
  */
+
 #include <math.h>
+
+#if	EMU87
+#include "emumath.h"
+#endif
 
 double
 pow(x, y)
@@ -15,13 +21,14 @@ double x, y;
 	if (x == 0.0) {
 		if (y <= 0.0)
 			errno = EDOM;
-		return (0.0);
+		return 0.0;
 	}
-	r = modf(y, &r);
+	if ((r = modf(y, &r)) < 0.0)
+		r += 1.0;
 	if (x < 0.0) {
 		if (r != 0.0) {
 			errno = EDOM;
-			return (0.0);
+			return 0.0;
 		}
 		x = -x;
 		if (((int) y) & 1)
@@ -43,7 +50,7 @@ double x, y;
 	}
 	if (i)
 		r = 1/r;
-	if (s)
-		r = -r;
-	return (r);
+	return s ? -r : r;
 }
+
+/* end of libm/pow.c */

@@ -1,8 +1,11 @@
-
 /*
  * Hypotenuse function.
  */
 #include <math.h>
+
+#if	EMU87
+#include "emumath.h"
+#endif
 
 double
 hypot(x, y)
@@ -19,5 +22,3 @@ double y;
 	}
 	return (r < 0. ? -r : r);
 }
-
-

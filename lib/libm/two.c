@@ -1,33 +1,41 @@
 /*
+ * libm/two.c
  * Evaluate 2 to the power x.
  * (Hart 1067, 18.08)
  */
+
 #include <math.h>
 
-static double twontab[] ={
+#if	EMU87
+#include "emumath.h"
+#endif
+
+static readonly double twontab[] ={
 	0.1513906799054338915894328e+04,
 	0.2020206565128692722788600e+02,
 	0.2309334775375023362400000e-01
 };
-static double twomtab[] ={
+static readonly double twomtab[] ={
 	0.4368211662727558498496814e+04,
 	0.2331842114274816237902950e+03,
 	0.1000000000000000000000000e+01
 };
 
 double
-_two(x)
-double x;
+_two(x) double x;
 {
 	double p, q, r, e;
 	register int s;
 
 	if (x > L2HUGE_VAL) {
 		errno = ERANGE;
-		return (HUGE_VAL);
+		return HUGE_VAL;
 	}
 	s = 0;
-	x = modf(x, &e);
+	if ((x = modf(x, &e)) < 0.0) {
+		x += 1.0;
+		e -= 1.0;
+	}
 	if (x > 0.5) {
 		s = 1;
 		x -= 0.5;
@@ -38,6 +46,7 @@ double x;
 	r = (q+p)/(q-p);
 	if (s)
 		r *= SQRT2;
-	r = ldexp(r, (int) e);
-	return (r);
+	return ldexp(r, (int) e);
 }
+
+/* end of libm/two.c */

@@ -1,12 +1,18 @@
 /*
+ * libm/cos.c
  * Evaluate the cosine function.
  */
+
 #include <math.h>
+
+#if	EMU87
+#include "emumath.h"
+#endif
 
 /*
  * (Hart 2923, 19.96)
  */
-static double sintab[] ={
+static readonly double sintab[] ={
 	 0.523598775598298873071308e+00,
 	-0.239245962039350458667960e-01,
 	 0.327953194428661969081000e-03,
@@ -19,7 +25,7 @@ static double sintab[] ={
 /*
  * (Hart 3824, 19.45)
  */
-static double costab[] ={
+static readonly double costab[] ={
 	 0.99999999999999999996415,
 	-0.30842513753404245242414,
 	 0.01585434424381541089754,
@@ -31,13 +37,15 @@ static double costab[] ={
 };
 
 double
-cos(x)
-double x;
+cos(x) double x;
 {
 	double r;
 	register int s;
 
-	x = modf(x/(2.0*PI), &r);
+	if ((x = modf(x/(2.0*PI), &r)) < 0.0) {
+		x += 1.0;
+		r -= 1.0;
+	}
 	s = 0;
 	if (x > 0.5) {
 		s = 1;
@@ -54,5 +62,7 @@ double x;
 		x *= 8.0;
 		r = _pol(x*x, costab, 8);
 	}
-	return (s?-r:r);
+	return s ? -r : r;
 }
+
+/* end of libm/cos.c */
