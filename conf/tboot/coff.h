@@ -12,10 +12,12 @@ typedef	struct	filehdr	{
 	long		f_nsyms;		/* Number of symbols	*/
 	unsigned short	f_opthdr;		/* Optional header size	*/
 	unsigned short	f_flags;		/* Flags		*/
-}	FILEHDR;
+}	FILHDR;
+
+#define FILHSZ sizeof(FILHDR)
 
 /* Magic number. */
-#define	C_386_MAGIC	0x14C			/* Intel iAPX 80386	*/
+#define	I386MAGIC	0x14C			/* Intel iAPX 80386	*/
 
 /*
  * This is just a short version of this macro.  We really ought to define
@@ -63,6 +65,8 @@ typedef	struct	scnhdr	{
 	unsigned short	s_nlnno;		/* Line number entries	*/
 	long		s_flags;		/* Flags		*/
 }	SCNHDR;
+
+#define SCNHSZ	sizeof(SCNHDR)
 
 /* Names of special sections */
 #define _TEXT	".text"
