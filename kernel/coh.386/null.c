@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/null.c,v 1.2 92/01/06 11:59:49 hal Exp $ */
+/* $Header: /y/coh.386/RCS/null.c,v 1.6 92/11/09 17:10:54 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -20,9 +20,12 @@
  *  Minor device 3 is /dev/cmos
  *  Minor device 4 is /dev/boot_gift
  *  Minor device 5 is /dev/clock
- *  Minor device 6 is /dev/proc
+ *  Minor device 6 is /dev/ps
  *
  * $Log:	null.c,v $
+ * Revision 1.6  92/11/09  17:10:54  root
+ * Just before adding vio segs.
+ * 
  * Revision 1.2  92/01/06  11:59:49  hal
  * Compile with cc.mwc.
  * 
@@ -45,6 +48,8 @@
 #include <sys/stat.h>
 #include <sys/typed.h>
 #include <sys/inode.h>
+#include <sys/seg.h>
+#include <sys/coh_ps.h>
 #ifdef NULL_IOCTL
 #include <sys/null.h>
 #endif /* NULL_IOCTL */
@@ -56,7 +61,7 @@
 #define DEV_CMOS	3	/* /dev/cmos	*/
 #define DEV_BOOTGIFT	4	/* /dev/bootgift  */
 #define DEV_CLOCK	5	/* /dev/clock  */
-#define DEV_PROC	6	/* /dev/proc  */
+#define DEV_PS		6	/* /dev/ps  */
 
 /*
  * CMOS devices are limited by an 8 bit address.
@@ -118,14 +123,6 @@ int lock_clock();
 void unlock_clock();
 
 /*
- * These variables are used by /dev/proc.
- */
-static	int proc_open_c = 0;	/* How many times is this device open?  */
-static	int proc_valid = 0;	/* Do we have a valid snapshot?  */
-static	PROC *proc_snapshot;	/* This is a snapshot of procq.  */
-static	int proc_size;		/* How long is proc_snapshot (in bytes)?  */
-
-/*
  * Null/memory open routine.
  */
 void
@@ -133,87 +130,11 @@ nlopen(dev, mode)
 dev_t dev;
 int mode;
 {
-	register PROC *pp1;
-	int count;		/* How many processes are there?  */
-
 	switch (minor(dev)) {
-	case DEV_PROC:
-		if ( IPR == (IPR & mode) ){
-			T_PIGGY( 0x4000000, printf("proc open "); );
-			/*
-			 * Lock the process table.
-			 * We lock the process table first to avoid a race
-			 * condition.  We really only want to muck with the
-			 * process table on the first open.
-			 */
-			lock(pnxgate);
-	
-			/*
-			 * If this is the first open, take a snapshot.
-			 */
-			if ( 0 == proc_open_c ) {
-				T_PIGGY( 0x4000000, printf("snapshot of "); );
-				/*
-				 * Find out how long the process table is.
-				 */
-				for (count = 0, pp1 = &procq;
-				     (pp1=pp1->p_nforw) != &procq;
-				     ++count) {
-					/* Do nothing else.  */
-				}
-
-				T_PIGGY( 0x4000000,
-					printf("%d entries of %d, ",
-						count, sizeof(PROC));
-				);
-
-				/*
-				 *	Allocate memory for a snapshot.
-				 */
-				proc_size = count * sizeof(PROC);
-				T_PIGGY( 0x4000000,
-					printf("allocating %d, ", proc_size);
-				);
-				if ( (proc_snapshot = kalloc(proc_size)) !=
-					NULL) {
-					/*
-					 *	Take a snapshot.
-					 */
-					for ( count = 0, pp1 = &procq;
-					      (pp1=pp1->p_nforw) != &procq;
-					      ++count) {
-						T_PIGGY( 0x4000000,
-						    printf("&proc[%d]: %x, ",
-						    	count,
-							&proc_snapshot[count]);
-						);
-						kkcopy(pp1,
-						       &proc_snapshot[count],
-						       sizeof(PROC)
-						);
-					}
-					proc_valid = 1;
-				}
-			} /* First open?  */
-	
-			/*
-			 * Unlock the process table.
-			 */
-			unlock(pnxgate);
-	
-			/*
-			 * If we have a valid snapshot, the open succeeded,
-			 * so increment the count.  Otherwise, fail the open.
-			 */
-			if ( proc_valid ) {
-				proc_open_c++;
-			} else {
-				SET_U_ERROR( ENOMEM,
-					"Not enough memory for a snapshot");
-			}
-		} else {
-			SET_U_ERROR( EACCES, "/dev/proc is read only" );
-		}
+	case DEV_PS:
+		/* /dev/ps is read only */
+		if (IPR != (IPR & mode)) 
+			SET_U_ERROR( EACCES, "/dev/ps is read only" );
 		break;
 	default:
 		/*
@@ -233,50 +154,12 @@ nlclose(dev, mode)
 dev_t dev;
 int mode;
 {
-	switch (minor(dev)) {
-	case DEV_PROC:
-		if (proc_open_c > 0) {
-			T_PIGGY( 0x4000000, printf(" last proc close, "); );
-
-			/*
-			 * Lock the process table.
-			 *
-			 * We lock the process table first to avoid a race
-			 * condition.  We don't muck with the process table
-			 * at all, but on the last close we want to lock out
-			 * opens on this device.
-			 */
-			lock(pnxgate);
-			/*
-			 * If this is the last close:
-			 *	Free the snapshot of the process table.
-			 */
-			if ( 1 == proc_open_c ) {
-				kfree( proc_snapshot );
-				proc_valid = 0;
-			}
-
-			/*
-			 * Unlock the process table.
-			 */
-			unlock(pnxgate);
-	
-			/*
-			 * Record the close.
-			 */
-			proc_open_c--;
-		}
-		break;
-	default:
-		/*
-		 * For minor devices on NULL there is
-		 * Usually no action for close().
-		 */
-		break;
-	}
+	/*
+	 * For minor devices on NULL there is
+	 * Usually no action for close().
+	 */
 	return;
 } /* nlclose() */
-
 
 /*
  * Null/memory read routine.
@@ -286,10 +169,18 @@ nlread(dev, iop)
 dev_t dev;
 register IO *iop;
 {
-	register unsigned bytes_read;
-	unsigned int seek;
-	unsigned char read_cmos();
-	extern typed_space boot_gift;
+	register unsigned 	bytes_read;
+	register SEG		*sp;		/* u area segment */
+	register PROC 		*pp1;		/* */
+	char			psBuf[ARGSZ];	/* buffer for command line
+						 * arguments for ps. */
+	stMonitor		psData;		/* All process data for */
+	UPROC	      		*uprc;		/* pointer to u area */
+	int			ndpUseg;	/* System global address 
+						 * of U segment */
+	unsigned int 		seek;
+	unsigned char 		read_cmos();
+	extern typed_space 	boot_gift;
 
 	switch (minor(dev)) {
 	case DEV_NULL:
@@ -379,25 +270,66 @@ register IO *iop;
 		}
 		break;
 
-	case DEV_PROC:
-		/*
-		 * Reads are all from the data structure *proc_snapshot.
+	case DEV_PS:
+		/* Lock the process table. It allows to have an atomic ps. */
+		lock(pnxgate);
+		/* Main driver loop. Go through all processes. Fill struct PS
+		 * and send put to user buffer.
 		 */
-		T_PIGGY( 0x4000000,
-			printf("reading %d proc bytes, ", iop->io_ioc);
-		);
+		for (pp1 = &procq; (pp1=pp1->p_nforw) != &procq; ) {
+			register int		i;	/* loop index */
+			register unsigned	uLen, 	/* Process size */
+						uLenR;	/* Real process size */
 
-		if (iop->io_seek < proc_size) {
-			bytes_read = iop->io_ioc;
-			/* Copy no more than to the end of the snapshot.  */
-			if (iop->io_seek + bytes_read > proc_size) {
-				bytes_read = proc_size - (iop->io_seek);
-			}
-
-			iowrite(iop,
-				(char *)(proc_snapshot) + iop->io_seek,
-				bytes_read);
+			/* Check if driver can send next proc data */ 
+			if ( iop->io_ioc < sizeof(stMonitor)) 
+				break;
+				
+			/* Calculate the size of process. */
+			uLen = uLenR = 0;
+			for (i = 0; i < NUSEG + 1; i++) {
+				if ((sp=pp1->p_segp[i]) == NULL)
+					continue;
+				uLenR += sp->s_size;
+				if (i == SIUSERP || i == SIAUXIL)
+					continue;
+				uLen += sp->s_size;
+		
+			} 
+			/* Find u area for process pp1 */
+			sp = pp1->p_segp[0];
+			ndpUseg = MAPIO(sp->s_vmem, U_OFFSET);
+			ptable1_v[WORK0] = 
+				   sysmem.u.pbase[btocrd(ndpUseg)] | SEG_RW;
+			mmuupd();
+			uprc = (UPROC *) (ctob(WORK0) + U_OFFSET);
+			/* fill up stMonitor */
+			psData.p_pid = pp1->p_pid;
+			psData.p_ppid = pp1->p_ppid;
+			psData.p_uid = pp1->p_uid;
+			psData.p_ruid = pp1->p_ruid;
+			psData.p_rgid = pp1->p_rgid;
+			psData.p_state = pp1->p_state;
+			psData.p_flags = pp1->p_flags;
+			psData.rrun = (char *) pp1 != pp1->p_event;
+			psData.p_event = pp1->p_event;
+			psData.p_ttdev = pp1->p_ttdev;
+			psData.p_nice = pp1->p_nice;
+			psData.size = (short) (uLen>>10);
+			psData.rsize = (short) (uLenR>>10);
+			psData.p_cval = pp1->p_cval;
+			psData.p_sval = pp1->p_sval;
+			psData.p_ival = pp1->p_ival;		
+			psData.p_rval = pp1->p_rval;
+			psData.p_utime = pp1->p_utime;
+			psData.p_stime = pp1->p_stime;
+			kkcopy(uprc->u_comm, psData.u_comm, ARGSZ);
+			kkcopy(uprc->u_sleep, psData.u_sleep, 10);
+			kkcopy(psBuf, psData.pr_argv, ARGSZ);
+			/* send data to user */
+			iowrite(iop, (char *) &psData, sizeof(stMonitor));
 		}
+		unlock(pnxgate);
 		break;
 	default:
 		SET_U_ERROR(ENXIO, "nlread(): illegal minor device for null");
@@ -492,11 +424,10 @@ register IO *iop;
 		 */
 		break;
 
-	case DEV_PROC:
-		/*
-		 * /dev/proc is not writable.
+	case DEV_PS:
+		/* We should not be able to open /dev/ps to write.
+		 * Just paranoya.
 		 */
-		T_PIGGY( 0x4000000, printf("/dev/proc is not writable.\n"); );
 		break;
 
 	default:
