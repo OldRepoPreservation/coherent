@@ -3,7 +3,10 @@
  * 	Copyright (c) 1982, 1991 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  *
- * $Log$
+ * $Log:	al.c,v $
+ * Revision 1.7  91/12/02  19:22:00  hal
+ * Last version before FIFO testing.
+ * 
  -lgl) */
 /*
  * Driver for an IBM PC asyncronous
@@ -140,8 +143,19 @@ alload()
 	static int init;
 	extern int albaud[];
 	int port, i;
+	int usa, usb;
 
-	if ( init == 0
+	usa = uart_sense(ALPORTa);
+	usb = uart_sense(ALPORTb);
+	if (usa == US_NONE && usb == US_NONE) {
+		ALCNT = 0;
+		goto end_load;
+	}
+	if (usb == US_NONE)
+		ALCNT = 1;
+	else
+		ALCNT = 2;
+	if (init == 0
 	  && (alttab = (TTY *)kalloc(ALCNT * sizeof(TTY)))
 	  && (ddp = (COM_DDP *)kalloc(ALCNT * sizeof(COM_DDP)))) {
 		kclear(alttab, ALCNT*sizeof(TTY));
@@ -154,7 +168,7 @@ alload()
 		tp_table[ALNUMa] = alttab; /* set TTY pointers for polling */
 		ddp[0].port = ALPORTa;
 		ddp[0].com_num = ALNUMa;
-		com_usage[ALNUMa].uart_type = uart_sense(ALPORTa);
+		com_usage[ALNUMa].uart_type = usa;
 
 		if (ALCNT > 1) {
 			alttab[1].t_dispeed = alttab[1].t_dospeed = ALSPEEDb;
@@ -162,30 +176,30 @@ alload()
 			tp_table[ALNUMb] = alttab+1;
 			ddp[1].port = ALPORTb;
 			ddp[1].com_num = ALNUMb;
-			com_usage[ALNUMb].uart_type = uart_sense(ALPORTb);
+			com_usage[ALNUMb].uart_type = usb;
 		}
 
-		for ( i = 0;  i < ALCNT; i++ ) {
+		for (i = 0;  i < ALCNT; i++) {
 			int speed = alttab[i].t_dospeed;
 
 			/* port = base I/O address */
 			port = ((COM_DDP *)(alttab[i].t_ddp))->port;
 			outb(port+IER, 0);	/* disable port interrupts */
-			if ( inb(port+IER) == 0 ) {
-				outb(port+MCR, 0);  /* hangup port */
-				outb(port+LCR, LC_DLAB);
-				outb(port+DLL, albaud[speed] );
-				outb(port+DLH, albaud[speed] >> 8 );
-				outb(port+LCR, LC_CS8 );
-			}
+			outb(port+MCR, 0);  /* hangup port */
+			outb(port+LCR, LC_DLAB);
+			outb(port+DLL, albaud[speed]);
+			outb(port+DLH, albaud[speed] >> 8);
+			outb(port+LCR, LC_CS8);
 			alttab[i].t_start = alxstart;
 			alttab[i].t_param = alxparam;
 			alttab[i].t_cs_sel= cs_sel();
 		}
 
 		setivec(ALINT, alintr);     /* set interrupt vector */
-		spl( s );
+		spl(s);
 	}
+end_load:
+	return;	
 }
 
 static
@@ -193,13 +207,13 @@ alunload()
 {
 	int port, i;
 
-	for ( i = 0;  i < ALCNT; i++ ) {
+	for (i = 0;  i < ALCNT; i++) {
 		port = ((COM_DDP *)(alttab[i].t_ddp))->port;
 		outb(port+IER, 0);	/* disable port interrupts */
 		outb(port+MCR, 0);	/* hangup port */
 		timeout(alttab[i].t_rawtim, 0, NULL, 0);/* cancel timer */
 	}
-	clrivec( ALINT );			/* release interrupt vector */
+	clrivec(ALINT);			/* release interrupt vector */
 	kfree(alttab);
 	kfree(ddp);
 }
@@ -210,9 +224,7 @@ dev_t	dev;
 int	mode;
 {
 	if (minor_st(dev) < ALCNT) {
-		alload();
-		alxcycle( &DEV_TTY );
-		alxopen( dev, mode, &DEV_TTY, &irqtty);
+		alxopen(dev, mode, &DEV_TTY, &irqtty);
 	} else
 		u.u_error = ENXIO;
 }
@@ -226,7 +238,7 @@ int	mode;
 
 	if (--DEV_TTY.t_open == 0) {	/* Last open */
 		s = sphi();
-		alxclose( dev, mode, &DEV_TTY );
+		alxclose(dev, mode, &DEV_TTY);
 		spl(s);
 	}
 }
@@ -249,29 +261,29 @@ register IO	*iop;
 	/*
 	 * Treat user writes through tty driver.
 	 */
-	if ( iop->io_seg != IOSYS ) {
-		ttwrite( &DEV_TTY, iop, 0 );
+	if (iop->io_seg != IOSYS) {
+		ttwrite(&DEV_TTY, iop, 0);
 		return;
 	}
 
 	/*
 	 * Treat kernel writes by blocking on transmit buffer.
 	 */
-	while ( (c = iogetc(iop)) >= 0 ) {
+	while ((c = iogetc(iop)) >= 0) {
 		/*
 		 * Wait until transmit buffer is empty.
 		 * Check twice to prevent critical race with interrupt handler.
 		 */
 		for (;;) {
-			if ( inb(ALPORT+LSR) & LS_TxRDY )
-				if ( inb(ALPORT+LSR) & LS_TxRDY )
+			if (inb(ALPORT+LSR) & LS_TxRDY)
+				if (inb(ALPORT+LSR) & LS_TxRDY)
 					break;
 		}
 
 		/*
 		 * Output the next character.
 		 */
-		outb( ALPORT+DREG, c );
+		outb(ALPORT+DREG, c);
 	}
 }
 
@@ -284,12 +296,12 @@ struct sgttyb *vec;
 }
 
 static
-alpoll( dev, ev, msec )
+alpoll(dev, ev, msec)
 dev_t dev;
 int ev;
 int msec;
 {
-	return ttpoll( &DEV_TTY, ev, msec );
+	return ttpoll(&DEV_TTY, ev, msec);
 }
 
 static
@@ -342,32 +354,44 @@ int port;
 	case 0xC0:
 		ret = US_16550A;
 		break;
-	default:
-		ret = US_UNKNOWN;	
 	}
 	outb(port+FCR, 0x00);
 done:
 	outb(port+MCR, mcr_save);
-printf("Port %x: ", port);	
+if (ret == US_NONE)
+	goto really_done;	
+switch(port){
+case 0x3F8:
+	printf("com1 ");
+	break;
+case 0x2F8:
+	printf("com2 ");
+	break;
+case 0x3E8:
+	printf("com3 ");
+	break;
+case 0x2E8:
+	printf("com4 ");
+	break;
+}
+printf("port %x: ", port);	
 switch (ret) {
 case US_NONE:
 	printf("no UART\n");
 	break;
 case US_8250:
-	printf("8250\n");
+	printf("8250/8250B\n");
 	break;
 case US_16450:
-	printf("16450\n");
+	printf("8250A/16450\n");
 	break;
 case US_16550:
-	printf("16550\n");
+	printf("16550 - no FIFO\n");
 	break;
 case US_16550A:
 	printf("16550A - FIFO\n");
 	break;
-case US_UNKNOWN:
-	printf("unknown\n");
-	break;
 }
+really_done:
 	return ret;
 }
