@@ -3,7 +3,7 @@
 
 # for i8086 use CFLAGS=-VSINU
 CFLAGS= -O -VSINU -I. -I/usr/include/sys
-LDFLAGS= -n -i
+LDFLAGS= -n -i -u _copyright_
 # Don't bind shared on the PDP-11
 # LDFLAGS= -i
 
