@@ -6,8 +6,8 @@
  * control, erase and kill, stop and
  * start and common ioctl functions.
  *
- * Bug: no support for 8-bit characters.
- * Fix: don't strip keyboard input. 01/22/91.  norm
+ * Bug:	Switching modes between cooked and CBREAK/RAW left buffered input
+ *	in the input buffer until returning to cooked mode. 05/13/91 norm
  *
  * Bug: setting speed to default in ttopen() was conditioned to
  *      use hard constants.  90/08/28.  hws
@@ -281,7 +281,9 @@ register struct sgttyb *vec;
 {
 	register int	flush = 0;  
 	register int	drain = 0;
+	register char	*p1, *p2;
 		 int    rload = 0;
+		 int	was_bbyb = 0;
 
 	switch (com) {
 	case TIOCQUERY:
@@ -293,9 +295,20 @@ register struct sgttyb *vec;
 	case TIOCSETP:
 	        ++flush;          /* flush input */
 		++drain;	  /* delay for output */
-	case TIOCSETN:
 		++rload;
 		ukcopy(vec, &tp->t_sgttyb, sizeof (struct sgttyb));
+		break;
+	case TIOCSETN:
+		was_bbyb = ISBBYB;	/* previous mode */
+		++rload;
+		ukcopy(vec, &tp->t_sgttyb, sizeof (struct sgttyb));
+		if (!was_bbyb && ISBBYB && tp->t_ibx != 0) {
+			p1 = &tp->t_ib[0];
+			p2 = &tp->t_ib[tp->t_ibx];
+			while (p1 < p2)
+				putq(&tp->t_iq, (*p1++) & 0177);
+			tp->t_ibx = 0;
+		}
 		break;
 	case TIOCGETC:
 		kucopy(&tp->t_tchars, vec, sizeof (struct tchars));
@@ -468,7 +481,7 @@ register TTY *tp;
 			tp->t_hpos = 0;
 		else if (c == '\t')
 			tp->t_hpos = (tp->t_hpos|07) + 1;
-		else if ((c >= ' ' && c <= '~') || c >= 0200)
+		else if (c>=' ' && c<='~')
 			++tp->t_hpos;
 	}
 	return (c);
@@ -490,6 +503,7 @@ register c;
 	int dc, i, n;
 
 	if (!ISRIN) {
+		c &= 0177;
 		if (ISINTR) {
 			ttsignal(tp, SIGINT);
 			return;
@@ -518,12 +532,10 @@ register c;
 			if (c == ESC)
 				++tp->t_escape;
 			else {
-#if 0
 				if (ISERASE || ISKILL) {
 					c |= 0200;
 					--tp->t_escape;
 				}
-#endif
 				while (tp->t_escape!=0 && tp->t_ibx<NCIB-1) {
 					tp->t_ib[tp->t_ibx++] = ESC;
 					--tp->t_escape;
@@ -531,7 +543,7 @@ register c;
 				ttstash(tp, c);
 			}
 			if (ISECHO) {
-				putq(&tp->t_oq, c);	/* not stripped */
+				putq(&tp->t_oq, c&0177);
 				ttstart(tp);
 			}
 			return;
@@ -548,8 +560,8 @@ register c;
 				if (!ISCRT)
 					putq(&tp->t_oq, c);
 				/* don't erase for bell, null, or rubout */
-				else if (((c = dc) == '\007')
-					|| c == 0 || c == 0177 || c == 0377)
+				else if (((c = dc&0177) == '\007')
+					|| c == 0 || c == 0177)
 				        return;
 				else if (c != '\b' && c != '\t') {
 					putq(&tp->t_oq, '\b');
@@ -559,12 +571,10 @@ register c;
 					n = tp->t_opos + tp->t_escape;
 					for (i=0; i<tp->t_ibx; ++i) {
 						c = tp->t_ib[i];
-#if 0
 						if ((c&0200) != 0) {
 							++n;
 							c &= 0177;
 						}
-#endif
 						if (c == '\b')
 							--n;
 						else {
@@ -576,14 +586,12 @@ register c;
 					while (n++ < tp->t_hpos)
 						putq(&tp->t_oq, '\b');
 				}
-#if 0
 				if ((dc&0200) != 0) {
 					if ((dc&0177) != '\b')
 						putq(&tp->t_oq, '\b');
 					putq(&tp->t_oq,  ' ');
 					putq(&tp->t_oq, '\b');
 				}
-#endif
 				ttstart(tp);
 			}
 			return;
@@ -653,7 +661,7 @@ register TTY *tp;
 		p2 = &tp->t_ib[tp->t_ibx];
 		*p2++ = c;			/* Always room */
 		while (p1 < p2)
-			putq(&tp->t_iq, (*p1++));
+			putq(&tp->t_iq, (*p1++)&0177);
 		tp->t_ibx = 0;
 		tp->t_escape = 0;
 
