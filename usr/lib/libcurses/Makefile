@@ -1,4 +1,4 @@
-# $Header: /usr/src/lib/libcurses/RCS/Makefile,v 1.3 89/11/07 17:47:19 src Exp $
+# $Header: /newbits/usr/lib/libcurses/Makefile,v 1.1 91/04/03 12:41:06 bin Exp $
 #
 # Copyright (c) 1987 Regents of the University of California.
 # All rights reserved.
@@ -19,7 +19,10 @@
 #
 # Modifications Copyright INETCO Systems Ltd. (c) 1989
 #
-# $Log:	/usr/src/lib/libcurses/RCS/Makefile,v $
+# $Log:	/newbits/usr/lib/libcurses/Makefile,v $
+# Revision 1.1	91/04/03  12:41:06 	bin
+# Initial revision
+
 # Revision 1.3	89/11/07  17:47:19 	src
 # Bug:	Make install would always update modification times of include files.
 # Fix:	Now use "cpdir -d" to avoid updating modification times (ABC).
@@ -35,8 +38,8 @@ RCSPATH=$${CMDPATH-/usr/src/lib}/libcurses
 CC=exec /bin/cc
 
 LIBC=/lib/libc.a
-INCDIR=/usr/include
-
+INCDIR=/interim/usr/include
+DESTDIR=/interim/usr/lib/
 CFLAGS=-O -I$(SRCPATH)
 
 OBJS=	addbytes.o	\
@@ -90,8 +93,10 @@ OBJS=	addbytes.o	\
 	unctrl.o
 
 libcurses.a: $(OBJS)
-	rm -f libcurses.a
-	ar q libcurses.a $(OBJS)
+	rm -f $(DESTDIR)libcurses.a
+	ar q $(DESTDIR)libcurses.a $(OBJS)
+	su root cp -d curses.h $(INCDIR)
+	su root cp -d unctrl.h $(INCDIR)
 
 install: libcurses.a curses.h unctrl.h
 	su root cp -d libcurses.a /usr/lib
