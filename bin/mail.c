@@ -1,6 +1,9 @@
 /*
- * $Header: /usr/src/cmd/mail.c,v 1.2 88/09/01 11:02:23 bin Exp $
+ * $Header: /usr/src/cmd/mail.c,v 1.3 88/09/01 14:27:41 bin Exp $
  * $Log:	/usr/src/cmd/mail.c,v $
+ * Revision 1.3	88/09/01  14:27:41	bin
+ * declare getenv to get rid of integer pointer pun error message.
+ * 
  * Revision 1.2	88/09/01  11:02:23	bin
  * Remove extra declaration of header which had rcs stuff in it.
  * 
@@ -8,13 +11,10 @@
  * Initial revision
  * 
  */
-/*
- * $Header: $
- * $Log:	$
- */
 static	char	*rcsrev = "$Revision 1.1 $";
 static	char	*rcshdr =
-	"$Header: /usr/src/cmd/mail.c,v 1.2 88/09/01 11:02:23 bin Exp $";
+	"$Header: /usr/src/cmd/mail.c,v 1.3 88/09/01 14:27:41 bin Exp $";
+
 /*
  * The mail command.
  * Coherent electronic postal system.
@@ -22,6 +22,11 @@ static	char	*rcshdr =
  * it assumed that it is setuid on execution to `root'.
  * All file accession is checked on this basis).
  * Modifications by rec january 1986 to include xmail.
+ * 		 by epstein november 1987 to include CC:
+ *		 by epstein november 1987 to allow ^C exit to leave you in
+ *					  mail command processor
+ *		 by epstein november 1987 to substitute /usr/games/fortune
+ *					  for printing encrypted messages
  */
 
 char helpmessage[] = "\
@@ -69,7 +74,6 @@ then the public key cryptosystem is applied to the message.\n\
 \
 ";
 
-extern	char *getenv();
 #include <stdio.h>
 #include <pwd.h>
 #include <utmp.h>
@@ -137,7 +141,8 @@ char	cline[NCLINE] = "+\n";
 char	*temp;				/* Currently open temp file */
 char	templ[] = "/tmp/mailXXXXXX";	/* Temp file name template */
 char	*editname;			/* name of editor	   */
-char	editcmd  [80];			/* command to edit message */
+char	editcmd[80];			/* command to edit message */
+char	*askcc;				/* Ask for CC: list? (YES/NO) */
 
 fsize_t	ftell();
 char	*getlogin();
@@ -231,6 +236,10 @@ setname()
 	if ((editname=getenv("EDITOR"))==NULL)
 		editname = "/bin/ed";
 	sprintf(editcmd, "%s %s", editname, templ);
+
+	if ((askcc=getenv("ASKCC")) != NULL)
+		if ( strcmp(askcc, "YES") || !isatty(fileno(stdin)) )
+			askcc = NULL;
 }
 
 /*
@@ -253,6 +262,7 @@ fsize_t start, end;
 	time_t curtime;
 	register int fromtty;
 	FILE *tfp, *xfp;
+	char **getcc();
 
 	temp = templ;
 	if ((tfp = fopen(temp, "w")) != NULL) {
@@ -302,12 +312,14 @@ fsize_t start, end;
 		if ((tfp = fopen(temp, "wr")) == NULL)
 			merr(toerr);
 		chown(temp, myuid, mygid);
-		mcopy(xfp, tfp, (fsize_t)0, (fsize_t)MAXLONG);
+		mcopy(xfp, tfp, (fsize_t)0, (fsize_t)MAXLONG, 0);
 		fclose(xfp);
 		system(editcmd);
 		unlink(temp);
 		temp = NULL;
 	}
+	if (askcc)
+		users = getcc(users);
 	fromtty = isatty(fileno(fp));
 	time(&curtime);
 	tp = localtime(&curtime);
@@ -363,7 +375,7 @@ fsize_t start, end;
 			}
 		}
 		if (fwrite(header, strlen(header), 1, xfp) != 1
-		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG)) {
+		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG), 0) {
 			if (callmexmail)
 				merr(wrerr, cmdname);
 			else
@@ -380,7 +392,7 @@ fsize_t start, end;
 	if (senderr && fromtty && ! callmexmail) {
 		if (maccess(mydead) < 0
 		 || (xfp = fopen(mydead, "a")) == NULL
-		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG))
+		 || mcopy(tfp, xfp, (fsize_t)0, (fsize_t)MAXLONG, 0))
 			mmsg(nosave, mydead);
 		else
 			mmsg("Letter saved in %s\n", mydead);
@@ -494,8 +506,10 @@ char *name;
  * to the file stream `ofp' which is assumed
  * to be already correctly positioned.
  * Returns non-zero on errors.
+ * intstop == 1 means stop on interrupt
+ * intstop == 0 means ignore interrupt
  */
-mcopy(ifp, ofp, start, end)
+mcopy(ifp, ofp, start, end, intstop)
 register FILE *ifp, *ofp;
 fsize_t start, end;
 {
@@ -503,8 +517,12 @@ fsize_t start, end;
 
 	fseek(ifp, start, 0);
 	end -= start;
-	while (end-- > 0  &&  (c = getc(ifp))!=EOF)
-		putc(c, ofp);
+	if (intstop)
+		while (!intcheck() && end-- > 0  &&  (c = getc(ifp))!=EOF)
+			putc(c, ofp);
+	else
+		while (end-- > 0  &&  (c = getc(ifp))!=EOF)
+			putc(c, ofp);
 	fflush(ofp);
 	if (ferror(ofp))
 		return (1);
@@ -593,7 +611,7 @@ commands()
 				fp = NULL;
 				if (maccess(*fnp) < 0
 				 || (fp = fopen(*fnp, "a")) == NULL
-				 || mcopy(mfp, fp, seek, mp->m_end))
+				 || mcopy(mfp, fp, seek, mp->m_end, 0))
 					mmsg(nosave, *fnp);
 				if (fp != NULL) {
 					fclose(fp);
@@ -793,7 +811,7 @@ mquit()
 	chmod(mailbox, sb.st_mode&0777);
 	for (mp = m_first; mp != NULL; mp = mp->m_next)
 		if (mp->m_flag == 0
-		 && mcopy(mfp, nfp, mp->m_seek, mp->m_end))
+		 && mcopy(mfp, nfp, mp->m_seek, mp->m_end, 0))
 			merr(wrerr, mailbox);
 	fclose(nfp);
 	fclose(mfp);
@@ -816,13 +834,44 @@ register struct msg *mp;
 		if ((xfp = popen(cmdname, "w")) == NULL) {
 			return 0;
 		}
-		mcopy(mfp, xfp, mp->m_seek+mp->m_hsize, mp->m_end);
+		mcopy(mfp, xfp, mp->m_seek+mp->m_hsize, mp->m_end, 1);
 		pclose(xfp);
-	} else
-		mcopy(mfp, stdout, mp->m_seek, mp->m_end);
+	} else {
+		fseek(mfp, mp->m_seek, 0);
+		if (fgets(msgline, sizeof msgline, mfp) != NULL &&
+		    strncmp(msgline, "From xmail", 10) == 0) {
+			printf("From xmail\n");
+			system("/usr/games/fortune");
+			return(1);
+		}
+		mcopy(mfp, stdout, mp->m_seek, mp->m_end, 1);
+	}
 	return (1);
 }
 
+/*
+ *	Get additional users to receive message (CC:)
+ */
+
+char **
+getcc(users)
+register char **users;
+{
+	register char **ulist = args;
+	static	char names[NCLINE];
+
+	mmsg("CC: ");
+	if ( fgets(names, sizeof names, stdin) == NULL )
+		return(users);
+
+	while (*users != NULL)
+		*ulist++ = *users++;
+
+	csplit(names, ulist);
+	return(args);
+}
+
+	
 /*
  * Errors, usage, and exit removing
  * any tempfiles left around.
