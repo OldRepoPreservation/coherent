@@ -3,13 +3,22 @@
  *
  * Purpose:	display and modify hard drive parameters
  *
- * Usage:	hdparms [-bs] devname ...
+ *	Called by "mkdev" command or usable as stand-alone.
+ *	Non-build version expects driver in /tmp/drv, which is where mkdev
+ *	leaves it.
+ *
+ * Usage:	hdparms [-bfrs] devname ...
  *
  * Options:
  *	-b	Use special processing when invoked from /etc/build
- *	-s	Device uses "ss" driver (Seagate/Future Domain SCSI
+ *	-f	Future Domain SCSI
+ *	-r	Specified device controls root partition (implies -b)
+ *	-s	Seagate SCSI
  *
  * $Log:	hdparms.c,v $
+ * Revision 1.2  91/06/28  07:29:47  bin
+ * updated by hal
+ * 
  * Revision 1.4  91/06/27  13:38:07  hal
  * Steve-style printf call for long messages.
  * Drop calculated default parameters.
@@ -42,10 +51,11 @@
  *	Typedefs.
  *	Enums.
  */
-#define	USAGEMSG	"Usage:\t/etc/hdparms [ -bfs ] device...\n"
+#define	USAGEMSG	"Usage:\t/etc/hdparms [ -bfrs ] device...\n"
 #define OPENMODE	2	/* Default open mode: read/write. */
 #define BUFLEN		40
 #define DEV_SCSI_ID(dev)	((dev >> 4) & 0x0007)
+#define	VERSION		"V1.4"		/* version number */
 
 typedef unsigned int uint;
 typedef unsigned char uchar;
@@ -72,6 +82,7 @@ static int hdparms();
  */
 static int bflag;	/* 1 for call via /etc/build */
 static int fflag;	/* 1 for Future Domain SCSI */
+static int rflag;	/* 1 for rootdev */
 static int sflag;	/* 1 for Seagate SCSI */
 
 /*
@@ -94,6 +105,10 @@ char *argv[];
 				break;
 			case 'f':
 				++fflag;
+				break;
+			case 'r':
+				++rflag;
+				++bflag;
 				break;
 			case 's':
 				++sflag;
@@ -211,15 +226,14 @@ printf("New parameters written for %s.\n", devname);
 				if (bflag) {
 					fp = fopen(PATCHFILE, "a");
 fprintf(fp, "/conf/patch /mnt%s %s\n", drv, ss_patch);
+					if (rflag)
+fprintf(fp, "/conf/patch /mnt/coherent %s\n", ss_patch);
 					fclose(fp);
 
-					if(exists("/tmp/coherent")) {
-sprintf(cmd, "/conf/patch /tmp/coherent %s\n", ss_patch);
-						sys(cmd, S_FATAL);
-					}
 				} else { /* patch driver */
-fprintf(cmd, "/conf/patch %s %s\n", drv, ss_patch);
-						sys(cmd, S_FATAL);
+fprintf(cmd, "/conf/patch /tmp/drv/ss %s\n", ss_patch);
+					sys(cmd, S_FATAL);
+printf("Parameters patched in /tmp/drv/ss\n");
 				}
 			}
 
