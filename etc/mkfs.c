@@ -1,8 +1,12 @@
 /*
+ * mkfs.c
+ * 2/6/92
  * Make a filesystem.
  * Efficiently, rec 84.08.31
  */
-#define NDEBUG 1	/* No assertions turned on */
+
+#define	VERSION	"1.1"
+#define NDEBUG		1	/* No assertions turned on */
 #define ES_SUCCESS	0	/* No problems at all */
 #define ES_IGNORED	1	/* Some problems ignored */
 #define ES_FORMAT	2	/* Proto file format error */
@@ -146,6 +150,7 @@ int	estatus = ES_SUCCESS;	/* Exit status */
 char	miscbuf[BSIZE];
 
 int	dflag = 0;		/* Preserve dates if on; set w/ -d opt. */
+
 /* FILE main.c */
 /*
  * Magic number of i-nodes as a function of
@@ -180,18 +185,20 @@ char *argv[];
 	/*
 	 * Collect options.
 	 */
-	while (argc>2 && *argv[1]=='-') {
-		anyopts += 1;
+	while (argc > 1 && argv[1][0] == '-') {
 		switch (argv[1][1]) {
-		case 'b': P.p_bname = argv[2]; break;
-		case 'f': P.p_fname = argv[2]; break;
-		case 'i': P.p_nino = argv[2]; break;
-		case 'm': P.p_intm = argv[2]; break;
-		case 'n': P.p_intn = argv[2]; break;
-		case 'p': P.p_fpack = argv[2]; break;
-		case 'd': dflag = 1; argc += 1; argv -= 1; anyopts -= 1; break;
-		default:  return eusage();
+		case 'b':	P.p_bname = argv[2];		break;
+		case 'f':	P.p_fname = argv[2];		break;
+		case 'i':	P.p_nino = argv[2];		break;
+		case 'm':	P.p_intm = argv[2];		break;
+		case 'n':	P.p_intn = argv[2];		break;
+		case 'p':	P.p_fpack = argv[2];		break;
+		case 'd':	dflag = 1; --argc; ++argv;	continue;
+		case 'V':	fprintf(stderr, "%s: V%s\n", argv0, VERSION);
+				--argc; ++argv;			continue;
+		default: 	return eusage();
 		}
+		anyopts += 1;
 		argc -= 2;
 		argv += 2;
 	}
@@ -1003,9 +1010,15 @@ char *p;
 /*
  * Errors.
  */
-
-char usage[] = "Usage: %s [ -d ] special proto\n";
-/*       %s [-m n] [-n n] [-b boot] [-f fname] [-p pack] [-i n] special n\n\ */
+char usage[] =	"Usage: %s [ option ... ] special proto\n"
+		"Options:\n"
+		"\t-b boot\n"
+		"\t-d\n"
+		"\t-f name\n"
+		"\t-i inodes\n"
+		"\t-m arg\n"
+		"\t-n arg\n"
+		"\t-p pack\n";
 
 eusage()
 {
@@ -1756,3 +1769,5 @@ char *bp;
 	}
 	fprintf(stderr, "}\n");
 }
+
+/* end of mkfs.c */
