@@ -1,7 +1,5 @@
-%h uucp name for this machine
-uuname, -8,, cleanAlnum
-%h domain info for this machine
-uudomain, -64,, cleanAscii
+uuname 8 verify cleanAlnum help "uucp name for this machine"
+uudomain 64 verify cleanAscii help "domain info for this machine"
 %%
 		The sitename
 
