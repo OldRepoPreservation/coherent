@@ -4,6 +4,7 @@
 #include <curses.h>
 #include <ctype.h>
 #include <string.h>
+#include <assert.h>
 
 #include "choices.h"	/* include files from various screens */
 #include "choices1.h"
@@ -69,9 +70,9 @@ struct line {
  */
 typedef struct fillin fillin;
 struct fillin {
-	int	fileno;		/* index into filelist */
-	int 	mod;		/* 1 if mod has been made */
-	line	*root;		/* beginning of line list */
+	line	*root;		/* beginning of line list (must be first) */
+	char	fileno;		/* index into filelist */
+	char 	mod;		/* 1 if mod has been made */
 	void	(*zero)();	/* clear fields */
 	void	(*distrib)();	/* get fields from line */
 	void	(*clump)();	/* put fields back in line */
@@ -83,7 +84,7 @@ struct fillin {
 
 void zeroLsys(), showLsys(), clumpLsys();
 fillin lsys = {
-	2, 0, NULL,
+	NULL, 2, 0,
 	zeroLsys, showLsys, clumpLsys,
 	choices2_data, choices2_locs,
 	lsys1_data, lsys1_locs
@@ -91,7 +92,7 @@ fillin lsys = {
 
 void zeroDev(), showDev(), clumpDev();
 fillin dev = {
-	3, 0, NULL,
+	NULL, 3, 0,
 	zeroDev, showDev, clumpDev,
 	choices_data, choices_locs,
 	devices_data, devices_locs
@@ -99,7 +100,7 @@ fillin dev = {
 
 void zeroPerm(), showPerm(), clumpPerm();
 fillin permis = {
-	4, 0, NULL,
+	NULL, 4, 0,
 	zeroPerm, showPerm, clumpPerm,
 	choices1_data, choices1_locs,
 	permis_data, permis_locs
@@ -516,6 +517,7 @@ char *fn, *s;
 /*
  * Delete a line entry.
  */
+line *
 deleteEntry(root, l)
 line **root, *l;
 {
@@ -523,21 +525,40 @@ line **root, *l;
 		;
 	*root = l->next;
 	free(l);		
+	return(*root);
 }
 
 /*
- * Add a line to a queue.
+ * Add a line to a queue after place.
  */
-static void
-addLine(root)
-line **root;
+static line *
+addLine(f, place, replace)
+register fillin *f;
+register line *place;
+int replace;
 {
-	register line *this;
+	register line *this, *l;
 
 	this = alloc(strlen(buf) + sizeof(line));
 	strcpy(this->str, buf);
-	this->next = *root;
-	*root = this;
+
+	if (NULL != place)
+		this->next = place->next;
+
+	if (!replace)	/* add entry */
+		return (place->next = this);
+
+	free(place);
+
+	if (f->root == place)	/* do base of chain */
+		return (f->root = this);
+
+	/* find pointer to place */
+	for (l = f->root; NULL != l; l = l->next)
+		if (l->next == place)
+			return (l->next = this);
+
+	fatal("Logic error in addLine");
 }
 
 /*
@@ -569,9 +590,6 @@ clumpLsys()
 		s = strchr(s, '\0');
 		sprintf(s, " %s %s", lump(expect[i]), lump(send[i]));
 	}
-	strcat(s, "\n");
-
-	addLine(&lsys.root);
 }
 
 /*
@@ -580,19 +598,8 @@ clumpLsys()
 static void
 clumpDev()
 {
-	sprintf(buf, "%s\t%s\t%s\t%s\t%s\n",
+	sprintf(buf, "%s\t%s\t%s\t%s\t%s",
 		devType, devLine, devRemote, devBaud, devBrand);
-	addLine(&dev.root);
-}
-
-/*
- * Add comment line.
- */
-clumpComment(root)
-line **root;
-{
-	sprintf(buf, "#%s\n", comment);
-	addLine(root);
 }
 
 /*
@@ -667,26 +674,10 @@ clumpPerm()
 		sprintf(work, "NOWRITE=%s ", perNoWrite);
 		strcat(buf, work);
 	}
-	sprintf(work, "SENDFILES=%s REQUEST=%s\n",
+	sprintf(work, "SENDFILES=%s REQUEST=%s",
 		((perSendFiles[0] == 'y') ? "yes" : "no"),
 		((perRequest[0]   == 'y') ? "yes" : "no"));
 	strcat(buf, work);
-
-	addLine(&permis.root);
-}
-
-/*
- * Add a comment line.
- */
-addComment(root)
-line **root;
-{
-	comment[0] = '\0';
-	clear();
-	showBak(comment_data);
-	getField(comment_locs, comment);
-	sprintf(buf, "#%s\n", comment);
-	addLine(root);
 }
 
 /*
@@ -723,44 +714,42 @@ register fillin *f;
 	clear();
 	for (;;) {
 		if ((NULL != l) && (onDisp != l)) {
+			onDisp = l;
+			clear();
 			if ('#' == l->str[0]) { /* show a comment */
 				comment = l->str + 1;
-				clear();
 				showDefs(comment_data, comment_locs);
 			}
 			else {	/* show a data page */
 				(*(f->zero))();
 				strcpy(buf, l->str);
-				onDisp = l;
 				(*(f->distrib))();
-				clear();
 				showDefs(f->s_data, f->s_loc);
 			}
 		}
 		showBak(f->ch_data);
 		getField(f->ch_loc, code);
 		switch (fixCode(code[0], l)) {
-		case 'm':
+		case 'm':	/* modify */
 			f->mod = 1;
 			if ('#' == l->str[0]) {
 				getAll(comment_locs);
-				clumpComment(&(f->root));
+				sprintf(buf, "#%s\n", comment);
 			}
 			else {
 				clearBak(f->ch_data, f->ch_loc);
 				getAll(f->s_loc);
 				(*(f->clump))();
 			}
-			deleteEntry(&(f->root), l);
-			l = f->root;
+			l = addLine(f, l, 1);
 			break;
-		case 'n':
+		case 'n':	/* next line */
 			if (NULL == l->next)
 				showError("No more entrys in file");
 			else
 				l = l->next;
 			break;
-		case 'p': {
+		case 'p': {	/* previous line */
 			line *p;
 
 			if (l == f->root) {
@@ -774,36 +763,40 @@ register fillin *f;
 				}
 			break;
 			}
-		case 'a':
+		case 'a':	/* add line */
 			f->mod = 1;
 			(*(f->zero))();
 			clear();
 			showBak(f->s_data);
 			getAll(f->s_loc);
 			(*(f->clump))();
-			l = f->root;
+			l = addLine(f, l, 0);
 			break;
-		case 'c':
+		case 'c':	/* add comment line */
 			f->mod = 1;
-			addComment(&(f->root));
+			comment = NULL;
+			clear();
+			showBak(comment_data);
+			getAll(comment_locs);
+			sprintf(buf, "#%s\n", comment);
+			l = addLine(f, l, 0);
 			break;
-		case 'h':
+		case 'h':	/* help message */
 			clear();
 			showBak(helpscn_data);
 			Query("Any key to continue");
 			onDisp = NULL;
 			break;
-		case 'e':
+		case 'e':	/* extra help message for lsys */
 			if (&lsys == f) {
 				showBak(escapes_data);
 				Query("Any key to continue");
 				onDisp = NULL;
 			}
 			break;
-		case 'd':
+		case 'd':	/* delete line */
 			f->mod = 1;
-			deleteEntry(&(f->root), l);
-			l = f->root;
+			l = deleteEntry(f, l);
 			break;
 		case 'x':
 			return;
