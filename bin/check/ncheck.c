@@ -590,7 +590,7 @@ char *buf;
 	}
 	lseek(fsfd, (fsize_t)BSIZE * bn, 0);
 	if (read(fsfd, buf, BSIZE) != BSIZE) {
-		fprintf(stderr, "ncheck: Read error %D\n", (long)bn);
+		fprintf(stderr, "ncheck: Read error %ld\n", (long)bn);
 		exstat = 1;
 		bclear(buf, BSIZE);
 	}
@@ -637,7 +637,7 @@ mfree( )
 badblock(bn)
 daddr_t bn;
 {
-	fprintf(stderr, "ncheck: bad block #%D\n", (long)bn);
+	fprintf(stderr, "ncheck: bad block #%ld\n", (long)bn);
 	exstat = 1;
 }
 

@@ -24,7 +24,7 @@ long block;
 	if ((dbp->db_flag&DB_OK) == 0) {
 		lseek(fileno(dbfp), BUFSIZ*dbp->db_block, 0);
 		if (read(fileno(dbfp), dbp->db_data, BUFSIZ) != BUFSIZ)
-			dbfatal("cache read error, block %D", block);
+			dbfatal("cache read error, block %ld", block);
 		dbp->db_flag |= DB_OK;
 	}
 	return (dbp);
@@ -157,7 +157,7 @@ register DISCBUF *dbp;
 {
 	lseek(fileno(dbfp), BUFSIZ*dbp->db_block, 0);
 	if (write(fileno(dbfp), dbp->db_data, BUFSIZ) != BUFSIZ)
-		dbfatal("cache write error, block %D", dbp->db_block);
+		dbfatal("cache write error, block %ld", dbp->db_block);
 }
 
 /*

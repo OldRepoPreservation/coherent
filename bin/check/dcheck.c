@@ -555,7 +555,7 @@ char *buf;
 	}
 	lseek(fileno(fs), (fsize_t)BSIZE * bn, 0);
 	if (read(fileno(fs), buf, BSIZE) != BSIZE) {
-		fprintf(stderr, "Read error %D\n", (long)bn);
+		fprintf(stderr, "Read error %ld\n", (long)bn);
 		exstat |= DC_HARD;
 		bclear(buf, BSIZE);
 	}
@@ -574,7 +574,7 @@ char *buf;
 	}
 	lseek(fileno(fs), (fsize_t)BSIZE * bn, 0);
 	if (write(fileno(fs), buf, BSIZE) != BSIZE) {
-		fprintf(stderr, "Write error %D\n", (long)bn);
+		fprintf(stderr, "Write error %ld\n", (long)bn);
 		exstat |= DC_HARD;
 	}
 }

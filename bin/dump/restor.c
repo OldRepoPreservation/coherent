@@ -17,8 +17,8 @@
 #include <stdio.h>
 #include <dumptape.h>
 #include <canon.h>
-#include <filsys.h>
-#include <fblk.h>
+#include <sys/filsys.h>
+#include <sys/fblk.h>
 #include <discbuf.h>
 #include <signal.h>
 
@@ -1093,7 +1093,7 @@ int flag;
 	 * Not documented in manual.
 	 */
 	if (RESTMIN && reel > 1 && (restime < RESTMIN || restime > RESTMAX))
-		message(1, "volume sync: %D", restime);
+		message(1, "volume sync: %ld", restime);
 	for (;;) {
 		if (is_open) {
 			fclose(dtp);

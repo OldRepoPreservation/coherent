@@ -285,16 +285,16 @@ char *fsname;
 	if (!sflag && vflag) {
 		printf("f=%u,r=%u,d=%u,b=%u,c=%u,m=%u,p=%u\n", nfiles, nreg,
 		    ndir, nbsp, ncsp, nmpx, npipe);
-		printf("blks=%D, dirb=%D, d=%D, i=%D, ii=%D, iii=%D\n",
+		printf("blks=%ld, dirb=%ld, d=%ld, i=%ld, ii=%ld, iii=%ld\n",
 		    nblk, ndirb, nfblk[0], nfblk[1], nfblk[2], nfblk[3]);
-		printf("free = %D\n", nfreeb);
+		printf("free = %ld\n", nfreeb);
 		printf("bad=%u (%u in I-list)\n", nbad, nibad);
 	}
 	if (!sflag) {
 		if (nmissing != 0)
-			printf("missing = %D\n", nmissing);
+			printf("missing = %ld\n", nmissing);
 		if (nfdup != 0)
-			printf("%D dups in free\n", nfdup);
+			printf("%ld dups in free\n", nfdup);
 		if (sbp->s_tinode != nifree) {
 			printf("Bad ifree list\n");
 			exstat |= IC_BFB;
@@ -656,7 +656,7 @@ char *buf;
 	}
 	lseek(fileno(fs), (fsize_t)BSIZE * bn, 0);
 	if (read(fileno(fs), buf, BSIZE) != BSIZE) {
-		fprintf(stderr, "Read error %D\n", (long)bn);
+		fprintf(stderr, "Read error %ld\n", (long)bn);
 		exstat |= IC_HARD;
 		bclear(buf, BSIZE);
 	}
@@ -675,7 +675,7 @@ char *buf;
 	}
 	lseek(fileno(fs), (fsize_t)BSIZE * bn, 0);
 	if (write(fileno(fs), buf, BSIZE) != BSIZE) {
-		fprintf(stderr, "Write error %D\n", (long)bn);
+		fprintf(stderr, "Write error %ld\n", (long)bn);
 		exstat |= IC_HARD;
 	}
 }
@@ -705,7 +705,7 @@ ino_t inum;
 
 		for (i=0; i<nb; i++)
 			if (blocks[i] == bn)
-				printf("%D arg, class=%s, inode=%u\n",
+				printf("%ld arg, class=%s, inode=%u\n",
 				    (long)bn, type, inum);
 	}
 	{
@@ -756,7 +756,7 @@ ino_t inum;
 			perr++;
 	}
 	if (perr)
-		printf("%D bad, class=%s, inode=%u\n", (long)bn, type, inum);
+		printf("%ld bad, class=%s, inode=%u\n", (long)bn, type, inum);
 }
 
 dupblock(bn, type, inum)
@@ -769,7 +769,7 @@ ino_t inum;
 	else
 		nfdup++;
 	if (vflag || inum!=0)
-		printf("%D dup, class=%s, inode=%u\n", (long)bn, type, inum);
+		printf("%ld dup, class=%s, inode=%u\n", (long)bn, type, inum);
 }
 
 badfreelist()
