@@ -42,7 +42,7 @@ register struct fdisk_s *fp;
 	int ret = 0;
 int erf = -1;
 
-	s = sphi( );
+printf("fdisk(): special dev open\n");
 	dopen( dev, IPR, DFBLK );
 
 	if ( u.u_error == 0 ) {		/* special device now open */
@@ -54,25 +54,17 @@ int erf = -1;
 
 			if ( hp->hd_sig == HDSIG ) {	/* valid data */
 
+			} else {
+printf("fdisk(): sig=%x, want=%x\n", hp->hd_sig, HDSIG);
 				for (i=0; i < NPARTN; ++i)
 					*fp++ = hp->hd_partn[i];
+		} else {
+printf("fdisk(): bread failed\n");
 
 				ret   = 1;
+	} else {
+printf("fdisk(): special dev not open\n");
 			}
 else erf=1;
-			brelease( bp );
-		}
-		dclose( dev );
-	}
-else erf=0;
-	spl( s );
-switch (erf) {
-case 0:
 	devmsg(dev, "fdisk: open failed");
 	break;
-case 1:
-	devmsg(dev, "fdisk: bad signature");
-	break;
-}
-	return ret;
-}
