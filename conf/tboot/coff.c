@@ -1,6 +1,6 @@
 /* coff.c -- rutines for manipulating coff executable files.  */
 
-#include <a.out.h>
+#include <coff.h>
 #include "tboot.h"
 
 /* Convert COFF to load table.
@@ -87,7 +87,7 @@ coff2load(ip, table, data_seg)
 		switch ((int) sh.s_flags) {
 		case STYP_TEXT:
 			TEXT.valid = (1==1);
-			TEXT.message = "\r\nLoading COFF text.\r\n";
+			TEXT.message = "\r\nLoading COHERENT.\r\n";
 			TEXT.load_toseg = sys_base;
 			TEXT.load_tooffset = 0;
 			TEXT.load_offset = sh.s_scnptr;
@@ -100,7 +100,7 @@ coff2load(ip, table, data_seg)
 			 */
 			if (TEXT.valid) {
 				DATA.valid = (1==1);
-				DATA.message = "\r\nLoading COFF data.\r\n";
+				DATA.message = "\r\nLoading COHERENT data.\r\n";
 				/* Round up to next paragraph beyond end
 				 * of text.
 				 */
