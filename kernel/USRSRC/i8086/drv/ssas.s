@@ -2,7 +2,10 @@
 /
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
-/ $Log:	/usr/src/sys/i8086/drv/RCS/ssas.s,v $
+/ $Log:	ssas.s,v $
+/ Revision 1.6  91/06/01  10:32:51  hal
+/ Do handshaking both ways.  Now names are ss_getb()/ss_putb().
+/ 
 / Revision 1.5	91/05/20  17:22:03	root
 / Not using ss_put() any more.
 / 
@@ -34,6 +37,7 @@
 ////////
 	.globl	ss_getb_
 	.globl	ss_putb_
+	.globl	ffcopy_
 
 ////////
 /
@@ -161,6 +165,47 @@ P03:				/ got REQ - ok to write a byte
 	loop	P01
 P04:				/ all done - now restore registers
 	mov	ax, cx
+	pop	si
+	pop	ds
+	pop	di
+	pop	es
+	pop	bp
+	ret
+
+////////
+/
+/ void ffcopy(from_fp, to_fp, count)
+/ faddr_t from_fp, to_fp;
+/ int count;
+/
+/ Copy count bytes from from_fp to to_fp.
+/
+/ Here is the stack after initial "push bp":
+/
+/	12(bp)	count
+/	10(bp)	FP_SEL(to_fp)
+/	8(bp)	FP_OFF(to_fp)
+/	6(bp)	FP_SEL(from_fp)
+/	4(bp)	FP_OFF(from_fp)
+/	2(bp)	return IP
+/	0(bp)	old bp
+/
+////////
+
+ffcopy_:
+	push	bp
+	mov	bp, sp
+	push	es
+	push	di
+	push	ds
+	push	si
+
+	lds	si, 4(bp)	/ from_fp  to DS:SI
+	les	di, 8(bp)	/ to_fp to ES:DI
+	mov	cx, 12(bp)	/ rep count to CX
+	rep
+	movsb
+
 	pop	si
 	pop	ds
 	pop	di
