@@ -1,19 +1,3 @@
-This is the source for uuinstall the only sizable program built
-by Mark Williams using curses. It was not originally intended for
-distribution but is included with the Beta package of curses fixes.
-
-This includes a quick and dirty screen builder, scn.c which
-turns collection of field definitions and a screen into a
-table. The screen definitions included are comment, choices,
-choices1, lsys1, uuin, helpscn, devices, and permis These
-show all the screen tricks built into the screen builder.
-
-This package also includes test files L-devices, L.sys, Permissions
-and domain which are can be used by uuinstall -d. Normally uuinstall
-will use these files in /usr/lib/uucp.
-
----------------------------------------------------------------
-
 The MWC screen generator is designed to build data structures
 describing background data and input fields form a simple input file.
 
@@ -25,68 +9,82 @@ those defined fields and an include of scn.h.
 
 The input file first contains a list of all the fields in order of
 appearence in the screen. This is terminated by a %% line.
-Each input line contains:
-	Field name.
-	Field Length.	This is zero for read only fields and negative
-			for fields where the default value is in a field.
-			This defaults to a field long enough to fill the line.
-	Default field.	If the field length is 0 for read only this should be
-			the true field length. If the field length is negative
-			this is a default field, in this case this defaults
-			to the field name. Otherwise this is used as a string.
-	Verify routine. This is the name of a function which is called with
-			the field as a parm. That function should return 0
-			if the field is invalid and non 0 if it is valid.
-			The default is no verify function.
 
-	Skip factor.	If the verify routine returns -1 Skip factor fields
-			are skipped. This allows you to ask a yes or no
-			question and skip fields if the is n.
+Each input line must contain
+	Field name	A C name for the field. This will normally be built
+			in the generated .c file.
 
-f1, 5, xyz, ver1	; results to f1, max len 5 default "xyz" ver1
-			; is verify routine.
-f2, -5, f1, ver2	; results to f2, max len 5 default f1 ver2
-			; is verify routine.
-f3,  0,  17		; f3 length 17 is displayed and is read only.
+	Field Length	The displayed size of the field. One will be added
+			to this for zero termination on the internal field.
 
-f4, 1, y, veryn, 4	; f3 length 1 is displayed and verifyed by
-			; function veryn which can skip the next 3 fields
-			; by returning -1
+	Optionaly lines may contain.
+	default string	String is a C string with the starting value of the
+			field.
 
-Note comments are illegal in actual format.
+	default field	Field is a C field name where the starting value of
+			the field may be found.
 
-Often it is convienient to input data into arrays of fields. A line starting
-%  linesCount repeatCount
-Says that the next lineCount fields repeat repeatCount times.
+	help string	String is a C string displayed at the bottom of the
+			screen before the field is entered.
 
-% 2 3
-expect, -20
-send, -20
+	help field	Field is a field name of a C string displayed at the
+			bottom of the screen before the field is entered.
+
+	verify routine	Routine is the C name of a function used to check the
+			field for validity. A return of 0 means invalid field
+			a return of non zero means value. A return of -1
+			triggers the skip factor. A return of -2 finishes the
+			screen as though ctl-z had been entered.
+ 
+	skip number	Number is the number of fields to skip if the verify
+			field returns -1.
+
+	external	Means the field definition for this field is elsewhere
+			and prevents scn from building one in it's .c file.
+
+	long		Means that the field is arbitrairly long, its field
+			defination will be a char *, and it will be malloc()ed
+			as needed.
+
+	readonly	Means the field is readonly.
+
+Examples:
+
+f1 5 default "xyz", verify ver1	# comment to end of line
+f2 5 verify ver2
+f3 5 verify yNo skip 1 \
+	help "Enter n to skip next field"
+f4 5
+
+Often it is convienient to input data into arrays of fields.
+
+do 3	
+expect 20
+send 20
+done
 
 Says that there are 3 expect and send fields. This generates 
 char expect[3][21];
 char send[3][21];
 
-While inside a data array is is legal to use a skip factor of "group".
+While inside a do group is is legal to use a skip factor of 'group'.
 scn will replace this with the number of fields required to skip out
-of the current group.
+of the current do group.
 
-In the .c file. Note the 21 is a field length of 20 and a place for
-the zero termination.
-
-Then comes the input screen formatteed exactly as it should appear.
+After %% comes the input screen formatteed exactly as it should appear.
 The beginning of each input field should be marked with a '!'. This
-chan be changed with a -f option.
-	scn -f# xyz
+may be changed with a designator statement.
 
-Would mark input fileds with a '#'.
+desagnator "#"
+Causes the field designator to be # not !. The change is for the entire
+file.
 
 xyz_data contains the background data for the screen. It is decribed
 by the struct backGrnd in scn.h. Each structure is a line of data
 followed by its screen position. The array of structures ends with a
 data pointer of NULL.
 
-xyz_locs contains the input field data for the screen. Itis described
+xyz_locs contains the input field data for the screen. It is described
 by the struct loc in scn.h. It contains a pointer to the input field
 and the row and collumn of the data.
 
@@ -94,8 +92,8 @@ and the row and collumn of the data.
 
 setUpScreen(lines, at)
 	This initializes the screen driver and sets up a window for
-	error messages or conversational messages. setUpScreen(3, 22)
-	reserves line 22, 23 and 24 for messages.
+	error messages or conversational messages. setUpScreen(2, 22)
+	reserves line 22 and 23 for messages.
 
 closeUp()
 	Shuts down the screen dirver, always call it at the end of job.
@@ -141,3 +139,13 @@ nonNull(str)
 
 yesNo(str)
 	Returns 1 if str is in [yYnN] else 0.
+
+noWhite(str)
+	Returns 1 if str contains no whitespace else 0
+
+noVerify(str)
+	Returns 1. This is used where no verify routine is given.
+
+checkEnd(str)
+	Returns -1 for a null field else 1. This is used for the
+	entry of long fields.
