@@ -23,13 +23,11 @@
 #define MAXTERM 150		/* maximum number of different terminals */
 #define MAXNTERM 100		/* maximum number of non terminal symbols */
 #define MAXSTATE 300		/* max # of states */
-#define MAXTYPE 10		/* for the union of YYSTYPE */
-
-		/* compiled in sizes -- can be increased without problem */
 #define MAXPRODL 20		/* maximum number of symbols in any prodn */
 #define MAXITEM 160		/* maximum number of items in any state */
-#define MAXREDS 60		/* maximum number of reductions per state */
+#define MAXREDS 300		/* maximum number of reductions per state */
 
+#define MAXTYPE 10		/* for the union of YYSTYPE */
 		/* keyword codings */
 #define START 1	
 		/* %token .. %nonassoc must be contiguously coded */
@@ -223,6 +221,7 @@ extern struct genre gtab[MAXT];
 extern int startsym;
 extern int predlev;
 extern struct resv restab[];
+extern int maxitem, maxprodl, maxreds;
 
 char 	*calloc();
 char	*yalloc();
