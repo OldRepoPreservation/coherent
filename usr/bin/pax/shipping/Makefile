@@ -37,7 +37,7 @@ LDFLAGS=
 
 #
 # Set LINTFLAGS to whatever makes your implementation of lint happy.  If
-# you don't undef __STDC__ and you have an ANSI C compiler, lint will choke 
+# you don't undef __STDC__ and you have an ANSI C compiler, lints will choke 
 # on the function prototypes present in func.h
 #
 LINTFLAGS = -U__STDC__ $(POSIX)
@@ -93,31 +93,14 @@ OBJECT= pax.o append.o buffer.o cpio.o create.o extract.o fileio.o\
 PROGS = pax ustar cpio
 PMAN1 = pax.1 ustar.1
 PMAN5 = pax.5 ustar.5
-
-all: $(PROGS)
-
-install: $(PROGS)
-	su root mv $(PROGS) $(DESTDIR)
-#	cp $(PMAN1) $(MAN1)
-#	cp $(PMAN5) $(MAN5)
-
-clean:
-	rm -f $(OBJECT)
-	rm -f $(PROGS) a.out *.BAK *.bak 
-
-lint:
-	lint $(LINTFLAGS) $(SOURCE)
+DESTDIR= /interim/usr/bin/
 
 pax : $(OBJECT)
-	$(CC) $(CFLAGS) -o pax $(OBJECT) $(DIRENT) 
-	fixstack +2000 pax
+	$(CC) $(CFLAGS) -o $(DESTDIR)pax $(OBJECT) $(DIRENT) 
+	fixstack +2000 $(DESTDIR)pax
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+	su root ln -f $(DESTDIR)pax $(DESTDIR)ustar
+	su root ln -f $(DESTDIR)pax $(DESTDIR)cpio
 
-ustar: pax
-	rm -f ustar
-	ln pax ustar
-
-cpio: pax
-	rm -f cpio
-	ln pax cpio
-
-$(OBJECT): $(HEADERS)
