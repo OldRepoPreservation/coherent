@@ -61,8 +61,6 @@ typedef struct tty {
  * tty driver that this is true.
  */
 #define	ISBRK	(tp->t_tchars.t_brkc   == c)
-#define	ISSTART	(tp->t_tchars.t_startc == c)
-#define	ISSTOP	(tp->t_tchars.t_stopc  == c)
 #define	stopc	(tp->t_tchars.t_stopc)
 #define	startc	(tp->t_tchars.t_startc)
 
@@ -79,6 +77,8 @@ typedef struct tty {
 #define	ISINTR	(tp->t_termio.c_cc[VINTR]  == c)
 #define	ISKILL	(tp->t_termio.c_cc[VKILL]  == c)
 #define	ISQUIT	(tp->t_termio.c_cc[VQUIT]  == c)
+#define	ISSTART	(CSTART == c)
+#define	ISSTOP	(CSTOP == c)
 
 #define	ISBBYB	((tp->t_termio.c_lflag & ICANON) == 0)
 #define	ISCBRK	((tp->t_termio.c_lflag & ICANON) == 0)
@@ -88,17 +88,21 @@ typedef struct tty {
 #define	ISISIG	(tp->t_termio.c_lflag & ISIG)
 #define	ISISTRIP (tp->t_termio.c_iflag & ISTRIP)
 #define ISIXON	(tp->t_termio.c_iflag & IXON)
+#define ISIXANY	(tp->t_termio.c_iflag & IXANY)
 #define ISOCRNL	(tp->t_termio.c_oflag & OCRNL)
 #define ISONLCR	(tp->t_termio.c_oflag & ONLCR)
 #define	ISROUT	((tp->t_termio.c_oflag & OPOST) == 0)
 #define	ISTAND	(tp->t_termio.c_iflag & IXOFF)
-#define	ISXTABS	(tp->t_termio.c_oflag & XTABS)
+#define	ISXTABS	((tp->t_termio.c_oflag & TABDLY) == TAB3)
 
+#define ISXSTOP	(tp->t_flags & T_XSTOP)
 #else
 
 #define	ISEOF	(tp->t_tchars.t_eofc   == c)
 #define	ISINTR	(tp->t_tchars.t_intrc  == c)
 #define	ISQUIT	(tp->t_tchars.t_quitc  == c)
+#define	ISSTART	(tp->t_tchars.t_startc == c)
+#define	ISSTOP	(tp->t_tchars.t_stopc  == c)
 
 #define	ISBBYB	(tp->t_sgttyb.sg_flags&(RAWIN|CBREAK))
 #define	ISCBRK	(tp->t_sgttyb.sg_flags&CBREAK)
