@@ -312,7 +312,7 @@ time_t time;
 		printf("\t");
 	printf("%-*.*s", DIRSIZ, DIRSIZ, name);
 	time = (time+30)/60;
-	printf("%3D:%02D\n", time/60, time%60);
+	printf("%3ld:%02ld\n", time/60, time%60);
 }
 
 /*

@@ -277,7 +277,7 @@ int num;
 	if ( (fp=fopen(numname, "r")) == NULL ) 
 		return(0);
 
-	printf("\nMessage Number %d [%D chars]\n", num, st.st_size);
+	printf("\nMessage Number %d [%ld chars]\n", num, st.st_size);
 
 	while ( fgets(mline, NLINE, fp) != NULL ) {
 		if ( (strncmp(mline, "Date: ", 6) == 0) ||

@@ -734,8 +734,8 @@ register unsigned n;
  */
 stats(s)
 {
-	fprintf(stderr, "%D+%D records in\n", nfri, npri);
-	fprintf(stderr, "%D+%D records out\n", nfro, npro);
+	fprintf(stderr, "%ld+%ld records in\n", nfri, npri);
+	fprintf(stderr, "%ld+%ld records out\n", nfro, npro);
 	exit(s);
 }
 
