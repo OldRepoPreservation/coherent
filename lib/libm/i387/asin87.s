@@ -51,7 +51,7 @@ _asin:				/ d
 	fld	%st		/ d, d
 	fmul	%st, %st	/ d*d, d
 	fld1			/ 1, d*d, d
-	fsubr			/ 1 - d*d, d
+	fsub			/ 1 - d*d, d
 	fsqrt			/ sqrt(1-d*d), d
 	fpatan			/ asin(d) = atan(d/sqrt(1-d*d))
 	clc			/ Clear the Carry flag.

@@ -54,7 +54,7 @@ _two:
 	fld	%st		/ d, d
 	call	_floor		/ Round d down to int(d), d
 	fst	%st(2)		/ int(d), d, int(d)
-	fsub			/ d-int(d) = fraction(d), int(d)
+	fsubr			/ d-int(d) = fraction(d), int(d)
 	fcoml	half
 	call	_cfcc		/ Compare fraction(d) to .5
 	jbe	?3		/ fraction(d) <= .5, ok.
