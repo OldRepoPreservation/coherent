@@ -417,10 +417,34 @@ putuwi_:
 	cmp	bx,ucl_			/ In range?
 	ja	kuerr			/ No
 
-	push	es			/ Save es.
-	mov	es,ucs_			/ Users data segment
-	mov	es:(bx),ax		/ Set value
-	pop	es			/ Restore es.
+	push	ucs_			/ Get physical address.
+	sub	ax, ax			/ DX:AX = phy = vtop( ucs:0 );
+	push	ax			/
+	call	vtop_			/
+	add	sp, $4			/
+					/
+	sub	bx, bx			/ Get writable virtual address.
+	push	bx			/ DX:AX = fp = ptov( phy, ucl );
+	push	ucl_			/
+	push	dx			/
+	push	ax			/
+	call	ptov_			/
+	add	sp, $8			/
+					/
+	mov	bx, sp			/
+	mov	ax, 4(bx)		/ New value
+	mov	bx, 2(bx)		/ Argument
+	push	es			/ Save ES
+	mov	es, dx			/ Users (writable) code segment
+	mov	es:(bx), ax		/ Set value
+	pop	es			/ Restore es
+					/
+	push	dx			/ Release writable virtual address.
+	sub	ax, ax			/ vrelse( fp );
+	push	ax			/
+	call	vrelse_			/
+	add	sp, $4			/
+					/
 	sub	ax,ax			/ Succesful
 	ret				/ Return
 
