@@ -1,6 +1,6 @@
-/* $Source: /u/mark/src/pax/RCS/pax.c,v $
+/* $Source: /newbits/usr/bin/pax/shipping/pax.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * DESCRIPTION
  *
@@ -48,7 +48,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	pax.c,v $
+ * $Log:	/newbits/usr/bin/pax/shipping/pax.c,v $
+ * Revision 1.1	91/02/05  11:58:29 	bin
+ * Initial revision
+ * 
  * Revision 1.2  89/02/12  10:05:17  mark
  * 1.2 release fixes
  * 
@@ -178,7 +181,7 @@ char          **argv;
     /* open terminal for interactive queries */
     ttyf = open_tty();
 
-    if (strcmp(myname, "ustar")==0) {
+    if (strcmp(myname, "ustar")==0 || strcmp(myname, "tar")==0) {
 	do_tar(argc, argv);
     } else if (strcmp(myname, "cpio")==0) {
 	do_cpio(argc, argv);
