@@ -25,7 +25,7 @@ outab(b)
 {
 	if (pass == 2) {
 		if (inbss)
-			err('s');
+			serr();
 		else {
 			outlst(b);
 			outchk(1, 0);
@@ -39,7 +39,7 @@ outaw(w)
 {
 	if (pass == 2) {
 		if (inbss)
-			err('s');
+			serr();
 		else {
 			outlst(fbyte(w));
 			outlst(sbyte(w));
@@ -60,7 +60,7 @@ register struct expr *esp;
 
 	if (pass == 2) {
 		if (inbss)
-			err('s');
+			serr();
 		else {
 			t = esp->e_type;
 			if (t==E_AREG || t==E_ASEG)
@@ -116,7 +116,7 @@ register struct expr *esp;
 
 	if (pass == 2) {
 		if (inbss)
-			err('s');
+			serr();
 		else {
 			t = esp->e_type;
 			if (t==E_AREG || t==E_ASEG)
