@@ -42,7 +42,7 @@ register unsigned fd;
 {
 	register FD *fdp;
 
-	if (fd>=NUFILE || (fdp=u.u_filep[fd])==NULL) {
+	if (fd>=NOFILE || (fdp=u.u_filep[fd])==NULL) {
 		u.u_error = EBADF;
 		return (NULL);
 	}
@@ -60,7 +60,7 @@ register INODE *ip;
 	register FD **fdpp;
 	register FD *fdp;
 
-	for (fdpp=u.u_filep; fdpp<&u.u_filep[NUFILE]; fdpp++) {
+	for (fdpp=u.u_filep; fdpp<&u.u_filep[NOFILE]; fdpp++) {
 		if (*fdpp != NULL)
 			continue;
 		if ((fdp=kalloc(sizeof(FD))) == NULL)
@@ -91,7 +91,7 @@ register unsigned fd;
 	register FD *fdp;
 	static	FLOCK	flock = { F_UNLCK, 0, 0, 0 };
 
-	if (fd>=NUFILE || (fdp=u.u_filep[fd])==NULL) {
+	if (fd>=NOFILE || (fdp=u.u_filep[fd])==NULL) {
 		u.u_error = EBADF;
 		return;
 	}
@@ -115,7 +115,7 @@ fdadupl()
 	register FD **fdpp;
 	register FD *fdp;
 
-	for (fdpp=u.u_filep; fdpp<&u.u_filep[NUFILE]; fdpp++) {
+	for (fdpp=u.u_filep; fdpp<&u.u_filep[NOFILE]; fdpp++) {
 		if ((fdp=*fdpp) == NULL)
 			continue;
 		fdp->f_refc++;
@@ -129,7 +129,7 @@ fdaclose()
 {
 	register int fd;
 
-	for (fd=0; fd<NUFILE; fd++) {
+	for (fd=0; fd<NOFILE; fd++) {
 		if (u.u_filep[fd] == NULL)
 			continue;
 		fdclose(fd);

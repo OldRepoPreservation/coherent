@@ -196,7 +196,7 @@ u.u_error = 0;
 		u.u_gid = ip->i_gid;
 		pp->p_flags &= ~PFTRAC;
 	}
-	for (i=0; i < NUFILE; i++) {
+	for (i=0; i < NOFILE; i++) {
 		if (u.u_filep[i]!=NULL && (u.u_filep[i]->f_flag2&FD_CLOEXEC))  {
 			fdclose(i);	/* close fd on exec bit set */
 		}

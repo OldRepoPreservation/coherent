@@ -296,7 +296,7 @@ int fd, cmd, arg;
 	/*
 	 * Validate file descriptor.
 	 */
-	if ( (fd < 0) || (fd >= NUFILE) || ((fdp = u.u_filep[fd]) == 0) ) {
+	if ( (fd < 0) || (fd >= NOFILE) || ((fdp = u.u_filep[fd]) == 0) ) {
 		u.u_error = EBADF;
 		return;
 	}
@@ -307,7 +307,7 @@ int fd, cmd, arg;
 		/*
 		 * Validate base file descriptor.
 		 */
-		if ( (arg < 0) || (arg >= NUFILE) ) {
+		if ( (arg < 0) || (arg >= NOFILE) ) {
 			u.u_error = EINVAL;
 			return;
 		}
@@ -321,7 +321,7 @@ int fd, cmd, arg;
 				fdp->f_refc++;
 				return arg;
 			}
-		} while ( ++arg < NUFILE );
+		} while ( ++arg < NOFILE );
 
 		u.u_error = EMFILE;
 		return;
@@ -603,7 +603,7 @@ int msec;
 	/*
 	 * Validate number of polls.
 	 */
-	if ((npoll < 0) || (npoll > NUFILE)) {
+	if ((npoll < 0) || (npoll > NOFILE)) {
 		u.u_error = EINVAL;
 		goto poll_done;
 	}
@@ -639,7 +639,7 @@ int msec;
 			/*
 			 * Poll message queue.
 			 */
-			if (fd >= NUFILE) {
+			if (fd >= NOFILE) {
 				rev = msgpoll(fd, getusd(&pollp->events), msec);
 				goto remember;
 			}
