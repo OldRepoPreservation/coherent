@@ -26,6 +26,9 @@
  *	read_entry.c -- Routine for reading in a compiled terminfo file
  *
  *  $Log:	read_entry.c,v $
+ * Revision 1.8  93/04/12  14:14:45  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:39:01  bin
  * update by vlad
  * 
@@ -55,7 +58,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/read_entry.c,v 1.2 92/04/13 14:39:01 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/read_entry.c,v 1.8 93/04/12 14:14:45 bin Exp Locker: bin $";
 #endif
 
 #include <sys/types.h>

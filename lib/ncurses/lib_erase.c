@@ -28,6 +28,9 @@
 **	The routine werase().
 **
 ** $Log:	lib_erase.c,v $
+ * Revision 1.8  93/04/12  14:13:38  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:37:27  bin
  * update by vlad
  * 
@@ -48,7 +51,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_erase.c,v 1.2 92/04/13 14:37:27 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_erase.c,v 1.8 93/04/12 14:13:38 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

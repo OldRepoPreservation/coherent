@@ -28,6 +28,9 @@
 **	The routine wsetscrreg().
 **
 ** $Log:	lib_scrreg.c,v $
+ * Revision 1.11  93/04/12  14:14:05  bin
+ * Udo: third color update
+ * 
  * Revision 1.5  92/06/02  12:05:34  bin
  * *** empty log message ***
  * 
@@ -48,7 +51,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_scrreg.c,v 1.5 92/06/02 12:05:34 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_scrreg.c,v 1.11 93/04/12 14:14:05 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

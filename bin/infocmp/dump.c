@@ -26,7 +26,10 @@
  *	dump.c - dump the contents of a compiled terminfo file in a
  *		 human-readable format.
  *
- *  $Log:	RCS/dump.v $
+ *  $Log:	dump.c,v $
+ * Revision 1.1  92/03/13  10:21:08  bin
+ * Initial revision
+ * 
  * Revision 2.2  91/07/28  14:03:30  munk
  * Made the large arrays static
 
@@ -50,7 +53,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/dump.v  Revision 2.2  91/07/28  14:03:30  munk   Exp$";
+	"$Header: /src386/usr/bin/infocmp/RCS/dump.c,v 1.1 92/03/13 10:21:08 bin Exp $";
 #endif
 
 #include "compiler.h"

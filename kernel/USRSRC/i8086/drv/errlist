@@ -1,7 +1,0 @@
-make: 	exited with status 256
-./.. -I../../sys -I/usr/include/sys -c -o objects/scsi.o scsi.c
-306: scsi.c: identifier "w" is not defined
-306: scsi.c: missing ';'
-306: scsi.c: Strict: variable "mode" (line 263) is not used
-306: scsi.c: Strict: label "xxx" is not used
-312: scsi.c: Strict: variable "dev" (line 308) is not used

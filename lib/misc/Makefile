@@ -1,6 +1,6 @@
 # misc/Makefile 10/11/90
-CFLAGS=
-DESTDIR=/bin386/usr/lib/
+CFLAGS= -VNDP
+DESTDIR=/bin386/usr/lib/ndp/
 # Objects.
 O = \
 	alloc.o \
@@ -8,6 +8,7 @@ O = \
 	ask.o \
 	banner.o \
 	basename.o \
+	bedaemon.o \
 	copyd.o \
 	crc16.o \
 	fatal.o \

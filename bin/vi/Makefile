@@ -38,14 +38,13 @@
 #---- These settings are done by MWC
 OBJ=.o
 EXE=
-DESTDIR=/bin386/usr/bin/
 COM=
 EXTRA=	unix$(OBJ)
 EXTRA2=
 LIBS= -ltermcap
 BIN=	/bin386/usr/bin
 CC=	cc
-CFLAGS=	-DCOHERENT
+CFLAGS=	-DCOHERENT -VSUVAR
 SMALL=
 OF=	-o 
 RF=	-c

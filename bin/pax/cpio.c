@@ -1,6 +1,6 @@
-/* $Source: /src386/usr/bin/pax/cpio.c,v $
+/* $Source: /src386/usr/bin/pax/RCS/cpio.c,v $
  *
- * $Revision: 1.1 $
+ * $Revision: 1.2 $
  *
  * cpio.c - Cpio specific functions for archive handling
  *
@@ -30,6 +30,9 @@
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
  * $Log:	cpio.c,v $
+ * Revision 1.2  93/01/14  10:02:28  bin
+ * vlad: fixed problem with restoring permissions.
+ * 
  * Revision 1.1  92/08/28  08:01:59  bin
  * Initial revision
  * 
@@ -42,7 +45,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: cpio.c,v 1.1 92/08/28 08:01:59 bin Exp Locker: bin $";
+static char *ident = "$Id: cpio.c,v 1.2 93/01/14 10:02:28 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

@@ -28,6 +28,9 @@
 **	The routine getch().
 **
 ** $Log:	lib_getch.c,v $
+ * Revision 1.9  93/04/12  14:13:39  bin
+ * Udo: third color update
+ * 
  * Revision 2.3  92/11/21  14:47:37  munk
  * Improved alarm signal handling
  *
@@ -54,7 +57,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_getch.c,v 1.3 92/06/10 14:17:06 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_getch.c,v 1.9 93/04/12 14:13:39 bin Exp Locker: bin $";
 #endif
 
 #include <signal.h>

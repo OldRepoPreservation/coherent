@@ -1,2 +1,0 @@
-lpr|lp|printer|print|printing|line printer,
-	hc, os, cols#132, bel=^G, cr=^M, cud1=^J, cub1=^H, ff=^L, 

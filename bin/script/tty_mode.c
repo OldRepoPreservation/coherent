@@ -3,7 +3,10 @@
  *
  * Purpose:	transfer modes between tty devices
  *
- * $Log$
+ * $Log:	tty_mode.c,v $
+ * Revision 1.2  92/06/15  10:04:58  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

@@ -1,4 +1,0 @@
-vt50h|dec vt50h,
-	cols#80, lines#12, bel=^G, cr=^M, clear=\EH\EJ, el=\EK, ed=\EJ, 
-	cup=\EY%p1%' '%+%c%p2%' '%+%c, cud1=^J, cub1=^H, cuf1=\EC, cuu1=\EA, 
-	ind=^J, ri=\EI, ht=^I, 

@@ -23,7 +23,7 @@
 *********************************************************************/
 
 /*
-** $Header:   RCS/object.v  Revision 2.1  82/10/25  14:49:50  pavel  Exp$
+** $Header: /src386/usr/bin/tic/RCS/object.h,v 1.1 92/03/13 10:46:35 bin Exp $
 **
 **	object.h - Format of compiled terminfo files
 **
@@ -46,7 +46,10 @@
 **	read_entry() automatically fixes this up on machines which don't use
 **	this system (I hope).
 **
-**  $Log:	RCS/object.v $
+**  $Log:	object.h,v $
+ * Revision 1.1  92/03/13  10:46:35  bin
+ * Initial revision
+ * 
 Revision 2.1  82/10/25  14:49:50  pavel
 Added Copyright Notice
 

@@ -1,4 +1,0 @@
-sol,
-	am, cols#64, lines#16, bel=^G, cr=^M, clear=^K, 
-	cup=\E^Q%p1%c\E^R%p2%c, cud1=^J, home=^N, cub1=^H, cuf1=^S, cuu1=^W, 
-	kcud1=^Z, kcub1=^A, kcuf1=^S, kcuu1=^W, ind=^J, 

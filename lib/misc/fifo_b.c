@@ -5,6 +5,10 @@
  */
 #include <sys/typed.h>
 
+#ifndef T_NULL
+#define T_NULL ((char *)0)
+#endif
+
 /* How long is an open fifo?  */
 long
 fifo_len(ffp)

@@ -23,7 +23,10 @@
 **
 **	Sleep for some millisecounds
 **
-** $Log:	RCS/lib_napms.v $
+** $Log:	lib_napms.c,v $
+ * Revision 1.5  93/04/12  14:13:54  bin
+ * Udo: third color update
+ * 
  * Revision 1.0  92/11/26  21:47:38  munk
  * Initial version
  * 
@@ -32,7 +35,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_napms.v  Revision 1.0  92/11/26  21:47:38  munk  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_napms.c,v 1.5 93/04/12 14:13:54 bin Exp Locker: bin $";
 #endif
 
 #include <poll.h>

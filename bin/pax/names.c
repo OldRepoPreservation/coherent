@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/names.c,v $
+/* $Source: /src386/usr/bin/pax/names.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * names.c - Look up user and/or group names. 
  *
@@ -29,7 +29,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/names.c,v $
+ * $Log:	names.c,v $
+ * Revision 1.1  92/08/28  08:02:21  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:48:03  jep
  * Initial revision
  * 
@@ -39,7 +42,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: names.c,v 1.2 89/02/12 10:05:05 mark Exp $";
+static char *ident = "$Id: names.c,v 1.1 92/08/28 08:02:21 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 
