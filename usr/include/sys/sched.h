@@ -26,6 +26,8 @@ enum {
  */
 
 #define	NCRTICK	(HZ/10)		/* Processor time slice */
+#define DEFAULT_QUANTUM ((NCRTICK)) /* Food for thought */
+#define SCHED_SCALE 100		/* Scale usage factor */
 
 #endif	/* ! defined (__SYS_SCHED_H__) */
 

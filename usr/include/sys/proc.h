@@ -89,6 +89,7 @@ struct proc {
 	struct {
 		char	_space [32];
 	} p_ddi_space;
+	long   p_foodstamp;		/* Starvation inhibitor */
 };
 
 
