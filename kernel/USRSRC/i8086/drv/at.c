@@ -2,6 +2,9 @@
  * 	COHERENT Driver Kit Version 1.1.0
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
+ *
+ * $Log$
+ *
  -lgl) */
 /*
  * This is a driver for the
@@ -610,7 +613,8 @@ register BUF	*bp;
 	/*
 	 * Range check disk region.
 	 */
-	if ( (bp->b_bno + (bp->b_count/BSIZE)) > pp->p_size ) {
+	if ( ((bp->b_bno + (bp->b_count/BSIZE)) > pp->p_size)
+	|| (bp->b_count % BSIZE) || bp->b_count == 0) {
 		bp->b_flag |= BFERR;
 		bdone(bp);
 		return;
