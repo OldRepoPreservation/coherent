@@ -10,4 +10,6 @@ devload:	devload.o cohcall.o
 	cc -o $@ $<
 setfpe:		setfpe.o cohcall.o
 	cc -o $@ $<
+setbp:		setbp.o cohcall.o
+	cc -o $@ $<
 cohcall.o:	cohcall.s
