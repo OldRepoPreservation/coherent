@@ -366,6 +366,9 @@ modlfld(tp, c) register TREE *tp; int c;
 		}
 		/* rp set above */
 		rp = leftnode(bmop, rp, rp->t_type);
+		fixtoptype(rp);
+		if (rp->t_type != rp->t_lp->t_type)
+			rp->t_lp = leftnode(CONVERT, rp->t_lp, rp->t_type);
 		rp->t_rp = ivalnode((ival_t)mask);
 		tp->t_rp = rp;
 	}

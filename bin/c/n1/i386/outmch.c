@@ -104,7 +104,7 @@ register TREE	*tp;
 #if	NDP
 	int fltflag;
 
-	fltflag = isflt(tp->t_type);		/* node type, not l/r type */
+	fltflag = is_ndp_op(opcode);
 #endif
 	if (opvariant == M_TL)
 		tp = tp->t_lp;			/* use left type */
