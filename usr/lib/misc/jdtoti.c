@@ -1,7 +1,7 @@
 /*
  * Coherent time to Julian day in integers.
  */
-#include "misc.h"
+#include "local_misc.h"
 
 time_t
 jday_to_time(jd)
