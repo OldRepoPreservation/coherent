@@ -3,8 +3,9 @@
  * gets memory, reads in optimizer temp file
  * spits out parser
  */
-#include <action.h>
+
 #include <limits.h>
+#include "action.h"
 
 struct actn *atab;
 struct go2n *gotab;
@@ -21,11 +22,6 @@ callopt()
 	patab = (int *)yalloc(nstates, sizeof *patab);
 	pgotab = (int *)yalloc(nnonterm, sizeof *pgotab);
 	pdl = (int *)yalloc(nprod, sizeof *pdl);
-	rewopt();
-	pronts();
-	prodls();
-	rdgos();
-	rdacts();
 	cpyparse();
 }
 
@@ -34,7 +30,7 @@ pronts()
 	register i;
 	for (i=0; i<nprod; i++)
 		pdl[i] = -prdptr[i]->p_left - NTBASE;
-	fprintf(tabout, "#include <action.h>\n");
+
 	warray("yypdnt", pdl, nprod, 0);
 }
 
@@ -111,7 +107,7 @@ int *a, n, sw;
 			}
 		}
 	}
-	fprintf(tabout, "readonly unsigned %s %s[%d] = {\n", type, s, n--);
+	fprintf(tabout, "unsigned %s %s[%d] = {\n", type, s, n--);
 
 	i = 0;
 	do {
@@ -156,17 +152,28 @@ cpyparse()
 		yyerror(NLNO|FATAL, "can't find parser");
 	if( (actin = fopen(acttmp, "r")) == NULL )
 		yyerror(NLNO|FATAL, "someone lost action temp file");
-	while( (c = getc(fparse)) != EOF ) {
-		if( c=='$' ) {
-			if( (c = getc(fparse))=='A' ) {
-				while( (c = getc(actin)) != EOF )
-					putc(c, tabout);
-				continue;
+	while ((c = getc (fparse)) != EOF)
+		if (c == '$') {
+			switch (c = getc(fparse)) {
+			case 'A':
+				while ((c = getc(actin)) != EOF)
+					putc (c, tabout);
+				break;
+
+			case 'D':
+				rewopt();
+				pronts();
+				prodls();
+				rdgos();
+				rdacts();
+				break;
+
+			default:
+				putc('$', tabout);
+				break;
 			}
-			putc('$', tabout);
-		}
-		putc(c, tabout);
-	}
+		} else
+			putc(c, tabout);
 	fclose(actin);
 	fclose(fparse);
 	fclose(tabout);

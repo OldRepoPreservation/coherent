@@ -5,8 +5,10 @@
  *       - gobble rules
  *       - copy anything complicated to the output
  */
+
+#include <string.h>
 #include "yacc.h"
-#include <action.h>
+#include "action.h"
 
 static int phonysemi;	/* allow missing ; aftter } */
 struct sym *defsym(), *elook();
@@ -114,14 +116,18 @@ readrules()
 
 	wrtdefs();
 	wrthdr();
+
 	/* part 2 - read in rules */
-	prdptr[0] = (struct prod *)yalloc(1, sizeof *prdptr[0] + 3 * sizeof *prdptr[0]->p_right);
-	prdptr[0]->p_prodno = 0;
-	prdptr[0]->p_prc = prdptr[0]->p_ass = UNKNOWN;
-	prdptr[0]->p_left = -saccept->s_no;
-	prdptr[0]->p_right[0] = startsym;
-	prdptr[0]->p_right[1] = seof->s_no;
-	prdptr[0]->p_right[2] = -1;
+	prdptr [0] = (struct prod *) yalloc (1, PROD_TOTAL_SIZE (3));
+	PROD_EXTRA_INIT (prdptr [0]);
+
+	prdptr [0]->p_prodno = 0;
+	prdptr [0]->p_prc = prdptr [0]->p_ass = UNKNOWN;
+	prdptr [0]->p_left = -saccept->s_no;
+	PROD_RIGHT (prdptr [0]) [0] = startsym;
+	PROD_RIGHT (prdptr [0]) [1] = seof->s_no;
+	PROD_RIGHT (prdptr [0]) [2] = -1;
+
 	nprod = 1;
 	while ((phonysemi || ((t = yylex())) == C_IDENT)) {
 		phonysemi = 0;
@@ -244,7 +250,7 @@ read:
 getrule(nt)
 int nt;
 {
-	int precused, n, size, actpres, t;
+	int precused, n, actpres, t;
 	char s[SYMSIZE];
 	register struct prod *pp;
 	register struct sym *sp;
@@ -281,22 +287,25 @@ int nt;
 			}
 			if( n >= maxprodl-1 )
 				yyerror(FATAL, "production too long");
-			nitprod->p_right[n++] = sp->s_no;
+			PROD_RIGHT (nitprod) [n++] = sp->s_no;
 			break;
 
 		case LBRAC:
 			cpyact(n, ntrmptr[nt-NTBASE]);
 			if( (t = yylex()) == IDENT ) { /* action inside rule */
-				pp = (struct prod *)yalloc(1, sizeof *pp + sizeof(int));
+				pp = (struct prod *) 
+					yalloc (1, PROD_TOTAL_SIZE (1));
+				PROD_EXTRA_INIT (pp);
+
 				sprintf(s, "$$%d", nprod);
 				sp = defsym(s, TNTERM);
 				pp->p_prodno = nprod;
 				pp->p_prc = pp->p_ass = UNKNOWN;
 				pp->p_left = -sp->s_no;
-				pp->p_right[0] = -1;
+				PROD_RIGHT (pp) [0] = -1;
 				bounded(nprod, maxprod, "productions");
 				prdptr[nprod++] = pp;
-				nitprod->p_right[n++] = sp->s_no;
+				PROD_RIGHT (nitprod) [n++] = sp->s_no;
 			} else
 				actpres++;
 			continue;
@@ -308,12 +317,12 @@ int nt;
 			yyerror(!FATAL, "must return value since lhs has type\n");
 #ifndef IAPX86		 /* work around 'too many stores bug'. */
 		else
-			if (elook(*nitprod->p_right)->s_type !=
+			if (elook(PROD_RIGHT (nitprod) [0])->s_type !=
 			    ntrmptr[nt-NTBASE]->s_type )
 				yyerror(WARNING, "default action may cause type clash");
 #else
 		else {
-			tmp = elook(*nitprod->p_right);
+			tmp = elook(PROD_RIGHT (nitprod) [0]);
 			if (tmp->s_type != ntrmptr[nt-NTBASE]->s_type )
 				yyerror(WARNING, "default action may cause type clash");
 		}
@@ -327,10 +336,18 @@ int nt;
 		yyerror(FATAL, "rule terminator not ';' or '|'");
 	bounded(nprod, maxprod, "productions");
 	nitprod->p_prodno = nprod;
-	nitprod->p_right[n++] = -1;
-	size = sizeof *nitprod + n * sizeof(int);
-	copyb(nitprod, prdptr[nprod++] = (struct prod *)yalloc(1, size), size);
-	return( t==VBAR );
+	PROD_RIGHT (nitprod) [n++] = -1;
+
+	prdptr [nprod] = (struct prod *) yalloc (1, PROD_TOTAL_SIZE (n));
+	* prdptr [nprod] = * nitprod;
+	PROD_EXTRA_INIT (prdptr [nprod]);
+
+	if (PROD_EXTRA_SIZE (n) > 0)
+		memcpy (prdptr [nprod]->p_ord, nitprod->p_ord,
+			PROD_EXTRA_SIZE (n));
+
+	nprod ++;
+	return t == VBAR;
 }
 
 struct sym *
@@ -432,7 +449,7 @@ wrtdefs()
 	if (ntype==0)
 		fprintf(fhdr, "typedef	int	YYSTYPE;\n");
 	fprintf(fhdr, "#ifdef YYTNAMES\n");
-	fprintf(fhdr, "extern readonly struct yytname\n{\n");
+	fprintf(fhdr, "extern struct yytname\n{\n");
 	fprintf(fhdr, "\tchar\t*tn_name;\n\tint\ttn_val;\n} yytnames[];\n");
 	fprintf(fhdr, "#endif\n");
 	fprintf(fhdr, "extern	YYSTYPE	yylval;\n");
@@ -457,7 +474,7 @@ wrtnames()
 	register char *sp;
 
 	fprintf(tabout, "#ifdef YYTNAMES\n");
-	fprintf(tabout, "readonly struct yytname yytnames[%d] =\n{\n", nterm+1);
+	fprintf(tabout, "struct yytname yytnames[%d] =\n{\n", nterm+1);
 	for(i=0; i<nterm; i++) {
 		fprintf(tabout, "\t\"");
 		sp = trmptr[i]->s_name;
@@ -563,10 +580,10 @@ struct sym *ntp;
 				}
 #ifndef IAPX86	/* 'too many stores' workaround */
 				if( n>0 && !istyp &&
-				    (sp = elook(nitprod->p_right[n-1]))-> 
+				    (sp = elook(PROD_RIGHT (nitprod) [n-1]))-> 
 				    s_type!=UINT ) {
 #else
-				sp = elook(nitprod->p_right[n-1]);
+				sp = elook(PROD_RIGHT (nitprod) [n-1]);
 				if (n > 0 && !istyp && sp->s_type != UINT) {
 #endif
 					sp = typeptr[sp->s_type];
