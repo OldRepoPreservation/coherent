@@ -176,7 +176,7 @@ logopen()
 	if ( (logfp=fopen(logfile, "a")) == NULL ) {
 #if 0
 		fprintf(stderr, "Can't open Log File: \"%s\"", logfile);
-#fi
+#endif
 	} /* If open of logfile failed. */
 	logdump("------------------\n");
 	logdump(ctime(&t));
