@@ -1,2 +1,2 @@
 #include "lexlib.h"
-short *yy_llist[] = {NULL};
+int *yy_llist[] = {NULL};

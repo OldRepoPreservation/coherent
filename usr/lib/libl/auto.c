@@ -3,17 +3,17 @@
 
 char	yytext[YYTSIZE];
 struct	ll_queue ll_tq;
-short *ll_ctxt = yy_lextab;
-short	ll_cc;
-short	ll_lc = '\n';
-short	ll_tf;
-short	ll_lf;
-short	ll_tokn;
-short	ll_tlen;
-short	ll_more;
-short	yyscon;
-short	yyleng;
-short	yyline;
+int *ll_ctxt = yy_lextab;
+int	ll_cc;
+int	ll_lc = '\n';
+int	ll_tf;
+int	ll_lf;
+int	ll_tokn;
+int	ll_tlen;
+int	ll_more;
+int	yyscon;
+int	yyleng;
+int	yyline;
 
 char	inpovf[] = "input buffer overflow";
 char	yytovf[] = "yytext overflow";
@@ -23,8 +23,8 @@ _lltk()
 	ll_tlen = 0;
 	ll_tokn = MAXINT;
 	{
-		register short **clist, **nlist, **llist;
-		register short **tlist;
+		register int **clist, **nlist, **llist;
+		register int **tlist;
 		register c;
 
 		clist = yy_clist;
@@ -88,11 +88,11 @@ _lltk()
 }
 
 _llex(n, clist, nlist, llist)
-short **clist, **nlist, **llist;
+int **clist, **nlist, **llist;
 {
-	register short **listp, *statep;
-	register short c;
-	register short **clistp;
+	register int **listp, *statep;
+	register int c;
+	register int **clistp;
 
 	c = MAXUCHAR + 1;
 	clistp = clist;
