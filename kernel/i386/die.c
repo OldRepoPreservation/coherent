@@ -83,7 +83,7 @@ strchirp(str)
  */
 void
 mchirp(c)
-	char c;
+char c;
 {
 	if ('\0' != c) {
 		_chirp(c, chirp_off);
@@ -126,7 +126,6 @@ die(c)
 /*
  * puts() -- put a NUL terminated string.
  * Takes one argument--a pointer to a NUL terminated character string.
- * Does no error checking.  Calls the assembly language routine putc().
  */
 void
 puts(s)
@@ -143,96 +142,38 @@ puts(s)
 #define DEL '\0'	/* This is really what getchar() returns!  */
 #define NAK '\025'
 
-/*
- * Reverse string s in place.
- * Straight from K&R.
- */
-void
-reverse(s)
-	char s[];
-{
-	int c, i, j;
-
-	for (j = 0; s[j] != '\0'; ++j) {
-		/* This is strlen(s).  */
-	}
-	--j;	/* strlen(s) - 1 */
-
-	for (i = 0; i < j; i++, j--) {
-		c = s[i];
-		s[i] = s[j];
-		s[j] = c;
-	}
-} /* reverse() */
-
-#define BASE16 16
-/*
- * Convert n to digits in s, base base.
- * Works for any base from 2 to 36.
- * Modified itoa() from K&R.
- */
-void
-itobase(n, s, base)
-	unsigned long n;
-	char s[];
-	int base;
-{
-	unsigned short i;
-
-	i = 0;
-	do {	/* Generate digits in reverse order.  */
-		s[i] = n % base + '0';	/* Get next digit.  */
-		/* Adjust for the gap between '9' and 'A'.  */
-		if (s[i] > '9') {
-			s[i] += ('A' - '9') - 1;
-		}
-		++i;
-	} while ((n /= base) > 0); /* Delete it.  */
-	
-	s[i] = '\0';
-	reverse(s);
-} /* itobase() */
-
 #define BITS_PER_INT16		16	/* Number of bits in an int16.  */
 #define DIGITS_PER_INT16	4	/* Maximum hex digits in a 16 bit number.  */
 #define DIGITS_PER_INT8		2	/* Maximum hex digits in an 8 bit number.  */
-/*
- * Print a 32 bit integer in hexadecimal.
- */
-void
-print32(my_int)
-	unsigned long my_int;
-{
-	static char buffer[sizeof("ffffffff")];
-
-	itobase(my_int, buffer, BASE16);
-	puts(buffer);
-}
 
 /*
- * Print a 16 bit integer in hexadecimal.
+ * Print a 32/16/8 bit integers in hexadecimal.
  */
-void
-print16(my_int)
-	unsigned short my_int;
+void print32(num)	{hexprint(num,8);}
+void print16(num)	{hexprint(num,4);}
+void print8(num)	{hexprint(num,2);}
+
+#ifdef SERIAL_CONSOLE
+#define OUTCH(c)	__putchar(c)
+#else
+#define OUTCH(c)	mchirp(c)
+#endif
+
+hexprint(n, hexdigits)
+int n, hexdigits;
 {
-	static char buffer[sizeof("ffff")];
+	int shift;
+	char digit, outch;
 
-	itobase((unsigned long) my_int, buffer, BASE16);
-	puts(buffer);
-}
-
-/*
- * Print an 8 bit integer in hexadecimal.
- */
-void
-print8(my_int)
-	unsigned char my_int;
-{
-	static char buffer[sizeof("ff")];
-
-	itobase((unsigned long) my_int, buffer, BASE16);
-	puts(buffer);
+	for (shift = 4*(hexdigits-1); shift >= 0; shift -= 4) {
+		digit = (n >> shift) & 0xF;
+		if (digit > 9)
+			outch = 'A'+digit-10;
+		else
+			outch = '0'+digit;
+		OUTCH(outch);
+	}
+	OUTCH(' ');
 }
 
 #define	ASCII	1
