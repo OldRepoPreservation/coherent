@@ -13,7 +13,7 @@
 #include <sys/timeout.h>
 #include <sys/seg.h>
 #include <sched.h>
-#include <kb.h>
+#include <sys/kb.h>
 
 #define	ISMAJ		2		/* Keyboard major device */
 #define	ISVEC		1		/* Keyboard interrupt vector */
