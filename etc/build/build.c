@@ -1,6 +1,6 @@
 /*
  * build.c
- * 4/4/90
+ * 4/5/90
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
  * Uses common routines in build0.c.
@@ -31,7 +31,7 @@
 #include <sys/filsys.h>
 #include "build0.h"
 
-#define	VERSION		"1.4"
+#define	VERSION		"1.5"
 #define	USAGE		"Usage: /etc/build [ -dvx ]\n"
 #define	AINDEX		5		/* index of 'a' in "/dev/at0x"	*/
 #define	BSIZE		512		/* sector size			*/
@@ -140,7 +140,10 @@ main(argc, argv) int argc; char *argv[];
 	user_devices();
 	done();
 	sync();
-	printf("Hit <Enter>, then remove the floppy disk when the screen goes blank.\n");
+	printf(
+"Hit <Enter>. Remove the floppy disk when the screen goes blank\n"
+"(but not before!) so the system does not boot from the floppy.\n"
+		);
 	if (root != active)
 		printf("You MUST type %d during the boot to boot the COHERENT operating system.\n",
 			root);
@@ -261,7 +264,7 @@ copy()
 	/* Mount the filesystem and copy the boot floppy to it. */
 	sprintf(cmd, "/etc/mount %s /mnt", device[root].d_name);
 	sys(cmd, S_FATAL);
-	sprintf(cmd, "/bin/cpdir -d%s -smnt -sbegin / /mnt", (vflag) ? "v" : "");
+	sprintf(cmd, "/bin/cpdir -ad%s -smnt -sbegin / /mnt", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
 	if (!exists("/mnt/mnt"))
 		sys("/bin/mkdir /mnt/mnt", S_FATAL);
@@ -366,6 +369,7 @@ fdisk()
 "partition.  If you need to back up existing data from the hard disk,\n"
 "type <Ctrl-C> now to interrupt COHERENT installation; then reboot your\n"
 "system and back up your hard disk data onto diskettes.\n"
+"\n"
 		, MINSIZE);
 	cls(1);
 	sys("/etc/fdisk -b /conf/mboot", S_FATAL);
