@@ -1,3 +1,4 @@
+# /etc/modemcap 6/26/91
 #
 #       @(#)modemcap    1.0
 #
@@ -33,9 +34,19 @@
 #	and suffix, use this feature. Otherwise, each command will have
 #	to have the entire string built in.
 #
-hy|hayes|Hayes Smartmodem 1200:\
-	:as:at=+++:ad#3:bd#1200:bl#300:cs=AT:ce=\r:co=CONNECT:\
+hy|hayes|avatex|av|Hayes Smartmodem 2400:\
+	:as:at=+++:ad#3:bd#2400:bl#1200:cs=AT:ce=\r:co=CONNECT:\
 	:cl=CONNECT:di:ds=DT :de=:is=ATQ0 V1 E1\r:id#2:\
+	:hc:hu=H0 V0 E0 Q1:tt:
+usr|USR|usrobotics|US Robotics Dual Standard HST:\
+	:as:at=+++:ad#3:bd#19200:bl#2400:cs=AT:ce=\r:co=CONNECT:\
+	:cl=CONNECT:di:ds=DT :de=:\
+	:is=ATQ0 V1 E1 &H1 &B1 &M4 &K3 &N0 F1 M1 &D2\r:id#2:\
+	:hc:hu=H0 V0 E0 Q1:tt:
+tb2500|TB2500|Trailblazer T2500:\
+	:as:at=+++:ad#3:bd#19200:bl#2400:cs=AT:ce=\r:co=CONNECT:\
+	:cl=CONNECT:di:ds=DT :de=:\
+	:is=ATQ0 V1 E1 M1 N1 &C1 S50=0 S96=1 S98=3 S110=1 S51=5 S66=1 S58=2 S68=2 S106=1 S95=2\r:id#2:\
 	:hc:hu=H0 V0 E0 Q1:tt:
 tbfast|Trailblazer:\
 	:as:at=+++:ad#2:bd#9600:bl#9600:cs=AT:ce=\r:co=CONNECT:\
@@ -47,8 +58,8 @@ xtb2400|Trailblazer:\
 	:cl=CONNECT:di:ds=E0 Q4 V1 S7=60 S50=3 S51=255 S66=0 S111=30 DT:\
 	:de=:is=AT Q4 V0 E0 S50=0 S111=255\r:id#2:\
 	:hc:hu=H0 V0 E0 Q4:tt:
-av|avatex|Avatex 2400|Hayes Smartmodem clone:\
-	:as:at=+++:ad#6:bd#2400:bl#300:cs=AT:ce=\r:co=CONNECT:\
+hayes1200|Hayes Smartmodem clone:\
+	:as:at=+++:ad#6:bd#1200:bl#300:cs=AT:ce=\r:co=CONNECT:\
 	:cl=CONNECT:di:ds=DT :de=:is=ATQ0 V1 E1\r:id#2:\
 	:hc:hu=H0 V0 E0 Q1:tt:
 pr|promodem|Prometheus Promodem 1200:\
