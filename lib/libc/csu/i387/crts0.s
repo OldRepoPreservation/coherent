@@ -4,9 +4,11 @@
 /	Copyright (c) Ciaran O'Donnell, Bievres, France, 1991.
 / 	All rights reserved. May not be copied without permission.
 / -lgl)
-/ csu/i386/crts0.s
+//////////
+/ csu/i387/crts0.s
 / C run-time start-off.
-/ i386 COHERENT native NDP version.
+/ i386 COHERENT native version with i80x87 NDP initialization.
+//////////
 
 	.globl	_start
 	.globl	environ
@@ -14,7 +16,7 @@
 	.globl	exit
 	.globl	_exit
 
-	.bss	environ,4
+	.bss	environ, 4
 
 	.text
 _start:	
@@ -36,4 +38,4 @@ _exit:
 	lcall	$0x7,$0
 	hlt					/ NOTREACHED
 
-/ end of csu/i386/crts0.s
+/ end of csu/i387/crts0.s

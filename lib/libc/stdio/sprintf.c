@@ -8,20 +8,14 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-#include <sys/mdata.h>
 
 int
 sprintf(s, format) char *s; const char *format;
 {
-	va_list	args;
-	FILE	file;
-	int	count;
+	va_list		args;
 
 	va_start(args, format);
-	_stropen(s, -MAXINT-1, &file);
-	count = vfprintf(&file, format, args);
-	putc('\0', &file);
-	return count;
+	return vsprintf(s, format, args);
 }
 
 /* end of libc/stdio/sprintf.c */

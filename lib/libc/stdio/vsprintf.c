@@ -8,15 +8,16 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-#include <sys/mdata.h>
 
 int
 vsprintf(s, format, args) char *s; const char *format; va_list args;
 {
-	FILE	file;
-	int	count;
+	register int	count;
+	FILE		file;
+	_FILE2		file2;
 
-	_stropen(s, -MAXINT-1, &file);
+	file._f2p = &file2;
+	_stropen(s, -1, &file);
 	count = vfprintf(&file, format, args);
 	putc('\0', &file);
 	return count;

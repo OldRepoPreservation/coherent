@@ -1,23 +1,33 @@
 /*
- * Standard I/O Library
- * Tell logical (vs physical) file position
- * in units compatible with fseek
+ * libc/stdio/ftell.c
+ * ANSI-compliant C standard i/o library.
+ * ftell()
+ * ANSI 4.9.9.4.
+ * Find logical file position on stream.
  */
 
 #include <stdio.h>
+#include <errno.h>
+
+#define	EFGETPOS	EINVAL
 
 long
-ftell(fp)
-register FILE	*fp;
+ftell(stream) register FILE *stream;
 {
-	extern	long	lseek();
-	long	offset;
+	register long offset;
+	register _FILE2 *f2p;
 
-	if ((offset=lseek(fileno(fp), 0L, SEEK_CUR)) == -1L)
-		return (-1L);
-	if (fp->_bp!=NULL)
-		offset += fp->_cp - fp->_dp;
-	if (fp->_ff&_FUNGOT)
+	f2p = stream->_f2p;
+
+	if ((offset=lseek(fileno(stream), 0L, SEEK_CUR)) == -1L) {
+		errno = EFGETPOS;
+		return offset;
+	}
+	if (f2p->_bp!=NULL)
+		offset += stream->_cp - f2p->_dp;
+	if (stream->_ff2&_FUNGOT)
 		--offset;
-	return (offset);
+	return offset;
 }
+
+/* end of libc/stdio/ftell.c */

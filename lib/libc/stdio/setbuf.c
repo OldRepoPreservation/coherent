@@ -1,17 +1,17 @@
 /*
- * Standard I/O Library
- * Setup own buffer (or none)
+ * libc/stdio/setbuf.c
+ * ANSI-compliant C standard i/o library.
+ * setbuf()
+ * ANSI 4.9.5.5.
+ * Set i/o buffer.
  */
 
 #include <stdio.h>
 
 void
-setbuf(fp, bp)
-register FILE	*fp;
-register char	*bp;
+setbuf(stream, buf) FILE *stream; char *buf;
 {
-	if (fp->_bp != NULL)
-		return;
-	fp->_bp = bp;
-	fp->_ff |= _FSTBUF;
+	setvbuf(stream, buf, (buf == NULL) ? _IONBF : _IOFBF, BUFSIZ);
 }
+
+/* end of libc/stdio/setbuf.c */

@@ -14,7 +14,7 @@ register FILE	*fp;
 	if ((c0=getc(fp))==EOF)
 		return (EOF);
 	else if ((c1=getc(fp))==EOF) {
-		fp->_ff |= _FERR;
+		fp->_ff1 |= _FERR;
 		return (EOF);
 	} else
 		return (c1<<8|c0);

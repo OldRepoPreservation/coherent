@@ -10,11 +10,11 @@
 / i386 COHERENT native version.
 //////////
 
-	.globl	_exit
 	.globl	_start
 	.globl	environ
-	.globl	exit
 	.globl	main
+	.globl	exit
+	.globl	_exit
 
 	.bss	environ, 4
 

@@ -1,5 +1,6 @@
 /*
- * C input/output library.
+ * libc/stdio/puts.c
+ * ANSI-compliant C standard i/o library.
  * puts()
  * ANSI 4.9.7.10.
  * Write string s to stdout.
@@ -8,9 +9,8 @@
 
 #include <stdio.h>
 
-/* Should be "const char *s;". */
 int
-puts(s) register char *s;
+puts(s) const char *s;
 {
 	while (*s)
 		if (putchar(*s++) == EOF && ferror(stdout))
@@ -19,3 +19,5 @@ puts(s) register char *s;
 		return EOF;
 	return 1;
 }
+
+/* end of libc/stdio/puts.c */

@@ -1,17 +1,18 @@
 /*
- * Standard I/O Library
- * Reopen file given structure ptr
+ * libc/stdio/freopen.c
+ * ANSI-compliant C standard i/o library.
+ * freopen()
+ * ANSI 4.9.5.4.
+ * Open file with specified stream.
  */
 
 #include <stdio.h>
 
 FILE *
-freopen(name, type, fp)
-char	*name, *type;
-FILE	*fp;
+freopen(filename, mode, stream) const char *filename, *mode; FILE *stream;
 {
-	extern	FILE	*_fopen();
-
-	fclose(fp);
-	return (_fopen(name, type, fp, -1));
+	fclose(stream);
+	return _fopen(filename, mode, stream, -1);
 }
+
+/* end of libc/stdio/freopen.c */

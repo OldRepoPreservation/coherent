@@ -1,38 +1,55 @@
 /*
  * libc/stdio/fflush.c
- * Standard I/O Library.
- * Write out any unwritten data in buffer.
+ * ANSI-compliant C standard i/o library.
+ * fflush()
+ * ANSI 4.9.5.2.
+ * Write out unwritten data in buffer.
  */
 
 #include <stdio.h>
+#if	COHERENT || GEMDOS
 #include <errno.h>
+#endif
 
 int
-fflush(fp)
-register FILE	*fp;
+fflush(stream) register FILE *stream;
 {
-	register int n, cc, oerrno;
+	register int n;
+	register FILE **fpp;
+	register _FILE2 *f2p;
 
-	oerrno = errno;
-	n = errno = fp->_cc = 0;
-	if (fp->_ff&_FERR)
-		n = EOF;
-	else if ((cc = fp->_cp - fp->_dp) <= 0
-	 || write(fileno(fp), fp->_dp, cc) == cc
-	 || errno == EINTR) {
-		if (cc < 0)
-			;
-		else if (fp->_cp == _ep(fp))
-			fp->_dp = fp->_cp = fp->_bp;
-		else
-			fp->_dp = fp->_cp;
-	} else {
-		fp->_ff |= _FERR;
-		n = EOF;
+	if (stream == NULL) {
+		/* fflush all streams. */
+		n = 0;
+		for (fpp = _fp+_NFILE; --fpp >= _fp; )
+			if ((stream = *fpp) != NULL
+			 && (stream->_ff2 & _FINUSE)
+			 && fflush(stream) == EOF)
+				n = EOF;
+		return n;
 	}
-	if (errno == 0)
-		errno = oerrno;
-	return n;
+	stream->_cc = 0;
+	if ((stream->_ff1 & _FERR) != 0)
+		return EOF;
+	f2p = stream->_f2p;
+	if ((n = stream->_cp - f2p->_dp) <= 0
+	  || write(fileno(stream), f2p->_dp, n) == n ) {
+		if (n < 0)
+			;
+		else if (stream->_cp == f2p->_ep)
+			f2p->_dp = stream->_cp = f2p->_bp;
+		else
+			f2p->_dp = stream->_cp;
+		return 0;
+	} else {
+#if	COHERENT || GEMDOS
+		if (errno == EINTR)
+			errno = 0;
+		else
+#endif
+		stream->_ff1 |= _FERR;
+		return EOF;
+	}
 }
 
 /* end of libc/stdio/fflush.c */

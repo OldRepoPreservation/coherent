@@ -1,6 +1,6 @@
-# /usr/src/libc/sys/i386/Makefile 9/28/92
+# /usr/src/libc/sys/i386/Makefile 2/1/93
 
-ASFLAGS=
+ASFLAGS=-x
 
 # Objects built from sources in sys/i386.
 OBJ=\

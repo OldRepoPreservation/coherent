@@ -5,6 +5,7 @@
 
 	.text
 
+	.globl	_fwait
 	.globl	_cfcc
 	.globl	_tstcc
 	.globl	_tstccp
@@ -36,6 +37,16 @@ two	.word	2			/ constant 2
 
 RASIZE	=	4			/ size of a return address
 EBPSIZE	=	4			/ size of saved %ebp
+
+//////////
+/ _fwait	Force NDP synchronization.
+/
+/ This is here in case the user wants to explicitly force an fwait.
+//////////
+
+_fwait:
+	fwait
+	ret
 
 //////////
 / _tstcc()	Test %st and copy NDP condition codes.

@@ -6,29 +6,29 @@ extern	char *_brk();
 
 #if Z8001
 paddr_t
-vtop( cp)
+vtop(cp)
 register unsigned long cp;
 {
 	register unsigned int offs = cp;
 
 	cp >>= 8;
 	cp &= 0x7F0000L;
-	return( cp | offs);
+	return(cp | offs);
 }
 
 char *
-ptov( p)
+ptov(p)
 register unsigned long p;
 {
 	register unsigned int offs = p;
 
 	p <<=8;
 	p &= 0x7F000000L;
-	return( p | offs);
+	return(p | offs);
 }
 #else
-#define vtop( A) ( (paddr_t)(A))
-#define ptov( A) ( (char *)(A))
+#define vtop(A) ((paddr_t)(A))
+#define ptov(A) ((char *)(A))
 #endif
 
 #if IAPX86
@@ -43,7 +43,7 @@ static	char	*reqbrk = end;		/* requested (virtual) end of p.d. */
 #endif
 
 int
-brk( newbrk)
+brk(newbrk)
 register char *newbrk;
 {
 	register char *abrk;
@@ -51,49 +51,49 @@ register char *newbrk;
 	errno = 0;
 	newbrk += (int)newbrk & 1;
 #if IAPX86
-	if( minbrk == NULL)
-		minbrk = actbrk = reqbrk = _brk( NULL);
+	if (minbrk == NULL)
+		minbrk = actbrk = reqbrk = _brk(NULL);
 #endif
-	if( newbrk < minbrk) {
+	if (newbrk < minbrk) {
 		errno = EINVAL;
-		return( -1);
+		return(-1);
 	}
-	abrk = _brk( newbrk);
-	if( errno)
-		return( -1);
-	if( abrk < newbrk) {
+	abrk = _brk(newbrk);
+	if (errno)
+		return(-1);
+	if (abrk < newbrk) {
 		errno = ENOMEM;
-		return( -1);
+		return(-1);
 	}
 	reqbrk = newbrk;
 	actbrk = abrk;
-	return( 0);
+	return(0);
 }
 
 char *
-sbrk( incr)
+sbrk(incr)
 register unsigned int incr;
 {
 	register paddr_t rbrk;
 
 #if IAPX86
-	if( minbrk == NULL)
+	if (minbrk == NULL)
 		minbrk = actbrk = reqbrk = _brk(NULL);
 #endif
 	incr += incr & 1;
-	rbrk = vtop( reqbrk);
-	if( rbrk + incr <= vtop( actbrk)) {
-		reqbrk = ptov( rbrk + incr);
-		return( ptov(rbrk));
+	rbrk = vtop(reqbrk);
+	if (rbrk + incr <= vtop(actbrk)) {
+		reqbrk = ptov(rbrk + incr);
+		return(ptov(rbrk));
 	}
 #if Z8001
-	if( (rbrk+incr ^ rbrk) > 65536L  &&  (int)rbrk+incr) {
+	if ((rbrk+incr ^ rbrk) > 65536L  &&  (int)rbrk+incr) {
 		rbrk += 65536L;
 		rbrk &= 0xFFFF0000L;
-		reqbrk = ptov( rbrk);
+		reqbrk = ptov(rbrk);
 	}
 #endif
-	if( brk( ptov( rbrk + incr)))
-		return( (char *)-1);
-	return( ptov( rbrk));
+	if (brk(ptov(rbrk + incr)))
+		return((char *)-1);
+	return(ptov(rbrk));
 }

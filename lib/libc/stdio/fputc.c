@@ -1,14 +1,17 @@
 /*
- * Standard I/O Library
- * Put char function (rather than macro)
+ * libc/stdio/fputc.c
+ * ANSI-compliant C standard i/o library.
+ * fputc()
+ * ANSI 4.9.7.3.
+ * Write character c to stream.
  */
 
 #include <stdio.h>
 
 int
-fputc(c, fp)
-char	c;
-register FILE	*fp;
+fputc(c, stream) int c; FILE *stream;
 {
-	return (putc(c, fp));
+	return putc(c, stream);
 }
+
+/* end of libc/stdio/fputc.c */
