@@ -4,10 +4,11 @@
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
 CC=cc286
-LD=/bin/286/ld
+LD=cc286
 AR=/bin/286/ar
 RANLIB=/bin/286/ranlib
 CP=cp
+AS=/bin/286/as
 
 DESTDIR=/
 
