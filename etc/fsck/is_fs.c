@@ -1,7 +1,9 @@
 #include <sys/stat.h>
 #include <canon.h>
 #include <sys/filsys.h>
+#include "fsck.h"
 
+#if SMALLMODEL
 /*
  * Check if a special file is a well-formed filesystem.
  * This routine is derived from code in "mount.c".
@@ -64,3 +66,4 @@ is_fs(special) char *special;
 			return 0;
 	return 1;
 }
+#endif
