@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	at.c,v $
+ * Revision 1.7  91/09/11  14:45:38  hal
+ * Trial patch for Seagate 157A problems.
+ * 
  * Revision 1.6  91/09/11  13:23:12  hal
  * Explicit sys in include paths.  AT_MAJOR.
  * 
@@ -107,7 +110,7 @@ void	atdone();
 #define	HCYL_REG	(HDBASE+5)	/* high cylinder (r/w) */
 #define	HDRV_REG	(HDBASE+6)	/* drive/head (r/w) (D<<4)+(1<<H) */
 #define	CSR_REG		(HDBASE+7)	/* status (r), command (w) */
-#define	HF_REG		0x3F6
+#define	HF_REG		(HDBASE+0x206)	/* secondary status(r)/control byte(w)*/
 
 /*
  * Error from AUX_REG (r)
@@ -224,7 +227,7 @@ static BUF	dbuf;			/* For raw I/O */
  *	ATSECS is number of seconds to wait for an expected interrupt.
  */
 int	ATBSYW = 50;			/* patchable */
-int	ATSECS = 4;			/* patchable */
+int	ATSECS = 6;			/* patchable */
 static char timeout_msg[] = "at%d: TO\n";
 
 /**
@@ -833,10 +836,12 @@ atstart()
  * void
  * atintr()	- Interrupt routine.
  *
+ *	Clear interrupt then defer actual processing.
  */
 static void
 atintr()
 {
+	inb(CSR_REG);		/* clears controller interrupt */
 	defer(atdefer, 0);
 }
 
@@ -976,7 +981,7 @@ aterror()
 	register int csr;
 	register int aux;
 
-	if ((csr = inb(CSR_REG)) & (ERR_ST|WFLT_ST)) {
+	if ((csr = inb(HF_REG)) & (ERR_ST|WFLT_ST)) {
 
 		aux = inb(AUX_REG);
 
