@@ -19,6 +19,6 @@ INCLUDE_SYS=alloc.h  ascii.h buf.h chars.h con.h const.h deftty.h \
             seg.h sem.h shm.h stat.h statfs.h stream.h timeb.h \
             timeout.h times.h tty.h types.h uproc.h utsname.h
 
-op_system: $(INCLUDE) $(INCLUDE_SYS)
-		(co $(INCLUDE) ; cp $(INCLUDE) $(DESTDIR) ; rm $(INCLUDE))
-		(co $(INCLUDE_SYS) ; cp $(INCLUDE_SYS) $(DESTDIR2) ; rm $(INCLUDE_SYS))
+op_system: 
+	co $(INCLUDE) ; su root cp $(INCLUDE) $(DESTDIR) ; su root rm $(INCLUDE)
+	cd sys; co $(INCLUDE_SYS) ; su root cp $(INCLUDE_SYS) $(DESTDIR2) ; su root rm $(INCLUDE_SYS)
