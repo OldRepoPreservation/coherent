@@ -7,22 +7,14 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
+ *	COHERENT Version 5.0
+ *	Copyright (c) 1982, 1983, 1984, 1993.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  -lgl) */
 /*
  * Coherent.
  * Character list management.
- *
- * $Log:	clist.c,v $
- * Revision 1.2  92/01/06  11:58:44  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.1	88/03/24  16:13:33	src
- * Initial revision
- * 
  */
 #include <sys/coherent.h>
 #include <sys/clist.h>
@@ -62,7 +54,7 @@ cltinit()
 /*
  * Get a character from the given queue.
  */
-getq(cqp)
+cltgetq(cqp)
 register CQUEUE *cqp;
 {
 	register cmap_t op;
@@ -102,7 +94,7 @@ register CQUEUE *cqp;
 /*
  * Put a character on the given queue.
  */
-putq(cqp, c)
+cltputq(cqp, c)
 register CQUEUE *cqp;
 {
 	register cmap_t ip;
@@ -144,7 +136,7 @@ register CQUEUE *cqp;
 	register int s;
 
 	s = sphi();
-	while (getq(cqp) >= 0)
+	while (cltgetq(cqp) >= 0)
 		;
 	spl(s);
 }
@@ -157,7 +149,7 @@ waitq()
 	while (cltfree == 0) {
 		T_HAL(0x0080, putchar('+'));
 		cltwant = 1;
-		v_sleep((char *)&cltwant, CVCLIST, IVCLIST, SVCLIST, "waitq");
+		x_sleep((char *)&cltwant, pritty, slpriNoSig, "waitq");
 		/* Wait for more character queues to become available.  */
 	}
 }
