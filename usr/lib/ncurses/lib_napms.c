@@ -23,7 +23,7 @@
 **
 **	Sleep for some millisecounds
 **
-** $Log:	RCS/lib_set_term.v $
+** $Log:	RCS/lib_napms.v $
  * Revision 1.0  92/11/26  21:47:38  munk
  * Initial version
  * 
