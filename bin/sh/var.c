@@ -61,10 +61,8 @@ char **envp;
 		flagvar("CWD", VEXP);
 	if ((wd = getwd()) == NULL)
 		wd = ".";			/* getwd() failed */
-	else
-		wd = duplstr(wd, 1);
-	dstack[dstkp] = wd;
-	assnvar("CWD", wd);
+	dstack[dstkp] = wd = duplstr(wd, 1);	/* to dstack */
+	assnvar("CWD", wd);			/* and to $CWD */
 }
 
 /*
