@@ -2,6 +2,7 @@
  * An editor.
  * Header file.
  */
+
 #define ULARGE	65535L			/* Largest unsigned value */
 #define LNSIZE	2000			/* Initial size of line number table */
 #define LBSIZE	512			/* Size of line buffer */
@@ -19,8 +20,9 @@
 /*
  * Functions for finding out whether a character is a letter and
  * to switch case from lower to upper and vice versa.
+ * Knows about ctype.h internals.
  */
-#define isallet(c)	(_ctype[(c)+1]&(_L|_D))
+#define isallet(c)	(_ctype[(c)+1]&(_L|_N))
 #define toother(c)	((c)^' ')
 
 /*
