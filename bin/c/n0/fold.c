@@ -66,6 +66,10 @@ fold0(op, lp, rp) int op; TREE *lp, *rp;
 		return (grablval(lp, 0)) ? rp->t_lp : rp->t_rp;
 	}
 
+	/* Handle ',' with constant on lhs without further ado. */
+	if (op == COMMA)
+		return rp;
+
 	if (rp != NULL) {
 		/* Check for constant right subtree. */
 		if (!isconst(rp))

@@ -60,7 +60,7 @@ short   opdope[] = {
 	15 + NSTL+RLVL+RAS,				/* --x */
 	15 + NSTL+RLVL+RAS,				/* x++ */
 	15 + NSTL+RLVL+RAS,				/* x-- */
-	1,						/* , */
+	1 + FOLD,					/* , */
 	0  + NSTL,					/* Call */
 	6  + FOLD+RTOL+RTOR,				/* && */
 	5  + FOLD+RTOL+RTOR,				/* || */
