@@ -1,7 +1,9 @@
 /*
+ * hyphen.h
  * Nroff/Troff.
  * Hyphenation header file.
  */
+
 #define LNUL	0			/* Null */
 #define LEOK	1			/* End of key */
 #define LHYP	2			/* Hyphenation point */
@@ -60,14 +62,16 @@
 /*
  * Tables.
  */
-extern	char	hyphbuf[WORSIZE];	/* Hyphentaion flag buffer */
-extern	char	hletbuf[WORSIZE];	/* Phonetic buffer */
-extern	char	hindbuf[WORSIZE];	/* Index buffer for phonetics */
-extern	char	*exctab[EXCSIZE];	/* Exception table */
-extern	char	*suftab[SUFSIZE];	/* Suffix table */
-extern	char	*pretab[PRESIZE];	/* Prefix table */
-extern	char	hyptab[];		/* Data for three above tables */
 extern	char	contab[];		/* For determining type of letter */
 extern	char	dbctab[];		/* Certain pairs of consonants */
+extern	char	*exctab[EXCSIZE];	/* Exception table */
+extern	char	hindbuf[WORSIZE];	/* Index buffer for phonetics */
+extern	char	hletbuf[WORSIZE];	/* Phonetic buffer */
+extern	char	hyphbuf[WORSIZE];	/* Hyphentaion flag buffer */
+extern	char	hyptab[];		/* Data for three above tables */
 extern	char	mm0code[];		/* Code for matching something */
 extern	char	mm1code[];		/* Code for matching something else */
+extern	char	*pretab[PRESIZE];	/* Prefix table */
+extern	char	*suftab[SUFSIZE];	/* Suffix table */
+
+/* end of hyphen.h */
