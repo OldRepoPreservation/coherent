@@ -161,7 +161,7 @@ register char *fs;
 		report(free, total);
 	}
 	if (tflag)
-		printf(", %U", sbp->s_fsize);
+		printf(", %lu", sbp->s_fsize);
 	printf("\n");
 	return (0);
 }
@@ -172,9 +172,9 @@ long total;
 {
 	long percent;
 
-	printf("%6U/%6U = ", free, total);
+	printf("%6lu/%6lu = ", free, total);
 	percent = (free * 1000L) / total;
-	printf("%2D.%1D%%", percent/10L, percent%10L);
+	printf("%2ld.%1ld%%", percent/10L, percent%10L);
 }
 
 /*
