@@ -70,18 +70,19 @@ static int trap_op();
 }
 /* end SDUMP */
 
-extern unsigned int	__xtrap_on__;
+/*
+ * Global symbols from kernel text.
+ */
+extern unsigned int	_Idle;
 extern unsigned int	__xtrap_break__;
 extern unsigned int	__xtrap_off__;
-extern unsigned int	_Idle;
-extern unsigned int	syc32;
+extern unsigned int	__xtrap_on__;
 extern unsigned int	sig32;
+extern unsigned int	syc32;
 
 /*
- * iretct is cleared in trap(), incremented and tested in gpfault().
  * iret_flt is set when first bad iret is detected.
  */
-static int iretct;
 static int iret_flt;
 
 /*
@@ -113,7 +114,6 @@ char *eip;
 	unsigned long newsp;	/* Anticipated value for stack pointer.  */
 	unsigned int cr2 = 0;
 	unsigned int cpl;
-	iretct = 0;
 
 	/*
 	 * Avoid sign extension confusion on 286 ds
@@ -265,6 +265,8 @@ char *eip;
 		break;
 	case SIPF:
 		cr2 = read_cr2();
+		T_HAL(0x1000, printf("Page Fault "));
+		T_HAL(0x1000, RDUMP());
 		/*
 		 * Page fault
 		 * 
@@ -287,6 +289,18 @@ char *eip;
 		splo -= segp->s_size;
 		datahi = u.u_segl[SIPDATA].sr_size;
 #endif /* 0 */
+
+		/*
+		 * If page fault during Ring 1 copy service routine,
+		 * such as kucopy or ukcopy, set u_error and abort
+		 * the copy, but don't send signal to the user.
+		 */
+		if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
+			T_HAL(0x1000, printf("copy trapped "));
+			SET_U_ERROR(EFAULT, "copy service");
+			eip = &__xtrap_break__;
+			goto trapend;
+		}
 
 		/*
 		 * Catch bad function pointer here - don't want to restart
@@ -542,9 +556,7 @@ printf("/nefl=%x  No single stepping the kernel.\n", efl);
 				break;
 			case DPL_3:
 				do_rdump = 0;
-if (t_hal & 0x20000) {
-	printf("Kernel SSTEP eip=%x efl=%x  ", eip, efl);
-}
+T_HAL(0x20000, printf("Kernel SSTEP eip=%x efl=%x  ", eip, efl));
 				sendsig(SIGTRAP, SELF);
 				break;
 			}
@@ -582,6 +594,7 @@ char *eip;
 		 */
 		RDUMP();
 		T_HAL(0x1000, SDUMP(&uesp));
+		T_HAL(0x1000, SDUMP(*((&uesp) + 2)));
 		panic("System GP Fault from Ring 0");
 		break;
 	case DPL_1:
@@ -609,10 +622,12 @@ char *eip;
 			eax = read_cr3();
 			eip += 3;
 			break;
+#if 0
 		case WRITE_CR3:
-			mmuupd();
+			mmuupdnR0();
 			eip += 3;
 			break;
+#endif
 		case IRET:
 			/*
 			 * Some CPU's wrongly generate GP faults on IRET
@@ -623,12 +638,6 @@ char *eip;
 				iret_flt = 1;
 				printf("CPU Bug:  "
 				  "Spurious GP Fault on Iret to Ring 3.\n");
-			}
-			iretct++;
-			if (iretct > IRET_RETRY_LIM) {
-				RDUMP();
-				SDUMP(uesp);
-				panic("System GP Fault from Ring 1 - iret");
 			}
 			break;
 		case READ_DR0:
@@ -696,7 +705,7 @@ printf("Setting DR0=%x  DR1=%x  DR2=%x  DR3=%x  DR7=%x\n",
 #endif
 		default:
 			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
-				SET_U_ERROR(EFAULT, "copy service");
+				SET_U_ERROR(EFAULT, "copy gp");
 				eip = &__xtrap_break__;
 			} else {
 				RDUMP();
@@ -772,9 +781,7 @@ printf("/nefl=%x  No single stepping the kernel.\n", efl);
 				break;
 			case DPL_3:
 				do_rdump = 0;
-if (t_hal & 0x20000) {
-	printf("User SSTEP eip=%x efl=%x  ", eip, efl);
-}
+T_HAL(0x20000, printf("User SSTEP eip=%x efl=%x  ", eip, efl));
 				sendsig(SIGTRAP, SELF);
 				break;
 			}
@@ -790,4 +797,19 @@ if (t_hal & 0x20000) {
 	write_dr6(0);
 	efl |= RESUME_FLAG;
 	return;
+}
+
+irqblab(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno,
+  err, eip, cs, efl, uesp, ss)
+{
+	puts("*ip=");
+	print32(eip);
+	puts(" *err=");
+	print32(err);
+	if ((err & 0xff) == 0x40) {
+		int irqno = (err >> 8) & 0xFF;
+		print8(irqno);
+	} else if (err == 2) {
+		puts("NMI ");
+	}
 }
