@@ -150,8 +150,8 @@ CON iscon ={
 #define VT_MONOPORT	0x3B4
 
 #ifdef	_I386
-#define VT_MONOBASE	SEG_VIDEOa
-#define VT_VGABASE	SEG_VIDEOb
+#define VT_MONOBASE	(SEG_VIDEOa|DPL_1)
+#define VT_VGABASE	(SEG_VIDEOb|DPL_1)
 #else
 #define VT_MONOBASE	0xB000
 #define VT_VGABASE	0xB800
