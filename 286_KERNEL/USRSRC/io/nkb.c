@@ -1,6 +1,6 @@
 /*
  * User configurable AT keyboard/display driver.
- * AT COHERENT
+ * 286/386 AT COHERENT
  */
 #include <sys/coherent.h>
 #include <sys/i8086.h>
@@ -13,8 +13,8 @@
 #include <sys/seg.h>
 #include <sys/sched.h>
 #include <sys/kb.h>
+#include <sys/devices.h>
 
-#define	ISMAJ		2		/* Keyboard major device */
 #define	ISVEC		1		/* Keyboard interrupt vector */
 
 #if	DEBUG
@@ -67,20 +67,24 @@ int	KBCMDBYTE = 0x05;		/* no translation */
 #define	C_TRANSLATE	0x40		/* translate enable bit in cmd byte */
 
 /*
- * Globals
- * The keyboard mapping table is too large to fit into kernel data space,
- * so we need to allocate a segment to it.
+ * Globals:
+ * The 286 keyboard mapping table is too large to fit into kernel data space,
+ * so we need to allocate a segment to it.  386 is easy.
  * The function keys tend to be small and tend to change substantially
  * more often than the mapping table, so we keep them in the kernel data space.
  */
 static	unsigned shift;			/* state of all shift/lock keys */
-static	SEG	*kbsegp;		/* keyboard table segment */
 static	unsigned char	**funkeyp = 0;	/* ptr to array of func. keys ptrs */
 static	FNKEY	*fnkeys = 0;		/* pointer to structure of values */
 static	unsigned fklength;		/* length of k_fnval field in fnkeys */
 static	unsigned prev_cmd;		/* previous command sent to KBD */
 static	unsigned cmd2;			/* 2nd byte of command to KBD */
 static	unsigned sh_index;		/* shift/lock state index */
+#if COH386
+static	KBTBL	kb[MAX_KEYS];		/* keyboard table */
+#else
+static	SEG	*kbsegp;		/* keyboard table segment */
+#endif
 
 /*
  * State variables.
@@ -116,7 +120,7 @@ int		updleds();
  */
 CON iscon ={
 	DFCHR|DFPOL,			/* Flags */
-	ISMAJ,				/* Major index */
+	KB_MAJOR,			/* Major index */
 	isopen,				/* Open */
 	isclose,			/* Close */
 	nulldev,			/* Block */
@@ -149,7 +153,7 @@ isload()
 	/*
 	 * Enable mmwatch() invocation every second.
 	 */
-	drvl[ISMAJ].d_time = 1;
+	drvl[KB_MAJOR].d_time = 1;
 
 	/*
 	 * Seize keyboard interrupt.
@@ -161,14 +165,16 @@ isload()
 	 */
 	mmstart( &istty );
 
+#if !COH386
 	/*
-	 * Allocate a segment to store the in-core keyboard table.
+	 * Allocate a 286 segment to store the in-core keyboard table.
 	 * This would be a lot more convenient in kernel data space,
 	 * but small model COHERENT doesn't have that luxury.
 	 */
 	kbsegp = salloc((fsize_t)MAX_TABLE_SIZE, SFSYST|SFNSWP|SFHIGH);
 	if (kbsegp == (SEG *)0)
 		printf("kb: unable to allocate keyboard table segment\n");
+#endif
 	fklength = 0;
 	KBDEBUG("Exiting kbload()\n");
 }
@@ -181,10 +187,12 @@ isuload()
 	if (kbstate != KB_IDLE)
 		printf("kb: keyboard busy during unload\n");
 	clrivec(ISVEC);
+#if !COH386
 	if (kbsegp != (SEG *)0) {
 		table_loaded = 0;
 		sfree(kbsegp);
 	}
+#endif
 }
 
 /*
@@ -286,18 +294,26 @@ char	*vec;
 	register unsigned i;
 	register int s;
 	int timeout;
-	register faddr_t faddr;		/* address of keyboard table */
 	static	KBTBL	this_key;	/* current key from kbd table */
 	unsigned int cmd_byte;
+#if !COH386
+	register faddr_t faddr;		/* address of keyboard table */
+#endif
 
 	KBDEBUG(" TIOCSETKBT");
 	kb_cmd2(K_SCANCODE_CMD, 3);		/* select set 3 */
 	kb_cmd(K_ALL_TMB_CMD);			/* default: TMB for all keys */
+#if !COH386
 	faddr = kbsegp->s_faddr;
+#endif
 	for (i = 0; i < MAX_KEYS; ++i) {
 		ukcopy(vec, &this_key, sizeof(this_key));
+#if COH386
+		kb[i] = this_key;		/* store away */
+#else
 		kfcopy(&this_key, faddr, sizeof(this_key));
 		faddr += sizeof(this_key);
+#endif
 		vec += sizeof(this_key);
 		if (this_key.k_key != i && this_key.k_key != 0) {
 			printf("kb: incorrect or unsorted table entry %d\n", i);
@@ -368,6 +384,10 @@ char	*vec;
 isgettable(vec)
 char	*vec;
 {
+#if COH386
+	KBDEBUG(" TIOCGETKBT");
+	kucopy(kb, vec, sizeof(kb));
+#else
 	register unsigned i;
 	register faddr_t faddr;		/* address of keyboard table */
 	static	KBTBL	this_key;	/* current key from kbd table */
@@ -380,7 +400,9 @@ char	*vec;
 		faddr += sizeof(this_key);
 		vec += sizeof(this_key);
 	}
+#endif
 }
+
 
 /*
  * Set and receive the function keys.
@@ -575,8 +597,12 @@ int	 up;
 	KBDEBUG3(" proc(%x %s)", key, (up ? "up" : "down"));
 	if (!table_loaded)
 		return;				/* throw away key */
+#if COH386
+	key_vals = kb[key];
+#else
 	fkcopy( kbsegp->s_faddr + (key * sizeof(KBTBL)),
 		&key_vals, sizeof(key_vals));
+#endif
 	if (key_vals.k_key != key)		/* empty entry */
 		return;
 	flags = key_vals.k_flags;
@@ -701,13 +727,35 @@ static
 isin( c )
 register int c;
 {
+	int cache_it = 1;
+	TTY * tp = &istty;
+
+	/*
+	 * If using software incoming flow control, process and
+	 * discard t_stopc and t_startc.
+	 */
+	if (!ISRIN) {
+		if (ISSTOP) {
+			if ((tp->t_flags&T_STOP) == 0)
+				tp->t_flags |= T_STOP;
+			cache_it = 0;
+		}
+		if (ISSTART) {
+			tp->t_flags &= ~T_STOP;
+			ttstart(tp);
+			cache_it = 0;
+		}
+	}
+
 	/*
 	 * Cache received character.
 	 */
-	istty.t_rawin.si_buf[ istty.t_rawin.si_ix ] = c;
+	if (cache_it) {
+		istty.t_rawin.si_buf[ istty.t_rawin.si_ix ] = c;
 
-	if ( ++istty.t_rawin.si_ix >= sizeof(istty.t_rawin.si_buf) )
-		istty.t_rawin.si_ix = 0;
+		if ( ++istty.t_rawin.si_ix >= sizeof(istty.t_rawin.si_buf) )
+			istty.t_rawin.si_ix = 0;
+	}
 }
 
 /**
