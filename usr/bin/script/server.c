@@ -40,6 +40,17 @@ main();
 
 /*
  * main()
+ *
+ * Usage is script [-l logfile] [command]
+ *
+ * All output from the specified command, including echoing of user
+ * input, is recorded to the logfile.
+ *
+ * "logfile" defaults to L.pid, where "pid" is the number of the
+ * recording process.
+ *
+ * "command" defaults to the whatever environment variable SHELL
+ * specifies, and to "/bin/sh" if SHELL is not set.
  */
 main(argc, argv, envp)
 int argc;
