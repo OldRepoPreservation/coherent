@@ -1,6 +1,6 @@
 /*
  * build.c
- * 5/11/90
+ * 7/3/90
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
  * Uses common routines in build0.c,
@@ -34,10 +34,12 @@
 
 #define	DOSSHRINK	0		/* punt dosshrink for now	*/
 #define	FOURDISKMSG	1		/* include disk count message	*/
-#define	VERSION		"1.6"
+#define	SIZECHECK	0		/* no filesystem max size check	*/
+#define	VERSION		"1.7"
 #define	USAGE		"Usage: /etc/build [ -dvx ]\n"
 #define	AINDEX		5		/* index of 'a' in "/dev/at0x"	*/
 #define	BSIZE		512		/* sector size			*/
+#define	MAXSIZE		32		/* suggested max size (MB)	*/
 #define	MINSIZE		4		/* required root size (MB)	*/
 #define	NDEV		(NPARTN+NPARTN)	/* number of devices		*/
 #define	NEEDSIZE	7		/* suggested min root size (MB)	*/
@@ -71,14 +73,14 @@ typedef	struct	device	{
 
 /* Device table.  The index in this table is the device minor number. */
 DEVICE	device	[NDEV] = {
-	{ 0, "/dev/at0a", "/dev/rat0a", "/conf/at0a.proto", 0L },
-	{ 0, "/dev/at0b", "/dev/rat0b", "/conf/at0b.proto", 0L },
-	{ 0, "/dev/at0c", "/dev/rat0c", "/conf/at0c.proto", 0L },
-	{ 0, "/dev/at0d", "/dev/rat0d", "/conf/at0d.proto", 0L },
-	{ 0, "/dev/at1a", "/dev/rat1a", "/conf/at1a.proto", 0L },
-	{ 0, "/dev/at1b", "/dev/rat1b", "/conf/at1b.proto", 0L },
-	{ 0, "/dev/at1c", "/dev/rat1c", "/conf/at1c.proto", 0L },
-	{ 0, "/dev/at1d", "/dev/rat1d", "/conf/at1d.proto", 0L }
+	{ 0, "/dev/at0a", "/dev/rat0a", "/tmp/at0a.proto", 0L },
+	{ 0, "/dev/at0b", "/dev/rat0b", "/tmp/at0b.proto", 0L },
+	{ 0, "/dev/at0c", "/dev/rat0c", "/tmp/at0c.proto", 0L },
+	{ 0, "/dev/at0d", "/dev/rat0d", "/tmp/at0d.proto", 0L },
+	{ 0, "/dev/at1a", "/dev/rat1a", "/tmp/at1a.proto", 0L },
+	{ 0, "/dev/at1b", "/dev/rat1b", "/tmp/at1b.proto", 0L },
+	{ 0, "/dev/at1c", "/dev/rat1c", "/tmp/at1c.proto", 0L },
+	{ 0, "/dev/at1d", "/dev/rat1d", "/tmp/at1d.proto", 0L }
 };
 
 /* Externals. */
@@ -141,6 +143,12 @@ main(argc, argv) int argc; char *argv[];
 			pp->d_name[AINDEX] = pp->d_rname[AINDEX] = pp->d_pname[AINDEX] = 'x';
 	}
 
+#if	0
+	/* Configure a 128KB (256 block) RAM disk and mount it on /tmp. */
+	sys("/etc/mkfs /dev/ram0 256", S_FATAL);
+	sys("/etc/mount /dev/ram0 /tmp", S_FATAL);
+#endif
+
 	welcome();
 	set_date();
 	fdisk();
@@ -161,8 +169,6 @@ main(argc, argv) int argc; char *argv[];
 
 /*
  * Scan each COHERENT device for bad blocks.
- * This should use a RAMdisk so the boot/build disk can be write-protected
- * but currently it writes prototypes to /conf instead.
  */
 void
 badscan()
@@ -219,8 +225,9 @@ copy()
 	/* Copy the boot floppy to it. */
 	sprintf(cmd, "/bin/cpdir -ad%s -smnt -sbegin / /mnt", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
-	if (!exists("/mnt/mnt"))
-		sys("/bin/mkdir /mnt/mnt", S_FATAL);
+	sys("/bin/mkdir /mnt/mnt", S_FATAL);
+	sys("/bin/chown bin /mnt/mnt", S_NONFATAL);
+	sys("/bin/chgrp bin /mnt/mnt", S_NONFATAL);
 
 	/* Write entry to /etc/install.log. */
 	sys("/bin/echo /etc/build: >>/mnt/etc/install.log", S_NONFATAL);
@@ -228,7 +235,7 @@ copy()
 	sys(cmd, S_NONFATAL);
 
 	/* Patch the /coherent image on the hard disk. */
-	sprintf(cmd, "/conf/patch /mnt/coherent %s=%lu:l %s=%lu:l",
+	sprintf(cmd, "/conf/patch /mnt/coherent ronflag_=0 %s=%lu:l %s=%lu:l",
 		"___", atol(serialno), "_entry_", atol(serialno));
 	sys(cmd, S_FATAL);
 	sprintf(cmd, "/conf/patch /mnt/coherent rootdev_=makedev\\(%d,%d\\) pipedev_=makedev\\(%d,%d\\)",
@@ -236,7 +243,7 @@ copy()
 	sys(cmd, S_FATAL);
 
 	/* Grow /lost+found to make room for files. */
-	sys("cd /lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
+	sys("cd /mnt/lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
 		S_IGNORE);
 
 	/* Create /autoboot. */
@@ -257,6 +264,9 @@ copy()
 	/* Write the serial number to /etc/serialno. */
 	sprintf(cmd, "/bin/echo %s >/mnt/etc/serialno", serialno);
 	sys(cmd, S_NONFATAL);
+
+	/* Save the prototypes from /tmp to /conf. */
+	sys("/bin/mv /mnt/tmp/at??.proto /mnt/conf", S_NONFATAL);
 }
 
 /*
@@ -312,7 +322,7 @@ done()
 void
 fdisk()
 {
-	register int fd, drive, i, j, opened, cohpart;
+	register int fd, drive, i, j, opened, cohpart, flag;
 	char *fname, *s;
 
 	cls(0);
@@ -361,10 +371,14 @@ fdisk()
 "existing bootstrap program.\n"
 "\n"
 		);
-	if (yes_no("Do you want to use the COHERENT master boot")) {
+	if (yes_no("Do you want to use the COHERENT master boot"))
 		++mboot;
+#if	SIZECHECK
+retry:
+#endif
+	if (mboot)
 		sys("/etc/fdisk -b /conf/mboot", S_FATAL);
-	} else
+	else
 		sys("/etc/fdisk", S_FATAL);
 	for (drive = opened = 0; drive < 2; ++drive) {
 		fname = xdev[drive];
@@ -436,12 +450,32 @@ fdisk()
 	printf("Your system includes %d COHERENT partition%s:\n",
 		ndevices, (ndevices == 1) ? "" : "s");
 	printf("Drive Partition\t  Device\tMegabytes\n");
-	for (i = 0; i < NDEV; i++)
+	for (flag = i = 0; i < NDEV; i++)
 		if (isflag(i, F_COH)) {
 			cohpart = i;
 			printf("%3d\t%3d\t%s\t%.2f\n",
 				i/4, i, device[i].d_name, meg(device[i].d_size));
+#if	SIZECHECK
+			if (((int)meg(device[i].d_size)) > MAXSIZE)
+				flag = 1;
+#endif
 		}
+#if	SIZECHECK
+	if (flag) {
+		printf(
+"\n"
+"Your system includes a large COHERENT filesystem (larger than %d megabytes).\n"
+"The /etc/fsck command which checks filesystem consistency may run out of\n"
+"memory and fail on large filesystems.  If it fails, you will need to edit\n"
+"the files /etc/checklist (so /etc/fsck does not check the large filesystem)\n"
+"and /etc/brc (to check the large filesystem with /bin/check).  Alternatively,\n"
+"you can repartition the hard disk to define smaller COHERENT partitions.\n",
+			MAXSIZE);
+		if (yes_no("Do you want to repartition the hard disk"))
+			goto retry;
+		printf("\n");
+	}
+#endif
 	if (ndevices == 1) {
 		root = cohpart;
 		setflag(root, F_ROOT);
@@ -882,11 +916,12 @@ welcome()
 
 	cls(0);
 	printf(
-"\n\n\n\n\n\n\n\n\n"
+"\n\n\n\n\n\n\n\n"
 "                              The COHERENT System\n\n"
 "                    (c) 1982, 1990 by Mark Williams Company\n\n"
-"                        708-689-2300, 708-689-1331 (FAX)\n"
-"\n\n\n\n\n\n\n"
+"                     60 Revere Drive, Northbrook, IL  60062\n\n"
+"                        708-291-6700, 708-291-6750 (FAX)\n"
+"\n\n\n\n\n\n"
 		);
 	cls(1);
 	printf(
