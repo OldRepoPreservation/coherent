@@ -1,7 +1,7 @@
-# libm/i387/Makefile 12/2/92
+# libm/i387/Makefile 2/4/93
 
 ASFLAGS=-fx
-
+DESTDIR=/bin386/lib/ndp/
 OBJ=\
 	acos87.o\
 	asin87.o\
@@ -13,6 +13,7 @@ OBJ=\
 	error87.o\
 	exp87.o\
 	fabs87.o\
+	fmod.o\
 	hypot87.o\
 	j0.o\
 	j1.o\
@@ -26,7 +27,8 @@ OBJ=\
 	tanh87.o
 
 libm87.a:	$(OBJ)
-	ar ruvks libm87.a $(OBJ)
+	ar rucks $(DESTDIR)libm.a $(OBJ)
+#	ar rucks libm87.a $(OBJ)
 
 # Secondary targets.
 # Assembler sources.
@@ -48,7 +50,10 @@ sqrt87.o:	sqrt87.s
 tan87.o:	tan87.s
 tanh87.o:	tanh87.s
 # C sources.
+fmod.o:		fmod.c
 j0.o:		j0.c
 j1.o:		j1.c
 jn.o:		jn.c
 pol.o:		pol.c
+
+# end of /usr/src/libm/i387/Makefile
