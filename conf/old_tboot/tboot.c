@@ -54,7 +54,7 @@ main()
 	sys_base = DEF_SYS_BASE;
 	sys_base_set = FALSE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.5 alpha\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 1.0.6\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
@@ -63,10 +63,11 @@ main()
 			/* Ask for another name.
 			 * Don't generate a message for name "".
 			 */
-			if (cmd_name[0] != '\0') {
+			if (cmd_name[0] != '\0' &&
+			    (0 == strcmp(cmd_name, "autoboot"))) {
 				puts("\r\nCan't find \"");
 				puts(cmd_name);
-				puts("\".  Please choose another.\r\n");
+				puts("\".  Type \"dir\" for a list of files.\r\n");
 				puts("If installing COHERENT, please type begin.\r\n");
 			}
 
@@ -94,7 +95,7 @@ main()
 		if (0 == iopen(&imageinode, imageinum)) {
 			puts("Can't open ");
 			puts(cmd_name);
-			puts(".\r\n");
+			puts(".  Type \"dir\" for a list of files.\r\n");
 			continue;
 		}
 
@@ -119,7 +120,7 @@ main()
 			puts("File ");
 			puts(cmd_name);
 			puts(" is not an executable.\r\n");
-				puts("Please choose another.\r\n");
+			puts(".\r\n");
 			cmd_name[0] = '\0';
 		}
 
