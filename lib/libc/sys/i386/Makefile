@@ -1,4 +1,4 @@
-# /usr/src/libc/sys/i386/Makefile 2/14/92
+# /usr/src/libc/sys/i386/Makefile 4/30/92
 
 ASFLAGS=
 
@@ -17,10 +17,13 @@ OBJ=\
 	shmemul.o\
 	signal.o\
 	time.o\
+	uname.o\
+	ustat.o\
 	utsemul.o\
 	wait.o
 
 # These objects are built from sources generated automatically by mkscall.
+# N.B. getdents.o is not in this list for now, libc.a uses ndir version instead.
 AUTOOBJ=\
 	_exit.o\
 	_msgsys.o\
@@ -42,7 +45,6 @@ AUTOOBJ=\
 	fcntl.o\
 	fstat.o\
 	fstatfs.o\
-	getdents.o\
 	getegid.o\
 	geteuid.o\
 	getgid.o\
@@ -60,6 +62,7 @@ AUTOOBJ=\
 	open.o\
 	pause.o\
 	plock.o\
+	poll.o\
 	profil.o\
 	ptrace.o\
 	read.o\
@@ -117,6 +120,8 @@ shmemul.o:	shmemul.c
 signal.o:	signal.s
 	$(AS) -o $@ $<
 time.o:		time.c
+uname.o:	uname.c
+ustat.o:	ustat.c
 utsemul.o:	utsemul.c
 wait.o:		wait.s
 	$(AS) -o $@ $<
