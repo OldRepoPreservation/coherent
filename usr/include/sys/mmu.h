@@ -18,16 +18,6 @@
 	 * a segment is a 4 megabyte paragraph (level 1 page table entry)
 	 */
 
-#if 0
-#define	DESC_4096	0x00800000L
-#define	DESC_32I	0x00C09b00L
-#define	DESC_32D	0x00C09300L
-#define	DESC_16I	0x00809b00L
-#define	DESC_16D	0x00809300L
-#define	DESC_TSS_32A	0x00008900L	/* available 386 TSS */
-#define	D_USR		0x00006000L
-#endif
-
 #define UII_BASE	0x00400000L	/* base for sep I/D l.out text */
 
 #define	SEG_ILL		0x00	/* The empty page table entry.	*/
@@ -81,7 +71,6 @@
 #define	PTABLE0_P	0x00001	/* Page directory physical address.	*/
 #define	PBASE		0x00002	/* Start of kernel, physical address.	*/
 
-#define U_OFFSET	0xD00	/* offset of u area in top 4k page	*/
 #define	PTABLE0_V	0xFFFFE	/* Page directory virtual address.	*/
 #define	PPTABLE1_V	0xFFFFC	/* Virtual address of the page table
 				 * for the virtual page table.
