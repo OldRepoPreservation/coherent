@@ -1,36 +1,26 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __SYS_DEFTTY_H__
-#define __SYS_DEFTTY_H__
-
 /*
  * Coherent - default tty settings.
  *	used by sys/drv/tty.c, src/cmd0/getty.c, and src/cmd0/login.c
  *	to initialize terminal characteristics.
  */
-
-#if	'A' != 65 || '@' != 64
-# error	Your native character set should be ASCII
-#else
-# define	__CTRL(c)	((c) - '@')
-#endif
+#ifndef DEFTTY_H
+#define DEFTTY_H
+#include <sys/ascii.h>
 
 #define DEF_SG_ISPEED	B9600
 #define DEF_SG_OSPEED	B9600
-#define	DEF_SG_ERASE	'\b'
-#define	DEF_SG_KILL	__CTRL ('U')
-#define	DEF_SG_FLAGS	(CRMOD | ECHO | XTABS | CRT)
-#define	DEF_T_INTRC	__CTRL ('C')
-#define	DEF_T_QUITC	__CTRL ('\\')
-#define	DEF_T_STARTC	__CTRL ('Q')
-#define	DEF_T_STOPC	__CTRL ('S')
-#define	DEF_T_EOFC	__CTRL ('D')
+#define	DEF_SG_ERASE	A_BS
+#define	DEF_SG_KILL	A_NAK
+#define	DEF_SG_FLAGS	CRMOD|ECHO|XTABS|CRT
+#define	DEF_T_INTRC	A_ETX
+#define	DEF_T_QUITC	A_FS
+#define	DEF_T_STARTC	A_DC1
+#define	DEF_T_STOPC	A_DC3
+#define	DEF_T_EOFC	A_EOT
 #define	DEF_T_BRKC	-1
-
-#endif	/* ! defined (__SYS_DEFTTY_H__) */
-
+#endif

@@ -1,4 +1,0 @@
-netx|netronics,
-	cols#64, lines#16, bel=^G, cr=^M, clear=^L$<466>, el=^E$<1600>, 
-	ed=^F^E$<2000>, cup=\E=%p1%'@'%+%c%p2%'@'%+%c, cud1=^J, home=^D, 
-	cub1=^H, cuf1=\E+@A, cuu1=^K, pad=\200, ind=^J, ri=\E=@@^K, 

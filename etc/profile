@@ -1,19 +1,12 @@
-# /etc/profile Mon Feb 21 10:49:51 1994 CST
-# Executed at login for all users.
+: /etc/profile 9/21/90
+: Executed at login for all users.
 umask 022
-export VIEWER="/usr/bin/more -ls"
-export PAGER="exec $VIEWER"
+export PAGER="exec /bin/scat -1"
 export PATH=:/bin:/usr/bin
-export TERM=`ttytype`
-export LOGNAME=$USER
-export HZ=100
+export TERM=ansipc
+export KS=/kernel/kersrc
+export USRSYS=/kernel/kersrc/us
+export KOBJ=/kernel_objects
+export LOBJ=/load_objects
+export UU=/usr/spool/uucppublic
 . /etc/timezone
-
-# ksh is the only shell that pays attention to ENV
-export ENV=/etc/.kshrc
-
-# Display site news, e.g.
-# The check on $HOME is to prevent motd from showing on going single user.
-if [ -s /etc/motd -a "$HOME" != /etc ]; then
-	$VIEWER /etc/motd
-fi

@@ -1,4 +1,4 @@
-: /etc/shutdown 7/11/91
+: /etc/shutdown 4/5/90
 : Take the system to single user mode.
 : Unmount devices mounted by /etc/rc.
 
@@ -11,10 +11,9 @@ read ans
 
 case $ans in
 y|Y|yes|YES)
-	cd /
 	/etc/umount.all
 	/bin/echo 'Wait for the # prompt on the console.'
-	/bin/echo 'Then type "sync" before rebooting or turning off your computer.'
+	/bin/echo 'Then type "sync" before rebooting.'
 	/bin/sync
 	exec /bin/kill -1 1
 	;;
@@ -24,5 +23,3 @@ y|Y|yes|YES)
 	/bin/sync
 	;;
 esac
-
-: end of /etc/shutdown

@@ -1,24 +1,24 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
-#ifndef	__UNCTRL_H__
-#define	__UNCTRL_H__
-
 /*
- * The macro defined below is part of curses, and causes a character to
- * be converted into a printable graphic string, even if the character is
- * a control (in which case it is prefixed with an up-caret).
+ * Copyright (c) 1981 Regents of the University of California.
+ * All rights reserved.
  *
- * The _unctrl [] array definition below is not permitted in Standard
- * headers, but this is not a Standard header. Caveat utilitor.
+ * Redistribution and use in source and binary forms are permitted
+ * provided that the above copyright notice and this paragraph are
+ * duplicated in all such forms and that any documentation,
+ * advertising materials, and other materials related to such
+ * distribution and use acknowledge that the software was developed
+ * by the University of California, Berkeley.  The name of the
+ * University may not be used to endorse or promote products derived
+ * from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ *	@(#)unctrl.h	5.4 (Berkeley) 6/30/88
+ *
  */
 
-# define	unctrl(ch)	(_unctrl[ch])
-
-extern char	*_unctrl[];
-
-#endif	/* ! defined (__UNCTRL_H__) */
+#ifndef	unctrl
+#define	unctrl(c)	_unctrl[(c) & 0177]
+extern char *_unctrl[];
+#endif

@@ -1,0 +1,66 @@
+
+
+NUL                         Definition                        NUL
+
+
+
+
+NNUULL is the ASCII null character ` '.  Do not  confuse it with the
+null  pointer NULL  or with  the empty  string "".   A C-language
+string is  always terminated with a NUL.  The  empty string "" is
+an array of cchhaarrs with only one element, namely a NUL.
+
+***** See Also *****
+
+AASSCCIIII, ddeeffiinniittiioonnss, NNUULLLL
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COHERENT Lexicon                                           Page 1
+
+

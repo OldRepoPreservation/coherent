@@ -1,26 +1,19 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
-#ifndef	 __SYS_KTTY_H__
-#define	 __SYS_KTTY_H__
-
 /*
  * Kernel portion of typewriter structure.
  */
-
-#include <common/feature.h>
-#include <kernel/timeout.h>
+#ifndef	 KTTY_H
+#define	 KTTY_H
+#include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/clist.h>
 #include <sgtty.h>
+#ifdef _I386
 #include <termio.h>
+#endif
+#include <sys/timeout.h>
 
 #define	NCIB	256		/* Input buffer */
-#define	OHILIM	500		/* Output buffer hi water mark */
+#define	OHILIM	128		/* Output buffer hi water mark */
 #define	OLOLIM	40		/* Output buffer lo water mark */
 #define	IHILIM	512		/* Input buffer hi water mark */
 #define	ILOLIM	40		/* Input buffer lo water mark */
@@ -45,53 +38,46 @@ typedef struct tty {
 	int	t_opos;		/* Original horizontal position */
 	struct	sgttyb t_sgttyb;/* Stty/gtty information */
 	struct	tchars t_tchars;/* Tchars information */
+#ifdef _I386
 	struct	termio t_termio;
+#endif
 	int	t_group;	/* Process group */
 	int	t_escape;	/* Pending escape count */
 	event_t t_ipolls;	/* List of input polls enabled on device */
 	event_t t_opolls;	/* List of output polls enabled on device */
 	TIM	t_rawtim;	/* Raw timing struct */
-	int	t_cs_sel;	/* ... obsolete ... */
-	TIM	t_vtime;	/* VTIME timing struct */
-	TIM	t_sbrk;		/* TCSBRK timing struct */
+	int	t_cs_sel;	/* 0 for resident drivers, CS for loadable */
 } TTY;
 
 /*
- * Test macros for various conditions related to the terminal settings; the
- * tests are related to conditions at the granularity of the System V modes,
- * so for COHERENT-286 the conditions are synthesized from the old V7 modes.
+ * Test macros.
+ * Assume `tp' holds a TTY pointer.
+ *	  `c'  a character.
+ * Be very careful if you work on the
+ * tty driver that this is true.
  */
-
-#define	_IS_BREAK_CHAR(tp,c)	((tp)->t_tchars.t_brkc == (c))
+#define	ISINTR	(tp->t_tchars.t_intrc  == c)
+#define	ISQUIT	(tp->t_tchars.t_quitc  == c)
+#define	ISEOF	(tp->t_tchars.t_eofc   == c)
+#define	ISBRK	(tp->t_tchars.t_brkc   == c)
+#define	ISSTART	(tp->t_tchars.t_startc == c)
+#define	ISSTOP	(tp->t_tchars.t_stopc  == c)
+#define	ISCRMOD	((tp->t_sgttyb.sg_flags&CRMOD) != 0)
+#define	ISXTABS	((tp->t_sgttyb.sg_flags&XTABS) != 0)
+#define	ISECHO	((tp->t_sgttyb.sg_flags&ECHO)  != 0)
+#define	ISERASE	(tp->t_sgttyb.sg_erase == c)
+#define	ISKILL	(tp->t_sgttyb.sg_kill  == c)
+#define	stopc	(tp->t_tchars.t_stopc)
+#define	startc	(tp->t_tchars.t_startc)
 
 /*
  * The following are not part of S5 sgtty.
  */
+#define	ISRIN	((tp->t_sgttyb.sg_flags&RAWIN) != 0)
+#define	ISROUT	((tp->t_sgttyb.sg_flags&RAWOUT)!= 0)
+#define	ISCRT	((tp->t_sgttyb.sg_flags&CRT)   != 0)
+#define	ISCBRK	((tp->t_sgttyb.sg_flags&CBREAK)!= 0)
+#define	ISTAND	((tp->t_sgttyb.sg_flags&TANDEM)!= 0)
+#define	ISBBYB	((tp->t_sgttyb.sg_flags&(RAWIN|CBREAK)) != 0)
 
-#define	_IS_RAW_INPUT_MODE(tp)	(((tp)->t_sgttyb.sg_flags & RAWIN) != 0)
-#define	_IS_CRT_MODE(tp)	(((tp)->t_sgttyb.sg_flags & CRT) != 0)
-
-#define	_IS_EOF_CHAR(tp,c)	((tp)->t_termio.c_cc [VEOF] == (c))
-#define	_IS_ERASE_CHAR(tp,c)	((tp)->t_termio.c_cc [VERASE] == (c))
-#define	_IS_INTERRUPT_CHAR(tp,c) \
-				((tp)->t_termio.c_cc [VINTR] == (c))
-#define	_IS_KILL_CHAR(tp,c)	((tp)->t_termio.c_cc [VKILL] == (c))
-#define	_IS_QUIT_CHAR(tp,c)	((tp)->t_termio.c_cc [VQUIT] == (c))
-#define	_IS_START_CHAR(tp,c)	(CSTART == (c))
-#define	_IS_STOP_CHAR(tp,c)	(CSTOP == (c))
-
-#define	_IS_CANON_MODE(tp)	(((tp)->t_termio.c_lflag & ICANON) != 0)
-#define	_IS_ECHO_MODE(tp)	(((tp)->t_termio.c_lflag & ECHO) != 0)
-#define _IS_ICRNL_MODE(tp)	(((tp)->t_termio.c_iflag & ICRNL) != 0)
-#define _IS_IGNCR_MODE(tp)	(((tp)->t_termio.c_iflag & IGNCR) != 0)
-#define	_IS_ISIG_MODE(tp)	(((tp)->t_termio.c_lflag & ISIG) != 0)
-#define	_IS_ISTRIP_MODE(tp)	(((tp)->t_termio.c_iflag & ISTRIP) != 0)
-#define _IS_IXON_MODE(tp)	(((tp)->t_termio.c_iflag & IXON) != 0)
-#define _IS_IXANY_MODE(tp)	(((tp)->t_termio.c_iflag & IXANY) != 0)
-#define _IS_OCRNL_MODE(tp)	(((tp)->t_termio.c_oflag & OCRNL) != 0)
-#define _IS_ONLCR_MODE(tp)	(((tp)->t_termio.c_oflag & ONLCR) != 0)
-#define	_IS_RAW_OUT_MODE(tp)	(((tp)->t_termio.c_oflag & OPOST) == 0)
-#define	_IS_TANDEM_MODE(tp)	(((tp)->t_termio.c_iflag & IXOFF) != 0)
-#define	_IS_XTABS_MODE(tp)	(((tp)->t_termio.c_oflag & TABDLY) == TAB3)
-
-#endif	/* ! defined (__SYS_KTTY_H__) */
+#endif

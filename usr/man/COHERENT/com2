@@ -1,0 +1,66 @@
+
+
+com2                      Device Driver                      com2
+
+
+
+
+Device driver for asynchronous serial line COM2
+
+
+/dev/com2  is   the  COHERENT  system's   standard  interface  to
+asynchronous serial  line COM2.  The interface  is assigned major
+device 6, and is accessed as a character-special device.  The I/O
+address  for the  corresponding 8250 SIO  is 0x2F8  (COM2).  com2
+generates interrupt IRQ3.
+
+Four versions of device com2 are in directory /dev, as follows:
+
+
+                                                     _M_o_d_e_m
+          _D_e_v_i_c_e _N_a_m_e  _M_a_j_o_r     _M_i_n_o_r   _I/_O _T_y_p_e  _C_o_n_t_r_o_l?
+          /ddeevv/ccoomm22ll      6        128   Interrupts    No
+          /ddeevv/ccoomm22rr     6         0    Interrupts    Yes
+          /ddeevv/ccoomm22ppll    6        192     Polled      No
+          /ddeevv/ccoomm22pprr    6        64      Polled      Yes
+
+
+For details on how these differ, see the entry for com.
+
+***** Files *****
+
+/ddeevv/ccoomm22ll -- Interrupt-driven, non-modem (local) line
+/ddeevv/ccoomm22rr -- Interrupt-driven, modem (non-local) line
+/ddeevv/ccoomm22ppll --Polled, non-modem (local) line
+/ddeevv/ccoomm22pprr -- Polled, modem (non-local) line
+
+***** See Also *****
+
+com, com4, stty
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COHERENT Lexicon                                           Page 1
+
+

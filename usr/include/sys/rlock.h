@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 3.2.2
+ * 	COHERENT Version 4.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
@@ -8,10 +8,8 @@
  * Record locking.
  */
 
-#ifndef __SYS_RLOCK_H__
-#define __SYS_RLOCK_H__
-
-#include <sys/ksynch.h>
+#ifndef _RLOCK_H
+#define _RLOCK_H
 
 /*
  * Internal record lock.

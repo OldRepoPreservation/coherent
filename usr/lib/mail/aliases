@@ -37,7 +37,28 @@
 postmaster:		root
 uucp:			root
 daemon:			root
+srcadmin:		bin
+bob:			bin bob@mwc.com
 
 #---------------------------------------#
 # Local alias names			#
 #---------------------------------------#
+doug:			mwc!htrails!doug
+dong:			mwc!htrails!dong
+stephen:		mwc!stephen
+bbs:			mwc!dalek!mwcbbs!bob
+
+#-----PROGRAMMERS-----#
+norm:			mwc!norm
+hal:			mwc!hal
+cef:			mwc!cef
+vlad:			mwc!vlad
+mark:			mwc!epstein
+steve:			mwc!steve
+LaMont:			mwc!piggy
+programmers:		norm hal cef vlad mark steve LaMont
+
+#-----the big cheese-----#
+rs:			mwc!rs
+nancy:			mwc!nancy
+everyone:		programmers dong stephen rs nancy

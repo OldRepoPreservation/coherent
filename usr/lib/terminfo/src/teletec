@@ -1,3 +1,0 @@
-teletec|Teletec Datascreen,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, cud1=^J, home=^^, 
-	cub1=^H, cuf1=^_, cuu1=^K, ind=^J, 

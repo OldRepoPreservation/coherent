@@ -1,5 +1,0 @@
-case $# in
-	1) make "TARG=$1" $1/db;;
-	*) echo "Usage -- mkdb target";
-	exit 1;
-esac

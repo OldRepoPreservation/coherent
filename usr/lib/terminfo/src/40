@@ -1,4 +1,0 @@
-40|tty40|ds40|ds40-2|dataspeed40|teletype dataspeed 40/2,
-	cols#80, lines#24, cr=\EG, clear=\ER$<160>, ed=\EJ$<160>, cud1=\EB, 
-	cub1=^H, cuf1=\EC, cuu1=\E7, dch1=\EP$<50>, dl1=\EM$<160>, smso=\E3, 
-	rmso=\E4, flash=, ich1=\E^$<50>, il1=\EL$<160>, ind=^J, 

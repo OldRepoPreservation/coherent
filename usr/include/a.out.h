@@ -1,16 +1,9 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __A_OUT_H__
-#define __A_OUT_H__
-
-/*
- * COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90
- */
+/* COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90 */
 
 struct	filehdr {
 	unsigned short	f_magic;	/* I386MAGIC */
@@ -76,14 +69,7 @@ struct scnhdr {
 #define	STYP_OVER	0x400			/* not supported */
 #define	STYP_LIB	0x800			/* not supported */
 
-#if	NUSEG
-/*
- * It is not at all clear who uses this stuff below, or why the magic user-
- * namespace symbol NUSEG is needed. NUSEG is actually part of the deep
- * kernel internal stuff...
- */
-	/*
-	 * xechdr corresponds to the least commmon denominator
+	/* exechdr corresponds to the least commmon denominator
 	 * of the COFF format and the <l.out> format 286 Coherent used
 	 */ 
 
@@ -100,14 +86,4 @@ struct	xechdr {
 	struct	xecseg segs[NUSEG+1];		/* text, data, bss, stack */ 
 };
 
-struct	xecnode {
-	int	segtype;			/* 0..NUSEG */
-	struct	xecseg xseg;
-	struct	xecnode *xn;
-};
-
-#endif	/* NUSEG */
-
 #define	XMAGIC(a, b)	((a<< 16) | b)
-
-#endif

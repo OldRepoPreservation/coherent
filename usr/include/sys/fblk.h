@@ -7,8 +7,8 @@
  * Disk free block.
  */
 
-#ifndef	 __SYS_FBLK_H__
-#define	 __SYS_FBLK_H__
+#ifndef	 FBLK_H
+#define	 FBLK_H	FBLK_H
 
 #include <sys/types.h>
 
@@ -20,11 +20,11 @@
 /*
  * Free list block structure.
  */
-#pragma align 2
+/*#pragma align 2*/
 struct fblk {
 	short	 df_nfree;		/* Number of free blocks */
 	daddr_t	 df_free[NICFREE];	/* Free blocks */
 };
-#pragma align
+/*#pragma align*/
 
 #endif

@@ -34,6 +34,11 @@ char dummy[50];
 		for(x=0;x<strlen(argv[1]);x++)
 			{
 
+/* test for v */	if( argv[1][x] == 'v' ){
+				printf("mwcbbs interface version %s\n",
+					VERSION);
+				exit(0);
+			}
 /* test for pP */	if((argv[1][x] == 112) || (argv[1][x] == 80))
 				break;
 
@@ -61,7 +66,8 @@ char dummy[50];
 				printf("\tOptions:\n");
 				printf("\t -[Pp] print Contents files\n");
 				printf("\t -[Dd] specify destination directory\n");
-				printf("\t -?    usage message\n");
+				printf("\t -[v]  specify interface version\n");
+				printf("\t -[?]  usage message\n");
 				exit(1);
 				}
 			}
@@ -655,15 +661,22 @@ void build_uucp(record)
 
 
 {
-int x,y;
+int x,y,z;
 
 	y = strlen(record.pathname);
 
-	for(x=0;x< record.noparts;x++)
-		{
+	for(x=0;x< record.noparts;x++){
 		strcpy(getfiles[x],HOST);
 		record.pathname[y] = 97 + x;
+		record.pathname[y+1] = '\0';
 		strcat(getfiles[x],record.pathname);
 		strcat(getfiles[x],recdir);
+	
+		for(z=strlen(getfiles[x]) ; z < sizeof(getfiles[x]) ; z++){
+			getfiles[x][z] = '\0';
 		}
+
+	}
+
+
 }

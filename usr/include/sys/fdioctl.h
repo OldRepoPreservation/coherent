@@ -1,19 +1,16 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 3.0
+ *	Copyright 1989 by Inetco Systems, Ltd.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __SYS_FDIOCTL_H__
-#define __SYS_FDIOCTL_H__
-
 /*
- * Floppy I/O control commands.
+ * Floppy io control commands.
  */
 
-#define FDIOC		('F'<<8)
-#define FDFORMAT	(FDIOC|1)	/* Format diskette track */
+#ifndef FDIOCTL_H
+#define FDIOCTL_H	FDIOCTL_H
+
+#define FDFORMAT	0100	/* Format diskette track */
 
 /*
  * Formatting information is largely supplied
@@ -30,7 +27,6 @@
  * one for each sector being formatted specifying the cylinder,
  * head, sector number, and size of the sector.
  */
-
 struct fform {
 	char	ff_cylin;	/* 0 .. number of tracks - 1 */
 	char	ff_head;	/* 0 or 1 */
@@ -38,5 +34,4 @@ struct fform {
 	char	ff_size;	/* 1, 2, or 3 for 256, 512, or 1024 */
 };
 
-#endif	/* ! defined (__SYS_FDIOCTL_H__) */
-
+#endif

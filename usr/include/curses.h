@@ -22,13 +22,50 @@
 *                decvax!cornell!pavel       (UUCPnet)                *
 *********************************************************************/
 
-#ifndef __CURSES_H__
-#define	__CURSES_H__
+/*
+ *      curses.h - Main header file for the curses package
+ *
+ *  $Header: /src386/usr/include/RCS/curses.h,v 1.1 92/07/07 12:24:08 bin Exp $
+ *
+ *  $Log:	curses.h,v $
+ * Revision 1.1  92/07/07  12:24:08  bin
+ * Initial revision
+ * 
+Revision 2.1  82/10/25  14:46:08  pavel
+Added Copyright Notice
 
-#define USE_TERMIO
+Revision 2.0  82/10/24  15:17:22  pavel
+Beta-one Test Release
+
+Revision 1.4  82/08/23  22:30:13  pavel
+The REAL Alpha-one Release Version
+
+Revision 1.3  82/08/20  16:52:46  pavel
+Fixed <terminfo.h> bug
+
+Revision 1.2  82/08/19  19:10:13  pavel
+Alpha Test Release One
+
+Revision 1.1  82/08/12  18:38:57  pavel
+Initial revision
+
+ *
+ */
+
+#ifndef WINDOW
+
+#include <terminfo.h>
+
+
 #define bool    char
 
-typedef unsigned long chtype;
+
+#ifndef MINICURSES
+    typedef unsigned short  chtype;
+#else
+    typedef unsigned char   chtype;
+#endif  MINICURSES
+
 
 #ifndef TRUE
 #  define TRUE    (1)
@@ -44,8 +81,6 @@ typedef unsigned long chtype;
 #define _SCROLLWIN      010
 
 #define _NOCHANGE       -1
-
-#include <terminfo.h>
 
 struct _win_st {
 	short   _cury, _curx;
@@ -70,17 +105,17 @@ struct _win_st {
 
 #define WINDOW  struct _win_st
 
-extern WINDOW	*stdscr, *curscr;
+WINDOW	*stdscr, *curscr;
 
-extern int	LINES, COLS, COLORS, COLOR_PAIRS;
-extern short	pair, f, b, color, r, g, b;
+int	LINES, COLS;
 
 WINDOW  *initscr(), *newwin(), *subwin();
 char    *longname();
 struct  screen  *newterm(), *set_term();
 
+
 /*
- * pseudo functions
+ * psuedo functions
  */
 
 #define getyx(win,y,x)   (y = (win)->_cury, x = (win)->_curx)
@@ -99,9 +134,10 @@ struct  screen  *newterm(), *set_term();
 #define wattroff(win,at)        ((win)->_attrs &= ~(at))
 #define wattrset(win,at)        ((win)->_attrs = (at))
 
+
 #ifndef MINICURSES
 	/*
-	 * pseudo functions for standard screen
+	 * psuedo functions for standard screen
 	 */
 #  define addch(ch)       waddch(stdscr, ch)
 #  define getch()         wgetch(stdscr)
@@ -118,6 +154,7 @@ struct  screen  *newterm(), *set_term();
 #  define insch(c)        winsch(stdscr,c)
 #  define delch()         wdelch(stdscr)
 #  define setscrreg(t,b)  wsetscrreg(stdscr,t,b)
+
 	    /*
 	     * mv functions
 	     */
@@ -125,19 +162,19 @@ struct  screen  *newterm(), *set_term();
 #  define mvwgetch(win,y,x)       (wmove(win,y,x) == ERR ? ERR : wgetch(win))
 #  define mvwaddstr(win,y,x,str)  (wmove(win,y,x) == ERR ? ERR \
 							 : waddstr(win,str))
-#  define mvwgetstr(win,y,x,str)  (wmove(win,y,x) == ERR ? ERR : wgetstr(win,str))
+#  define mvwgetstr(win,y,x)      (wmove(win,y,x) == ERR ? ERR : wgetstr(win))
 #  define mvwinch(win,y,x)        (wmove(win,y,x) == ERR ? ERR : winch(win))
 #  define mvwdelch(win,y,x)       (wmove(win,y,x) == ERR ? ERR : wdelch(win))
 #  define mvwinsch(win,y,x,c)     (wmove(win,y,x) == ERR ? ERR : winsch(win,c))
 #  define mvaddch(y,x,ch)         mvwaddch(stdscr,y,x,ch)
 #  define mvgetch(y,x)            mvwgetch(stdscr,y,x)
 #  define mvaddstr(y,x,str)       mvwaddstr(stdscr,y,x,str)
-#  define mvgetstr(y,x,str)       mvwgetstr(stdscr,y,x,str)
+#  define mvgetstr(y,x)           mvwgetstr(stdscr,y,x)
 #  define mvinch(y,x)             mvwinch(stdscr,y,x)
 #  define mvdelch(y,x)            mvwdelch(stdscr,y,x)
 #  define mvinsch(y,x,c)          mvwinsch(stdscr,y,x,c)
   
-#else /* defined (MINICURSES) */
+#else MINICURSES
 
 #  define addch			  m_addch
 #  define addstr                  m_addstr
@@ -213,7 +250,8 @@ struct  screen  *newterm(), *set_term();
 #  define mvwinch         no_mvwinch
 #  define mvwinsch        no_mvwinsch
 
-#endif /* defined (MINICURSES) */
+#endif MINICURSES
+
 
 #ifndef MINICURSES
 /* Funny "characters" enabled for various special function keys for input */
@@ -247,6 +285,6 @@ struct  screen  *newterm(), *set_term();
 #define KEY_PRINT       0532            /* print or copy */
 #define KEY_LL          0533            /* home down or bottom (lower left) */
 
-#endif /* ! defined (MINICURSES) */
+#endif MINICURSES
 
-#endif /* ! defined (__CURSES_H__) */
+#endif WINDOW

@@ -1,88 +1,72 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
 /*
- * /usr/include/sys/mdata.h
  * Magic machine numbers.
- * i80386.
+ * Intel 8086.
  */
 
-#ifndef	__SYS_MDATA_H__
-#define	__SYS_MDATA_H__
+#ifndef	MDATA_H
+#define	MDATA_H	MDATA_H
 
-/* Bits per type. */
-#define	NBCHAR		8
-#define	NBSHORT		16
-#define	NBINT		32
-#define	NBLONG		32
-#define	NBFLOAT		32
-#define	NBDOUBLE	64
+/* Bits per type */
+#define	NBCHAR	  8
+#define	NBINT	  16
+#define	NBLONG	  32
+#define	NBFLOAT	  32
+#define	NBDOUBLE  64
+#define NBSHORT	  16
 
-/* Bits per pointer. */
-#define	NBPCHAR		32
-#define	NBPSHORT	32
-#define	NBPINT		32
-#define	NBPLONG		32
-#define	NBPFLOAT	32
-#define	NBPDOUBLE	32
-#define	NBPSTRUCT	32
-#define	NBPUNION	32
+/* Bits per pointer */
+#define	NBPCHAR	  16
+#define	NBPINT	  16
+#define NBPLONG	  16
+#define NBPFLOAT  16
+#define NBPDOUBLE 16
+#define NBPSHORT  16
+#define NBPSTRUCT 16
+#define NBPUNION  16
 
-/*
- * Alignment.
- * The values listed below can be misleading.
- * Under iBCS2 alignment rules, struct or union alignment
- * depends on the member types rather than being a specific value.
- * #pragma directives may also change the alignment.
- */
-/* Type alignment. */
-#define	ALCHAR		1
-#define	ALSHORT		2
-#define	ALINT		4
-#define	ALLONG		4
-#define	ALFLOAT		4
-#define	ALDOUBLE	4
-#define	ALSTRUCT	4	/* actually max of alignments of members */
-#define	ALUNION		4	/* actually max of alignments of members */
+/* Alignments, types */
+#define	ALCHAR	  01
+#define ALINT	  02
+#define ALLONG	  02
+#define ALFLOAT	  02
+#define ALDOUBLE  02
+#define ALSHORT	  02
+#define ALSTRUCT  02
+#define ALUNION   02
 
-/* Pointer alignment. */
-#define	ALPCHAR		4
-#define	ALPSHORT	4
-#define	ALPINT		4
-#define	ALPLONG		4
-#define	ALPFLOAT	4
-#define	ALPDOUBLE	4
-#define	ALPSTRUCT	4
-#define	ALPUNION	4
+/* Alignments, pointers */
+#define	ALPCHAR	  02
+#define	ALPINT	  02
+#define ALPLONG   02
+#define ALPFLOAT  02
+#define ALPDOUBLE 02
+#define ALPSHORT  02
+#define ALPSTRUCT 02
+#define ALPUNION  02
 
-/* Ranges. */
-#define	MAXCHAR		127
-#define	MINCHAR		(-128)
-#define	MAXUCHAR	255
-#define	MAXSHORT	32767
-#define	MINSHORT	(-32768)
-#define	MAXUSHORT	65535
-#define	MAXINT		2147483647
-#define	MININT		(-2147483648)
-#define	MAXUINT		4294967295
-#define	MAXLONG		2147483647L
-#define	MINLONG		(-2147483648L)
-#define	MAXULONG	4294967295L
+/* Ranges */
+#define	MAXCHAR	127
+#define	MAXUCHAR 255
+#define	MAXINT	32767
+#define	MAXUINT	(65535L)
+#define	MAXLONG	(2147483647L)
+#define	MAXULONG (4294967295L)
+#define	MININT	(-32768L)
+#define MINLONG (-2147483648L)
 
-/* Fixed point representation. */
-#define	TCINT		1
-#define	OCINT		0
-#define	SMINT		0
+/* Fixed point representation */
+#define	TCINT	1
+#define	OCINT	0
+#define	SMINT	0
 
-/* Base2 logarithms of bits per type. */
-#define	LOGCHAR		3
-#define	LOGSHORT	4
-#define	LOGINT		5
-#define	LOGLONG		5
+/* Base2 logarithms of bits per type */
+#define	LOGCHAR	3
+#define	LOGINT	4
+#define	LOGLONG	5
 
 #endif
-
-/* end of /usr/include/sys/mdata.h */

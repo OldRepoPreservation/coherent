@@ -1,17 +1,9 @@
-#define	YYACTSH		13
-#define	YYAMASK		017777
-#define	YYSHIFTACT	0
-#define	YYREDACT	1
-#define	YYACCEPTACT	2
-#define	YYERRACT	3
-#define	YYGOTO		4
-#define	YYPACTION	5
-#define	YYEOFVAL	(-1)
-#define	YYERRVAL	(-2)
-#define	YYOTHERS	(-1000)
-
-$D
-
+/* (-lgl
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+#include "action.h"
 #define YYNOCHAR (-1000)
 #define	yyerrok	yyerrflag=0
 #define	yyclearin	yylval=YYNOCHAR

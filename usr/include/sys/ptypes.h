@@ -1,15 +1,9 @@
-/* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
  * ptypes.h -- portable types.  Change the typedefs in this file
  * to match the local architecture.
  */
-#ifndef __SYS_PTYPES_H__
-#define __SYS_PTYPES_H__
-
+#ifndef PTYPES_H	/* Rest of file.  */
+#define PTYPES_H
 /* This file ought to be rewritten to adjust itself based on the contents
  * of the ANSI file limits.h.
  */

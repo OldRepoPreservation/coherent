@@ -1,99 +1,63 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+#ifndef PARAM_H
+#define	PARAM_H
 
-#ifndef	__SYS_PARAM_H__
-#define	__SYS_PARAM_H__
+/* WARNING!  Fix references to dev_loaded if ever NDRV > 8*sizeof(int) */
+#define NDRV	32			/* Number of major device entries */
+#define NOFILE	20			/* Number of user open files */
+#define NUFILE	NOFILE			/* For historical reasons */
+#define	NEXREAD	6			/* Read ahead */
 
-/*
- * This file is required to exist with certain contents by the System V ABI
- * and the iBCS2 specification. However, there is no portable use for any of
- * the contents except for PIPE_MAX, which portable applications will find
- * in <limits.h> anyway.  Users should note that the required contents of this
- * file specify values for some constants that are incorrect for any
- * implementation and are inconsistent with other constants defined in the
- * same specifications. Caveat utilitor!
- *
- * In addition, there were other symbols defined in a header of this name by
- * earlier releases of COHERENT that have some historical basis of use by
- * applications, such as NBPC.  Such symbols have not been carried over as
- * not only do portable equivalents exist but these symbols do not match the
- * required contents as defined by the ABI or iBCS2 specifications.
- *
- * Therefore, we define below only a minimal set of symbols and then only if
- * explicitly required by the _BCS_PARAM_H feature-test.  The mere fact that
- * this header exists will allow most portable software to compile cleanly in
- * the few cases where this header is included (such as in certain GNU
- * software that includes this header on the basis that the definitions might
- * be needed as a fallback if more portable alternatives fail).
- */
+#ifdef KERNEL			/* These set in *con.c */
+extern	int	NBUF;			/* Now an adjustable parameter */
+extern	int	NHASH;			/* Now an adjustable parameter */
+extern	int	NINODE;			/* Now an adjustable parameter */
+extern	int	NCLIST;			/* Now an adjustable parameter */
+extern	int	ALLSIZE;		/* Now an adjustable paramenter */
+extern	int	ISTSIZE;		/* Initial stack size (bytes) */
+#endif
 
-#include <limits.h>
+#ifdef _I386
+#define	BPCSHIFT	12
+#define	BPC1SHIFT	10
+#define	BPSSHIFT	22
+#define	NBPC		0x001000
+#define	NBPS		0x400000
 
-#if	_BCS_PARAM_H || _ABI_PARAM_H || _DDI_DKI
+#define	ISP_286		0x10000
+#define	ISP_386		stob(512)
 
-#define	NBPSCTR		512
+#define	UPASIZE		4096	/* Size in bytes of user area */
 
-#if	_BCS_PARAM_H || _ABI_PARAM_H
+#define	SYI86UNEEK	333
 
-#define	CANBSIZ		256
-#define	HZ		100
-#define	TICK		10000000
+#define	MSACOUNT	6	/* Number of ints for system call args */
+#define	ISTVIRT		0		/* Stack virtual base for sys exec */
+#define	SOVSIZE		0		/* Stack overflow size */
+#define MADSIZE		32767		/* Maximum addressable segment size */
+#define SMICALL		0		/* Start of independent system calls */
+#define NMICALL		88		/* Machine independent system calls */
+#define COHCALL		500		/* Number of COH system call */
+#define SMDCALL		128		/* Start of dependent system calls */
+#define NMDCALL		0		/* Machine dependent system calls */
+#define	BSIZE		512		/* Buffer size */
+#define SCHUNK		16384		/* I/O chunk size for swap and dump */
+#define	NCPCL		124		/* Number of characters in clist */
+#define	NPID		30000		/* Maximum process id */
+#define	MAXU		((unsigned)0177777)
 
-#define	NBBY		8
-
-#if	_BCS_PARAM_H
-
-#define	DEV_BSIZE	NBPSCTR
-
-#define	MAXPID		PID_MAX
-#define	MAXUID		UID_MAX
-#define	MAXLINK		LINK_MAX
-
-#define	NCARGS		ARG_MAX
-#define	NOFILES_MIN	20
-#define	NOFILES_MAX	100
+#define COH_PRINTF	1
+#define COH_DEVLOAD	2
+#define COH_SETFPE	3
 
 /*
- * Some software looks for NGROUPS in this file, and never looks for the
- * correct symbol in <limits.h>.  To allow this third-party software to
- * compile, we define an alternative name for NGROUPS_MAX here. To compile
- * such code, you must still use -D_BCS_PARAM_H=1
+ * There must be an even number of HZ in a second.
  */
+#define	HZ		100		/* 8253 ticks per second */
+#endif
 
-#define	NGROUPS		NGROUPS_MAX
-
-#endif	/* _BCS_PARAM_H */
-
-#if	_ABI_PARAM_H
-
-#define	NGROUPS_UMIN
-
-#endif	/* _ABI_PARAM_H */
-
-#if	0
-
-/*
- * The following definitions refer either to physical low-level file-system
- * parameters for non-supported file systems, or otherwise contradict other
- * provisions of the ABI or iBCS2 specifications. Use of the following data
- * items cannot be supported by MWC.
- */
-
-#define	NADDR		13
-#define	MAXFRAG		8
-
-#define	MAXPATHLEN	1024
-#define	MAXSYMLINKS	20
-#define	MAXNAMELEN	256
-
-#endif	/* 0 */
-
-#endif	/* _BCS_PARAM_H || _ABI_PARAM_H */
-#endif	/* _BCS_PARAM_H || _ABI_PARAM_H || _DDI_DKI */
-
-#endif	/* __SYS_PARAM_H__ */
-
+#endif

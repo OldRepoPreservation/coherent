@@ -1,10 +1,15 @@
 #define MASTERFILE "Contents"
 #define TRACE printf
+#define VERSION	"1.2.0"
 #define PATHNAME "/usr/spool/uucppublic/"
 #define MAILFILE "Maillist"
 #define TEMPFILE "mwcbbs.tmp"
 #define HOST "uucp -r mwcbbs!"
 #define RECEIVER " ~/"
+#define CONTENT1 "mwcnews/hints/Contents.hints"
+#define CONTENT2 "mwcnews/Contents.news"
+#define CONTENT3 "mwcnews/downloads/updates/Contents.UPD"
+#define CONTENT4 "mwcnews/downloads/Contents.down"
 #define MAXRECORDS 250
 #define SCREENMAX 100
 #define LENPATH 22

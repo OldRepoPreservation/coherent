@@ -5,24 +5,21 @@
 
 IDIR=../include
 ADIR=../aux
-DESTDIR=/interim/usr/bin/
-DESTDIR2=/interim/usr/lib/uucp/
+#DESTDIR=/interim/usr/bin/
+#DESTDIR2=/interim/usr/lib/uucp/
 
 CFLAGS= -O -I$(IDIR)
 LFLAGS= -n
 
 ALIB=	$(ADIR)/libuuaux.a
-LIBX=	/usr/lib/libx.a
+LIBX=	/usr/lib/libndir.a
 
-all: support modemcap uucp uudecode uuencode uulog uuname uux uumkdir uutouch \
+all: support uucp uudecode uuencode uulog uuname uux uumkdir uutouch \
      uuxqt scripts uucico \
      @
 
-modemcap:
-	(cd ../modemcap; make)
-
 uucp:	uucp.o $(ALIB)
-	$(CC) -o $(DESTDIR)$@ $(LFLAGS) $<
+	$(CC) $(CFLAGS) -o $(DESTDIR)$@ $(LFLAGS) $<
 	su root chmog 6511 uucp uucp $(DESTDIR)uucp
 
 uudecode: uudecode.o
@@ -55,7 +52,7 @@ uutouch: uutouch.o $(ALIB)
 	su root chmog 6511 uucp uucp $(DESTDIR)uutouch
 
 uuxqt:	uuxqt.o $(ALIB) $(LIBX)
-	$(CC) -o $(DESTDIR)$@ $(LFLAGS) $<
+	$(CC) -o $(DESTDIR)$@ $(LFLAGS) $< -lmisc
 	su root chmog 6511 uucp uucp $(DESTDIR)uuxqt
 
 scripts:
@@ -68,5 +65,5 @@ uucico:
 	(cd ../dcp/objects ; export SRCPATH=.. ; make)
 
 support:
-	(cd ..; make support)
-
+	(cd ../aux; make)
+	(cd ../modemcap ; make)

@@ -1,33 +1,20 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __MISC_H__
-#define __MISC_H__
-
 /*
- * Miscellaneous user functions.
+ * misc.h
+ * Miscellaneous useful user functions.
+ * Sugggestions and additions are welcome.
  */
 #ifndef OFFSETOF
 
-/*
- * Do not use this, use offsetof () from <stddef.h> instead.
- */
+/* Handy defines */
 #define OFFSETOF(type, mem) (&((char *)((type *)NULL)->m) - NULL)
-
 #define ENDOF(x) (((char *)(x))+sizeof(x)) /* end of some thing */
-
 #define SETIN(a, b) !((a) & ~(b))	/* a in b */
 
-/*
- * This code has no portable equivalent; note that subtracting two pointers
- * in C yields a value of type ptrdiff_t (defined in <stddef.h>), but any
- * attempt to deal with the difference between two pointers not derived from
- * the same object yields undefined behaviour.
- */
 #ifdef M68000
 #define ptrdiff(a, b) ((long)a - (long)b)
 #else
@@ -39,9 +26,7 @@
 #endif
 
 #include <stdio.h>
-#include <sys/select.h>
-
-extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
+extern fatal();		/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);
 			 * gets lines off a file treats # to end of line
 			 * as comment, discards \ [ \t\n] through end of
@@ -139,6 +124,4 @@ extern void regerror();
  * number; the start node begins in the second byte.
  */
 #define	REG_MAGIC	(char)0234
-#endif
-
 #endif
