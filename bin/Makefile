@@ -4,7 +4,7 @@ DESTDIR= /interim/bin/
 DESTDIR2= /interim/lib/
 CMDS= expr/expr conv/conv as/as awk/awk  \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
-      ed/ed find/find grep/grep lex/lex lmail make/make sed/sed sh/sh \
+      ed/ed find/find grep/grep lex/lex lmail smail make/make sed/sed sh/sh \
       test/test tsort/tsort yacc/yacc nroff/nroff ld/ld\
       login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
       chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
@@ -293,6 +293,10 @@ lmail:
 	cd mail/usermail/objects ; make
 	cd mail/lmail/objects ; make
 
+smail:
+	export SRCPATH=..
+	cd mail/smail/objects ; make
+
 man:	man.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)man man.c
 	su root chown bin $(DESTDIR)$@
@@ -564,7 +568,8 @@ check/check:
 	./make.in check
 
 compress/compress:
-	./make.in compress
+	export SRCPATH=..
+	cd compress/objects ; make
 
 dc/dc:
 	./make.in dc
