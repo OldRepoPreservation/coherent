@@ -1,4 +1,7 @@
 /*
+ * /usr/src/cmd/cp.c
+ * Usage: cp [ -d ] file1 file2
+ *	  cp [ -d ] file ... directory
  * Copy one file to another or
  * copy several files into a directory.
  * define SLOW for 'block at a time copying' .... (not recommended)
@@ -97,11 +100,6 @@ char *inf, *outf;
 		cperr("%s: cannot open", inf);
 		return (FALSE);
 	}
-	/* Was changed from mode&0777 to mode & 06777 to preserve
-	 * set user id and set group id bits. cp does not preserve 
-	 * sticky bit because it can be used only by superuser. 
-	 * Vlad 12-27-91.
-	 */
 	if ((outfd = creat(outf, mode & 06777)) < 0) {
 	   if (errno == ETXTBSY)
 	      cperr("%s: cannot copy over busy shared text file", outf);
@@ -249,5 +247,4 @@ register char *av[];
 	return (1);
 }
 
-
-
+/* end of cp.c */
