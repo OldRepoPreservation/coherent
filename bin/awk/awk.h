@@ -19,7 +19,8 @@
 
 typedef	double	FLOAT;		/* Floating point type */
 typedef	long	INT;		/* Integer type */
-typedef	char	*STRING;	/* String type */
+typedef unsigned char CHAR;	/* character type */
+typedef	unsigned char *STRING;	/* String type */
 
 #define	stof	atof		/* String to FLOAT */
 #define	stoi	atol		/* String to INT */
@@ -30,8 +31,8 @@ typedef	char	*STRING;	/* String type */
  * not used here).
  */
 typedef	struct	TERM {
-	char	t_op;			/* Op type */
-	char	t_flag;
+	CHAR	t_op;			/* Op type */
+	CHAR	t_flag;
 	struct	TERM	*t_next;	/* Hash chain */
 	unsigned t_hval;		/* Hash value for symbol table */
 	unsigned t_ahval;		/* Hash value without array index */
@@ -41,11 +42,11 @@ typedef	struct	TERM {
 		STRING	t_str;
 		struct {
 			union	NODE	*(*t_func)();
-			char	t_minarg;
-			char	t_maxarg;
+			CHAR	t_minarg;
+			CHAR	t_maxarg;
 		}	t_fun;
 	}	t_un;
-	char	t_name[];		/* Name of array or identifier */
+	CHAR	t_name[];		/* Name of array or identifier */
 }	TERM;
 
 /* Node types (t_flag) */
@@ -59,10 +60,10 @@ typedef	struct	TERM {
  * Expression tree node.
  */
 typedef	struct	OPNODE {
-	char	n_op;
-	char	n_flag;
+	CHAR	n_op;
+	CHAR	n_flag;
 	union {
-		char	*n_charp;
+		CHAR	*n_charp;
 		int	n_char;
 		struct	NODE	*n_node;
 	}	n_o1, n_o2, n_o3, n_o4;
@@ -95,7 +96,7 @@ typedef	union	NODE {
 typedef	struct	OFILE {
 	int	of_flag;
 	FILE	*of_fp;
-	char	*of_name;
+	CHAR	*of_name;
 }	OFILE;
 
 /* of_flag bits */
@@ -108,8 +109,8 @@ typedef	struct	OFILE {
 #define	bump(ip,t)	(ip+=sizeof(t)/sizeof(int))	/* bump for printf */
 
 /* Function declaration */
-char	*sprintf();
-char	*xalloc();
+void	sprintf();
+CHAR	*xalloc();
 STRING	awkinput();
 NODE	*lookup();
 NODE	*alookup();
@@ -158,10 +159,10 @@ NODE	*f_abs();
 /*
  * External references.
  */
-extern	char	*parg;		/* Program argument pointer */
+extern	CHAR	*parg;		/* Program argument pointer */
 extern	FILE	*pfp;		/* Program file pointer */
 extern	int	lexre;		/* Reading regular expression -- yylex */
-extern	char	wordbuf[NWORD];
+extern	CHAR	wordbuf[NWORD];
 extern	TERM	xzero;
 extern	TERM	xone;
 extern	NODE	xfield0;
@@ -173,8 +174,7 @@ extern	int	yflag;
 extern	int	nlskip;
 extern	int	exitflag;
 extern	int	lineno;
-extern	int	whitesw;
-extern	char	*inline;
+extern	CHAR	*inline;
 extern	jmp_buf	nextenv;
 extern	jmp_buf	fwenv[NNEST];
 extern	int	fwlevel;
@@ -182,10 +182,10 @@ extern	int	brlevel;
 extern	int	outflag;
 extern	TERM	*symtab[NHASH];
 extern	NODE	*tempnodes;
-extern	char	SNULL[];
+extern	CHAR	SNULL[];
 extern	OFILE	files[NOFILE];
-extern	char	inbuf[BUFSIZ];
-extern	char	outbuf[BUFSIZ];
+extern	CHAR	inbuf[BUFSIZ];
+extern	CHAR	outbuf[BUFSIZ];
 
 /*
  * References to the built-in
@@ -245,8 +245,8 @@ extern	NODE	*OFMTp;
 #define	ARCON	37		/* RE - ab */
 #define	ARCLASS	38		/* RE - [...] */
 #define	ARDCLASS 39		/* RE -- class under `-y' */
-#define	ARCHAR	40		/* RE -- char */
-#define	ARDCHAR	41		/* RE -- dual case char */
+#define	ARCHAR	40		/* RE -- CHAR */
+#define	ARDCHAR	41		/* RE -- dual case CHAR */
 #define	AFIELD	42		/* $a */
 #define	APRINT	43		/* print */
 #define	APRINTF 44		/* printf */

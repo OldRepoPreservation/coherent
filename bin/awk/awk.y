@@ -23,7 +23,7 @@
 
 %union {
 	int	u_char;
-	char	*u_charp;
+	CHAR	*u_charp;
 	NODE	*u_node;
 	int	(*u_func)();
 }
@@ -52,7 +52,7 @@
 %left	'*' '/' '%'
 %nonassoc '!' INC_ DEC_
 %nonassoc '$'
-%nonassoc '('
+%nonassoc '(' '['
 
 /*
  * Special tokens for
