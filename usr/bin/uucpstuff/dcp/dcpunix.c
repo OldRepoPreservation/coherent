@@ -79,9 +79,8 @@ int initline()
 	swritefd = 1;	/* standard output */
 	ioctl(sreadfd, TIOCHPCL);
 	gtty(sreadfd, &ttyb);	/* set raw mode */
-	ttyb.sg_flags |= (RAW|TANDEM);
-	/* ttyb.sg_flags &= ~(XTABS | EVENP | ODDP | CRMOD | ECHO | CBREAK);*/
-	ttyb.sg_flags &= ~(CRMOD | ECHO);
+	ttyb.sg_flags |= (RAW | CBREAK);
+	ttyb.sg_flags &= ~(XTABS | EVENP | ODDP | CRMOD | ECHO | LCASE);
 	stty(sreadfd, &ttyb);
 
 #elif TERMIO
@@ -106,7 +105,7 @@ fixline()
 	struct sgttyb ttyb;
 
 	gtty(sreadfd, &ttyb);
-	ttyb.sg_flags |= (RAW|TANDEM);
+	ttyb.sg_flags |= (RAW | CBREAK);
 	stty(sreadfd, &ttyb);
 
 #elif TERMIO
