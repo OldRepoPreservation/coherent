@@ -1,4 +1,4 @@
-/* $Header: /v4a/io/RCS/dmareq.c,v 1.2 92/01/06 12:26:52 hal Exp $ */
+/* dmareq.c */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -7,8 +7,8 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
+ *	COHERENT Version 4.1.0
+ *	Copyright (c) 1993.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  -lgl) */
@@ -18,21 +18,6 @@
  * And assume we are called by fl.c, xt.c, dv.c or someone
  * else who obeys the parameter rules that they do.
  *
- * $Log:	dmareq.c,v $
- * Revision 1.2  92/01/06  12:26:52  hal
- * Compile with cc.mwc.
- * 
- * Revision 2.1	88/09/03  13:03:47	src
- * *** empty log message ***
- * 
- * Revision 1.1	88/03/24  17:04:28	src
- * Initial revision
- * 
- * 87/11/25	Allan Cornish		/usr/src/sys/i8086/drv/dmareq.c
- * vaddr_t bp->b_vaddr --> faddr_t bp->b_faddr.
- *
- * 87/01/05	Allan Cornish		/usr/src/sys/i8086/drv/dmareq.c
- * dmareq() now wakes &stimer only if the swap timer is active.
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
@@ -44,6 +29,13 @@
 #include <sys/seg.h>
 #include <sys/stat.h>
 #include <sys/dmac.h>
+
+/*
+ * NIGEL: Why the hell is this routine not in bio.c? It would be a whole lot
+ * nicer if it was. "dold_t" is obsolete, by the way, and all instances of it
+ * will disappear from "bio.c" sometime. I should merge this in as well then.
+ */
+typedef	unsigned char		dold_t;
 
 dmareq(bp, iop, dev, req)
 register BUF *bp;
@@ -169,6 +161,6 @@ dev_t dev;
 	s = sphi();
 	dblock(dev, bp);
 	while (bp->b_flag&BFNTP)
-		sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO);
+		x_sleep((char *)bp, pridisk, slpriNoSig, "dmabuf");
 	spl(s);
 }

@@ -1,64 +1,8 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version x.x.x
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Driver Kit Version 2.1.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  *
- * $Log:	alx.c,v $
- * Revision 1.12  92/11/09  17:12:12  root
- * Just before adding vio segs.
- * 
- * Revision 1.11  92/04/30  08:59:18  hal
- * Add asy.  Remove silos from tty struct.
- * 
- * Revision 1.10  92/04/13  14:53:15  hal
- * Silos moved out of TTY struct.
- * 
- * Revision 1.9  92/04/13  10:12:27  hal
- * Add NO_ISILO test code.
- * 
- * Revision 1.8  92/03/19  18:33:17  hal
- * LSR_READ debug macro.
- * 
- * Revision 1.7  92/03/16  16:51:39  hal
- * t_hal diagnostics.
- * 
- * Revision 1.6  92/02/20  19:43:13  piggy
- * Add "mode" arg to ttsetgrp() for NOCTTY support.
- * 
- * Revision 1.5  92/02/16  18:27:47  hal
- * Binary compatibility with Sys V sgtty
- * 
- * Revision 1.4  92/02/07  09:41:21  hal
- * Fix Wallenberg bug.
- * 
- * Revision 2.10  92/02/04  18:50:00  hal
- * Use EBUSY, not EDBUSY - merge for 386 code.
- * 
- * Revision 2.9  92/01/13  08:38:24  hal
- * Rearrange alxopen() to deal with ill-behaved daemons.
- * 
- * Revision 2.8  92/01/12  19:23:50  hal
- * Tracking nasty Kelly bug.
- * 
- * Revision 2.6  91/12/26  16:52:05  hal
- * Flags left in bad state if open r-device got killed.
- *
- * Revision 2.5  91/12/20  14:08:27  hal
- * Add static alx_send().
- * From alxstart(), don't toggle Tx interrupts - call alx_send().
- *
- * Revision 2.4  91/12/10  08:04:13  hal
- * Make interrupt routine clear all UART irq conditions if it gets an
- * interrupt without an argument telling which port interrupted.
- *
- * Revision 2.3  91/12/05  09:35:06  hal
- * Working 16550A code.  Nfg on GeeSee.
- *
- * Revision 2.2  91/12/02  19:21:45  hal
- * Last version before FIFO testing.
- *
- * Revision 2.1  91/11/21  18:17:44  hal
- * Same as V1.13 - used in 3.2.05k
  *
  -lgl) */
 /*
@@ -226,7 +170,7 @@ register TTY	*tp, **irqtty;
 		goto bad_open;
 	}
 
-	if (drvl[major(dev)].d_time != 0) {	/* Modem settling */
+	if (drvl[major(dev)].d_time) {	/* Modem settling */
 		u.u_error = EEBUSY;
 		goto bad_open;
 	}
@@ -287,7 +231,12 @@ register TTY	*tp, **irqtty;
 	while (com_usage[AL_NUM].in_use &&
 	  (com_usage[AL_NUM].hcls ||
 	  ((minor_h & NMODC) == 0 && (inb(b+MSR) & MS_RLSD) == 0))) {
-		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT, SVTTOUT);
+#ifdef _I386
+		x_sleep((char *)(&tp->t_open), pritty, slpriSigCatch, "alxopn1");
+#else
+		v_sleep((char *)(&tp->t_open),
+		  CVTTOUT, IVTTOUT, SVTTOUT, "alxopn1");
+#endif
 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			u.u_error = EINTR;
 			goto bad_open;
@@ -378,8 +327,15 @@ register TTY	*tp, **irqtty;
 				 */
 				if (msr & MS_RLSD)
 					break;
-	   	  		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
-					SVTTOUT);	/* wait for carrier */
+
+				/* wait for carrier */
+#ifdef _I386
+	   	  		x_sleep((char *)(&tp->t_open),
+				  pritty, slpriSigCatch, "alxopn2");
+#else
+	   	  		v_sleep((char *)(&tp->t_open),
+				  CVTTOUT, IVTTOUT, SVTTOUT, "alxopn2");
+#endif
 		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 					outb(b+MCR, 0);
 			    		outb(b+IER, 0);
@@ -481,7 +437,11 @@ TTY	*tp;
 		  && (out_silo->si_ix == out_silo->si_ox))
 			break;
 CDUMP("slp cls", tp)
-		sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT);
+#ifdef _I386
+		x_sleep((char *)out_silo, pritty, slpriSigCatch, "alxcls1");
+#else
+		v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT, "alxcls1");
+#endif
 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			RAWOUT_FLUSH(out_silo);
 			break;
@@ -514,7 +474,13 @@ CDUMP("slp cls", tp)
 		maj = major(dev);
 		drvl[maj].d_time = 1;
 CDUMP("slp DTR", tp)
-		sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT);
+#ifdef _I386
+		x_sleep((char *)&drvl[maj].d_time,
+		  pritty, slpriNoSig, "alxcls2");
+#else
+		v_sleep((char *)&drvl[maj].d_time,
+		  CVTTOUT, IVTTOUT, SVTTOUT, "alxcls2");
+#endif
 		drvl[maj].d_time = 0;
 	}
 	com_usage[AL_NUM].poll = 0;

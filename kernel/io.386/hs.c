@@ -263,7 +263,13 @@ dev_t dev;
 		state = 2;
 		while (state) {
 			timeout(&hstim, 10, wakeup, (int)&hstim);
-			sleep((char *)&hstim, CVTTOUT, IVTTOUT, SVTTOUT);
+#ifdef _I386
+			x_sleep((char *)&hstim,
+			  pritty, slpriNoSig, "hsopen");
+#else
+			v_sleep((char *)&hstim,
+			  CVTTOUT, IVTTOUT, SVTTOUT, "hsopen");
+#endif
 			if (out_silo->si_ix == out_silo->si_ox  && state)
 				state--;
 		}
