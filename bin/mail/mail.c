@@ -1,9 +1,14 @@
-static	char	*rcsrev = "$Revision: 1.1 $";
+static	char	*rcsrev = "$Revision: 1.2 $";
 static	char	*rcshdr =
-	"$Header: /src386/bin/mail/RCS/mail.c,v 1.1 92/04/20 09:03:08 bin Exp Locker: bin $";
+	"$Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $";
 /*
- * $Header: /src386/bin/mail/RCS/mail.c,v 1.1 92/04/20 09:03:08 bin Exp Locker: bin $
+ * $Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $
  * $Log:	mail.c,v $
+ * Revision 1.2  92/04/20  10:07:46  bin
+ * The 'final' fix using CORRECT sources to properly write a msgsep at the
+ * top of a save file if new file is opened or if saving the first message
+ * of a mailbox to a file
+ * 
  * Revision 1.1  92/04/20  09:03:08  bin
  * Initial revision
  * 
@@ -337,37 +342,23 @@ commands()
 
 	readmail();
 	mprint(mp = rflag ? m_last : m_first);
-	first_msg_read = TRUE;
 	for (;;) {
 		readmail();
 		intcheck();
-		if ( ! pflag) {
-			callmexmail = 0;
-			if(first_msg_read != TRUE){
-				mmsg("? ");
-			}
 
-	/* I have added first_msg_read to help cope with the new message seps.
-	 * Witht the new seps, mail would always come up with a '?' when there
-	 * mail pending, when it should have really displayed the first message
-	 * in the mailbox.
-	 * I now set a flag when we're about to read the first message so that
-	 * when we get to this point in the code, mail will be tricked into
-	 * believing that a <cr> was pressed, forcing it to display the first
-	 * message. I realize that this is an ugly hack, but it works with a 
-	 * very minimun amount of code added to mail itself.
+	/* if pflag is set, then we will loop through and print all messages
+	 * without stopping between messages for command prompts
 	 */
-			if(first_msg_read == TRUE){
-				cline[0] = '\n'; 
-				first_msg_read = FALSE;
-			}else{
-			if (fgets(cline, sizeof cline, stdin) == NULL) {
-				if (intcheck())
+		if(!pflag){
+			callmexmail = 0;
+			mmsg("? ");
+			if (fgets(cline, sizeof cline, stdin) == NULL){
+				if(intcheck())
 					continue;
 				break;
 			}
-			}
 		}
+
 		switch (cline[0]) {
 		case 'd':
 			if (cline[1] != '\n')
@@ -448,13 +439,6 @@ commands()
 					mmsg(nosave, *fnp);
 
 
-	/* if we are opening a new file or saving the first message
-	 * from the mailbox, write a MSGSEP.
-	 */
-				if (testfile || (seek == 5)){
-					fprintf(fp, MSGSEP);
-					testfile = 0;
-				}
 	/*		TRACE("SEEK is %d\n",seek); */
 				if (mcopy(mfp, fp, seek, mp->m_end, 0))
 					mmsg(nosave, *fnp);
@@ -583,25 +567,31 @@ readmail()
 		}
 	}
 
+	/* we will enter a loop which reads the mailbox line by line.
+	 * When it hits a MSGSEP indicating the end of a mail message,
+	 * a struct msg will be set with the start and end positions
+	 * of the message read. We will continue through this loop until 
+	 * struct msg's have been built for all messages.
+	 */
+
+	newmsg = TRUE;
 	for(mlock(myuid);;) {
 		fseek(mfp, m_last_end, 0);
 		datasw = 0;
 		while (fgets(msgline, sizeof msgline, mfp) != NULL) {
 			/* NB: this means the implicit message
 			   seperator is actually "\n\1\1\n".  */
-			if(!(datasw = strcmp(MSGSEP, msgline))||
-				(m_first == NULL)) {
+			if(!(datasw = strcmp(MSGSEP, msgline))){
+
 				/* message seperator */
-				newmsg = !newmsg;
-				if (m_first == NULL)
-					newmsg = FALSE;
-				if ((m_first == NULL) || (newmsg == TRUE)){
+				if (((newmsg = !newmsg) == TRUE) && (ftell(mfp) != 5)){
 					mp = (struct msg *)myalloc(sizeof(*mp));
 					mp->m_next = NULL;
 					mp->m_prev = m_last;
 					mp->m_flag = mp->m_hsize = 0;
-					mp->m_seek = m_last_end;
-					mp->m_end = m_last_end = ftell(mfp);
+	/* start position of msg */	mp->m_seek = m_last_end;
+	/* end position of msg */	mp->m_end = m_last_end = ftell(mfp);
+/*	TRACE("Message ends at %ld\n",ftell(mfp)); */
 					if (m_first == NULL)
 						m_last = m_first = mp;
 					else
