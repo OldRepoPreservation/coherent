@@ -77,18 +77,18 @@ register FILE *fp;
 	ret = c==EOF && s==as ? NULL : as;
 	s = as;
 	for (;;) {
-		if(whitesw)
+		nf++;
+		while ((c = *s) != '\0' && !FSMAP[c])
+			s++;
+		if (c == '\0')
+			break;
+		if (whitesw)
 			while (FSMAP[*s])
 				s++;
 		else
 			if (FSMAP[*s])
 				s++;
 		if (*s == '\0')
-			break;
-		nf++;
-		while ((c = *s) != '\0' && !FSMAP[c])
-			s++;
-		if (c == '\0')
 			break;
 	}
 	iassign(NFp, (INT)nf);
@@ -399,7 +399,7 @@ register NODE *np;
 			sprintf(numbuf, "%ld", np->t_INT);
 		else
 			sprintf(numbuf, "%.6g", np->t_FLOAT);
-		return(numbuf);
+		return (numbuf);
 	} else
 		return (np->t_STRING);
 }
@@ -448,7 +448,7 @@ register CHAR *s;
 {
 	sb = s;
 	if (np!=NULL && np->n_op==ARBOL)
-		return(reexec(np, s) != NULL);
+		return (reexec(np, s) != NULL);
 	s--;
 	do {
 		if (reexec(np, ++s) != NULL)
@@ -527,7 +527,7 @@ register CHAR *s;
 				s = es;
 			while (s >= ss)
 				if ((es = reexec(np->n_O3, s--))!=NULL)
-					return(es);
+					return (es);
 			return (NULL);
 	
 		case ARNECL:

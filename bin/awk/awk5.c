@@ -288,18 +288,19 @@ STRING asval;
 	if (i < 0)
 		if ((i += (int)NF + 1) == 0)
 			i = -1;
+
 	do {
+		if (!*s1 || --i==0)
+			break;
+		while ((c = *s1) && !FSMAP[c])
+			s1++;
 		if (whitesw)
 			while (FSMAP[*s1])
 				s1++;
 		else
 			if (FSMAP[*s1])
 				s1++;
-		if (!*s1 || --i==0)
-			break;
-		while ((c = *s1) && !FSMAP[c])
-			s1++;
-	} while(c);
+	} while (c);
 	s2 = s1;
 	nb = sizeof(CHAR);
 	while ((c = *s2++)!='\0' && !FSMAP[c])
