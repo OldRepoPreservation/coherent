@@ -10,7 +10,7 @@
 #include <acct.h>
 #include <sys/times.h>
 #include <sys/const.h>
-#include <sys/dir.h>
+#include <dirent.h>
 
 #define	MIN	60		/* Seconds in a minute */
 #define	MINHZ	(MIN*HZ)	/* HZ in a minute */
@@ -22,6 +22,8 @@
 #define	NCOMM	500		/* Maximum number of commands */
 #define	NSORT	NUSER
 #define	NCNAME	(sizeof(ac.ac_comm))	/* Size of a command name) */
+
+#define DIRSIZ	14
 
 struct	acct	ac;
 
