@@ -10,7 +10,12 @@
  *	-o proto  output file name for prototype file  (default: stdout)
  *	-v	  verbose messages as to the percentage of file system scanned
  *
- * $Log: $
+ * $Log:	/usr/src/etc/badscan.c,v $
+ * Revision 1.2	90/03/22  09:57:41 	root
+ * Find sectors per track with ioctl rather than assuming 17.
+ * Rearranged code, changed fatal error messages, changed screwy spacing.
+ * 	steve 3/22/90
+ * 
  * 88/03/23	Allan Cornish	/usr/src/cmd/etc/badscan.c
  * Reads are no longer attempted past logical end of partition,
  * when a logical track straddles the partition boundary.
@@ -46,7 +51,7 @@
 #include <sys/hdioctl.h>
 
 #define	BUFSIZ	512
-#define	MAXUINT	65535
+#define	MAXUINT	((unsigned)65535L)
 #define	NULL	((char *)0)
 #define	TRUE	(0 == 0)
 
@@ -193,14 +198,8 @@ main(argc, argv) register int argc; register char *argv[];
 		if (hp->hd_sig != HDSIG)
 			fatal("bad partition table: ", argv[1]);
 		lim  = hp->hd_partn[ sb.st_rdev & 3 ].p_size;
-#if	0
-#define	NSPT	26
-		/* The following line produces an internal cc error 3/22/90. */
-		nspt = NSPT - (hp->hd_partn[ sb.st_rdev & 3 ].p_base % NSPT);
-#else
 		base = hp->hd_partn[ sb.st_rdev & 3 ].p_base;
 		nspt = tracksize - base % tracksize;
-#endif
 		if (lim <= 0)
 			fatal("null partition: ", argv[1]);
 	}
@@ -234,26 +233,10 @@ main(argc, argv) register int argc; register char *argv[];
 		if (bno + nspt > lim)
 			nspt = lim - bno;
 
-		if (read(0, buf, (nspt * BUFSIZ)) != (nspt * BUFSIZ)) {
-
-			/*
-			 * Try to read each block in a bad track.
-			 */
-			for (n=0; n < nspt; ++n) {
-
-				/*
-				 * Check for partial track.
-				 */
-				if ((bno+n) >= lim)
-					break;
-				lseek(0, (bno+n) * BUFSIZ, 0);
-				/*
-				 * Append bad blocks to mkfs prototype file.
-				 */
-				if (read(0, buf, BUFSIZ) != BUFSIZ)
-					bad(bno+n);
-			}
-		}
+		/* Mark each block in a bad track as bad. */
+		if (read(0, buf, (nspt * BUFSIZ)) != (nspt * BUFSIZ))
+			for (n=0; n < nspt; ++n)
+				bad(bno+n);
 
 		/*
 		 * Periodically generate reports
