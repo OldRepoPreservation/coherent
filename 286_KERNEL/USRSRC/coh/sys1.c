@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys1.c,v 1.1 88/03/24 16:14:27 src Exp $ */
+/* $Header: /usr/src/sys/coh/RCS/sys1.c,v 1.2 92/01/13 08:42:37 hal Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * General system calls.
  *
- * $Log:	/usr/src/sys/coh/RCS/sys1.c,v $
+ * $Log:	sys1.c,v $
+ * Revision 1.2  92/01/13  08:42:37  hal
+ * setpgrp() - detach controlling terminal if process not group leader
+ * 
  * Revision 1.1	88/03/24  16:14:27	src
  * Initial revision
  * 
@@ -253,7 +256,7 @@ usetpgrp()
 
 	if (pp->p_group != pp->p_pid)
 		pp->p_ttdev = NODEV;
-	return (pp->p_group = pp->p_pid);
+	return(pp->p_group = pp->p_pid);
 }
 
 /*
