@@ -258,8 +258,12 @@ register char *buf;
 			abort();
 		}
 
-	if ( (bn<isize) && getcache(bn, buf) )
+	if ( (bn<isize) && getcache(bn, buf) ) {
+#if DEBUG
+		bdump(buf);
+#endif
 		return;
+	}
 	
 	if ( lseek(fsfd, (unsigned long)bn*BSIZE, 0) == (-1L) )
 		switch( query(skblkerr, bn) ) {
@@ -278,6 +282,9 @@ register char *buf;
 		case NO:
 			abort();
 		}
+#if DEBUG
+	bdump(buf);
+#endif
 }
 
 /*
@@ -402,3 +409,27 @@ daddr_t bn;
 	else
 		return(BAD);
 }
+
+
+#if DEBUG
+
+/*
+ *	Debug dump a block of data.
+ */
+
+#define NUMPLIN	16
+
+bdump(buf)
+register unsigned char *buf;
+{
+	register int i;
+
+	for (i=0; i<BSIZE; i++) {
+		if ( (i % NUMPLIN) == 0 )
+			printf("\n0x%04x:  ", i);
+		printf(" %02x", *buf++);
+	}
+	printf("\n\n");
+}
+
+#endif

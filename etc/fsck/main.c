@@ -3,7 +3,7 @@
  * an interactive file system check and repair program.
  *
  * Usage:
- *	/etc/fsck [-y] [-n] [-q] [-f] [-s] [-t TMPFILE] [filesystem ...]
+ *	/etc/fsck [-y] [-n] [-q] [-f] [-{sS}] [-t TMPFILE] [filesystem ...]
  *	audit and interactively repair inconsistent conditions for
  *  	file systems.  Options -y and -n indicate an assumed response
  *	to all questions asked by fsck.  Default is to prompt operator
@@ -18,9 +18,13 @@
  *	both the free inode list and the free block list, even if there
  *	are no file system problems.  This will reorder the free block
  *	list in the best order to limit additional fragmentation (respecting
- *	interleaving as well). Option -t sets the temporary file to use
- *	for disk caching of necessary tables on filesystems which are too
- *	big to do in core. The temporary file defaults to "/dev/rram1",
+ *	interleaving as well).  Note: Option -s will be ignored on mounted
+ *	file systems.  The option -S acts in the same manner as -s except
+ *	that it will not be ignored on mounted file systems.  Beware: -S
+ *	on mounted file systems should only be used if you intend to reboot
+ *	NO SYNC immediately afterwards.  Option -t sets the temporary file
+ *	to use for disk caching of necessary tables on filesystems which are
+ *	too big to do in core. The temporary file defaults to "/dev/rram1",
  *	which must be there.
  */
 
@@ -30,6 +34,8 @@ int	errflag;
 
 int	mdaction;			/* default action for invocation */
 int	daction;			/* default action for file system */
+int	gSflag=FALSE;			/* force salvage flag ignored mounted */
+int	gsflag=FALSE;			/* force salvage flag ignored mounted */
 int	sflag=FALSE;			/* force salvage flag	*/
 int	qflag=FALSE;			/* fsck quiet flag	*/
 int	fflag=FALSE;			/* fsck fast flag	*/
@@ -67,8 +73,11 @@ char *argv[];
 		case 'f':
 			fflag = TRUE;
 			break;
+		case 'S':
+			gSflag = TRUE;
+			break;
 		case 's':
-			sflag = TRUE;
+			gsflag = TRUE;
 			break;
 		case 't':
 			tmpfile = argv[2];
@@ -191,6 +200,10 @@ char *name;
 		return(retval);
 	changeflg = FALSE;
 	init();
+	if ( sflag = ((gsflag && !mounted) || gSflag) )
+		printf("Switch \"-s\" selected to automatically rebuild free lists\n");
+	if (!sflag && gsflag)
+		printf("Ignoring \"-s\" on mounted file system\n");
 	if ( !errflag ) {
 		phase1();	/* check blocks and sizes */
 		if ( !fflag ) {
@@ -208,6 +221,6 @@ char *name;
 usage()
 {
 	printf("\
-Usage: /etc/fsck [-y] [-n] [-q] [-f] [-s] [-t TMPFILE] [filesystem ...]\n");
+Usage: /etc/fsck [-y] [-n] [-q] [-f] [-{sS}] [-t TMPFILE] [filesystem ...]\n");
 	_exit(1);
 }
