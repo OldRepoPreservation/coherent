@@ -16,7 +16,7 @@ cp:	all
 	rm yacc *.o
 
 yacc: y0.o y1.o y2.o y3.o y4.o y5.o y6.o 
-	$(CC) $(CFLAGS) $(LFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) $(LFLAGS) -o yacc y0.o y1.o y2.o y3.o y4.o y5.o y6.o
 
 y0.o y1.o y4.o: yacc.h
 y3.o: yacc.h assert.h
