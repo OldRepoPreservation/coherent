@@ -291,6 +291,7 @@ struct	FL	{
 	int	fl_wflag;		/* Write operation  */
 	int	fl_recov;		/* Recovery initiated */
 	int	fl_opct[MAXDRVS];	/* open count for each unit */
+	int	fl_we[MAXDRVS];		/* write enable for each unit */
 }	fl;
 
 /*
@@ -312,7 +313,7 @@ static  BUF     flbuf[MAXDRVS];
  */
 static	TIM	fltim;
 static	TIM	fldmalck;	/* DMA lock deferred function structure. */
-static	char   *scratch_buffer;
+static	char	scratch_buffer[BSIZE];
 static	char	fl_clrng_cd;
 static	char	fl_intlv_ct,	/* Counts sectors to find interleave.	 */
 		fl_get_intlv,	/* =1 to start search for interleave.	 */
@@ -335,8 +336,6 @@ flload()
 	register int	eflag;
 	register int	s, t;
 
-	if ( (scratch_buffer = kalloc(512)) == NULL )
-		printf("No buffer.\n");
 	fl_clrng_cd = 0;
 
 	/*
@@ -432,13 +431,6 @@ flunload()
 	 */
 	if ( fl.fl_ndsk )
 		clrivec(6);
-
-	/*
-	 * Return allocated storage
-	 */
-	if ( scratch_buffer )
-		kfree( scratch_buffer );
-
 }
 
 /*
@@ -463,41 +455,28 @@ int	mode;
 	  || ( fl.fl_type[ unit_number ] == 0 )
 	  || ( fdata[ fkind(dev) ].fd_GPL[ flrate(dev) ] == 0 ) ) {
 		u.u_error = ENXIO;
-		return;
+		goto badFlopen;		/* status. */
 	}
 
-	/* The rest is checking which is done on first open for each unit. */
-	if (fl.fl_opct[unit_number]++)
-		return;
-
 	/*
-	 * If need to write, be sure there is no write protect tab.
+	 * May need to write - see if diskette is write proteced.
 	 * We do this with a "Sense Drive Status" command.  Since
 	 * this requires the use of the FDC, we have to schedule it
 	 * like data transfer I/O or FORMAT even though it doesn't
 	 * use the DMA.
 	 */
-
-	if ( (mode & IPW) && scratch_buffer ) {
+	if (fl.fl_opct[unit_number] == 0) {	/* first open for this floppy */
 		if ( drv_locked[ unit_number ] ) {	/* Work areas avail? */
 			u.u_error = EBUSY;		/* No. */
-
+			goto badFlopen;		/* status. */
 		} else {
-
 			drv_locked[ unit_number ] = 1;	/* Grab work areas. */
 			flbuf[ unit_number ].b_dev = dev;
 			flbuf[ unit_number ].b_req = BFLSTAT;
 			sw3[ unit_number ] = 0;
 							/* Get drive status. */
 			s = flQhang( &flbuf[ unit_number ] );
-#if 0
-			do {				/* Unit we can use */
-				s = sphi();		/* "sleep()".	    */
-				if ( fl.fl_state == SIDLE )
-					flfsm();
-				spl( s );
-			} while ( sw3[ unit_number ] == 0 );
-#else
+
 			for (;;) {
 				s = sphi();
 				if ( fl.fl_state == SIDLE )
@@ -511,39 +490,49 @@ int	mode;
 					  "flopen");
 				if (SELF->p_ssig && nondsig()) {  /* signal? */
 					u.u_error = EINTR;
-					break;
+					goto badFlopen;
 				}
 			}
-#endif
 
-                        if ( flbuf[ unit_number ].b_resid != 0 )
+                        if ( flbuf[ unit_number ].b_resid != 0 ) {
 				u.u_error = EDATTN;	/* Couldn't get drive */
-							/* status. */
-			else if ( sw3[ unit_number ] & ST3_WP )
-				u.u_error = EROFS;	/* Diskette write */
-							/* protected. */
+				goto badFlopen;		/* status. */
+			}
 
+			/* The payoff - set write enable status. */
+			fl.fl_we[unit_number] =
+			  ((sw3[unit_number] & ST3_WP)==0);
 			drv_locked[ unit_number ] = 0;	/* Release work areas */
 		}
+
+		/*
+		 * If the drive is low density (no change line) we should
+		 * flag the need to verify the disk format and density.
+		 * High density drives (which are also dual density) have
+		 * change lines that we can check each time we want to read
+		 * the drive.
+		 */
+		if ( frates[ fl.fl_type[ unit_number ] ].fl_hi_rate == -1 ) {
+			fl.fl_incal[ unit_number ] = -1;
+			fl.fl_dsk_chngd[ unit_number ] = 1;
+		}
+	}	/* end of first open stuff */
+
+	/* If opening for write, volume must be write enabled. */
+	if ((mode & IPW) && !fl.fl_we[unit_number]) {
+		printf("fd%d: <Write Protected>\n", fl.fl_unit );
+		u.u_error = EROFS;	/* Diskette write */
+		goto badFlopen;		/* protected. */
 	}
 
-	/*
-	 * If the drive is low density (no change line) we should
-	 * flag the need to verify the disk format and density.
-	 * High density drives (which are also dual density) have
-	 * change lines that we can check each time we want to read
-	 * the drive.
-	 */
-
-	if ( frates[ fl.fl_type[ unit_number ] ].fl_hi_rate == -1 ) {
-		fl.fl_incal[ unit_number ] = -1;
-		fl.fl_dsk_chngd[ unit_number ] = 1;
-	}
+goodFlopen:
+	fl.fl_opct[unit_number]++;
+badFlopen:
+	return;
 }
 
 /*
- * The close routine makes sure that all pending I/O is complete and all
- * the buffers are flushed of data not yet written.
+ * flclose()
  */
 static
 flclose( dev, mode )
@@ -1099,7 +1088,6 @@ DiskEstablished:
 		 */
 
 		if ( (frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate != -1)
-		&&   ( scratch_buffer )
 		&&   (inb(FDCCHGL) & DSKCHGD) ) {
 			fl.fl_fcyl = fl.fl_incal[ fl.fl_unit ];
 			fl.fl_head = 0;
