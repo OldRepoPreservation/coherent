@@ -4,11 +4,13 @@ S = Makefile lsys1 uuin uunam helpscn devices permis \
  comment choices choices1 choices2 escapes uuinstall.c getline.c \
  L.sys Permissions domain uucpname uuinstall
 
+DESTDIR=/interim/usr/bin/
 CFLAGS = -I. -A
 L = -lscn  -lcurses -lterm -lmisc
 
 uuinstall : $P uuinstall.o /usr/lib/libscn.a
-	cc -o uuinstall uuinstall.o $P $L
+	cc -o $(DESTDIR)uuinstall uuinstall.o $P $L
+	su root chmog 500 root root /interim/usr/bin/uuinstall
 
 uuinstall.o : uuinstall.c
 
