@@ -27,7 +27,24 @@ $(USRSYS)/lib/ss.a: $(OBJECTS)
 	rm -f $(USRSYS)/lib/ss.a
 	ar rc $(USRSYS)/lib/ss.a $(OBJECTS)
 
-objects/ss.o: ss.c
+objects/ss.o:				\
+		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/machine.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
+		$(SYSINC)/io.h		\
+		$(SYSINC)/sched.h	\
+		$(SYSINC)/uproc.h	\
+		$(SYSINC)/proc.h	\
+		$(SYSINC)/con.h		\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/devices.h	\
+		$(USRINC)/errno.h	\
+		$(DRVINC)/ss.h		\
+		$(SYSINC)/fdisk.h	\
+		$(SYSINC)/hdioctl.h	\
+		$(SYSINC)/buf.h		\
+		$(DRVINC)/scsiwork.h	\
+		ss.c
 	$(CC) $(CFLAGS) -DVERBOSE=1 -c -o objects/ss.o ss.c
 
 objects/ssqueue.o:			\
@@ -44,7 +61,7 @@ objects/fdisk.o:			\
 		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h $(DRVINC)/mmu.h \
-		$(SYSINC)/con.h		\
+		$(SYSINC)/con.h \
 		$(USRINC)/errno.h	\
 		$(SYSINC)/fdisk.h	\
 		$(SYSINC)/inode.h	\
