@@ -7,12 +7,8 @@
 #define	__SYS_MMU_H__
 
 #ifdef _I386
-#ifndef TYPES_H
 #include <sys/types.h>
-#endif
-#ifndef UPROC_H
 #include <sys/uproc.h>
-#endif
 
 /*
  * NIGEL: for some reason the type "cseg_t" was in <sys/types.h>. It belongs

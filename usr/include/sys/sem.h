@@ -9,11 +9,8 @@
 /*
 **	IPC Semaphore Facility
 */
-#ifndef _IPC_H
 #include <sys/ipc.h>
-#endif
 #include <sys/_time.h>
-
 
 /*
 **	Permission Definitions.
