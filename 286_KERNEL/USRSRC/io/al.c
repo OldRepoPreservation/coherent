@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.8  91/12/05  09:35:25  hal
+ * Working 16550A code.  Nfg on GeeSee.
+ * 
  * Revision 1.7  91/12/02  19:22:00  hal
  * Last version before FIFO testing.
  * 
@@ -145,24 +148,28 @@ alload()
 	int port, i;
 	int usa, usb;
 
+	/*
+	 * Set interrupt vector early in case uart_sense() causes bogus irpts.
+	 */
+	setivec(ALINT, alintr);     /* set interrupt vector */
 	usa = uart_sense(ALPORTa);
 	usb = uart_sense(ALPORTb);
 	if (usa == US_NONE && usb == US_NONE) {
 		ALCNT = 0;
-		goto end_load;
+	} else {
+		if (usb == US_NONE)
+			ALCNT = 1;
+		else
+			ALCNT = 2;
 	}
-	if (usb == US_NONE)
-		ALCNT = 1;
-	else
-		ALCNT = 2;
-	if (init == 0
+	if (init == 0 && ALCNT
 	  && (alttab = (TTY *)kalloc(ALCNT * sizeof(TTY)))
 	  && (ddp = (COM_DDP *)kalloc(ALCNT * sizeof(COM_DDP)))) {
 		kclear(alttab, ALCNT*sizeof(TTY));
 		kclear(ddp, ALCNT*sizeof(COM_DDP));
-		s = sphi();
 		++init;
 
+		s = sphi();
 		alttab[0].t_dispeed = alttab[0].t_dospeed = ALSPEEDa;
 		alttab[0].t_ddp = (char *)&ddp[0];
 		tp_table[ALNUMa] = alttab; /* set TTY pointers for polling */
@@ -195,10 +202,10 @@ alload()
 			alttab[i].t_cs_sel= cs_sel();
 		}
 
-		setivec(ALINT, alintr);     /* set interrupt vector */
 		spl(s);
+	} else {	/* Load failed - no ports or no RAM available! */
+		clrivec(ALINT);
 	}
-end_load:
 	return;	
 }
 
@@ -213,9 +220,11 @@ alunload()
 		outb(port+MCR, 0);	/* hangup port */
 		timeout(alttab[i].t_rawtim, 0, NULL, 0);/* cancel timer */
 	}
-	clrivec(ALINT);			/* release interrupt vector */
-	kfree(alttab);
-	kfree(ddp);
+	if (ALCNT) {
+		clrivec(ALINT);		/* release interrupt vector */
+		kfree(alttab);
+		kfree(ddp);
+	}
 }
 
 static
