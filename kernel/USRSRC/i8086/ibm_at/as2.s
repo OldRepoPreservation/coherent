@@ -67,6 +67,8 @@
 ////////
 
 EFAULT	=	14			/ Bad argument
+EXTMEML =	0x17			/ Ext. mem size (low) offset in CMOS
+EXTMEMH = 	0x18			/               (high)
 PFLAGS	=	0x22			/ Offset int PROC.
 PFKERN	=	0x80			/ Kernel process flag bit.
 PIC	=	0x20			/ 8259 CSR  I/O port.
@@ -537,6 +539,19 @@ UPASIZE	=	1024			/ Size of uproc and stack
 					/ ES = selector into extended memory.
 					/ DS = selector into global descr table
 					/
+	movb	al, $EXTMEMH		/ high byte of pair
+	outb	CMOSA, al		/ to CMOS memory port
+	jmp	.+2			/ DELAY
+	inb	al, CMOSD		/ get value from CMOS
+	xchgb	ah, al
+	jmp	.+2			/ DELAY
+	movb	al, $EXTMEML		/ low byte of pair
+	outb	CMOSA, al		/ to CMOS memory port
+	jmp	.+2			/ DELAY
+	inb	al, CMOSD		/ get rest of pair from CMOS
+	shr	ax, $6			/ K -> 64K conversion
+	add	ax, $0x0010		/ bias up to 1MB
+	mov	CMOSmax_, ax		/ save count of 64K hunks
 	sub	ax, ax			/
 	mov	dx, $0x0010		/ Initial 64 Kbyte bank of extended mem.
 	mov	holetop_, ax		/ Recorded extended memory bot in bytes.
@@ -565,6 +580,8 @@ UPASIZE	=	1024			/ Size of uproc and stack
 	stosw				/ Clear this 64K of extended memory.
 					/
 	inc	dx			/ Step to next 64K bank.
+	cmp	dx, ss:CMOSmax_		/ See if we're beyond what the CMOS
+	jge	0f			/    says we have.
 	cmp	dx, $0x00F0		/ Stop at 15 Mbyte boundary; the last
 	jl	0b			/    Mbyte is a dup of the 1st Mbyte.
 					/
@@ -869,7 +886,7 @@ outcopy_:
 /
 / plrcopy(p1, p2, n)
 / paddr_t p1, p2;
-/ fsize_t n;
+/ size_t n;
 /
 ////////
 
@@ -941,7 +958,7 @@ plrcopy_:
 /
 / prlcopy(p1, p2, n)
 / paddr_t p1, p2;
-/ fsize_t n;
+/ size_t n;
 /
 ////////
 
@@ -1019,7 +1036,7 @@ prlcopy_:
 /
 / pclear( p, n )
 / paddr_t p;
-/ fsize_t n;
+/ size_t n;
 /
 /
 /	Notes:	At most 64K bytes of memory can be cleared.
@@ -1302,12 +1319,16 @@ boot_:
 	.globl	realmode_
 	.globl	gdtsel_, gdtmap_
 	.globl	idtsel_, idtmap_
+	.globl	CMOSmax_
 
 	.shri
 val11:	.word	0			/ Value obtained from int11 [in code].
 
 	.prvd
 MAXMEM:	.word	0xA000			/ In paragraphs, must be mult. of 64
+CMOSmax_:.word	0x0000			/ Max extended memory according ...
+					/ ... to CMOS bytes 0x17 and 0x18 ...
+					/ ... in 64K chunks.
 realmode_:.word	0			/ Virtual Addressing Mode Enabled
 gdtmap_:.blkw	3			/ Global descriptor table definition
 idtmap_:.blkw	3			/ Interrupt descriptor table definition
