@@ -1,7 +1,8 @@
-# /usr/src/libc/string/Makefile 1/9/92
+# /usr/src/libc/string/Makefile 7/6/93
 
 OBJ=\
 	strcoll.o\
+	strdup.o\
 	strerror.o\
 	strtok.o\
 	strxfrm.o\
@@ -43,6 +44,7 @@ string$(MCH):
 
 # Secondary targets.
 strcoll.o:	strcoll.c
+strdup.o:	strdup.c
 strerror.o:	strerror.c
 strtok.o:	strtok.c
 strxfrm.o:	strxfrm.c
