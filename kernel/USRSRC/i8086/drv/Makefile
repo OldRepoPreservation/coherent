@@ -11,6 +11,7 @@ CC=exec /bin/cc
 CPP=exec /lib/icpp
 CFLAGS=
 AFLAGS=-gx
+NKB=nkb
 
 # Loadable driver directory
 LDRV=$(USRSYS)/ldrv
@@ -43,7 +44,9 @@ DRVOBJ=	objects/aha.o \
 	objects/fontw.o \
 	objects/gr.o objects/gras.o \
 	objects/hs.o \
-	objects/nkb.o objects/mm.o \
+	objects/nkb.o \
+	objects/kb.o \
+	objects/mm.o \
 	objects/lp.o \
 	objects/mmas.o \
 	objects/rm.o \
@@ -82,14 +85,14 @@ $(USRSYS)/lib/al.a: objects/com1.o objects/com2.o objects/alx.o
 $(USRSYS)/lib/at.a: objects/at.o objects/atas.o objects/fdisk.o
 	rm -f $@
 	ar rc $@ $<
-$(USRSYS)/lib/ati.a: objects/mm.o objects/ati.o objects/nkb.o
+$(USRSYS)/lib/ati.a: objects/mm.o objects/ati.o objects/$(NKB).o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/fl.a: objects/fl.o
 	rm -f $(USRSYS)/lib/fl.a
 	ar rc $(USRSYS)/lib/fl.a objects/fl.o
 $(USRSYS)/lib/gr.a: objects/mm.o objects/gr.o objects/gras.o \
-				objects/fontw.o objects/nkb.o
+				objects/fontw.o objects/$(NKB).o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/hs.a: objects/hs.o
@@ -98,7 +101,7 @@ $(USRSYS)/lib/hs.a: objects/hs.o
 $(USRSYS)/lib/lp.a: objects/lp.o
 	rm -f $@
 	ar rc $@ $<
-$(USRSYS)/lib/mm.a: objects/mm.o objects/mmas.o objects/nkb.o
+$(USRSYS)/lib/mm.a: objects/mm.o objects/mmas.o objects/$(NKB).o
 	rm -f $@
 	ar rc $@ $<
 $(USRSYS)/lib/ms.a: objects/ms.o
@@ -297,7 +300,7 @@ objects/hs.o:				\
 		hs.c
 	$(CC) $(CFLAGS) -c -o $@ hs.c
 
-objects/nkb.o:				\
+objects/kb.o:				\
 		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 					$(SYSINC)/machine.h $(SYSINC)/param.h \
 					$(SYSINC)/fun.h \
@@ -307,9 +310,25 @@ objects/nkb.o:				\
 		$(SYSINC)/sched.h	\
 		$(USRINC)/signal.h	\
 		$(SYSINC)/stat.h	\
-		$(SYSINC)/timeout.h	\
 		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
 		$(SYSINC)/uproc.h	\
+		kb.c
+	$(CC) $(CFLAGS) -c -o $@ kb.c
+
+objects/nkb.o:				\
+		$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/machine.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/i8086.h	\
+		$(SYSINC)/sched.h	\
+		$(SYSINC)/seg.h		\
+		$(USRINC)/signal.h	\
+		$(SYSINC)/stat.h	\
+		$(SYSINC)/tty.h		$(SYSINC)/ktty.h \
+		$(SYSINC)/uproc.h	\
+		$(SYSINC)/kb.h		\
 		nkb.c
 	$(CC) $(CFLAGS) -c -o $@ nkb.c
 
