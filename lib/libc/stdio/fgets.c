@@ -1,25 +1,25 @@
 /*
- * Coherent Standard I/O Library
- * fgets -- read a string from input
- * file pointer leaving the trailing
- * newline character.
+ * libc/stdio/fgets.c
+ * Coherent Standard I/O Library.
+ * Read a string from input file pointer, leaving the trailing '\n'.
  */
 
 #include <stdio.h>
 
 char *
-fgets(as, lim, iop)
-char *as;
-register lim;
-FILE *iop;
+fgets(is, lim, ifp) char *is; register int lim; FILE *ifp;
 {
-	register c;
-	register char *s;
+	register int	c;
+	register char	*s;
 
-	s = as;
-	while (--lim > 0 && (c = getc(iop)) != EOF)
+	s = is;
+	while (--lim > 0 && (c = getc(ifp)) != EOF)
 		if ((*s++ = c) == '\n')
 			break;
-	*s = 0;
-	return (c==EOF && s==as ? NULL : as);
+	if (c == EOF && s == is)
+		return NULL;		/* ANSI says leave *s unchanged */
+	*s = '\0';			/* else NUL-terminate */
+	return is;
 }
+
+/* end of libc/stdio/fgets.c */
