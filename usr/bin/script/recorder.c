@@ -69,7 +69,7 @@ char ** argv, ** envp;
 		if ( (shell = getenv("SHELL")) == NULL)
 			shell = "/bin/sh";
 		args[0] = shell;
-		execve(shell, args, envp);
+		execvpe(shell, args, envp);
 #if 0
 		if ( (shell = getenv("SHELL")) == NULL)
 			shell = "/bin/sh";
@@ -77,12 +77,12 @@ char ** argv, ** envp;
 			argv[0]++;
 		else
 			argv[0] = shell;
-		execve(shell, argv, envp);
+		execvpe(shell, argv, envp);
 #endif
 	} else
-		execve(argv[0], argv, envp);
+		execvpe(argv[0], argv, envp);
 
-	/* execve failed */
+	/* execvpe failed */
 	exit (1);
 }
 
