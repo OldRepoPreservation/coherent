@@ -32,6 +32,7 @@ char	lpd[] = "/usr/lib/lpd";
 #endif
 char	tmb[] = "Too many banners, `%s' ignored";
 
+int	Bflag;		/* Suppress banners */	
 int	cflag;		/* Generate a copy */
 int	mflag;		/* Send notification */
 int	rflag;		/* Remove when done */
@@ -50,7 +51,6 @@ char *argv[];
 {
 	register char *ap;
 	register int i, j;
-	char banner[3] = "-y";		/* Print banner page? */
 
 	argv0 = argv[0];
 	signal(SIGINT, rmexit);
@@ -60,6 +60,10 @@ char *argv[];
 			break;
 		for (ap = &argv[i][1]; *ap != '\0'; ap++)
 			switch (*ap) {
+			case 'B':
+				++Bflag;
+				break;
+
 			case 'b':
 				if (++i >= argc)
 					lperr("Missing banner");
@@ -69,9 +73,6 @@ char *argv[];
 					banners[banno++] = argv[i];
 				break;
 
-			case 'B':
-				banner[1] = 'n';
-				break;
 			case 'c':
 				cflag = 1;
 				break;
@@ -93,14 +94,15 @@ char *argv[];
 			}
 	}
 	lprinit(argc, argv);
+	if (Bflag)
+		fprintf(cfp, "B\n");
 	for (j=i; j<argc; j++)
 		if (banno < NBAN)
 			banners[banno++] = argv[j];
 		else
 			break;
-	if (banner[1] == 'y')
-		for (j=0; j<banno; j++)
-			fprintf(cfp, "L%s\n", banners[j]);
+	for (j=0; j<banno; j++)
+		fprintf(cfp, "L%s\n", banners[j]);
 	if (i == argc)
 		lpr(NULL);
 	else
@@ -110,7 +112,7 @@ char *argv[];
 	for (i=3; i<_NFILE; i++)
 		close(i);
 	close(0);
-	execl(lpd, lpd, banner, NULL);
+	execl(lpd, lpd, NULL);
 	lperr("Cannot find daemon `%s'", lpd);
 }
 
