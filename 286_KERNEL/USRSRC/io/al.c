@@ -4,6 +4,10 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.9  91/12/10  08:01:11  hal
+ * Set ALCNT automatically.
+ * Set interrupt vector before calling uart_sense().
+ * 
  * Revision 1.8  91/12/05  09:35:25  hal
  * Working 16550A code.  Nfg on GeeSee.
  * 
@@ -33,6 +37,7 @@
 #define	minor_st(dev)	(dev & 0x0f)	/* up to 16 ports per driver */
 #define	DEV_TTY		(alttab[minor_st(dev)])
 #define ALPORT		(((COM_DDP *)(DEV_TTY.t_ddp))->port)
+#define TESTBAUD	0x03A5
 
 /*
  * This driver can be compiled to drive any possible
@@ -336,21 +341,48 @@ static int uart_sense(port)
 int port;
 {
 	int ret;
-	unsigned char mcr_save, ch;
+	unsigned ch;
+	short testbaud;
 
-	mcr_save = inb(port+MCR);
-	outb(port+MCR, 0x0A | MC_LOOP);
-	ch = inb(port + MSR);
-	if ((ch & 0xF0) != 0x90) {
+	/*
+	 * See if UART is detected at port address.
+	 * UART should have IER = 0000 xxxx
+	 *                  MCR = 000x xxxx
+	 *                  IIR = xx00 xxxx
+	 * and should be write and read back the baud rate regs.
+	 */
+	if (inb(port+IER) & 0xF0
+	  || inb(port+MCR) & 0xE0
+	  || inb(port+IIR) & 0x30) {
 		ret = US_NONE;
 		goto done;
 	}
+	outb(port+LCR, LC_DLAB);
+	outb(port+DLL, TESTBAUD & 0xFF);
+	outb(port+DLH, TESTBAUD >> 8);
+	testbaud = inb(port+DLL) | inb(port+DLH) << 8;
+	outb(port+LCR, LC_CS8);
+	if (testbaud != TESTBAUD){
+		ret = US_NONE;
+		goto done;
+	}
+
+	/*
+	 * Scratch register NOT found on 8250/8250B.
+	 */
 	outb(port+SCR, 0x55);
 	ch = inb(port+SCR);
 	if (ch != 0x55) {
 		ret = US_8250;
 		goto done;
 	}
+
+	/*
+	 * After trying to turn on FIFO mode,
+	 * If IIR is 00xx xxxx, it's 8250A/16450 (no FIFO).
+	 * If IIR is 10xx xxxx, it's 16550 (broken FIFO).
+	 * If IIR is 11xx xxxx, it's 16550A (usable FIFO).
+	 */
 	outb(port+FCR, 0x01);
 	ch = inb(port+FCR);
 	switch (ch & 0xC0) {
@@ -366,7 +398,6 @@ int port;
 	}
 	outb(port+FCR, 0x00);
 done:
-	outb(port+MCR, mcr_save);
 if (ret == US_NONE)
 	goto really_done;	
 switch(port){
