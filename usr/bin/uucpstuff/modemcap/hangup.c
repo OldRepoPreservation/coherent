@@ -18,8 +18,14 @@ int	fd;
 		undial(fd);
 		return(0);
 	}
-	sleep (3);
+
 	if (AT != (char *) 0) {
+
+	/* guard time for modem. Before sending the +++ to the modem to put
+	 * it in command mode, there must be some delay between the real data
+	 * and the AT string for it to work.
+	 */
+		sleep (3);
 		write (fd, AT, strlen (AT));
 		if (AD)
 			sleep (AD);
