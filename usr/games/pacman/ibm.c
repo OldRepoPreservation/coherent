@@ -8,7 +8,7 @@
 #define	KEY_C	'0': case '*': case '+': case '@'
 
 #define	curs(r,c)	{caddr=(80*(r)+(c))*2;}
-char	*caddr;
+int	caddr;
 
 #define	P_HALF	1
 #define	P_GFLP	0

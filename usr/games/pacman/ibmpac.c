@@ -5,9 +5,21 @@
  * steve 10/4/90 kludged to make speed setting slightly more cogent
  * steve 10/9/90 made arrow keys work
  * steve 10/10/90 added -c option to work on video cards
+ * steve 6/10/92 added #if _I386 conditionalization for COH386;
+ *	cleaned up a few of the more offensive pointer/int fubars of dal.
+ *	The i386 version must be setuid sys, so it can read /dev/mem.
  */
+
 #include "term.c"
 #include "io.c"
+
+#if	_I386
+#define	SCRBASE_M	0xB0000		/* monochrome screen base address */
+#define	SCRBASE_C	0xB8000		/* color board screen base address */
+#else
+#define	SCRBASE_M	0xB000		/* monochrome screen base segment */
+#define	SCRBASE_C	0xB800		/* color board screen base segment */
+#endif
 
 #define	rand()	((rn+=rn+((((rn<<0^rn<<1^rn<<8^rn<<9)>>15)^1)&1))&1)
 int		rn;
@@ -135,7 +147,7 @@ int	field[F_VERT][F_HORZ] = {
 #undef	W
 
 int	cn[3];
-unsigned	scrbase = 0xB000;	/* monochrome screen base address */
+unsigned	scrbase = SCRBASE_M;	/* monochrome screen by default */
 
 nc(x, y, z)
 {
@@ -165,7 +177,7 @@ main(argc, argv) int argc; char *argv[];
 	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'c') {
 		--argc;
 		++argv;
-		scrbase = 0xB800;	/* color board screen base address */
+		scrbase = SCRBASE_C;		/* color screen if -c */
 	}
 	if (argc > 1)
 		ndelay = atoi(argv[1]);
