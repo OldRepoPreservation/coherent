@@ -1,6 +1,6 @@
 /*
  * install.c
- * 12/20/90
+ * 12/21/90
  * Install COHERENT disks on a system.
  * This is the back end of the initial COHERENT installation procedure;
  * the first part is in build.c.
@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.10"
+#define	VERSION		"1.11"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
@@ -184,10 +184,11 @@ again:
 				setbaud(port);
 		}
 		printf(
-"Because many users are not sure about which port their printer uses,\n"
-"Mark Williams strongly recommends that you test your printer configuration.\n"
+"Even if you know which port your printer uses under your existing operating\n"
+"system, under COHERENT the port name may be different. For this reason,\n"
+"we strongly recommend that you test your printer configuration.\n"
 "If you test your printer configuration and see no output on your printer,\n"
-"you can try a different configuration.\n"
+"you can try a different configuration until you find the one which works.\n"
 			);
 		if (yes_no("Do you want to test whether your printer configuration is correct")) {
 			/* The command below is backgrounded in case it hangs. */
@@ -198,7 +199,9 @@ again:
 				device, device);	/* 014 is formfeed */
 			sys(cmd, S_IGNORE);
 			if (!yes_no("\nDid output appear on your printer")) {
-				printf("Now try specifying a different port for your printer.\n");
+				printf(
+"Now try again, specifying a different port for your printer.\n"
+					);
 				goto again;
 			}
 		}
