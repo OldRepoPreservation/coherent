@@ -427,8 +427,9 @@ wrtdefs()
 	if (ntype==0)
 		fprintf(fhdr, "typedef	int	YYSTYPE;\n");
 	fprintf(fhdr, "#ifdef YYTNAMES\n");
-	fprintf(fhdr, "extern struct yytname\n{\n");
-	fprintf(fhdr, "\tchar\t*tn_name;\n\tint\ttn_val;\n} yytnames[];\n");
+	fprintf(fhdr, "extern readonly struct yytname\n{\n");
+	fprintf(fhdr, "\tchar\t*tn_name;\n\tint\ttn_val;\n} yytnames[%d];\n",
+		nterm+1);
 	fprintf(fhdr, "#endif\n");
 	fprintf(fhdr, "extern	YYSTYPE	yylval;\n");
 	fclose(fhdr);
@@ -452,7 +453,7 @@ wrtnames()
 	register char *sp;
 
 	fprintf(tabout, "#ifdef YYTNAMES\n");
-	fprintf(tabout, "struct yytname yytnames[%d] =\n{\n", nterm+1);
+	fprintf(tabout, "readonly struct yytname yytnames[%d] =\n{\n", nterm+1);
 	for(i=0; i<nterm; i++) {
 		fprintf(tabout, "\t\"");
 		sp = trmptr[i]->s_name;
