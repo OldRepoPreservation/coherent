@@ -1,0 +1,42 @@
+/* (-lgl
+ * 	COHERENT Driver Kit Version 1.1.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+/*
+ * Graphics Display Driver for PC Color Card
+ */
+
+#include <coherent.h>
+#include <sys/timeout.h>
+#include <sched.h>
+#include <types.h>
+#include <uproc.h>
+#include <errno.h>
+#include <con.h>
+
+int grread();
+int grwrite();
+int nonedev();
+int nulldev();
+
+/*
+ * Driver Configuration.
+ */
+#define	MAJOR	30
+
+CON
+grcon = {
+	DFCHR,				/* Flags			  */
+	MAJOR,				/* Major Index			  */
+	nulldev,			/* Open				  */
+	nulldev,			/* Close			  */
+	nonedev,			/* Block			  */
+	grread,				/* Read				  */
+	grwrite,			/* Write			  */
+	nonedev,			/* Ioctl			  */
+	nulldev,			/* Power fail			  */
+	nulldev,			/* Timeout			  */
+	nulldev,			/* Load				  */
+	nulldev				/* Unload			  */
+};

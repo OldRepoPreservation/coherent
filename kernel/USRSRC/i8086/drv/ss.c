@@ -8,6 +8,10 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 2.12  91/05/31  13:18:39  hal
+ * Force parity on as Conner drives act dead without it.
+ * Slow down data in phase in local_info_xfer() for 486 + Conner.
+ * 
  * Revision 2.11  91/05/30  15:43:17  hal
  * Add SS_DELAY and slow down delays for 486.
  * 
@@ -138,7 +142,6 @@ static int s_id;
 #define DEV_PARTN(dev)		(dev & 0x0003)
 #define DEV_SPECIAL(dev)	(dev & 0x0080)
 
-#define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
 #define HIPRI_RETRIES	5000	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
@@ -147,7 +150,7 @@ static int s_id;
 #define BUS_FREE	((ffbyte(ss_csr) & (RS_BUSY | RS_SELECT)) == 0)
 #define TGT_RSEL	\
 	(  (ffbyte(ss_csr) & (RS_SELECT |  RS_I_O   )) \
-	&& (ffbyte(ss_dat) & (HOST_ID   | (1<<s_id) )) )
+	&& (ffbyte(ss_dat) & (SS_HOST   | (1<<s_id) )) )
 
 #define DELAY_ARB	10	/* delays units are 10 msec (clock ticks) */
 #define DELAY_BDR	30
@@ -156,9 +159,9 @@ static int s_id;
 #define DELAY_RST	40
 
 #define MAX_AVL_COUNT	100
-#define MAX_BDR_COUNT	2
-#define MAX_BSY_COUNT	2
-#define MAX_TRY_COUNT	7
+#define MAX_BDR_COUNT	3
+#define MAX_BSY_COUNT	3
+#define MAX_TRY_COUNT	10
 
 typedef unsigned char	uchar;
 typedef unsigned int	uint;
@@ -306,6 +309,7 @@ int	NSDRIVE = 0x0000;	/* Bitmap of attached SCSI drives. */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 int	SS_DELAY = 10000;	/* Loop counter during ssload() only */
+int	SS_HOST = 0x80;		/* Host is SCSI ID #7 for Seagate, 6 for FD */
 
 /* ncyl, nhead, nspt */
 drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
@@ -1010,16 +1014,21 @@ int s_id;
 				+ ((int)query_buf[DDG_PG+3]<<8)
 				+ query_buf[DDG_PG+4];
 			heads=query_buf[DDG_PG+5];
+
+			printf("Physical:  cylinders=%ld ", cyls);
+			printf("heads=%d ", heads);
+			printf("spt=%d\n", spt);
+
 			if (drv_parm[s_id].ncyl == 0) {
 				drv_parm[s_id].ncyl = cyls;
 				drv_parm[s_id].nhead = heads;
 				drv_parm[s_id].nspt = spt;
+			} else {
+				printf("Logical:  cylinders=%d ",
+					drv_parm[s_id].ncyl);
+				printf("heads=%d ", drv_parm[s_id].nhead);
+				printf("spt=%d\n", drv_parm[s_id].nspt);
 			}
-#if (DEBUG >= 1)
-			printf("Physical: %d sectors per track  ", spt);
-			printf("%ld cylinders  ", cyls);
-			printf("%d heads\n\n", heads);
-#endif
 		} else
 			devmsg(dev, "Mode Sense Failed");
 
@@ -1157,9 +1166,22 @@ PR1("Data in overrun");
 			} else if (bp->b_req != BREAD) {
 				xfer_good = 0;
 			} else {
+#if 0
+				int getbval;
+
 				block_done=1;
-				ss_get(ss_dat, bp->b_faddr + xfer_count);
 PR4("DI");
+				if(getbval = ss_getb(ss_dat,
+				bp->b_faddr + xfer_count)) {
+					xfer_good = 0;
+#if (DEBUG >= 1)
+printf("getb=%d ", getbval);
+#endif
+				}
+#else
+				block_done=1;
+				ffcopy(ss_dat, bp->b_faddr + xfer_count, BSIZE);
+#endif
 			}
 			break;
 		case XP_DATA_OUT:
@@ -1172,9 +1194,21 @@ PR1("Data out overrun");
 			} else if (bp->b_req != BWRITE) {
 				xfer_good = 0;
 			} else {
+#if 0
+				int putbval;
 				block_done=1;
-				ss_get(bp->b_faddr + xfer_count, ss_dat);
 PR4("DO");
+				if (putbval = ss_putb(ss_dat,
+				bp->b_faddr + xfer_count)) {
+					xfer_good = 0;
+#if (DEBUG >= 1)
+printf("putb=%d ", putbval);
+#endif
+				}
+#else
+				block_done=1;
+				ffcopy(bp->b_faddr + xfer_count, ss_dat, BSIZE);
+#endif
 				if (irpts_masked) {
 					spl(s);
 					irpts_masked = 0;
@@ -1300,10 +1334,21 @@ printf("status=%x ", ffbyte(ss_csr));
 PR2("NO local xfer");
 		goto rqs_done;
 	} else {
-		if (sense_buf[2] == 0x00)	/* No Sense.  AOK */
+		/*
+		 * Return 1 if drive responded with any of these sense keys:
+		 *	0x00	No Sense
+		 *	0x06	Unit Attention
+		 *	0x0B	Aborted Command
+		 * In any of the above cases, a retry will likely succeed
+		 * without Buse Device Reset or SCSI Bus Reset.
+		 */
+		switch (sense_buf[2]) {
+		case 0x00:
+		case 0x06:
+		case 0x0B:
 			ret = 1;
-		else if (sense_buf[2] == 0x06 && sense_buf[12] == 0x29)
-			ret = 1;
+			break;
+		} /* endswitch */
 	}
 
 rqs_done:
@@ -1311,7 +1356,6 @@ rqs_done:
 {
 	int i;
 
-	printf("rqs: ");
 	for (i=0; i<SENSELEN;i++)
 		printf("%x ", sense_buf[i]);
 	printf("\n");
@@ -1437,7 +1481,7 @@ PR1("BDR");
 		 * Start arbitration.
 		 */
 		sfbyte(ss_csr, WC_ENABLE_PRTY);
-		sfbyte(ss_dat, HOST_ID);
+		sfbyte(ss_dat, SS_HOST);
 		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);
 
 		/*
@@ -1453,7 +1497,7 @@ PR1("BDR");
 	 * Arbitration complete.  Now select, with ATN to allow messages.
 	 */
 	if (bdr_ok) {
-		sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
+		sfbyte(ss_dat, SS_HOST | (1 << s_id));	/* Write both SCSI id's */
 		sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
 		if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
@@ -1496,8 +1540,8 @@ static int chk_reconn()
 	csr = ffbyte(ss_csr);
 	if (csr & (RS_SELECT | RS_I_O)) {
 		dat = ffbyte(ss_dat);
-		if ((dat & HOST_ID) && (dat & NSDRIVE)) {
-			dat &= ~HOST_ID;
+		if ((dat & SS_HOST) && (dat & NSDRIVE)) {
+			dat &= ~SS_HOST;
 			s_id = 0;
 			while (dat >>=1)
 				s_id++;
@@ -1730,7 +1774,7 @@ static int start_arb()
 	int ret;
 
 	sfbyte(ss_csr, WC_ENABLE_PRTY);
-	sfbyte(ss_dat, HOST_ID);
+	sfbyte(ss_dat, SS_HOST);
 	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ARBITRATE);
 
 	/*
@@ -1762,7 +1806,7 @@ int disconnect;
 	/*
 	 * Arbitration complete.  Now select, with ATN to allow messages.
 	 */
-	sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
+	sfbyte(ss_dat, SS_HOST | (1 << s_id));	/* Write both SCSI id's */
 	sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
 
 	if (bus_wait(RS_BUSY << 8 | RS_BUSY)) {
@@ -1948,7 +1992,10 @@ if ((foo=chk_reconn()) != -1)
 	} else { /* try_count >= MAX_TRY_COUNT */
 		if (bp) {
 			bp->b_flag |= BFERR;
-PR1("BF4 ");
+			printf("(%d,%d): ", major(bp->b_dev), minor(bp->b_dev));
+			printf("%s error bno=%ld\n",
+				(bp->b_req == BREAD) ? "read" : "write",
+				bp->b_bno);
 		}
 		ss_finished(s_id);
 	}
