@@ -14,6 +14,7 @@
  * Usage:  uucico [-xn] [-r0]		   slave mode
  * 	   uucico [-xn] [-r1] -{sS}host    call host
  * 	   uucico [-xn] [-r1] -{sS}all	   call all known hosts
+ * 	   uucico [-xn] [-r1] -{c}all	   call all known hosts with queued files
  * 	   uucico [-xn] -r1		   call uutouch queued hosts
  */
 
@@ -98,14 +99,15 @@ char *argv[];
 		switch(argv[0][1]) {
 		case 'x':
 			debuglevel = atoi(&argv[0][2]);  break;
-		case 'S':
-			forcecall = 1;
+		case 'c':
+			checkfirst = 1;
 			role = MASTER;
 			sysname = &argv[0][2];
 			break;
+		case 'S':
+			forcecall = 1;
 		case 's':
 			role = MASTER;
-			checkfirst = 1;
 			sysname = &argv[0][2];  break;
 		case 'r':
 			role = atoi(&argv[0][2]);  break;
@@ -165,7 +167,8 @@ char *argv[];
 				}
 				else{
 					state = 'Y';
-					printmsg(M_CALL,"No Files pending");
+					plog(M_CALL,"Attempting to call, checking for queued files.");
+					plog(M_CALL,"No Files pending");
 				}
 				break;
 

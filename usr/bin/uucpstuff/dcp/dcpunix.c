@@ -174,8 +174,16 @@ char *dev, *speed, *tel;
 	return( 1 );
 }
 
+	/* dcpundial() is called by sysend(), possibly others.
+	 * Dcpundial calls hangup. Hangup terminates the call and hangs up the
+	 * modem. Hangup then calls undial() which removes device lock files
+	 * and re-enables any ports if necessary. Bob H. 11/22/91
+	 */
+
 dcpundial()
 {
+	printmsg(M_DEBUG,"dcpundial: about to call hangup().");
+
 	if (swritefd > 2)
 		hangup(swritefd);
 	else {

@@ -21,9 +21,12 @@ fatal(x)
 	printmsg(M_LOG, "%r", &x);
 	if ( lockexist(rmtname) )
 		lockrm(rmtname);
-	if ( lockexist(rdevname) ) {
+	if ( lockttyexist(rdevname) ) {
 		dcpundial();
-		lockrm(rdevname);
+		if(unlocktty(rdevname) == -1){
+			printmsg(M_LOG,"fatal: could not remove lock file");
+			plog(M_CALL,"fatal: could not remove lock file");
+		}
 	}
 	close_logfile();
 	exit(1);
