@@ -112,8 +112,8 @@ main(argc, argv) int argc; char *argv[];
 	nol = 0;
 	for (;;) {
 		c = (bump==sizeof(char)) ? getbyte() : getword();
-		if (ferror(ifp))	/* partial read */
-			clearerr(ifp);	/* treated as good */
+		if (ferror(ifp) && c != EOF)	/* partial read */
+			clearerr(ifp);		/* treated as good */
 		else if (feof(ifp))
 			break;
 		if (nol >= mol) {
