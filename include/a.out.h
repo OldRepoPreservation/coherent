@@ -1,8 +1,3 @@
-/* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /* COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90 */
 
 struct	filehdr {

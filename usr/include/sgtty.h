@@ -1,12 +1,15 @@
-/* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
  * Terminal ioctl.
  * This is an ibm-pc special case file, many of these ioctls apply
  * only to the pc console and pc asynchronous ports.
+ *
+ * $Log:	sgtty.h,v $
+ * Revision 1.1  91/10/11  10:37:44  hal
+ * Original from Ciaran
+ * 
+ * Revision 1.1	89/04/26  16:26:03 	root
+ * Initial revision
+ * 
  */
 
 #ifndef	 SGTTY_H
