@@ -1,12 +1,23 @@
 /*
- * Expr.y, yacc grammar for expr. Designed so no stdio is called, which
- * makes the final object code about 1/3 smaller. To make, say
+ * cmd/expr.y
+ * yacc grammar for expr.
+ * Designed so no stdio is called,
+ * which makes the final object code about 1/3 smaller.
+ * To make, say
  *	yacc expr.y; cc -O -o expr y.tab.c;
  */
-%{
-#include <ctype.h>
-#include <stdio.h>
 
+%{
+
+#include <ctype.h>
+#include <stddef.h>
+#include <stdlib.h>
+
+#define	LONGLEN	12		/* max length of NUL-terminated ASCII long */
+#define	CODELEN	512		/* initial length of code buffer */
+#define	CODEINC	128		/* code buffer length increment */
+
+#define	EOF	(-1)
 #define TRUE	(0 == 0)
 #define FALSE	(0 != 0)
 #define true(e)	(*(e) == '\0' || (isnum(e) && atol(e) == 0) ? FALSE : TRUE)
@@ -54,7 +65,7 @@ typedef	struct {
 BRACE	brlist[BRSIZE];			/* brace list */
 int	brcount;			/* # of braces in reg_expr */
 char	*codebuf;			/* Ptr to a compiled regular expr */
-int	cbsiz = 512;			/* Initial size of codebuf */
+int	cbsiz = CODELEN;			/* Initial size of codebuf */
 
 char	*match();
 char	*overflow();
@@ -147,12 +158,12 @@ int argc;
 char **argv;
 {
 	if (argc == 1)
-		return (2);
+		return 2;
 	av = argv;
 	yyparse();
 	output(result, 1);
 	output("\n", 1);
-	return (exstat);
+	return exstat;
 }
 
 
@@ -191,7 +202,7 @@ register char *e1, *e2;
 		v1 %= v2;
 		break;
 	}
-	return (ltoa(v1));
+	return ltoa(v1);
 }
 
 char *
@@ -211,17 +222,17 @@ register char *e1, *e2;
 	}
 	switch (op) {
 	case '<':
-		return ((cmp < 0) ? s1 : s0);
+		return (cmp < 0) ? s1 : s0;
 	case '>':
-		return ((cmp > 0) ? s1 : s0);
+		return (cmp > 0) ? s1 : s0;
 	case LE:
-		return ((cmp <= 0) ? s1 : s0);
+		return (cmp <= 0) ? s1 : s0;
 	case GE:
-		return ((cmp >= 0) ? s1 : s0);
+		return (cmp >= 0) ? s1 : s0;
 	case EQ:
-		return ((cmp == 0) ? s1 : s0);
+		return (cmp == 0) ? s1 : s0;
 	case NEQ:
-		return ((cmp != 0) ? s1 : s0);
+		return (cmp != 0) ? s1 : s0;
 	}
 }
 
@@ -234,20 +245,26 @@ char *e1, *e2;
 	register char *b;
 	register BRACE *brp;
 
-	codebuf = malloc(512);
+	codebuf = malloc(CODELEN);
 	compile(e2);
 	if (brcount > 0)	/* brcount is now the number of braces in e2 */
 		brlist[brcount].b_bp = brlist[brcount].b_ep = NULL;
+#if	1
+	/* Posix P1003.2 4.22.7.1: pattern search is anchored to beginning. */
+	b = match(a, codebuf);
+#else
+	/* This code searches for unanchored match. */
 	if (codebuf[0] == CSSOL)
 		b = match(a, codebuf + 1);
 	else
 		for ( ; *a != '\0'; ++a)
 			if ((b = match(a, codebuf)) != NULL)
 				break;
+#endif
 	if (b == NULL)
-		return ("0");
+		return "0";
 	if (brcount == 0)
-		return (ltoa((long)(b - a)));
+		return ltoa((long)(b - a));
 
 	/* Remaining case is extraction of fields */
 	for (a = e1, brp = brlist; (b = brp->b_bp) != NULL; ++brp)
@@ -255,7 +272,7 @@ char *e1, *e2;
 			*a++ = *b++;
 	*a = '\0';
 	free (codebuf);
-	return (e1);
+	return e1;
 }
 
 
@@ -268,8 +285,8 @@ register char *e;
 		++e;
 	while ((c = *e++) != '\0')
 		if (!isdigit(c))
-			return (FALSE);
-	return (TRUE);
+			return FALSE;
+	return TRUE;
 }
 
 /*
@@ -279,12 +296,12 @@ char *
 ltoa(n)
 register long n;
 {
-	char buf[12];
+	char buf[LONGLEN];
 	register char *bp = buf;
 	register char *ep;
 	register char *e;
 
-	e = ep = malloc(12);
+	e = ep = malloc(LONGLEN);
 	if (n < 0) {
 		*ep++ = '-';
 		n = -n;
@@ -296,7 +313,7 @@ register long n;
 	while (bp > buf)
 		*ep++ = *--bp;
 	*ep = '\0';
-	return (e);
+	return e;
 }
 
 
@@ -449,11 +466,11 @@ register char *lp, *cp;
 	for (;;) {
 		switch (*cp++) {
 		case CSNUL:
-			return (lp);
+			return lp;
 		case CSEOL:
 			if (*lp)
-				return (NULL);
-			return (lp);
+				return NULL;
+			return lp;
 		case CSOPR:
 			brlist[*cp++].b_bp = lp;
 			continue;
@@ -466,15 +483,15 @@ register char *lp, *cp;
 			cp = brlist[n].b_bp;
 			n = brlist[n].b_ep - cp;
 			if (n > strlen(lp))
-				return (NULL);
+				return NULL;
 			while (n-- > 0)
 				if (*lp++ != *cp++)
-					return (NULL);
+					return NULL;
 			cp = lcp;
 			continue;
 		case CSDOT:
 			if (*lp++ == '\0')
-				return (NULL);
+				return NULL;
 			continue;
 		case CMDOT:
 			llp = lp;
@@ -483,7 +500,7 @@ register char *lp, *cp;
 			goto star;
 		case CSCHR:
 			if (*cp++ != *lp++)
-				return (NULL);
+				return NULL;
 			continue;
 		case CMCHR:
 			llp = lp;
@@ -495,7 +512,7 @@ register char *lp, *cp;
 			n = *cp++;
 			while (*cp++ != *lp)
 				if (--n == 0)
-					return (NULL);
+					return NULL;
 			lp++;
 			cp += n-1;
 			continue;
@@ -514,11 +531,11 @@ register char *lp, *cp;
 			goto star;
 		case CSNCL:
 			if (*lp == '\0')
-				return (NULL);
+				return NULL;
 			n = *cp++;
 			while (n--)
 				if (*cp++ == *lp)
-					return (NULL);
+					return NULL;
 			lp++;
 			continue;
 		case CMNCL:
@@ -539,15 +556,15 @@ register char *lp, *cp;
 		star:
 			do {
 				if (lcp=match(lp, cp))
-					return (lcp);
+					return lcp;
 			} while (--lp >= llp);
-			return (NULL);
+			return NULL;
 		}
 	}
 }
 
 /*
- * overflow enlarges codebuf by 128 bytes. The argument is a pointer
+ * overflow enlarges codebuf by CODEINC bytes. The argument is a pointer
  * to a position in codebuf - the function returns a pointer with the same
  * relative position in the new buffer.
  */
@@ -557,9 +574,9 @@ register char *pc;
 {
 	register int posn = pc - codebuf;
 
-	if ((codebuf = realloc(codebuf, cbsiz += 128)) == NULL)
+	if ((codebuf = realloc(codebuf, cbsiz += CODEINC)) == NULL)
 		regerror();
-	return (codebuf + posn);
+	return codebuf + posn;
 }
 
 /*
@@ -582,7 +599,7 @@ yylex()
 	register int c;
 
 	if ((yylval.str = av[++avx]) == NULL)
-		return (EOF);
+		return EOF;
 	if (av[avx][1] == '\0')
 		switch (c = av[avx][0]) {
 		case '{':
@@ -601,26 +618,24 @@ yylex()
 		case '!':
 		case '(':
 		case ')':
-			return (c);
+			return c;
 		default:
-			return (STR);
+			return STR;
 		}
 	if (av[avx][1] == '='  &&  av[avx][2] == '\0')
 		switch (c = av[avx][0]) {
 		case '<':
-			return (LE);
+			return LE;
 		case '>':
-			return (GE);
+			return GE;
 		case '=':
-			return (EQ);
+			return EQ;
 		case '!':
-			return (NEQ);
+			return NEQ;
 		default:
-			return (STR);
+			return STR;
 		}
-	if (strcmp(yylval.str, "len") == 0)
-		return (LEN);
-	return (STR);
+	return (strcmp(yylval.str, "len") == 0) ? LEN : STR;
 }
 
 /*
@@ -646,4 +661,4 @@ errexit()
 	exit(2);
 }
 
-
+/* end of cmd/expr.y */
