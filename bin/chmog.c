@@ -5,7 +5,7 @@
  * As result code may not be optimal, but should be pretty reliable
  * and be backword compatible (including bugs and bad design as exit(2)).
  *
- * chmog should be link to chown, chmod, and chbin. BTW it saves about
+ * chmog should be link to chown, chmod, and chgrp. BTW it saves about
  * 15K :-).
  *
  * 1-31-92 Vlad
@@ -65,6 +65,7 @@ char 	*argv[];
 		chmog(argc, argv);		/* Be itself */
 	else	/* If some entysiast will link to a different name....*/
 		usage(chmog_usage);
+	exit(0);
 }
 
 /*
@@ -79,15 +80,18 @@ char	**argv;
 	if (argc < 5)
 		usage(chmog_usage);
 
-	/* Change mode */
-	if (strcmp(argv[1], "-")) 
-		cmd_chmod(argc, argv, 2);
 	/* Change owner */
 	if (strcmp(argv[2], "-")) 
 		cmd_chown(argc, argv, 1, 2);
 	/* Change group */
 	if (strcmp(argv[3], "-")) 
 		cmd_chgrp(argc, argv, 2, 2);
+	/* Change mode. We want to do it at the very and, otherwise
+	 * chown or chgrp will remove setuid & setgid bits
+	 */
+	if (strcmp(argv[1], "-")) 
+		cmd_chmod(argc, argv, 2);
+	exit(0);
 }
 
 /*
@@ -389,7 +393,8 @@ int	shift_file;	/* Shift argv to the file names */
 			status = 2;
 		}
 	}
-	exit (status);
+	if (status)
+		exit (status);
 }
 
 usage(msg)
