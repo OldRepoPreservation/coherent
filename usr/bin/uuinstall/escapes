@@ -1,0 +1,12 @@
+%%
+
+
+					    ""           Expect a null string
+					    \b                 Send backspace
+					    \c    If send string ends with \c
+					        suppress newline after string
+					    \d   Delay 1 second after sending
+					    \n                 Send a newline
+					    \r          Send a carrage return
+					    \s                   Send a space
+					    \t                     Send a tab
