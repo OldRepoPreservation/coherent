@@ -37,7 +37,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/acct.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/ino.h>
 #include <sys/stat.h>
 
@@ -74,6 +74,23 @@ owner(uid)
 }
 
 /*
+ * Use printf to generate a call-trace.
+ */
+
+void backtrace (dummy)
+long		dummy;
+{
+	long	      *	bp = (& dummy) - 2;
+
+	printf ("Call backtrace: ");
+	do {
+		bp = (long *) * bp;
+		printf (" -> %x", * (bp + 1));
+	} while (* bp != NULL);
+	printf ("\n");
+}
+
+/*
  * Panic.
  */
 void
@@ -100,6 +117,8 @@ char *a1;
 				strchirp("Panic: ");
 				strchirp(a1);
 			}
+			backtrace (0);
+			curr_register_dump (u.u_regl);
 			for (;;);
 			usync();
 		}
@@ -127,6 +146,9 @@ char *a1;
 {
 	printf("(%d,%d): %r", major(dev), minor(dev), &a1);
 	printf("\n");
+#ifdef	TRACER
+	backtrace (0);
+#endif
 }
 
 /*

@@ -5,10 +5,12 @@
 #include <sys/coherent.h>
 #ifdef _I386
 #include <sys/reg.h>
+#else
+#include <sys/i8086.h>
 #endif
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <signal.h>
@@ -53,6 +55,10 @@
 #define	NFKEY	20			/* Number of settable functions */
 #define	NFCHAR	150			/* Number of characters settable */
 #define	NFBUF	(NFKEY*2+NFCHAR+1)	/* Size of buffer */
+
+#define	ESCAPE_CHAR	'\x1B'
+#define	ESCAPE_STRING	"\x1B"
+
 
 /*
  * Functions.
@@ -235,7 +241,7 @@ isuload()
 }
 
 /*
- * Default function key strings (terminated by -1 [\377])
+ * Default function key strings(terminated by -1 [\377])
  */
 static char *deffuncs[] = {
 	"\33[1x\377",	/* F1 */
@@ -345,7 +351,7 @@ struct sgttyb *vec;
 	switch(com) {
 	case TIOCSETF:
 	case TIOCGETF:
-		isfunction(com, (char *)vec);
+		isfunction(com,(char *)vec);
 		goto ioc_done;;
 	case TIOCSHIFT:   /* switch left-SHIFT and "\" */
 		lshift = LSHIFTA;    /* alternate values */
@@ -356,7 +362,7 @@ struct sgttyb *vec;
 		smaptab[41] = SS1;
 		smaptab[42] = SHFT;
 		goto ioc_done;;
-	case TIOCCSHIFT:  /* normal (default) left-SHIFT and "\" */
+	case TIOCCSHIFT:  /* normal(default) left-SHIFT and "\" */
 		lshift = LSHIFT;     /* normal values */
 		lmaptab[41] = XXX;
 		lmaptab[42] = '\\';
@@ -409,7 +415,7 @@ dev_t dev;
 int ev;
 int msec;
 {
-	return ttpoll(&istty, ev, msec);
+	return ttpoll(& istty, ev, msec);
 }
 
 /*
@@ -426,9 +432,10 @@ isrint()
 	/*
 	 * Schedule raw input handler if not already active.
 	 */
-	if ( isbusy == 0 ) {
+
+	if (isbusy == 0) {
 		isbusy = 1;
-		defer( isbatch, &istty );
+		defer(isbatch, & istty);
 	}
 
 	/*
@@ -436,9 +443,10 @@ isrint()
 	 * port. Pulse the KBFLAG in the control
 	 * port to reset the data buffer.
 	 */
+
 	r = inb(KBDATA) & 0xFF;
 	c = inb(KBCTRL);
-	outb(KBCTRL, c|KBFLAG);
+	outb(KBCTRL, c | KBFLAG);
 	outb(KBCTRL, c);
 #if	KBDEBUG
 	printf("kbd: %d\n", r);			/* print scan code/direction */
@@ -456,7 +464,7 @@ isrint()
 		return;
 	}
 	if (extended > 0) {			/* if multi-character seq, */
-		--extended;			/* ... ignore this char */
+		-- extended;			/* ... ignore this char */
 		return;
 	}
 	if (r == EXTENDED1) {			/* ignore extended sequences */
@@ -465,27 +473,31 @@ isrint()
 	}
 	if (r == 0xFF)
 		return;	/* Overrun */
-	c = (r & KEYSC) - 1;
+	c =(r & KEYSC) - 1;
+
 	/*
 	 * Check for reset.
 	 */
-	if ((r&KEYUP) == 0 && c == DELETE && (shift&(CTS|ALS)) == (CTS|ALS))
+
+	if ((r & KEYUP) == 0 && c == DELETE &&
+	   (shift &(CTS | ALS)) ==(CTS | ALS))
 		boot();
 
 	/*
 	 * Track "shift" keys.
 	 */
-	s = smaptab[c];
-	if (s&SHFT) {
-		if (r&KEYUP) {			/* "shift" released */
+
+	s = smaptab [c];
+	if (s & SHFT) {
+		if (r & KEYUP) {		/* "shift" released */
 			if (c == RSHIFT)
-				shift &= ~SRS;
+				shift &= ~ SRS;
 			else if (c == lshift)
-				shift &= ~SLS;
+				shift &= ~ SLS;
 			else if (c == CTRL)
-				shift &= ~CTS;
+				shift &= ~ CTS;
 			else if (c == ALT)
-				shift &= ~ALS;
+				shift &= ~ ALS;
 		} else {			/* "shift" pressed */
 			if (c == lshift)
 				shift |= SLS;
@@ -509,13 +521,15 @@ isrint()
 	/*
 	 * No other key up codes of interest.
 	 */
-	if (r&KEYUP)
+
+	if (r & KEYUP)
 		return;
 
 	/*
 	 * If the tty is not open the character is
 	 * just tossed away.
 	 */
+
 	if (istty.t_open == 0)
 		return;
 
@@ -524,40 +538,36 @@ isrint()
 	 * current state of the shift, control,
 	 * meta and lock flags.
 	 */
+
 	if (shift & CTS) {
-		if (s == CTS)			/* Map Ctrl (BS | NL) */
-			c = (c == BACKSP) ? 0x7F : 0x0A;
-		else if (s==SS1 || s==LET)	/* Normal Ctrl map */
-			c = umaptab[c]&0x1F;	/* Clear bits 5-6 */
+		if (s == CTS)			/* Map Ctrl(BS | NL) */
+			c =(c == BACKSP) ? 0x7F : 0x0A;
+		else if (s == SS1 || s == LET)	/* Normal Ctrl map */
+			c = umaptab [c] & 0x1F;	/* Clear bits 5-6 */
 		else
 			return;			/* Ignore this char */
 	} else if (s &= shift) {
-		if (shift & SES) {		 /* if shift on */
-			if (s & (CPLS|NMLS))     /* if caps/num lock */
-				c = lmaptab[c];  /* use unshifted */
-			else
-				c = umaptab[c];	 /* use shifted */
-		} else {			 /* if shift not on */
-			if (s & (CPLS|NMLS))     /* if caps/num lock */
-				c = umaptab[c];	 /* use shifted */
-			else
-				c = lmaptab[c];	 /* use unshifted */
-		}
+		if ((shift & SES) != 0 ^(s &(CPLS | NMLS)) != 0)
+			c = umaptab [c];	/* shifted */
+		else
+			c = lmaptab [c];	/* unshifted */
 	} else
-		c = lmaptab[c];			 /* use unshifted */
+		c = lmaptab [c];		/* use unshifted */
 
 	/*
 	 * Act on character.
 	 */
+
 	if (c == XXX)
 		return;				 /* char to ignore */
 
 	if (c != SPC) {			 /* not special char? */
-		if (shift & ALS)	 /* ALT (meta bit)? */
+		if (shift & ALS)	 /* ALT(meta bit)? */
 			c |= 0x80;	 /* set meta */
 		isin(c);		 /* send the char */
 	} else
 		update_leds += isspecial(r);	 /* special chars */
+
 	if (update_leds) {
 		savests = sphi();
 		outb(KBDATA, LEDCMD);
@@ -574,18 +584,19 @@ isrint()
  * the first entry is the normal sequence, the second the shifted,
  * and the third the alternate keypad sequence.
  */
-static char *keypad[][3] = {
-	{ "\33[H",  "7", "\33?w" },	/* 71 */
-	{ "\33[A",  "8", "\33?x" },	/* 72 */
-	{ "\33[V",  "9", "\33?y" },	/* 73 */
-	{ "\33[D",  "4", "\33?t" },	/* 75 */
-	{ "\0337",  "5", "\33?u" },	/* 76 */
-	{ "\33[C",  "6", "\33?v" },	/* 77 */
-	{ "\33[24H","1", "\33?q" },	/* 79 */
-	{ "\33[B",  "2", "\33?r" },	/* 80 */
-	{ "\33[U",  "3", "\33?s" },	/* 81 */
-	{ "\33[@",  "0", "\33?p" },	/* 82 */
-	{ "\33[P", ".",  "\33?n" }	/* 83 */
+
+static char * keypad [][3] = {
+	{ ESCAPE_STRING "[H",  "7", ESCAPE_STRING "?w" },	/* 71 */
+	{ ESCAPE_STRING "[A",  "8", ESCAPE_STRING "?x" },	/* 72 */
+	{ ESCAPE_STRING "[V",  "9", ESCAPE_STRING "?y" },	/* 73 */
+	{ ESCAPE_STRING "[D",  "4", ESCAPE_STRING "?t" },	/* 75 */
+	{ ESCAPE_STRING "7",   "5", ESCAPE_STRING "?u" },	/* 76 */
+	{ ESCAPE_STRING "[C",  "6", ESCAPE_STRING "?v" },	/* 77 */
+	{ ESCAPE_STRING "[24H","1", ESCAPE_STRING "?q" },	/* 79 */
+	{ ESCAPE_STRING "[B",  "2", ESCAPE_STRING "?r" },	/* 80 */
+	{ ESCAPE_STRING "[U",  "3", ESCAPE_STRING "?s" },	/* 81 */
+	{ ESCAPE_STRING "[@",  "0", ESCAPE_STRING "?p" },	/* 82 */
+	{ ESCAPE_STRING "[P",  ".", ESCAPE_STRING "?n" }	/* 83 */
 };
 
 isspecial(c)
@@ -595,34 +606,40 @@ int c;
 	register int s;
 	int	update_leds = 0;
 
-	cp = 0;
+	cp = NULL;
 
-	switch (c) {
+	switch(c) {
+
 	case 15:					/* cursor back tab */
 		cp = "\033[Z";
 		break;
+
 	case 59: case 60: case 61: case 62: case 63:	/* Function keys */
 	case 64: case 65: case 66: case 67: case 68:
 		/* offset to function string */
-		if ( shift & ALS )
-			cp = isfval[c-49];
+		if (shift & ALS)
+			cp = isfval [c - 49];
 		else
-			cp = isfval[c-59];
+			cp = isfval [c - 59];
 		break;
 
 	case 70:		/* Scroll Lock -- stop/start output */
 	{
 		static char cbuf[2];
 
-		cp = &cbuf[0];  /* working buffer */
-		if (!(istty.t_sgttyb.sg_flags&RAWIN)) {	/* not if in RAW mode */
-			++update_leds;
-			if (istty.t_flags & T_STOP) {	/* output stopped? */
-			   cbuf[0] = istty.t_tchars.t_startc;  /* start it */
-			   scroll = 0;
+		cp = & cbuf [0];  /* working buffer */
+		if (! _IS_RAW_INPUT_MODE(& istty)) {
+			/* not if in RAW mode */
+
+			++ update_leds;
+			if ((istty.t_flags & T_STOP) != 0) {
+				/* output stopped? start it */
+				cbuf [0] = istty.t_tchars.t_startc;
+				scroll = 0;
 			} else {
-			   cbuf[0] = istty.t_tchars.t_stopc;   /* stop output */
-			   scroll = 1;
+				/* stop output */
+				cbuf [0] = istty.t_tchars.t_stopc;
+				scroll = 1;
 			}
 		}
 		break;
@@ -633,27 +650,29 @@ int c;
 	case 81:		/* 3/PgDn */
 	case 82:		/* 0/Ins */
 	case 83:		/* ./Del */
-		--c;		/* adjust code */
+		-- c;		/* adjust code */
 	case 75:		/* 4/LEFT */
 	case 76:		/* 5 */
 	case 77:		/* 6/RIGHT */
-		--c;		/* adjust code */
+		-- c;		/* adjust code */
 	case 71:		/* 7/Home/Clear */
 	case 72:		/* 8/UP */
 	case 73:		/* 9/PgUp */
 		s = 0;			/* start off with normal keypad */
-		if (shift&NMLS)		/* num lock? */
+		if (shift & NMLS)	/* num lock? */
 			s = 1;		/* set shift pad */
-		if (shift&SES)		/* shift? */
+		if (shift & SES)	/* shift? */
 			s ^= 1;		/* toggle shift pad */
-		if (shift&AKPS)		/* alternate pad? */
+		if (shift & AKPS)	/* alternate pad? */
 			s = 2;		/* set alternate pad */
-		cp = keypad[c-71][s];   /* get keypad value */
+		cp = keypad [c - 71][s];  /* get keypad value */
 		break;
 	}
-	if (cp)					/* send string */
-		while ((*cp != 0) && (*cp != -1))
-			isin( *cp++ & 0377 );
+
+	if (cp != NULL) {			/* send string */
+		while ((* cp != 0) &&(* cp != -1))
+			isin(* cp ++ & 0xFF);
+	}
 	return update_leds;
 }
 
@@ -667,20 +686,20 @@ void
 ismmfunc(c)
 register int c;
 {
-	switch (c) {
+	switch(c) {
 	case 't':	/* Enter numlock */
 		shift |= NMLS;
 		updleds();			/* update LED status */
 		break;
 	case 'u':	/* Leave numlock */
-		shift &= ~NMLS;
+		shift &= ~ NMLS;
 		updleds();			/* update LED status */
 		break;
 	case '=':	/* Enter alternate keypad */
 		shift |= AKPS;
 		break;
 	case '>':	/* Exit alternate keypad */
-		shift &= ~AKPS;
+		shift &= ~ AKPS;
 		break;
 	case 'c':	/* Reset terminal */
 		islock = 0;
@@ -708,25 +727,26 @@ register int c;
 	 * If using software incoming flow control, process and
 	 * discard t_stopc and t_startc.
 	 */
-	if (ISIXON) {
+	if (_IS_IXON_MODE(tp)) {
 #if _I386
-		if (ISSTART || (ISIXANY && ISXSTOP)) {
+		if (_IS_START_CHAR(tp, c) ||
+		   (_IS_IXANY_MODE(tp) &&(tp->t_flags & T_STOP) != 0)) {
 			tp->t_flags &= ~(T_STOP | T_XSTOP);
 			ttstart(tp);
 			cache_it = 0;
-		} else if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
-				tp->t_flags |= (T_STOP | T_XSTOP);
+		} else if (_IS_STOP_CHAR(tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
+				tp->t_flags |=(T_STOP | T_XSTOP);
 			cache_it = 0;
 		}
 #else
-		if (ISSTOP) {
-			if ((tp->t_flags&T_STOP) == 0)
+		if (_IS_STOP_CHAR(tp, c)) {
+			if ((tp->t_flags & T_STOP) == 0)
 				tp->t_flags |= T_STOP;
 			cache_it = 0;
 		}
-		if (ISSTART) {
-			tp->t_flags &= ~T_STOP;
+		if (_IS_START_CHAR(tp, c)) {
+			tp->t_flags &= ~ T_STOP;
 			ttstart(tp);
 			cache_it = 0;
 		}
@@ -771,35 +791,30 @@ register TTY * tp;
 	/*
 	 * Process all cached characters.
 	 */
-	while ( in_silo.si_ix != in_silo.si_ox ) {
+	while (in_silo.si_ix != in_silo.si_ox) {
 
 		/*
 		 * Get next cached char.
 		 */
-		c = in_silo.si_buf[ in_silo.si_ox ];
+		c = in_silo.si_buf [in_silo.si_ox];
 
-		if ( in_silo.si_ox >= sizeof(in_silo.si_buf) - 1 )
+		if (in_silo.si_ox >= sizeof(in_silo.si_buf) - 1)
 			in_silo.si_ox = 0;
 		else
-			in_silo.si_ox++;
+			in_silo.si_ox ++;
 
-		if ( (islock == 0) || ISINTR || ISQUIT ) {
-			ttin( tp, c );
-		}
-
-		else if ( (c == 'b') && (lastc == '\033') ) {
+		if (islock == 0 || _IS_INTERRUPT_CHAR(tp, c) ||
+		    _IS_QUIT_CHAR(tp, c)) {
+			ttin(tp, c);
+		} else if ((c == 'b') && lastc == ESCAPE_CHAR) {
 			islock = 0;
-			ttin( tp, lastc );
-			ttin( tp, c );
-		}
-
-		else if ( (c == 'c') && (lastc == '\033') ) {
-			ttin( tp, lastc );
-			ttin( tp, c );
-		}
-
-		else
-			putchar('\007');
+			ttin(tp, lastc);
+			ttin(tp, c);
+		} else if ((c == 'c') && lastc == ESCAPE_CHAR) {
+			ttin(tp, lastc);
+			ttin(tp, c);
+		} else
+			putchar('\a');
 
 		lastc = c;
 	}
