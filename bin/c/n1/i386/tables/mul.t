@@ -17,14 +17,14 @@ MUL:
 
 / Long * byte constant.
 %	PEFFECT|PVALUE
-	LONG		ANYR	*	*	TEMP
+	DWORD		ANYR	*	*	TEMP
 		ADR		LONG
 		SBYTE|MMX	LONG
 			[ZIMULI]	[R],[AL],[AR]
 
 / Long * long.
 %	PEFFECT|PVALUE
-	LONG		EDXEAX	EAX	*	EAX
+	DWORD		EDXEAX	EAX	*	EAX
 		TREG		LONG
 		ADR		LONG
 			[TL ZIMUL]	[AR]
