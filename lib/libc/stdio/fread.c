@@ -8,8 +8,8 @@
 int
 fread(bp, size, nitems, fp)
 register char	*bp;
-int	size;
-int	nitems;
+unsigned int	size;
+unsigned int	nitems;
 register FILE	*fp;
 {
 	unsigned int	nb = size*nitems;
