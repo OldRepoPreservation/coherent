@@ -56,7 +56,7 @@ main()
 
 	want_monitor = FALSE;	/* Don't invoke mini-monitor before execution.  */
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.8\r\n");
+	puts("\r\nCOHERENT Tertiary boot Version 1.0.9\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
