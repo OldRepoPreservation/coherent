@@ -185,6 +185,16 @@ gift_drive_params(ffp)
  */
 TYPED_SPACE(argf, BLOCK, T_FIFO_SIC);
 
+/*
+ * To read this item from bootgift, use the procedure outlined above in
+ * point 4 to find the entry marked T_STR_ARGF.  You must then explicitly
+ * recast it with RETYPE(tp->ts_data, T_FIFO_SIC).  Then you can open it
+ * as a FIFO, with code modeled on point 4 above.  This scheme seemed
+ * the simplest for uniquely identifying the argument FIFO.
+ * Each element of the FIFO is a T_STR_STR, so ts_data for these is
+ * just a NUL terminated string.  You can a
+ */
+
 /* Write an argument fifo into ffp from the command line cmd_line.
  * Returns 0 if it runs out of space, 1 on success, and 2 if something else
  * goes wrong.
