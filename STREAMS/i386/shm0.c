@@ -12,7 +12,6 @@
  */
 #include <sys/coherent.h>
 #include <sys/reg.h>
-#include <sys/shm.h>
 
 /*
  * ----------------------------------------------------------------------
@@ -22,6 +21,7 @@
  *	Typedefs.
  *	Enums.
  */
+#define SHMMAX	0x100000	/* one meg limit on shm seg size */
 
 /*
  * ----------------------------------------------------------------------
@@ -442,7 +442,9 @@ pdCheck(base)
 	w = workAlloc();
 	DV(w);
 	ptable1_v[w] = ptable1_vPTpadd | SEG_SRW;
+#if	_NIGEL_MMU_HACK
 	mmuupd();
+#endif
 
 	/* Point page table at new page table click. */
 	basePTvadd = (int)(ptable1_v + btocrd(base));

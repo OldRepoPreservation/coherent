@@ -1,9 +1,21 @@
 /*
- * coh.386/syscoh.c
+ * File:	syscoh.c
  *
- * Functions for the COHERENT-specific system call
+ * Purpose:	Functions for the COHERENT-specific system call
  *
- * Revised: Tue Jun 15 07:58:58 1993 CDT
+ * $Log:	syscoh.c,v $
+ * Revision 1.4  93/04/14  10:08:11  root
+ * r75
+ * 
+ * Revision 1.3  92/11/12  10:06:19  root
+ * Ker #68
+ * 
+ * Revision 1.2  92/11/09  17:11:25  root
+ * Just before adding vio segs.
+ * 
+ * Revision 1.1  92/10/06  23:49:04  root
+ * Ker #64
+ * 
  */
 
 /*
@@ -12,7 +24,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 
 /*
  * ----------------------------------------------------------------------
@@ -58,9 +70,7 @@ static int devload();
  * COH_CLRBP	a2=bp#;  clear kernel breakpoint
  * COH_REBOOT	reboot
  */
-int
 ucohcall(a1,a2,a3,a4,a5,a6)
-int a1, a2, a3, a4, a5, a6;
 {
 	int ret = 0;
 
@@ -162,7 +172,7 @@ int x1, x2, x3, x4;
  */
 int
 vio(x1, x2, x3, x4)
-int x1, x2, x3, x4;
+int x1, x2, x3;
 {
 	switch (x1) {
 	case 0:
