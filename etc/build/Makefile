@@ -1,6 +1,8 @@
 # build/Makefile 6/3/91
 
 # Objects.
+DESTDIR=/interim/etc/
+DESTDIR2=/interim/
 O=\
 	build.o \
 	build0.o \
@@ -34,25 +36,26 @@ all:	$E
 
 # Executables.
 build:		build.o numtab.o serialno.o build0.o
-	$(CC) $(LFLAGS) -o $@ $< -f
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -f
 coh_intro:	coh_intro.o build0.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 cohpatch:	cohpatch.o build0.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 dpb:		dpb.s
-	$(CC) $(LFLAGS) -o $@ $<
+	as -xo $(DESTDIR2)$@ $<
+	strip $(DESTDIR2)$@
 fdisk:		fdisk.o
-	$(CC) $(LFLAGS) -o $@ $< -f
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -f
 install:	install.o build0.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 hdparms:	hdparms.o build0.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 kbdinstall:	kbdinstall.o
-	$(CC) $(LFLAGS) -o $@ $< -lcurses -lterm
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -lcurses -lterm
 mkdev:	mkdev.o build0.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 mkserial:	mkserial.o numtab.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
 
 # Unlinked objects.
 build.o:	build.c build0.h serialno.h
