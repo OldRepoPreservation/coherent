@@ -1,4 +1,4 @@
-# /usr/src/libc/stdio/Makefile 11/6/92
+# /usr/src/libc/stdio/Makefile 11/12/92
 
 # The order of stdio objects in libc.a is significant and a bit complicated.
 # To reduce the size of linked objects when possible,
@@ -7,7 +7,7 @@
 # If a program requires floating point output, the "-f" flag to /bin/cc
 # produces an "-u _dtefg_" argument to /bin/ld, forcing the link to include
 # the real floating point output routine from _dtefg.o.
-# Otherwise, /bin/ld resolves the reference to _dtefg() in printf.o with
+# Otherwise, /bin/ld resolves the reference to _dtefg() in vfprintf.o with
 # the much smaller fake floating point output routine from _fdtefg.o.
 # To avoid linking in extra stdio overhead when not required,
 # libc.a should contain _fp.o, finit.o, exit.o and _finish.o, in that order,
@@ -59,7 +59,12 @@ OBJ=\
 # see the lengthy comment above and be extremely careful if you change it.
 OBJ2=\
 	_dtefg.o\
+	fprintf.o\
 	printf.o\
+	sprintf.o\
+	vprintf.o\
+	vsprintf.o\
+	vfprintf.o\
 	_fdtefg.o\
 	_fp.o\
 	finit.o\
@@ -103,6 +108,7 @@ fgetc.o:	fgetc.c
 fgets.o:	fgets.c
 finit.o:	finit.c
 fopen.o:	fopen.c
+fprintf.o:	fprintf.c
 fputc.o:	fputc.c
 fputs.o:	fputs.c
 fread.o:	fread.c
@@ -123,6 +129,10 @@ rename.o:	rename.c
 rewind.o:	rewind.c
 scanf.o:	scanf.c
 setbuf.o:	setbuf.c
+sprintf.o:	sprintf.c
 ungetc.o:	ungetc.c
+vprintf.o:	vprintf.c
+vfprintf.o:	vfprintf.c
+vsprintf.o:	vsprintf.c
 
 # end of /usr/src/libc/stdio/Makefile
