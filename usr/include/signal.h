@@ -1,5 +1,9 @@
 /*
  * /usr/include/signal.h
+ *
+ * COHERENT signal support.
+ *
+ * Revised: Wed May 12 07:56:47 1993 CDT
  */
 #ifndef	 __SIGNAL_H__
 #define	 __SIGNAL_H__
@@ -44,12 +48,19 @@ extern void	(*sigset())();
 #define SIG_HOLD (void(*)())2		/* Hold */
 
 #ifdef	KERNEL
-#define	SIGDEFER	0x100
+/*
+ * According to iBCS2, signal() shares a system call number with
+ * sigset(), sighold(), sigrelse(), sigignore(), and sigpause().
+ * The latter are distinguished according to the high 16 bits of
+ * the signal number, as below.
+ */
+#define	SIGSET		0x100
 #define	SIGHOLD		0x200
 #define	SIGRELSE	0x400
 #define	SIGIGNORE	0x800
 #define	SIGPAUSE	0x1000
-#define	SIGDEFAULT	0x8000
+
+#define SIG_BIT(signal)		(1 << ((signal) - 1))
 #endif
 
 #else
