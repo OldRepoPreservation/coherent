@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.31	91/04/17  03:16:33	root
+ * Now fdisk command works but mkfs fails.
+ * 
  * Revision 1.30	91/04/17  02:17:43	root
  * Trying to figure out disconnect after write.
  * 
@@ -73,7 +76,7 @@
 #define DEV_SPECIAL(dev)	(dev & 0x0080)
 
 #define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
-#define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
+#define HIPRI_RETRIES	800	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
 #define WATCHDOG_SECONDS  4
@@ -577,8 +580,8 @@ printf("BFERR 3\n");
 	 */
 	if (valid_op) {
 
-printf("ssblock: drv=%x bno=%lx bp=%x flag=%x\n",
-	drive, bp->b_bno, bp, bp->b_flag);
+/* printf("ssblock: drv=%x bno=%lx bp=%x flag=%x\n",
+	drive, bp->b_bno, bp, bp->b_flag); */
 
 		ssq_wr_tail(bp);
 		ss_start();
@@ -619,7 +622,6 @@ static void sswatch()
 	int s_id, rs_id;
 	ss_type * ssp;
 
-printf("*");
 	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++) {
 		ssp = ss[s_id];
 		if (ssp && ssp->dr_watch) {
@@ -1316,7 +1318,7 @@ static void ss_start()
 					ss_done(s_id);
 				else
 					printf("D");
-printf("%d in  %d out\n",ssp->data_bytes_in,ssp->data_bytes_out);
+/* printf("%d in  %d out\n",ssp->data_bytes_in,ssp->data_bytes_out); */
 			} else {
 printf("BFERR 5\n");
 				bp->b_flag |= BFERR;
@@ -1498,7 +1500,7 @@ int s_id;
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
 	int retval;
-printf("ss_rw(%d)\n", s_id);
+
 	if (bp->b_req == BREAD) {
 		ssp->cmdbuf[0] = ScmdREADEXTENDED;
 		ssp->in_buf_len = bp->b_count;
@@ -1522,8 +1524,8 @@ printf("ss_rw(%d)\n", s_id);
 	ssp->cmdlen = G1CMDLEN;
 	if (retval = bus_pre_xfer(s_id)) {
 		bus_info_xfer(ssp);
-printf("cmdlen=%d cmd_bytes_out=%d cmdstat=%d\n", ssp->cmdlen,
-	ssp->cmd_bytes_out, ssp->cmdstat);
+/* printf("cmdlen=%d cmd_bytes_out=%d cmdstat=%d\n", ssp->cmdlen,
+	ssp->cmd_bytes_out, ssp->cmdstat); */
 		retval = (ssp->cmdlen == ssp->cmd_bytes_out);
 	}
 
