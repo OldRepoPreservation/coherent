@@ -25,6 +25,7 @@
 #define	_NFILE		60		/* number of FILEs	*/
 #define	_NSTDFILE	3		/* number of predefined FILEs	*/
 #define	L_tmpnam	64		/* tmpnam length	*/
+#define	P_tmpdir	"/tmp"		/* default temporary directory */
 #define	SEEK_CUR	1		/* from current position */
 #define	SEEK_END	2		/* from end		*/
 #define	SEEK_SET	0		/* from beginning	*/
@@ -168,6 +169,10 @@ extern	int	_fpute	();
 extern	int	_fputt	();
 extern	int	_scanf	();
 extern	FILE *	_stropen();
+
+/* Nonstandard functions. */
+extern	FILE *	fdopen();
+extern	FILE *	popen();
 
 /* Macros covering standard functions. */
 #define	clearerr(fp)	((fp)->_ff1 &= ~(_FERR|_FEOF))
