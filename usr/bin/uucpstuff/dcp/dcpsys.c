@@ -102,6 +102,8 @@ checkrmt()
  *  Write a ^P (DLE) type msg to the remote uucp.  (startup negotiation).
  */
 
+#define	MAXDROP	2048	/* Maximum characters to drop waiting for ^P	*/
+
 rmsg(msg, maxlen)
 char *msg;
 int maxlen;
@@ -110,15 +112,14 @@ int maxlen;
 	register char *cp;
 	int i;
 
-	for (cp=msg,i=1; i<maxlen; i++) {
+	for (i=0; i<MAXDROP; i++) {
 		if ( sread(&ch, 1, MSGTIME) != 1 )
 			goto badrmsg;
 		if ( ch == DLE )
 			break;
-		*cp++ = ch;
 	}
 	if ( ch != DLE )
-		goto badrmsg;
+		goto nodle;
 
 	for (cp=msg,i=1; i<maxlen; i++) {
 		if ( sread(&ch, 1, MSGTIME) != 1 )
@@ -134,6 +135,10 @@ int maxlen;
 badrmsg:
 	*cp = '\0';
 	printmsg(M_CALL, "Bad received message {%s}", visib(msg));
+	return(-1);
+nodle:
+	*cp = '\0';
+	printmsg(M_CALL, "Remote machine not sending DLE startup (uucico)");
 	return(-1);
 }
 
