@@ -1492,13 +1492,13 @@ daddr_t b;
 	assert(yp->y_ino == BADFIN);
 	assert(b < S.s_fsize);
 	if (bad(b))
-		return eignore("duplicated bad block %D", b);
+		return eignore("duplicated bad block %ld", b);
 	else if (b == BOOTBI)
-		return eignore("boot block (%D) is bad", b);
+		return eignore("boot block (%ld) is bad", b);
 	else if (b == SUPERI)
-		return efatal("super block (%D) is bad", b);
+		return efatal("super block (%ld) is bad", b);
 	else if (b == inodeb(BADFIN))
-		return efatal("first inode block (%D) is bad", b);
+		return efatal("first inode block (%ld) is bad", b);
 	else if (b < S.s_isize)
 		S.s_tinode -= INOPB;
 	else
@@ -1569,7 +1569,7 @@ register struct xnode *xp;
 	register struct ynode *yp;
 
 	yp = xp->x_y;
-	fprintf(stderr, "%d %x %D\n", xp->x_ino, xp->x_mode, xp->x_size);
+	fprintf(stderr, "%d %x %ld\n", xp->x_ino, xp->x_mode, xp->x_size);
 	if (yp->y_niiib)
 		xlist("indir^3", yp->y_iiib, (daddr_t)yp->y_niiib);
 	if (yp->y_niib)
@@ -1586,7 +1586,7 @@ daddr_t n;
 {
 	fprintf(stderr, "	%d %s: ", n, cp);
 	for (;;) {
-		fprintf(stderr, "%D", dp[0]);
+		fprintf(stderr, "%ld", dp[0]);
 		dp += 1;
 		n -= 1;
 		if (n == 0)
@@ -1599,7 +1599,7 @@ daddr_t n;
 				if (n == 0)
 					break;
 			}
-			fprintf(stderr, "%D", dp[-1]);
+			fprintf(stderr, "%ld", dp[-1]);
 			if (n == 0)
 				break;
 		}
@@ -1786,7 +1786,7 @@ daddr_t b;
 			lseek(FS, (long)bcacheb*BSIZE, 0);
 if (bwatch) bdump(b, bcacheb, buffer);
 			if (write(FS, buffer, BSIZE) != BSIZE)
-			    eignore("filesystem write error at block %D", b);
+			    eignore("filesystem write error at block %ld", b);
 		}
 		clear(buffer, BSIZE);
 	}
@@ -1799,7 +1799,7 @@ daddr_t b1, b2;
 char *bp;
 {
 	int i, j;
-	fprintf(stderr, "bcache(%D) writes(%D) = {", b1, b2);
+	fprintf(stderr, "bcache(%ld) writes(%ld) = {", b1, b2);
 	if (iszero(bp, BSIZE))
 		fprintf(stderr, " 0 ");
 	else {

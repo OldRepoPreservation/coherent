@@ -15,7 +15,7 @@ int argc; char *argv[];
 		if (rand() > threshold)
 			++hits;
 
-	printf("%d values above %d in %d trials (%D%%).\n",
+	printf("%d values above %d in %d trials (%ld%%).\n",
 		hits, threshold, ntrials, (100L*hits)/ntrials);
 }
 
