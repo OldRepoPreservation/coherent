@@ -4,6 +4,11 @@
  */
 #include "typed.h"
 
+#ifdef KERNEL
+/* The input channel from tboot to the kernel.  */
+TYPED_SPACE(boot_gift, 512, T_FIFO_SIC);
+#endif
+
 /* Read a typed space from a fifo.
  * Return a pointer to the next typed space in the fifo ffp.  Returns
  * NULL on end of fifo.
