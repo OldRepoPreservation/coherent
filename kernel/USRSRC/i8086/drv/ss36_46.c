@@ -16,6 +16,9 @@
  *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.41	91/05/15  21:57:55	root
+ * First working version.
+ * 
  * Revision 1.40	91/05/15  15:19:52	root
  * First clean compile of state machine version.
  * 
@@ -1334,17 +1337,17 @@ PR3("PBI ");
 					host_claimed = s_id;
 					ssp->waiting = 0;
 					init_pointers(s_id);
-					s=sphi();
+/* ZZ					s=sphi(); */
 					if (start_arb()) {
 						if (host_ident(s_id)) {
 							do_connect(s_id);
-							spl(s);
+/* ZZ							spl(s); */
 						} else {
-							spl(s);
+/* ZZ							spl(s); */
 							recover(s_id, RV_P_TIMEOUT);
 						}
 					} else {
-						spl(s);
+/* ZZ						spl(s); */
 						ssp->state = SST_POLL_ARBITN;
 						set_timeout(s_id, DELAY_ARB);
 					}
@@ -1361,12 +1364,12 @@ PR3("PBI ");
 PR3("PR ");
 			if (TGT_RSEL) {
 				ssp->waiting = 0;
-				s=sphi();
+/* ZZ				s=sphi(); */
 				if (rsel_handshake()) {
 					do_connect(s_id);
-					spl(s);
+/* ZZ					spl(s); */
 				} else {
-					spl(s);
+/* ZZ					spl(s); */
 					recover(s_id, RV_P_TIMEOUT);
 				}
 			} else  { /* Reselect poll is negative */
