@@ -30,15 +30,15 @@
 	.shri	/ Shared code segment, initialized.
 ////////
 /
-/ Read a block from disk,
-/ drive A:, using the code in the IBM firmware.
+/ Read a block from disk, relative to the start of the boot partition,
+/ using the code in the IBM firmware.
 /
 / It takes two parameters:
 /	daddr_t	blockno;	/* 32 bit block number.  */
 /	char *buff;	/* Must point to a 512 byte buffer.  */
 /
 / The buffer must not cross a 4K boundry.  Disk input should generally
-/ be done through the C routine bread(), which calls bread() with an
+/ be done through the C routine bread(), which calls _bread() with an
 / aligned buffer.
 /
 ////////
@@ -326,3 +326,80 @@ _ffcopy_:
 	pop	es
 	pop	bp
 	ret		/ return from _ffcopy()
+
+
+
+////////
+/
+/ Read a block from disk, relative to start of disk,
+/ using the code in the IBM firmware.
+/
+/ It takes two parameters:
+/	daddr_t	blockno;	/* 32 bit block number.  */
+/	char *buff;	/* Must point to a 512 byte buffer.  */
+/
+/ The buffer must not cross a 4K boundry.  Disk input should generally
+/ be done through the C routine xbread(), which calls _xbread() with an
+/ aligned buffer.
+/
+////////
+
+	.globl	_xbread_
+_xbread_:
+	push	es			/ Save registers
+	push	si
+	push	di
+	push	bp
+	push	dx
+
+	push	ds
+	pop	es			/ Set es:bp to address of the buffer.
+
+	mov	bp, sp
+	mov	ax, 12(bp)		/ Get low word of block number.
+	mov	dx, 14(bp)		/ Get high word of block number.
+	mov	bx, 16(bp)		/ Get a buffer to put it in.
+	mov	bp, bx
+
+	/ Translate block number into cylinder, head, and sector.
+3:
+	mov	bx, ax			/ save block number
+	movb	al, heads		/ get number of heads
+	movb	cl, sects		/ get number of sectors
+	mulb	cl			/ calculate sectors per cylinder
+	xchg	bx,ax			/ swap block/sectors
+	div	bx			/ calculate track
+	xchg	dx, ax			/ put track in DX
+	divb	cl			/ calculate head/sector
+
+	movb	cl, ah			/ set sector
+	inc	cx			/ sectors start at 1 [incb cl]
+	
+	cmp	dx, traks		/ check for second side
+	jb	0f
+	sub	dx, traks		/ fold track
+	inc	ax			/ next head [incb al]
+
+0:	rorb	dh, $1			/ rotate track(low) into
+	rorb	dh, $1			/  msbits of DX
+	orb	cl, dh			/ set track(high)
+	movb	ch, dl			/ set track(low)
+	movb	dh, al			/ set head
+	movb	dl, drive		/ set drive
+	mov	bx, bp			/ set offset [bbuf]
+
+	mov	ax, $READ1		/ Read, 1 sector.
+	int	DISK			/ Disk I/O.
+	jnc	2f			/ Jump if no error.
+	mov	ax, $READ1		/ try again
+	int	DISK
+	jc	berror
+
+2:
+	/ al contains the number of blocks read (should be 1).
+	pop	dx			/ restore registers.
+	pop	bp
+	pop	di
+	pop	si
+	pop	es
+	ret				/ return.
