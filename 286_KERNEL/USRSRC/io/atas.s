@@ -7,7 +7,14 @@
 /
 / AT Hard Disk Assembler Support
 /
-/ $Log$
+/ $Log:	atas.s,v $
+/ Revision 1.4  92/02/05  15:55:06  hal
+/ Patchable ATSREG_.
+/ 
+/ Revision 1.3  91/10/24  12:37:44  hal
+/ COH 3.2.03k.
+/ Poll HF_REG (3F6) rather than CSR_REG (1F7).
+/ 
 /
 / atsend( off, seg ) - send 512 bytes from seg:off into hard disk buffer
 / atrecv( off, seg ) - receive 512 bytes from hard disk buffer into seg:off.
@@ -22,8 +29,8 @@
 	.globl	atrecv_
 	.globl	atbsyw_
 	.globl	atdrqw_
+	.globl	ATSREG_
 
-	HF_REG	= 0x03F6
 	BSY_ST	= 0x80
 	DRQ_ST	= 0x08
 
@@ -93,7 +100,7 @@ atrecv_:
 ////////
 
 atbsyw_:
-	mov	dx, $HF_REG
+	mov	dx, ATSREG_
 	mov	bx, $4		/ add another layer of iteration for 486's
 0:	mov	cx, $-1
 1:	inb	al, dx
@@ -115,7 +122,7 @@ atbsyw_:
 ////////
 
 atdrqw_:
-	mov	dx, $HF_REG
+	mov	dx, ATSREG_
 	mov	bx, $4
 0:	mov	cx, $-1
 1:	inb	al, dx
