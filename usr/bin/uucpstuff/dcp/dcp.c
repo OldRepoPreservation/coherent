@@ -45,6 +45,7 @@ unsigned int checksum();
  *  Global Variables
  */
 
+int	checkfirst = 0;		/* check spooldir before calling	*/
 int	abort_cico = 0;		/* Indicates Process Abort Signalled	*/
 int	sysended = 0;		/* Indicates sysend() was called	*/
 int	processid;		/* Current Process Id (uucico)		*/
@@ -81,7 +82,7 @@ char *argv[];
 	time_t now;
 	static char buf[16];
 
-	sprintf(buf, "%.14s.0l%s", VERSION,
+	sprintf(buf, "%.14s%s", VERSION,
 #if SGTTY
 		"S");
 #elif TERMIO
@@ -99,8 +100,12 @@ char *argv[];
 			debuglevel = atoi(&argv[0][2]);  break;
 		case 'S':
 			forcecall = 1;
+			role = MASTER;
+			sysname = &argv[0][2];
+			break;
 		case 's':
 			role = MASTER;
+			checkfirst = 1;
 			sysname = &argv[0][2];  break;
 		case 'r':
 			role = atoi(&argv[0][2]);  break;
@@ -145,8 +150,25 @@ char *argv[];
 					rmtname = NULL;
 				break;
 			case 'S':
-				state = callup();
+
+		/* If our check first flag is NOT set, then we call regardless
+		 * of if there files pending for transfer from this site.
+		 * If our check flag is set, then we only call when a file is
+		 * pending for transfer.
+		*/
+				if(checkfirst == 0){
+					state = callup();
+					break;
+				}
+				if((checkfirst != 0) && (scandir() == 'S')){
+					state = callup();
+				}
+				else{
+					state = 'Y';
+					printmsg(M_CALL,"No Files pending");
+				}
 				break;
+
 			case 'P':
 				perm_get(rmtname, NULL);
 				nodename = myname();
