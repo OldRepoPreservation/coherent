@@ -16,11 +16,11 @@
 #define TTYPE 2			/* <type> */
 #define MAXT 3			/* number of different genres */
 				/* if maxterm is > 127 change LSETSIZE  */
-#define LSETSIZE 20		/* chars in ws ::= MAXTERM/8 + 1 */
+#define LSETSIZE 30		/* chars in ws ::= MAXTERM/8 + 1 */
 
 		/* defaults -- can be changed with run time options */
-#define MAXPROD 175		/* maximum number of productions */
-#define MAXTERM 150		/* maximum number of different terminals */
+#define MAXPROD 350		/* maximum number of productions */
+#define MAXTERM 160		/* maximum number of different terminals */
 #define MAXNTERM 100		/* maximum number of non terminal symbols */
 #define MAXSTATE 300		/* max # of states */
 #define MAXPRODL 20		/* maximum number of symbols in any prodn */
