@@ -20,6 +20,9 @@
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.9  92/07/16  16:38:14  hal
+/ Kernel #58
+/ 
 / Revision 1.8  92/07/15  13:50:55  root
 / COH 4.0.0
 / 
@@ -520,6 +523,7 @@ outb:	movl	4(%esp),%edx
 / atrecv( va ) - receive 512 bytes from hard disk into virtual address
 / DRQ is not checked.  DRQ must be true before atsend/atrecv are called.
 
+/ va is a system global address
 ///////
 
 atsend:
@@ -532,12 +536,16 @@ atsend:
 	movw	%ax,%es			/ save = setspace(SEG_386_KD)
 
 	cld
-	mov	20(%esp),%eax
-	shr	$BPCSHIFT,%eax
+	mov	20(%esp),%eax		/ fetch argument va
+	shr	$BPCSHIFT,%eax		/ get page table index from va
 	mov	sysmem,%edx
-	leal	(%edx,%eax,4),%esi / base = &sysmem.u.pbase[btocrd(va)]
+	leal	(%edx,%eax,4),%esi 	/ base = sysmem.u.pbase + btocrd(va)
 
-	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
+/ Since the requested transfer may span a click boundary, have two clicks
+/ ready in the page table - the one containing the virtual address of the
+/ start of the user area, and the click which follows in virtual memory.
+
+	lodsl				/ ptable1_V[WORK0] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
 	mov	%eax,[PTABLE1_V<<BPCSHIFT]+WORK0
 
@@ -548,12 +556,16 @@ atsend:
 	mov	$PTABLE0_P<<BPCSHIFT,%eax	/ mmuupd()
 	mov	%eax,%cr3
 
+/ Now that page boundaries are set, work on the offsets.
+
 	mov	20(%esp),%esi		/ va = ctob(WORK0) + (va & (NBPC-1))
-	and	$NBPC-1,%esi
+	and	$NBPC-1,%esi		/ get click offset part of va
 	add	$WORK0<<BPC1SHIFT,%esi
 
 	mov	$256, %ecx		/ copy one disk block
 	mov	$0x1F0, %edx
+
+/ Do the block transfer.
 
 	rep
 	outsw
@@ -578,7 +590,7 @@ atrecv:
 	mov	20(%esp),%eax
 	shr	$BPCSHIFT,%eax
 	mov	sysmem,%edx
-	leal	(%edx,%eax,4),%esi	/ base = &sysmem.u.pbase[btocrd(va)]
+	leal	(%edx,%eax,4),%esi	/ base = sysmem.u.pbase + btocrd(va)
 
 	lodsl				/ ptable1_V[WORK1] = *base++ | SEG_SRW
 	or	$SEG_SRW,%eax
