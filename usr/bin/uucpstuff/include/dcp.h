@@ -15,7 +15,7 @@
  *  Various definitions of Global Strings and Values
  */
 
-#define VERSION		"4.0.03"
+#define VERSION		"4.0.04"
 #define PUBDIR		"/usr/spool/uucppublic"
 #define SPOOLDIR	"/usr/spool/uucp"
 
