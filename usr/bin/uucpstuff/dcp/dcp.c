@@ -59,6 +59,7 @@ char	cfile[CTLFLEN];		/* Current C.* Control Work File Name	*/
 FILE	*cfp = NULL;		/* FILE Pointer for C.* files		*/
 char	*nodename;		/* UUCP node name (or MYNAME, perhaps)	*/
 char	*version;		/* Version Character String		*/
+int	stripflg = 0;		/* Flag to strip chars to 7bits on read */
 
 /*
  *  Extern Function Declarations
