@@ -36,11 +36,15 @@ char *data;
 int num, timeout;
 {
 	int ret;
+	register char *ptr;
 
 	SETALRM( (timeout>MINTIMEOUT) ? timeout: MINTIMEOUT );
 	ret = read(sreadfd, data, num);
 	CLRALRM();
 
+	if ( stripflg )
+		for (ptr=data; ptr<data+ret; ptr++)
+			*ptr &= 0x7F;
 #if 0
 	printmsg(M_DATA, "sread: {%s}", visbuf(data, num));
 #endif
@@ -52,9 +56,13 @@ char *data;
 int num;
 {
 	int retval = read(sreadfd, data, num);
+	register char *ptr;
 
+	if ( stripflg )
+		for (ptr=data; ptr<data+retval; ptr++)
+			*ptr &= 0x7F;
 #if 0
-	printmsg(M_DATA, "sread2: {%s}", visbuf(data, num));
+	printmsg(M_DATA, "sread2: %d: {%s}", retval, visbuf(data, retval));
 #endif
 	return(retval);
 }
@@ -80,6 +88,7 @@ int initline()
 	ioctl(sreadfd, TIOCHPCL);
 	gtty(sreadfd, &ttyb);	/* set raw mode */
 	ttyb.sg_flags |= (RAW | CBREAK);
+	stripflg = 0;
 	ttyb.sg_flags &= ~(XTABS | EVENP | ODDP | CRMOD | ECHO | LCASE);
 	stty(sreadfd, &ttyb);
 
@@ -93,6 +102,7 @@ int initline()
 	tio.c_oflag = 0;
 	tio.c_cflag &= ~(CSIZE|PARENB);
 	tio.c_cflag |= (HUPCL|CS8);
+	stripflg = 0;
 	tio.c_lflag = 0;
 	ioctl(sreadfd, TCSETA, &tio);
 #endif
@@ -106,6 +116,7 @@ fixline()
 
 	gtty(sreadfd, &ttyb);
 	ttyb.sg_flags |= (RAW | CBREAK);
+	stripflg = 0;
 	stty(sreadfd, &ttyb);
 
 #elif TERMIO
@@ -116,6 +127,7 @@ fixline()
 	printmsg(M_LOG, "tio.c_iflag = 0x%04x", tio.c_iflag);
 #endif
 	tio.c_iflag = 0;
+	stripflg = 0;
 	ioctl(sreadfd, TCSETA, &tio);
 #endif
 }
