@@ -204,7 +204,7 @@ pathname "/usr/spool/uucp/.Log/uuxqt"
 	error	u+rwx
 	warning	o-w	"Anyone can create uuxqt log messages."
 
-foreach "uuname"
+foreach "awk '$0!~/^#/ {print $1}' /usr/lib/uucp/L.sys"
 	# Spool directories for specific hosts.
 	pathname "/usr/spool/uucp/%s"
 		error	exist
