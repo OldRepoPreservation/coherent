@@ -2,6 +2,9 @@
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.11	91/03/14  15:45:12	root
+ * has trouble with Test Ready using bus_info_xfer fsa
+ * 
  * Revision 1.10	91/03/13  17:08:03	root
  * still more to do on bus_info_xfer
  * 
@@ -67,6 +70,7 @@
 
 #define G0CMDLEN	6	/* Group 0 commands are 6 bytes long  */
 #define G1CMDLEN	10	/* Group 1 commands are 10 bytes long */
+#define SENSELEN	22	/* number of bytes returned w/ req sense */
 
 				/* Message types */
 #define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
@@ -97,8 +101,8 @@ int stats[40], statsptr;
 				printf("%d ",stats[--statsptr]);printf("\n");}
 #define SSTELL(foo)	printf(foo)
 #define SSTATUS		printf("status=%x\n", (int)(unsigned char)status)
-#define SSDUMP(s_id, text) {int i;struct ss*ssp=ss[s_id];\
-	printf("%s: s_id=%d msg_in=%x cmdstat=%x\n", text, s_id, ssp->msg_in,\
+#define SSDUMP(ssp, text) {int i;\
+	printf("%s: msg_in=%x cmdstat=%x\n", text, ssp->msg_in,\
 	ssp->cmdstat);if(ssp->cmdlen)for(i=0;i<ssp->cmdlen;i++)\
 	printf(" %x", ssp->cmdbuf[i]);printf(" cmd_bytes_out=%d\n",\
 	ssp->cmd_bytes_out);\
@@ -110,7 +114,7 @@ int stats[40], statsptr;
 #define POPI
 #define SSTELL(foo)
 #define SSTATUS
-#define SSDUMP(s_id, text)
+#define SSDUMP(ssp, text)
 #endif
 
 /*
@@ -219,7 +223,7 @@ static struct ss	{
 	uchar	in_buf[IN_BUF_SIZE];
 	int	in_buf_len;
 	int	data_bytes_in;
-} *ss[MAX_SCSI_ID-1];
+} *ss[MAX_SCSI_ID-1], rqs;
 
 /*
  *
@@ -282,11 +286,8 @@ ssload()
 		== NULL) {
 			printf("Error - ss can't allocate structs\n");
 			erf = 1;
-		} else {
+		} else
 			kclear(ss_block, num_drives * sizeof(struct ss));
-			printf("kalloc'ed %d bytes at offset %x\n",
-				num_drives*sizeof(struct ss), ss_block);
-		}
 	}
 	if (!erf) {
 		struct ss *foo = ss_block;
@@ -583,7 +584,8 @@ int s_id;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] =
 		ssp->cmdbuf[5] = 0;
 	ssp->cmdlen = G0CMDLEN;
-	if (!(retval = scsicmd(s_id))) {
+#define XXXX
+	if (1 || !(retval = scsicmd(s_id))) {
 printf("First Test Unit Ready failed.  Will reset SCSI bus.\n");
 		scsireset();
 		retval = scsicmd(s_id);
@@ -604,13 +606,29 @@ int s_id;
 {
 	int retval;
 	struct ss *ssp = ss[s_id];
-SSDUMP(s_id, "enter scsicmd");
+SSTELL("enter scsicmd\n");
 	if (retval = bus_pre_xfer(s_id)) {
-		bus_info_xfer(s_id);
+		bus_info_xfer(ssp);
 		retval = (ssp->cmdlen == ssp->cmd_bytes_out
 			&& ssp->cmdstat == CS_GOOD);
 	}
-SSDUMP(s_id, "leave scsicmd");
+SSDUMP(ssp, "command sent");
+	if (ssp->cmdstat == CS_CHECK) {
+		if (bus_pre_xfer(s_id)) {
+			rqs.cmdbuf[0] = ScmdREQUESTSENSE;
+			rqs.cmdbuf[1] = rqs.cmdbuf[2] = rqs.cmdbuf[3] =
+				rqs.cmdbuf[5] = 0;
+				rqs.cmdbuf[4] = SENSELEN;
+			rqs.cmdlen = G0CMDLEN;
+			rqs.in_buf_len = SENSELEN;
+			bus_info_xfer(&rqs);
+			if (rqs.data_bytes_in == SENSELEN
+			&& (rqs.in_buf[2] & 0x0F) == 0x06
+			&& rqs.in_buf[12] == 0x29)
+				retval = (ssp->cmdlen == ssp->cmd_bytes_out);
+SSDUMP((&rqs), "sense req");
+		}
+	}
 	return retval;
 }
 
@@ -622,8 +640,9 @@ SSDUMP(s_id, "leave scsicmd");
 static void scsireset()
 {
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
-	ssdelay(1);
+	ssdelay(50);
 	sfbyte(ss_csr, 0);
+	ssdelay(50);
 }
 
 /*
@@ -706,13 +725,12 @@ int s_id;
  *   endif
  * endwhile
  */
-static int bus_info_xfer(s_id)
-int s_id;
+static int bus_info_xfer(ssp)
+struct ss *ssp;
 {
 	int bus_timeout;
 	unsigned char phase_type;
 	int no_msg_rcvd = 1;
-	struct ss * ssp = ss[s_id];
 
 	ssp->cmdstat = -1;
 	ssp->data_bytes_in = 0;
@@ -721,7 +739,6 @@ int s_id;
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
-SSTELL("MSG_IN\n");
 			/*
 			 * Only pay attention to first msg byte in.
 			 * Don't care about extended messages.
@@ -732,7 +749,6 @@ SSTELL("MSG_IN\n");
 			}
 			break;
 		case XP_MSG_OUT:
-SSTELL("MSG_OUT\n");
 			/*
 			 * This case shouldn't happen.  We weren't
 			 * asserting ATTENTION.  Abort the bus cycle.
@@ -741,17 +757,13 @@ SSTELL("MSG_OUT\n");
 			sfbyte(ss_dat, MSG_ABORT); 
 			break;
 		case XP_STAT_IN:
-SSTELL("STAT_IN\n");
-			ssp->cmdstat = ffbyte(ss_csr);
-goto foo;
+			ssp->cmdstat = ffbyte(ss_dat);
 			break;
 		case XP_CMD_OUT:
-SSTELL("CMD_OUT\n");
 			if (ssp->cmd_bytes_out < ssp->cmdlen)
 				sfbyte(ss_dat, ssp->cmdbuf[ssp->cmd_bytes_out++]);
 			break;
 		case XP_DATA_IN:
-SSTELL("DATA_IN\n");
 			/*
 			 * If caller's buffer has room, keep incoming
 			 * data byte.  Else toss it.
@@ -764,7 +776,6 @@ SSTELL("DATA_IN\n");
 			ssp->data_bytes_in++;
 			break;
 		case XP_DATA_OUT:
-SSTELL("DATA_OUT\n");
 			/*
 			 * Temporary filler.
 			 */
@@ -774,7 +785,6 @@ SSTELL("DATA_OUT\n");
 			break;
 		} /* endswitch */
 	}
-foo:;
 	return (bus_timeout) ? 0 : 1 ;
 }
 /*
@@ -808,7 +818,7 @@ int *to_ptr;
 		}
 	}
 
-	if (!req_found)
+	if (*to_ptr)
 		printf("ST0x info xfer timeout;  status=%x\n", status);
 
 	return req_found;
