@@ -144,7 +144,7 @@ _dmul:
 
 	/ Rounding generated carry past hidden bit, shift one bit right.
 ?carry:
-	decl	%ebp			/ decrement the exponent
+	incl	%ebp			/ bump the exponent
 	shrd	%eax, %edx, $1
 	pushfl
 	shrl	%edx, $1
