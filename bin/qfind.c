@@ -1,6 +1,6 @@
 /*
  * qfind.c
- * 3/1/91
+ * 3/18/91
  * Find files with given name in filesystem using file database.
  * Usage: qfind [ -adp ] name ...
  * 	  qfind -b[v]
@@ -12,6 +12,7 @@
  *	-v	Verbose information.
  * Run as root when using -b to find everything.
  * Uses find, sed, sort.
+ * To fix: ordinary qfind does not work while qfind -b is running.
  */
 
 #include <stdio.h>
@@ -19,23 +20,26 @@
 
 extern	char	*mktemp();
 
-#define	VERSION	"1.3"
+#define	VERSION	"1.5"
 #define	USAGE	"Usage:\tqfind [ -adp ] name ...\n\tqfind -b[v]\n"
+#define	MINSEEK	512			/* binary search threshold */
 #define	NBUF	512			/* buffer size		*/
 #define	NCHARS	128			/* first characters	*/
 #define	QFFILES	"/usr/adm/qffiles"	/* database filename	*/
 #define	QFTMP	"/tmp/qfXXXXXX"		/* tmpname prototype	*/
 
 /* Forward. */
-void	build();
+int	build();
 void	fatal();
+void	fpseek();
 int	qfind();
+int	qseek();
 void	sys();
 void	usage();
 
 /* Globals. */
 int	aflag;				/* look for all		*/
-int	bflag;				/* build file database	*/
+int	bflag;				/* build QFFILES	*/
 char	buf[NBUF];			/* command buffer	*/
 int	dflag;				/* look for directories	*/
 FILE	*ifp;				/* input FILE		*/
@@ -71,10 +75,8 @@ main(argc, argv) int argc; char *argv[];
 		usage();
 
 	/* Build new database. */
-	if (bflag) {
-		build();
-		exit(0);
-	}
+	if (bflag)
+		exit(build());
 
 	/* Find given names in existing database. */
 	if ((ifp = fopen(QFFILES, "r")) == NULL)
@@ -96,7 +98,7 @@ main(argc, argv) int argc; char *argv[];
  * The sorted list contains "file /dir1/dir2" for each file /dir1/dir2/file
  * and "dir3/ /dir1/dir2" for each directory /dir1/dir2/dir3.
  */
-void
+int
 build()
 {
 	register FILE *fp;
@@ -133,8 +135,7 @@ build()
 	last = -1;
 	if ((fp = fopen(QFFILES, "rw")) == NULL)
 		fatal("cannot open \"%s\"", QFFILES);
-	else if (fseek(fp, lastseek, SEEK_SET) == -1)
-		fatal("fseek failed");
+	fpseek(fp, lastseek, SEEK_SET);
 	for (nfiles = 0; fgets(buf, sizeof(buf)-1, fp) != NULL; ++nfiles) {
 		if (*buf != last) {
 			last = *buf;
@@ -146,12 +147,12 @@ build()
 		printf("%d files\n%ld bytes\n", nfiles, lastseek);
 
 	/* Rewrite the seek table in the data file. */
-	if (fseek(fp, 0L, SEEK_SET) == -1)
-		fatal("fseek failed");
-	else if (fwrite(seektab, sizeof(seektab), 1, fp) != 1)
+	fpseek(fp, 0L, SEEK_SET);
+	if (fwrite(seektab, sizeof(seektab), 1, fp) != 1)
 		fatal("write error on \"%s\"", QFFILES);
 	else if (fclose(fp) == EOF)
 		fatal("cannot close \"%s\"", QFFILES);
+	return 0;
 }
 
 /*
@@ -164,7 +165,19 @@ fatal(s) char *s;
 	fprintf(stderr, "qfind: %r\n", &s);
 	if (tmpname != NULL)
 		unlink(tmpname);
+	if (bflag)
+		unlink(QFFILES);
 	exit(1);
+}
+
+/*
+ * Seek on fp, die on failure.
+ */
+void
+fpseek(fp, where, how) FILE *fp; long where; int how;
+{
+	if (fseek(fp, where, how) == -1)
+		fatal("seek failed");
 }
 
 /*
@@ -177,17 +190,15 @@ qfind(s) char *s;
 	register char *cp;
 	int len, notfound, isdir;
 
+	/* Seek to appropriate place in data file to begin linear search. */
 	notfound = 1;
-	len = strlen(s);
-
-	/* Seek to start of lines with right first letter. */
-	if (seektab[*s] == 0L) {
+	if (!qseek(s)) {
 		fprintf(stderr, "qfind: %s: not found\n", s);
 		return notfound;
-	} else if (fseek(ifp, seektab[*s], SEEK_SET) == -1)
-		fatal("fseek failed");
+	}
 
 	/* Read lines and look for matches. */
+	len = strlen(s);
 	while (fgets(buf, sizeof(buf)-1, ifp) != NULL) {
 
 		if ((val = strncmp(buf, s, len)) < 0)
@@ -216,6 +227,55 @@ qfind(s) char *s;
 	if (notfound)
 		fprintf(stderr, "qfind: %s: not found\n", s);
 	return notfound;
+}
+
+/*
+ * Seek in data file to someplace preceding the desired key.
+ * Use binary search to get close, for efficiency.
+ * Return 0 on failure.
+ */
+int
+qseek(key) char *key;
+{
+	register int i, len;
+	long new, min, max;
+
+	i = *key;
+	if ((min = seektab[i]) == 0L)		/* lower bound for search */
+		return 0;		/* no entries with right first char */
+
+#if	1
+	/* Binary search. */
+	for (++i; i < NCHARS; ++i) {
+		if (seektab[i] != 0L) {
+			max = seektab[i];	/* upper bound for search */
+			break;
+		}
+	}
+	if (i == NCHARS) {
+		fpseek(ifp, 0L, SEEK_END);
+		max = ftell(ifp);
+	}
+	len = strlen(key);
+	while (max - min > MINSEEK) {
+		new = (min + max) / 2;
+		fpseek(ifp, new, SEEK_SET);	/* seek to midpoint of range */
+		while ((i = getc(ifp)) != EOF) {
+			++new;
+			if (i == '\n')
+				break;		/* scan to next newline */
+		}
+		if (new >= max
+		 || fgets(buf, sizeof(buf) - 1, ifp) == NULL)
+			break;			/* should not happen */
+		if ((i = strncmp(key, buf, len)) <= 0)
+			max = new;
+		else
+			min = new;
+	}
+#endif
+	fpseek(ifp, min, SEEK_SET);
+	return 1;
 }
 
 /*

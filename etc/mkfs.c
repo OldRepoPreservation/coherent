@@ -110,7 +110,7 @@ extern int getclose();
 extern daddr_t balloc();
 extern ino_t ialloc();
 extern char *bcache();
-extern char *realloc(); 	/* February 28, 1990. vlad. */
+extern char *realloc();
 
 time_t	time();
 char	*xmalloc();
@@ -200,7 +200,7 @@ char *argv[];
 	 * prototype description.
 	 */
 	if (argc != 3)
-		return   eusage();
+		return eusage();
 	special = argv[1];
 	if ( ! unnatural(argv[2])) {
 		P.p_fsize = argv[2];
@@ -936,7 +936,6 @@ struct xnode *xp;
 		return eignore("size of %s has changed", xp->x_name);
 	if ((fd = open(xp->x_name, 0)) < 0)
 		return eignore("open %s failed: %s", xp->x_name, syserror);
-fprintf(stderr, "putreg x_name=%s\n", xp->x_name);
 	xexpand(xp);
 	size = xp->x_size;
 	while (size > 0) {

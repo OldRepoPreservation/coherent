@@ -136,7 +136,7 @@ register char *fs;
 		return (1);
 	}
 	lseek(fd, (long)BSIZE * SUPERI, 0);
-	if (read(fd, buf, sizeof(struct filsys)) != sizeof(struct filsys)) {
+	if (read(fd, buf, BSIZE) != BSIZE) {
 		cmsg("read error on '%s'", fs);
 		close(fd);
 		return (1);
