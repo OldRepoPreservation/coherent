@@ -3,6 +3,9 @@
  * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.7  91/10/22  13:40:36  hal
+ * Use sys on kernel header includes.
+ * 
  * Revision 1.6  91/06/10  13:28:11  hal
  * Refix startup problem with HDGETA.  Text cleanup.
  * 
@@ -51,13 +54,13 @@ int SD_SPT = 32;
 
 #define NDRIVE	(8 * 4)			/* 8 SCSI ids and 4 LUNs */
 #define	SDMAJOR	13			/* Major Device Number */
-#define	SDDMA	5			/* Used for first party DMA */
 
 /*
  * user configurable paramters
  */
 int	SDIRQ	= 11;			/* Interrupt */
 int	SDBASE	= 0x0330;		/* Port base */
+int	SDDMA	= 5;			/* Used for first party DMA */
 
 /*
  *					LUN --------++
