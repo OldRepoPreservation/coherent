@@ -181,8 +181,8 @@ char	*fname;		/* Kernel file name */
 		sym[i].n_type = -1;
 	}
 	strcpy(sym[0].n_name, "SHMMNI");
-	strcpy(sym[1].n_name, "NMSQID");
-	strcpy(sym[2].n_name, "SEMMNI");
+	strcpy(sym[1].n_name, "SEMMNI");
+	strcpy(sym[2].n_name, "NMSQID");
 
 	/* do lookups. coffnlist returns 0 on error. */
 	if (!coffnlist(fname, sym, NULL, 3)) {
@@ -214,6 +214,7 @@ char	*fname;		/* Kernel file name */
 	}
 	close(fd);
 	SEMMNI = val;
+
 	/* Get max number of allowable message queues */
 	if ((fd = iMemSeek(sym[2].n_value, 0)) < 0) 	/* Open and seek the */
 		exit(1);				/* proper file */
@@ -222,6 +223,7 @@ char	*fname;		/* Kernel file name */
 		exit(1);
 	}
 	NMSQID = val;
+
 	close(fd);
 }
 
