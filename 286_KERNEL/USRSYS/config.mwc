@@ -6,6 +6,8 @@
 #	 config [stand=fva0]
 #	 config [stand=fha0] [standard] [root=DRV] [DRV ...]
 #	 config [stand=fva0] [standard] [root=DRV] [DRV ...]
+#
+# $Log$
 
 #	initialize variables
 #
