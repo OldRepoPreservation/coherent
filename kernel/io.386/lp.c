@@ -4,11 +4,7 @@
  * Supports up to three line printers.
  */
 #include <sys/coherent.h>
-#ifdef _I386
 #include <sys/reg.h>
-#else
-#include <sys/i8086.h>
-#endif
 #include <sys/con.h>
 #include <sys/devices.h>
 #include <errno.h>
@@ -217,11 +213,7 @@ dev_t	dev;
 	 * Printer port already open.
 	 */
 	if ((p->lpflag&LPOPEN) != 0) {
-#ifdef _I386
 		u.u_error = EBUSY;
-#else
-		u.u_error = EDBUSY;
-#endif
 		return;
 	}
 
@@ -229,11 +221,7 @@ dev_t	dev;
 	 * Printer powered off or off-line
 	 */
 	if (LPTEST && !(inb(p->lpbase+LPSTR) & ONLINE)) {
-#ifdef _I386
 		u.u_error = EIO;
-#else
-		u.u_error = EDATTN;
-#endif
 		return;
 	}
 
@@ -327,11 +315,6 @@ IO	*iop;
 			}
 		}
 		lpchar(p, c);
-
-		if (SELF->p_ssig!=0 && nondsig()) {
-			u.u_error = EINTR;
-			break;
-		}
 	}
 }
 
@@ -345,20 +328,17 @@ lpchar(p, c)
 register struct lpinfo *p;
 int c;
 {
+	register int	waitCount;
 	register int	s;
 
-	s = LPWAIT;
+	waitCount = LPWAIT;
 	while ((inb(p->lpbase+LPSTR) & IBMNBSY) == 0) {
-		if (--s == 0) {
+		if (--waitCount == 0) {
 			s = sphi();
 			p->lpflag |= LPSLEEP;
-#ifdef _I386
-			x_sleep((char *)p, pritty, slpriSigCatch, "lpchar");
-#else
-			v_sleep((char *)p, CVTTOUT, 0, 0, "lpchar");
-#endif
+			x_sleep((char *)p, pritty, slpriSigLjmp, "lpchar");
 			spl(s);
-			s = LPWAIT;
+			waitCount = LPWAIT;
 		}
 	}
 
