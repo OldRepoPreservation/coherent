@@ -81,7 +81,7 @@ char *argv[];
 	time_t now;
 	static char buf[16];
 
-	sprintf(buf, "%.14s%s", VERSION,
+	sprintf(buf, "%.14s.0l%s", VERSION,
 #if SGTTY
 		"S");
 #elif TERMIO
