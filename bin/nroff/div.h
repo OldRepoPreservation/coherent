@@ -1,7 +1,9 @@
 /*
+ * div.h
  * Nroff/Troff.
  * Diversions and traps.
  */
+
 #define nsm	cdivp->d_nspm		/* No space mode */
 
 /*
@@ -25,7 +27,7 @@ typedef	struct	div {
 	int	d_maxh;			/* Maximum height of diversion */
 	int	d_maxw;			/* Maximum width of diversion */
 	unsigned long d_seek;		/* Last seek position */
-	struct	mac *d_macp;		/* Pointer to macro desc */
+	union	MAC *d_macp;		/* Pointer to macro desc */
 	struct	tpl *d_stpl;		/* Start of trap list */
 	struct	tpl *d_trap;		/* Start of usable traps */
 	struct	tpl *d_ctpp;		/* Current trap pointer */
@@ -35,5 +37,7 @@ typedef	struct	div {
 /*
  * Global variables.
  */
-extern	DIV	*mdivp;			/* Pointer to main diversion */
 extern	DIV	*cdivp;			/* Pointer to current diversion */
+extern	DIV	*mdivp;			/* Pointer to main diversion */
+
+/* end of div.h */

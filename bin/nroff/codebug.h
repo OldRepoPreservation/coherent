@@ -1,27 +1,31 @@
-#ifndef	D_D_DEBUG_TROFF
 /*
- * Debugging header for TROFF/NROFF
+ * codebug.h
+ * Nroff/Troff.
+ * Debugging header.
  */
-#define	D_D_DEBUG_TROFF	1	/* Process this only once...	*/
+
+#ifndef	CODEBUG_H
+#define	CODEBUG_H		/* Process this only once...	*/
+
 #ifndef	DDEBUG
 #define	DDEBUG	0		/* Default to a level of 0	*/
 #endif
 
-#define	DBGCHEK	1		/* Various check points	*/
-#define	DBGREGS	2		/* Register creation	*/
-#define	DBGREGX	4		/* Register access	*/
-#define	DBGCODE	8		/* Output codes		*/
-#define	DBGDIVR	16		/* Diversions and traps	*/
-#define	DBGFILE	32		/* File access		*/
-#define	DBGFUNC	64		/* Various functions	*/
-#define	DBGCHAR 128		/* Characters		*/
-#define	DBGPROC	256		/* "process" debugging	*/
-#define	DBGMACX	512		/* Macro execution	*/
-#define	DBGREQX 1024		/* request processing	*/
-#define	DBGMISC	2048		/* Misc. things		*/
-#define	DBGMOVE	4096		/* "pel" movement	*/
-#define	DBGENVR	8192		/* Environment		*/
-#define	DBGCALL	16384		/* Special call stuff	*/
+#define	DBGCHEK	0x0001		/* Various check points	*/
+#define	DBGREGS	0x0002		/* Register creation	*/
+#define	DBGREGX	0x0004		/* Register access	*/
+#define	DBGCODE	0x0008		/* Output codes		*/
+#define	DBGDIVR	0x0010		/* Diversions and traps	*/
+#define	DBGFILE	0x0020		/* File access		*/
+#define	DBGFUNC	0x0040		/* Various functions	*/
+#define	DBGCHAR 0x0080		/* Characters		*/
+#define	DBGPROC	0x0100		/* "process" debugging	*/
+#define	DBGMACX	0x0200		/* Macro execution	*/
+#define	DBGREQX 0x0400		/* request processing	*/
+#define	DBGMISC	0x0800		/* Misc. things		*/
+#define	DBGMOVE	0x1000		/* "pel" movement	*/
+#define	DBGENVR	0x2000		/* Environment		*/
+#define	DBGCALL	0x4000		/* Special call stuff	*/
 
 #if	DDEBUG
 #define	dprintd(a,b)	printd(a, b)		/* debug information	*/
@@ -35,3 +39,5 @@
 
 extern int dbglvl;				/* Debugging level.	*/
 #endif
+
+/* end of codebug.h */
