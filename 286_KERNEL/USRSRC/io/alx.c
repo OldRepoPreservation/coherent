@@ -4,6 +4,8 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	alx.c,v $
+ * Revision 2.1  91/11/21  18:17:44  hal
+ * Same as V1.13 - used in 3.2.05k
  *
  -lgl) */
 /*
@@ -39,6 +41,13 @@
 #define SILO_LOW_MARK	(SI_BUFSIZ/4)
 #define MAX_SILO_INDEX	(SI_BUFSIZ-2)
 #define MAX_SILO_CHARS	(SI_BUFSIZ-1)
+
+/*
+ * The following silo FLUSH macros are always called at high priority!
+ */
+#define RAWIN_FLUSH(tp)	{ tp->t_rawin.si_ox = tp->t_rawin.si_ix; \
+			tp->t_rawin.SILO_CHAR_COUNT = 0; }
+#define RAWOUT_FLUSH(tp) { tp->t_rawout.si_ox = tp->t_rawout.si_ix; }
 
 int	al_sg_set = 0;
 int	al_sg_clr = 0;
@@ -196,7 +205,7 @@ register TTY	*tp, **irqtty;
 
 		if (tp->t_flags & T_MODC)
 			oldmode += 1;
-		if (com_usage[AL_NUM].irq == 0)	
+		if (com_usage[AL_NUM].irq == 0)
 			oldmode += 2;
 		if (tp->t_flags & T_CFLOW)
 			oldmode += 4;
@@ -220,11 +229,11 @@ register TTY	*tp, **irqtty;
 			com_usage[AL_NUM].in_use = 1;
 			if (dev & CPOLL)
 				com_usage[AL_NUM].irq = 0;
-			else	
+			else
 				com_usage[AL_NUM].irq = 1;
 			if (minor_h & CFLOW)
 				tp->t_flags |= T_CFLOW;
-			else	
+			else
 				tp->t_flags &= ~T_CFLOW;
 			if (minor_h & NMODC)
 				tp->t_flags &= ~T_MODC;
@@ -270,7 +279,7 @@ register TTY	*tp, **irqtty;
 				if (msr & MS_RLSD) {
 					if (tp->t_open == 0)
 						break;
-					else 	
+					else
 						goto already_open;
 				}
 
@@ -300,10 +309,10 @@ register TTY	*tp, **irqtty;
 			tp->t_flags &= ~T_STOP;
 			if (!(tp->t_flags & T_CFLOW) || (msr & MS_CTS))
 				com_usage[AL_NUM].ohlt = 0;
-			else	
+			else
 				com_usage[AL_NUM].ohlt = 1;
 		}
-	        tp->t_flags |= T_CARR;			/* carrier on */
+		tp->t_flags |= T_CARR;
 		ttopen(tp);				/* stty inits */
 
 		/*
@@ -314,7 +323,7 @@ register TTY	*tp, **irqtty;
 		alxparam(tp);
 		spl(s);
 	}
-already_open:	
+already_open:
 	tp->t_open++;
 	ttsetgrp(tp, dev);
 
@@ -345,12 +354,14 @@ TTY	*tp;
 {
 	register int b;
 	int state, maj;
+	int flags;
 
 	/*
 	 * Called at high priority by alclose after al_buff is drained
 	 */
-	com_usage[AL_NUM].hcls = 1;			/* disallow reopen til done closing */
-	ttclose(tp);			/* clear flags */
+	com_usage[AL_NUM].hcls = 1;	/* disallow reopen til done closing */
+	flags = tp->t_flags;		/* save flags - ttclose zeroes them */
+	ttclose(tp);
 	b = ALPORT;
 	/*
 	 * ttclose() only emptied the output queue tp->t_oq;
@@ -364,6 +375,10 @@ TTY	*tp;
 	while (state) {
 		timeout(&AL_TIM, 10, wakeup, (int)&AL_TIM);
 		sleep((char *)&AL_TIM, CVTTOUT, IVTTOUT, SVTTOUT);
+		if (SELF->p_ssig && nondsig()) {  /* signal? */
+			RAWOUT_FLUSH(tp);
+			break;
+		}
 		if (tp->t_rawout.si_ix == tp->t_rawout.si_ox  && state)
 			state--;
 	}
@@ -371,7 +386,7 @@ TTY	*tp;
 	/*
 	 * If not hanging in open
 	 */
-	if ((tp->t_flags & T_HOPEN) == 0) {
+	if ((flags & T_HOPEN) == 0) {
 		/*
 		 * Disable interrupts.
 		 */
@@ -382,7 +397,7 @@ TTY	*tp;
 	/*
 	 * If hupcls
 	 */
-	if (tp->t_flags & T_HPCL) {
+	if (flags & T_HPCL) {
 		/*
 		 * Hangup port - drop DTR and RTS.
 		 */
@@ -392,13 +407,14 @@ TTY	*tp;
 		 * Hold dtr low for timeout
 		 */
 		maj = major(dev);
-		drvl[maj].d_time = 2;
+		drvl[maj].d_time = 1;
 		sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT);
 		drvl[maj].d_time = 0;
 	}
 	com_usage[AL_NUM].poll = 0;
 	set_poll_rate();
-	if ((tp->t_flags & T_HOPEN) == 0)
+	RAWIN_FLUSH(tp);
+	if ((flags & T_HOPEN) == 0)
 		com_usage[AL_NUM].in_use = 0;
 	com_usage[AL_NUM].hcls = 0;	/* allow reopen - done closing */
 	wakeup((char *)com_usage+AL_NUM);
@@ -469,6 +485,10 @@ register TTY 	*tp;
 		stat1 = msr >> 4;
 		kucopy(&stat1, (unsigned *) vec, sizeof(unsigned));
 		break;
+	case TIOCFLUSH:		/* Flush silos here, queues in tty.c */
+		RAWIN_FLUSH(tp);
+		RAWOUT_FLUSH(tp);
+		/* fall through to default... */
 	default:
 		ttioctl(tp, com, vec);
 	}
@@ -587,23 +607,21 @@ register TTY * tp;
 		 */
 		if (AL_MSR_DELTAS & MS_DRLSD) {
 			AL_MSR_DELTAS &= ~MS_DRLSD;
-			/*
-			 * wakeup open
-			 */
-			if (tp->t_open == 0) {
-				wakeup((char *)(&tp->t_open));
-			}
-
-			/*
-			 * carrier off?
-			 */
-			else if ((msr & MS_RLSD) == 0) {
+			if (msr & MS_RLSD) {
 				/*
-				 * clear carrier flag; send hangup signal
+				 * Carrier is on - wakeup open.
 				 */
 				s = sphi();
-				tp->t_rawin.si_ox = tp->t_rawin.si_ix;
-				tp->t_rawin.SILO_CHAR_COUNT = 0;
+				tp->t_flags |= T_CARR;
+				spl(s);
+				if (tp->t_open == 0) {
+					wakeup((char *)(&tp->t_open));
+				}
+			} else if (tp->t_flags & T_CARR) {
+				s = sphi();
+				RAWIN_FLUSH(tp);
+				RAWOUT_FLUSH(tp);
+				tp->t_flags &= ~T_CARR;
 				spl(s);
 				tthup(tp);
 			}
@@ -617,6 +635,7 @@ register TTY * tp;
 	 *	Check input silo to see if we need to raise RTS.
 	 */
 	if (tp->t_flags & T_CFLOW) {
+static cts = 0;
 
 		/*
 		 * Get status
@@ -627,17 +646,37 @@ register TTY * tp;
 		s = sphi();
 		if (msr & MS_CTS)
 			com_usage[AL_NUM].ohlt = 0;
-		else	
+		else
 			com_usage[AL_NUM].ohlt = 1;
 		spl(s);
+if (!cts && (msr & MS_CTS)) {
+	cts = 1;
+#if 0
+	printf("[ %x  %x ", msr, inb(ALPORT+MCR));
+#else
+	printf("[");
+#endif	
+} else if (cts && !(msr & MS_CTS)) {
+	cts = 0;
+#if 0
+	printf("%x %x ] ", msr, inb(ALPORT+MCR));
+#else
+	printf("]");
+#endif	
+}
 
 		/*
 		 * If using hardware flow control, see if we need to drop RTS.
 		 */
 		if ( (tp->t_flags & T_CFLOW)
 		&& (tp->t_rawin.SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
+			s = sphi();
 			mcr = inb(ALPORT+MCR);
-			outb(ALPORT+MCR, mcr & ~MC_RTS);
+			if (mcr & MC_RTS) {
+				outb(ALPORT+MCR, mcr & ~MC_RTS);
+printf("-");
+			}
+			spl(s);
 		}
 
 		/*
@@ -646,7 +685,10 @@ register TTY * tp;
 		if (tp->t_rawin.SILO_CHAR_COUNT <= SILO_LOW_MARK) {
 			s = sphi();
 			mcr = inb(ALPORT+MCR);
-			outb(ALPORT+MCR, mcr | MC_RTS);
+			if ((mcr & MC_RTS) == 0) {
+				outb(ALPORT+MCR, mcr | MC_RTS);
+printf("+");
+			}
 			spl(s);
 		}
 	}
@@ -662,7 +704,7 @@ register TTY * tp;
 	 * Fill raw output buffer.
 	 */
 	for (;;) {
-		if (--n < 0) 
+		if (--n < 0)
 			break;
 		s = sphi();
 		b = ttout(tp);
@@ -696,8 +738,8 @@ register TTY * tp;
 alxstart(tp)
 register TTY * tp;
 {
-	register int b;
-	register int s;
+	int b;
+	int s;
 	extern alxbreak();
 
 	/*
@@ -716,12 +758,31 @@ register TTY * tp;
 	/*
 	 * Transmitter is empty, output data is pending.
 	 */
-	if ((b & LS_TxRDY) && (tp->t_rawout.si_ix != tp->t_rawout.si_ox)) {
-		outb(	ALPORT+DREG,
+	if (b & LS_TxRDY) {
+		/*
+		 * Do nothing if no raw output data or output is stopped.
+		 */
+		if (tp->t_rawout.si_ix == tp->t_rawout.si_ox) {
+			goto started;
+		}
+		if (tp->t_flags & T_STOP)
+			goto started;
+		if (com_usage[AL_NUM].ohlt)
+			goto started;
+
+		/*
+		 * Transmit next char in raw output buffer.
+		 */
+		outb(ALPORT+DREG,
 			tp->t_rawout.si_buf[ tp->t_rawout.si_ox ]);
+
+		/*
+		 * Adjust raw output buffer output index.
+		 */
 		if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
 			tp->t_rawout.si_ox = 0;
 	}
+started:
 	spl(s);
 }
 
@@ -731,6 +792,12 @@ register TTY * tp;
 alxbreak(tp)
 TTY * tp;
 {
+	int s;
+
+	s = sphi();
+	RAWIN_FLUSH(tp);
+	RAWOUT_FLUSH(tp);
+	spl(s);
 	ttsignal(tp, SIGINT);
 }
 
@@ -742,13 +809,14 @@ register TTY * tp;
 {
 	int c;
 	int port = ALPORT;
-	unsigned char mcr, msr;
+	unsigned char mcr, msr, lsr;
 
 rescan:
 	switch (inb(port+IIR)) {
 
 	case LS_INTR:
-		if (inb(port+LSR) & LS_BREAK)
+		lsr = inb(port+LSR);
+		if (lsr & LS_BREAK)
 			defer(alxbreak, tp);
 		goto rescan;
 
@@ -796,7 +864,9 @@ rescan:
 		if ( (tp->t_flags & T_CFLOW)
 		&& (tp->t_rawin.SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
 			mcr = inb(port+MCR);
-			outb(port+MCR, mcr & ~MC_RTS);
+			if (mcr & MC_RTS) {
+				outb(port+MCR, mcr & ~MC_RTS);
+			}
 		}
 		goto rescan;
 
@@ -824,12 +894,6 @@ rescan:
 		if (++tp->t_rawout.si_ox >= sizeof(tp->t_rawout.si_buf))
 			tp->t_rawout.si_ox = 0;
 
-		/*
-		 * Try to fill buffer if now empty.
-		 */
-		if (tp->t_rawout.si_ox == tp->t_rawout.si_ix) {
-			defer(alxcycle, tp);
-		}
 		goto rescan;
 
 	case MS_INTR:
@@ -846,9 +910,18 @@ rescan:
 		if (tp->t_flags & T_CFLOW) {
 			if (msr & MS_CTS)
 				com_usage[AL_NUM].ohlt = 0;
-			else	
+			else
 				com_usage[AL_NUM].ohlt = 1;
 		}
+
+#if 0
+		/*
+		 * Try to fill buffer if now empty.
+		 */
+		if (tp->t_rawout.si_ox == tp->t_rawout.si_ix) {
+			defer(alxcycle, tp);
+		}
+#endif
 		goto rescan;
 	}
 }

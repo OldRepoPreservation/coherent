@@ -2,12 +2,15 @@
  * 	COHERENT Device Driver Kit version 1.2.0
  * 	Copyright (c) 1982, 1991 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
+ *
+ * $Log$
  -lgl) */
 /*
  * Driver for an IBM PC asyncronous
  * line, using interrupts. The interface
  * uses a Natty/WD 8250 chip.
  */
+
 #include <sys/coherent.h>
 #include <sys/i8086.h>
 #include <sys/con.h>
@@ -88,6 +91,7 @@ int	alunload();
 int	alpoll();
 int	nulldev();
 int	nonedev();
+static int uart_sense();
 
 /*
  * Configuration table.
@@ -150,6 +154,7 @@ alload()
 		tp_table[ALNUMa] = alttab; /* set TTY pointers for polling */
 		ddp[0].port = ALPORTa;
 		ddp[0].com_num = ALNUMa;
+		com_usage[ALNUMa].uart_type = uart_sense(ALPORTa);
 
 		if (ALCNT > 1) {
 			alttab[1].t_dispeed = alttab[1].t_dospeed = ALSPEEDb;
@@ -157,6 +162,7 @@ alload()
 			tp_table[ALNUMb] = alttab+1;
 			ddp[1].port = ALPORTb;
 			ddp[1].com_num = ALNUMb;
+			com_usage[ALNUMb].uart_type = uart_sense(ALPORTb);
 		}
 
 		for ( i = 0;  i < ALCNT; i++ ) {
@@ -290,4 +296,78 @@ static
 alintr()
 {
 	alxintr(irqtty);
+}
+
+/*
+ * uart_sense()
+ *
+ * Given port address, return what type of 8250-family chip is found there.
+ *
+ * 0 - no chip
+ * 1 - 8250 or 8250B
+ * 2 - 8250A or 16450
+ * 3 - 16550
+ * 4 - 16550A
+ *
+ * Only the last of these has usable on-chip FIFO.
+ */
+static int uart_sense(port)
+int port;
+{
+	int ret;
+	unsigned char mcr_save, ch;
+
+	mcr_save = inb(port+MCR);
+	outb(port+MCR, 0x0A | MC_LOOP);
+	ch = inb(port + MSR);
+	if ((ch & 0xF0) != 0x90) {
+		ret = US_NONE;
+		goto done;
+	}
+	outb(port+SCR, 0x55);
+	ch = inb(port+SCR);
+	if (ch != 0x55) {
+		ret = US_8250;
+		goto done;
+	}
+	outb(port+FCR, 0x01);
+	ch = inb(port+FCR);
+	switch (ch & 0xC0) {
+	case 0x00:
+		ret = US_16450;
+		break;
+	case 0x80:
+		ret = US_16550;
+		break;
+	case 0xC0:
+		ret = US_16550A;
+		break;
+	default:
+		ret = US_UNKNOWN;	
+	}
+	outb(port+FCR, 0x00);
+done:
+	outb(port+MCR, mcr_save);
+printf("Port %x: ", port);	
+switch (ret) {
+case US_NONE:
+	printf("no UART\n");
+	break;
+case US_8250:
+	printf("8250\n");
+	break;
+case US_16450:
+	printf("16450\n");
+	break;
+case US_16550:
+	printf("16550\n");
+	break;
+case US_16550A:
+	printf("16550A - FIFO\n");
+	break;
+case US_UNKNOWN:
+	printf("unknown\n");
+	break;
+}
+	return ret;
 }
