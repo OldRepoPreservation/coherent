@@ -80,6 +80,13 @@ entry:	call	main_
 	int 	KEYBD	/		/* Scan the keyboard.  */
 	je	0b	/	}
 
+			/	do {
+1:	movb	ah, $0	/		getch();
+	int 	KEYBD	/		/* Read the key.  */
+	movb	ah, $1	/	} while (iskey())
+	int 	KEYBD	/		/* Scan the keyboard for another key. */
+	jne	1b	/	
+
 	int	REBOOT	/ Reboot through the BIOS. 
 
 	.shrd
