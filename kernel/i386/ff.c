@@ -174,7 +174,7 @@ vptop(vpaddr)
 
 /*
  * Convert from virtual address to virtual-physical.  Similar to MAPIO(),
- * but does not require separte segment and offset.
+ * but does not require separate segment and offset.
  *
  * Only works for Kernel Space virtual addresses.
  */
