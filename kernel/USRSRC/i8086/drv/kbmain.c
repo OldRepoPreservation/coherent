@@ -5,17 +5,23 @@
  * permform some simple validity checks on the table.
  * if errors are found, bail out without setting the new table.
  *
- * Version 1.0, 6/8/91
+ * this version removes all references to stdio since we need to put over
+ * a dozen cooked keyboard tables on the boot disk - space is at a premium.
+ *
+ * Version 1.1, 6/25/91
  */
-#include <stdio.h>
+
 #include <sgtty.h>
 #include <sys/kb.h>
 #include <sys/kbscan.h>
 #include <errno.h>
+#include <sys/mdata.h>
 
-#define	VERSION	"1.0"
+#define	VERSION	"1.1"
 #define	FALSE	(0 != 0)
 #define	TRUE	(0 == 0)
+#define NULL ((char *)0)
+#define putchar(c) { char b = c; write(1, &b, 1); }
 
 /*
  * globals
@@ -26,24 +32,32 @@ char	verbose;			/* step-by-step details */
 char	debug;				/* print out cooked table & exit */
 KBTBL	table[MAX_KEYS];		/* cooked table for ioctl() */
 FNKEY	*arena;				/* function key arena */
+unsigned char	fnbuffer[(sizeof(FNKEY) + MAX_FCHAR)]; /* function key area */
 
+/*
+ * The following table maps the specified key number to
+ * a scan code set 3 value.
+ * Note that K_14, K_65 through K_74 and K_107
+ * are provided for compatibility with
+ * the old XT layout AT keyboards.
+ */
 unsigned char	keyval[] = {		/* code set 3 mapped value */
 none, K_1, K_2, K_3, K_4, K_5, K_6, K_7,
-K_8, K_9, K_10, K_11, K_12, K_13, none, K_15,
+K_8, K_9, K_10, K_11, K_12, K_13, K_14, K_15,
 K_16, K_17, K_18, K_19, K_20, K_21, K_22, K_23,
 K_24, K_25, K_26, K_27, K_28, K_29, K_30, K_31,
 K_32, K_33, K_34, K_35, K_36, K_37, K_38, K_39,
 K_40, K_41, K_42, K_43, K_44, K_45, K_46, K_47,
 K_48, K_49, K_50, K_51, K_52, K_53, K_54, K_55,
 none, K_57, K_58, none, K_60, K_61, K_62, none,
-K_64, none, none, none, none, none, none, none,
-none, none, none, K_75, K_76, none, none, K_79,
+K_64, K_65, K_66, K_67, K_68, K_69, K_70, K_71,
+K_72, K_73, K_74, K_75, K_76, none, none, K_79,
 K_80, K_81, none, K_83, K_84, K_85, K_86, none,
 none, K_89, K_90, K_91, K_92, K_93, none, K_95,
 K_96, K_97, K_98, K_99, K_100, K_101, K_102, K_103,
-K_104, K_105, K_106, none, K_108, none, K_110, none,
+K_104, K_105, K_106, K_107, K_108, none, K_110, none,
 K_112, K_113, K_114, K_115, K_116, K_117, K_118, K_119,
-K_120, K_121, K_122, K_123, K_124, K_125, K_126
+K_120, K_121, K_122, K_123, K_124, K_125, K_126, none
 };
 
 /*
@@ -63,10 +77,8 @@ char *argv[];
 	int fd;					/* console file descriptor */
 
 	argv0 = argv[0];
-	if ((arena = (FNKEY *)malloc(sizeof(FNKEY) + MAX_FCHAR)) == NULL) {
-		err("out of memory");
-		exit(errors);
-	}
+	arena = (FNKEY *) fnbuffer;
+
 	if (argc > 1) {
 		if (strcmp(argv[1], "-V") == 0)
 			printf("Version %s\n", VERSION);
@@ -123,8 +135,8 @@ char *argv[];
 	 */
 	ioctl(fd, TIOCSETKBT, table);
 	if (errno) {
-		perror("keyboard table ioctl() failed");
-		exit(++errors);
+		err("keyboard table ioctl() failed, errno=%d", errno);
+		exit(errors);
 	}
 
 	/*
@@ -133,8 +145,8 @@ char *argv[];
 	 */
 	ioctl(fd, TIOCSETF, arena);
 	if (errno) {
-		perror("function key ioctl() failed");
-		exit(++errors);
+		err("function key ioctl() failed, errno=%d", errno);
+		exit(errors);
 	}
 
 	printf("Loaded %s\n", tbl_name);
@@ -213,14 +225,14 @@ unsigned sc;
 
 usage()
 {
-	fprintf(stderr, "usage:\t%s [-V]\n", argv0);
+	printf("usage:\t%s [-V]\n", argv0);
 	exit(1);
 }
 
 err(msg)
 char *msg;
 {
-	fprintf(stderr, "%s: ERROR: %r\n", argv0, &msg);
+	printf("%s: ERROR: %r\n", argv0, &msg);
 	++errors;
 }
 
@@ -238,3 +250,179 @@ dump()
 		printf("(%02x)\n", table[i].k_flags);
 	}
 }
+
+
+/*
+ * Simple standard output printf() using single character writes to stdout.
+ *
+ * Non-portable things:
+ * 1) alignment of arguments is assumed to be completely contiguous.
+ * 2) the smallest number is assumed to negate to itself.
+ *    be held in an exact number of ints.
+ */
+union	alltypes {
+	char	c;
+	int	i;
+	unsigned u;
+	char	*s;
+};
+
+#define	bump(p,s)	(p+=sizeof(s)/sizeof(int))
+
+char	*printi();
+
+static	char	null[] = "{NULL}";
+
+printf(args)
+union alltypes args;
+{
+	xprintf(&args);
+}
+xprintf(argp)
+union alltypes *argp;
+{
+	register char *cbp;
+	int *iap;
+	register c;
+	char *s;
+	char *cbs;
+	char adj, pad;
+	int prec;
+	int fwidth;
+	int pwidth;
+	register char *fmt;
+	union alltypes elem;
+	char cbuf[64];
+
+	iap = (int *)argp;
+	fmt = *(char **)iap;
+	bump(iap, char*);
+	for (;;) {
+		while((c = *fmt++) != '%') {
+			if(c == '\0') {
+				return;
+			}
+			putchar(c);
+		}
+		pad = ' ';
+		fwidth = -1;
+		prec = -1;
+		c = *fmt++;
+		if (c == '-') {
+			adj = 1;
+			c = *fmt++;
+		} else
+			adj = 0;
+		if (c == '0') {
+			pad = '0';
+			c = *fmt++;
+		}
+		if (c == '*') {
+			fwidth = *iap++;
+			c = *fmt++;
+		} else
+			for (fwidth = 0; c>='0' && c<='9'; c = *fmt++)
+				fwidth = fwidth*10 + c-'0';
+		if (c == '.') {
+			c = *fmt++;
+			if (c == '*') {
+				prec = *iap++;
+				c = *fmt++;
+			} else
+				for (prec=0; c >= '0' && c <= '9'; c = *fmt++)
+					prec = prec*10 + c-'0';
+		}
+		cbp = cbs = cbuf;
+		switch (c) {
+
+		case 'd':
+			elem.i = *iap++;
+			if (elem.i < 0) {
+				elem.i = -elem.i;
+				*cbp++ = '-';
+			}
+			cbp = printi(cbp, elem.i, 10);
+			break;
+
+		case 'u':
+			cbp = printi(cbp, *iap++, 10);
+			break;
+	
+		case 'o':
+			cbp = printi(cbp, *iap++, 8);
+			break;
+
+		case 'x':
+			cbp = printi(cbp, *iap++, 16);
+			break;
+
+		case 's':
+			if ((s = *(char **)iap) == NULL)
+				s = null;
+			bump(iap, char*);
+			/*
+			 * Do %s specially so it can be longer.
+			 */
+			cbp = cbs = s;
+			while (*cbp++ != '\0')
+				if (prec>=0 && cbp-s>prec)
+					break;
+			cbp--;
+			break;
+	
+		case 'c':
+			elem.c = *iap++;
+			*cbp++ = elem.c;
+			break;
+	
+		case 'r':
+			xprintf(*(char ***)iap);
+			bump(iap, char**);
+			break;
+	
+		default:
+			putchar(c);
+			continue;
+		}
+		if ((pwidth = fwidth + cbs-cbp) < 0)
+			pwidth = 0;
+		if (!adj)
+			while (pwidth-- != 0)
+				putchar(pad);
+		while (cbs < cbp)
+			putchar(*cbs++);
+		if (adj)
+			while (pwidth-- != 0)
+				putchar(pad);
+	}
+}
+
+static	char	digits[] = {
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+	'A', 'B', 'C', 'D', 'E', 'F'
+};
+
+/*
+ * Print an unsigned integer in base b.
+ */
+static
+char *
+printi(cp, n, b)
+char *cp;
+register unsigned n;
+{
+	register a;
+	register char *ep;
+	char pbuf[10];
+
+	ep = &pbuf[10];
+	*--ep = 0;
+	for ( ; a = n/b; n=a)
+		*--ep = digits[n%b];
+	*--ep = digits[n];
+	while (*ep)
+		*cp++ = *ep++;
+	return (cp);
+}
+
+/* end of kbmain.c */
