@@ -1,27 +1,32 @@
 /*
- * Standard I/O Library Internals
- * Unbuffered output
+ * libc/stdio/_fputc.c
+ * C Standard I/O Library internals.
+ * Unbuffered output.
  */
 
 #include <stdio.h>
 #include <errno.h>
 
 int
-_fputc(c, fp)
-register unsigned int	c;
-register FILE	*fp;
+_fputc(c, fp) register unsigned int c; register FILE *fp;
 {
-	char	s[1] = c;
+	register int n, oerrno;
+	char s[1] = c;
 
 	fp->_cc = 0;
+	oerrno = errno;
 	errno = 0;
-	if (fp->_ff&_FERR || _fpseek(fp)) {
-		return (EOF);
-	} else if (write(fileno(fp), s, 1) == 1) {
-		return ((unsigned char)c);
-	} else {
+	n = (unsigned char)c;
+	if (fp->_ff&_FERR || _fpseek(fp))
+		n = EOF;
+	else if (write(fileno(fp), s, 1) != 1) {
 		if (errno != EINTR)
 			fp->_ff |= _FERR;
-		return (EOF);
+		n = EOF;
 	}
+	if (errno == 0)
+		errno = oerrno;
+	return n;
 }
+
+/* libc/stdio/_fputc.c */
