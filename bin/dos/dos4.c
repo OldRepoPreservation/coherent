@@ -275,46 +275,69 @@ char * makef(name, cr) char * name; short cr;
 	static char tname[80];
 	register char  *t = tname, *h;
 	struct stat s;
-	int done = 0;
+	short done = 0, rs;
 	register MDIR *mdp;
+	short srcd, destd, deste; 
 
 	if (base1) {
 		strcpy(t, base1);
 		t += strlen(base1);
-	}
 
- 	if (cr) {
-		if ((stat(base1, &s) == -1) || !(s.st_mode & S_IFDIR)) {
-			done = 1;
-			if (strcspn(base, "*?") != strlen(base))
-				fatal("Cannot copy multiple sources to a file\n");
+		if (cr) {
+			srcd = isdir_keep;
+			rs = stat(base1, &s);
+			deste = (rs == 0);
+			destd = (s.st_mode & S_IFDIR);
 		}
-	}
-	else {
- 		if (((mdp = find(base1, root, NULL)) == NULL) || !isdir(mdp)){
-			done = 1;
-			if (numargs > 1)
-				fatal("Cannot copy multiple sources to a file\n");
+		else {
+			mdp = find(base1,root,NULL);
+			deste = (mdp != NULL);
+			destd = isdir(mdp);
+			stat(base, &s);
+			srcd = (s.st_mode & S_IFDIR);
+		}
+
+dbprintf(("numargs = %d, deste = %d, destd = %d, srcd = %d\n",numargs,deste,destd,srcd));
+
+		if ((numargs > 1) && (deste) && !(destd))
+			fatal("Error: <%s> is a file", base1);
+		
+		if (numargs == 1) {
+			if (!deste) {
+				if (!srcd)
+					done = 1;
+			}
+			else {
+				if (!destd) {
+					if (srcd)
+						fatal("Error: <%s> is a file"
+								, base1);
+					else
+						done = 1;
+				}
+			}
 		}
 	}
 
 	if (!done) {
 		if ((h = fequiv(name)) != NULL) {
-			*t++ = '/';
+			if (base1)
+				*t++ = '/';
 			strcpy(t, h);
 		}
 	}
 
 	if (cr)
 		maketree(tname);
-dbprintf(("base = <%s>, base1 = <%s>, tname = <%s>\n", base, base1, tname));
+
+dbprintf(("base = <%s>, base1 = <%s>\n  name = <%s>, tname = <%s>\n", base, base1, name, tname));
 	return tname;
 }
 
 char *fequiv(name) char *name;
 {
 	char *tmp;
-	short basesize;
+	short basesize, nwsize;
 
 	if (!base)		/* No base at all means a full disk copy */
 		return name;
@@ -324,14 +347,15 @@ char *fequiv(name) char *name;
 
 	if (!strcmp(base, name))  /* No wc or subdir means return the fname */
 		return strrchr(name, '/') + 1;
-	
-	
-	if ((tmp = strrchr(base, '/')) != NULL)
+
+	tmp = strrchr(base + 1, '/');
+
+	if (tmp != NULL)
 		basesize = tmp-base;
 	else
-		basesize = 0;
+		basesize = strlen(base);
 
-	return strchr(name + basesize + 1, '/') + 1;
+	return name + basesize + 1;
 }
 
 maketree(name) char *name;

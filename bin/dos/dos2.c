@@ -270,7 +270,7 @@ dosname(name) register char *name;
 		*s++ = ' ';			/* space-pad name */
 	if (name++ == dotp)
 		for ( ; *name != '\0'; name++)
-			if (s < &buf[11])
+			if (s <= &buf[11])
 				*s++ = *name;	/* copy extension */
 	while (s < &buf[11])
 		*s++ = ' ';			/* space-pad extension */
@@ -322,6 +322,8 @@ extract(nargs, args) short nargs; char *args[];
 {
 	register MDIR *mdp;
 	register char **ap;
+	char *argsd[512], *argsf[512];
+	short dnargs = 0, fnargs = 0;
 	char *tmp;
 	DIR *dp;
 
@@ -331,18 +333,45 @@ extract(nargs, args) short nargs; char *args[];
 		fatal("extract: exactly one file required with 'p' option");
 	if (nargs == 0)
 		extractdir(root);
-	else for (ap = args; nargs ; ap++, nargs--) {
-		if ((mdp = find(*ap, root, &dp)) == NULL)
+	else {
+		if ((mdp = find(args[0], root, &dp)) == NULL)
 			nonfatal("extract: file \"%s\" not found", *ap);
 		else {
-			do {	
-				base = basehold;
-				strcpy(base,*ap);
-				if isdir(mdp)
-					extractdir(dp);
-				else
+			do {
+				cohname(mdp->m_name, dp);
+				if (isdir(mdp)) {
+					if (!sflag) {
+						argsd[dnargs] = 
+						    malloc(strlen(cohfile)+1);
+						strcpy(argsd[dnargs++],
+								cohfile);
+					}
+				}
+				else {
+					argsf[fnargs] = 
+						malloc(strlen(cohfile) + 1);
+					strcpy(argsf[fnargs++],cohfile);
+				}
+	 		} while (mdp = findnext(&dp));
+			numargs = fnargs + (sflag ? 0 : dnargs);
+			if (fnargs > 0) {
+				for (ap = argsf; fnargs ; ap++, fnargs--) {
+					isdir_keep = 0;
+					mdp = find(*ap, root, &dp);
+					base = basehold;
+					strcpy(base,*ap); 
 					extractfile(mdp, dp);
- 			} while (mdp = findnext(&dp));
+				}
+			}
+			if ((!sflag) && (dnargs > 0)) {
+				for (ap = argsd; dnargs ; ap++, dnargs--) {
+					isdir_keep = 1;
+					mdp = find(*ap, root, &dp);
+					base = basehold;
+					strcpy(base,*ap); 
+					extractdir(dp);
+				}
+			}
 		}
 	}
 	free(clbuf);

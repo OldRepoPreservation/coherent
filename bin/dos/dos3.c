@@ -35,7 +35,7 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 			if ((*s == MEMPTY) || (*s == MFREE))
 				continue;
  			dbprintf(("lmatch(%s,%s) = %d\n", tname, cohn(s), 
-						    lmatch(name, cohn(s))));
+						    lmatch(tname, cohn(s))));
 			if (lmatch(tname, cohn(s)) == 1) 
 			{
 				if((strncmp (s, cp, 11) ==0) && isdir(mdp))
@@ -87,6 +87,7 @@ findnext(dpp) DIR **dpp;
 	register char *cp = scp;
 	register DIR *dp = sdp;
 
+	dbprintf(("findnext(%s)\n", sname));
 	for (; mdp < dp->d_edp; mdp++) 
 	{
 		s = mdp->m_name;
@@ -205,7 +206,7 @@ trim(name) register char *name;
 	if (name++ == dotp) {
 		*s++ = '.';
 		for ( ; *name != '\0'; name++)
-			if (s < &buf[11])
+			if (s < &buf[12])
 				*s++ = *name;	/* copy extension */
 	}
 	*s = '\0';				/* NUL terminate */
@@ -308,8 +309,10 @@ format(nargs, args) short nargs; char *args[];
 	c = getchar();
 	while ((i = getchar()) != '\n' && i != EOF)
 		;
-	if (c != 'y' && c != 'Y')
+	if (c != 'y' && c != 'Y') {
+		rm_lock();
 		exit(1);
+	}
 	if (nargs > 1)
 		fatal("format: only one bootstrap file allowed");
 
@@ -504,12 +507,12 @@ label(nargs, args) short nargs; char *args[];
 	else
 		b= args[0];
 		
+	if (volume != NULL)
+		deletefile(volume, root);
 	if (find(b, root, NULL) != NULL)
 		fatal("label: file \"%s\" already exists", b);
 	if (strchr(b, '/') != NULL)
 		fatal("label: label cannot use character '/'");
-	if (volume != NULL)
-		deletefile(volume, root);
 	volume = creatfile(b, root);
 	volume->m_attr = MVOLUME;
 }
