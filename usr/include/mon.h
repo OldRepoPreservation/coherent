@@ -20,7 +20,7 @@
 #define	__MON_H__
 
 #include <sys/types.h>
-#include <sys/_null.h>
+#include <common/_null.h>
 
 struct	m_hdr	{
 	unsigned short	m_nbins;	/* number of bins		*/
@@ -45,6 +45,4 @@ struct	m_flst	{
 	struct	m_flst	*m_link;	/* link to next function in list */
 };
 
-#endif
-
-/* end of mon.h */
+#endif	/* ! defined (__MON_H__) */

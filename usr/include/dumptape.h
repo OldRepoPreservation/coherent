@@ -16,8 +16,21 @@
 #define __DUMPTAPE_H__
 
 #include <sys/types.h>
-#include <sys/dir.h>
 #include <sys/ino.h>
+
+/*
+ * Be warned! This header uses several magic numbers related to raw filesystem
+ * structure that are not portable. Since raw filesystem structure is used,
+[B * this command will /not/ run on any filesystems other than the old-style
+ * Coherent filesystem.
+ */
+
+#if	! DIRSIZ
+# define	DIRSIZ		14
+#endif
+#if	! __BUFSIZ
+# define	__BUFSIZ	512
+#endif
 
 /*
  * Dump tape header.
@@ -59,7 +72,7 @@ union	dumpdata
 		ino_t	dd_ino;		/* Inode number */
 		daddr_t	dd_block;	/* Block number in file */
 		int	dd_size;	/* Bytes used in this block */
-		char	dd_data[BUFSIZ];/* Data */
+		char	dd_data[__BUFSIZ];/* Data */
 	} dd_st2;
 
 	struct	{
@@ -72,7 +85,7 @@ union	dumpdata
 		int	dd_type;	/* Type = DD_MAP */
 		ino_t	dd_ino;		/* Base inode of this map block */
 		int	dd_nmap;	/* # of map entries */
-		char	dd_map[BUFSIZ];	/* Some map */
+		char	dd_map[__BUFSIZ]; /* Some map */
 	} dd_st4;
 };
 
@@ -102,4 +115,4 @@ struct	idates {
 #define	DTAPE	"/dev/dump"		/* Default dump tape */
 #define	DFSYS	""			/* No default file system */
 
-#endif
+#endif	/* ! defined (__DUMPTAPE_H__) */

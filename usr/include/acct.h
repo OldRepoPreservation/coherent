@@ -1,8 +1,9 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 4.0.3
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /*
  * Accounting structure.
  */
@@ -10,7 +11,7 @@
 #define	 __ACCT_H__
 
 #include <sys/types.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 
 typedef	unsigned short	comp_t;
 

@@ -13,26 +13,35 @@
 #ifndef	__CTYPE_H__
 #define	__CTYPE_H__
 
-/* ANSI Standard functions. */
-extern	int	isalnum(/* int c */);	/* 4.3.1.1  */
-extern	int	isalpha(/* int c */);	/* 4.3.1.2  */
-extern	int	iscntrl(/* int c */);	/* 4.3.1.3  */
-extern	int	isdigit(/* int c */);	/* 4.3.1.4  */
-extern	int	isgraph(/* int c */);	/* 4.3.1.5  */
-extern	int	islower(/* int c */);	/* 4.3.1.6  */
-extern	int	isprint(/* int c */);	/* 4.3.1.7  */
-extern	int	ispunct(/* int c */);	/* 4.3.1.8  */
-extern	int	isspace(/* int c */);	/* 4.3.1.9  */
-extern	int	isupper(/* int c */);	/* 4.3.1.10 */
-extern	int	isxdigit(/* int c */);	/* 4.3.1.11 */
-extern	int	tolower(/* int c */);	/* 4.3.2.1  */
-extern	int	toupper(/* int c */);	/* 4.3.2.2  */
+#include <common/feature.h>
+#include <common/ccompat.h>
 
-/* Non-ANSI Standard functions. */
-extern	int	isascii(/* int c */);
-extern	int	toascii(/* int c */);
-extern	int	_tolower(/* int c */);
-extern	int	_toupper(/* int c */);
+__EXTERN_C_BEGIN__
+
+int		isalnum		__PROTO ((int _c));
+int		isalpha		__PROTO ((int _c));
+int		iscntrl		__PROTO ((int _c));
+int		isdigit		__PROTO	((int _c));
+int		isgraph		__PROTO ((int _c));
+int		islower		__PROTO ((int _c));
+int		isprint		__PROTO ((int _c));
+int		ispunct		__PROTO ((int _c));
+int		isspace		__PROTO ((int _c));
+int		isupper		__PROTO ((int _c));
+int		isxdigit	__PROTO ((int _c));
+int		tolower		__PROTO ((int _c));
+int		toupper		__PROTO ((int _c));
+
+#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+
+int		isascii		__PROTO ((int _c));
+int		toascii		__PROTO ((int _c));
+int		_tolower	__PROTO ((int _c));
+int		_toupper	__PROTO ((int _c));
+
+#endif	/* ! _STDC_SOURCE && ! _POSIX_SOURCE */
+
+__EXTERN_C_END__
 
 /*
  * Type table and bit classifications.
@@ -64,12 +73,13 @@ extern	unsigned char _ctype[_CTYPEN];	/* Type table			*/
 #define	isupper(c)	(_ctype[(c)+1]&_U)
 #define	isxdigit(c)	(_ctype[(c)+1]&_X)
 
-/* Macros covering non-ANSI Standard functions. */
+#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+
 #define	isascii(c)	(((c)&~0x7F)==0)
 #define	toascii(c)	((c)&0x7F)
 #define	_tolower(c)	((c)|('a'-'A'))
 #define	_toupper(c)	((c)&~('a'-'A'))
 
-#endif
+#endif	/* ! _STDC_SOURCE && ! _POSIX_SOURCE */
 
-/* end of ctype.h */
+#endif	/* ! defined (__CTYPE_H__) */

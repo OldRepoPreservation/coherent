@@ -78,6 +78,12 @@ struct scnhdr {
 #define	STYP_OVER	0x400			/* not supported */
 #define	STYP_LIB	0x800			/* not supported */
 
+#if	NUSEG
+/*
+ * It is not at all clear who uses this stuff below, or why the magic user-
+ * namespace symbol NUSEG is needed. NUSEG is actually part of the deep
+ * kernel internal stuff...
+ */
 	/*
 	 * xechdr corresponds to the least commmon denominator
 	 * of the COFF format and the <l.out> format 286 Coherent used
@@ -101,6 +107,9 @@ struct	xecnode {
 	struct	xecseg xseg;
 	struct	xecnode *xn;
 };
+
+#endif	/* NUSEG */
+
 #define	XMAGIC(a, b)	((a<< 16) | b)
 
 #endif

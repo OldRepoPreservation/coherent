@@ -12,8 +12,18 @@
 #ifndef	__AR_H__
 #define	__AR_H__
 
-#ifndef DIRSIZ
-#include <sys/dir.h>
+/*
+ * Be warned! This header use the magic DIRSIZ #define which represents the
+ * size of a filename in the old V6 filesystem (which has been kept in the
+ * S5 and Coherent filesystems). Thus, the "ar" command and all commands
+ * which use this header will die horribly if use with filesystems that
+ * support longer names.
+ */
+
+#include <sys/types.h>
+
+#if	! DIRSIZ
+# define	DIRSIZ		14
 #endif
 
 #define OLD_ARMAG	0177535			/* Magic number */
@@ -45,4 +55,4 @@ typedef	struct	ar_sym {
 	fsize_t	ar_off;			/* offset of load module */
 } ar_sym;				/* ...from end of header module */
 
-#endif
+#endif	/* ! defined (__AR_H__) */

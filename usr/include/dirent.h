@@ -7,67 +7,68 @@
 #ifndef __DIRENT_H__
 #define __DIRENT_H__
 
-#ifdef _I386
+#include <common/feature.h>
+#include <common/ccompat.h>
+
+#include <common/_uid.h>
+#include <common/_daddr.h>
+#include <common/__off.h>
+
+#if	_I386
 
 struct dirent {
-	long	d_ino;	/* i-node number */
-	daddr_t	d_off;	/* offset in actual directory*/
-	unsigned short	d_reclen;  /*record length*/
-	char	d_name[1];
+	n_ino_t		__NON_POSIX (d_ino);	/* i-node number */
+	__daddr_t	__NON_POSIX (d_off);	/* offset in actual directory*/
+	unsigned short	__NON_POSIX (d_reclen);	/* record length */
+	char		d_name [1];
 };
 
-#define	MAXNAMLEN	14		/* maximum filename length */
+typedef struct {
+	int		__NON_POSIX (dd_fd);	/* file descriptor */
+	int		__NON_POSIX (dd_loc);	/* offset in block */
+	int		__NON_POSIX (dd_size);	/* amount of valid data */
+	char	      *	__NON_POSIX (dd_buf);	/* -> directory block */
+} DIR;			/* stream data from opendir() */
+
+
+#if	! _POSIX_SOURCE
 
 #define	DIRBUF		2048		/* buffer size for fs-indep. dirs */
 	/* must in general be larger than the filesystem buffer size */
 
-typedef struct
-	{
-	int	dd_fd;			/* file descriptor */
-	int	dd_loc;			/* offset in block */
-	int	dd_size;		/* amount of valid data */
-	char	*dd_buf;		/* -> directory block */
-	}	DIR;			/* stream data from opendir() */
+#define	MAXNAMLEN	14		/* maximum filename length */
 
-extern DIR		*opendir();
-extern struct dirent	*readdir();
-extern void		rewinddir();
-extern int		closedir();
-extern daddr_t		telldir();
-extern void		seekdir();
+#endif	/* ! _POSIX_SOURCE */
 
-#define DIRSIZ	14		/* Size of directory name */
-struct direct {
+#else	/* if ! _I386 */
+
+#if	! DIRSIZ
+# define	DIRSIZ		14	/* Size of directory name */
+#endif
+
+struct dirent {
 	ino_t	 d_ino;			/* Inode number */
 	char	 d_name[DIRSIZ];	/* Name */
 };
 
-#else
-/*
- *-------------------- 286 version ----------------
- */
-/*
- * Rely on COHERENT's sys/dir.h to define type DIR and structure direct with
- * fields d_ino of type ino_t and d_name of type char [].
- */
-#include <sys/types.h>
+#endif	/* ! _I386 */
 
-#define DIRSIZ	14		/* Size of directory name */
-#define	DIR	char *		/* Directory type */
 
-/*
- * Directory entry structure.
- */
-struct direct {
-	ino_t	 d_ino;			/* Inode number */
-	char	 d_name[DIRSIZ];	/* Name */
-};
+__EXTERN_C_BEGIN__
 
-/*
- * Implement dirent as a macro, making struct dirent equivalent to COHERENT's 
- * struct direct.
- */
-#define dirent direct
+DIR	      *	opendir		__PROTO ((__CONST__ char * _dirname));
+struct dirent *	readdir		__PROTO ((DIR * _dirp));
+void		rewinddir	__PROTO ((DIR * _dirp));
+void		closedir	__PROTO ((DIR * _dirp));
+
+#if	! _POSIX_SOURCE
+
+__off_t		telldir		__PROTO ((DIR * _dirp));
+void		seekdir		__PROTO ((DIR * _dirp, __off_t _loc));
 
 #endif
-#endif
+
+__EXTERN_C_END__
+
+
+#endif	/* ! defined (__DIRENT_H__) */

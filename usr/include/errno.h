@@ -5,11 +5,16 @@
  -lgl) */
 /*
  * /usr/include/errno.h
- * Error codes.
+ *
+ * User-Level Error codes.
+ *
+ * Revised: Mon Jul 12 07:17:12 1993 CDT
  */
 
 #ifndef	__ERRNO_H__
 #define	__ERRNO_H__
+
+#include <common/feature.h>
 
 #define	EPERM	1		/* Not super user */
 #define	ENOENT	2		/* No such file or directory */
@@ -45,14 +50,15 @@
 #define	EPIPE	32		/* Broken pipe */
 #define	EDOM	33		/* Domain error */
 #define	ERANGE	34		/* Result too large */
-#define	EKSPACE	35		/* Out of kernel space */
 #if	_I386
+#define	ENOMSG	35		/* No message of desired type */
 #define	EIDRM	36		/* Identifier removed */
 #else
+#define	EKSPACE	35		/* Out of kernel space */
 #define	ENOLOAD	36		/* Driver not loaded */
 #endif
 #define	EBADFMT	37		/* Bad format */
-#ifdef _I386
+#if	_I386
 #define EDATTN	199		/* Device needs attention do not use !! */
 #else
 #define EDATTN	38		/* Device needs attention */
@@ -62,15 +68,13 @@
 #define	ENOLCK	41		/* No lock available */
 
 
-#ifndef KERNEL
-/*
- * Globals for user programs.
- */
-extern	int	errno;
-extern	int	sys_nerr;
-extern	char	*sys_errlist[];
-#endif
+extern	int		errno;
+
+#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+
+extern	int		sys_nerr;
+extern	char	      *	sys_errlist [];
 
 #endif
 
-/* end of errno.h */
+#endif	/* ! defined (__ERRNO_H__) */
