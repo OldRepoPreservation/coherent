@@ -149,7 +149,7 @@ bsync()
 		if ((bp->b_flag&BFMOD) == 0)
 			continue;
 		lock(bp->b_gate);
-		if ((bp->b_flag&BFMOD) != 0)
+		if (bp->b_flag&BFMOD)
 			bwrite(bp, 1);
 		unlock(bp->b_gate);
 	}
@@ -172,7 +172,7 @@ register dev_t dev;
 			continue;
 		lock(bp->b_gate);
 		if (bp->b_dev == dev) {
-			if ((bp->b_flag&BFMOD) != 0)
+			if (bp->b_flag&BFMOD)
 				bwrite(bp, 1);
 			bp->b_dev = NODEV;
 		}
@@ -197,7 +197,7 @@ register int sync;
 	++bufdebug.bread;
 #endif
 	bp = bclaim(dev, bno);
-	if ((bp->b_flag&BFNTP) != 0) {
+	if (bp->b_flag&BFNTP) {
 		if (sync)
 			bp->b_flag &= ~BFASY;
 		else {
@@ -215,12 +215,12 @@ register int sync;
 		/*
 		 * If buffer is not valid, wait for it.
 		 */
-		while ((bp->b_flag&BFNTP) != 0) {
+		while (bp->b_flag&BFNTP) {
 			v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "bpwait");
 			/* If buffer is not valid, wait for it.  */
 		}
 		spl(s);
-		if ((bp->b_flag&BFERR) != 0) {
+		if (bp->b_flag&BFERR) {
 			SET_U_ERROR(bp->b_err ? bp->b_err : EIO, "bread()");
 			brelease(bp);
 			return (NULL);
@@ -348,7 +348,7 @@ again:
 			 * invalid.  Unlock the buffer gate and return
 			 * the buffer to the requestor.
 			 */
-			if ((bp->b_flag&BFERR) != 0)
+			if (bp->b_flag&BFERR)
 				bp->b_flag |= BFNTP;
 			unlock(bufgate);
 			bsmap(bp);
@@ -381,7 +381,7 @@ again:
 			}
 			lock(bp->b_gate);
 			spl(s);
-			if ((bp->b_flag&BFMOD) != 0)
+			if (bp->b_flag&BFMOD)
 				bwrite(bp, 0);	/* flush dirty buffer */
 			else {
 				/*
@@ -444,7 +444,7 @@ register BUF *bp;
 		spl(s);
 		return;
 	}
-	while ((bp->b_flag&BFNTP) != 0) {
+	while (bp->b_flag&BFNTP) {
 		v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "bwrite");
 		/* Waiting for a buffer write to finish.  */
 	}
@@ -463,10 +463,10 @@ register BUF *bp;
 	if (bp->b_req == BWRITE)
 		bp->b_flag &= ~BFMOD;
 	if (bp->b_req == BREAD) {
-		if ((bp->b_flag&BFERR) != 0)
+		if (bp->b_flag&BFERR)
 			bp->b_dev = NODEV;
 	}
-	if ((bp->b_flag&BFASY) != 0) {
+	if (bp->b_flag&BFASY) {
 		bp->b_flag &= ~BFASY;
 		brelease(bp);
 	}
@@ -483,7 +483,7 @@ register BUF *bp;
 #if BDEBUG
 	++bufdebug.brelease;
 #endif
-	if ((bp->b_flag&BFERR) != 0) {
+	if (bp->b_flag&BFERR) {
 		bp->b_flag &= ~BFERR;
 		bp->b_dev = NODEV;
 	}
@@ -657,14 +657,14 @@ dev_t dev;
 	lock(bp->b_gate);
 	n = cp->c_flag;	/* n should do something with that flag */
 	drest(dold);
-	if (iop != NULL) {
-		if ((f&BFBLK) != 0) {
-			if (blocko(iop->io_seek) != 0) {
+	if (iop) {
+		if (f&BFBLK) {
+			if (blocko(iop->io_seek)) {
 				SET_U_ERROR(EIO, "ioreq()");
 				goto out;
 			}
 		}
-		if ((f&BFIOC) != 0) {
+		if (f&BFIOC) {
 			if (!iomapvp(iop, bp)) {
 				SET_U_ERROR(EIO, "ioreq()");
 				goto out;
@@ -674,24 +674,24 @@ dev_t dev;
 	bp->b_flag = f|BFNTP;
 	bp->b_req = req;
 	bp->b_dev = dev;
-	if (iop != NULL) {
+	if (iop) {
 		bp->b_bno = blockn(iop->io_seek);
 		bp->b_count = iop->io_ioc;
 	}
 	s = sphi();
 	dblock(dev, bp);
-	while ((bp->b_flag&BFNTP) != 0) {
+	while (bp->b_flag&BFNTP) {
 		v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "ioreq");
 		/* Ask norm what this sleep means.  */
 	}
 	spl(s);
-	if (stimer.t_last != 0)
+	if (stimer.t_last)
 		wakeup((char *)&stimer);
-	if ((bp->b_flag&BFERR) != 0) {
+	if (bp->b_flag&BFERR) {
 		SET_U_ERROR(bp->b_err ? bp->b_err : EIO, "ioreq()");
 		goto out;
 	}
-	if (iop != NULL) {
+	if (iop) {
 		n = iop->io_ioc - bp->b_resid;
 		iop->io_seek += n;
 		iop->io_ioc -= n;
@@ -703,6 +703,11 @@ out:
 /*
  * Given an I/O structure and a buffer header, see if the addresses
  * in the I/O structure are valid and set up the buffer header.
+ *
+ * Search the u area segment table for a data segment containing
+ * iop->io.vbase.  If one is found, put the corresponding system
+ * global address into bp->b_paddr and return the corresponding
+ * SEG pointer, else return NULL.
  */
 SEG *
 iomapvp(iop, bp)
@@ -721,17 +726,14 @@ register BUF *bp;
 		if ((srp->sr_flag&SRFDATA) == 0)
 			continue;
 		/*
-		 * this kludge is necessary because the representation of
-		 * a stack segment is not consistent throughout the system
-		 * the system represents the 'base' of a stack as its upper
-		 * limit (because it is the upper limit that is fixed)
-		 * logically this would imply a negative size but it is not so
-		 * perhaps it would be better to have lower and upper limits
-		 * and no size
+		 * The following calculation is because the system represents
+		 * the 'base' of a stack as its upper limit (because it is the
+		 * upper limit that is fixed).
 		 */
 		base = srp->sr_base;
 		if (srp==&u.u_segl[SISTACK])
 			base -= srp->sr_size;
+
 		if ((b=iop->io.vbase) < base)
 			continue;
 		if ((long)b+iop->io_ioc > base + sp->s_size)
@@ -739,11 +741,12 @@ register BUF *bp;
  		bp->b_paddr = MAPIO(sp->s_vmem, b-base);
 		return (sp);
 	}
-	return (NULL);
+	return 0;
 }
 
 /*
  * Initialise devices.
+ * Mark all initialized devices as loaded.
  */
 devinit()
 {
@@ -751,7 +754,7 @@ devinit()
 	register int mind;
 
 	for ( dp = drvl, mind = 0; mind < drvn; mind++, dp++ ) {
-		if ((dp->d_conp != NULL) && (dp->d_conp->c_load != NULL)) {
+		if (dp->d_conp && dp->d_conp->c_load) {
 			(*dp->d_conp->c_load)();
 			dev_loaded |= (1<<mind);
 		}
@@ -953,7 +956,7 @@ dold_t *doldp;
 		return (NULL);
 	}
 	dsave(*doldp);
-	if (dp->d_map != 0)
+	if (dp->d_map)
 		dmapv(dp->d_map);
 	return (dp->d_conp);
 }
