@@ -1,6 +1,6 @@
 /*
  * install.c
- * 4/5/90
+ * 4/24/90
  * Install COHERENT disks on a system.
  * The first part of the initial install procedure is in build.c.
  * Uses common routines in build0.o: cc install.c build0.c
@@ -14,10 +14,11 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.5"
+#define	VERSION		"1.6"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
+void	config();
 void	done();
 void	install();
 int	newdisk();
@@ -56,22 +57,40 @@ main(argc, argv) int argc; char *argv[];
 	id = argv[1];
 	device = argv[2];
 	ndisks = atoi(argv[3]);
-	sprintf(cmd, "/bin/rm -f /%s.* /tmp/%s.*", id, id);
+
+	/* Add line to /etc/install.log. */
+	sprintf(cmd, "/bin/echo /etc/install: %s %s %s >>/etc/install.log",
+		argv[1], argv[2], argv[3]);
+	sys(cmd, S_NONFATAL);
+	sys("/bin/date >>/etc/install.log", S_NONFATAL);
+
+	/* Remove old ids and postfile if present. */
+	sprintf(cmd, "/bin/rm -f /%s.* /conf/%s.post", id, id);
 	sys(cmd, S_IGNORE);
 	if (bflag)
 		sys("/etc/mount.all", S_NONFATAL);
 	cls(0);
+
+	/* Install disks. */
 	for (i = 1; i <= ndisks; ++i)
 		install(i);
 	if (bflag) {
 		newusr();
+		config();
 		done();
 	}
-	sprintf(cmd, "/tmp/%s.post", id);
+
+	/* Delete ids and execute postfile if present. */
+	sprintf(cmd, "/bin/rm -f /%s.*", id);
+	sys(cmd, S_NONFATAL);
+	sprintf(cmd, "/conf/%s.post", id);
 	if (exists(cmd)) {
 		cls(0);
 		sys(cmd, S_NONFATAL);
 	}
+	sys("/bin/echo /etc/install: success >>/etc/install.log", S_NONFATAL);
+	sys("/bin/date >>/etc/install.log", S_NONFATAL);
+	sys("/bin/echo >>/etc/install.log", S_NONFATAL);
 	if (bflag)
 		sys("/etc/umount.all", S_NONFATAL);
 	cls(0);
@@ -81,34 +100,79 @@ main(argc, argv) int argc; char *argv[];
 }
 
 /*
+ * System-specific configuration.
+ */
+void
+config()
+{
+	register char *s;
+	char c1, c2;
+
+	cls(1);
+	if (yes_no("Does your computer system have a modem")) {
+		do {
+			s = get_line("Enter 1 if your modem is on serial port COM1, 2 if on COM2:");
+		} while ((*s != '1' && *s != '2') || *(s+1) != '\0');
+		sprintf(cmd, "/bin/ln -f /dev/com%s /dev/modem", s);
+		if (sys(cmd, S_NONFATAL) == 0)
+			printf("/dev/modem is now linked to /dev/com%s.\n",
+				s);
+		printf("\n");
+	}
+	if (yes_no("Does your computer system have a line printer")) {
+		printf(
+"Your printer is connected to your computer system either through a\n"
+"parallel port or through a serial port; most printers are connected\n"
+"through parallel port LPT1.\n"
+			);
+		if (yes_no("Is your printer connected through a parallel port")) {
+			do {
+				s = get_line("Enter 1, 2 or 3 for port LPT1, LPT2 or LPT3:");
+			} while (*s < '1' || *s > '3' || *(s+1) != '\0');
+			sprintf(cmd, "/bin/ln -f /dev/lpt%s /dev/lp", s);
+			if (sys(cmd, S_NONFATAL) == 0)
+				printf("/dev/lp is now linked to /dev/lpt%s.\n",
+					s);
+		} else {
+			do {
+				s = get_line("Enter 1 or 2 for port COM1 or COM2:");
+			} while ((*s != '1' && *s != '2') || *(s+1) != '\0');
+			sprintf(cmd, "/bin/ln -f /dev/com%s /dev/lp", s);
+			if (sys(cmd, S_NONFATAL) == 0)
+				printf("/dev/lp is now linked to /dev/com%s.\n",
+					s);
+		}
+		printf("\n");
+	}
+	if (yes_no("Do you use both COHERENT and MS-DOS on your hard disk")) {
+		do {
+			s = get_line("Enter the partition number (0 to 7) of your MS-DOS partition:");
+		} while (*s < '0' || *s > '7' || *(s+1) != '\0');
+		*s -= '0';
+		c1 = *s < 4 ? '0' : '1';
+		c2 = 'a' + *s % 4;
+		sprintf(cmd, "/bin/ln -f /dev/rat%c%c /dev/dos", c1, c2);
+		if (sys(cmd, S_NONFATAL) == 0)
+			printf(
+"/dev/dos is now linked to /dev/rat%c%c.\n"
+"You can use the \"dos\" command to transfer files\n"
+"to and from the MS-DOS partition.\n",
+			c1, c2);
+		printf("\n");
+	}
+}
+
+/*
  * Finish up.
  */
 void
 done()
 {
-	FILE *fp;
-	char *s;
-
-	cls(0);
+	cls(1);
 
 	/* Replace the install version of /etc/brc with the normal one. */
 	sys("/bin/rm /etc/brc", S_NONFATAL);
 	sys("/bin/ln -f /etc/brc.coh /etc/brc", S_NONFATAL);
-
-	/* Serial number. */
-	printf(
-"A card included with your distribution gives the serial number\n"
-"of your copy of COHERENT.\n"
-		);
-	s = get_line("Type in the serial number from the card:");
-	if (dflag)
-		fp = NULL;
-	else if ((fp = fopen("/etc/serialno", "w")) != NULL) {
-		fprintf(fp, "%s\n", s);
-		fclose(fp);
-		chmod("/etc/serialno", 0444);
-	} else
-		nonfatal("/etc/serialno: open failed");
 }
 
 /*
@@ -134,6 +198,9 @@ again:
 	sprintf(cmd, "cpdir -ad%s -smnt /mnt /", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
 	sprintf(cmd, "/etc/umount %s", device);
+	sys(cmd, S_NONFATAL);
+	sprintf(cmd, "/bin/echo /etc/install: disk %d installed >>/etc/install.log",
+		i);
 	sys(cmd, S_NONFATAL);
 }
 
@@ -177,7 +244,7 @@ newdisk()
 void
 newusr()
 {
-	register int n;
+	register int n, status;
 	register char *s;
 	char homedir[NBUF];
 
@@ -189,7 +256,11 @@ newusr()
 "\"daemon\" (the spooler), \"sys\" (to access system information), and\n"
 "\"uucp\" (for communication with other COHERENT systems).\n"
 "\n"
-"You should create a login for each additional user.\n"
+"If your system has multiple users or allows remote logins, you should use\n"
+"the \"passwd\" program after you finish installing COHERENT to assign a\n"
+"password to each user, including users \"root\" and \"bin\".\n"
+"\n"
+"You should create a login for each additional user of your system.\n"
 		);
 	for (n = 0; ;) {
 		if (!yes_no("Do you want to create another login"))
@@ -214,8 +285,12 @@ again:
 				} else
 					strcpy(homedir, s);
 			}
-			if (!exists(homedir)) {
-				sprintf(cmd, "/bin/mkdir %s", homedir);
+			if ((status = is_dir(homedir)) == -1) {
+				printf("%s is not a directory, try again.\n",
+					homedir);
+				goto again;
+			} else if (status == 0) {
+				sprintf(cmd, "/bin/mkdir -r %s", homedir);
 				if (sys(cmd, S_NONFATAL) != 0)
 					goto again;
 			}
@@ -226,6 +301,7 @@ again:
 		sprintf(&cmd[strlen(cmd)], "\"%s\" %s", s, homedir);
 		sys(cmd, S_NONFATAL);
 	}
+	printf("\n");
 }
 
 /* end of install.c */
