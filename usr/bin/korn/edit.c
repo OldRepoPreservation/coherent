@@ -21,7 +21,7 @@ static char *RCSid = "$Header: edit.c,v 3.1 88/11/03 09:14:51 egisin Exp $";
 #endif
 #include <sys/stat.h>
 #include <dirent.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <ctype.h>
 #include <errno.h>
 #include <setjmp.h>

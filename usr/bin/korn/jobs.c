@@ -245,15 +245,19 @@ exchild(t, flags)
 	if (i == 0) {		/* child */
 		e.oenv = NULL;
 		if (flag[FTALKING])
-			restoresigs();
+			restoresigs();		/* set back to default */
 		if ((flags&XBGND) && !flag[FMONITOR]) {
 			signal(SIGINT, SIG_IGN);
 			signal(SIGQUIT, SIG_IGN);
 			if (flag[FTALKING])
 				signal(SIGTERM, SIG_DFL);
-			i = open("/dev/null", 0);
-			(void) dup2(i, 0);
-			close(i);
+#if COHERENT
+			if (!(flags & XPIPEI)) {
+				i = open("/dev/null", 0);
+				(void) dup2(i, 0);
+				close(i);
+			}
+#endif
 		}
 		for (j = procs; j != NULL; j = j->next)
 			j->state = JFREE;
@@ -571,7 +575,17 @@ j_print(j)
 
 	  case JSIGNAL: {
 		int sig = WTERMSIG(j->status);
+#if COHERENT
+		char *n = NULL;
+		int i;
+		for (i = 0; i < SIGNALS; ++i)
+			if (sigtraps[i].signal == sig) {
+				n = sigtraps[i].mess;
+				break;
+			}
+#else
 		char *n = sigtraps[sig].mess;
+#endif
 		if (n != NULL)
 			sprintf(buf, "%s", n);
 		else

@@ -118,11 +118,26 @@ ptree(t, f)
 			pioact(f, *ioact++);
 }
 
+/*
+ * print out a redirection node.
+ */
 pioact(f, iop)
 	register FILE *f;
 	register struct ioword *iop;
 {
-	fptreef(f, "%c><%S ", '0' + iop->unit, iop->name); /* todo: fix */
+	char	*redir = NULL;
+
+	switch (iop->flag & (IOREAD|IOHERE|IOWRITE|IOCAT|IOXHERE|IODUP)) {
+	case IOREAD:		redir = "<";	break;
+	case IOREAD|IOHERE:	redir = "<<";	break;
+	case IOREAD|IODUP:	redir = "<&";	break;
+	case IOWRITE:		redir = ">";	break;
+	case IOWRITE|IOCAT:	redir = ">>";	break;
+	case IOWRITE|IODUP:	redir = ">&";	break;
+	case IOXHERE:		redir = "<<";	break;
+	default:		redir = ">?<";	break;
+	}
+	fptreef(f, "%c%s%S ", '0' + iop->unit, redir, iop->name);
 }
 
 

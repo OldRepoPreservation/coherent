@@ -11,7 +11,7 @@ static char *RCSid = "$Header: main.c,v 3.1 88/11/03 09:17:04 egisin Exp $";
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <errno.h>
 #include <setjmp.h>
@@ -185,7 +185,9 @@ main(argc, argv, envp)
 
 	if (name[0] == '-') {
 		flag[FTALKING] = 1;
+#if !COHERENT
 		(void) include("/etc/profile");
+#endif
 		(void) include(".profile");
 	}
 
