@@ -361,6 +361,7 @@ xdef()
 	if (t == T_NONE)
 		t = T_INT;
 	for (;;) {
+		nargs = 0;
 		if (!gdecl(&nsp, &ndp, dp, c, SL_VAR)) {
 			cerror("external syntax");
 			while (s!=EOF && s!=SEMI && s!=LBRACE && s!=RBRACE)

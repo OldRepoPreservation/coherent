@@ -26,7 +26,7 @@ int	c, ls;
 	int		aok;	/* Args are OK flag */
 	sizeof_t	bound;	/* Array bound */
 
-	aok = (llex == 0 && (c==C_GDEF || c==C_GREF || c==C_SEX));
+	aok = (llex==LL_EXT && (c==C_GDEF || c==C_GREF || c==C_SEX) && nargs==0);
 	while (s == CONST || s == VOLATILE) {
 		/* Ignore these for now.  They should be treated as MUL */
 		/* They can appear before the type-name as well */
@@ -50,6 +50,8 @@ int	c, ls;
 		mustbe(RPAREN);
 		sp = *asp;
 		dp = *adp;
+		if (nargs != 0)
+			aok = 0;
 	} else if (s == ID) {
 		if (c==C_ARG || c==C_PAUTO || c==C_PREG)
 			ll = LL_ARG;
@@ -69,7 +71,7 @@ int	c, ls;
 again:
 	if (s == LPAREN) {
 		lex();
-		gproto(&aok, &dp);
+		garglist(&aok, &dp);
 		mustbe(RPAREN);
 		goto again;
 	}
@@ -372,15 +374,16 @@ INFO	**aip;
 }
 
 /*
- * Read a function prototype declaration.
+ * Read an old-style K&R function argument list.
  * '*aokp' indicates whether the storage class of the parent declarator
  * and the position of the parenthesized list is appropriate for the
  * formal parameter list of an actual function definition.
  * '*adp' is where the function prototype DIM should be stored.
  */
-gproto(aokp, adp) register int *aokp; register DIM **adp;
+garglist(aokp, adp) register int *aokp; register DIM **adp;
 {
 	register SYM *ap;
+
 	if (*aokp==1) {
 		nargs = 0;
 		if (s != RPAREN)
