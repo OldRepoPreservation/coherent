@@ -14,7 +14,7 @@
 #define __SYS_SEM_H__
 
 #include <sys/ipc.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 
 /*
  * Permission Definitions.
