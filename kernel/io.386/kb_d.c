@@ -121,7 +121,7 @@ static silo_t in_silo;
  */
 int		islock;			/* Keyboard locked flag */
 int		isbusy;			/* Raw input conversion busy */
-static	char	shift;			/* Overall shift state */
+static	short	shift;			/* Overall shift state */
 static	char	scroll;			/* Scroll lock state */
 static  char	lshift = LSHIFT;	/* Left shift alternate state */
 static	char	isfbuf[NFBUF];		/* Function key values */
@@ -478,7 +478,7 @@ isrint()
 	outb(KBCTRL, c|KBFLAG);
 	outb(KBCTRL, c);
 #if	KBDEBUG
-	printf("kbd: %d\n", r);			/* print scan code/direction */
+	printf("kbd: 0x%x ", r);			/* print scan code/direction */
 #endif
 	if (ledcmd) {
 		ledcmd = 0;
@@ -532,7 +532,7 @@ isrint()
 				shift &= ~SLS;
 			else if (c == CTRL)
 				shift &= ~CTS;
-			else if (c == ALT)
+			else if (c == ALT) 
 				shift &= extmode ? ~AGS : ~ALS;
 		} else {			/* "shift" pressed */
 			if (c == lshift)
@@ -572,7 +572,7 @@ isrint()
 	 * current state of the shift, control, alt graphics,
 	 * meta (ALT) and lock flags.
 	 */
-	if (shift & AGS)			/* Alt Graphics ? */
+	if (shift & AGS) 			/* Alt Graphics ? */
 		c = agmaptab[c];
 	else if (shift & CTS) {
 		if (s == CTS)			/* Map Ctrl (BS | NL) */
