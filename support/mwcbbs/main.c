@@ -51,7 +51,6 @@ int x;
 		}
 	while( strcmp(workfile,FILE6) != 0);
 
-	echo();
 	noraw();
 	endwin();
 
@@ -117,6 +116,7 @@ int counter = 0;		/* newcol = column after arrow		  */
 
 	do
 	{
+	noecho();
 
 	/* now we need to get a key (preferably an arrow) */
 
@@ -292,8 +292,6 @@ int counter = 0;		/* newcol = column after arrow		  */
 	}
 	while (arrow != 'q');
 
-	echo();
-
 }
 		
 
@@ -303,7 +301,6 @@ int rfile()
 
 {
 
-struct mail mailrec;
 FILE *infp;
 int EOF_FLAG;
 
