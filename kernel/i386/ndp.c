@@ -28,6 +28,7 @@
 /* bit positions in u.u_ndpFlags */
 #define NF_NDP_USER	1	/* this process has used the ndp */
 #define NF_NDP_SAVED	2	/* ndp status is saved in u area */
+#define NF_EM_TRAPPED	4	/* no ndp, em trap has occurred */
 
 /* supported coprocessor types - will autosense if initially unpatched */
 #define NDP_TYPE_UNPATCHED	0
@@ -45,6 +46,9 @@
  *	Export Functions.
  *	Local Functions.
  */
+void	emFinit();
+void	emtrap();
+void	fptrap();
 void	ndpConRest();
 void	ndpDetach();
 void	ndpEmTraps();
@@ -54,10 +58,12 @@ void	ndpMine();
 void	ndpNewOwner();
 void	ndpNewProc();
 char *	ndpTypeName();
+int	rdEmTrapped();
 int	rdNdpSaved();
 int	rdNdpSavedU();
 int	rdNdpUser();
 void	senseNdp();
+void	wrEmTrapped();
 void	wrNdpSaved();
 void	wrNdpSavedU();
 void	wrNdpUser();
@@ -86,10 +92,17 @@ void	wrNdpUser();
  * iBCS2 page 3-46 specifies the following:
  *   0000 : 00 10 : 0 1 1 1 : 0 0 1 0 = 0x0272
  */
+
 /* Patchable ndp-related variables. */
-short ndpCW = 0x0272;	/* NDP Control Word at start of each NDP process. */
-short ndpDump = 0;	/* Patch to 1 for NDP register dump on FP exceptions. */
-short ndpType = NDP_TYPE_UNPATCHED;	/* Patch overrides NDP type sensing. */
+short	ndpCW = 0x0272;	/* NDP Control Word at start of each NDP process. */
+short	ndpDump = 0;	/* Patch to 1 for NDP register dump on FP exceptions. */
+short	ndpType = NDP_TYPE_UNPATCHED;	/* Patch overrides NDP type sensing. */
+int	ndpEmSig = SIGFPE;	/* signal sent on receiving emulator traps */
+
+/* Patchable emulator-related function pointers. */
+int	(*ndpEmFn)() = 0;
+int	(*ndpKfsave)() = 0;
+int	(*ndpKfrstor)() = 0;
 
 static int	kerEm = 1;	/* RAM copy of CR0 EM bit */
 static int	ndpUseg;	/* system global address of U segment */
@@ -143,6 +156,7 @@ ndpNewProc()
 	ndpEmTraps(1);
 	wrNdpUser(0);
 	wrNdpSaved(0);
+	wrEmTrapped(0);
 }
 
 /*
@@ -203,6 +217,11 @@ ndpEndProc()
 }
 
 /*
+ * ----------------------------------------------------------------------
+ * Trap handlers.
+ */
+
+/*
  * fptrap()
  *
  * Entered when NDP generates a CPU error.
@@ -216,6 +235,7 @@ ndpEndProc()
   printf("err #%d eip=%x  uesp=%x  cmd=%s\n", err, eip, uesp, u.u_comm); \
   printf("efl=%x  ", efl); }
 
+void
 fptrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
   eip, cs, efl, uesp, ss)
 char *eip;
@@ -264,6 +284,7 @@ char *eip;
  * Entered when NDP opcode is executed and EM bit of CR0 is 1.
  * err is SIXNP (Device Not Available Fault)
  */
+void
 emtrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
   eip, cs, efl, uesp, ss)
 char *eip;
@@ -278,11 +299,68 @@ char *eip;
 		if (ndpDump) {
 			RDUMP();
 		}
-		sendsig(SIGFPE, SELF);
+		if (!rdEmTrapped()) {
+			wrEmTrapped(1);
+			emFinit(&u.u_ndpCon);
+		}
+		if (ndpEmFn) {
+			int looker = 1;
+
+			/*
+			 * No emulator lookahead if ptraced or
+			 * single step process.
+			 */
+			if ((SELF->p_flags & PFTRAC) || (u.u_regl[EFL] & MFTTB))
+				looker = 0;
+			(*ndpEmFn)(&gs, &u.u_ndpCon, looker);
+		} else
+			sendsig(ndpEmSig, SELF);
 	}
 }
 
 /*
+ * IRQ 13 handler.  Not used with 486.
+ */
+void
+ndpIrq()
+{
+	struct _fpstate * fsp = &u.u_ndpCon;
+	unsigned short sw;
+
+	outb(NDP_PORT, 0);
+	/*
+	 * Send user a signal.
+	 */
+	ndpSave(fsp);
+	/* Clear exception flag in NDP to prevent runaway trap. */
+	sw = fsp->status = fsp->sw;
+	fsp->sw &= 0x7f00;
+	wrNdpSaved(1);
+	if (ndpDump) {
+		printf("\nfcs=%x  fip=%x  fos=%x  foo=%x\n",
+		  fsp->cssel&0xffff, fsp->ipoff,
+		  fsp->datasel&0xffff, fsp->dataoff);
+		printf("User 387 Trap: ");
+		if (sw & 1)
+			printf("Invalid Operation");
+		else if (sw & 2)
+			printf("Denormalized Operand");
+		else if (sw & 4)
+			printf("Divide by Zero");
+		else if (sw & 8)
+			printf("Overflow");
+		else if (sw & 0x10)
+			printf("Underflow");
+		else if (sw & 0x20)
+			printf("Precision");
+		else
+			printf("???");
+	}
+	sendsig(SIGFPE, SELF);
+}
+
+/*
+ * ----------------------------------------------------------------------
  * Routines concerned with whether current process has used the ndp.
  */
 int
@@ -376,6 +454,7 @@ ndpMine()
 }
 
 /*
+ * ----------------------------------------------------------------------
  * Code concerned with identifying coprocessor type, and taking specialized
  * action depending on the type.
  */
@@ -426,42 +505,121 @@ ndpTypeName()
 }
 
 /*
- * IRQ 13 handler.  Not used with 486.
+ * ----------------------------------------------------------------------
+ * Little routines for tracking emulator state.
+ */
+
+int
+rdEmTrapped()
+{
+	return (u.u_ndpFlags & NF_EM_TRAPPED) ? 1 : 0;
+}
+
+void
+wrEmTrapped(n)
+int n;
+{
+	if (n)
+		u.u_ndpFlags |= NF_EM_TRAPPED;
+	else
+		u.u_ndpFlags &= ~NF_EM_TRAPPED;
+}
+
+/*
+ * Provide the emulator with a fresh context.
  */
 void
-ndpIrq()
+emFinit(fpsp)
+struct _fpemstate * fpsp;
 {
-	struct _fpstate * fsp = &u.u_ndpCon;
-	unsigned short sw;
+	register int r;
 
-	outb(NDP_PORT, 0);
-	/*
-	 * Send user a signal.
-	 */
-	ndpSave(fsp);
-	/* Clear exception flag in NDP to prevent runaway trap. */
-	sw = fsp->status = fsp->sw;
-	fsp->sw &= 0x7f00;
-	wrNdpSaved(1);
-	if (ndpDump) {
-		printf("\nfcs=%x  fip=%x  fos=%x  foo=%x\n",
-		  fsp->cssel&0xffff, fsp->ipoff,
-		  fsp->datasel&0xffff, fsp->dataoff);
-		printf("User 387 Trap: ");
-		if (sw & 1)
-			printf("Invalid Operation");
-		else if (sw & 2)
-			printf("Denormalized Operand");
-		else if (sw & 4)
-			printf("Divide by Zero");
-		else if (sw & 8)
-			printf("Overflow");
-		else if (sw & 0x10)
-			printf("Underflow");
-		else if (sw & 0x20)
-			printf("Precision");
-		else
-			printf("???");
+	memset(fpsp, '\0', sizeof(struct _fpemstate));	/* mostly zeroes */
+	fpsp->cw = ndpCW;
+	for(r = 0; r < 8; r++)
+		fpsp->regs[r].tag = 7;		/* Empty */
+}
+
+/*
+ * ----------------------------------------------------------------------
+ * Functions to interface with the emulator.
+ */
+get_fs_byte(cp)
+char *cp;
+{
+	char getubd();
+
+	return getubd(cp);
+}
+
+get_fs_word(sp)
+short *sp;
+{
+	short getusd();
+
+	return getusd(sp);
+}
+
+get_fs_long(lp)
+long *lp;
+{
+	long getuwd();
+
+	return getuwd(lp);
+}
+
+void
+put_fs_byte(data, cp)
+char *cp;
+char data;
+{
+	putubd(cp, data);
+}
+
+void
+put_fs_word(data, sp)
+short *sp;
+short data;
+{
+	putusd(sp, data);
+}
+
+void
+put_fs_long(data, lp)
+long *lp;
+long data;
+{
+	putuwd(lp, data);
+}
+
+/*
+ * Return zero if out of bounds for write.
+ */
+int
+verify_area(cp, len)
+int * cp;
+int len;
+{
+	int ret = useracc(cp, len, 1);
+
+	if (!ret) {
+		printf("Bad Em write, base=%x, len=%x, r.a.=%x",
+			cp, len, *(int *)((&cp) - 1));
+		sendsig(SIGSEGV, SELF);
 	}
+	return ret;
+}
+
+/*
+ * print kernel message.
+ */
+printk(s)
+char *s;
+{
+	puts(s);
+}
+
+emSendsig()
+{
 	sendsig(SIGFPE, SELF);
 }
