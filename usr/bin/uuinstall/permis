@@ -1,25 +1,26 @@
-perSite, -20,, vSite
-%h Allow remote login?
-perCallIn, -1,, yesNo
-perLogn, 0, 20
-%h eg: rmail:rnews
-perComm, -70
-%h eg: /usr/spool/uucppublic:/tmp
-perRead, -70
-%h eg: /tmp/private
-perNoRead, -70
-%h eg: /usr/spool/uucppublic:/tmp
-perWrite, -70
-%h eg: /tmp/private
-perNoWrite, -70
-perRequest, -1,, yesNoCall
-perSendFiles, -1,, yesNo
+perSite 20 verify vSite
+perCallIn 1 verify yesNo help "Allow remote login?"
+perLogn 20 readonly
+perMyName 20
+perRequest 1 verify yesNoCall
+perSendFiles 1 verify yesNo
+perComm 70 long verify noWhite help "eg: rmail:rnews"
+perRead 70 long verify noWhite help "eg: /usr/spool/uucppublic:/tmp"
+perNoRead 70 long verify noWhite help "eg: /tmp/private"
+perWrite 70 long verify noWhite help "eg: /usr/spool/uucppublic:/tmp"
+perNoWrite 70 long verify noWhite help "eg: /tmp/private"
 %%
  /usr/lib/uucp/Permissions Items in all lists are separated by : (colon)
 
  Remote site name !
  Provide an entry for that site calling in <y/n> !
       LOGNAME	  !
+ Identify myself as !
+ Can the remote site request file transfers from this computer <y/n/c> !
+ Can this computer initiate file transfers to the remote site <y/n> !
+
+
+
  Commands which can be executed at this computer by this remote site
    !
  Read directory list
@@ -30,5 +31,3 @@ perSendFiles, -1,, yesNo
    !
  Exceptions to the write directory list
    !
- Can the remote site request file transfers from this computer <y/n/c> !
- Can this computer initiate file transfers to the remote site <y/n> !
