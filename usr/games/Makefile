@@ -1,7 +1,9 @@
 
 #Makefile for /usr/games
 
-DESTDIR=/interim/usr/games/
+#DESTDIR=/interim/usr/games/
+DESTDIR=/bin386/usr/games/
+DESTDIR2=/bin386/usr/games/lib/
 
 GAMES: fortune guess moo ttt rubik chase lines
 
@@ -37,3 +39,12 @@ chase:
 lines:
 	cc -O -o $(DESTDIR)$@ lines.c
 	su root chmog 511 bin bin $(DESTDIR)$@
+
+almanac:	almanac.c
+	cc -O -o $(DESTDIR)$@ lines.c
+	(cd lib ; co alm.birth ; co alm.death ; co alm.event)
+	(cd lib ; cp alm.birth $(DESTDIR2)/almanac.birth)
+	(cd lib ; cp alm.death $(DESTDIR2)/almanac.death)
+	(cd lib ; cp alm.event $(DESTDIR2)/almanac.event)
+	su root chmog 444 bin bin $(DESTDIR2)/almanac.*
+	(cd lib ; rm alm.*)
