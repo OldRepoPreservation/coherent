@@ -34,14 +34,13 @@
  * Set up a new process.
  */
 msetusr(ip, sp)
-vaddr_t sp;
-vaddr_t ip;
+caddr_t sp;
+caddr_t ip;
 {
 	u.u_regl[EIP] = ip;
 	u.u_regl[UESP] = sp;
 }
 
-int nirqslave;
 /*
  * Set an interrupt vector.
  * Make an entry in the "vecs" table, for
@@ -64,16 +63,39 @@ int		(*fun)();
 		return;
 	}
 	vecs[level] = fun;
+
+	/*
+	 * NIGEL: The original code here (and matching code below in clrivec ())
+	 * takes pains to correctly manipulate the slave PIC chain mask bit in
+	 * the master PIC. This is redundant, and unnecessarily complex, so I
+	 * have removed it to aid the process of adding a more rational system
+	 * of interrupt handling for the DDI/DDK.
+	 *
+	 * Now the slave PIC chain mask bit is enabled (via a modification to
+	 * code in "i386/as.s") at startup, and it should never be disabled.
+	 *
+	 * The rational interrupt scheme requires that the implementations of
+	 * the DDI/DDK functions know the base-level mask value so that they
+	 * can correctly (and quickly) manipulate masks to raise and lower
+	 * priority levels even when deeply nested inside interrupts (see the
+	 * implementations of those functions for a deeper discussion of the
+	 * issues involved). This function cooperates with the new system via
+	 * the DDI_BASE_..._MASK () macro, which either manipulates the mask
+	 * register as the old code did or passes responsibility over to the
+	 * new DDI/DDK scheme if it has been enabled.
+	 *
+	 * The new macro-calls are defined in <sys/reg.h>
+	 */
+
 	if ( level >= 8 ) {
-		++nirqslave;
 		picm = inb(SPICM);
 		picm &= ~(0x01 << (level-8));
-		outb(SPICM, picm);
-		level = 2;
+		DDI_BASE_SLAVE_MASK (picm);
+	} else {
+		picm = inb(PICM);
+		picm &= ~(0x01 << level);
+		DDI_BASE_MASTER_MASK (picm);
 	}
-	picm = inb(PICM);
-	picm &= ~(0x01 << level);
-	outb(PICM, picm);
 }
 
 /*
@@ -91,17 +113,20 @@ register int	level;
 	if (level == 0)
 		panic("clrivec: level=%d", level);
 	vecs[level] = &vret;
+
+	/*
+	 * NIGEL: This code has been modified to match the changes made to the
+	 * setivec () routine above. See the comment there for details.
+	 */
+
 	if (level >= 8) {
-		--nirqslave;
 		picm = inb(SPICM);
 		picm |= (0x01 << (level-8));
-		outb(SPICM, picm);
-		level = 2;
-	}
-	if ((level != 2) || (nirqslave == 0)) {
+		DDI_BASE_SLAVE_MASK (picm);
+	} else {
 		picm = inb(PICM);
 		picm |= (0x01 << level);
-		outb(PICM, picm);
+		DDI_BASE_SLAVE_MASK (picm);
 	}
 }
 
@@ -153,29 +178,6 @@ register unsigned nl;
 	}
 }
 
-/*
- * Convert long to comp_t style number.
- * A comp_t contains 3 bits of base-8 exponent
- * and a 13-bit mantissa.  Only unsigned
- * numbers can be comp_t numbers.
- */
-
-#include <sys/types.h>
-
-#define	MAXMANT		017777		/* 2^13-1 = largest mantissa */
-
-comp_t
-ltoc(l)
-long l;
-{
-	register int exp;
-
-	if (l < 0)
-		return (0);
-	for (exp = 0; l > MAXMANT; exp++)
-		l >>= 3;
-	return ((exp<<13) | l);
-}
 
 /*
  * Given a port number and a bit value, write the bit value into
