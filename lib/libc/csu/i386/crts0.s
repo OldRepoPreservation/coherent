@@ -1,5 +1,5 @@
 / (-lgl
-/ 	COHERENT Version 3.2.2
+/ 	COHERENT Version 4.0
 / 	Copyright (c) 1982, 1992 by Mark Williams Company.
 /	Copyright (c) Ciaran O'Donnell, Bievres, France, 1991.
 / 	All rights reserved. May not be copied without permission.
@@ -10,8 +10,8 @@
 / i386 COHERENT native version.
 //////////
 
-	.globl	_start
 	.globl	_exit
+	.globl	_start
 	.globl	environ
 	.globl	exit
 	.globl	main

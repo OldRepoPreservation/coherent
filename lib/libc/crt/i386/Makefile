@@ -1,4 +1,4 @@
-# /usr/src/libc/crt/i386/Makefile 7/16/92
+# /usr/src/libc/crt/i386/Makefile 1/13/93
 
 CRTI386=\
 	_fxam.o \
@@ -21,12 +21,22 @@ CRTI386=\
 	udcvt.o \
 	ufcvt.o
 
+CRTI386NDP=\
+	_fxam.o \
+	scount.o
+
 # Primary target.
 CRTI386:	$(CRTI386)
 	$(AR) rkus libc.a $?
 	touch $@
 	: libc/crt/i386 done
 
+# Primary NDP target.
+CRTI386NDP:	$(CRTI386NDP)
+	$(AR) rkus libc.a $?
+	touch $@
+	: NDP libc/crt/i386 done
+	
 # Secondary targets.
 _fxam.o:	_fxam.s
 _modf.o:	_modf.s

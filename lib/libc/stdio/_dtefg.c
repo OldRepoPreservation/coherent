@@ -1,4 +1,5 @@
 /*
+ * libc/stdio/_dtefg.c
  * Floating point output conversion routines for 'printf'.
  * Conditionalized #if _IEEE to do 80x87 conversion.
  */
@@ -167,7 +168,8 @@ char	*buf;
 	/* Approximate the decimal exponent from the binary exponent. */
 	/* Obscure but it makes floating output much more efficient. */
 	frexp(d, &binexp);			/* Find binary exponent */
-	modf((--binexp)/LOG10B2, &dexp);	/* Scale, take integer part */
+	if (modf((--binexp)/LOG10B2, &dexp) < 0.0)	/* Scale, take integer part */
+		dexp -= 1.0;
 	decexp = dexp;				/* Convert to integer */
 	d *= _pow10(-decexp);			/* Reduce d by power of 10 */
 	if (d >= 10.) {				/* May be off by 1 place */
@@ -214,3 +216,5 @@ char	*buf;
 	++*decexpp;				/* Bump exponent */
 	return("1");				/* and return "1" */
 }
+
+/* end of libc/stdio/_dtefg.c */

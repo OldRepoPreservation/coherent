@@ -1,4 +1,4 @@
-# /usr/src/libc/crt/Makefile 7/16/92
+# /usr/src/libc/crt/Makefile 1/13/93
 
 OBJ=\
 	_prof.o
@@ -7,12 +7,19 @@ OBJ=\
 all:	CRT crt$(MCH)
 	: libc/crt done.
 
+# Primary NDP target.
+ndp:	CRT crti387
+	: libc/crt done.
+
 # Pseduotargets.
 CRT:	$(OBJ)
 	$(AR) rkus libc.a $?
 	touch $@
 crt$(MCH):
 	SRCPATH=$(SRCPATH)/$(MCH) make -e
+crti387:
+	SRCPATH=$(SRCPATH)/$(MCH) make -e CRTI386NDP
+	SRCPATH=$(SRCPATH)/i387 make -e
 
 # Secondary targets.
 _prof.o:	_prof.c
