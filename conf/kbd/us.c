@@ -8,7 +8,7 @@
  *
  *	See header files for definitions and constants.
  *
- *	Version: 1.0, 05/31/91
+ *	Version: 1.2, 07/02/91
  */
 #include <sys/kbscan.h>
 #include <sys/kb.h>
@@ -33,7 +33,8 @@ KBTBL	kbtbl[] = {
 {K_11,	'0',   ')',   none,  none,  '0',   ')',   none,  none,  none,	O|T  },
 {K_12,	'-',   '_',   us,    us,    '-',   '_',   us,    us,    none,	O|T  },
 {K_13,	'=',   '+',   none,  none,  '=',   '+',   none,  none,  none,	O|T  },
-/* key 14 undefined */
+/* key 14 for compatibility -- not on most 101/102 keyboards */
+{K_14,	'\\',  '|',   fs,    fs,    '\\',  '|',   fs,    fs,    none,   O|T  },
 {K_15,	bs,    bs,    del,   del,   bs,    bs,    del,   del,   none,	O|T  },
 {K_16,	f42,   f43,   none,  none,  f42,   f43,   none,  none,  none,   F|T  },
 {K_17,	'q',   'Q',   dc1,   dc1,   'q',   'Q',   dc1,   dc1,   none,   C|T  },
@@ -112,7 +113,7 @@ KBTBL	kbtbl[] = {
 {K_101,	f39,   f59,   f59,   f59,   f59,   f59,   f59,   f59,   f59,    F|N|M},
 {K_102,	f36,   f56,   f56,   f56,   f56,   f56,   f56,   f56,   f56,    F|N|M},
 {K_103,	f33,   f53,   f53,   f53,   f53,   f53,   f53,   f53,   f53,    F|N|M},
-{K_104,	f41,   f61,   f61,   f61,   f61,   f61,   reboot,f61,   f61,    F|N|M},
+{K_104,	f41,   f61,   f61,   f61,   f61,   f61,   reboot,reboot,f61,    F|N|M},
 {K_105,	'-',   '-',   none,  none,  none,  none,  none,  none,  none,   O|M  },
 {K_106,	'+',   '+',   none,  none,  none,  none,  none,  none,  none,   O|M  },
 /* key 107 undefined */
