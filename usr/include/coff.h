@@ -218,22 +218,23 @@ typedef	struct	syment	{
 
 /* Derived types in n_type. */
 #define DT_NON	0				/* Non-derived type	*/
-#define DT_PTR	0x10				/* Pointer		*/
-#define DT_FCN	0x20				/* Function		*/
-#define DT_ARY	0x30				/* Array		*/
+#define DT_PTR	1				/* Pointer		*/
+#define DT_FCN	2				/* Function		*/
+#define DT_ARY	3				/* Array		*/
 
 /* Type packing constants. */
 #define N_BTMASK	0x0F			/* Mask for basic type	*/
 #define N_TMASK 	0x30			/* Derived type mask	*/
 #define N_TSHIFT	2			/* Shift for more derived bits */
-
+#define N_BTSHFT	4			/* Shift for first derived */
+ 
 /* Type processing macros. */
-#define BTYPE(x)	((x) & N_BTMASK)		/* Base type	*/
-#define ISPTR(x)	(DT_PTR == ((x) & N_TMASK))	/* Pointer?	*/
-#define ISFCN(x)	(DT_FCN == ((x) & N_TMASK))	/* Function?	*/
-#define ISARY(x)	(DT_ARY == ((x) & N_TMASK))	/* Array?	*/
-#define INCREF(x)	((((x)&~N_BTMASK)<<N_TSHIFT)|DT_PTR|((x)&N_BTMASK))
-#define DECREF(x)	((((x)>>N_TSHIFT)&~N_BTMASK)|((x)&N_BTMASK))
+#define BTYPE(x)  ((x) & N_BTMASK)		/* Base type	*/
+#define ISPTR(x)  ((DT_PTR<<N_BTSHFT) == ((x) & N_TMASK)) /* Pointer?	*/
+#define ISFCN(x)  ((DT_FCN<<N_BTSHFT) == ((x) & N_TMASK)) /* Function?	*/
+#define ISARY(x)  ((DT_ARY<<N_BTSHFT) == ((x) & N_TMASK)) /* Array?	*/
+#define INCREF(x) ((((x)&~N_BTMASK)<<N_TSHIFT)|(DT_PTR<<N_BTSHFT)|((x)&N_BTMASK))
+#define DECREF(x) ((((x)>>N_TSHIFT)&~N_BTMASK)|((x)&N_BTMASK))
 
 /* Symbol aux entries. */
 typedef union auxent	{
