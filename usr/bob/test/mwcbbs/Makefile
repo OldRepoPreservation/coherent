@@ -2,10 +2,12 @@ LDFLAGS= -lcurses -lterm
 CFLAGS= -c -v -A
 
 OBJECTS= globals.o main.o disp_rec.o getflname.o lite.o map_cmd.o states.o \
-	 print.o
+	 print.o bbsdatafile.o
 
-beta/mwcbbs:	$(OBJECTS)
+../bbsutil:	$(OBJECTS)
 	cc -v -A $< $(LDFLAGS) -o $@
+	strip $@
+	ls -l $@
 
 main.o:	main.c
 	cc $(CFLAGS) $< $(LDFLAGS) -o $@	
@@ -29,4 +31,7 @@ globals.o:	globals.c
 	cc $(CFLAGS) $< $(LDFLAGS) -o $@
 
 print.o:	print.c
+	cc $(CFLAGS) $< $(LDFLAGS) -o $@
+
+bbsdatafile.o:	bbsdatafile.c
 	cc $(CFLAGS) $< $(LDFLAGS) -o $@
