@@ -42,7 +42,7 @@ spawncli(f, n)
 {
 #if	V7
 	register uchar *cp;
-	uchar	*getenv();
+	char	*getenv();
 #endif
 #if	VMS
 	movecursor(term.t_nrow, 0);		/* In last line.	*/
@@ -61,7 +61,7 @@ spawncli(f, n)
 	system("msh");
 	sgarbf = TRUE;
 	topen();
-	return(TRUE);
+	return (TRUE);
 #endif
 #if	MSDOS
 	movecursor(term.t_nrow, 0);		/* Seek to last line.	*/
@@ -70,7 +70,7 @@ spawncli(f, n)
 	execall("c:\\command.com", "");		/* Run CLI.		*/
 	ttopen();
 	sgarbf = TRUE;
-	return(TRUE);
+	return (TRUE);
 #endif
 #if	V7
 	movecursor(term.t_nrow, 0);		/* Seek to last line.	*/
@@ -82,7 +82,7 @@ spawncli(f, n)
 		system("exec /bin/sh");
 	sgarbf = TRUE;
 	topen();
-	return(TRUE);
+	return (TRUE);
 #endif
 }
 

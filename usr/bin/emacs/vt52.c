@@ -93,7 +93,7 @@ vt52open()
 {
 #if	V7
 	register uchar *cp;
-	uchar *getenv();
+	char *getenv();
 
 	if ((cp = getenv("TERM")) == NULL) {
 		puts("Shell variable TERM not defined!");

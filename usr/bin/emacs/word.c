@@ -7,6 +7,9 @@
  * this file.
  */
 #include	<stdio.h>
+#if NORMAL_CHARS
+#include <ctype.h>
+#endif
 #include	"ed.h"
 
 /*
@@ -19,7 +22,7 @@ wrapword()
 {
 	register LINE *clp;
 	
-	if(llength(clp = curwp->w_dotp) == curwp->w_doto)
+	if (llength(clp = curwp->w_dotp) == curwp->w_doto)
 		wrapblock(clp, 0, llength(clp), 0);
 }
 
@@ -30,14 +33,14 @@ fillregion(f, n)
 {
 	REGION		region;
 
-	if(getregion(&region) != TRUE)
+	if (getregion(&region) != TRUE)
 		return (FALSE);
 
-	if(!bind.fillcol) {
+	if (!bind.fillcol) {
 		mlwrite("Use <ctl-x> f to set fill collumn first");
-		return(FALSE);
+		return (FALSE);
 	}
-	return(wrapblock(region.r_linep, region.r_offset, region.r_size,
+	return (wrapblock(region.r_linep, region.r_offset, region.r_size,
 						  truecol(region.r_linep, region.r_offset)));
 }
 
@@ -52,17 +55,17 @@ short offset, size, trueCol;
 {
 	int blackCt, whiteCt;
 
-	for(blackCt = whiteCt = 0; size-- > 0; offset++) {
-		if(offset == llength(lineP)) {
-			if(!size)
+	for (blackCt = whiteCt = 0; size-- > 0; offset++) {
+		if (offset == llength(lineP)) {
+			if (!size)
 				break;
 			whiteCt = blackCt = 0;
-			while(!llength(lineP = lforw(lineP))) {
+			while (!llength(lineP = lforw(lineP))) {
 				size--;
 				trueCol = 0;
 				offset = -1;
 			}
-			if(-1 == offset)
+			if (-1 == offset)
 				continue;
 			curwp->w_doto = offset;
 			curwp->w_dotp = lineP = lback(lineP);
@@ -73,11 +76,11 @@ short offset, size, trueCol;
 			lineP = curwp->w_dotp;
 			continue;
 		}
-		switch(lgetc(lineP, offset)) {
+		switch (lgetc(lineP, offset)) {
 		case '\t':
 			taber(trueCol);
 		case ' ':
-			if(!blackCt)
+			if (!blackCt)
 				whiteCt++;
 			else {
 				whiteCt = 1;
@@ -85,12 +88,12 @@ short offset, size, trueCol;
 			}
 			break;
 		default:
-			if(!blackCt)
+			if (!blackCt)
 				blackCt = 1;
 			else
 				blackCt++;
 		}
-		if((trueCol++ > bind.fillcol) && whiteCt && blackCt) {
+		if ((trueCol++ > bind.fillcol) && whiteCt && blackCt) {
 			curwp->w_dotp = lineP;
 			curwp->w_doto = offset -= whiteCt + blackCt - 1;
 			lnewline();
@@ -101,7 +104,7 @@ short offset, size, trueCol;
 		}
 	}
 	curwp->w_doto  = llength(curwp->w_dotp);
-	return(TRUE);
+	return (TRUE);
 }
 
 /*
@@ -199,7 +202,7 @@ capChar()
 {
 	register int c;
 
-	if(c = islow(lgetc(curwp->w_dotp, curwp->w_doto))) {
+	if (c = islow(lgetc(curwp->w_dotp, curwp->w_doto))) {
 		lputc(curwp->w_dotp, curwp->w_doto, c);
 		lchange(WFHARD);
 	}
@@ -213,16 +216,20 @@ capChar()
 islow(c)
 register int c;
 {
+#if NORMAL_CHARS
+	return (islower(c) ? toupper(c) : 0);
+#else
 	int i, d;
 
 	if (c>='a' && c<='z')
-		return(c - ('a'-'A'));
+		return (c - ('a'-'A'));
 
 	if (c & 0x80)
 		for (i = 0; d = loFor[i]; i++)
 			if (d == c)
-				return(upFor[i]);
-	return(0);
+				return (upFor[i]);
+	return (0);
+#endif
 }
 
 /*
@@ -232,7 +239,7 @@ lowChar()
 {
 	register int c;
 
-	if(c = ishi(lgetc(curwp->w_dotp, curwp->w_doto))) {
+	if (c = ishi(lgetc(curwp->w_dotp, curwp->w_doto))) {
 		lputc(curwp->w_dotp, curwp->w_doto, c);
 		lchange(WFHARD);
 	}
@@ -246,16 +253,20 @@ lowChar()
 ishi(c)
 register int c;
 {
+#if NORMAL_CHARS
+	return (isupper(c) ? tolower(c) : 0);
+#else
 	int i, d;
 
 	if (c>='A' && c<='Z')
-		return(c - ('A'-'a'));
+		return (c - ('A'-'a'));
 
 	if (c & 0x80)
 		for (i = 0; d = upFor[i]; i++)
 			if (d == c)
-				return(loFor[i]);
-	return(0);
+				return (loFor[i]);
+	return (0);
+#endif
 }
 
 /*

@@ -311,42 +311,42 @@ ttgetc()
 	 */
 	switch ((int)(c >> 16)) {
 	case 0x48:			/* Up arrow to ^P	*/
-		return(OBND|0x10);
+		return (OBND|0x10);
 	case 0x50:			/* Down arrow to ^N	*/
-		return(OBND|0x0E);
+		return (OBND|0x0E);
 	case 0x4D:			/* Right arrow to ^F	*/
-		return(OBND|0x06);
+		return (OBND|0x06);
 	case 0x4B:			/* Left arrow to ^B	*/
-		return(OBND|0x02);
+		return (OBND|0x02);
 #if	EXKEYS
 	case 0x3B:			/* F1			*/
-		return(FN1);
+		return (FN1);
 	case 0x3C:			/* F2			*/
-		return(FN2);
+		return (FN2);
 	case 0x3D:			/* F3			*/
-		return(FN3);
+		return (FN3);
 	case 0x3E:			/* F4			*/
-		return(FN4);
+		return (FN4);
 	case 0x3F:			/* F5			*/
-		return(FN5);
+		return (FN5);
 	case 0x40:			/* F6			*/
-		return(FN6);
+		return (FN6);
 	case 0x41:			/* F7			*/
-		return(FN7);
+		return (FN7);
 	case 0x42:			/* F8			*/
-		return(FN8);
+		return (FN8);
 	case 0x43:			/* F9			*/
-		return(FN9);
+		return (FN9);
 	case 0x44:			/* F10			*/
-		return(FN10);
+		return (FN10);
 	case 0x47:			/* Clr/Home		*/
-		return(FN1D);		/*  Delete this window	*/
+		return (FN1D);		/*  Delete this window	*/
 	case 0x52:			/* Insert		*/
-		return(FN1C);		/*  perform macro	*/
+		return (FN1C);		/*  perform macro	*/
 	case 0x61:			/* Undo			*/
-		return(FN1B);		/*  Remove help window	*/
+		return (FN1B);		/*  Remove help window	*/
 	case 0x62:			/* Help			*/
-		return(FN1A);		/*  Prompt for help	*/
+		return (FN1A);		/*  Prompt for help	*/
 #else
 	case 0x3B:			/* F1			*/
 	case 0x3C:			/* F2			*/
@@ -358,31 +358,31 @@ ttgetc()
 	case 0x42:			/* F8			*/
 	case 0x43:			/* F9			*/
 	case 0x44:			/* F10			*/
-		return(0x07|OBND);		/*  Ctrl-G		*/
+		return (0x07|OBND);		/*  Ctrl-G		*/
 	case 0x47:			/* Clr/Home		*/
-		return(OBND|META|'1');	/*  Delete this window	*/
+		return (OBND|META|'1');	/*  Delete this window	*/
 	case 0x52:			/* Insert		*/
-		return(OBND|PFX1|'E');	/*  perform macro	*/
+		return (OBND|PFX1|'E');	/*  perform macro	*/
 	case 0x61:			/* Undo			*/
-		return(OBND|META|'2');	/*  Remove help window	*/
+		return (OBND|META|'2');	/*  Remove help window	*/
 	case 0x62:			/* Help			*/
-		return(OBND|META|'?');	/*  Prompt for help	*/
+		return (OBND|META|'?');	/*  Prompt for help	*/
 #endif
 	default:			/* Return the keyboard character */
-		return((int)c);
+		return ((int)c);
 	}
 #endif
 #if	MSDOS
 #if	IBM
 	unsigned i;
 
- 	for(;;) {	/* try again on bad stuff */
+ 	for (;;) {	/* try again on bad stuff */
 	/* Read a character through IBM PC ROM BIOS keyboard interrupt. */
 	i = ibmrbkey(0);			/* read character fn */
-	if(lo(i))
-		return(lo(i));			/* got a char */
+	if (lo(i))
+		return (lo(i));			/* got a char */
 
-	switch(hi(i)) {				/* else translate scan code */
+	switch (hi(i)) {				/* else translate scan code */
 	case 03:			/* <ctl-@> = <esc>. */
 		return OBND| '.' | META;
 	case 71:			/* home = <esc>< */
@@ -405,31 +405,31 @@ ttgetc()
 		return OBND| 127;
 #if	EXKEYS
 	case 0x3B:			/* F1			*/
-		return(FN1);
+		return (FN1);
 	case 0x3C:			/* F2			*/
-		return(FN2);
+		return (FN2);
 	case 0x3D:			/* F3			*/
-		return(FN3);
+		return (FN3);
 	case 0x3E:			/* F4			*/
-		return(FN4);
+		return (FN4);
 	case 0x3F:			/* F5			*/
-		return(FN5);
+		return (FN5);
 	case 0x40:			/* F6			*/
-		return(FN6);
+		return (FN6);
 	case 0x41:			/* F7			*/
-		return(FN7);
+		return (FN7);
 	case 0x42:			/* F8			*/
-		return(FN8);
+		return (FN8);
 	case 0x43:			/* F9			*/
-		return(FN9);
+		return (FN9);
 	case 0x44:			/* F10			*/
-		return(FN10);
+		return (FN10);
 	case 0x52:			/* Insert		*/
-		return(FN1C);		/*  perform macro	*/
+		return (FN1C);		/*  perform macro	*/
 	case 0x61:			/* Undo			*/
-		return(FN1B);		/*  Remove help window	*/
+		return (FN1B);		/*  Remove help window	*/
 	case 0x62:			/* Help			*/
-		return(FN1A);		/*  Prompt for help	*/
+		return (FN1A);		/*  Prompt for help	*/
 #endif
 	}
     }
@@ -438,6 +438,6 @@ ttgetc()
 #endif
 #endif
 #if	V7
-	return(fgetc(stdin));
+	return (fgetc(stdin));
 #endif
 }

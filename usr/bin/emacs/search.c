@@ -10,14 +10,6 @@
 #include	<stdio.h>
 #include	"ed.h"
 
-/*
- * Should these macros be fixed up to correctly handle the upper case and
- * lower case diacritical vowels in the multinational character set?
- */
-#define	ISUPPER(x)	(('A'<=(x) && (x)<='Z'))
-#define	ISLOWER(x)	(('a'<=(x) && (x)<='z'))
-#define	TOUPPER(x)	((x)+'A'-'a')
-#define	TOLOWER(x)	((x)-'A'+'a')
 #define CCHR(x)		((x)-'@')
 
 #define SRCH_BEGIN	(0)			/* Search sub-codes.	*/
@@ -442,12 +434,12 @@ isrch_prompt(dir, flag, success)
  * and other things that need an "^".
  */
 isrch_dspl(prompt, flag)
-char	*prompt;
+uchar	*prompt;
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register int	c;
-	char		tpat[NPAT+26+2+1+1];
+	uchar		tpat[NPAT+26+2+1+1];
 
 	cp1 = &tpat[0];
 	cp2 = prompt;
@@ -486,7 +478,7 @@ char	*prompt;
 queryrepl(f, n)
 {
 	register int	s;
-	char		news[NPAT];
+	uchar		news[NPAT];
 	LINE		*clp;
 	int		cbo;
 	register int	flg;
@@ -563,23 +555,23 @@ mlwrite("<SP>[,] replace,  [.] rep-end,  [n] dont,  [!] repl rest  <C-G> quit");
 #define	FUPPER	2				/* Found upper case.	*/
 
 replstring(st, f)
-char	st[];
+uchar	*st;
 int	f;
 {
-	register char	*tpt;
+	register uchar	*tpt;
 	register int	plen;
 	register int	rtype;
-	register int	c;
+	register int	c, d;
 
 	plen = strlen(pat);
 	backchar(TRUE, plen);
 	c = lgetc(curwp->w_dotp, curwp->w_doto);
 	rtype = FLOWER;
-	if (ISUPPER(c) != FALSE) {
+	if (ishi(c)) {
 		rtype = FCAPTL;
 		if (curwp->w_doto+1 != llength(curwp->w_dotp)) {
 			c = lgetc(curwp->w_dotp, curwp->w_doto+1);
-			if (ISUPPER(c) != FALSE)
+			if (ishi(c))
 				rtype = FUPPER;
 		}
 	}
@@ -598,10 +590,11 @@ int	f;
 
 		case FCAPTL:
 			if (*tpt != '\0') {
-				if (ISLOWER(*tpt) != FALSE)
-					linsert(1, TOUPPER(*tpt++));
+				if (d = islow(*tpt))
+					linsert(1, d);
 				else
-					linsert(1, *tpt++);
+					linsert(1, *tpt);
+				tpt++;
 			}
 			while (*tpt != '\0')
 				linsert(1, *tpt++);
@@ -609,10 +602,11 @@ int	f;
 
 		case FUPPER:
 			while (*tpt != '\0') {
-				if (ISLOWER(*tpt) != FALSE)
-					linsert(1, TOUPPER(*tpt++));
+				if (d = islow(*tpt))
+					linsert(1, d);
 				else
-					linsert(1, *tpt++);
+					linsert(1, *tpt);
+				tpt++;
 			}
 			break;
 		}
@@ -633,7 +627,7 @@ forwsrch()
 	register int	cbo;
 	register LINE	*tlp;
 	register int	tbo;
-	register char	*pp;
+	register uchar	*pp;
 	register int	c;
 
 	clp = curwp->w_dotp;
@@ -685,8 +679,8 @@ backsrch()
 	register LINE	*tlp;
 	register int	tbo;
 	register int	c;
-	register char	*epp;
-	register char	*pp;
+	register uchar	*epp;
+	register uchar	*pp;
 
 	for (epp = &pat[0]; epp[1] != 0; ++epp)
 		;
@@ -740,11 +734,13 @@ eq(bc, pc)
 register int	bc;
 register int	pc;
 {
+	int c;
+
 	if (bind.ffold) {
-		if (bc>='a' && bc<='z')
-			bc -= 0x20;
-		if (pc>='a' && pc<='z')
-			pc -= 0x20;
+		if (c = islow(bc))
+			bc = c;
+		if (c = islow(pc))
+			pc = c;
 	}
 	if (bc == pc)
 		return (TRUE);
@@ -760,13 +756,13 @@ register int	pc;
  * some do-it-yourself control expansion.
  */
 readpattern(prompt)
-char	*prompt;
+uchar	*prompt;
 {
-	register char	*cp1;
-	register char	*cp2;
+	register uchar	*cp1;
+	register uchar	*cp2;
 	register int	c;
 	register int	s;
-	char		tpat[NPAT+20];
+	uchar		tpat[NPAT+20];
 
 	cp1 = &tpat[0];				/* Copy prompt		*/
 	cp2 = prompt;

@@ -29,7 +29,7 @@ int bflg;
 			++col;
 		++col;
 	}
-	return(col);
+	return (col);
 }
 
 /*
@@ -39,18 +39,18 @@ int bflg;
 setfillcol(f, n)
 register int n;
 {
-	if(!n)
+	if (!n)
 		bind.fillcol = 0;
-	else if(n == 1)
+	else if (n == 1)
 		bind.fillcol = getccol(FALSE);
 	else
 		bind.fillcol = n - 1;
 
-	if(bind.fillcol)
+	if (bind.fillcol)
 		mlwrite("[Wrap at column %d]", bind.fillcol+1);
 	else
 		mlwrite("Word wrap turned off");
-	return(TRUE);
+	return (TRUE);
 }
 
 /*
@@ -185,15 +185,15 @@ register int n;
 {
 	if (n < 0) {
 		TABSIZ = -n;
-		return(TRUE);
+		return (TRUE);
 	}
 	if (n == 0 || n > 1) {
 		tabsize = n;
-		return(TRUE);
+		return (TRUE);
 	}
 	if (! tabsize)
-		return(linsert(1, '\t'));
-	return(linsert(tabsize - (getccol(FALSE) % tabsize), ' '));
+		return (linsert(1, '\t'));
+	return (linsert(tabsize - (getccol(FALSE) % tabsize), ' '));
 }
 
 /*
