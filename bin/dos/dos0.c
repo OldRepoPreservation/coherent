@@ -303,7 +303,7 @@ make_lock()
 	char *tmp = strrchr(device, '/') + 1;
 
 #ifdef _I386
-	for (i=1; i < MAXSIG; i++)
+	for (i=1; i < 13; i++)
 #else
 	for (i=1; i < 12; i++)
 #endif

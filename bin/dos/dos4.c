@@ -344,7 +344,7 @@ dbprintf(("base = <%s>, base1 = <%s>\n  name = <%s>, tname = <%s>\n", base, base
 char *fequiv(name) char *name;
 {
 	char *tmp;
-	short basesize, nwsize;
+	short basesize;
 
 	if (!base)		/* No base at all means a full disk copy */
 		return name;
@@ -376,7 +376,7 @@ maketree(name) char *name;
 		*h = '\0';
 		if (stat(name, &s) == -1) {
 			sprintf(c, "mkdir %s", name);	
-		system(c);
+			system(c);
 			if (stat(name, &s) == -1)
 				fatal("Cannot create directory %s", name);
 			}
