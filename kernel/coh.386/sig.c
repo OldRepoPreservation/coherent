@@ -48,6 +48,8 @@
 
 void sendsig();
 
+static struct _fpstate * empack();
+
 /*
  * Set up the action to be taken on a signal.
  */
@@ -246,7 +248,6 @@ actvsig()
 	register int signum;
 	register PROC *pp;
 	register int (*func)();
-	sig_t s;
 	int ptval;
 
 	/*
@@ -443,10 +444,14 @@ int *addr;
  */
 ptret()
 {
+	extern void (*ndpKfrstor)();
 	register PROC *pp;
 	register PROC *pp1;
 	register int sign;
 	unsigned off;
+	int doEmUnpack = 0;
+
+	struct _fpstate * fstp = empack();
 
 	pp = SELF;
 next:
@@ -454,6 +459,8 @@ next:
 	if (pp->p_ppid == 1)
 		return (SIGKILL);
 	sign = -1;
+
+	/* wake up parent if it is sleeping */
 	lock(pnxgate);
 	pp1 = &procq;
 	for (;;) {
@@ -468,6 +475,7 @@ next:
 		break;
 	}
 	unlock(pnxgate);
+
 	while (sign < 0) {
 		if (pts.pt_busy==0 || pp->p_pid!=pts.pt_pid) {
 			v_sleep((char *)&pts.pt_req,
@@ -488,7 +496,6 @@ next:
 		case PTRACE_RD_USR:
 			/* See ptrace.h for valid offsets. */
 			off = (unsigned)pts.pt_addr;
-
 			if (off & 3)
 				u.u_error = EINVAL;
 			else if (off < PTRACE_FP_CW) {
@@ -504,14 +511,20 @@ next:
 				 * Fetch desired info.
 				 * Restore NDP state in case we will resume.
 				 */
-				if (!rdNdpSaved()) {
-					ndpSave(&u.u_ndpCon);
-					wrNdpSaved(1);
-				}
-				pts.pt_rval =
-				  ((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2];
-				ndpRestore(&u.u_ndpCon);
-				wrNdpSaved(0);
+				if (rdNdpUser()) {
+					/* if using coprocessor */
+					if (!rdNdpSaved()) {
+						ndpSave(&u.u_ndpCon);
+						wrNdpSaved(1);
+					}
+pts.pt_rval = ((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2];
+					ndpRestore(&u.u_ndpCon);
+					wrNdpSaved(0);
+				} else if (fstp) {
+pts.pt_rval = getuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2));
+					/* if emulating */
+				} else /* no ndp state to display */
+					pts.pt_rval = 0;
 			} else
 				u.u_error = EINVAL;
 			break;
@@ -537,20 +550,24 @@ next:
 				else
 					u.u_regl[off>>2] = pts.pt_data;
 			} else if (off < PTRACE_DR0) {
-				/*
-				 * Writing NDP state.
-				 * If NDP state not already saved, save it.
-				 * Store desired info.
-				 * Restore NDP state in case we will resume.
-				 */
-				if (!rdNdpSaved()) {
-					ndpSave(&u.u_ndpCon);
-					wrNdpSaved(1);
+				if (rdNdpUser()) {
+					/*
+					 * Writing NDP state.
+					 * If NDP state not already saved, save it.
+					 * Store desired info.
+					 * Restore NDP state in case we will resume.
+					 */
+					if (!rdNdpSaved()) {
+						ndpSave(&u.u_ndpCon);
+						wrNdpSaved(1);
+					}
+((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2] = pts.pt_data;
+					ndpRestore(&u.u_ndpCon);
+					wrNdpSaved(0);
+				} else if (fstp && ndpKfrstor) {
+putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
+					doEmUnpack = 1;
 				}
-				((int *)&u.u_ndpCon)[(off - PTRACE_FP_CW)>>2]
-				  = pts.pt_data;
-				ndpRestore(&u.u_ndpCon);
-				wrNdpSaved(0);
 			} else
 				u.u_error = EINVAL;
 			break;
@@ -580,5 +597,65 @@ next:
 		pts.pt_busy = 0;
 		wakeup((char *)&pts.pt_busy);
 	}
+	if (doEmUnpack)
+		(*ndpKfrstor)(fstp, &u.u_ndpCon);
 	return (sign);
+}
+
+/*
+ * Steal space on user stack for packed form of emulator context.
+ */
+static struct _fpstate *
+empack()
+{
+	int uesp;
+	int sphi, splo;
+	SEG * segp;
+	cseg_t * pp;
+	struct _fpstate * ret = 0;
+	extern void (*ndpKfsave)();
+	unsigned long sw_old;
+
+	/* If not emulating, do nothing */
+	if (rdNdpUser() || !rdEmTrapped() || !ndpKfsave)
+		return ret;
+
+	/*
+	 * Will copy at least u_sigreturn, _fpstackframe, and ndpFlags.
+	 * If using ndp, need room for an _fpstate.
+	 * If emulating, need room for an _fpemstate.
+	 */
+	uesp = u.u_regl[UESP] - sizeof(struct _fpstate);
+
+	/* Add to user stack if necessary. */
+	segp = u.u_segl[SISTACK].sr_segp;
+	sphi = (XMODE_286) ? ISP_286 : ISP_386;
+	splo = sphi - segp->s_size;
+
+	if (splo > uesp) {
+		pp = c_extend(segp->s_vmem, btoc(segp->s_size));
+		if (pp==0) {
+			printf("Empack failed.  cmd=%s  c_extend(%x,%x)=0 ",
+			  u.u_comm, segp->s_vmem, btoc(segp->s_size));
+			return ret;
+		}
+
+		segp->s_vmem = pp;
+		segp->s_size += NBPC;
+		if (sproto(0)==0) {
+			printf("Empack failed.  cmd=%s  sproto(0)=0 ",
+			  u.u_comm);
+			return ret;
+		}
+
+		segload();
+	}
+
+	ret = (struct _fpstate *)uesp;
+	(*ndpKfsave)(&u.u_ndpCon, uesp);
+	sw_old = getuwd(&ret->sw);
+	putuwd(&ret->status, sw_old);
+	putuwd(&ret->sw, sw_old & 0x7f00);
+
+	return ret;
 }

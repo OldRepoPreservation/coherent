@@ -50,10 +50,18 @@ extern dev_t pipedev;
 extern int ronflag;
 extern int PHYS_MEM;
 
+/*
+ * Patchable variable.
+ *
+ * PS1DRIVES is the number of PS1 type drives in the system. It is 0 unless you
+ *     are actually on a PS1.
+ */
+int 	PS1DRIVES = 0;
+
 short n_atdr;
 char version[] = VERSION;
 char release[] = RELEASE;
-char copyright[] = "Copyright 1982,1992 Mark Williams Company\n";
+char copyright[] = "Copyright 1982,1993 Mark Williams Company\n";
 
 unsigned long	_entry = 0;		/* really the serial number */
 unsigned long	__ = 0;			/* really the serial number also */
@@ -65,6 +73,8 @@ main()
 	extern int BPFMAX;
 	int speed1, speed2;
 	char * ndpTypeName();
+	extern int (*ndpEmFn)();
+	extern short ndpType;
 #else
 	extern int realmode;
 #endif
@@ -105,6 +115,8 @@ main()
 		printf("Color.  ");
 	senseNdp();
 	printf(ndpTypeName());
+	if (ndpType <= 1 && ndpEmFn)
+		printf("FP Emulation.  ");
 #if 0
 	if (int11() & 2)
 		printf("x87.  ");
@@ -177,22 +189,27 @@ panic("Verification error - call Mark Williams Company at +1-708-291-6700\n");
  *
  * Read CMOS and return 0,1, or 2 as number of installed "at" drives.
  */
-static void atcount()
+void
+atcount()
 {
 	int u;
 	n_atdr = 0;
 
-	/*
-	 * Count nonzero drive types.
-	 *
-	 *	High nibble of CMOS 0x12 is drive 0's type.
-	 *	Low  nibble of CMOS 0x12 is drive 1's type.
-	 */
-	u = read_cmos(0x12);
-	if (u & 0x00F0)
-		n_atdr++;
-	if (u & 0x000F)
-		n_atdr++;
+        if (PS1DRIVES > 0)
+		n_atdr = PS1DRIVES;
+	else {
+		/*
+		 * Count nonzero drive types.
+		 *
+		 *	High nibble of CMOS 0x12 is drive 0's type.
+		 *	Low  nibble of CMOS 0x12 is drive 1's type.
+		 */
+		u = read_cmos(0x12);
+		if (u & 0x00F0)
+			n_atdr++;
+		if (u & 0x000F)
+			n_atdr++;
+	}
 }
 
 /*
@@ -212,9 +229,10 @@ static void rpdev()
 
 	if (rootdev == makedev(0,0)) {
 		found = 0;
-		if (F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
+		if (ffp = fifo_open(&boot_gift, 0)) {
+			int rc;
 
-			for (; !found && T_NULL != (tp = fifo_read(ffp)); ) {
+			for (rc = 0; !found && (tp = fifo_read(ffp)); rc++) {
 				BIOS_ROOTDEV *brp = (BIOS_ROOTDEV *)tp->ts_data;
 				if (T_BIOS_ROOTDEV == tp->ts_type) {
 					found = 1;
@@ -224,6 +242,7 @@ static void rpdev()
 			fifo_close(ffp);
 
 		}
+
 		if (found) {
 			/*
 			 * root_drv = BIOS # of root drive

@@ -56,7 +56,7 @@ TYPED_SPACE(boot_gift, BG_LEN, T_FIFO_SIC);
  * Open a typed space as a fifo.
  *
  * Takes a typed_space that is already allocated, and a mode.    The type of
- * the typed space must be a FIFO.  Only T_FIFO_SIC has been implimented
+ * the typed space must be a FIFO.  Only T_FIFO_SIC has been implemented
  * (static, in-core fifo).
  *
  * The mode indicates whether to open for reading or writing.
@@ -70,20 +70,20 @@ TYPED_SPACE(boot_gift, BG_LEN, T_FIFO_SIC);
  */
 FIFO *
 fifo_open(fifo_space, mode)
-	typed_space *fifo_space;
-	int mode;
+typed_space *fifo_space;
+int mode;
 {
 	/* ff_table is a table of FIFO structures which can be allocated on
-	 * demand.  It is functionally similiar to the file descritor table
+	 * demand.  It is functionally similiar to the file descriptor table
 	 * in the kernel.
 	 */
 	static FIFO ff_table[NFIFOS];
-	static int inited = (1==2);	/* Has ff_table been initialized?  */
+	static int inited = 0;	/* Has ff_table been initialized?  */
 
 	int i;		/* A handy counter.  */
 	FIFO *the_fifo;	/* The fifo we are going to allocate.  */
 
-	/* Initilize ff_table the first time we get called.  */
+	/* Initialize ff_table the first time we get called.  */
 	if (!inited) {
 		for (i = 0; i < NFIFOS; ++i) {
 			ff_table[i].f_space = F_NULL;
@@ -100,20 +100,20 @@ fifo_open(fifo_space, mode)
 	case T_FIFO_SIC:	/* Static In-core Fifo.  */
 		break;
 	case T_FIFO_DIC:	/* Dynamic In-core Fifo (can grow).  */
-		return(F_NULL);	/* Unimplimented.  */
+		return(F_NULL);	/* Unimplemented.  */
 	case T_FIFO_SP:	/* Static Permanent Fifo (fixed size file). */
-		return(F_NULL);	/* Unimplimented.  */
+		return(F_NULL);	/* Unimplemented.  */
 	case T_FIFO_DP:	/* Dynamic Permanent Fifo (ordinary file).  */
-		return(F_NULL);	/* Unimplimented.  */
+		return(F_NULL);	/* Unimplemented.  */
 	default:
 		return(F_NULL);	/* Illegal type encountered.  */
 	}
 
-	/* ASSERTION: fifo_space is a valid and implimented FIFO.  */
+	/* ASSERTION: fifo_space is a valid and implemented FIFO.  */
 
 	/* Find the first free FIFO structure.  */
 
-	/* This should be re-implimented using a malloc-based scheme.
+	/* This should be re-implemented using a malloc-based scheme.
 	 * At the moment, the tertiary boot libraries do not include a
 	 * malloc.
 	 */
@@ -157,13 +157,13 @@ fifo_open(fifo_space, mode)
  */
 int
 fifo_close(ffp)
-	FIFO *ffp;
+FIFO *ffp;
 {
 	if (0 == ffp->f_flags) {
 		return(0);	/* This ffp is not open.  */
 	}
 	ffp->f_space = F_NULL;
-	ffp->f_offset = T_NULL;
+	ffp->f_offset = 0;
 	ffp->f_flags = 0;
 
 	return(1);
@@ -180,13 +180,14 @@ fifo_close(ffp)
  */
 typed_space *
 fifo_read(ffp)
-	register FIFO *ffp;
+register FIFO *ffp;
 {
 	typed_space *retval;
 
 	/* Read MUST be set.  */
 	if (F_READ != F_READ & ffp->f_flags ) {
-		return(T_NULL);  /* This ffp is not open for reading.  */
+printf(" fifo_read: READ not set ");
+		return 0;  /* This ffp is not open for reading.  */
 	}
 
 	/* From here to the end of fifo_read is really fifo_read_sic().  */
@@ -194,7 +195,8 @@ fifo_read(ffp)
 
 	/* Space of size 0 marks EOFIFO.  */
 	if ((long)0 == ffp->f_offset->ts_size) {
-		retval = T_NULL;
+printf(" fifo_read: space of size 0 ");
+		retval = 0;
 	} else {
 		/* Return the next space.  */
 		retval = ffp->f_offset;
@@ -202,7 +204,7 @@ fifo_read(ffp)
 		(char *) ffp->f_offset += ffp->f_offset->ts_size;
 	}
 
-	return(retval);
+	return retval;
 } /* fifo_read() */
 
 #ifdef TEST
@@ -211,7 +213,7 @@ fifo_read(ffp)
 /* This is the typed space we will use for our FIFO operations.  */
 TYPED_SPACE(global_space, 128, T_FIFO_SIC);	/* Static In-Core Fifo.  */
 
-int
+void
 main()
 {
 	FIFO *ffp;		/* Fifo pointer for a handle.  */
@@ -231,7 +233,7 @@ main()
 		printf("Feed me: ");
 		gets(line);
 		size = (long) (strlen(line) + 1);
-	} while (T_NULL != fifo_write_untyped(ffp, line, size, T_STR_STR));
+	} while (fifo_write_untyped(ffp, line, size, T_STR_STR));
 
 	if (0 == fifo_close(ffp)) {
 		fprintf(stderr, "Failed to close global_space.\n");
@@ -248,7 +250,7 @@ main()
 	}
 
 	/* Dump the contents of this FIFO.  */
-	for (i = 1; T_NULL != (local_space = fifo_read(ffp)); ++i) {
+	for (i = 1; (local_space = fifo_read(ffp)); ++i) {
 		printf("%d: size: %ld: type: 0x%x\n", i,
 			local_space->ts_size,
 			local_space->ts_type);
@@ -267,7 +269,7 @@ main()
 		exit(1);
 	}
 
-	for (i = 1; T_NULL != (local_space = fifo_read(ffp)); ++i) {
+	for (i = 1; (local_space = fifo_read(ffp)); ++i) {
 		printf("%d: size: %ld: type: 0x%x\n", i,
 			local_space->ts_size,
 			local_space->ts_type);

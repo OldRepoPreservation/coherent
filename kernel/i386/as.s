@@ -766,7 +766,8 @@ atrecv:
 
 	xchg	%esi,%edi
 	rep				/ Value of the ECX register is not
-	insw	(%dx)			/ updated correctly
+/	insw	(%dx)			/ updated correctly
+	insw
 	xchg	%esi,%edi		
 
 	MMUUPD
@@ -1348,7 +1349,8 @@ io2seg:					/ setspace in caller
 
 	cld
 	rep				/ Value of the ECX register is not
-	insw	(%dx)			/ updated correctly
+/	insw	(%dx)			/ updated correctly
+	insw
 
 	pop	%edi
 	ret

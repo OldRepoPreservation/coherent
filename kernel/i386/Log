@@ -1,3 +1,54 @@
+Changes to kernel and related files for version #72:
+
+NOTES:
+
+1.  You will need an upgraded libc.a or at least shmemul.o to use S5
+    shared memory.
+2.  You will need tboot 1.2.6 or later if you are using FP emulation.
+3.  Epstein has given us another fsck.
+
+01/17  sys5.c: sysi86(SI86FPHW, &data) supported to get ndp type
+01/17  sig.c: ptrace can examine modify fp state in emulator
+01/14  fs2.c,fs3.c,sys2.c,pipe.c,sys/inode.h: epstein's pollable pipes
+01/14  main.c,at.c,fl.c: michael's PS1 mods
+01/11  ndp.c,mmu.c,bld: hooks for linking Linux/cef floating point emulator
+12/29  new shm1.c from vlad, after testing preliminary ipcs
+12/29  mmu.c: fix bug allocating ram disk slots in page directory
+12/29  mmu.c,ndp.c,uproc.h: fp emulator state save/restore
+12/23  typed.h and .c files containing it: remove use of T_NULL which
+       conflicts with use of that identifier in coff.h
+12/23  rm.c,mmu.c: move start of RAM disk to virtual 0x8800_0000 for
+       compatibility with shm as assigned on other systems.
+12/23  shm1.c,sys5.c,shm.h,Makefiles,bld: S5 shared memory
+12/23  mmu.c: leave room for ndp state in user stack, per cef's request
+12/21  fs1.c,fs2.c: epstein's fix to inode busy bug
+
+Changes to kernel and related files for version #71:
+
+12/18  fd.c, fs1.c, fs3.c, pipe.c, sys2.c, sys3.c: merge epstein's pipe
+       fixes.
+12/17  shm0.c: minor cleanup, add shmAtt() for vlad
+12/10  sys[235].c,tty.c: enhanced useracc(), ttioctl no longer allowed to
+       overwrite kernel text
+12/10  ndp.c: fix interrupt 13 attachment in case of 287
+12/10  shm0.c: add shmDetachP() in support of ipcrm et al
+12/10  syscoh.c(): add cohcall(COH_WTEXT,dest,src,numBytes) so a process can
+       write into its text segment.  This is mainly for cef's NDP emulator
+       thunks.
+12/10  sys5.c,atcon.c,main.c,uproc.h: add code for ulimit();  add kernel
+       patchable variable BPFMAX = max # of 512 byte blocks when writing
+       a file.  Warning: ulimit(2,..) is not yet enforced!  ulimit(3) returns
+       the maximum possible break value (with 64 kbytes of cushion).
+12/09  sys1632.c: make 286 stime() work as before
+12/09  sys5.c: fix return values from ustatfs(),ufstatfs()
+12/08  null.c,as.s,work.c,fakedma.c,ndp.c,shm0.c,as.inc,mmu.h: replace
+       use of WORK0 and WORK1 with calls to workAlloc() and workFree().
+12/07  sig.c,ndp.c: allow ptrace() to transfer NDP state
+12/04  sys1.c: stime() gets value, not pointer (undocumented part of BCS
+       compatibility)
+12/02  shm0.c,bio.c,sys3.c,proc.c,syscoh.c,mmu.c,exec.c: kernel support
+       for shared memory
+
 Changes to kernel and related files for version #70:
 
 11/30  sys2.c,pty.c: fix typo in POLLOUT polling

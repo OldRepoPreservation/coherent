@@ -68,6 +68,9 @@ do
 		PATCH="${PATCH} drvl+220=atcon"
 		DEFAULT_HD=n
 		;;
+	emu)
+		OPTS=${OPTS}" em87.o "
+		;;
 	hs)
 		OPTS=${OPTS}" ${K386OBJ}/hs.o"
 		PATCH="${PATCH} drvl+140=hscon"
@@ -161,8 +164,6 @@ if [ ${USE_IPC} = "y" ]
 then
 	OPTS=${OPTS}" ${K386OBJ}/semcon.o ${K386OBJ}/sem.o"
 	PATCH="${PATCH} drvl+460=semcon"
-	OPTS=${OPTS}" ${K386OBJ}/shmcon.o ${K386OBJ}/shm.o"
-	PATCH="${PATCH} drvl+480=shmcon"
 fi
 if [ ${USE_LP} = "y" ]
 then
