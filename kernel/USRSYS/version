@@ -1,6 +1,6 @@
-version=3
+version=1
 release=2
-revision=0.G
+revision=0.DK
 arg=${1-foo}
 if [ $arg = "ID" ]
 then
