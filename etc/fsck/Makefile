@@ -3,17 +3,22 @@
 #	for PDP-11	: CFLAGS = -O
 #	others		: CFLAGS =
 #
-CFLAGS = -O
+
+CFLAGS = -OA -DSMALLMODEL=0
 #
 #	for PDP-11 and IBM PC:	LFLAGS = -i
 #	for Z8000	     :	LFLAGS =
 #
-LFLAGS = -i
+LFLAGS =
 OBJ=main.o init.o phase1.o phase1b.o phase2.o phase3.o phase4.o phase5.o\
 	phase6.o cleanup.o util.o printf.o link.o virtual.o is_fs.o
 
 fsck:	$(OBJ)
-	$(CC) $(CFLAGS) $(LFLAGS) -o fsck $(OBJ)
+	$(CC) $(CFLAGS) $(LFLAGS) -so fsck $(OBJ)
+
+install: fsck
+	su root cp fsck /etc/fsck
+	su root chmog 511 bin bin /etc/fsck
 
 #
 #	for IBM PC Coherent executable, use:  -DNBLK=1
@@ -24,6 +29,6 @@ fsck:	$(OBJ)
 #
 
 util.o: util.c
-	$(CC) -c $(CFLAGS) util.c -DNBLK=8
+	$(CC) -c $(CFLAGS) $< -DNBLK=8
 
 $(OBJ):	fsck.h
