@@ -144,7 +144,7 @@ NULL, NULL
  */
 typedef struct control control;
 struct control {
-	short key;
+	int  key;
 	char *keyn;
 	char *fun;
 };
@@ -299,17 +299,17 @@ FN12,	"FN12",			"ignore"
 
 #define CTSIZE (sizeof(ctlName) / sizeof(control))
 
-static FILE *ofp, *doc;
-KEYTAB keytab[CTSIZE];
+static FILE *doc;
+KEYTAB keytab[CTSIZE + HASHP];
 int error = 0;
 
 /*
- * put data to ofp.
+ * put data to stdout.
  */
 pf(s)
 char *s;
 {
-	fprintf(ofp, "%r\n", &s);
+	printf("%r\n", &s);
 }
 
 /*
@@ -352,7 +352,7 @@ buildTab()
 {
 	register KEYTAB *k;
 	register control *p;
-	short n, i, f, l;
+	int n, i, f, l;
 
 	/* init hash table */
 	for (k = keytab; k < (keytab + CTSIZE + HASHP); k++)
@@ -406,8 +406,6 @@ main()
 	register char **p;
 	int i = 0;
 
-	if (NULL == (ofp = fopen("comtab.c", "w")))
-		exit(1);
 	if (NULL == (doc = fopen("bind.doc", "w")))
 		exit(1);
 
