@@ -1,4 +1,5 @@
-/* Handle the indirections in Unix-style file system.
+/*
+ * Handle the indirections in Unix-style file system.
  *
  * Uses a recursive scheme to follow up indirections.
  *
@@ -9,14 +10,17 @@
  */
 
 #include <sys/types.h>
+#include <sys/buf.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <canon.h>
+#include "ptypes.h"
 
+extern BUF *bread();
 daddr_t vmap();
 daddr_t indirect();
 daddr_t ind_lookup();
-unsigned int ind_index();
+uint16 ind_index();
 
 /* Convert the given virtual block to a physical block for the given inode.
  * ip points to the in-core inode for a file.
@@ -27,7 +31,7 @@ vmap(ip, vblockno)
 	struct inode *ip;
 	daddr_t vblockno;
 {
-	int ind_level;
+	uint16 ind_level;
 	daddr_t ind_table;
 	daddr_t vbno;
 
@@ -60,7 +64,7 @@ vmap(ip, vblockno)
 	return(indirect(ind_level, ind_table, vbno));
 } /* vmap() */
 
-/* indirect(int ind_level, daddr_t ind_table_ptr, daddr_t vblockno)
+/* indirect(uint16 ind_level, daddr_t ind_table_ptr, daddr_t vblockno)
  * Recursively follow an indirection for a given virtual block number
  * vblockno.
  * ind_level must be the level of indirection still un-resolved.
@@ -68,23 +72,13 @@ vmap(ip, vblockno)
  */
 daddr_t
 indirect(ind_level, ind_table_ptr, vblockno)
-	int ind_level;
+	uint16 ind_level;
 	daddr_t ind_table_ptr;
 	daddr_t vblockno;
 {
-	int i;
-
-	/* This is a place to remember what the contents of local_table are.
-	 * Note that -1 should be an impossible block number.
-	 */
-	static daddr_t local_table_ptr = (daddr_t *)-1;
-
-	/* This is a table of block numbers.  */
-	static daddr_t local_table[NBN]; /* Static is OK, because indirect()
-					 * tail recurses.  It is done with
-					 * the table by the time it recurses.
-					 */
-	
+	BUF *bp;
+	daddr_t *my_block;
+	daddr_t next_ptr;
 
 	/* Base case.  Direct block.  */
 	if (0 == ind_level) {
@@ -97,50 +91,57 @@ indirect(ind_level, ind_table_ptr, vblockno)
 
 	/* Recursive case.  Some level of indirection.  */
 
-	/* We only read the block if we don't already have it.
-	 * For sequential reads, this generally means we have to go out to
-	 * disk for indirect blocks only about once per 128 blocks.
+	/* Read the next table.  */
+	bp = bread(ind_table_ptr);
+	
+	/* Pick out the actual disk block.  */
+	my_block = (daddr_t *) bp->b_paddr;
+	
+	/* Fetch the next indirection.  */
+	next_ptr = ind_lookup(ind_level, my_block, vblockno);
+
+	/* Canonicalize it.  */
+	candaddr(next_ptr);
+
+#if 0
+	/* Normally, buffers containing indirection blocks should not
+	 * be brelease()'d.  This is how we try to assure that they
+	 * do not need to be read off of disk too often.
 	 */
-	if (local_table_ptr != ind_table_ptr) {
-		bread(ind_table_ptr, (char *)local_table);
-
-		/* Canonicalize it.  */
-		for (i = 0; i < NBN; ++i) {
-			candaddr(local_table[i]);
-		}
-
-		/* Remember what we just read for next time.  */
-		local_table_ptr = ind_table_ptr;
-	}
+	sanity_check("indirect() about to brelease() and recurse");
+	brelease(bp);	/* DEBUG */
+#endif
 
 	indirect(ind_level - 1,
-		 ind_lookup(ind_level, local_table, vblockno),
+		 next_ptr,
 		 vblockno);
 } /* indirect() */
 
-/* ind_lookup(int ind_level, daddr_t *ind_table, daddr_t vblockno)
+/* ind_lookup(uint16 ind_level, daddr_t *ind_table, daddr_t vblockno)
  * Look up the next level of block in table ind_table, for virtual
  * block number vblockno.
+ * Note that this table is in DISK CANNONICAL format.  If the local
+ * notion of daddr_t is a different size from DISK CANONICAL daddr_t
  */
 daddr_t
 ind_lookup(ind_level, ind_table, vblockno)
-	int ind_level;
+	uint16 ind_level;
 	daddr_t *ind_table;
 	daddr_t vblockno;
 {
 	return(ind_table[ind_index(ind_level, vblockno)]);
 }
 
-/* int ind_index(int ind_level, daddr_t vblockno);
+/* uint16 ind_index(uint16 ind_level, daddr_t vblockno);
  * Calculate the index needed for virtual block vblockno into
  * a table of the given indirection level.
  */
 #define SEVENONES 0x7f	/* Mask of address bits for table lookups.
 			 * NBN = 128 entries = 7 bit address.
 			 */
-unsigned int
+uint16
 ind_index(ind_level, vblockno)
-	int ind_level;
+	uint16 ind_level;
 	daddr_t vblockno;
 {
 	/* Move the appropriate 7 bits to the lowest position,
