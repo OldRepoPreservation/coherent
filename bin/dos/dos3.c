@@ -2,6 +2,10 @@
 
 #include "dos0.h"
 
+MDIR *smdp;
+DIR *sdp;
+char *scp, *sname;
+
 /*
  * Find the given filename relative to the given directory.
  * Return a pointer to the MDIR identifying the file, or NULL if not found.
@@ -16,18 +20,26 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 	register char *s;
 	register char *cp;
 
-	if ((s = index(name, '/')) == NULL) {
+dbprintf(("find(%s)\n", name));
+	if ((s = strchr(name, '/')) == NULL) 
+	{
 		/* No pathname, look for name in the directory. */
 		cp = dosname(name);
-		for (mdp = dp->d_dir; mdp < dp->d_edp; mdp++) {
+		for (mdp = dp->d_dir; mdp < dp->d_edp; mdp++) 
+		{
 			s = mdp->m_name;
 			if (*s == MEMPTY || *s == MFREE)
 				continue;
-			if (strncmp(s, cp, 11) == 0) {
-				if isdir(mdp) {
+ 			dbprintf(("lmatch(%s,%s) = %d\n", name, cohn(s), lmatch(name, cohn(s))));
+			if (lmatch(name, cohn(s)) == 1) 
+			{
+				if((strncmp (s, cp, 11) ==0) && isdir(mdp))
+				{
 					/* Subdirectory, find its DIR. */
-					for (dp = dp->d_child; dp != NULL; dp = dp->d_sibling)
-						if (strncmp(dp->d_dname, cp, 11) == 0)
+					for (dp = dp->d_child; dp != NULL; 
+							   dp = dp->d_sibling)
+						if (strncmp(dp->d_dname, cp, 
+								    11) == 0)
 							break;
 					if (dp == NULL)
 						fatal("find subdirectory botch");
@@ -37,12 +49,18 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 				}
 				if (dpp != NULL)
 					*dpp = dp;
-				return mdp;
+				smdp = mdp;
+				scp = cp;
+				sdp = dp;
+				sname = name;
+dbprintf(("before findnext(%s)\t\mdp = %d\tdp->d_edp=%d\n", cp, mdp, dp->d_edp));
+				return mdp; 
 			}
 		}
 		return NULL;
-	} else if (s == name)
-		return find(++s, dp, dpp);	/* "/foo" means look for "foo" */
+	} 
+	else if (s == name)
+		return find(++s, dp, dpp);   /* "/foo" means look for "foo" */
 	/* Explicit pathname, find the directory and recur. */
 	*s = '\0';			/* NUL-terminate dirname */
 	cp = dosname(name);
@@ -56,6 +74,137 @@ find(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
 		readmdir(dp);
 	return find(s, dp, dpp);
 }
+
+MDIR *
+findnext(dpp) DIR **dpp;
+{
+	register MDIR *mdp = ++smdp;
+	register char *s;
+	register char *cp = scp;
+	register DIR *dp = sdp;
+
+dbprintf(("during findnext(%s)\t\mdp = %d\tdp->d_edp=%d\n", cp, mdp, dp->d_edp));
+	for (; mdp < dp->d_edp; mdp++) 
+	{
+		s = mdp->m_name;
+		if (*s == MEMPTY || *s == MFREE)
+			continue;
+		dbprintf(("lmatch(%s,%s) = %d\n", sname, cohn(s), lmatch(sname, cohn(s))));
+ 		if (lmatch(sname, cohn(s)) == 1) 
+		{
+			if ((strncmp (s, cp, 11) ==0) && isdir(mdp)) 
+			{
+				/* Subdirectory, find its DIR. */
+				for (dp = dp->d_child; dp != NULL; 
+							dp = dp->d_sibling)
+				if (strncmp(dp->d_dname, cp, 11) == 0)
+					break;
+				if (dp == NULL)
+					fatal("find subdirectory botch");
+				/* Read in the MDIR if necessary. */
+				if (dp->d_dir == NULL)
+					readmdir(dp);
+			}
+			if (dpp != NULL)
+				*dpp = dp;
+			smdp = mdp;
+			return mdp;
+		}
+	}
+	return NULL;
+}
+
+
+/*
+ * See if a pattern matches a string.
+ * '\' escapes the next character.
+ */
+lmatch(pp, sp)
+register char *pp;
+register char *sp;
+{
+	int c2;
+	register int c1;
+
+ 	
+ 	if (*sp == '.')
+ 		return 0;
+	if ((strcspn(pp, " ") == 0) && (strcspn(sp, " ") == 0))
+		return 1;
+	while ((c1=*pp++)) {
+		switch (c1) {
+		case '?':
+			if (*sp++)
+				continue;
+			return (0);
+		case '*':
+			do {
+				if (lmatch(pp, sp))
+					return (1);
+			} while (*sp++);
+			return (0);
+		case '[':
+			if ((c2=*sp++) == '\0')
+				return (0);
+			for (;;) {
+				if ((c1=*pp++) == '\0' || c1 == ']')
+					return (0);
+				if (c1 == '\\' && (c1=*pp++) == '\0')
+					return (0);
+				if (c1 == c2)
+					break;
+				if (*pp == '-') {
+					pp += 1;
+					if (c2 < c1)
+						continue;
+					if ((c1=*pp++) == '\0')
+						return (0);
+					if (c1 == '\\' && (c1=*pp++) == '\0')
+						return (0);
+					if (c2 <= c1)
+						break;
+				}
+			}
+			while ((c1 = *pp++) != ']') {
+				if (c1 == '\0')
+					return (0);
+				if (c1 == '\\' && *pp++ == '\0')
+					return (0);
+			}
+			continue;
+		case '\\':
+			if ((c1=*pp++) == '\0')
+				return (0);
+			/* fall through */
+		default:
+			if (c1 == *sp++)
+				continue;
+			return (0);
+		}
+	}
+	return (*sp=='\0');
+}
+
+char * cohn(name) char * name;
+{
+	static char lname[14];
+	char *tmp = lname;
+	int i = 0;
+
+	do {
+		if ((i == 8) && (*name != ' '))
+			*(tmp++) = '.';
+		else if (*name == ' ')
+			*name++;
+		else {
+			*(tmp++) = tolower(*name);
+			name++;
+		}
+		i++;
+	} while ( *(name - 1) != '\0');
+	return lname;
+}
+
 
 /*
  * Input up to nb characters into bp from COHERENT file fp,
@@ -300,7 +449,7 @@ label(nargs, args) int nargs; char *args[];
 		fatal("label: single argument required");
 	if (find(args[0], root, NULL) != NULL)
 		fatal("label: file \"%s\" already exists", args[0]);
-	if (index(args[0], '/') != NULL)
+	if (strchr(args[0], '/') != NULL)
 		fatal("label: label cannot use character '/'");
 	if (volume != NULL)
 		deletefile(volume, root);
@@ -334,3 +483,45 @@ unsigned int attr, cluster;
 }
 
 /* end of dos3.c */
+
+#if 0
+MDIR *
+findnext(name, dp, dpp) char *name; register DIR *dp; DIR **dpp;
+{
+	register MDIR *mdp;
+	register char *s;
+	register char *cp;
+
+printf("findnext(%s)\n", sname);
+	cp = scp;
+	for (mdp = ++smdp; mdp < dp->d_edp; mdp++) 
+	{
+		s = mdp->m_name;
+		if (*s == MEMPTY || *s == MFREE)
+			continue;
+		printf("fn - lmatch(%s,%s) = %d\n", sname, cohn(s), lmatch(name, cohn(s)));
+		if (lmatch(sname, cohn(s)) == 1) 
+		{
+			if((strncmp (s, cp, 11) == 0) && isdir(mdp)) 
+			{
+				/* Subdirectory, find its DIR. */
+				for (dp = dp->d_child; dp != NULL; 
+						   dp = dp->d_sibling)
+					if (strncmp(dp->d_dname, cp, 11) == 0)
+						break;
+				if (dp == NULL)
+					fatal("find subdirectory botch");
+				/* Read in the MDIR if necessary. */
+				if (dp->d_dir == NULL)
+					readmdir(dp);
+			}
+			if (dpp != NULL)
+				*dpp = dp;
+			smdp = mdp;
+			return mdp; 
+		}
+		return NULL;
+	}
+}
+
+#endif

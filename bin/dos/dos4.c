@@ -129,7 +129,7 @@ readmdir(dp) register DIR *dp;
 void
 replace(nargs, args) int nargs; char *args[];
 {
-	register char **ap;
+	register char **ap, *tmp;
 	struct stat s;
 
 	if ((clbuf = malloc(clsize * ssize)) == NULL)
@@ -140,16 +140,25 @@ replace(nargs, args) int nargs; char *args[];
 		if (nargs!=1)
 			fatal("replace: exactly one file required with 'p' option");
 		replacefile(args[0]);
-	} else for (ap=args; *ap != NULL; ap++) {
+	} else for (ap=args; nargs; ap++, nargs--) {
 		if (stat(*ap, &s) == -1)
 			fatal("replace: \"%s\" not found", *ap);
-		else if ((s.st_mode & S_IFDIR) == S_IFDIR)
-			replacedir(*ap);
-		else if ((s.st_mode & S_IFREG) == S_IFREG)
-			replacefile(*ap);
+
+		if ((tmp = strrchr(*ap, '/')) != NULL) {
+			base = *ap;
+			*(tmp++) = '\0';
+		}
+		else {
+			base = NULL;
+			tmp = *ap;
+		}
+		
+		if (s.st_mode & S_IFDIR) {
+			if (!sflag)
+				replacedir(tmp);
+		}
 		else
-			nonfatal("replace: \"%s\" not ordinary file: suppressed",
-				*ap);
+			replacefile(tmp);
 	}
 	free(clbuf);
 }
@@ -178,8 +187,8 @@ replacedir(name) char *name;
 		cp = &namebuf[strlen(namebuf)];
 	}
 	dirp = dirbuf;
-	dirbuf[sizeof(struct direct)] = '\0';		/* NUL-terminate d_name */
-	if ((fd = open(name, 0)) == -1)
+	dirbuf[sizeof(struct direct)] = '\0';	/* NUL-terminate d_name */
+	if ((fd = open(makef(name), 0)) == -1)
 		fatal("cannot search directory \"%s\"", name);
 	while (read(fd, dirbuf, sizeof(struct direct)) == sizeof(struct direct)) {
 		if (dirp->d_ino == 0
@@ -187,12 +196,14 @@ replacedir(name) char *name;
 		 || strcmp(dirp->d_name, "..") == 0) 
 			continue;
 		strncpy(cp, dirp->d_name, DIRSIZ);
-		if (stat(namebuf, &s) == -1)
+		if (stat(makef(namebuf), &s) == -1)
 			fatal("replacedir botch");
-		if (s.st_mode & S_IFREG)
+		else if (s.st_mode & S_IFDIR) {
+			if (!sflag)
+				replacedir(namebuf);
+		}
+		else if (s.st_mode & S_IFREG)
 			replacefile(namebuf);
-		else if (!sflag && (s.st_mode & S_IFDIR))
-			replacedir(namebuf);
 	}
 	close(fd);
 }
@@ -210,10 +221,16 @@ replacefile(file) char *file;
 	char *cp, *filename;
 	int writesize;
 	unsigned int next, prev;
+	char *tmp, tmp2[6];
+
+	if (!bflag && ((tmp = strrchr(file, '.')) != NULL)) {
+		sprintf(tmp2, "%s.", tmp);
+		aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
+	}
 
 	/* Create the file in the appropriate directory. */
 	dbprintf(("replacefile(%s)\n", file));
-	if ((cp = rindex(file, '/')) == NULL) {
+	if ((cp = strrchr(file, '/')) == NULL) {
 		filename = file;
 		dp = root;
 	} else {
@@ -229,7 +246,7 @@ replacefile(file) char *file;
 		fprintf(stderr, "r %s\n", file);
 	if (pflag)
 		ifp = stdin;
-	else if ((ifp = fopen(file, "r")) == NULL)
+	else if ((ifp = fopen(makef(file), "r")) == NULL)
 		fatal("replace: cannot open \"%s\"", file);
 	writesize = clsize * ssize;
 	for (prev = 0; ; prev = next) {
@@ -253,13 +270,33 @@ replacefile(file) char *file;
 }
 
 /*
+ * Make a full path from base and name 
+ */
+char * makef(name) char * name;
+{
+	static char tname[80];
+	register char  *t;
+	struct stat s;
+
+	if (base == NULL)
+		t = name;
+	else if ((stat(base, &s) == -1) || (!(s.st_mode & S_IFDIR)))
+		t = base;
+	else {
+		sprintf(tname, "%s/%s", base, name);
+		t = tname;	
+	}
+	return t;
+}
+
+/*
  * Produce a listing of the MS-DOS file system.
  */
 void
 table(nargs, args) int nargs; char *args[];
 {
 	register int n, i;
-	register char **ap;
+	register char **ap, *npap, *temp;
 	register MDIR *mdp;
 	DIR *dp;
 	int free, bad, reserved;
@@ -297,10 +334,16 @@ table(nargs, args) int nargs; char *args[];
 	else for (ap = args; *ap != NULL; ap++) {
 		if ((mdp = find(*ap, root, &dp)) == NULL)
 			nonfatal("%s not found", *ap);
-		else if isdir(mdp)
-			tabledir(dp, *ap);
-		else
-			tablefile(mdp, *ap);
+		else {
+			npap = (temp = strrchr(*ap, '/')) ? temp+1 : *ap;
+			do {
+				if((strcmp(npap,cohn(mdp->m_name)) == 0) 
+							    && isdir(mdp))
+					tabledir(dp, cohn(mdp->m_name));
+				else
+					tablefile(mdp, cohn(mdp->m_name));
+			} while (mdp = findnext(&dp));
+		}
 	}
 }
 
