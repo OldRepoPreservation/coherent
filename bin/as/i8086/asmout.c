@@ -236,10 +236,8 @@ outinit()
 	for (i=0; i<NHASH; ++i) {
 		sp = symhash[i];
 		while (sp != NULL) {
-			if ((sp->s_flag&S_SYMT) != 0
-			&& (xflag == 0
-			|| (sp->s_flag&S_GBL) != 0
-			||  sp->s_id[0] != 'L')) {
+			if (((sp->s_flag&S_SYMT) != 0)
+			&&  ((xflag == 0) || ((sp->s_flag&S_GBL) != 0))) {
 				sp->s_ref = rn++;
 				symcopy(lds.ls_id, sp->s_id);
 				if (sp->s_kind == S_NEW)
