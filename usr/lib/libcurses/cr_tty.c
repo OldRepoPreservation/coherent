@@ -17,9 +17,11 @@
  * Modifications copyright (c) 1989 by INETCO Systems, Ltd.
  */
 
+#define uchar unsigned char
+
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)cr_tty.c	5.4 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)cr_tty.c	5.4 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -30,13 +32,13 @@ static char sccsid[] = "@(#)cr_tty.c	5.4 (Berkeley) 6/30/88";
 
 # include	"curses.ext"
 
-static char	*_PC;
+static uchar	*_PC;
 
-char *tgoto();
+uchar *tgoto();
 
-char		_tspace[2048];		/* Space for capability strings */
+uchar		_tspace[2048];		/* Space for capability strings */
 
-static char	*aoftspace;		/* Address of _tspace for relocation */
+static uchar	*aoftspace;		/* Address of _tspace for relocation */
 
 static int	destcol, destline;
 
@@ -70,11 +72,11 @@ gettmode() {
 }
 
 setterm(type)
-reg char *type;
+reg uchar *type;
 {
 
 	reg int		unknown;
-	static char	genbuf[1024];
+	static uchar	genbuf[1024];
 # ifdef TIOCGWINSZ
 	struct winsize win;
 # endif
@@ -137,7 +139,7 @@ reg char *type;
 	 */
 	{
 		register tstrent_t *sp;
-		extern char *tgetstr();
+		extern uchar *tgetstr();
 
 		for ( sp = tstrmap; sp->cpp != NULL; sp++ ) {
 			*(sp->cpp) = tgetstr(sp->id, &aoftspace);
@@ -146,7 +148,7 @@ reg char *type;
 				fprintf(outf, "%2.2s = %s", sp->id,
 				*(sp->cpp) == NULL ? "NULL\n" : "\"");
 				if (*(sp->cpp) != NULL) {
-					char * cp;
+					uchar * cp;
 					for (cp = *(sp->cpp); *cp; cp++)
 						fprintf(outf,"%s",unctrl(*cp));
 					fprintf(outf, "\"\n");
@@ -212,11 +214,11 @@ reg char *type;
 /*
  * return a capability from termcap
  */
-char *
+uchar *
 getcap(name)
-char *name;
+uchar *name;
 {
-	char *tgetstr();
+	uchar *tgetstr();
 
 	return tgetstr(name, &aoftspace);
 }
