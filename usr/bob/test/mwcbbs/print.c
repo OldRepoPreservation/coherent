@@ -133,7 +133,7 @@ char choice, dummy;
 		{
 		noraw();
 		endwin();
-		printf("Could not open file %s for writing!\n",workfile);
+		printf("Could not open file %s for writing!\n",PRINTFILE);
 		exit(1);
 		}
 

@@ -1,28 +1,45 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
-#ifndef __SYS_SCSIWORK_H__
-#define __SYS_SCSIWORK_H__
-
 /*
- * Common SCSI portions of Adaptec and Seagate device drivers.
+ * Common SCSI portions of Adaptec AHA154x driver
+ *
+ * $Log:	scsiwork.h,v $
+ * Revision 1.1  92/07/31  16:07:24  root
+ * Initial revision
+ * 
+ * Revision 1.9  91/05/29  11:47:29  hal
+ * Add MSG_NOP.
+ * 
+ * Revision 1.8	91/05/15  14:52:23	root
+ * Add READCAPLEN.
+ * 
+ * Revision 1.7	91/04/20  01:36:46	root
+ * Add ScmdREZERO
+ * 
+ * Revision 1.6	91/04/19  10:04:15	root
+ * Add MSG_IDENTIFY.
+ * 
+ * Revision 1.5	91/04/17  02:21:18	root
+ * Add mode sense constants.
+ * 
+ * Revision 1.4	91/04/10  14:11:41	root
+ * Add Information Transfer Phase masks.
+ * 
+ * Revision 1.3	91/04/10  13:57:38	root
+ * Add constants such as message types - needed by ss.c
+ * 
+ * Revision 1.2	91/03/14  16:51:29	root
+ * add Test Ready and Request Sense commands
+ * 
+ * Revision 1.1	91/03/05  13:02:21	root
+ * As used to build initial aha154x driver
+ * 
  */
-
-#include <kernel/__buf.h>
-
 #define	MAX_SCSI_ID	8
 #define	MAX_LUN		4		/* limited by minor device number */ 
 
 /*
  * drive_info contains the "per drive" flags
  */
-
 extern	char	drive_info[MAX_SCSI_ID * MAX_LUN];
-
 #define	D_DISK		0x01		/* disk-type device (random) */
 #define	D_TAPE		0x02		/* tape-type device (sequential) */
 #define	D_PRINTER	0x04		/* printer-type device */
@@ -30,16 +47,15 @@ extern	char	drive_info[MAX_SCSI_ID * MAX_LUN];
 #define	D_REMOVEABLE	0x10		/* media can be changed */
 #define	D_WORM		0x20		/* WORM-type characteristics */
 
-
 /*
  * Per disk controller data.
- * Only one per host adapter; no more, no less.
+ * Only one host adapter; no more, no less.
  */
 
 struct	scsi_work	{
 	struct scsi_work *sw_actf;	/* Link to first */
 	struct scsi_work *sw_actl;	/* Link to last */
-	__buf_t	      *	sw_bp;		/* block request */
+	BUF		*sw_bp;		/* block request */
 	long		sw_bno;
 	char		sw_drv;		/* 000sssll s=SCSI_ID l=LUN */
 	char		sw_type;
@@ -102,11 +118,3 @@ typedef	struct	scsi_cmd	scsi_cmd_t;
 #define XP_DATA_OUT	(                                 0)
 
 #define VTOP2(a1, a2)	vtop(a1,a2)
-
-typedef struct {
-	unsigned int		ncyl;
-	unsigned char		nhead;
-	unsigned char		nspt;
-} _drv_parm_t;
-
-#endif	/* ! defined (__SYS_SCSIWORK_H__) */

@@ -12,7 +12,7 @@
 #include <access.h>
 #include <sys/param.h>
 #include <sys/stat.h>
-#include <dirent.h>
+#include "dirent.h"
 #include "dcp.h"
 #include "perm.h"
 
@@ -86,19 +86,8 @@ char *argv[], *envp[];
 		}
 	}
 
-	/*
-	 * This program is often invoked from a remote uucico login.
-	 * Disconnect uuxqt from its parent so it doesn't get signals
-	 * it shouldn't and doesn't keep the port open after the caller
-	 * disconnects.
-	 */
-	{
-		int fd;
+	bedaemon();	/* detach from controlling terminal */
 
-		for (fd = 0; fd < NUFILE; fd++)
-			close(fd);
-		setpgrp();
-	}
 	zenvp = envp;
 	processid = getpid();
 	signal(SIGINT,  SIG_IGN);
@@ -438,7 +427,7 @@ dscan_start()
 dscan()
 {
 	struct stat statbuf;
-	struct direct *mdp;
+	struct dirent *mdp;
 
 	while( (mdp=readdir(sdirp)) != NULL ) {
 		if ( mdp->d_name[0] == '.' )
@@ -468,7 +457,7 @@ xscan_start()
 xscan()
 {
 	struct stat statbuf;
-	struct direct *xdp;
+	struct dirent *xdp;
 
 	while( (xdp=readdir(xdirp)) != NULL ) {
 		if ( strncmp(xdp->d_name, "X.", 2) == 0 ) {

@@ -1,113 +1,67 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __SYS_SHM_H__
-#define	__SYS_SHM_H__
-
+#ifndef SHM_H
+#define	SHM_H
 /*
- * Shared memory support.
- */
+**	IPC Shared Memory Facility.
+*/
 
-#include <common/feature.h>
-#include <common/ccompat.h>
-#include <common/__pid.h>
-#include <common/__time.h>
-#include <common/_ipcperm.h>
-#include <common/_imode.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
+
+
+extern int shmfd;		/* file descriptor to access shared memory */
 
 
 /*
- * ipc_perm Mode Definitions.
- */
-
-#define	SHM_CLEAR	0x0200	/* clear segment on next attach */
-#define	SHM_DEST	0x0400	/* destroy segment when # attached = 0 */
-
+**	Permission Definitions.
+*/
+#define	SHM_R	0400		/* read permission */
+#define	SHM_W	0200		/* write permission */
 
 /*
- * Message Operations Flags.
- */
+**	ipc_perm Mode Definitions.
+*/
+#define	SHM_CLEAR	01000	/* clear segment on next attach */
+#define	SHM_DEST	02000	/* destroy segment when # attached = 0 */
 
+/*
+**	Message Operations Flags.
+*/
 #define	SHM_RDONLY	010000	/* attach read-only (else read-write) */
-#define SHM_RND		020000	/* round attach address to SHMLBA */
-
-
-/* 
- * Shared memory control operations (are not included in iBCS2)
- * COHERENT 4.0.x does not use a swapper.
- */
-
-#define	SHM_LOCK	3	/* lock shared memory segment in core */
-#define SHM_UNLOCK	4	/* unlock shared memory segment */
-
 
 /*
- * There is a shared mem id data structure for each segment in the system.
- */
-
-#if	_SYSV4
-
+**	There is a shared mem id data structure for each segment in the system.
+*/
 struct shmid_ds {
 	struct ipc_perm	shm_perm;	/* operation permission struct */
 	int		shm_segsz;	/* segment size */
-	__VOID__      *	__unused;	/* for binary compatibility */
-	unsigned short	shm_lkcnt;
-	__pid_t		shm_cpid;	/* pid of creator */
-	__pid_t		shm_lpid;	/* pid of last shmop */
-	unsigned long	shm_nattch;	/* current # attached */
-	unsigned long	shm_cnattach;	/* for binary compatibility */
-	__time_t	shm_atime;	/* last shmat time */
-	long		__pad1;
-	__time_t	shm_dtime;	/* last shmdt time */
-	long		__pad2;
-	__time_t	shm_ctime;	/* last change time */
-	long		__pad3;
-	long		__pad4 [4];
-};
-
-#else	/* if ! _SYSV4 */
-
-struct shmid_ds {
-	struct ipc_perm	shm_perm;	/* operation permission struct */
-	int		shm_segsz;	/* segment size */
-	__VOID__      *	__unused;	/* for binary compatibility */
-	char		__pad [4];	/* for binary compatibility */
+#ifdef _I386
+	unsigned short	shm_cpid;	/* pid of creator */
+	unsigned short	shm_lpid;	/* pid of last shmop */
+#else
 	unsigned short	shm_lpid;	/* pid of last shmop */
 	unsigned short	shm_cpid;	/* pid of creator */
+#endif
 	unsigned short	shm_nattch;	/* current # attached */
-	unsigned short	shm_cnattach;	/* for binary compatibility */
-	__time_t	shm_atime;	/* last shmat time */
-	__time_t	shm_dtime;	/* last shmdt time */
-	__time_t	shm_ctime;	/* last change time */
+#ifndef _I386
+	unsigned short	shm_cnattch;	/* in memory # attached */
+#endif
+	time_t		shm_atime;	/* last shmat time */
+	time_t		shm_dtime;	/* last shmdt time */
+	time_t		shm_ctime;	/* last change time */
 };
 
-#endif	/* ! _SYSV4 */
-
-#if	_KERNEL
-
-/* Patchable kernel values. */
-
-extern int SHMMAX;	/* Max size in bytes of shared memory segment */
-			/* Not more than 4 Megs, please! */
-
-extern int SHMMNI;	/* Maximum # of shared memory segments, systemwide */
+/*
+**	Ioctl Commands issued to Shared Memory Device Driver (on Coherent).
+*/
+#define	SHMIOC	('H'<<8)
+#define	SHMCTL	(SHMIOC+'C')
+#define	SHMGET	(SHMIOC+'G')
+#define	SHMAT	(SHMIOC+'A')
+#define	SHMDT	(SHMIOC+'D')
 
 #endif
-
-__EXTERN_C_BEGIN__
-
-int		shmctl		__PROTO ((int _shmid, int _cmd,
-					  struct shmid_ds * _buf));
-int		shmget		__PROTO ((__key_t _key, int _size,
-					  int _shmflag));
-__VOID__      *	shmat		__PROTO ((int _shmid, __VOID__ * _shmaddr,
-					  int _shmflag));
-int		shmdt		__PROTO ((__VOID__ * _shmaddr));
-
-__EXTERN_C_END__
-
-#endif /* ! defined (__SYS_SHM_H__) */

@@ -1,18 +1,34 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Driver Kit Version 1.1.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef	__SYS_POLL_CLK_H__
-#define	__SYS_POLL_CLK_H__
-
 /*
- * include file for drivers using altclk_in()/altclk_out()
+ * poll_clk.h - include file for drivers using altclk_in()/altclk_out()
+ *
+ * $Log:	poll_clk.h,v $
+ * Revision 1.1  92/07/31  16:07:22  root
+ * Initial revision
+ * 
+ * Revision 1.4  91/12/10  07:57:01  hal
+ * Add uart_type and has_irq usage fields.
+ * Change in_use from boolean (:1) to short.
+ * 
+ * Revision 1.3  91/11/14  14:11:13  hal
+ * Re-entrancy fix.  Make com_usage bit field.
+ * 
+ * Revision 1.2  91/06/04  14:36:10  hal
+ * Imports are from support.c.
+ * 
+ * Revision 1.1  91/06/04  14:34:49  hal
+ * Initial version - imported from tty.c.
+ * 
  */
-#include <sys/silo.h>
 
+#ifndef	POLL_CLK_H
+#define	POLL_CLK_H
+
+#include <sys/silo.h>
 /*
  * bit fields in com_usage[0..3]
  *   in_use is incremented each time open is attempted, and decremented
@@ -52,6 +68,4 @@ typedef struct {
 extern com_usage_t	com_usage[];    /* COM_UNUSED/COM_IRQ/COM_POLLED */
 extern int	poll_rate;	/* used by "prate" command */
 extern int	poll_owner;	/* checked during *open() of port */
-
-#endif	/* ! defined (__SYS_POLL_CLK_H__) */
-
+#endif

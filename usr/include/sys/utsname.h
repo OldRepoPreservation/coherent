@@ -1,54 +1,21 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+#ifndef UTSNAME_H
+#define UTSNAME_H	UTSNAME_H
 
-#ifndef	__SYS_UTSNAME_H__
-#define	__SYS_UTSNAME_H__
+#define SYS_NMLN	9
 
-/*
- * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990; and, as
- * such, client programs that include it should not use any symbols
- * that end in "_t".
- */
-
-/*
- * The contents of this header are also defined by the provisions of binary
- * compatibility standards such as the iBCS2 specification and the System V
- * ABI. The visibility of certain symbols defined by those standards may be
- * controlled by feature-test macros such as _SYSV3 for iBCS2, and _SYSV4 for
- * System V, Release 4.
- */
-
-#include <common/feature.h>
-#include <common/ccompat.h>
-
-
-#if	_SYSV4 && ! _SYSV3
-# define	__SYS_NMLN	257
-#else
-# define	__SYS_NMLN	9
-#endif
-
-
-#if	! _POSIX_C_SOURCE
-# define	SYS_NMLN	__SYS_NMLN
-#endif
-
-struct utsname {
-	char		sysname [__SYS_NMLN];
-	char		nodename [__SYS_NMLN];
-	char		release [__SYS_NMLN];
-	char		version [__SYS_NMLN];
-	char		machine [__SYS_NMLN];
+struct	utsname {
+	char	sysname[SYS_NMLN];
+	char	nodename[SYS_NMLN];
+	char	release[SYS_NMLN];
+	char	version[SYS_NMLN];
+	char	machine[SYS_NMLN];
 };
 
-__EXTERN_C_BEGIN__
+extern	struct	utsname	utsname;
 
-int		uname		__PROTO ((struct utsname * _name));
-
-__EXTERN_C_END__
-
-#endif	/* ! defined (__SYS_UTSNAME_H__) */
+#endif

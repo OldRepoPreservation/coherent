@@ -1,10 +1,13 @@
-/* $Header: /usr/src/sys/i8086/sys/RCS/me.h,v 1.1 88/03/24 17:48:28 src Exp $ */
+/* $Header: /src386/usr/include/sys/RCS/me.h,v 1.1 92/07/31 16:07:19 root Exp $ */
 #ifndef	ME_H
 #define	ME_H
 /*
  * Maynard Hard Disk Controller
  *
- * $Log:	/usr/src/sys/i8086/sys/RCS/me.h,v $
+ * $Log:	me.h,v $
+ * Revision 1.1  92/07/31  16:07:19  root
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:48:28	src
  * Initial revision
  * 

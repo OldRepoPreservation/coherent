@@ -1,15 +1,27 @@
+/* (-lgl
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
- * /usr/include/sys/reg.h
- *
- * Machine dependent definitions, 80386 Coherent, IBM PC.
- *
- * Revised: Mon Jul 19 12:25:37 1993 CDT
+ * Machine dependent definitions.
+ * 80386 Coherent, IBM PC.
  */
-#ifndef	__SYS_REG_H__
-#define	__SYS_REG_H__
+#ifndef	 MACHINE_H
+#define	MACHINE_H	MACHINE_H
 
 #include <sys/types.h>
 #include <sys/param.h>
+
+/*
+ * Alloc definitions.
+ */
+#define	align(p)	((ALL *) ((int) (p) & ~1))
+#define	link(p)		align((p)->a_link)
+#define	tstfree(p)	(((int) (p)->a_link&1) == 0)
+#define	setfree(p)	((p)->a_link = (int) (p)->a_link & ~1)
+#define	setused(p)	((p)->a_link = (int) (p)->a_link | 1)
+
 
 /*
  * Functions.
@@ -35,7 +47,7 @@
 #define	btosrd(n)	(((unsigned long)(n)) >> BPSSHIFT)
 #define	stob(n)		(((long)(n)) << BPSSHIFT)
 
-#define	btoc(n)		((((unsigned long)(n))+NBPC-1) >> BPCSHIFT)
+#define	btoc(n)		((((unsigned long)(n))+(1<<BPCSHIFT)-1) >> BPCSHIFT)
 #define	btocrd(n)	(((unsigned long)(n)) >> BPCSHIFT)
 #define	ctob(n)		(((long)(n)) << BPCSHIFT)
 
@@ -72,20 +84,6 @@
 #define	GS	0
 
 /*
- * These are not put on the stack, but they have slots in the table
- * global_reg[].  These numbers are the offsets into that table.
- */
-#define RCR0	19
-#define RCR1	20
-#define RCR2	21
-#define RCR3	22
-
-/*
- * How many register slots do we recognise?
- */
-#define NUM_REG 23
-
-/*
  * Buffers are not mapped.
  */
 #define	bsave(o)
@@ -118,8 +116,8 @@ typedef union mreg_u {
 typedef struct mproto {
 	unsigned mp_csl;
 	unsigned mp_dsl;
-	caddr_t	mp_svb;
-	caddr_t	mp_svl;
+	vaddr_t	mp_svb;
+	vaddr_t	mp_svl;
 } MPROTO;
 
 /*
@@ -131,9 +129,8 @@ typedef	struct menv_s {
 	int	mc_bx;
 	int	me_bp;
 	int	me_sp;
-	int	me_cs;
 	int	me_pc;
-	int	me_space;
+	int	me_fw;
 }	MENV;
 
 /*
@@ -145,9 +142,8 @@ typedef	struct mcon_s {
 	int	mc_bx;
 	int	mc_bp;
 	int	mc_sp;
-	int	mc_cs;
 	int	mc_pc;
-	int	mc_space;
+	int	mc_fw;
 }	MCON;
 
 /*
@@ -166,36 +162,6 @@ typedef int MGEN[1];
 #define	MFINT	0x0200			/* Interupt enable */
 #define	MUERR	0x0002			/* Location of errno */
 #define	MFCBIT	0x0001			/* Carry bit */
-
-#define NUM_IRQ_LEVELS		16	/* counting master & slave PIC's */
-#define LOWEST_SLAVE_IRQ	8	/* master is 0-7; slave is 8-15 */
-
-#if	_ENABLE_STREAMS
-
-/*
- * NIGEL: I have made some small modifications here to allow me to slot in the
- * extensions necessary to support the DDI/DDK rational interrupt architecture.
- *
- * The two macros below are used by setivec () and clrivec () in "i386/md.c" to
- * set the PIC mask values for the base level. Under the rational scheme, this
- * also affects some global data which is used by the DDI/DDK spl... ()
- * functions so they can safely manipulate the PIC mask registers rather than
- * the CPU global mask bit.
- */
-
-__EXTERN_C_BEGIN__
-
-void		DDI_BASE_SLAVE_MASK	__PROTO ((uchar_t _mask));
-void		DDI_BASE_MASTER_MASK	__PROTO ((uchar_t _mask));
-
-__EXTERN_C_END__
-
-#else	/* if ! _ENABLE_STREAMS */
-
-#define	DDI_BASE_SLAVE_MASK(m)		outb (SPICM, m)
-#define	DDI_BASE_MASTER_MASK(m)		outb (PICM, m)
-
-#endif	/* ! _ENABLE_STREAMS */
 
 /*
  * Trap codes.
@@ -216,8 +182,7 @@ __EXTERN_C_END__
 #define	SINP	11			/* Segment not present */
 #define	SISS	12			/* Stack segment overrun/not present */
 #define	SIGP	13			/* General protection */
-#define SIPF	14			/* Page Fault */
-#define SIFP	16			/* Floating Point */
+#define SIPF	14			/* page fault */
 #define	SISYS	32			/* System call */
 #define	SIRAN	33			/* Random interrupt */
 #define	SIOSYS	34			/* System call */

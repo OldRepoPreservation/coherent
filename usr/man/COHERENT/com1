@@ -1,0 +1,66 @@
+
+
+com1                      Device Driver                      com1
+
+
+
+
+Device driver for asynchronous serial line COM1
+
+
+/dev/com1  is   the  COHERENT  system's   standard  interface  to
+asynchronous serial  line COM1.  The interface  is assigned major
+device 5, and is accessed as a character-special device.  The I/O
+address  for the  corresponding 8250 SIO  is 0x3F8  (COM1).  com1
+generates interrupt IRQ4.
+
+Four versions of device com1 are in directory /dev, as follows:
+
+
+                                                     _M_o_d_e_m
+          _D_e_v_i_c_e _N_a_m_e  _M_a_j_o_r     _M_i_n_o_r   _I/_O _T_y_p_e  _C_o_n_t_r_o_l?
+          /ddeevv/ccoomm11ll      5        128   Interrupts    No
+          /ddeevv/ccoomm11rr     5         0    Interrupts    Yes
+          /ddeevv/ccoomm11ppll    5        192     Polled      No
+          /ddeevv/ccoomm11pprr    5        64      Polled      Yes
+
+
+For details on how these versions differ, see the entry for com.
+
+***** Files *****
+
+/ddeevv/ccoomm11ll -- Interrupt-driven, non-modem (local) line
+/ddeevv/ccoomm11rr -- Interrupt-driven, modem (non-local) line
+/ddeevv/ccoomm11ppll --Polled, non-modem (local) line
+/ddeevv/ccoomm11pprr -- Polled, modem (non-local) line
+
+***** See Also *****
+
+com, com3, stty
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COHERENT Lexicon                                           Page 1
+
+

@@ -1,9 +1,3 @@
-/* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
-
 /* typed.h -- Data structures for an implimentation of internally
  * typed data structures.
  *
@@ -19,27 +13,10 @@
  *	Anything else you need to define should go here.
  */
 
-#ifndef __SYS_TYPED_H__
-#define __SYS_TYPED_H__
+#ifndef TYPED_H	/* Rest of file.  */
+#define TYPED_H
 
-#include <common/feature.h>
-
-/* This file ought to be rewritten to adjust itself based on the contents
- * of the ANSI file limits.h.
- */
-
-typedef signed char int8;
-#define MAXINT8		((int8) 127)
-typedef unsigned char uint8;
-#define MAXUINT8	((uint8) 255)
-typedef short int16;
-#define MAXINT16	((int16) 32767)
-typedef unsigned short uint16;
-#define MAXUINT16	((uint16) 65535)
-typedef long int32;
-#define MAXINT32	((int32) 2^31 - 1)
-typedef unsigned long uint32;
-#define MAXUINT32	((uint32) (((uint32) 2^32) - 1))
+#include <sys/ptypes.h>
 
 /* TYPED_SPACE DECLARATIONS.  */
 typedef int16 space_type;		/* The type of a space.  */
@@ -152,6 +129,8 @@ int fifo_close();		/* Finish with using a typed space as a fifo.  */
  * If you need any other symbols define them here.
  */
 
+#define T_NULL	((typed_space *) 0)	/* The empty typed_space.  */
+
 /* Useful symbols for FIFOS.  */
 #define F_NULL	((FIFO *) 0)	/* The void FIFO.  */
 #define NFIFOS	20		/* Maximum of 20 fifos at a time... */
@@ -160,8 +139,7 @@ int fifo_close();		/* Finish with using a typed space as a fifo.  */
 #define F_READ	0x0001
 #define F_WRITE	0x0002
 
-#if	__KERNEL__
+#ifdef KERNEL
 #define BG_LEN 512	/* Length of boot_gift.  */
-#endif	/* __KERNEL__ */
-
-#endif	/* ! defined (__SYS_TYPED_H__) */
+#endif /* KERNEL */
+#endif /* ifdef TYPED_H */

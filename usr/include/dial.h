@@ -1,12 +1,15 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
+/*
+ * $Log:	dial.h,v $
+ * Revision 1.1  92/07/31  15:50:32  root
+ * Initial revision
+ * 
+ * Revision 1.1	89/04/26  16:24:50 	root
+ * Initial revision
+ * 
+ */
 
-#ifndef	__DIAL_H__
-#define	__DIAL_H__
+#ifndef	DIAL_H
+#define	DIAL_H	DIAL_H
 
 #include <termio.h>
 

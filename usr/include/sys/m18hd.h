@@ -1,11 +1,14 @@
-/* $Header: /usr/src/sys/i8086/sys/RCS/m18hd.h,v 1.1 88/03/24 17:48:25 src Exp $
+/* $Header: /src386/usr/include/sys/RCS/m18hd.h,v 1.1 92/07/31 16:07:19 root Exp $
  *
  * Olivetti M18 Personal Computer
  * Hard Disk Constants
  *
  *			Allan Cornish, INETCO Systems Ltd., Aug 1984
  *
- * $Log:	/usr/src/sys/i8086/sys/RCS/m18hd.h,v $
+ * $Log:	m18hd.h,v $
+ * Revision 1.1  92/07/31  16:07:19  root
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:48:25	src
  * Initial revision
  * 

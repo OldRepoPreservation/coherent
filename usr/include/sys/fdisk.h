@@ -1,32 +1,27 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef	__SYS_FDISK_H__
-#define	__SYS_FDISK_H__
-
 /*
+ * fdisk.h
  * Fixed disk configuration.
  * The first sector (boot block) of each hard disk
  * should contain a fixed disk boot record (HDISK_S).
  */
 
-#include <common/ccompat.h>
+#ifndef	FDISK_H
+#define	FDISK_H
 
-#define	NPARTN	4U			/* Partitions per drive	 */
+#define	NPARTN	4			/* Partitions per drive	 */
 #define	HDSIG	0xAA55			/* Signature word	 */
 #define	SDEV	0x80			/* Special minor device	 */
-
 
 /*
  * System indicators.
  * There is disagreement about some of these.
  * Is there an official list?
  */
-
 #define	SYS_EMPTY	0	/* Empty			*/
 #define	SYS_DOS_12	1	/* MS-DOS, 12-bit FAT		*/
 #define	SYS_XENIX 	2	/* Xenix			*/
@@ -36,13 +31,11 @@
 #define	SYS_COH		9	/* Coherent			*/
 #define	SYS_SWAP	10	/* Coherent swap partition	*/
 
-
 /*
  * Be careful when using the FDISK_S or HDISK_S structure:
  * the two high order bits of p_bsec and p_esec on the boot block
  * provide the two high order bits of p_bcyl and p_ecyl, respectively.
  */
-
 #define SECMASK 0x3F	/* Mask for sector number bits of sector fields.     */
 #define CYLMASK 0xC0	/* Mask for cylinder number bits of sector fields.   */
 #define	bcyl(p)	((((p)->p_bsec & CYLMASK) << 2) | ((p)->p_bcyl))
@@ -53,7 +46,7 @@
 #define	esec(p)	((p)->p_esec & SECMASK)
 
 /* Per partition information. */
-
+/*#pragma align 1*/
 typedef	struct	fdisk_s {
 	unsigned char	p_boot;		/* Boot indicator	*/
 	unsigned char	p_bhd;		/* Beginning head	*/
@@ -63,17 +56,28 @@ typedef	struct	fdisk_s {
 	unsigned char	p_ehd;		/* Ending head		*/
 	unsigned char	p_esec;		/* Ending sector	*/
 	unsigned char	p_ecyl;		/* Ending cylinder	*/
-	unsigned long	p_base;		/* Base block number	*/
-	unsigned long	p_size;		/* Size in blocks	*/
+	unsigned long		p_base;		/* Base block number	*/
+	unsigned long		p_size;		/* Size in blocks	*/
 } FDISK_S;
-
 /* Hard disk master boot block. */
 typedef	struct	hdisk_s {
-	unsigned char	hd_boot [446];		/* Bootstrap		*/
-#pragma align 2
-	struct fdisk_s	hd_partn [NPARTN] __ALIGN (2); /* Partition info*/
-#pragma align
+	unsigned char	hd_boot[446];		/* Bootstrap		*/
+/*#pragma align 2*/
+	struct fdisk_s	hd_partn[NPARTN];	/* Partition info*/
+/*#pragma align*/
 	unsigned short	hd_sig;			/* Validating signature	*/
 } HDISK_S;
+/*#pragma align*/
 
-#endif	/* ! defined (__SYS_FDISK_H__) */
+#ifdef INKERNEL
+/*
+ * fdisk(dev_t sdev, FDISK_S pp[])
+ * Read partition info from first block of a special device.
+ * If valid, update partition array and return 1.
+ */
+extern	int	fdisk();
+#endif
+
+#endif
+
+/* end of fdisk.h */

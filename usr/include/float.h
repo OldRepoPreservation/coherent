@@ -1,17 +1,17 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
+ * float.h
  * C floating point representation header.
  * Draft Proposed ANSI C Standard, 12/7/88 draft.
  * Sections 2.2.4.2, 4.1.4.
  */
 
-#ifndef	__FLOAT_H__
-#define	__FLOAT_H__
+#ifndef	_FLOAT_H
+#define	_FLOAT_H
 
 #if	_DECVAX
 /*
@@ -27,8 +27,8 @@
 #define	DBL_MAX_EXP	127
 #define	DBL_MAX_10_EXP	38
 #define	DBL_MIN		2.9387358770557188e-39
-#define	DBL_MIN_EXP	(-128)
-#define DBL_MIN_10_EXP	(-38)
+#define	DBL_MIN_EXP	-128
+#define DBL_MIN_10_EXP	-38
 #define	FLT_DIG		6
 #define	FLT_EPSILON	1.1920928955078125e-07
 #define	FLT_MANT_DIG	24
@@ -36,8 +36,8 @@
 #define	FLT_MAX_EXP	127
 #define	FLT_MAX_10_EXP	38
 #define	FLT_MIN		2.9387358770557188e-39
-#define	FLT_MIN_EXP	(-128)
-#define	FLT_MIN_10_EXP	(-38)
+#define	FLT_MIN_EXP	-128
+#define	FLT_MIN_10_EXP	-38
 #define	FLT_RADIX	2
 #define	FLT_ROUNDS	1
 #define	LDBL_DIG	DBL_DIG
@@ -59,14 +59,14 @@
  * Long double:	unimplemented, limits defined here are same as double.
  */
 #define	DBL_DIG		15
-#define	DBL_EPSILON	2.220446049250313e-16
+#define	DBL_EPSILON	1.110223024625157e-16
 #define	DBL_MANT_DIG	53
-#define	DBL_MAX		1.7976931348623157e+308
+#define	DBL_MAX		1.797693134862316e+308
 #define	DBL_MAX_EXP	1024
 #define	DBL_MAX_10_EXP	308
-#define	DBL_MIN		2.2250738585072025e-308
-#define	DBL_MIN_EXP	(-1021)
-#define DBL_MIN_10_EXP	(-307)
+#define	DBL_MIN		2.225073858507201e-308
+#define	DBL_MIN_EXP	-1021
+#define DBL_MIN_10_EXP	-307
 #define	FLT_DIG		6
 #define	FLT_EPSILON	1.192092895507813e-07
 #define	FLT_MANT_DIG	24
@@ -74,8 +74,8 @@
 #define	FLT_MAX_EXP	128
 #define	FLT_MAX_10_EXP	38
 #define	FLT_MIN		1.175494350822288e-38
-#define	FLT_MIN_EXP	(-125)
-#define	FLT_MIN_10_EXP	(-37)
+#define	FLT_MIN_EXP	-125
+#define	FLT_MIN_10_EXP	-37
 #define	FLT_RADIX	2
 #define	FLT_ROUNDS	1
 #define	LDBL_DIG	DBL_DIG
@@ -90,5 +90,3 @@
 #endif
 
 #endif
-
-/* end of float.h */

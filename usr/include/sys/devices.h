@@ -1,12 +1,14 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * devices.h
+ */
 
-#ifndef	__SYS_DEVICES_H__
-#define	__SYS_DEVICES_H__
+#ifndef	DEVICES_H
+#define	DEVICES_H
 
 /* Device major numbers. */
 #define	MEM_MAJOR	0	/* memory				*/
@@ -18,7 +20,6 @@
 #define	ASY_MAJOR	5	/* async devices 0..31			*/
 #define	AL0_MAJOR	5	/* serial line 0, COM[13]		*/
 #define	AL1_MAJOR	6	/* serial line 1, COM[24]		*/
-#define	TRACE_MAJOR	6	/* kernel trace device			*/
 #define	HS_MAJOR	7	/* polled multi-port serial card	*/
 #define	RM_MAJOR	8	/* dual RAM disk			*/
 #define	PTY_MAJOR	9	/* pseudotty				*/
@@ -27,19 +28,18 @@
 #define	ST_MAJOR	12	/* archive streaming tape		*/
 #define	SCSI_MAJOR	13	/* SCSI					*/
 /*			14	   currently unassigned			*/
-/*			15	may be used for bitmapped device	*/
+/*			15	   currently unassigned			*/
 /*			16	   currently unassigned			*/
 /*			17	   currently unassigned			*/
 /*			18	   currently unassigned			*/
 /*			19	   currently unassigned			*/
 #define	TN_MAJOR	20	/* Tiac PC-234/6 ARCNET LAN		*/
 #define	PE_MAJOR	21	/* Emulex/Persyst fast serial (DCP/MUX)	*/
-#define	SBP_MAJOR	21	/* Sound Blaster Pro			*/
 /*			22	   currently unassigned			*/
 #define	SEM_MAJOR	23	/* S-V compatible semaphores		*/
 #define	SHM_MAJOR	24	/* S-V subset shared memory		*/
 #define	MSG_MAJOR	25	/* S-V compatible messaging		*/
-/*			26	may be used for socket driver		*/
+/*			26	   currently unassigned			*/
 /*			27	   currently unassigned			*/
 /*			28	   currently unassigned			*/
 /*			29	   currently unassigned			*/
@@ -51,17 +51,6 @@
 #define	AT1X_MINOR	129	/* /dev/at1x				*/
 #define	SCSI_minor(s, i, l, p)	((s)*0x80 + (i)*0x10 + (l)*0x04 + (p))
 
-/*
- * Some devices need special pools of memory, too large for kmem_alloc ()
- * to be practical.  Reserve 4 megabytes of virtual space for each major
- * number for such pools.  The first 4 Mb of virtual space beneath
- * DEVICE_SEG_END is for major number 0, the second is for major number 1,
- * etc.
- */
+#endif
 
-#define DEVICE_SEG_END	0xF0000000
-
-#define DEVICE_SEG_VADDR(major)	((caddr_t)(DEVICE_SEG_END - \
-	  ((major + 1) * (4 * 1024 * 1024))))
-
-#endif	/* ! defined (__SYS_DEVICES_H__) */
+/* end of devices.h */

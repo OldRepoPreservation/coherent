@@ -1,8 +1,7 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*		COMMON ARCHIVE FORMAT
 *
@@ -33,8 +32,6 @@
 *	|_____________________________________________|
 *
 */
-#ifndef __ARCOFF_H__
-#define __ARCOFF_H__
 
 #define ARMAG	"!<arch>\n"
 #define SARMAG	8
@@ -50,5 +47,3 @@ struct ar_hdr		/* archive file member header - printable ascii */
 	char	ar_size[10];	/* file member size - decimal */
 	char	ar_fmag[2];	/* ARFMAG - string to end header */
 };
-
-#endif

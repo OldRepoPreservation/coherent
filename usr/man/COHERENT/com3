@@ -1,0 +1,66 @@
+
+
+com3                      Device Driver                      com3
+
+
+
+
+Device driver for asynchronous serial line COM3
+
+
+/dev/com3  is   the  COHERENT  system's   standard  interface  to
+asynchronous serial  line COM3.  The interface  is assigned major
+device 5, and is accessed as a character-special device.  The I/O
+address  for the  corresponding 8250 SIO  is 0x3E8  (COM3).  com3
+generates interrupt IRQ4.
+
+Four versions of device com3 are in directory /dev, as follows:
+
+
+                                                     _M_o_d_e_m
+          _D_e_v_i_c_e _N_a_m_e  _M_a_j_o_r     _M_i_n_o_r   _I/_O _T_y_p_e  _C_o_n_t_r_o_l?
+          /ddeevv/ccoomm33ll      5        129   Interrupts    No
+          /ddeevv/ccoomm33rr     5         1    Interrupts    Yes
+          /ddeevv/ccoomm33ppll    5        193     Polled      No
+          /ddeevv/ccoomm33pprr    5        65      Polled      Yes
+
+
+For details on how these differ, see the entry for com.
+
+***** Files *****
+
+/ddeevv/ccoomm33ll -- Interrupt-driven, non-modem (local) line
+/ddeevv/ccoomm33rr -- Interrupt-driven, modem (non-local) line
+/ddeevv/ccoomm33ppll --Polled, non-modem (local) line
+/ddeevv/ccoomm33pprr -- Polled, modem (non-local) line
+
+***** See Also *****
+
+com, com1, stty
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COHERENT Lexicon                                           Page 1
+
+

@@ -3,8 +3,8 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	__SYS_ASCII_H__
-#define	__SYS_ASCII_H__
+#ifndef	ASCII_H
+#define	ASCII_H
 
 /*
  * Ascii Macro Definitions.

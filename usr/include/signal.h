@@ -1,70 +1,76 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * For the benefit of user programmes.
+ */
+#ifndef	 SIGNAL_H
+#define	 SIGNAL_H	SIGNAL_H
 
-#ifndef	 __SIGNAL_H__
-#define	 __SIGNAL_H__
+#ifdef _I386
+extern void	(*signal())();
+extern void	(*sigset())();
 
-#include <common/feature.h>
-#include <common/ccompat.h>
-#include <common/__pid.h>
-#include <sys/signal.h>
+#define SIGHUP	1			/* Hangup */
+#define	SIGINT	2			/* Interrupt */
+#define SIGQUIT	3			/* Quit */
+#define SIGILL	4			/* Illegal instruction */
+#define	SIGTRAP	5			/* Trace trap */	
+#define SIGIOT	6			/* IOT instruction */
+#define SIGABRT	6			/* replace by SIGIOT in the future */
+#define	SIGEMT	7			/* emulator trap */
+#define	SIGFPE	8			/* floating point exception */
+#define SIGKILL	9			/* Kill */
+#define	SIGBUS	10			/* bus error */
+#define	SIGSEGV	11			/* Segmentation violation */
+#define SIGSYS	12			/* Bad argument to system call */
+#define	SIGPIPE	13			/* Write to pipe with no readers */
+#define SIGALRM	14			/* Alarm */
+#define SIGTERM	15			/* Software termination signal */
+#define	SIGUSR1	16
+#define	SIGUSR2	17
+#define	SIGCLD	18			/* Death of a child - not done yet */
+#define	SIGCHLD	18			/* Death of a child - not done yet */
+#define SIGPWR	19			/* Restart */
+#define	SIGWINCH 20			/* window change */
+#define	SIGPOLL	22			/* polled event in stream */
 
-typedef	long	sig_atomic_t;
-
-
-__EXTERN_C_BEGIN__
-
-__sighand_t   *	signal		__PROTO ((int _sig, __sighand_t * _func));
-int		raise		__PROTO ((int _sig));
-
-__sighand_t   *	sigset		__PROTO ((int _sig, __sighand_t * _func));
-int		sighold		__PROTO ((int _sig));
-int		sigignore	__PROTO ((int _sig));
-int		sigrelse	__PROTO ((int _sig));
-int		sigpause	__PROTO ((int _sig));
-
-#if	! _STDC_SOURCE
-
-int		kill		__PROTO ((__pid_t _pid, int _sig));
-int		sigaction	__PROTO ((int _sig,
-					  __CONST__ struct sigaction * _act,
-					  struct sigaction * _oact));
-int		sigaddset	__PROTO ((sigset_t * _set, int _signo));
-int		sigdelset	__PROTO ((sigset_t * _set, int _signo));
-int		sigemptyset	__PROTO ((sigset_t * _set));
-int		sigfillset	__PROTO ((sigset_t * _set));
-int		sigismember	__PROTO ((__CONST__ sigset_t * _set,
-					  int _signo));
-int		sigpending	__PROTO ((sigset_t * _set));
-int		sigprocmask	__PROTO ((int _how,
-					  __CONST__ sigset_t * _set,
-					  sigset_t * _oset));
-int		sigsuspend	__PROTO ((__CONST__ sigset_t * _sigmask));
-
-#if	! _SYSV4
+#define NSIG	23			/* Number of signals */
+#define	MAXSIG	32
 
 /*
- * Pre-SVR4 systems make these available as inlines. For us, this is optional
- * but still legal. For SVR4 systems, we require proper error checking. For
- * this to work, we depend on __SIGSET_UNIT (ss, n) not evaluating "n".
+ * Special arguments to signal.
  */
+#define SIG_DFL (void(*)())0		/* Default */
+#define SIG_ERR (void(*)())-1		/* Error */
+#define SIG_IGN (void(*)())1		/* Ignore */
+#define SIG_HOLD (void(*)())2		/* Hold */
 
-#define	sigfillset(set)		((set)->_sigbits [0] = -1UL, 0)
-#define	sigemptyset(set)	((set)->_sigbits [0] = 0)
-#define	sigismember(set, signo)	((set)->_sigbits [0] & __SIGSET_MASK (signo))
-#define sigaddset(set, signo)	((set)->_sigbits [0] |= \
-					__SIGSET_MASK (signo), 0)
-#define	sigdelset(set, signo)	((set)->_sigbits [0] &= \
-					~ __SIGSET_MASK (signo), 0)
+#ifdef	KERNEL
+#define	SIGDEFER	0x100
+#define	SIGHOLD		0x200
+#define	SIGRELSE	0x400
+#define	SIGIGNORE	0x800
+#define	SIGPAUSE	0x1000
+#define	SIGDEFAULT	0x8000
+#endif
 
-#endif	/* ! _SYSV4 */
+#else
+#include <sys/msig.h>
 
-#endif	/* ! _STDC_SOURCE */
+#define SIGHUP	1			/* Hangup */
+#define	SIGINT	2			/* Interrupt */
+#define SIGQUIT	3			/* Quit */
+#define SIGALRM	4			/* Alarm */
+#define SIGTERM	5			/* Software termination signal */
+#define SIGREST	6			/* Restart */
+#define SIGSYS	7			/* Bad argument to system call */
+#define	SIGPIPE	8			/* Write to pipe with no readers */
+#define SIGKILL	9			/* Kill */
+#define SIGTRAP	10			/* Breakpoint */
+#define	SIGSEGV	11			/* Segmentation violation */
+#endif
 
-__EXTERN_C_END__
-
-#endif	/* ! defined (__SIGNAL_H__) */
+#endif

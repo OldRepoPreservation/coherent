@@ -1,59 +1,55 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * POSIX (IEEE 1003.1) compatible dirent.h header file.
+ */
 
-#ifndef __DIRENT_H__
-#define __DIRENT_H__
+#ifndef DIRENT_H
+#define DIRENT_H 1
 
-#include <common/feature.h>
-#include <common/ccompat.h>
-#include <common/_uid.h>
-#include <common/_daddr.h>
-#include <common/__off.h>
+#ifdef _I386
 
-struct dirent {
-	n_ino_t		__NON_POSIX (d_ino);	/* i-node number */
-	__daddr_t	__NON_POSIX (d_off);	/* offset in actual directory*/
-	unsigned short	__NON_POSIX (d_reclen);	/* record length */
-	char		d_name [1];
-};
+#include <sys/dirent.h>
 
-typedef struct {
-	int		__NON_POSIX (dd_fd);	/* file descriptor */
-	int		__NON_POSIX (dd_loc);	/* offset in block */
-	int		__NON_POSIX (dd_size);	/* amount of valid data */
-	char	      *	__NON_POSIX (dd_buf);	/* -> directory block */
-} DIR;			/* stream data from opendir() */
-
-
-#if	! _POSIX_C_SOURCE
+#define	MAXNAMLEN	14		/* maximum filename length */
 
 #define	DIRBUF		2048		/* buffer size for fs-indep. dirs */
 	/* must in general be larger than the filesystem buffer size */
 
-#define	MAXNAMLEN	14		/* maximum filename length */
+typedef struct
+	{
+	int	dd_fd;			/* file descriptor */
+	int	dd_loc;			/* offset in block */
+	int	dd_size;		/* amount of valid data */
+	char	*dd_buf;		/* -> directory block */
+	}	DIR;			/* stream data from opendir() */
 
-#endif	/* ! _POSIX_C_SOURCE */
 
+extern DIR		*opendir();
+extern struct dirent	*readdir();
+extern void		rewinddir();
+extern int		closedir();
+extern daddr_t		telldir();
+extern void		seekdir();
 
-__EXTERN_C_BEGIN__
+#else
+/*
+ *-------------------- 286 version ----------------
+ */
+/*
+ * Rely on COHERENT's sys/dir.h to define type DIR and structure direct with
+ * fields d_ino of type ino_t and d_name of type char [].
+ */
+#include <sys/dir.h>
 
-DIR	      *	opendir		__PROTO ((__CONST__ char * _dirname));
-struct dirent *	readdir		__PROTO ((DIR * _dirp));
-void		rewinddir	__PROTO ((DIR * _dirp));
-int		closedir	__PROTO ((DIR * _dirp));
-
-#if	! _POSIX_C_SOURCE
-
-__off_t		telldir		__PROTO ((DIR * _dirp));
-void		seekdir		__PROTO ((DIR * _dirp, __off_t _loc));
+/*
+ * Implement dirent as a macro, making struct dirent equivalent to COHERENT's 
+ * struct direct.
+ */
+#define dirent direct
 
 #endif
-
-__EXTERN_C_END__
-
-
-#endif	/* ! defined (__DIRENT_H__) */
+#endif
