@@ -87,7 +87,7 @@ $(K386OBJ)/fs1.o: fs1.c \
 
 $(K386OBJ)/fs2.o: fs2.c \
 	$(USRINC)/sys/coherent.h \
-	$(USRINC)/acct.h \
+	$(USRINC)/sys/acct.h \
 	$(USRINC)/sys/buf.h \
 	$(USRINC)/canon.h \
 	$(USRINC)/sys/con.h \
@@ -202,7 +202,7 @@ $(K386OBJ)/null.o: null.c
 $(K386OBJ)/exec.o: exec.c \
 	$(USRINC)/sys/coherent.h \
 	$(USRINC)/sys/param.h \
-	$(USRINC)/acct.h \
+	$(USRINC)/sys/acct.h \
 	$(USRINC)/sys/buf.h \
 	$(USRINC)/canon.h \
 	$(USRINC)/sys/con.h \

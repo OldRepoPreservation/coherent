@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys2.c,v 1.10 92/10/06 23:48:57 root Exp $ */
+/* $Header: /y/coh.386/RCS/sys2.c,v 1.14 93/04/14 10:07:58 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -703,6 +703,63 @@ poll_done:
  	 */
 	if ( (msec > 0) && (cprocp->p_polltim.t_func != NULL) )
 		timeout(&cprocp->p_polltim, 0, NULL, NULL);
+
+	return ret;
+}
+
+/*
+ * Suspend execution for a short interval.
+ *
+ * Return the number of milliseconds actually slept.
+ * Shares use of cprocp->p_polltim with upoll().
+ */
+int
+unap(msec)
+int msec;
+{
+	int ret, lbolt0;
+	int ticksToWait, ticksWaited;
+
+	if (msec <= 0)
+		return 0;
+
+	/*
+	 * Convert milliseconds to clock ticks.
+	 *
+	 * Wait for at least the specified number of milliseconds.
+	 * For 100 Hz clock, if nap is for 11 msec, timeout is for 2 ticks.
+	 */
+	ticksToWait = ((msec * HZ) + 999) / 1000;
+	timeout(&cprocp->p_polltim, ticksToWait, wakeup, &cprocp->p_polls);
+
+	/*
+	 * Wake for timeout or signal.
+	 */
+	lbolt0 = lbolt;
+	if (x_sleep(&cprocp->p_polls, pritty, slpriSigCatch, "nap")) {
+		/*
+		 * Signal woke us up.
+		 */
+		u.u_error = EINTR;
+		goto napDone;
+	} else {
+		/*
+		 * We were awakened by a timeout.
+		 * Return number of milliseconds actually waited.
+		 */
+		ticksWaited = lbolt - lbolt0;
+		if (ticksWaited >= 0)
+			ret = (ticksWaited * 1000) / HZ;
+		else
+			ret = 0;
+		goto napDone;
+	}
+
+napDone:
+	/*
+	 * Cancel timeout
+ 	 */
+	timeout(&cprocp->p_polltim, 0, NULL, NULL);
 
 	return ret;
 }

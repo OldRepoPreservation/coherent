@@ -1,4 +1,3 @@
-/* $Header: /y/coh.386/RCS/sys1.c,v 1.9 92/11/09 17:11:01 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,28 +12,17 @@
  *	All rights reserved.
  -lgl) */
 /*
+ * coh.386/sys1.c
+ *
  * Coherent.
  * General system calls.
  *
- * $Log:	sys1.c,v $
- * Revision 1.9  92/11/09  17:11:01  root
- * Just before adding vio segs.
- * 
- * Revision 1.8  92/10/06  23:48:55  root
- * Ker #64
- * 
- * Revision 1.7  92/07/16  16:33:34  hal
- * Kernel #58
- * 
- * Revision 1.4  92/01/27  12:38:52  hal
- * Forgot to check flag in upgrp().
- * 
- * Revision 1.3  92/01/24  21:29:35  hal
- * Kernel version 29.
+ * Revised: Tue May 11 11:12:03 1993 CDT
  */
 #include <sys/coherent.h>
-#include <acct.h>
+#include <sys/acct.h>
 #include <sys/con.h>
+#include <sys/wait.h>
 #include <errno.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
@@ -375,8 +363,7 @@ unull()
  */
 upause()
 {
-	x_sleep((char *)&u, prilo, slpriSigCatch, "pause");
-	/* The pause system call.  */
+	x_sleep((char *)&u, prilo, slpriSigLjmp, "pause");
 }
 
 /*
@@ -630,6 +617,7 @@ uwait(arg1, arg2, arg3)
 		return uwaitpid(arg1, arg2, arg3);
 
 	/* Wait for a child to stop or die. */
+	T_HAL(8, printf("[%d]waits ", SELF->p_pid));
 	ppp = SELF;
 	for (;;) {
 		int x_s;
@@ -668,7 +656,7 @@ uwait(arg1, arg2, arg3)
 				sp = pp->p_segp[SIUSERP];
 				childUseg = MAPIO(sp->s_vmem, U_OFFSET);
 				work = workAlloc();
-				ptable1_v[work] = 
+				ptable1_v[work] =
 				  sysmem.u.pbase[btocrd(childUseg)] | SEG_RW;
 				mmuupd();
 				uprc = (UPROC *) (ctob(work) + U_OFFSET);
@@ -676,6 +664,8 @@ uwait(arg1, arg2, arg3)
 				workFree(work);
 
 				unlock(pnxgate);
+				T_HAL(8, printf("[%d]ends waiting, %d stopped ",
+				  SELF->p_pid, pid));
 				return pp->p_pid;
 			}
 			if (pp->p_state == PSDEAD) {
@@ -685,7 +675,131 @@ uwait(arg1, arg2, arg3)
 				pid = pp->p_pid;
 				unlock(pnxgate);
 				relproc(pp);
-				if ((1<<(SIGCLD-1)) & ppp->p_isig)
+				if (SIG_BIT(SIGCLD) & ppp->p_isig)
+					continue;
+				else {
+					T_HAL(8, printf("[%d]ends waiting,"
+					  " %d died ", SELF->p_pid, pid));
+					return pid;
+				}
+			}
+			cpp = pp;
+		}
+		unlock(pnxgate);
+		if (cpp == NULL) {
+			T_HAL(8, printf("[%d]ends waiting, no children ",
+			  SELF->p_pid));
+			u.u_error = ECHILD;
+			return;
+		}
+		x_s = x_sleep((char *)ppp, prilo, slpriSigLjmp, "wait");
+		/* Wait for a child to terminate.  */
+	}
+}
+
+/*
+ * waitpid() and wait() share the same system call number under BCS.
+ *
+ * pid argument:
+ *	>  0	wait for child whose process matches pid
+ *	=  0	wait for any child in current process group
+ *	= -1	wait for any child - same as wait()
+ *	< -1	wait for any child in group given by -pid
+ *
+ * The only waitpid() options supported are WNOHANG and WUNTRACED.
+ *
+ */
+int
+uwaitpid(opid, stat_loc, options)
+register pid_t opid;
+int	*stat_loc, options;
+{
+	register PROC *pp;
+	register PROC *ppp;
+	register PROC *cpp;
+	register int pid;
+
+	if (options & WUNTRACED) {	
+                printf("waitpid(%d,%d, WUNTRACED): unsupported\n", opid,
+								     stat_loc);
+		u.u_error = EINVAL;
+		return;
+	}
+
+	/* Wait for a child to stop or die. */
+	ppp = SELF;
+	for (;;) {
+		int x_s;
+
+		/* Look at all processes. */
+		lock(pnxgate);
+		cpp = NULL;
+		pp = &procq;
+		while ((pp=pp->p_nforw) != &procq) {
+
+			/* Ignore the current process. */
+			if (pp == ppp)
+				continue;
+			/*
+			 * Ignore processes that aren't children of the
+			 * current one.
+			 */
+			if (pp->p_ppid != ppp->p_pid)
+				continue;
+
+			if (pp->p_flags&PFSTOP)
+				continue;
+
+			/* If opid == 0 we want to match gids */
+			if ((opid == 0) && (pp->p_group != ppp->p_group))
+				continue;
+
+			/* If opid>0, want to match opid to child pid */
+			else if ((opid > 0) && (opid != pp->p_pid))
+				continue;
+
+			/* If opid<-1, want to match -opid to child gid */
+			else if ((opid < -1) && ((-opid) != pp->p_group))
+				continue;
+
+			/* if opid == -1, then any child is acceptable */
+
+			/* Here is an acceptable child that hit a breakpoint. */
+			if (pp->p_flags&PFWAIT) {
+				int work;	/* virtual click number */
+				int childUseg;	/* system global addr */
+				UPROC * uprc;
+				SEG * sp;
+
+				pp->p_flags &= ~PFWAIT;
+				pp->p_flags |= PFSTOP;
+
+				/* fetch u.u_signo from the child */
+
+				/* Find u area for child process pp */
+				sp = pp->p_segp[SIUSERP];
+				childUseg = MAPIO(sp->s_vmem, U_OFFSET);
+				work = workAlloc();
+				ptable1_v[work] =
+				  sysmem.u.pbase[btocrd(childUseg)] | SEG_RW;
+				mmuupd();
+				uprc = (UPROC *) (ctob(work) + U_OFFSET);
+				u.u_rval2 = ((uprc->u_signo)<<8) | 0177;
+				workFree(work);
+
+				unlock(pnxgate);
+				return pp->p_pid;
+			}
+
+			/* Here is an acceptable child that is a zombie. */
+			if (pp->p_state == PSDEAD) {
+				ppp->p_cutime += pp->p_utime + pp->p_cutime;
+				ppp->p_cstime += pp->p_stime + pp->p_cstime;
+				u.u_rval2 = pp->p_exit;
+				pid = pp->p_pid;
+				unlock(pnxgate);
+				relproc(pp);
+				if (SIG_BIT(SIGCLD) & ppp->p_isig)
 					continue;
 				else {
 					return pid;
@@ -698,14 +812,14 @@ uwait(arg1, arg2, arg3)
 			u.u_error = ECHILD;
 			return;
 		}
-		x_s = x_sleep((char *)ppp, prilo, slpriSigLjmp, "wait");
-		/* Wait for a child to terminate.  */
-	}
-}
 
-int
-uwaitpid(arg1, arg2, arg3)
-int arg1, arg2, arg3;
-{
-	printf("waitpid(%d,%d,%d): unsupported\n", arg1, arg2, arg3);
+		if (options & WNOHANG) {
+               		u.u_rval2 = 0;
+			return 0;
+		}
+		else
+			/* Wait for a child to terminate. */
+			x_s = x_sleep((char *)ppp, prilo, slpriSigLjmp,
+			  "waitpid");
+	}
 }

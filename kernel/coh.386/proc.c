@@ -15,7 +15,7 @@
  * Process handling and scheduling.
  */
 #include <sys/coherent.h>
-#include <acct.h>
+#include <sys/acct.h>
 #include <errno.h>
 #include <sys/inode.h>
 #include <sys/ptrace.h>
@@ -369,8 +369,7 @@ pexit(s)
 	 * If the parent is ignoring SIGCLD, 
 	 * remove the zombie right away.
 	 */
-#	define CHLDBIT (((sig_t) 1) << (SIGCLD - 1))
-	if (CHLDBIT & parent->p_isig) {
+	if (SIG_BIT(SIGCLD) & parent->p_isig) {
 		parent->p_cutime += pp->p_utime + pp->p_cutime;
 		parent->p_cstime += pp->p_stime + pp->p_cstime;
 		relproc(pp);
@@ -379,7 +378,7 @@ pexit(s)
 		 * If SIGCLD is not defaulted, notify our parent
 		 * of our demise.
 		 */
-		if (!(CHLDBIT & parent->p_dfsig)) {
+		if (!(SIG_BIT(SIGCLD) & parent->p_dfsig)) {
 			sendsig(SIGCLD, parent );
 		}
 	}
@@ -460,10 +459,10 @@ char * reason;
 
 	/* Here is sleep if signals *may* interrupt. */
 	/* Don't sleep at all if there is already a signal pending. */
-	if (!(pp->p_ssig && nondsig())) {
+	if (!nondsig()) {
 		dispatch();
 		u.u_sleep[0] = '\0';
-		if (!(pp->p_ssig && nondsig())) {
+		if (!nondsig()) {
 			return 0;
 		}
 	}
@@ -475,6 +474,7 @@ char * reason;
 	}
 
 	/* Do longjmp to beginning of system call. */
+	T_HAL(8, printf("[%d]Ljmps ", SELF->p_pid));
 	sphi();
 	envrest(&u.u_sigenv);
 }

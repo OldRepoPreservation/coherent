@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys3.c,v 1.8 93/02/24 11:51:12 root Exp $ */
+/* $Header: /y/coh.386/RCS/sys3.c,v 1.9 93/04/14 10:08:02 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -300,8 +300,11 @@ int do_write;
 	type = ip->i_mode&IFMT;
 	if (type != IFCHR)
 		ilock(ip);
-	if ( fdp->f_flag & IPAPPEND )
+
+	/* Writes in append mode are forced to end of file. */
+	if ((fdp->f_flag & IPAPPEND) && do_write)
 		fdp->f_seek = ip->i_size;
+
 	if ( do_write && ((ip->i_mode&IFMT)==IFREG) ) {
 		long maxbyte = ((long)u.u_bpfmax) * BSIZE;
 		if ( maxbyte <= fdp->f_seek )

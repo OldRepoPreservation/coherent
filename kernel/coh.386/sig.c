@@ -1,4 +1,3 @@
-/* $Header: /y/coh.386/RCS/sig.c,v 1.5 92/11/09 17:10:59 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,7 +12,16 @@
  *	All rights reserved.
  -lgl) */
 /*
- * Signal handling.
+ * File:	coh.386/sig.c
+ *
+ * Purpose:	signal handling
+ *
+ * Revised: Tue May  4 11:59:15 1993 CDT
+ */
+
+/*
+ * ----------------------------------------------------------------------
+ * Includes.
  */
 #include <sys/coherent.h>
 #include <errno.h>
@@ -27,108 +35,291 @@
 #include <signal.h>
 #include <sys/core.h>
 
-void sendsig();
+/*
+ * ----------------------------------------------------------------------
+ * Definitions.
+ *	Constants.
+ *	Macros with argument lists.
+ *	Typedefs.
+ *	Enums.
+ */
+typedef void (*VFPTR)();	/* pointer to void function */
+
+/*
+ * ----------------------------------------------------------------------
+ * Functions.
+ *	Import Functions.
+ *	Export Functions.
+ *	Local Functions.
+ */
+int	actvsig();
+int	nondsig();
+int	ptret();
+int	ptset();
+void	sendsig();
+void	sigDefault();
+void	sigHold();
+void	sigIgnore();
+void	sigPause();
+void	sigRelease();
+int	sigSet();
+int	sigdump();
+int	usigsys();
 
 static struct _fpstate * empack();
 
-/* Patch DUMP_TEXT nonzero to make text segment show up in core files. */
-int DUMP_TEXT = 0;
+/*
+ * ----------------------------------------------------------------------
+ * Global Data.
+ *	Import Variables.
+ *	Export Variables.
+ *	Local Variables.
+ */
+/*
+ * Patchable variables.
+ *
+ * Patch DUMP_TEXT nonzero to make text segment show up in core files.
+ * Patch DUMP_LIM set the upper limit in bytes of how much of a
+ * segment is written to a core file.
+ *
+ * Patch CATCH_SEGV nonzero if you are trying to run software that was
+ * written in blatant defiance of the SVID 2 caution that handling SIGSEGV
+ * is nonportable and should not be assumed valid on all systems.
+ */
+int	DUMP_TEXT = 0;
+int	DUMP_LIM=512*1024;
+int	CATCH_SEGV = 0;
+
+/*
+ * ----------------------------------------------------------------------
+ * Code.
+ */
+
+/*
+ * Given 1-based signal number, ask whether a signal handler was
+ * attached to the current process using sigset().  This allows
+ * the kernel to process sigset() differently from signal(), as
+ * required.
+ *
+ * return 1 if sigset(), 0 if not.
+ */
+int
+sigSet(signal)
+int signal;
+{
+	return (SELF->p_dsig & SIG_BIT(signal)) ? 1 : 0;
+}
+
+/*
+ * Given 1-based signal number, ignore that signal in the current process.
+ */
+void
+sigIgnore(signal)
+int signal;
+{
+	int sigbit = SIG_BIT(signal);
+
+	SELF->p_dfsig &= ~sigbit;	/* No longer defaulted.  */
+	SELF->p_isig |= sigbit;		/* Mark signal as ignored.  */
+	u.u_sfunc[signal - 1] = SIG_IGN;
+}
+
+/*
+ * Given 1-based signal number, restore default handling for the current
+ * process.
+ *
+ * There is some duplication of work done in sigAttach(), but sigDefault()
+ * is also called from msig.c
+ */
+void
+sigDefault(signal)
+int signal;
+{
+	int sigbit = SIG_BIT(signal);
+
+	SELF->p_dfsig |= sigbit;
+	SELF->p_isig &= ~sigbit;
+	u.u_sfunc[signal - 1] = SIG_DFL;
+}
+
+/*
+ * Given 1-based signal number, hold that signal for the current process.
+ */
+void
+sigHold(signal)
+int signal;
+{
+	SELF->p_hsig |= SIG_BIT(signal);
+}
+
+/*
+ * Given 1-based signal number, pause for that signal for the current process.
+ */
+void
+sigPause(signal)
+int signal;
+{
+	SELF->p_hsig &= ~SIG_BIT(signal);
+
+	/*
+	 * Like upause(), do a sleep on an event which never gets a wakeup.
+	 * The sleep returns immediately if a signal was already holding.
+	 */
+	x_sleep((char *)&u, prilo, slpriSigCatch, "sigpause");
+	actvsig();
+}
+
+/*
+ * Given 1-based signal number, release that signal for the current process.
+ */
+void
+sigRelease(signal)
+int signal;
+{
+	SELF->p_hsig &= ~SIG_BIT(signal);
+	if (nondsig()) {
+		actvsig();
+	}
+}
+
+/*
+ * Given 1-based signal number, a pointer to a signal-handling function,
+ * and a flag, attach the signal handler to the current process.
+ *
+ * Function pointer "func" may take on special values SIG_DFL, SIG_IGN,
+ * and, if "how" is SIGSET, SIG_HOLD.
+ *
+ * The flag "how" is 0 if attachment is via signal(), SIGSET if attachment
+ * is via sigset().
+ *
+ * Return the previously attached signal handler, or SIG_HOLD if signals
+ * were previously held.
+ */
+VFPTR
+sigAttach(signal, func, how)
+int signal;
+VFPTR func;
+int how;
+{
+	VFPTR retval;
+	int sigbit = SIG_BIT(signal);
+
+	/*
+	 * Set up the return value, which says what was previously
+	 * done with the given signal.
+	 */
+	if (SELF->p_isig & sigbit)
+		retval = (VFPTR)SIG_IGN;
+	else if (SELF->p_hsig & sigbit)
+		retval = (VFPTR)SIG_HOLD;
+	else
+		retval = u.u_sfunc[signal - 1];
+
+	u.u_sigreturn = (VFPTR)(u.u_regl[EDX]);
+	u.u_sfunc[signal - 1] = func;
+
+	/*
+	 * Remove previous default, ignore, or hold status.
+	 */
+	SELF->p_dfsig &= ~sigbit;
+	SELF->p_isig &= ~sigbit;
+	SELF->p_hsig &= ~sigbit;
+
+	/*
+	 * Any pending signal is lost.
+	 */
+	SELF->p_ssig &= ~sigbit;
+
+	/*
+	 * Special cases for handler.
+	 */
+	switch ((int)func) {
+	case (int)SIG_DFL:
+		sigDefault(signal);
+		break;
+	case (int)SIG_IGN:
+		sigIgnore(signal);
+		break;
+	case (int)SIG_HOLD:
+		sigHold(signal);
+		break;
+	}
+
+	/*
+	 * Remember whether handler was attached with sigset() vs signal().
+	 */
+	if (how == SIGSET)
+		SELF->p_dsig |= sigbit;
+	else
+		SELF->p_dsig &= ~sigbit;
+
+	return retval;
+}
 
 /*
  * Set up the action to be taken on a signal.
  */
+int
 usigsys(signal, func)
 int	signal;
-register void (*func)();
+VFPTR func;
 {
-	register PROC *pp;
-	register sig_t s;
-	register int (*old_sig)();
 	int	sigtype;
+	int	retval = 0;
 
 	sigtype = signal & ~0xFF;
-	signal ^= sigtype;
+	signal &= 0xFF;
 
-	pp = SELF;
-	if (signal<=0 || signal>NSIG || signal==SIGKILL) {
+	T_HAL(8, if (signal == SIGINT)
+	  printf("[%d]sigint(%x, %x) ", SELF->p_pid, sigtype, func));
+
+	/* Range check on 1-based signal number. */
+	if (signal <= 0 || signal > NSIG) {
 		u.u_error = EINVAL;
 		return;
 	}
 
 	/*
-	 * In order to avoid runaway, don't allow user to set
-	 * handler for SIGSEGV to anything but SIG_DFL.
+	 * Don't allow setting/holding/releasing some signals.
 	 *
-	 * We should do something more sophisticated, like detecting
-	 * two SEGV's in a row and then killing the process.
+	 * NOTICE:  Ignoring SIGSEGV causes runaway user faults.
+	 * SVID Issue 2 says *don't* do signal(SIGSEGV,...)!!!
 	 */
-	if (signal == SIGSEGV && func != SIG_DFL) {
+	if (signal == SIGKILL) {
 		u.u_error = EINVAL;
 		return;
 	}
 
-	if (sigtype==SIGDEFER || sigtype==0) {
-		if (func==SIG_IGN)
-			sigtype = SIGIGNORE;
-		if (func==SIG_HOLD)
-			sigtype = SIGHOLD;
+	if (signal == SIGSEGV && CATCH_SEGV == 0) {
+		u.u_error = EINVAL;
+		return;
 	}
-
-	s = (sig_t)1 << --signal;
-	if (pp->p_isig & s)
-		old_sig = SIG_IGN;
-	else if (pp->p_hsig & s)
-		old_sig = SIG_HOLD;
-	else
-		old_sig = u.u_sfunc[signal];
-
+	 
 	switch (sigtype) {
 	case SIGHOLD:
-		pp->p_hsig |= s;
+		sigHold(signal);
 		break;
 	case SIGRELSE:
-		pp->p_hsig &= ~s;
-		if (nondsig()) {
-			T_PIGGY(0x100, printf("a(s)"););
-			actvsig();
-		}
+		sigRelease(signal);
+		break;
 	case SIGIGNORE:
-		pp->p_dfsig &= ~s;	/* No longer defaulted.  */
-		pp->p_isig |= s;	/* Mark signal as ignored.  */
-		pp->p_ssig &= ~s;	/* Turn off any pending signal.  */
+		sigIgnore(signal);
 		break;
 	case 0:				/* old system entry */
-	case SIGDEFER:			/* new system entry */
-		u.u_sigreturn = (void (*)())u.u_regl[EDX];
-		u.u_sfunc[signal] = func;
-		/*
-		 * Be sure to mark the signal as defaulted or not.
-		 */
-		if (SIG_DFL == func) {
-			pp->p_dfsig |= s;
-		} else {
-			pp->p_dfsig &= ~s;
-		}
-		/*
-		 * The signal is no longer ignored or held, and
-		 * any pending signal is lost.
-		 */
-		pp->p_isig &= ~s;
-		pp->p_hsig &= ~s;
-		pp->p_ssig &= ~s;
-		if (sigtype==SIGDEFER)
-			pp->p_dsig |= s;
-		else
-			pp->p_dsig &= ~s;
+		retval = (int)sigAttach(signal, func, 0);
 		break;
-	/* SIGPAUSE not done yet */
+	case SIGSET:			/* new system entry */
+		retval = (int)sigAttach(signal, func, SIGSET);
+		break;
+	case SIGPAUSE:
+		sigPause(signal);
+		break;
 	default:
 		u.u_error = SIGSYS;
 		break;
 	}
-	return old_sig;
+	return retval;
 }
-
 
 /*
  * Send a signal to the process `pp'.
@@ -144,17 +335,12 @@ register PROC *pp;
 	register sig_t f;
 	register int s;
 
-	T_PIGGY(0x40000000,
-	    printf("<send sig: %d, id: %d, state: %x, flags: %x, event: %x, ",
-		   sig, pp->p_pid, pp->p_state, pp->p_flags, pp->p_event);
-	); /* T_PIGGY() */
-
-	T_PIGGY(0x40000000, printf("p_isig=%x>", pp->p_isig));
+	T_HAL(8, if (sig == SIGINT) printf("[%d]gets int ", pp->p_pid));
 
 	/*
 	 * Convert the signal to a bit position.
 	 */
-	f = ((sig_t)1) << (sig-1);
+	f = SIG_BIT(sig);
 
 	/*
 	 * If the signal is ignored, and is not SIGCLD, do nothing.
@@ -164,7 +350,7 @@ register PROC *pp;
 	}
 
 	/*
-	 * I do not understand delayed or held signals.
+	 * No further processing for delayed or held signals.
 	 */
 	if ((pp->p_ssig & f) && (pp->p_hsig|pp->p_dsig) & f)
 		goto sendSigDone;
@@ -195,6 +381,7 @@ sendSigDone:
 /*
  * Return signal number if we have a non ignored or delayed signal, else zero.
  */
+int
 nondsig()
 {
 	register PROC *pp;
@@ -207,7 +394,7 @@ nondsig()
 	/*
 	 * Turn off all ignored signals except SIGCLD.
 	 */
-	pp->p_ssig &= ~(pp->p_isig & ~(1 << (SIGCLD - 1)));
+	pp->p_ssig &= ~(pp->p_isig & ~SIG_BIT(SIGCLD));
 
 	/*
 	 * If any signals have arrived, but which are not held,
@@ -231,6 +418,7 @@ nondsig()
 /*
  * If we have a signal that isn't ignored, activate it.
  */
+int
 actvsig()
 {
 	register int signum;
@@ -241,94 +429,100 @@ actvsig()
 	/*
 	 * Fetch an unprocessed signal.
 	 * Return if there are none.
+	 * The while() structure is only for traced processes.
 	 */
-	if ((signum = nondsig()) == 0)
-		return;
+	while (signum = nondsig()) {
 
-	pp = SELF;
+		pp = SELF;
 
-	/*
-	 * Reset the signal to indicate that it has been processed.
-	 * Bit table p_ssig uses 0-based signals, while signal.h
-	 * lists 1-based signals.
-	 */
-	pp->p_ssig &= ~((sig_t)1<<(signum-1));
+		/*
+		 * Reset the signal to indicate that it has been processed.
+		 * Bit table p_ssig uses 0-based signals, while signal.h
+		 * lists 1-based signals.
+		 */
+		pp->p_ssig &= ~SIG_BIT(signum);
 
-	/*
-	 * Fetch the user function that goes with this signal.
-	 * Function table u_sfunc uses 0-based signals, while signal.h
-	 * lists 1-based signals.
-	 */
-	func = u.u_sfunc[signum-1];
+		/*
+		 * Fetch the user function that goes with this signal.
+		 * Function table u_sfunc uses 0-based signals, while signal.h
+		 * lists 1-based signals.
+		 */
+		func = u.u_sfunc[signum-1];
 
-	/*
-	 * SIGCLD causes no work here if defaulted or ignored.
-	 */
-	if (signum == SIGCLD && (func == SIG_DFL || func == SIG_IGN))
-		return;
-
-	/*
-	 * Store the (1-based) signal number in the u area.
-	 * This is how a core dump records the death signal.
-	 */
-	u.u_signo = signum;
-
-	/*
-	 * If the signal is not defaulted, go run the requested
-	 * function.
-	 */
-	if (func != SIG_DFL) {
-		if (XMODE_286)
-			oldsigstart(signum, func);
-		else {
-			msigstart(signum, func);
-		}
-		return;
-	}
-
-	/*
-	 * ASSERTION:  the signal being processed is SIG_DFL'd.
-	 */
-
-	/*
-	 * msysgen() is a nop for COHERENT 4.0.  The comment in the
-	 * assembly code is "Nothing useful to save".
-	 */
-	msysgen(u.u_sysgen);
-
-	/*
-	 * Do something special for traced processes.  (?)
-	 */
-	if (pp->p_flags&PFTRAC) {
-		pp->p_flags |= PFWAIT;
-		ptval = ptret();
-		T_HAL(0x10000, printf("ptret()=%x ", ptval));
-		pp->p_flags &= ~(PFWAIT|PFSTOP);
-		if (ptval == 0)
+		/*
+		 * SIGCLD causes no work here if defaulted or ignored.
+		 */
+		if (signum == SIGCLD && (func == SIG_DFL || func == SIG_IGN))
 			return;
-	}
 
-	/*
-	 * Some signals cause a core file to be written.
-	 */
-	switch(signum) {
-	case SIGQUIT:
-	case SIGILL:
-	case SIGTRAP:
-	case SIGABRT:
-	case SIGFPE:
-	case SIGSEGV:
-	case SIGSYS:
-		if (sigdump())
-			signum |= 0x80;
-		break;
+		/*
+		 * Store the (1-based) signal number in the u area.
+		 * This is how a core dump records the death signal.
+		 */
+		u.u_signo = signum;
+
+		/*
+		 * If the signal is not defaulted, go run the requested
+		 * function.
+		 */
+		if (func != SIG_DFL) {
+			if (XMODE_286)
+				oldsigstart(signum, func);
+			else {
+				msigstart(signum, func);
+			}
+			return;
+		}
+
+		/*
+		 * ASSERTION:  the signal being processed is SIG_DFL'd.
+		 */
+
+		/*
+		 * msysgen() is a nop for COHERENT 4.0.  The comment in the
+		 * assembly code is "Nothing useful to save".
+		 */
+		msysgen(u.u_sysgen);
+
+		/*
+		 * When a traced process is signaled, it may need to exchange
+		 * data with its parent (via ptret).
+		 */
+		if (pp->p_flags&PFTRAC) {
+			pp->p_flags |= PFWAIT;
+			ptval = ptret();
+			T_HAL(0x10000, printf("ptret()=%x ", ptval));
+			pp->p_flags &= ~(PFWAIT|PFSTOP);
+			if (ptval == 0)
+				/* see if another signal came in */
+				continue;
+			else
+				signum = ptval;
+		}
+
+		/*
+		 * Some signals cause a core file to be written.
+		 */
+		switch(signum) {
+		case SIGQUIT:
+		case SIGILL:
+		case SIGTRAP:
+		case SIGABRT:
+		case SIGFPE:
+		case SIGSEGV:
+		case SIGSYS:
+			if (sigdump())
+				signum |= 0x80;
+			break;
+		}
+		pexit(signum);
 	}
-	pexit(signum);
 }
 
 /*
  * Create a dump of ourselves onto the file `core'.
  */
+int
 sigdump()
 {
 	register INODE *ip;
@@ -382,27 +576,41 @@ sigdump()
 	iwrite(ip, &u.u_io);
 	sp->s_lrefc--;
 
+	/*
+	 * Added to aid in kernel debugging - if DUMP_TEXT is nonzero,
+	 * dump the text segment (to see if it was corrupted) and set
+	 * the dump flag so that postmortem utilities will know that
+	 * text is present in the core file.
+	 */
+	if (DUMP_TEXT)
+		u.u_segl[SISTEXT].sr_flag |= SRFDUMP;
+
 	for (srp=u.u_segl; u.u_error==0 && srp<&u.u_segl[NUSEG]; srp++) {
-#if 0
-		if ((sp = srp->sr_segp)==NULL || (srp->sr_flag&SRFDUMP)==0)
+
+		if ((srp->sr_flag & SRFDUMP)==0)
 			continue;
-#else
-		if ((sp = srp->sr_segp)==NULL)
+
+		/* Don't try to dump empty segments. */
+		if ((sp = srp->sr_segp)==NULL) {
+			srp->sr_flag &= ~SRFDUMP;
 			continue;
-		if ((srp->sr_flag & SRFDUMP)==0) {
-			if (DUMP_TEXT == 0 || (srp - u.u_segl) != SISTEXT)
-				continue;
 		}
-#endif
+
+		/* Don't dump segments too big to dump. */
+		if (sp->s_size > DUMP_LIM)
+			srp->sr_flag &= ~SRFDUMP;
+	}
+
+	for (srp=u.u_segl; u.u_error==0 && srp<&u.u_segl[NUSEG]; srp++) {
+
+		/* Only dump segments flagged for dumping. */
+		if ((srp->sr_flag & SRFDUMP)==0)
+			continue;
+
+		ssize = sp->s_size;
 		u.u_io.io_seg = IOPHY;
 		u.u_io.io.pbase = MAPIO(sp->s_vmem, 0);
 		u.u_io.io_flag = 0;
-		ssize = sp->s_size;
-		if (ssize > DUMP_LIM) {
-			printf("seg %d truncated from %d to %d bytes\n",
-			  srp-u.u_segl, ssize, DUMP_LIM);
-			ssize = DUMP_LIM;
-		}
 		sp->s_lrefc++;
 		while (u.u_error == 0 && ssize != 0) {
 			n = ssize > SCHUNK ? SCHUNK : ssize;
@@ -419,7 +627,10 @@ sigdump()
 
 /*
  * Send a ptrace command to the child.
+ *
+ * "pid" is child pid.
  */
+int
 ptset(req, pid, addr, data)
 unsigned req;
 int *addr;
@@ -458,9 +669,11 @@ int *addr;
  * that is not caught or ignored.  It follows up on any requests by the parent
  * and returns when done.
  *
- * If the return value is nonzero, the current process (i.e., the traced child)
- * will exit.
+ * After ptrace handling done in this routine, a real or simulated signal
+ * may need to be sent to the traced process.
+ * Return a signal number to be sent to the child process, or 0 if none.
  */
+int
 ptret()
 {
 	extern void (*ndpKfrstor)();
@@ -496,10 +709,15 @@ next:
 	unlock(pnxgate);
 
 	while (sign < 0) {
+		/* If no pending ptrace transaction for this process, sleep. */
 		if (pts.pt_busy==0 || pp->p_pid!=pts.pt_pid) {
+			/* If a signal bit is set now, just exit - let
+			 * actvsig() handle it next time through.
+			 * Doing sleep and goto next will stick us in a loop */
+			if (nondsig())
+				return 0;
 			x_sleep((char *)&pts.pt_req,
 			  primed, slpriSigCatch, "ptret");
-			/* Something about signals to a traced child.  */
 			goto next;
 		}
 		switch (pts.pt_req) {
@@ -605,7 +823,7 @@ putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
 			}
 			sign = pts.pt_data;
 			if (pts.pt_addr != SIG_IGN) {
-				u.u_regl[EIP] = pts.pt_addr;
+				u.u_regl[EIP] = (int)pts.pt_addr;
 			}
 			break;
 		default:
@@ -622,7 +840,12 @@ putuwd(((int *)fstp) + ((off - PTRACE_FP_CW)>>2), pts.pt_data);
 }
 
 /*
- * Steal space on user stack for packed form of emulator context.
+ * If using floating point emulator, make room on user stack and save
+ * floating point context there.  Code elsewhere takes care of floating
+ * point context if there is a coprocessor.
+ *
+ * Return the virtual address in user space of the context area, or
+ * return NULL if not using FP emulation.
  */
 static struct _fpstate *
 empack()
@@ -631,13 +854,13 @@ empack()
 	int sphi, splo;
 	SEG * segp;
 	cseg_t * pp;
-	struct _fpstate * ret = 0;
+	struct _fpstate * ret = NULL;
 	extern void (*ndpKfsave)();
 	unsigned long sw_old;
 
 	/* If not emulating, do nothing */
 	if (rdNdpUser() || !rdEmTrapped() || !ndpKfsave)
-		return ret;
+		return NULL;
 
 	/*
 	 * Will copy at least u_sigreturn, _fpstackframe, and ndpFlags.
@@ -656,7 +879,7 @@ empack()
 		if (pp==0) {
 			printf("Empack failed.  cmd=%s  c_extend(%x,%x)=0 ",
 			  u.u_comm, segp->s_vmem, btoc(segp->s_size));
-			return ret;
+			return NULL;
 		}
 
 		segp->s_vmem = pp;
@@ -664,7 +887,7 @@ empack()
 		if (sproto(0)==0) {
 			printf("Empack failed.  cmd=%s  sproto(0)=0 ",
 			  u.u_comm);
-			return ret;
+			return NULL;
 		}
 
 		segload();
