@@ -87,6 +87,7 @@ read_entry(filename, ptr)
 char		*filename;
 struct term	*ptr;
 {
+	long		lseek();
 	int		fd;
 	int		numread;
 	int		num_strings;

@@ -76,8 +76,7 @@ wgetch(win)
 register WINDOW	*win;
 {
 	bool		setHere = FALSE; /* cbreak mode was set here         */
-	register short	ch;		 /* 'short' because of keypad codes  */
-        short   kgetch();
+	register int	ch;		 /* 'int' because of keypad codes  */
 
 #ifdef TRACE
 	if (_tracing)
@@ -143,7 +142,6 @@ register WINDOW	*win;
 
 
 /*
-**      short
 **      kgetch()
 **
 **      Get an input character, but take care of keypad sequences, returning
@@ -157,11 +155,11 @@ register WINDOW	*win;
 static  bool    alarmed;
 
 static
-short
+int
 kgetch()
 {
         struct try	*ptr;
-	register char	ch;
+	register int	ch;
 	char		buffer[10]; /* Assume no sequences longer than 10 */
 	register char	*bufp = buffer;
 	int		(*oldsig)();

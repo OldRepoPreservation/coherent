@@ -106,6 +106,7 @@ _tracef(fmt, args)
 register char	*fmt;
 int		args;
 {
+	char		*strcpy();
     	int		*parm = &args;
 	static char	buffer[256];
 	char		*bufp = buffer;

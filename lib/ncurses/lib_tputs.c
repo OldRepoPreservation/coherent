@@ -73,6 +73,7 @@ register char	*string;
 int		affcnt;
 int		(*outc)();
 {
+	char		*index();
 	float		number;
 	int		baud = baudrate();
 	char		null = '\0';
@@ -108,7 +109,7 @@ int		(*outc)();
 		    string++;
 
 		    if (!isdigit(*string) &&
-		         *string != '.' || !index(string, '>')) {
+		         *string != '.' || (index(string, '>') == NULL)) {
 			(*outc)('$');
 			(*outc)('<');
 			continue;
@@ -154,7 +155,6 @@ int		(*outc)();
 }
 
 
-void
 _outc(ch)
 {
     putchar(ch);
@@ -162,6 +162,7 @@ _outc(ch)
 
 
 putp(string)
+register char *string;
 {
 #ifdef TRACE
 	if (_tracing)

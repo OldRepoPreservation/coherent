@@ -96,7 +96,7 @@ get_token()
 {
 	long		number;
 	int		type;
-	register char	ch;
+	register int	ch;
 	static char	buffer[1024];
 	register char	*ptr;
 	int		dot_flag = FALSE;
@@ -242,7 +242,6 @@ get_token()
 
 
 /*
- *	char
  *	next_char()
  *
  *	Returns the next character in the input stream.  Comments and leading
@@ -257,7 +256,6 @@ get_token()
 int	curr_column = -1;
 char	line[1024];
 
-char
 next_char()
 {
 	char	*rtn_value;
@@ -314,7 +312,6 @@ reset_input()
 
 
 /*
- *	char
  *	trans_string(ptr)
  *
  *	Reads characters using next_char() until encountering a comma, newline
@@ -333,14 +330,13 @@ reset_input()
  *
  */
 
-char
 trans_string(ptr)
 char	*ptr;
 {
 	register int	count = 0;
 	int		number;
 	int		i;
-        char		ch;
+        int		ch;
 
 	while ((ch = next_char()) != ','  &&  ch != EOF)
 	{

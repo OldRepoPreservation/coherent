@@ -65,6 +65,7 @@ wgetstr(win,str)
 register WINDOW	*win; 
 register char	*str;
 {
+	char	erasechar(), killchar();
 	bool	oldnl, oldecho, oldraw, oldcbreak;
 	char	erasec;
 	char	killc;

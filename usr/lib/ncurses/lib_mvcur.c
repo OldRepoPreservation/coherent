@@ -515,6 +515,7 @@ static
 out_seq(seq)
 register struct Sequence *seq;
 {
+	char		*tparm();
 	register int	*opptr;
 	int		prm[9], ps, p, op, outc();
 	int		count;
@@ -558,6 +559,8 @@ register struct Sequence *seq;
 static
 update_ops()
 {
+	char	*index();
+
 	if (SP)				/* SP structure exists */
 	{
 	    register int op; 
@@ -575,7 +578,7 @@ update_ops()
 		op_info[op] = SP->_costs[op];	/* set up op_info */
 	    
 		/* check for newline that might be mapped... */
-	    if (SP->_nlmapping  &&  index(sequence(CURS_DOWN), '\n'))
+	    if (SP->_nlmapping && (index(sequence(CURS_DOWN), '\n') != NULL))
 		op_info[CURS_DOWN] = INFINITY;
 	}
 	else
@@ -588,7 +591,7 @@ update_ops()
 		init_costs(op_info);		/* set up op_info */
 	    }
 		/* check for newline that might be mapped... */
-	    if (index(sequence(CURS_DOWN), '\n'))
+	    if (index(sequence(CURS_DOWN), '\n') != NULL)
 		op_info[CURS_DOWN] = INFINITY;
 	}
 }
@@ -675,6 +678,7 @@ add_op(seq, op, p0, p1, p2, p3, p4, p5, p6, p7, p8)
 struct Sequence	*seq;
 int		op, p0, p1, p2, p3, p4, p5, p6, p7, p8;
 {
+	char	*tparm();
 	int	num_ps, p;
 
 #ifdef TRACE
