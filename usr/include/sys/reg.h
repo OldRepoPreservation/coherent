@@ -177,6 +177,9 @@ typedef int MGEN[1];
 #define	MUERR	0x0002			/* Location of errno */
 #define	MFCBIT	0x0001			/* Carry bit */
 
+#define NUM_IRQ_LEVELS		16	/* counting master & slave PIC's */
+#define LOWEST_SLAVE_IRQ	8	/* master is 0-7; slave is 8-15 */
+
 #ifdef	ENABLE_STREAMS
 
 /*

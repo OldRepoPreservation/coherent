@@ -167,6 +167,26 @@
 #define	f77	77	/* function key 77 */
 #define	f78	78	/* function key 78 */
 #define	f79	79	/* function key 79 */
+#define	f80	80	/* function key 80 */
+#define	f81	81	/* function key 81 */
+#define	f82	82	/* function key 82 */
+#define	f83	83	/* function key 83 */
+#define	f84	84	/* function key 84 */
+#define	f85	85	/* function key 85 */
+#define	f86	86	/* function key 86 */
+#define	f87	87	/* function key 87 */
+#define	f88	88	/* function key 88 */
+#define	f89	89	/* function key 89 */
+#define	f90	90	/* function key 90 */
+#define	f91	91	/* function key 91 */
+#define	f92	92	/* function key 92 */
+#define	f93	93	/* function key 93 */
+#define	f94	94	/* function key 94 */
+#define	f95	95	/* function key 95 */
+#define	f96	96	/* function key 96 */
+#define	f97	97	/* function key 97 */
+#define	f98	98	/* function key 98 */
+#define	f99	99	/* function key 99 */
 
 /*
  * table entry definition
@@ -262,7 +282,7 @@ typedef	struct	{
  * in a contiguous range from VTKEY_HOME to VTKEY_MAX.
  */
 
-#define	vt0		80
+#define	vt0		130
 #define	vt1		vt0+1
 #define	vt2		vt0+2
 #define	vt3		vt0+3

@@ -1,3 +1,8 @@
+/*
+ * /usr/include/sys/utsname.h
+ *
+ * Revised: Wed May 19 10:29:48 1993 CDT
+ */
 #ifndef	__SYS_UTSNAME_H__
 #define	__SYS_UTSNAME_H__
 
@@ -30,7 +35,7 @@
 #endif
 
 
-#if	! _POSIX_SOURCE
+#if	!defined(_POSIX_SOURCE)
 
 # define	SYS_NMLN	__SYS_NMLN
 

@@ -8,7 +8,7 @@
  *
  * Segments.
  *
- * Revised: Wed Apr  7 15:13:49 1993 CDT
+ * Revised: Mon May 24 15:50:18 1993 CDT
  */
 
 #ifndef	 __SYS_SEG_H__
@@ -112,9 +112,10 @@ typedef struct sr {
 /*
  * Flags (sr_flag).
  */
-#define SRFPMAP	1			/* Segment is mapped in process */
-#define SRFDUMP	2			/* Dump segment */
-#define	SRFDATA	4			/* Data segment */
-#define	SRFRODT	8			/* Data, read-only (used by shm) */
+#define SRFPMAP	0x01			/* Segment is mapped in process */
+#define SRFDUMP	0x02			/* Dump segment */
+#define	SRFDATA	0x04			/* Data segment */
+#define	SRFRODT	0x08			/* Data, read-only (used by shm) */
+#define	SRFBERM	0x10			/* Segment to be removed (used by shm) */
 
 #endif
