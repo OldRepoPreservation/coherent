@@ -10,6 +10,9 @@
 #define SPOOLSQD	"/usr/spool/uucp/.Sequence"
 #define	MAXLOCKTRY	6
 #define	SLEEPTIME	2
+#define LOCKDIR		SPOOLDIR
+#define	LOCKPRE		"LCK.."
+
 
 /*
  *  Gets the next sequence number (with locking) from the sequence
@@ -32,7 +35,9 @@ char *system;
 	while ( lockit(locknm) < 0 ) {
 		sleep(SLEEPTIME);
 		if (++seq > MAXLOCKTRY)
-			fatal("Lock File timeout on: %s", seqfn);
+			fatal("\
+Lock File timeout on: %s\nStale lock file: %s/%s%s", seqfn,
+				 LOCKDIR, LOCKPRE, locknm);
 	}
 
 	if ( (sfp=fopen(seqfn, "r+")) == NULL ) {
