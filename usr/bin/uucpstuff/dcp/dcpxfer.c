@@ -299,43 +299,42 @@ getcline()
 
 sepcline()
 {
-	char	*sp, *p;
+	char	*sp;
 	int	i;
 
 	printmsg(M_SPOOL, "sepcline: line is %s", cline);
 	strcpy(S_record, cline);
 	sp = cline;
-	for (i = 0; i <= 10; i++) clinep[i] = NULL;
-	for (i = 1; i <= 9; i++) {
-		p = strtok(sp, " \t\n");
-		clinep[i] = p;
-		printmsg(M_SPOOL, "cline [%d]:	%s.", i, clinep[i]);
-		if (p == NULL)
+	for (i=0; i<10; i++)
+		clinep[i] = NULL;
+	for (i=1; i<10; i++) {
+		if ( (clinep[i]=strtok(sp, " \t\n")) == NULL )
 			break;
+		printmsg(M_SPOOL, "cline[%d]:\t%\"%s\"", i, clinep[i]);
 		sp = NULL;
 	}
-	if (clinep [10] != NULL) 
-		plog(M_SPOOL, "sepcline field 10 not null");
+	if (clinep[9] != NULL) 
+		plog(M_SPOOL, "last sepcline field not null");
 	nclinep = i;
-	fromfilep = clinep [2];
-	tofilep = clinep [3];
-	usernamep = clinep [4];
-	optionp = clinep [5];
-	spoolfilep = clinep [6];
-	modep = clinep [7];
-	notifyp = clinep [8];
-	if (strcmp(clinep [1], "S") == 0) {
+	fromfilep = clinep[2];
+	tofilep = clinep[3];
+	usernamep = clinep[4];
+	optionp = clinep[5];
+	spoolfilep = clinep[6];
+	modep = clinep[7];
+	notifyp = clinep[8];
+	if (strcmp(clinep[1], "S") == 0) {
 		sprintf(xfromfile, "%s/%s/%s", SPOOLDIR, rmtname, spoolfilep);
 		if (index(optionp, 'c') != NULL)	/* this looks weak */
 			strcpy(xfromfile, fromfilep);
-	} else if (strcmp(clinep [1], "R") == 0) {
+	} else if (strcmp(clinep[1], "R") == 0) {
 		strcpy(xfromfile, fromfilep);
 	} else if (*clinep[1] == 'H') {
 		;
 	} else {
 		plog(M_SPOOL, "Unrecog record type %s", cline);
-		printmsg(M_SPOOL, "Unrecog type %s %s %s", cline [1],
-			cline [2], cline [3]);
+		printmsg(M_SPOOL, "Unrecog type %s %s %s", cline[1],
+			cline[2], cline[3]);
 		return 1;
 	}
 	return 0;
