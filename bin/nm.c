@@ -1,4 +1,6 @@
 /*
+ * nm.c
+ * 2/13/92
  * Object and archive file services.
  * This section is common to nm and size.
  * And should be common to ndis.
@@ -472,7 +474,7 @@ register struct ldsym *lsp;
 	unsigned short vaddr;
 
 	fread(lsp->ls_id, NCPLN, 1, fp);
-	fread((char *)&lsp->ls_type, sizeof(int), 1, fp);
+	fread((char *)&lsp->ls_type, sizeof(short), 1, fp);
 	if ((ldh.l_flag & LF_32) != 0) {
 		fread((char *)&lsp->ls_addr, sizeof(long), 1, fp);
 		canlong(lsp->ls_addr);
@@ -590,3 +592,4 @@ register struct ldsym *sp1, *sp2;
 	return (v);
 }
 
+/* end of nm.c */
