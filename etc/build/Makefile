@@ -1,5 +1,5 @@
-# build/Makefile 11/2/90
-DESTDIR=/interim/etc/
+# build/Makefile 6/3/91
+
 # Objects.
 O=\
 	build.o \
@@ -7,7 +7,9 @@ O=\
 	coh_intro.o \
 	cohpatch.o \
 	fdisk.o \
+	hdparms.o \
 	install.o \
+	kbdinstall.o \
 	mkdev.o \
 	mkserial.o \
 	numtab.o \
@@ -17,9 +19,14 @@ O=\
 E=\
 	build \
 	coh_intro \
+	cohpatch \
+	dpb \
 	fdisk \
+	hdparms \
 	install \
-	mkdev 
+	kbdinstall \
+	mkdev \
+	mkserial
 
 # Primary target.
 all:	$E
@@ -27,40 +34,25 @@ all:	$E
 
 # Executables.
 build:		build.o numtab.o serialno.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ build.o numtab.o serialno.o build0.o -f
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
+	$(CC) $(LFLAGS) -o $@ $< -f
 coh_intro:	coh_intro.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ coh_intro.o build0.o
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-
+	$(CC) $(LFLAGS) -o $@ $<
 cohpatch:	cohpatch.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ cohpatch.o build0.o
-
+	$(CC) $(LFLAGS) -o $@ $<
+dpb:		dpb.s
+	$(CC) $(LFLAGS) -o $@ $<
 fdisk:		fdisk.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ fdisk.o -f
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
+	$(CC) $(LFLAGS) -o $@ $< -f
 install:	install.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ install.o build0.o
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
+	$(CC) $(LFLAGS) -o $@ $<
+hdparms:	hdparms.o build0.o
+	$(CC) $(LFLAGS) -o $@ $<
+kbdinstall:	kbdinstall.o
+	$(CC) $(LFLAGS) -o $@ $< -lcurses -lterm
 mkdev:	mkdev.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ mkdev.o build0.o
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
+	$(CC) $(LFLAGS) -o $@ $<
 mkserial:	mkserial.o numtab.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ mkserial.o numtab.o
+	$(CC) $(LFLAGS) -o $@ $<
 
 # Unlinked objects.
 build.o:	build.c build0.h serialno.h
@@ -68,11 +60,15 @@ build0.o:	build0.c build0.h
 coh_intro.o:	coh_intro.c build0.h
 cohpatch.o:	cohpatch.c build0.h
 fdisk.o:	fdisk.c fdisk0.h
+hdparms.o:	hdparms.c build0.h
 install.o:	install.c build0.h
+kbdinstall.o:	kbdinstall.c
 mkserial.o:	mkserial.c serialno.h
 numtab.o:	numtab.c serialno.h
 serialno.o:	serialno.c build0.h serialno.h
 
 # Etc.
 strip:	$E
-	strip $(DESTDIR)$E
+	strip $E
+clean:
+	rm $O

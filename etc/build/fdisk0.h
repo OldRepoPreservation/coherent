@@ -3,7 +3,9 @@
 #define	DOSSHRINK	0	/* punt dosshrink() for now	*/
 
 #define	USAGE		"Usage: /etc/fdisk [ -crvx ] [ -b mboot ] [ device ... ]\n"
-#define	VERSION		"2.7"
+#define	VERSION		"2.8"
+#define	COH		"/coherent"
+#define	KMEM		"/dev/kmem"
 #define	NBUF		512	/* buffer size			*/
 #define	SSIZE		512	/* sector size			*/
 
@@ -47,6 +49,7 @@ int		pcompare();
 void		print_part();
 int		quit();
 void		sanity();
+void		saveboot();
 void		sys();
 char *		sys_type();
 void		unused();
@@ -71,6 +74,7 @@ extern	unsigned long	freestart;
 extern	HDISK_S		hd;
 extern	hdparm_t	hdparms;
 extern	int		isatflag;
+extern	char		*mboot;
 extern	int		megflag;
 extern	unsigned int	nspt;
 extern	unsigned int	ncyls;
@@ -78,7 +82,6 @@ extern	HDISK_S		newhd;
 extern	unsigned int	nheads;
 extern	int		nmods;
 extern	unsigned long	nsectors;
-extern	char		*mboot;
 extern	int		openmode;
 extern	int		partbase;
 extern	int		rflag;
