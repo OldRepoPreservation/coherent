@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <errno.h>
 
 #define	MAX(a, b)	((a) < (b) ? (b) : (a))
@@ -23,9 +24,10 @@ char	buf[50*BUFSIZ];
 #else
 char	buf[BUFSIZ];
 #endif
-char	*target;
+int	dflag;
 char	*namebuf;
 char	*suffix;
+char	*target;
 
 main(argc, argv)
 int argc;
@@ -35,6 +37,11 @@ char *argv[];
 	register int n;
 	register int status = 0;
 
+	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'd' && argv[1][2] == '\0') {
+		++dflag;
+		--argc;
+		++argv;
+	}
 	n = init(argc, argv);
 	if (namebuf == NULL)
 		return (cp(argv[1], target) ? 0 : 1);
@@ -60,13 +67,14 @@ char *inf, *outf;
 	register ino_t	ino;
 	register dev_t	dev;
 	register fsize_t size;
+	time_t		times[2];
 #ifndef SLOW
 	register char	*wp;
 	register int	wflag;
 #endif
 
 	if (stat(inf, &sb) < 0) {
-		cperr("%s: can't find", inf);
+		cperr("%s: cannot find", inf);
 		return (FALSE);
 	}
 	if ((sb.st_mode & S_IFMT) == S_IFDIR) {
@@ -77,21 +85,23 @@ char *inf, *outf;
 	size = sb.st_size;
 	ino = sb.st_ino;
 	dev = sb.st_dev;
+	if (dflag)
+		times[1] = sb.st_mtime;
 
 	if (stat(outf, &sb) >= 0)
 		if (sb.st_ino==ino && sb.st_dev==dev) {
-			cperr("%s: can't copy file to itself", inf);
+			cperr("%s: cannot copy file to itself", inf);
 			return (FALSE);
 		}
 	if ((infd = open(inf, 0)) < 0) {
-		cperr("%s: can't open", inf);
+		cperr("%s: cannot open", inf);
 		return (FALSE);
 	}
 	if ((outfd = creat(outf, mode&0777)) < 0) {
 	   if (errno == ETXTBSY)
-	      cperr("%s: can't copy over busy shared text file", outf);
+	      cperr("%s: cannot copy over busy shared text file", outf);
 	   else
-	      cperr("%s: can't create", outf);
+	      cperr("%s: cannot create", outf);
 	   close(infd);
 	   return (FALSE);
 	}
@@ -120,7 +130,7 @@ char *inf, *outf;
 				}
 			if (wflag) {
 				if (write(outfd, wp, BUFSIZ) < BUFSIZ) {
-					cperr("write error on %s", outf);
+					cperr("%s: write error", outf);
 					close(infd);
 					close(outfd);
 					return (FALSE);
@@ -131,7 +141,7 @@ char *inf, *outf;
 			wp += BUFSIZ;
 		}
 		if (write(outfd, wp, n) < n) {
-			cperr("write error on %s", outf);
+			cperr("%s: write error", outf);
 			close(infd);
 			close(outfd);
 			return (FALSE);
@@ -156,6 +166,11 @@ char *inf, *outf;
 	}
 
 	close(infd);
+	if (dflag && fstat(outfd, &sb) != -1) {
+		times[0] = sb.st_atime;
+		if (utime(outf, times) == -1)
+			cperr("%s: cannot preserve mtime", outf);
+	}
 	close(outfd);
 	if (n < 0) {
 		cperr("%s: read error", inf);
@@ -183,14 +198,15 @@ char *file;
 usage()
 {
 	fprintf(stderr,
-	   "Usage: cp file1 file2\n       cp file ... directory\n");
+		"Usage:\tcp [ -d ] file1 file2\n"
+		      "\tcp [ -d ] file ... directory\n"
+		);
 	exit (2);
 }
 
 cperr(arg0)
 {
-	fprintf(stderr, "cp: ");
-	fprintf(stderr, "%r\n", &arg0);
+	fprintf(stderr, "cp: %r\n", &arg0);
 }
 
 /*
