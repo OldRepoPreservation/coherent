@@ -1427,8 +1427,16 @@ write_dbsym()
  */
 setrefnum(sp) register SYM *sp;
 {
+	static int ignore = -1;
 	register DBSYM *dp;
 	register char *name;
+
+	/* If the user specifies -VTPROF but not -g, ignore the debug info. */
+	if (ignore == -1)				/* set it first time */
+		ignore = (isvariant(VTPROF) && notvariant(VLINES)
+			 && notvariant(VTYPES) && notvariant(VDSYMB));
+	if (ignore)
+		return;
 
 	name = sp->s_id;
 	for (dp = db_list; dp != NULL; dp = dp->db_next)
