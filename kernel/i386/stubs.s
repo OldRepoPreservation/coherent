@@ -3,12 +3,8 @@
 	.globl	usemctl
 	.globl	usemget
 	.globl	usemop
-	.globl	ushmctl
-	.globl	ushmget
 
 usemctl:
 usemget:
 usemop:
-ushmctl:
-ushmget:
 	ret
