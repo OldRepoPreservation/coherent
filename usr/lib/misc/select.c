@@ -70,11 +70,11 @@ struct timeval * to;
 	 * Punt on xfds.
 	 */
 	if (rfds)
-		FD_ZERO(rfds);
+		FD_ZERO(rfds)
 	if (wfds)
-		FD_ZERO(wfds);
+		FD_ZERO(wfds)
 	if (xfds)
-		FD_ZERO(xfds);
+		FD_ZERO(xfds)
 	ret = 0;
 	for (i = 0, pfp = pfd; i < npfd; i++, pfp++) {
 		fd = pfp->fd;
