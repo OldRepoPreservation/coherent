@@ -296,5 +296,5 @@ int msec;
 static
 alintr()
 {
-	alxintr(irqtty, 1);
+	alxintr(irqtty);
 }
