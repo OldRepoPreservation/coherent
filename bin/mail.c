@@ -1,12 +1,20 @@
 /*
- * $Header: /usr/src/cmd/mail.c,v 1.1 88/09/01 10:55:34 bin Exp $
+ * $Header: /usr/src/cmd/mail.c,v 1.2 88/09/01 11:02:23 bin Exp $
  * $Log:	/usr/src/cmd/mail.c,v $
+ * Revision 1.2	88/09/01  11:02:23	bin
+ * Remove extra declaration of header which had rcs stuff in it.
+ * 
  * Revision 1.1	88/09/01  10:55:34	bin
  * Initial revision
  * 
  */
-static	char	*revision = "$Revision 1.1 $";
-
+/*
+ * $Header: $
+ * $Log:	$
+ */
+static	char	*rcsrev = "$Revision 1.1 $";
+static	char	*rcshdr =
+	"$Header: /usr/src/cmd/mail.c,v 1.2 88/09/01 11:02:23 bin Exp $";
 /*
  * The mail command.
  * Coherent electronic postal system.
@@ -61,6 +69,7 @@ then the public key cryptosystem is applied to the message.\n\
 \
 ";
 
+extern	char *getenv();
 #include <stdio.h>
 #include <pwd.h>
 #include <utmp.h>
