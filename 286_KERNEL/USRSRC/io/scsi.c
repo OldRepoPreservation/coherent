@@ -2,7 +2,10 @@
  * This is the generic SCSI part of the
  * Adaptec AHA154x host adaptor driver for the AT.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/scsi.c,v $
+ * $Log:	scsi.c,v $
+ * Revision 1.4  91/06/03  13:50:06  hal
+ * Add HDSETA.
+ * 
  * Revision 1.3	91/05/08  11:00:30	root
  * Make number of heads - SD_HDS - patchable for Tandy.
  * 
@@ -379,11 +382,21 @@ char * vec;
 	switch ( cmd ) {
 
 	case HDGETA:
-		if (pparmp[d] == PNULL)
-			if (!sdgetpartitions(dev)) {
+		/*
+		 * If haven't loaded partition table yet for this drive,
+		 * try to do it now.  Note sdgetpartitions() will fail
+		 * if there is a new drive (e.g. no signature).  But all
+		 * we need is allocation of pparmp[d] and capacity read
+		 * properly from the drive.
+		 */
+		if (pparmp[d] == PNULL) {
+			sdgetpartitions(dev);
+			if (pparmp[d] == NULL ||
+			((struct fdisk_s *)pparmp[d])[WHOLE_DRIVE].p_size == 0L) {
 				u.u_error = ENXIO;
 				return -1;
 			}
+		}
 		fdp = (struct fdisk_s *) pparmp[d];
 		*(short *)&hdparm.landc[0] =
 		*(short *)&hdparm.ncyl[0] = fdp[WHOLE_DRIVE].p_size
