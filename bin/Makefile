@@ -4,7 +4,7 @@ DESTDIR= /interim/bin/
 DESTDIR2= /interim/lib/
 CMDS= expr/expr conv/conv as/as awk/awk  \
       bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
-      ed/ed find/find grep/grep lex/lex mail/mail make/make sed/sed sh/sh \
+      ed/ed find/find grep/grep lex/lex lmail make/make sed/sed sh/sh \
       test/test tsort/tsort yacc/yacc nroff/nroff ld/ld\
       login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
       chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
@@ -20,9 +20,8 @@ all:	$(CMDS)
 # characters for ttys.
 
 compiler:
-	SRC=/newbits/bin/cc/c ; export SRC
-	sh /newbits/bin/cc/c/.profile
-	cd cc/work ; make
+	SRC=/newbits/bin/cc/c ; export SRC	
+	. /newbits/bin/cc/c/.profile ; cd cc/work ; make
 	su root mv cc/work/bin/cc $(DESTDIR)cc
 	su root chmog 511 bin bin $(DESTDIR)cc
 	su root mv cc/work/bin/cc1 $(DESTDIR2)cc1
@@ -289,8 +288,10 @@ m4:	m4.c
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
 
-mail/mail:	mail.c
-	./make.in mail
+lmail:
+	export SRCPATH=..
+	cd mail/usermail/objects ; make
+	cd mail/lmail/objects ; make
 
 man:	man.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)man man.c
