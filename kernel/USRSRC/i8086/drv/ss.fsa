@@ -1,10 +1,13 @@
 $Log:	/usr/src/sys/i8086/drv/RCS/ss.fsa,v $
+ * Revision 1.2	91/04/24  10:28:04	root
+ * Case 1.a. completed.
+ * 
  * Revision 1.1	91/04/23  17:32:53	root
  * Unfinished draft.
  * 
 
-State Machines for ss Driver.
------------------------------
+State Machine for ss Driver.
+----------------------------
 
 Host States.
 	H_IDLE.
@@ -13,6 +16,11 @@ Host States.
 
 	H_ARBITRATING.
 		Awaiting arbitration complete on some drive.
+
+	H_SCSI_RESET.
+		The host adapter needs to do, or is in the process of doing, a
+		SCSI bus reset.  This will occur if a target fails to respond
+		to a Bus Device Reset message.
 
 Target States.
 	T_IDLE.
@@ -25,9 +33,12 @@ Target States.
 		Target device failed with Device Busy status.  Waiting to
 		repeat previous command.
 
-	T_CHECK.
-		Target device failed with Device Check status.  Need to
-		execute Request Sense and repeat previous command.
+	T_REQ_SENSE.
+		Need to send Request Sense command to the given target.
+		Either the target device failed the previous command with
+		Device Check status, or the target has just executed a Bus
+		Device Reset, or the host has just asserted (and released)
+		Reset on the SCSI bus.
 
 	T_TIMED_OUT.
 		Target device failed with a timeout at some point during a
@@ -35,16 +46,23 @@ Target States.
 
 	T_DEV_RESET.
 		The try count for a request has been exhausted.  The target
-		device should be sent a Bus Device Reset command.
+		device should be sent a Bus Device Reset message.
+
+	T_SETTLING.
+		A Bus Device Reset has occurred or a Reselect has failed.
+		We need to wait a certain amount of time, then return the
+		target state to T_IDLE.
 
 Inputs.
 	I_CALL_SSBLOCK.
 		The kernel routine dblock() has called the block routine
-		for this drive.
+		for this drive.  The incoming block request has been appended
+		to the request queue before the state machine is executed.
 
-	I_INTERRUPT.
+	I_RESELECT.
 		An IRQ for the host has occurred, indicating that SELECT has
-		gone active on the SCSI bus.
+		gone active on the SCSI bus, and the interrupt handler has
+		determined that a specific target is reconnecting.
 
 	I_HOST_WATCHDOG.
 		Once started, the host watchdog will be invoked once per second
@@ -71,13 +89,13 @@ Inputs.
 			head of request queue and load the work structure for
 			this drive.
 			device_try_count <- 0
-			Start host watchdog.
 			Send control codes to start arbitration.
 			Go into high priority loop looking for arbitration
 			complete.
 			If arbitration not complete at end of loop
 				host_state <- H_ARBITRATING.
 				Set host timeout to 250 msec
+				Start host watchdog.
 			Else
 				Stop host watchdog.
 				Attempt to get to information transfer phases.
@@ -101,15 +119,16 @@ Inputs.
 					if (device_try_count too high)
 						tgt_state <- T_DEV_RESET.
 					else
-						Set target timeout to 0 msec. (defer)
-						tgt_state <- T_CHECK.
+						tgt_state <- T_REQ_SENSE.
+					Set target timeout to 0 msec. (defer)
 				else if command status is COMPLETE
 					Turn off target watchdog.
 					If this was a kernel block request
 						Update b_resid.
 						Release buffer to the kernel.
 					Clear work structure for the drive.
-					tgt_state <- T_IDLE.
+					Set target timeout to 0 msec. (defer)
+					(tgt_state is still T_IDLE)
 				else // something timed out during SCSI cycle
 					device_try_count++
 					if (device_try_count too high)
@@ -120,7 +139,12 @@ Inputs.
 		Else // tgt_state != T_IDLE
 			Drive is busy and has pending timeout or watchdog.
 			Do nothing.
-	b.  input = I_INTERRUPT.
+	b.  input = I_RESELECT.
+		If tgt_state = T_DISCONNECTED
+		else // tgt_state != T_DISCONNECTED
+			(need to discard this try)
+			Set target timeout to 20 msec.
+			tgt_state <- T_SETTLING
 	c.  input = I_WATCHDOG.
 	d.  input = I_TO_HOST.
 
