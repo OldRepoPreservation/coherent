@@ -1,18 +1,19 @@
 # PD Bourne/Korn Shell for COHERENT
 
+DESTDIR=/interim/usr/bin/
+
 BIN = /usr/bin
 STD =../std
 PRINT = prhp
-
+INC=-I. -I/usr/spool/uucppublic -I/distrib/usr/include -I/distrib/usr/include/sys
 
 # Must define one of _V7, _SYSV, _BSD, _POSIX
 # may define any of JOBS (have BSD or POSIX job control),
 # EDIT (emacs-like command editing), SILLY (see edit.c)
 OPTIONS = -D_V7 -DEDIT
 CFLAGS = -O $(INC) $(OPTIONS)
-LDLIBS = /lib/libc.a -lx
+LDLIBS = /usr/spool/uucppublic/libc.a -lx
 LDFLAGS=-n
-DESTDIR=/interim/usr/bin/
 
 HDRS =	sh.h table.h expand.h lex.h tree.h tty.h
 SRCS1 =	version.c main.c misc.c trap.c alloc.c io.c \
@@ -33,11 +34,11 @@ OBJS =	version.o main.o misc.o \
 
 ksh: $(OBJS) 
 	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJS) $(LDLIBS)
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-	su root fixstack +1000 $(DESTDIR)$@
+	fixstack +1000 $(DESTDIR)$@
+	su root chmog 511 bin bin $(DESTDIR)$@
 
+install: ksh
+	cp ksh $(BIN)/ksh
 
 print: Index $(SRCS)
 	$(PRINT) Index $(SRCS)
