@@ -25,7 +25,7 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <access.h>
 #include <signal.h>
 

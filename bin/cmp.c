@@ -3,7 +3,7 @@
  */
 
 #include <stdio.h>
-#include <types.h>
+#include <sys/types.h>
 
 #define	isdigit(c)	((c)>='0'&&(c)<='9')
 

@@ -11,7 +11,7 @@
 #ifdef COHERENT
 #include <signal.h>
 #endif
-#include <types.h>
+#include <sys/types.h>
 
 #define	NREC	400		/* Longest key record */
 #define	NSEL	20		/* Number of records in selection list */

@@ -4,8 +4,8 @@
  */
 
 #include <stdio.h>
-#include <types.h>
-#include <dir.h>
+#include <sys/types.h>
+#include <sys/dir.h>
 #include <sys/stat.h>
 #include <errno.h>
 

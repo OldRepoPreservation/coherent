@@ -15,7 +15,7 @@
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/fblk.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <l.out.h>
 #include <sys/timeb.h>
 #include <canon.h>

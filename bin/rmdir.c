@@ -3,7 +3,7 @@
  * rmdir -- remove directories
  */
 #include	<sys/stat.h>
-#include	<dir.h>
+#include	<sys/dir.h>
 #include	<signal.h>
 #include	<stdio.h>
 #include	<errno.h>
