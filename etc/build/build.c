@@ -1,6 +1,6 @@
 /*
  * build.c
- * 7/3/90
+ * 10/29/90
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
  * Uses common routines in build0.c,
@@ -10,51 +10,54 @@
  * Options:
  *	-d	Debug, echo commands without executing
  *	-v	Verbose
- *	-x	XT instead of AT
  *
  * In addition to the files necessary to run the single user system
  * (/coherent, /etc/init, /bin/sh, /dev/console, /dev/null, etc.),
  * the build disk from which this program runs must contain:
- *	In /bin:	chgrp, chown, cpdir, date, echo, ln, mkdir, rm, touch
+ *	In /bin:	chgrp, chown, cpdir, date, echo, ln, mkdir, mv, rm, touch
  *	In /conf:	boot, mboot, patch
  *	In /dev:	at[01][abcdx], rat[01][abcd]
- *	In /etc:	ATclock, badscan, fdisk, mkfs, mount, umount
+ *	In /etc:	ATclock, badscan, fdisk, mkdev, mkfs, mount, umount
  * It must also contain directories /mnt and /tmp.
+ * This program runs from a write-protected floppy-disk-based COHERENT
+ * boot disk, so it writes only to directory /tmp (mounted on a RAM disk).
  */
 
 #include <stdio.h>
 #include <canon.h>
 #include <string.h>
 #include <time.h>
+#include <sys/devices.h>
 #include <sys/fdisk.h>
 #include <sys/filsys.h>
 #include <sys/types.h>
 #include "build0.h"
 #include "serialno.h"
 
+/* Compilation switches. */
 #define	DOSSHRINK	0		/* punt dosshrink for now	*/
-#define	FOURDISKMSG	1		/* include disk count message	*/
-#define	SIZECHECK	0		/* no filesystem max size check	*/
+
+/* Manifest constants. */
 #define	VERSION		"1.7"
 #define	USAGE		"Usage: /etc/build [ -dvx ]\n"
-#define	AINDEX		5		/* index of 'a' in "/dev/at0x"	*/
+#define	ATDEVS		(NPARTN+NPARTN)	/* number of AT disk devices	*/
 #define	BSIZE		512		/* sector size			*/
-#define	MAXSIZE		32		/* suggested max size (MB)	*/
+#define	MAXSIZE		95		/* suggested max size (MB)	*/
 #define	MINSIZE		4		/* required root size (MB)	*/
-#define	NDEV		(NPARTN+NPARTN)	/* number of devices		*/
+#define	NAMESIZE	6		/* max device name buffer size	*/
+#define	NDEVICES	24		/* number of disk devices	*/
 #define	NEEDSIZE	7		/* suggested min root size (MB)	*/
-#define	NSIZE		10		/* strlen("/dev/at0x") + 1	*/
-#define	MAJOR		11		/* AT device major number	*/
 
 /* (unsigned long) sectors to (double) megabytes. */
 #define	meg(sec)	((double)sec * BSIZE / 1000000.)
 
 /* Device table structure. */
 typedef	struct	device	{
+	char		d_xname[NAMESIZE];	/* partition table name	*/
+	char		d_dname[NAMESIZE];	/* device name		*/
+	int		d_major;		/* major number		*/
+	int		d_minor;		/* minor number		*/
 	int		d_flags;		/* flags		*/
-	char		d_name[NSIZE];		/* cooked device name	*/
-	char		d_rname[NSIZE+1];	/* raw device name	*/
-	char		d_pname[NSIZE+7];	/* prototype name	*/
 	unsigned long	d_size;			/* size in blocks	*/
 }	DEVICE;
 
@@ -66,39 +69,51 @@ typedef	struct	device	{
 #define	F_MOUNT	0x10				/* Mounted by /etc/rc	*/
 #define	F_PROTO	0x20				/* Proto created	*/
 #define	F_SCAN	0x40				/* Badscanned		*/
-#define	isflag(i, f)	((device[i].d_flags & (f)) != 0)
-#define	notflag(i, f)	((device[i].d_flags & (f)) == 0)
-#define	clrflag(i, f)	device[i].d_flags &= ~(f)
-#define	setflag(i, f)	device[i].d_flags |= (f)
+#define	F_ATDEV	0x80				/* AT device		*/
+#define	isflag(i, f)	((devices[i].d_flags & (f)) != 0)
+#define	notflag(i, f)	((devices[i].d_flags & (f)) == 0)
+#define	clrflag(i, f)	devices[i].d_flags &= ~(f)
+#define	setflag(i, f)	devices[i].d_flags |= (f)
 
-/* Device table.  The index in this table is the device minor number. */
-DEVICE	device	[NDEV] = {
-	{ 0, "/dev/at0a", "/dev/rat0a", "/tmp/at0a.proto", 0L },
-	{ 0, "/dev/at0b", "/dev/rat0b", "/tmp/at0b.proto", 0L },
-	{ 0, "/dev/at0c", "/dev/rat0c", "/tmp/at0c.proto", 0L },
-	{ 0, "/dev/at0d", "/dev/rat0d", "/tmp/at0d.proto", 0L },
-	{ 0, "/dev/at1a", "/dev/rat1a", "/tmp/at1a.proto", 0L },
-	{ 0, "/dev/at1b", "/dev/rat1b", "/tmp/at1b.proto", 0L },
-	{ 0, "/dev/at1c", "/dev/rat1c", "/tmp/at1c.proto", 0L },
-	{ 0, "/dev/at1d", "/dev/rat1d", "/tmp/at1d.proto", 0L }
+/*
+ * Device table.
+ * add_devices() adds entries for devices created by /etc/mkdev.
+ * fdisk() zaps the entries for which the xdevice open fails.
+ */
+DEVICE	devices[NDEVICES] = {
+	{ "at0x", "at0a", AT_MAJOR, 0, F_ATDEV, 0L },
+	{ "at0x", "at0b", AT_MAJOR, 1, F_ATDEV, 0L },
+	{ "at0x", "at0c", AT_MAJOR, 2, F_ATDEV, 0L },
+	{ "at0x", "at0d", AT_MAJOR, 3, F_ATDEV, 0L },
+	{ "at1x", "at1a", AT_MAJOR, 4, F_ATDEV, 0L },
+	{ "at1x", "at1b", AT_MAJOR, 5, F_ATDEV, 0L },
+	{ "at1x", "at1c", AT_MAJOR, 6, F_ATDEV, 0L },
+	{ "at1x", "at1d", AT_MAJOR, 7, F_ATDEV, 0L }
 };
 
 /* Externals. */
 extern	long	atol();
+extern	char	*fgets();
 extern	long	lseek();
 extern	time_t	time();
 
 /* Forward. */
+void	add_devices();
 void	badscan();
 void	copy();
+char	*devname();
 void	done();
 void	fdisk();
 void	get_timezone();
 int	is_fs();
+void	mkdev();
 void	mkfs();
+char	*protoname();
+char	*rawname();
 void	set_date();
 void	user_devices();
 void	welcome();
+char	*xname();
 
 /* Globals. */
 int	active = -1;			/* active partition	*/
@@ -106,24 +121,23 @@ char	*activeos;			/* active partition OS	*/
 char	buf2[NBUF];			/* extra buffer		*/
 HDISK_S	hd;				/* hard disk boot block	*/
 int	mboot;				/* mboot replaced	*/
-int	ndevices;			/* number of COH devices */
+int	ncohdev;			/* number of COHERENT devices */
+int	ndevices = ATDEVS;		/* number of devices	*/
+int	protoflag;			/* prototypes created	*/
 int	root;				/* root partition	*/
 char	tzone[NBUF];			/* timezone		*/
-char	*xdev[2] = { "/dev/at0x", "/dev/at1x" };
-int	xflag;				/* use XT not AT	*/
 
 main(argc, argv) int argc; char *argv[];
 {
-	register DEVICE *pp;
 	register char *s;
 
 	argv0 = argv[0];
+	abortmsg = 1;
 	usagemsg = USAGE;
 	if (argc > 1 && argv[1][0] == '-') {
 		for (s = &argv[1][1]; *s; ++s) {
 			switch(*s) {
 			case 'd':	++dflag;	break;
-			case 'x':	++xflag;	break;
 			case 'v':	++vflag;	break;
 			case 'V':
 				fprintf(stderr, "%s: V%s\n", argv0, VERSION);
@@ -136,21 +150,10 @@ main(argc, argv) int argc; char *argv[];
 	}
 	if (argc != 1)
 		usage();
-	if (xflag) {
-		/* Hot patch XT device names. */
-		xdev[0][AINDEX] = xdev[1][AINDEX] = 'x';
-		for (pp = device; pp < &device[NDEV]; pp++)
-			pp->d_name[AINDEX] = pp->d_rname[AINDEX] = pp->d_pname[AINDEX] = 'x';
-	}
-
-#if	0
-	/* Configure a 128KB (256 block) RAM disk and mount it on /tmp. */
-	sys("/etc/mkfs /dev/ram0 256", S_FATAL);
-	sys("/etc/mount /dev/ram0 /tmp", S_FATAL);
-#endif
 
 	welcome();
 	set_date();
+	mkdev();
 	fdisk();
 	badscan();
 	mkfs();
@@ -168,6 +171,32 @@ main(argc, argv) int argc; char *argv[];
 }
 
 /*
+ * Append devices as specified by /etc/mkdev to devices table.
+ */
+void
+add_devices()
+{
+	register FILE *fp;
+	register int i, n;
+
+	if ((fp = fopen("/tmp/devices", "r")) == NULL)
+		return;
+	for (i = ndevices; i < NDEVICES; i++) {
+		n = fscanf(fp, "%s %s %d %d\n",
+			devices[i].d_xname, devices[i].d_dname,
+			&devices[i].d_major, &devices[i].d_minor);
+		if (n == 0 || n == EOF)
+			break;
+		else if (n != 4)
+			fatal("scanf failed on /tmp/devices, n=%d", n);
+		++ndevices;
+	}
+	if (i == NDEVICES)
+		nonfatal("too many devices, excess ignored");
+	fclose(fp);
+}
+
+/*
  * Scan each COHERENT device for bad blocks.
  */
 void
@@ -181,11 +210,11 @@ badscan()
 "The next step in installation is to scan each COHERENT partition\n"
 "for bad blocks.  Be patient, this takes a few minutes.\n"
 		);
-	for (i = 0; i < NDEV; i++) {
-		if (notflag(i, F_COH))
-			continue;
+	for (i = 0; i < ndevices; i++) {
+		if (notflag(i, F_COH) || notflag(i, F_ATDEV))
+			continue;	/* scan only AT device COH partitions */
 		printf("\n");
-		name = device[i].d_name;
+		name = devname(i, 0);
 		if (isflag(i, F_FS)) {
 			printf(
 "Partition %d (%s) already contains a COHERENT filesystem.\n"
@@ -197,17 +226,20 @@ badscan()
 				name) == 0)
 				continue;
 		}
-		sprintf(cmd, "/etc/badscan -v -o %s %s %s",
-			device[i].d_pname, device[i].d_rname, xdev[i/NPARTN]);
 		printf("Scanning partition %d:\n", i);
 		setflag(i, F_SCAN);
-		if (sys(cmd, S_NONFATAL) == 0)
+		sprintf(cmd, "/etc/badscan -v -o %s %s %s",
+			protoname(i), rawname(i, 1), xname(i, 1));
+		if (sys(cmd, S_NONFATAL) == 0) {
 			setflag(i, F_PROTO);
+			++protoflag;
+		}
 	}
 }
 
 /*
  * Mount the root filesystem, copy files to it, patch /coherent.
+ * Kludge around as required.
  */
 void
 copy()
@@ -219,13 +251,14 @@ copy()
 		);
 
 	/* Mount the filesystem. */
-	sprintf(cmd, "/etc/mount %s /mnt", device[root].d_name);
+	sprintf(cmd, "/etc/mount %s /mnt", devname(root, 1));
 	sys(cmd, S_FATAL);
 
 	/* Copy the boot floppy to it. */
 	sprintf(cmd, "/bin/cpdir -ad%s -smnt -sbegin / /mnt", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
 	sys("/bin/mkdir /mnt/mnt", S_FATAL);
+	sys("/bin/chmod 0755 /mnt/mnt", S_NONFATAL);
 	sys("/bin/chown bin /mnt/mnt", S_NONFATAL);
 	sys("/bin/chgrp bin /mnt/mnt", S_NONFATAL);
 
@@ -234,12 +267,36 @@ copy()
 	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
 	sys(cmd, S_NONFATAL);
 
+	/* If /etc/fdisk created patched /tmp/coherent, replace /coherent. */
+	if (exists("/mnt/tmp/coherent")) {
+		sys("/bin/mv /mnt/tmp/coherent /mnt/coherent", S_FATAL);
+		sys("/bin/chmod 0400 /mnt/coherent", S_NONFATAL);
+		sys("/bin/chown sys /mnt/coherent", S_NONFATAL);
+		sys("/bin/chgrp sys /mnt/coherent", S_NONFATAL);
+	}
+
+	/* If /etc/mkdev created devices in /tmp/dev, copy them to /dev. */
+	/* Remove the copies in /tmp/dev on the hard disk. */
+	if (exists("/tmp/dev")) {
+		sys("/bin/cpdir -d /tmp/dev /mnt/dev", S_FATAL);
+		sys("/bin/rm -r /mnt/tmp/dev", S_NONFATAL);
+	}
+
+	/* If /etc/mkdev created /tmp/drvld.all, replace /etc/drvld.all. */
+	if (exists("/tmp/drvld.all")) {
+		sys("/bin/mv /mnt/tmp/drvld.all /mnt/etc/drvld.all", S_NONFATAL);
+		sys("/bin/chmod 0744 /mnt/etc/drvld.all", S_NONFATAL);
+		sys("/bin/chown root /mnt/etc/drvld.all", S_NONFATAL);
+		sys("/bin/chgrp root /mnt/etc/drvld.all", S_NONFATAL);
+	}
+
 	/* Patch the /coherent image on the hard disk. */
 	sprintf(cmd, "/conf/patch /mnt/coherent ronflag_=0 %s=%lu:l %s=%lu:l",
 		"___", atol(serialno), "_entry_", atol(serialno));
 	sys(cmd, S_FATAL);
 	sprintf(cmd, "/conf/patch /mnt/coherent rootdev_=makedev\\(%d,%d\\) pipedev_=makedev\\(%d,%d\\)",
-		MAJOR, root, MAJOR, root);
+		devices[root].d_major, devices[root].d_minor,
+		devices[root].d_major, devices[root].d_minor);
 	sys(cmd, S_FATAL);
 
 	/* Grow /lost+found to make room for files. */
@@ -254,7 +311,7 @@ copy()
 	sys("/bin/ln -f /mnt/etc/brc.install /mnt/etc/brc", S_FATAL);
 
 	/* Link root device to /dev/root. */
-	sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/root", device[root].d_name);
+	sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/root", devname(root, 0));
 	sys(cmd, S_FATAL);
 
 	/* Write the timezone to /etc/timezone. */
@@ -266,7 +323,26 @@ copy()
 	sys(cmd, S_NONFATAL);
 
 	/* Save the prototypes from /tmp to /conf. */
-	sys("/bin/mv /mnt/tmp/at??.proto /mnt/conf", S_NONFATAL);
+	if (protoflag)
+		sys("/bin/mv /mnt/tmp/*.proto /mnt/conf", S_NONFATAL);
+}
+
+/*
+ * Generate a device name from a DEVICE entry name.
+ * Return a pointer to the statically allocated name.
+ * If flag and not one of the built-in AT device names,
+ * the device is in /tmp/dev rather than /dev.
+ * Sleazy hack: this always writes "/tmp/dev/..." in the buffer and
+ * massages the return value accordingly so that subsequent calls
+ * with same i but different flag will not clobber previous return values.
+ */
+char *
+devname(i, flag) int i, flag;
+{
+	static char name[4+4+1+NAMESIZE];	/* e.g. "/tmp/dev/at0a" */
+
+	sprintf(name, "/tmp/dev/%s", devices[i].d_dname);
+	return (flag && notflag(i, F_ATDEV)) ? name : name+4;
 }
 
 /*
@@ -322,7 +398,7 @@ done()
 void
 fdisk()
 {
-	register int fd, drive, i, j, opened, cohpart, flag;
+	register int fd, i, j, n, part, cohpart, flag;
 	char *fname, *s;
 
 	cls(0);
@@ -373,18 +449,32 @@ fdisk()
 		);
 	if (yes_no("Do you want to use the COHERENT master boot"))
 		++mboot;
-#if	SIZECHECK
+
 retry:
-#endif
+	/* Construct an /etc/fdisk command with appropriate xdevice names. */
+	strcpy(cmd, "/etc/fdisk -c");
 	if (mboot)
-		sys("/etc/fdisk -b /conf/mboot", S_FATAL);
-	else
-		sys("/etc/fdisk", S_FATAL);
-	for (drive = opened = 0; drive < 2; ++drive) {
-		fname = xdev[drive];
+		strcat(cmd, "b /conf/mboot");
+	for (i = 0; i < ndevices; i++) {
+		if (i == 0
+		 || strcmp(devices[i-1].d_xname, devices[i].d_xname) != 0) {
+			if ((fd = open(xname(i, 1), 0)) < 0)
+				continue;
+			close(fd);
+			strcat(cmd, " ");
+			strcat(cmd, xname(i, 1));
+		}
+	}
+	sys(cmd, S_FATAL);		/* do the fdisk command */
+
+	/* Read the partition table and set device flags appropriately. */
+	for (i = part = 0; i < ndevices; ++i) {
+		if (i != 0
+		 && strcmp(devices[i-1].d_xname, devices[i].d_xname) == 0)
+			continue;		/* partition already done */
+		fname = xname(i, 1);
 		if ((fd = open(fname, 0)) < 0)
-			continue;
-		++opened;
+			continue;		/* cannot open xdevice */
 		if (read(fd, &hd, sizeof hd) != sizeof hd)
 			fatal("%s: read failed", fname);
 		close(fd);
@@ -392,12 +482,24 @@ retry:
 			nonfatal("%s: invalid partition table", fname);
 			continue;
 		}
-		for (i = 0; i < NPARTN; i++) {
-			j = 4 * drive + i;
-			if (hd.hd_partn[i].p_boot != 0) {
-				setflag(j, F_BOOT);
-				active = j;
-				switch(hd.hd_partn[i].p_sys) {
+		/* The partition table is valid, check its partitions. */
+		for (j = 0; j < NPARTN && i + j < ndevices; j++) {
+			n = i + j;		/* index in devices[] */
+			if (part != n) {
+				/*
+				 * Copy over unopenable partitions.
+				 * This allows subsequent code to use
+				 * the devices[] index as the partition number.
+				 */
+				devices[part] = devices[n];
+				n = part;
+			}
+			part++;			/* another valid partition */
+			if (hd.hd_partn[j].p_boot != 0) {
+				setflag(n, F_BOOT);
+				if (active == -1)
+					active = n;	/* first active partition */
+				switch(hd.hd_partn[j].p_sys) {
 				case SYS_COH:
 					activeos = "COHERENT";
 					break;
@@ -415,68 +517,66 @@ retry:
 					break;
 				}
 			}
-			if (hd.hd_partn[i].p_sys != SYS_COH)
+			if (hd.hd_partn[j].p_sys != SYS_COH)
 				continue;
 
 			/* Make sure the device can be accessed. */
-			s = device[j].d_name;
+			s = devname(n, 1);
 			if (!exists(s)) {
 				nonfatal("cannot open COHERENT partition %d (%s)",
-					j, s);
+					n, devname(n, 0));
 				continue;
-			} else if (hd.hd_partn[i].p_size == 0L) {
+			} else if (hd.hd_partn[j].p_size == 0L) {
 				nonfatal("COHERENT partition %d (%s) is empty",
-					j, s);
+					j, devname(n, 0));
 				continue;
 			}
 
 			/* OK, set flags in the device table. */
-			++ndevices;
-			setflag(j, F_COH);
-			device[j].d_size = hd.hd_partn[i].p_size;
-			if (is_fs(s, device[j].d_size))
-				setflag(j, F_FS);
+			++ncohdev;
+			setflag(n, F_COH);
+			devices[n].d_size = hd.hd_partn[j].p_size;
+			if (is_fs(s, devices[n].d_size))
+				setflag(n, F_FS);
 
 			/* Make sure the device is not mounted. */
 			sprintf(cmd, "/etc/umount %s 2>/dev/null", s);
 			sys(cmd, S_IGNORE);
 		}
 	}
-	if (opened == 0)
-		fatal("cannot open devices %s, %s", xdev[0], xdev[1]);
-	else if (ndevices == 0)
+	ndevices = part;
+	if (ndevices == 0)
+		fatal("cannot open partition tables");
+	else if (ncohdev == 0)
 		fatal("no COHERENT partition found");
 	cls(0);
 	printf("Your system includes %d COHERENT partition%s:\n",
-		ndevices, (ndevices == 1) ? "" : "s");
+		ncohdev, (ncohdev == 1) ? "" : "s");
 	printf("Drive Partition\t  Device\tMegabytes\n");
-	for (flag = i = 0; i < NDEV; i++)
+	for (flag = i = 0; i < ndevices; i++)
 		if (isflag(i, F_COH)) {
 			cohpart = i;
 			printf("%3d\t%3d\t%s\t%.2f\n",
-				i/4, i, device[i].d_name, meg(device[i].d_size));
-#if	SIZECHECK
-			if (((int)meg(device[i].d_size)) > MAXSIZE)
+				i/NPARTN,
+				i,
+				devname(i, 0),
+				meg(devices[i].d_size));
+			if (((int)meg(devices[i].d_size)) > MAXSIZE)
 				flag = 1;
-#endif
 		}
-#if	SIZECHECK
 	if (flag) {
 		printf(
 "\n"
 "Your system includes a large COHERENT filesystem (larger than %d megabytes).\n"
-"The /etc/fsck command which checks filesystem consistency may run out of\n"
-"memory and fail on large filesystems.  If it fails, you will need to edit\n"
-"the files /etc/checklist (so /etc/fsck does not check the large filesystem)\n"
-"and /etc/brc (to check the large filesystem with /bin/check).  Alternatively,\n"
-"you can repartition the hard disk to define smaller COHERENT partitions.\n",
+"The /etc/mkfs command which builds COHERENT filesystems may run out of\n"
+"memory and fail on large filesystems.  You should repartition the hard disk\n"
+"to define smaller COHERENT partitions.\n",
 			MAXSIZE);
 		if (yes_no("Do you want to repartition the hard disk"))
 			goto retry;
 		printf("\n");
 	}
-#endif
-	if (ndevices == 1) {
+	if (ncohdev == 1) {
 		root = cohpart;
 		setflag(root, F_ROOT);
 		return;
@@ -486,6 +586,10 @@ retry:
 "The root filesystem contains the files normally used by COHERENT.\n"
 "The root filesystem should contain at least %d megabytes.\n",
 		NEEDSIZE);
+	if (ndevices > ATDEVS)
+		printf(
+"The COHERENT root filesystem must be on partition 0 through 7.\n"
+			);
 	if (active != -1 && isflag(active, F_COH)) {
 		printf("COHERENT partition %d is marked as active in the partition table.\n",
 			active);
@@ -495,14 +599,14 @@ retry:
 again:
 	s = get_line("Which partition do you want to be the root filesystem?");
 	root = *s - '0';
-	if (*++s != '\0' || root < 0 || root >= NDEV || notflag(root, F_COH)) {
+	if (*++s != '\0' || root < 0 || root >= ATDEVS || notflag(root, F_COH)) {
 		printf("Enter a number between 0 and 7 which specifies a COHERENT partition.\n");
 		goto again;
 	}
-	if (meg(device[root].d_size) < (double)NEEDSIZE) {
+	if (meg(devices[root].d_size) < (double)NEEDSIZE) {
 		printf("Partition %d contains only %.2f megabytes.\n",
-			root, meg(device[root].d_size));
-		if (meg(device[root].d_size) < (double)MINSIZE) {
+			root, meg(devices[root].d_size));
+		if (meg(devices[root].d_size) < (double)MINSIZE) {
 			printf("It is too small to contain the COHERENT root filesystem.\n");
 			goto again;
 		}
@@ -599,6 +703,22 @@ is_fs(special, size) char *special; unsigned long size;
 }
 
 /*
+ * Make new devices with /etc/mkdev if appropriate.
+ */
+void
+mkdev()
+{
+	cls(0);
+	if (!yes_no("Does your computer system include a SCSI host adapter"))
+		return;
+	sprintf(cmd, "/etc/mkdev -b%s%s scsi",
+		(dflag) ? "d" : "",
+		(vflag) ? "v" : "");
+	sys(cmd, S_NONFATAL);
+	add_devices();
+}
+
+/*
  * Make filesystems on COHERENT partitions.
  */
 void
@@ -613,29 +733,38 @@ mkfs()
 "before you can use it.  Creating an empty filesystem will destroy all\n"
 "previously existing data on the partition.\n"
 		);
-	for (i = 0; i < NDEV; i++) {
-		if (notflag(i, F_COH) || notflag(i, F_SCAN))
+	for (i = 0; i < ndevices; i++) {
+		if (notflag(i, F_COH) || (isflag(i, F_ATDEV) && notflag(i, F_SCAN)))
 			continue;
-		name = device[i].d_name;
 		printf("\n");
 		if (isflag(i, F_FS))
 			printf("Partition %d (%s) already contains a COHERENT filesystem.\n",
-				i, name);
+				i, devname(i, 0));
+		name = devname(i, 1);
 again:
 		if (yes_no("Do you want to create a new COHERENT filesystem on partition %d", i)) {
-			if (notflag(i, F_PROTO)) {
+			if (notflag(i, F_ATDEV))
+				sprintf(cmd, "/etc/mkfs %s %lu", name, devices[i].d_size);
+			else if (notflag(i, F_PROTO)) {
 				printf("The attempt to scan %s for bad blocks previously failed.",
 					name);
 				if (yes_no("Do you want to create a new filesystem on it without a bad block list"))
-					sprintf(cmd, "/etc/mkfs %s %lu", name, device[i].d_size);
+					sprintf(cmd, "/etc/mkfs %s %lu", name, devices[i].d_size);
 				else
 					continue;
 			} else
 				sprintf(cmd, "/etc/mkfs %s %s",
-					name, device[i].d_pname);
+					name, protoname(i));
 			clrflag(i, F_FS);
 			if (sys(cmd, S_NONFATAL) == 0) {
 				setflag(i, F_FS);
+				if (notflag(i, F_PROTO)) {
+					/* Stick a boot block on device. */
+					/* The proto does it in the other case. */
+					sprintf(cmd, "/bin/cp /conf/boot %s", name);
+					sys(cmd, S_NONFATAL);
+				}
+
 				/*
 				 * Mount the file system,
 				 * create /lost+found,
@@ -651,6 +780,14 @@ again:
 						S_IGNORE);
 				sprintf(cmd, "/etc/umount %s", name);
 				sys(cmd, S_NONFATAL);
+
+				/* Look for patched boot created by fdisk. */
+				sprintf(cmd, "/tmp/pboot.%d", i / NPARTN);
+				if (exists(cmd)) {
+					sprintf(cmd, "/bin/cp /tmp/pboot.%d %s",
+						i / NPARTN, name);
+					sys(cmd, S_NONFATAL);
+				}
 			} else if (i == root)
 				fatal("%s: root partition mkfs failed", name);
 		} else if (i == root && notflag(i, F_FS)) {
@@ -658,6 +795,34 @@ again:
 			goto again;
 		}
 	}
+}
+
+/*
+ * Generate a prototype name from a DEVICE entry name.
+ * Return a pointer to the statically allocated name.
+ */
+char *
+protoname(i) int i;
+{
+	static char pname[5+NAMESIZE+6];	/* e.g. "/tmp/at0a.proto" */
+
+	sprintf(pname, "/tmp/%s.proto", devices[i].d_dname);
+	return pname;
+}
+
+/*
+ * Generate a raw device name from a DEVICE entry name.
+ * Return a pointer to the statically allocated name.
+ * If flag and not one of the built-in AT device names,
+ * the device is in /tmp/dev rather than /dev.
+ */
+char *
+rawname(i, flag) int i, flag;
+{
+	static char rname[4+4+1+1+NAMESIZE];	/* e.g. "/tmp/dev/rat0a" */
+
+	sprintf(rname, "/tmp/dev/r%s", devices[i].d_dname);
+	return (flag && notflag(i,  F_ATDEV)) ? rname : rname+4;
 }
 
 /*
@@ -787,7 +952,7 @@ user_devices()
 	register int i, status;
 	register char *s, *s2, *name, *rname;
 
-	if (ndevices == 1) {
+	if (ncohdev == 1) {
 		sys("/bin/echo /dev/root >>/mnt/etc/checklist", S_NONFATAL);
 		return;
 	}
@@ -801,12 +966,12 @@ user_devices()
 "For example, one non-root partition might be mounted on\n"
 "directory \"/u\", another on \"/v\", and so on.\n"
 "You now may specify where you want each partition mounted.\n",
-		ndevices - 1, ndevices == 2 ? "" : "s");
-	for (i = 0; i < NDEV; i++) {
+		ncohdev - 1, ncohdev == 2 ? "" : "s");
+	for (i = 0; i < ndevices; i++) {
 		if (notflag(i, F_COH) || notflag(i, F_FS) || isflag(i, F_ROOT))
 			continue;
-		name = device[i].d_name;
-		rname = device[i].d_rname;
+		name = devname(i, 0);
+		rname = rawname(i, 0);
 		printf("\nPartition %d (%s):\n", i, name);
 		if (yes_no("Do you want %s mounted", name)) {
 			setflag(i, F_MOUNT);
@@ -903,6 +1068,18 @@ again:
 		}
 	}
 	sys("/bin/echo /dev/root >>/mnt/etc/checklist", S_NONFATAL);
+
+	/* Link /dev/dos if desired. */
+	if (yes_no("Do you use both COHERENT and MS-DOS on your hard disk")) {
+		i = get_int(0, ndevices-1, "Enter the partition number of your MS-DOS partition:");
+		sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/dos", devname(i, 0));
+		if (sys(cmd, S_NONFATAL) == 0)
+			printf(
+"/dev/dos is now linked to %s.\n"
+"Use the \"dos\" command to transfer files to and from the MS-DOS partition.\n",
+				devname(i, 0));
+		printf("\n");
+	}
 }
 
 /*
@@ -929,11 +1106,6 @@ welcome()
 "Your computer is now running COHERENT from the floppy disk.\n"
 "This program will install COHERENT onto your hard disk.\n"
 "\n"
-#if	FOURDISKMSG
-"The installation kit includes several files in compressed form,\n"
-"so it consists of four diskettes rather than five diskettes.\n"
-"\n"
-#endif
 "You can interrupt installation at any time by typing <Ctrl-C>;\n"
 "then reboot and start the installation procedure again.\n"
 "Please be patient and read the instructions on the screen carefully.\n"
@@ -952,6 +1124,21 @@ welcome()
 		printf("Invalid serial number, please try again.\n");
 	}
 	fatal("invalid serial number");
+}
+
+/*
+ * Generate a partition table device name from a DEVICE entry name.
+ * Return a pointer to the statically allocated name.
+ * If flag and not one of the built-in AT device names,
+ * the device is in /tmp/dev rather than /dev.
+ */
+char *
+xname(i, flag) int i, flag;
+{
+	static char xname[4+4+1+NAMESIZE];	/* e.g. "/tmp/dev/at0x" */
+
+	sprintf(xname, "/tmp/dev/%s", devices[i].d_xname);
+	return (flag && notflag(i,  F_ATDEV)) ? xname : xname+4;
 }
 
 /* end of build.c */
