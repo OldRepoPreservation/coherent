@@ -1,0 +1,389 @@
+/*
+**  calendar
+**  Reminder utililty: read calendar files and lines with dates matching
+**  the current date or the date specified in the option string.
+*/
+
+#include <stdio.h>
+#include <types.h>
+#include <time.h>
+#include <timeb.h>
+
+char *message = "Usage: calendar [-ffile1, -ffile2,..., -ddate, -wdate, -mmonth, -yyear]\n\
+	options:\n\
+		-ffile - file is a calendar, search in order given.\n\
+		     (default is $HOME/.calendar)\n\
+		-ddate - Print all entries matching the given date\n\
+		-wdate - Print entries in the week beginning with the given date\n\
+		-mmonth - Print entries in the same month as \"month\"\n";
+
+char *argv0;
+int all = 0;
+int wday;
+int advance;
+extern char **environ;
+char CurLine[128];
+char *CurLinep;
+
+enum {NONE, DAY, WEEK, MONTH} mflag;
+
+main(argc, argv)
+int argc;
+char *argv[];
+{
+	register int arg = 1;
+	register char *cp;
+	char *thisline;
+	char *matchstr;
+	char *filename[10];
+	FILE *fp[10];
+	int matchdate;
+	int foundfiles;
+	int nfiles;
+	int thismonth, thisday, thisyear;
+	int thisdate;
+	char *atsign;
+
+	argv0 = argv[0];
+	mflag = NONE; 				/* Default to no match */
+	for (arg = 1; arg < argc; arg++)  { 	/* Read option string */
+		cp = argv[arg];
+	sw:	switch (*cp) {
+			case '-':
+				cp++;
+				goto sw;
+			case 'a':
+				all = 1;
+				break;
+			case 'f':
+				filename[arg-1] = ++cp;
+				nfiles++;
+				continue;
+			case 'd':
+				matchstr = ++cp;
+				mflag = DAY;
+				continue;
+			case 'w':
+				matchstr = ++cp;
+				mflag = WEEK;
+				continue;
+			case 'm':
+				matchstr = ++cp;
+				mflag = MONTH;
+				continue;
+			default:
+				printf("Unrecognized option %c\n", *cp);
+				usage();
+		}
+	}
+	if (all)
+		doall();
+	/*
+	** Open files.
+	*/
+	if (nfiles)  {
+		for (arg = 0; arg <nfiles; arg++ )  {
+			if ((fp[arg] = fopen(filename[arg], "r")) == NULL)
+				printf("Cannot open file %s\n", filename[arg]);
+			else
+				foundfiles++;
+		}
+		if (!foundfiles)
+			fatal("Cannot open any files specified\n");
+	} else {
+		nfiles = 1;
+		filename[0] = strcat(getenv("HOME"), "/.calendar");
+		if ((fp[0] = fopen(filename[0], "r")) == NULL)
+			fatal("cannot open file $HOME/.calendar\n");
+	}
+	/*
+	** Find match condition from options or current date
+	*/
+	switch (mflag)  {
+		case NONE:
+			matchdate = current(0);
+			break;
+		case DAY:
+		case WEEK:
+			if (*matchstr == '\0') 
+				matchdate = current(0);
+			else {
+				strcpy(CurLine, matchstr);
+				CurLinep = &CurLine[0];
+				if ((thismonth = findmon()) == -1) 
+					fatal("Invalid month in match date\n");
+				if ((thisday = findday()) == -1)  
+					fatal("Invalid day in match date\n");
+				if ((thisyear = findyear()) == -1)  
+					thisyear = current(1);
+				matchdate = date(thisday, thismonth, thisyear);
+			}
+			break;
+		case MONTH:
+			if (*matchstr == '\0')
+				matchdate = current(2);
+			else  {
+				strcpy(CurLine, matchstr);
+				CurLinep = &CurLine[0];
+				if ((matchdate = findmon()) == -1)
+					fatal("Invalid month in match date\n");
+			}
+			break;
+	}
+	/*
+	** Read the calendar files, print matched lines.
+	*/
+	for (arg=0; arg<nfiles; arg++) {
+		if (fp[arg] == NULL)
+			continue;
+		while ((thisline = fgets(CurLine, 512, fp[arg]))!=NULL) {
+			CurLinep = &CurLine[0];
+			advance = 0;
+			if ((atsign = index(CurLinep, '@')) != NULL)
+				advance = atoi(atsign + 1);
+			if ((thismonth = findmon()) == -1)
+				thismonth = 0;
+			if ((thisday = findday()) == -1)
+				thisday = 0;
+			if ((thisyear = findyear()) == -1)
+				thisyear = current(1);
+			thisdate = date(thisday, thismonth, thisyear);
+			if (thisdate >= matchdate &&
+			    thisdate <= matchdate + advance)
+				printf("%s", thisline);
+			else switch (mflag)  {
+				case NONE:
+					if (wday == 6)
+						if (thisdate == matchdate ||
+						  thisdate == matchdate + 1 ||
+						  thisdate == matchdate + 2 ||
+						  thisdate == matchdate + 3)
+							printf("%s", thisline);
+					if (wday == 7)
+						if (thisdate == matchdate ||
+						  thisdate == matchdate + 1 ||
+						  thisdate == matchdate + 2)
+							printf("%s", thisline);
+					if (0 <= wday && wday < 6)
+						if (thisdate == matchdate ||
+						   thisdate == matchdate + 1)
+							printf("%s", thisline);
+					break;
+				case DAY:
+					if (thisdate == matchdate)
+						printf("%s", thisline);
+					break;
+				case WEEK:
+					if (matchdate <= thisdate &&
+						    thisdate <= matchdate +7)
+						printf("%s", thisline);
+					break;
+				case MONTH:
+					if (thismonth == matchdate)
+						printf("%s", thisline);
+					break;
+			}
+			thisline = NULL;
+		}
+	}
+}
+
+
+usage()
+{
+	printf("%s", message);
+	exit(1);
+}
+
+fatal(str)
+char *str;
+{
+	printf("%s: ", argv0);
+	printf("%r", &str);
+	exit(1);
+}
+int
+findmon()
+{
+	int c;
+	register int i;
+	register int month;
+	register char *t;
+	char tbuf[100];
+	char *mon[12] = { 
+		"[Jj][Aa][Nn][Uu. :1-9]",
+		"[Ff][Ee][Bb][Rr. :1-9]",
+		"[Mm][Aa][Rr][Cc. :1-9]",
+		"[Aa][Pp][Rr][Ii. :1-9]",
+		"[Mm][Aa][Yy][ :1-9]",
+		"[Jj][Uu][Nn][Ee. :1-9]",
+		"[Jj][Uu][Ll][Yy. :1-9]",
+		"[Aa][Uu][Gg][Uu. :1-9]",
+		"[Ss][Ee][Pp][Tt. :1-9]",
+		"[Oo][Cc][Tt][Oo. :1-9]",
+		"[Nn][Oo][Vv][Ee. :1-9]",
+		"[Dd][Ee][Cc][Ee. :1-9]"
+	};
+
+	t = &tbuf[0];
+	for (i=0; ((*t=*(CurLinep+i))!=':')&&(*t!='\n')&&(*t!='\0'); i++)
+		++t;
+	*(t+1) = '\0';
+	t=&tbuf[0];
+
+	month = 0;
+	for(i=0; i<=11; i++)    /* Look for month in word form. */
+		if (pnmatch(t, mon[i], 1)) {
+			month = i+1;
+			break;
+		}
+	if (month == 0)  { 	/* Month must be in numerical form  */
+		for (; (c = *t) < '1' || c > '9'; t++)
+			CurLinep++;
+		while(c>='0' && c<='9')  {
+			month = 10*month + c - '0';
+			c = *++t;
+			CurLinep++;
+		}
+		CurLinep++;	   /* Truncate global line pointer */
+	}
+	if (month == 0 || month > 12)
+			month = -1;
+	return (month);
+}
+
+findday()
+{
+	register int c;
+	register int day;
+	
+	day = 0;
+	for (; (c=*CurLinep) < '0' || c>'9'; CurLinep++);
+		;
+	while (c >= '0' && c <= '9')   {
+		day = 10*day + c - '0';
+		c = *++CurLinep;
+	}
+	if (day == 0 || day > 31)		/* Invalid day of the month */
+		day = -1;
+	return (day);
+}
+
+findyear()
+{
+	register int c;
+	register int year;
+
+	year = 0;
+	for(; (c = *CurLinep) < '0' || c > '9'; CurLinep++)
+		if (c == '\n' || c == ':' || c == '\0')
+			break;
+	while (c >= '0' && c <= '9')   {
+		year= 10*year + c -'0';
+		c = *++CurLinep;
+	}
+	if (year >= 83 && year <= 99)  
+		year += 1900;
+	else if (year >= 1983 && year <= 3000)
+		;
+	else
+		year = -1;
+	return(year);
+}
+
+int
+current(opt)
+int opt;
+{
+	struct tm *stimep;
+	time_t timep;
+	int retval;
+	
+	time(&timep);
+	stimep = localtime(&timep);
+	switch (opt)  {
+		case 0:
+			retval = date(stimep->tm_mday, stimep->tm_mon+1, stimep
+					->tm_year+1900);
+			wday = stimep->tm_wday;
+			break;
+		case 1:
+			retval = stimep->tm_year+1900;
+			break;
+		case 2:
+			retval = stimep->tm_mon+1;
+			break;
+		default:
+			fatal("Bad opt to current\n");
+	}
+	return (retval);
+}
+
+int
+date(day, month, year)
+int day, month, year;
+{
+	int date=0;
+	register int i;
+	int m[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+	if (year == 0)
+		year = current(1);
+	for (i=0; i<month-1; i++)
+		date += m[i];
+	date += day;
+	if (year%4 == 0 && month>2 && year%100 != 0)
+		date++;
+	for(i = 1984; i<year; i++) {
+		if (i%4 == 0)
+			date += 366;
+		else
+			date += 365;
+	}
+	return (date);
+}
+
+doall()
+{
+	register FILE *fp;
+	char pline[256];	/* Current line in passwd file */
+	char uname[32];
+	char ucalfile[128];
+	char cmd[128];
+	register char *cp1;
+	char *cp2, *cp3;
+	int i;
+
+	if ((fp = fopen("/etc/passwd", "r")) == NULL)
+		fatal("cannot open /etc/passwd\n");
+	while ((fgets(&pline[0], 256, fp) != EOF) && (pline[0] != '\0')) {
+		for (cp1 = &pline[0]; *cp1 != '\0'; cp1++)
+			if (*cp1 == '\n')  {
+				*cp1 = '\0';
+				break;
+			}
+		cp1 = &pline[0];
+		for (cp2 = &uname[0]; *cp1 != ':'; )
+			*cp2++ = *cp1++;
+		*cp2 = '\0';
+		for (i=0; i<4; i++)
+			for (cp1++; *cp1 != ':'; cp1++);
+		cp1++;
+		cp3 = &ucalfile[0];
+		for (; *cp1 != ':' && *cp1 != '\0'; )
+			*cp3++ = *cp1++;
+		*cp3 = '\0';
+		if (ucalfile[0] == '\0')
+			continue;
+		strcat(ucalfile, "/.calendar");
+		if (open(ucalfile, 0) >= 0) {		/* file is readable */
+			strcpy(cmd, argv0);
+			strcat(cmd, " -f");
+			strcat(cmd, ucalfile);
+			strcat(cmd, " | /bin/mail ");
+			strcat(cmd, uname);
+			system(cmd);
+		}
+	}
+	exit(0);
+}
