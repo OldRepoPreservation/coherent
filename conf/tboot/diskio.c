@@ -269,6 +269,7 @@ ifread(ip, toseg, tooffset, offset, lenarg)
 	length -= (int32) blocklen;
 	seginc(&tooffset, &toseg, blocklen);
 
+	pac_init();	/* Turn on the pacifier.  */
 	/* Read the middle blocks.  */
 	while (length - (int32) BLOCK > 0L) {
 		sanity_check("ifread() to middle bread()");
@@ -286,7 +287,7 @@ ifread(ip, toseg, tooffset, offset, lenarg)
 		brelease(bp);
 		sanity_check("ifread() from middle brelease()");
 
-/* pacifier */	puts(".");
+		pacifier(); /* Put something reassuring on the screen.  */
 		++fblockno;
 		sanity_check("ifread() to middle vmap()");
 		pblockno = vmap(ip, fblockno);
@@ -297,6 +298,7 @@ ifread(ip, toseg, tooffset, offset, lenarg)
 		seginc(&tooffset, &toseg, BLOCK);
 		sanity_check("ifread() from middle seginc()");
 	}
+	pac_cleanup();	/* Turn off the pacifier.  */
 
 	/* Read the last fraction of a block.  */
 	if (length > 0L) {
