@@ -147,8 +147,10 @@ char *argv[];
 		unlink(ofn);
 		exit(1);
 	}
+#if	0
 #if !RSX && !CPM
 	chmod(ofn, 0755);
+#endif
 #endif
 	exit(0);
 }
