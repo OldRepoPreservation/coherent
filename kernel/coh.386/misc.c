@@ -90,8 +90,13 @@ char *a1;
 		printf("relax! It really isn't so bad.\n");
 	} else {
 		if (panflag++ == 0) {
-			printf("Panic: %r", &a1);
-			putchar('\n');
+			if (paging()) {
+				printf("Panic: %r", &a1);
+				putchar('\n');
+			} else {
+				strchirp("Panic: ");
+				strchirp(a1);
+			}
 			for (;;);
 			usync();
 		}
