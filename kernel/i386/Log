@@ -1,0 +1,102 @@
+Changes to kernel and related files for version #66:
+
+New /bin/ps needed!
+
+NOTICE: /usr/include/sys/dirent.h and /usr/include/sys/dir.h are
+obsolete and should be removed from the /usr/include/sys directory!
+All references to them should include /usr/include/dirent.h instead.
+
+10/19  trap.c - stub for floating point exceptions
+10/20  as.s,mmu.h,uproc.h - reserve space just below u area for NDP state
+10/20  trap.c - device not available trap rewritten for NDP
+10/22  floating point context switching, exceptions, and signal handlers
+
+Changes to kernel and related files for version #65:
+10/08  fl.c - fix open/close count imbalance
+10/11  as.s,trap.c - fix runaway resulting from bad user pointer in system call
+
+Changes to kernel and related files for version #64:
+New /etc/reboot (source in ker386/tools).
+09/24  sig.c: ptrace fix, going from single step to full speed
+10/01  trap.c: revise retry policy for iret bug
+10/01  syscoh.c,param.h: superuser-callable reboot function
+10/02  as.s: revise IODELAY to solve install problems on some systems
+10/02  syscoh.c: update breakpoint code for new trap handler
+10/02  msg386.c,sys2.c: vlad's new msg handler (no longer a device driver)
+10/02  die.c: shorter code for print8/16/32, without need for data seg.
+10/05  mmu.c: add PHYS_MEM and getPhysMem() for NCM and others (allocate
+       blocks of contiguous physical memory).
+10/06  fl.c: flopen() would occasionally hang the system
+10/06  as.s,as.inc,xdt.s: mmu update call gate to speed interrupt response
+
+Changes to kernel and related files for version #63:
+
+09/08  sys5.c: fix permission problem in mkdir()
+09/08  fl.c: fix end-of-volume problem
+09/08  uproc.h, sys1.c, exec.c: S5-compatible setuid()/setgid()
+09/09  coherent.h,misc.c: replace kkcopy(), kclear() with macro calls to
+       memcpy and memset.
+09/09  tty.c: TCSETAW was losing buffer contents;  add ttrtp() call.
+09/10  seg.c: vlad's fix for recursive exec's
+09/16  bio.c,tioc.c,al.c,hs.c,asy.c,pty.c,*kb*.c: get rid of tioc286()
+       kluge in device drivers;  move tioc() call into dioctl()
+09/17  null.c: /dev/proc for leaner ps, courtesy of La Monte.
+09/17  uproc.h,md.c,sig.c,sys1.c,trap.c: fixes for db support
+09/22  ptrace.h: add constants for ptrace() commands (no BCS standard for these)
+09/22  fs2.c: Steve's conjectured fix for inode busy
+09/22  as.s,xdt.s,as.inc: further changes for db support
+09/24  fdioctl.h,sdioctl.h,mtioctl.h,buf.h,fl.c: clean up ioctl name space junk
+
+Related to kernel changes above:
+ 	new bin/ps must be used due to yet another change in u area
+	watch for new cron from vlad that doesn't spawn lots more crons
+	new db has at least some working features
+
+still to do: ptrace(), floating point
+clean up __cinit()/__putchar() stuff
+
+Changes to kernel and related files for version #62:
+
+08/28  memset.s:  yet another segment botch fixed (sorry!)
+08/31  fl.c:  Jack's improved floppy driver;  much quicker on dd; warns on
+       attempting to mount write-protected floppy for read/write.
+09/01  stdio.h,sys/param.h,sys/uproc.h,sys/select.h,libc.a,misc.tar.Z
+       (bedaemon.c, select.c),bin/ps,exec.c,fd.c,sys2.c,sys1632.c:  up
+       to 60 open files per process.  If you are building kernels from
+       #62 sources, best rm ALL older .o files and start over due to
+       change in value of NOFILE in sys/param.h.
+09/01  conf/kgen - allows you to link a new kernel with same configuration
+       as your original 4.0.0/4.0.1 installation.  This script is NFG on
+       systems not built by doing a full COH install of 4.0.0/4.0.1.  Its
+       main purpose is to allow developers & customers to replace one or
+       more kernel binary files, then make a new kernel with all the right
+       drivers and patches for their systems.
+
+Changes to kernel for version #61:
+
+08/18  new memset.s,memcpy.s
+08/21  vtkb.c - vlad
+08/21  null.c - fix bug with /dev/null input
+08/24  vtkb_d.c,vtkb_f.c - vlad
+08/25  trap.c,as.s: fix IRET GP fault bug
+08/25  trap.c: separate GP fault handler
+08/25  trap.c,as.s,syscoh.c,param.h: kernel breakpoints
+
+Changes to kernel for version #60:
+
+08/05  as.s:  set IOPL to 1, not 3.  Requires new /etc/ATclock.
+08/05  xdt.s:  source cleanup
+08/05  mmu.h,as.inc:  add SEG_RNG0_STK, SEG_RNG0_TXT, SEG_RNG1_STK
+08/14  null.c:  set seek limit of 256 on /dev/cmos.  Add /dev/clock.
+08/18  as.s,as.inc,xdt.s,mmu.h,mmu.c,vtnkb.c,mmas.s: Ring 1 kernel (use new ps)
+08/18  mmu.c:  replace zero_fill() with memset()
+
+Changes to kernel for version #59:
+
+07/24  mmu.c:  zero_fill now uses register variables and long* for speed
+07/20  kb_d.c, kb_f.c:  fix Alt-Gr bug.
+?????  limit.h, coff.h cleaned up by steve
+07/24  typed.h,mmu.h fixed
+07/24  mmu.c: vaddr() checks MAX_VADDR; round CMOS RAM amt down to click bdry
+07/24  die.c: hex output
+07/24  main.c: t_piggy stuff
