@@ -40,6 +40,7 @@ reg WINDOW	*win; {
 		 */
 		for (i = 0; i < win->_maxy && win->_y[i]; i++)
 			free(win->_y[i]);
+		free(win->_y);
 		free(win->_firstch);
 		free(win->_lastch);
 		wp = win->_nextp;
@@ -60,6 +61,8 @@ reg WINDOW	*win; {
 			continue;
 		wp->_nextp = win->_nextp;
 	}
+	for (i = 0; i < win->_maxy && win->_y[i]; i++)
+		free(win->_y);
 	free(win->_y);
 	free(win);
 }
