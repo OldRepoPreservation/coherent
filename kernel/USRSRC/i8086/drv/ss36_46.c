@@ -2,8 +2,16 @@
  * This is a driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
+ *	bufq_wr_tail
+ *	recover()
+ *	do_connect()
+ *	set_timeout()
+ *	mask interrupts on finishing arbitration, etc.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.37	91/05/13  15:02:21	root
+ * Initial state machine hacks.
+ * 
  * Revision 1.36	91/05/13  11:08:25	root
  * Last version before using state machine logic.
  * 
@@ -49,33 +57,26 @@
 
 #define IN_BUF_SIZE	512	/* buffer size in "ss" structs */
 
-#define DEBUG	1
-#if DEBUG
-int stats[100], statsptr;
-#define PUSHI		{ if(statsptr<100)stats[statsptr++] = i; }
-#define POPI		{ if(sserrct<=MAXSSERR)printf("%d:",statsptr);while(statsptr)\
-				if(sserrct<=MAXSSERR)printf("%d ",stats[--statsptr]);if(sserrct<=MAXSSERR)printf("\n");}
-#define SSTELL(foo)	if(sserrct<=MAXSSERR)printf(foo)
-#define SSTATUS		{uchar status = ffbyte(ss_csr);if(sserrct<=MAXSSERR)printf("status=%x\n", status);}
-#define SSDUMP(ssp, text) {int i;\
-	if(sserrct<=MAXSSERR)printf("%s: msg_in=%x cmdstat=%x\n", text, ssp->msg_in,\
-	ssp->cmdstat);if(ssp->cmdlen)for(i=0;i<ssp->cmdlen;i++)\
-	if(sserrct<=MAXSSERR)printf(" %x", ssp->cmdbuf[i]);if(sserrct<=MAXSSERR)printf(" cmd_bytes_out=%d",\
-	ssp->cmd_bytes_out);\
-	if(ssp->data_bytes_in)for(i=0;i<ssp->data_bytes_in;i++)\
-	if(sserrct<=MAXSSERR)printf(" %x", ffbyte(ssp->in_buf+i));if(sserrct<=MAXSSERR)printf(" data_bytes_in=%d\n",\
-	ssp->data_bytes_in);}
-#else
-#define PUSHI
-#define POPI
-#define SSTELL(foo)
-#define SSTATUS
-#define SSDUMP(ssp, text)
-#endif
+#define BUS_FREE	((ffbyte(ss_csr) & (RS_BUSY | RS_SELECT)) == 0)
+#define TGT_RSEL	\
+	(  (ffbyte(ss_csr) & (RS_SELECT |  RS_I_O   )) \
+	&& (ffbyte(ss_dat) & (HOST_ID   | (1<<s_id) )) )
 
 typedef unsigned char	uchar;
 typedef unsigned int	uint;
 typedef unsigned long	ulong;
+typedef enum {
+	SST_DEQUEUE =0,
+	SST_BUS_DEV_RESET,
+	SST_HIPRI_RESET,
+	SST_LOPRI_RESET,
+	SST_POLL_ARBITN,
+	SST_POLL_BEGIN_IO,
+	SST_POLL_RESELECT,
+	SST_REQ_SENSE,
+	SST_RESET_DONE,
+	SST_RESET_OFF
+} SST_TYPE;
 typedef struct ss {
 	ulong	capacity;
 	ulong	blocklen;
@@ -94,7 +95,13 @@ typedef struct ss {
 	int	data_bytes_out;
 	BUF	*bp;		/* current I/O request node, or NULL */
 	struct	fdisk_s parmp[NPARTN+1];
-	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
+	SST_TYPE state;
+	TIM	tim;		/* for target-specific timers */
+	unsigned int	busy:1;		/* 1 if command uses local buffer */
+	unsigned int	expired:1;	/* 1 if target's timer has expired */
+	unsigned int	local_buf:1;	/* 1 if command uses local buffer */
+	unsigned int	ptab_read:1;	/* 1 if partition table has been read */
+	unsigned int	waiting:1;	/* 1 if target timer is running */
 }	ss_type;
 
 typedef struct {
@@ -112,7 +119,6 @@ typedef struct {
 extern int	nulldev();
 extern int	nonedev();
 extern unsigned char ffbyte();
-extern void	ss_mach();
 
 static void	ssopen();		/* CON functions */
 static void	ssclose();
@@ -128,15 +134,19 @@ static int	bus_dev_reset();	/* additional support functions */
 static int	bus_info_xfer();
 static int	bus_pre_xfer();
 static int	chk_reconn();
+static int	host_ident();
 static int	inquiry();
 static int	mode_sense();
+static void	nonpolled();
 static int	read_cap();
 static void	reconnect();
 static int	req_sense();
 static int	rezero();
+static int	rsel_handshake();
 static int	scsicmd();
 static void	scsireset();
 static void	ss_done();
+static void	ss_mach();
 static int	ss_rw();
 static void	ss_start();
 static void	ss_start_timing();
@@ -144,7 +154,7 @@ static void	ss_stop_timing();
 static void	ssdelay();
 static int	ssinit();
 static void	ssintr();
-static int	testready();
+static int	start_arb();
 
 /*
  * Global Data.
@@ -196,13 +206,17 @@ static faddr_t	ss_csr;		/* (far *) to control/status */
 static faddr_t	ss_dat;		/* (far *) to data port */
 
 static int	num_drives;	/* number of controller SCSI id's */
-static ss_type *ss_tbl;		/* points to block of "ss" structs */
 
 static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	reset_tim;	/* needed for calls to scsireset() */
-static TIM	timeout_tim;	/* needed for calls to timeout() */
 static TIM	sst_tim;	/* for timeout() call from ss_start() */
+static TIM	timeout_tim;	/* needed for calls to timeout() */
+
+static int	do_sst_op;	/* 1 when state machine iteration continues */
+static int	host_busy;	/* 1 when host is arbitrating or connected */
 static int	ss_expired;	/* 1 after local timeout */
+
+static ss_type	*ss_tbl;	/* points to block of "ss" structs */
 static ss_type  *ss[MAX_SCSI_ID-1];
 
 /*
@@ -524,8 +538,6 @@ register BUF	*bp;
 	ss_type * ssp;
 	int valid_op = 1;
 
-	bp->b_resid = bp->b_count;
-
 	/*
 	 * Set up local variables.
 	 */
@@ -711,62 +723,6 @@ printf("%ld cylinders\n", cyls);
 printf("%d heads\n", heads);
 		} else
 			devmsg(dev, "Mode Sense Failed");
-
-	return retval;
-}
-
-/*
- * testready()
- *
- * Send Test Unit Ready command.
- * Retry after bus reset if necessary.
- *
- * Return 1 if unit is ready, 0 if not.
- */
-static int testready(s_id)
-int s_id;
-{
-	int retval;
-	ss_type * ssp = ss[s_id];
-
-	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
-	ssp->cmdbuf[0] = ScmdTESTREADY;
-	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] =
-		ssp->cmdbuf[5] = 0;
-	ssp->cmdlen = G0CMDLEN;
-	retval = scsicmd(s_id);
-
-	return retval;
-}
-
-/*
- * scsicmd()
- *
- * Send command packet to target device.
- * Start a new SCSI bus cycle when this routine is called.
- * If command status after sending is Device Check (CS_CHECK), do a
- * Request Sense to find out what happened and clear check status.
- *
- * Return 1 if command was send and status was good, else 0.
- */
-static int scsicmd(s_id)
-int s_id;
-{
-	int retval;
-	ss_type *ssp = ss[s_id];
-
-	if (retval = bus_pre_xfer(s_id)) {
-		bus_info_xfer(ssp);
-		retval = (ssp->cmdlen == ssp->cmd_bytes_out
-			&& ssp->cmdstat == CS_GOOD);
-	}
-
-	if (ssp->cmdstat == CS_CHECK) {
-		if (req_sense(s_id))
-			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
-	}
 
 	return retval;
 }
@@ -1024,7 +980,6 @@ int we_wrote=0;
 					s = sphi();
 				}
 			} else {	/* This case should not happen. */
-SSDUMP(ssp, "Command overrun");
 				scsireset();
 			}
 			break;
@@ -1059,7 +1014,6 @@ if (!we_wrote) {
 				sfbyte(ss_dat, dat);
 				ssp->data_bytes_out++;
 			} else { /* This case should not happen. */
-SSDUMP(ssp, "Data out overrun");
 				scsireset();
 			}
 			break;
@@ -1405,9 +1359,6 @@ static int bus_dev_reset(s_id)
 
 printf("bdr");
 
-	if (!loading && st0x_busy)
-		bdr_ok = 0;
-
 	if (bdr_ok) {
 		/*
 		 * Do ST0x arbitration.
@@ -1451,7 +1402,6 @@ printf("bdr");
 			bdr_ok = 0;
 	}
 
-printf("%d",bdr_ok);
 	return bdr_ok;
 }
 
@@ -1619,4 +1569,233 @@ int s_id;
 	retval = scsicmd(s_id);
 
 	return retval;
+}
+
+/*
+ * ss_mach()
+ *
+ *	Gives a distinct state machine for each target device.
+ */
+void	ss_mach(s_id)
+int s_id;
+{
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
+
+	do_sst_op = 1; /* plan to run this routine again in most cases */
+	while (do_sst_op) {
+		switch (ssp->state) {
+		/*
+		 * Polling states execute whether ssp->waiting or not.
+		 */
+		case SST_POLL_ARBITN:
+			if (ffbyte(ss_csr) & RS_ARBIT_COMPL) {
+				ssp->waiting = 0;
+				if (host_ident(s_id))
+					do_connect(s_id);
+				else
+					recover(s_id, RV_P_TIMEOUT);
+			} else {
+				if (ssp->expired)
+					recover(s_id, RV_A_TIMEOUT);
+				else
+					do_sst_op = 0;
+				endif
+			}
+			break;
+		case SST_POLL_BEGIN_IO
+			if (bp == NULL && ssp->local_buf == 0)
+				ssp->state = SST_DEQUEUE;
+			else {
+				/*
+				 * At this point a SCSI command is about to
+				 * be initiated.  It may be a retry.
+				 */
+				if (!host_busy && BUS_FREE) {
+					host_busy = 1;
+					ssp->waiting = 0;
+					ssp->cmd_bytes_out = 0;
+					ssp->data_bytes_in = 0;
+					ssp->data_bytes_out = 0;
+					if (bp)
+						bp->b_resid = bp->b_count;
+					if (start_arb()) {
+						if (host_ident(s_id))
+							do_connect(s_id);
+						else
+							recover(s_id, RV_P_TIMEOUT);
+					} else {
+						ssp->state = SST_POLL_ARBITN;
+						set_timeout(DELAY_ARB);
+					}
+				} else  /* host_busy or bus not free */
+					set_timeout(DELAY_BSY);
+				}
+			}
+			break;
+		case SST_POLL_RESELECT:
+			if (TGT_RSEL) {
+				ssp->waiting = 0;
+				if reconnect handshake succeeds
+				if (rsel_handshake())
+					do_connect(s_id);
+				else
+					recover(s_id, RV_P_TIMEOUT);
+			} else  { /* Reselect poll is negative */
+				if (ssp->expired)
+					recover(s_id, RV_R_TIMEOUT);
+				else
+					do_sst_op = 0;
+			}
+			break;
+		default:
+			if (ssp->waiting)
+				do_sst_op = 0;
+			else {
+				/*
+				 * Nonpolling states execute only if no
+				 * target timer is running.
+				 */
+				nonpolled(s_id);
+			}
+		} /* endswitch */
+	} /* endwhile */
+}
+
+/*
+ * nonpolled()
+ *
+ * Part of ss_mach() - handling of nonpolling states is taken out simply
+ * for readability.
+ */
+static void nonpolled(s_id)
+int s_id;
+{
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
+
+	switch (ssp->state) {
+	case SST_BUS_DEV_RESET:
+		if (bus_dev_reset(s_id)) {
+			do_sst_op = 0;
+			set_timeout(DELAY_BDR);
+			ssp->state = SST_REQ_SENSE;
+		} else
+			recover(s_id, RV_P_TIMEOUT);
+		break;
+	case SST_DEQUEUE:
+		if(ssq_rd_head() != NULL && !ssp->busy) {
+			ssp->busy = 1;
+			bp = ssq_rm_head();
+			form current block request - initialize try counts, etc.
+			ssp->state = SST_POLL_BEGIN_IO;
+		} else /* queue is empty or ssp->busy */
+			do_sst_op = 0;
+		break;
+	case SST_HIPRI_RESET:
+	case SST_LOPRI_RESET:
+		/*
+		 * SST_LOPRI_RESET is same as SST_HIPRI_RESET for now.
+		 * Later, can implement a delay to allow other targets to
+		 * finish pending operations.
+		 */
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
+		ssp->state = SST_RESET_OFF;
+		set_timeout(DELAY_RST);
+		break;
+	case SST_REQ_SENSE:
+		if (req_sense(s_id))
+			ssp->state = SST_POLL_BEGIN_IO;
+		else
+			recover(s_id, RV_P_TIMEOUT);
+		break;
+	case SST_RESET_DONE:
+		ssp->state = SST_POLL_BEGIN_IO;
+		break;
+	case SST_RESET_OFF:
+		sfbyte(ss_csr, 0); /* reset OFF */
+		ssp->state = SST_RESET_DONE;
+		set_timeout(DELAY_RST);
+	} /* endswitch */
+}
+
+/*
+ * start_arb()
+ *
+ * return 1 if host adapter returned Arbitration Complete within allotted
+ * number of tries, else 0
+ */
+static int start_arb()
+{
+	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
+	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
+	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+
+	/*
+	 * SCSI spec says there is "no maximum" to the wait for arbitration
+	 * complete.
+	 */
+	return bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL);
+}
+
+/*
+ * host_ident(s_id)
+ *
+ * This routine is the bridge in a SCSI bus cycle between Abitration
+ * Complete and the Information Transfer phases.
+ *
+ * return 1 if everything went ok, 0 in case of timeout
+ */
+static int host_ident(s_id)
+int s_id;
+{
+	int ret = 0;
+
+	/*
+	 * Arbitration complete.  Now select, with ATN to allow messages.
+	 */
+	sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
+
+	if (bus_wait(RS_BUSY << 8 | RS_BUSY)) {
+		/*
+		 * Assert ATTN so target expects incoming message byte.
+		 */
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+
+		if (bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
+		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
+			/*
+			 * If using a local buffer rather than doing a kernel
+			 * block i/o request, inhibit Disconnect.
+			 */
+			if (ss[s_id]->local_buf))
+				sfbyte(ss_dat, MSG_IDENTIFY);
+			else
+				sfbyte(ss_dat, MSG_IDENT_DC);
+			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
+			ret = 1;
+		}
+	}
+	return ret;
+}
+
+/*
+ * rsel_handshake()
+ *
+ * After Reselect is detected, a couple steps are needed before entering
+ * Information Transfer phases.  This routine does those steps.
+ *
+ * return 1 if ok, 0 in case of timeout.
+ */
+static int rsel_handshake()
+{
+	int ret = 0;
+
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+	if (bus_wait(RS_SELECT << 8 | 0)) {
+		sfbyte(ss_csr, WC_ENABLE_SCSI);
+		ret = 1;
+	}
+	return ret;
 }
