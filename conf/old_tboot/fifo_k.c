@@ -142,6 +142,12 @@ fifo_open(fifo_space, mode)
 		return(F_NULL);	/* Illegal type encountered.  */
 	}
 
+
+	/* Is this space at least big enough for an empty fifo?  */
+	if (fifo_space->ts_size < 2 * (sizeof(typed_space))) {
+		return(F_NULL);
+	}
+
 	/* ASSERTION: fifo_space is a valid and implimented FIFO.  */
 
 	/* Find the first free FIFO structure.  */
@@ -165,6 +171,8 @@ fifo_open(fifo_space, mode)
 	/* Initialize the FIFO struct.  */
 	the_fifo->f_space = fifo_space;
 	the_fifo->f_offset = fifo_space->ts_data;
+
+	/* Note that an open for write does not truncate.  */
 
 	/* Initilize the flags.  */
 	switch(mode) {
