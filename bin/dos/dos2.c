@@ -148,7 +148,7 @@ creatfile(name, dp) char *name; DIR *dp;
 			mdp->m_name[0] = MFREE;
 		mdp = dp->d_dir + ofiles;
 	}
-	mdirinit(mdp, dp, dosname(name), 0, 0);
+	mdirinit(mdp, dp, dosname(name), MARCHIV, 0);
 	return mdp;
 }
 
