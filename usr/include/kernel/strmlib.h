@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef __KERNEL_STRMLIB_H__
 #define __KERNEL_STRMLIB_H__
 
@@ -5,7 +12,7 @@
  * This ^^^^^^^^^^^^^^^^^ symbol is used in the DDI/DKI header <sys/ddi.h> to
  * determine which #undef directives it is required to perform, on the basis
  * that it should avoid touching namespaces unless they have been reserved
- * by the inclusion of a header which reserves such classes of names.
+ * by the inclusion of a header that reserves such classes of names.
  */
 
 /*
@@ -19,36 +26,14 @@
  * use only, names do not begin with underscores.
  */
 
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__EXTERN_C_BEGIN__
- *		__EXTERN_C_END__
- *		__PROTO ()
- *	<common/xdebug.h>
- *		__LOCAL__
- *	<common/__size.h>
- *		__size_t
- *	<common/__clock.h>
- *		__clock_t
- *	<common/__pid.h>
- *		__pid_t
- *	<kernel/st_alloc.h>
- *		_ST_HEAP_CONTROL
- *	<kernel/defer.h>
- *		defer_int_any ()
- *	<sys/ksynch.h>
- *		lock_t
- *		sv_t
- *	<sys/uio.h>
- *		uio_t
- */
-
 #include <common/ccompat.h>
 #include <common/xdebug.h>
 #include <common/__size.h>
 #include <common/__clock.h>
 #include <common/__pid.h>
+#include <common/__cred.h>
+#include <common/__types.h>
+#include <kernel/__pl.h>
 #include <kernel/st_alloc.h>
 #include <kernel/defer.h>
 #include <sys/inline.h>
@@ -60,7 +45,7 @@
 #include <kernel/ddi_glob.h>
 
 /*
- * In order to be able to declare prototypes that refer to structures that are
+ * To be able to declare prototypes that refer to structures that are
  * declared in other headers, we supply incomplete declarations at top-level
  * to avoid some scoping problems.
  */
@@ -68,16 +53,15 @@
 struct stroptions;
 struct strbuf;
 
-
 /*
- * In onder for freezestr () to work as defined in the Multiprocessor DDI/DKI,
+ * For freezestr () to work as defined in the Multiprocessor DDI/DKI,
  * it cannot simply be implemented in terms of the high-level locking
- * operations defined in <sys/ksynch.h> (the reason being that it is specified
+ * operations defined in <sys/ksynch.h>.  This is because it is specified
  * as raising the processor priority level, whereas the "pl" parameter to the
  * high-level locking functions is specified as setting the level, with a
- * caution that it not cause the level to be lowered).
+ * caution that it not cause the level to be lowered.
  *
- * Stream queue freezing cannot really be implemented in terms of high-level
+ * Stream-queue freezing cannot really be implemented in terms of high-level
  * basic locks because of the hierarchy mechanism; the relative priority of
  * stream head locks is determined by relative position in a stream so that
  * following the "q_next" member yields increasing (virtual) hierarchy values,
@@ -116,12 +100,12 @@ struct strbuf;
 
 
 /*
- * Some useful predicates for determining whether various items are actually
- * parts of triples or not, since there are exceptional cases where the
- * individual elements of a triple have been scattered to the four winds.
+ * Some useful predicates for determining whether an item is
+ * part of a triples, as there are exceptional cases in which the
+ * elements of a triple have been scattered to the four winds.
  *
- * Note that the SET_MB_TRIPLE () and SET_MB_FREE () exist as a pair, since
- * they only relate to message blocks that are part of a triple.
+ * Note that the SET_MB_TRIPLE () and SET_MB_FREE () exist as a pair, because
+ * they relate only to message blocks that are part of a triple.
  * SET_MB_TRIPLE () is used when a message block is instantiated, and
  * SET_MB_FREE () is used when a message block is deallocated but the rest
  * of the triple is still in use.
@@ -178,9 +162,9 @@ struct strbuf;
  * The methods used in the multiplexing examples in the STREAMS Programmer's
  * Guide for System V Release 2 are quite inefficient. The following general
  * STREAMS queue scheduling structures and routines were defined in a visible
- * manner since
+ * manner because:
  *
- *   (i) It served to better-document the way in which queues are serviced
+ *   (i) It better documents the way in which queues are serviced
  *	 within this STREAMS implementation,
  *
  *  (ii) Multiplexing drivers (and device drivers which multiplex several
@@ -197,8 +181,8 @@ struct strbuf;
  *
  * As this system is used internally by this STREAMS implementation, it can
  * use the "q_link" member of a queue to hold a link to the next STREAM on
- * a schedule. In addition, some "q_flag" bits can be used to control
- * whether or not a queue is currently threaded on any schedule. A portable
+ * a schedule.  In addition, some "q_flag" bits can be used to control
+ * whether or not a queue is currently threaded on any schedule.  A portable
  * implementation that does not depend on any reserved parts of STREAMS
  * data structures may not use these fields, and so may operate under a
  * different set of constraints. However, since in this case the drivers and
@@ -300,23 +284,23 @@ typedef struct sigpoll	sigpoll_t;
  * a function with undefined parameters, yet also accepts a parameter which
  * it will then pass on to the callback. The only way to implement this at
  * all portably is to use some version of the ISO <stdarg.h> mechanism to
- * allow bufcall () to take any argument in it's "natural" form and then
+ * allow bufcall () to take any argument in its "natural" form and then
  * pass a maximum-sized chunk of stack into the callback in order to capture
  * all of the information that the client wanted to pass.
  *
- * Of course, doing this is opening a wide door to all kinds of problems,
- * since while there are some sleazy ways to restrict the size of the extra
+ * Of course, doing this is opening a door to all kinds of problems:
+ * although there are some sleazy ways to restrict the size of the extra
  * argument to something reasonable, there is no way that we can make sure
  * that the shapes of the argument and the callback parameter really do
  * match (eg, the callback takes a long but bufcall () is given an int).
  *
  * Of course, this is all no worse than the situation AT&T have under the
  * DDI/DKI, where bufcall () is required to take the callback parameter as
- * a "long" and clients assume that pointers have the same shape as longs
- * (if you look at the example in bufcall (D3DK) that is exactly what A&T
- * seem to be suggesting - blech).
+ * a "long" and clients assume that pointers have the same shape as longs.
+ * (If you look at the example in bufcall (D3DK) that is exactly what A&T
+ * seem to be suggesting.)
  *
- * There is no entirely satisfactory way to get around this evil in plain C,
+ * There is no entirely satisfactory way to get around this in plain C,
  * although we can get at least a partial solution through supplying a range
  * of supplementary definitions that (at least in an ISO environment) ensure
  * that the function argument types and argument types will be coerced to
@@ -404,6 +388,7 @@ extern lkinfo_t	__stream_event_lkinfo;
  * Some handy requirements for timeout ID generation. We have to define these
  * numbers such that each list above generates a non-overlapping sequence that
  * overflows into the same sequence, eg.
+ *
  *	1, k + 1, 2k + 1, ... ik + 1, 1, ...
  *	2, k + 2, 2k + 2, ... ik + 2, 2, ...
  *
@@ -428,7 +413,7 @@ extern lkinfo_t	__stream_event_lkinfo;
 /*
  * A note on bufcall ()/esbbcall () structures;
  *
- * I am not able to conceive of a comprehensive strategy for dealing with
+ * I cannot conceive a comprehensive strategy for dealing with
  * these things that works well under all circumstances. For now, it seems
  * that keeping a few around in preallocated event cells is a good idea for
  * when we run out of memory. However, as long as possible the system will
@@ -447,12 +432,6 @@ extern lkinfo_t	__stream_event_lkinfo;
 					 */
 #define MAP_PRI_LEVEL(p)	p	/*
 					 * Map from BPRI_xxx to index.
-					 */
-
-/* #define SPLIT_STREAMS_MEMORY */	/*
-					 * Control whether there are separate
-					 * arenas for messages and other
-					 * allocations.
 					 */
 
 /*
@@ -516,8 +495,8 @@ struct streams_mem {
 	shead_t	      *	sm_streams [SLIST_MAX];
 					/* Chains of stream heads */
 
-	__size_t	sm_maxctlsize;	/* max. size of control message */
-	__size_t	sm_maxdatasize;	/* max. size of data message part */
+	long		sm_maxctlsize;	/* max. size of control message */
+	long		sm_maxdatasize;	/* max. size of data message part */
 
 
 	/*---------- Locked by sm_msg_lock ------------*/
@@ -528,25 +507,6 @@ struct streams_mem {
 					 * waiting for free memory.
 					 */
 	__size_t	sm_msg_needed;	/* Level of free memory required */
-
-#ifdef	SPLIT_STREAMS_MEMORY
-	/*---------- Locked by sm_other_lock ------------*/
-
-	lock_t	      *	sm_other_lock;	/* basic lock for "other" heap */
-
-	_ST_HEAP_CONTROL_P sm_other_heap;/* Memory heap for long-term info */
-
-	sv_t	      *	sm_other_sv;	/*
-					 * synchronization variable for
-					 * waiting for free memory.
-					 */
-	__size_t	sm_other_needed;/* Level of free memory required */
-#else
-# define	sm_other_heap	sm_msg_heap
-# define	sm_other_lock	sm_msg_lock
-# define	sm_other_sv	sm_msg_sv
-# define	sm_other_needed	sm_msg_needed
-#endif
 };
 
 
@@ -555,17 +515,7 @@ struct streams_mem {
  * controlling access to the various memory pools.
  */
 
-#ifdef	SPLIT_STREAMS_MEMORY
-
-# define	str_msg_pl	plstr
-# define	str_other_pl	plhi
-
-#else
-
-# define	str_msg_pl	plhi
-# define	str_other_pl	plhi
-
-#endif
+#define	str_msg_pl	plstr
 
 
 /*
@@ -577,29 +527,6 @@ struct streams_mem {
 #define SCHEDULE_BUFCALLS() \
    (ATOMIC_FETCH_AND_STORE_UCHAR (ddi_global_data ()->dg_run_bufcalls, 1) \
 			== 1 ? (void) 0 : (void) defer_int_any (RUN_BUFCALLS))
-
-
-/*
- * If all allocations are coming from the same pool, non-message allocations
- * need to be counted in with the allocation-priority information.
- *
- * The "other" pool (which will really be the message pool) should be locked
- * when these functions are called.
- */
-
-#ifdef	SPLIT_STREAMS_MEMORY
-
-# define	OTHER_ALLOCED(size)
-# define	OTHER_FREED(size)
-
-#else
-
-# define	OTHER_ALLOCED(size)	(void) (str_mem->sm_used += size)
-# define	OTHER_FREED(size)	((void) (str_mem->sm_used -= size), \
-					 SCHEDULE_BUFCALLS ())
-
-#endif
-
 
 /*
  * We need access to a global instance of the above for managing STREAMS
@@ -663,7 +590,7 @@ struct __stream_head {
 	struct pollhead
 		      *	sh_pollhead;	/* for polling support */
 
-	pid_t		sh_pgrp;	/* foreground TTY process group */
+	__pid_t		sh_pgrp;	/* foreground TTY process group */
 	__VOID__      *	sh_controller;	/* reference to controlling process */
 
 	int		sh_rerrcode;	/* error code from M_ERROR */
@@ -791,13 +718,13 @@ void		QSCHED_UNSCHEDULE
 				__PROTO ((queue_t * _q, ssched_t * _sched));
 queue_t	      *	QSCHED_GETFIRST	__PROTO ((ssched_t * _sched));
 
-pl_t		QFREEZE_TRACE	__PROTO ((queue_t * _q,
+__pl_t		QFREEZE_TRACE	__PROTO ((queue_t * _q,
 					  __CONST__ char * _name));
 void		QFROZEN_TRACE	__PROTO ((queue_t * _q,
 					  __CONST__ char * _name));
 void		QUEUE_TRACE	__PROTO ((queue_t * _q,
 					  __CONST__ char * _name));
-void		QUNFREEZE_TRACE	__PROTO ((queue_t * _q, pl_t _pl));
+void		QUNFREEZE_TRACE	__PROTO ((queue_t * _q, __pl_t _pl));
 
 void		QUEUE_BACKENAB	__PROTO ((queue_t * _q));
 queue_t	      *	QUEUE_NEXT	__PROTO ((queue_t * _q));
@@ -810,12 +737,12 @@ mblk_t	      *	MSGB_ALLOC	__PROTO ((__size_t _size, int _pri,
 					  int _flag));
 
 void		SHEAD_WAKE	__PROTO ((shead_t * _sheadp, cat_t _flag));
-void		SHEAD_SIGNAL	__PROTO ((shead_t * _sheadp, uchar_t _sig));
+void		SHEAD_SIGNAL	__PROTO ((shead_t * _sheadp, __uchar_t _sig));
 int		SHEAD_SRDOPT	__PROTO ((shead_t * _sheadp, int _flag));
 void		QBAND_SETOPT	__PROTO ((queue_t * _q,
 					  struct stroptions * _so));
 
-qband_t	      *	QUEUE_BAND	__PROTO ((queue_t * _q, uchar_t _pri));
+qband_t	      *	QUEUE_BAND	__PROTO ((queue_t * _q, __uchar_t _pri));
 qband_t	      *	QBAND_PREV	__PROTO ((queue_t * _q, qband_t * _qbandp));
 
 void		RUN_BUFCALLS	__PROTO ((void));
@@ -825,15 +752,17 @@ shead_t	      *	SHEAD_FIND	__PROTO ((n_dev_t _dev, slist_id_t _id));
 
 int		STREAMS_OPEN	__PROTO ((n_dev_t * _devp,
 					  struct streamtab * _stabp,
-					  int _mode, cred_t * _credp));
+					  int _mode, __cred_t * _credp,
+					  int _cloneflag));
 int		STREAMS_CLOSE	__PROTO ((shead_t * _sheadp, int _mode,
-					  cred_t * _credp));
-
-int		STREAMS_READ	__PROTO ((shead_t * _sheadp, uio_t * _uiop));
-int		STREAMS_WRITE	__PROTO ((shead_t * _sheadp, uio_t * _uiop));
+					  __cred_t * _credp));
+int		STREAMS_READ	__PROTO ((shead_t * _sheadp, uio_t * _uiop,
+					  __cred_t * credp));
+int		STREAMS_WRITE	__PROTO ((shead_t * _sheadp, uio_t * _uiop,
+					  __cred_t * credp));
 int		STREAMS_IOCTL	__PROTO ((shead_t * _sheadp, int _cmd,
-					  _VOID * _arg, int _mode,
-					  cred_t * _credp, int * _rvalp));
+					  __VOID__ * _arg, int _mode,
+					  __cred_t * _credp, int * _rvalp));
 
 int		STREAMS_CHPOLL	__PROTO ((shead_t * _sheadp, short _events,
 					  int _anyyet, short * _reventsp,
@@ -843,12 +772,13 @@ int		STREAMS_GETPMSG	__PROTO ((shead_t * _sheadp,
 					  struct strbuf * _ctlbuf,
 					  struct strbuf * _databuf,
 					  int * _bandp, int * _flagsp,
-					  int _mode, int * _rvalp));
-int		STREAMS_PUTPMSG	__PROTO ((shead_t * _sheadp,
-					  struct strbuf * _ctlbuf,
-					  struct strbuf * _databuf, int _band,
-					  int _flags, int _mode,
+					  int _mode, __cred_t * credp,
 					  int * _rvalp));
+int		STREAMS_PUTPMSG	__PROTO ((shead_t * _sheadp,
+					  __CONST__ struct strbuf * _ctlbuf,
+					  __CONST__ struct strbuf * _databuf,
+					  int _band, int _flags, int _mode,
+					  __cred_t * credp, int * _rvalp));
 
 __EXTERN_C_END__
 
@@ -882,17 +812,17 @@ __EXTERN_C_END__
  * no longer documented as of the SVR4 MP DDI/DKI.
  */
 
-#define	VECTOR_BANDS
-#define	VECTOR_BANDS_TEST		/* test mode for VECTOR_BANDS */
+#define	_VECTOR_BANDS		0
+#define	_VECTOR_BANDS_TEST	0	/* test mode for VECTOR_BANDS */
 
-#ifdef	VECTOR_BANDS
+#if	_VECTOR_BANDS
 
 #define	QUEUE_BAND(q,pri)	((pri) > (q)->q_nband ? NULL : \
 					& (q)->q_bandp [pri - 1])
 
 #define	QBAND_PREV(q,bandp)	((bandp) > (q)->q_bandp ? (bandp) - 1 : NULL)
 
-#endif	/* defined (VECTOR_BANDS) */
+#endif	/* _VECTOR_BANDS */
 
 
 #endif /* ! __KERNEL_STRMLIB_H__ */

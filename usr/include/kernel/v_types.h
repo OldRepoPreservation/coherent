@@ -1,3 +1,10 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__KERNEL_V_TYPES_H__
 #define	__KERNEL_V_TYPES_H__
 
@@ -30,36 +37,19 @@
 
 #include <common/ccompat.h>
 #include <common/__clock.h>		/* for drv_ prototypes */
-#include <common/_cred.h>
-#include <kernel/__pl.h>
+#include <common/__cred.h>
+#include <kernel/__bool.h>
 #include <kernel/pri.h>
 #include <kernel/x86io.h>
 #include <kernel/_lock.h>
 #include <kernel/_toid.h>
-#include <sys/types.h>
-
+#include <kernel/_pl.h>
 
 /*
  * Types used in the System V DDI/DKI
  */
 
-typedef unsigned short	bool_t;		/* boolean variable type */
-typedef	__pl_t		pl_t;
-
-
-/*
- * The major/minor device number concepts have been altered a little under
- * System V release 4 to encompass the idea of internal and external minor
- * device numbers.
- *
- * Under this concept the "bdevsw" and "cdevsw" can map down from 32-bit
- * device numbers to some smaller internal major/minor space.
- */
-
-typedef	unsigned short	minor_t;	/* external minor device number */
-typedef	unsigned short	major_t;	/* external major device number */
-
-#define	NODEV		((major_t) -1)
+typedef __bool_t	bool_t;		/* boolean variable type */
 
 
 /*
@@ -93,7 +83,7 @@ enum { FALSE = 0, TRUE = 1 };
  * Type of function argument to itimeout ().
  */
 
-typedef	void	     (* __tfuncp_t)	__PROTO ((_VOID * _arg));
+typedef	void	     (* __tfuncp_t)	__PROTO ((__VOID__ * _arg));
 
 
 /*
@@ -105,15 +95,15 @@ __EXTERN_C_BEGIN__
 
 int		drv_getparm	__PROTO ((ulong_t _parm, ulong_t * _value_p));
 __clock_t	drv_hztousec	__PROTO ((__clock_t _ticks));
-int		drv_priv	__PROTO ((cred_t * _credp));
+int		drv_priv	__PROTO ((__cred_t * _credp));
 int		drv_setparm	__PROTO ((ulong_t _parm, ulong_t _value));
 __clock_t	drv_usectohz	__PROTO ((__clock_t _microsecs));
 
-toid_t		itimeout	__PROTO ((__tfuncp_t _fn, _VOID * _arg,
-					  __clock_t _ticks, pl_t _pl));
-toid_t		ltimeout	__PROTO ((__tfuncp_t _fn, _VOID * _arg,
+toid_t		itimeout	__PROTO ((__tfuncp_t _fn, __VOID__ * _arg,
+					  __clock_t _ticks, __pl_t _pl));
+toid_t		ltimeout	__PROTO ((__tfuncp_t _fn, __VOID__ * _arg,
 					  __clock_t _ticks, __lock_t * lockp,
-					  pl_t _pl));
+					  __pl_t _pl));
 void		untimeout	__PROTO ((toid_t));
 
 minor_t		etoimajor	__PROTO ((major_t _emaj));
@@ -132,22 +122,24 @@ o_dev_t		makedev		__PROTO ((unsigned _maj, unsigned _min));
 
 #endif
 
-int		copyin		__PROTO ((_VOID * _userbuf,
-					  _VOID * _driverbuf, size_t _count));
-int		copyout		__PROTO ((_VOID * _driverbuf,
-					  _VOID * _userbuf, size_t _count));
+int		copyin		__PROTO ((__VOID__ * _userbuf,
+					  __VOID__ * _driverbuf,
+					  size_t _count));
+int		copyout		__PROTO ((__VOID__ * _driverbuf,
+					  __VOID__ * _userbuf,
+					  size_t _count));
 
-void		bcopy		__PROTO ((__CONST__ _VOID * _from,
-					  _VOID * _to, size_t _bcount));
-void		bzero		__PROTO ((_VOID * _addr, size_t _bytes));
+void		bcopy		__PROTO ((__CONST__ __VOID__ * _from,
+					  __VOID__ * _to, size_t _bcount));
+void		bzero		__PROTO ((__VOID__ * _addr, size_t _bytes));
 
 ulong_t		btop		__PROTO ((ulong_t _numbytes));
 ulong_t		btopr		__PROTO ((ulong_t _numbytes));
 ulong_t		ptob		__PROTO ((ulong_t _numpages));
 
 __VOID__      *	proc_ref	__PROTO ((void));
-int		proc_signal	__PROTO ((_VOID * _pref, int _sig));
-void		proc_unref	__PROTO ((_VOID * _pref));
+int		proc_signal	__PROTO ((__VOID__ * _pref, int _sig));
+void		proc_unref	__PROTO ((__VOID__ * _pref));
 
 #ifdef	_DDI_DKI_IMPL
 	/*
@@ -176,7 +168,7 @@ __EXTERN_C_END__
 
 
 /*
- * Old-style Coherent functions, like modern-day getmajor (), but for the old
+ * Internal COHERENT functions, like modern-day getmajor (), but for the old
  * SVR3-style types.
  */
 

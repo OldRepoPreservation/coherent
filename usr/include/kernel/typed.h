@@ -1,8 +1,12 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
+#ifndef __KERNEL_TYPED_H__
+#define __KERNEL_TYPED_H__
 
 /* typed.h -- Data structures for an implimentation of internally
  * typed data structures.
@@ -18,9 +22,6 @@
  * USEFUL SYMBOLS		-- Symbols needed by specific typed spaces.
  *	Anything else you need to define should go here.
  */
-
-#ifndef __KERNEL_TYPED_H__
-#define __KERNEL_TYPED_H__
 
 /* This file ought to be rewritten to adjust itself based on the contents
  * of the ANSI file limits.h.

@@ -1,16 +1,12 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef __KERNEL_ST_ALLOC_H__
 #define	__KERNEL_ST_ALLOC_H__
-
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__CONST__
- *		__PROTO__
- *		__VOID__
- *		__PROTO ()
- *	<common/xdebug.h>
- *		__LOCAL__
- */
 
 #include <limits.h>
 #include <common/ccompat.h>
@@ -25,9 +21,8 @@
  * defined below) to implement a binary-searchable index of block buckets
  * ordered by size.
  *
- * The primariy characteristic of this algorithm is its' speed ; the growth
- * rate of the execution time is O (log W), where W is the number of words in
- * the arena being managed. 
+ * The primariy characteristic of this algorithm is speed; the execution time
+ * is O (log W), where W is the number of words in the arena being managed. 
  *
  * This implementation is directly derived from the article in which this
  * algorithm first appeared;
@@ -37,14 +32,11 @@
  *	R. P. Brent, Australian National University
  *	ACM Transactions on Programming Languages and Systems
  *	Volume 11, No. 3, July 1989 pp 388-403.
- */
-
-
-/*
+ *
  * This source code deviates somewhat from the terminology used in the
  * article, due to the large number of ambiguous terms here. The following
  * definitions are used exclusively in the commentary and selection of
- * identifiers within this source code :
+ * identifiers within this source code:
  *
  *	heap		a balanced binary tree with implicit links, esp.
  *			used to perform max/min calculations or binary search
@@ -57,12 +49,11 @@
  *			blocks
  */
 
-
 /*
  * Definition of the type of an underlying machine address for each one of
  * the pointer types used in the arena control structure.
  *
- * An interesting question : what type should be being used for the heap
+ * An interesting question: what type should be being used for the heap
  * control words, short or long? If a short is used for the size of a
  * control word, then we are limited to 64k bytes for the size of a single
  * allocation arena.
@@ -81,7 +72,8 @@ typedef int			_ST_WORD_T;
 typedef _ST_WORD_T	      *	_ST_ADDR_T;
 
 #define	_ST_HEAP_ADDR(q,a)	(a)
-#define	_ST_HEAP_BUCKET(q,a)	(((char *) (a) - (char *) (q)->_arena_base) / ((q)->_words_per_bucket * sizeof (_ST_WORD_T)))
+#define	_ST_HEAP_BUCKET(q,a)	(((char *) (a) - (char *) (q)->_arena_base) / \
+				 ((q)->_words_per_bucket * sizeof (_ST_WORD_T)))
 
 
 /*
@@ -93,8 +85,10 @@ typedef _ST_WORD_T	      *	_ST_ADDR_T;
 #define	_ST_BLOCK_CONTROL(q,a)		(* _ST_HEAP_ADDR (q, (a)))
 #define	_ST_BLOCK_SIZE(c)		((c) & _ST_SIZE_MASK)
 #define	_ST_BLOCK_FREE(c)		(((c) & _ST_FREE_MASK) == 0)
-#define	_ST_BLOCK_SET_FREE(q,a,n)	(void) (_ST_BLOCK_CONTROL (q, (a)) = (n) & ~ _ST_FREE_MASK)
-#define	_ST_BLOCK_SET_USED(q,a,n)	(void) (_ST_BLOCK_CONTROL (q, (a)) = (n) | _ST_FREE_MASK)
+#define	_ST_BLOCK_SET_FREE(q,a,n)	(void) (_ST_BLOCK_CONTROL (q, (a)) = \
+						(n) & ~ _ST_FREE_MASK)
+#define	_ST_BLOCK_SET_USED(q,a,n)	(void) (_ST_BLOCK_CONTROL (q, (a)) = \
+						(n) | _ST_FREE_MASK)
 
 
 #define	_ST_HEAP_BIGGEST(q,s)	((q)->_bucket_biggest [s])
@@ -154,12 +148,11 @@ struct _st_heap_control {
 
 typedef struct _st_heap_control _ST_HEAP_CONTROL, * _ST_HEAP_CONTROL_P;
 
-
 /*
  * As an additional check, we can make clients of st_disp () pass in the
  * size of the block to free as (i) an additional assertion check against
  * bugs, and (ii) because a faster/less overhead implementation of the
- * algorithm might be possible where there is no header for allocated blocks
+ * algorithm is possible where there is no header for allocated blocks
  * (the free blocks contain a size and a pointer to the next free block).
  */
 
@@ -187,12 +180,33 @@ int		st_free		__PROTO ((_ST_HEAP_CONTROL_P _q,
 __VOID__      *	st_realloc	__PROTO ((_ST_HEAP_CONTROL_P _q,
 					  __VOID__ * _a, size_t _newsize
 					  ST_FREE_SIZE (size_t _oldsize)));
-void		st_init		__PROTO ((_ST_HEAP_CONTROL_P _q));
 void		st_ctor		__PROTO ((_ST_HEAP_CONTROL_P _q, int _segs,
 					  size_t _arensize,
 					  _ST_ADDR_T _arenabase));
+_ST_HEAP_CONTROL_P
+		st_heap_init	__PROTO ((__VOID__ * _memory, size_t _size));
 size_t		st_maxavail	__PROTO ((_ST_HEAP_CONTROL_P _q));
 
+int		st_check	__PROTO ((_ST_HEAP_CONTROL_P _q,
+					  __CONST__ char * _where));
+
+#if	_ST_IMPL
+
+void		st_reduced	__PROTO ((_ST_HEAP_CONTROL_P _q,
+					  int _bucket));
+void		st_grown	__PROTO ((_ST_HEAP_CONTROL_P _q,
+					  _ST_ADDR_T _a, int _bucket));
+_ST_ADDR_T	st_pred		__PROTO ((_ST_HEAP_CONTROL_P _q,
+					  _ST_ADDR_T _a, int _bucket));
+
+#endif	/* _ST_IMPL */
+
 __EXTERN_C_END__
+
+#if	0	/* in case of emergency, break glass */
+#define	_ST_CHECK(q, msg)	st_check (q, msg)
+#else
+#define	_ST_CHECK(q, msg)	(0)
+#endif
 
 #endif	/* ! defined (__KERNEL_ST_ALLOC_H__) */
