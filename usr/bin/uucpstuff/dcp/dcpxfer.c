@@ -345,8 +345,6 @@ sepcline()
 				clinep[1], clinep[2], clinep[3],
 				clinep[4], clinep[5], clinep[6],
 				clinep[7], clinep[8], clinep[9]);
-		plog(M_SPOOL, "Aborted acting upon this command file.");
-		return(1);
 	}
 	nclinep = i;
 	fromfilep = clinep[2];
