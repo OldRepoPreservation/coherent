@@ -1,6 +1,6 @@
 /*
  * ls.c
- * 3/7/91
+ * 7/19/91
  * List structure
  */
 
@@ -32,6 +32,11 @@
 
 #define	OLD	(60L*60*24*365)	/* old form of dates (seconds) */
 
+/*
+ * The following flags are mutually exclusive.
+ * The rightmost one on the command line wins.
+ */
+#define EXCLUDE_Clmnox	Cflag = lflag = mflag = nflag = oflag = xflag = 0
 
 int	aflag;			/* List all entries (including "." & "..") */
 int	bflag;			/* Print non-raphic chars in octal */
@@ -128,6 +133,7 @@ char *argv[];
 				break;
 
 			case 'C':
+				EXCLUDE_Clmnox;
 				Cflag = 1;
 				break;
 
@@ -152,18 +158,22 @@ char *argv[];
 				break;
 
 			case 'l':
+				EXCLUDE_Clmnox;
 				lflag = 1;
 				break;
 
 			case 'm':
+				EXCLUDE_Clmnox;
 				mflag = 1;
 				break;
 
 			case 'n':
+				EXCLUDE_Clmnox;
 				nflag = 1;
 				break;
 
 			case 'o':
+				EXCLUDE_Clmnox;
 				oflag = 1;
 				break;
 
@@ -196,6 +206,7 @@ char *argv[];
 				break;
 
 			case 'x':
+				EXCLUDE_Clmnox;
 				xflag = 1;
 				break;
 
@@ -205,8 +216,6 @@ char *argv[];
 		argc--;
 		argv++;
 	}
-	if (xflag || mflag)
-		lflag = oflag = nflag = 0;
 	if (fflag)
 		lflag = sflag = 0;
 	time(&curtime);
