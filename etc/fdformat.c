@@ -1,16 +1,13 @@
+
 char helpmessage[] = "\
 \
-/etc/fdformat -- format a floppy diskette\n\
+/etc/fdformat -- format a floppy disk\n\
 Usage:	/etc/fdformat [-i n] [-o n] [-v] [-w file] special\n\
 Options:\n\
-	-i	use n as an interleave factor\n\
-	-o	use n as an offset factor for numbering sectors\n\
-	-v	verify the format by reading each track\n\
-	-w	write file onto the floppy\n\
-Interleave 4 and offset 0 are the default specifications, both range from\n\
-0 to the number of sectors per track less 1.\n\
-The number of verify options less one specifies the number of format\n\
-track retries to be attempted before giving up.\n\
+	-i n	use interleave factor n (default: 4)\n\
+	-o n	use offset factor n for numbering sectors (default: 0)\n\
+	-v	verify by reading each track (may be specified repeatedly)\n\
+	-w file	write file to the diskette\n\
 \
 ";
 #include	<stdio.h>
@@ -41,25 +38,20 @@ struct fdata {
 	{ 0, 1, 40, 8, 2 , 8*512 },	/* minor device 0 - /dev/f8s0 */
 	{ 0, 2, 40, 8, 2 , 8*512 },	/* minor device 1 - /dev/f8d0 */
 	{ 0, 2, 80, 8, 2 , 8*512 },	/* minor device 2 - /dev/f8q0 */
-
 	{ 0, 1, 40, 9, 2,  9*512 },	/* minor device 3 - /dev/f9s0 */
 	{ 0, 2, 40, 9, 2,  9*512 },	/* minor device 4 - /dev/f9d0 */
-
 	{ 0, 2, 80, 9, 2,  9*512 },	/* minor device 5 - /dev/fqd0 */
 	{ 0, 2, 80,15, 2, 15*512 },	/* minor device 6 - /dev/fhd0 */
+	{ 0, 2, 80,18, 2, 18*512 },	/* minor device 7 - /dev/fvd0 */
 
-	{ 1, 2, 40,16, 1, 16*256 },	/* Micral double */
-	{ 1, 2, 80,16, 1, 16*256 },	/* Micral quad */
-
-	{ 1, 2, 40, 9, 2,  9*512 },	/* minor device 9 - /dev/f9a0 */
-
-	{ 0, 1, 80,10, 2, 10*512 },	/* Rainbow */
-	{ 0, 0,  0, 0, 0,      0 },	/* Future */
-
+	{ 0, 0,  0, 0, 0,  0*  0 },	/* minor device 8 - unused */
+	{ 1, 2, 40, 8, 2,  8*512 },	/* minor device 9 - /dev/f8a0 */
+	{ 0, 0,  0, 0, 0,  0*  0 },	/* minor device 10 - unused */
+	{ 0, 0,  0, 0, 0,  0*  0 },	/* minor device 11 - unused */
 	{ 1, 2, 40, 9, 2,  9*512 },	/* minor device 12 - /dev/f9a0 */
 	{ 1, 2, 80, 9, 2,  9*512 },	/* minor device 13 - /dev/fqa0 */
 	{ 1, 2, 80,15, 2, 15*512 },	/* minor device 14 - /dev/fha0 */
-	{ 0, 0,  0,  0, 0,     0 }	/* Future */
+	{ 1, 2, 80,18, 2, 18*512 }	/* minor device 15 - /dev/fva0 */
 };
 
 struct fdata fkind;
