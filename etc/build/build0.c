@@ -1,12 +1,21 @@
 /*
  * build0.c
- * 5/4/90
+ * 10/22/90
  * Routines common to build and install.
  */
 
 #include <stdio.h>
 #include <sys/stat.h>
 #include "build0.h"
+
+/* Globals. */
+int	abortmsg;			/* print abort message	*/
+char	*argv0;				/* for error messages	*/
+char	buf[NBUF];			/* input buffer		*/
+char	cmd[NBUF];			/* command buffer	*/
+int	dflag;				/* debug		*/
+char	*usagemsg;			/* usage message	*/
+int	vflag;				/* verbose		*/
 
 /*
  * Clear the IBM AT console screen.
@@ -40,19 +49,43 @@ exists(file) register char *file;
 
 /*
  * Print a fatal error message.
+ * Print "Installation aborted..." message if invoked from build or install.
  */
 void
 fatal(s) char *s;
 {
-	fprintf(stderr, "%s: %r\nInstallation aborted before completion.\n",
-		argv0, &s);
+	fprintf(stderr, "%s: %r\n", argv0, &s);
+	if (abortmsg)
+		fprintf(stderr, "Installation aborted before completion.\n");
 	exit(1);
+}
+
+/*
+ * Get an integer value in the given range.
+ */
+/* VARARGS */
+int
+get_int(min, max, prompt) int min, max; char *prompt;
+{
+	register char *s;
+	register int i;
+
+	s = get_line("%r", &prompt);
+	for (;;) {
+		if (*s >= '0' && *s <= '9') {
+			i = atoi(s);
+			if (i >= min && i <= max)
+				return i;
+		}
+		get_line("Enter a value between %d and %d:", min, max);
+	}
 }
 
 /*
  * Print the args and get a line from the user to buf[].
  * Strip the trailing newline and return a pointer to the first non-space.
  */
+/* VARARGS */
 char *
 get_line(args) char *args;
 {
@@ -134,6 +167,7 @@ usage()
  * Get the answer to a yes/no question.
  * Return 1 for yes, 0 for no.
  */
+/* VARARGS */
 int
 yes_no(args) char *args;
 {
