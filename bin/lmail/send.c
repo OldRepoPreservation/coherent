@@ -152,6 +152,7 @@ FILE *tfp;
 			continue;
 		}
 		chown(boxname, pwp->pw_uid, pwp->pw_gid);
+		chmod(boxname, 0600);
 		fprintf(xfp, "\1\1\1\1\n");
 	        mcopy(tfp, xfp, ftell(tfp), (fsize_t)MAXLONG, 0);
 		fprintf(xfp, "\n\1\1\1\1\n");
@@ -198,6 +199,7 @@ xsend(users, tfp) char **users; FILE *tfp;
 			continue;
 		}
 		chown(boxname, pwp->pw_uid, pwp->pw_gid);
+		chmod(boxname, 066);
 		fprintf(xfp, "From xmail %s %s\n", cp,
 			tzname[tp->tm_isdst ? 1 : 0]);
 		fclose(xfp);
