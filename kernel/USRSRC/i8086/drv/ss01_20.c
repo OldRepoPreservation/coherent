@@ -7,6 +7,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.18	91/03/25  20:11:30	root
+ * first raw read - disconnects
+ * 
  * Revision 1.17	91/03/25  19:06:36	root
  * calls ssqueue functions - need real i/o
  * 
@@ -100,8 +103,13 @@
 #define INQUIRYLEN	54	/* number of bytes returned w/ inquiry */
 
 				/* Message types */
-#define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
+#define MSG_CMD_CMPLT	0x00	/* Command Complete */
+#define MSG_SAVE_DPTR	0x02	/* Save SCSI data pointer */
+#define MSG_RSTOR_DPTR	0x03	/* Restore SCSI pointers */
+#define MSG_DISCONNECT	0x04	/* Target is about to disconnect */
 #define MSG_ABORT	0x06	/* End the current SCSI bus cycle */
+#define MSG_DEV_RESET	0x0C	/* Bus Device Reset */
+#define MSG_IDENT_DC	0xC0	/* Identify, with Disconnect allowed */
 
 #define CS_GOOD		0x00	/* Command Status from the drive */
 #define CS_CHECK	0x02
@@ -133,7 +141,7 @@ int stats[100], statsptr;
 #define POPI		{ printf("%d:",statsptr);while(statsptr)\
 				printf("%d ",stats[--statsptr]);printf("\n");}
 #define SSTELL(foo)	printf(foo)
-#define SSTATUS		printf("status=%x\n", (int)(unsigned char)status)
+#define SSTATUS		{uchar status = ffbyte(ss_csr);printf("status=%x\n", status);}
 #define SSDUMP(ssp, text) {int i;\
 	printf("%s: msg_in=%x cmdstat=%x\n", text, ssp->msg_in,\
 	ssp->cmdstat);if(ssp->cmdlen)for(i=0;i<ssp->cmdlen;i++)\
@@ -217,6 +225,7 @@ static void	ssintr();
 static void	ss_start();
 static void	ss_done();
 static void	do_ss();
+static void	bus_dev_reset();
 
 /*
  * Local Variables.
@@ -654,7 +663,7 @@ unsigned short flags;
 
 	if (!found)
 		printf("ST0x timeout;  flags=%x status=%x\n", flags, status);
-PUSHI;
+
 	return found;
 }
 
@@ -669,7 +678,7 @@ PUSHI;
  * Pseudocode:
  *
  * retval = 0
- * if Test Unit Ready command fails
+ * if Test Unit Ready command fails, even after SCSI reset and retry
  *   print "Test Unit Ready fails"
  * else if Request Sense command fails
  *   print "Request Sense fails"
@@ -688,10 +697,16 @@ int s_id;
 	int retval = 0;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
-	if (testready(s_id)) {
+	if (testready(s_id))
 		retval = 1;
-	} else
-		devmsg(dev, "Test Unit Ready Failed");
+	else {
+		scsireset();
+		bus_dev_reset(s_id);
+		if (testready(s_id))
+			retval = 1;
+		else
+			devmsg(dev, "Test Unit Ready Failed");
+	}
 
 	if (retval)
 		if (req_sense(s_id)) {
@@ -776,16 +791,63 @@ int s_id;
 {
 	int retval;
 	struct ss *ssp = ss[s_id];
+	int tries;
 
-	if (retval = bus_pre_xfer(s_id)) {
-		bus_info_xfer(ssp);
-		retval = (ssp->cmdlen == ssp->cmd_bytes_out
-			&& ssp->cmdstat == CS_GOOD);
-	}
+	tries = 0;
+	do {
+		if (tries > 0)
+			ssdelay(100);
 
-	if (ssp->cmdstat == CS_CHECK) {
-		if (req_sense(s_id))
-			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
+		if (retval = bus_pre_xfer(s_id)) {
+			bus_info_xfer(ssp);
+			retval = (ssp->cmdlen == ssp->cmd_bytes_out
+				&& ssp->cmdstat == CS_GOOD);
+		}
+
+		if (ssp->cmdstat == CS_CHECK) {
+			if (req_sense(s_id))
+				retval = (ssp->cmdlen == ssp->cmd_bytes_out);
+		}
+
+		tries++;
+	} while (ssp->cmdstat == CS_BUSY && tries < LOPRI_RETRIES);
+
+	if (ssp->msg_in == MSG_DISCONNECT) {
+		int connected = 0;
+		uchar dat, csr;
+
+printf("Disconnected\n");
+		for (tries = 0; tries < 10; tries++) {
+			csr = ffbyte(ss_csr);
+			if (csr & RS_SELECT) {
+				dat = ffbyte(ss_dat);
+				if (dat & HOST_ID) {
+printf("Reconnected\n");
+					connected = 1;
+					break;
+				} else {
+					int t;
+printf("Host not selected\n");
+					for (t = 0; t < 10; t++) {
+						if (ffbyte(ss_csr) & RS_SELECT == 0) {
+printf("Select dropped by target\n");
+							break;
+						}
+						ssdelay(10);
+					}
+				}
+			}
+			ssdelay(10);
+		}
+		if (connected) {
+			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+			if (bus_wait(RS_SELECT << 8 | 0)) {
+printf("Select deasserted by target\n");
+				sfbyte(ss_csr, WC_ENABLE_SCSI);
+				bus_info_xfer(ssp);
+				retval = (ssp->cmdstat == CS_GOOD);
+			}
+		}
 	}
 
 	return retval;
@@ -800,12 +862,15 @@ int s_id;
  * Each tick is 10 msec.
  */
 #define RESET_TICKS	40
+int RESET_ON_TICKS = 40;
+int RESET_OFF_TICKS = 40;
 static void scsireset()
 {
+printf("scsireset\n");
 	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET);
-	ssdelay(RESET_TICKS);
+	ssdelay(RESET_ON_TICKS);
 	sfbyte(ss_csr, 0);
-	ssdelay(RESET_TICKS);
+	ssdelay(RESET_OFF_TICKS);
 }
 
 /*
@@ -935,27 +1000,22 @@ int s_id;
  *   endif
  * endwhile
  */
-int zzzz;
-
 static int bus_info_xfer(ssp)
 struct ss *ssp;
 {
 	int bus_timeout;
-	unsigned char phase_type;
+	uchar phase_type;
+	uchar msg_in;
 	int no_msg_rcvd = 1;
 	int s;
 	int bytes_to_send;
-int zzgo=0;
 
 	ssp->cmdstat = -1;
 	ssp->data_bytes_in = 0;
 	ssp->cmd_bytes_out = 0;
+	ssp->msg_in = -1;
 	s = sphi();
 	while(req_wait(&bus_timeout)) {
-if(zzgo) {
-	zzgo = 0;
-	printf("zzzz=%d\n", zzzz);
-}
 		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 		switch (phase_type) {
 		case XP_MSG_IN:
@@ -963,11 +1023,26 @@ if(zzgo) {
 			 * Only pay attention to first msg byte in.
 			 * Don't care about extended messages.
 			 */
-			if (no_msg_rcvd) {
-				no_msg_rcvd = 0;
-				ssp->msg_in = ffbyte(ss_dat);
-			} else
-				ffbyte(ss_dat);
+			msg_in = ffbyte(ss_dat);
+printf("msg_in = %x\n", msg_in);
+			switch(msg_in){
+			case MSG_CMD_CMPLT:
+				ssp->msg_in = msg_in;
+				break;
+			case MSG_SAVE_DPTR:
+				break;
+			case MSG_RSTOR_DPTR:
+				break;
+			case MSG_DISCONNECT:
+				ssp->msg_in = msg_in;
+				break;
+			case MSG_ABORT:
+				break;
+			case MSG_DEV_RESET:
+				break;
+			case MSG_IDENT_DC:
+				break;
+			}
 			break;
 		case XP_MSG_OUT:
 			/*
@@ -993,7 +1068,6 @@ if(zzgo) {
 				 */
 				if (bytes_to_send == 1) {
 					spl(s);
-zzgo=1;
 					s = sphi();
 				}
 			} else {	/* This case should not happen. */
@@ -1024,7 +1098,7 @@ SSDUMP(ssp, "Command overrun");
 		} /* endswitch */
 	}
 	spl(s);
-POPI;
+SSDUMP(ssp, "cmd");
 	return (bus_timeout) ? 0 : 1 ;
 }
 /*
@@ -1060,8 +1134,7 @@ int *to_ptr;
 
 	if (*to_ptr)
 		printf("ST0x info xfer timeout;  status=%x\n", status);
-PUSHI;
-zzzz=i;
+
 	return req_found;
 }
 
@@ -1265,4 +1338,68 @@ printf("signature low:%x high:%x\n", ssp->in_buf[510], ssp->in_buf[511]);
 	}
 
 	return ret;
+}
+
+/*
+ * BDR_CHECK_INTERVAL is the number of ticks to wait between checks for
+ * SCSI Bus Free after sending Bus Device Reset.
+ * BDR_CHECK_COUNT is the number of times to check for SCSI Bus Free
+ * before giving up.
+ */
+#define BDR_CHECK_INTERVAL	10
+#define BDR_CHECK_COUNT		100
+
+/*
+ * bus_dev_reset()
+ *
+ * Send Bus Device Reset message to the given SCSI id.
+ */
+static void	bus_dev_reset(s_id)
+{
+	int tries;
+	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
+printf("bus_dev_reset\n");
+	for (tries = 0; tries < LOPRI_RETRIES; tries++) {
+		/*
+		 * Do ST0x arbitration.
+		 */
+		sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
+		sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
+		sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+
+		/*
+		 * SCSI spec says there is "no maximum" to the wait for arbitration
+		 * complete.
+		 */
+		if (!bus_wait(RS_ARBIT_COMPL << 8 | RS_ARBIT_COMPL)) {
+			scsireset();
+			continue;
+		}
+
+		/*
+		 * Arbitration complete.  Now select, with ATN to allow messages.
+		 */
+		sfbyte(ss_dat, HOST_ID | (1 << s_id));	/* Write both SCSI id's */
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION | WC_SELECT);
+
+		if (!bus_wait(RS_BUSY << 8 | RS_BUSY))
+			continue;
+
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+
+		if (!bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
+		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE)))
+			continue;
+
+		sfbyte(ss_csr, WC_ENABLE_SCSI);
+		sfbyte(ss_dat, MSG_DEV_RESET);
+		break;
+	}
+	for (tries = 0; tries < BDR_CHECK_COUNT; tries++) {
+		if (ffbyte(ss_csr) == 0) {
+			printf("bus device reset done\n");
+			break;
+		}
+		ssdelay(BDR_CHECK_INTERVAL);
+	}
 }
