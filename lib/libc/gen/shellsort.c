@@ -1,36 +1,36 @@
 /*
- * Shell sort with the calling sequence of
- * qsort.
+ * Shellsort algorithm from Donald L Shell cf. Knuth Vol. 3, pp. 84 ff.
+ * Divide a set of n elements into n/2 groups. { 0, n/2 } .. {1, n/2+1}
+ * etc. Sort the groups. Now divide into n/4 groups of 4 {0, n/4, 2n/4, 3n/4}
+ * etc. Sort those and continue.
  */
+#include <stdio.h>
+#include <limits.h>
+#include <string.h>
 
-#define A(v,i)  ((v)+((i)*size))
+#define inOrder(h, l) ((*compar)((Void *)(h), (Void *)(l)) >= 0)
 
-shellsort(v, n, size, compar)
-register char *v;
+void
+shellsort(base, nmemb, size, compar)
+Void *base;
+size_t nmemb, size;
 int (*compar)();
 {
-	int gap, i;
-	register j;
+	register char *bot;
+	register j, gap, i, n;
 
-	for (gap = n/2; gap > 0; gap /= 2)
-		for (i = gap; i < n; i++)
-			for (j = i-gap; j>=0; j -= gap) {
-				if ((*compar)(A(v,j), A(v,j+gap)) <= 0)
+	for (n = gap = size * nmemb;;) {
+		if (nmemb & 1)
+			gap -= size;
+		if (!(nmemb >>= 1))
+			break;
+		for (i = gap >>= 1; i < n; i += size) {
+			for (j = i - gap; j >= 0; j -= gap) {
+				bot = base + j;
+				if (inOrder(bot + gap, bot))
 					break;
-				qexch(A(v,j), A(v,j+gap), size);
+				_memxchg(bot, bot + gap, size);
 			}
-}
-
-static
-qexch(p1, p2, n)
-register char *p1, *p2, n;
-{
-	int t;
-
-	if (n)
-		do {
-			t = *p1;
-			*p1++ = *p2;
-			*p2++ = t;
-		} while (--n);
+		}
+	}
 }
