@@ -1,10 +1,12 @@
 /*
- * libc/sys/ustat.c
+ * libc/sys/uname.c
  */
 
-ustat(dev, buf)
+#include <sys/utsname.h>
+
+uname(name) struct utsname *name;
 {
-	return _ustn(buf, dev, 2);
+	return _utssys(name, 0, 0);
 }
 
-/* end of libc/sys/ustat.c */
+/* end of libc/sys/uname.c */
