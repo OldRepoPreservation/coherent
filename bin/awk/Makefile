@@ -2,6 +2,7 @@
 
 # Include source directory in CFLAGS for y.tab.c.
 CFLAGS=-I$(SRCPATH)
+DESTDIR= /f1/bin/
 # Link with floating point output.
 LDFLAGS=-f
 YFLAGS=  -prods 110 -terms 67 -nterms 30 -states 200
@@ -18,7 +19,7 @@ OBJ=\
 
 # Primary target.
 awk:	$(OBJ)
-	cc $(LDFLAGS) -o awk $(OBJ) -lm
+	cc $(LDFLAGS) -o $(DESTDIR)awk $(OBJ) -lm
 
 # Secondary targets.
 awk.o:	awk.y

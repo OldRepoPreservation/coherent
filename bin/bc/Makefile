@@ -5,6 +5,7 @@ HFILES	= bc.h bcmch.h bcsymtbl.h
 SFILES	= globals.c main.c gram.y grmact.c interp.c bcmch.c bcmutil.c\
 		lex.c getnum.c putnum.c output.c
 CFLAGS= -O
+DESTDIR= /f1/bin/
 MFILES	= readme Makefile gram.fix
 
 #bc:	$(OFILES) bc.v.o
@@ -12,7 +13,7 @@ MFILES	= readme Makefile gram.fix
 #	rm bc.v.o
 
 bc:	$(OFILES) 
-	$(CC) $(CFLAGS) -i -o bc $(OFILES) -lmp
+	$(CC) $(CFLAGS) -i -o $(DESTDIR)bc $(OFILES) -lmp
 
 bcprof:	$(OFILES)
 	$(CC) $(CFLAGS) -o bcprof -p $(OFILES) bc.v.o -lmp

@@ -6,6 +6,7 @@
 
 # SRC defines the root directory of as source, MCH the target machine.
 SRC=/newbits/bin/as
+DESTDIR=/f1/bin/
 MCH=i8086
 
 # Add source and mch directories to include path.
@@ -29,7 +30,7 @@ MCHOBJ=\
 
 # Primary target.
 as:	$(OBJ) $(MCHOBJ)
-	$(CC) $(LDFLAGS) -o $@ $<
+	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $<
 
 # Secondary targets.
 # Machine independent.

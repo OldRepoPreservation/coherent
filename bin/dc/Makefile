@@ -2,13 +2,14 @@
 
 bc=/newbits/bin/bc
 CFLAGS=-O -I$(bc)
+DESTDIR= /f1/bin/
 dco=dc.o dcsub.o undefined.o
 bco=bcmch.o bcmutil.o getnum.o globals.o output.o putnum.o
 SRCS= dc.c dcsub.c undefined.c $(bc)/bcmch.c $(bc)/bcmutil.c $(bc)/getnum.c \
 	$(bc)/globals.c $(bc)/output.c $(bc)/putnum.c
 
 dc:	$(dco) $(bco)
-	cc $(CFLAGS) -o dc $(dco) $(bco) -lmp
+	cc $(CFLAGS) -o $(DESTDIR)dc $(dco) $(bco) -lmp
 bcmch.o: $(bc)/bcmch.c
 	cc $(CFLAGS) -c $?
 bcmutil.o: $(bc)/bcmutil.c
