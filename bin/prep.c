@@ -21,6 +21,7 @@ WORDS	*words[NHASH];
 int	pflag;			/* Print punctuation as well */
 int	dflag;			/* Print (input) word numbers */
 int	fflag;			/* Fold upper into lower case */
+int	iflag;			/* Ignore case for '-i' */
 int	nignore;		/* Number of ignored words */
 int	nonly;			/* Number of only words */
 long	wordno;			/* Input word number */
@@ -62,6 +63,7 @@ char *argv[];
 				argv++;
 				argc--;
 				nignore += enter(argv[1]);
+				iflag = 1;
 				break;
 
 			case 'o':
@@ -172,7 +174,7 @@ char *fn;
 				break;
 			}
 			if (isupper(c))
-				*cp = c = tolower(c);
+				cp[-1] = c = tolower(c);
 			hash += c;
 		}
 		if ((wp = (WORDS *)malloc(sizeof(WORDS) + cp-wordbuf)) == NULL)
@@ -196,15 +198,32 @@ char *word;
 	register WORDS *wp;
 	register char *cp;
 	register unsigned hash = 0;
+	char	wordbuf[256];		/* Keep a temporary copy of a world */
+	int	i;
 
 	cp = word;
 	while (*cp != '\0')
 		if (isupper(*cp))
 			hash += tolower(*cp++); else
 			hash += *cp++;
-	for (wp = words[hash%NHASH]; wp != NULL; wp = wp->w_next)
-		if (strcmp(wp->w_name, word) == 0)
-			return (1);
+	for (wp = words[hash%NHASH]; wp != NULL; wp = wp->w_next) {
+		if (iflag && !fflag) {
+			if (strlen(word) > 256)
+				preperr("word too long %s", word);
+			for (cp = word, i = 0; *cp != '\0'; cp++)
+				if (isupper(*cp))
+					wordbuf[i++] = tolower(*cp);
+				else 
+					wordbuf[i++] = *cp;
+			wordbuf[i] = '\0';
+			cp = wordbuf;
+			if (strcmp(wp->w_name, cp) == 0) 
+				return (1);
+		} else {	
+			if (strcmp(wp->w_name, word) == 0) 
+				return (1);
+		}
+	}
 	return (0);
 }
 
