@@ -1,3 +1,4 @@
+.\" /usr/lib/tmac.s 4/16/91
 .de It		\" Done at initialization
 .po 1i
 .wh 0 Hd
@@ -23,25 +24,25 @@
 ..
 .de Rt		\" Reset everything to normal state
 .ce 0
-.if \\n(Di \{\
+.if \\n(Di \\{\\
 .di
 .nr Di 0
 .nf
 .Tl
-. \}
+. \\}
 .fi
 .ps \\n(Ps
 .vs \\n(VSu
 .ft R
-.if \\n(Il \{\
+.if \\n(Il \\{\\
 .nr Il 0
 .in -\\n(Iku
-. \}
-.if \\n(Qn \{\
+. \\}
+.if \\n(Qn \\{\\
 .nr Qn -1
 .in -\\n(Qdu
 .ll +\\n(Qdu
-. \}
+. \\}
 ..
 .de Hd		\" Header trap
 'nr PN \\n%
@@ -50,31 +51,30 @@
 'PT
 'ft P
 'sp \\n(HMu/2u
-'if \\n(Kf \{\
+'if \\n(Kf \\{\\
 'nr Kf 0
 'ev 1
 'nf
 'Kd
 'rm Kd
 'ev
-. \}
+. \\}
 .nr Fn 0	\" Clear footnote count
 .ch Fo -\\n(FMu
 .if \\n(Fh .Fv	\" And put out overflow
 ..
 .de Fo		\" Footer trap
-.nr dn 0
-.if \\n(Fn \{\
-.ev 1
+.if \\n(Fn \\{\\
+.\".ev 1
 .nf
 .Fn
 .rm Fn
+.fi
+.\".ev
 .if "\\n(.z"Fe" .di
-.di
 .nr Fn 0
-.ev
 .if \\n(dn .nr Fh 1
-. \}
+. \\}
 'sp \\n(FMu/2u
 'ft R
 'BT
@@ -163,7 +163,7 @@
 .ft R
 ..
 .de AB		\" Begin abstract
-.if \\n(Di \{\
+.if \\n(Di \\{\\
 .sp
 .ce 0
 .ps \\n(PS
@@ -173,7 +173,7 @@
 .Tl
 .fi
 .nr Di 0
-. \}
+. \\}
 .sp
 .ce
 \fIABSTRACT\fP
@@ -269,17 +269,17 @@
 .de DE		\" Display end
 .ce 0
 .nr Xx 0u
-.if \\n(Bi \{\
+.if \\n(Bi \\{\\
 .nr Xx -.5i
 .nr Bi 0
-. \}
-.if \\n(Bd \{\
+. \\}
+.if \\n(Bd \\{\\
 .nr Bd 0
 .di
 .nr Xx (\\n(.lu-\\n(dlu)/2u
 .in +\\n(Xxu
 .da Kd
-. \}
+. \\}
 .KE
 .in -\\n(Xxu
 ..
@@ -300,12 +300,12 @@
 .de KE		\" End keep
 .br
 .di
-.if !\\n(Kf \{\
+.if !\\n(Kf \\{\\
 .if \\n(dn>=\\n(.t .bp
 .nf
 .Kd
 .rm Kd
-. \}
+. \\}
 .ev
 ..
 .de TS		\" Table start
@@ -320,23 +320,23 @@
 .de FS		\" Footnote start
 .da Fn
 .ev 1
+.fi
 .ll \\n(FLu
 .if \\n+(Fn=1 .Fs
-.fi
 ..
 .de FE		\" Footnote end
 .br
-.nr Fv \\n(.v
 .ev
 .di
-.nr Ft -\\n(dn
-.if \\n(Fn=1 .nr Ft -(\\n(.v-\\n(Fv)
-.ch Fo \\n(Ftu
-.if (\\n(nl+1v)>(\\n(.p+\\n(Ft) .ch Fo \\n(nlu+1v
+.ie \\n(.t>(\\n(dn+\\\n(.v) .ch Fo -(\\n(FMu+\\n(dnu+\\n(.vu)
+.el                         .ch Fo (\\n(nlu+\\n(.vu)
 ..
 .de Fs		\" Put out separator
-\l'1i'
+-----
 .br
+..
+.\" create an empty macro for later macros to initialize.
+.de Fe
 ..
 .de Fv		\" Catch footnote overflow
 .nr Fv 0
@@ -372,9 +372,10 @@
 .ds - \(mi
 .ds ' \z\(aa
 .ds ` \z\(ga
-.ds : \z\(:
+.ds : \z:
 .ds ^ \z^
 .ds ~ \z~
 .ds C \z^
 .ds , \z,
 .It
+.\" end of /usr/lib/tmac.s
