@@ -99,6 +99,9 @@ PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
 		OPTS=${OPTS}" ${K386OBJ}/$ARG.o"
 		DEFAULT_KB=n
 		;;
+	sc)
+		CFLAGS=${CFLAGS}" -DSERIAL_CONSOLE"
+		;;
 	ss)
 		OPTS=${OPTS}" ${K386OBJ}/$ARG.o"
 		PATCH="${PATCH} drvl+260=sscon"
@@ -144,7 +147,7 @@ OPTS=${OPTS}" ${K386OBJ}/vtmm.o ${K386OBJ}/vtmmas.o ${K386OBJ}/vtkb_f.o"
 	*)
 echo "Usage:  $0"
 echo "  {aha|al|asy|at|fha|fva|hs|inst|kb|kb_d|kb_f|nkb"
-echo "    |ss|ticom|vt|vtkb|vtkb_d|vtkb_f}"
+echo "    |sc|ss|ticom|vt|vtkb|vtkb_d|vtkb_f}"
 echo "  {-o target} {-a async_file} {-c cflags} {addr=value}..."
 		exit 1
 		;;

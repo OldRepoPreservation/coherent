@@ -116,7 +116,10 @@ LIBLIST= \
 	$(K386LIB)/kl386.a \
 	$(K386LIB)/mm.a \
 	$(K386LIB)/nkb.a \
-	$(K386LIB)/vt.a
+	$(K386LIB)/vt.a \
+	$(K386LIB)/vtkb.a \
+	$(K386LIB)/vtkb_d.a \
+	$(K386LIB)/vtkb_f.a
 
 $(K386LIB)/kb.a:	$(K386OBJ)/kb.o
 	rm -f $@
@@ -144,6 +147,27 @@ $(K386LIB)/vt.a: \
 	$(K386OBJ)/vtmm.o \
 	$(K386OBJ)/vtmmas.o \
 	$(K386OBJ)/vtnkb.o 
+	rm -f $@
+	$(AR) $(ARFLAGS) $@ $<
+
+$(K386LIB)/vtkb.a: \
+	$(K386OBJ)/vtmm.o \
+	$(K386OBJ)/vtmmas.o \
+	$(K386OBJ)/vtkb.o 
+	rm -f $@
+	$(AR) $(ARFLAGS) $@ $<
+
+$(K386LIB)/vtkb_d.a: \
+	$(K386OBJ)/vtmm.o \
+	$(K386OBJ)/vtmmas.o \
+	$(K386OBJ)/vtkb_d.o 
+	rm -f $@
+	$(AR) $(ARFLAGS) $@ $<
+
+$(K386LIB)/vtkb_f.a: \
+	$(K386OBJ)/vtmm.o \
+	$(K386OBJ)/vtmmas.o \
+	$(K386OBJ)/vtkb_f.o 
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
 
