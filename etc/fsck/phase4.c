@@ -194,10 +194,10 @@ badilist()
 		return(BAD);
 	for (i=0; i<numfree; i++) {
 		inum = sbp->s_inode[i];
+		if ( (inum < FIRSTIN) || (inum > ninodes) )
+			return(BAD);
 		bn = iblockn(inum);
 		if ( (testblock(bn)) && (bn!=INODEI) )
-			return(BAD);
-		if ( (inum < FIRSTIN) || (inum > ninodes) )
 			return(BAD);
 		if ( (flags(inum)&ALLOCMASK) != UNALLOC ) 
 			return(BAD);

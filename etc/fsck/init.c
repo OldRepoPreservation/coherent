@@ -26,7 +26,8 @@ daddr_t	dupblck[DUPTBLSIZE];		/* duplicate referenced blocks */
 int	totdups;			/* number of dup blocks so far */
 
 #if !SMALLMODEL
-char *linkPtr, *flagptr, *blockPtr, *dupPtr;
+unsigned short *linkPtr;
+unsigned char  *flagptr, *blockPtr, *dupPtr;
 #endif
 
 init()
@@ -160,10 +161,10 @@ alloctables()
 		free(blockPtr);
 		free(dupPtr);
 	}
-	linkPtr = calloc(numl, 1);
-	flagPtr = calloc(numl, 1);
-	blockPtr = calloc(num, 1);
-	dupPtr = calloc(num, 1);
+	linkPtr  = calloc(numl, sizeof(unsigned short));
+	flagPtr  = calloc(numl, sizeof(unsigned char));
+	blockPtr = calloc(num,  sizeof(unsigned char));
+	dupPtr   = calloc(num,  sizeof(unsigned char));
 #endif
 	numfiles =		/* number of files in the file system */
 	totdups = 0;		/* num dup blocks */

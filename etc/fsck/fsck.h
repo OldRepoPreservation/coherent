@@ -172,7 +172,8 @@ enum vact { testBlock, markBlock, unmarkBlock, grabBlock,
 #define badblks(ino)	(flags(ino)&IBAD_IDUP)
 
 #else
-char *linkPtr, *flagPtr, *blockPtr, *dupPtr;
+unsigned short *linkPtr;
+unsigned char  *flagPtr, *blockPtr, *dupPtr;
 
 #define bix(bn)	 (((unsigned long)(bn)) >> LOGNBPC)
 #define bitm(bn) (1 << ((bn) & (NBPC - 1)))
