@@ -45,6 +45,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.16  92/11/12  10:04:31  root
+/ Ker #68
+/ 
 / Revision 1.15  92/11/09  17:08:28  root
 / Just before adding vio segs.
 / 
@@ -91,9 +94,10 @@ MMUUPD	.macro
 / has a value of 0xFFC0_0000, which is the start of the last 4 meg segment.
 / This value is the address in linear space once we have entered paging mode,
 / but until that time relocation arithmetic is necessary:
-/ - 	Before segmentation is turned on, symbols in kernel text or data space
-/ 	must be relocated by -SBASE<<BPCSHIFT for memory reference instructions
-/	to work.
+/
+/ Before segmentation is turned on, symbols in kernel text or data space
+/ must be relocated by -SBASE<<BPCSHIFT for memory reference instructions
+/ to work.
 
 ///////
 
@@ -748,7 +752,7 @@ atrecv:
 
 	xchg	%esi,%edi
 	rep				/ Value of the ECX register is not
-	insw				/ updated correctly
+	insw	(%dx)			/ updated correctly
 	xchg	%esi,%edi		
 
 	pop	[PTABLE1_V<<BPCSHIFT]+WORK1
@@ -1329,7 +1333,7 @@ io2seg:					/ setspace in caller
 
 	cld
 	rep				/ Value of the ECX register is not
-	insw				/ updated correctly
+	insw	(%dx)			/ updated correctly
 
 	pop	%edi
 	ret
@@ -2293,11 +2297,19 @@ se01:
 / return nonzero if paging is turned on
 	.globl	paging
 paging:
-	movl	(%esp),%eax	/ fetch return address
-	cmpl	$SBASE,%eax	/ is it >= unsigned FFC0_0000?
-	jae	paging_yes
-	xorl	%eax,%eax
+	movl	(%esp),%eax		/ fetch return address
+	cmpl	$[SBASE<<BPCSHIFT],%eax	/ is it >= unsigned FFC0_0000?
+	jae	pagingMaybe
+	xorl	%eax,%eax		/ if not, no paging
 	ret
-paging_yes:
+pagingMaybe:
+	movw	%cs,%ax			/ if return addr high, cs is a selector
+	cmpw	$0x58,%ax		/ selectors 58-6F are nonpaging
+	jb	pagingYes
+	cmpw	$0x6F,%ax		/ selectors 58-6F are nonpaging
+	ja	pagingYes
+	xorl	%eax,%eax		/ no paging
+	ret
+pagingYes:
 	movl	$1,%eax
 	ret
