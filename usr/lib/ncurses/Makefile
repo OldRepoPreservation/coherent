@@ -40,7 +40,7 @@ CFLAGS= -O -DSRCDIR='"$(SRCDIR)"'
 SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	comp_parse.c read_entry.c \
 	dump.c dump_names.c  \
-	captoinfo.c getcap.c putinfo.c tget.c \
+	captoinfo.c getcap.c putinfo.c \
 	lib_setup.c lib_fixterm.c lib_tparm.c lib_tputs.c \
 	lib_unctrl.c lib_raw.c lib_vidattr.c lib_trace.c \
 	lib_beep.c lib_doupdate.c lib_refresh.c lib_initscr.c lib_newwin.c \
@@ -50,7 +50,7 @@ SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	lib_box.c lib_clear.c lib_delch.c lib_deleteln.c lib_insch.c \
 	lib_insertln.c lib_getstr.c lib_mvwin.c lib_longname.c lib_tstp.c \
 	lib_newterm.c lib_set_term.c lib_overlay.c lib_scrreg.c lib_setacs.c \
-	lib_napms.c lib_color.c
+	lib_napms.c lib_color.c lib_tget.c
 
 #
 # Normal, optimised object files
@@ -64,14 +64,14 @@ LIBOBJS= lib_setup.o lib_fixterm.o lib_tparm.o read_entry.o lib_tputs.o \
 	lib_box.o lib_clear.o lib_delch.o lib_deleteln.o lib_insch.o \
 	lib_insertln.o lib_getstr.o lib_mvwin.o lib_longname.o lib_tstp.o \
 	lib_newterm.o lib_set_term.o lib_overlay.o lib_scrreg.o lib_setacs.o \
-	lib_napms.o lib_color.o
+	lib_napms.o lib_color.o lib_tget.o
 
 COMPOBJS= comp_main.o comp_hash.o comp_captab.o comp_scan.o comp_error.o \
 	comp_parse.o read_entry.o
 
-CTOIOBJS= captoinfo.o getcap.o putinfo.o tget.o
+CTOIOBJS= captoinfo.o getcap.o putinfo.o
 
-all:	tic infocmp captoinfo lib
+all:	lib tic infocmp captoinfo
 	@echo "all done"
 
 install: all
@@ -95,8 +95,8 @@ comp_captab.c: Caps MKcaptab.awk
 
 comp_captab.o: comp_captab.c
 
-captoinfo:	$(CTOIOBJS)
-		cc -s $(CFLAGS) $(CTOIOBJS) -o $(DESTDIR2)captoinfo
+captoinfo:	$(CTOIOBJS) libcurses.a
+		cc -s $(CFLAGS) $(CTOIOBJS) -o $(DESTDIR2)captoinfo libcurses.a
 
 putinfo.c: Caps infotail.src MKinfo.awk
 	awk -f MKinfo.awk Caps
@@ -108,8 +108,6 @@ captoinfo.o:	captoinfo.c
 getcap.o:	getcap.c
 
 putinfo.o:	putinfo.c
-
-tget.o:		tget.c
 
 infocmp: dump.o dump_names.o read_entry.o
 	cc -s -o $(DESTDIR2)infocmp dump.o dump_names.o read_entry.o
@@ -210,6 +208,7 @@ lib_newwin.o: curses.h
 lib_newwin.o: curses.priv.h
 lib_addch.o: curses.h
 lib_addch.o: curses.priv.h
+lib_addch.o: terminfo.h
 lib_addch.o: unctrl.h
 lib_addstr.o: curses.h
 lib_addstr.o: curses.priv.h
@@ -278,6 +277,7 @@ lib_scrreg.o: curses.priv.h
 lib_setacs.o: curses.h
 lib_setacs.o: term.h
 lib_color.o: curses.h
+lib_color.o: curses.priv.h
 lib_color.o: term.h
 
 # DEPENDENCIES MUST END AT END OF FILE
