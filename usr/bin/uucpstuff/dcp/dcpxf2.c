@@ -1,6 +1,10 @@
 /*
- * $Header: /newbits/usr/lib/uucp/dcp/RCS/dcpxf2.c,v 1.4 91/08/15 13:24:56 bin Exp Locker: bin $
+ * $Header: /newbits/usr/bin/uucpstuff/dcp/RCS/dcpxf2.c,v 1.5 92/07/02 12:57:55 bin Exp Locker: bin $
  * $Log:	dcpxf2.c,v $
+ * Revision 1.5  92/07/02  12:57:55  bin
+ * make missing spool directory when we begin receiving files and 
+ * have already determined that proper permissions exist.
+ * 
  * Revision 1.4  91/08/15  13:24:56  bin
  * changes by epstein for 7bit sites
  * 
@@ -265,8 +269,8 @@ char	*destfile;
 				plog (M_CALL,"Spool directory %s missing...", spooldir_name);
 				plog (M_CALL,"Creating missing spool directory.");
 				mkdir(spooldir_name, 0744);
-#endif /* _I386 */
 			}
+#endif /* _I386 */
 		}
 	}				
 			
