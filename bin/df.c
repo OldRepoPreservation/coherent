@@ -1,5 +1,9 @@
 /*
- * df: print out information regarding the
+ * df.c
+ * 7/28/93
+ * Usage: df [-fitv] [directory ...] [filesystem ...]
+ *    or: df [-ait] [directory ...] [filesystem ...]     (if DF_OLD is set)
+ * Print information regarding the
  * remaining space available on a file system.
  * This command also considers a directory
  * to represent the filesystem.
@@ -8,6 +12,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/filsys.h>
 #include <sys/stat.h>
 #include <sys/dir.h>
@@ -43,8 +48,9 @@ char *argv[];
 	register char *ap;
 	register int i;
 	register int estat = 0;
+	char *s;
 
-	if (!strcmp(getenv("OLDSTYLE"), "TRUE"))
+	if ((s = getenv("DF_OLD")) != NULL && strcmp(s, "0") != 0)
 		oflag++;
 
 	while (argc > 1 && *argv[1] == '-') {
@@ -387,10 +393,10 @@ usage(str)
 char *str;
 {
 
-	if (oflag)
-		fprintf(stderr, "Usage: df [-ait] [directory ...] [filesystem ...]\n");
-	else
-		fprintf(stderr, "Usage: df [-fitv] [directory ...] [filesystem ...]\n");
-       	fprintf(stderr, "\ndf: %s\n", str);
+       	fprintf(stderr, "df: %s\n", str);
+	fprintf(stderr, "Usage: df [-%s] [directory ...] [filesystem ...]\n",
+		oflag ? "ait" : "fitv");
 	exit(1);
 }
+
+/* end of df.c */
