@@ -3,7 +3,6 @@ CFLAGS = -O -I$(SRCPATH)
 #For the PDP-11, do not bind shared:
 LDFLAGS = -n
 LFLAGS = /usr/lib/libterm.a
-DESTDIR=/interim/usr/bin/
 
 OBJS=ansi.o basic.o buffer.o display.o error.o file.o fileio.o line.o main.o\
 	random.o region.o search.o spawn.o termio.o tcap.o window.o word.o\
@@ -14,15 +13,20 @@ SRCS=ansi.c basic.c buffer.c display.c error.c file.c fileio.c line.c\
 	vt52.c window.c word.c lookup.c helplib.c bracket.c ext.c execute.c\
 	ed.h Makefile
 
-me: 	$(OBJS)
-	$(CC) $(LDFLAGS) -o $(DESTDIR)$@ $(OBJS) $(LFLAGS)
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
+emacs: $(OBJS)
+	$(CC) $(LDFLAGS) -o emacs $(OBJS) $(LFLAGS)
 
+detab : detab.c
+	$(CC) $<
+
+install : emacs detab
+	strip $<
+	su root cp emacs /bin/me
+	su root cp detab /bin
+ 
 comtab.c : ext.o
 	$(CC) ext.o
-	./ext
+	ext > comtab.c
 	rm ext
 
 ext.o: ext.c ed.h
