@@ -23,8 +23,8 @@
 #********************************************************************/
 
 # RCSid: $Header: /src386/usr/lib/ncurses/RCS/Makefile,v 1.2 92/04/13 14:42:19 bin Exp Locker: bin $
-DESTDIR=/bin386/usr/lib/
-DESTDIR2=/bin386/usr/bin/
+DESTDIR=
+DESTDIR2=
 
 SRCDIR= /usr/lib/terminfo
 LIB=/usr/lib
@@ -50,7 +50,7 @@ SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	lib_box.c lib_clear.c lib_delch.c lib_deleteln.c lib_insch.c \
 	lib_insertln.c lib_getstr.c lib_mvwin.c lib_longname.c lib_tstp.c \
 	lib_newterm.c lib_set_term.c lib_overlay.c lib_scrreg.c lib_setacs.c \
-	lib_napms.c
+	lib_napms.c lib_color.c
 
 #
 # Normal, optimised object files
@@ -64,7 +64,7 @@ LIBOBJS= lib_setup.o lib_fixterm.o lib_tparm.o read_entry.o lib_tputs.o \
 	lib_box.o lib_clear.o lib_delch.o lib_deleteln.o lib_insch.o \
 	lib_insertln.o lib_getstr.o lib_mvwin.o lib_longname.o lib_tstp.o \
 	lib_newterm.o lib_set_term.o lib_overlay.o lib_scrreg.o lib_setacs.o \
-	lib_napms.o
+	lib_napms.o lib_color.o
 
 COMPOBJS= comp_main.o comp_hash.o comp_captab.o comp_scan.o comp_error.o \
 	comp_parse.o read_entry.o
@@ -124,11 +124,11 @@ dump_names.c: Caps MKnames.awk
 	-rm -f boolnames numnames strnames
 
 lint: $(SRCS)
-	lint $(DFLAGS) $(SRCS) > lint.out
+	lint $(CFLAGS) $(SRCS) > lint.out
 
 clean:
 	-rm -f *.[od] term.h comp_captab.c dump_names.c putinfo.c tags \
-	tic infocmp captoinfo libcurses.a
+	tic infocmp captoinfo libcurses.a lint.out
 
 tags:	*.c *.h
 	ctags *.c *.h
@@ -277,6 +277,8 @@ lib_scrreg.o: curses.h
 lib_scrreg.o: curses.priv.h
 lib_setacs.o: curses.h
 lib_setacs.o: term.h
+lib_color.o: curses.h
+lib_color.o: term.h
 
 # DEPENDENCIES MUST END AT END OF FILE
 # IF YOU PUT STUFF HERE, IT WILL GO AWAY
