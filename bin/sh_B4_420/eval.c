@@ -326,7 +326,8 @@ graves()
 			add_char(c);
 		}
 	}
-	argf = oargf;
+	if (oargf == 0)
+		argf = oargf;
 	fclose(fp);
 	waitc(f);
 }
