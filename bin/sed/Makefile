@@ -1,4 +1,5 @@
 # /usr/src/cmd/sed/Makefile 5/26/92
+DESTDIR=/interim/bin/
 OBJ=\
 	sed0.o\
 	sed1.o\
@@ -7,7 +8,7 @@ OBJ=\
 
 # Primary target.
 sed:	$(OBJ)
-	cc $(LDFLAGS) -so $@ $(OBJ)
+	cc -s -o $(DESTDIR)$@ $(OBJ)
 
 install: sed
 	su root `srcpath installer`
