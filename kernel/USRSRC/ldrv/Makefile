@@ -163,10 +163,18 @@ LIBOBJ2=$(LOBJ)/outbL.o		\
 	$(LOBJ)/waitqL.o	\
 	$(LOBJ)/wakeupL.o	\
 
-$(USRSYS)/lib/ldlib.a:	mkstub.m4 $(LIBOBJ1) $(LIBOBJ2)
+LIBOBJ3=$(LOBJ)/fifo_closeL.o		\
+	$(LOBJ)/fifo_lenL.o		\
+	$(LOBJ)/fifo_openL.o		\
+	$(LOBJ)/fifo_readL.o		\
+	$(LOBJ)/fifo_rewindL.o		\
+	$(LOBJ)/fifo_writeL.o		\
+
+$(USRSYS)/lib/ldlib.a:	mkstub.m4 $(LIBOBJ1) $(LIBOBJ2) $(LIBOBJ3)
 	rm -f  $@
 	ar rc  $@ $(LIBOBJ1)
 	ar rc  $@ $(LIBOBJ2)
+	ar rc  $@ $(LIBOBJ3)
 	ranlib $@
 
 # Here is mkstub.m4:
@@ -560,4 +568,22 @@ $(LOBJ)/waitqL.o:
 	$(MKSTUB)
 
 $(LOBJ)/wakeupL.o:
+	$(MKSTUB)
+
+$(LOBJ)/fifo_closeL.o:
+	$(MKSTUB)
+
+$(LOBJ)/fifo_lenL.o:
+	$(MKSTUB)
+
+$(LOBJ)/fifo_openL.o:
+	$(MKSTUB)
+
+$(LOBJ)/fifo_readL.o:
+	$(MKSTUB)
+
+$(LOBJ)/fifo_rewindL.o:
+	$(MKSTUB)
+
+$(LOBJ)/fifo_writeL.o:
 	$(MKSTUB)
