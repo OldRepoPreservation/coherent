@@ -420,8 +420,8 @@ table(nargs, args) short nargs; char *args[];
 			buf[11] = '\0';
 			printf("Volume in Drive %s is labeled %s\n",adev,buf);
 		}
-		printf("\t%ld bytes free\n",
-			(long)free*clsize*ssize);
+		printf("\t%lu bytes free\n",
+			(long unsigned)free*clsize*ssize);
 		if (bad)
 			printf("\t%ld bytes in bad sectors\n",
 				(long)bad*clsize*ssize);
