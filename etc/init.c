@@ -1,5 +1,6 @@
 #define	NOSWAPPER
 #define	NODRIVERS
+#define	DEBUG	1
 /*
  * Init
  *
@@ -59,6 +60,12 @@ char	*defenv0[] = {		/* Default environment for super user */
 	NULL
 };
 
+/*
+ * Variables.
+ */
+struct	tty *ttyp;			/* Terminal list */
+int	hangflag;			/* Go to single user */
+int	quitflag;			/* Scan tty file */
 
 /*
  * Functions.
@@ -68,26 +75,23 @@ extern	int	sigquit();
 extern	int	sigalrm();
 extern	struct	tty *findtty();
 
-/*
- * Variables.
- */
-struct	tty *ttyp;			/* Terminal list */
-int	hangflag;			/* Go to single user */
-int	quitflag;			/* Scan tty file */
-
 main(argc, argv) register int argc; char *argv[];
 {
 	register TTY *tp;
 	register int n, multi;
 	unsigned status;
 
+dbmsg(("Entering init  ", NULL));
+
 	multi = 0;			/* do not go to multiuser */
 	if (getpid() != 1)
 		exit(1);
 	umask(022);
+dbmsg(("About to fakearg  ", NULL));
 	fakearg(0, argv);
 	if ((n = creat("/etc/boottime", 0644)) >= 0)
 		close(n);
+dbmsg(("CREATED boottime ", NULL));
 #ifndef NOSWAPPER
 	if (argc >= 2)
 		loadswp(argv[1]);
@@ -96,12 +100,16 @@ main(argc, argv) register int argc; char *argv[];
 	for (n=2; n<argc; n++)
 		loaddrv(argv[n]);
 #endif
+dbmsg(("About to putwtmp  ", NULL));
 	putwtmp("~", "");
+dbmsg(("About to signal SIGHUP  ", NULL));
 	signal(SIGHUP, sighang);
+dbmsg(("About to fork()  ", NULL));
 	if (fork() == 0) {			/* paranoid sync */
 		sync();
 		exit(0);
 	}
+dbmsg(("About to access brc file  ", NULL));
 	if (access(BRCFILE, AEXISTS) == 0) {
 		dbmsg(("executing /etc/brc", NULL));
 		n = spawn(&contty, "/bin/sh", "sh", BRCFILE, NULL);
@@ -192,7 +200,6 @@ main(argc, argv) register int argc; char *argv[];
 		}
 	}
 }
-
 /*
  * Called when we get a hangup.
  */
@@ -534,12 +541,26 @@ msg(cp) char *cp;
 {
 	register char **cpp;
 	int fd;
+	static long mp = 0xb0000L;
+	int i;
 
-	fd = open("/dev/console", 2);
-	write(fd, "/etc/init: ", 11);
-	for (cpp=&cp; *cpp!=NULL; cpp++)
-		write(fd, *cpp, strlen(*cpp));
-	write(fd, "\n", 1);
+	if (mp >= 0xb0000L + (80*25*2))
+		mp = 0xb0000L;
+	fd = open("/dev/mem", 2);
+	lseek(fd, mp, 0);
+	write(fd, ":", 1);
+	lseek(fd, 1L, 1);
+	mp += 2;
+	for (cpp=&cp; *cpp!=NULL; cpp++) {
+		for (i = 0; i < strlen(*cpp); i++) {
+			write(fd, (*cpp)+i, 1);
+			lseek(fd, 1L, 1);
+			mp += 2;
+		}
+		write(fd, " ", 1);
+		lseek(fd, 1L, 1);
+		mp += 2;
+	}	
 	close(fd);
 }
 #endif
