@@ -5,6 +5,9 @@
  * High level output routines.
  *
  * $Log:	mm.c,v $
+ * Revision 1.6  93/04/16  06:59:10  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.4  92/04/09  10:25:38  hal
  * Call mmgo() from mmstart() at low priority.
  * 

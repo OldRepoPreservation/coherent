@@ -1,11 +1,11 @@
 /*
  * help.c
- * 10/7/91
+ * 9/2/93
  * Usage: help [ -dc ] [ -ffile ] [ -ifile] [ -r ] [ topic ] ...
  * Options:
- *	-dc	Use c as delimiter character (default: '#')
+ *	-dc	Use c as delimiter character (default: '@')
  *	-ffile	Use file as helpfile (default: /etc/helpfile)
- *	-iindex	Use index as helpindex (default: /åtc/helpindex)
+ *	-iindex	Use index as helpindex (default: /etc/helpindex)
  *	-r	Rebuild helpindex and exit
  * Print command help information as given in HELPFILE.
  * Also looks for user-specific information in file $HELP.
@@ -19,9 +19,9 @@
 char	*getenv();
 
 /* Manifest constants. */
-#define	VERSION		"1.3"			/* Version number	*/
-#define	NLINE		512			/* Longest helpfile line */
-#define	DELIM		'#'			/* Default delimiter	*/
+#define	VERSION		"1.6"			/* Version number	*/
+#define	NLINE		512			/* Longest helpfile line*/
+#define	DELIM		'@'			/* Default delimiter	*/
 #define	HELPFILE	"/etc/helpfile"		/* Default helpfile	*/
 #define	HELPINDEX	"/etc/helpindex"	/* Default helpindex	*/
 #define	MAXNAME		80			/* Max name length	*/
@@ -45,7 +45,6 @@ FILE	*shf;				/* System helpfile		*/
 FILE	*uhf;				/* User helpfile		*/
 
 /* Forward. */
-int	fastlook();
 int	help();
 int	lookup();
 LOOK	*lread();
@@ -77,6 +76,10 @@ main(argc, argv) int argc; char *argv[];
 
 	/* Open files and read environmental variables. */
 	shf = fopen(helpfile, "r");		/* system helpfile */
+	if (shf == NULL) {
+		fprintf(stderr, "help: cannot open \"%s\"\n", helpfile);
+		exit(1);
+	}
 	if (rflag)
 		exit(rebuild(shf, helpindex));
 	if ((cp = getenv("HELP")) != NULL)
@@ -127,82 +130,15 @@ main(argc, argv) int argc; char *argv[];
 }
 
 /*
- * Possibly seek the helpfile 'fp' to the right place based on helpindex 'ind'.
- * Return 0 if found, 1 if not found.
- * Rebuild the index file if it is out of date.
- */
-int
-fastlook(cmd, fp, ind) char *cmd; FILE *fp; char *ind;
-{
-	register LOOK *lp;
-	register FILE *ifp;
-	struct stat sb;
-	long htime;
-	int status;
-
-	fstat(fileno(fp), &sb);
-	htime = sb.st_mtime;			/* helpfile mtime */
-	if (stat(ind, &sb) < 0 || htime > sb.st_mtime)
-		rebuild(fp, ind);
-	status = 1;
-	if ((ifp = fopen(ind, "r")) == NULL)
-		return status;
-	while ((lp = lread(ifp)) != NULL) {
-		if (strcmp(cmd, lp->l_name) == 0) {
-			fseek(fp, lp->l_seek, SEEK_SET);
-			status = 0;
-			break;
-		}
-	}
-	fclose(ifp);
-	return status;
-}
-
-/*
  * Look for information on a command.
- * The #if OLD code looks for command information bracketed by '.HS' and '.HE';
- * it is conditionalized out because
- * online documentation is now cooked, not raw.
- * After the #if OLD code, look for information in system helpfile,
- * then in user helpfile.
  * Return 0 if found, 1 if not found.
  */
 int
 help(command) char *command;
 {
 	register int bad;
-
-	bad = 1;
-
-#if	OLD
-	register FILE *hf;
-
-	sprintf(buf, "/usr/man/cmd/%s", command);
-	if ((hf = fopen(buf, "r")) == NULL) {
-		strcat(buf, "m");
-		if ((hf = fopen(buf, "r")) == NULL)
-			goto other;
-	}
-	for (;;) {
-		if (fgets(helpline, NLINE, hf) == NULL)
-			break;
-		if (strcmp(helpline, ".HS\n") == 0) {
-			bad = 0;
-			break;
-		}
-	}
-	if (!bad)
-		while (fgets(helpline, NLINE, hf) != NULL
-		    && strcmp(helpline, ".HE\n") != 0)
-			fputs(helpline, ofp);
-	fclose(hf);
-other:
-	if (bad)
-		/* fall through to conditional below... */
-#endif
-
-		if (bad = lookup(command, shf, helpindex))
-			bad = lookup(command, uhf, NULL);
+	if (bad = lookup(command, shf, helpindex))
+		bad = lookup(command, uhf, NULL);
 	return bad;
 }
 
@@ -214,24 +150,40 @@ other:
 int
 lookup(cmd, fp, ind) register char *cmd; FILE *fp; char *ind;
 {
+	register LOOK *lp;
+	register FILE *ifp;
+	struct stat sb;
+	long htime;
+	int status;
+
 	if (fp == NULL)
 		return 1;
-	if (ind != NULL && fastlook(cmd, fp, ind))
-		return 1;
-	while (fgets(helpline, NLINE, fp) != NULL) {
-		if (helpline[0] == delim) {
-			helpline[strlen(helpline)-1] = '\0';
-			if (strcmp(cmd, helpline+1) == 0) {
-				while (fgets(helpline, NLINE, fp) != NULL) {
-					if (helpline[0] == delim)
-						break;
-					fputs(helpline, ofp);
-				}
-				return 0;
+
+	fstat(fileno(fp), &sb);
+	htime = sb.st_mtime;			/* helpfile mtime */
+	if (stat(ind, &sb) < 0 || htime > sb.st_mtime)
+		rebuild(fp, ind);
+	status = 1;
+
+	if ((ifp = fopen(ind, "r")) == NULL)
+		return status;
+
+	while ((lp = lread(ifp)) != NULL) {
+		if (strcmp(cmd, lp->l_name) == 0) {
+			fseek(fp, lp->l_seek, SEEK_SET);
+			status = 0;
+
+			fgets(helpline, NLINE, fp);
+			while (fgets(helpline, NLINE, fp) != NULL) {
+				if (helpline[0] == delim)
+					break;
+				fputs(helpline, ofp);
 			}
+			fputs("\n", ofp);
 		}
 	}
-	return 1;
+	fclose(ifp);
+	return status;
 }
 
 /*

@@ -4,6 +4,9 @@
  * Purpose: This module provides System V compatible semaphore operations.
  *
  * $Log:	sem386.c,v $
+ * Revision 2.2  93/07/26  15:32:16  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  93/04/09  08:48:23  bin
  * Initial revision
  * 

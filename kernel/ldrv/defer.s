@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/ldrv/RCS/defer.s,v 1.1 88/04/04 16:40:21 src Exp $
+/ $Header: /kernel/kersrc/ldrv/RCS/defer.s,v 1.1 92/07/17 15:27:49 bin Exp Locker: bin $
 /
 /	The  information  contained herein  is a trade secret  of INETCO
 /	Systems, and is confidential information.   It is provided under
@@ -11,7 +11,10 @@
 /	An unpublished work by INETCO Systems, Ltd.
 /	All rights reserved.
 /
-/ $Log:	/usr/src/sys/ldrv/RCS/defer.s,v $
+/ $Log:	defer.s,v $
+/ Revision 1.1  92/07/17  15:27:49  bin
+/ Initial revision
+
 / Revision 1.1	88/04/04  16:40:21	src
 / Initial revision
 / 

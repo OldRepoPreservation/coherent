@@ -1,4 +1,0 @@
-bantam|pe550|perkin elmer 550,
-	cols#80, lines#24, bel=^G, cr=^M, clear=\EK$<20>, el=\EI$<20>, 
-	ed=^N@^V$<6>, cup=\EX%p1%' '%+%c\EY%p2%' '%+%c, cud1=^J, home=\EH, 
-	cub1=^H, cuf1=\EC, ll=\EH\EA, cuu1=\EA, ind=^J, 

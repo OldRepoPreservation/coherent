@@ -25,7 +25,8 @@
  * Compile -s -n -i on machines other than pdp11.
  */
 
-#include <sys/dir.h>
+/* #include <sys/dir.h> */
+#include <dirent.h>
 #include <signal.h>
 #include <utmp.h>
 #include <sgtty.h>

@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "stdio.int.h"
 
 /*
  * The get and put function pointers in a FILE

@@ -1,4 +1,4 @@
-: '$Header: /usr/src/sys/ldrv/RCS/ldconfig,v 1.1 88/04/04 16:59:20 src Exp $'
+: '$Header: /kernel/kersrc/ldrv/RCS/ldconfig,v 1.1 92/07/17 15:27:52 bin Exp Locker: bin $'
 :
 :	configure a loadable driver
 :

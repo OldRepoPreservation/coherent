@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include "stdio.int.h"
 
 int
 fseek(stream, offset, whence) register FILE *stream; long offset; int whence;

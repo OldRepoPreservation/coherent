@@ -4,11 +4,13 @@
 DESTDIR=/bin386/bin/
 CFLAGS=-O
 LDFLAGS=
+LD=cc
+CC=cc
 
 O= y0.o y1.o y2.o y3.o y4.o y5.o y6.o
 
 yacc:	$O
-	$(CC) $(LDFLAGS) -so $(DESTDIR)$@ $O
+	$(LD) $(LDFLAGS) -so $(DESTDIR)$@ $O
 
 install: yacc
 	su root `srcpath installer`

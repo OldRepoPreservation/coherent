@@ -4,6 +4,9 @@
  * Purpose:	Handle deferring of functions and subsequent execution.
  *
  * $Log:	defer.c,v $
+ * Revision 1.9  93/06/14  13:42:38  bin
+ * Hal: kernel 78 update
+ * 
  * Revision 1.1  92/11/09  17:08:40  root
  * Just before adding vio segs.
  * 

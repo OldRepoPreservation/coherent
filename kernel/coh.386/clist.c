@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/clist.c,v 1.2 92/01/06 11:58:44 hal Exp $ */
+/* $Header: /y/coh.386/RCS/clist.c,v 1.4 93/04/14 10:06:18 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a

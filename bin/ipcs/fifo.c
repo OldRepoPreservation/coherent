@@ -4,6 +4,9 @@
  * Purpose:	allow kernel to fetch data from real-mode bootstrap data area
  *
  * $Log:	fifo.c,v $
+ * Revision 1.2  93/04/12  13:54:26  bin
+ * vlad: mods supplied with 386 semaphores
+ * 
  * Revision 1.1  92/10/05  13:10:43  bin
  * Initial revision
  * 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys3.c,v 1.3 89/02/07 18:50:27 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/sys3.c,v 1.1 92/07/17 15:18:53 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * System calls (more filesystem related calls).
  *
- * $Log:	/usr/src/sys/coh/RCS/sys3.c,v $
+ * $Log:	sys3.c,v $
+ * Revision 1.1  92/07/17  15:18:53  bin
+ * Initial revision
+ * 
  * Revision 1.3	89/02/07  18:50:27	src
  * Bug:	Console driver did not validate user addresses before initiating a
  * 	transfer.  This resulted in a system trap in protected mode if a write

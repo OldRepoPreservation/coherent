@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include "stdio.int.h"
 
 FILE *
 fopen(filename, mode) const char *filename, *mode;

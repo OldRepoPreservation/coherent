@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i8086/drv/RCS/ipcas.s,v 2.1 88/09/03 13:06:24 src Exp $
+/ $Header: /kernel/kersrc/io.286/ipcas.s,v 1.1 92/07/17 15:24:15 bin Exp Locker: bin $
 /
 /	The  information  contained herein  is a trade secret  of INETCO
 /	Systems, and is confidential information.   It is provided under
@@ -19,7 +19,10 @@
 / ufcopy( base, off, sel, n ) -- copy n bytes from user base to sel:off.
 / fucopy( off, sel, base, n ) -- copy n bytes from sel:off to user base.
 /
-/ $Log:	/usr/src/sys/i8086/drv/RCS/ipcas.s,v $
+/ $Log:	ipcas.s,v $
+/ Revision 1.1  92/07/17  15:24:15  bin
+/ Initial revision
+/
 / Revision 2.1	88/09/03  13:06:24	src
 / *** empty log message ***
 / 

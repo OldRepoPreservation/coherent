@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/bio.c,v 1.9 93/04/14 10:06:14 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/bio.c,v 1.8 93/06/14 13:34:10 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Buffered I/O.
  *
  * $Log:	bio.c,v $
+ * Revision 1.8  93/06/14  13:34:10  bin
+ * Hal: kernel 78 update
+ * 
  * Revision 1.9  93/04/14  10:06:14  root
  * r75
  * 

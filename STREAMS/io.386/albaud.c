@@ -4,6 +4,9 @@
  * Purpose:	common code for various async drivers
  *
  * $Log:	albaud.c,v $
+ * Revision 2.2  93/07/26  15:27:51  nigel
+ * Nigel's R80
+ * 
  * Revision 1.2  93/04/14  10:24:08  root
  * r75
  * 

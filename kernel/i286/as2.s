@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/i286/RCS/as2.s,v 1.3 92/01/21 16:10:37 hal Exp $
+/ $Header: /kernel/kersrc/i286/RCS/as2.s,v 1.1 92/07/17 15:21:20 bin Exp Locker: bin $
 /
 / (lgl-
 /	The information contained herein is a trade secret of Mark Williams
@@ -19,6 +19,9 @@
 / Coherent on the IBM personal computer.
 /
 / $Log:	as2.s,v $
+/ Revision 1.1  92/07/17  15:21:20  bin
+/ Initial revision
+/
 / Revision 1.3  92/01/21  16:10:37  hal
 / Use read_cmos_ routine.
 / Allows merged 386 C code compatibility.

@@ -1,7 +1,7 @@
 # build/Makefile 07/15/92
 
 # Objects.
-DESTDIR=
+DESTDIR=/bin386/etc/
 DESTDIR2=
 O=\
 	build.o \
@@ -22,7 +22,6 @@ E=\
 	build \
 	coh_intro \
 	cohpatch \
-	dpb \
 	fdisk \
 	hdparms \
 	install \
@@ -36,28 +35,28 @@ all:	$E
 
 # Executables.
 build:		build.o numtab.o serialno.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -f
-	strip $(DESTDIR)$@ 
+	$(CC) $(LFLAGS) -o $(DESTDIR)build $< -f
+	strip $(DESTDIR)build
 coh_intro:	coh_intro.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)coh_intro $<
 cohpatch:	cohpatch.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
-dpb:		dpb.s
-	as -xo $(DESTDIR2)$@ $<
-	strip $(DESTDIR2)$@
+	$(CC) $(LFLAGS) -o $(DESTDIR)coh_intro $<
+#dpb:		dpb.s
+#	as -xo $(DESTDIR2)$@ $<
+#	strip $(DESTDIR2)$@
 fdisk:		fdisk.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -f
+	$(CC) $(LFLAGS) -o $(DESTDIR)fdisk $< -f
 install:	install.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)install $<
 hdparms:	hdparms.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)hdparms $<
 kbdinstall:	kbdinstall.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -lcurses
-	strip $(DESTDIR)$@ 
+	$(CC) $(LFLAGS) -o $(DESTDIR)kbdinstall $< -lcurses
+	strip $(DESTDIR)kbdinstall
 mkdev:	mkdev.o build0.o
-	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+	$(CC) $(LFLAGS) -o $(DESTDIR)mkdev $<
 mkserial:	mkserial.o numtab.o
-	$(CC) $(LFLAGS) -o $@ $<
+	$(CC) $(LFLAGS) -o mkserial $<
 
 # Unlinked objects.
 build.o:	build.c build0.h serialno.h

@@ -1,9 +1,12 @@
-static	char	*rcsrev = "$Revision: 1.1 $";
+static	char	*rcsrev = "$Revision: 1.3 $";
 static	char	*rcshdr =
-	"$Header: /src386/bin/lmail/RCS/lmail.c,v 1.1 92/03/13 12:19:15 bin Exp $";
+	"$Header: /src386/bin/lmail/RCS/lmail.c,v 1.3 92/11/03 09:06:26 bin Exp Locker: bin $";
 /*
- * $Header: /src386/bin/lmail/RCS/lmail.c,v 1.1 92/03/13 12:19:15 bin Exp $
+ * $Header: /src386/bin/lmail/RCS/lmail.c,v 1.3 92/11/03 09:06:26 bin Exp Locker: bin $
  * $Log:	lmail.c,v $
+ * Revision 1.3  92/11/03  09:06:26  bin
+ * Bob H: restructures routines to lock and write mailboxes and wait for mailbox to become available.
+ * 
  * Revision 1.1  92/03/13  12:19:15  bin
  * Initial revision
  * 

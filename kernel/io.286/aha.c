@@ -3,6 +3,9 @@
  * Adaptec AHA154x driver.
  *
  * $Log:	aha.c,v $
+ * Revision 1.1  92/07/17  15:24:01  bin
+ * Initial revision
+ * 
  * Revision 1.3  92/02/07  15:07:42  hal
  * Clean up includes et al.
  * 

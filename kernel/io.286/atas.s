@@ -8,6 +8,9 @@
 / AT Hard Disk Assembler Support
 /
 / $Log:	atas.s,v $
+/ Revision 1.1  92/07/17  15:24:03  bin
+/ Initial revision
+/
 / Revision 1.4  92/02/05  15:55:06  hal
 / Patchable ATSREG_.
 / 

@@ -46,6 +46,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/Revision 1.18  93/06/14  13:42:14  bin
+/Hal: kernel 78 update
+/
 / Revision 1.17  92/12/08  16:43:10  root
 / ker 70
 / 

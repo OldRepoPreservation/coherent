@@ -3,6 +3,9 @@
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
 / $Log:	ssas.s,v $
+/ Revision 1.1  92/07/17  15:24:48  bin
+/ Initial revision
+/
 / Revision 1.7  91/06/01  10:51:00  hal
 / Add ffcopy().
 / 

@@ -3,7 +3,10 @@
  *
  * Purpose:	read a spec from stdin, ask questions, and make nodes
  *
- * $Log$
+ * $Log:	asymkdev.c,v $
+ * Revision 1.3  93/05/18  07:32:18  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

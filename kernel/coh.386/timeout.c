@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/timeout.c,v 1.4 93/04/14 10:08:12 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/timeout.c,v 1.3 93/04/16 06:50:21 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Timeout management.
  *
  * $Log:	timeout.c,v $
+ * Revision 1.3  93/04/16  06:50:21  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.4  93/04/14  10:08:12  root
  * r75
  * 

@@ -145,7 +145,7 @@ register NODE *np;
 
 			bckflag++;
 			dflttrp(IBACK);
-			redirect(iov);
+			redirect(iov, NULL);
 			exit(command(np->n_auxp));
 			NOTREACHED;
 		}
@@ -343,7 +343,7 @@ register NODE *np;
 		NOTREACHED;
 	}
 	if (nllflag || (f=clone()) == 0) {
-		if (redirect(niovp) < 0) {
+		if (redirect (niovp, NULL) < 0) {
 			slret = 1;
 		} else if (nargc) {
 			dflttrp(ICMD);

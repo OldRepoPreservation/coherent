@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/alloc.c,v 1.2 92/01/06 11:58:31 hal Exp $ */
+/* $Header: /y/coh.386/RCS/alloc.c,v 1.4 93/04/14 10:06:13 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Storage allocator.
  *
  * $Log:	alloc.c,v $
+ * Revision 1.4  93/04/14  10:06:13  root
+ * r75
+ * 
  * Revision 1.2  92/01/06  11:58:31  hal
  * Compile with cc.mwc.
  * 

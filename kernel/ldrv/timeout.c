@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ldrv/RCS/timeout.c,v 1.1 88/03/24 16:31:21 src Exp $ */
+/* $Header: /kernel/kersrc/ldrv/RCS/timeout.c,v 1.1 92/07/17 15:28:10 bin Exp Locker: bin $ */
 /*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -15,7 +15,10 @@
 /*
  * Loadable Driver - Timed functions.
  *
- * $Log:	/usr/src/sys/ldrv/RCS/timeout.c,v $
+ * $Log:	timeout.c,v $
+ * Revision 1.1  92/07/17  15:28:10  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:31:21	src
  * Initial revision
  * 

@@ -4,6 +4,9 @@
  * Purpose:	Handle deferring of functions and subsequent execution.
  *
  * $Log:	defer.c,v $
+ * Revision 2.2  93/07/26  13:55:49  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  92/11/09  17:08:40  root
  * Just before adding vio segs.
  * 

@@ -3,7 +3,10 @@
  *
  * Purpose:	create nodes for floppy tape
  *
- * $Log$
+ * $Log:	ftmkdev.c,v $
+ * Revision 1.1  93/06/14  13:29:32  bin
+ * Initial revision
+ * 
  */
 /*
  * ----------------------------------------------------------------------

@@ -1,4 +1,4 @@
-/* $Header: /v4a/io/RCS/ct.c,v 1.2 92/01/06 12:26:48 hal Exp $ */
+/* $Header: /src386/kernel/io.386/RCS/ct.c,v 1.6 93/04/16 06:58:37 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Console terminal driver.
  *
  * $Log:	ct.c,v $
+ * Revision 1.6  93/04/16  06:58:37  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.2  92/01/06  12:26:48  hal
  * Compile with cc.mwc.
  * 

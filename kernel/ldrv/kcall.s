@@ -1,4 +1,4 @@
-/ $Header: /usr/src/sys/ldrv/RCS/kcall.s,v 1.1 88/03/24 16:30:41 src Exp $
+/ $Header: /kernel/kersrc/ldrv/RCS/kcall.s,v 1.1 92/07/17 15:27:52 bin Exp Locker: bin $
 /
 /	The  information  contained herein  is a trade secret  of INETCO
 /	Systems, and is confidential information.   It is provided under
@@ -11,7 +11,10 @@
 /	An unpublished work by INETCO Systems, Ltd.
 /	All rights reserved.
 /
-/ $Log:	/usr/src/sys/ldrv/RCS/kcall.s,v $
+/ $Log:	kcall.s,v $
+/ Revision 1.1  92/07/17  15:27:52  bin
+/ Initial revision
+/
 / Revision 1.1	88/03/24  16:30:41	src
 / Initial revision
 / 

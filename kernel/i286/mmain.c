@@ -1,4 +1,4 @@
-/* $Header: /usr/local/src/sys/i8086/src/RCS/mmain.c,v 1.2 91/06/20 14:40:23 bin Exp Locker: piggy $ */
+/* $Header: /kernel/kersrc/i286/RCS/mmain.c,v 1.1 92/07/17 15:21:33 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -18,6 +18,9 @@
  * Machine dependent stuff.
  *
  * $Log:	mmain.c,v $
+ * Revision 1.1  92/07/17  15:21:33  bin
+ * Initial revision
+ * 
  * Revision 1.2  91/06/20  14:40:23  bin
  * update provided by hal
  * 

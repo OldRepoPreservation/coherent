@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/ker_data.c,v 2.2 93/07/26 14:55:28 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/ker_data.c,v 2.1 93/08/09 13:35:41 bin Exp Locker: bin $ */
 /*
  * This file contains definitions for the functions which support the Coherent
  * internal binary-compatibility scheme. We select _SYSV3 to get some old
@@ -6,6 +6,9 @@
  */
 /*
  * $Log:	ker_data.c,v $
+ * Revision 2.1  93/08/09  13:35:41  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  14:55:28  nigel
  * Nigel's R80
  * 

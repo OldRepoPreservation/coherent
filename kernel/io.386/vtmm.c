@@ -4,7 +4,10 @@
  * Memory Mapped Video
  * High level output routines.
  *
- * $Log:	mm.c,v $
+ * $Log:	vtmm.c,v $
+ * Revision 1.2  92/07/16  16:35:31  hal
+ * Kernel #58
+ * 
  * Revision 1.4  92/04/09  10:25:38  hal
  * Call mmgo() from mmstart() at low priority.
  * 

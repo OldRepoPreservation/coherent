@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/trap.c,v 1.1 88/03/24 17:39:53 src Exp $ */
+/* $Header: /kernel/kersrc/i286/RCS/trap.c,v 1.1 92/07/17 15:21:35 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Trap handler.
  * 8086/8088 Coherent, IBM PC.
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/trap.c,v $
+ * $Log:	trap.c,v $
+ * Revision 1.1  92/07/17  15:21:35  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:39:53	src
  * Initial revision
  * 

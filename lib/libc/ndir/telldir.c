@@ -13,6 +13,8 @@
 #include	<sys/errno.h>
 #endif
 
+#include <stddef.h>
+
 #include	<sys/types.h>
 #include	"dirent.h"
 

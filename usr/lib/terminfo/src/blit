@@ -1,7 +1,0 @@
-blit|jerq,
-	am, eo, da, db, mir, ul, cols#88, lines#72, bel=^G, cr=^M, clear=^L, 
-	el=\EK, ed=\EJ, cup=\EY%p2%' '%+%c%p1%' '%+%c, cud1=^J, cub1=\ED, 
-	cuf1=\EC, cuu1=\EA, dch1=\EO, dl1=\EE, smir=\EQ, smso=\EU!, 
-	smul=\EU", rmir=\ER, rmso=\EV!, rmul=\EV", flash=\E^G, il1=\EF, 
-	kcud1=\EB, kcub1=\ED, kcuf1=\EC, kcuu1=\EA, dl=\Ee%p1%' '%+%c, 
-	il=\Ef%p1%' '%+%c, ind=^J, ht=^I, 

@@ -17,7 +17,7 @@ extern short yyerrflag;
 #endif
 YYSTYPE yyval, yylval;
 
-#line 357 "sh.y"
+#line 552 "sh.y"
 
 /*
  * Create a node.
@@ -134,149 +134,197 @@ readonly struct yytname yytnames[33] =
 } ;
 #endif
 #include <action.h>
-readonly unsigned char yypdnt[81] = {
+readonly unsigned char yypdnt[118] = {
 0, 1, 1, 2, 2, 2, 4, 6,
 7, 8, 9, 9, 10, 10, 11, 11,
 13, 14, 15, 16, 17, 18, 19, 3,
 3, 3, 3, 3, 20, 20, 20, 21,
-21, 22, 22, 22, 23, 24, 24, 26,
-26, 26, 26, 27, 25, 28, 29, 29,
-29, 29, 29, 29, 29, 29, 29, 30,
-30, 36, 36, 32, 32, 32, 37, 38,
-38, 31, 31, 35, 35, 35, 34, 34,
-33, 33, 12, 12, 12, 5, 5, 39,
-39 
+21, 22, 23, 24, 24, 24, 24, 24,
+24, 26, 28, 27, 27, 25, 25, 25,
+25, 25, 33, 33, 33, 33, 36, 34,
+35, 35, 35, 35, 35, 35, 39, 40,
+40, 40, 40, 40, 40, 40, 40, 40,
+40, 40, 40, 40, 40, 40, 32, 41,
+38, 29, 37, 42, 30, 30, 30, 30,
+30, 30, 30, 30, 43, 43, 48, 48,
+45, 45, 45, 49, 50, 50, 44, 44,
+47, 47, 47, 46, 46, 31, 31, 12,
+12, 12, 5, 5, 51, 51 
 };
-readonly unsigned char yypn[81] = {
+readonly unsigned char yypn[118] = {
 2, 2, 0, 1, 2, 2, 2, 2,
 2, 2, 2, 2, 2, 3, 1, 2,
 2, 2, 2, 2, 2, 2, 2, 1,
 2, 2, 3, 3, 1, 3, 3, 3,
-1, 2, 2, 1, 0, 2, 1, 1,
-1, 1, 1, 1, 1, 1, 6, 5,
-6, 5, 4, 6, 3, 3, 6, 2,
-0, 2, 0, 3, 1, 0, 3, 3,
-1, 2, 0, 5, 2, 0, 1, 0,
-3, 2, 1, 1, 2, 1, 0, 1,
-2 
+1, 2, 0, 1, 1, 2, 1, 2,
+1, 1, 6, 1, 2, 3, 2, 1,
+2, 1, 1, 2, 1, 2, 1, 1,
+1, 2, 1, 2, 1, 2, 1, 1,
+1, 1, 1, 1, 1, 1, 1, 1,
+1, 1, 1, 1, 1, 1, 1, 1,
+1, 1, 1, 1, 6, 5, 6, 5,
+4, 6, 3, 3, 2, 0, 2, 0,
+3, 1, 0, 3, 3, 1, 2, 0,
+5, 2, 0, 1, 0, 3, 2, 1,
+1, 2, 1, 0, 1, 2 
 };
-readonly unsigned char yypgo[40] = {
+readonly unsigned char yypgo[52] = {
 0, 0, 2, 4, 12, 14, 48, 52,
 54, 56, 58, 60, 64, 70, 72, 74,
 76, 78, 82, 84, 86, 92, 96, 98,
-100, 104, 120, 122, 124, 126, 128, 130,
-136, 142, 154, 168, 172, 176, 178, 182
+100, 102, 104, 106, 108, 110, 126, 128,
+140, 152, 158, 160, 170, 172, 180, 184,
+186, 188, 190, 192, 194, 200, 206, 220,
+224, 228, 230, 234 
 };
-readonly unsigned int yygo[194] = {
-YYOTHERS, 0x1, YYOTHERS, 0x6, 0x1, 0x7, 0x10, 0x2B,
-0x11, 0x2C, YYOTHERS, 0x3C, YYOTHERS, 0x21, 0x13, 0x30,
-0x16, 0x33, 0x1B, 0x37, 0x1D, 0x38, 0x1E, 0x39,
-0x1F, 0x3A, 0x20, 0x3B, 0x3C, 0x4C, 0x42, 0x55,
-0x4E, 0x62, 0x50, 0x65, 0x64, 0x78, 0x6B, 0x7B,
-0x6D, 0x7D, 0x73, 0x81, 0x74, 0x82, YYOTHERS, 0x2E,
-0x83, 0x87, YYOTHERS, 0x4F, YYOTHERS, 0x75, YYOTHERS, 0x76,
-YYOTHERS, 0x22, YYOTHERS, 0x51, 0x48, 0x5C, YYOTHERS, 0x47,
-0x45, 0x56, 0x4B, 0x5F, YYOTHERS, 0x48, YYOTHERS, 0x14,
-YYOTHERS, 0x15, YYOTHERS, 0x17, YYOTHERS, 0x23, 0x55, 0x68,
-YYOTHERS, 0x24, YYOTHERS, 0x6E, YYOTHERS, 0x6C, 0x14, 0x31,
-0x15, 0x32, YYOTHERS, 0x8, 0x17, 0x34, YYOTHERS, 0x9,
-YYOTHERS, 0xA, YYOTHERS, 0xB, 0x27, 0x43, YYOTHERS, 0x25,
-0x4, 0xE, 0xB, 0x26, 0x19, 0x35, 0x1A, 0x36,
-0x27, 0x26, 0x4A, 0x5D, 0x5D, 0x5D, YYOTHERS, 0x58,
-YYOTHERS, 0x27, YYOTHERS, 0x28, YYOTHERS, 0x29, YYOTHERS, 0x2A,
-YYOTHERS, 0x4B, 0x4B, 0x60, 0x5F, 0x71, YYOTHERS, 0x52,
-0x5C, 0x6F, 0x6C, 0x7C, YYOTHERS, 0x59, 0x21, 0x3D,
-0x22, 0x3E, 0x4D, 0x61, 0x68, 0x79, 0x75, 0x83,
-YYOTHERS, 0x3F, 0x24, 0x41, 0x4F, 0x63, 0x51, 0x66,
-0x6E, 0x7E, 0x76, 0x84, 0x87, 0x88, YYOTHERS, 0x40,
-0x88, 0x89, YYOTHERS, 0x77, 0x5D, 0x70, YYOTHERS, 0x5E,
-YYOTHERS, 0x5A, 0x69, 0x7A, YYOTHERS, 0x5B, 0x35, 0x49,
-0x3C, 0x4D, 0x45, 0x49, 0x46, 0x57, 0x4B, 0x49,
-YYOTHERS, 0x2F 
+readonly unsigned int yygo[246] = {
+YYOTHERS, 0x1, YYOTHERS, 0x5, 0x1, 0x6, 0xd, 0x31,
+0xe, 0x32, YYOTHERS, 0x43, YYOTHERS, 0x20, 0x10, 0x36,
+0x13, 0x39, 0x18, 0x3d, 0x1b, 0x3e, 0x1d, 0x40,
+0x1e, 0x41, 0x1f, 0x42, 0x43, 0x6d, 0x4b, 0x77,
+0x6f, 0x88, 0x71, 0x8b, 0x8a, 0x9e, 0x91, 0xa1,
+0x93, 0xa3, 0x99, 0xa7, 0x9a, 0xa8, YYOTHERS, 0x34,
+0xa9, 0xad, YYOTHERS, 0x70, YYOTHERS, 0x9b, YYOTHERS, 0x9c,
+YYOTHERS, 0x21, YYOTHERS, 0x72, 0x69, 0x82, YYOTHERS, 0x68,
+0x66, 0x7c, 0x6c, 0x85, YYOTHERS, 0x69, YYOTHERS, 0x11,
+YYOTHERS, 0x12, YYOTHERS, 0x14, YYOTHERS, 0x22, 0x77, 0x8e,
+YYOTHERS, 0x23, YYOTHERS, 0x94, YYOTHERS, 0x92, 0x11, 0x37,
+0x12, 0x38, YYOTHERS, 0x7, 0x14, 0x3a, YYOTHERS, 0x8,
+YYOTHERS, 0x9, YYOTHERS, 0xa, YYOTHERS, 0x24, YYOTHERS, 0x25,
+YYOTHERS, 0x26, YYOTHERS, 0x49, YYOTHERS, 0x27, 0xa, 0x28,
+0x16, 0x3b, 0x17, 0x3c, 0x1c, 0x3f, 0x2b, 0x4d,
+0x6b, 0x83, 0x83, 0x83, YYOTHERS, 0x7e, YYOTHERS, 0x29,
+0x20, 0x44, 0x21, 0x45, 0x6e, 0x87, 0x8e, 0x9f,
+0x9b, 0xa9, YYOTHERS, 0x46, 0xa, 0x2a, 0x26, 0x4a,
+0x2a, 0x2a, 0x2d, 0x2a, 0x49, 0x76, YYOTHERS, 0x5f,
+0x2a, 0x4c, 0x2d, 0x64, YYOTHERS, 0x2b, YYOTHERS, 0x4e,
+0x4e, 0x78, 0x5f, 0x79, 0x61, 0x7a, 0x62, 0x7b,
+YYOTHERS, 0x60, YYOTHERS, 0x2c, 0xa, 0x2d, 0x2a, 0x2d,
+0x2d, 0x2d, YYOTHERS, 0x61, 0x2b, 0x4f, YYOTHERS, 0x2e,
+YYOTHERS, 0x62, YYOTHERS, 0x63, YYOTHERS, 0x2f, YYOTHERS, 0x30,
+YYOTHERS, 0x6c, 0x6c, 0x86, 0x85, 0x97, YYOTHERS, 0x73,
+0x82, 0x95, 0x92, 0xa2, YYOTHERS, 0x7f, 0x23, 0x48,
+0x70, 0x89, 0x72, 0x8c, 0x94, 0xa4, 0x9c, 0xaa,
+0xad, 0xae, YYOTHERS, 0x47, 0xae, 0xaf, YYOTHERS, 0x9d,
+0x83, 0x96, YYOTHERS, 0x84, YYOTHERS, 0x80, 0x8f, 0xa0,
+YYOTHERS, 0x81, 0x3b, 0x6a, 0x43, 0x6e, 0x66, 0x6a,
+0x67, 0x7d, 0x6c, 0x6a, YYOTHERS, 0x35 
 };
-readonly unsigned short yypa[138] = {
-0, 2, 30, 34, 38, 42, 44, 46,
-50, 56, 62, 66, 88, 90, 92, 94,
-96, 120, 144, 144, 148, 148, 144, 152,
-156, 158, 158, 144, 162, 144, 144, 144,
-144, 152, 152, 164, 170, 176, 178, 182,
-204, 206, 208, 210, 212, 214, 216, 218,
-222, 224, 226, 228, 230, 232, 240, 244,
-246, 248, 250, 252, 144, 254, 258, 262,
-264, 268, 144, 272, 274, 276, 282, 286,
-290, 294, 298, 302, 310, 312, 144, 338,
-348, 354, 360, 364, 366, 368, 372, 374,
-378, 382, 386, 390, 286, 298, 394, 258,
-396, 400, 402, 404, 144, 410, 412, 414,
-152, 416, 420, 144, 286, 144, 422, 430,
-434, 436, 440, 144, 144, 152, 442, 448,
-452, 454, 458, 460, 462, 464, 466, 468,
-470, 472, 474, 254, 476, 478, 480, 338,
-482, 488 
+readonly unsigned short yypa[176] = {
+0, 2, 30, 34, 38, 40, 42, 46,
+52, 58, 62, 86, 88, 90, 114, 138,
+138, 142, 142, 138, 144, 146, 148, 148,
+138, 152, 154, 138, 156, 138, 138, 138,
+144, 144, 160, 164, 168, 170, 172, 176,
+178, 182, 184, 190, 194, 230, 236, 238,
+240, 242, 244, 246, 248, 250, 254, 256,
+258, 260, 262, 264, 272, 276, 278, 280,
+282, 284, 286, 138, 288, 292, 296, 298,
+302, 306, 310, 138, 312, 314, 316, 352,
+354, 356, 358, 360, 362, 364, 366, 368,
+370, 372, 374, 376, 378, 380, 382, 384,
+420, 422, 458, 494, 496, 498, 500, 506,
+510, 514, 518, 522, 526, 534, 536, 138,
+560, 568, 574, 578, 582, 584, 586, 588,
+592, 594, 596, 598, 600, 602, 606, 610,
+614, 618, 510, 522, 622, 292, 624, 628,
+630, 632, 138, 638, 640, 642, 144, 644,
+648, 138, 510, 138, 650, 656, 660, 662,
+666, 138, 138, 144, 668, 672, 676, 678,
+682, 684, 686, 688, 690, 692, 694, 696,
+698, 288, 700, 702, 704, 560, 706, 712
 };
-readonly unsigned int yyact[490] = {
-0x2002, YYOTHERS, 0x2, YYEOFVAL, 0x4, 0x114, 0x5, 0xA,
-0x2024, 0x101, 0x2024, 0x102, 0x2024, 0x10B, 0x2024, 0x10C,
-0x2024, 0x10E, 0x2024, 0x10F, 0x2024, 0x111, 0x2024, 0x116,
-0x2024, 0x117, 0x2024, 0x28, 0x3, YYOTHERS, 0x4000, YYEOFVAL,
-0x6000, YYOTHERS, 0xC, 0xA, 0x6000, YYOTHERS, 0xD, 0x10F,
-0x2023, YYOTHERS, 0x2003, YYOTHERS, 0x2001, YYOTHERS, 0xF, 0xA,
-0x6000, YYOTHERS, 0x10, 0x3B, 0x11, 0x26, 0x2017, YYOTHERS,
-0x12, 0x100, 0x13, 0x112, 0x201C, YYOTHERS, 0x16, 0x7C,
-0x2020, YYOTHERS, 0x18, 0x101, 0x19, 0x102, 0x1A, 0x10B,
-0x1B, 0x10C, 0x1C, 0x10E, 0xD, 0x10F, 0x1D, 0x111,
-0x1E, 0x116, 0x1F, 0x117, 0x20, 0x28, 0x6000, YYOTHERS,
-0x2005, YYOTHERS, 0x202C, YYOTHERS, 0x2022, YYOTHERS, 0x2004, YYOTHERS,
-0x4, 0x114, 0x2024, 0x101, 0x2024, 0x102, 0x2024, 0x10B,
-0x2024, 0x10C, 0x2024, 0x10E, 0x2024, 0x10F, 0x2024, 0x111,
-0x2024, 0x116, 0x2024, 0x117, 0x2024, 0x28, 0x2019, YYOTHERS,
-0x4, 0x114, 0x2024, 0x101, 0x2024, 0x102, 0x2024, 0x10B,
-0x2024, 0x10C, 0x2024, 0x10E, 0x2024, 0x10F, 0x2024, 0x111,
-0x2024, 0x116, 0x2024, 0x117, 0x2024, 0x28, 0x2018, YYOTHERS,
-0x2D, 0xA, 0x204E, YYOTHERS, 0x4, 0x114, 0x2024, YYOTHERS,
-0x4, 0x114, 0x2024, YYOTHERS, 0x202D, YYOTHERS, 0xD, 0x10F,
-0x6000, YYOTHERS, 0x202B, YYOTHERS, 0x4, 0x114, 0x2047, 0x29,
-0x2024, YYOTHERS, 0x4, 0x114, 0x2047, 0x103, 0x2024, YYOTHERS,
-0x2021, YYOTHERS, 0x42, 0x113, 0x2028, YYOTHERS, 0x18, 0x101,
-0x19, 0x102, 0x1A, 0x10B, 0x1B, 0x10C, 0x1C, 0x10E,
-0xD, 0x10F, 0x1D, 0x111, 0x1E, 0x116, 0x1F, 0x117,
-0x20, 0x28, 0x2026, YYOTHERS, 0x2027, YYOTHERS, 0x2029, YYOTHERS,
-0x202A, YYOTHERS, 0x201B, YYOTHERS, 0x201A, YYOTHERS, 0x204F, YYOTHERS,
-0x2011, YYOTHERS, 0x44, 0xA, 0x204D, YYOTHERS, 0x2010, YYOTHERS,
-0x201D, YYOTHERS, 0x201E, YYOTHERS, 0x2012, YYOTHERS, 0x201F, YYOTHERS,
-0x45, 0x10D, 0x2D, 0xA, 0x46, 0x3B, 0x6000, YYOTHERS,
-0x4A, 0x10D, 0x2038, YYOTHERS, 0x2006, YYOTHERS, 0x2014, YYOTHERS,
-0x200B, YYOTHERS, 0x200A, YYOTHERS, 0x2013, YYOTHERS, 0x4E, 0x115,
-0x6000, YYOTHERS, 0x50, 0x104, 0x2042, YYOTHERS, 0x2046, YYOTHERS,
-0x53, 0x29, 0x6000, YYOTHERS, 0x54, 0x103, 0x6000, YYOTHERS,
-0x2025, YYOTHERS, 0x2050, YYOTHERS, 0x2D, 0xA, 0x46, 0x3B,
-0x200E, YYOTHERS, 0x2D, 0xA, 0x204B, YYOTHERS, 0xD, 0x10F,
-0x203D, YYOTHERS, 0x45, 0x10D, 0x6000, YYOTHERS, 0x44, 0xA,
-0x204A, YYOTHERS, 0xD, 0x10F, 0x203A, YYOTHERS, 0x50, 0x104,
-0x2D, 0xA, 0x46, 0x3B, 0x2042, YYOTHERS, 0x2049, YYOTHERS,
-0x4, 0x114, 0x44, 0xA, 0x204D, 0x103, 0x204D, 0x104,
-0x204D, 0x105, 0x204D, 0x106, 0x204D, 0x107, 0x204D, 0x108,
-0x204D, 0x109, 0x204D, 0x10A, 0x204D, 0x115, 0x204D, 0x29,
-0x2024, YYOTHERS, 0x4, 0x114, 0x2047, 0x107, 0x2047, 0x108,
-0x2047, 0x10A, 0x2024, YYOTHERS, 0x2D, 0xA, 0x64, 0x3B,
-0x204E, YYOTHERS, 0x4, 0x114, 0x2047, 0x105, 0x2024, YYOTHERS,
-0x67, 0x105, 0x6000, YYOTHERS, 0x2034, YYOTHERS, 0x2035, YYOTHERS,
-0x1D, 0x111, 0x6000, YYOTHERS, 0x200F, YYOTHERS, 0x44, 0xA,
-0x204C, YYOTHERS, 0x69, 0x7C, 0x2040, YYOTHERS, 0x6A, 0x109,
-0x6000, YYOTHERS, 0x6B, 0x106, 0x203C, YYOTHERS, 0x6D, 0x29,
-0x6000, YYOTHERS, 0x2037, YYOTHERS, 0x72, 0x105, 0x6000, YYOTHERS,
-0x2048, YYOTHERS, 0x2007, YYOTHERS, 0x73, 0x107, 0x74, 0x108,
-0x2045, YYOTHERS, 0x200C, YYOTHERS, 0x2041, YYOTHERS, 0x2032, YYOTHERS,
-0xD, 0x10F, 0x6000, YYOTHERS, 0x2031, YYOTHERS, 0x4, 0x114,
-0x2047, 0x106, 0x2047, 0x109, 0x2024, YYOTHERS, 0x7F, 0x109,
-0x6000, YYOTHERS, 0x2039, YYOTHERS, 0x80, 0x105, 0x6000, YYOTHERS,
-0x202F, YYOTHERS, 0x4, 0x114, 0x2047, 0x10A, 0x2024, YYOTHERS,
-0x85, 0x10A, 0x6000, YYOTHERS, 0x200D, YYOTHERS, 0x86, 0x103,
-0x6000, YYOTHERS, 0x203F, YYOTHERS, 0x2016, YYOTHERS, 0x203B, YYOTHERS,
-0x2015, YYOTHERS, 0x203E, YYOTHERS, 0x2030, YYOTHERS, 0x202E, YYOTHERS,
-0x2008, YYOTHERS, 0x2009, YYOTHERS, 0x2044, YYOTHERS, 0x2033, YYOTHERS,
-0x2036, YYOTHERS, 0x73, 0x107, 0x74, 0x108, 0x2045, YYOTHERS,
-0x2043, YYOTHERS 
+readonly unsigned int yyact[714] = {
+0x2002, YYOTHERS, 0x2, YYEOFVAL, 0x4, 0xa, 0x2022, 0x101,
+0x2022, 0x102, 0x2022, 0x10b, 0x2022, 0x10c, 0x2022, 0x10e,
+0x2022, 0x10f, 0x2022, 0x111, 0x2022, 0x114, 0x2022, 0x116,
+0x2022, 0x117, 0x2022, 0x28, 0x3, YYOTHERS, 0x4000, YYEOFVAL,
+0x6000, YYOTHERS, 0xb, 0xa, 0x6000, YYOTHERS, 0x2003, YYOTHERS,
+0x2001, YYOTHERS, 0xc, 0xa, 0x6000, YYOTHERS, 0xd, 0x3b,
+0xe, 0x26, 0x2017, YYOTHERS, 0xf, 0x100, 0x10, 0x112,
+0x201c, YYOTHERS, 0x13, 0x7c, 0x2020, YYOTHERS, 0x15, 0x101,
+0x16, 0x102, 0x17, 0x10b, 0x18, 0x10c, 0x19, 0x10e,
+0x1a, 0x10f, 0x1b, 0x111, 0x1c, 0x114, 0x1d, 0x116,
+0x1e, 0x117, 0x1f, 0x28, 0x6000, YYOTHERS, 0x2005, YYOTHERS,
+0x2004, YYOTHERS, 0x2022, 0x101, 0x2022, 0x102, 0x2022, 0x10b,
+0x2022, 0x10c, 0x2022, 0x10e, 0x2022, 0x10f, 0x2022, 0x111,
+0x2022, 0x114, 0x2022, 0x116, 0x2022, 0x117, 0x2022, 0x28,
+0x2019, YYOTHERS, 0x2022, 0x101, 0x2022, 0x102, 0x2022, 0x10b,
+0x2022, 0x10c, 0x2022, 0x10e, 0x2022, 0x10f, 0x2022, 0x111,
+0x2022, 0x114, 0x2022, 0x116, 0x2022, 0x117, 0x2022, 0x28,
+0x2018, YYOTHERS, 0x33, 0xa, 0x2073, YYOTHERS, 0x2022, YYOTHERS,
+0x2022, YYOTHERS, 0x2053, YYOTHERS, 0x1a, 0x10f, 0x6000, YYOTHERS,
+0x204f, YYOTHERS, 0x2051, YYOTHERS, 0x1a, 0x10f, 0x2028, YYOTHERS,
+0x206c, 0x29, 0x2022, YYOTHERS, 0x206c, 0x103, 0x2022, YYOTHERS,
+0x2021, YYOTHERS, 0x2023, YYOTHERS, 0x19, 0x10e, 0x2024, YYOTHERS,
+0x2026, YYOTHERS, 0x4b, 0x113, 0x2050, YYOTHERS, 0x2029, YYOTHERS,
+0x15, 0x101, 0x19, 0x10e, 0x2032, YYOTHERS, 0x1a, 0x10f,
+0x202f, YYOTHERS, 0x15, 0x101, 0x50, 0x102, 0x51, 0x104,
+0x52, 0x105, 0x53, 0x107, 0x54, 0x108, 0x55, 0x109,
+0x56, 0x10a, 0x57, 0x10b, 0x58, 0x10c, 0x59, 0x10d,
+0x19, 0x10e, 0x5a, 0x10f, 0x5b, 0x114, 0x5c, 0x115,
+0x5d, 0x116, 0x5e, 0x117, 0x2031, YYOTHERS, 0x15, 0x101,
+0x19, 0x10e, 0x2034, YYOTHERS, 0x2036, YYOTHERS, 0x204e, YYOTHERS,
+0x2052, YYOTHERS, 0x201b, YYOTHERS, 0x201a, YYOTHERS, 0x2074, YYOTHERS,
+0x2011, YYOTHERS, 0x65, 0xa, 0x2072, YYOTHERS, 0x2010, YYOTHERS,
+0x201d, YYOTHERS, 0x201e, YYOTHERS, 0x2012, YYOTHERS, 0x201f, YYOTHERS,
+0x66, 0x10d, 0x33, 0xa, 0x67, 0x3b, 0x6000, YYOTHERS,
+0x6b, 0x10d, 0x205d, YYOTHERS, 0x2006, YYOTHERS, 0x2014, YYOTHERS,
+0x2027, YYOTHERS, 0x200b, YYOTHERS, 0x200a, YYOTHERS, 0x2013, YYOTHERS,
+0x6f, 0x115, 0x6000, YYOTHERS, 0x71, 0x104, 0x2067, YYOTHERS,
+0x206b, YYOTHERS, 0x74, 0x29, 0x6000, YYOTHERS, 0x75, 0x103,
+0x6000, YYOTHERS, 0x19, 0x10e, 0x2025, YYOTHERS, 0x202b, YYOTHERS,
+0x2033, YYOTHERS, 0x2050, YYOTHERS, 0x15, 0x101, 0x50, 0x102,
+0x51, 0x104, 0x52, 0x105, 0x53, 0x107, 0x54, 0x108,
+0x55, 0x109, 0x56, 0x10a, 0x57, 0x10b, 0x58, 0x10c,
+0x59, 0x10d, 0x19, 0x10e, 0x5a, 0x10f, 0x5b, 0x114,
+0x5c, 0x115, 0x5d, 0x116, 0x5e, 0x117, 0x202e, YYOTHERS,
+0x2037, YYOTHERS, 0x2040, YYOTHERS, 0x2041, YYOTHERS, 0x2042, YYOTHERS,
+0x2043, YYOTHERS, 0x2044, YYOTHERS, 0x2045, YYOTHERS, 0x2046, YYOTHERS,
+0x2047, YYOTHERS, 0x2048, YYOTHERS, 0x2049, YYOTHERS, 0x203f, YYOTHERS,
+0x204a, YYOTHERS, 0x204b, YYOTHERS, 0x204c, YYOTHERS, 0x204d, YYOTHERS,
+0x15, 0x101, 0x50, 0x102, 0x51, 0x104, 0x52, 0x105,
+0x53, 0x107, 0x54, 0x108, 0x55, 0x109, 0x56, 0x10a,
+0x57, 0x10b, 0x58, 0x10c, 0x59, 0x10d, 0x19, 0x10e,
+0x5a, 0x10f, 0x5b, 0x114, 0x5c, 0x115, 0x5d, 0x116,
+0x5e, 0x117, 0x2038, YYOTHERS, 0x2030, YYOTHERS, 0x15, 0x101,
+0x50, 0x102, 0x51, 0x104, 0x52, 0x105, 0x53, 0x107,
+0x54, 0x108, 0x55, 0x109, 0x56, 0x10a, 0x57, 0x10b,
+0x58, 0x10c, 0x59, 0x10d, 0x19, 0x10e, 0x5a, 0x10f,
+0x5b, 0x114, 0x5c, 0x115, 0x5d, 0x116, 0x5e, 0x117,
+0x203c, YYOTHERS, 0x15, 0x101, 0x50, 0x102, 0x51, 0x104,
+0x52, 0x105, 0x53, 0x107, 0x54, 0x108, 0x55, 0x109,
+0x56, 0x10a, 0x57, 0x10b, 0x58, 0x10c, 0x59, 0x10d,
+0x19, 0x10e, 0x5a, 0x10f, 0x5b, 0x114, 0x5c, 0x115,
+0x5d, 0x116, 0x5e, 0x117, 0x203a, YYOTHERS, 0x203e, YYOTHERS,
+0x2035, YYOTHERS, 0x2075, YYOTHERS, 0x33, 0xa, 0x67, 0x3b,
+0x200e, YYOTHERS, 0x33, 0xa, 0x2070, YYOTHERS, 0x1a, 0x10f,
+0x2062, YYOTHERS, 0x66, 0x10d, 0x6000, YYOTHERS, 0x65, 0xa,
+0x206f, YYOTHERS, 0x1a, 0x10f, 0x205f, YYOTHERS, 0x71, 0x104,
+0x33, 0xa, 0x67, 0x3b, 0x2067, YYOTHERS, 0x206e, YYOTHERS,
+0x65, 0xa, 0x2072, 0x103, 0x2072, 0x104, 0x2072, 0x105,
+0x2072, 0x106, 0x2072, 0x107, 0x2072, 0x108, 0x2072, 0x109,
+0x2072, 0x10a, 0x2072, 0x115, 0x2072, 0x29, 0x2022, YYOTHERS,
+0x206c, 0x107, 0x206c, 0x108, 0x206c, 0x10a, 0x2022, YYOTHERS,
+0x33, 0xa, 0x8a, 0x3b, 0x2073, YYOTHERS, 0x206c, 0x105,
+0x2022, YYOTHERS, 0x8d, 0x105, 0x6000, YYOTHERS, 0x205a, YYOTHERS,
+0x205b, YYOTHERS, 0x202c, YYOTHERS, 0x1b, 0x111, 0x6000, YYOTHERS,
+0x202d, YYOTHERS, 0x2039, YYOTHERS, 0x203d, YYOTHERS, 0x203b, YYOTHERS,
+0x200f, YYOTHERS, 0x65, 0xa, 0x2071, YYOTHERS, 0x8f, 0x7c,
+0x2065, YYOTHERS, 0x90, 0x109, 0x6000, YYOTHERS, 0x91, 0x106,
+0x2061, YYOTHERS, 0x93, 0x29, 0x6000, YYOTHERS, 0x205c, YYOTHERS,
+0x98, 0x105, 0x6000, YYOTHERS, 0x206d, YYOTHERS, 0x2007, YYOTHERS,
+0x99, 0x107, 0x9a, 0x108, 0x206a, YYOTHERS, 0x200c, YYOTHERS,
+0x2066, YYOTHERS, 0x2058, YYOTHERS, 0x1a, 0x10f, 0x6000, YYOTHERS,
+0x2057, YYOTHERS, 0x206c, 0x106, 0x206c, 0x109, 0x2022, YYOTHERS,
+0xa5, 0x109, 0x6000, YYOTHERS, 0x205e, YYOTHERS, 0xa6, 0x105,
+0x6000, YYOTHERS, 0x2055, YYOTHERS, 0x206c, 0x10a, 0x2022, YYOTHERS,
+0xab, 0x10a, 0x6000, YYOTHERS, 0x200d, YYOTHERS, 0xac, 0x103,
+0x6000, YYOTHERS, 0x2064, YYOTHERS, 0x2016, YYOTHERS, 0x2060, YYOTHERS,
+0x2015, YYOTHERS, 0x2063, YYOTHERS, 0x2056, YYOTHERS, 0x2054, YYOTHERS,
+0x2008, YYOTHERS, 0x2009, YYOTHERS, 0x2069, YYOTHERS, 0x2059, YYOTHERS,
+0x202a, YYOTHERS, 0x99, 0x107, 0x9a, 0x108, 0x206a, YYOTHERS,
+0x2068, YYOTHERS 
 };
 #define YYNOCHAR (-1000)
 #define	yyerrok	yyerrflag=0
@@ -412,7 +460,7 @@ read:
 
 case 3: {
 
-#line 65 "sh.y"
+#line 71 "sh.y"
 
 		sesp->s_node = NULL;
 		reset(RCMD);
@@ -421,7 +469,7 @@ case 3: {
 
 case 4: {
 
-#line 71 "sh.y"
+#line 77 "sh.y"
 
 		sesp->s_node = yypvt[-1].yu_node;
 		reset(errflag ? RERR : RCMD);
@@ -430,7 +478,7 @@ case 4: {
 
 case 5: {
 
-#line 76 "sh.y"
+#line 82 "sh.y"
 
 		keyflush();
 		keyflag = 1;
@@ -440,283 +488,430 @@ case 5: {
 
 case 10: {
 
-#line 92 "sh.y"
+#line 98 "sh.y"
 	yyval.yu_nval = NWHILE;	}break;
 
 case 11: {
 
-#line 93 "sh.y"
+#line 99 "sh.y"
 	yyval.yu_nval = NUNTIL;	}break;
 
 case 23: {
 
-#line 115 "sh.y"
+#line 121 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 24: {
 
-#line 118 "sh.y"
+#line 124 "sh.y"
 
 		yyval.yu_node = node(NBACK, yypvt[-1].yu_node, NULL);
 	}break;
 
 case 25: {
 
-#line 121 "sh.y"
+#line 127 "sh.y"
 
 		yyval.yu_node = yypvt[-1].yu_node;
 	}break;
 
 case 26: {
 
-#line 124 "sh.y"
+#line 130 "sh.y"
 
 		yyval.yu_node = node(NBACK, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 27: {
 
-#line 127 "sh.y"
+#line 133 "sh.y"
 
 		yyval.yu_node = node(NLIST, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 28: {
 
-#line 133 "sh.y"
+#line 139 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 29: {
 
-#line 136 "sh.y"
+#line 142 "sh.y"
 
 		yyval.yu_node = node(NORF, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 30: {
 
-#line 139 "sh.y"
+#line 145 "sh.y"
 
 		yyval.yu_node = node(NANDF, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 31: {
 
-#line 145 "sh.y"
+#line 151 "sh.y"
 
 		yyval.yu_node = node(NPIPE, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 32: {
 
-#line 148 "sh.y"
+#line 154 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 33: {
 
-#line 154 "sh.y"
+#line 166 "sh.y"
 
-		yyval.yu_node = node(NCOMS, yypvt[0].yu_node, NULL);
-		keypop();
+		yyval.yu_node = yypvt[0].yu_node;
+		keypop ();
 	}break;
 
 case 34: {
 
-#line 158 "sh.y"
+#line 172 "sh.y"
 
-		yyval.yu_node = node(NRET, yypvt[0].yu_strp, NULL);
+		keypush ();
+		keyflag = 1;
 	}break;
 
 case 35: {
 
-#line 161 "sh.y"
+#line 179 "sh.y"
 
-		yyval.yu_node = node(NRET, "", NULL);
+		yyval.yu_node = node (NCOMS, yypvt[0].yu_node, NULL);
 	}break;
 
 case 36: {
 
-#line 167 "sh.y"
+#line 182 "sh.y"
 
-		keypush();
-		keyflag = 1;
+		yyval.yu_node = node (NCOMS, yypvt[0].yu_node, NULL);
 	}break;
 
 case 37: {
 
-#line 174 "sh.y"
+#line 185 "sh.y"
 
-		if ((yypvt[-1].yu_node->n_type == NCTRL && yypvt[0].yu_node->n_type == NARGS)
-		 || (yypvt[-1].yu_node->n_type == NARGS && yypvt[0].yu_node->n_type == NCTRL)) {
-			YYERROR;
-		}
-		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
+		yyval.yu_node = node (NCOMS, yypvt[-1].yu_node->n_next = yypvt[0].yu_node, NULL);
 	}break;
 
 case 38: {
 
-#line 181 "sh.y"
+#line 188 "sh.y"
 
-		yyval.yu_node = yypvt[0].yu_node;
+		yyval.yu_node = node (NCOMS, yypvt[0].yu_node, NULL);
 	}break;
 
 case 39: {
 
-#line 187 "sh.y"
+#line 191 "sh.y"
 
-		yyval.yu_node = node(NIORS, yypvt[0].yu_strp, NULL);
+		yyval.yu_node = node (NRET, yypvt[0].yu_strp, NULL);
 	}break;
 
 case 40: {
 
-#line 190 "sh.y"
+#line 194 "sh.y"
 
-		yyval.yu_node = node(NARGS, yypvt[0].yu_strp, NULL);
-		keyflag = 0;
+		yyval.yu_node = node (NRET, "", NULL);
 	}break;
 
 case 41: {
 
-#line 194 "sh.y"
+#line 200 "sh.y"
 
-		yyval.yu_node = node(NASSG, yypvt[0].yu_strp, NULL);
+		yyval.yu_node = node (NCTRL, yypvt[0].yu_node, NULL);
 	}break;
 
 case 42: {
 
-#line 197 "sh.y"
+#line 206 "sh.y"
 
-		if (!keyflag) {
-			YYERROR;
-		}
-		yyval.yu_node = node(NCTRL, yypvt[0].yu_node, NULL);
-		keyflag = 0;
+		yyval.yu_node = node (NCTRL, node (NFUNC, yypvt[-5].yu_strp, yypvt[-1].yu_node), NULL);
 	}break;
 
 case 43: {
 
-#line 206 "sh.y"
+#line 212 "sh.y"
 
-		yyval.yu_strp = duplstr(strt, 0);
+		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 44: {
 
-#line 211 "sh.y"
+#line 215 "sh.y"
 
-		yyval.yu_strp = duplstr(strt, 0);
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 45: {
 
-#line 216 "sh.y"
+#line 221 "sh.y"
 
-		yyval.yu_strp = duplstr(strt, 0);
+		((yyval.yu_node = yypvt[-2].yu_node)->n_next = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 46: {
 
-#line 222 "sh.y"
+#line 224 "sh.y"
 
-		yyval.yu_node = node(NFOR, yypvt[-4].yu_strp, node(NFOR2, yypvt[-3].yu_node, node(NLIST, yypvt[-1].yu_node, NULL)));
-		yyval.yu_node->n_next->n_next->n_next = yyval.yu_node->n_next;
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 47: {
 
-#line 226 "sh.y"
+#line 227 "sh.y"
 
-		yyval.yu_node = node(NFOR, yypvt[-3].yu_strp, node(NFOR2, yypvt[-2].yu_node, node(NLIST, yypvt[-1].yu_node, NULL)));
-		yyval.yu_node->n_next->n_next->n_next = yyval.yu_node->n_next;
+		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 48: {
 
 #line 230 "sh.y"
 
-		yyval.yu_node = node(NCASE, yypvt[-4].yu_strp, yypvt[-1].yu_node);
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 49: {
 
 #line 233 "sh.y"
 
-		yyval.yu_node = node(NCASE, yypvt[-3].yu_strp, yypvt[-1].yu_node);
+		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 50: {
 
-#line 236 "sh.y"
+#line 239 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+	}break;
+
+case 51: {
+
+#line 242 "sh.y"
+
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
+	}break;
+
+case 52: {
+
+#line 245 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+	}break;
+
+case 53: {
+
+#line 248 "sh.y"
+
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
+	}break;
+
+case 54: {
+
+#line 254 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+		keyflag = 0;
+	}break;
+
+case 55: {
+
+#line 261 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+		keyflag = 0;
+	}break;
+
+case 56: {
+
+#line 276 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+	}break;
+
+case 57: {
+
+#line 279 "sh.y"
+
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
+	}break;
+
+case 58: {
+
+#line 282 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+	}break;
+
+case 59: {
+
+#line 285 "sh.y"
+
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
+	}break;
+
+case 60: {
+
+#line 288 "sh.y"
+
+		yyval.yu_node = yypvt[0].yu_node;
+	}break;
+
+case 61: {
+
+#line 291 "sh.y"
+
+		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
+	}break;
+
+case 62: {
+
+#line 297 "sh.y"
+
+		yyval.yu_node = node (NARGS, duplstr (strt, 0), NULL);
+	}break;
+
+case 78: {
+
+#line 388 "sh.y"
+
+		yyval.yu_node = node (NIORS, yypvt[0].yu_strp, NULL);
+	}break;
+
+case 79: {
+
+#line 393 "sh.y"
+
+		yyval.yu_strp = duplstr (strt, 0);
+	}break;
+
+case 80: {
+
+#line 398 "sh.y"
+
+		yyval.yu_node = node (NARGS, yypvt[0].yu_strp, NULL);
+	}break;
+
+case 81: {
+
+#line 403 "sh.y"
+
+		yyval.yu_strp = duplstr (strt, 0);
+	}break;
+
+case 82: {
+
+#line 409 "sh.y"
+
+		yyval.yu_node = node (NASSG, yypvt[0].yu_strp, NULL);
+	}break;
+
+case 83: {
+
+#line 414 "sh.y"
+
+		yyval.yu_strp = duplstr (strt, 0);
+	}break;
+
+case 84: {
+
+#line 420 "sh.y"
+
+		yyval.yu_node = node(NFOR, yypvt[-4].yu_strp, node(NFOR2, yypvt[-3].yu_node, node(NLIST, yypvt[-1].yu_node, NULL)));
+		yyval.yu_node->n_next->n_next->n_next = yyval.yu_node->n_next;
+	}break;
+
+case 85: {
+
+#line 424 "sh.y"
+
+		yyval.yu_node = node(NFOR, yypvt[-3].yu_strp, node(NFOR2, yypvt[-2].yu_node, node(NLIST, yypvt[-1].yu_node, NULL)));
+		yyval.yu_node->n_next->n_next->n_next = yyval.yu_node->n_next;
+	}break;
+
+case 86: {
+
+#line 428 "sh.y"
+
+		yyval.yu_node = node(NCASE, yypvt[-4].yu_strp, yypvt[-1].yu_node);
+	}break;
+
+case 87: {
+
+#line 431 "sh.y"
+
+		yyval.yu_node = node(NCASE, yypvt[-3].yu_strp, yypvt[-1].yu_node);
+	}break;
+
+case 88: {
+
+#line 434 "sh.y"
 
 		yyval.yu_node = node(yypvt[-3].yu_nval, yypvt[-2].yu_node, node(NLIST, yypvt[-1].yu_node, NULL));
 		yyval.yu_node->n_next->n_next = yyval.yu_node;
 	}break;
 
-case 51: {
+case 89: {
 
-#line 240 "sh.y"
+#line 438 "sh.y"
 
 		yyval.yu_node = node(NIF, node(NNULL, yypvt[-4].yu_node, yypvt[-2].yu_node), yypvt[-1].yu_node);
 	}break;
 
-case 52: {
+case 90: {
 
-#line 243 "sh.y"
+#line 441 "sh.y"
 
 		yyval.yu_node = node(NPARN, yypvt[-1].yu_node, NULL);
 	}break;
 
-case 53: {
+case 91: {
 
-#line 246 "sh.y"
+#line 444 "sh.y"
 
 		yyval.yu_node = node(NBRAC, yypvt[-1].yu_node, NULL);
 	}break;
 
-case 54: {
+case 92: {
 
-#line 249 "sh.y"
-
-		yyval.yu_node = node(NFUNC, yypvt[-5].yu_strp, yypvt[-1].yu_node);
-	}break;
-
-case 55: {
-
-#line 255 "sh.y"
+#line 450 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
-case 56: {
+case 93: {
 
-#line 258 "sh.y"
+#line 453 "sh.y"
 
 		yyval.yu_node = node(NARGS, "\"$@\"", NULL);
 	}break;
 
-case 57: {
+case 94: {
 
-#line 264 "sh.y"
+#line 459 "sh.y"
 
 		yyval.yu_node = node(NARGS, yypvt[-1].yu_strp, yypvt[0].yu_node);
 	}break;
 
-case 58: {
+case 95: {
 
-#line 267 "sh.y"
+#line 462 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
-case 59: {
+case 96: {
 
-#line 273 "sh.y"
+#line 468 "sh.y"
 
 		register NODE *np;
 
@@ -726,100 +921,100 @@ case 59: {
 		yyval.yu_node = yypvt[-2].yu_node;
 	}break;
 
-case 60: {
+case 97: {
 
-#line 281 "sh.y"
+#line 476 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
-case 61: {
+case 98: {
 
-#line 284 "sh.y"
+#line 479 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
-case 62: {
+case 99: {
 
-#line 290 "sh.y"
+#line 485 "sh.y"
 
 		yyval.yu_node = node(NCASE2, yypvt[0].yu_node, yypvt[-2].yu_node);
 	}break;
 
-case 63: {
+case 100: {
 
-#line 296 "sh.y"
+#line 491 "sh.y"
 
 		yyval.yu_node = node(NCASE3, yypvt[-2].yu_strp, yypvt[0].yu_node);
 	}break;
 
-case 64: {
+case 101: {
 
-#line 299 "sh.y"
+#line 494 "sh.y"
 
 		yyval.yu_node = node(NCASE3, yypvt[0].yu_strp, NULL);
 	}break;
 
-case 65: {
+case 102: {
 
-#line 305 "sh.y"
+#line 500 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
-case 66: {
+case 103: {
 
-#line 308 "sh.y"
+#line 503 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
-case 67: {
+case 104: {
 
-#line 314 "sh.y"
+#line 509 "sh.y"
 
 		yyval.yu_node = node(NIF, node(NNULL, yypvt[-3].yu_node, yypvt[-1].yu_node), yypvt[0].yu_node);
 	}break;
 
-case 68: {
+case 105: {
 
-#line 317 "sh.y"
+#line 512 "sh.y"
 
 		yyval.yu_node = node(NELSE, yypvt[0].yu_node, NULL);
 	}break;
 
-case 69: {
+case 106: {
 
-#line 320 "sh.y"
+#line 515 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
-case 70: {
+case 107: {
 
-#line 326 "sh.y"
+#line 521 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
-case 71: {
+case 108: {
 
-#line 330 "sh.y"
+#line 525 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
-case 72: {
+case 109: {
 
-#line 336 "sh.y"
+#line 531 "sh.y"
 
 		yyval.yu_node = node(NLIST, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
-case 73: {
+case 110: {
 
-#line 339 "sh.y"
+#line 534 "sh.y"
 
 		yyval.yu_node = yypvt[-1].yu_node;
 	}break;

@@ -5,14 +5,15 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/mdata.h>
+#include <limits.h>
 #include <time.h>
 #include <pwd.h>
 #include <utmp.h>
 #include <access.h>
 #include <signal.h>
-#include <sys/mdata.h>
 #include <ctype.h>
+
+#define MAXLONG		LONG_MAX
 
 #define	SPOOLDIR	"/usr/spool/mail/"
 #define PUBKEYDIR	"/usr/spool/pubkey/"

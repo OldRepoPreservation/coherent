@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/exec.c,v 1.1 88/03/24 17:39:26 src Exp $ */
+/* $Header: /kernel/kersrc/i286/RCS/exec.c,v 1.1 92/07/17 15:21:27 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -23,7 +23,10 @@
  * and the l.out executed must have no loadable or allocateable
  * segments.
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/exec.c,v $
+ * $Log:	exec.c,v $
+ * Revision 1.1  92/07/17  15:21:27  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:39:26	src
  * Initial revision
  * 

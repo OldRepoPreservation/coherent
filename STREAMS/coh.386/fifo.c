@@ -1,10 +1,13 @@
-/* $Header: /ker/coh.386/RCS/fifo.c,v 2.3 93/07/26 14:59:42 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/fifo.c,v 2.3 93/08/09 13:35:27 bin Exp Locker: bin $ */
 /*
  * File:	fifo.c
  *
  * Purpose:	allow kernel to fetch data from real-mode bootstrap data area
  *
  * $Log:	fifo.c,v $
+ * Revision 2.3  93/08/09  13:35:27  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.3  93/07/26  14:59:42  nigel
  * Nigel's R80
  * 

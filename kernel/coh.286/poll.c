@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/poll.c,v 1.1 88/03/24 16:14:10 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/poll.c,v 1.1 92/07/17 15:18:09 bin Exp Locker: bin $ */
 /*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -21,7 +21,10 @@
  *	int pollexit(  ) -- terminate all polls enabled by current process
  *	event_t * ep;
  *
- * $Log:	/usr/src/sys/coh/RCS/poll.c,v $
+ * $Log:	poll.c,v $
+ * Revision 1.1  92/07/17  15:18:09  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:14:10	src
  * Initial revision
  * 

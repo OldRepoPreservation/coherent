@@ -1,27 +1,23 @@
 /*
- * Reboot the processor by transferring to the reset vector of the 8088.
+ * Here is the source for fixed reboot.c - it needs to be linked with
+ * cohcall.o.
+ */
+/*
+ * reboot.c - command to reboot the system
  *
- * $Log:	/usr/src.inetco/etc/reboot.c,v $
- * Revision 1.2	90/04/17  14:48:29 	root
- * steve 4/17/90
- * Added "-p" option to prompt user to hit <Enter> before rebooting,
- * for use during installation.
- * 
- * Revision 1.1	90/04/17  14:34:11 	root
- * Initial revision
- * 
- * 86/12/19	Allan Cornish		/usr/src/cmd/etc/reboot.c
- * reboot.s converted into reboot.c and rebootas.s to provide time for
- * disk drives to turn off before initiating reboot.
+ * "-p" option prompts and will sync before rebooting.
+ *
+ * Revised: Fri May 14 08:57:34 1993 CDT
  */
 
 #include <stdio.h>
 #include <signal.h>
+#include <sys/param.h>
 
-sigquiet( sig )
+sigquiet(sig)
 int sig;
 {
-	signal( sig, sigquiet );
+	signal(sig, sigquiet);
 }
 
 main (argc, argv) int argc; char *argv[];
@@ -39,18 +35,19 @@ main (argc, argv) int argc; char *argv[];
 	/*
 	 * Trap alarm signals.
 	 */
-	signal( SIGALRM, sigquiet );
+	signal(SIGALRM, sigquiet);
 
 	/*
 	 * Wait at least 4 seconds for drives to turn off, etc.
 	 */
-	alarm( 5 );
+	alarm(5);
 	pause();
 
 	/*
 	 * Reboot the processor.
 	 */
-	reboot();
+	if (cohcall(COH_REBOOT) == -1)
+		perror(argv[0]);
 
 	/*
 	 * Should never reach here.

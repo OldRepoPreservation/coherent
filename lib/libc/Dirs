@@ -1,9 +1,11 @@
 crt
 crt/i386
+crt/i387
 crt/i8086
 crt/mch
 csu
 csu/i386
+csu/i387
 csu/i8086
 gen
 gen/ctype
@@ -12,6 +14,7 @@ gen/i8086
 gen/malloc
 gen/mch
 gen/old
+ndir
 old
 stdio
 stdio/i386
@@ -20,6 +23,7 @@ stdio/m68000
 stdio/pdp11
 stdio/unused
 stdio/z8001
+stdlib
 string
 string/i386
 string/i8086

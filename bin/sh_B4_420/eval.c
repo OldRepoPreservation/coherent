@@ -8,7 +8,7 @@
 #include "sh.h"
 
 char	*arcp;		/* character position in argument */
-int	argf = 1;	/* First argument flag */
+int	argf = 1;	/* First character of argument flag */
 int	argg = 0;	/* Glob seek, escape quoted glob chars */
 int	argq = 0;	/* Quotation flag, no blanks or glob */
 
@@ -43,8 +43,18 @@ char *cp;
 		switch (c) {
 		case '"':	/* m == MNQUO || m == MDQUO */
 			m = ((argq ^= 1) & 1) ? MDQUO : MNQUO;
+			/*
+			 * POSIX.2 says: If there are no positional
+			 * parameters, the expansion of $@ shall generate
+			 * zero fields, even when double-quoted.
+			 */
+#if 1
+			if (m == MDQUO && strcmp (arcp, "\"") == 0)
+				argf = 0;
+#else
 			if (m==MDQUO && strcmp(arcp, "$@\"")!=0)
 				argf = 0;
+#endif
 			continue;
 		case '\'':	/* m == MNQUO */
 			while ((c = *arcp++) != '\'')
@@ -64,7 +74,7 @@ char *cp;
 			variable();
 			continue;
 		case '`':	/* m == MNQUO || m = MDQUO */
-			graves();
+			graves (m);
 			continue;
 		default:
 			add_char(c);
@@ -207,10 +217,10 @@ variable()
 			pp = wp;
 		break;
 	}
-	if (pp == NULL)
-		return;
-	while ((c = *pp++) != '\0')
-		add_char(c);
+	if (pp != NULL)
+		while ((c = *pp++) != '\0')
+			add_char(c);
+	argf &= ~ argq;
 }
 
 /*
@@ -244,6 +254,7 @@ register int n;
 		for (sp = &eflag; sp <= &xflag; sp += 1)
 			if (*sp)
 				add_char(*sp);
+		argf &= ~ argq;
 		return;
 	case '@':
 	case '*':
@@ -257,6 +268,12 @@ register int n;
 			sp = sargp[n];
 			while (*sp)
 				add_char(*sp++);
+			/*
+			 * Make sure that arguments like "" get handled
+			 * properly when expanding "$@"
+			 */
+			if (flag)
+				argf &= ~ argq;
 		}
 		return;
 	case '0':
@@ -266,6 +283,7 @@ register int n;
 		if ((n-='1') >= sargc) {
 			if (uflag)
 				printe("Unset parameter: %c", n+'1');
+			argf &= ~ argq;
 			return;
 		}
 		sp = sargp[n];
@@ -273,40 +291,78 @@ register int n;
 	}
 	while (*sp)
 		add_char(*sp++);
+	argf &= ~ argq;
 }
 
 /*
  * Read and evaluate a command found between graves.
+ *
+ * NB : The code below relating to saving/restoring the global variable
+ * "argf" has been removed; it was not clear what the intended effect was,
+ * but it caused expansions into single words (eg, "echo `pwd`") to vanish
+ * and caused the word-break algorithm to perform in an unintuitive (and
+ * incorrect according to POSIX.2) manner.
+ *
+ * NB : Backslash-quoting inside graves was not supported properly before,
+ * and I'm not sure that I've got it right. The idea is that before passing
+ * things off to session (), we process the appropriate backslash-escapes.
+ * What consists of an "appropriate" escape depends on whether the graves
+ * appeared within a double-quoted section (in which case we recognise the
+ * specials appropriate to that) or not (in which case we recognised the
+ * characters $`\ as specials. We also process '$'-expansions in graves now,
+ * but not globs.
+ *
+ * Since we are removing some bashslashes here, we should be building into
+ * a temporary buffer. We append our work onto the global "strp" buffer and
+ * cut it back once we have finished.
  */
-graves()
+graves (quotemode)
+int		quotemode;
 {
-	int pipev[2], f, oslret, oargf;
+	int pipev[2], f, oslret;
+	int oargf;
+	char	      *	ostrp;
 	register FILE *fp;
 	register int c;
 	register int nnl;
 	char *cmdp;
 
 	oargf = argf;
+	ostrp = strp;
 	oslret = slret;
-	cmdp = arcp;
-	while ((c = *arcp++) != '`')
-		;
+
+	cmdp = strp;
+	while ((c = *arcp++) != '`') {
+		if (c != '\\') {
+			add_arg (c);
+			continue;
+		}
+		c = * arcp ++;
+
+		if (! (quotemode == MDQUO && class (c, MDQUO)) &&
+		    (c != '$' && c != '\\' && c != '`'))
+			add_arg ('\\');
+		add_arg (c);
+	}
+	* strp = 0;
+
 	if ((f = pipeline(pipev)) == 0) {
 		slret = oslret;		/* in case grave command uses $? */
 		dup2(pipev[1], 1);
 		close(pipev[0]);
 		close(pipev[1]);
-		*--arcp = '\0';
 		exit(session(SARGS, cmdp));
 		NOTREACHED;
 	}
+
 	close(pipev[1]);
 	if ((fp=fdopen(pipev[0], "r")) == NULL) {
 		close(pipev[0]);
 		ecantfdop();
 		return;
 	}
-	argf = 1;
+	strp = ostrp;
+	argf = oargf;
 	nnl = 0;
 	while ((c=getc(fp)) != EOF) {
 		if ( ! recover(IEVAL)) {
@@ -326,8 +382,16 @@ graves()
 			add_char(c);
 		}
 	}
-	if (oargf == 0)
-		argf = oargf;
+
+	/*
+	 * If we expanded to something, we have an arg. If we are in double-
+	 * quotes, we have an arg. Otherwise, we have an arg if we had an arg
+	 * before.
+	 */
+
+	if (argf)
+		argf = argq ? 0 : oargf;
+
 	fclose(fp);
 	waitc(f);
 }

@@ -1,287 +1,83 @@
-# CFLAGS are not needed for i8086
-CFLAGS= -O -DNEWTTYS
+# build/Makefile 07/15/92
 
-ETCDIR = /newbits/etc
-DESTDIR = /interim/etc/
-UTILS= getty init enable accton cron drvld fdformat timezone termcap \
-	mkfs mknod mount umount unmkfs update wall utmp umount.all \
-	shutdown serialno rc profile passwd newusr mtab mount.all motd \
-	modemcap mnttab logmsg install.log group drvld.all \
-	domain uucpname ddate checklist brc.build brc.coh brc.install boottime \
-	badscan ATclock .profile build/build fsck/fsck reboot
+# Objects.
+DESTDIR=/bin386/etc/
+DESTDIR2=
+O=\
+	build.o \
+	build0.o \
+	coh_intro.o \
+	cohpatch.o \
+	fdisk.o \
+	hdparms.o \
+	install.o \
+	kbdinstall.o \
+	mkdev.o \
+	mkserial.o \
+	numtab.o \
+	serialno.o 
 
-all:	$(UTILS)
-	>all
-# include file deftty.h defines the default ERASE, KILL and INTERRUPT 
-# characters for ttys.
-getty:	getty.c deftty.h
-	$(CC) $(CFLAGS) -s -n -i -o $(DESTDIR)getty $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
+# Executables.
+E=\
+	build \
+	coh_intro \
+	cohpatch \
+	dpb \
+	fdisk \
+	hdparms \
+	install \
+	kbdinstall \
+	mkdev \
+	mkserial \
+	ttytype
 
-init:	init.c
-	$(CC) $(CFLAGS) -s -n -i -o $(DESTDIR)init $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
+# Primary target.
+all:	$E
+	: all done
 
-enable:	enable.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)enable $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 4511 $(DESTDIR)$@
-	su root ln -f $(DESTDIR)$@ $(DESTDIR)disable
-	su root ln -f $(DESTDIR)$@ $(DESTDIR)ttystat
+# Executables.
+build:		build.o numtab.o serialno.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -f
+	strip $(DESTDIR)$@ 
+coh_intro:	coh_intro.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+cohpatch:	cohpatch.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+dpb:		dpb.s
+	as -xo $(DESTDIR2)$@ $<
+	strip $(DESTDIR2)$@
+fdisk:		fdisk.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -f
+install:	install.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+hdparms:	hdparms.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+kbdinstall:	kbdinstall.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $< -lcurses
+	strip $(DESTDIR)$@ 
+mkdev:	mkdev.o build0.o
+	$(CC) $(LFLAGS) -o $(DESTDIR)$@ $<
+mkserial:	mkserial.o numtab.o
+	$(CC) $(LFLAGS) -o $@ $<
+ttytype:	ttytype.c
+	cc -v -o $(DESTDIR)$@ $<
+	chmog 511 bin bin $(DESTDIR)$@
 
-accton:	accton.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)accton $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
+# Unlinked objects.
+build.o:	build.c build0.h serialno.h
+build0.o:	build0.c build0.h
+coh_intro.o:	coh_intro.c build0.h
+cohpatch.o:	cohpatch.c build0.h
+fdisk.o:	fdisk.c fdisk0.h
+hdparms.o:	hdparms.c build0.h
+install.o:	install.c build0.h
+kbdinstall.o:	kbdinstall.c
+mkserial.o:	mkserial.c serialno.h
+numtab.o:	numtab.c serialno.h
+serialno.o:	serialno.c build0.h serialno.h
 
-badscan: badscan.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)badscan $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-cron:	cron.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)cron $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-drvld:	drvld.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)drvld $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-fdformat: fdformat.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)fdformat $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-
-mkfs:	mkfs.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)mkfs $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-
-mknod:	mknod.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)mknod $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-mount:	mount.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)mount $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-
-reboot:	reboot.c ATrebootas.s
-	$(CC) $(CFLAGS) -o $(DESTDIR)reboot $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-umount:	umount.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)umount $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-
-unmkfs:	unmkfs.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)unmkfs $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
-
-update:	update.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)update $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-wall:	wall.c
-	$(CC) $(CFLAGS) -o $(DESTDIR)wall $<
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-utmp:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-umount.all:
-	su root touch $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 755 $(DESTDIR)$@
-
-mount.all:
-	su root touch $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 755 $(DESTDIR)$@
-
-ttys:
-	su root echo '1lPconsole' > $(DESTDIR)$@
-	su root echo '0lPcom1l' >> $(DESTDIR)$@
-	su root echo '0lPcom2l' >> $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-timezone:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-termcap:
-	cd $(ETCDIR) ; su root co termcap ; mv termcap $(DESTDIR)
-	su root chmog 644 bin bin $(DESTDIR)$@
-
-shutdown:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 500 root root $(DESTDIR)$@
-
-serialno:
-	su root touch $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 444 $(DESTDIR)$@
-
-rc:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 744 root root $(DESTDIR)$@
-
-profile:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 644 root root $(DESTDIR)$@
-
-passwd:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 644 root root $(DESTDIR)$@
-
-newusr:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 500 root root $(DESTDIR)$@
-	
-mtab:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 666 $(DESTDIR)$@
-
-motd:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-modemcap:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 644 bin bin $(DESTDIR)$@
-
-mnttab:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 666 $(DESTDIR)$@
-
-logmsg:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 666 bin bin $(DESTDIR)$@
-
-install.log:
-	su root touch $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-helpfile:
-	cd $(ETCDIR) ; su root co $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-helpindex:
-	cd $(ETCDIR) ; su root co $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-group:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 644 bin bin $(DESTDIR)$@
-
-drvld.all:
-	su root touch $(DESTDIR)$@
-	su root chown root $(DESTDIR)$@
-	su root chgrp root $(DESTDIR)$@
-	su root chmod 744 $(DESTDIR)$@
-
-uucpname:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-domain:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-ddate:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-checklist:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 644 bin bin $(DESTDIR)$@
-
-brc.build:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 544 root root $(DESTDIR)$@
-
-brc.coh:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 744 root root $(DESTDIR)$@
-
-brc.install:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 544 root root $(DESTDIR)$@
-	su root ln -f $(DESTDIR)$@ $(DESTDIR)brc
-
-boottime:
-	su root touch $(DESTDIR)$@
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 644 $(DESTDIR)$@
-
-ATclock: ATclock.c ATclockas.s
-	cc -s -i -O -o $(DESTDIR)ATclock $<
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 500 $(DESTDIR)$@
-
-.profile:
-	cd $(ETCDIR) ; su root co $@ ; mv $@ $(DESTDIR)
-	su root chmog 700 root root $(DESTDIR)$@
-
-build/build:
-	cd $(ETCDIR) ; ./make.in build
-
-fsck/fsck:
-	cd $(ETCDIR) ; ./make.in fsck
-
+# Etc.
+strip:	$E
+	strip $E
+clean:
+	rm $O

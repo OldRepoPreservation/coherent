@@ -1,4 +1,13 @@
 /*
+Steve: I made changes to df.c based on the sources you posted to the
+hp to erradicate OLDSTYLE. With the new headers, the old methods for
+reading directories disappear forever. I have therefore changed the source
+to use readdir(), opendir() and closedir().
+
+I submit th is for your blessing....
+bob h.
+ */
+/*
  * df.c
  * 7/28/93
  * Usage: df [-fitv] [directory ...] [filesystem ...]
@@ -15,7 +24,7 @@
 #include <stdlib.h>
 #include <sys/filsys.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
+#include <dirent.h>
 #include <mnttab.h>
 #include <canon.h>
 #if 1
@@ -23,6 +32,7 @@
 #endif
 
 #define	NMOUNT	64			/* Maximum mounted file systems */
+#define DIRSIZ MAXNAMLEN
 
 /* New format options */
 int	fflag;				/* supress information on i-nodes */
@@ -295,30 +305,28 @@ char *
 devname(dev)
 dev_t dev;
 {
-	register struct direct *dp;
-	register int n;
-	int fd;
+	register struct dirent *n;
+	DIR *fd;
+
 	static char name[25];
 	struct stat sb;
 
-	if ((fd = open("/dev", 0)) < 0)
+	if ((fd = opendir("/dev", 0)) < 0)
 		return (NULL);
-	while ((n = read(fd, buf, sizeof buf)) > 0) {
-		for (dp = &buf[0]; dp < &buf[n]; dp++) {
-			canino(dp->d_ino);
-			if (dp->d_ino == 0)
+	while ( (n = readdir(fd)) != NULL ) {
+			canino(n->d_ino);
+			if (n->d_ino == 0)
 				continue;
 			strcpy(name, "/dev/");
-			strncat(name, dp->d_name, DIRSIZ);
+			strncat(name, n->d_name, DIRSIZ);
 			if (stat(name, &sb) < 0)
 				continue;
 			if ((sb.st_mode & S_IFMT) != S_IFBLK)
 				continue;
 			if (sb.st_rdev != dev)
 				continue;
-			close(fd);
+			closedir(fd);
 			return (name);
-		}
 	}
 	close(fd);
 	return (NULL);

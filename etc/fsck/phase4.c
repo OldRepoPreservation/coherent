@@ -70,7 +70,7 @@ ino_t ino;
 {
 	fsize_t size;
 
-	if ( (qflag == TRUE) && ((flags(ino)&MODEMASK) == IPIPE) ) {
+	if ( qflag && ((flags(ino)&MODEMASK)==IPIPE) && (daction!=NO) ) {
 		doclear(ino);
 		return(YES);
 	}
@@ -167,13 +167,13 @@ freeilist()
 			count -= INOPB;		/* is in it, otherwise  */
 						/* big time bad news.	*/
 	if ( sbp->s_tinode != count ) 
-		if ( (qflag==FALSE) && (daction!=NO) ) {
+		if ( !qflag || (daction==NO) ) {
 			printf("Free i-node count wrong in superblock.  ");
 			if ( action(fixit) == TRUE ) {
 				sbp->s_tinode = count;
 				sbpfix = TRUE;
 			}
-		} else {
+		} else if ( daction != NO ) {
 			sbp->s_tinode = count;
 			sbpfix = TRUE;
 		}

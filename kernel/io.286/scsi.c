@@ -3,6 +3,9 @@
  * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.1  92/07/17  15:24:43  bin
+ * Initial revision
+ * 
  * Revision 1.10  92/01/17  03:51:13  hal
  * Cleanup for 3.2.1.
  * 

@@ -6,6 +6,9 @@
  *		for straddle operations in target code.
  *
  * $Log:	work.c,v $
+ * Revision 2.2  93/07/26  13:57:36  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  93/04/14  10:29:40  root
  * r75
  * 

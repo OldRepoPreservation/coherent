@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include "stdio.int.h"
 
 int
 _fputa(c, fp) int c; register FILE *fp;

@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/clocked.c,v 2.2 93/07/26 15:22:04 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/clocked.c,v 2.2 93/08/09 13:35:17 bin Exp Locker: bin $ */
 /*
  * clocked.c - support routines for alternate clock rate
  *
@@ -18,6 +18,9 @@
  *    90/08/14 hws	make it more like a Unix system call
  *
  * $Log:	clocked.c,v $
+ * Revision 2.2  93/08/09  13:35:17  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  15:22:04  nigel
  * Nigel's R80
  * 

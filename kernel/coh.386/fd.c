@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fd.c,v 1.3 92/06/10 12:52:39 hal Exp $ */
+/* $Header: /y/coh.386/RCS/fd.c,v 1.5 93/04/14 10:06:26 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * File descriptor routines.
  *
  * $Log:	fd.c,v $
+ * Revision 1.5  93/04/14  10:06:26  root
+ * r75
+ * 
  * Revision 1.3  92/06/10  12:52:39  hal
  * First record locking changes.
  * 

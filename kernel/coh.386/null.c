@@ -1,4 +1,4 @@
-/* $Header: /src386/kernel/coh.386/RCS/null.c,v 1.10 93/03/02 08:16:25 bin Exp Locker: bin $ */
+/* $Header: /y/coh.386/RCS/null.c,v 1.7 93/04/14 10:06:37 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -24,6 +24,9 @@
  *  Minor device 7 is /dev/kmemhi, virtual memory 0x8000_0000-0xFFFF_FFFF
  *
  * $Log:	null.c,v $
+ * Revision 1.7  93/04/14  10:06:37  root
+ * r75
+ * 
  * Revision 1.10  93/03/02  08:16:25  bin
  * kernel 73 update
  * 

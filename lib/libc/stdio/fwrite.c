@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 size_t
-fwrite(ptr, size, nmemb, stream) const Void *ptr; size_t size, nmemb; register FILE *stream;
+fwrite(ptr, size, nmemb, stream) const __VOID__ *ptr; size_t size, nmemb; register FILE *stream;
 {
 	register size_t nb, n;
 	register unsigned char *p;

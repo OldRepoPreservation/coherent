@@ -4,6 +4,9 @@
  * Purpose:	common code for various async drivers
  *
  * $Log:	albaud.c,v $
+ * Revision 1.2  93/04/14  10:24:08  root
+ * r75
+ * 
  * Revision 1.1  92/04/30  08:58:54  hal
  * Add asy.  Remove silos from tty struct.
  * 

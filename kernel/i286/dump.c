@@ -1,8 +1,11 @@
-/* $Header: /usr/src/sys/i8086/ibm_at/RCS/dump.c,v 1.1 88/03/24 17:33:35 src Exp $
+/* $Header: /kernel/kersrc/i286/RCS/dump.c,v 1.1 92/07/17 15:21:26 bin Exp Locker: bin $
  *
  * Function to dump Kernel data inforation.
  *
- * $Log:	/usr/src/sys/i8086/ibm_at/RCS/dump.c,v $
+ * $Log:	dump.c,v $
+ * Revision 1.1  92/07/17  15:21:26  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:33:35	src
  * Initial revision
  * 

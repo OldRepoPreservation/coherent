@@ -5,6 +5,9 @@
  * Non-Sytem V (compatibility) system calls introduced by the 386 port.
  *
  * $Log:	sys4.c,v $
+ * Revision 1.6  93/04/16  06:50:09  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.2  92/01/06  12:00:58  hal
  * Compile with cc.mwc.
  * 

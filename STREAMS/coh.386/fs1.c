@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/fs1.c,v 2.2 93/07/26 15:19:00 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/fs1.c,v 2.5 93/08/09 13:35:29 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (mostly handling of in core inodes).
  *
  * $Log:	fs1.c,v $
+ * Revision 2.5  93/08/09  13:35:29  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  15:19:00  nigel
  * Nigel's R80
  * 

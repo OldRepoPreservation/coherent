@@ -25,6 +25,16 @@ int	offsets[] = 			/* table of offsets for the levels */
 daddr_t	dupblck[DUPTBLSIZE];		/* duplicate referenced blocks */
 int	totdups;			/* number of dup blocks so far */
 
+/*
+ *  A small aside is the fact that the link counter table allocates an
+ *  unsigned short if !SMALLMODEL, but is in fact only an unsigned char
+ *  if SMALLMODEL.  As a result, we cannot currently fsck correctly a
+ *  filesystem with any inode having more than 255 links if SMALLMODEL.
+ *  The reason for this is that the virtual system is heavily designed
+ *  to work with byte sized tables, and that's that for now!  Anyway,
+ *  everybody has a 386 by now!
+ */
+
 #if !SMALLMODEL
 unsigned short *linkPtr;
 unsigned char  *flagptr, *blockPtr, *dupPtr;

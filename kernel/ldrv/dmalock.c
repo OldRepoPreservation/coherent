@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ldrv/RCS/dmalock.c,v 1.1 89/06/30 16:29:52 src Exp $
+/* $Header: /kernel/kersrc/ldrv/RCS/dmalock.c,v 1.1 92/07/17 15:27:50 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, Ltd, and is  confidential information.   It is provided
@@ -15,11 +15,14 @@
  * $Description: $
  *	Routines to lock/unlock the DMA controller chip from a loadable driver.
  *
- * $Author: src $
+ * $Author: bin $
  *
  * $Creation: June 29, 1989 $
  *
- * $Log:	/usr/src/sys/ldrv/RCS/dmalock.c,v $
+ * $Log:	dmalock.c,v $
+ * Revision 1.1  92/07/17  15:27:50  bin
+ * Initial revision
+ * 
  * Revision 1.1	89/06/30  16:29:52 	src
  * Initial revision
  * 

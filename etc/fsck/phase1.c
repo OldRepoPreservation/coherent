@@ -169,26 +169,28 @@ ino_t	ino;
 {
 	daddr_t	addrs[NADDR];
 	register daddr_t bn;
-	register int i, lev;
+	register int i, lev, naddr;
 	register int mode;
 
 	mode = dip->di_mode & IFMT;
 
-	if ( (mode != IFREG) && (mode != IFDIR) )
+	if ( (mode == IFREG) || (mode == IFDIR) )
+		l3tol(addrs, dip->di_addr, naddr=NADDR);
+	else if ( mode == IFPIPE )
+		l3tol(addrs, dip->di_addp, naddr=ND);
+	else
 		return(STOP);
-
-	l3tol(addrs, dip->di_addr, NADDR);
 
 	numbad = 			/* number of bad blocks so far */
 	numdup = 			/* num dup blocks so far THIS INODE */
 	numblks =			/* num used data blocks for size chk */
 	sparsecnt = 0;			/* count of missed data blocks	*/
 
-	for(i=0; i<NADDR; i++)
+	for(i=0; i<naddr; i++)
 		for (lev=0; lev<4; lev++) 
 			if (i < offsets[lev]) {
 				if ( (bn=addrs[i]) != 0 ) {
-					if (doblocks(bn, ino, lev) != OK)
+					if (doblocks(bn, ino, lev) == STOP)
 						return(STOP);
 				} else
 					sparsecnt += blockcnt[lev];
@@ -276,7 +278,7 @@ ino_t	ino;
 	if (!fflag)
 		orflags(ino, IBAD_IDUP);
 
-	printf("Bad block %U, i-number = %u\n", bn, ino);
+	printf("Bad block %lu, i-number = %u\n", bn, ino);
 
 	if (numbad++ < MAXBADOK)
 		return(BAD_DUP);
@@ -307,7 +309,7 @@ ino_t	ino;
 	dupflag = TRUE;
 	if (!fflag)
 		orflags(ino, IBAD_IDUP);
-	printf("Dup Block %U, i-number = %u\n", bn, ino);
+	printf("Dup Block %lu, i-number = %u\n", bn, ino);
 
 	if (totdups < DUPTBLSIZE) 
 		dupblck[totdups++] = bn;
@@ -347,8 +349,10 @@ ino_t	ino;
 	
 	if ( mode == IFREG )
 		filesize(ino, size);
-	else	/* mode == IFDIR */
+	else if ( mode == IFDIR )
 		dirsize(dip, ino, size);
+	else if ( mode == IFPIPE )
+		pipesize(dip, ino, size);
 }
 
 dirsize(dip, ino, size)
@@ -385,6 +389,16 @@ register fsize_t size;
 {
 	if (sizerr(size))
 		printf("Possible File Size Error i-number = %u\n", ino);
+}
+
+pipesize(dip, ino, size)
+struct dinode *dip;
+ino_t ino;
+register fsize_t size;
+{
+	if (sizerr(size))
+		printf("Possible PIPE Size Error i-number = %u\n", ino);
+	return;
 }
 
 sizerr(size)

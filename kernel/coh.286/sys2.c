@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/sys2.c,v 1.1 91/04/30 13:56:54 root Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/sys2.c,v 1.1 92/07/17 15:18:51 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,7 +17,10 @@
  * Coherent.
  * System calls (filesystem related).
  *
- * $Log:	/usr/src/sys/coh/RCS/sys2.c,v $
+ * $Log:	sys2.c,v $
+ * Revision 1.1  92/07/17  15:18:51  bin
+ * Initial revision
+ * 
  * Revision 1.1	91/04/30  13:56:54	root
  * Shipped with COH 3.1.0.
  * 

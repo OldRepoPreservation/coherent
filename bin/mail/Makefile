@@ -1,14 +1,20 @@
-DESTDIR=/f1/bin/
-O = send.o mail.o util.o
+#
+#	Makefile for the mail system.
+#
+#	CFLAGS = -O -DHPCOHERENT	: if on Inetco HP Coherent
+#	CFLAGS = -O			: if on MWC Coherent
+#
+#DESTDIR=/bin386/bin/
+CFLAGS=-DDEBUG
+O = send.o mail.o util.o copyright.o
 S = send.c mail.c util.c mail.h Makefile
 
 mail : $O
-	cc -o $(DESTDIR)mail $O
-	su root chown root $(DESTDIR)mail
-	su root chgrp root $(DESTDIR)mail
-	su root chmod 6511 $(DESTDIR)mail
+	$(CC) -n -o $(DESTDIR)mail $O
+	su root chmog 511 bin bin $(DESTDIR)mail
+
+copyright.o : copyright.c
 
 mail.a : $S
 	rm mail.a
 	ar q mail.a $S
-

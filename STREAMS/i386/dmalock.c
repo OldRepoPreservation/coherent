@@ -1,4 +1,4 @@
-/* $Header: /ker/i386/RCS/dmalock.c,v 2.2 93/07/26 13:55:59 nigel Exp $
+/* $Header: /src386/STREAMS/i386/RCS/dmalock.c,v 2.3 93/08/09 13:39:02 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, Ltd, and is  confidential information.   It is provided
@@ -15,11 +15,14 @@
  * $Description: $
  *	Routines to lock/unlock the DMA controller chip.
  *
- * $Author: nigel $
+ * $Author: bin $
  *
  * $Creation: June 21, 1989 $
  *
  * $Log:	dmalock.c,v $
+ * Revision 2.3  93/08/09  13:39:02  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  13:55:59  nigel
  * Nigel's R80
  * 

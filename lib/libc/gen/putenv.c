@@ -1,7 +1,10 @@
 /*
  * Change or add value to environment.
  *
- * $Log: $
+ * $Log:	putenv.c,v $
+ * Revision 1.3  93/02/10  16:53:40  bin
+ * *** empty log message ***
+ * 
  * 87/02/05	Allan Cornish
  * Initial revision.
  */

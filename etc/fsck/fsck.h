@@ -3,13 +3,13 @@
  *
  */
 
+#include <sys/types.h>
 #include <canon.h>
-#include <sys/dir.h>
+#include <dirent.h>
 #include <sys/fblk.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <time.h>
 
 #if _I386
@@ -43,7 +43,12 @@ typedef long fsize_t;
 #define	NO	2
 #define ASK	1
 
+#if SMALLMODEL
 #define	NFILSYS	10		/* max number of file systems */
+#else
+#define	NFILSYS	256		/* max number of file systems */
+#endif
+
 #define	MAXCH	20		/* max length of filesys name */
 
 #define	MAXBADOK	10	/* Max number of bad blocks before excessive */
@@ -51,7 +56,12 @@ extern	int numbad;		/* num bad blocks found so far this inode*/
 
 #define MAXDUPOK	10	/* Max number of dup blocks */
 				/* in a single inode before excessive */
-#define	DUPTBLSIZE	20	/* Max number of dup referenced blocks */
+#if SMALLMODEL
+#define	DUPTBLSIZE	64	/* Max number of dup referenced blocks */
+#else
+#define	DUPTBLSIZE	1024	/* Max number of dup referenced blocks */
+#endif
+
 extern	daddr_t	dupblck[];	/* table of duplicate referenced blocks */
 extern 	int totdups;		/* number of dup blocks found so far */
 
@@ -122,7 +132,7 @@ extern	char	*fixit;		/* Prompt message phase[45].c */
 extern 	int	numfiles;	/* num files in system */
 extern	daddr_t	imap();		/* function for disk block mapping in util.c */
 extern	fsize_t	lostsize;	/* Size of files cleared in phase4.c */
-extern	char 	*tmpfile;	/* TMP File name for virtual.c */
+extern	char 	*tempFile;	/* TMP File name for virtual.c */
 
 #define SUCCESS	1		/* used in connect() in phase3.c */
 #define FAILURE	0

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/ldrv/RCS/ldswap.c,v 1.1 88/03/24 16:30:50 src Exp $ */
+/* $Header: /kernel/kersrc/ldrv/RCS/ldswap.c,v 1.1 92/07/17 15:27:54 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Swapper.
  *
- * $Log:	/usr/src/sys/ldrv/RCS/ldswap.c,v $
+ * $Log:	ldswap.c,v $
+ * Revision 1.1  92/07/17  15:27:54  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:30:50	src
  * Initial revision
  * 

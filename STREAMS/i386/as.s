@@ -46,6 +46,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 2.3  93/07/26  13:55:44  nigel
+/ Nigel's R80
+/
 / Revision 1.17  92/12/08  16:43:10  root
 / ker 70
 / 

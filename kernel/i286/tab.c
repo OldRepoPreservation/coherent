@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/tab.c,v 1.1 88/03/24 17:39:50 src Exp $ */
+/* $Header: /kernel/kersrc/i286/RCS/tab.c,v 1.1 92/07/17 15:21:34 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Tables for the Intel 8086.
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/tab.c,v $
+ * $Log:	tab.c,v $
+ * Revision 1.1  92/07/17  15:21:34  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  17:39:50	src
  * Initial revision
  * 

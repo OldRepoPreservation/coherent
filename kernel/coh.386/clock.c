@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/clock.c,v 1.8 92/11/09 17:10:52 root Exp $ */
+/* $Header: /y/coh.386/RCS/clock.c,v 1.9 93/04/14 10:06:19 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a

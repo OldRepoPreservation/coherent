@@ -1,4 +1,4 @@
-/* $Header: /src386/bin/db/RCS/i8086c.c,v 1.1 92/06/10 14:36:44 bin Exp Locker: bin $
+/* $Header: /src386/bin/db/RCS/i8086c.c,v 1.2 93/03/11 07:45:47 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,10 @@
  * Tables for the Intel 8086.
  *
  * $Log:	i8086c.c,v $
+ * Revision 1.2  93/03/11  07:45:47  bin
+ * Hal: post NDP update that at least
+ * can st breakpoints.
+ * 
  * Revision 1.1  92/06/10  14:36:44  bin
  * Initial revision
  * 

@@ -14,7 +14,7 @@ extern	__end_text();
 #define	ETEXT	__end_text
 #else
 extern	etext();
-#define	BTEXT	(vaddr_t)1
+#define	BTEXT	(caddr_t)1
 #define	ETEXT	etext
 #endif
 
@@ -35,9 +35,9 @@ _profon()
 		write(STDERR_FILENO, emsg, sizeof emsg);
 		abort();
 	}
-	monitor((vaddr_t)BTEXT, (vaddr_t)ETEXT, buf, bufl);
+	monitor((caddr_t)BTEXT, (caddr_t)ETEXT, buf, bufl);
 #else
-	monitor((vaddr_t)1);		/* dummy call to start things off */
+	monitor((caddr_t)1);		/* dummy call to start things off */
 #endif
 }
 

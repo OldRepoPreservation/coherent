@@ -3,7 +3,10 @@
  *
  * Purpose:	read a spec from stdin and patch the asy driver
  *
- * $Log$
+ * $Log:	asypatch.c,v $
+ * Revision 1.3  93/05/18  07:32:22  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

@@ -5,7 +5,10 @@
  *		Pages are allocated in virtually contiguous pairs to allow
  *		for straddle operations in target code.
  *
- * $Log$
+ * $Log:	work.c,v $
+ * Revision 1.1  93/04/14  10:29:40  root
+ * r75
+ * 
  */
 
 /*

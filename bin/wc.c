@@ -4,9 +4,13 @@
  * of the input files.
  *
  * Usage: wc [-lwc] [name ...]
+ *
+ * Revised June '93 for POSIX.2: changed output format and uses isspace () to
+ * delimit words.
  */
 
 #include <stdio.h>
+#include <ctype.h>
 #ifdef COHERENT
 #include <access.h>
 #endif
@@ -110,10 +114,11 @@ register FILE *in;
 	chars = words = lines = 0;
 	while ((c = getc(in)) != EOF) {
 		chars++;
-		if (c == '\n') {
+
+		if (c == '\n')
 			lines++;
-			inw = 0;
-		} else if (c==' ' || c=='\t')
+
+		if (isspace (c))
 			inw = 0;
 		else if (!inw) {
 			inw = 1;
@@ -128,16 +133,24 @@ register FILE *in;
 print(name)
 char *name;
 {
-	if (lineflg)
-		printf("%8ld", lines);
-	if (wordflg)
-		printf("%8ld", words);
-	if (charflg)
-		printf("%8ld", chars);
 	if (!lineflg && !wordflg && !charflg)
-		printf("%8ld %8ld %8ld", lines, words, chars);
+		printf("%7ld %7ld %7ld", lines, words, chars);
+	else {
+		if (lineflg) {
+			printf("%7ld", lines);
+			if (wordflg || charflg)
+				putchar (' ');
+		}
+		if (wordflg) {
+			printf("%7ld", words);
+			if (charflg)
+				putchar (' ');
+		}
+		if (charflg)
+			printf("%7ld", chars);
+	}
 	if (name != NULL)
-		printf("    %s", name);
+		printf(" %s", name);
 	printf("\n");
 }
 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/coh/RCS/alloc.c,v 1.1 88/03/24 16:13:25 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/alloc.c,v 1.1 92/07/17 15:17:49 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent.
  * Storage allocator.
  *
- * $Log:	/usr/src/sys/coh/RCS/alloc.c,v $
+ * $Log:	alloc.c,v $
+ * Revision 1.1  92/07/17  15:17:49  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:13:25	src
  * Initial revision
  * 

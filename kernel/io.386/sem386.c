@@ -4,6 +4,9 @@
  * Purpose: This module provides System V compatible semaphore operations.
  *
  * $Log:	sem386.c,v $
+ * Revision 1.2  93/04/20  10:00:32  bin
+ * kernel 77: vlad: sem_undo and other changes
+ * 
  * Revision 1.1  93/04/09  08:48:23  bin
  * Initial revision
  * 

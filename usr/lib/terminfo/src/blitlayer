@@ -1,4 +1,0 @@
-blitlayer|layer|vitty,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=\EK, 
-	cup=\EY%p2%' '%+%c%p1%' '%+%c, cud1=^J, dl=\ED, il=\EI, ind=^J, 
-	ht=^I, 

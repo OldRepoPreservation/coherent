@@ -8,11 +8,11 @@
 #include <limits.h>
 #include <string.h>
 
-#define inOrder(h, l) ((*compar)((Void *)(h), (Void *)(l)) >= 0)
+#define inOrder(h, l) ((*compar)((__VOID__ *)(h), (__VOID__ *)(l)) >= 0)
 
 void
 shellsort(base, nmemb, size, compar)
-Void *base;
+__VOID__ *base;
 size_t nmemb, size;
 int (*compar)();
 {

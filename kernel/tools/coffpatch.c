@@ -3,7 +3,10 @@
  *
  * Purpose:	write into a coff file
  *
- * $Log$
+ * $Log:	coffpatch.c,v $
+ * Revision 1.3  93/05/18  07:32:31  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

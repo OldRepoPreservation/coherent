@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fd.c,v 1.5 93/04/14 10:06:26 root Exp $ */
+/* $Header: /ker/coh.386/RCS/fd.c,v 2.4 93/07/26 15:09:56 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * File descriptor routines.
  *
  * $Log:	fd.c,v $
+ * Revision 2.4  93/07/26  15:09:56  nigel
+ * Nigel's R80
+ * 
  * Revision 1.5  93/04/14  10:06:26  root
  * r75
  * 

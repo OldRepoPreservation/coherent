@@ -11,9 +11,12 @@
  *
  *  This code assumes BSIZE == (1 << 9).
  *
- *  $Id: haisd.c,v 1.0 93/06/27 18:24:26 chris Exp Locker: chris $
+ *  $Id: haisd.c,v 2.3 93/08/09 13:45:26 bin Exp Locker: bin $
  *
- *  $Log$
+ *  $Log:	haisd.c,v $
+ * Revision 2.3  93/08/09  13:45:26  bin
+ * Kernel 82 changes
+ * 
  */
 
 #include <stddef.h>

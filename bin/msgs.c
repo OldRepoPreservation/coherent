@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
+#include <dirent.h>
 #include <ctype.h>
 #include <signal.h>
 
@@ -81,10 +81,9 @@ dobounds()
 
 calcbounds()
 {
-	int dirfd;
-	char buf[BSIZE];
-	int num, size;
-	struct direct *dentry;
+	int		num;
+	DIR	      *	dir;
+	struct dirent *	entry;
 
 	if ( (boundfp=fopen(boundname,"w")) == NULL )
 		badmsg(FATAL, "Can't open: %s", boundname);
@@ -92,26 +91,22 @@ calcbounds()
 	if ( chmod(boundname, 0666) < 0 )
 		badmsg(FATAL, "Can't chmod: %s", boundname);
 
-	if ( (dirfd=open(msgsdir, 0)) < 0 )
+	if ((dir = opendir (msgsdir)) == 0)
 		badmsg(FATAL, "Can't open: %s", msgsdir);
 
 	highmsg = 0;
 	lowmsg = ~000;
 
-	while ( (size=read(dirfd, buf, BSIZE)) != 0 ) {
-		dentry = (struct direct *) buf;
-		while ( (size-=sizeof(struct direct)) >= 0 ) {
-			
-			if ( dentry->d_ino &&
-				 (num=decode(dentry->d_name)) > 0 ) {
-				if ( num > highmsg )
-					highmsg = num;
-				if ( num < lowmsg )
-					lowmsg = num;
-			}
-			dentry++;
+	while ((entry = readdir (dir)) != NULL) {
+		if ((num = decode (entry->d_name)) > 0 ) {
+			if ( num > highmsg )
+				highmsg = num;
+			if ( num < lowmsg )
+				lowmsg = num;
 		}
 	}
+
+	closedir (dir);
 
 	if ( highmsg==0 )
 		lowmsg = 0;
@@ -127,18 +122,18 @@ calcbounds()
 decode(str)
 char *str;
 {
-	register int i;
+	char	      *	tmp = str;
 
-	for (i=0; i<DIRSIZ; i++) {
-		if ( str[i] == '\0' )
-			break;
-		if ( i==0 && str[0] == '-' )
-			continue;
-		if ( !isascii(str[i]) || !isdigit(str[i]) )
-			return(0);
+	if (* tmp == '-')
+		tmp ++;
+
+	while (* tmp) {
+		if (! isascii (* tmp) || ! isdigit (* tmp))
+			return 0;
+		tmp ++;
 	}
 
-	return(atoi(str));
+	return atoi(str);
 }
 
 /*
@@ -189,23 +184,33 @@ dumpmsg()
 	char *tmp;
 	char numname[10];
 	FILE *fp;
+	short skipsep = 1;
 
-	while ( (tmp=fgets(mline, NLINE, mailfp)) != NULL )
-		if ( strcmp(mline, "\1\1\n") )
-			break;
+	tmp = fgets(mline, NLINE, mailfp);
 
-	if ( tmp == NULL )
+	if ( tmp == NULL )	/* nothing left to be read */
 		return(0);
 
 	sprintf(numname, "%d", ++highmsg);
 
+	/* open the file that will hold the message */
 	if ( (fp=fopen(numname,"w")) == NULL )
 		badmsg(FATAL, "Can't open to write: %s/%s", msgsdir, numname);
 
+	/* now copy the message line by line to the new file. The first line
+	 * read SHOULD be a mesage separator, we will skip it and set a flag
+	 * to break out when the next message separator is encountered.
+	 */
+
 	do {
+		if( (strcmp(mline,"\1\1\1\1\n") == 0) && skipsep){
+			strcpy(mline,"");
+			skipsep = 0;
+		}else{
+			if( (strcmp(mline,"\1\1\1\1\n") == 0) && !skipsep)
+				break;
+		}
 		fputs(mline, fp);
-		if ( strcmp(mline, "\1\1\n") == 0 )
-			break;
 	} while ( fgets(mline, NLINE, mailfp) != NULL );
 
 	fclose(fp);

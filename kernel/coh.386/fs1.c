@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fs1.c,v 1.7 93/02/23 15:50:51 root Exp $ */
+/* $Header: /y/coh.386/RCS/fs1.c,v 1.8 93/04/14 10:06:28 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (mostly handling of in core inodes).
  *
  * $Log:	fs1.c,v $
+ * Revision 1.8  93/04/14  10:06:28  root
+ * r75
+ * 
  * Revision 1.7  93/02/23  15:50:51  root
  * after caddr_t change, before blclear
  * 

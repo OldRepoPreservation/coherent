@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/sys6.c,v 2.2 93/07/26 14:55:33 nigel Exp $ */
+/* $Header: /src386/STREAMS/coh.386/RCS/sys6.c,v 2.1 93/08/09 13:36:55 bin Exp Locker: bin $ */
 /*
  * POSIX.1-oriented system calls for Coherent.
  *
@@ -11,6 +11,9 @@
  */
 /*
  * $Log:	sys6.c,v $
+ * Revision 2.1  93/08/09  13:36:55  bin
+ * Kernel 82 changes
+ * 
  * Revision 2.2  93/07/26  14:55:33  nigel
  * Nigel's R80
  * 

@@ -54,11 +54,16 @@
 #  endif
 #endif
 
+/* sys.dirent.h no longer needed for 4.2 */
+#if 0
 #if DBG
 #include	"sys.dirent.h"
 #else
 #include	"sys.dirent.h"
 #endif /*DBG*/
+#endif
+
+#include <dirent.h>
 
 #include	<sys/stat.h>
 #ifdef UNK

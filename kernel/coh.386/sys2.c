@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys2.c,v 1.14 93/04/14 10:07:58 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/sys2.c,v 1.11 93/06/14 13:35:29 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a

@@ -1,7 +1,10 @@
 /*
  * Inter-Process Communication common access routine.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/ipc.c,v $
+ * $Log:	ipc.c,v $
+ * Revision 1.3  93/04/14  10:11:48  root
+ * r75
+ * 
  * Revision 1.1	88/03/24  17:05:02	src
  * Initial revision
  * 

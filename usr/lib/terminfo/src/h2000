@@ -1,4 +1,0 @@
-h2000|hazeltine 2000,
-	am, cols#74, lines#27, bel=^G, clear=~^\$<6>, cup=~^Q%p2%c%p1%c, 
-	cud1=^J, home=~^R, cub1=^H, dl1=~^S$<6>, il1=~^Z$<6>, pad=\177, 
-	ind=^J, 

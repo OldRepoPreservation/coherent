@@ -3,7 +3,10 @@
  *
  *	Note: Semget() must be first function called.
  *
- * $Log:$
+ * $Log:	semop.c,v $
+ * Revision 1.1  92/06/30  10:32:02  bin
+ * Initial revision
+ * 
  * 87/04/26	Allan Cornish
  * Support for 32 bit 'key' added to semget.
  */

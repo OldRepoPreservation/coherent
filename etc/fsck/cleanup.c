@@ -46,11 +46,11 @@ prtstats()
 {
 	if (!fflag)
 		printf("%u files ", numfiles);
-	printf("%U blocks ", fsize - isize - totfree);
-	printf("%U free\n", totfree);
+	printf("%lu blocks ", fsize - isize - totfree);
+	printf("%lu free\n", totfree);
 	if ( lostsize ) {
 		lostsize = (lostsize + BSIZE - 1)/BSIZE;
-		printf("Expect roughly %U missing block%s next\n", lostsize,
+		printf("Expect roughly %lu missing block%s next\n", lostsize,
 				(lostsize!=1) ? "s" : "" );
 		printf("time fsck is run as a result of inodes ");
 		printf("being cleared.\n");

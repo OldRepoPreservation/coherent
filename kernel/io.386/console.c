@@ -1,9 +1,12 @@
-/* $Header: /v4a/io/RCS/console.c,v 1.2 92/01/06 12:26:44 hal Exp $ */
+/* $Header: /src386/kernel/io.386/RCS/console.c,v 1.3 92/08/28 09:02:49 bin Exp Locker: bin $ */
 /*
  * Tiny console driver.
  * 8086/8088 Coherent, IBM PC.
  *
  * $Log:	console.c,v $
+ * Revision 1.3  92/08/28  09:02:49  bin
+ * update by hal for kernel 61
+ * 
  * Revision 1.2  92/01/06  12:26:44  hal
  * Compile with cc.mwc.
  * 

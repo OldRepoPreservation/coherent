@@ -8,12 +8,10 @@
  * of the process if for any reason it fails.
  */
 
-#include <stdio.h>
+#include <stddef.h>
 #include <errno.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
-#include <canon.h>
+#include <dirent.h>
 
 #define	MAXNAME	400		/* Longest pathname */
 
@@ -32,69 +30,71 @@ char *
 _getwd()
 {
 	struct stat d, dd;
-	struct direct dir;
 	static char fnbuf[MAXNAME];
 	register char *cp, *dp;
-	register int file;
 	register dev_t rdev;
 	register ino_t rino;
+	DIR	      *	dirp;
+	struct dirent *	direntp;
 
 	oerrno = errno;			/* save old errno */
 	errno = 0;
-	dp = fnbuf+MAXNAME-1;
-	*dp = '\0';
-	if (stat("/", &d) < 0)
-		return fail();
+	dp = fnbuf + MAXNAME - 1;
+	* dp = '\0';
+	if (stat ("/", & d) < 0)
+		return fail ();
 	rdev = d.st_dev;
 	rino = d.st_ino;
-	while (stat(".", &d)>=0 && (d.st_ino!=rino || d.st_dev!=rdev)) {
-		if ((file = open("..", 0)) < 0)
-			return fail();
-		if (fstat(file, &dd)<0 || chdir("..")<0) {
-			close(file);
-			return fail();
-		}
+	while (stat( ".", & d) >= 0 && (d.st_ino!=rino || d.st_dev!=rdev)) {
+		if (stat ("..", & dd) < 0 || chdir ("..") < 0)
+			return fail ();
+		if ((dirp = opendir (".")) == NULL)
+			return fail ();
 		if (d.st_dev == dd.st_dev) {
 			if (d.st_ino == dd.st_ino) {
-				close(file);
+				closedir (dirp);
 				break;
 			}
 			do {
-				if (read(file, (char *)&dir, sizeof (dir))
-				    != sizeof (dir)) {
-					close(file);
-					return fail();
+				if ((direntp = readdir (dirp)) == NULL) {
+					closedir (dirp);
+					return fail ();
 				}
-				canino(dir.d_ino);
-			} while (dir.d_ino != d.st_ino);
+			} while (direntp->d_ino != d.st_ino);
 		} else
 			do {
-				if (read(file, (char *)&dir, sizeof (dir))
-				    != sizeof  (dir)) {
-					close(file);
-					return fail();
+				if ((direntp = readdir (dirp)) == NULL) {
+					closedir (dirp);
+					return fail ();
 				}
-				canino(dir.d_ino);
-				if (dir.d_ino!=0 && stat(dir.d_name, &dd)<0) {
-					close(file);
-					return fail();
+				if (direntp->d_ino != 0 &&
+				    stat (direntp->d_name, & dd) < 0) {
+					closedir (dirp);
+					return fail ();
 				}
-			} while (dd.st_ino!=d.st_ino || dd.st_dev!=d.st_dev);
-		close(file);
-		if (dp-DIRSIZ <= fnbuf)
-			return fail();
-		for (cp=dir.d_name; cp!=dir.d_name+DIRSIZ && *cp!='\0'; cp++)
-			;
-		while (cp > dir.d_name)
-			*--dp = *--cp;
-		*--dp = '/';
+			} while (dd.st_ino != d.st_ino ||
+				 dd.st_dev != d.st_dev);
+
+		for (cp = direntp->d_name ; * cp != '\0' ; cp ++)
+			/* DO NOTHING */ ;
+
+		while (cp > direntp->d_name) {
+			if (dp <= fnbuf) {
+				closedir (dirp);
+				return fail ();
+			}
+			* -- dp = * -- cp;
+		}
+		closedir (dirp);
+
+		* -- dp = '/';
 	}
 	if (errno)
 		return NULL;
-	if (*dp != '/')
-		*--dp = '/';
-	if (chdir(dp) < 0)
-		return fail();
+	if (* dp != '/')
+		* -- dp = '/';
+	if (chdir (dp) < 0)
+		return fail ();
 	errno = oerrno;
 	return dp;
 }

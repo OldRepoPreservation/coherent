@@ -35,6 +35,7 @@ char *sys;
 	char rdline[MAX];	/* line read from Permissions */
 	char chksys[15];	/* used to look for MACHINE= */
 	char chkmch[8];		/* holds MACHINE */
+	char *endname;		/* Points to end of parsed name */
 
 	if( (infp = fopen(PERMISSIONS,"r")) == NULL){
 		printf("Error opening %s!\n",PERMISSIONS);
@@ -55,13 +56,16 @@ char *sys;
 
 
 	/* Read Permissions one line at a time until we find a
-	 * line that has MACHINE="SYSTEM ".
+	 * line that has MACHINE="SYSTEM".
 	 */
 	strcpy(chkmch,"MACHINE=");
-	sprintf(chksys,"%s%s ",chkmch,sys);
+	sprintf(chksys,"%s%s",chkmch,sys);
 
 	while(fgets(rdline,MAX,infp)!= NULL){
-		if( (strstr(rdline, chksys)) != NULL){	/* matched MACHINE=sys */
+		if((endname = strstr(rdline, chksys)) != NULL
+		   && (isspace(endname[strlen(chksys)])
+		       || endname == '\0')
+		     ){	/* matched MACHINE=sys */
 			strcpy(parseline, rdline);
 			getrest(infp);		/* get rest of Permissions entrry */
 			break;
@@ -83,14 +87,14 @@ char *sys;
 	 * READ= and WRITE=, or we will not correctly parse this entry.
 	 */
 
-	parseperm(parseline, "MYNAME=",myname);
-	parseperm(parseline, "COMMANDS=", commands);
-	parseperm(parseline, "READ=",readpath);
-	parseperm(parseline, "NOREAD=",no_readpath);
-	parseperm(parseline, "WRITE=",writepath);	
-	parseperm(parseline, "NOWRITE=",no_writepath);	
-	parseperm(parseline, "REQUEST=",request);
-	parseperm(parseline, "SENDFILES=",transfer);
+	parseperm(parseline, "MYNAME",myname);
+	parseperm(parseline, "COMMANDS", commands);
+	parseperm(parseline, "READ",readpath);
+	parseperm(parseline, "NOREAD",no_readpath);
+	parseperm(parseline, "WRITE",writepath);	
+	parseperm(parseline, "NOWRITE",no_writepath);	
+	parseperm(parseline, "REQUEST",request);
+	parseperm(parseline, "SENDFILES",transfer);
 
 
 	if(no_readpath[0] != '\0')
@@ -157,10 +161,19 @@ char *fillname;		/* sys field to fill with Permissions data */
 #endif /* DEBUG */
 		return;
 	}else{
+	        /* Check to make sure it's not a NOxxxxx variation */
+	        if(!isspace(*(lineptr - 1)) && srchname[0] != 'N') {
+		    if((lineptr = strstr(lineptr + strlen(srchname) , srchname)) == NULL)
+			return;
+		}
 		lineptr += strlen(srchname);
+		while(isspace(*lineptr))
+		    lineptr++;
 		if(*lineptr == '=')
 			lineptr++;
-		while(!isspace(*lineptr)){
+		while(isspace(*lineptr))
+		    lineptr++;
+		while(!isspace(*lineptr) && *lineptr != EOF){
 			if(*lineptr == ':'){	/* convert colon to space */
 				*lineptr = ' ';
 			}

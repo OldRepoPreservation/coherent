@@ -3,7 +3,7 @@
 
 export AR=ar
 export CC=cc
-export SRC=/tmp/c		# source directory
+export SRC=/src386/bin/c		# source directory
 obj=`pwd`			# object directory
 . $SRC/.prof.386		# execute .profile for Makefiles
 bin=$obj/bin			# set shell variables for directories

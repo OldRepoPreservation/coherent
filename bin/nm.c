@@ -24,6 +24,19 @@ char *str_tab;
 char *fname;
 
 /*
+ * read or have an error.
+ */
+static void
+xread(to, size, msg)
+char *to;
+unsigned size;
+char *msg;
+{
+	if (1 != fread(to, size, 1, fd))
+		fatal("Error reading %s - %s", fname, msg);
+}
+
+/*
  * Old form sort logic.
  */
 ncomp_old(s1, s2)
@@ -262,6 +275,7 @@ char *argv[];
 			break;
 		case 'a':
 			asw = 1;
+			break;
 		case 'd':
 			dsw = 1;
 			break;
@@ -299,6 +313,7 @@ char *argv[];
 	for (; optind < argc; optind++) {
 		fd = xopen(fname = argv[optind], "rb");
 
+		printf("%s\n", fname);
 		readHeaders(0L, 0L);
 		fclose(fd);
 	}
@@ -307,22 +322,17 @@ char *argv[];
 }
 
 static
-xread(to, size, msg)
-char *to;
-unsigned size;
-char *msg;
-{
-	if (1 != fread(to, size, 1, fd))
-		fatal("Error reading %s - %s", fname, msg);
-}
-
-static
 readHeaders(at, size)
 long at, size;
 {
 	unsigned i;
 
-	xread(&fh, sizeof(fh), "coff header");
+	if (1 != fread(&fh, sizeof(fh), 1, fd)) {
+		if (ferror(fd))
+			fatal("Error reading %s", fname);
+		printf("Inappropriate filetype %s\n", fname);
+		return (0);
+	}
 	if (C_386_MAGIC != fh.f_magic) {
 		if (!memcmp(ARMAG, &fh, SARMAG))
 			return(archive(at));

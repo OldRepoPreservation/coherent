@@ -4,6 +4,9 @@
  * Purpose:	Functions for the COHERENT-specific system call
  *
  * $Log:	syscoh.c,v $
+ * Revision 1.4  93/04/14  10:08:11  root
+ * r75
+ * 
  * Revision 1.3  92/11/12  10:06:19  root
  * Ker #68
  * 

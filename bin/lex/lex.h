@@ -2,7 +2,7 @@
  * lex/lex.h
  */
 
-#include <sys/mdata.h>
+/* #include <sys/mdata.h> */
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>

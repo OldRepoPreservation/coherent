@@ -2,6 +2,9 @@
  * File:	putchar.c
  *
  * $Log:	putchar.c,v $
+ * Revision 2.2  93/07/26  15:32:13  nigel
+ * Nigel's R80
+ * 
  * Revision 1.5  93/04/14  10:12:14  root
  * r75
  * 

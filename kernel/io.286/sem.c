@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/drv/RCS/sem.c,v 2.1 88/09/03 13:11:37 src Exp $
+/* $Header: /kernel/kersrc/io.286/sem.c,v 1.1 92/07/17 15:24:44 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -19,7 +19,10 @@
  *
  *			Author: Allan Cornish, INETCO Systems Ltd., Sep 1984
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/sem.c,v $
+ * $Log:	sem.c,v $
+ * Revision 1.1  92/07/17  15:24:44  bin
+ * Initial revision
+ * 
  * Revision 2.1	88/09/03  13:11:37	src
  * *** empty log message ***
  * 

@@ -6,6 +6,8 @@
  */
 
 #include <stdio.h>
+#include "stdio.int.h"
+
 extern	_FILE2	_iob2[_NSTDFILE];
 
 /*

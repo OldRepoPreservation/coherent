@@ -32,7 +32,7 @@ _scanf(fp, format, args) FILE *fp; const char *format; va_list args;
 	int		base, width, count, nitems, n, sflag, lflag, flag;
 	long		val;
 	double		d;
-	Void *		vp;
+	__VOID__ *		vp;
 	char		buf[MAX_WIDTH];
 
 	for (nitems = count = 0; fc = *format++; ) {
@@ -115,7 +115,7 @@ fixed:
 				if (sflag)
 					continue;
 				if (lflag == 'p')
-					*(va_arg(args, Void **)) = (Void *)val;
+					*(va_arg(args, __VOID__ **)) = (__VOID__ *)val;
 				else if (lflag == 'l')
 					*(va_arg(args, long *)) = val;
 				else if (lflag == 'h')
@@ -139,14 +139,14 @@ fixed:
 					continue;
 #if	LONGDOUBLE
 				if (lflag == 'L')
-					vp = (Void *)va_arg(args, long double *);
+					vp = (__VOID__ *)va_arg(args, long double *);
 				else if (lflag == 'l')
 #else
 				if (lflag == 'l' || lflag == 'L')
 #endif
-					vp = (Void *)va_arg(args, double *);
+					vp = (__VOID__ *)va_arg(args, double *);
 				else
-					vp = (Void *)va_arg(args, float *);
+					vp = (__VOID__ *)va_arg(args, float *);
 				_dassign(vp, &d, lflag);
 				nitems++;
 				continue;

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/drv/RCS/dmareq.c,v 2.1 88/09/03 13:03:47 src Exp $ */
+/* $Header: /kernel/kersrc/io.286/dmareq.c,v 1.1 92/07/17 15:24:08 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -18,7 +18,10 @@
  * And assume we are called by fl.c, xt.c, dv.c or someone
  * else who obeys the parameter rules that they do.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/dmareq.c,v $
+ * $Log:	dmareq.c,v $
+ * Revision 1.1  92/07/17  15:24:08  bin
+ * Initial revision
+ * 
  * Revision 2.1	88/09/03  13:03:47	src
  * *** empty log message ***
  * 

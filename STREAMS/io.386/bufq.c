@@ -6,6 +6,9 @@
  *	Should be generalizable for other hard drives.
  *
  * $Log:	bufq.c,v $
+ * Revision 2.2  93/07/26  15:28:01  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  93/04/14  10:10:07  root
  * r75
  * 

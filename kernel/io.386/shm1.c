@@ -4,6 +4,9 @@
  * Purpose: System V Compatible Shared Memory Device Driver
  *
  * $Log:	shm1.c,v $
+ * Revision 1.3  93/06/14  13:39:25  bin
+ * hal: kernel 78 update
+ * 
  * Revision 1.3  93/04/14  10:23:10  root
  * r75
  * 

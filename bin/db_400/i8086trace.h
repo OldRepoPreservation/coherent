@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/db/i8086/RCS/mtrace.h,v 1.1 88/10/17 04:04:28 src Exp $
+/* $Header: /src386/bin/db/RCS/i8086trace.h,v 1.1 92/06/10 14:36:50 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * A debugger.
  * Machine dependent header for the Intel 8086.
  *
- * $Log:	/usr/src/cmd/db/i8086/RCS/mtrace.h,v $
+ * $Log:	i8086trace.h,v $
+ * Revision 1.1  92/06/10  14:36:50  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/10/17  04:04:28 	src
  * Initial revision
  * 

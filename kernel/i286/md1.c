@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/md1.c,v 1.2 88/08/05 15:34:26 src Exp $ */
+/* $Header: /kernel/kersrc/i286/RCS/md1.c,v 1.1 92/07/17 15:21:32 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,7 +17,10 @@
  * All machines.
  * Machine dependent stuff.
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/md1.c,v $
+ * $Log:	md1.c,v $
+ * Revision 1.1  92/07/17  15:21:32  bin
+ * Initial revision
+ * 
  * Revision 1.2	88/08/05  15:34:26	src
  * mproto(), segload(), and msetsys() functions simplified.
  * 

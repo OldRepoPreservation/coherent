@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/drv/RCS/ct.c,v 1.1 88/03/24 16:18:09 src Exp $ */
+/* $Header: /kernel/kersrc/coh.286/RCS/ct.c,v 1.1 92/07/17 15:18:00 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * Coherent
  * Console terminal driver.
  *
- * $Log:	/usr/src/sys/drv/RCS/ct.c,v $
+ * $Log:	ct.c,v $
+ * Revision 1.1  92/07/17  15:18:00  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/03/24  16:18:09	src
  * Initial revision
  * 

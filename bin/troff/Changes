@@ -95,3 +95,20 @@ Wed Mar 31 12:14:41 1993 PST
 fwt_TFM.c
 		fwtable V1.5: corrected bug in writing slant value word
 		which led to incorrect escape sequence for italic fonts.
+
+Wed Apr  7 17:49:09 1993 PDT
+main.c
+		V4.0.6: at fwb's request, modified leave() to print page
+		eject even for nonzero exit status; previously, it ejected
+		the current page on success, but not on fatal errors.
+
+Fri Apr 23 14:18:10 1993 PDT
+main.c
+		V4.0.7: changed exit status for usage() from 1 to 2,
+		allowing leave() to avoid core dumping as it exits.
+
+Thu Sep  2 17:32:13 1993 CDT
+roff.h
+main.c
+req2.c
+		V4.0.8: minor hacks to allow compilation under current headers.

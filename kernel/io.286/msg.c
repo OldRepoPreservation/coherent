@@ -1,4 +1,4 @@
-/* $Header: /usr/src/sys/i8086/drv/RCS/msg.c,v 2.1 88/09/03 13:09:07 src Exp $
+/* $Header: /kernel/kersrc/io.286/msg.c,v 1.1 92/07/17 15:24:33 bin Exp Locker: bin $
  *
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, and is confidential information.   It is provided under
@@ -19,7 +19,10 @@
  *
  *			Author: Allan Cornish, INETCO Systems Ltd., Oct 1984
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/msg.c,v $
+ * $Log:	msg.c,v $
+ * Revision 1.1  92/07/17  15:24:33  bin
+ * Initial revision
+ * 
  * Revision 2.1	88/09/03  13:09:07	src
  * *** empty log message ***
  * 

@@ -3,6 +3,9 @@
  * Adaptec AHA154x driver.
  *
  * $Log:	aha.c,v $
+ * Revision 1.9  93/04/16  06:57:55  bin
+ * Hal: kernel 76 update
+ * 
  * Revision 1.1  93/03/18  10:31:13  root
  * r74
  * 

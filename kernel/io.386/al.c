@@ -4,6 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  *
  * $Log:	al.c,v $
+ * Revision 1.8  93/04/14  10:09:40  root
+ * r75
+ * 
  * Revision 1.7  92/07/27  18:16:05  hal
  * Kernel #59
  * 
