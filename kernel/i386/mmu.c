@@ -21,7 +21,6 @@
 #define ONE_K	1024
 #define ONE_MEG	1048576
 #define USE_NDATA	1
-#define SUNLOAD		0
 
 /*
  * DMA will not work to memory above 16M, so limit the amount of memory
@@ -106,11 +105,10 @@ register SR	*srp;
 	}
 
 	do
-		ptable1_v[base1++] = *pp++ | akey;
+		ptable1_v[base1++] = (*pp++ & ~SEG_NPL) | akey;
 	while (--n);
 	mmuupd();
 }
-
 
 /*
  * unload a handle key "key" to a segment from the MMU hardware
@@ -167,38 +165,137 @@ no_c_alloc:
 }
 
 /*
- * free core space
- * sz - allocated size
+ * Given an array "pp" containing "numClicks" click descriptors,
+ *   if "pp" is the click list for a user segment currently loaded
+ *     invalidate click entries for "pp" in the current page table
+ *   return each click in "pp" to the sysmem pool, if it came from there.
+ *   return the array "pp" to the buddy pool.
  */
 void
-c_free(pp, size)
+c_free(pp, numClicks)
 cseg_t	*pp;
-unsigned	size;
+unsigned	numClicks;
 {
 	unsigned	pno;
 	register cseg_t *qp;
 	register int	sz;
 	SR		*srp;
 
-#if SUNLOAD
-	sunload(pp);
-#else
 	if (srp = loaded(pp)) {
 		unload(srp);
 		srp->sr_segp = 0;
 	}
-#endif
-	sz = size;
+	sz = numClicks;
 	if (&sysmem.pfree[sz] > sysmem.efree)
 		panic("c_free - nalloc");
 	qp = pp;
 	do {
-		pno = segclick(*qp++);
-		if (!pvalid(pno))
-			panic("c_free");
-		*sysmem.pfree++ = pno;
+		if ((*qp & SEG_NPL) == 0) {
+			pno = segclick(*qp);
+			if (!pvalid(pno))
+				panic("c_free");
+			*sysmem.pfree++ = pno;
+		} else {
+			T_HAL(0x40000, printf("c_free NPL %x ", *qp));
+		}
+		qp++;
 	} while (--sz);
-	areafree((BLOCKLIST *)pp, size);
+	areafree((BLOCKLIST *)pp, numClicks);
+}
+
+/*
+ * Given a user virtual address, a physical address, and a byte
+ * count, map the specified virtual address into the user data
+ * page table for the current process.
+ *
+ * This is meant to be called from the console ioctl, KDMAPDISP.
+ * The user virtual address must be click aligned.
+ * The range of physical addresses must lie outside installed RAM
+ * or within the "PHYS_MEM" pool.
+ *
+ * Return 1 on success, else 0.
+ */
+int
+mapPhysUser(virtAddr, physAddr, numBytes)
+{
+	int ret = 0;
+	SR * srp = u.u_segl + SIPDATA;
+	SEG * sp = srp->sr_segp;
+	cseg_t * pp = sp->s_vmem, * qp;
+	int pno, clickOffset, numClicks, i;
+
+	/* Check alignment. */
+	if ((virtAddr & (NBPC-1)) || (physAddr & (NBPC-1))) {
+		T_HAL(0x40000, printf("mPU: failed alignment "));
+		goto mPUdone;
+	}
+
+	/* Check validity of range of virtual addresses. */
+	if (virtAddr < srp->sr_base ||
+	  (virtAddr + numBytes) >= (srp->sr_base + srp->sr_size)) {
+		T_HAL(0x40000, printf("mPU: bad vaddr "));
+		goto mPUdone;
+	}
+
+	/* Check validity of range of physical addresses. */
+	/* if not in PHYS_MEM pool... */
+	if (!physValid(physAddr, numBytes)) {
+
+		/* get installed RAM physical addresses */
+		unsigned int physLow = ctob((read16_cmos(LOMEM) + 3) >> 2);
+		unsigned int physHigh = ctob((read16_cmos(EXTMEM) + 3) >> 2)
+		  + ONE_MEG;
+
+		T_HAL(0x40000, printf("physLow=%x physHigh=%x ",
+		  physLow, physHigh));
+
+		/* Fail if physical range overlaps installed base RAM. */
+		if (physAddr < physLow) {
+			T_HAL(0x40000, printf("mPU: overlap base RAM "));
+			goto mPUdone;
+		}
+
+		/* Fail if physical range overlaps installed extended RAM. */
+		if (physAddr < physHigh && (physAddr + numBytes) >= ONE_MEG) {
+			T_HAL(0x40000, printf("mPU: overlap extended RAM "));
+			goto mPUdone;
+		}
+	}
+
+	/*
+	 * For each click in user data segment which is to be remapped
+	 *   if current click was taken from sysmem pool
+	 *     return current click to sysmem pool
+	 *   write new physical address into current click entry
+	 *   mark current click as not coming from sysmem pool
+	 *   map current click into page table
+	 */
+	clickOffset = btocrd(virtAddr - srp->sr_base);
+	numClicks = numBytes >> BPCSHIFT;
+	for (qp = pp + clickOffset, i = 0; i < numClicks; i++, qp++) {
+		if ((*qp & SEG_NPL) == 0) {
+			pno = segclick(*qp);
+			if (!pvalid(pno)) {
+				T_HAL(0x40000, printf("mPU: bad release "));
+			} else {
+				*sysmem.pfree++ = pno;
+				T_HAL(0x40000,
+				  printf("mPU: freeing virtual click %x ",
+				  virtAddr + ctob(i)));
+			}
+		} else {
+			T_HAL(0x40000,
+			  printf("mPU: rewriting virtual NPL click %x ",
+			  virtAddr + ctob(i)));
+		}
+		*qp = (physAddr + ctob(i)) | (SEG_RW | SEG_NPL);
+		ptable1_v[btocrd(physAddr) + i] = *qp | SEG_RW;
+	}
+	mmuupd();
+	ret = 1;
+
+mPUdone:
+	return ret;
 }
 
 cseg_t *
@@ -213,14 +310,10 @@ register cseg_t *pp;
 	if (sysmem.pfree < &sysmem.tfree[1])
 		goto no_c_extend;
 
-#if SUNLOAD
-	sunload(pp);
-#else
 	if (srp = loaded(pp)) {
 		unload(srp);
 		srp->sr_segp = 0;
 	}
-#endif
 
 	/*
 	 * If the old size was a power of 2, it has used up an entire
@@ -273,23 +366,34 @@ int num_bytes;
  */
 
 /*
- * allocate a segment descriptor area;
+ * Deallocate a segment descriptor area.
+ * "sp" is not really a BLOCKLIST*, rather a cseg_t *.
+ * "numClicks" is the number of clicks referenced in the area.
  */
 void
-areafree(sp, sz)
+areafree(sp, numClicks)
 BLOCKLIST *sp;
-int sz;
+int numClicks;
 {
 	register int	n;	/* adresse du buddy, taille du reste */
 	register int	ix, nx;
 	register	BLOCKLIST *buddy;
 
 	areacheck(2, sp);
+
+	/*
+	 * Pointer "sp" points to an element in the sysmem table of
+	 * free clicks.
+	 * Integer "ix" is the index of "sp" into that table.
+	 * Will use "ix" to index into one or more buddy tables.
+	 */
 	ix = sp - sysmem.u.budtab;
-	n = areasize(sz);
+	n = areasize(numClicks);
 	do {
+		/* "nx" is index of buddy element to the one at "ix". */
 		nx = BUDDY(ix, n);
 		if (sysmem.budfree[nx>>WSHIFT] & 1<<(nx&(WCOUNT-1))) {
+			/* coalesce two buddies */
 			buddy = sysmem.u.budtab + nx; 
 			if (buddy->kval != n)
 				break;
@@ -474,9 +578,40 @@ int	PHYS_MEM = 0;		/* Number of bytes of contiguous RAM needed */
  * If all goes well, assign physAvailStart to the virtual address of
  * the beginning of the region, and physAvailBytes to the number of bytes
  * in the region.  Otherwise, leave physAvailStart and physAvailBytes at 0.
+ *
+ * As memory is allocated, physAvailStart advances to point to the next
+ * available byte of contiguous memory, physAvailBytes is decremented,
+ * and physPoolStart remains set to the virtual address of the start of
+ * the contiguous pool.
  */
-static int	physAvailStart;	/* virtual address of contiguous memory area */
+static int	physPoolStart;	/* start of contiguous memory area */
+static int	physAvailStart;	/* next free byte in contiguous memory area */
 static int	physAvailBytes;	/* number of bytes in contiguous memory area */
+
+/*
+ * Check whether a range of physical addresses lies within the
+ * pool of contiguous physical memory.
+ */
+int
+physValid(base, numBytes)
+unsigned int base, numBytes;
+{
+	int vpool;
+	int ret = 0;
+
+	if (PHYS_MEM) {
+		vpool = vtop(physPoolStart);
+		T_HAL(0x40000, printf("PHYS_MEM phys addrs %x to %x  ",
+		  vpool, vpool + PHYS_MEM));
+		if (base >= vpool && (base + numBytes) <= (vpool + PHYS_MEM))
+			ret = 1;
+	} else {
+		T_HAL(0x40000, printf("No PHYS_MEM "));
+	}
+
+	T_HAL(0x40000, printf("physValid(%x, %x) = %d ", base, numBytes, ret));
+	return ret;
+}
 
 void
 physMemInit()
@@ -537,7 +672,7 @@ physMemInit()
 	}
 
 	if (!err) {
-		physAvailStart = physMem.sr_base;
+		physPoolStart = physAvailStart = physMem.sr_base;
 		physAvailBytes = PHYS_MEM;
 	}
 }
@@ -1018,7 +1153,6 @@ segload()
 	}
 }
 
-#if !SUNLOAD
 SR *
 loaded(pp)
 register cseg_t *pp;
@@ -1032,9 +1166,7 @@ register cseg_t *pp;
 	}
 	return 0;
 }
-#endif
 
-/*XXX*/
 MAKESR(r0stk, _r0stk);
 extern int tss_sp0;
 
@@ -1447,15 +1579,11 @@ int new_bytes;
 
 	T_PIGGY( 0x8000000, printf("new pp: %x", pp); );
 
-#if SUNLOAD
-	sunload(sp->s_vmem);
-#else
 	if (0 != (srp = loaded(sp->s_vmem))) {
 		T_PIGGY( 0x8000000, printf("unloading srp: %x, ", srp); );
 		unload(srp);
 		srp->sr_segp = 0;
 	}
-#endif
 
 	/*
 	 * Allocate new descriptors.
@@ -1504,19 +1632,3 @@ ok_c_grow:
 no_c_grow:
 	return -1;
 }
-
-#if SUNLOAD
-void
-sunload(pp)
-register	cseg_t *pp;
-{
-	register	SR	*start;
-
-	for (start = ugmtab; start < &ugmtab[NUSEG]; start++) {
-		if (start->sr_segp && start->sr_segp->s_vmem==pp) {
-			unload(start);
-			start->sr_segp = 0;
-		}
-	}
-}
-#endif

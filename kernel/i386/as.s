@@ -45,6 +45,9 @@ MMUUPD	.macro
 / -lgl)
 / 
 / $Log:	as.s,v $
+/ Revision 1.15  92/11/09  17:08:28  root
+/ Just before adding vio segs.
+/ 
 / Revision 1.13  92/10/06  23:47:48  root
 / Ker #64
 / 
@@ -252,7 +255,7 @@ loc3:
 
 	sub	%eax, %eax	/ Load local descriptor table register.
 	lldt	%ax
-	movw	$tss,%ax
+	movw	$tss,%ax	/ Fix low 16 bits of tss base in gdt
 	movw	%ax,gdt+SEG_TSS+2
 	movw	$SEG_TSS,%ax		/ Load task state segment register.
 	ltr	%ax
@@ -657,6 +660,7 @@ outl:	movl	4(%esp),%edx
 / va is a system global address
 ///////
 
+	.globl	atsend
 atsend:
 	push	%esi
 	push	%es
@@ -709,6 +713,7 @@ atsend:
 	pop	%esi
 	ret
 
+	.globl	atrecv
 atrecv:
 	push	%esi
 	push	%es
@@ -754,7 +759,6 @@ atrecv:
 	pop	%es			/ setspace(save) 
 	pop	%esi
 	ret
-
 
 ///////
 
@@ -1765,7 +1769,8 @@ sb:
 	.alignon
 	.align	4
 	.globl	tss_sp0		/ Use run-time fixup for tss_sp0
-
+	.globl	tssIoMap
+	.globl	tssIoEnd
 tss:				/ Task State Segment.
 tss_lnk:.long	0		/  0: Back link selector to TSS.
 tss_sp0:.long	ESP0_START	/  4: SP for CPL 0.
@@ -1792,13 +1797,22 @@ tss_ds:	.long	0		/ 54: Register DS.
 tss_fs:	.long	0		/ 58: Register FS.
 tss_gs:	.long	0		/ 5C: Register GS.
 tss_ldt:.long	SEG_LDT		/ 60: Task LDT Selector.
-tss_end:.long	0x00680000	/ 64: T bit & I/O map base
-	.long	0,0,0,0,0,0,0,0		/ I/O map
-	.long	0,0,0,0,0,0,0,0
-	.long	0,0,0,0,0,0,0,0
-	.long	0,0,0,0,0,0,0,0
+	.long	0x00680000	/ 64: T bit & I/O map base
+/ I/O map is part of tss.
+/ Bitmap up to port address 0x7FF, which is 64 longs worth.
+/ Initialize to all 1's, meaning no I/O allowed.
+/ tss + 0x68 = tssIoMap
+tssIoMap:
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+	.long	-1,-1,-1,-1,-1,-1,-1,-1
+tssIoEnd:
 	.long	-1
-
 ///////
 
 / Data.
@@ -1992,14 +2006,14 @@ trapcode:.long	0
 /		* = not busy
 
 ///////
-atbsyw:
-	mov	$0x3FFFF, %ecx 
-	mov	ATSREG, %edx
-loc16:	inb	(%dx)
-	testb	$BSY_ST, %al
-	loopne	loc16
-	mov	%ecx, %eax 
-	ret
+/atbsyw:
+/	mov	$0x3FFFF, %ecx 
+/	mov	ATSREG, %edx
+/loc16:	inb	(%dx)
+/	testb	$BSY_ST, %al
+/	loopne	loc16
+/	mov	%ecx, %eax 
+/	ret
 
 ///////
 
@@ -2017,14 +2031,14 @@ loc16:	inb	(%dx)
 
 ///////
 
-atdrqw:
-	mov	$0x3FFFF, %ecx
-	mov	ATSREG, %edx 
-loc17:	inb	(%dx)
-	testb	$DRQ_ST, %al 
-	loope	loc17
-	mov	%ecx, %eax 
-	ret
+/atdrqw:
+/	mov	$0x3FFFF, %ecx
+/	mov	ATSREG, %edx 
+/loc17:	inb	(%dx)
+/	testb	$DRQ_ST, %al 
+/	loope	loc17
+/	mov	%ecx, %eax 
+/	ret
 
 /       Read a byte from the CMOS.  Takes one argument--the
 /       CMOS address to read from as an int; returns the
@@ -2246,14 +2260,13 @@ read_dr7:
 /
 /	void setEm(int bit)
 	.globl	setEm
-	.globl	setEmfR0
 setEm:
 	movl	4(%esp),%eax	/ fetch argument
 	pushf
 	cli
 	pushl	%eax
 	lcall	$SEG_SET_EM,$0	/ gate to setEmfR0
-	popl	%eax
+	/ setEmfR0 will delete 4 bytes worth of args
 	popf
 	ret
 
@@ -2262,11 +2275,6 @@ setEm:
 / lead into Ring 1.
 setEmfR0:
 	movb	8(%esp),%cl	/ fetch argument
-
-	movl	12(%esp),%eax	/ make 4-byte arg list disappear
-	movl	%eax,8(%esp)
-	movl	16(%esp),%eax
-	movl	%eax,12(%esp)
 
 	cmpb	$0,%cl
 	movl	%cr0,%eax
@@ -2279,35 +2287,8 @@ se00:
 	orb	$0x20,%al	/ set NE bit
 se01:
 	mov	%eax,%cr0
-	lret
-
-/ enable/disable FPE traps
-/
-/	int setfpe(mask)
-/	int mask;
-/
-/	if (mask)
-/		allow FP (clear bit 2 of cr0)
-/	else
-/		disallow FP (set bit 2 of cr0)
-/	return old value of cr0
-/
-	.globl	setfpe
-setfpe:
-	movl	%cr0,%eax
-	cmpl	$0,4(%esp)
-	pushl	%eax
-	jz	no_fp
-/ use cr0=0x80000001 to allow FP
-	andb	$0xFB,%al
-	jmp	done_fp
-/ use cr0=0x80000005 to disallow FP
-no_fp:
-	orb	$4,%al
-done_fp:
-	mov	%eax,%cr0
-	popl	%eax
-	ret
+	/ make 4-byte arg list disappear
+	lret	$4
 
 / return nonzero if paging is turned on
 	.globl	paging
