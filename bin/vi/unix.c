@@ -109,7 +109,7 @@ int ttyread(buf, len, time)
 }
 # else
 
-# if M_SYSV
+# if M_SYSV || COHERENT
 /* For System-V or Coherent, we use VMIN/VTIME to implement the timeout.
  * For no timeout, VMIN should be 1 and VTIME should be 0; for timeout,
  * VMIN should be 0 and VTIME should be the timeout value.

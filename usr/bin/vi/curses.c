@@ -778,8 +778,24 @@ int getsize(signo)
 #endif
 	if ((lines == 0 || cols == 0) && signo == 0)
 	{
+#if COHERENT
+		char * temp;
+
+		temp = getenv("COLUMNS");
+		if (temp)
+			COLS = atoi(temp);
+		else
+			COLS = tgetnum("co");
+
+		temp = getenv("LINES");
+		if (temp)
+			LINES = atoi(temp);
+		else
+			LINES = tgetnum("li");
+#else
 		LINES = tgetnum("li");
 		COLS = tgetnum("co");
+#endif
 	}
 #if MSDOS
 # ifdef RAINBOW
@@ -826,9 +842,16 @@ int getsize(signo)
 
 /* This is a function version of addch() -- it is used by tputs() */
 int faddch(ch)
-	int	ch;
+int	ch;
 {
+#if 0
+	if (stdscr)
+		addch(ch);
+	else
+		msg("OOPS! tried to access null stdscr");
+#else
 	addch(ch);
+#endif
 
 	return 0;
 }

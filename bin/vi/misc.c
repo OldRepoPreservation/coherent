@@ -84,7 +84,7 @@ char *fetchline(line)
 
 /* error message from the regexp code */
 void regerror(txt)
-	char	*txt;	/* an error message */
+char	*txt;	/* an error message */
 {
 	msg("RE error: %s", txt);
 }
