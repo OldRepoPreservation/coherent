@@ -1,8 +1,11 @@
 # CFLAGS are not needed for i8086
-DESTDIR=/f1/bin/
-DESTDIR2=/f1/usr/dict/
+
+DESTDIR=/interim/bin/
+DESTDIR2=/interim/usr/dict/
+DESTDIR3=/interim/usr/lib/
+
 CFLAGS= -O 
-UTILS= spellin spell
+UTILS= spellin spell spell.script
 
 all:	$(UTILS)
 	>all
@@ -12,11 +15,15 @@ all:	$(UTILS)
 spell2.o: spell2.c
 	$(CC) $(CFLAGS) spell2.c
 
+spell.script:
+	co $(DESTDIR)$@
+	su root chmog 555 bin bin $(DESTDIR)$@
+
 spell:	spell.c spell2.o
-	$(CC) $(CFLAGS) -o $(DESTDIR)spell spell.c spell2.o
-	su root chown bin $(DESTDIR)spell
-	su root chgrp bin $(DESTDIR)spell
-	su root chmod 555 $(DESTDIR)spell
+	$(CC) $(CFLAGS) -o $(DESTDIR3)spell spell.c spell2.o
+	su root chown bin $(DESTDIR3)spell
+	su root chgrp bin $(DESTDIR3)spell
+	su root chmod 555 $(DESTDIR3)spell
 
 spellin: spellin.c spell2.o
 	$(CC) $(CFLAGS) -o $(DESTDIR2)spellin spellin.c spell2.c
