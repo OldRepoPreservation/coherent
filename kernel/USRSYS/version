@@ -1,4 +1,4 @@
 version=3
 release=2
-revision=0_beta
+revision=0
 echo -n '-DVERSION="'$version.$release.$revision'"'
