@@ -355,7 +355,6 @@ scantty()
 	register TTY *tp;	/* Used to pick entries from ttyp.  */
 	register int fd;	/* File descriptor for /etc/ttys.  */
 	TTY tty;		/* Used to hold entries from /etc/ttys.  */
-
 	extern char *sbrk();
 
 	dbmsg(("Rescan", NULL));
@@ -503,6 +502,7 @@ char *np, *ap;
 #endif
 	setpgrp();
 	fakearg(1, tp->t_tty);
+	chmod(tp->t_tty, 04000);
 	while ((fd=open(tp->t_tty, 2)) < 0 && errno==EDBUSY)
 		sleep(1);
 	if (fd < 0)
