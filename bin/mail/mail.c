@@ -1,9 +1,12 @@
-static	char	*rcsrev = "$Revision: 3.4 $";
+static	char	*rcsrev = "$Revision: 1.1 $";
 static	char	*rcshdr =
-	"$Header: /usr/local/src/dist/mail/usermail/RCS/mail.c,v 3.4 91/02/18 17:14:10 piggy Exp $";
+	"$Header: /src386/bin/mail/RCS/mail.c,v 1.1 92/04/20 09:03:08 bin Exp Locker: bin $";
 /*
- * $Header: /usr/local/src/dist/mail/usermail/RCS/mail.c,v 3.4 91/02/18 17:14:10 piggy Exp $
- * $Log:	/usr/local/src/dist/mail/usermail/RCS/mail.c,v $
+ * $Header: /src386/bin/mail/RCS/mail.c,v 1.1 92/04/20 09:03:08 bin Exp Locker: bin $
+ * $Log:	mail.c,v $
+ * Revision 1.1  92/04/20  09:03:08  bin
+ * Initial revision
+ * 
  * Revision 3.4	91/02/18  17:14:10	piggy
  * Fixed "q" command so that it works with a non-setuid mail.
  * 
@@ -443,10 +446,16 @@ commands()
 					mmsg(nosave, *fnp);
 				if ((fp = fopen(*fnp, "a")) == NULL)
 					mmsg(nosave, *fnp);
-				if (testfile){
+
+
+	/* if we are opening a new file or saving the first message
+	 * from the mailbox, write a MSGSEP.
+	 */
+				if (testfile || (seek == 5)){
 					fprintf(fp, MSGSEP);
 					testfile = 0;
 				}
+	/*		TRACE("SEEK is %d\n",seek); */
 				if (mcopy(mfp, fp, seek, mp->m_end, 0))
 					mmsg(nosave, *fnp);
 
