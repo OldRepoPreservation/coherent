@@ -50,6 +50,112 @@ register unsigned fd;
 }
 
 /*
+ * NIGEL: To help fix some stupid bugs with uopen (), I have split the
+ * fdopen () routine into three parts; one for resource allocation, one for
+ * setting the inode member and opening the inode, and one for finishing up
+ * an open.
+ */
+
+/*
+ * This function finds a free slot in the process file descriptor table and
+ * fills it in with a partially initialised entry.
+ *
+ * This function returns a file descriptor number on success, -1 on failure.
+ */
+
+int fdalloc ()
+{
+	int		i;
+
+	for (i = 0 ; i < sizeof (u.u_filep) / sizeof (* u.u_filep) ; i ++) {
+		if (u.u_filep [i] == NULL) {
+			FD    *	filep;
+
+			if ((filep = u.u_filep [i] = kalloc (sizeof (FD)))
+					== NULL) {
+				/*
+				 * Insufficient resources!
+				 */
+
+				u.u_error = EAGAIN;
+				return -1;
+			}
+
+			filep->f_flag = 0;
+			filep->f_flag2 = 0;
+			filep->f_refc = 0;
+			filep->f_seek = 0;
+			filep->f_ip = NULL;
+
+			return i;
+		}
+	}
+
+	u.u_error = EMFILE;
+	return -1;
+}
+
+/*
+ * This function performs the second half of the file open process by filling
+ * in the inode member of the file table entry and requesting that the inode be
+ * opened.
+ *
+ * This function returns -1 on error, 0 on success.
+ */
+
+int fdinit (fd, ip, mode)
+int		fd;
+INODE	      *	ip;
+int		mode;
+{
+	FD	      *	filep;
+
+	if ((filep = fdget (fd)) == NULL)
+		return -1;
+
+	iopen (ip, mode);
+
+	if (u.u_error != 0)
+		return -1;
+
+	filep->f_ip = ip;
+	filep->f_flag = mode;
+	filep->f_refc = 1;
+
+	return 0;
+}
+
+
+/*
+ * This function finalises an open; normally this does nothing, but if there
+ * has been an error, this code will take care of deallocating the entry.
+ *
+ * This function returns the file descriptor number on success, or -1 on error.
+ */
+
+int fdfinish (fd)
+int		fd;
+{
+	FD	      *	filep;
+
+	if ((filep = fdget (fd)) == NULL)
+		return -1;
+
+	if (filep->f_refc == 0) {
+		/*
+		 * The open never really succeeded, release resources.
+		 */
+
+		kfree (filep);
+		u.u_filep [fd] = NULL;
+		fd = -1;
+	}
+
+	return fd;
+}
+
+
+/*
  * Given an inode, and a mode containing permission flags, open the
  * inode with the appropriate permissions and return a file descriptor
  * containing it.
@@ -57,30 +163,16 @@ register unsigned fd;
 fdopen(ip, mode)
 register INODE *ip;
 {
-	register FD **fdpp;
-	register FD *fdp;
+	int		fd;
 
-	for (fdpp=u.u_filep; fdpp<&u.u_filep[NOFILE]; fdpp++) {
-		if (*fdpp != NULL)
-			continue;
-		if ((fdp=kalloc(sizeof(FD))) == NULL)
-			return (-1);
-		iopen(ip, mode);
-		if (u.u_error) {
-			kfree(fdp);
-			return (-1);
-		}
-		fdp->f_flag = mode;
-		fdp->f_flag2 = 0;
-		fdp->f_refc = 1;
-		fdp->f_seek = 0;
-		fdp->f_ip = ip;
-		*fdpp = fdp;
-		return (fdpp-u.u_filep);
+	if ((fd = fdalloc ()) >= 0) {
+		fdinit (fd, ip, mode);
+		fd = fdfinish (fd);
 	}
-	u.u_error = EMFILE;
-	return (-1);
+
+	return fd;
 }
+
 
 /*
  * Close the given file number.
