@@ -151,9 +151,15 @@ get()
 				break;
 			if (isvariant(VCPP) && isvariant(VCPPC))
 				break;
-			if ((c = getc(ifp))< 0)
+			if ((c = getc(ifp)) < 0)
 				goto eof_in_line;
-			if (c != '*') {
+			else if (isvariant(VCPLUS) && c == '/') {
+				/* Ignore //-delimited C++ online comment. */
+				while ((c = getc(ifp)) != '\n')
+					if (c < 0)
+						goto eof_in_comment;
+				break;
+			} else if (c != '*') {
 				ungetc(c, ifp);
 				c = '/';
 				break;
