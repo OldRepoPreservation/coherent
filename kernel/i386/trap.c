@@ -113,7 +113,7 @@ char *eip;
 	unsigned short e_arg;	/* Argument to 'enter' opcode.  */
 	unsigned long newsp;	/* Anticipated value for stack pointer.  */
 	unsigned int cr2 = 0;
-	unsigned int cpl;
+	unsigned int cpl = cs & SEG_PL;
 
 	/*
 	 * Avoid sign extension confusion on 286 ds
@@ -217,6 +217,13 @@ char *eip;
 		/*
 		 * Invalid opcode
 		 */
+		if (cpl < 2) {
+			int *ip = (int *)eip;
+
+			RDUMP();
+			printf("(eip)=%x %x %x  ", ip[0], ip[1], ip[2]);
+			panic("Invalid Opcode");
+		}
 		sigcode = SIGILL;
 		break;
 
@@ -224,7 +231,10 @@ char *eip;
 		/*
 		 * Processor extension not available
 		 */
-		sigcode = SIGFPE;
+		if (int11() & 2)	/* NDP present */
+			ndpNewOwner();
+		else
+			sigcode = SIGFPE;
 		break;
 
 	case SIDBL:
@@ -264,15 +274,32 @@ char *eip;
 		sigcode = SIGKILL;
 		break;
 	case SIPF:
-		cr2 = read_cr2();
-		T_HAL(0x1000, printf("Page Fault "));
-		T_HAL(0x1000, RDUMP());
 		/*
 		 * Page fault
-		 * 
-		 * check for stack underflow
 		 */
+		cr2 = read_cr2();
+		if (cpl < 2) {
+			/*
+			 * If page fault during Ring 1 copy service routine,
+			 * such as kucopy or ukcopy, set u_error and abort
+			 * the copy, but don't send signal to the user.
+			 */
+			if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
+				T_HAL(0x1000, printf("copy trapped "));
+				SET_U_ERROR(EFAULT, "copy service");
+				eip = &__xtrap_break__;
+				goto trapend;
+			} else {
+				printf("cr2=%x", cr2);
+				RDUMP();
+				panic("Kernel Page Fault");
+			}
+		}
 
+		/* Check for stack underflow. */
+
+		T_HAL(0x1000, printf("Page Fault cr2=%x", cr2));
+		T_HAL(0x1000, RDUMP());
 		/*
 		 * I think 'splo' is being calculated in a bass-ackwards way,
 		 * and that 'datahi' is just wrong, but I'm not certain,
@@ -289,18 +316,6 @@ char *eip;
 		splo -= segp->s_size;
 		datahi = u.u_segl[SIPDATA].sr_size;
 #endif /* 0 */
-
-		/*
-		 * If page fault during Ring 1 copy service routine,
-		 * such as kucopy or ukcopy, set u_error and abort
-		 * the copy, but don't send signal to the user.
-		 */
-		if (eip >= &__xtrap_on__ && eip < &__xtrap_off__) {
-			T_HAL(0x1000, printf("copy trapped "));
-			SET_U_ERROR(EFAULT, "copy service");
-			eip = &__xtrap_break__;
-			goto trapend;
-		}
 
 		/*
 		 * Catch bad function pointer here - don't want to restart
