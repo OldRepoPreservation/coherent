@@ -124,10 +124,8 @@ register char *l;
 			switch (c) {
 			case '0':		/* digit width space */
 			case '|':		/* Narrow space */
-			case '^':		/* Half narrow space */
 			case '&':		/* Non-printing, 0-width char */
 			case '!':		/* Transparent line indicator */
-			case 'e':		/* Current escape */
 			case '%':		/* Optional hyphenation char */
 			case 't':		/* Non-interpreted tab */
 			case 'u':		/* Up 1/2 */
@@ -141,9 +139,13 @@ register char *l;
 				c = ' ';
 				break;
 
+			case 'e':		/* Current escape */
+				c = '\\';
+				break;
 			case '$':		/* argument */
 				if (*l != '\0')
 					l++;
+			case '^':		/* Half narrow space */
 				continue;
 
 			case '(':		/* Char named `xx' */
