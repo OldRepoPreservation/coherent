@@ -12,19 +12,23 @@
 getccol(bflg)
 int bflg;
 {
-	register int c, i;
+	register int i;
 	register int col = 0;
 	register WINDOW *lcurwp;
+	unsigned c;
 
 	lcurwp = curwp;
 	for (i=0; i<lcurwp->w_doto; ++i) {
 		c = lgetc(lcurwp->w_dotp, i);
-		if (c!=' ' && c!='\t' && bflg)
+		if (c != ' ' && c != '\t' && bflg)
 			break;
-		if (c == '\t')
+		switch (dblchr(c)) {
+		case 2:
 			taber(col);
-		else if (c<0x20 || c==0x7F)
+			break;
+		case 1:
 			++col;
+		}
 		++col;
 	}
 	return (col);

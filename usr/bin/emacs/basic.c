@@ -164,7 +164,7 @@ backline(f, n)
 getgoal(dlp)
 register LINE	*dlp;
 {
-	register int	c;
+	unsigned c;
 	register int	col;
 	register int	newcol;
 	register int	dbo;
@@ -174,10 +174,13 @@ register LINE	*dlp;
 	while (dbo != llength(dlp)) {
 		c = lgetc(dlp, dbo);
 		newcol = col;
-		if (c == '\t')
+		switch (dblchr(c)) {
+		case 2:
 			taber(newcol);
-		else if (c<0x20 || c==0x7F)
+			break;
+		case 1:
 			++newcol;
+		}
 		++newcol;
 		if (newcol > curgoal)
 			break;

@@ -226,7 +226,7 @@ isearch(dir)
 			break;
 
 		case CCHR('H'):
-		case 0x7F:
+		case 0x7f:
 			if (isrch_undo(&pptr,&dir) != TRUE) {
 				return (ABORT);
 			}
@@ -438,7 +438,7 @@ uchar	*prompt;
 {
 	register uchar	*cp1;
 	register uchar	*cp2;
-	register int	c;
+	register unsigned c;
 	uchar		tpat[NPAT+26+2+1+1];
 
 	cp1 = &tpat[0];
@@ -455,7 +455,7 @@ uchar	*prompt;
 	cp2 = &pat[0];
 	while ((c = *cp2++) != 0) {
 		if (cp1 < &tpat[NPAT+20-4]) {	/* "??]\0"		*/
-			if (c<0x20 || c==0x7F) {
+			if (dblchr(c)) {
 				*cp1++ = '^';
 				c ^= 0x40;
 			} else if (c == '%')	/* Map "%" to		*/
@@ -760,7 +760,7 @@ uchar	*prompt;
 {
 	register uchar	*cp1;
 	register uchar	*cp2;
-	register int	c;
+	register unsigned c;
 	register int	s;
 	uchar		tpat[NPAT+20];
 
@@ -774,7 +774,7 @@ uchar	*prompt;
 		cp2 = &pat[0];
 		while ((c = *cp2++) != 0) {
 			if (cp1 < &tpat[NPAT+20-6]) {	/* "??]: \0"	*/
-				if (c<0x20 || c==0x7F) {
+				if (dblchr(c)) {
 					*cp1++ = '^';
 					c ^= 0x40;
 				} else if (c == '%')	/* Map "%" to	*/
