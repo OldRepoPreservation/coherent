@@ -5,6 +5,7 @@
  * La Monte H. Yarroll <piggy@mwc.com>, September 1991
  */
 
+#include <string.h>
 #include <sys/inode.h>
 #include <sys/ino.h>
 #include <sys/dir.h>
@@ -25,9 +26,42 @@ interpret(command)
 		   (0 == strcmp(command, "lc") )) {
 		dir();
 		return(TRUE);
+	} else if ( (0 == strncmp(command, "sys_base", strlen("sys_base")) ) ||
+		   (0 == strncmp(command, "scs", strlen("scs")) )
+		) {
+		char lbuf[5]; /* 5 == strlen("0000") + 1 */
+		if (NULL != strchr(command, '=')){
+			puts("Setting sys_base.\r\n");
+			sys_base = (unsigned short)
+				basetoi(1 + strchr(command, '='), 16);
+		}
+		puts("sys_base is ");
+		itobase((unsigned) sys_base, lbuf, 16);
+		puts(lbuf);
+		puts("\r\n");
+
+		return(TRUE);
+	} else if (0 == strcmp(command, "monitor")) {
+		monitor();
+		return(TRUE);
+	} else if ((0 == strcmp(command, "help")) ||
+		   (0 == strcmp(command, "?")) ) {
+		   puts("info          Disk information.\r\n");
+		   puts("dir           List contents of /.\r\n");
+		   puts("ls            List contents of /.\r\n");
+		   puts("lc            List contents of /.\r\n");
+		   puts("sys_base      Print current load segement.\r\n");
+		   puts("scs           Print current load segement.\r\n");
+		   puts("sys_base=tttt Set current load segement to 0xtttt.\r\n");
+		   puts("scs=tttt      Set current load segement to 0xtttt.\r\n");
+		   puts("monitor       Invoke the mini-monitor.\r\n");
+		   puts("help          Print this list.\r\n");
+		   puts("?             Print this list.\r\n");
+		   return(TRUE);
 	} else {
 		return(FALSE);
 	}
+	puts("\r\nUNREACHABLE CODE IN interpret() EXECUTED.\r\n");
 	return(FALSE);	/* This should be an unreachable line.  */
 } /* interpret() */
 
