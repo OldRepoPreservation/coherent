@@ -3,11 +3,14 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
-OBJECTS=Startup.o bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o
-SOURCES=Startup.s bootlib.s cbootlib.c diskio.c indirect.c intcall.m monitor.c
+OBJECTS=Startup.o bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
+	l.out.o coff.o
+SOURCES=Startup.s bootlib.s cbootlib.c diskio.c indirect.c intcall.m monitor.c \
+	l.out.c coff.c
 LIBS=-lc
 LD=ld
-
+INCLUDE=-I/usr/include/coff
+CFLAGS=$(INCLUDE)
 
 # NB: OBJECTS must come first in the link line, so the entry
 # point in Startup lines up correctly.
