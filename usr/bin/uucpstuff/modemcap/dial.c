@@ -88,9 +88,9 @@ int	fd;
 		plog(M_CALL, "Enabling line %s", enableme);
 		exec_stat("enable", enableme);
 	}
-	if ( (rdevname != NULL) && lockexist(rdevname) )
+	if ( (strcmp(rdevname,"-") != 0) && lockexist(rdevname) )
 		lockrm(rdevname);
-	devname = NULL;
+	rdevname = NULL;
 }
 
 static
@@ -135,11 +135,12 @@ char **brand;
 			continue;
 		}
 		++tried;		/* found device at desired baud rate */
-		strcpy(login_lock, l_lline);
-		strcat(login_lock, "+");
-		if (lockexist(login_lock))
-			continue;	/* somebody is logged in there */
-
+/*
+ *		strcpy(login_lock, l_lline);
+ *		strcat(login_lock, "+");
+ *		if (lockexist(login_lock))
+ *			continue;	 somebody is logged in there 
+*/
 		/* If the Ldev remote line is not a '-', then see if a lock
 		 * exists on the remote device. If a lock exists, then we don't
 		 * want to disable the remote before calling out on the local
@@ -148,7 +149,7 @@ char **brand;
 		*/
 
 		if((strcmp(l_rline,"-")!=0) && (0 != lockexist(l_rline))){
-			plog(M_CALL,"Remote device %s enabled, cannot disable.",
+			plog(M_CALL,"Remote device %s locked, cannot disable.",
 				l_rline);
 			continue;
 		}
