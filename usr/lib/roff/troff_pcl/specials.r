@@ -24,7 +24,7 @@
 .dc eq =
 .dc ** *
 .dc sc section
-.dc aa '
+.dc aa \'
 .dc ga `
 .dc ul _
 .dc sl /
