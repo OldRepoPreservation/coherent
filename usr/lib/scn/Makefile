@@ -21,7 +21,7 @@ L = 	yesNo.o \
 
 CFLAGS = -O -A -I. -I..
 
-all : libscn.a scn
+all : scn libscn.a
 	echo all done
 
 install : /usr/lib/libscn.a /usr/bin/scn /usr/include/scn.h
@@ -40,8 +40,8 @@ libscn.a : $L
 	rm -f libscn.a
 	ar q libscn.a $L
 
-longfield.c : longfield
-	scn $<
+longfield.c : longfield scn
+	./scn `srcpath longfield`
 
 longfield.o : longfield.c
 
