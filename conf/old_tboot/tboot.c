@@ -17,63 +17,56 @@
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <l.out.h>
-#include <coff/filehdr.h>
+#include <filehdr.h>
+#include <string.h>
 
+#define MAIN
 #include "tboot.h"
+#undef MAIN
 
-#ifndef	NHD
-#define	NHD	1			/* # of heads per drive [1 for f9d0]. */
-#endif
+#include "typed.h"
 
-#ifndef	NSPT
-#define	NSPT	9			/* # of sectors per track on floppy. */
-#define	NTRK	40			/* # of tracks on floppy. */
-#endif
-
-#define ROOTINO 2			/* Root inode # */
-#define INOORG	2			/* First inode block. */
-#define IBSHIFT 3			/* Shift, inode to blocks */
-#define IOSHIFT 6			/* Shift, inode to bytes */
-#define INOMASK 0x0007			/* Mask, inode to offset */
-#define BUFSIZE 512			/* Block size. */
-#define DISK	0x13			/* Disk Interrupt */
-#define KEYBD	0x16			/* Keyboard Interrupt */
-#define READ1	0x0201			/* read one sector */
-#define DEF_SYS_BASE	0x0060		/* System load base paragraph. */
-#define SYS_START	0x0100		/* System entry point. */
-#define FIRST	8			/* Relative start of partition. */
-#define FULLSEG	0xffff			/* Size of a whole 8086 segment. */
-#define PPMASK	(unsigned short) 0xfff0 /* Mask for rounding to paragraph.  */
-
-unsigned short sys_base;	/* Segment into which to load the kernel.  */
+/* Potentially communicated information from an earlier tboot.  */
+TYPED_SPACE(boot_gift, 8192, T_FIFO_SIC);	/* Static In-Core FIFO.  */
 
 main()
 {
-	char imagename[5*DIRSIZ+1] = "autoboot";	/* File to boot.  */
-	ino_t imageinum;		/* inode number of the boot image.  */
-	struct inode imageinode;	/* Inode structure for the boot image.  */
-	int imageok;			/* Flag to identify usable executables.  */
+	extern uint16 myds;	/* My data segment, from Setup.s.  */
+	char cmd_line[BLOCK];		/* Command typed at prompt.  */
+	char cmd_name[BLOCK] = "autoboot"; /* File to boot.  */
 
-	unsigned int filemagic;		/* Magic number from file.  */
+	ino_t imageinum;		/* inode number of the boot image.  */
+	struct inode imageinode;  /* Inode structure for the boot image.  */
+	int imageok;		  /* Flag to identify usable executables.  */
+
+	uint16 filemagic;		/* Magic number from file.  */
 	struct load_segment imagetable[MAX_SEGS]; /* How to load a file.  */
 	struct load_segment *cur_segment; /* Pointer for walking imagetable.  */ 
 
-	unsigned short data_seg;	/* Data segment register for image.  */
+	uint16 data_seg;	/* Data segment register for image.  */
 
+	uint16 boot_value;      /* Offset of boot_gift into
+				 * load image data segment.
+				 */
+
+	
+	/* Load the kernel here.  */
 	sys_base = DEF_SYS_BASE;
+	sys_base_set = FALSE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 0.9b\r\n");
-
+	puts("\r\nCOHERENT Tertiary boot Version 1.0 alpha\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
-		while  ((ino_t) 0 == (imageinum = namei(imagename))){
-			/* Ask for another name.  */
-			/* Don't generate a message for name "".  */
-			if (imagename[0] != '\0') {
-				puts("\r\nCan't find ");
-				puts(imagename);
-				puts(".  Please choose another.\r\n");
+		while  ((ino_t) 0 == (imageinum = namei(cmd_name))){
+
+			/* Ask for another name.
+			 * Don't generate a message for name "".
+			 */
+			if (cmd_name[0] != '\0') {
+				puts("\r\nCan't find \"");
+				puts(cmd_name);
+				puts("\".  Please choose another.\r\n");
 			}
 
 			/* Fetch new file names, executing them
@@ -82,55 +75,64 @@ main()
 			 */
 			do {
 				puts("? ");
-				gets(imagename, DIRSIZ);
+				gets(cmd_line, DIRSIZ);
 				puts("\r\n");
-			} while (interpret(imagename));
+				sanity_check("Main command loop");
+
+			} while (interpret(cmd_line));
+
+			/* Extract the cmd_name from the command line.
+			 * Do this because strtok is destructive and we
+			 * want cmd_line for later use.
+			 */
+			strcpy(cmd_name, cmd_line);
+			strtok(cmd_name, WS);
 		}
-	
+
 		/* We've found the image we want to boot--let's open it.  */
 		if (0 == iopen(&imageinode, imageinum)) {
 			puts("Can't open ");
-			puts(imagename);
+			puts(cmd_name);
 			puts(".\r\n");
 			continue;
 		}
 
 		/* Read the magic number.  */
 		iread(&imageinode, &filemagic,
-			(fsize_t) 0, (unsigned short) sizeof (int));
+			(fsize_t) 0, (uint16) sizeof (int));
 		canint(filemagic);	/* Harmless on 80386.  */
 
-		switch (filemagic) {
-		/* Is this an i386 COFF executable?  */
-		case I386MAGIC:
-			puts("COFF!  COFF!\r\n");
-			imageok = 
-				coff2load(&imageinode, imagetable, &data_seg);
-			break;
-			
-		/* Is this an l.out executable?  */
-		case L_MAGIC:
-			puts("l.out!\r\n");
-			imageok =
-				lout2load(&imageinode, imagetable, &data_seg);
-			break;
+		/* If we haven't explicitly set sys_base, default it based
+		 * on the type of file we are loading.
+		 */
+		if (!sys_base_set) {
+			puts("Assuming default sys_base.\r\n");
+			sys_base = object_sys_base(filemagic);
+		}
 
-		default:
-			imageok = (1==2);
+		imageok = object2load(filemagic, &imageinode, imagetable, &data_seg);
+
+		if (!imageok) {
 			puts("File ");
-			puts(imagename);
+			puts(cmd_name);
 			puts(" is not an executable.\r\n");
+				puts("Please choose another.\r\n");
+			cmd_name[0] = '\0';
+		}
 
-			puts("Please choose another.\r\n");
-			imagename[0] = '\0';
-			break;
-		} /* switch (filemagic) */
+		if (imageok && (0 == strcmp(cmd_name, "autoboot"))) {
+			puts("Press any key to abort boot.\r\n");
+			imageok = !wait_for_keystroke(WAIT_DELAY);
+			if (!imageok) {
+				cmd_name[0] = '\0';
+			}
+		}
 	} while (!imageok);
 
 	/* ASSERTION: imageinode and imagetable describe a valid executable.  */
 
 	puts("OK!  Loading ");
-	puts(imagename);
+	puts(cmd_name);
 	puts("...\r\n");
 
 	/* Now actually load everything into memory.  */
@@ -144,8 +146,21 @@ main()
 			cur_segment->load_length);
 	}
 
+	/* Does the program we just loaded want more info?  */
+
+	/* Look up the variable "boot_gift" in the image.  */	
+	puts("\r\nChecking for argument compatability.\r\n");
+	boot_value = object_nlist(filemagic, cmd_name, "boot_gift");
+
+
+	if (0 != boot_value) {
+		puts("Preparing arguments.\r\n");
+		/* Yes, this program can accept more information.  */
+		prepare_gift(data_seg, boot_value, cmd_line);
+	}
+
 	puts("\r\nRunning ");
-	puts(imagename);
+	puts(cmd_name);
 	puts("...\r\n");
 
 	/* Run the image (the kernel).  */
