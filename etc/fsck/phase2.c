@@ -386,7 +386,7 @@ char *name;
 {
 	register int mode = flags(inum)&MODEMASK;
 
-	printf("Bad or Dup blocks in %s\n",(mode==IDIR) ? "Directory" : "File");
+	printf("Bad or Dup blocks in %s\n", typename(inum));
 	pinfo(inum);
 	pname(name);
 	return(action(remove));
