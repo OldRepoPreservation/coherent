@@ -3,6 +3,7 @@
 # It should have separate targets for different machines and representations,
 # notably i8087.
 
+DESTDIR386=/bin386/lib/
 OBJ=\
 	acos.o\
 	asin.o\
@@ -32,7 +33,7 @@ OBJ=\
 
 # Primary target.
 libm.a:	$(OBJ)
-	$(AR) rckus $@ $?
+	$(AR) rckus $(DESTDIR386)$@ $?
 
 # Secondary targets.
 acos.o:		acos.c
