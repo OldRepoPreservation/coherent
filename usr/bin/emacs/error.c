@@ -49,11 +49,11 @@ forwerr(dir)
 	if (wp->w_doto)
 		lp = dir ? lback(lp) : lforw(lp);
 
-	for(; lp != errbp->b_linep; lp = dir ? lback(lp) : lforw(lp)) {
+	for (; lp != errbp->b_linep; lp = dir ? lback(lp) : lforw(lp)) {
 		int len, prev;
 
 		tp = lp->l_text;
-		for(len = llength(lp), prev = '(';
+		for (len = llength(lp), prev = '(';
 		    len && ((*tp < '0') || (*tp > '9') || (prev != '('));
 		    prev = *tp++, len--)
 			;
@@ -61,11 +61,11 @@ forwerr(dir)
 			error_line *= 10;
 			error_line += c;
 		}
-		if(!error_line)
+		if (!error_line)
 			continue;
 		et = error_text;
 		while ((len-- > 0) && ((*et++ = *tp++) != 0)) {
-			if((et - error_text) > (term.t_ncol - 15))
+			if ((et - error_text) > (term.t_ncol - 15))
 				break;
 		}
 		*et = 0;

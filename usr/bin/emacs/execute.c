@@ -26,10 +26,10 @@ KEYTAB *tab;
 	register KEYTAB *ktp;
 	register int i;
 
-	for(i = c % HASHP; -1 != i; i = ktp->k_synonym)
-		if((ktp = tab + i)->k_code == c)
-			return(ktp);
-	return(NULL);
+	for (i = c % HASHP; -1 != i; i = ktp->k_synonym)
+		if ((ktp = tab + i)->k_code == c)
+			return (ktp);
+	return (NULL);
 }
 	
 /*
@@ -45,14 +45,14 @@ register int c;
 	register KEYTAB *ktp;
 	int	status;
 
-	if((NULL != (ktp = findBind(c, bind.table))) ||
-	   (NULL != (ktp = findBind((c & ~OBND), keytab)))) {
+	if ((NULL != (ktp = findBind(c, bind.table))) ||
+	    (NULL != (ktp = findBind((c & ~OBND), keytab)))) {
 			thisflag = 0;
 			status = (ktp->k_fun < 0) ?
 				doMac(bind.macs - (2 + ktp->k_fun), f, n) :
 				(*(funtab[ktp->k_fun].f_fp))(f, n);
 			lastflag = thisflag;
-			return(status);
+			return (status);
 	}
 
 	if (c >= 0x20 && c <= 0xFF)	{	/* Self inserting.	*/
@@ -67,7 +67,7 @@ register int c;
 		/*
 		 * If fill column is defined perform word wrap.
 		 */
-		if(bind.fillcol)
+		if (bind.fillcol)
 			wrapword();
 
 		return (status);
@@ -83,16 +83,16 @@ register int c;
  */
 ctlxlp(f, n)
 {
-	if(kbdmip!=NULL) {
+	if (kbdmip!=NULL) {
 		mlwrite("Not now");
 		return (FALSE);
 	}
-	if(NULL != kbdm)
+	if (NULL != kbdm)
 		free(kbdm);
 	mlwrite("[Start macro]");
-	if(NULL == (kbdmip = kbdm = malloc(kbdlen = NKBDM))) {
+	if (NULL == (kbdmip = kbdm = malloc(kbdlen = NKBDM))) {
 		mlwrite("Out of space");
-		return(FALSE);
+		return (FALSE);
 	}
 	return (TRUE);
 }
@@ -124,7 +124,7 @@ ctlxe(f, n)
 		mlwrite("Not now");
 		return (FALSE);
 	}
-	return(doMac(&kbdm, f, n));
+	return (doMac(&kbdm, f, n));
 }
 
 /*
@@ -138,14 +138,14 @@ unBind(c)
 	register KEYTAB *ktp;
 
 	mlerase();
-	if(NULL == (ktp = findBind(c, bind.table)))
+	if (NULL == (ktp = findBind(c, bind.table)))
 		return;
-	if((i = ktp->k_fun) < 0) {
+	if ((i = ktp->k_fun) < 0) {
 		free(bind.macs[i = -(2 + i)]);
 		bind.macs[i] = NULL;
 		bind.maclen[i] = 0;
 	}
-	if(-1 != (i = ktp->k_synonym)) {
+	if (-1 != (i = ktp->k_synonym)) {
 		memcpy(ktp, (bind.table + i), sizeof(*ktp));
 		bind.table[i].k_code = bind.table[i].k_synonym = -1;
 	}		
@@ -162,20 +162,20 @@ reBind(c, i)
 	register KEYTAB *ktp, *kh;
 
 	kh = ktp = bind.table + (c % HASHP);
-	if(-1 != ktp->k_code) {
-		for(ktp = bind.table + MAXREB; --ktp >= bind.table; )
-			if(-1 == ktp->k_code)
+	if (-1 != ktp->k_code) {
+		for (ktp = bind.table + MAXREB; --ktp >= bind.table; )
+			if (-1 == ktp->k_code)
 				break;
-		if(ktp < bind.table) {
+		if (ktp < bind.table) {
 			mlwrite("No free spaces in mod tab");
-			return(FALSE);
+			return (FALSE);
 		}
 		ktp->k_synonym = kh->k_synonym;
 		kh->k_synonym  = ktp - bind.table;
 	}
 	ktp->k_code = c;
 	ktp->k_fun = i;
-	return(TRUE);
+	return (TRUE);
 }
 
 /*
@@ -190,20 +190,20 @@ bindFun()
 	d = getbind(0);
 	ktp = findBind(d, keytab);
 	mlwrite("Enter new keybinding ");
-	if((PFX1|'R') == (c = getbind(0))) {
+	if ((PFX1|'R') == (c = getbind(0))) {
 		mlwrite("Cannot rebind <ctl>-x r");
-		return(FALSE);
+		return (FALSE);
 	}
-	if(d == c) {
+	if (d == c) {
 		unBind(c);
-		return(TRUE);
+		return (TRUE);
 	}
-	if(NULL == ktp) {
+	if (NULL == ktp) {
 		mlwrite("Non existant binding");
-		return(FALSE);
+		return (FALSE);
 	}
 	unBind(c);
-	return(reBind(c, ktp->k_fun));
+	return (reBind(c, ktp->k_fun));
 }
 
 /*
@@ -213,9 +213,9 @@ loadBinds()
 {
 	uchar		fname[NFILEN];
 
-	if(mlreply("Load bindings file: ", fname, NFILEN) != TRUE)
-		return(FALSE);
-	return(loadBup(fname, FALSE));
+	if (mlreply("Load bindings file: ", fname, NFILEN) != TRUE)
+		return (FALSE);
+	return (loadBup(fname, FALSE));
 }
 
 /*
@@ -224,7 +224,7 @@ loadBinds()
 ioTrouble(fname, startsw)
 uchar *fname;
 {
-	switch(startsw) {
+	switch (startsw) {
 	case FALSE:	/* callec from ctl-x l */
 		mlwrite("I/O toruble with %s", fname);
 		return (FALSE);
@@ -232,7 +232,7 @@ uchar *fname;
 		fprintf(stderr, "I/O trouble with %s\n", fname);
 		exit(1);
 	case TRUE:	/* default bindings file */
-		return(TRUE);
+		return (TRUE);
 	}
 }
 /*
@@ -244,35 +244,35 @@ uchar *fname;
 	register int i;
 	short magic;
 
-	if(((ffp=fopen(fname, "rb")) == NULL) ||
-	   (1 != fread(&magic, sizeof(magic), 1, ffp)) ||
-	   (magic != BINDID))
-		return(ioTrouble(fname, startsw));
+	if (((ffp=fopen(fname, "rb")) == NULL) ||
+	    (1 != fread(&magic, sizeof(magic), 1, ffp)) ||
+	    (magic != BINDID))
+		return (ioTrouble(fname, startsw));
 
-	if(1 != fread(&bind, sizeof(bind), 1, ffp))
-		return(ioTrouble(fname, ABORT));
+	if (1 != fread(&bind, sizeof(bind), 1, ffp))
+		return (ioTrouble(fname, ABORT));
 	
-	for(i = 0; i < (MAXMAC + 2); i++) {
-		if(NULL != bind.macs[i]) {
-			if(NULL == (bind.macs[i] = malloc(bind.maclen[i]))) {
+	for (i = 0; i < (MAXMAC + 2); i++) {
+		if (NULL != bind.macs[i]) {
+			if (NULL == (bind.macs[i] = malloc(bind.maclen[i]))) {
 				mlwrite("Out of memory");
-				for(; i <= MAXMAC; i++)
+				for (; i <= MAXMAC; i++)
 					bind.macs[i] = NULL;
-				return(FALSE);
+				return (FALSE);
 			}
-			if(1 != fread(bind.macs[i], bind.maclen[i], 1, ffp))
-				return(ioTrouble(fname, ABORT));
+			if (1 != fread(bind.macs[i], bind.maclen[i], 1, ffp))
+				return (ioTrouble(fname, ABORT));
 		}
 	}
-	if(NULL != bind.macs[MAXMAC+1]) {
-		if(NULL != kbdm)
+	if (NULL != bind.macs[MAXMAC+1]) {
+		if (NULL != kbdm)
 			free(kbdm);
 		kbdmip = NULL;
 		kbdm = bind.macs[MAXMAC+1];
 		kbdlen = bind.maclen[MAXMAC+1];
 	}
 	ffclose();
-	return(TRUE);
+	return (TRUE);
 }
 
 /*
@@ -284,10 +284,10 @@ storBinds()
 	static	short magic = BINDID;
 	uchar	fname[NFILEN];
 
-	if(mlreply("Store bindings file: ", fname, NFILEN) != TRUE)
-		return(FALSE);
-	if(FIOSUC != ffwopen(fname, "wb"))
-		return(FALSE);
+	if (mlreply("Store bindings file: ", fname, NFILEN) != TRUE)
+		return (FALSE);
+	if (FIOSUC != ffwopen(fname, "wb"))
+		return (FALSE);
 	if (kbdmip != NULL || kbdm == NULL)	/* store closed mac only */
 		bind.macs[MAXMAC+1] = NULL;
 	else {
@@ -296,8 +296,8 @@ storBinds()
 	}
 	fwrite(&magic, sizeof(magic), 1, ffp);
 	fwrite(&bind, sizeof(bind), 1, ffp);
-	for(i = 0; i < (MAXMAC + 2); i++)
-		if(NULL != bind.macs[i])
+	for (i = 0; i < (MAXMAC + 2); i++)
+		if (NULL != bind.macs[i])
 			fwrite(bind.macs[i], bind.maclen[i], 1, ffp);
 	ffclose();
 }
@@ -309,32 +309,32 @@ nameMac()
 {
 	register int i, c;
 
-	if(kbdmip != NULL)
+	if (kbdmip != NULL)
 		ctlxrp();
-	if(kbdm == NULL) {
+	if (kbdm == NULL) {
 		mlwrite("Not now");
 		return (FALSE);
 	}
 	mlwrite("Enter keybinding for macro ");
-	if((PFX1|'R') == (c = getbind(0))) {
+	if ((PFX1|'R') == (c = getbind(0))) {
 		mlwrite("Cannot rebind <ctl>-x r");
-		return(FALSE);
+		return (FALSE);
 	}
 	unBind(c);
 
-	for(i = 0; (i < MAXMAC) && (NULL != bind.macs[i]); i++)
+	for (i = 0; (i < MAXMAC) && (NULL != bind.macs[i]); i++)
 		;
-	if(MAXMAC == i) {
+	if (MAXMAC == i) {
 		mlwrite("Too many macros bound");
-		return(FALSE);
+		return (FALSE);
 	}
-	if(reBind(c, -(i + 2)) == FALSE)
-		return(FALSE);
+	if (reBind(c, -(i + 2)) == FALSE)
+		return (FALSE);
 	bind.macs[i] = kbdm;
 	bind.maclen[i] = kbdlen;
 	kbdm = NULL;
 	kbdlen = 0;
-	return(TRUE);
+	return (TRUE);
 }
 
 /*
@@ -351,7 +351,7 @@ initMac()
 	kbdm = NULL;
 	kbdlen = 0;
 	mlwrite("init mac bound");
-	return(TRUE);
+	return (TRUE);
 }
 
 /*
@@ -370,11 +370,11 @@ uchar **macro;
 	short *kbdsav;
 	uchar  *macsav;
 
-	if(!n) 
+	if (!n) 
 		return (TRUE);
-	if(NULL == (macsav = *macro)) {
+	if (NULL == (macsav = *macro)) {
 		mlwrite("Not now");
-		return(FALSE);
+		return (FALSE);
 	}
 	*macro = NULL;	/* prevent regress */
 	kbdsav = kbdmop;
@@ -389,9 +389,9 @@ uchar **macro;
 				c  = *kbdmop++;
 			}
 			s = TRUE;
-		} while((c != -1) && (s = execute(c, af, an)) == TRUE);
+		} while ((c != -1) && (s = execute(c, af, an)) == TRUE);
 	} while ((s == TRUE) && ((-1 == n) || --n));
-	if(-1 == n)
+	if (-1 == n)
 		s = TRUE;
 	kbdmop = kbdsav;
 	*macro = macsav;
@@ -403,7 +403,7 @@ setpf(loc, no)
 int *loc, no;
 {
 	mlwrite("Enter prefix character %d or space ", no);
-	if(' ' != (no = getkey()))
+	if (' ' != (no = getkey()))
 		*loc = no;
 }
 
@@ -418,7 +418,7 @@ setPrefix()
 	setpf(&bind.pfx2, 2);
 	setpf(&bind.pfx3, 3);
 	mlwrite("Enter repeat code or space ");
-	if(' ' != (c = getkey()))
+	if (' ' != (c = getkey()))
 		bind.repeat = c;
 	mlerase();
 }

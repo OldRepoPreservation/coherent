@@ -49,9 +49,9 @@ ffclose()
 #if	V7
 	if (fclose(ffp) != FALSE) {
 		mlwrite("Error closing file");
-		return(FIOERR);
+		return (FIOERR);
 	}
-	return(FIOSUC);
+	return (FIOSUC);
 #endif
 	fclose(ffp);
 	return (FIOSUC);

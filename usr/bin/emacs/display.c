@@ -274,8 +274,7 @@ update()
 			for (j=0; j<term.t_ncol; ++j)
 				vp1->v_text[j] = ' ';
 		}
-		movecursor(0, 0);		/* Erase the screen.	*/
-		teeop();
+		teeop();			/* Erase the screen.	*/
 		sgarbf = FALSE;			/* Erase-page clears	*/
 		mpresf = FALSE;			/* the message area.	*/
 	}
@@ -628,13 +627,14 @@ mlwrite(fmt)
 uchar	*fmt;
 {
 	register int	c;
+	
 	uchar buf[NPAT * 2];
 
 	movecursor(term.t_nrow, 0);
 	sprintf(buf, "%r", &fmt);
-	if(strlen(buf) > 78)  /* too big to display on normal terminal */
-		buf[78] = 0;
-	for(fmt = buf; c = *fmt; fmt++) {
+	if (strlen(buf) > (term.t_ncol - 1))
+		buf[term.t_ncol - 1] = 0;
+	for (fmt = buf; c = *fmt; fmt++) {
 		tputc(c);
 		++ttcol;
 	}
@@ -671,12 +671,12 @@ LINE *what;
 	LINE *clp;
 
 	row = 0;
-	for(clp = curwp->w_linep; clp != what; clp = lforw(clp)) {
-		if((clp == curbp->b_linep) || (row > curwp->w_ntrows))
-			return(-1);
+	for (clp = curwp->w_linep; clp != what; clp = lforw(clp)) {
+		if ((clp == curbp->b_linep) || (row > curwp->w_ntrows))
+			return (-1);
 		row++;
 	}
-	return(row + curwp->w_toprow);
+	return (row + curwp->w_toprow);
 }
 
 /*
@@ -687,14 +687,14 @@ LINE *clp;
 {
 	int i, tcol, c;
 
-	for(i = tcol = 0; i < col; i++) {
-		if('\t' == (c = lgetc(clp, i)))
+	for (i = tcol = 0; i < col; i++) {
+		if ('\t' == (c = lgetc(clp, i)))
 			taber(tcol);
-		else if((c < ' ') || (c == 0x7f))
+		else if ((c < ' ') || (c == 0x7f))
 			tcol++;
 		tcol++;
 	}
-	if(tcol >= term.t_ncol)	/* too far out */
+	if (tcol >= term.t_ncol)	/* too far out */
 		tcol = term.t_ncol - 1;
-	return(tcol);
+	return (tcol);
 }
