@@ -1,11 +1,9 @@
-/* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
 /*
- * Machine dependent definitions.
- * 80386 Coherent, IBM PC.
+ * /usr/include/sys/reg.h
+ *
+ * Machine dependent definitions, 80386 Coherent, IBM PC.
+ *
+ * Revised: Mon Jul 19 12:25:37 1993 CDT
  */
 #ifndef	__SYS_REG_H__
 #define	__SYS_REG_H__
@@ -133,8 +131,9 @@ typedef	struct menv_s {
 	int	mc_bx;
 	int	me_bp;
 	int	me_sp;
+	int	me_cs;
 	int	me_pc;
-	int	me_fw;
+	int	me_space;
 }	MENV;
 
 /*
@@ -146,8 +145,9 @@ typedef	struct mcon_s {
 	int	mc_bx;
 	int	mc_bp;
 	int	mc_sp;
+	int	mc_cs;
 	int	mc_pc;
-	int	mc_fw;
+	int	mc_space;
 }	MCON;
 
 /*
