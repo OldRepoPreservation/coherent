@@ -77,7 +77,8 @@ void		segload();
 void		sunload();
 void		unload();
 void		valloc();
-void		zero_fill();
+
+#define		zero_fill(from, len)	memset(from, 0, len)
 
 /*
  * "load" a handle "hp"  to a segment into the space tree for a process
@@ -90,7 +91,6 @@ register SR	*srp;
 	register	cseg_t *pp;
 	register int	base1, flags;
 	register int	akey;
-	
 
 	pp = srp->sr_segp->s_vmem;
 	flags = srp->sr_segp->s_flags;
@@ -100,7 +100,6 @@ register SR	*srp;
 	/*
 	 * we load all pages
 	 */
-
 	switch (flags&(SFSYST|SFTEXT)) {
 	case SFTEXT:	akey = SEG_RO;  break;
 	case SFSYST:	akey = SEG_SRW; break;
@@ -113,7 +112,6 @@ register SR	*srp;
 	mmuupd();
 }
 
-	
 
 /*
  * unload a handle key "key" to a segment from the MMU hardware
@@ -128,7 +126,7 @@ register SR *srp;
 	
 	n = btoc(srp->sr_size);
 	do {
-		ptable1_v[base1++] =  SEG_ILL;
+		ptable1_v[base1++] = SEG_ILL;
 	} while (--n);
 	mmuupd();
 }
@@ -712,7 +710,7 @@ mchinit()
 		ptable0_v[0x001+i] = dataseg[i] | DIR_RW;
 	}
 #else
-	dataseg = clickseg(*--sysmem.pfree);	/* 5.b */
+	dataseg = clickseg(*--sysmem.pfree);		/* 5.b */
 	ptable0_v[0x001] = dataseg | DIR_RW;
 #endif
 
@@ -794,7 +792,6 @@ mchinit()
 	 * to prevent the prefetch after the instruction turning on
 	 * paging from causing a page fault
 	 */
-
 	ptable1_v  = (long *)(codeseg + ctob(SBASE-PBASE));
 	ptable1_v[PBASE] = clickseg(PBASE) | SEG_SRW;
 
@@ -804,7 +801,6 @@ mchinit()
 	 * 10. load page table base address into MMU
 	 *	fix up the interrupt vectors
 	 */
-
 	mmuupd();
 	CHIRP('U');
 	idtinit();
@@ -819,19 +815,33 @@ typedef struct
 	unsigned short	off_hi;
 } IDT;
 
+/*
+ * ldtinit()
+ *
+ * Fix up descriptors which are hard to create properly at compile/link time.
+ * Apply to idt and ldt.
+ *
+ * Swap 16-bit words at descriptor+2, descriptor+6.
+ */
 void
 idtinit()
 {
-	extern IDT	idt[], bdt[], idtend[], bdtend[];
+	extern IDT	idt[], idtend[];
 	extern IDT	ldt[], ldtend[];
 	register IDT *ip;
+	register unsigned short tmp;
 
-	for (ip = idt; ip <idtend; ip++)
-		ip->seg = SEG_386_KI;
-	for (ip = bdt; ip <bdtend; ip++)
-		ip->seg = SEG_386_KI;
-	for (ip = ldt; ip <ldtend; ip++)
-		ip->seg = SEG_386_KI;
+	for (ip = idt; ip <idtend; ip++) {
+		tmp = ip->off_hi;
+		ip->off_hi = ip->seg;
+		ip->seg = tmp;
+	}
+
+	for (ip = ldt; ip <ldtend; ip++) {
+		tmp = ip->off_hi;
+		ip->off_hi = ip->seg;
+		ip->seg = tmp;
+	}
 }
 
 void
@@ -886,9 +896,7 @@ segload()
 				start->sr_base -= start->sr_size;
 				break;
 			}
-			/*
-			 * Historical note - "pipe bug" fixed here.
-			 */
+
 			start->sr_segp = 0;
 			if (SELF->p_segp[i]) {
 				start->sr_segp = SELF->p_segp[i];
@@ -915,10 +923,13 @@ register cseg_t *pp;
 }
 #endif
 
-/*
- * General initialisation
- */
+/*XXX*/
+MAKESR(r0stk, _r0stk);
+extern int tss_sp0;
 
+/*
+ * General initialization
+ */
 void
 i8086()
 {
@@ -927,10 +938,21 @@ i8086()
 	unsigned int	calc_mem, boost;
 
 	/*
+	 * Allocate a click for ring 0 stack.
+	 */
+	r0stk.sr_size = NBPC;
+	valloc(&r0stk);
+	tss_sp0 = r0stk.sr_base + NBPC;
+
+	/*
 	 * calc_mem is used for autosizing buffer cache and kalloc pool.
 	 * It is total_mem, limited below by 1 meg and above by 12 meg.
 	 * The upper limit is a temporary move to allow booting on 16 Meg
 	 * systems.
+	 *
+	 * "boost" is used in autosizing buffer cache and kalloc pool.
+	 * It is the number of megabytes of calc_mem above 1 meg, i.e.,
+	 * a number between 0 and 11.
 	 */
 #ifndef FOO
 	if (total_mem < ONE_MEG)
@@ -975,7 +997,7 @@ i8086()
 	allkp = setarena(base, allsize);
 	base += allsize;
 #if USE_SLOT
-	slotp  = (int *)  base;
+	slotp = (int *)base;
 	base += ssize;
 #endif
 	inodep = (INODE*) base;
@@ -1286,22 +1308,6 @@ FRAME16 *fp, *fmin, *fmax;
 	}
 }
 
-/*
- * Fill a 4-byte-aligned region of memory with zeros.
- *
- * Arguments are the starting address and the size in bytes of the region
- * to be cleared.
- */
-void
-zero_fill(from, len)
-register long *from;
-register int len;
-{
-	len /= sizeof(long);
-        while (len-->0)
-                *from++ = 0;
-}
-
 /* Read a 16 byte number from the CMOS.  */
 unsigned int
 read16_cmos(addr)
@@ -1311,11 +1317,6 @@ unsigned int addr;
 	
 	return((read_cmos(addr+1)<<8) + read_cmos(addr));
 } /* read16_cmos() */
-
-/*
- * Sleazy tunable to see how much extra we need to make dash work.
- */
-unsigned C_INCR = 0;
 
 int
 c_grow(sp, new_bytes)
@@ -1328,11 +1329,8 @@ int new_bytes;
 	SR		*srp;
 
 	T_PIGGY( 0x8000000, printf("c_grow(sp: %x, new: %x)", sp, new_bytes); );
-	/*
-	 * The C_INCR is added to find out how much extra memory is needed
-	 * to make dash work.
-	 */
-	new_clicks = btoc(new_bytes + C_INCR);
+
+	new_clicks = btoc(new_bytes);
 	old_clicks = btoc(sp->s_size);
 
 	if (new_clicks == old_clicks) {
@@ -1406,7 +1404,7 @@ int new_bytes;
 	 * clear the added clicks
 	 *
 	 * MAPIO macro - convert array of page descriptors, offset
-	 *   into system absolute address.
+	 *   into system global address.
 	 */
 	T_PIGGY( 0x8000000, printf("dmaclear(%x, %x, 0)", 
 				ctob(new_clicks - old_clicks),
