@@ -1,8 +1,11 @@
 /*
  * This is the generic SCSI part of the
- * Adaptec AHA154x host adaptor driver for the AT.
+ * Adaptec AHA154x host adapter driver for the AT.
  *
  * $Log:	scsi.c,v $
+ * Revision 1.5  91/06/10  12:58:04  hal
+ * Partial fix for HDGETA failing if partition table absent.
+ * 
  * Revision 1.4  91/06/03  13:50:06  hal
  * Add HDSETA.
  * 
@@ -110,10 +113,10 @@ CON	sdcon	= {
 };
 
 /*
- *	hostadaptor routines
+ *	host adapter routines
  */
-int	aha_load();		/* initialize hostadaptor, DMA */
-void	aha_unload();		/* shutdown the host adaptor */
+int	aha_load();		/* initialize host adapter, DMA */
+void	aha_unload();		/* shutdown the host adapter */
 int	aha_start();		/* see if there's work */
 int	aha_command();
 
@@ -156,7 +159,7 @@ sdload()
 	 * Initialize Drive Controller.
 	 */
 	sw_active = 0;
-	if (aha_load( SDDMA, SDIRQ, SDBASE, &sd ) < 0) {
+	if (aha_load(SDDMA, SDIRQ, SDBASE, &sd) < 0) {
 		u.u_error = ENXIO;
 		return;
 	}
@@ -173,9 +176,9 @@ sdunload()
 {
 	register int i;
 
-	if( sw_active > 0 )
-		printf( "aha154x: sdunload() athough %d active\n", sw_active );
-	aha_unload( SDIRQ );
+	if (sw_active > 0)
+		printf("aha154x: sdunload() athough %d active\n", sw_active);
+	aha_unload(SDIRQ);
 	for (i = 0; i < NDRIVE; ++i)
 		if (pparmp[i] != PNULL)
 			kfree(pparmp[i]);	/* free any partition tables */
@@ -209,28 +212,28 @@ dev_t	dev;
 	sc.block = 0L;
 	sc.blklen = 0;
 
-	sc.buffer = VTOP2( buffer, sds );
+	sc.buffer = VTOP2(buffer, sds);
 	++drvl[SDMAJOR].d_time;	
 #if	0
 	sc.cmd = ScmdINQUIRY;
 	sc.buflen = 36;
-	aha_command( &sc );
-	aha_command( &sc );
+	aha_command(&sc);
+	aha_command(&sc);
 	buffer[36] = 0;
-	printf( "SCSI Disk %s", &buffer[8] );
+	printf("SCSI Disk %s", &buffer[8]);
 #endif
 	sc.cmd = ScmdREADCAPACITY;
 	sc.buflen = 8;
 
-	for( i = 0; i < sc.buflen; ++i )
+	for(i = 0; i < sc.buflen; ++i)
 		buffer[i] = 0;
-	aha_command( &sc );
-	aha_command( &sc );
+	aha_command(&sc);
+	aha_command(&sc);
 #if	VERBOSE
-	printf( "buffer =" );
-	for( i = 0; i < sc.buflen; ++i )
-		printf( " %x", buffer[i] );
-	printf( "\n" );
+	printf("buffer =");
+	for(i = 0; i < sc.buflen; ++i)
+		printf(" %x", buffer[i]);
+	printf("\n");
 #endif
 	sc.block = (buffer[0]<<8) | buffer[1];
 	sc.block <<= 16;
@@ -238,18 +241,18 @@ dev_t	dev;
 
 	sc.blklen = (buffer[6]<<8) | buffer[7];
 #if	VERBOSE
-	printf( "SCSI %D. blocks of size %d\n", sc.block, sc.blklen );
+	printf("SCSI %D. blocks of size %d\n", sc.block, sc.blklen);
 #endif
 	kfree(buffer);
 	fdp[WHOLE_DRIVE].p_size = sc.block;
 	--drvl[SDMAJOR].d_time;	
-	return fdisk( sdmkdev(major(dev), SDEV, d), pparmp[d]);
+	return fdisk(sdmkdev(major(dev), SDEV, d), pparmp[d]);
 }
 
 /**
  *
  * void
- * sdopen( dev, mode )
+ * sdopen(dev, mode)
  * dev_t dev;
  * int mode;
  *
@@ -260,15 +263,15 @@ dev_t	dev;
  *		Update the paritition table if necessary.
  */
 static void
-sdopen( dev, mode )
+sdopen(dev, mode)
 register dev_t	dev;
 {
 	register int p;			/* partition */
 	register int d;			/* drive (SCSI ID + LUN) */
 	struct fdisk_s	*fdp;		/* one partition entry */
 
-	if ( minor(dev) & SDEV ) {
-		if ( PARTITION(minor(dev)) != 0 ) {	/* tape device ? */
+	if (minor(dev) & SDEV) {
+		if (PARTITION(minor(dev)) != 0) {	/* tape device ? */
 			u.u_error = ENXIO;		/* not yet! */
 devmsg(dev, "No tape yet");
 		} else {
@@ -284,7 +287,7 @@ devmsg(dev, "No tape yet");
 	/*
 	 * If partition not defined read partition characteristics.
 	 */
-	if ( pparmp[d] == PNULL )   /* no entry yet for this drive ? */
+	if (pparmp[d] == PNULL)   /* no entry yet for this drive ? */
 		if (!sdgetpartitions(dev)) {
 			u.u_error = ENXIO;
 			return;
@@ -295,7 +298,7 @@ devmsg(dev, "No tape yet");
 	fdp = (struct fdisk_s *) pparmp[d];
 	if ((fdp[p].p_base+fdp[p].p_size) > fdp[WHOLE_DRIVE].p_size) {
 		u.u_error = EBADFMT;
-	} else if ( fdp[p].p_size == 0 ) {
+	} else if (fdp[p].p_size == 0) {
 		u.u_error = ENODEV;
 	} else {
 		++drvl[SDMAJOR].d_time;	
@@ -303,7 +306,7 @@ devmsg(dev, "No tape yet");
 	}
 }
 
-void sdclose( dev )
+void sdclose(dev)
 {
 	--drvl[SDMAJOR].d_time;	
 	--sw_active;	
@@ -312,7 +315,7 @@ void sdclose( dev )
 /**
  *
  * void
- * sdread( dev, iop )	- write a block to the raw disk
+ * sdread(dev, iop)	- write a block to the raw disk
  * dev_t dev;
  * IO * iop;
  *
@@ -322,17 +325,17 @@ void sdclose( dev )
  *	Action:	Invoke the common raw I/O processing code.
  */
 static void
-sdread( dev, iop )
+sdread(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	ioreq( &dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC );
+	ioreq(&dbuf, iop, dev, BREAD, BFRAW|BFBLK|BFIOC);
 }
 
 /**
  *
  * void
- * sdwrite( dev, iop )	- write a block to the raw disk
+ * sdwrite(dev, iop)	- write a block to the raw disk
  * dev_t dev;
  * IO * iop;
  *
@@ -342,17 +345,17 @@ IO	*iop;
  *	Action:	Invoke the common raw I/O processing code.
  */
 static void
-sdwrite( dev, iop )
+sdwrite(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	ioreq( &dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC );
+	ioreq(&dbuf, iop, dev, BWRITE, BFRAW|BFBLK|BFIOC);
 }
 
 /**
  *
  * int
- * sdioctl( dev, cmd, arg )
+ * sdioctl(dev, cmd, arg)
  * dev_t dev;
  * int cmd;
  * char * vec;
@@ -365,7 +368,7 @@ IO	*iop;
  *		Update the paritition table if necessary.
  */
 static int
-sdioctl( dev, cmd, vec )
+sdioctl(dev, cmd, vec)
 register dev_t	dev;
 int cmd;
 char * vec;
@@ -373,13 +376,14 @@ char * vec;
 	int d;
 	hdparm_t hdparm;
 	struct fdisk_s	*fdp;
+	int do_getpt = 0;	/* 1 if need to call sdgetpartitions() */
 
 	d = DRIVENO(minor(dev));
 
 	/*
 	 * Identify input/output request.
 	 */
-	switch ( cmd ) {
+	switch (cmd) {
 
 	case HDGETA:
 		/*
@@ -390,9 +394,9 @@ char * vec;
 		 * properly from the drive.
 		 */
 		if (pparmp[d] == PNULL) {
+			do_getpt = 1;	/* REALLY just want Read Capacity */
 			sdgetpartitions(dev);
-			if (pparmp[d] == NULL ||
-			((struct fdisk_s *)pparmp[d])[WHOLE_DRIVE].p_size == 0L) {
+			if (pparmp[d] == NULL) {
 				u.u_error = ENXIO;
 				return -1;
 			}
@@ -403,7 +407,19 @@ char * vec;
 						/ (SD_HDS * SD_SPT);
 		hdparm.nhead = SD_HDS;
 		hdparm.nspt = SD_SPT;
-		kucopy( &hdparm, vec, sizeof hdparm );
+		kucopy(&hdparm, vec, sizeof hdparm);
+		/*
+		 * I know it's ugly.  But it gets around startup Catch-22.
+		 *
+		 * The fdisk command needs HDGETA.  HDGETA invokes
+		 * sdgetpartitions(), but we want to call it again
+		 * after the partition table has been created by the fdisk
+		 * command.
+		 */
+		if (do_getpt) {
+			kfree(pparmp[d]);
+			pparmp[d] = PNULL;	/* force re-read of p. table */
+		}
 		return 0;
 	case HDSETA:
 		/*
@@ -419,7 +435,7 @@ char * vec;
 
 		return 0;
 	case SCSI_HA_CMD:
-		return aha_ioctl( cmd, vec );
+		return aha_ioctl(cmd, vec);
 	case SCSI_CMD:
 		return 0;
 	case SCSI_CMD_IN:
@@ -436,7 +452,7 @@ char * vec;
 /**
  *
  * void
- * sdblock( bp )	- queue a block to the disk
+ * sdblock(bp)	- queue a block to the disk
  *
  *	Input:	bp = pointer to block to be queued.
  *
@@ -454,7 +470,7 @@ register BUF	*bp;
 	int p = PARTITION(minor(bp->b_dev));
 	int drv = DRIVENO(minor(bp->b_dev));
 
-	if ( minor(bp->b_dev) & SDEV )
+	if (minor(bp->b_dev) & SDEV)
 		p = WHOLE_DRIVE;
 	bp->b_resid = bp->b_count;
 	
@@ -463,8 +479,8 @@ register BUF	*bp;
 	/*
 	 * Range check disk region.
 	 */
-	if ( pparmp[drv] == PNULL ) {
-		if ( p == WHOLE_DRIVE ) {
+	if (pparmp[drv] == PNULL) {
+		if (p == WHOLE_DRIVE) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
 				bp->b_flag |= BFERR;
 				bdone(bp);
@@ -476,14 +492,14 @@ register BUF	*bp;
 			bdone(bp);
 			return;
 		}
-	} else if ( (bp->b_bno + (bp->b_count/BSIZE)) > fdp[p].p_size ) {
+	} else if ((bp->b_bno + (bp->b_count/BSIZE)) > fdp[p].p_size) {
 		bp->b_flag |= BFERR;
 		bdone(bp);
 		return;
 	}
 
 	bp->b_actf = NULL;
-	sw = (scsi_work_t *)kalloc( sizeof(*sw) );
+	sw = (scsi_work_t *)kalloc(sizeof(*sw));
 	if (sw == (scsi_work_t *)0) {
 		printf("aha154x: out of kernel memory\n");
 		bp->b_flag |= BFERR;
@@ -493,15 +509,15 @@ register BUF	*bp;
 	sw->sw_bp = bp;
 	sw->sw_drv = drv;
 	sw->sw_type = 0;
-	if ( p != WHOLE_DRIVE )
+	if (p != WHOLE_DRIVE)
 		sw->sw_bno   = fdp[p].p_base + bp->b_bno;
 	else
 		sw->sw_bno   = bp->b_bno;
 	sw->sw_retry = 1;
 
 #if	VERBOSE
-	printf( "sdblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
-		drv, (long)sw->sw_bno, bp, bp->b_flag );
+	printf("sdblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
+		drv, (long)sw->sw_bno, bp, bp->b_flag);
 #endif
 
 	s = sphi();
@@ -519,15 +535,15 @@ sdwatch()
 {
 	register i;
 
-	if( i = aha_start() )
+	if (i = aha_start())
 #if	VERBOSE
-		printf( "sdwatch: started %d actions\n", i );
+		printf("sdwatch: started %d actions\n", i);
 #else
 		;
 #endif
-	if( i = aha_completed() )
+	if (i = aha_completed())
 #if	VERBOSE
-		printf( "sdwatch: completed %d actions\n", i );
+		printf("sdwatch: completed %d actions\n", i);
 #else
 		;
 #endif
