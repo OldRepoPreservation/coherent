@@ -1,10 +1,14 @@
+/* (-lgl
+ * 	COHERENT Driver Kit Version 1.1.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
  * This is a driver for the
- * hard disk on the IBM AT machine.
+ * hard disk on the AT.
  *
  * Reads drive characteristics from ROM (thru interrupt vector 0x41 and 0x46).
  * Reads partition information from disk.
- *
  */
 #include	<coherent.h>
 #include 	<sys/fdisk.h>
@@ -140,6 +144,7 @@ void	atdone();
 
 /*
  * Drive Parameters - copied from ROM.
+ * If patched, use the given values instead of reading from the ROM.
  * NOTE: Exactly duplicates hdparm_s struct.
  */
 struct dparm_s {
@@ -187,7 +192,7 @@ struct	at	{
 	unsigned	at_cyl;
 	unsigned	at_sec;
 	unsigned	at_partn;
-	unsigned char	at_dtype[ NDRIVE ];
+	unsigned char	at_dtype[ NDRIVE ];	/* drive type, 0 if unused */
 	unsigned char	at_tries;
 	unsigned char	at_state;
 	unsigned char	at_caching;		/* caching in progress */
@@ -244,6 +249,7 @@ atload()
 	for ( u = 0, dp = &atparm[0]; u < NDRIVE; ++dp, ++u ) {
 
 		if ( dp->d_ncyl == 0 ) {
+			/* Not patched, use the ROM drive table values. */
 			pkcopy( (paddr_t) (p.seg << 4L) + p.off,
 				dp, sizeof(*dp) );
 		}
@@ -251,6 +257,8 @@ atload()
 			/*
 			 * Avoid incomplete patching.
 			 */
+			if (at.at_dtype[u] == 0)
+				at.at_dtype[u] = 1;
 			if ( dp->d_nspt == 0 )
 				dp->d_nspt = 17;
 			if ( dp->d_nhead > 8 )
@@ -339,7 +347,7 @@ atreset()
 	outb( HF_REG, atparm[0].d_ctrl & 0x0F );
 	myatbsyw(0);
 	if ( inb(AUX_REG) != 0x01 )
-		printf("at: reset failure\n" );
+		printf("at: AT disk controller not present (reset)\n");
 
 	/*
 	 * Initialize drive parameters.
@@ -506,8 +514,17 @@ char * vec;
 		/*
 		 * Get hard disk attributes.
 		 */
-		kucopy( &atparm[d], vec, sizeof(hdparm_t) );
+		kucopy( &atparm[d], vec, sizeof(atparm[0]) );
 		return( 0 );
+
+	case HDSETA:
+		/* Set hard disk attributes. */
+		ukcopy(vec, &atparm[d], sizeof(atparm[0]));
+		at.at_dtype[d] = 1;		/* set drive type nonzero */
+		pparm[NDRIVE * NPARTN + d].p_size =
+			(long) atparm[d].d_ncyl * atparm[d].d_nhead * atparm[d].d_nspt;
+		atreset();
+		return 0;
 
 	default:
 		u.u_error = EINVAL;
@@ -620,6 +637,7 @@ atdequeue()
 {
 	register BUF * bp;
 	register struct fdisk_s * pp;
+	unsigned int nspt;
 
 	for (;;) {
 		at.at_caching = 0;
@@ -636,6 +654,7 @@ atdequeue()
 		}
 		else
 			at.at_drv = minor( bp->b_dev ) / NPARTN;
+		nspt = atparm[at.at_drv].d_nspt;
 
 		pp = &pparm[ at.at_partn ];
 		at.at_bno   = pp->p_base + bp->b_bno;
@@ -701,7 +720,7 @@ atdequeue()
 				 * Enable caching on single block reads
 				 * when at least one block left on same track.
 				 */
-				at.at_caching = 16 - (at.at_bno % 17);
+				at.at_caching = nspt - 1 - (at.at_bno % nspt);
 #if ATCACHE > 1
 				if ( at.at_caching >= 2 ) {
 					at.at_caching   = 2;
