@@ -1,8 +1,13 @@
 /*
  * mkdir.c
- * 4/12/90
+ * 5/10/90
  * Usage: mkdir [ -r ] dir ...
  * Make directories.
+ *
+ * Changes by steve 5/10/90:
+ *	in getchild(), bumped strncpy count by 1 to return NUL-terminated result
+ *	in getparent(), hacked bogus "ending slash" code so that e.g.
+ *		getparent("/foo") returns "/" rather than ""
  *
  * Changes by steve 4/12/90:
  *	corrected fatal() call
@@ -163,7 +168,8 @@ char	*dir;
 			break;
 		}
 	*++p = 0;
-	if (par[tmp = strlen(par)-1] == '/')
+	tmp = strlen(par) - 1;
+	if (tmp > 0 && par[tmp] == '/')
 		par[tmp] = 0;			/* kill any ending slash */
 	return par;
 }
@@ -195,7 +201,7 @@ register char	*dir;
 	i = p+1 - q;
 	if (i > DIRSIZ)
 		i = DIRSIZ;
-	return strncpy(ch, q, i);
+	return strncpy(ch, q, i+1);
 }
 
 
