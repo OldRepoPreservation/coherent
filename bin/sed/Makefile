@@ -9,6 +9,9 @@ OBJ=\
 # Primary target.
 sed:	$(OBJ)
 	cc $(LDFLAGS) -o $(DESTDIR)$@ $(OBJ)
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
 
 # Secondary targets.
 sed0.o:	sed0.c sed.h
