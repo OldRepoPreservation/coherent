@@ -8,7 +8,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
+#ifdef _I386
+#include <arcoff.h>
+#else
 #include <ar.h>
+#endif
 #include <canon.h>
 #include <path.h>
 #include <time.h>
