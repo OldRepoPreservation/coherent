@@ -1,6 +1,8 @@
 /*
- * mwc_only.h is for internal definitions.
+ * mwc_coherent.h is for internal definitions.
  */
+#ifndef __SYS_MWC_COHERENT_H__
+#define __SYS_MWC_COHERENT_H__
 
 /*
  * Control flags for tracing features.
@@ -110,3 +112,5 @@ extern unsigned t_con;
 		command;		\
 	}				\
 }
+
+#endif
