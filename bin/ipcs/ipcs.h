@@ -67,7 +67,7 @@ extern int	total_shmids, 	/* total valid shared memory segs found */
 		usemsqs;	/* is msqs in use */
 
 extern int	SHMMNI,		/* max # of shared memory segments allowed */
-		NSEMID,		/* max # of semaphores allowed */
+		SEMMNI,		/* max # of semaphores allowed */
 		NMSQID;		/* max # of message queues */
 
 extern char	*fname;		/* name of the namelist file */
