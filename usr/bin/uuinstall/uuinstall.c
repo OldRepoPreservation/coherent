@@ -54,6 +54,7 @@ static char schedule[200];
 
 static int pos, lineNo;	/* current screen position */
 static char seps[] = " \t\n";	/*strtok seperators */
+static char oldSys[21];
 
 typedef struct line line;
 struct line {
@@ -246,6 +247,7 @@ showLsys()
 	static char timeErr[] = "Invalid time field in file";
 
 	strlcpy(sys, strtok(buf, seps));
+	strcpy(oldSys, sys);
 	strlcpy(work, strtok(NULL, seps));
 	for ((w = work), (k = 0); *w && (k < TIMEPAIRS); k++) {
 		if (!isalpha(*w)) {
@@ -589,6 +591,14 @@ clumpLsys()
 	     i++) {
 		s = strchr(s, '\0');
 		sprintf(s, " %s %s", lump(expect[i]), lump(send[i]));
+	}
+
+	/* create /usr/spool/uucp/sys directory */
+	if (strcmp(sys, oldSys)) {
+		/* If we truncate directorys %s becomes %.7s */
+		sprintf(work,
+		 "/usr/lib/uucp/uumkdir /usr/spool/uucp/%s > /dev/null", sys);
+		system(work);
 	}
 }
 
