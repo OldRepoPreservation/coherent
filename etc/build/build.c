@@ -1,6 +1,7 @@
 /*
  * build.c
- * 6/10/91
+ * 07/09/92	COH 386 release
+ *
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
  * Uses common routines in build0.c,
@@ -39,15 +40,31 @@
 #define	DOSSHRINK	0		/* punt dosshrink for now	*/
 
 /* Manifest constants. */
-#define	VERSION		"2.0"
+#define	VERSION		"3.7"
 #define	USAGE		"Usage: /etc/build [ -dv ]\n"
 #define	ATDEVS		(NPARTN+NPARTN)	/* number of AT disk devices	*/
 #define	BSIZE		512		/* sector size			*/
-#define	MAXSIZE		95		/* suggested max size (MB)	*/
-#define	MINSIZE		4		/* required root size (MB)	*/
+#if _I386
+#define	BAR_BAR		"__"		/* 1st copy of serial # */
+#define	BAR_ENTRY	"_entry"	/* 2nd copy of serial # */
+#define	MAXSIZE		500		/* suggested max size (MB)	*/
+#define	MINSIZE		9		/* required root size (MB)	*/
+#define	NEEDSIZE	10		/* suggested min root size (MB)	*/
+#define	PIPEDEV		"pipedev"	/* kernel pipe F.S. device */
+#define	RONFLAG		"ronflag"	/* kernel readonly root F.S. flag */
+#define	ROOTDEV		"rootdev"	/* kernel root F.S. device */
+#else
+#define	BAR_BAR		"___"		/* 1st copy of serial # */
+#define	BAR_ENTRY	"_entry_"	/* 2nd copy of serial # */
+#define	MAXSIZE		75		/* suggested max size (MB)	*/
+#define	MINSIZE		8		/* required root size (MB)	*/
+#define	NEEDSIZE	10		/* suggested min root size (MB)	*/
+#define	PIPEDEV		"pipedev_"	/* kernel pipe F.S. device */
+#define	RONFLAG		"ronflag_"	/* kernel readonly root F.S. flag */
+#define	ROOTDEV		"rootdev_"	/* kernel root F.S. device */
+#endif
 #define	NAMESIZE	6		/* max device name buffer size	*/
 #define	NDEVICES	24		/* number of disk devices	*/
-#define	NEEDSIZE	7		/* suggested min root size (MB)	*/
 
 /* (unsigned long) sectors to (double) megabytes. */
 #define	meg(sec)	((double)sec * BSIZE / 1000000.)
@@ -114,6 +131,7 @@ char	*protoname();
 char	*rawname();
 void	rootpatch();
 void	set_date();
+void	uucp();
 void	user_devices();
 void	welcome();
 char	*xname();
@@ -129,6 +147,7 @@ int	ndevices = ATDEVS;		/* number of devices	*/
 int	protoflag;			/* prototypes created	*/
 int	root;				/* root partition	*/
 char	tzone[NBUF];			/* timezone		*/
+char	tzone5[NBUF];			/* timezone for Sys V	*/
 
 main(argc, argv) int argc; char *argv[];
 {
@@ -163,6 +182,7 @@ main(argc, argv) int argc; char *argv[];
 	mkfs();
 	copy();
 	user_devices();
+	uucp();
 	sys("/conf/ldker", S_FATAL);
 	patches();
 	sys("/bin/echo /etc/build: success >>/mnt/etc/install.log", S_NONFATAL);
@@ -260,13 +280,21 @@ copy()
 	sprintf(cmd, "/etc/mount %s /mnt", devname(root, 1));
 	sys(cmd, S_FATAL);
 
-	/* Copy the boot floppy to it. */
-	sprintf(cmd, "/bin/cpdir -ad%s -smnt -sbegin / /mnt", (vflag) ? "v" : "");
+	/* Copy kernel patch and link scripts in case regen needed some day */
+	/* Do it now - don't wait for the whole diskette to cpdir */
+	sprintf(cmd, "/bin/cpdir -ad%s /conf /mnt/conf", (vflag) ? "v" : "");
 	sys(cmd, S_FATAL);
-	sys("/bin/mkdir /mnt/mnt", S_FATAL);
-	sys("/bin/chmod 0755 /mnt/mnt", S_NONFATAL);
-	sys("/bin/chown bin /mnt/mnt", S_NONFATAL);
-	sys("/bin/chgrp bin /mnt/mnt", S_NONFATAL);
+	sprintf(cmd, "/bin/cpdir -ad%s /tmp /mnt/conf/gen", (vflag) ? "v" : "");
+	sys(cmd, S_FATAL);
+	printf( "..............\n" );
+
+	/* Copy the boot floppy to it. */
+	sprintf(cmd, "/bin/cpdir -ad%s -smnt -sbegin -stmp -s/conf / /mnt",
+	  (vflag) ? "v" : "");
+	sys(cmd, S_FATAL);
+	if (!is_dir("/mnt/mnt"))
+		sys("/bin/mkdir /mnt/mnt", S_FATAL);
+	sys("/bin/chmog 0755 bin bin /mnt/mnt", S_NONFATAL);
 
 	/* Write entry to /etc/install.log. */
 	sys("/bin/echo /etc/build: >>/mnt/etc/install.log", S_NONFATAL);
@@ -285,26 +313,28 @@ copy()
 
 	/* If /etc/mkdev created devices in /tmp/dev, copy them to /dev. */
 	/* Remove the copies in /tmp/dev on the hard disk. */
-	if (exists("/tmp/dev")) {
+	if (exists("/tmp/dev"))
 		sys("/bin/cpdir -d /tmp/dev /mnt/dev", S_FATAL);
-		sys("/bin/rm -r /mnt/tmp/dev", S_NONFATAL);
-	}
-
+#if !_I386
 	/*
 	 * As of COH 3.2, support for COM ports is not built into the system.
-	 * Echo lines to /mnt/tmp/drvld.all to drvld com line support,
+	 * Echo lines to /tmp/drvld.all to drvld com line support,
 	 * then replace /mnt/etc/drvld.all and make sure permissions are right.
 	 */
-	sys("/bin/echo /etc/drvld -r /drv/al0 >>/mnt/tmp/drvld.all", S_NONFATAL);
-	sys("/bin/echo /etc/drvld -r /drv/al1 >>/mnt/tmp/drvld.all", S_NONFATAL);
-	sys("/bin/mv /mnt/tmp/drvld.all /mnt/etc/drvld.all", S_NONFATAL);
-	sys("/bin/chmod 0744 /mnt/etc/drvld.all", S_NONFATAL);
-	sys("/bin/chown root /mnt/etc/drvld.all", S_NONFATAL);
-	sys("/bin/chgrp root /mnt/etc/drvld.all", S_NONFATAL);
+	sys("/bin/echo /etc/drvld -r /drv/al0 >>/tmp/drvld.all", S_NONFATAL);
+	sys("/bin/echo /etc/drvld -r /drv/al1 >>/tmp/drvld.all", S_NONFATAL);
+#endif
+	if (exists("/tmp/drvld.all")) {
+		sys("/bin/cp /tmp/drvld.all /mnt/etc/drvld.all", S_NONFATAL);
+		sys("/bin/chmog 0744 root root /mnt/etc/drvld.all", S_NONFATAL);
+	}
+
+	sys("/bin/cat /tmp/ttys >>/mnt/etc/ttys", S_NONFATAL);
 
 	/* Grow /lost+found to make room for files. */
-	sys("cd /mnt/lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
-		S_IGNORE);
+	sys("cd /mnt/lost+found; "
+	    "/bin/touch a b c d e f g h i j k l m n o p q r s t u v w x y z; "
+	    "/bin/rm [a-z]", S_IGNORE);
 
 	/* Create /autoboot. */
 	sys("/bin/ln -f /mnt/coherent /mnt/autoboot", S_FATAL);
@@ -320,6 +350,8 @@ copy()
 	/* Write the timezone to /etc/timezone. */
 	sprintf(cmd, "/bin/echo export TIMEZONE=\\\"%s\\\" >/mnt/etc/timezone", tzone);
 	sys(cmd, S_NONFATAL);
+	sprintf(cmd, "/bin/echo export TZ=\\\"%s\\\" >>/mnt/etc/timezone", tzone5);
+	sys(cmd, S_NONFATAL);
 
 	/* Write the serial number to /etc/serialno. */
 	sprintf(cmd, "/bin/echo %s >/mnt/etc/serialno", serialno);
@@ -327,7 +359,7 @@ copy()
 
 	/* Save the prototypes from /tmp to /conf. */
 	if (protoflag)
-		sys("/bin/mv /mnt/tmp/*.proto /mnt/conf", S_NONFATAL);
+		sys("/bin/mv /tmp/*.proto /mnt/conf", S_NONFATAL);
 }
 
 /*
@@ -562,9 +594,11 @@ retry:
 		printf(
 "\n"
 "Your system includes a large COHERENT filesystem (larger than %d megabytes).\n"
-"The /etc/mkfs command which builds COHERENT filesystems may run out of\n"
-"memory and fail on large filesystems.  You should repartition the hard disk\n"
-"to define smaller COHERENT partitions.\n",
+#if !_I386
+"The /etc/mkfs command which builds COHERENT 286 filesystems may run out of\n"
+"memory and fail on large filesystems.\n"
+#endif
+"You should repartition the hard disk to define smaller COHERENT partitions.\n",
 			MAXSIZE);
 		if (yes_no("Do you want to repartition the hard disk"))
 			goto retry;
@@ -614,9 +648,15 @@ again:
  * Set up a nonstandard timezone.
  */
 void
-get_timezone(dstflag) int dstflag;
+get_timezone(dstflag)
+int dstflag;
 {
 	register char *s;
+	int diff;
+	char std_abbr[20], dst_abbr[20];
+	int east_of_gr;
+
+	/* tzone5 is like tzone except no colons and number is in hours */
 
 	printf(
 "You need to specify an abbreviation for your timezone,\n"
@@ -626,17 +666,21 @@ get_timezone(dstflag) int dstflag;
 "Germany is 60 minutes of time east of Greenwich.\n"
 		);
 	s = get_line("Abbreviation for your timezone:");
-	sprintf(tzone, "%s:", s);
-	if (yes_no("Is your timezone east of Greenwich"))
-		strcat(tzone, "-");
+	strcpy(std_abbr, s);
+	east_of_gr = yes_no("Is your timezone east of Greenwich");
 	s = get_line("Difference in minutes from GMT:");
-	strcat(tzone, s);
-	strcat(tzone, ":");
-	if (!dstflag)
-		return;
-	s = get_line("Abbreviation for your daylight savings timezone:");
-	strcat(tzone, s);
-	strcat(tzone, ":1.1.4");
+	diff = atoi(s);
+	if (east_of_gr)
+		diff = -diff;
+	if (dstflag) {
+		s = get_line("Abbreviation for your daylight savings timezone:");
+		strcpy(dst_abbr, s);
+		sprintf(tzone, "%s:%d:%s:1.1.4", std_abbr, diff, dst_abbr);
+		sprintf(tzone5, "%s%d%s", std_abbr, diff/60, dst_abbr);
+	} else {
+		sprintf(tzone, "%s:%d:", std_abbr, diff);
+		sprintf(tzone5, "%s%d", std_abbr, diff/60);
+	}
 }
 
 /*
@@ -705,25 +749,24 @@ mkdev()
 	int hdc;
 
 	cls(0);
+printf("Most PC compatible computer systems use MFM, RLL, IDE, or ESDI disk\n");
+printf("controllers and disk drives.  A few percent use SCSI disk drives.\n");
+printf("Please indicate the type(s) of disk drive(s) used in your computer system.\n");
+printf("If you are uncertain of the type, please select choice 1.\n\n");
 printf("Are you using:\n\n");
 printf("1.  AT-compatible hard drive controller (IDE/RLL/MFM/ESDI).\n");
 printf("2.  SCSI hard drive controller.\n");
 printf("3.  Both.\n\n");
 	hdc = get_int(1, 3, "Enter your choice:");
 
-	if (hdc == 1 || hdc == 3) {
-		sprintf(cmd, "/etc/mkdev -b%s%s at",
-			(dflag) ? "d" : "",
-			(vflag) ? "v" : "");
+	sprintf(cmd, "/etc/mkdev -b%s%s %s %s",
+		(dflag) ? "d" : "",
+		(vflag) ? "v" : "",
+		(hdc == 1 || hdc == 3) ? "at" : "",
+		(hdc == 2 || hdc == 3) ? "scsi" : "");
 		sys(cmd, S_NONFATAL);
-	}
-	if (hdc == 2 || hdc == 3) {
-		sprintf(cmd, "/etc/mkdev -b%s%s scsi",
-			(dflag) ? "d" : "",
-			(vflag) ? "v" : "");
-		sys(cmd, S_NONFATAL);
+	if (hdc == 2 || hdc == 3)
 		add_devices();
-	}
 }
 
 /*
@@ -784,17 +827,75 @@ again:
 				sprintf(cmd, "/bin/mkdir /mnt/lost+found");
 				if (sys(cmd, S_NONFATAL) == 0)
 					sys(
-"cd /mnt/lost+found; /bin/touch a b c d e f g h i j k l; /bin/rm [a-l]",
+"cd /mnt/lost+found; "
+"/bin/touch a b c d e f g h i j k l m n o p q r s t u v w x y z; "
+"/bin/rm [a-z]",
 						S_IGNORE);
 				sprintf(cmd, "/etc/umount %s", name);
 				sys(cmd, S_NONFATAL);
 			} else if (i == root)
 				fatal("%s: root partition mkfs failed", name);
-		} else if (i == root && notflag(i, F_FS)) {
-			printf("You must create a filesystem on the root partition.\n");
-			goto again;
+		} else if (i == root) {
+			if (notflag(i, F_FS)) {
+				printf("You must create a filesystem on the root partition.\n");
+				goto again;
+			} else {
+				/* Stick a boot block on the root device. */
+				sprintf(cmd, "/bin/cp /conf/boot %s", name);
+				sys(cmd, S_NONFATAL);
+			}
 		}
 	}
+}
+
+/*
+ * Validate "name" to see if its an OK UUCP sitename or domain name.  If
+ * anything suspicious is found, query the user and allow them to change
+ * their answer.  The domain defaults to UUCP.  In order to avoid having
+ * 10,000 machines called bbsuser, no default exists for the sitename.
+ *
+ * Return true if OK, false otherwise.
+ */
+int
+ok_name(name, type)
+unsigned char *name;		/* User's response to site/domain question */
+int	type;			/* 'd' == domain, 'u' == uucpname/site */
+{
+	int warn = 0;
+	char	save[NBUF];	/* save off name for caller */
+
+	if (type == 'd' && name[0] == '.')
+		strcpy(name, name+1);
+	strcpy(save, name);
+	if (name[0] == '\0') {			/* no input ? */
+		if (type == 'd') {
+			strcpy(name, "UUCP");	/* default to UUCP domain */
+			return 1;
+		} else {
+			return 0;		/* no defaults for sitename */
+		}
+	}
+	if (type == 'u' && strlen(name) > 7) {
+		++warn;
+		printf(
+"The system name you chose is greater than seven characters in length.\n"
+		);
+	}
+	if ((type == 'd' && strspn(name, "abcdefghijklmnopqrstuvwxyz"
+			 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			 "0123456789"
+			 ".-_") != strlen(name))
+	  || (type == 'u' && strspn(name, "abcdefghijklmnopqrstuvwxyz"
+			 "0123456789") != strlen(name))) {
+		++warn;
+		printf("The name you chose contains invalid characters.\n");
+	}
+	if (!warn)
+		return 1;
+	if (yes_no("Would you like to choose a different name"))
+		return 0;
+	strcpy(name, save);
+	return 1;
 }
 
 /*
@@ -847,15 +948,16 @@ rootpatch()
 	 * that will be needed when a new kernel is linked at /mnt/coherent.
 	 */
 	sprintf(cmd,
-	  "echo /conf/patch /mnt/coherent ronflag_=0 %s=%lu:l %s=%lu:l >> %s\n",
-	  "___", atol(serialno), "_entry_", atol(serialno), PATCHFILE);
+	  "echo /conf/patch /mnt/coherent %s=0 %s=0x%lx:l %s=0x%lx:l >> %s\n",
+	  RONFLAG, BAR_BAR, atol(serialno),
+	  BAR_ENTRY, atol(serialno), PATCHFILE);
 	sys(cmd, S_FATAL);
 	sprintf(cmd,
 	  "echo /conf/patch /mnt/coherent "
-	  "\\\"rootdev_\\=makedev\\(%d,%d\\)\\\" "
-	  "\\\"pipedev_\\=makedev\\(%d,%d\\)\\\" >> %s\n",
-	  devices[root].d_major, devices[root].d_minor,
-	  devices[root].d_major, devices[root].d_minor, PATCHFILE);
+	  "\\\"%s\\=makedev\\(%d,%d\\)\\\" "
+	  "\\\"%s\\=makedev\\(%d,%d\\)\\\" >> %s\n",
+	  ROOTDEV, devices[root].d_major, devices[root].d_minor,
+	  PIPEDEV, devices[root].d_major, devices[root].d_minor, PATCHFILE);
 	sys(cmd, S_FATAL);
 }
 
@@ -866,14 +968,180 @@ void
 set_date()
 {
 	register char *s;
-	int dstflag, n;
+	int dst_conv;		/* 1 if DST conversion will be used */
+	int dst_now;		/* 1 if DST in effect today */
+	int n;
 	char *tz;
 	time_t now;
 	struct tm *tmp;
+	char *timestr;
 
 again:
-	cls(0);
+#if 1	/* new set_date */
 
+	/*
+	 * yyy:
+	 *
+	 * dst_conv = FALSE
+	 * dst_now = FALSE
+	 *
+	 * if using DST conversion
+	 *	dst_conv = TRUE
+	 *	if DST in effect today
+	 *		dst_now = TRUE
+	 * get date from system clock
+	 * if dst_conv and dst_now
+	 *	add 1 hour to date fetched
+	 * display date
+	 * while date not correct
+	 *	if proceed without setting clock
+	 *		goto xxx
+	 *	read date from kb
+	 *	write date to CMOS clock and RAM clock
+	 *	if dst_conv and dst_now
+	 *		subtract 1 hour from date entered
+	 *		write adjusted date to CMOS clock
+	 * xxx:
+	 * set TIMEZONE and TZ variables
+	 * if date, TIMEZONE, and TZ not all correct
+	 *	goto yyy
+	 */
+	cls(0);
+	dst_conv = 0;
+	dst_now = 0;
+	printf(
+"You can run COHERENT with or without conversion for daylight savings time\n"
+"(summer time).  You should normally run with daylight savings time\n"
+"conversion.  However, if you are going to use both COHERENT and MS-DOS\n"
+"and you choose to run with daylight savings time conversion,\n"
+"your time will be wrong (by one hour) during daylight savings time\n"
+"while you are running under MS-DOS.\n"
+"\n"
+		);
+	if (yes_no(
+	  "Do you want COHERENT to use daylight savings time conversion")) {
+		dst_conv = 1;
+		printf(
+"\n"
+"By default, COHERENT assumes daylight savings time begins on the\n"
+"first Sunday in April and ends on the last Sunday in October.\n"
+"If you want to change the defaults, edit the file \"/etc/timezone\"\n"
+"after you finish installing COHERENT.\n"
+"\n"
+		);
+		if (yes_no("Is daylight savings time currently in effect"))
+			dst_now = 1;
+	}
+	sys("/bin/date `/etc/ATclock` > /dev/null", S_NONFATAL);
+	now = time(0);
+	if (dst_conv && dst_now)
+		now += 3600;
+	timestr = ctime(&now);
+	printf(
+"\nAccording to your system clock, your local date and time are:\n"
+	);
+	printf("%s\n", timestr);
+	if (!yes_no("Is this correct")) {
+		n = 0;
+		do {
+			if (++n > 3) {
+				printf(
+"The command which sets the internal real-time clock of your system is\n"
+"failing repeatedly.  Either you are entering the date and time incorrectly\n"
+"or your clock hardware is not completely AT-compatible.  If your clock\n"
+"hardware is incompatible, you can continue with the installation without\n"
+"setting the clock correctly.  However, if you do so, subsequent clock\n"
+"references (including file access and modification time information) will be\n"
+"incorrect and some commands (such as \"date\") will not function correctly.\n"
+					);
+				if (yes_no("Do you want to proceed without setting the clock correctly"))
+					break;
+				n = 0;
+			}
+			s = get_line(
+"\nEnter the correct date and time in the form YYMMDDHHMM.SS:"
+				);
+			sprintf(cmd, "/etc/ATclock %s >/dev/null", s);
+		} while (sys(cmd, S_NONFATAL) != 0);
+		sys("/bin/date `/etc/ATclock` >/dev/null", S_NONFATAL);
+
+		if (dst_conv && dst_now) {
+			/* Adjust for DST: set hardware clock back one hour. */
+			now = time(0) - 3600;
+			tmp = localtime(&now);
+			sprintf(cmd,
+			  "/etc/ATclock %02d%02d%02d%02d%02d.%02d >/dev/null",
+			  tmp->tm_year, tmp->tm_mon + 1, tmp->tm_mday,
+			  tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+			sys(cmd, S_NONFATAL);
+		}
+
+	}
+
+	/* Timezone. */
+	cls(0);
+	printf(
+"Please choose one of the following timezones:\n"
+"\t0\tCentral European\n"
+"\t1\tGreenwich\n"
+"\t2\tNewfoundland\n"
+"\t3\tAtlantic\n"
+"\t4\tEastern\n"
+"\t5\tCentral\n"
+"\t6\tMountain\n"
+"\t7\tPacific\n"
+"\t8\tYukon\n"
+"\t9\tAlaska\n"
+"\t10\tBering\n"
+"\t11\tHawaii\n"
+"\t12\tOther\n"
+		);
+	do {
+		s = get_line("Timezone code:");
+	} while ((n = atoi(s)) < 0 || n > 12);
+	switch (n) {
+	/* N.B. entries truncated at tz[8] below if !dst_conv. */
+	case 0:		tz = "EST:-60:EDT:1.1.4";	break;
+	case 1:		tz = "GMT:000:GDT:1.1.4";	break;
+	case 2:		tz = "NST:210:NDT:1.1.4";	break;
+	case 3:		tz = "AST:240:ADT:1.1.4";	break;
+	case 4:		tz = "EST:300:EDT:1.1.4";	break;
+	case 5:		tz = "CST:360:CDT:1.1.4";	break;
+	case 6:		tz = "MST:420:MDT:1.1.4";	break;
+	case 7:		tz = "PST:480:PDT:1.1.4";	break;
+	case 8:		tz = "YST:540:YDT:1.1.4";	break;
+	case 9:		tz = "AST:600:ADT:1.1.4";	break;
+	case 10:	tz = "BST:660:BDT:1.1.4";	break;
+	case 11:	tz = "HST:600:HDT:1.1.4";	break;
+	case 12:	tz = NULL;			break;
+	}
+
+	if (tz == NULL)
+		get_timezone(dst_conv);
+	else {
+		strcpy(tzone, tz);
+		if (dst_conv) {
+			/* for TZ, AST:240:ADT becomes AST4ADT */
+			sprintf(tzone5, "%.3s%d%cDT",
+			  tz, atoi(tzone + 4)/60, tz[0]);
+		} else {
+			/* for TZ, AST:240 becomes AST4 */
+			sprintf(tzone5, "%.3s%d", tz, atoi(tzone + 4)/60);
+			tzone[8] = '\0';
+		}
+	}
+	/* Done, print current time and retry if user botched it. */
+	printf("\nYour current local date and time are now:\n");
+	sprintf(cmd, "TIMEZONE='%s' /bin/date -s `/etc/ATclock`", tzone);
+	sys(cmd, S_NONFATAL);
+
+	/* Write the timezone to /tmp/timezone for debug */
+	sprintf(cmd, "/bin/echo export TIMEZONE=\\\"%s\\\" >/tmp/timezone", tzone);
+	sys(cmd, S_NONFATAL);
+	sprintf(cmd, "/bin/echo export TZ=\\\"%s\\\" >>/tmp/timezone", tzone5);
+	sys(cmd, S_NONFATAL);
+#else
+	cls(0);
 	/* Get correct local time, set system time accordingly. */
 	printf(
 "It is important for the COHERENT system to know the correct date and time.\n"
@@ -918,8 +1186,8 @@ again:
 "while you are running under MS-DOS.\n"
 "\n"
 		);
-	dstflag = yes_no("Do you want COHERENT to use daylight savings time conversion");
-	if (dstflag) {
+	dst_conv = yes_no("Do you want COHERENT to use daylight savings time conversion");
+	if (dst_conv) {
 		printf(
 "\n"
 "By default, COHERENT assumes daylight savings time begins on the\n"
@@ -961,7 +1229,7 @@ again:
 		s = get_line("Timezone code:");
 	} while ((n = atoi(s)) < 0 || n > 12);
 	switch (n) {
-	/* N.B. entries truncated at tz[8] below if !dstflag. */
+	/* N.B. entries truncated at tz[8] below if !dst_conv. */
 	case 0:		tz = "EST:-60:EDT:1.1.4";	break;
 	case 1:		tz = "GMT:000:GDT:1.1.4";	break;
 	case 2:		tz = "NST:210:NDT:1.1.4";	break;
@@ -976,11 +1244,12 @@ again:
 	case 11:	tz = "HST:600:HDT:1.1.4";	break;
 	case 12:	tz = NULL;			break;
 	}
+
 	if (tz == NULL)
-		get_timezone(dstflag);
+		get_timezone(dst_conv);
 	else {
 		strcpy(tzone, tz);
-		if (!dstflag)
+		if (!dst_conv)
 			tzone[8] = '\0';
 	}
 
@@ -988,6 +1257,7 @@ again:
 	printf("\nYour current local date and time are now:\n");
 	sprintf(cmd, "TIMEZONE='%s' /bin/date -s `/etc/ATclock`", tzone);
 	sys(cmd, S_NONFATAL);
+#endif	/* new set_date */
 	if (!yes_no("Is this correct"))
 		goto again;
 }
@@ -1126,11 +1396,58 @@ again:
 		sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/dos", devname(i, 0));
 		if (sys(cmd, S_NONFATAL) == 0)
 			printf(
-"/dev/dos is now linked to %s.\n"
-"Use the \"dos\" command to transfer files to and from the MS-DOS partition.\n",
+"Device name /dev/dos is now linked to %s for use as a mnemonic\n"
+"device name.  You may use the \"dos*\" family of commands to transfer files\n"
+"to and from the MS-DOS partition on your hard disk as well as MS-DOS floppies.\n",
 				devname(i, 0));
 		printf("\n");
 	}
+}
+
+
+/*
+ * Set up site/machine specific info in files /etc/uucpname and /etc/domain
+ */
+void
+uucp()
+{
+	unsigned char *cp;
+
+	cls(1);
+	printf(
+"In order to use COHERENT's electronic mail facility and UUCP subsystem,\n"
+"you must choose a \"site name\" for your computer system.  In general, a site\n"
+"name consists of lower case letters or digits and should be at most seven\n"
+"characters in length.  The name you choose should be unique if you intend\n"
+"to access any other computer systems.  Some of the more well known site\n"
+"names include \"mwc\", \"uunet\", \"clout\", \"decwrl\", \"hp\", \"kgbvax\", "
+"\"prep\",\n\"seismo\", and \"ucbvax\".\n\n"
+	);
+	for (;;) {
+		cp = get_line("Please enter the site name for this system: ");
+		if (ok_name(cp, 'u'))
+			break;
+	}
+	sprintf(cmd, "/bin/echo \"%s\" >/mnt/etc/uucpname", cp);
+	sys(cmd, S_NONFATAL);
+
+	printf(
+"\nThe COHERENT mail subsystem supports \"domain addressing\" in addition to\n"
+"traditional \"bang paths\".  Until your system becomes part of a registered\n"
+"domain, you may use the UUCP pseudo-domain.  Domain names consist of groups\n"
+"of letters and digits separated by periods (dots).  Some of the more well\n"
+"known domains include \"com\", \"edu\", \"gov\", \"org\", \"net\", as well as domains\n"
+"covering a geographical area, such as the Chicago area \"chi.il.us\" domain.\n"
+"If you are not registered in a domain, or if you are uncertain about this\n"
+"question, simply press the <Enter> key to default to the UUCP pseudo-domain.\n\n"
+	);
+	for (;;) {
+		cp = get_line("Please enter the domain name for this system: ");
+		if (ok_name(cp, 'd'))
+			break;
+	}
+	sprintf(cmd, "/bin/echo \"%s\" >/mnt/etc/domain", cp);
+	sys(cmd, S_NONFATAL);
 }
 
 /*
@@ -1146,7 +1463,7 @@ welcome()
 	printf(
 "\n\n\n\n\n\n\n\n"
 "                              The COHERENT System\n\n"
-"                    (c) 1982, 1991 by Mark Williams Company\n\n"
+"                    (c) 1982, 1992 by Mark Williams Company\n\n"
 "                     60 Revere Drive, Northbrook, IL  60062\n\n"
 "                        708-291-6700, 708-291-6750 (FAX)\n"
 "\n\n\n\n\n\n"
@@ -1163,7 +1480,7 @@ welcome()
 "Please be patient and read the instructions on the screen carefully.\n"
 "\n"
 		);
-
+#if 0
 	cls(1);
 	printf(
 "If you do not know the BIOS parameters for your hard disk drive,\n"
@@ -1171,7 +1488,7 @@ welcome()
 "Copy the displayed parameter values for later reference, then reset\n"
 "again and restart installation by entering \"begin\" at the boot prompt.\n"
 		);
-
+#endif
 	cls(1);
 	sys("/etc/kbdinstall -b", S_NONFATAL);
 
