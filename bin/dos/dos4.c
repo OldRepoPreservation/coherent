@@ -190,6 +190,8 @@ replacedir(name) char *name;
 		 || strcmp(dirp->d_name, "..") == 0) 
 			continue;
 		strncpy(cp, dirp->d_name, DIRSIZ);
+		cp[strlen(dirp->d_name)] = '\0';
+
 		if (stat(namebuf, &s) == -1)
 			fatal("replacedir botch");
 		else if (s.st_mode & S_IFDIR) {
@@ -337,7 +339,7 @@ dbprintf(("base = <%s>, base1 = <%s>\n  name = <%s>, tname = <%s>\n", base, base
 char *fequiv(name) char *name;
 {
 	char *tmp;
-	short basesize, nwsize;
+	short basesize, nwsize, st = 1;
 
 	if (!base)		/* No base at all means a full disk copy */
 		return name;
@@ -355,7 +357,12 @@ char *fequiv(name) char *name;
 	else
 		basesize = strlen(base);
 
-	return name + basesize + 1;
+	if (*base == '.')
+		st = -1;
+	else
+		st = 1;
+
+	return name + basesize + st;
 }
 
 maketree(name) char *name;
@@ -486,7 +493,7 @@ tablefile(mdp, name) register MDIR *mdp; char *name;
 		putchar((attr & MARCHIV) ? 'a' : '-');
 		putchar((attr & MSUBDIR) ? 'd' : '-');
 
-		printf("  %02d/%02d/%02d %02d:%02d %6ld  ",
+		printf("  %02d/%02d/%02d %02d:%02d %9ld  ",
 			m_month(mdp), m_day(mdp), m_year(mdp)+80, 
 			m_hour(mdp),  m_min(mdp), (isdir(mdp)) ? 
 			   (long)dirclusters(mdp)*clsize*ssize : mdp->m_size);

@@ -1,5 +1,5 @@
 /* #define DEBUG 1 */
-/* dos2.c */
+/* dos.c */
 
 #include "dos0.h"
 
@@ -427,16 +427,26 @@ void
 extractfile(mdp, dp) register MDIR *mdp; DIR *dp;
 {
 	register unsigned short cluster;
-	short readsize;
+	short readsize, i;
 	long size;
 	FILE *ofp;
 	char *tmp, tmp2[6], *mcohfile;
 
-	if (!bflag && ((tmp = strrchr(mdp->m_name, '.')) != NULL)) {
-		sprintf(tmp2, "%s.", tmp);
-		aflag = strstr(ext, tmp2) ? 1 : 0;
-		printf("%s - %s\n", mdp->m_name, aflag ? "ascii" : "binary");
+	tmp = &(mdp->m_name[8]);
+	if (!bflag && (*tmp != ' ')) {
+		tmp2[0] = '.';
+		for (i=0; i< 3; i++) {
+			if (tmp[i] != ' ')
+				tmp2[i+1] = tolower(tmp[i]);
+			else
+				break;
+		}
+		tmp2[i+1] = '.';
+		tmp2[i+2] = '\0';
+		aflag = (strstr(ext, tmp2) != NULL) ? 1 : 0;
 	}
+
+dbprintf(("bflag=%d, aflag=%d, mdp->m_name=%s, tmp2=%s\n", bflag, aflag, mdp->m_name, tmp2));
 
 	/* Convert filename to COHERENT format and open the output file. */
 	cohname(mdp->m_name, dp);

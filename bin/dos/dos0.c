@@ -77,8 +77,10 @@ main(argc, argv) short argc; char *argv[];
 					case '8':
 					case '9':	xpart = c - '0';
 							break;
-					default:	break;
-/*	fatal("Invalid argument %c", c); */
+					case '-':	break;
+					default:
+					fatal("Invalid argument %c", c); 
+								break;
 				}
 			}
 		}
@@ -307,7 +309,7 @@ make_lock()
 	sprintf(lockfn, "%s/%s%s", SPOOLDIR, LOCKPRE, tmp ? tmp : device);
 	if ( (access(lockfn, AEXISTS) == 0) ||
 	     ((lockfd=creat(lockfn, 0644)) == -1))
-		fatal1("Can't lock: %s\n", lockfn);
+		fatal1("Device %s is in use.\n", device);
 	sprintf(pidstring, "%d", getpid());
 	write(lockfd, pidstring, strlen(pidstring));
 	close(lockfd);
