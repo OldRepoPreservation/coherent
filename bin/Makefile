@@ -1,5 +1,5 @@
 # CFLAGS are not needed for i8086
-CFLAGS= -O -DNEWTTYS
+CFLAGS= -O -DNEWTTYS 
 DESTDIR= /interim/bin/
 DESTDIR2= /interim/lib/
 CMDS= expr/expr conv/conv as/as awk/awk  \
@@ -55,6 +55,10 @@ ld:
 login:	login.c lock.c deftty.h
 	$(CC) $(CFLAGS) $< -o $(DESTDIR)$@
 	su root chmog 4511 root root $(DESTDIR)$@
+
+login.BBS:	login.c lock.c numtab.c chk_srlno.c deftty.h
+	$(CC) $(CFLAGS) -DBBS $< -o $@
+	su root chmog 4511 root root $@
 
 passwd:	passwd.c
 	$(CC) $(CFLAGS) -o $(DESTDIR)passwd passwd.c
