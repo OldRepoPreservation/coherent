@@ -128,7 +128,7 @@ typedef	__VOID__       * __VOLATILE__ *	__atomic_ptr_t;
  */
 
 
-#if	! defined (__GNUC__) || ! defined (i386)
+#if	! (__GNUC__ && (defined (i386) || _I386))
 
 __EXTERN_C_BEGIN__
 
@@ -174,7 +174,7 @@ void	   ATOMIC_CLEAR_PTR		__PROTO ((__atomic_ptr_t _lock));
 __EXTERN_C_END__
 
 
-#else	/* defined (__GNUC__) && defined (i386) */
+#else	/* __GNUC__ && (defined (i386) || _I386) */
 
 
 __LOCAL__ __INLINE__

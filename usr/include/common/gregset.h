@@ -6,7 +6,7 @@
  * the kernel trap-handler or the user-level signal code.
  */
 
-typedef	struct _gregset	gregset_t;
+typedef	union _gregset	gregset_t;
 
 #endif	/* ! defined (__COMMON_GREGSET_H__) */
 
