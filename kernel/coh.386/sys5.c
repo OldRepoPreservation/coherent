@@ -48,7 +48,7 @@ usysi86(f, arg1, arg2, arg3)
 		 * bit 2: floating point is present (80287/80387)
 		 * bit 1: 80387 is present
 		 */
-		if (!useracc(arg1, sizeof(int))) {
+		if (!useracc(arg1, sizeof(int), 1)) {
 			SET_U_ERROR(EFAULT, "sysi386:40");
 			return;
 		}
@@ -121,7 +121,7 @@ struct utsname	*name;
 	int		fl;			/* File length*/
 
 	/* Check if *name is an available user area */
-	if (!useracc((char *) name, sizeof(struct utsname))) {
+	if (!useracc((char *) name, sizeof(struct utsname), 1)) {
 		u.u_error = EFAULT;
 		return(0);
 	}
@@ -207,7 +207,7 @@ struct ustat	*buf;
 
 	/* Check if buf is an available user area. */
 	/* B_READ | B_WRITE is not implemented yet. */
-	if (!useracc((char *) buf, sizeof(struct ustat))) {
+	if (!useracc((char *) buf, sizeof(struct ustat), 1)) {
 		u.u_error = EFAULT;
 		return;
 	}
@@ -251,9 +251,40 @@ umsgsys(func, arg1, arg2, arg3, arg4, arg5)
 	}
 }
 
-uulimit()
+/* Don't tell user process about last remaining 64k of RAM */
+#define BRK_CUSHION	16
+
+uulimit(cmd, newlimit)
 {
-	u.u_error = EINVAL;
+	int freeClicks;
+
+	switch (cmd) {
+	case 1:	/* Get max # of 512-byte blocks per file. */
+		return u.u_bpfmax;
+		break;
+	case 2: /* Set max # of 512-byte blocks per file. */
+		/* (only superuser may increase this) */
+		if (newlimit <= u.u_bpfmax || super()) {
+			u.u_bpfmax = newlimit;
+			return 0;
+		}
+		/* else super() will have set u.u_error to EPERM */
+		break;
+	case 3: /* Get max break value. */
+		/* return (current brk value) + (amount of free space) */
+		/* Don't report all free clicks - leave a cushion. */
+		freeClicks = allocno() - BRK_CUSHION;
+		if (freeClicks < 0)
+			freeClicks = 0;
+		return u.u_segl[SIPDATA].sr_base
+		  + SELF->p_segp[SIPDATA]->s_size + NBPC * freeClicks;
+		break;
+	case 4: /* Return configured number of open files per process. */
+		return NOFILE;
+		break;
+	default:
+		u.u_error = EINVAL;
+	}
 }
 
 /*
@@ -568,7 +599,7 @@ unsigned 	n;	/* Number of bytes to be read */
 	char		ends[3] = "";
 	int		total = 0;
 
-	cw = &bp[0];
+	cw = bp;
 
 	ofnm = sizeof(sd.d_ino) + sizeof(sd.d_off) + sizeof(sd.d_reclen);
 
@@ -581,7 +612,7 @@ unsigned 	n;	/* Number of bytes to be read */
 	minbuf = entry + (mod ? sizeof(long) - mod : 0); 
 
 	/* Is user buffer available? */
-	if (!useracc(bp, n) || n < minbuf) {
+	if (!useracc(bp, n, 1) || n < minbuf) {
 		u.u_error = EFAULT;
 		return(0);
 	}
@@ -685,29 +716,35 @@ int		fstyp;	/* File system type */
 	long		frsize = 0;	/* Fragment size */
 
 	/* Check if stfs is an available user area. */
-	if (!useracc((char *) stfs, len)) {
-		u.u_error = EFAULT;
+	if (!useracc((char *) stfs, len, 1)) {
+		SET_U_ERROR(EFAULT, "ustatfs 0");
 		return;
 	}
 
 	/* Filesystem type is 1 for 512 bytes blocks. */
 	count += sizeof(systype);
-	if (count > len)
+	if (count > len) {
+		SET_U_ERROR(EFAULT, "ustatfs 1");
 		return;
+	}
 	if (!kucopy(&(systype), &(stfs->f_fstyp), sizeof(systype)))
 		return;
 	
 	/* Block size */
 	count += sizeof(bsize);
-	if (count > len)
+	if (count > len) {
+		SET_U_ERROR(EFAULT, "ustatfs 2");
 		return;
+	}
 	if (!kucopy(&(bsize), &(stfs->f_bsize), sizeof(bsize)))
 		return;
 
 	/* Fragment size. */
 	count += sizeof(int);
-	if (count > len)
+	if (count > len) {
+		SET_U_ERROR(EFAULT, "ustatfs 3");
 		return;
+	}
 	if (!kucopy(&(frsize), &(stfs->f_frsize), sizeof(frsize)))
 		return;
 
@@ -721,7 +758,7 @@ int		fstyp;	/* File system type */
 		devinfo(sb, stfs, len, &count);
 		kfree(sb);
 	}
-	return;
+	return 0;
 }
 
 /*
@@ -738,9 +775,11 @@ char	*path;
 	dev_t		device;		/* Mounted device */
 
 	/* Find the device */
-	if (path != NULL) {	/* Find ip by file name */
-		if (ftoi(path, 'r') != 0)
+	if (path) {	/* Find ip by file name */
+		if (ftoi(path, 'r')) {
+			/* If ftoi returned nonzero, it also set u.u_error. */
 			return NULL;
+		}
 		ip = u.u_cdiri;
 		device = ip->i_dev;
 		idetach(ip);
@@ -748,7 +787,7 @@ char	*path;
 		if ((fdp = fdget(fd)) == NULL)
 			return NULL;
 		if (((fdp->f_flag & IPR)) == 0) {
-			u.u_error = EBADF;
+			SET_U_ERROR(EBADF, "statmount 1");
 			return NULL;
 		}
 		ip = fdp->f_ip;
@@ -842,8 +881,8 @@ char	*path;	/* File name */
 	struct filsys	*sb;
 
 	/* Find the device */
-	if (path != NULL) {	/* Find ip by file name */
-		if (ftoi(path, 'r') != 0) 
+	if (path) {	/* Find ip by file name */
+		if (ftoi(path, 'r')) 
 			return NULL;
 		ip = u.u_cdiri;
 		mode = ip->i_mode;
@@ -925,22 +964,28 @@ int		fstyp;	/* File system type */
 
 	/* Filesystem type is 1 for 512 bytes blocks. */
 	count += sizeof(systype);
-	if (count > len)
+	if (count > len) {
+		SET_U_ERROR(EFAULT, "ufstatfs 0");
 		return;
+	}
 	if (!kucopy(&(systype), &(stfs->f_fstyp), sizeof(systype)))
 		return;
 	
 	/* Block size */
 	count += sizeof(bsize);
-	if (count > len)
+	if (count > len) {
+		SET_U_ERROR(EFAULT, "ufstatfs 1");
 		return;
+	}
 	if (!kucopy(&(bsize), &(stfs->f_bsize), sizeof(bsize)))
 		return;
 
 	/* Fragment size. */
 	count += sizeof(int);
-	if (count > len)
+	if (count > len) {
+		SET_U_ERROR(EFAULT, "ufstatfs 2");
 		return;
+	}
 	if (!kucopy(&(frsize), &(stfs->f_frsize), sizeof(frsize)))
 		return;
 
@@ -954,7 +999,7 @@ int		fstyp;	/* File system type */
 		devinfo(sb, stfs, len, &count);
 		kfree(sb);
 	}
-	return;
+	return 0;
 }
 
 /*
