@@ -192,7 +192,7 @@ char	*argv[];
 	else
 		tarfile = fopen(archive, "r+w");
 	if (tarfile==NULL) {
-		exit(perror("Tar: %s", archive));
+		exit(perror("Tar: 1: %s", archive));
 	}
 	setbuf(tarfile, NULL);
 
@@ -378,7 +378,7 @@ register dirhd_t *args;
 				if (fd >= 0 && (write(fd, header->th_data,
 						my_size) != my_size))
 
-					perror("Tar: %s", name);
+					perror("Tar: 2: %s", name);
 			}
 			if (fd >= 0)
 				close(fd);
@@ -516,7 +516,7 @@ register dirhd_t *args;
 	if ((namelen = strlen(name)) == 0)
 		name = ".";
 	if (stat(name, &statbuf) < 0) {
-		perror("Tar: %s", name);
+		perror("Tar: 3: %s", name);
 		return (args);
 	}
 	args->t_dev = statbuf.st_dev;
@@ -545,7 +545,7 @@ register dirhd_t *args;
 	}
 	args->t_nlink = 0;
 	if ((fd = open(name, 0)) < 0) {
-		perror("Tar: %s", name);
+		perror("Tar: 4: %s", name);
 		return (args);
 	}
 	for (;  nfile > 0;  --nfile) {
@@ -555,7 +555,7 @@ register dirhd_t *args;
 
 		switch (read(fd, (char *)&dir_ent, sizeof (struct direct))) {
 		case -1:
-			perror("Tar: %s", name);
+			perror("Tar: 5: %s", name);
 		case 0:
 			break;
 		default:
@@ -634,7 +634,7 @@ char	*pathname;
 			return err;
 		return mkdir(pathname);
 	}
-	return (perror("Tar: %s", pathname));
+	return (perror("Tar: 6: %s", pathname));
 }
 
 int
@@ -670,7 +670,7 @@ char	*pathname;
 		wait(&status);
 		errno = status>>8;
 	}
-	return (perror("Tar: %s", pathname));
+	return (perror("Tar: 7: %s", pathname));
 }
 
 int
@@ -683,7 +683,7 @@ unsigned short	mode;
 	if ((fd = create(pathname, mode)) < 0
 	&& (errno != ENOENT
 	  || mkparent(pathname) == 0 && (fd = create(pathname, mode)) < 0))
-		perror("Tar: %s", pathname);
+		perror("Tar: 8: %s", pathname);
 	errno = 0;
 	return (fd);
 }
@@ -841,7 +841,7 @@ register fsize_t	size;
 	register tarhd_t *header;
 
 	if ((fd = open(name, 0)) < 0) {
-		perror("Tar: %s", name);
+		perror("Tar: 9: %s", name);
 	}
 	for (;  size > 0;  size -= sizeof (tarhd_t)) {
 		header = writeblk();
@@ -872,10 +872,15 @@ readblk()
 		current = &buffer[0];
 		blocks = fread((char *) buffer,
 				sizeof (tarhd_t), MAXBLK, tarfile);
-		if (ferror(tarfile) || feof(tarfile)) {
-			exit(perror("Tar: %s", archive));
+		if (ferror(tarfile)) {
+			exit(perror("Tar: 10: %s", archive));
 		} else if (feof(tarfile)) {
-			return (NULL);
+			/* This is a hack.  We should actually find
+			 * out why returning NULL is not good enough.
+			 *
+			 * Really a pain without a symbolic debugger!
+			 */
+			exit(0);
 		}
 	}
 	return (current++);
@@ -893,7 +898,7 @@ writeblk()
 		current = &buffer[0];
 		fwrite((char *)buffer, sizeof (tarhd_t), blocking, tarfile);
 		if (ferror(tarfile) || feof(tarfile)) {
-			exit(perror("Tar: %s", archive));
+			exit(perror("Tar: 11: %s", archive));
 		}
 	}
 	return (current++);
