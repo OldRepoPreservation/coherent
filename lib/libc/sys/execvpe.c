@@ -1,5 +1,5 @@
 /*
- * libc/sys/execvep.c
+ * libc/sys/execvpe.c
  * Sys exec with an array of arguments and environment,
  * searching directories specified in PATH.
  */
@@ -13,9 +13,9 @@
 extern	char	*getenv();
 
 
-/* execvep(name, argv, env) */
+/* execvpe(name, argv, env) */
 int
-execvep(name, argv, env) char *name; char *argv[]; char **env;
+execvpe(name, argv, env) char *name; char *argv[]; char **env;
 {
 	register char *p1, *p2, *sp;
 	char fname[MAXPATH];
@@ -57,4 +57,4 @@ execvep(name, argv, env) char *name; char *argv[]; char **env;
 	return -1;					/* failed */
 }
 
-/* end of libc/sys/execvep.c */
+/* end of libc/sys/execvpe.c */

@@ -11,7 +11,7 @@ extern char **environ;
 int
 execlp(name, arg0) char *name; char *arg0;
 {
-	return execvep(name, &arg0, environ);
+	return execvpe(name, &arg0, environ);
 }
 
 /* end of libc/sys/execlp.c */

@@ -10,7 +10,7 @@ extern char **environ;
 int
 execvp(name, argv) char *name; char *argv[];
 {
-	return execvep(name, argv, environ);
+	return execvpe(name, argv, environ);
 }
 
 /* end of libc/sys/execvp.c */
