@@ -1,6 +1,9 @@
 /* build0.h */
 
+/* Manifest constants. */
 #define	NBUF		256		/* buffer size			*/
+#define PATCHFILE	"/tmp/patches"
+#define LDKERFILE	"/tmp/ldker"
 
 /* Flags for sys(). */
 #define	S_IGNORE	1
