@@ -20,6 +20,9 @@
  * control, erase and kill, stop and
  * start and common ioctl functions.
  *
+ * Bug: setting speed to default in ttopen() was conditioned to
+ *      use hard constants.  90/08/28.  hws
+ *
  * $Log:	/usr/src/sys/ttydrv/RCS/tty.c,v $
  * Revision 1.2	89/07/17  11:51:20 	src
  * Bug:	Terminal could lock up when setting it to RAWIN mode, if
@@ -49,6 +52,7 @@
  * made ttclose() interruptible.
  */
 #include <coherent.h>
+#include <al.h>
 #include <clist.h>
 #include <proc.h>
 #include <uproc.h>
@@ -59,6 +63,20 @@
 #include <deftty.h>
 #include <stat.h>
 #include <con.h>
+
+/* the following are shared by loadable serial drivers */
+/*   (see al.h and poll_clk.h) */
+int	com_usage[NUM_COM_PORTS];	/* COM_UNUSED/COM_IRQ/COM_POLLED */
+int	poll_rate;
+int	poll_owner;
+TTY	*(tp_table[NUM_COM_PORTS]);	/* table of pointers for polling */
+
+/* NEAR_OR_FAR_CALL is for invoking t_param and t_start */
+#define	 NEAR_OR_FAR_CALL(tp_fn)  {\
+	if (tp->t_cs_sel) \
+		ld_call(tp->t_cs_sel, tp->tp_fn, tp); \
+	else \
+		(*tp->tp_fn)(tp); }
 
 extern	int	wakeup();
 extern	void	pollwake();
@@ -72,13 +90,8 @@ ttopen(tp)
 register TTY *tp;
 {
 	tp->t_escape = 0;
-#ifdef	OLD	/* How old? */
 	tp->t_sgttyb.sg_ispeed = tp->t_dispeed;
 	tp->t_sgttyb.sg_ospeed = tp->t_dospeed;
-#else
-	tp->t_sgttyb.sg_ispeed = DEF_SG_ISPEED;	 /* default speed settings */
-	tp->t_sgttyb.sg_ospeed = DEF_SG_OSPEED;
-#endif
 	tp->t_sgttyb.sg_erase  = DEF_SG_ERASE;
 	tp->t_sgttyb.sg_kill   = DEF_SG_KILL;
 	tp->t_sgttyb.sg_flags  = DEF_SG_FLAGS;
@@ -88,8 +101,9 @@ register TTY *tp;
 	tp->t_tchars.t_stopc   = DEF_T_STOPC;
 	tp->t_tchars.t_eofc    = DEF_T_EOFC;
 	tp->t_tchars.t_brkc    = DEF_T_BRKC;
-	if (tp->t_param != NULL)
-		(*tp->t_param)(tp);
+	if (tp->t_param != NULL) {
+		NEAR_OR_FAR_CALL(t_param)
+	}
 }
 
 /*
@@ -370,7 +384,7 @@ register struct sgttyb *vec;
 	 * Re-initialize hardware.
 	 */
 	if ( (rload != 0) && (tp->t_param != NULL) )
-		(*tp->t_param)(tp);
+		NEAR_OR_FAR_CALL(t_param)
 }
 
 /*
@@ -690,7 +704,7 @@ register TTY *tp;
 		return;
 	}
 
-	(*tp->t_start)(tp);
+	NEAR_OR_FAR_CALL(t_start)
 
 	if ( tp->t_oq.cq_cc > OLOLIM )
 		return;
