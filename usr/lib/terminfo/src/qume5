@@ -1,0 +1,3 @@
+qume5|qume|Qume Sprint 5,
+	hc, os, cols#80, bel=^G, cr=^M, tbc=\E3, cud1=^J, cub1=^H, cuu1=^Z, 
+	hd=\Eh, ff=^L, kbs=^H, ind=^J, hts=\E1, ht=^I, hu=\EH, 

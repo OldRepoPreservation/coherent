@@ -1,0 +1,2 @@
+dw1|decwriter I,
+	hc, os, cols#72, bel=^G, cr=^M, cud1=^J, cub1=^H, ind=^J, 

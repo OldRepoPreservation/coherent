@@ -1,0 +1,3 @@
+ep40|ep4000|execuport 4000,
+	am, os, cols#136, bel=^G, cr=^M, cud1=^J, cub1=^H, hd=^\, ind=^J, 
+	hu=^^, 

@@ -1,0 +1,5 @@
+ibm|ibm3101|3101|i3101|IBM 3101-10,
+	am, cols#80, lines#24, bel=^G, cr=^M, tbc=\EH, clear=\EK, el=\EI, 
+	ed=\EJ, cup=\EY%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=\EH, cub1=^H, 
+	cuf1=\EC, cuu1=\EA, kcud1=\EB, kcub1=\ED, kcuf1=\EC, kcuu1=\EA, 
+	ind=^J, hts=\E0, ht=^I, 

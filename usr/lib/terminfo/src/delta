@@ -1,0 +1,4 @@
+delta|dd5000|delta data 5000,
+	am, cols#80, lines#27, bel=^G, clear=^NR, el=^NU, 
+	cup=^O%p1%p1%{16}%m%{2}%*%-%'9'%+%c%p2%p2%{16}%m%{2}%*%-%'9'%+%c, 
+	cud1=^J, home=^NQ, cub1=^H, cuf1=^Y, cuu1=^Z, dch1=^NV, ind=^J, 

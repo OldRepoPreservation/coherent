@@ -1,0 +1,2 @@
+aaa-unk-stat|Ann Arbor Ambassadors with status lines,
+	hs, eslok, fsl=\E[>51l, tsl=\E[>51h\E[1;%p1%dH\E[2K, 

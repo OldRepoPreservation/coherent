@@ -1,0 +1,3 @@
+adm3|lsi adm3,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=^Z, cud1=^J, cub1=^H, 
+	ind=^J, 

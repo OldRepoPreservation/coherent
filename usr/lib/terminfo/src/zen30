@@ -1,0 +1,5 @@
+zen30|z30|zentec 30,
+	am, mir, ul, cols#80, lines#24, bel=^G, cr=^M, clear=\E*, 
+	el=\ET$<1.0*>, ed=\EY, cup=\E=%p1%' '%+%c%p2%' '%+%c, cud1=^J, 
+	home=^^, cub1=^H, cuf1=^L, cuu1=^K, dch1=\EW, dl1=\ER$<1.5*>, 
+	smir=\Eq, smso=\EG6, rmir=\Er, rmso=\EG0, il1=\EE$<1.5*>, ind=^J, 

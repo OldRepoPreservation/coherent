@@ -1,0 +1,4 @@
+i100|gt100|gt100a|General Terminal 100A (formerly Infoton 100),
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=\EK, ed=\EJ, 
+	cup=\Ef%p2%' '%+%c%p1%' '%+%c, cud1=^J, home=\EH, cub1=^H, cuf1=\EC, 
+	cuu1=\EA, dl1=\EM, smso=\Eb, rmso=\Ea, flash=\Eb\Ea, il1=\EL, ind=^J, 

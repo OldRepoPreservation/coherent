@@ -1,0 +1,3 @@
+ttywilliams,
+	am, cols#80, lines#12, bel=^G, cr=^M, clear=^^, el=^_, cud1=^K, 
+	home=^], cub1=^Y, cuf1=^X, cuu1=^Z, ind=^J, 

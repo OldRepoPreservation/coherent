@@ -1,0 +1,4 @@
+h1510|hazeltine 1510,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=\E^\, el=\E^O, ed=\E^X, 
+	cup=\E^Q%p2%c%p1%c, cud1=\E^K, cub1=^H, cuf1=^P, cuu1=\E^L, dl1=\E^S, 
+	il1=\E^Z, ind=^J, 

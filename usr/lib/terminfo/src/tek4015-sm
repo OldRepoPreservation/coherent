@@ -1,0 +1,3 @@
+tek4015-sm|4015-sm|tektronix 4015 in small font,
+	os, cols#121, lines#58, bel=^G, cr=^M, clear=\E^L$<1000>, cud1=^J, 
+	cub1=^H, smacs=\E^O, rmacs=\E^N, ff=^L$<1000>, is2=\E^O\E:, 

@@ -1,0 +1,5 @@
+vc404s|volker-craig 404 w/standout mode,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=^X$<40>, el=^V$<20>, 
+	ed=^W$<40>, cup=^P%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=^Y$<40>, 
+	cub1=^H, cuf1=^U, cuu1=^Z, smso=^N, rmso=^O, kcud1=^J, kcub1=^H, 
+	kcuf1=^U, kcuu1=^Z, ind=^J, 

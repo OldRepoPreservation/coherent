@@ -1,0 +1,5 @@
+citoh|ci8510|8510|c.itoh 8510a,
+	hc, os, cols#80, bel=^G, cr=^M, cud1=^J, cub1=^H, bold=\E!, smul=\EX, 
+	sgr0=\E"\EY, rmul=\EY, ff=^L, 
+	is2=\E(009,017,025,033,041,049,057,065,073., rep=\ER%p2%3d%p1%c, 
+	ri=\Er, 

@@ -1,0 +1,4 @@
+soroc|Soroc 120,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=\E*$<2>, el=\ET, ed=\EY, 
+	cup=\E=%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=^^, cub1=^H, cuf1=^L, 
+	cuu1=^K, kcud1=^J, kcub1=^H, kcuf1=^L, kcuu1=^K, ind=^J, 

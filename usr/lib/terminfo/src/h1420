@@ -1,0 +1,4 @@
+h1420|hazeltine 1420,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=\E^\, el=\E^O, ed=\E^X, 
+	cup=\E^Q%p2%c%p1%' '%+%c, cud1=^J, cub1=^H, cuf1=^P, cuu1=\E^L, 
+	dl1=\E^S, smso=\E^_, rmso=\E^Y, il1=\E^Z, ind=^J, ht=^N, 

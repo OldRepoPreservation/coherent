@@ -1,0 +1,3 @@
+5520|nec|spinwriter|nec 5520|,
+	hc, os, cols#132, bel=^G, cr=^M, tbc=\E3, cud1=^J, cub1=^H, cuu1=\E9, 
+	hd=\E]s^J\E]W, ff=^L, kbs=^H, ind=^J, hts=\E1, ht=^I, hu=\E]s\E9\E]W, 

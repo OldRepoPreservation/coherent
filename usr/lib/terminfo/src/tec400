@@ -1,0 +1,4 @@
+tec400|tec scope,
+	xmc#1, bel=^G, cr=^M, clear=f, el=c, ed=s, cup=l%p2%~%c%p1%~%c, 
+	cud1=h, home=i, cub1=w, cuf1=g, cuu1=x, dch1=t, dl1=u, smso={, 
+	rmso=|, ich1=d, il1=e, ind=^J, 

@@ -1,0 +1,3 @@
+compucolor2|compucolorii,
+	am, cols#64, lines#32, bel=^G, cr=^M, clear=^L, cup=^C%p2%c%p1%c, 
+	cud1=^J, home=^H, cub1=^Z, cuf1=^Y, cuu1=^\, ind=^J, ht=^I, 

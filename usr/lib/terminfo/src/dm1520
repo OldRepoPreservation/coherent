@@ -1,0 +1,5 @@
+dm1520|dm1521|1521|1520|datamedia 1520,
+	am, xenl, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=^], ed=^K, 
+	cup=^^%p2%' '%+%c%p1%' '%+%c, cud1=^J, home=^Y, cub1=^H, cuf1=^\, 
+	cuu1=^_, kcud1=^J, khome=^Y, kcub1=^H, kcuf1=^\, kcuu1=^_, ind=^J, 
+	ht=^I, 
