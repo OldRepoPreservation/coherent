@@ -51,7 +51,6 @@ setup_acs()
 	acs_map['o'] = '_';
 	acs_map[','] = '<';
 	acs_map['+'] = '>';
-	acs_map['0'] = ' ' | A_REVERSE;
 
 	/* now get the alternate characters from acs_chars and fill map */
 	p = acs_chars;

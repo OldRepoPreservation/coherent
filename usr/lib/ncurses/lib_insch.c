@@ -57,7 +57,7 @@ static char RCSid[] =
 
 winsch(win, c)
 register WINDOW	*win;
-char	c;
+chtype c;
 {
 	register chtype	*temp1, *temp2;
 	chtype		*end;
@@ -65,7 +65,7 @@ char	c;
 
 #ifdef TRACE
 	if (_tracing)
-	    _tracef("winsch(%o,'%c') called", win, c);
+	    _tracef("winsch(%o,%o) called", win, c);
 #endif
 
 	end = &win->_line[win->_cury][win->_curx];
