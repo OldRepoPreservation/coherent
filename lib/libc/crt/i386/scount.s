@@ -42,9 +42,9 @@
 
 _scount:
 	incl	4(%ecx)
-	cmpl	%esp, _mhdr+16
+	cmpl	%esp, _mhdr+12
 	jae	.L2
-	movl	_mhdr+16, %esp
+	movl	_mhdr+12, %esp
 .L2:
 	cmpl	8(%ecx), $0
 	jne	.L1

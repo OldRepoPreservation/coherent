@@ -199,11 +199,12 @@ _dadd:
 	/ Bit 21 can be set if the EDX:EAX operand was shifted left above.
 	bsrl	%ecx, %edx		/ hi bit position 0-21 to ECX
 	jz	?lotest			/ hi mantissa is 0
+	cmpl	%ecx, $21
+	jz	?rshift			/ right shift one bit if hi bit was 21
 
 ?normalize:
 	negl	%ecx
 	addl	%ecx, $20		/ shift count to CL
-	jnc	?rshift			/ right shift one bit if hi bit was 21
 
 	/ Shift left by CL bits to normalize, adjusting exponent accordingly.
 ?lshift:
