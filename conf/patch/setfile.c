@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <errno.h>
 #include <coff.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include "patch.h"
 
 extern char *symbols;		/* String of symbol names.  */
+extern int peek;		/* Are we just looking?  */
 
 /*
  * Modify the contents of the file namep to match the array of patch
@@ -38,9 +40,16 @@ setfile(namep, n, pl)
 	char *symname;		/* Name of the currently patched LHS.  */
 
 	/* Open the file to be patched.  */
-	if ((fd=open(namep, 2)) < 0) {
-		fprintf(stderr, "Cannot open %s\n", namep);
-		exit(1);
+	if (peek) {
+		if ((fd=open(namep, O_RDONLY)) < 0) {
+			fprintf(stderr, "Cannot open %s for reading.\n", namep);
+			exit(1);
+		}
+	} else {
+		if ((fd=open(namep, O_RDWR)) < 0) {
+			fprintf(stderr, "Cannot open %s.\n", namep);
+			exit(1);
+		}
 	}
 
 	lseek(fd, 0L, 0);
