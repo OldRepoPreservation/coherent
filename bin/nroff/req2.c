@@ -74,7 +74,7 @@ req_nm(argc, argv) int argc; char *argv[];
 #else
 	long	smdigw, sddigw;
 
-	smdigw = swdmul * fonwidt['0'] * psz;
+	smdigw = width('0') * swddiv;
 	sddigw = swddiv;
 	if ((lnn=number(argv[1], SMUNIT, SDUNIT, lnn, 0, 0)) <= 0) {
 		lnn = 0;
@@ -306,21 +306,11 @@ req_ps(argc, argv) int argc; char *argv[];
  */
 req_rb(argc, argv) int argc; char *argv[];
 {
-	register FILE *fp;
-	int	c;
-
-	setbreak();			/* break		*/
-	if (argc < 2) {
+	setbreak();
+	if (argc < 2)
 		printe(".rb: no file specified");
-		return;
-	}
-	if ((fp = fopen(argv[1], "rb")) == NULL) {
+	else if (copy_file(argv[1]) == 0)
 		printe(".rb: cannot open file %s", argv[1]);
-		return;
-	}
-	while ((c = fgetc(fp)) != EOF)
-		putchar(c);
-	fclose(fp);
 }
 
 /*
@@ -344,7 +334,7 @@ req_rf(argc, argv) int argc; char *argv[];
 	register int n;
 
 	if (argc < 2) {
-		printe(".rf: requires source and destination");
+		printe(".rf: requires name and new name");
 		return;
 	}
 	if ((n = font_number(argv[1], ".rf: ")) >= 0)
@@ -458,7 +448,10 @@ req_sp(argc, argv) int argc; char *argv[];
  */
 req_ss(argc, argv) int argc; char *argv[];
 {
-	setval(&ssz, &oldssz, argv[1], SMEMSP, 36 * SDEMSP);
+	ssz = sszmul = number(argv[1], SMEMSP,
+				(ntroff == NROFF) ? SDEMSP : 36 * SDEMSP,
+				ssz, 0, ssz);
+	sszdiv = psz;
 }
 
 /*
@@ -536,11 +529,11 @@ req_tc(argc, argv) int argc; char *argv[];
 		return;
 	}
 	tbc = argv[1][0];
-	tbf = fontype;
+	tfn = curfont;
 	if (argc > 2)
 		tbs = number(argv[2], SMEMSP, SDEMSP, tbs, 0, tbs);
 	if (argc > 3 && (n = font_number(argv[3], ".tc: ")) >= 0)
-		tbf = n;
+		tfn = n;
 }
 
 /*
@@ -671,7 +664,7 @@ req_uf(argc, argv) int argc; char *argv[];
  */
 req_ul(argc, argv) int argc; char *argv[];
 {
-	ufp = fontype;
+	ufp = curfont;
 	setfontnum(ufn, 0);
 	ulc = number(argv[1], SMUNIT, SDUNIT, 0, 0, 1);
 }

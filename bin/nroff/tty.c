@@ -1,60 +1,54 @@
 /*
  * tty.c
- * Nroff/Troff.
- * TTY driver.
+ * Nroff.
+ * nroff output writer, aka TTY driver.
  */
 
 #include <ctype.h>
 #include "roff.h"
 
+/* Font indices. */
+#define	FONTR	0			/* Roman			*/
+#define	FONTB	1			/* Bold				*/
+#define	FONTI	2			/* Italic			*/
+
 /* Special escape sequences. */
-#define	RLF	"\0337"			/* Reverse line feed */
-#define	HRLF	"\0338"			/* Half reverse line feed */
-#define	HLF	"\0339"			/* Half line feed */
-#define	LF	"\033B"			/* Line feed */
+#define	RLF	"\0337"			/* Reverse line feed		*/
+#define	HRLF	"\0338"			/* Half reverse line feed	*/
+#define	HLF	"\0339"			/* Half line feed		*/
+#define	LF	"\033B"			/* Line feed			*/
 
 /*
  * Device parameters.
  */
-int	ntroff	=	NROFF;		/* Programme is NROFF type */
-long	semmul	=	3;		/* Multiplier for em space */
-long	semdiv	=	5;		/* Divisor for em space */
-long	senmul	=	3;		/* Multiplier for en space */
-long	sendiv	=	5;		/* Divisor for en space */
-long	shrmul	=	12;		/* Horizontal resolution (mul) */
-long	shrdiv	=	1;		/* Horizontal resolution (div) */
-long	sinmul	=	120;		/* Multiplier for inch */
-long	sindiv	=	1;		/* Divisor for inch */
-long	snrmul	=	0;		/* Narrow space (mul) */
-long	snrdiv	=	1;		/* Narrow space (div) */
-long	svrmul	=	20;		/* Vertical resolution (mul) */
-long	svrdiv	=	1;		/* Vertical resolution (div) */
+int	ntroff	=	NROFF;		/* Programme is NROFF type	*/
+long	semmul	=	3;		/* Multiplier for em space	*/
+long	semdiv	=	5;		/* Divisor for em space		*/
+long	senmul	=	3;		/* Multiplier for en space	*/
+long	sendiv	=	5;		/* Divisor for en space		*/
+long	shrmul	=	12;		/* Horizontal resolution (mul)	*/
+long	shrdiv	=	1;		/* Horizontal resolution (div)	*/
+long	sinmul	=	120;		/* Multiplier for inch		*/
+long	sindiv	=	1;		/* Divisor for inch		*/
+long	snrmul	=	0;		/* Narrow space (mul)		*/
+long	snrdiv	=	1;		/* Narrow space (div)		*/
+long	svrmul	=	20;		/* Vertical resolution (mul)	*/
+long	svrdiv	=	1;		/* Vertical resolution (div)	*/
 
 /*
  * Map user fontnames to font numbers.
  */
 FTB fontab[NFNAMES] ={
-	{ 'R',  '\0', TRMED },
-	{ 'I',  '\0', TRITL },
-	{ 'B',  '\0', TRBLD }
+	{ 'R',  '\0', FONTR },
+	{ 'B',  '\0', FONTB },
+	{ 'I',  '\0', FONTI }
 };
 
 /*
- * Width table.
- * Initialized in devinit().
+ * Initialize nroff-specific parameters.
  */
-unsigned char widtab[NWIDTH];
-
-/*
- * Set up the non-constant parameters that depend on a particular device.
- */
-devinit()
+dev_init()
 {
-	register int i;
-
-	for (i = 0; i < NWIDTH; i++)
-		widtab[i] = 12;		/* initialize font width table */
-	fonwidt = widtab;		/* width table for all fonts */
 	swdmul	= 1;			/* multiplier for width table */
 	swddiv	= 20;			/* divisor for width table */
 	vls = psz = unit(SMINCH, 6*SDINCH);
@@ -78,28 +72,9 @@ width(c) register int c;
 /*
  * Given a font number, change to the given font.
  */
-devfont(n) register int n;
+dev_font(n) register int n;
 {
-	nlindir++;
-	addidir(DFONT, fontype = n);
-}
-
-/*
- * Change the pointsize to the one specified.
- * A nop for nroff.
- */
-devpsze(n) int n;
-{
-	/* psz initialized in devinit() */
-}
-
-/*
- * Change the vertical spacing.
- * A nop for nroff.
- */
-devvlsp(n)
-{
-	/* vls initialized in devinit() */
+	addidir(DFONT, curfont = n);
 }
 
 /*
@@ -202,14 +177,14 @@ flushl(buffer, bufend) CODE *buffer; CODE *bufend;
 				n = cp->l_arg.c_code;
 			if (n < 0 || n >= NWIDTH)
 				panic("bad directive %d", n);
-			if ((font != TRMED)
+			if ((font != FONTR)
 			&&  (isascii(n))
 			&&  (isupper(n) || islower(n) || isdigit(n)))
 				switch (font) {
-				case TRBLD:
+				case FONTB:
 					printf("%c\b", n);
 					break;
-				case TRITL:
+				case FONTI:
 #if	1
 					printf("_\b");
 #else
@@ -238,7 +213,7 @@ void
 font_display()
 {
 	fprintf(stderr,
-		"Fonts available in this version:\n R  Roman\n I  Italic\n B  Bold\n"
+"Fonts available in this version:\n R  Roman\n I  Italic\n B  Bold\n"
 		);
 }
 
@@ -247,8 +222,8 @@ font_display()
  */
 dev_cs(){}
 dev_fz(){}
+dev_ps(){}		/* psz initialized in devinit() */
 newpsze(){}
 load_font(){}
-void resetdev(){}
 
 /* end of tty.c */

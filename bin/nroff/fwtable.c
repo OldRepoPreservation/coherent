@@ -169,7 +169,7 @@ char *serif_tab[] = {
 	"flair serif",			/* 8 */
 	"script nonconnecting",		/* 9 */
 	"script joining",		/* 10 */
-	"script calligrpahic",		/* 11 */
+	"script calligraphic",		/* 11 */
 	"script broken letter",		/* 12 */
 	"serif value out-of-range"	/* >12 */
 };

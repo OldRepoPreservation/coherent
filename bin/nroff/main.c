@@ -9,6 +9,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <path.h>
+#include <string.h>
 #include "roff.h"
 
 extern	char	*getenv();
@@ -22,21 +23,10 @@ extern	char	*mktemp();
 
 #ifdef	GEMDOS
 unsigned long _stksize = 0x8000L;
-#define	TMACFORMAT	"%s.tmc"
 #endif
 
-#ifdef	MSDOS
-#define	TMPLATE	"nroffX.tmp"		/* Template for temp file...	*/
-#define	TMACFORMAT	"%s.tmc"
-#endif
-
-#ifdef	COHERENT
-#define	TMPLATE	"/tmp/rofXXXXXX"
-#define	TMACFORMAT	"tmac.%s"
-#endif
-
-static	int	kflag;		/* keep tmp file for debug purposes */
-static	char	*tempname;	/* temp file name */
+static	int	kflag;		/* keep tmp file for debug purposes	*/
+static	char	*tempname;	/* temp file name			*/
 
 main(argc, argv) int argc; char *argv[];
 {
@@ -46,7 +36,7 @@ main(argc, argv) int argc; char *argv[];
 	char c, name[2];
 
 	argv0 = (ntroff == NROFF) ? "nroff" : "troff";
-	cp = getenv(ntroff == NROFF ? "NROFF" : "TROFF");
+	cp = getenv((ntroff == NROFF) ? "NROFF" : "TROFF");
 	if (cp != NULL && *cp != '\0')
 		addargs(cp, &argc, &argv);
 	initialize(argc, argv);
@@ -69,7 +59,7 @@ main(argc, argv) int argc; char *argv[];
 			iflag = 1;		/* Process stdin when done */
 		else if (c == 'm') {
 			/* Process "-m" macro package argument. */
-			sprintf(miscbuf, TMACFORMAT, &argv[i][2]);
+			sprintf(miscbuf, TMACFMT, &argv[i][2]);
 			libpath = DEFLIBPATH;
 			if ((libpath = path(libpath, miscbuf, AREAD)) != NULL)
 				strcpy(miscbuf, libpath);
@@ -97,6 +87,8 @@ main(argc, argv) int argc; char *argv[];
 		adsunit(stdin);
 		process();
 	}
+	if (iestackx != -1)
+		printe(".ie without matching .el");
 	leave(0);
 }
 
@@ -108,13 +100,16 @@ initialize(argc, argv) int argc; char *argv[];
 	register REG *rp;
 	register REQ *qp;
 	register int i;
-	int tmparg;
+	int Dflag, tmparg;
+	char *s;
 
 	A_reg = ntroff==NROFF;
 
-	/* Pass over args, process those dealing with global initialization. */
-	/* main() makes another pass over the arg list to process input files. */
-	tmparg = 0;
+	/*
+	 * Pass over args, process those dealing with global initialization.
+	 * main() makes another pass over the arg list to process input files.
+	 */
+	Dflag = tmparg = 0;
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] != '-')
 			continue;
@@ -132,7 +127,7 @@ initialize(argc, argv) int argc; char *argv[];
 				dflag++;
 			continue;
 		case 'D':
-			font_display();
+			Dflag = 1;
 			continue;
 		case 'f':
 			if (i < (argc-1))
@@ -178,9 +173,9 @@ initialize(argc, argv) int argc; char *argv[];
 
 	/* Initialize tempfile. */
 #ifdef	GEMDOS
-	tempname = (tmparg ? argv[tmparg] : tempnam(0L, "nroff"));
+	tempname = (tmparg) ? argv[tmparg] : tempnam(0L, "nroff");
 #else
-	tempname = (tmparg ? argv[tmparg] : mktemp(TMPLATE));
+	tempname = (tmparg) ? argv[tmparg] : mktemp(TMPLATE);
 #endif
 	dprint2(DBGFILE, "temp file name = %s\n", tempname);
 	if ((tmp=fopen(tempname, "w")) == NULL)
@@ -191,23 +186,15 @@ initialize(argc, argv) int argc; char *argv[];
 	tmpseek = (tmpseek+DBFSIZE+DBFSIZE-1) & ~(DBFSIZE-1);
 
 #ifdef	GEMDOS
-	/* Under GEMDOS lseek wil not produce sparse files
-	 * so it becomes necessary to write the beginning of
-	 * nroff's work file.
+	/*
+	 * GEMDOS lseek does not produce sparse files;
+	 * this makes it necessary to write the beginning of nroff's work file.
 	 */
-	{
-		char buff[DBFSIZE];
-		register char *cp;
-		register int i;
-
-		for(cp=buff; cp < &buff[DBFSIZE];)
-			*cp++ = '\0';
-
-		for(i = 0; i < tmpseek; i += DBFSIZE) {
-			dprintd(DBGFILE, "initializing tempfile\n");
-			if(write(fileno(tmp), buff, DBFSIZE) != DBFSIZE)
-				panic("temp file write error");
-		}
+	memset(diskbuf, '\0', DBFSIZE);
+	for (i = 0; i < tmpseek; i += DBFSIZE) {
+		dprintd(DBGFILE, "initializing tempfile\n");
+		if (write(fileno(tmp), diskbuf, DBFSIZE) != DBFSIZE)
+			panic("temp file write error");
 	}
 #endif
 #ifdef	COHERENT
@@ -221,14 +208,19 @@ initialize(argc, argv) int argc; char *argv[];
 		unlink(tempname);
 #endif
 
-	/* Device-specific initialization. */
-	devinit();
-
+	/* Copy .pre-file if it exists. */
+	if (!Dflag) {
+		s = (lflag) ? ".pre_land" : ".pre";
+		if (lib_file(s, 0) == 0 & ntroff == TROFF)
+			printe("file \"%s\" not found", s);
+	}
+	
 	/* Initialize globals. */
+	dev_init();		/* output writer-specific initialization */
 	for (i = 0; i < NWIDTH; i++)
-		trantab[i] = i;			/* translation table */
+		trantab[i] = i;				/* translation table */
 	for (i = 0; i < RHTSIZE; i++)
-		regt[i] = NULL;			/* request hash table */
+		regt[i] = NULL;				/* request hash table */
 	for (qp = reqtab; qp->q_name[0]; qp++) {	/* built-in requests */
 		rp = makereg(qp->q_name, RTEXT);
 		rp->t_reg.r_macd.r_div.m_next = NULL;
@@ -254,11 +246,10 @@ initialize(argc, argv) int argc; char *argv[];
 	setnreg();
 
 	/* Environment initialization. */
-	setenvr();
+	envset();
 	envinit[0] = 1;
-	tbf = fontype;				/* leader dot font */
-	ufn = font_number("I", NULL);		/* underline font number */
 
+	/* Etc. */
 	iestackx = -1;
 	cdivp = NULL;
 	newdivn("\0\0");
@@ -273,6 +264,23 @@ initialize(argc, argv) int argc; char *argv[];
 	pno = 1;
 	npn = 2;
 	esc = '\\';
+
+	/* Load default fonts for troff, initialize font numbers. */
+	i = lib_file("fonts.r", 1);
+	if (ntroff == TROFF && i == 0)
+		panic("fonts.r not found");
+	if (Dflag) {
+		font_display();
+		exit(0);
+	}
+	if (setfont("R", 1) == -1)
+		leave(1);			/* font R is mandatory */
+	tfn = curfont;				/* tab character font */
+	if ((ufn = font_num("I")) == -1)	/* underline font number */
+		ufn = curfont;
+
+	/* Process special character definitions. */
+	lib_file("specials.r", 1);		/* special characters */
 #if	(DDEBUG & DBGCHEK)
 	printd(DBGFUNC, "initialized...\n");
 #endif
@@ -288,8 +296,8 @@ setnreg()
 
 	curtime = time((time_t *)0);
 	tmp = localtime(&curtime);
-	nryrreg->n_reg.r_nval = tmp->tm_year%100;
-	nrmoreg->n_reg.r_nval = tmp->tm_mon+1;
+	nryrreg->n_reg.r_nval = tmp->tm_year % 100;
+	nrmoreg->n_reg.r_nval = tmp->tm_mon + 1;
 	nrdyreg->n_reg.r_nval = tmp->tm_mday;
 	nrdwreg->n_reg.r_nval = tmp->tm_wday + 1;
 }
@@ -312,7 +320,7 @@ leave(n)
 		setbreak();
 		if (xflag == 0) {
 			byeflag = 1;
-			pspace(0);
+			pspace();
 		}
 	}
 #ifndef COHERENT
@@ -346,7 +354,7 @@ addargs(cp, argcp, argvp) char *cp; int *argcp; char ***argvp;
 		if (*s == ' ')
 			++n;		/* number of added args */
 	*argcp += n;			/* bump argc */
-	np = nargv = (char **)nalloc((*argcp + 1) * sizeof (char *));	/* allocated */
+	np = nargv = (char **)nalloc((*argcp + 1) * sizeof (char *)); /* allocate */
 	*np++ = *(*argvp)++;		/* copy old argv0 */
 	for (s = cp; *s != '\0'; ) {
 		*np++ = s;		/* store pointer to new arg */

@@ -32,7 +32,8 @@ char name[2];
 	dp->d_trap = NULL;
 	dp->d_ctpp = NULL;
 	cdivp = dp;
-	devfont(fontype);
+	if (name[0] != '\0')
+		dev_font(curfont);
 	dprint3(DBGDIVR, "create diversion %c%c\n", name[0], name[1]);
 }
 
@@ -61,7 +62,7 @@ enddivn()
 	cdivp = cdivp->d_next;
 	dprint3(DBGDIVR, "ended diversion %c%c\n", dp->d_name[0], dp->d_name[1]);
 	nfree((char *)dp);
-	devfont(fontype);
+	dev_font(curfont);
 }
 
 /*
@@ -104,6 +105,9 @@ lspace(n)
 	register DIV *dp;
 	register TPL *tp;
 
+#if	0
+	fprintf(stderr, "lspace(%d)\n", n);
+#endif
 	dp = cdivp;
 	tp = dp->d_ctpp;
 	if (tp!=NULL && dp->d_rpos+n<tp->t_apos)
@@ -123,6 +127,9 @@ pspace()
 	int lpct;
 	register int npos;
 
+#if	0
+	fprintf(stderr, "pspace()\n");
+#endif
 	dp = mdivp;
 	lpct = pct;
 	while (lpct == pct) {
@@ -151,6 +158,9 @@ sspace(n)
 	register TPL *tp;
 	register int npos;
 
+#if	0
+	fprintf(stderr, "sspace(%d)\n", n);
+#endif
 	dp = cdivp;
 	tp = dp->d_ctpp;
 	npos = dp->d_rpos + n;
@@ -178,6 +188,7 @@ register DIV *dp;
 {
 	CODE code[1];
 	register TPL *tp;
+	char *s;
 
 	code[0].l_arg.c_code = DSPAR;
 	code[0].l_arg.c_iarg = n;
@@ -189,7 +200,9 @@ register DIV *dp;
 		cdivp->d_maxh = cdivp->d_rpos;
 	while (cdivp->d_rpos >= pgl) {
 		if (byeflag) {
-			resetdev();
+			s = (lflag) ? ".post_land" : ".post";
+			if (lib_file(s, 0) == 0 & ntroff == TROFF)
+				printe("file \"%s\" not found", s);
 			leave(0);
 		}
 		pct++;

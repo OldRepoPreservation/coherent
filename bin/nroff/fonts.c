@@ -1,200 +1,29 @@
 /*
  * fonts.c
- * Nroff/Troff.
- * Font handling.
- * Defines default fonts and supports loading of font width tables.
+ * Troff.
+ * Font loading.
  */
 
 #include <ctype.h>
 #include <canon.h>
 #include "roff.h"
 
-int nfonts = NDFONTS;			/* number of fonts available	*/
+static	int	errflag;		/* font table read error flag */
+int		nfonts;			/* number of fonts available	*/
 
 /*
  * Map user font names to font numbers.
  * Several troff font names can map to the same font number.
- * This defines the built-in font names, the user can add more using .lf.
+ * Entries get added by .lf or .rf.
  */
-FTB fontab[NFNAMES] ={
-	{ 'R', '\0', TRMED },
-	{ 'I', '\0', TRITL },
-	{ 'B', '\0', TRBLD },
-	{ 'T', 'R',  TRMED },
-	{ 'T', 'I',  TRITL },
-	{ 'T', 'B',  TRBLD }
-};
+FTB	fontab[NFNAMES];
 
 /*
  * Font width table pointers, indexed by font number.
  * The order of built-in entries corresponds to the indices in "fonts.h".
  * The .lf request adds additional entries to this table.
  */
-FWTAB	*fwptab[NFONTS]	= {
-	&fwtab[0], &fwtab[1], &fwtab[2]
-};
-
-/* Built-in font width tables. */
-FWTAB	fwtab[NDFONTS] = {
-	/* 0 */
-	{
-		/* File tr100rpn.usp */
-		"Times 10.00 point",
-		"Times-Roman",	/* PostScript name */
-		F_PCL,		/* flags	*/
-		0,		/* fonttype	*/
-		0,		/* orientation	*/
-		1,		/* spacing	*/
-		21,		/* symbol_set	*/
-		44,		/* pitch	*/
-		100,		/* pointsize	*/
-		0,		/* style	*/
-		0,		/* weight	*/
-		5,		/* typeface	*/
-		4, 165,		/* mul, div	*/
-		/* Movement table: first = 33, last = 127 */
-		{
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x00-0x07 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x08-0x0F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x10-0x17 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x18-0x1F */
-			  0, 13, 13, 32, 20, 39, 34, 10,	/* 0x20-0x27 */
-			 16, 16, 20, 34, 10, 14, 10, 21,	/* 0x28-0x2F */
-			 20, 20, 20, 20, 20, 20, 20, 20,	/* 0x30-0x37 */
-			 20, 20, 11, 11, 34, 34, 34, 20,	/* 0x38-0x3F */
-			 40, 31, 28, 29, 33, 29, 25, 33,	/* 0x40-0x47 */
-			 34, 15, 18, 30, 26, 39, 31, 33,	/* 0x48-0x4F */
-			 25, 33, 31, 22, 27, 34, 31, 40,	/* 0x50-0x57 */
-			 31, 31, 29, 13, 21, 13, 20, 20,	/* 0x58-0x5F */
-			 10, 20, 22, 18, 22, 20, 13, 20,	/* 0x60-0x67 */
-			 22, 11, 11, 21, 11, 34, 22, 22,	/* 0x68-0x6F */
-			 22, 22, 16, 16, 13, 22, 18, 28,	/* 0x70-0x77 */
-			 18, 18, 18, 21, 20, 21, 34, 42,	/* 0x78-0x7F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x80-0x87 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x88-0x8F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x90-0x97 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x98-0x9F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xA0-0xA7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xA8-0xAF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xB0-0xB7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xB8-0xBF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xC0-0xC7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xC8-0xCF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xD0-0xD7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xD8-0xDF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xE0-0xE7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xE8-0xEF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xF0-0xF7 */
-			  0,  0,  0,  0,  0,  0,  0,  0 	/* 0xF8-0xFF */
-		}
-	},
-	/* 1 */
-	{
-		/* File tr100ipn.usp */
-		"Times 10.00 point italic",
-		"Times-Italic",	/* PostScript name */
-		F_PCL,		/* flags	*/
-		0,		/* fonttype	*/
-		0,		/* orientation	*/
-		1,		/* spacing	*/
-		21,		/* symbol_set	*/
-		44,		/* pitch	*/
-		100,		/* pointsize	*/
-		1,		/* style	*/
-		0,		/* weight	*/
-		5,		/* typeface	*/
-		4, 165,		/* mul, div	*/
-		/* Movement table: first = 33, last = 127 */
-		{
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x00-0x07 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x08-0x0F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x10-0x17 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x18-0x1F */
-			  0, 12, 14, 32, 20, 40, 29, 10,	/* 0x20-0x27 */
-			 16, 16, 20, 34, 10, 13, 10, 21,	/* 0x28-0x2F */
-			 20, 20, 20, 20, 20, 20, 20, 20,	/* 0x30-0x37 */
-			 20, 20, 11, 11, 34, 34, 34, 19,	/* 0x38-0x3F */
-			 41, 29, 27, 28, 31, 28, 25, 33,	/* 0x40-0x47 */
-			 32, 15, 16, 28, 27, 36, 31, 32,	/* 0x48-0x4F */
-			 25, 32, 28, 23, 26, 30, 27, 36,	/* 0x50-0x57 */
-			 28, 25, 28, 17, 21, 17, 20, 20,	/* 0x58-0x5F */
-			 10, 21, 21, 18, 22, 18, 12, 17,	/* 0x60-0x67 */
-			 22, 11, 11, 20, 11, 34, 22, 22,	/* 0x68-0x6F */
-			 21, 21, 13, 16, 11, 22, 18, 27,	/* 0x70-0x77 */
-			 17, 17, 16, 21, 20, 21, 34, 42,	/* 0x78-0x7F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x80-0x87 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x88-0x8F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x90-0x97 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x98-0x9F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xA0-0xA7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xA8-0xAF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xB0-0xB7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xB8-0xBF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xC0-0xC7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xC8-0xCF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xD0-0xD7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xD8-0xDF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xE0-0xE7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xE8-0xEF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xF0-0xF7 */
-			  0,  0,  0,  0,  0,  0,  0,  0 	/* 0xF8-0xFF */
-		}
-	},
-	/* 2 */
-	{
-		/* File tr100bpn.usp */
-		"Times 10.00 point bold",
-		"Times-Bold",	/* PostScript name */
-		F_PCL,		/* flags	*/
-		0,		/* fonttype	*/
-		0,		/* orientation	*/
-		1,		/* spacing	*/
-		21,		/* symbol_set	*/
-		44,		/* pitch	*/
-		100,		/* pointsize	*/
-		0,		/* style	*/
-		3,		/* weight	*/
-		5,		/* typeface	*/
-		4, 165,		/* mul, div	*/
-		/* Movement table: first = 33, last = 127 */
-		{
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x00-0x07 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x08-0x0F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x10-0x17 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x18-0x1F */
-			  0, 13, 14, 32, 20, 32, 32, 10,	/* 0x20-0x27 */
-			 16, 16, 20, 34, 10, 13, 10, 21,	/* 0x28-0x2F */
-			 20, 20, 20, 20, 20, 20, 20, 20,	/* 0x30-0x37 */
-			 20, 20, 11, 11, 34, 34, 34, 20,	/* 0x38-0x3F */
-			 40, 27, 27, 29, 30, 27, 25, 31,	/* 0x40-0x47 */
-			 32, 16, 20, 31, 26, 39, 30, 32,	/* 0x48-0x4F */
-			 25, 32, 29, 24, 26, 30, 26, 38,	/* 0x50-0x57 */
-			 29, 26, 27, 18, 21, 18, 20, 20,	/* 0x58-0x5F */
-			 10, 21, 22, 18, 23, 18, 13, 20,	/* 0x60-0x67 */
-			 23, 12, 13, 22, 12, 34, 23, 21,	/* 0x68-0x6F */
-			 23, 22, 18, 18, 14, 23, 19, 26,	/* 0x70-0x77 */
-			 19, 18, 18, 21, 20, 21, 34, 42,	/* 0x78-0x7F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x80-0x87 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x88-0x8F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x90-0x97 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0x98-0x9F */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xA0-0xA7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xA8-0xAF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xB0-0xB7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xB8-0xBF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xC0-0xC7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xC8-0xCF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xD0-0xD7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xD8-0xDF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xE0-0xE7 */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xE8-0xEF */
-			  0,  0,  0,  0,  0,  0,  0,  0,	/* 0xF0-0xF7 */
-			  0,  0,  0,  0,  0,  0,  0,  0 	/* 0xF8-0xFF */
-		}
-	}
-};
-
-static int errflag;			/* font table read error flag */
+FWTAB	*fwptab[NFONTS];
 
 /* Read a canonical int from file. */
 int
@@ -249,7 +78,8 @@ load_font(s, file) char *s, *file;
 
 	if ((fp = fopen(file, "rb")) == NULL) {
 		/* Not found, look in default fwt directory. */
-		sprintf(miscbuf, "%s%s", (pflag) ? FWTPS : FWTPCL, file);
+		sprintf(miscbuf, "%s%sfwt/%s",
+			LIBDIR, (pflag) ? TPSDIR : TPCLDIR, file);
 		if ((fp = fopen(miscbuf, "rb")) == NULL) {
 			printe(".lf: cannot open file \"%s\"", file);
 			return;
@@ -302,6 +132,52 @@ load_font(s, file) char *s, *file;
 	assign_font(s, new);			/* and assign desired name */
 	if (newflag)
 		++nfonts;
+}
+
+/*
+ * List all the font names and descriptions in this version.
+ */
+void
+font_display()
+{
+	register FTB *p;
+	register int a, b;
+
+	fprintf(stderr, "Fonts available in this version:\n");
+	for (p = fontab; p < &fontab[NFNAMES]; p++) {
+		if ((a = p->f_name[0]) == 0)
+			break;
+		if ((b = p->f_name[1]) == 0)
+			b = ' ';
+		fprintf(stderr," %c%c %s\n", a, b, fwptab[p->f_font]->f_descr);
+	}
+	fprintf(stderr,
+"Additional fonts may be loaded with the .lf request.\n"
+"Fonts may be renamed with the .rf request.\n"
+		);
+}
+
+/*
+ * Return fontname associated with font number n.
+ * Because the mapping is many->one, the user might have
+ * specified the font with a different name.
+ * The returned value points to a statically allocated buffer.
+ */
+char *
+fontname(n) register int n;
+{
+	static char buf[3];
+	register FTB *p;
+
+	for (p = fontab; p < &fontab[NFNAMES]; p++) {
+		if (p->f_font == n) {
+			buf[0] = p->f_name[0];
+			buf[1] = p->f_name[1];
+			buf[2] = '\0';
+			return buf;
+		}
+	}
+	return NULL;
 }
 
 /* end of fonts.c */

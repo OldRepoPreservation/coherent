@@ -10,18 +10,17 @@
  * Return a pointer to a number register of the given name.
  */
 REG *
-getnreg(name)
-char name[2];
+getnreg(name) char name[2];
 {
 	register REG *rp;
 
-	if ((rp=findreg(name, RNUMR)) == NULL) {
+	if ((rp = findreg(name, RNUMR)) == NULL) {
 		rp = makereg(name, RNUMR);
 		rp->n_reg.r_nval = 0;
 		rp->n_reg.r_form = '1';
 		rp->n_reg.r_incr = 1;
 	}
-	return (rp);
+	return rp;
 }
 
 /*
@@ -29,17 +28,16 @@ char name[2];
  * already exists, remove it.
  */
 REG	*
-makereg(name, type)
-char name[2];
+makereg(name, type) char name[2]; int type;
 {
 	REG **rpp;
 	register REG *rp;
 	register MAC *mp, *lmp;
 
-	if (rp=findreg(name, type)) {
+	if (rp = findreg(name, type)) {
 #if	(DDEBUG & DBGREGS)
-		printd(DBGREGS,"makereg: deleting old register %c%c\n", name[0],
-				name[1]);
+		printd(DBGREGS,"makereg: deleting old register %c%c\n",
+			name[0], name[1]);
 #endif
 		if (rp->t_reg.r_type == RTEXT) {
 			rp->t_reg.r_maxh = 0;
@@ -69,15 +67,14 @@ char name[2];
 		rp->t_reg.r_next = *rpp;
 		*rpp = rp;
 	}
-	return (rp);
+	return rp;
 }
 
 /*
- * Remove the given text register or request.  Return 1 if
- * the register is found, else 0.
+ * Remove the given text register or request.
+ * Return 1 if the register is found, else 0.
  */
-reltreg(name)
-char name[2];
+reltreg(name) char name[2];
 {
 	MAC *lmp;
 	register MAC *mp;
@@ -102,18 +99,17 @@ char name[2];
 			}
 			*lrp = rp->t_reg.r_next;
 			nfree(rp);
-			return (1);
+			return 1;
 		}
 	}
-	return (0);
+	return 0;
 }
 
 /*
- * Remove the given number register.  Return 1 if we found it,
- * else 0.
+ * Remove the given number register.
+ * Return 1 if we found it, else 0.
  */
-relnreg(name)
-char name[2];
+relnreg(name) char name[2];
 {
 	register REG *rp, **lrp;
 
@@ -127,20 +123,19 @@ char name[2];
 			if (rp->n_reg.r_type == RNUMR) {
 				*lrp = rp->t_reg.r_next;
 				nfree(rp);
-				return (1);
+				return 1;
 			}
 		}
 	}
-	return (0);
+	return 0;
 }
 
 /*
- * Given a register name, and a register type, return a pointer
- * to the register if it exists.  If not, NULL is returned.
+ * Given a register name and a register type,
+ * return a pointer to the register if it exists or NULL if not.
  */
 REG *
-findreg(name, type)
-char name[2];
+findreg(name, type) char name[2]; int type;
 {
 	register REG *rp;
 
@@ -155,22 +150,20 @@ char name[2];
 #if	(DDEBUG & DBGREGX)
 				printd(DBGREGX, "found\n");
 #endif
-				return (rp);
+				return rp;
 			}
 #if	(DDEBUG & DBGREGX)
 	printd(DBGREGX, "not found\n");
 #endif
-	return (NULL);
+	return NULL;
 }
 
 /*
  * Convert a string to a two character register name.
  */
-argname(str, name)
-register char *str;
-char name[2];
+argname(str, name) register char *str; char name[2];
 {
-	if ((name[0]=str[0]) == '\0')
+	if ((name[0] = str[0]) == '\0')
 		name[1] = '\0';
 	else
 		name[1] = str[1];

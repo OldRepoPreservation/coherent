@@ -8,8 +8,10 @@
 #include "roff.h"
 
 /*
- * This is called when the user gives a request.  It collects the
- * arguments and dispatches the request.
+ * This is called when the user gives a request.
+ * It collects the arguments and dispatches the request.
+ * Store the request line into miscbuf[],
+ * and also set up an arg list to pass to the request.
  */
 request()
 {
@@ -24,6 +26,7 @@ request()
 			c = getf(0);
 		return;
 	}
+	oldbracelevel = bracelevel;
 	argc = 0;
 	for (i = 0; i < ARGSIZE; i++)
 		argp[i] = "";
@@ -41,7 +44,8 @@ request()
 			else {
 				if (ap >= abufend)
 					break;
-				*ap++ = c;
+				if (c != EEND)
+					*ap++ = c;
 			}
 			if (mp >= mpend)
 				break;
@@ -94,18 +98,16 @@ request()
 }
 
 /*
- * Store the next argument from the given line 'lp' in the given
- * argument buffer, 'ap'.  'n' is the length of the buffer.
- * Trailing space characters are skipped over and the new line
- * pointer is returned.
+ * Store the next argument from line 'lp' in argument buffer 'ap'.
+ * 'n' is the length of the buffer.
+ * Skip trailing spaces and return the new line pointer.
  */
-char	*
-nextarg(lp, ap, n)
-register char *lp, *ap;
+char *
+nextarg(lp, ap, n) register char *lp, *ap; int n;
 {
 	register char *apend;
 
-	apend = ap==NULL ? ap : &ap[n-1];
+	apend = (ap == NULL) ? ap : &ap[n-1];
 	while (!isascii(*lp) || !isspace(*lp)) {
 		if (*lp == '\0')
 			break;
@@ -117,7 +119,7 @@ register char *lp, *ap;
 		*ap = '\0';
 	while (isascii(*lp) && isspace(*lp))
 		lp++;
-	return (lp);
+	return lp;
 }
 
 /* end of request.c */

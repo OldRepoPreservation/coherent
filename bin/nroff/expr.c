@@ -14,16 +14,16 @@ static	int	expdiv;			/* Default unit divisor */
 static	char	*expp;			/* Pointer in expression */
 
 /*
+ * Return the int value of an expression.
  * Given:
- *	Name						Used
+ *	Name	Description				Used
  *	str	string containing an expression
  *	mul/div	default unit multiplier, divisor	if no unit given
  *	num	initial value				if leading sign
- *	hvf	flag specifying horizontal or vertical	if initial '|'
+ *	hvf	horizontal/vertical flag		if initial '|'
  *	def	default value				if no expression
- * Return the int value of the expression.
  * The expression is evaluated from left to right with no priorites
- * excepting parentheses.
+ * except parentheses.
  */
 int
 number(str, mul, div, num, hvf, def) char *str; long mul, div; int num, hvf, def;
