@@ -189,11 +189,11 @@ u.u_error = 0;
 #endif
 
 	if ((ip->i_mode&ISUID) != 0) {	/* Set user id ? no trace */
-		pp->p_uid = u.u_uid = ip->i_uid;
+		pp->p_uid = u.u_uid = u.u_euid = ip->i_uid;
 		pp->p_flags &= ~PFTRAC;
 	}
 	if ((ip->i_mode&ISGID) != 0) {	/* Set group id ? no trace */
-		u.u_gid = ip->i_gid;
+		u.u_egid = u.u_gid = ip->i_gid;
 		pp->p_flags &= ~PFTRAC;
 	}
 	for (i=0; i < NOFILE; i++) {
@@ -210,7 +210,7 @@ u.u_error = 0;
 			pp->p_dfsig |= ((sig_t) 1) << (i - 1);
 		}
 	}
-	if ((pp->p_flags&PFTRAC) != 0)	/* Being traced */
+	if (pp->p_flags&PFTRAC)	/* Being traced */
 		sendsig(SIGTRAP, pp);
 	idetach(ip);
 	msetusr(head.entry, head.initsp);
