@@ -48,13 +48,21 @@ static	char *header =
  * -- norm 04.I.85 -- fix misc. bugs for z8000
  */
 #include <stdio.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <assert.h>
 #include <sys/const.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
+
+extern	char	*realloc();
+extern char edata[];
+
+#define	USAGE		"Usage: /etc/unmkfs [ -prefix ] directory nblocks [ file ]\n"
+#define IHASH		128
+#define MAXFNAME	512
+#define NDISK		32
 
 typedef struct MINODE {
 	struct MINODE *i_link1;	/* dev x ino hash linkage */
@@ -87,7 +95,6 @@ typedef struct MINODE {
 #define I_CANFIT 128	/* Subdirectory could fit on disk */
 #define I_ISMADE 256	/* Inode is made, do link */
 
-#define NDISK 32
 MINODE *disks[NDISK];
 int	dsize;
 int	dused;
@@ -101,21 +108,41 @@ int	mygid;
 char	outpre[64];		/* Settable output file prefix */
 char	outsuf[] = ".p??";	/* Suffix for output file name */
 
+FILE *ofp;
+
+/* Forward. */
 MINODE	*makeroot();
+void	makedir();
+void	printroot();
+void	printdir();
+void	splat();
+void	makedisk();
+void	mkfs();
+void	insdir();
+void	indent();
+void	uflagroot();
+void	uflagdir();
+void	flagroot();
+void	flagdir();
+void	sizeroot();
+void	sizedir();
 MINODE	*cpyroot();
 MINODE	*cpydir();
+void	keepers();
 MINODE	*select();
-int	purge();
+void	purge();
+void	donedir();
+void	markdir();
 int	entermi();
+int	duplmi();
 MINODE *fetchmi();
+void	freemi();
 long	blkuse();
-char	*myalloc();
 char	*string();
+char	*myalloc();
+void	usage();
+void	fatal();
 
-extern char edata[];
-extern	char	*realloc();
-
-#define MAXFNAME	512
 char fname[MAXFNAME];	/* Filename buffer */
 char fname1[MAXFNAME];	/* Second file name buffer */
 char cmdbuf[128];
@@ -123,27 +150,25 @@ struct stat sbuf;	/* Stat buffer */
 struct stat tbuf;	/* Time buffer, leave zero for all times */
 char *argv0;		/* For error recovery */
 
-main(argc, argv)
-char *argv[];
+main(argc, argv) int argc; char *argv[];
 {
 	int i;
 	MINODE *rip, *tip, *sip;
 
 	argv0 = argv[0];
+	if (argc > 1 && argv[1][0] == '-') {
+		strcpy(outpre, &argv[1][1]);
+		outf = 1;
+		++argv;
+		--argc;
+	}
 	if (argc < 3 || argc > 4)
 		usage();
-	dsize = atoi(argv[2]);
+	if ((dsize = atoi(argv[2])) <= 0)
+		fatal("illegal size \"%s\"", argv[2]);
 	if (argc == 4) {
-		if (argv[3][0] != '-') {
-			if (stat(argv[3], &tbuf) < 0) {
-				fprintf(stderr, "%s: can't stat %s\n", argv0,
-				 argv[3]);
-				exit(1);
-			}
-		} else if (argv[3][1] == 'p') {
-			strcpy (outpre, &argv[3][2]);
-			outf = 1;
-		} else usage();
+		if (stat(argv[3], &tbuf) < 0)
+			fatal("cannot stat \"%s\"", argv[3]);
 	} else
 		tbuf.st_mtime = 0;	/* make time == 0 to get all files */
 	rip = makeroot(argv[1]);
@@ -166,9 +191,8 @@ char *argv[];
 		disks[ndisk] = tip;
 		ndisk += 1;
 	}
-	for (i = 0; i < ndisk; i += 1) {
-		makedisk(i, argv[1], argv[2]);
-	}
+	for (i = 0; i < ndisk; i += 1)
+		makedisk(i, argv[1]);
 }
 
 /*
@@ -177,22 +201,17 @@ char *argv[];
 ** return the MINODE corresponding to the root.
 */
 MINODE *
-makeroot(cp)
-char *cp;
+makeroot(cp) char *cp;
 {
 	MINODE *rip;
 
-	if (strlen(cp) >= MAXFNAME) {
-		fprintf(stderr, "unmkfs: initial path name too long\n");
-		exit(1);
-	}
+	if (strlen(cp) >= MAXFNAME)
+		fatal("directory path name too long");
 	strcpy(fname, cp);
 	if (stat(fname, &sbuf) < 0)
-		cantstat();
-	if ((sbuf.st_mode&S_IFMT) != S_IFDIR) {
-		fprintf(stderr, "unmkfs: initial path not directory\n");
-		exit(1);
-	}
+		fatal("cannot stat \"%s\"", fname);
+	if ((sbuf.st_mode&S_IFMT) != S_IFDIR)
+		fatal("\"%s\" is not a directory");
 	rip = fetchmi(entermi());
 	if (cp[0] == '/' && cp[1] == '\0')
 		fname[0] = 0;
@@ -205,8 +224,8 @@ char *cp;
 ** Recursively build a tree of MINODE pointers
 ** for the directory ip.
 */
-makedir(ip)
-MINODE *ip;
+void
+makedir(ip) MINODE *ip;
 {
 	int	fd;
 	int	i;
@@ -215,19 +234,13 @@ MINODE *ip;
 	char *cp;
 
 	cp = fname + strlen(fname);
-	if (cp + DIRSIZ + 2 >= fname + MAXFNAME) {
-		fprintf(stderr, "unmkfs: directory tree too deep\n");
-		exit(1);
-	}
-	if ((fd = open(fname, 0)) < 0) {
-		fprintf(stderr, "unmkfs: cannot open: %s\n", fname);
-		exit(1);
-	}
+	if (cp + DIRSIZ + 2 >= fname + MAXFNAME)
+		fatal("directory tree too deep");
+	if ((fd = open(fname, 0)) < 0)
+		fatal("cannot open \"%s\"", fname);
 	i = ip->i_nent * sizeof(struct direct);
-	if (read(fd, ip->i_elem, i) != i) {
-		fprintf(stderr, "unmkfs: read error: %s\n", fname);
-		exit(1);
-	}
+	if (read(fd, ip->i_elem, i) != i)
+		fatal("%s: read error", fname);
 	close(fd);
 	*cp = '/';
 	dp1 = dp2 = ip->i_elem;
@@ -240,7 +253,7 @@ MINODE *ip;
 		if (dp2->d_ino != 0) {
 			strncpy(cp+1, dp2->d_name, DIRSIZ);
 			if (stat(fname, &sbuf) < 0)
-				cantstat();
+				fatal("cannot stat \"%s\"", fname);
 			dp2->d_ino = entermi();
 		}
 		if (dp2->d_ino != 0) {
@@ -252,10 +265,8 @@ MINODE *ip;
 	}
 	ip->i_nent = dp1 - ip->i_elem;
 	i = sizeof(MINODE) + ip->i_nent * sizeof(struct direct);
-	if (realloc(ip, i) != ip) {
-		fprintf(stderr, "unmkfs: realloc moved block\n");
-		exit(1);
-	}
+	if (realloc(ip, i) != ip)
+		fatal("realloc moved block");
 	dp1 = ip->i_elem;
 	for (i = 0; i < ip->i_nent; i += 1) {
 		tip = fetchmi(dp1->d_ino);
@@ -268,9 +279,8 @@ MINODE *ip;
 	*cp = 0;
 }
 
-printroot(cp, rip)
-char *cp;
-MINODE *rip;
+void
+printroot(cp, rip) char *cp; MINODE *rip;
 {
 	uflagroot(rip, I_PUT);
 	strcpy(fname, cp);
@@ -280,8 +290,8 @@ MINODE *rip;
 	printdir(rip);
 }
 
-printdir(ip)
-MINODE *ip;
+void
+printdir(ip) MINODE *ip;
 {
 	int i;
 	MINODE *tip;
@@ -302,8 +312,8 @@ MINODE *ip;
 	*cp = 0;
 }
 
-splat(ip)
-MINODE *ip;
+void
+splat(ip) MINODE *ip;
 {
 	printf("(%2d,%2d,%4d) ",
 		major(ip->i_dev), minor(ip->i_dev), ip->i_ino);
@@ -315,29 +325,23 @@ MINODE *ip;
 	ip->i_flag |= I_PUT;
 }
 
-FILE *ofp;
-
-makedisk(n, cp, sp)
-char *cp, *sp;
+void
+makedisk(n, cp) char *cp;
 {
 	MINODE *ip;
-	static char dname[32];
 	char outfile[72];
 
 	ip = disks[n];
-	fprintf(stderr, "\ndisk %d, %d inodes, %d data blocks\n",
+	fprintf(stderr, "Disk %d: %d inodes, %d data blocks\n",
 		n+1, ip->i_inos, ip->i_blks);
 	if (outf == 1)  {
-		outsuf[2] = n/10 + '0';
-		outsuf[3] = n%10 + '0';
+		outsuf[2] = (n+1)/10 + '0';
+		outsuf[3] = (n+1)%10 + '0';
 		outsuf[4] = '\0';
 		strcpy(outfile, outpre);
 		strcat(outfile, outsuf);
-		if ((ofp = fopen(outfile, "w")) == NULL) {
-			fprintf(stderr, "%s: cannot open outfile %s\m",
-			  argv0, outfile);
-			exit(1);
-		}
+		if ((ofp = fopen(outfile, "w")) == NULL)
+			fatal("cannot open output file \"%s\"", outfile);
 	} else
 		ofp = stdout;
 	mkfs(ip->i_inos);
@@ -353,20 +357,20 @@ char *cp, *sp;
 	fprintf(ofp, "$\n");
 }
 
+void
 mkfs(nino)
 {
 	fprintf(ofp, "/dev/null xxxxx xxxxx\n");
 	fprintf(ofp, "%d %d 1 1\n", dsize, nino);
 }
 
-insdir(ip)
-MINODE *ip;
+void
+insdir(ip) MINODE *ip;
 {
 	int i;
 	MINODE *tip;
 	struct direct *dp;
-	char *cp, *cp1;
-	time_t date[2];
+	char *cp, *cp1, buf[DIRSIZ+1];
 	char dtype;
 
 	cp = fname + strlen(fname);
@@ -376,10 +380,12 @@ MINODE *ip;
 	dp = ip->i_elem;
 	for (i = 0; i < ip->i_nent; i += 1) {
 		tip = fetchmi(dp->d_ino);
-		strncpy(cp+1, dp->d_name, DIRSIZ);
-		strncpy(cp1+1, dp->d_name, DIRSIZ);
+		strncpy(buf, dp->d_name, DIRSIZ);
+		buf[DIRSIZ] = '\0';
+		strcpy(cp+1, buf);
+		strcpy(cp1+1, buf);
 		indent(0);
-		fprintf(ofp, "%-14s", dp->d_name);
+		fprintf(ofp, "%-14s", buf);
 		if (tip->i_flag & I_ISMADE) {
 			fprintf(ofp, " l-----   0   0 %s\n", tip->i_linkname);
 			dp += 1;
@@ -399,10 +405,9 @@ MINODE *ip;
 			dtype = '-';
 			break;
 		default:
-			fprintf(stderr, "unmkfs: bad file type %d of %s\n",
-				tip->i_mode&S_IFMT, fname);
-			exit(1);
+			fatal("%s: bad file type %d", fname, tip->i_mode&S_IFMT);
 		}
+
 		fprintf(ofp, " %c%c%c%03o %3d %3d",
 			dtype,
 			(tip->i_mode&ISUID) ? 'u' : '-',
@@ -436,8 +441,8 @@ MINODE *ip;
 	*cp1 = 0;
 }
 
-indent(n)
-int n;
+void
+indent(n) int n;
 {
 	static int indent;
 
@@ -448,8 +453,8 @@ int n;
 	else for (n = indent; --n >= 0; fprintf(ofp, " "));
 }
 
-uflagroot(rip, flag)
-MINODE *rip;
+void
+uflagroot(rip, flag) MINODE *rip;
 {
 	uflagdir(rip, flag);
 	rip->i_flag &= ~flag;
@@ -459,8 +464,8 @@ MINODE *rip;
 ** Recursively turn off flag in ip and
 ** all directories below ip.
 */
-uflagdir(ip, flag)
-MINODE *ip;
+void
+uflagdir(ip, flag) MINODE *ip;
 {
 	int i;
 	MINODE *tip;
@@ -476,16 +481,16 @@ MINODE *ip;
 	}
 }
 
-flagroot(ip, flag)
-MINODE *ip;
+void
+flagroot(ip, flag) MINODE *ip; int flag;
 {
 	if (ip->i_isdir)
 		flagdir(ip, flag);
 	ip->i_flag |= flag;
 }
 
-flagdir(ip, flag)
-MINODE *ip;
+void
+flagdir(ip, flag) MINODE *ip; int flag;
 {
 	int i;
 	MINODE *tip;
@@ -501,8 +506,8 @@ MINODE *ip;
 	}
 }
 
-sizeroot(rip)
-MINODE *rip;
+void
+sizeroot(rip) MINODE *rip;
 {
 	uflagroot(rip, I_COUNT);
 	sizedir(rip);
@@ -514,8 +519,8 @@ MINODE *rip;
 ** For subdirectories not flagged I_COUNT,
 ** add the isize and blksize to that of ip.
 */
-sizedir(ip)
-MINODE *ip;
+void
+sizedir(ip) MINODE *ip;
 {
 	int i;
 	MINODE *tip;
@@ -541,8 +546,7 @@ MINODE *ip;
 }
 
 MINODE *
-cpyroot(rip)
-MINODE *rip;
+cpyroot(rip) MINODE *rip;
 {
 	uflagdir(rip, I_PURGE|I_KEEP);
 	rip = cpydir(rip);
@@ -551,8 +555,7 @@ MINODE *rip;
 }
 
 MINODE *
-cpydir(ip)
-MINODE *ip;
+cpydir(ip) MINODE *ip;
 {
 	int i;
 	MINODE *nip, *tip;
@@ -578,16 +581,14 @@ MINODE *ip;
 	}
 	if (nip->i_nent < ip->i_nent) {
 		i = sizeof(MINODE) + nip->i_nent * sizeof(struct direct);
-		if (realloc(nip, i) != nip) {
-			fprintf(stderr, "unmkfs: realloc moved block\n");
-			exit(1);
-		}
+		if (realloc(nip, i) != nip)
+			fatal("realloc moved block");
 	}
 	return (nip);
 }
 
-keepers(ip)
-MINODE *ip;
+void
+keepers(ip) MINODE *ip;
 {
 	int i;
 	MINODE *tip;
@@ -619,8 +620,7 @@ MINODE *ip;
 }
 
 MINODE *
-select(ip)
-MINODE *ip;
+select(ip) MINODE *ip;
 {
 	int i;
 	MINODE *uip, *lip, *tip;
@@ -654,8 +654,8 @@ MINODE *ip;
 	return (uip);
 }
 
-purge(rip)
-MINODE *rip;
+void
+purge(rip) MINODE *rip;
 {
 	int i;
 	MINODE *tip;
@@ -686,6 +686,7 @@ MINODE *rip;
 	rip->i_nent = dp2 - rip->i_elem;
 }
 
+void
 donedir(ip)
 MINODE *ip;
 {
@@ -705,8 +706,8 @@ MINODE *ip;
 	}
 }
 
-markdir(ip)
-MINODE *ip;
+void
+markdir(ip) MINODE *ip;
 {
 	int i;
 	MINODE *tip;
@@ -714,7 +715,7 @@ MINODE *ip;
 	int flag;
 
 	if (ip->i_flag & I_DONE)
-		return (ip->i_flag);
+		return;
 	dp = ip->i_elem;
 	flag = I_DONE;
 	for (i = 0; i < ip->i_nent; i += 1) {
@@ -728,7 +729,6 @@ MINODE *ip;
 		ip->i_flag |= I_DONE;
 }
 
-#define IHASH	128
 MINODE *ihash1[IHASH];	/* dev x ino hash */
 MINODE *ihash2[IHASH];	/* mino hash */
 int	minumber = 1;
@@ -738,6 +738,7 @@ int	minumber = 1;
 ** the statbuf.  If not found, enter it and return the resulting
 ** entry.
 */
+int
 entermi()
 {
 	MINODE *ip, **ipp;
@@ -780,8 +781,8 @@ entermi()
 	return (ip->i_mino);
 }
 
-duplmi(ip)
-MINODE *ip;
+int
+duplmi(ip) MINODE *ip;
 {
 	MINODE *nip, **ipp;
 
@@ -811,7 +812,7 @@ MINODE *ip;
 ** Die with message if not there.
 */
 MINODE *
-fetchmi(mino)
+fetchmi(mino) int mino;
 {
 	MINODE *ip, **ipp;
 
@@ -821,11 +822,11 @@ fetchmi(mino)
 			return (ip);
 		else
 			ipp = &ip->i_link2;
-	fprintf(stderr, "unmkfs: nonexistent internal inumber %d\n", mino);
-	exit(1);
+	fatal("nonexistent internal inumber %d", mino);
 }
 
-freemi(mino)
+void
+freemi(mino) int mino;
 {
 	MINODE *ip, **ipp;
 
@@ -837,9 +838,9 @@ freemi(mino)
 			return;
 		} else
 			ipp = &ip->i_link2;
-	fprintf(stderr, "unmkfs: nonexistent internal inumber %d\n", mino);
-	exit(1);
+	fatal("nonexistent internal inumber %d", mino);
 }
+
 /*
  * A corrected disk usage computation
  * for retrofit into /usr/src/cmd/du.c, /usr/src/cmd/ls.c/prsize(),
@@ -849,8 +850,7 @@ freemi(mino)
  * blocks.
  */
 long
-blkuse(nb)
-long nb;
+blkuse(nb) long nb;
 {
 #undef NBN
 #define NBN	128L
@@ -879,8 +879,7 @@ long nb;
 }
 
 char *
-string(cp)
-char *cp;
+string(cp) char *cp;
 {
 	char *sp;
 
@@ -890,29 +889,27 @@ char *cp;
 }
 
 char *
-myalloc(nb)
-int nb;
+myalloc(nb) int nb;
 {
 	char *p;
 
-	if ((p = malloc(nb)) == NULL) {
-		fprintf(stderr, "unmkfs: out of space\n");
-		exit(1);
-	}
+	if ((p = malloc(nb)) == NULL)
+		fatal("out of space");
 	while (--nb >= 0)
 		p[nb] = 0;
 	return (p);
 }
 
+void
 usage()
 {
-	fprintf(stderr, "Usage: unmkfs directory size_in_blocks [-pprefix]\n");
+	fprintf(stderr, USAGE);
 	exit(1);
 }
 
-cantstat()
+void
+fatal(args) char *args;
 {
-	fprintf(stderr, "unmkfs: cannot stat: %s\n", fname);
+	fprintf(stderr, "%s: %r\n", argv0, &args);
 	exit(1);
 }
-
