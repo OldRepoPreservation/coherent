@@ -6,6 +6,9 @@
  *	nonzero LUN's
  *
  * $Log:	ss.c,v $
+ * Revision 2.8  91/05/21  23:13:15  hal
+ * Round robin scheduler.  HDSETA.  Bump MAX_AVL_COUNT.
+ * 
  * Revision 2.7  91/05/21  19:10:43  hal
  * Balance host_claimed - needs debugging.
  * 
@@ -136,8 +139,8 @@
 
 #define DELAY_ARB	10	/* delays units are 10 msec (clock ticks) */
 #define DELAY_BDR	30
-#define DELAY_BSY	10
-#define DELAY_RES	40
+#define DELAY_BSY	20
+#define DELAY_RES	50
 #define DELAY_RST	40
 
 #define MAX_AVL_COUNT	100
@@ -877,9 +880,9 @@ int s_id;
 /* FOO */
 int foo, junk, phase_type;
 	if ((foo=chk_reconn()) != -1) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY | WC_ATTENTION);
 		if (bus_wait(RS_SELECT << 8 | 0)) {
-			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ATTENTION);
+			sfbyte(ss_csr, WC_ENABLE_SCSI);
 			if (req_wait(&junk)) {
 phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 printf("phase type=%d\n", phase_type);
@@ -888,15 +891,23 @@ if (phase_type == XP_MSG_IN) {
 	printf("msg in=%x\n", junk);
 	req_wait(&junk);
 	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
-	printf("phase type=%d\n", phase_type);
 }
 if (phase_type == XP_MSG_OUT) {
 	sfbyte(ss_dat, MSG_ABORT);
 	printf("MSG_ABORT sent\n");
-	ssdelay(30);
-	junk = ffbyte(ss_csr);
-	printf("status=%x\n", junk);
+	if (!req_wait(&junk))
+		printf("req_wait failed\n");
+	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
 }
+if (phase_type == XP_DATA_IN) {
+	junk = ffbyte(ss_dat);
+	printf("data_in=%x\n", junk);
+	if (!req_wait(&junk))
+		printf("req_wait failed\n");
+	phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+}
+junk = ffbyte(ss_csr);
+printf("status=%x\n", junk);
 			} else
 printf("req_wait failed\n");
 		} else {
@@ -1442,10 +1453,15 @@ PR3("XPAR");
 			break;
 		case SST_POLL_RESELECT:
 PR3("XPRS");
-			if ((host_claimed == -1 || host_claimed == s_id)
-			&& TGT_RSEL) {
+			if (TGT_RSEL) {
 				ssp->waiting = 0;
-				host_claimed = s_id;
+				if (host_claimed == -1)
+					host_claimed = s_id;
+				else if (host_claimed != s_id) {
+#if (DEBUG >= 1)
+	printf("%d->%d ", host_claimed, s_id);
+#endif
+				}
 				if (rsel_handshake()) {
 					do_connect(s_id);
 				} else {
@@ -1469,17 +1485,21 @@ PR3("XPBI");
 				 * be initiated.  It may be a retry.
 				 */
 				if (host_claimed == -1 && BUS_FREE && BUS_FREE) {
-					host_claimed = s_id;
 					ssp->waiting = 0;
 					init_pointers(s_id);
 					if (start_arb()) {
+						host_claimed = s_id;
 						if (host_ident(s_id, 1)) {
 							do_connect(s_id);
 						} else {
 							recover(s_id, RV_P_TIMEOUT);
 						}
 					} else {
-						ssp->state = SST_POLL_ARBITN;
+	/*
+	 * If arbitration does not succeed right away, it is usually
+	 * because another drive is trying to reselect the host.
+	 */
+/*						ssp->state = SST_POLL_ARBITN;*/
 						set_timeout(s_id, DELAY_ARB);
 					}
 				} else { /* host busy or bus not free */
@@ -1580,6 +1600,7 @@ PR1("XRST");
 			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SCSI_RESET); /* reset ON */
 			ssp->state = SST_RESET_OFF;
 			set_timeout(s_id, DELAY_RST);
+PR1("+");
 		} else
 			set_timeout(s_id, DELAY_RST);
 		break;
@@ -1780,6 +1801,12 @@ RV_TYPE errtype;
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
 
+#if (DEBUG >= 1)
+int foo;
+if ((foo=chk_reconn()) != -1)
+	printf("HONK%d ", foo);
+#endif
+
 	++ssp->try_count;
 	if (ssp->try_count < MAX_TRY_COUNT) {
 
@@ -1886,7 +1913,8 @@ int s_id;
 		next_id++;
 		if (next_id >= MAX_SCSI_ID - 1)
 			next_id = 0;
-		if (ss[next_id] && bufq_rd_head(next_id)) {
+		if (ss[next_id]
+		&& (ss[next_id]->state != SST_DEQUEUE || bufq_rd_head(next_id))) {
 			defer(ss_mach, next_id);
 			break;
 		}
@@ -1915,7 +1943,7 @@ int s_id;
 	else if (ssp->msg_in == MSG_DISCONNECT) {
 		ssp->state = SST_POLL_RESELECT;
 		set_timeout(s_id, DELAY_RES);
-#if 1
+#if 0
 		if (host_claimed == s_id)
 			host_claimed = -1;
 #endif
