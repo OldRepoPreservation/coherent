@@ -62,27 +62,6 @@ int get_info();		/* this will get mail info to be added to Mailfile */
 void get_net_map();	/* this will get a selection of net map to read */
 void map_command();	/* this will generate uucp commands to grab net maps */
 
-char selection[15];
-char filenames [MAXRECORDS][15];
-char workfile[15];
-char workstring[80];
-char getfiles[26][115];
-int place[MAXRECORDS];
-int limit, screen_num;
-char open_mode;
-char state[52][15]={"Alabama","Alaska","Arizona","Arkansas","California",
-		     "Colorado","Connecticut","Delaware","Florida","Georgia",
-		     "Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas",
-		     "Kentucky","Lousiana","Maine","Maryland","Massachusetts",
-		     "Michigan","Minnesota","Mississippi","Missouri","Montana",
-		     "Nebraska","Nevada","New Hampshire","New Jersey",
-		     "New Mexico","New York","North Carolina","North Dakota",
-		     "Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island",
-		     "South Carolina","South Dakota","Tennessee","Texas","Utah",
-		     "Vermont","Virginia","Washington","West Virginia",
-		     "Wisconsin","Wyoming","NON-US","UNKNOWN"};
-
-char mapfile[4][15]={"Net_Maps.WORLD", "Net_Maps.USA", "Net_Maps.CAN", "QUIT"};
 
 struct mail	{
 		char site[8];
@@ -91,8 +70,6 @@ struct mail	{
 		char city[25];
 		};
 
-struct mail mail_rec;
-struct mail new_mail_rec;
 
 struct entry{
 		char filename [15];
@@ -105,12 +82,28 @@ struct entry{
 		int noparts;
 	    };
 
-struct entry record;
-struct entry new_record;
 
 struct map	{
 		char name[15];
 		char path[60];
 		};
 
-struct map map_rec;
+
+extern char selection[15];
+extern char filenames [MAXRECORDS][15];
+extern char workfile[15];
+extern char workstring[80];
+extern char getfiles[26][115];
+extern int place[MAXRECORDS];
+extern int limit, screen_num;
+extern char open_mode;
+
+extern char state[52][15];
+extern char mapfile[4][15];
+
+extern struct mail mail_rec;
+extern struct mail new_mail_rec;
+
+extern struct entry record;
+extern struct entry new_record;
+extern struct map map_rec;
