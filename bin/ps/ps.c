@@ -1,4 +1,4 @@
-static char _version[]="ps version 2.8";
+static char _version[]="ps version 2.9";
 /*
  *	Modifications copyright INETCO Systems Ltd.
  *
@@ -90,13 +90,14 @@ struct handle {
 /*
  * For easy referencing.
  */
-#define NUM_SYMS	6	/* Number of symbols to look up.  */
+#define NUM_SYMS	7	/* Number of symbols to look up.  */
 #define	aprocq		nl[0].n_value
 #define	autime		nl[1].n_value
 #define astime		nl[2].n_value
 #define aallocp		nl[3].n_value
 #define	aend		nl[4].n_value
 #define	asysmem		nl[5].n_value
+#define	au		nl[6].n_value
 
 #define TRUE	(1==1)
 #define FALSE	(1==2)
@@ -112,6 +113,14 @@ struct handle {
 #define PT_PRESENT(entry)  (0x01 == (entry & 0x01))	/* Is the page for
 							 * this pte present? 
 							 */
+/*
+ * This is the address of the start of the U area segment.  This
+ * should probably be extracted somehow from an include file.
+ * It can be derived with much pain from the s_vmem field in the seg
+ * struct from the U area segment.
+ */
+#define USEG_BASE	0xfffff000
+
 /*
  * Variables.
  */
@@ -280,6 +289,8 @@ initialise()
 	nl[4].n_type = -1;
 	strcpy(nl[5]._n._n_name, "sysmem");
 	nl[5].n_type = -1;
+	strcpy(nl[6]._n._n_name, "u");
+	nl[6].n_type = -1;
 
 }
 
@@ -1000,6 +1011,7 @@ u_init(sp, bp)
 #endif /* UPROC_VERSION */
 
 	register SEG *sp1;
+	long offset;
 
 #if 0
 	printf("u_init(sp:%x, bp:%x)\n", sp, bp);
@@ -1013,14 +1025,23 @@ u_init(sp, bp)
 	sp1 = map(sp);
 
 	/*
+	 * Figure out how far into the U segment the U area is.
+	 * We do this by subtracting the starting address of the
+	 * U area segment from the address of u.
+	 */
+	offset = au - USEG_BASE;
+
+	/*
 	 * If the process is not swapped out, read directly from
 	 * main memory.  Otherwise, read from the swap device.
 	 */
 	if ((sp1->s_flags&SFCORE) != 0) {
-		if (0 == pt_mread( sp1->s_vmem, 0, bp, sizeof(UPROC) )) {
+		if (0 == pt_mread( sp1->s_vmem, offset, bp, sizeof(UPROC) )) {
 			return (0);
 		}
-	} else if (dread((long)sp1->s_daddr*BSIZE, bp, sizeof(UPROC)) < 0 ){
+	} else if (
+	    dread((long)(sp1->s_daddr*BSIZE)+offset, bp, sizeof(UPROC)) < 0
+	){
 			return (0);
 	}
 
