@@ -18,6 +18,10 @@ extern	char	*ndiv10();
 /* PostScript. */
 #define	PSLINIT	"90 rotate\n0 -612 translate\n"
 #define	PSEJECT	"\nshowpage\n"
+#if	ZKLUDGE
+#define	PSSAVE1	"/state1 save def\n"
+#define	PSREST1	"state1 restore\n"
+#endif
 
 /*
  * Device parameters.
@@ -48,13 +52,33 @@ long	svrdiv	=	5;		/* Vertical resolution (div)	*/
 static	int	hposd;			/* device horizontal postition	*/
 static	int	vposd;			/* device vertical position	*/
 static	int	inword;			/* in word flag for PostScript	*/
+static	int	lastfont = -1;		/* current output font		*/
+
+#if	ZKLUDGE
+static	int	npages;			/* Output page count		*/
+#endif
 
 /*
  * Initialize the device.
  */
 dev_init()
 {
+#if	ZKLUDGE
+	if (Zflag)
+		printf(PSSAVE1);
+#endif
 }
+
+#if	ZKLUDGE
+/*
+ * Close the device.
+ */
+dev_close()
+{
+	if (Zflag != 0)
+		printf(PSREST1);
+}
+#endif
 
 /*
  * Compute the scaled width of a character:
@@ -77,6 +101,9 @@ dev_font(n) register int n;
 {
 	register FWTAB	*fp;
 
+#if	0
+	fprintf(stderr, "dev_font(%d)\n", n);
+#endif
 	if (n >= nfonts)
 		panic("bad font %d at dev_font, nfonts=%d", n, nfonts);
 	curfont = n;
@@ -107,6 +134,10 @@ dev_font(n) register int n;
  */
 dev_ps(n) register int n;
 {
+	if (n <= 0) {
+		printe("illegal pointsize %d, ignored", n/10);
+		return;
+	}
 	oldpsz = psz;
 	psz = n;
 	addidir(DPSZE, n);
@@ -119,10 +150,16 @@ dev_ps(n) register int n;
 /*
  * Set a fixed pointsize for a font.
  */
-dev_fz(n, s) register int n; char *s;
+dev_fz(font, size) char *font, size;
 {
+	char name[2];
+	register int n;
+
+	argname(font, name);
+	if ((n = font_number(name, ".fz: ")) < 0)
+		return;
 	fwptab[n]->f_flags |= F_FIXED;
-	fpsz[n] = number(s, SMPOIN, SDPOIN, fpsz[n], 0, fpsz[n]);
+	fpsz[n] = number(size, SMPOIN, SDPOIN, fpsz[n], 0, fpsz[n]);
 	if (n == curfont)
 		dev_ps(fpsz[n]);
 }
@@ -145,9 +182,15 @@ newpsze(n) register int n;
 {
 	register int i;
 
+	if (n <= 0) {
+		printe("illegal pointsize %d, ignored", n/10);
+		return;
+	}
 	for (i = 0; i < nfonts; i++)
-		if (((fwptab[i]->f_flags) & F_FIXED) == 0)
+		if (((fwptab[i]->f_flags) & F_FIXED) == 0) {
+			fwptab[i]->f_flags &= ~F_USED;
 			fpsz[i] = n;
+		}
 	dev_ps(n);
 }
 
@@ -171,7 +214,6 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 	static	int	newpage = 1;	/* new page flag		*/
 	static	int	hpost;		/* troff horizontal pos (u's)	*/
 	static	int	vpost;		/* troff vertical pos (u's)	*/
-	static	int	lastfont = -1;	/* current output font		*/
 	static	int	font = -1;	/* current font			*/
 	static	unsigned char *wtab;	/* current font width table	*/
 	static	long	wnum;		/* current width numerator	*/
@@ -248,6 +290,23 @@ flushl(buffer, bufend) CODE *buffer, *bufend;
 				newpage = 1;
 			}
 			continue;
+		case DHLIN:
+		case DVLIN:
+			if (code == DHLIN && i < 0) {
+				hpost += i;
+				i = -i;
+			}
+			hposd = hpost;
+			vposd = vpost;
+			move();
+			if (code == DHLIN) {
+				printf("\n%s 0 L", ndiv10(i));
+				hpost += i;
+			} else {
+				printf("\n0 %s L", ndiv10(-i));
+				vpost += i;
+			}
+			continue;
 		default:			/* print something */
 			/* Start a new page. */
 			if (newpage) {
@@ -320,14 +379,14 @@ move()
 		/* PostScript. */
 		if (inword)
 			endword();
-		printf("\n%s", ndiv10(hposd));
+		printf("\n%s", ndiv10(hposd+pof));
 		printf(" %s M", ndiv10(pgl - vposd));
 	} else {
 		/* PCL. */
 		if (vposd == vold)
-			printf("\033&a%dH", hposd);
+			printf("\033&a%dH", hposd+pof);
 		else
-			printf("\033&a%dh%dV", hposd, vposd);
+			printf("\033&a%dh%dV", hposd+pof, vposd);
 	}
 	vold = vposd;
 }
@@ -378,11 +437,17 @@ char *
 ndiv10(n) register int n;
 {
 	static char buf[10];
+	register char *cp;
 
+	cp = buf;
+	if (n < 0) {
+		n = -n;
+		*cp++ = '-';
+	}
 	if ((n % 10) == 0)
-		sprintf(buf, "%d", n/10);
+		sprintf(cp, "%d", n/10);
 	else
-		sprintf(buf, "%d.%d", n/10, n%10);
+		sprintf(cp, "%d.%d", n/10, n%10);
 	return buf;
 }
 
@@ -423,6 +488,18 @@ endpage()
 	if (pflag)
 		endword();
 	printf((pflag) ? PSEJECT : HPLJEJECT);
+#if	ZKLUDGE
+	if (Zflag && ++npages % Zflag == 0) {
+		register int i;
+
+		printf(PSREST1);
+		printf(PSSAVE1);
+		for (i = 0; i < nfonts; i++)
+			fwptab[i]->f_flags &= ~F_USED;
+		lastfont = -1;
+		dev_font(curfont);
+	}
+#endif
 }
 
 /* end of output.c */

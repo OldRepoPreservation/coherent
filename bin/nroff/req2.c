@@ -120,6 +120,8 @@ req_nr(argc, argv) int argc; char *argv[];
 	rp->n_reg.r_nval = number(argv[2], SMUNIT, SDUNIT, rp->n_reg.r_nval, 0, 0);
 	if (argc >= 4)
 		rp->n_reg.r_incr = numb(argv[3], SMUNIT, SDUNIT);
+	if (rp == nrpnreg)
+		npn = pno + 1;
 }
 
 /*
@@ -277,8 +279,10 @@ int		vflag;
  */
 req_pn(argc, argv) int argc; char *argv[];
 {
-	if (argc >= 2)
+	if (argc >= 2) {
 		pno = number(argv[1], SMUNIT, SDUNIT, pno, 0, pno);
+		npn = pno + 1;
+	}
 }
 
 /*
@@ -613,7 +617,7 @@ req_tl(argc, argv) int argc; char *argv[];
 			break;
 		}
 	}
-	linebreak();
+	linebreak(1);
 	envload(ENVTITLE);
 }
 

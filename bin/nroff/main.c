@@ -5,9 +5,14 @@
  */
 
 #include <ctype.h>
+#if	MSDOS
+#include <types.h>
+#include <stat.h>
+#else
 #include <sys/types.h>
-#include <time.h>
 #include <sys/stat.h>
+#endif
+#include <time.h>
 #include <path.h>
 #include <string.h>
 #include "roff.h"
@@ -47,19 +52,23 @@ main(argc, argv) int argc; char *argv[];
 	 */
 	fileflag = iflag = 0;
 	for (i = 1; i < argc; i++) {
-		if (argv[i][0] != '-') {
+		cp = argv[i];
+		if (*cp != '-') {
 			/* Process non-option argument. */
 			fileflag = 1;
-			if (adsfile(argv[i]) != 0)
+			if (adsfile(cp) != 0)
 				process();
 			continue;
 		}
-		c = argv[i][1];
+
+		/* Process '-'-option argument. */
+		c = *++cp;			/* argv[i][1] */
+		cp++;				/* &argv[i][2] */
 		if (c == 'i')
 			iflag = 1;		/* Process stdin when done */
 		else if (c == 'm') {
 			/* Process "-m" macro package argument. */
-			sprintf(miscbuf, TMACFMT, &argv[i][2]);
+			sprintf(miscbuf, TMACFMT, cp);
 			libpath = DEFLIBPATH;
 			if ((libpath = path(libpath, miscbuf, AREAD)) != NULL)
 				strcpy(miscbuf, libpath);
@@ -70,14 +79,17 @@ main(argc, argv) int argc; char *argv[];
 			process();
 		} else if (c == 'n') {
 			/* Reset page number. */
-			pno = atoi(&argv[i][2]);
-			npn = 1 + pno;
-		} else if (c == 'r' && argv[i][2] != '\0') {
+			pno = atoi(cp);
+			npn = pno + 1;
+		} else if (c == 'r' && *cp != '\0') {
 			/* Reset register value. */
-			name[0] = argv[i][2];
-			name[1] = '\0';
+			name[0] = *cp++;
+			if (isdigit(*cp))
+				name[1] = '\0';
+			else
+				name[1] = *cp++;
 			rp = getnreg(name);
-			rp->n_reg.r_nval = atoi(&argv[i][3]);
+			rp->n_reg.r_nval = atoi(cp);
 			if (rp == nrpnreg)		/* Page # register */
 				npn = pno + 1;		/* Set next page # */
 		}
@@ -166,6 +178,14 @@ initialize(argc, argv) int argc; char *argv[];
 		case 'v':
 			fprintf(stderr, "%s: V%s\n", argv0, VERSION);
 			continue;
+#if	ZKLUDGE
+		case 'Z':
+			if (argv[i][2] != '\0')
+				Zflag = atoi(&argv[i][2]);
+			else
+				Zflag = ZPAGES;
+			continue;
+#endif
 		default:
 			panic("illegal option: %s", argv[i]);
 		}
@@ -178,9 +198,9 @@ initialize(argc, argv) int argc; char *argv[];
 	tempname = (tmparg) ? argv[tmparg] : mktemp(TMPLATE);
 #endif
 	dprint2(DBGFILE, "temp file name = %s\n", tempname);
-	if ((tmp=fopen(tempname, "w")) == NULL)
+	if ((tmp=fopen(tempname, "wb")) == NULL)
 		panic("cannot create temp file");
-	else if (freopen(tempname, "rw", tmp) == NULL)
+	else if (freopen(tempname, "rwb", tmp) == NULL)
 		panic("cannot reopen temp file");
 	tmpseek = ENVSIZE * sizeof (ENV);
 	tmpseek = (tmpseek+DBFSIZE+DBFSIZE-1) & ~(DBFSIZE-1);
@@ -210,7 +230,7 @@ initialize(argc, argv) int argc; char *argv[];
 
 	/* Copy .pre-file if it exists. */
 	if (!Dflag) {
-		s = (lflag) ? ".pre_land" : ".pre";
+		s = (lflag) ? PRE_L : PRE_P;
 		if (lib_file(s, 0) == 0 & ntroff == TROFF)
 			printe("file \"%s\" not found", s);
 	}
@@ -323,6 +343,7 @@ leave(n)
 			pspace();
 		}
 	}
+
 #ifndef COHERENT
 #if	(DDEBUG & DBGFILE)
 	{

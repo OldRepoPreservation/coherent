@@ -43,6 +43,7 @@ FTB fontab[NFNAMES] ={
 	{ 'B',  '\0', FONTB },
 	{ 'I',  '\0', FONTI }
 };
+static	char	*font_names[NFNAMES] = { "Roman", "Bold", "Italic" };
 
 /*
  * Initialize nroff-specific parameters.
@@ -96,7 +97,7 @@ flushl(buffer, bufend) CODE *buffer; CODE *bufend;
 	for (cp = buffer; cp < bufend; cp++) {
 		i = cp->l_arg.c_iarg;
 #if	(DDEBUG & DBGCODE)
-		codebug(cp->l_arg.c_code, i, cp->c_csp);
+		codebug(cp->l_arg.c_code, i);
 #endif
 #if	0
 		fprintf(stderr, "output: %d arg=%d\n", cp->l_arg.c_code, i);
@@ -212,18 +213,31 @@ flushl(buffer, bufend) CODE *buffer; CODE *bufend;
 void
 font_display()
 {
-	fprintf(stderr,
-"Fonts available in this version:\n R  Roman\n I  Italic\n B  Bold\n"
-		);
+	register FTB *p;
+	register int a, b;
+
+	fprintf(stderr, "Fonts available in this version:\n");
+	for (p = fontab; p < &fontab[NFNAMES]; p++) {
+		if ((a = p->f_name[0]) == 0)
+			break;
+		if ((b = p->f_name[1]) == 0)
+			b = ' ';
+		fprintf(stderr," %c%c %s\n", a, b, font_names[p->f_font]);
+	}
+	fprintf(stderr, "Fonts may be renamed with the .rf request.\n");
 }
 
 /*
  * The following troff functions are nops for nroff.
  */
+#if	ZKLUDGE
+dev_close(){}
+#endif
 dev_cs(){}
 dev_fz(){}
 dev_ps(){}		/* psz initialized in devinit() */
 newpsze(){}
 load_font(){}
+
 
 /* end of tty.c */

@@ -6,6 +6,7 @@
 
 #include "roff.h"
 #include <access.h>
+#include <ctype.h>
 #include <string.h>
 
 /*
@@ -19,6 +20,7 @@ deftext(mp, name) register MAC *mp; char name[2];
 	static char residue[4];
 	register STR *sp;
 	register char *bp;
+	int nlflag;
 
 	if (mp != NULL) {
 		mp->t_div.m_next = NULL;
@@ -31,31 +33,41 @@ deftext(mp, name) register MAC *mp; char name[2];
 	infalse = 1;
 #endif
 	bp = miscbuf;
-	goto nwl;
-	for (;;) {
+	for (nlflag = 1;;) {
+
+		/* nlflag indicates if last character was \n. */
+		if (bp > miscbuf)
+			nlflag = (*(bp-1) == '\n');
+
+		/* Flush if necessary, leaving room for "..\n" or ".XX". */
 		if (bp >= &miscbuf[MSCSIZE-3]) {
 			if (mp != NULL)
 				nwrite(miscbuf, 1, bp-miscbuf);
 			bp = miscbuf;
 		}
-		if ((*bp++=getf(2)) != '\n')
+
+		/* Ignore remainder of line not starting with endmark. */
+		if (!nlflag) {
+			*bp++ = getf(2);
 			continue;
-	nwl:
+		}
+
+		/* Last character was \n, look for endmark on next line. */
 		if (name[0]=='\0') {
-			if ((*bp++=getf(2))!='.' || escflag!=0)
+			if ((*bp++ = getf(2))!='.' || escflag!=0)
 				continue;
-			if ((*bp++=getf(2))!='.' || escflag!=0)
+			if ((*bp++ = getf(2))!='.' || escflag!=0)
 				continue;
-			if ((*bp++=getf(2)) != '\n')
+			if ((*bp++ = getf(2)) != '\n')
 				continue;
 			bp -= 3;
 			break;
 		} else {
-			if ((*bp++=getf(2))!=ccc || escflag!=0)
+			if ((*bp++ = getf(2))!=ccc || escflag!=0)
 				continue;
-			if ((*bp++=getf(2))!=name[0] || escflag!=0)
+			if ((*bp++ = getf(2))!=name[0] || escflag!=0)
 				continue;
-			if ((*bp++=getf(2))!=name[1] || escflag!=0)
+			if ((*bp++ = getf(2))!=name[1] || escflag!=0)
 				continue;
 			bp -= 3;
 			residue[0] = bp[0];
@@ -251,7 +263,11 @@ nalloc(n)
 	register char *cp;
 
 	if ((cp = calloc(n, 1)) == NULL)
+#if	MSDOS
+		panic("out of space");		/* no memok() in MS-DOS libc */
+#else
 		panic("out of space - memory %s", (memok() ? "good" : "bad"));
+#endif
 	return cp;
 }
 
@@ -507,10 +523,10 @@ static char *codtab[] = {
 	"DHYPC (Hyphen character)"
 	};
 
-codebug(code, parm1, parm2)
+codebug(code, parm1)
 {
 	if (code <= 0) {
-		printd(DBGCODE, "%s %u %d\n", codtab[-code], parm1, parm2);
+		printd(DBGCODE, "%s %u\n", codtab[-code], parm1);
 	} else {
 		printd(DBGCODE, "%c (width=%d)\n", code, parm1);
 	}
