@@ -1,6 +1,10 @@
 :
-:	Build a Coherent executable
+:  Build a Coherent executable with a host adapter driver linked in.
 :
+if [ $USRSYS ]
+then
+if [ $USRSRC ]
+then
 HDDR=${1-"at"}
 case $HDDR in
 at)
@@ -23,7 +27,7 @@ echo "Building kernel /coh.$HDDR with drivers ($DRIVERS)."
 BOOTDEV="fva0"
 echo "Default root/pipe device is $BOOTDEV."
 
-( cd /usr/src/sys/i8086/drv; make install )			|| exit 1
+( cd $USRSRC/i8086/drv; make install )				|| exit 1
 ( make kernel )							|| exit 1
 ./config ibm-at $DRIVERS root=$BOOTDEV				|| exit 1
 cp coherent /tmp/coh						|| exit 1
@@ -50,3 +54,10 @@ chgrp sys /coh.$HDDR
 chmod 400 /coh.$HDDR
 echo "New kernel in /coh.$HDDR"
 ls -l /coh.$HDDR
+# the rest is error exits
+else
+echo "Error - USRSRC not defined - (was /usr/src/sys)"
+fi
+else
+echo "Error - USRSYS not defined - (was /usr/sys)"
+fi
