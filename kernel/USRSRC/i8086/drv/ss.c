@@ -1,20 +1,16 @@
-#define FUT_DOM 0
 /*
  * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
  *	set host_claimed conscientiously
- *	works but hogs CPU during big dd to /dev/null
- *
- *	bufq_rd_head()
- *	bufq_rm_head()
- *	bufq_wr_tail()
  *
  *	backoff & retry when bdr or req sense needed
  *	nonzero LUN's
- *	assembler I/O
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * $Log:	ss.c,v $
+ * Revision 2.5  91/05/20  18:02:52  root
+ * Remove test code.
+ * 
  * Revision 2.4	91/05/20  17:22:06	root
  * Not using ss_put() any more.
  * 
@@ -57,10 +53,12 @@
 #define PR4(str)
 #endif
 
+#if 0
 /* TEMPORARY S**T */
 #define bufq_rd_head(s_id)	ssq_rd_head()
 #define bufq_rm_head(s_id)	ssq_rm_head()
 #define bufq_wr_tail(s_id, foo)	ssq_wr_tail(foo)
+#endif
 
 /*
  * Includes.
@@ -90,13 +88,13 @@
 
 #define SS_RAM		0x1800	/* Offset of parameter RAM */
 
-#if FUT_DOM
-#define SS_CSR		0x1C00	/* Offset of control/status register */
-#define SS_DAT		0x1E00	/* Offset of data port */
-#else
+				/* Future Domain */
+#define FD_CSR		0x1C00	/* Offset of control/status register */
+#define FD_DAT		0x1E00	/* Offset of data port */
+
+				/* Seagate */
 #define SS_CSR		0x1A00	/* Offset of control/status register */
 #define SS_DAT		0x1C00	/* Offset of data port */
-#endif
 
 #define SS_RAM_LEN	128	/* ST0x has 128 bytes of RAM */
 #define SS_DAT_LEN	0x400	/* Byte range mapped to data port */
@@ -210,10 +208,12 @@ typedef struct {
  *	Local Functions.
  */
 
-/* functions from ssqueue.c */
-extern void ssq_wr_tail();
-extern BUF * ssq_rd_head();
-extern BUF * ssq_rm_head();
+/* functions from bufq.c */
+extern int bufq_init();
+extern void bufq_rlse();
+extern void bufq_wr_tail();
+extern BUF * bufq_rd_head();
+extern BUF * bufq_rm_head();
 
 /* functions from ssas.s */
 extern void	ss_get();
@@ -283,14 +283,15 @@ CON	sscon	= {
  * ST1126N, SCSI 0  LUN 0  (Unit 0)
  * CP340,   SCSI 3  LUN 0  (Unit 3)
  */
-int	NSDRIVE = 1;		/* Bitmap of attached SCSI drives. */
+int	NSDRIVE = 0x8001;	/* Bitmap of attached SCSI drives. */
+				/* Set NSDRIVE highest bit for Future Domain */
 int	SS_INT = 5;		/* ST0[12] use either IRQ3 or IRQ5 */
 int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 
 /* ncyl, nhead, nspt */
 drv_parm_type drv_parm[MAX_SCSI_ID-1] = {
-	{ 1004, 4, 52},		/* Unit 0 */
-	{ 0, 0, 0},
+	{ 1068, 9, 36},		/* Unit 0 */
+	{ 1004, 4, 52},		/* Unit 1 */
 	{ 0, 0, 0},
 	{ 964, 5, 17},		/* Unit 3 */
 	{ 0, 0, 0},
@@ -325,6 +326,7 @@ static void ssload()
 {
 	int erf = 0;  /* 1 if error occurs */
 	int i;
+	int max_id = -1;
 
 	/*
 	 * Claim IRQ vector.
@@ -338,8 +340,14 @@ static void ssload()
 	ss_fp = ptov(ss_base, (fsize_t)SS_SEL_LEN);
 
 	ss_ram = ss_fp + SS_RAM;
-	ss_csr = ss_fp + SS_CSR;
-	ss_dat = ss_fp + SS_DAT;
+
+	if (NSDRIVE & 0x8000) { /* Future Domain */
+		ss_csr = ss_fp + FD_CSR;
+		ss_dat = ss_fp + FD_DAT;
+	} else { /* Seagate */
+		ss_csr = ss_fp + SS_CSR;
+		ss_dat = ss_fp + SS_DAT;
+	}
 
 	/*
 	 * Primitive test of ST0x RAM.
@@ -366,8 +374,10 @@ static void ssload()
 	 */
 	if (!erf) {
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
-			if ((NSDRIVE >> i) & 1)
+			if ((NSDRIVE >> i) & 1) {
+				max_id = i;
 				num_drives++;
+			}
 		if (num_drives == 0) {
 			printf("Error - ss has no valid target id's\n");
 			erf = 1;
@@ -390,6 +400,7 @@ static void ssload()
 	 * Initialize drives we know about (i.e. in NSDRIVE bitmap).
 	 */
 	host_claimed = -1;
+	bufq_init(max_id + 1);
 	if (!erf) {
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
@@ -407,6 +418,7 @@ static void ssunload()
 	 */
 	if (ss_tbl)
 		kfree(ss_tbl);
+	bufq_rlse();
 
 	/*
 	 * Free the ST0x selector.
