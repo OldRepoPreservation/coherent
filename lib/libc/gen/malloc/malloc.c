@@ -1,5 +1,5 @@
 /*
- * malloc.c
+ * libc/gen/malloc/malloc.c
  * Memory allocation routines.
  * The memory arena is a circular linked list rooted at __a_first.
  * Each arena is subdivided into two or more blocks.
@@ -15,7 +15,7 @@
 
 MBLOCK	*__a_scanp = NULL;		/* start search here */
 MBLOCK	*__a_first = NULL;		/* first arena */
-MBLOCK	*__a_top = NULL;		/* top of arena */
+MBLOCK	*__a_top = NULL;		/* end of last sbrk */
 unsigned __a_count = 0;			/* number of blocks */
 
 /*
@@ -34,6 +34,13 @@ newarena(size) unsigned size;
 
 	if (failed)			/* no more room */
 		return 0;
+
+	/* Force sbrk() to alignment boundary. */
+	if ((len = ((unsigned)sbrk(0)) & (ALIGNMENT - 1)) != 0
+	 && (sbrk(ALIGNMENT - len) == BADSBRK)) {
+		failed = 1;
+		return 1;
+	}
 
 	/* Add space for end mblock, round up to 2^ARENASIZE */
 	len = roundup(size + sizeof(MBLOCK), ARENASIZE);
