@@ -70,14 +70,14 @@ int offset;
 
 main(argc, argv) int argc; char *argv[];
 {
-	if((fd_cmos = open(DEV_CMOS, O_RDONLY)) == 0) {
-		fprintf(stderr, "ATclock: can't open %s read-only.\n",
+	if((fd_cmos = open(DEV_CMOS, O_RDONLY)) == -1) {
+		fprintf(stderr, "ATclock: can't read %s.\n",
 		  DEV_CMOS);
 		exit(1);
 	}
 
-	if((fd_clock = open(DEV_CLOCK, O_RDWR)) == 0) {
-		fprintf(stderr, "ATclock: can't open %s read/write.\n",
+	if((fd_clock = open(DEV_CLOCK, O_RDONLY)) == -1) {
+		fprintf(stderr, "ATclock: can't read %s.\n",
 		  DEV_CLOCK);
 		exit(1);
 	}
@@ -95,6 +95,12 @@ main(argc, argv) int argc; char *argv[];
 	}
 
 	if (argc == 2) {
+		close(fd_clock);
+		if((fd_clock = open(DEV_CLOCK, O_RDWR)) == -1) {
+			fprintf(stderr, "ATclock: can't write %s.\n",
+			  DEV_CLOCK);
+			exit(1);
+		}
 		set(argv[1]);			/* initialize clkbuf[] */
 		lseek(fd_clock, 0L, 0);
 		if (write(fd_clock, clkbuf, CLKLEN) != CLKLEN) {
