@@ -416,7 +416,7 @@ fprintf(stderr,"Usage: compress [-dfvcV] [-b maxbits] [file ...]\n");
 #endif /* DEBUG */
 int nomagic = 0;	/* Use a 3-byte magic number header, unless old file */
 int zcat_flg = 0;	/* Write output on stdout, suppress messages */
-int quiet = 0;		/* don't tell me about compression */
+int quiet = 1;		/* don't tell me about compression */
 
 /*
  * block compression parameters -- after all codes are used up,
