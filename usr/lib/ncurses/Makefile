@@ -33,6 +33,7 @@ INCL=/usr/include
 SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	comp_parse.c read_entry.c \
 	dump.c dump_names.c  \
+	captoinfo.c getcap.c putinfo.c tget.c \
 	lib_setup.c lib_fixterm.c lib_tparm.c lib_tputs.c \
 	lib_unctrl.c lib_raw.c lib_vidattr.c lib_trace.c \
 	lib_beep.c lib_doupdate.c lib_refresh.c lib_initscr.c lib_newwin.c \
@@ -59,7 +60,9 @@ LIBOBJS= lib_setup.o lib_fixterm.o lib_tparm.o read_entry.o lib_tputs.o \
 COMPOBJS= comp_main.o comp_hash.o comp_captab.o comp_scan.o comp_error.o \
 	comp_parse.o read_entry.o
 
-all:	tic infocmp lib
+CTOIIBJS= captoinfo.c getcap.c putinfo.c tget.c
+
+all:	tic infocmp lib captoinfo
 	@echo "all done"
 
 install: all
@@ -90,6 +93,22 @@ comp_captab.c: Caps MKcaptab.awk
 	awk -f `srcpath MKcaptab.awk` Caps > comp_captab.c
 
 comp_captab.o: comp_captab.c
+
+captoinfo:	$(CTOIOBJS)
+		cc $(CFLAGS) $(CTOIOBJS) -o captoinfo
+
+putinfo.c: Caps MKnames.awk
+	awk -f `srcpath MKinfo.awk` Caps
+	cat boolnames numnames strnames infotail > putinfo.c
+	-rm -f boolnames numnames strnames
+
+captoinfo.o:	captoinfo.c
+
+getcap.o:	getcap.c
+
+putinfo.o:	putinfo.c
+
+tget.o:		tget.c
 
 infocmp: dump.o dump_names.o read_entry.o
 	cc -o infocmp dump.o dump_names.o read_entry.o
