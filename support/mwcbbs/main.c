@@ -27,6 +27,8 @@ char dummy[50];
 	 * print a usage: message.
 	 */
 
+	bbsdatafile();	/* read the .mwcbbs data file, if it exists */
+
 	if((argc==2)||(argc==3))
 		{
 		for(x=0;x<strlen(argv[1]);x++)
@@ -57,11 +59,9 @@ char dummy[50];
 				{
 				printf("Usage:\tmwcbbs [options] directory\n");
 				printf("\tOptions:\n");
-				printf("\t -P:	print Contents files\n");
-				printf("\t -p:	print Contents files\n");
-				printf("\t -d:	specify destination directory\n");
-				printf("\t -D:	specify destination directory\n");
-				printf("\t -?:	usage message\n");
+				printf("\t -[Pp] print Contents files\n");
+				printf("\t -[Dd] specify destination directory\n");
+				printf("\t -?    usage message\n");
 				exit(1);
 				}
 			}
@@ -143,7 +143,7 @@ char dummy[50];
 		if (strcmp(workfile,"QUIT")==0)
 				break;
 
-		if (strcmp(workfile,MAILFILE)!=0)
+		if (strstr(workfile,MAILFILE) == NULL)
 			x = rfile();
 		show_files(win1, win2, x);
 
@@ -187,7 +187,7 @@ int counter = 0;		/* newcol = column after arrow		  */
 	 * by SITE to the workscreen, NOT the list of states.
 	*/
 
-	if ( (strcmp(workfile,FILE4) == 0) )
+	if ( (strstr(workfile,FILE4) != NULL) )
 		{
 		print_states(win1);
 		EOF_FLAG = -1;
@@ -326,7 +326,7 @@ int counter = 0;		/* newcol = column after arrow		  */
 				wrefresh(win1);
 				wclear(win2);
 
-				if((strcmp(workfile,mapfile[0])==0) || (strcmp(workfile,mapfile[1])==0) || (strcmp(workfile,mapfile[2])==0))
+				if((strstr(workfile,mapfile[0]) != NULL) || (strstr(workfile,mapfile[1])!= NULL) || (strstr(workfile,mapfile[2])!= NULL))
 					{
 					map_command(win2,prevrow,prevcol,screen_num);
 					wclear(win1);
@@ -336,7 +336,7 @@ int counter = 0;		/* newcol = column after arrow		  */
 					break;
 					}
 
-				if( strcmp(workfile,MAILFILE) == 0)
+				if( strstr(workfile,MAILFILE) != NULL)
 					{
 					print_mail_states(win2);
 					wclear(win2);
@@ -352,7 +352,7 @@ int counter = 0;		/* newcol = column after arrow		  */
 		/* if we're not working on a mailfile record, display the Contents
 		 * form.
 		*/
-				if(strcmp(workfile,MAILFILE)!=0)
+				if(strstr(workfile,MAILFILE) == NULL)
 					{
 					display_form(win2);
 					display_record(win2,prevrow,prevcol,screen_num);
@@ -422,7 +422,7 @@ int EOF_FLAG;
 
 	/* start reading from a specified point in the file */
 
-	if((strcmp(workfile,mapfile[0])==0) || (strcmp(workfile,mapfile[1])==0) || (strcmp(workfile,mapfile[2])==0))
+	if((strstr(workfile,mapfile[0])!= NULL) || (strstr(workfile,mapfile[1])!= NULL) || (strstr(workfile,mapfile[2])!= NULL))
 		fseek(infp,(sizeof (struct map) * (screen_num * 100)),0l);
 	else
 		fseek(infp, (sizeof (struct entry) * (screen_num * 100)), 0l);
@@ -430,7 +430,7 @@ int EOF_FLAG;
 	limit = 0;
 
 
-	if((strcmp(workfile,mapfile[0])==0) || (strcmp(workfile,mapfile[1])==0) || (strcmp(workfile,mapfile[2])==0))
+	if((strstr(workfile,mapfile[0])!= NULL) || (strstr(workfile,mapfile[1])!= NULL) || (strstr(workfile,mapfile[2])!= NULL))
 		{
 		while((fread(&map_rec,sizeof(struct map),1,infp)) != 0)
 			{
@@ -457,7 +457,7 @@ int EOF_FLAG;
 
 	/* if x made it to 100, then we did NOT hit EOF */
 
-	if((strcmp(workfile,mapfile[0])==0) || (strcmp(workfile,mapfile[1])==0) || (strcmp(workfile,mapfile[2])==0))
+	if((strstr(workfile,mapfile[0])!= NULL) || (strstr(workfile,mapfile[1])!= NULL) || (strstr(workfile,mapfile[2])!= NULL))
 		{
 		if ( (limit == 100) && (fread (&map_rec,sizeof(struct map),1,infp)) !=  0)
 			EOF_FLAG = 0;
@@ -613,7 +613,7 @@ void menu()
 */
 
 	move (21,0);
-	if(strcmp(workfile,MAILFILE)==0)
+	if(strstr(workfile,MAILFILE) != NULL)
 		printw("Select state/other to view.");
 	else
 		printw("Select file to download.   ");
