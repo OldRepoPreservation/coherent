@@ -33,7 +33,6 @@ endwin()
 	resetty();
 	_puts(VE);
 	_puts(TE);
-	_puts(CL);
 	if (curscr) {
 		if (curscr->_flags & _STANDOUT) {
 			_puts(SE);
