@@ -4,12 +4,13 @@
 #include <scn.h>
 
 void
-showBak(back)
+wshowBak(w, back)
+WINDOW *w;
 register backGrnd *back;
 {
 	register char *p;
 
 	for (; NULL != (p = back->data); back++)	/* put out background */
-		mvaddstr(back->row, back->col, p);
+		mvwaddstr(w, back->row, back->col, p);
 	refresh();
 }
