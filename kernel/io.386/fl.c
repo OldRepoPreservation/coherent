@@ -102,7 +102,7 @@ CON	flcon	= {
 	DFBLK | DFCHR,			/* Flags */
 	FL_MAJOR,			/* Major index */
 	flopen,				/* Open */
-	nulldev,			/* Close */
+	flclose,			/* Close */
 	flblock,			/* Block */
 	flread,				/* Read */
 	flwrite,			/* Write */
@@ -290,6 +290,7 @@ struct	FL	{
 	char	fl_rate_set;		/* Currently set data rate */
 	int	fl_wflag;		/* Write operation  */
 	int	fl_recov;		/* Recovery initiated */
+	int	fl_opct[MAXDRVS];	/* open count for each unit */
 }	fl;
 
 /*
@@ -465,6 +466,10 @@ int	mode;
 		return;
 	}
 
+	/* The rest is checking which is done on first open for each unit. */
+	if (fl.fl_opct[unit_number]++)
+		return;
+
 	/*
 	 * If need to write, be sure there is no write protect tab.
 	 * We do this with a "Sense Drive Status" command.  Since
@@ -485,16 +490,31 @@ int	mode;
 			sw3[ unit_number ] = 0;
 							/* Get drive status. */
 			s = flQhang( &flbuf[ unit_number ] );
-			do {				/* Unitl we can use */
+#if 0
+			do {				/* Unit we can use */
 				s = sphi();		/* "sleep()".	    */
 				if ( fl.fl_state == SIDLE )
 					flfsm();
 				spl( s );
+			} while ( sw3[ unit_number ] == 0 );
+#else
+			for (;;) {
+				s = sphi();
+				if ( fl.fl_state == SIDLE )
+					flfsm();
+				spl( s );
+				if (sw3[unit_number])
+					break;
+				if (fl.fl_state != SIDLE)
+					v_sleep(&fl.fl_state,
+					  CVBLKIO, IVBLKIO, SVBLKIO,
+					  "flopen");
 				if (SELF->p_ssig && nondsig()) {  /* signal? */
 					u.u_error = EINTR;
 					break;
 				}
-			} while ( sw3[ unit_number ] == 0 );
+			}
+#endif
 
                         if ( flbuf[ unit_number ].b_resid != 0 )
 				u.u_error = EDATTN;	/* Couldn't get drive */
@@ -525,16 +545,16 @@ int	mode;
  * The close routine makes sure that all pending I/O is complete and all
  * the buffers are flushed of data not yet written.
  */
-/*
 static
 flclose( dev, mode )
-
 dev_t	dev;
 int	mode;
-
 {
+	register int unit_number = funit(dev);
+
+	fl.fl_opct[unit_number]--;
 }
-*/
+
 /*
  * The read routine just calls
  * off to the common raw I/O processing
@@ -1254,6 +1274,7 @@ command:
 
 		if ( fl_clrng_cd ) {
 			fl.fl_state = SIDLE;
+			wakeup(&fl.fl_state);
 			goto again;
 		}
 
@@ -1461,6 +1482,7 @@ register int dev;
 			bp = bp2;
 	}
 	fl.fl_state = SIDLE;
+	wakeup(&fl.fl_state);
 	spl(s);
 }
 
@@ -1486,6 +1508,7 @@ flrecov()
 
 	outb(FDCDOR, 0);
 	fl.fl_state = SIDLE;
+	wakeup(&fl.fl_state);
 	dmaunlock( &fldmalck ); 		/* Ensures 14 clock cycles */
 	outb(FDCDOR, DORNMR | DORIEN);
 
@@ -1558,6 +1581,7 @@ register BUF * bp;
 	fl.fl_actf  = bp->b_actf;
 	fl.fl_state = SIDLE;
 	bdone( bp );
+	wakeup(&fl.fl_state);
 }
 
 /*
