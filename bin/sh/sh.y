@@ -198,6 +198,13 @@ control:
 		$$ = node(NFOR, $2, node(NFOR2, $3, node(NLIST, $5, NULL)));
 		$$->n_next->n_next->n_next = $$->n_next;
 	}
+|	_FOR name in_name_list do_list _DONE {
+		$$ = node(NFOR, $2, node(NFOR2, $3, node(NLIST, $4, NULL)));
+		$$->n_next->n_next->n_next = $$->n_next;
+	}
+|	_CASE name sep in case_list _ESAC {
+		$$ = node(NCASE, $2, $5);
+	}
 |	_CASE name in case_list _ESAC {
 		$$ = node(NCASE, $2, $4);
 	}
