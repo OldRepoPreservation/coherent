@@ -9,8 +9,8 @@ int def;
 {
 	register int i, fc;
 
-	for(i = 0; fc = from[i]; i++)
-		if(fc == c)
-			return(to[i]);
-	return(def);
+	for (i = 0; fc = from[i]; i++)
+		if (fc == c)
+			return (to[i]);
+	return (def);
 }

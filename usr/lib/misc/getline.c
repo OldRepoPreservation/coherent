@@ -48,11 +48,12 @@ int *lineno;
 	enum state { normal, incont, incomm, bsl, octdig } state;
 
 	*lineno += oldline;
-	for(state = normal, oldline = i = 0;;) {
+	for (state = normal, oldline = i = 0;;) {
 		if (EOF == (c = fgetc(ifp))) {
 			if (i)
 				fprintf(stderr, 
-					"line %d truncated at end", *lineno);
+					"line %d truncated at end\n", 
+						*lineno + oldline);
 			return (NULL);
 		}
 
@@ -77,14 +78,14 @@ int *lineno;
 			continue;
 
 		case incont:
-			if('\n' == c) {
+			if ('\n' == c) {
 				oldline++;
 				state = normal;
 			}
 			continue;
 
 		case incomm:
-			if('\n' == c) {
+			if ('\n' == c) {
 				state = normal;
 				oldline++;
 				addchr(0);
@@ -94,27 +95,35 @@ int *lineno;
 
 		case bsl:
 			switch (c) {
+			case 'b':
+				c = '\b';
+
 			case '\\':
 				break;
 
-			case 'b':
-				c = '\b'; break;
-
 			case 'f':
-				c = '\f'; break;
+				c = '\f';
+				break;
 
 			case 'r':
-				c = '\r'; break;
+				c = '\r';
+				break;
 
 			case 't':
-				c = '\t'; break;
+				c = '\t';
+				break;
 
 			case 'n':
-				c = '\n'; break;
+				c = '\n';
+				break;
+
+			case 'a':
+				c = '\a';
+				break;
 
 			case 'p':
-			case '#':
-				c = '#'; break;
+				c = '#';
+				break;
 
 			case ' ':
 			case '\t':
@@ -134,7 +143,8 @@ int *lineno;
 					continue;
 				}
 				fprintf(stderr, 
-					"'%c' 0x%2x after \\ ", c, c);
+					"%d: '%c' 0x%2x after \\\n",
+						*lineno + oldline, c, c);
 			}
 			state = normal;
 			addchr(c);

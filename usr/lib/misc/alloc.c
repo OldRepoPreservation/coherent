@@ -12,5 +12,5 @@ unsigned n;
 
 	if (NULL == (tmp = malloc(n)))
 		fatal("Out of space");
-	return(memset(tmp, '\0', n));
+	return (memset(tmp, '\0', n));
 }

@@ -111,12 +111,12 @@ unsigned char *word;
 	register unsigned char *s;
 
 	putchar('\n');
-	for(i = 0; i < 9; i++) {
-		for(j = 0; j < pad; j++)
+	for (i = 0; i < 9; i++) {
+		for (j = 0; j < pad; j++)
 			putchar(' ');
-		for(s = word; c = *s; s++) {
+		for (s = word; c = *s; s++) {
 			f = ((c <= ' ') || (c & 0x80)) ? 0 : font[c - ' '][i];
-			for(j = 0x80; j; j >>= 1)
+			for (j = 0x80; j; j >>= 1)
 				putchar((f & j) ? c : ' ');
 		}
 		putchar('\n');
