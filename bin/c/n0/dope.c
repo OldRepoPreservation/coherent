@@ -16,16 +16,16 @@
  */
 short   opdope[] = {
 
-	13 + NSTR+NSTL,					/* + */
-	13 + NSTR+NSTL,					/* - */
-	14 + NSTR+NSTL+NPTR+NPTL,			/* * */
-	14 + NSTR+NSTL+NPTR+NPTL,			/* / */
-	14 + NSTR+NSTL+NPTR+NPTL+NFLT,			/* % */
-	9  + NSTR+NSTL+NPTR+NPTL+NFLT,			/* & */
-	7  + NSTR+NSTL+NPTR+NPTL+NFLT,			/* | */
-	8  + NSTR+NSTL+NPTR+NPTL+NFLT,			/* ^ */
-	12 + NSTR+NSTL+NPTR+NPTL+NFLT,			/* << */
-	12 + NSTR+NSTL+NPTR+NPTL+NFLT,			/* >> */
+	13 + FOLD+NSTR+NSTL,				/* + */
+	13 + FOLD+NSTR+NSTL,				/* - */
+	14 + FOLD+NSTR+NSTL+NPTR+NPTL,			/* * */
+	14 + FOLD+NSTR+NSTL+NPTR+NPTL,			/* / */
+	14 + FOLD+NSTR+NSTL+NPTR+NPTL+NFLT,		/* % */
+	9  + FOLD+NSTR+NSTL+NPTR+NPTL+NFLT,		/* & */
+	7  + FOLD+NSTR+NSTL+NPTR+NPTL+NFLT,		/* | */
+	8  + FOLD+NSTR+NSTL+NPTR+NPTL+NFLT,		/* ^ */
+	12 + FOLD+NSTR+NSTL+NPTR+NPTL+NFLT,		/* << */
+	12 + FOLD+NSTR+NSTL+NPTR+NPTL+NFLT,		/* >> */
 
 	2  + NSTR+NSTL+NPTR          +ASGN+RLVL+RAS,	/* += */
 	2  + NSTR+NSTL+NPTR          +ASGN+RLVL+RAS,	/* -= */
@@ -38,12 +38,12 @@ short   opdope[] = {
 	2  + NSTR+NSTL+NPTR+NPTL+NFLT+ASGN+RLVL+RAS,	/* <<= */
 	2  + NSTR+NSTL+NPTR+NPTL+NFLT+ASGN+RLVL+RAS,	/* >>= */
 
-	10 + NSTR+NSTL,					/* == */
-	10 + NSTR+NSTL,					/* != */
-	11 + NSTR+NSTL,					/* > */
-	11 + NSTR+NSTL,					/* >= */
-	11 + NSTR+NSTL,					/* <= */
-	11 + NSTR+NSTL,					/* < */
+	10 + FOLD+NSTR+NSTL,				/* == */
+	10 + FOLD+NSTR+NSTL,				/* != */
+	11 + FOLD+NSTR+NSTL,				/* > */
+	11 + FOLD+NSTR+NSTL,				/* >= */
+	11 + FOLD+NSTR+NSTL,				/* <= */
+	11 + FOLD+NSTR+NSTL,				/* < */
 	0,						/* > unsigned */
 	0,						/* >= unsigned */
 	0,						/* <= unsigned */
@@ -51,10 +51,10 @@ short   opdope[] = {
 
 	0  + NSTL+NFLT,					/* Ind */
 	0  + RLVL,					/* Addr */
-	0  + NSTL+NPTL,					/* - u */
-	0  + NSTL+NPTL+NFLT,				/* ~ */
-	0  + RTOL,					/* ! */
-	4  + RTOL,					/* ? */
+	0  + FOLD+NSTL+NPTL,				/* - u */
+	0  + FOLD+NSTL+NPTL+NFLT,			/* ~ */
+	0  + FOLD+RTOL,					/* ! */
+	4  + FOLD+RTOL,					/* ? */
 	4  + RAS,					/* : */
 	15 + NSTL+RLVL+RAS,				/* ++x */
 	15 + NSTL+RLVL+RAS,				/* --x */
@@ -62,8 +62,8 @@ short   opdope[] = {
 	15 + NSTL+RLVL+RAS,				/* x-- */
 	1,						/* , */
 	0  + NSTL,					/* Call */
-	6  + RTOL+RTOR,					/* && */
-	5  + RTOL+RTOR,					/* || */
+	6  + FOLD+RTOL+RTOR,				/* && */
+	5  + FOLD+RTOL+RTOR,				/* || */
 	0,						/* Cast of types */
 	0,						/* Conversion */
 	0,						/* Field marker */
