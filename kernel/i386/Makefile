@@ -9,7 +9,7 @@ AR=exec /bin/ar
 ARFLAGS=rs
 AS=exec /bin/as
 CC=exec /bin/cc
-CFLAGS=-DTRACER -VPSTR
+CFLAGS=-VPSTR
 
 USRSRC=/usr/src
 USRINC=/usr/include
@@ -19,7 +19,8 @@ IOOBJ =\
 	$(K386OBJ)/bufq.o \
 	$(K386OBJ)/ct.o \
 	$(K386OBJ)/dmareq.o \
-	$(K386OBJ)/fdisk.o
+	$(K386OBJ)/fdisk.o \
+	$(K386OBJ)/msg.o
 
 COHOBJ =\
 	$(K386OBJ)/alloc.o \
@@ -52,9 +53,11 @@ COHOBJ =\
 	$(K386OBJ)/timeout.o \
 	$(K386OBJ)/var.o
 
-I386OBJ =\
+I386OBJ0 =\
 	$(K386OBJ)/as.o \
 	$(K386OBJ)/xdt.o \
+
+I386OBJ1 =\
 	$(K386OBJ)/atcon.o \
 	$(K386OBJ)/defer.o \
 	$(K386OBJ)/die.o \
@@ -73,6 +76,8 @@ I386OBJ =\
 	$(K386OBJ)/tioc.o \
 	$(K386OBJ)/trap.o
 
+I386OBJ = $(I386OBJ0) $(I386OBJ1)
+
 OPTS =\
 	$(K386OBJ)/aha.o \
 	$(K386OBJ)/aha_dsl.o \
@@ -90,7 +95,6 @@ OPTS =\
 	$(K386OBJ)/lp.o \
 	$(K386OBJ)/mm.o \
 	$(K386OBJ)/mmas.o \
-	$(K386OBJ)/msg.o \
 	$(K386OBJ)/nkb.o \
 	$(K386OBJ)/pipe.o \
 	$(K386OBJ)/pty.o \
@@ -109,8 +113,12 @@ OPTS =\
 	$(K386OBJ)/vtkb_f.o \
 	$(K386OBJ)/vtnkb.o 
 
-# LIBLIST is the .a files needed for 386 installation
+# LIBLIST is the .a files needed for 386 installation.
+# k386.a is an aggregate used since 92/11/11 for driver kit kernel links.
+# kl386.a was used in COH 4.0.0 and 4.0.1 to link a kernel on customer's
+#   hard drive during installation.
 LIBLIST= \
+	$(K386LIB)/k386.a \
 	$(K386LIB)/kb.a \
 	$(K386LIB)/kb_d.a \
 	$(K386LIB)/kb_f.a \
@@ -172,7 +180,12 @@ $(K386LIB)/vtkb_f.a: \
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
 
-# kl386.a is the main library needed for linking customer kernels.
+# k386.a is used for linking driver kit kernels.
+$(K386LIB)/k386.a: $(I386OBJ) $(COHOBJ) $(IOOBJ)
+	rm -f $@
+	$(AR) $(ARFLAGS) $@ $(I386OBJ1) $(COHOBJ) $(IOOBJ)
+
+# kl386.a is used for linking customer kernels.
 $(K386LIB)/kl386.a: \
 	$(K386OBJ)/aha.o \
 	$(K386OBJ)/aha_dsl.o \
