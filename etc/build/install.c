@@ -1,6 +1,6 @@
 /*
  * install.c
- * 5/9/90
+ * 7/6/90
  * Install COHERENT disks on a system.
  * This is the back end of the initial COHERENT installation procedure;
  * the first part is in build.c.
@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.7"
+#define	VERSION		"1.8"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
@@ -130,6 +130,7 @@ config()
 		printf("\n");
 	}
 	if (yes_no("Does your computer system have a printer")) {
+again:
 		printf(
 "Your printer is connected to your computer system either through a\n"
 "parallel port or through a serial port; most printers are connected\n"
@@ -147,6 +148,17 @@ config()
 			strcpy(device, "com");
 		}
 		strcat(device, s);
+		if (yes_no("Do you want to test whether your printer configuration is correct")) {
+			/* The command below is backgrounded in case it hangs. */
+			printf("Testing /dev/%s: process ", device);
+			fflush(stdout);
+			sprintf(cmd,
+"/bin/echo -n 'This is printing on device /dev/%s.\014' >/dev/%s&",
+				device, device);	/* 014 is formfeed */
+			sys(cmd, S_IGNORE);
+			if (!yes_no("\nDid output appear on your printer"))
+				goto again;
+		}
 		sprintf(cmd, "/bin/ln -f /dev/%s /dev/lp", device);
 		if (sys(cmd, S_NONFATAL) == 0)
 			printf("/dev/lp is now linked to /dev/%s.\n", device);
