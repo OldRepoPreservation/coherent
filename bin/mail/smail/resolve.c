@@ -114,6 +114,8 @@ DEBUG("resolve: parse address '%s' = '%s' @ '%s' (%s)\n",
 				look_smart = 1; /* last chance */
 			}
 
+DEBUG("route(dom: '%s', user: '%s', smart: %d ...)\n",
+	domain, user, look_smart);
 			/* route() puts the new route in 'temp' */
 			if(route(domain,user,look_smart,temp,cost) != EX_OK) {
 				continue;	/* If routing fails, try
