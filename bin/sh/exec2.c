@@ -140,6 +140,10 @@ flexec()
 			}
 			longjmp(restart, 1);
 		}
+		if (errno==E2BIG) {
+			e2big(nargv[0]);
+			return(-1);
+		}
 	}
 	ecantfind(nargv[0]);
 	return (-1);
@@ -322,6 +326,7 @@ exshell(vp) VAR *vp;
 	nenvp = envlvar(nenvp);
 	/* Try exec */
 	execve(vshell, nargv+1, nenvp);
+
 	if (errno==ENOEXEC) {
 		fakearg(1, nargc, nargv, nenvp);
 		sargc = 0;
