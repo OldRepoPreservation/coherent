@@ -21,7 +21,8 @@ int x;
 		}
 
 	/* parse the command line argument for a 'p' or a 'P' so
-	 * that we know to PRINT a file.
+	 * that we know to PRINT a file. If we hit a '?', then
+	 * print a usage: message.
 	 */
 
 	if(argc==2)
@@ -30,6 +31,12 @@ int x;
 			{
 			if((argv[1][x] == 112) || (argv[1][x] == 80))
 				break;
+			if(argv[1][x] == '?')
+				{
+				printf("Usage:\tmwcbbs [Pp]");
+				printf("\t -p:	print Contents files\n");
+				exit(1);
+				}
 			}
 		}
 
