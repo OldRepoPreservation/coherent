@@ -1,9 +1,12 @@
 /*
+ * sed/sed2.c
  * A stream editor.
  * Compiler.
  */
+
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
 #include "sed.h"
 
 FIL	*codefil();
@@ -63,8 +66,7 @@ char *name;
 /*
  * Compile a string.
  */
-compstr(cp)
-register char *cp;
+compstr(cp) register char *cp;
 {
 	register int c;
 	register char *lp;
@@ -72,7 +74,7 @@ register char *cp;
 	do {
 		lp = linebuf;
 		while ((c = *cp++) != '\0' && c != '\n' && c != ';') {
-			if (c == '\\' && *cp == ';')
+			if (c == '\\' && (*cp == ';' || *cp == '\n'))
 				c = *cp++;	/* "\;" means ';' */
 			*lp++ = c;
 		}
@@ -278,14 +280,14 @@ register ADD *ap;
 	addnone = 0;
 	if ((c=getn()) == '/') {
 		if (compile('/') == 0)
-			return (0);
+			return 0;
 		ap->a_lno = 0;
 		ap->a_pat = duplstr(pattbuf);
-		return (1);
+		return 1;
 	}
 	if (c == '$') {
 		ap->a_lno = HUGE;
-		return (1);
+		return 1;
 	}
 	if (isascii(c) && isdigit(c)) {
 		n = 0;
@@ -294,11 +296,11 @@ register ADD *ap;
 		} while (isascii(c=getn()) && isdigit(c));
 		ungetn(c);
 		ap->a_lno = n+1;
-		return (1);
+		return 1;
 	}
 	ungetn(c);
 	addnone = 1;
-	return (1);
+	return 1;
 }
 
 /*
@@ -308,9 +310,9 @@ codenwl()
 {
 	if (getn() != '\0') {
 		printc("Syntax error");
-		return (0);
+		return 0;
 	}
-	return (1);
+	return 1;
 }
 
 /*
@@ -336,7 +338,7 @@ codelab()
 	*np = '\0';
 	for (lp=labp; lp; lp=lp->l_next) {
 		if (strcmp(lp->l_name, name) == 0)
-			return (lp);
+			return lp;
 	}
 	lp = (LAB *)salloc(sizeof (LAB));
 	lp->l_next = labp;
@@ -344,7 +346,7 @@ codelab()
 	strcpy(lp->l_name, name);
 	lp->l_comp = NULL;
 	lp->l_refc = 0;
-	return (lp);
+	return lp;
 }
 
 /*
@@ -365,7 +367,7 @@ codefil()
 	while (c != '\0') {
 		if (np >= &name[FNMSIZE-1]) {
 			printc("Line buffer overflow");
-			return (NULL);
+			return NULL;
 		}
 		*np++ = c;
 		c = getn();
@@ -373,14 +375,14 @@ codefil()
 	*np = '\0';
 	for (fp=filp; fp; fp=fp->f_next) {
 		if (strcmp(fp->f_name, name) == 0)
-			return (fp);
+			return fp;
 	}
 	fp = (FIL *)salloc(sizeof (FIL));
 	fp->f_next = filp;
 	filp = fp;
 	strcpy(fp->f_name, name);
 	fp->f_filp = NULL;
-	return (fp);
+	return fp;
 }
 
 /*
@@ -395,12 +397,12 @@ codelin()
 	while ((c=getn()) != '\0') {
 		if (pp >= &pattbuf[LHPSIZE-1]) {
 			printc("Line buffer overflow");
-			return (0);
+			return 0;
 		}
 		*pp++ = c;
 	}
 	*pp = '\0';
-	return (1);
+	return 1;
 }
 
 /*
@@ -425,21 +427,21 @@ codesub()
 	if ((ec=c) == '\n') {
 		ungetn(c);
 		printc("Syntax error");
-		return (NULL);
+		return NULL;
 	}
 	if (compile(ec) == 0)
-		return (NULL);
+		return NULL;
 	pp = holdbuf;
 	while ((c=getn()) != ec) {
 		if (pp >= &holdbuf[LHPSIZE-4]) {
 			printc("Pattern buffer overflow");
-			return (NULL);
+			return NULL;
 		}
 		switch (c) {
 		case '\0':
 			ungetn(c);
 			printc("Syntax error");
-			return (NULL);
+			return NULL;
 		case '&':
 			*pp++ = '\\';
 			*pp++ = '0';
@@ -483,10 +485,10 @@ codesub()
 			free(sp->s_pat);
 			free(sp->s_rep);
 			free(sp);
-			return (NULL);
+			return NULL;
 		}
 	}
-	return (sp);
+	return sp;
 }
 
 /*
@@ -509,7 +511,7 @@ compile(ec)
 			printc("No saved pattern");
 			goto err;
 		}
-		return (1);
+		return 1;
 	}
 	if (c == '^') {
 		*pp++ = CSSOL;
@@ -635,18 +637,18 @@ compile(ec)
 		}
 	}
 	*pp++ = CSNUL;
-	return (1);
+	return 1;
 ovf:
 	printc("Pattern buffer overflow");
 	pattbuf[0] = CSNUL;
-	return (0);
+	return 0;
 nwl:
 	ungetn(c);
 syn:
 	printc("Syntax error");
 err:
 	pattbuf[0] = CSNUL;
-	return (0);
+	return 0;
 }
 
 /*
@@ -666,17 +668,17 @@ codetrn()
 		*bp++ = n;
 	if ((ec=getn()) == '\0') {
 		printc("Syntax error");
-		return (NULL);
+		return NULL;
 	}
 	bp = pattbuf;
 	while ((c=getn()) != ec) {
 		if (c == '\0') {
 			printc("Syntax error");
-			return (NULL);
+			return NULL;
 		}
 		if (bp >= &pattbuf[LHPSIZE-1]) {
 			printc("Code buffer overflow");
-			return (NULL);
+			return NULL;
 		}
 		*bp++ = c&0377;
 	}
@@ -684,34 +686,24 @@ codetrn()
 	while ((c=getn()) != ec) {
 		if (c == '\0') {
 			printc("Syntax error");
-			return (NULL);
+			return NULL;
 		}
 		if (*bp == '\0') {
 			printc("Right part of translate too long");
-			return (NULL);
+			return NULL;
 		}
 		trnp[*bp++] = c;
 	}
-	return (trnp);
+	return trnp;
 }
 
 /*
  * Given a string, return a pointer to a copy of it.
  */
 char *
-duplstr(sp0)
-register char *sp0;
+duplstr(s) register char *s;
 {
-	register char *sp1, *sp2;
-
-	sp1 = sp0;
-	while (*sp1++)
-		;
-	sp2 = salloc(sp1-sp0);
-	sp1 = sp2;
-	while (*sp1++=*sp0++)
-		;
-	return (sp2);
+	return strcpy(salloc(strlen(s)+1), s);
 }
 
 /*
@@ -721,9 +713,9 @@ getn()
 {
 	register int c;
 
-	if ((c=*ncp++) == '\0')
+	if ((c = *ncp++) == '\0')
 		--ncp;
-	return (c);
+	return c;
 }
 
 /*
@@ -766,3 +758,5 @@ printc(s)
 	fprintf(stderr, "%d: %r", lno, &s);
 	putc('\n', stderr);
 }
+
+/* end of sed/sed2.c */

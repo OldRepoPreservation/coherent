@@ -1,9 +1,12 @@
 /*
+ * sed/sed1.c
  * A stream editor.
  * Main.
  */
+
 #include <stdio.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include "sed.h"
 
 main(argc, argv)
@@ -108,9 +111,11 @@ salloc(n)
 {
 	register char *cp;
 
-	if ((cp=malloc(n)) == NULL) {
+	if ((cp = malloc(n)) == NULL) {
 		fprintf(stderr, "Out of space\n");
 		exit(1);
 	}
-	return (cp);
+	return cp;
 }
+
+/* end of sed/sed1.c */
