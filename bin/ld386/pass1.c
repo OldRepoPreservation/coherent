@@ -135,9 +135,12 @@ register char *p;
 			p = ".?";
 		if (!loadsw)	/* drvld's read of the system */
 			p = "_s.o" + 2;
+#if	0
+/* This is bogus, e.g. it suppresses the ld of a_s.o in "cc a_s.o". */
 		/* shared libs have names like libc_s.a */
 		if ((p[-2] == '_') && (p[-1] == 's'))
 			loadsw = 0;
+#endif
 	}
 #ifdef GEMDOS
 	stat(fname, &st);
