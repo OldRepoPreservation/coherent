@@ -9,6 +9,7 @@
 */
 
 #include <stdio.h>
+#include "cron.h"
 
 FILE *fopen();
 
@@ -24,9 +25,7 @@ int 		bufsize;	/* Maximum size of the host name */
 	FILE	*fp;
 	
 	if ( (fp = fopen(ETC_HOSTNAME, "r")) == NULL ) {
-#if DEBUG
-		fprintf(stderr, "gethostname:  Can't open %s.\n", ETC_HOSTNAME);
-#endif
+		Dprint("gethostname:  Can't open %s.\n", ETC_HOSTNAME);
 		return (-1);
 	}
 
@@ -40,10 +39,8 @@ int 		bufsize;	/* Maximum size of the host name */
 	}
 
 	if (i >= bufsize) {
-#if DEBUG
-		fprintf(stderr,
-			"gethostname:  Found neither a NULL nor a newline.\n");
-#endif
+		Dprint("gethostname:  %s\n", 
+			"Found neither a NULL nor a newline.");
 		return (-1);
 	} else {
 		name[i] = NIL;
@@ -59,9 +56,7 @@ int 		bufsize;	/* Maximum size of the domain name */
 	FILE 	*fp;	
 	
 	if ( (fp = fopen(ETC_DOMAIN, "r")) == NULL ) {
-#if DEBUG
-	  fprintf(stderr, "getdomainname:  Can't open %s.\n", ETC_DOMAIN);
-#endif
+		Dprint("getdomainname:  Can't open %s.\n", ETC_DOMAIN);
 		return (-1);
 	}
 
@@ -75,10 +70,8 @@ int 		bufsize;	/* Maximum size of the domain name */
 	}
 
 	if (i >= bufsize) {
-#if DEBUG
-		fprintf(stderr,
-			"getdomain:  Found neither a NULL nor a newline.\n");
-#endif
+		Dprint("getdomain:  %s\n", 
+			"Found neither a NULL nor a newline.");
 		return (-1);
 	} else {
 		name[i] = NIL;
