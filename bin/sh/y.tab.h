@@ -1,5 +1,5 @@
 
-#line 16 "/tmp/sh/sh.y"
+#line 16 "/z/tmp/sh/sh.y"
 typedef union {
 	NODE	*yu_node;
 	char	*yu_strp;
@@ -27,8 +27,6 @@ typedef union {
 #define _WHILE 275
 #define _OBRAC 276
 #define _CBRAC 277
-#define _PARENS 278
-#define _RET 279
 #ifdef YYTNAMES
 extern struct yytname
 {

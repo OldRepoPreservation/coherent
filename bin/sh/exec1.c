@@ -21,8 +21,6 @@ register NODE *np;
 	NODE *cnode;		/* for NCASE */
 	char *cname;		/* for NCASE */
 
-	if (ret_done)
-		return;
 	mynllflag = nllflag;
 	innp = inlp = NULL;
 	cnode = NULL;
@@ -47,8 +45,7 @@ register NODE *np;
 	}
 
 	for ( ; np; np=np->n_next) {
-	if (ret_done)
-		break;		/* "return" interrupts control flow */
+
 	recover(ICMD);
 	f = 0;
 	nllflag = mynllflag;
@@ -152,20 +149,6 @@ register NODE *np;
 	case NPIPE:
 		f = pipecoms(np);
 		break;
-	case NFUNC:
-		def_shell_fn(np);
-		break;
-	case NRET:
-		if (in_sh_fn == 0) {
-			printe("return not inside shell function");
-			break;
-		}
-		ret_done++;		/* to interrupt control flow */
-		if (np->n_strp[0] != '\0') {
-			eval(np->n_strp, EARGS);
-			slret = atoi(strt);
-		}
-		return slret;
 	default:
 		panic();
 		NOTREACHED;
@@ -319,7 +302,7 @@ register NODE *np;
 	case	FARGS|	FIORS:
 	case	FARGS|		FASSG:
 	case	FARGS|	FIORS|	FASSG:
-		if (sh_fn() || inline())
+		if (inline())
 			return (0);
 		break;
 	case		FIORS:

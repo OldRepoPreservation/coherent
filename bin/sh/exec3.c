@@ -1,7 +1,7 @@
 /*
  * sh/exec3.c
  * Bourne shell.
- * Builtin commands and shell functions.
+ * Builtin commands.
  */
 
 #include "sh.h"
@@ -12,7 +12,6 @@
 #define MINUTE	(60L*HZ)
 #define SECOND	HZ
 
-NODE	*copy_node();
 char	*cd();
 
 extern	s_colon();
@@ -39,7 +38,6 @@ extern	s_umask();
 extern	s_wait();
 #define SNULL	((int (*)())0)
 
-/* Built-in functions. */
 typedef struct {
 	int	i_hash;
 	char	*i_name;
@@ -77,6 +75,7 @@ inline()
 	register int (*s_func)();
 	register INLINE *ip;
 	register int ahash;
+	int pid, status;
 
 	if (inls[0].i_hash==0)
 		for (ip=inls; ip->i_name!=NULL; ip++)
@@ -100,7 +99,7 @@ inline()
 			slret = 1;
 			return 1;
 		}
-		if (clone() == 0) {
+		if ((pid = clone()) == 0) {
 			/* Perform redirection in child process. */
 			if (redirect(niovp) < 0)
 				slret = 1;
@@ -114,6 +113,11 @@ inline()
 			}
 			exit(slret);
 			/* NOTREACHED */
+		} else {
+			/* Parent waits for child and takes its exit status. */
+			while (wait(&status) != pid)
+				;
+			slret = status >> 8;
 		}
 	} else
 		slret = (*s_func)();
@@ -135,6 +139,7 @@ s_colon()
 {
 	return 0;
 }
+
 s_dot()
 {
 	if (nargc==2) {
@@ -150,6 +155,7 @@ s_dot()
 	syntax();
 	return 1;
 }
+
 s_break()
 {
 	register CON *cp;
@@ -169,10 +175,10 @@ s_break()
 		freebuf(cp->c_bpp);
 	}
 	printe("%s out of bounds", ret==1 ? "Continue" : "Break");
-	reset(RBRKCON);
-	NOTREACHED;
 }
+
 /* s_continue is overlaid with s_break */
+
 s_cd()
 {
 	register char *dir;
@@ -184,6 +190,7 @@ s_cd()
 	dstack[dstkp] = duplstr(dir, 1);	/* update dir stack */
 	return 0;
 }
+
 s_dirs()
 {
 	register int i;
@@ -192,6 +199,7 @@ s_dirs()
 		fprintf(stderr, "%s ", dstack[i]);
 	fputc('\n', stderr);
 }
+
 s_eval()
 {
 	if (nargc>1)
@@ -199,6 +207,7 @@ s_eval()
 	else
 		return 0;
 }
+
 s_exec()
 {
 	if (redirect(niovp) < 0) {
@@ -220,6 +229,7 @@ s_exec()
 	exit(1);
 	NOTREACHED;
 }
+
 s_exit()
 {
 	if (nargc > 1)
@@ -227,6 +237,7 @@ s_exit()
 	reset(RUEXITS);
 	NOTREACHED;
 }
+
 s_export()
 {
 	register int flag;
@@ -243,6 +254,7 @@ s_export()
 				eillvar(*varv++);
 	return 0;
 }
+
 s_login()
 {
 	register char *cmd;
@@ -252,7 +264,9 @@ s_login()
 	ecantfind(cmd);
 	return 1;
 }
+
 /* s_newgrp is overlaid with s_login */
+
 s_popd()
 {
 	register int i, j, n, ret;
@@ -282,6 +296,7 @@ s_popd()
 	}
 	return ret;
 }
+
 s_pushd()
 {
 	register char *dir;
@@ -301,6 +316,7 @@ s_pushd()
 		ret |= pushd(nargv[i]);
 	return ret;
 }
+
 s_read()
 {
 	SES s;
@@ -335,7 +351,9 @@ s_read()
 	sesp = s.s_next;
 	return c==EOF;
 }
+
 /* s_readonly overlaid with s_export */
+
 s_set()
 {
 	if (nargc < 2) {
@@ -344,6 +362,7 @@ s_set()
 	}
 	return set(nargc, nargv, 0);
 }
+
 s_shift()
 {
 	register int n;
@@ -356,6 +375,7 @@ s_shift()
 	}
 	return n!=0;
 }
+
 s_times()
 {
 #if	_I386
@@ -373,6 +393,7 @@ s_times()
 	prints("\n");
 	return 0;
 }
+
 s_trap()
 {
 	register char **vp;
@@ -399,6 +420,7 @@ s_trap()
 	}
 	return err;
 }
+
 s_umask()
 {
 	if (nargc < 2)
@@ -407,6 +429,7 @@ s_umask()
 		umask(ufmask = atoi(nargv[1]));
 	return 0;
 }
+
 s_wait()
 {
 	register int f;
@@ -542,208 +565,6 @@ long t;
 		seconds++;
 	}
 	prints("%d.%ds ", seconds, tenths);
-}
-
-/* User-defined shell functions. */
-
-/*
- * Lookup a shell function name.
- * The hashing is probably irrelevant.
- */
-SHFUNC *
-lookup_sh_fn(name) char *name;
-{
-	register SHFUNC *fnp;
-	register int ahash;
-
-	ahash = ihash(name);
-	for (fnp=sh_fnp; fnp != NULL; fnp = fnp->fn_link)
-		if (fnp->fn_hash==ahash && strcmp(name, fnp->fn_name)==0)
-			return fnp;
-	return NULL;
-}
-
-/*
- * Define a shell function.
- */
-def_shell_fn(np) register NODE *np;
-{
-	register char *name;
-	register SHFUNC *fnp;
-
-	name = np->n_strp;
-	if ((fnp = lookup_sh_fn(name)) != NULL)
-		free_node(fnp->fn_body);	/* redeclared, free old body */
-	else {
-		fnp = salloc(sizeof *fnp);	/* allocate new function */
-		fnp->fn_link = sh_fnp;		/* add it to list */
-		sh_fnp = fnp;
-		fnp->fn_hash = ihash(name);	/* and set member info */ 
-		fnp->fn_name = duplstr(name, 1);
-	}
-	fnp->fn_body = copy_node(np->n_next);	/* and copy function body */
-}
-
-/*
- * Look for a shell function, execute it if found.
- */
-int
-sh_fn()
-{
-	register SHFUNC *fnp;
-	int oargc;
-	char *oarg0;
-	char **oargv, **oargp;
-
-	if (nargv[0] == NULL)
-		return 0;
-	if ((fnp = lookup_sh_fn(nargv[0])) == NULL)
-		return 0;
-
-	/* Set up sargc, sarg0, sargv, sargp here for $1 etc. to work. */
-	oarg0 = sarg0;
-	oargc = sargc;
-	oargv = sargv;
-	oargp = sargp;
-	sarg0 = nargv[0];
-	sargc = nargc - 1;
-	sargp = sargv = vdupl(nargv+1);
-	++in_sh_fn;
-	slret = command(fnp->fn_body);		/* execute it */
-	--in_sh_fn;
-	ret_done = 0;
-	vfree(sargv);
-	sarg0 = oarg0;
-	sargc = oargc;
-	sargv = oargv;
-	sargp = oargp;
-	return 1;
-}
-
-/*
- * Recursively allocate a fresh copy of a NODE.
- * Examines type to decide if node uses strp or auxp.
- * Watch out for nodes which contain loops: NFOR2, NWHILE, NUNTIL.
- */
-NODE *
-copy_node(np) NODE *np;
-{
-	register NODE *newnp;
-	int flag;
-
-#if	0
-	printf("copy_node(%x)", np);
-	if (np != NULL)
-		printf(" type=%d", np->n_type);
-	printf("\n");
-#endif
-	if (np == NULL)
-		return NULL;
-	flag = 0;
-	newnp = salloc(sizeof *np);			/* allocate new NODE */
-	newnp->n_type = np->n_type;
-	switch(np->n_type) {
-
-	/* The following cases use the strp member. */
-	case NRET:
-	case NFOR:
-	case NARGS:
-	case NASSG:
-	case NCASE:
-	case NCASE3:
-	case NIORS:
-	case NFUNC:
-		newnp->n_strp = duplstr(np->n_strp, 1);
-		break;
-
-	/* The following cases use the auxp member. */
-	case NWHILE:
-	case NUNTIL:
-	case NFOR2:
-		flag++;
-		np->n_next->n_next = NULL;	/* zap the loop for recursion */
-		/* fall through... */
-	case NNULL:
-	case NCOMS:
-	case NCTRL:
-	case NBRAC:
-	case NPARN:
-	case NIF:
-	case NELSE:
-	case NCASE2:
-	case NLIST:
-	case NANDF:
-	case NORF:
-	case NBACK:
-	case NPIPE:
-		newnp->n_auxp = copy_node(np->n_auxp);
-		break;
-
-	case NRPIPE:
-	case NWPIPE:
-	default:
-		/* ??? */
-		printf("type=%d\n", np->n_type);
-		panic();
-	}
-	newnp->n_next = copy_node(np->n_next);
-	if (flag)
-		newnp->n_next->n_next = newnp;		/* restore loop */
-	return newnp;
-}
-
-/*
- * Undo the above.
- */
-free_node(np) register NODE *np;
-{
-	if (np == NULL)
-		return;
-	switch(np->n_type) {
-
-	/* strp */
-	case NRET:
-	case NFOR:
-	case NARGS:
-	case NASSG:
-	case NCASE:
-	case NCASE3:
-	case NIORS:
-	case NFUNC:
-		sfree(np->n_strp);
-		break;
-
-	/* auxp */
-	case NWHILE:
-	case NUNTIL:
-	case NFOR2:
-		np->n_next->n_next = NULL;	/* zap the loop for recursion */
-		/* fall through... */
-	case NNULL:
-	case NCOMS:
-	case NCTRL:
-	case NBRAC:
-	case NPARN:
-	case NIF:
-	case NELSE:
-	case NCASE2:
-	case NLIST:
-	case NANDF:
-	case NORF:
-	case NBACK:
-	case NPIPE:
-		free_node(np->n_auxp);
-		break;
-
-	case NRPIPE:
-	case NWPIPE:
-	default:
-		/* ??? */
-		printf("type=%d\n", np->n_type);
-		panic();
-	}
-	free_node(np->n_next);
-	sfree(np);
 }
 
 /* end of sh/exec3.c */
