@@ -35,11 +35,11 @@
 
 long	timezone = 0L;
 char	tzname[2][32] = { "GMT", "" };
-char	tzdstdef[] = "-1.1.4:-1.1.10:2:60......";
+char	tzdstdef[] = "1.1.4:-1.1.10:2:60......";
 static	struct	dsttimes {
 	char dst_month, dst_day, dst_occur;
 } dsttimes[2] = {
-	{ -1, 0, 3 },	/* Last sunday in april */
+	{  1, 0, 3 },	/* First sunday in april */
 	{ -1, 0, 9 }	/* Last sunday in october */
 };
 static	char	dsthour = 2;
