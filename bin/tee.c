@@ -1,6 +1,6 @@
 /*
  * tee.c
- * 4/30/91
+ * 2/12/92
  * Pipe redirection.
  * Usage: tee [ -a ] [ -i ] [ file ] ...
  * Rec'd from Lauren Weinstein, 7-16-84.
@@ -22,18 +22,19 @@ extern	int	exit();
 FILE	*openf();
 void	fatal();
 
+/* Global. */
+int	aflag;
+
 main(argc, argv) int argc; register char *argv[];
 {
 	register int c;
 	register FILE **fpp;
 	FILE *fp[NUFILE];
-	int aflag;
 
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
 		signal(SIGINT, exit);
 
 	/* Process option arguments. */
-	aflag = 0;
 	while (*++argv && argv[0][0]=='-') {
 		switch (argv[0][1]) {
 		case 'a':
@@ -52,7 +53,7 @@ main(argc, argv) int argc; register char *argv[];
 	for (fpp = fp; *argv; ) {
 		if (fpp >= &fp[NUFILE])
 			fatal("too many files");
-		*fpp++ = openf(*argv++, aflag);
+		*fpp++ = openf(*argv++);
 	}
 	*fpp = NULL;
 
@@ -65,8 +66,11 @@ main(argc, argv) int argc; register char *argv[];
 	/* Copy stdin to stdout, duplicate to each specified file. */
 	while ((c = getchar()) != EOF) {
 		putchar(c);
-		for (fpp = fp; *fpp != NULL; fpp++)
+		for (fpp = fp; *fpp != NULL; fpp++) {
+			if (aflag)
+				fseek(*fpp, 0L, SEEK_END);
 			putc(c, *fpp);
+		}
 	}
 
 	/* Done. */
@@ -87,13 +91,15 @@ fatal(s) char *s;
  * Open a file.
  */
 FILE *
-openf(file, aflag) char *file; int aflag;
+openf(file) char *file;
 {
 	register FILE *fp;
 
 	if ((fp = fopen(file, (aflag) ? "a" : "w")) != NULL) {
-		if (aflag)
+		if (aflag) {
+			setbuf(fp, NULL);
 			fseek(fp, 0L, SEEK_END);
+		}
 		return fp;
 	}
 	switch (errno) {
