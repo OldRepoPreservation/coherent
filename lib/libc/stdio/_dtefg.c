@@ -216,6 +216,7 @@ ret0:
 			return;
 		*cp = '\0';			/* Strip a trailing '0' */
 	}
+	++cp;					/* Point to buf again */
 ret1:
 	++*decexpp;				/* and return "1" */
 	*cp++ = '1';
