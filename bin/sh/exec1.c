@@ -372,14 +372,16 @@ register NODE *np;
 			if (p1st == 0)
 				p1st = f;
 			dup2(pipev[0], 0);
-			close(pipev[0]);
+			if (pipev[0] != 0)
+				close(pipev[0]);
 			close(pipev[1]);
 		} else {
 			/* Child takes left hand side */
 			np = np->n_auxp;
 			dup2(pipev[1], 1);
 			close(pipev[0]);
-			close(pipev[1]);
+			if (pipev[1] != 1)
+				close(pipev[1]);
 			exit(command(np));
 			NOTREACHED;
 		}
