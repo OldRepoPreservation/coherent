@@ -16,8 +16,10 @@
 #define DPADC	(-6)			/* Paddable character		*/
 #define DHYPH	(-7)			/* Place to hyphenate		*/
 #define	DHYPC	(-8)			/* Hyphen character		*/
-#define	DTRAB	(-9)			/* Transparent buffer 	 (dag)	*/
-#define	DFPOS	(-10)			/* Fix position		 (dag)	*/
+#define	DTRAB	(-9)			/* Transparent buffer		*/
+#define	DFPOS	(-10)			/* Fix position			*/
+#define	DHLIN	(-11)			/* Horizontal line		*/
+#define	DVLIN	(-12)			/* Vertical line		*/
 
 /*
  * All characters and commands are stored in this structure.
@@ -27,13 +29,12 @@
  */
 typedef	union	{
 	struct c_arg {			/* Structure containing character */
-		int	c_code;		/* Character code */
-		unsigned c_move;	/* Distance to move after char */
+		int	c_code;		/* Character code		*/
+		unsigned c_move;	/* Distance to move after char	*/
 	} c_arg;
-	struct l_arg {			/* Command with one long argument */
-		int	c_code;		/* Type of command */
-		int	c_iarg;		/* Long parameter */
-		int	c_csp;		/* Pre tab space */
+	struct l_arg {			/* Command with one int argument */
+		int	c_code;		/* Type of command		*/
+		int	c_iarg;		/* Int parameter		*/
 	} l_arg;
 	struct b_arg {			/* Command with buffer ptr. (dag)*/
 		int	c_code;		/* Type of command		*/
