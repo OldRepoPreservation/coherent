@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)clrtoeol.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)clrtoeol.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -30,9 +30,9 @@ static char sccsid[] = "@(#)clrtoeol.c	5.3 (Berkeley) 6/30/88";
 wclrtoeol(win)
 reg WINDOW	*win; {
 
-	reg char	*sp, *end;
+	reg uchar	*sp, *end;
 	reg int		y, x;
-	reg char	*maxx;
+	reg uchar	*maxx;
 	reg int		minx;
 
 	y = win->_cury;

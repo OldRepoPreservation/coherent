@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)addstr.c	5.4 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)addstr.c	5.4 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -29,7 +29,7 @@ static char sccsid[] = "@(#)addstr.c	5.4 (Berkeley) 6/30/88";
  */
 waddstr(win,str)
 reg WINDOW	*win; 
-reg char	*str;
+reg uchar	*str;
 {
 # ifdef DEBUG
 	fprintf(outf, "WADDSTR(\"%s\")\n", str);

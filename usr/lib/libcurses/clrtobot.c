@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)clrtobot.c	5.4 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)clrtobot.c	5.4 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,7 +31,7 @@ wclrtobot(win)
 reg WINDOW	*win; {
 
 	reg int		y;
-	reg char	*sp, *end, *maxx;
+	reg uchar	*sp, *end, *maxx;
 	reg int		startx, minx;
 
 	startx = win->_curx;
