@@ -73,7 +73,7 @@ command	: NAME NUMBER {
 		fieldDesig = $2[1];
 	}
 
-	| DO NUMBER {
+	| DO NUMBER NAME {
 		if (NULL != thisc)
 			yyerror("Nested do statements");
 		if (0 >= $2)
@@ -86,6 +86,8 @@ command	: NAME NUMBER {
 			lastc = lastc->next = thisc;
 
 		thisc->times = $2;
+
+		fprintf(ohp, "#define %s %d\n", $3, $2);
 	}
 
 	| DONE {
@@ -122,7 +124,7 @@ option	: LONG	{ this->flags |= LONGFIELD; }
 		this->help = $2;
 		}
 	| SKIP NUMBER {
-		if (0 >= $2)
+		if (0 >= $2 || 254 < $2)
 			yyerror("Invalid skip number");
 		if (this->skipf)
 			yyerror("Skip factor already set");

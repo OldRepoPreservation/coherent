@@ -1,4 +1,4 @@
-do 6
+do 6 LONGFIELDS
 	longfield 78 verify checkEnd skip group
 done
 %%
