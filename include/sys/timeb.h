@@ -7,10 +7,12 @@
  * Time buffer.
  */
 
-#ifndef	 TIMEB_H
-#define	 TIMEB_H	TIMEB_H
+#ifndef	 __SYS_TIMEB_H__
+#define	 __SYS_TIMEB_H__
 
 #include <sys/types.h>
+#include <sys/_time.h>
+
 
 struct timeb {
 	time_t	time;			/* Time since 1970 */

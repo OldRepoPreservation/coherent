@@ -1,29 +1,14 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
  * poll_clk.h - include file for drivers using altclk_in()/altclk_out()
- *
- * $Log:	poll_clk.h,v $
- * Revision 1.4  91/12/10  07:57:01  hal
- * Add uart_type and has_irq usage fields.
- * Change in_use from boolean (:1) to short.
- * 
- * Revision 1.3  91/11/14  14:11:13  hal
- * Re-entrancy fix.  Make com_usage bit field.
- * 
- * Revision 1.2  91/06/04  14:36:10  hal
- * Imports are from support.c.
- * 
- * Revision 1.1  91/06/04  14:34:49  hal
- * Initial version - imported from tty.c.
- * 
  */
 
-#ifndef	POLL_CLK_H
-#define	POLL_CLK_H
+#ifndef	__SYS_POLL_CLK_H__
+#define	__SYS_POLL_CLK_H__
 
 #include <sys/silo.h>
 /*

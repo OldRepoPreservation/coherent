@@ -7,10 +7,22 @@
  * Segments.
  */
 
-#ifndef	 SEG_H
-#define	 SEG_H	SEG_H
+#ifndef	 __SYS_SEG_H__
+#define	 __SYS_SEG_H__
 
 #include <sys/types.h>
+#include <sys/ksynch.h>
+
+
+/*
+ * NIGEL: for some reason the type "cseg_t" was in <sys/types.h>. It belongs
+ * here and in <sys/seg.h> as much as it belongs anywhere.
+ */
+
+#ifndef	__CSEG_T
+#define	__CSEG_T
+typedef	long		cseg_t;
+#endif
 
 /*
  * Segment structure.
@@ -83,7 +95,7 @@ extern	SEG	segiom;			/* I/O memory segment */
  */
 typedef struct sr {
 	int	 sr_flag;		/* Flags for this reference */
-	vaddr_t	 sr_base;		/* Virtual address base */
+	caddr_t	 sr_base;		/* Virtual address base */
 #ifdef _I386
 	off_t	 sr_size;		/* Mapped in window size */
 #else
@@ -98,5 +110,6 @@ typedef struct sr {
 #define SRFPMAP	1			/* Segment is mapped in process */
 #define SRFDUMP	2			/* Dump segment */
 #define	SRFDATA	4			/* Data segment */
+#define	SRFRODT	8			/* Data, read-only (used by shm) */
 
 #endif

@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -8,8 +8,9 @@
  *	used by sys/drv/tty.c, src/cmd0/getty.c, and src/cmd0/login.c
  *	to initialize terminal characteristics.
  */
-#ifndef DEFTTY_H
-#define DEFTTY_H
+#ifndef __SYS_DEFTTY_H__
+#define __SYS_DEFTTY_H__
+
 #include <sys/ascii.h>
 
 #define DEF_SG_ISPEED	B9600

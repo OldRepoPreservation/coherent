@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 3.2.1
+ * 	COHERENT Version 4.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
@@ -7,8 +7,8 @@
  * Disk free block.
  */
 
-#ifndef	 FBLK_H
-#define	 FBLK_H	FBLK_H
+#ifndef	 __SYS_FBLK_H__
+#define	 __SYS_FBLK_H__
 
 #include <sys/types.h>
 

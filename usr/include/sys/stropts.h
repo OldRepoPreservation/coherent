@@ -4,8 +4,8 @@
  *
  * $Log: $
  */
-#ifndef	STROPTS_H
-#define	STROPTS_H
+#ifndef	__SYS_STROPTS_H__
+#define	__SYS_STROPTS_H__
 
 /*
  * Read options

@@ -3,8 +3,8 @@
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	MMU_H
-#define	MMU_H
+#ifndef	__SYS_MMU_H__
+#define	__SYS_MMU_H__
 
 #ifdef _I386
 #ifndef TYPES_H
@@ -12,6 +12,16 @@
 #endif
 #ifndef UPROC_H
 #include <sys/uproc.h>
+#endif
+
+/*
+ * NIGEL: for some reason the type "cseg_t" was in <sys/types.h>. It belongs
+ * here and in <sys/seg.h> as much as it belongs anywhere.
+ */
+
+#ifndef	__CSEG_T
+#define	__CSEG_T
+typedef	long		cseg_t;
 #endif
 
 	/* A click is a 4K byte paragraph.
@@ -174,7 +184,7 @@ typedef struct {
 	unsigned short	*tfree, *efree, *pfree;
 		/* vector of page descriptors (base, end, current pointer) */
 	unsigned short lo, hi;	/* valid physical memory (min,max) */
-	vaddr_t vaddre;		/* end of system */
+	caddr_t vaddre;		/* end of system */
 } SYSMEM;
 
 extern SYSMEM	sysmem;

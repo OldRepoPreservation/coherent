@@ -7,8 +7,8 @@
  * Machine dependent definitions.
  * 80386 Coherent, IBM PC.
  */
-#ifndef	 _REG_H
-#define	_REG_H
+#ifndef	__SYS_REG_H__
+#define	__SYS_REG_H__
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -130,8 +130,8 @@ typedef union mreg_u {
 typedef struct mproto {
 	unsigned mp_csl;
 	unsigned mp_dsl;
-	vaddr_t	mp_svb;
-	vaddr_t	mp_svl;
+	caddr_t	mp_svb;
+	caddr_t	mp_svl;
 } MPROTO;
 
 /*
@@ -176,6 +176,30 @@ typedef int MGEN[1];
 #define	MFINT	0x0200			/* Interupt enable */
 #define	MUERR	0x0002			/* Location of errno */
 #define	MFCBIT	0x0001			/* Carry bit */
+
+#ifdef	ENABLE_STREAMS
+
+/*
+ * NIGEL: I have made some small modifications here to allow me to slot in the
+ * extensions necessary to support the DDI/DDK rational interrupt architecture.
+ *
+ * The two macros below are used by setivec () and clrivec () in "i386/md.c" to
+ * set the PIC mask values for the base level. Under the rational scheme, this
+ * also affects some global data which is used by the DDI/DDK spl... ()
+ * functions so they can safely manipulate the PIC mask registers rather than
+ * the CPU global mask bit.
+ */
+
+void		DDI_BASE_SLAVE_MASK ();
+void		DDI_BASE_MASTER_MASK ();
+
+#else	/* if ! defined (ENABLE_STREAMS) */
+
+#define	DDI_BASE_SLAVE_MASK(m)		outb (SPICM, m)
+#define	DDI_BASE_MASTER_MASK(m)		outb (PICM, m)
+
+#endif	/* ! defined (ENABLE_STREAMS) */
+
 
 /*
  * Trap codes.

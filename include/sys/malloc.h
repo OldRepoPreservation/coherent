@@ -8,8 +8,8 @@
  * Header file for malloc.c, notmem.c, realloc.c.
  */
 
-#ifndef	MALLOC_H
-#define	MALLOC_H
+#ifndef	__SYS_MALLOC_H__
+#define	__SYS_MALLOC_H__
 
 /* Manifest constants. */
 /*

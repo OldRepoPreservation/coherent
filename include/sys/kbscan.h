@@ -17,8 +17,8 @@
  *
  *		Version 1.2,  06/26/91
  */
-#ifndef	KBSCAN_H
-#define	KBSCAN_H
+#ifndef	__SYS_KBSCAN_H__
+#define	__SYS_KBSCAN_H__
 
 /*    AT kbd   scan code  */
 /*   physical    set 3    */

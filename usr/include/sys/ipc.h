@@ -1,13 +1,13 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef _IPC_H
-#define	_IPC_H
-#ifndef _TYPES_H
+
+#ifndef __SYS_IPC_H__
+#define	__SYS_IPC_H__
+
 #include <sys/types.h>
-#endif
 
 /*
 ** Common IPC Access Structure

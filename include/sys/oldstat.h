@@ -7,8 +7,8 @@
  * Stat.
  */
 
-#ifndef	 OSTAT_H
-#define	 OSTAT_H	OSTAT_H
+#ifndef	 __SYS_OSTAT_H__
+#define	 __SYS_OSTAT_H__
 
 #include <sys/types.h>
 

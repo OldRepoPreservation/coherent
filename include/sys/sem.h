@@ -3,8 +3,8 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef _SEM_H
-#define _SEM_H
+#ifndef __SYS_SEM_H__
+#define __SYS_SEM_H__
 
 /*
 **	IPC Semaphore Facility
@@ -12,6 +12,8 @@
 #ifndef _IPC_H
 #include <sys/ipc.h>
 #endif
+#include <sys/_time.h>
+
 
 /*
 **	Permission Definitions.

@@ -9,8 +9,8 @@
  * This structure is used by statfs and fstatfs system calls.
  */
 
-#ifndef	STATFS_H
-#define STATFS_H
+#ifndef	__SYS_STATFS_H__
+#define __SYS_STATFS_H__
 
 struct statfs {
 	short	f_fstyp;	/* File system type. 1 for 512 bytes blocks */

@@ -8,8 +8,8 @@
  * Open file descriptors.
  */ 
 
-#ifndef	 FD_H
-#define	 FD_H
+#ifndef	 __SYS_FD_H__
+#define	 __SYS_FD_H__
 
 #include <sys/types.h>
 #include <sys/inode.h>

@@ -1,10 +1,10 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	ASCII_H
-#define	ASCII_H
+#ifndef	__SYS_ASCII_H__
+#define	__SYS_ASCII_H__
 
 /*
  * Ascii Macro Definitions.

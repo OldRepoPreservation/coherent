@@ -4,8 +4,9 @@
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 
-#ifndef HDIOCTL_H
-#define	HDIOCTL_H
+#ifndef __SYS_HDIOCTL_H__
+#define	__SYS_HDIOCTL_H__
+
 #define	HDIOC	('H' << 8)
 #define	HDGETA	(HDIOC|1)	/* get drive attributes */
 #define	HDSETA	(HDIOC|2)	/* set drive attributes */

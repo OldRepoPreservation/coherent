@@ -1,10 +1,10 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version 2.0.0
+ * 	COHERENT 386 Device Driver Kit release 2.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	DMAC_H
-#define	DMAC_H
+#ifndef	__SYS_DMAC_H__
+#define	__SYS_DMAC_H__
 
 #define	DMA	0x00			/* Primary 8237 base port */
 #define	SDMA	0xC0			/* Secondary 8237 base port */

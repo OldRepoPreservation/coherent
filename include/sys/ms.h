@@ -1,6 +1,6 @@
 /* (-lgl
- * 	COHERENT Driver Kit Version 1.1.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
@@ -10,6 +10,8 @@
 /*
  *	ioctl function definitions
  */
+#ifndef __SYS_MS_H__
+#define __SYS_MS_H__
 
 #define	MS_SETUP	0
 #define	MS_SETCRS	1
@@ -77,3 +79,5 @@ struct msbuts {
 #define MS_S_R_PRESS	0x08
 #define MS_S_R_RELEASE	0x10
 #define MS_S_BUTTONS	0x1e
+
+#endif

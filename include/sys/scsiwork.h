@@ -1,35 +1,14 @@
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
  * Common SCSI portions of Adaptec AHA154x driver
- *
- * $Log:	scsiwork.h,v $
- * Revision 1.9  91/05/29  11:47:29  hal
- * Add MSG_NOP.
- * 
- * Revision 1.8	91/05/15  14:52:23	root
- * Add READCAPLEN.
- * 
- * Revision 1.7	91/04/20  01:36:46	root
- * Add ScmdREZERO
- * 
- * Revision 1.6	91/04/19  10:04:15	root
- * Add MSG_IDENTIFY.
- * 
- * Revision 1.5	91/04/17  02:21:18	root
- * Add mode sense constants.
- * 
- * Revision 1.4	91/04/10  14:11:41	root
- * Add Information Transfer Phase masks.
- * 
- * Revision 1.3	91/04/10  13:57:38	root
- * Add constants such as message types - needed by ss.c
- * 
- * Revision 1.2	91/03/14  16:51:29	root
- * add Test Ready and Request Sense commands
- * 
- * Revision 1.1	91/03/05  13:02:21	root
- * As used to build initial aha154x driver
- * 
  */
+#ifndef __SYS_SCSIWORK_H__
+#define __SYS_SCSIWORK_H__
+
 #define	MAX_SCSI_ID	8
 #define	MAX_LUN		4		/* limited by minor device number */ 
 
@@ -115,3 +94,5 @@ typedef	struct	scsi_cmd	scsi_cmd_t;
 #define XP_DATA_OUT	(                                 0)
 
 #define VTOP2(a1, a2)	vtop(a1,a2)
+
+#endif

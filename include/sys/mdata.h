@@ -1,16 +1,17 @@
 /* (-lgl
- * 	COHERENT Version 4.1
+ * 	COHERENT 386 Device Driver Kit release 2.0
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
 /*
  * /usr/include/sys/mdata.h
  * Magic machine numbers.
  * i80386.
  */
 
-#ifndef	_MDATA_H
-#define	_MDATA_H
+#ifndef	__SYS_MDATA_H__
+#define	__SYS_MDATA_H__
 
 /* Bits per type. */
 #define	NBCHAR		8

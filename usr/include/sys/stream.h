@@ -3,8 +3,8 @@
  *	Copyright 1989 by Inetco Systems, Ltd.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
-#ifndef	STREAM_H
-#define	STREAM_H
+#ifndef	__SYS_STREAM_H__
+#define	__SYS_STREAM_H__
 /*
  * This file will NOT be binary compatible with System V.
  */

@@ -1,5 +1,10 @@
-#ifndef	AHA154X_H
-#define	AHA154X_H
+/* (-lgl
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+#ifndef	__SYS_AHA154X_H__
+#define	__SYS_AHA154X_H__
 
 /*
  *	describe the data structures neccessary to

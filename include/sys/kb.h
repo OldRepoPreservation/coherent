@@ -9,8 +9,8 @@
  *
  *		Version 1.2,  07/09/92
  */
-#ifndef	KB_H
-#define	KB_H
+#ifndef	__SYS_KB_H__
+#define	__SYS_KB_H__
 
 /*
  * ASCII Macro Definitions - stolen from <ascii.h>

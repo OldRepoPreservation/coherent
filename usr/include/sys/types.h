@@ -1,46 +1,137 @@
-/* (-lgl
- * 	COHERENT Version 3.2.1
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- -lgl) */
-/*
- * Machine dependent types.
- */
-
-#ifndef _TYPES_H
-#define _TYPES_H
+#ifndef	__SYS_TYPES_H__
+#define	__SYS_TYPES_H__
 
 /*
- * Mapping types.
+ * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990, and as
+ * such client programs which include this program may not use any symbols
+ * which end in "_t".
  */
-typedef	unsigned int	aold_t;		/* Auxiliary map save		*/
-typedef	unsigned int	bmap_t;		/* Buffer map			*/
-typedef	unsigned int	bold_t;		/* Buffer map save		*/
-typedef	unsigned int	cmap_t;		/* Clist map			*/
-typedef	unsigned int	cold_t;		/* Clist map save		*/
-typedef	unsigned int	dmap_t;		/* Driver map			*/
-typedef	unsigned int	dold_t;		/* Driver map save		*/
 
 /*
- * System types.
+ * The contents of this header are also defined by the provisions of binary
+ * compatibility standards such as the iBCS2 specification and the System V
+ * ABI. The visibility of certain symbols defined by those standards may be
+ * controlled by feature-test macros such as _SYSV3 for iBCS2, and _SYSV4 for
+ * System V, Release 4.
+ *
+ * System headers which depend on this file for definitions should take care
+ * when using symbols that have different definitions under the _SVR3 and
+ * _SVR4 environments. This header defines both versions under internal names
+ * beginning with o_ for SVR3 and n_ for SVR4, and then uses one of those
+ * definitions as the base for the external definition.
  */
-typedef	unsigned short	comp_t;		/* Accounting			*/
-typedef	long		daddr_t;	/* Disk address			*/
-typedef	unsigned short	dev_t;		/* Device			*/
-typedef	long	 	fsize_t;	/* Lengths (same as off_t)	*/
-typedef	unsigned short	ino_t;		/* Inode number			*/
-typedef long		key_t;		/* For IPC			*/
-typedef	long	 	off_t;		/* Lengths			*/
-typedef	long	 	paddr_t;	/* Physical memory address	*/
-typedef	long	 	sig_t;		/* Signal bits			*/
-typedef	long	 	time_t;		/* Time				*/
-typedef	unsigned int	vaddr_t;	/* Virtual memory address	*/
-typedef	char	 	GATE[2];	/* Gate structure		*/
-#if	_I386
-typedef	long		cseg_t;		/* Page descriptor		*/
+
+/*
+ * Other symbols may be defined in this header according to the provisions of
+ * the System V, Release 4 Multiprocessor DDI/DKI, which defines additional
+ * symbols. The visibility of symbols unique to the DDI/DKI is controlled by
+ * the _DDI_DKI feature-test macro. Headers in the DDI/DKI are part of the
+ * kernel environment, and should not depend on the _SVR3 or _SVR4 feature-
+ * tests.
+ *
+ * The rationale for all of this is to ease the transition between providing
+ * an iBCS2 service (which is not, and indeed cannot be POSIX-compliant) and
+ * an SVR4 service (which provides a POSIX-compliant service using interfaces
+ * that are not binary compatible). Kernel code must use a single consistent
+ * set of data declarations even when attempting to provide a service which
+ * uses conflicting definitions.
+ */
+
+typedef	unsigned short	o_dev_t;
+typedef	unsigned long	n_dev_t;
+
+typedef	short		o_nlink_t;
+typedef	unsigned long	n_nlink_t;
+
+typedef	unsigned short	o_ino_t;
+typedef	unsigned long	n_ino_t;
+
+
+/*
+ * "ssize_t" and "size_t" are defined by several other headers. We appeal to
+ * the common definition.
+ */
+
+#include <sys/_ssize.h>
+#include <sys/_size.h>
+#include <sys/__pid.h>
+
+
+typedef	long		uid_t;
+typedef	uid_t		gid_t;
+typedef	__pid_t		pid_t;
+typedef	unsigned long	mode_t;
+typedef	long		off_t;
+
+
+#if	! _POSIX_SOURCE
+
+typedef	unsigned char	uchar_t;
+typedef	unsigned short	ushort_t;
+typedef	unsigned int	uint_t;
+typedef	unsigned long	ulong_t;
+
+typedef	char	      *	caddr_t;
+typedef	long		daddr_t;	/* disk address */
+typedef	__pid_t		id_t;
+typedef	int		key_t;		/* for System V IPC */
+
+/*
+ * System V defines "ushort", "ulong", "u_char", "u_short", "u_int", and
+ * "u_long" to satisfy its own portability needs. In addition, System V
+ * defines "time_t" and "clock_t" here.  Coherent needs but a few of these.
+ */
+#include <sys/_time.h>
+
+/*
+ * This definition is peculiar to Coherent; it is the type used to represent
+ * file sizes, which is an "off_t" in POSIX.1 usage. It is debatable whether
+ * this needs to be a separate type from "off_t".
+ */
+
+typedef	off_t		fsize_t;
+
+#endif
+
+
+#if	_SYSV4 || _DDI_DKI
+
+typedef	n_dev_t		dev_t;
+typedef	n_nlink_t	nlink_t;
+typedef	n_ino_t		ino_t;
+
 #else
-typedef	long		faddr_t;	/* Far virtual memory address	*/
-typedef	unsigned int	saddr_t;	/* Segmenation address		*/
-#endif
+
+typedef	o_dev_t		dev_t;
+typedef	o_nlink_t	nlink_t;
+typedef	o_ino_t		ino_t;
 
 #endif
+
+
+#if	_DDI_DKI
+
+/*
+ * We keep the DDI/DKI definitions in a separate header, since they are
+ * really unrelated to any user-level issues.
+ */
+
+#include <sys/v_types.h>
+
+#endif
+
+
+#if	(! _POSIX_SOURCE) && (defined (__KERNEL__) || _DDI_DKI)
+
+/*
+ * Old Coherent kernel code defined several random here that conflict with
+ * DDI/DKI usage. Most have been changed to more portable equivalents, but
+ * since this has a corresponding DDI/DKI definition it has been left.
+ */
+
+typedef	long		paddr_t;
+
+#endif
+
+
+#endif	/* ! defined (__SYS_TYPES_H__) */
