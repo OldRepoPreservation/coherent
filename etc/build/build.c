@@ -1,12 +1,12 @@
 /*
  * build.c
- * 12/20/90
+ * 6/10/91
  * Build (install) COHERENT on a system, part 1.
  * The second part of the install procedure is in install.c.
  * Uses common routines in build0.c,
  * serial number checking in numtab.c and serialno.c.
  * Requires floating point output: cc build.c build0.c numtab.c serialno.c -f
- * Usage: build [ -dvx ]
+ * Usage: build [ -dv ]
  * Options:
  *	-d	Debug, echo commands without executing
  *	-v	Verbose
@@ -31,6 +31,7 @@
 #include <sys/fdisk.h>
 #include <sys/filsys.h>
 #include <sys/types.h>
+#include <access.h>
 #include "build0.h"
 #include "serialno.h"
 
@@ -38,8 +39,8 @@
 #define	DOSSHRINK	0		/* punt dosshrink for now	*/
 
 /* Manifest constants. */
-#define	VERSION		"1.8"
-#define	USAGE		"Usage: /etc/build [ -dvx ]\n"
+#define	VERSION		"2.0"
+#define	USAGE		"Usage: /etc/build [ -dv ]\n"
 #define	ATDEVS		(NPARTN+NPARTN)	/* number of AT disk devices	*/
 #define	BSIZE		512		/* sector size			*/
 #define	MAXSIZE		95		/* suggested max size (MB)	*/
@@ -108,6 +109,7 @@ void	get_timezone();
 int	is_fs();
 void	mkdev();
 void	mkfs();
+void	patches();
 char	*protoname();
 char	*rawname();
 void	set_date();
@@ -159,6 +161,7 @@ main(argc, argv) int argc; char *argv[];
 	mkfs();
 	copy();
 	user_devices();
+	patches();
 	sys("/bin/echo /etc/build: success >>/mnt/etc/install.log", S_NONFATAL);
 	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
 	sys(cmd, S_NONFATAL);
@@ -282,13 +285,17 @@ copy()
 		sys("/bin/rm -r /mnt/tmp/dev", S_NONFATAL);
 	}
 
-	/* If /etc/mkdev created /tmp/drvld.all, replace /etc/drvld.all. */
-	if (exists("/tmp/drvld.all")) {
-		sys("/bin/mv /mnt/tmp/drvld.all /mnt/etc/drvld.all", S_NONFATAL);
-		sys("/bin/chmod 0744 /mnt/etc/drvld.all", S_NONFATAL);
-		sys("/bin/chown root /mnt/etc/drvld.all", S_NONFATAL);
-		sys("/bin/chgrp root /mnt/etc/drvld.all", S_NONFATAL);
-	}
+	/*
+	 * As of COH 3.2, support for COM ports is not built into the system.
+	 * Echo lines to /mnt/tmp/drvld.all to drvld com line support,
+	 * then replace /mnt/etc/drvld.all and make sure permissions are right.
+	 */
+	sys("/bin/echo /etc/drvld -r /drv/al0 >>/mnt/tmp/drvld.all", S_NONFATAL);
+	sys("/bin/echo /etc/drvld -r /drv/al1 >>/mnt/tmp/drvld.all", S_NONFATAL);
+	sys("/bin/mv /mnt/tmp/drvld.all /mnt/etc/drvld.all", S_NONFATAL);
+	sys("/bin/chmod 0744 /mnt/etc/drvld.all", S_NONFATAL);
+	sys("/bin/chown root /mnt/etc/drvld.all", S_NONFATAL);
+	sys("/bin/chgrp root /mnt/etc/drvld.all", S_NONFATAL);
 
 	/* Patch the /coherent image on the hard disk. */
 	sprintf(cmd, "/conf/patch /mnt/coherent ronflag_=0 %s=%lu:l %s=%lu:l",
@@ -798,6 +805,17 @@ again:
 }
 
 /*
+ * If PATCHFILE exists, execute it.
+ */
+void patches()
+{
+	if (access(PATCHFILE, AREAD) == 0) {
+		sprintf(cmd, "/bin/sh %s", PATCHFILE);
+		sys(cmd, S_NONFATAL);
+	}
+}
+
+/*
  * Generate a prototype name from a DEVICE entry name.
  * Return a pointer to the statically allocated name.
  */
@@ -876,9 +894,9 @@ again:
 	/* DST. */
 	cls(0);
 	printf(
-"You can run COHERENT with or without daylight savings time conversion.\n"
-"You should normally run with daylight savings time conversion.\n"
-"However, if you are going to use both COHERENT and MS-DOS\n"
+"You can run COHERENT with or without conversion for daylight savings time\n"
+"(summer time).  You should normally run with daylight savings time\n"
+"conversion.  However, if you are going to use both COHERENT and MS-DOS\n"
 "and you choose to run with daylight savings time conversion,\n"
 "your time will be wrong (by one hour) during daylight savings time\n"
 "while you are running under MS-DOS.\n"
@@ -909,6 +927,7 @@ again:
 	cls(0);
 	printf(
 "Please choose one of the following timezones:\n"
+"\t0\tCentral European\n"
 "\t1\tGreenwich\n"
 "\t2\tNewfoundland\n"
 "\t3\tAtlantic\n"
@@ -924,9 +943,10 @@ again:
 		);
 	do {
 		s = get_line("Timezone code:");
-	} while ((n = atoi(s)) <= 0 || n > 12);
+	} while ((n = atoi(s)) < 0 || n > 12);
 	switch (n) {
 	/* N.B. entries truncated at tz[8] below if !dstflag. */
+	case 0:		tz = "EST:-60:EDT:1.1.4";	break;
 	case 1:		tz = "GMT:000:GDT:1.1.4";	break;
 	case 2:		tz = "NST:210:NDT:1.1.4";	break;
 	case 3:		tz = "AST:240:ADT:1.1.4";	break;
@@ -1110,11 +1130,12 @@ welcome()
 	printf(
 "\n\n\n\n\n\n\n\n"
 "                              The COHERENT System\n\n"
-"                    (c) 1982, 1990 by Mark Williams Company\n\n"
+"                    (c) 1982, 1991 by Mark Williams Company\n\n"
 "                     60 Revere Drive, Northbrook, IL  60062\n\n"
 "                        708-291-6700, 708-291-6750 (FAX)\n"
 "\n\n\n\n\n\n"
 		);
+
 	cls(1);
 	printf(
 "Welcome to the COHERENT operating system!\n\n"
@@ -1126,6 +1147,17 @@ welcome()
 "Please be patient and read the instructions on the screen carefully.\n"
 "\n"
 		);
+
+	cls(1);
+	printf(
+"If you do not know the BIOS parameters for your hard disk drive,\n"
+"please reset your computer NOW and enter \"dpb\" at the boot prompt.\n"
+"Copy the displayed parameter values for later reference, then reset\n"
+"again and restart installation by entering \"begin\" at the boot prompt.\n"
+		);
+
+	cls(1);
+	sys("/etc/kbdinstall -b", S_NONFATAL);
 
 	cls(1);
 	printf(
