@@ -43,7 +43,12 @@
  *
  * t_errno - trace u.u_error settings
  * t_con - trace console events
+ *
+ * t_msgq bits:
+ *	0x0001	memory alloc
+ *	0x0002	permissions
  */
+
 
 /*
  * T_PIGGY() is for piggy controlled tracing.
@@ -71,6 +76,16 @@ extern unsigned t_hal;
 extern unsigned t_vlad;
 #define T_VLAD(flag, command) {	\
 	if (t_vlad&flag) {		\
+		command;		\
+	}				\
+}
+
+/*
+ * T_MSGQ() is for message queue controlled tracing.
+ */
+extern unsigned t_msgq;
+#define T_MSGQ(flag, command) {	\
+	if (t_msgq&flag) {		\
 		command;		\
 	}				\
 }
