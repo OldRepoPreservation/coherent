@@ -13,7 +13,7 @@
 #endif
 
 /* Manifest constants. */
-#define	VERSION		"1.5"
+#define	VERSION		"1.6"
 #define	DEFFONT		"Courier"	/* default font			*/
 #define	DEFFONTB	"-Bold"		/* default boldface font suffix	*/
 #define	DEFFONTI	"-Oblique"	/* default italic font suffix	*/
@@ -228,7 +228,8 @@ file(name) char *name;
 			/* Start of page. */
 			printf("%% Page %d.\n", page);
 			if (!hflag)
-				printf("/hdrpage (Page %d) def\n", page);
+				printf("/hdrpage (Page %d, line %d) def\n",
+					page, (page-1)*nlines+1);
 			if (lflag == 2)
 				printf("%chpage\n", (rhpage) ? 'r' : 'l');
 			else

@@ -1,4 +1,4 @@
-# lpr/Makefile 11/13/90
+# /usr/src/cmd/lpr/Makefile 11/13/90
 # Make normal and hp versions of the line printer daemon and spooler.
 # This also makes the hp filter,
 # for converting nroff output to HP LaserJet printer escape sequences (PCL).
@@ -60,3 +60,5 @@ clean:
 	rm $(ALL) $(OBJ)
 strip:	$(ALL)
 	strip $(ALL)
+
+# end of /usr/src/cmd/lpr/Makefile

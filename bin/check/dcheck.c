@@ -9,7 +9,7 @@
 #include <sys/fblk.h>
 #include <sys/dir.h>
 #include <sys/ino.h>
-#include <check.h>
+#include "check.h"
 #include <canon.h>
 
 #define	IBLK	12		/* I-node read blocking factor */

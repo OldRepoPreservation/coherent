@@ -1,15 +1,20 @@
-# /usr/src/cmd/ed/Makefile 1/23/90
+# /usr/src/cmd/ed/Makefile 2/20/91
 
-# for i8086 LFLAGS = -i -n
+# for i8086 LDFLAGS = -i -n
 CFLAGS=-O
-LFLAGS=-i -n
+LDFLAGS=-i -n
 
-OBJECTS=ed0.o ed1.o ed2.o ed3.o
+OBJ=ed0.o ed1.o ed2.o ed3.o
 
-ed: $(OBJECTS)
-	cc $(LFLAGS) -o ed $(OBJECTS)
+ed: $(OBJ)
+	cc $(LDFLAGS) -o $@ $(OBJ)
 
-ed0.o:	ed.h
-ed1.o:	ed.h
-ed2.o:	ed.h
-ed3.o:	ed.h
+ed0.o:	ed.h ed0.c
+ed1.o:	ed.h ed1.c
+ed2.o:	ed.h ed2.c
+ed3.o:	ed.h ed3.c
+
+clean:
+	rm $(OBJ)
+
+# end of /usr/src/cmd/ed/Makefile

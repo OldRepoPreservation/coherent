@@ -14,7 +14,7 @@ if errors were found, but fixed (system should then be rebooted).
 */
 
 #include <stdio.h>
-#include <check.h>
+#include "check.h"
 
 char	icheck[] = "/bin/icheck";
 char	dcheck[] = "/bin/dcheck";

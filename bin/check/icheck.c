@@ -9,7 +9,7 @@ extern char *calloc();
 #include <sys/fblk.h>
 #include <sys/dir.h>
 #include <sys/ino.h>
-#include <check.h>
+#include "check.h"
 #include <canon.h>
 #undef	DIR
 
