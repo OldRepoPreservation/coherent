@@ -194,7 +194,7 @@
 #define	ZXLAT	xx
 #endif
 
-#if	NDP
+#if	1
 /*
  * Opcodes for the Intel 80x87 numeric data processor (NDP).
  * Not an exhaustive list, mostly just the ones we use.

@@ -2,11 +2,11 @@
  * h/i386/mch.h
  * Machine specific header for the i386 compiler.
  * Typedefs, register names and macros for all compiler phases.
- * This one builds a debug (!TINY) i386 COHERENT compiler with memory tempfiles and NDP fp.
+ * This one builds a TINY i386 COHERENT compiler with memory tempfiles.
  */
 
-#define	DATE		"10/1/92"	/* Date			*/
-#define	VERSMWC		"V4.0.B"	/* MWC version number	*/
+#define	DATE		"1/5/93"	/* Date			*/
+#define	VERSMWC		"V4.0.M"	/* MWC version number	*/
 #define	VERSINT		"X324"		/* Intel version number	*/
 
 #define	EATDOL		0	/* Eat '$' in identifiers?	*/
@@ -15,7 +15,7 @@
 #define	DECVAX		0	/* DECVAX format?		*/
 #define	NATIVEFP	0	/* Host fp == target fp?	*/
 #define MCFFP		0	/* Motorola fast floating point? */
-#define	TINY		0	/* No code gen debug info?	*/
+#define	TINY		1	/* No code gen debug info?	*/
 #ifndef	YATC
 #define	YATC		0	/* Not code table compile	*/
 #endif
@@ -26,7 +26,6 @@
 #define	OMF286		0	/* 286 object format?		*/
 #define	TEMPBUF		1	/* Memory tempfile buffers?	*/
 
-#define	NDP		1	/* 8087?			*/
 #define	EMUFIXUPS	0	/* M: 8087 emulation fixups?	*/
 
 /*
@@ -163,11 +162,7 @@ typedef long		SIGNEDADDRESS;
 
 #define	FRREG	EAX	/* First real reg		*/
 #define	NFBREG	7	/* Number of last flag bit reg	*/
-#if	NDP
 #define	NRREG	26	/* Number of real regs, incl. FPAC */
-#else
-#define	NRREG	25	/* Number of real regs		*/
-#endif
 #define	NREG	31	/* Number of last reg		*/
 
 /* Flag bits, same order as register numbers above. */
