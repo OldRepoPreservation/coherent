@@ -2,6 +2,7 @@
  * Virtual memory for fsck. Uses hash algorithm
  * rather than LRU to get it up fast.
  */
+#if SMALLMODEL
 #include <assert.h>
 #include <sys/stat.h>
 #include "fsck.h"
@@ -332,4 +333,4 @@ main()
 	}
 }
 #endif
-
+#endif

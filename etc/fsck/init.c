@@ -25,6 +25,10 @@ int	offsets[] = 			/* table of offsets for the levels */
 daddr_t	dupblck[DUPTBLSIZE];		/* duplicate referenced blocks */
 int	totdups;			/* number of dup blocks so far */
 
+#if !SMALLMODEL
+char *linkPtr, *flagptr, *blockPtr, *dupPtr;
+#endif
+
 init()
 {
 	int mode;
@@ -127,7 +131,6 @@ checksuper()
 /*
  *	Super Block Error Functions
  */
-
 badsuper(x)
 {
 	printf("%r\n", &x);
@@ -137,7 +140,6 @@ badsuper(x)
 /*
  *	Allocate the necessary buffers for tables
  */
-
 alloctables()
 {
 	unsigned num, numl;
@@ -149,8 +151,14 @@ alloctables()
 	}
 	
 	num = (unsigned) ((fsize+NBPC-1)/NBPC) * sizeof(char);
+#if SMALLMODEL
 	initV(numl, numl, num, num); /* virtual allocation */
-
+#else
+	linkPtr = calloc(numl, 1);
+	flagPtr = calloc(numl, 1);
+	blockPtr = calloc(num, 1);
+	dupPtr = calloc(num, 1);
+#endif
 	numfiles =		/* number of files in the file system */
 	totdups = 0;		/* num dup blocks */
 }

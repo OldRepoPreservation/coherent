@@ -18,7 +18,11 @@ phase5()
 		printf("Phase 5 : Check Free List\n");
 	fbp = (struct fblk *) &sbp->s_nfree;
 	size = (unsigned) ((fsize+NBPC-1)/NBPC) * sizeof(char);
+#if SMALLMODEL
 	copyV(size);
+#else
+	memcpy(blockPtr, dupPtr, size);
+#endif
 	badcnt = dupcnt = 0;
 	badflag = FALSE;
 	freetrav(fbp);
