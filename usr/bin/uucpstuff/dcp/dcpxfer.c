@@ -308,12 +308,14 @@ sepcline()
 	for (i=0; i<10; i++)
 		clinep[i] = NULL;
 	for (i=1; i<10; i++) {
-		if ( (clinep[i]=strtok(sp, " \t\n")) == NULL )
+		if ( (clinep[i]=strtok(sp, " \t\n")) == NULL ){
 			break;
+		}
 		printmsg(M_SPOOL, "cline[%d]:\t%\"%s\"", i, clinep[i]);
 		sp = NULL;
 	}
 
+	printmsg(M_SPOOL,"PERMISSIONS WATCH: cline[%d] is %o",i, clinep[i]);
 
 	/* If the last field of a parsed command line is NOT null, then
 	 * there is something wrong with the line parsed. Leave a  message
@@ -359,6 +361,7 @@ sepcline()
 	spoolfilep = clinep[6];
 	modep = clinep[7];
 	notifyp = clinep[8];
+
 	if (strcmp(clinep[1], "S") == 0) {
 		sprintf(xfromfile, "%s/%s/%s", SPOOLDIR, rmtname, spoolfilep);
 		if (index(optionp, 'c') != NULL)	/* this looks weak */
@@ -485,8 +488,19 @@ reof()
 		fpfd = -1;
 	}
 	unlink(tempname);
+
+/* this problem showed up in 4.0. When we request a file, nothing specifies
+   the file permissions. This little ditty will take care of the problem.
+   Now we check the value of nclinep, as it holds the place where we
+   exitted the loop which parses the command received. If we broke out at 7,
+   which is where the file permissions are stored, then we end up with garbage
+   permissions in modep (which is clinep[7]). For these cases, we will default
+   to permissions of 0644 and pray that the customers can live with it. 
+
+   Bob H. 08/26/92 */
+
 	if ((strlen(modep) > 0) && (mode = getoct(modep)) != 0 &&
-		(chmod(xtofile, getoct(modep)) == -1)) {
+		(chmod(xtofile, (nclinep == 7 ? 0644:getoct(modep)) ) == -1)) {
 		printmsg(M_TRANSFER, "Unable to change permission");
 		plog(M_TRANSFER, 
 			"Unable to change permission to \"%s\" on file \"%s\"",

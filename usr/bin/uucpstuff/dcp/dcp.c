@@ -82,7 +82,7 @@ char *argv[];
 {
 	time_t now;
 	static char buf[16];
-
+	umask(077);
 	sprintf(buf, "%.14s%s", VERSION,
 #if SGTTY
 		"S");

@@ -1,6 +1,9 @@
 /*
- * $Header: /newbits/usr/bin/uucpstuff/dcp/RCS/dcpxf2.c,v 1.5 92/07/02 12:57:55 bin Exp Locker: bin $
+ * $Header: /newbits/usr/bin/uucpstuff/dcp/RCS/dcpxf2.c,v 1.6 92/07/10 08:46:17 bin Exp Locker: bin $
  * $Log:	dcpxf2.c,v $
+ * Revision 1.6  92/07/10  08:46:17  bin
+ * bob h: fixed placement of an endif _I386
+ * 
  * Revision 1.5  92/07/02  12:57:55  bin
  * make missing spool directory when we begin receiving files and 
  * have already determined that proper permissions exist.
@@ -250,9 +253,6 @@ char	*destfile;
 			sprintf(tmpfilename, "%s", destfile);
 		else{
 			sprintf(tmpfilename, "%s/%s/%s", SPOOLDIR, rmtname, destfile);
-
-#ifdef _I386
-
 			/* test for existence of spool directory and create
 			 * one if necessary.
 			 */
@@ -267,10 +267,11 @@ char	*destfile;
 				 * get useable permissions
 				 */
 				plog (M_CALL,"Spool directory %s missing...", spooldir_name);
+#ifdef _I386
 				plog (M_CALL,"Creating missing spool directory.");
 				mkdir(spooldir_name, 0744);
-			}
 #endif /* _I386 */
+			}
 		}
 	}				
 			

@@ -522,17 +522,16 @@ sysend()
 	 * knows if this will cause problems when we are NOT in master mode.
 	 */
 
-	if ( lockttyexist(rdevname) ) {
-		if ( role == MASTER ){
-			printmsg(M_DEBUG,"Sysend: calling undial and hangup routines.");
-			dcpundial();
-		}else{
-			plog(M_CALL,"Sysend: Removing remote device lock file.");
-			if(unlocktty(rdevname) != 0){
-				plog(M_CALL,"sysend: Possible lock file removal failure.");
-			}
+	if ( role == MASTER ){
+		printmsg(M_DEBUG,"Sysend: calling undial and hangup routines.");
+		dcpundial();
+	}else{
+		plog(M_CALL,"Sysend: Removing remote device lock file.");
+		if(unlocktty(rdevname) != 0){
+			plog(M_CALL,"sysend: Possible lock file removal failure.");
 		}
 	}
+
 
 	/* May 05, 1992 (Bob H.) problems communicating with a 386 based bbs
 	 * and a customer complaint from Germany lead to the discovery of a
@@ -543,9 +542,11 @@ sysend()
 	if ( !leavelock && lockexist(rmtname) ){
 		dcpundial();
 		plog(M_CALL,"Removing remote site lock");
-		if(lockrm(rmtname) != 0){
-			printmsg(M_LOG,"sysend: Remote site Lock file removal failed!");
-			plog(M_CALL,"sysend: Remote site lock file removal failed!");
+		if (lockexist(rmtname)){
+			if (!lockrm(rmtname)) {
+				printmsg(M_LOG,"sysend: Remote site Lock file removal failed!");
+				plog(M_CALL,"sysend: Remote site lock file removal failed!");
+			}
 		}
 	}
 	plog(M_CALL, terminatelevel ?

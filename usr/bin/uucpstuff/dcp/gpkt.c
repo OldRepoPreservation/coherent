@@ -33,8 +33,8 @@ extern	int	total_errors;
 #include "alarm.h"
 
 #define MAXPKT		64	/* incredibly conservative... actually 4096 */
-#define SWINDOW		7	/* initial send window size */
-#define RWINDOW		7	/* window size we want to recieve */
+#define SWINDOW		6	/* initial send window size */
+#define RWINDOW		6	/* window size we want to recieve */
 #define SPKTSIZE	64	/* initial send packet size */
 #define RPKTSIZE	64	/* window size we want to receive */
 
