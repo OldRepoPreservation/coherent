@@ -1,7 +1,7 @@
 /*********************************************************************
 *                         COPYRIGHT NOTICE                           *
 **********************************************************************
-*        This software is copyright (C) 1992 by Udo Munk             *
+*        This software is copyright (C) 1993 by Udo Munk             *
 *                                                                    *
 *        Permission is granted to reproduce and distribute           *
 *        this file by any means so long as no fee is charged         *
@@ -19,12 +19,12 @@
 *********************************************************************/
 
 /*
-**	lib_napms.c
+**	lib_color.c
 **
-**	Sleep for some millisecounds
+**	The color system of SV.3
 **
-** $Log:	RCS/lib_napms.v $
- * Revision 1.0  92/11/26  21:47:38  munk
+** $Log:	RCS/lib_color.v $
+ * Revision 1.0  93/02/16  17:47:46  munk
  * Initial version
  * 
 **
@@ -32,20 +32,80 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_napms.v  Revision 1.0  92/11/26  21:47:38  munk  Exp$";
+	"$Header:   RCS/lib_color.v  Revision 1.0  93/02/16  17:47:46  munk  Exp$";
 #endif
 
-#include <poll.h>
+#include "curses.h"
+#include "term.h"
 
-int napms(timeout)
-int timeout;
+short __pairs__[64];
+
+start_color()
 {
-	int		n;
-	struct pollfd	fda[1];
-	
-	if (timeout < 1)
-		return(0);
-	fda[0].fd = -1;
-	n = poll((struct pollfd*) &fda[0], 1, timeout);
-	return(n < 0 ? n : timeout); 
+	register int i;
+
+	for (i = 0; i < 63; i++)
+		__pairs__[i] = -1;
+
+	COLORS = max_colors;
+	COLOR_PAIRS = max_pairs;
+
+	if ((COLORS > 0) && (COLOR_PAIRS > 0)) {
+		color = TRUE;
+		return(OK);
+	} else {
+		color = FALSE;
+		return(ERR);
+	}
+}
+
+has_colors()
+{
+	if ((max_colors > 0) && (max_pairs > 0))
+		return(TRUE);
+	else
+		return(FALSE);
+}
+
+can_change_color()
+{
+	if (can_change)
+		return(TRUE);
+	else
+		return(FALSE);
+}
+
+init_color(color, r, g, b)
+int color, r, g, b;
+{
+	return(ERR);
+}
+
+color_content(color, r, g, b)
+int color, *r, *g, *b;
+{
+	return(ERR);
+}
+
+init_pair(pair, f, b)
+int pair, f, b;
+{
+	if (!color)
+		return(ERR);
+	if ((pair > 63) || (pair < 0))
+		return(ERR);
+	if (pair >= COLOR_PAIRS)
+		return(ERR);
+	if ((f >= COLORS) || (f < 0))
+		return(ERR);
+	if ((b >= COLORS) || (b < 0))
+		return(ERR);
+
+
+	return(OK);
+}
+
+pair_content(pair, f, b)
+int pair, *f, *b;
+{
 }
