@@ -136,6 +136,7 @@ int get_num_of_drives()
 	return(LOW(r.r_dx));
 } /* get_num_of_drives() */
 
+/* Create a listing of file names in /.  */
 void
 dir()
 {
@@ -155,6 +156,11 @@ dir()
 
 		iread(&rootinode, (char *) &dirent, (fsize_t) i,
 		      (unsigned short) sizeof(struct direct));
+		
+		/* If the entry is not active, skip the rest.  */
+		if (0 == dirent.d_ino) {
+			continue;
+		}
 		
 		/* NUL terminate the name.  */
 		strncpy(outbuff,
