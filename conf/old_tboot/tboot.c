@@ -88,7 +88,7 @@ main()
 		}
 	
 		/* We've found the image we want to boot--let's open it.  */
-		if (0 == iattach(&imageinode, imageinum)) {
+		if (0 == iopen(&imageinode, imageinum)) {
 			puts("Can't open ");
 			puts(imagename);
 			puts(".\r\n");
