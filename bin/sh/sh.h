@@ -8,6 +8,7 @@
 
 #define STRSIZE	2000			/* Maximum length of single token */
 #define IALSIZE	8			/* Initial argument list size */
+#define	DSTACKN	30			/* Directory stack depth */
 #define NOTREACHED	return
 
 /*
@@ -233,6 +234,9 @@ extern	char	*vshell;		/* Shell to use */
 extern	char	strt[STRSIZE];		/* String buffer */
 extern	char	*strp;			/* Pointer in string buffer */
 extern	VAR	*varp;			/* Pointer to shell variables */
+extern	char	*dstack[DSTACKN];	/* Directory stack */
+extern	int	dstkp;			/* Directory stack pointer */
+
 /* Tables */
 extern	char	lextab[];		/* Character type table */
 /* Data external to shell */
@@ -250,7 +254,7 @@ extern	char	**makargl();		/* in alloc.c */
 extern	char	**addargl();		/* in alloc.c */
 extern	BUF	**savebuf();		/* in alloc.c */
 extern	char	**vdupl();		/* in alloc.c */
-extern	char	*any();			/* in glob.c */
+extern	char	*gany();		/* in glob.c */
 extern	int	sigintr();		/* in trap.c */
 extern	VAR	*findvar();		/* in var.c */
 extern	VAR	*setsvar();		/* in var.c */
@@ -258,7 +262,9 @@ extern	VAR	*flagvar();		/* in var.c */
 extern	VAR	*assnvar();		/* in var.c */
 extern	char	*convvar();		/* in var.c */
 extern	char	**envlvar();		/* in var.c */
+extern	char	*getwd();		/* in /lib/libc.a */
 extern	char	*index();		/* in /lib/libc.a */
+extern	char	*rindex();		/* in /lib/libc.a */
 extern	char	*strcpy();		/* in /lib/libc.a */
 extern	char	*strncpy();		/* in /lib/libc.a */
 extern	char	*strcat();		/* in /lib/libc.a */
