@@ -54,7 +54,9 @@ main()
 	sys_base = DEF_SYS_BASE;
 	sys_base_set = FALSE;
 
-	puts("\r\nCOHERENT Tertiary boot Version 1.0.6\r\n");
+	want_monitor = FALSE;	/* Don't invoke mini-monitor before execution.  */
+
+	puts("\r\nCOHERENT Tertiary boot Version 1.0.7\r\n");
 	/* Look for a valid executable.  */
 	do {
 		/* Find the file in the file system.  */
@@ -172,6 +174,18 @@ main()
 	puts(cmd_name);
 	puts("...\r\n");
 #endif /* VERBOSE */
+
+	if (want_monitor) {
+		puts("The kernel is ready to run.\r\n");
+		puts("SYS_START: ");
+		print16(SYS_START);
+		puts(" sys_base: ");
+		print16(sys_base);
+		puts(" data_seg: ");
+		print16(data_seg);
+		puts("\r\n");
+		monitor();
+	}
 
 	/* Run the image (the kernel).  */
 	gotoker(SYS_START, sys_base, data_seg);
