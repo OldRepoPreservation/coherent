@@ -22,6 +22,12 @@ char **argv;
 		exit(1);
 	}
 
+	if (tabsiz < 2 || tabsiz > 256) {
+		fprintf(stderr, "detab: %d is illegal tab size\n", tabsiz);
+		fprintf(stderr, "usage: detab [tabsize]\n");
+		exit(1);
+	}
+
 	for (loc = 0;;) {
 		switch (c = getchar()) {
 		case EOF:
