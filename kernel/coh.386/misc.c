@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/misc.c,v 1.2 92/01/06 11:59:45 hal Exp $ */
+/* $Header: /y/coh.386/RCS/misc.c,v 1.3 92/11/09 17:10:53 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Miscellaneous routines.
  *
  * $Log:	misc.c,v $
+ * Revision 1.3  92/11/09  17:10:53  root
+ * Just before adding vio segs.
+ * 
  * Revision 1.2  92/01/06  11:59:45  hal
  * Compile with cc.mwc.
  * 
@@ -153,3 +156,51 @@ register unsigned n;
 	}
 }
 #endif
+
+/*
+ * Wait up to "ticks" clock ticks for an event to occur.
+ * Works whether interrupts are enabled or not.
+ * Busy-waits the system.
+ * The event occurs when (*fn)() returns a nonzero value.
+ *
+ * Return 0 if timeout occurred, 1 if the desired event occurred.
+ */
+
+#define THRESH 5966	/* half of 11932 */
+
+int
+busyWait(fn, ticks)
+int (*fn)();
+int ticks;
+{
+	/*
+	 * p0, p1 are 0 if in low half of counting cycle, else 1.
+	 * flips counts the number of changes from low-to-high or vice versa.
+	 * tickCt counts the number of clock ticks at rate HZ.
+	 */
+
+	int tickCt = 0;
+	int flips = 0;
+	int p0 = (read_t0() < THRESH)?0:1;
+	int p1;
+
+	for (;;) {
+		if ((*fn)())
+			return 1;
+
+		/* did we change halves of counter cycle? */
+		p1 = (read_t0() < THRESH)?0:1;
+		if (p0 != p1) {
+			p0 = p1;
+			flips++;
+			/* did a full .01 sec tick elapse? */
+			if ((flips >> 1) >= HZ) {
+				flips = 0;
+				tickCt++;
+				if (tickCt > ticks)
+					return 0;
+			}
+		}
+		
+	}
+}
