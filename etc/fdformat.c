@@ -15,6 +15,8 @@ Options:\n\
 #include	<sys/stat.h>
 #include	<errno.h>
 
+extern	char *malloc();
+
 int	dvfd = 0;
 char	*dvname = NULL;
 char	*dvbuff = NULL;
@@ -128,10 +130,10 @@ char *argv[];
 		usage();
 
 	if (verify && (dvbuff = malloc(fkind.fd_tsz)) == NULL)
-		xxerror("malloc verify buffer", 1);
+		xxerror("cannot allocate verify buffer", 1);
 
 	if (wrfd && (wrbuff = malloc(fkind.fd_tsz)) == NULL)
-		xxerror("malloc copy buffer", 1);
+		xxerror("cannot allocate copy buffer", 1);
 
 	for (i = 0; i < fkind.fd_tracks; i += 1) {
 		retry = 0;
@@ -222,7 +224,7 @@ int track, head;
 {
 	long pos;
 	register int size;
-	register char *p, *q;
+	register unsigned char *p, *q;
 
 	if (fkind.fd_cyladdress)
 		pos = 2 * track + head;
@@ -275,14 +277,13 @@ usage()
 	exit(1);
 }
 
-xxerror(s, f)
-char *s;
+xxerror(s, f) char *s; int f;
 {
 	extern int errno;
 	int uerror;
 
 	uerror = errno;
-	fprintf(stderr, "fdformat %s: ", dvname);
+	fprintf(stderr, "fdformat: %s: ", dvname);
 
 	if ((errno = uerror) > 0 && errno < sys_nerr)
 		perror(s);
