@@ -1,9 +1,13 @@
-static	char	*rcsrev = "$Revision: 1.2 $";
+static	char	*rcsrev = "$Revision: 1.4 $";
 static	char	*rcshdr =
-"$Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $";
+"$Header: /src386/bin/mail/RCS/mail.c,v 1.4 92/05/28 10:28:53 bin Exp Locker: bin $";
 /*
- * $Header: /src386/bin/mail/RCS/mail.c,v 1.2 92/04/20 10:07:46 bin Exp Locker: bin $
+ * $Header: /src386/bin/mail/RCS/mail.c,v 1.4 92/05/28 10:28:53 bin Exp Locker: bin $
  * $Log:	mail.c,v $
+ * Revision 1.4  92/05/28  10:28:53  bin
+ * bob h added a test for new msgsep scheme so that mail will exit
+ * if it does not detect the new sep scheme.
+ * 
  * Revision 1.2  92/04/20  10:07:46  bin
  * The 'final' fix using CORRECT sources to properly write a msgsep at the
  * top of a save file if new file is opened or if saving the first message
@@ -120,8 +124,6 @@ Command summary:\n\
 	!command	Pass 'command' to the shell to execute\n\
 If no 'file' is specified, 'mbox' in user's home directory is default.\n\
 If no 'user' is specified, the invoking user is default.\n\
-If the 'm', 'p', 't' commands are followed by an 'x',\n\
-then the public key cryptosystem is applied to the message.\n\
 \
 ";
 
@@ -214,6 +216,7 @@ char *argv[];
 	char	c, *foo;
 	int i;
 
+	umask(077);
 	logopen();
 
 	/* Explicitly NULL out args.  */
@@ -383,7 +386,8 @@ commands()
 			}
 			callmexmail = (cline[1] == 'x');
 			if (cline[0] == 'm') {
-			send2(mfp, args+1, mp->m_seek, mp->m_end - ((sizeof(MSGSEP) - 1) *2), 0);
+	/* when forwarding mail, seek  to msg start + 5 to rid the msgsep */
+			send2(mfp, args+1, (mp->m_seek + 5), mp->m_end - ((sizeof(MSGSEP) - 1) *2), 0);
 				fseek(mfp, mp->m_seek, 0);
 			} else
 				send2(stdin, args+1, 0L, (fsize_t)MAXLONG, 1);
@@ -433,14 +437,11 @@ commands()
 
 				testfile = stat(*fnp, &filestats);
 
-				if (maccess(*fnp) < 0)
-					mmsg(nosave, *fnp);
-				if ((fp = fopen(*fnp, "a")) == NULL)
-					mmsg(nosave, *fnp);
+		/* attempt to open the file and write */
 
-
-	/*		TRACE("SEEK is %d\n",seek); */
-				if (mcopy(mfp, fp, seek, mp->m_end, 0))
+				if ( (maccess(*fnp) < 0) 
+				  || ( (fp = fopen(*fnp,"a")) == NULL)
+				  || (mcopy(mfp,fp,seek,mp->m_end,0)))
 					mmsg(nosave, *fnp);
 
 		/* close the output file. Because some screwy 'not logic'
@@ -569,7 +570,7 @@ readmail()
 			fclose(mfp);
 			checked_format = TRUE;
 			if(strcmp(MSGSEP, msgline)){
-				printf("You're mailbox or mailfile needs to be converted to the proper format.\n");
+				printf("Your mailbox or mailfile needs to be converted to the proper format.\n");
 				strcpy(convert_cmd, "/bin/cvmail ");
 				strcat(convert_cmd, mailbox);
 				printf("\nTo manually convert your mailbox, run: %s\n\n", convert_cmd);
