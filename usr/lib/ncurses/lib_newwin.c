@@ -28,6 +28,9 @@
 **	The routines newwin(), subwin() and their dependent
 **
 ** $Log:	lib_newwin.c,v $
+ * Revision 1.5  92/06/02  12:05:26  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:38:12  bin
  * update by vlad
  * 
@@ -67,10 +70,10 @@ int	num_lines, num_columns, begy, begx;
 	    _tracef("newwin(%d,%d,%d,%d) called", num_lines, num_columns, begy, begx);
 #endif
 
-	if (num_lines == 0)
+	if (!num_lines)
 	    num_lines = lines - begy;
 
-	if (num_columns == 0)
+	if (!num_columns)
 	    num_columns = columns - begx;
 
 	if ((win = makenew(num_lines, num_columns, begy, begx)) == ERR)
@@ -78,7 +81,7 @@ int	num_lines, num_columns, begy, begx;
 
 	for (i = 0; i < num_lines; i++)
 	{
-	    if ((win->_line[i] = (chtype *) calloc(num_columns, sizeof(chtype)))
+	    if ((win->_line[i] = (chtype *)calloc(num_columns, sizeof(chtype)))
 								      == NULL)
 	    {
 		for (j = 0; j < i; j++)
@@ -119,27 +122,31 @@ int	num_lines, num_columns, begy, begx;
 	if (_tracing)
 	    _tracef("subwin(%d,%d,%d,%d) called", num_lines, num_columns, begy, begx);
 #endif
+	/* no negative displacments */
+	if ((0 > (j = begy)) || (0 > (k = begx)))
+		return(ERR);
 
+	if (!num_lines)
+	    num_lines = orig->_maxy - begy;
+
+	if (!num_columns)
+	    num_columns = orig->_maxx - begx;
+
+	/* absolute location */
+	begx += orig->_begx;
+	begy += orig->_begy;
+
+	if ((0 > num_lines) || (0 > num_columns))
+		return(ERR);
 	/*
 	** make sure window fits inside the original one
 	*/
-
-	if (begy < orig->_begy || begx < orig->_begx
-			|| begy + num_lines > orig->_maxy
-			|| begx + num_columns > orig->_maxx)
-	    return(ERR);
-
-	if (num_lines == 0)
-	    num_lines = orig->_maxy - orig->_begy - begy;
-
-	if (num_columns == 0)
-	    num_columns = orig->_maxx - orig->_begx - begx;
+	if (((begy + num_lines) > (orig->_begy + orig->_maxy)) ||
+	    ((begx + num_columns) > (orig->_begx + orig->_maxx)))
+		return(ERR);
 
 	if ((win = makenew(num_lines, num_columns, begy, begx)) == ERR)
 	    return(ERR);
-
-	j = orig->_begy + begy;
-	k = orig->_begx + begx;
 
 	for (i = 0; i < num_lines; i++)
 	    win->_line[i] = &orig->_line[j++][k];
