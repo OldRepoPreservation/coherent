@@ -1,16 +1,13 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __SYS_INS8250_H__
-#define	__SYS_INS8250_H__
-
 /*
  * INS 8250 ACIA Register Definitions
  */
+#ifndef __SYS_INS8250_H__
+#define	__SYS_INS8250_H__
 
 /*
  * Register Offsets
@@ -28,7 +25,6 @@
 
 #define	DLL		0	/* Divisor Latch Low  Register (DLAB=1)	*/
 #define	DLH		1	/* Divisor Latch High Register (DLAB=1)	*/
-
 
 /*
  * Interrupt Enable Register (IER) - bits 4-7 zeroed
@@ -65,7 +61,6 @@
 #define	FC_Rx_08	0x80	/* Rx Irpt on 8 char in rcvr FIFO	*/
 #define	FC_Rx_14	0xC0	/* Rx Irpt on 14 char in rcvr FIFO	*/
 
-
 /*
  * Line Control Register (LCR)
  */
@@ -87,11 +82,9 @@
 #define	LC_SBRK		0x40	/* Set Break				*/
 #define	LC_DLAB		0x80	/* Divisor Latch Access Bit (DLAB)	*/
 
-
 /*
  * Modem Control Register (MCR) - bits 5..7 zeroed
  */
-
 #define	MC_DTR		0x01	/* Data Terminal Ready			*/
 #define	MC_RTS		0x02	/* Request to Send			*/
 #define	MC_OUT1		0x04	/* Auxiliary user-designated output 1	*/
@@ -99,11 +92,9 @@
 #define	MC_OUTS		0x0C	/* Both OUT signals			*/
 #define	MC_LOOP		0x10	/* Loopback enable (diagnostic feature)	*/
 
-
 /*
  * Line Status Register (LSR) - bit 7 zeroed
  */
-
 #define	LS_RxRDY	0x01	/* Receiver Data Ready			*/
 #define	LS_OVER		0x02	/* Overrun Error			*/
 #define	LS_PARITY	0x04	/* Parity Error				*/
@@ -112,11 +103,9 @@
 #define	LS_TxRDY	0x20	/* Transmitter Ready for Data		*/
 #define	LS_TxIDLE	0x40	/* Transmitter Idle			*/
 
-
 /*
  * Modem Status Register (MSR)
  */
-
 #define	MS_DCTS		0x01	/* Delta Clear to Send			*/
 #define	MS_DDSR		0x02	/* Delta Data Set Ready			*/
 #define	MS_TERI		0x04	/* Trailing Edge of Ring Indicator	*/
@@ -126,11 +115,9 @@
 #define	MS_RI		0x40	/* Ring Indicator			*/
 #define	MS_RLSD		0x80	/* Receive Line Signal Detect		*/
 
-
 /*
  * Uart-sense types.
  */
-
 #define US_NONE		0
 #define US_8250		1
 #define US_16450	2
@@ -138,4 +125,4 @@
 #define US_16550A	4	/* The only one with usable on-chip FIFO */
 #define US_UNKNOWN	-1
 
-#endif	/* ! defined (__SYS_INS8250_H__) */
+#endif

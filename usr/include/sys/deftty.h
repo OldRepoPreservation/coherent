@@ -1,18 +1,16 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __SYS_DEFTTY_H__
-#define __SYS_DEFTTY_H__
-
 /*
  * Coherent - default tty settings.
  *	used by sys/drv/tty.c, src/cmd0/getty.c, and src/cmd0/login.c
  *	to initialize terminal characteristics.
  */
+
+#ifndef __SYS_DEFTTY_H__
+#define __SYS_DEFTTY_H__
 
 #if	'A' != 65 || '@' != 64
 # error	Your native character set should be ASCII

@@ -1,23 +1,17 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON___FSIZE_H__
 #define	__COMMON___FSIZE_H__
 
 /*
- * This internal header file defines the internal data type "__fsize_t".
- * This type abstracts the notion of file size for Coherent utilities to aid
- * in migration to file systems that can represent files 2^32-1 bytes.
+ * This internal header file is intended as the sole point of definition for
+ * the internal data type "__fsize_t". This type is intended to abstract the
+ * notion of file size for Coherent utilities to aid in migration to file
+ * systems capable of representing files more than 2^32-1 bytes in size.
  *
  * This definition is the basis of the Coherent data type "fsize_t", but given
- * an internal name so that headers can use it internally without exporting it
- * to the user space.
+ * an internal name so that headers may use this type internally without
+ * exporting it to the user unnecessarily.
  *
- * Macros for accessing items of this type portably are not finished.
+ * Macros for accessing items of this type portably are not yet finalised.
  * Users of this type should be aware that it may not remain a scalar type.
  * Use of this type in portable software is strongly discouraged.
  */

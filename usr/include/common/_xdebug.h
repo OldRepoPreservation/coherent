@@ -1,12 +1,12 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON__XDEBUG_H__
 #define	__COMMON__XDEBUG_H__
+
+
+/*
+ *-IMPORTS:
+ *	<common/ccompat.h>
+ *		__STRING ()
+ */
 
 #include <common/ccompat.h>
 
@@ -24,17 +24,18 @@
  * Note that under C++, higher levels of debugging information can use the
  * constructor/destructor facilities of C++ code to create automatic
  * dependency information for files and all kinds of other useful facilities
- * if the source-code control system above can be extended for most file types.
+ * if the source-code control system above can be extended for most file
+ * types.
  *
- * Because this file controls compile-time debugging detail, it is intended
- * for instances where source distribution is not desirable. The ability to
- * include multiple library versions is an invaluable aid to debugging, not
- * merely because of the extra information that may be provided in case of a
- * simply detected error, but because the addition of debugging information
- * subtly alters the characteristics of the system under test. Merely
- * including a range of different libraries can test a system for a variety
- * of the more subtle bugs that usually manifest themselves only during the
- * porting process.
+ * Since this file controls compile-time debugging detail, it is intended
+ * that this system be used especially in cases where source distribution
+ * is not desirable. The ability to include multiple library versions
+ * is an invaluable aid to debugging, not merely because of the extra
+ * information that may be provided in case of a simply detected error, but
+ * because the addition of debugging information subtly alters the
+ * characteristics of the system under test. Merely including a range of
+ * different libraries can test a system for a variety of the more subtle
+ * bugs that usually manifest themselves only during the porting process.
  */
 
 /*
@@ -136,7 +137,7 @@
 
 #endif	/* ! defined (_USER_NAME) */
 
-# define	__USER_NAME__	__STRINGVAL (_USER_NAME)
+# define	__USER_NAME__	__STRING (_USER_NAME)
 
 
 
@@ -154,10 +155,10 @@
  * feature mask to see if anything we are interested in is following the
  * current bit. Sleazy, but it gives nice output.
  *
- * Because including line numbers as strings generates a lot of big strings
- * that cannot be merged, we provide __FILE_INFO__, which consists of a string
- * and an optional line number (zero if line numbers are not to be included),
- * and __FILE_INFO_STRING__, which is a single string.
+ * Since including line numbers as strings generates a lot of big strings
+ * that cannot be marged, we provide __FILE_INFO__ which consists of a string
+ * and an optional line number (zero if line numbers are not to be included)
+ * and __FILE_INFO_STRING__ which is a single string.
  *
  * We also export the symbol __NO_FILE_INFO__ if we know that the value of
  * __FILE_INFO__ is an empty string, in order to allow users to replace a
@@ -177,7 +178,7 @@
 
 
 # if	(__DEBUG_PROFILE__ & __FI_LINE_M__) != 0
-#  define	__FI_LINE_STR__	" Line # " __STRINGVAL (__LINE__)
+#  define	__FI_LINE_STR__	" Line # " __STRING (__LINE__)
 #  define	__FI_LINE__	, __LINE__
 #else
 #  define	__FI_LINE_STR__
@@ -258,7 +259,7 @@
 # if	! _SHARED_STRINGS
 #  if	(__DEBUG_PROFILE__ & __FI_NAME_M__) != 0 && defined (__BASE_FILE__)
 /*
- * Because we are evaluating __FILE__ here in the header, switch over to use
+ * Since we are evaluating __FILE__ here in the header, switch over to use
  * __BASE_FILE__ if the preprocessor knows about that.
  */
 #   undef	__FI_NAME__
@@ -281,9 +282,9 @@ static __CONST__ char * __CONST__ __file_info_fmt__ = __FILE_INFO_FMT__;
 					__FI_USER__ ""
 
 /*
- * Remove unneeded private preprocessor symbols.  Note that the __FI_xxx__
+ * Remove unneeded private preprocessor symbols. Note that the __FI_xxx__
  * symbols cannot be removed because they are needed in the expansion of
- * __FILE_INFO__.  Becausee they begin with double-underscores, this should not
+ * __FILE_INFO__. Since they being with double-underscores, this should not
  * be a problem.
  */
 
@@ -293,11 +294,11 @@ static __CONST__ char * __CONST__ __file_info_fmt__ = __FILE_INFO_FMT__;
 
 /*
  * Other handy stuff: many debugging systems do not maintain a separate
- * debugger global namespace, so definitions that have local or file static
- * scope are not necessarily visible.
+ * debugger global namespace, and so definitions that have local or file
+ * static scope are not necessarily visible.
  *
- * To get more control over the global namespace, structures that should
- * not normally appear visible but whose addresses we may wish to
+ * In order to get more control over the global namespace, structures that
+ * should not normally appear visible but whose addresses we may wish to
  * reveal should be declared with the following storage class prefix.
  */
 

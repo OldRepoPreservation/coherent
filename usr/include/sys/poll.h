@@ -1,22 +1,104 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__SYS_POLL_H__
 #define	__SYS_POLL_H__
 
 /*
  * This header defines prototypes for functions that manipulate the structures
- * used to support device polling in the kernel.  Definitions from this file
+ * used to support device polling in the kernel. definitions from this file
  * are imported by <poll.h>
  */
+/*
+ *-IMPORTS:
+ *	<common/ccompat.h>
+ *		__EXTERN_C_BEGIN__
+ *		__EXTERN_C_END__
+ *		__PROTO ()
+ */
+
+#if	_DDI_DKI
 
 #include <common/feature.h>
+#include <common/ccompat.h>
 
-#define	_OLD_COH_POLLING	__COHERENT__
+
+/*
+ * The contents of the "pollhead" structure used in System V polling are not
+ * specified here, or indeed anywhere else outside of the file which
+ * implements the routines whose prototypes are given below.
+ *
+ * The "pollhead" structure is intended to be totally opaque. Instances must
+ * be allocated and freed with the functions given, and no access to the
+ * internal structure of this item is permissible.
+ *
+ * It is worthwhile for implementations to note several facts about System V
+ * polling, however; consider the extra difficulties involved in preventing
+ * race conditions in polling when the system is multithreaded. The chpoll ()
+ * entry point is required to never sleep, or call a function such that it
+ * might sleep (which means that calling "phalloc (KM_SLEEP)" is not permitted
+ * in that context), implying that an implementation may hold a basic lock to
+ * limit race conditions. Essentially, implementations should spend as little
+ * time as possible in the chpoll () entry point.
+ */
+
+__EXTERN_C_BEGIN__
+
+struct pollhead	* phalloc	__PROTO ((int _flag));
+void		phfree		__PROTO ((struct pollhead * _php));
+void		pollwakeup	__PROTO ((struct pollhead * _php,
+					  short _event));
+
+__EXTERN_C_END__
+
+#endif	/* _DDI_DKI */
+
+#if	_OLD_COH_POLLING || (__COHERENT__ && __KERNEL__)
+
+#include <common/_poll.h>
+
+
+/*
+ * The following structure is defined by the implementation code in the
+ * Coherent kernel, so we define it so that this header can replace that one.
+ *
+ * We keep the old structure name, and also preserve the name of one of the
+ * structure members. That's about it, though. The *only* field that old-style
+ * Coherent drivers were allowed documented access to is e_procp, and then
+ * only as a test to see whether pollwake () needed to be called at all, which
+ * was unnecessary.
+ */
+
+typedef struct event	event_t;
+
+struct event {
+#if	! _OLD_COH_POLLING
+	event_t	      *	e_pnext;
+	event_t	      *	e_dnext;
+	event_t	      *	e_dlast;
+	struct proc   *	e_procp;
+#else
+	poll_t		e_node;		/* for circular list management */
+	__VOID__      *	e_reserved;	/* unused, for binary compatibility */
+	__VOID__      *	e_procp;	/* drivers can test this for != 0 */
+#endif
+};
+
+
+__EXTERN_C_BEGIN__
+
+void	pollopen		__PROTO ((event_t * _elistp));
+void	pollwake		__PROTO ((event_t * _elistp));
+
+__EXTERN_C_END__
+
+/*
+ * Declare the existence of the 'event_t' hack to code that wants to work
+ * either with or without it.
+ */
+
+#ifndef	_OLD_COH_POLLING
+#define	_OLD_COH_POLLING	1
+#endif
+
+#endif	/* _OLD_COH_POLLING || (__COHERENT__ && __KERNEL__) */
 
 
 /*
@@ -71,114 +153,5 @@ enum {
 
 	/* value 0x0200 is reserved for BANDURG flag in <stropts.h> */
 };
-
-#if	_DDI_DKI
-
-#include <common/ccompat.h>
-
-/*
- * Return values from pollsleep ().
- */
-
-enum {
-	__POLL_POLLING,		/* state while scanning devices */
-	__POLL_SLEEPING,	/* state while asleep */
-	__POLL_EVENT,
-	__POLL_SIGNALLED,
-	__POLL_TIMEOUT,
-	__POLL_NOMEM
-};
-
-/*
- * The contents of the "pollhead" structure used in System V polling are not
- * specified here, or indeed anywhere else outside of the file which
- * implements the routines whose prototypes are given below.
- *
- * The "pollhead" structure is intended to be totally opaque. Instances must
- * be allocated and freed with the functions given, and no access to the
- * internal structure of this item is permissible.
- *
- * It is worthwhile for implementations to note several facts about System V
- * polling, however; consider the extra difficulties involved in preventing
- * race conditions in polling when the system is multithreaded. The chpoll ()
- * entry point is required to never sleep, or call a function such that it
- * might sleep (which means that calling "phalloc (KM_SLEEP)" is not permitted
- * in that context), implying that an implementation may hold a basic lock to
- * limit race conditions. Essentially, implementations should spend as little
- * time as possible in the chpoll () entry point.
- */
-
-__EXTERN_C_BEGIN__
-
-struct pollhead	*
-		phalloc	__PROTO ((int _flag));
-void		phfree		__PROTO ((struct pollhead * _php));
-void		pollwakeup	__PROTO ((struct pollhead * _php,
-					  short _event));
-
-#if	_DDI_DKI_IMPL
-int		pwalloc		__PROTO ((int _fds, int _msec));
-int		pollsleep	__PROTO ((int _msec));
-void		pwfree		__PROTO ((void));
-
-struct pollhead **
-		get_next_phpp	__PROTO ((short _events));
-void		install_phpp	__PROTO ((void));
-
-#endif	/* _DDI_DK_IMPL */
-
-__EXTERN_C_END__
-
-#endif	/* _DDI_DKI */
-
-#if	_OLD_COH_POLLING || (__COHERENT__ && (_KERNEL | _DDI_DKI_IMPL))
-
-#include <common/_poll.h>
-
-
-/*
- * The following structure is defined by the implementation code in the
- * COHERENT kernel, so we define it so that this header can replace that one.
- *
- * We keep the old structure name, and also preserve the name of one of the
- * structure members. That's about it, though. The *only* field that
- * COHERENT drivers were allowed documented access to is e_procp, and then
- * only as a test to see whether pollwake () needed to be called at all.
- */
-
-typedef struct event	event_t;
-
-struct event {
-#if	! _OLD_COH_POLLING
-	event_t	      *	e_pnext;
-	event_t	      *	e_dnext;
-	event_t	      *	e_dlast;
-	struct proc   *	e_procp;
-#else
-	poll_t		e_node;		/* for circular list management */
-	__VOID__      *	e_reserved;	/* unused, for binary compatibility */
-	__VOID__      *	e_procp;	/* drivers can test this for != 0 */
-#endif
-};
-
-
-__EXTERN_C_BEGIN__
-
-void	pollopen		__PROTO ((event_t * _elistp));
-void	pollwake		__PROTO ((event_t * _elistp));
-
-__EXTERN_C_END__
-
-/*
- * Declare the existence of the 'event_t' hack to code that wants to work
- * either with or without it.
- */
-
-#ifndef	_OLD_COH_POLLING
-#define	_OLD_COH_POLLING	1
-#endif
-
-#endif	/* _OLD_COH_POLLING || (__COHERENT__ && _KERNEL) */
-
 
 #endif	/* ! defined (__SYS_POLL_H__) */

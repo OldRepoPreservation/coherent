@@ -1,4 +1,0 @@
-h1520|hazeltine 1520,
-	am, hz, cols#80, lines#24, bel=^G, cr=^M, clear=~^\, el=~^O, ed=~^X, 
-	cup=~^Q%p2%c%p1%c$<1>, cud1=~^K, home=~^R, cub1=^H, cuf1=^P, 
-	cuu1=~^L, dl1=~^S, smso=~^_, rmso=~^Y, il1=~^Z, ind=^J, 

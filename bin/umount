@@ -2,7 +2,7 @@
 
 : Definitions for the most commonly used diskette formats.
 : Change these to the appropriate device names for your system.
-DEFF0=/dev/fha0
+DEFF0=/dev/fva0
 DEFF1=/dev/fha1
 
 : Set cmd to execute /etc/mount or /etc/umount.

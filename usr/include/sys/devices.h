@@ -1,8 +1,7 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
 
 #ifndef	__SYS_DEVICES_H__
@@ -18,7 +17,6 @@
 #define	ASY_MAJOR	5	/* async devices 0..31			*/
 #define	AL0_MAJOR	5	/* serial line 0, COM[13]		*/
 #define	AL1_MAJOR	6	/* serial line 1, COM[24]		*/
-#define	TRACE_MAJOR	6	/* kernel trace device			*/
 #define	HS_MAJOR	7	/* polled multi-port serial card	*/
 #define	RM_MAJOR	8	/* dual RAM disk			*/
 #define	PTY_MAJOR	9	/* pseudotty				*/
@@ -51,17 +49,6 @@
 #define	AT1X_MINOR	129	/* /dev/at1x				*/
 #define	SCSI_minor(s, i, l, p)	((s)*0x80 + (i)*0x10 + (l)*0x04 + (p))
 
-/*
- * Some devices need special pools of memory, too large for kmem_alloc ()
- * to be practical.  Reserve 4 megabytes of virtual space for each major
- * number for such pools.  The first 4 Mb of virtual space beneath
- * DEVICE_SEG_END is for major number 0, the second is for major number 1,
- * etc.
- */
+#endif
 
-#define DEVICE_SEG_END	0xF0000000
-
-#define DEVICE_SEG_VADDR(major)	((caddr_t)(DEVICE_SEG_END - \
-	  ((major + 1) * (4 * 1024 * 1024))))
-
-#endif	/* ! defined (__SYS_DEVICES_H__) */
+/* end of devices.h */

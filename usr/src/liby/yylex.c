@@ -1,4 +1,0 @@
-yylex()
-{
-	return getchar();
-}

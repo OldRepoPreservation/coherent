@@ -1,4 +1,4 @@
-.\" /usr/lib/roff/troff_pcl/specials.r 3/25/93
+.\" /usr/lib/roff/troff_pcl/specials.r 4/16/91
 .\" Default special character definitions for PCL troff.
 .dc em --
 .dc hy -
@@ -19,13 +19,12 @@
 .dc ct \o'c|'
 .dc rg (r)
 .dc co (c)
-.dc tm [tm]
 .dc pl +
 .dc mi -
 .dc eq =
 .dc ** *
 .dc sc section
-.dc aa \'
+.dc aa '
 .dc ga `
 .dc ul _
 .dc sl /

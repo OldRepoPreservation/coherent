@@ -1,10 +1,3 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__KERNEL_X86LOCK_H__
 #define	__KERNEL_X86LOCK_H__
 
@@ -21,6 +14,23 @@
  * linkage versions always available.
  */
 
+/*
+ *-IMPORTS:
+ *	<common/ccompat.h>
+ *		__INLINE__
+ *		__VOLATILE__
+ *		__NON_ISO ()
+ *	<common/xdebug.h>
+ *		__LOCAL__
+ *	<common/__types.h>
+ *		__uchar_t
+ *		__ushort_t
+ *		__uint_t
+ *		__ulong_t
+ *	<kernel/__pl.h>
+ *		__pl_t
+ */
+
 #include <common/ccompat.h>
 #include <common/xdebug.h>
 #include <common/__types.h>
@@ -30,7 +40,7 @@
 /*
  * On the 386, there are no "compare and swap" instructions as in the 68020
  * CPU. Unfortunately, this deficiency makes some of the more advanced
- * synchronization algorithms unavailable (and introduces locking requirements
+ * synchronisation algorithms unavailable (and introduces locking requirements
  * where no locking is needed in the 68020).
  *
  * The facilities that do exist are an atomic fetch-and-set via XCHG, and
@@ -306,6 +316,11 @@ void ATOMIC_STORE_PTR (__atomic_ptr_t _lock, __VOID__ * _newvalue) {
 
 #if	__BORLANDC__
 
+
+/*lint -e570 *//* Anything with pseudoregisters causes spurious warnings */
+/*lint -e732 *//* Anything with pseudoregisters causes spurious warnings */
+/*lint -e915 *//* Anything with pseudoregisters causes spurious warnings */
+
 void	__emit__	(unsigned char __byte, ...);
 
 /*
@@ -366,7 +381,7 @@ void	__emit__	(unsigned char __byte, ...);
 #define	ATOMIC_FETCH_LONG(l)		((long) (_EAX = ((__atomic_long_t) (l)) [0]))
 #define	ATOMIC_FETCH_ULONG(l)		((__ulong_t) (_EAX = ((__atomic_ulong_t) (l)) [0]))
 
-#define	ATOMIC_TEST_AND_SET_UCHAR(l)	ATOMIC_FETCH_AND_STORE_UCHAR (l, (__uchar_t) -1)
+#define	ATOMIC_TEST_AND_SET_UCHAR(l)	ATOMIC_FETCH_AND_STORE_UCHAR (l, -1)
 
 #define	ATOMIC_CLEAR_UCHAR(l)		((void) (((__atomic_uchar_t) (l)) [0] = 0))
 #define	ATOMIC_CLEAR_USHORT(l)		((void) (((__atomic_ushort_t) (l)) [0] = 0))
@@ -419,7 +434,7 @@ void	__emit__	(unsigned char __byte, ...);
 #define	ATOMIC_FETCH_ULONG(l)		(((__atomic_ulong_t) (l)) [0])
 #define	ATOMIC_FETCH_PTR(l)		(((__atomic_ptr_t) (l)) [0])
 
-#define	ATOMIC_TEST_AND_SET_UCHAR(l)	ATOMIC_FETCH_AND_STORE_UCHAR (l, (__uchar_t) -1)
+#define	ATOMIC_TEST_AND_SET_UCHAR(l)	ATOMIC_FETCH_AND_STORE_UCHAR (l, -1)
 
 #define	ATOMIC_CLEAR_UCHAR(l)		((void) (((__atomic_uchar_t) (l)) [0] = 0))
 #define	ATOMIC_CLEAR_USHORT(l)		((void) (((__atomic_ushort_t) (l)) [0] = 0))

@@ -1,5 +1,0 @@
-adm2|lsi adm2,
-	am, cols#80, lines#24, bel=^G, cr=^M, clear=\E;, el=\ET, ed=\EY, 
-	cup=\E=%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=^^, cub1=^H, cuf1=^L, 
-	cuu1=^K, dch1=\EW, dl1=\ER, ich1=\EQ, il1=\EE, kcud1=^J, khome=^^, 
-	kcub1=^H, kcuf1=^L, kcuu1=^K, ind=^J, 

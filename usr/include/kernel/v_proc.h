@@ -1,10 +1,3 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__KERNEL_V_PROC_H__
 #define	__KERNEL_V_PROC_H__
 
@@ -19,6 +12,19 @@
  * This interface is private to this DDI/DKI implementation, and is not
  * part of the DDI/DKI itself. Portable code should not rely on the contents
  * of this header at all.
+ */
+
+/*
+ *-IMPORTS:
+ *	<common/ccompat.h>
+ *		__EXTERN_C_BEGIN__
+ *		__EXTERN_C_END__
+ *		__PROTO ()
+ *	<kernel/_sleep.h>
+ *		__sleep_t
+ *	<kernel/ddi_proc.h>
+ *		pnode_t
+ *		ddi_proc_data ()
  */
 
 #include <common/ccompat.h>
@@ -60,8 +66,7 @@ struct proc_list {
 };
 
 
-#define	PLIST_INIT(l)		((l)->pl_head = NULL, \
-				 (void) ATOMIC_CLEAR_UCHAR ((l)->pl_locked))
+#define	PLIST_INIT(l)		((void) ATOMIC_CLEAR_UCHAR ((l)->pl_locked))
 #define PLIST_DESTROY(l)	((void) 0)
 #define PLIST_LOCK(l,n)		(TEST_AND_SET_LOCK ((l)->pl_locked, plhi, \
 						    (n)))
@@ -75,8 +80,8 @@ struct proc_list {
  * External function definitions. The curious may like to note that the use
  * of the __PROTO () macro below has a useful side-effect with respect to
  * macro-expansion of MAKE_SLEEPING (). The ISO C preprocessor scanning rules
- * prevent MAKE_SLEEPING () below from being expanded because the next right
- * token is not a left parenthesis. The rescanning rules mean that even through
+ * prevent MAKE_SLEEPING () below being expanded because the next right token
+ * is not a left parenthesis. The rescanning rules mean that even through
  * __PROTO () actually expands to something beginning with a left parenthesis,
  * the MAKE_SLEEPING token will get copied to the output without expansion,
  * because it will not be considered again.

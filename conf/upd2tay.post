@@ -1,73 +1,35 @@
-# /conf/upd2tay.post
-# Thu Nov 18 15:57:25 1993 CST
+echo "
+We will now convert your existing uucp configuration to those required
+by this implementation of Taylor uucp. This is not a destructive process.
+Before existing files are overwritten, you will be given the opportunity
+to save them to a tarred archive.
 
-. /usr/lib/shell_lib.sh
+The conversion process consists of building new Taylor uucp configuration
+files from the data in your existing files, saving your old uucp files
+to a tarred archive and finally copying the new files into place. The
+conversion of the existing data files may have problems if you are performing
+undocumented functions with the existing uucp facilities. For example,
+if you have multiple entries for a single uucp site in L.sys, you may
+not achieve the expected results with this conversion. If you run special
+shell scripts to swap L-devices with other files, which some COHERENT users
+have done in order to use multiple modems on their systems, this conversion
+process will only deal with the existing L-devices file. This means that the
+data from the other files used to swap with L-devices will not be accounted
+for.
 
-/bin/echo "
-We will now convert your existing uucp configuration files to the format
-used by Taylor uucp. This is not a destructive process.  Before existing
-files are overwritten, you will be given the opportunity to save them to
-a tarred archive.
-
-The conversion process builds new Taylor uucp configuration files from
-the data in your existing files, saves your old uucp files to a tarred
-archive and finally copys the new files into place.  The conversion of
-your existing data files may have problems if you are using undocumented
-features of the existing uucp facilities.  For example, if you have
-multiple entries for a single uucp site in L.sys, you may not achieve
-the expected results with this conversion.  If you run shell scripts to
-swap different L-devices files, e.g. to use multiple modems on your
-system, this conversion process will only deal with the current
-L-devices file; the data from the other L-devies files will not be
-accounted for.
-
-If you notice messages that indicate potential problems during
-conversion, write them down. If necessary, you can always re-run this
-shell script (/conf/upd2tay.post).
+If, while running the conversion process you notice messages that indicate
+potential problems, write them down. If necessary, you can always re-run this
+script (/conf/upd2tay.post).
 "
-/bin/echo -n "Hit <Enter> to continue..."
-read x
+echo "Press RETURN to continue.\c"
+read N
 
-echo "Testing permissions on /usr/lib/uucp..."
-if test -w /usr/lib/uucp
-	then
-	echo "Permissions appear to be acceptable."
-else
-	echo "Permissions are not correct! Setting correct permissions."
-	chmog 755 uucp uucp /usr/lib/uucp
-fi
-
-echo "Testing for existence of Taylor configuration files..."
-if test -f /usr/lib/uucp/sys
-	then
-	echo "The file /usr/lib/uucp/sys Already exists. Aborting UUCP conversion process"
-	echo "\nHit <Enter> to continue...\c"
-	read N
-	exit 0
-fi
-
-
-if test -f /usr/lib/uucp/port
-	then
-	echo "The file /usr/lib/uucp/port already exists. Aborting UUCP conversion process."
-	echo "\nHit <Enter> to continue...\c"
-	read N
-	exit 0
-fi
-
-
-if test -f /usr/lib/uucp/dial
-	then
-	echo "The file /usr/lib/uucp/dial already exists. Aborting UUCP conversion process."
-	echo "\nHit <Enter> to continue...\c"
-	read N
-	exit 0
-fi
+clear
 
 echo "
-Taylor uucp does not use the files /usr/lib/uucp/L.sys nor
-/usr/lib/uucp/Permissions. Instead, the contents of these two files are
-merged into the single file /usr/lib/uucp/sys.
+Now for the tricky part. This implementation of Taylor uucp does not use
+the files /usr/lib/uucp/L.sys nor /usr/lib/uucp/Permissions. Instead, the
+contents of the 2 files are merged into the single file /usr/lib/uucp/sys.
 
 This conversion process makes several assumptions. Please read them
 carefully.
@@ -83,48 +45,116 @@ carefully.
 
 	4) A single L.sys entry occupies no more than 2 lines.
 
-If you want to check your existing uucp configuration files against the
-items just listed, you may go to a subshell now by typing an exclamation
-point - \"!\".  After viewing the files, type \"exit\" to return to
-installation.
+If you feel a bit uneasy about this, have that sinking feeling, feel a
+bit queazy, feel nervous or just want to plain old check your existing
+uucp configuration files against the items just listed, you may abort
+the update process now.
 "
 
-read_input "Do you wish to continue with the UUCP conversion" ANS y \
-	require_yes_or_no
+echo "Do you wish to continue with this update (y/n)?\c"
+read N
+case $N in
+	n|N)	echo "Do I detect a streak of yellow down your back?";
+		echo "You can run this script at a later";
+	   	echo "time by invoking /conf/upd2tay.post";
+		exit 1;
+		;;
+	*)	echo "Brave soul! Onward we venture!";
+		echo "Running /conf/taylor/cvlsys.";
+		/conf/taylor/cvlsys;
+		;;
+esac
 
-is_yes $ANS || {
-	echo "You can run this script at a later";
-	echo "time by invoking /conf/upd2tay.post";
-	exit 0;
-}
+echo "
+We will now convert /etc/modemcap to the /usr/lib/uucp/dial file
+format required by Taylor uucp package. This will not alter the
+contents of /etc/modemcap. It will build /usr/lib/uucp/dial from
+/etc/modemcap's contents.
+"
+echo "Running /conf/taylor/cvmodem."
 
-echo "Now converting L.sys         running: /conf/taylor/cvlsys.";
-/conf/taylor/cvlsys;
-
-echo "Now converting modemcap       running: /conf/taylor/cvmodem."
 /conf/taylor/cvmodem
 
-echo "Now converting L-devices 	    running: /conf/taylor/cvldev."
+echo "Press RETURN to continue.\c"
+read N
+
+echo "
+The next step will be to convert the information in /usr/lib/uucp/L-devices
+into the port information required by Taylor uucp. The data in L-devices
+will not be altered, it will be used to built the file /usr/lib/uucp/port.
+"
+echo "Running /conf/taylor/cvldev."
+
 /conf/taylor/cvldev
 
-echo -n "
-You have now installed the Coherent implementation of Taylor uucp.
-Please review the information on the sys, dial and port files in
-directory /usr/lib/uucp before using the new uucp facilities.
-
-Important note: The manner in which Taylor uucp handles dialing via a
-modem is different from COHERENT uucp's method. Instead of relying upon
-data in /etc/modemcap, Taylor uucp 'chats' with the modem to set
-register values and to dial. When a connection has ended, Taylor uucp
-can be configured to chat with the modem again to set registers or
-perform other functions.
-
-Because of this, you may encounter difficulty getting Taylor to dial out
-during your initial attempts to use it. Please refer to the UUCP
-articles in your new COHERENT manual for making dial file entries.
-
-Hit <Enter> to continue "
+echo "Press RETURN to continue.\c"
 read N
-exit 0
 
-# end of /conf/upd2tay.post
+clear
+
+echo "
+This is your chance to save your existing programs that would otherwise
+be overwritten by this update process. If you are running this script for
+the umpteenth time and have already saved your old files, there is no need
+to save them again, since they wouldn't exist anyway.
+
+The files that will be saved are: 
+	uucico		uuxqt		Please note that we are not
+	uucp		uux		overwriting L.sys, Permissions
+	uucheck		uuinstall	nor L-devices. They will be
+					left in place.
+
+They will be copied to the directory /tmp/tayupd and then tarred, compressed
+and moved to /conf/taylor/olduucp.tar.Z.
+"
+
+TMP=/tmp/tayupd/usr
+
+echo "Do you wish to save your old uucp files ('q' to quit) (y/n/q)?\c"
+
+read N
+case $N in
+	n|N)	echo "Okay... we will procede with copying the new files into place.";
+		;;
+	y|Y)	mkdir -r $TMP/lib/uucp $TMP/lib/uucheck;
+		mkdir $TMP/bin;
+		cp -d /usr/bin/uucp $TMP/bin/;
+		cp -d /usr/bin/uux $TMP/uux;
+		cp -d /usr/bin/uuinstall $TMP/bin/;		
+		rm /usr/bin/uuinstall;
+		cpdir -ade /usr/lib/uucheck $TMP/lib/uucheck;
+		cp -d /bin/uucheck $TMP/bin;
+		rm /bin/uucheck;
+		cp -d /usr/lib/uucp/uucico $TMP/lib/uucp/;
+		cp -d /usr/lib/uucp/uuxqt $TMP/lib/uucp/;
+		cp -d /usr/lib/uucp/uumkdir $TMP/lib/uucp/;
+		rm /usr/lib/uucp/uumkdir;
+		tar cvf /tmp/olduucp.tar /tmp/tayupd;
+		compress /tmp/olduucp.tar;
+		cp /tmp/olduucp.tar.Z /conf/taylor/;
+		echo "Removing saved directory.";
+		rm /tmp/olduucp.tar.Z;
+		rm -r /tmp/tayupd;
+		echo "Files saved to /conf/taylor/olduucp.tar.Z."
+		;;
+	q|Q)	exit 0;
+		;;
+esac
+
+echo "Copying new files into place."
+cpdir -ade /tmp/tay_new_files/usr /usr
+rm -r /tmp/tay_new_files
+
+echo "Setting permissions..."
+chmog 6511 uucp uucp /usr/lib/uucp/uucico /usr/lib/uucp/uuxqt /usr/bin/uucp /usr/bin/uux
+chmog 6500 uucp uucp /usr/bin/uucheck
+chmog 400 uucp uucp /usr/lib/uucp/sys /usr/lib/uucp/dial /usr/lib/uucp/port
+
+echo "Press RETURN to continue.\c"
+read N
+
+echo "
+You have now installed the Coherent implementation of the Taylor uucp
+package. You should review the information in the sys, dial and port
+files in the directory /usr/lib/uucp before using the new uucp facilities.
+"

@@ -1,27 +1,28 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 4.0.2
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * /usr/include/sys/malloc.h
+ * Header file for malloc.c, notmem.c, realloc.c.
+ */
 
 #ifndef	__SYS_MALLOC_H__
 #define	__SYS_MALLOC_H__
-
-/*
- * This header file belongs to the malloc () implementation that was part of
- * the C library in COHERENT releases up to 4.2.
- */
 
 /* Manifest constants. */
 /*
  * N.B. 1<<ARENASIZE must be greater than sizeof(struct mblock)
  * so that malloc.c/newarena() does not cause trouble when it combines arenas.
  */
-
+#if	_I386
 #define	ARENASIZE	12	/* round arena sizes up to 1<<12==4096	*/
 #define	BLOCKSIZE	2	/* round block sizes up to 1<<2==4	*/
-
+#else
+#define	ARENASIZE	11	/* round arena sizes up to 1<<11==2048	*/
+#define	BLOCKSIZE	1	/* round block sizes up to 1<<1==2	*/
+#endif
 #define	ALIGNMENT (1<<BLOCKSIZE) /* maximum alignment for any data type	*/
 #define	BADSBRK   ((char *)-1)	/* sbrk() failure return value		*/
 #define	DECRSIZE	4096	/* arena size decrement at end		*/

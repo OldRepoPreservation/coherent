@@ -1,10 +1,3 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__SYS_CONFINFO_H__
 #define	__SYS_CONFINFO_H__
 
@@ -14,11 +7,39 @@
  * to allow the final result to be precisely tailored to the target system
  * without modification to the code generator.
  */
+/*
+ *-IMPORTS:
+ *	<common/ccompat.h>
+ *		__EXTERN_C_BEGIN__
+ *		__EXTERN_C_END__
+ *		__USE_PROTO__
+ *		__PROTO ()
+ *	<common/xdebug.h>
+ *		__LOCAL__
+ *	<common/_intmask.h>
+ *		intmask_t
+ *	<common/_cred.h>
+ *		cred_t
+ *	<common/_uid.h>
+ *		n_dev_t
+ *		__major_t
+ *		__minor_t
+ *	<common/_off.h>
+ *		off_t
+ *	<sys/inline.h>
+ *		_masktab []
+ *		__GET_BASE_MASK ()
+ *		__SET_BASE_MASK ()
+ *	<sys/stream.h>
+ *		struct streamtab
+ *	<sys/uio.h>
+ *		uio_t
+ */
 
 #include <common/ccompat.h>
 #include <common/xdebug.h>
-#include <common/__cred.h>
 #include <common/_intmask.h>
+#include <common/_cred.h>
 #include <common/_uid.h>
 #include <common/_off.h>
 #include <sys/inline.h>
@@ -33,7 +54,7 @@
 #endif
 
 /*
- * Since we don't import the definition of "buf", create an incomplete
+ * Since we don't import the definition of "buf", let's create an incomplete
  * definition at file scope. Same for "pollhead".
  */
 
@@ -61,35 +82,35 @@ struct pollhead;
 
 
 typedef	int  (*	ddi_open_t)	__PROTO ((n_dev_t * _devp, int _oflag,
-					  int _otyp, __cred_t * _credp));
+					  int _otyp, cred_t * _credp));
 #define	EXTERN_OPEN(name) __EXTERN_C__ \
   int	__OPEN (name)	__PROTO ((n_dev_t * _devp, int _oflag,\
-					 int _otyp, __cred_t * _credp))
+					 int _otyp, cred_t * _credp))
 
 typedef	int  (* ddi_close_t)	__PROTO ((n_dev_t _dev, int _oflag, int _otyp,
-					  __cred_t * _credp));
+					  cred_t * _credp));
 #define	EXTERN_CLOSE(name) __EXTERN_C__ \
   int	__CLOSE (name)	__PROTO ((n_dev_t _dev, int _oflag, int _otyp,\
-					  __cred_t * _credp))
+					  cred_t * _credp))
 
 typedef	int  (*	ddi_read_t)	__PROTO ((n_dev_t _dev, uio_t * _uiop,
-					  __cred_t * _credp));
+					  cred_t * _credp));
 #define	EXTERN_READ(name) __EXTERN_C__ \
   int	__READ (name)	__PROTO ((n_dev_t _dev, uio_t * _uiop,\
-					  __cred_t * _credp))
+					  cred_t * _credp))
 
 typedef int  (*	ddi_write_t)	__PROTO ((n_dev_t _dev, uio_t * _uiop,
-					  __cred_t * _credp));
+					  cred_t * _credp));
 #define	EXTERN_WRITE(name) __EXTERN_C__ \
   int	__WRITE (name)	__PROTO ((n_dev_t _dev, uio_t * _uiop,\
-					  __cred_t * _credp))
+					  cred_t * _credp))
 
-typedef	int  (*	ddi_ioctl_t)	__PROTO ((n_dev_t _dev, int _cmd,
-					  __VOID__ * _arg, int _mode,
-					  __cred_t * _credp, int * _rvalp));
+typedef	int  (*	ddi_ioctl_t)	__PROTO ((n_dev_t _dev, int _cmd, _VOID * _arg,
+					  int _mode, cred_t * _credp,
+					  int * _rvalp));
 #define	EXTERN_IOCTL(name) __EXTERN_C__ \
-  int	__IOCTL (name)	__PROTO ((n_dev_t _dev, int _cmd, __VOID__ * _arg,\
-					  int _mode, __cred_t * _credp,\
+  int	__IOCTL (name)	__PROTO ((n_dev_t _dev, int _cmd, _VOID * _arg,\
+					  int _mode, cred_t * _credp,\
 					  int * _rvalp))
 
 typedef	int  (*	ddi_strategy_t)	__PROTO ((struct buf * _bufp));
@@ -157,67 +178,53 @@ typedef	void (*	ddi_halt_t)	__PROTO ((void));
 
 #if	__COHERENT__ || defined (__MSDOS__)
 
-#if	! _KERNEL
-#define	_KERNEL	2
-#endif
+#define	__KERNEL__	2
 
 #if	defined (__MSDOS__)
 #include <sys/_con.h>
 #else
-#include <kernel/_buf.h>
+#include <sys/buf.h>
 #include <sys/con.h>
 #endif
 
 #include <sys/io.h>
 
-#if	_KERNEL == 2
-#undef	_KERNEL
-#endif
-
+#undef	__KERNEL__
 
 __EXTERN_C_BEGIN__
 
-void		_forward_open	__PROTO ((o_dev_t _dev, int _mode, int _flags,
-					  __cred_t * _credp,
-					  struct inode ** _inodepp,
-					  ddi_open_t _funcp,
-					  ddi_close_t _closep));
-void		_forward_close	__PROTO ((o_dev_t _dev, int _mode, int _flags,
-					  __cred_t * _credp, ddi_close_t _funcp));
-void		_forward_read	__PROTO ((o_dev_t _dev, IO * _iop,
-					  __cred_t * _credp, ddi_read_t _funcp));
-void		_forward_write	__PROTO ((o_dev_t _dev, IO * _iop,
-					  __cred_t * _credp, ddi_write_t _funcp));
-void		_forward_ioctl	__PROTO ((o_dev_t _dev, int _cmd,
-					  __VOID__ * _arg, int mode,
-					  __cred_t * _credp, int * _rvalp,
+int		_forward_open	__PROTO ((o_dev_t _dev, int _mode, int _flags,
+					  ddi_open_t _funcp));
+int		_forward_close	__PROTO ((o_dev_t _dev, int _mode, int _flags,
+					  ddi_close_t _funcp));
+int		_forward_read	__PROTO ((o_dev_t _dev, IO * _iop,
+					  ddi_read_t _funcp));
+int		_forward_write	__PROTO ((o_dev_t _dev, IO * _iop,
+					  ddi_write_t _funcp));
+int		_forward_ioctl	__PROTO ((o_dev_t _dev, int _cmd,
+					  _VOID * _arg, int mode,
 					  ddi_ioctl_t _funcp));
 #ifndef	__MSDOS__
-void		_forward_strategy __PROTO ((__buf_t * _buf,
+int		_forward_strategy __PROTO ((BUF * _buf,
 					    ddi_strategy_t _funcp));
 #endif
 int		_forward_chpoll	__PROTO ((o_dev_t _dev, int _events,
 					  int _msec, ddi_chpoll_t _funcp));
 
-void		_streams_open	__PROTO ((o_dev_t _dev, int _mode, int _flags,
-					  __cred_t * _credp,
-					  struct inode ** inodepp,
+int		_streams_open	__PROTO ((o_dev_t _dev, int _mode, int _flags,
 					  struct streamtab * _infop));
-void		_streams_close	__PROTO ((o_dev_t _dev, int _mode, int _flags,
-					  __cred_t * _credp,
-					  __VOID__ * _private));
-void		_streams_read	__PROTO ((o_dev_t _dev, IO * _iop,
-					  __cred_t * _credp,
-					  __VOID__ * _private));
-void		_streams_write	__PROTO ((o_dev_t _dev, IO * _iop,
-					  __cred_t * _credp,
-					  __VOID__ * _private));
-void		_streams_ioctl	__PROTO ((o_dev_t _dev, int _cmd,
-					  __VOID__ * _arg, int mode,
-					  __cred_t * _credp, int * _rvalp,
-					  __VOID__ * _private));
+int		_streams_close	__PROTO ((o_dev_t _dev, int _mode, int _flags,
+					  struct streamtab * _infop));
+int		_streams_read	__PROTO ((o_dev_t _dev, IO * _iop,
+					  struct streamtab * _infop));
+int		_streams_write	__PROTO ((o_dev_t _dev, IO * _iop,
+					  struct streamtab * _infop));
+int		_streams_ioctl	__PROTO ((o_dev_t _dev, int _cmd,
+					  _VOID * _arg, int mode,
+					  struct streamtab * _infop));
 int		_streams_chpoll	__PROTO ((o_dev_t _dev, int _events,
-					  int _msec, __VOID__ * _private));
+					  int _msec,
+					  struct streamtab * _infop));
 
 __EXTERN_C_END__
 
@@ -226,146 +233,118 @@ typedef struct {
 	CON		cdev_con;
 } cdevsw_t;
 
+/*
+ * Note that we do not have the DFPOL flag set by default. While most compilers
+ * can evaluate a "(ch) == 0 ? :" type of expression which is a constant in an
+ * initializer, the MWC compiler cannot do so reliably. We fix up the flags at
+ * startup time as a result.
+ */
+
 #define	CDEVSW_ENTRY(fl,op,cl,re,wr,io,ch,mm) \
 	{ (fl), { (ch) == 0 ? DFCHR : DFCHR | DFPOL, 0, \
-		  (driver_open_t) (op), (cl), 0, (re), (wr), (io), \
-		  0, 0, 0, 0, (ch) } }
+		  (op), (cl), 0, (re), (wr), (io), 0, 0, 0, 0, (ch) } }
 
 #define	NULL_CDEVSW() \
 	{ 0, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }
 
-
-typedef struct {
-	int	      *	bdev_flag;
-	CON		bdev_con;
-} bdevsw_t;
-
-#define	BDEVSW_ENTRY(fl,op,cl,st,pr,si) \
-	{ (fl), { DFBLK, 0, (op), (cl), (st), 0, 0, 0, \
-	  0, 0, 0, 0, 0 } }
-
-#define	NULL_BDEVSW() \
-	{ 0, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }
-
 #define	STREAMS_ENTRY(name) \
 	{ & __DEVFLAG (name), { DFCHR | DFPOL, 0, \
-		(driver_open_t) __CONCAT (name, openS), \
-		(driver_close_t) __CONCAT (name, closeS), 0, \
-		(driver_read_t) __CONCAT (name, readS), \
-		(driver_write_t) __CONCAT (name, writeS), \
-		(driver_ioctl_t) __CONCAT (name, ioctlS), 0, \
-		0, 0, 0, (driver_poll_t) __CONCAT (name, chpollS) } }
+		__CONCAT (name, openS), __CONCAT (name, closeS), \
+		0, __CONCAT (name, readS), __CONCAT (name, writeS), \
+		__CONCAT (name, ioctlS), 0, 0, 0, 0, \
+		__CONCAT (name, chpollS) } }
 
-#define	COH_OPEN(name, s) \
-  __LOCAL__ void __CONCAT3 (name, open, s) \
-	DEF ((o_dev_t dev, int mode, int flag, __cred_t * credp, \
-		struct inode ** inodepp),\
-	     (dev, mode, flag, credp, inodepp) o_dev_t dev; int mode; \
-		int flag; __cred_t * credp; struct inode ** inodepp;)
+#define	COH_OPEN(name,s) \
+  __LOCAL__ int __CONCAT3 (name, open, s) \
+	DEF ((o_dev_t dev, int mode, int flag),\
+	     (dev, mode, flag) o_dev_t dev; int mode; int flag;)
 
-#define	COH_CLOSE(name, s) \
-  __LOCAL__ void __CONCAT3 (name, close, s) \
-	DEF ((o_dev_t dev, int mode, int flag, __cred_t * credp, \
-	      __VOID__ * private), \
-	     (dev, mode, flag, credp, private) \
-	      o_dev_t dev; int mode; int flag; __cred_t * credp; \
-	      __VOID__ * private;)
+#define	COH_CLOSE(name,s) \
+  __LOCAL__ int __CONCAT3 (name, close, s) \
+	DEF ((o_dev_t dev, int mode, int flag), \
+	     (dev, mode, flag) o_dev_t dev; int mode; int flag;)
 
-#define	COH_READ(name, s) \
-  __LOCAL__ void __CONCAT3 (name, read, s) \
-	DEF ((o_dev_t dev, IO * iop, __cred_t * credp, __VOID__ * private), \
-	     (dev, iop, credp, private) \
-	      o_dev_t dev; IO * iop; __cred_t * credp; __VOID__ * private;)
+#define	COH_READ(name,s) \
+  __LOCAL__ int __CONCAT3 (name, read, s) \
+	DEF ((o_dev_t dev, IO * iop), \
+	     (dev, iop) o_dev_t dev; IO * iop;)
 
-#define	COH_WRITE(name, s) \
-  __LOCAL__ void __CONCAT3 (name, write, s) \
-	DEF ((o_dev_t dev, IO * iop, __cred_t * credp, __VOID__ * private), \
-	     (dev, iop, credp, private) \
-	      o_dev_t dev; IO * iop; __cred_t * credp; __VOID__ * private;)
+#define	COH_WRITE(name,s) \
+  __LOCAL__ int __CONCAT3 (name, write, s) \
+	DEF ((o_dev_t dev, IO * iop), \
+	     (dev, iop) o_dev_t dev; IO * iop;)
 
-#define	COH_IOCTL(name, s) \
-  __LOCAL__ void __CONCAT3 (name, ioctl, s) \
-	DEF ((o_dev_t dev, int cmd, __VOID__ * arg, int mode, \
-	      __cred_t *credp, int * rvalp, __VOID__ * private), \
-	     (dev, cmd, arg, mode, credp, rvalp, private) \
-	      o_dev_t dev; int cmd; __VOID__ * arg; int mode; \
-	      __cred_t * credp; int * rvalp; __VOID__ * private;)
+#define	COH_IOCTL(name,s) \
+  __LOCAL__ int __CONCAT3 (name, ioctl, s) \
+	DEF ((o_dev_t dev, int cmd, _VOID * arg, int mode), \
+	     (dev, cmd, arg, mode) \
+		o_dev_t dev; int cmd; _VOID * arg; int mode;)
 
-#define	COH_STRATEGY(name, s) \
-  __LOCAL__ void __CONCAT3 (name, strategy, s) \
+#define	COH_STRATEGY(name,s) \
+  __LOCAL__ int __CONCAT3 (name, strategy, s) \
 	DEF ((BUF * buf), \
 	     (buf) BUF * buf;)
 
-#define	COH_CHPOLL(name, s) \
+#define	COH_CHPOLL(name,s) \
    __LOCAL__ int __CONCAT3 (name, chpoll, s) \
-	DEF ((o_dev_t dev, int events, int msec, __VOID__ * private), \
-	     (dev, events, msec, private) \
-	      o_dev_t dev; int events; int msec; __VOID__ * private;)
+	DEF ((o_dev_t dev, int events, int msec), \
+	     (dev, events, msec) o_dev_t dev; int events; int msec;)
 
 #define	DECLARE_STREAMS(name) \
  extern struct streamtab __INFO (name); \
  COH_OPEN (name, S) { \
-	_streams_open (dev, mode, flag, credp, inodepp, & __INFO (name)); \
+	return _streams_open (dev, mode, flag, & __INFO (name)); \
  } \
  COH_CLOSE (name, S) { \
-	_streams_close (dev, mode, flag, credp, private); \
+	return _streams_close (dev, mode, flag, & __INFO (name)); \
  } \
  COH_READ (name, S) { \
-	_streams_read (dev, iop, credp, private); \
+	return _streams_read (dev, iop, & __INFO (name)); \
  } \
  COH_WRITE (name, S) { \
-	_streams_write (dev, iop, credp, private); \
+	return _streams_write (dev, iop, & __INFO (name)); \
  } \
  COH_IOCTL (name, S) { \
-	_streams_ioctl (dev, cmd, arg, mode, credp, rvalp, private); \
+	return _streams_ioctl (dev, cmd, arg, mode, & __INFO (name));\
  } \
  COH_CHPOLL (name, S) { \
-	return _streams_chpoll (dev, events, msec, private); \
+	return _streams_chpoll (dev, events, msec, & __INFO (name)); \
  }
-
-#define	DECLARE_OPEN_CLOSE(name) \
-  COH_OPEN (name,D) { \
-	EXTERN_OPEN (name); \
-	EXTERN_CLOSE (name); \
-	_forward_open (dev, mode, flag, credp, inodepp, __OPEN (name), \
-		       __CLOSE (name)); \
-  }
 
 #define	DECLARE_OPEN(name) \
   COH_OPEN (name,D) { \
 	EXTERN_OPEN (name); \
-	_forward_open (dev, mode, flag, credp, inodepp, __OPEN (name), \
-		       NULL); \
+	return _forward_open (dev, mode, flag, __OPEN (name)); \
   }
- 
+
 #define	DECLARE_CLOSE(name) \
   COH_CLOSE (name,D) { \
 	EXTERN_CLOSE (name); \
-	_forward_close (dev, mode, flag, credp, __CLOSE (name)); \
+	return _forward_close (dev, mode, flag, __CLOSE (name)); \
   }
 
 #define	DECLARE_READ(name) \
   COH_READ (name,D) { \
 	EXTERN_READ (name); \
-	_forward_read (dev, iop, credp, __READ (name)); \
+	return _forward_read (dev, iop, __READ (name)); \
   }
 
 #define	DECLARE_WRITE(name) \
   COH_WRITE (name,D) { \
 	EXTERN_WRITE (name); \
-	_forward_write (dev, iop, credp, __WRITE (name)); \
+	return _forward_write (dev, iop, __WRITE (name)); \
   }
 
 #define	DECLARE_IOCTL(name) \
   COH_IOCTL (name,D) { \
 	EXTERN_IOCTL (name); \
-	_forward_ioctl (dev, cmd, arg, mode, credp, rvalp, __IOCTL (name)); \
+	return _forward_ioctl (dev, cmd, arg, mode, __IOCTL (name)); \
   }
 
 #define	DECLARE_STRATEGY(name) \
   COH_STRATEGY (name,D) { \
 	EXTERN_STRATEGY (name); \
-	_forward_strategy (buf, __STRATEGY (name)); \
+	return _forward_strategy (buf, __STRATEGY (name)); \
   }
 
 #define	DECLARE_CHPOLL(name) \
@@ -384,7 +363,7 @@ typedef struct {
 
 /*
  * "drvl" and "drvn" are declared for us in <sys/con.h>. Note that the drvl []
- * table always has 32 entries to allow the patching hacks.
+ * table always has 32 entries to allow the patching hacks (shudder).
  */
 
 #define	DECLARE_DRVL(name)	extern CON	__CONCAT (name, con);
@@ -544,7 +523,11 @@ typedef	struct {
 #endif	/* ! defined (MODSW_ENTRY) */
 
 
-#if	__BORLANDC__
+#define	__VECTOR(vec)	__CONCAT (vector, vec)
+#define	__PREV(vec)	__CONCAT3 (vector, vec, _prev)
+
+
+#ifdef	__BORLANDC__
 
 /*
  * Under MS-DOS, we have to avoid disrupting the existing software. That means
@@ -553,9 +536,6 @@ typedef	struct {
  * using native facilities rather than a generic trap layer. A generic trap
  * layer should be doing similar things, of course.
  */
-
-#define	__VECTOR(vec)	__CONCAT (vector, vec)
-#define	__PREV(vec)	__CONCAT3 (vector, vec, _prev)
 
 typedef	interrupt void (* intthunk_t)	__PROTO	((__ANY_ARGS__));
 
@@ -582,12 +562,12 @@ typedef	struct {
 		if (__PREV (vec) != 0) \
 			(* __PREV (vec)) (); \
 		__SET_BASE_MASK (oldmask | (mask)); \
-		__DDI_DKI_ENTER_INTERRUPT (); \
+		ddi_cpu_data ()->dc_int_level ++; \
 		prev_pl = spltimeout (); \
 		__SEND_EOI (vec); \
 		__CHEAP_ENABLE_INTS ();
 
-#define	CALL_INTR(vec, unit, name)	(void) __INTR (name) (unix);
+#define	CALL_INTR(vec,name)	(void) __INTR (name) (vec);
 
 #define	END_THUNK(vec) \
 		__CHEAP_DISABLE_INTS (); \
@@ -596,36 +576,35 @@ typedef	struct {
 		if (ddi_cpu_data ()->dc_int_level == 1 && \
 		    ddi_cpu_data ()->dc_ipl == plbase) \
 			CHECK_DEFER (); \
-		__DDI_DKI_LEAVE_INTERRUPT (); \
+		ddi_cpu_data ()->dc_int_level --; \
 	}
 
-#define	INTR_THUNK(vec, mask, name) \
-		{ vec, __VECTOR (vec), & __PREV (vec) }
+#define	INTR_THUNK(vec)		{ vec, __VECTOR (vec), & __PREV (vec) }
 
-#elif	__COHERENT__
+#else
+
+typedef	void 	     (*	intthunk_t)	__PROTO ((__ANY_ARGS__));
 
 typedef	struct {
 	int		int_vector;
-	int		int_unit;
-	intmask_t	int_mask;
-	ddi_intr_t	int_handler;
+	intthunk_t	int_thunk;
 } intr_t;
 
-/*
- * The following code must mutate in time with the assembly-language interrupt
- * stub that calls the thunks!
- */
+#define	BEGIN_THUNK(vec,mask) \
+  __LOCAL__ void __VECTOR (vec) \
+	DEF ((void), __ARGS (())) { \
+		intmask_t	oldmask = __GET_BASE_MASK (); \
+		__SET_BASE_MASK (oldmask | (mask)); \
+		ddi_cpu_data ()->dc_int_level ++;
 
-#define	BEGIN_THUNK(vec, mask) 
-#define	CALL_INTR(vec, unit, name)
-#define	END_THUNK(vec)
+#define	CALL_INTR(vec,name)	(void) __INTR (name) (vec);
 
-#define	INTR_THUNK(vec, unit, mask, name) \
-		{ vec, unit, mask, __INTR (name) }
+#define	END_THUNK(vec) \
+		ddi_cpu_data ()->dc_int_level --; \
+		__SET_BASE_MASK (oldmask); \
+	}
 
-#else	/* ! __COHERENT__ */
-
-#error	I dont know how to configure the interrupts for your system
+#define	INTR_THUNK(vec)		{ vec, __VECTOR (vec) }
 
 #endif
 

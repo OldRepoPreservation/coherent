@@ -1,5 +1,3 @@
-# /usr/spool/mlp/controls
-#
 # Comments begin with with a pound sign.  Both comments and blank lines
 # are ignored
 
@@ -71,4 +69,4 @@ logroll = 240
 
 default = main
 printer = disk, /dev/null, disk
-printer = hpfont, /dev/rhp, default
+printer=main,/dev/lp,default

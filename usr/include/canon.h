@@ -1,17 +1,15 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef	__CANON_H__
-#define	__CANON_H__
-
 /*
  * Coherent.
  * Canonical conversion routines for the Intel 8086.
  */
+
+#ifndef	__CANON_H__
+#define	__CANON_H__
 
 long	_canl();
 

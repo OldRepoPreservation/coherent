@@ -1,10 +1,8 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
 #ifndef	__SYS_LPIOCTL_H__
 #define	__SYS_LPIOCTL_H__
 

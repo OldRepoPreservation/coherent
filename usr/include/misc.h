@@ -1,33 +1,26 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT 386 Device Driver Kit release 2.0
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
 
+/*
+ * /usr/include/misc.h
+ * Miscellaneous useful user functions.
+ * Sugggestions and additions are welcome.
+ *
+ * Revised Wed Mar 24 16:44:33 1993 CST
+ */
 #ifndef __MISC_H__
 #define __MISC_H__
 
-/*
- * Miscellaneous user functions.
- */
 #ifndef OFFSETOF
 
-/*
- * Do not use this, use offsetof () from <stddef.h> instead.
- */
+/* Handy defines */
 #define OFFSETOF(type, mem) (&((char *)((type *)NULL)->m) - NULL)
-
 #define ENDOF(x) (((char *)(x))+sizeof(x)) /* end of some thing */
-
 #define SETIN(a, b) !((a) & ~(b))	/* a in b */
 
-/*
- * This code has no portable equivalent; note that subtracting two pointers
- * in C yields a value of type ptrdiff_t (defined in <stddef.h>), but any
- * attempt to deal with the difference between two pointers not derived from
- * the same object yields undefined behaviour.
- */
 #ifdef M68000
 #define ptrdiff(a, b) ((long)a - (long)b)
 #else
@@ -39,6 +32,15 @@
 #endif
 
 #include <stdio.h>
+
+/*
+ * Needed for select()
+ */
+struct timeval {
+	long tv_sec;
+	long tv_usec;
+};
+
 #include <sys/select.h>
 
 extern void fatal();	/* like fprintf(stderr, ...); exit(1); */

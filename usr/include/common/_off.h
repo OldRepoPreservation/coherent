@@ -1,16 +1,11 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON__OFF_H__
 #define	__COMMON__OFF_H__
 
 /*
  * This internal header file is intended as the sole point of definition for
- * the POSIX.1 data type "off_t". 
+ * the POSIX.1 data type "off_t". To support cross-compilation environments,
+ * this header file uses a variety of feature tests to avoid conflict with
+ * definitions supplied by the translator headers.
  */
 
 #include <common/__off.h>

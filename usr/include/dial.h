@@ -1,9 +1,9 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
+/*
+ * $Log:	/usr/src/cmd/include/RCS/dial.h,v $
+ * Revision 1.1	89/04/26  16:24:50 	root
+ * Initial revision
+ * 
+ */
 
 #ifndef	__DIAL_H__
 #define	__DIAL_H__

@@ -1,4 +1,4 @@
-# /usr/spool/mlp/backend/default
+:
 #
 # A sample backend script.
 #
@@ -22,17 +22,9 @@
 #    $2 = user name
 #    $3 = number of copies
 
-# Uncomment the following for banner page
-#
-# banner " "
-# banner "#""$1"
-# banner "$2"
-# echo -n "\f"
 
-# Move the application text lines to the device
+banner " "; banner "#""$1"; banner "$2"; echo "\f\c"  # Banner page
 
-cat
+cat      # Move the application text lines to the device
 
-# Uncomment the following to make sure that the printer is at top-of-form
-#
-# echo -n "\f"
+echo "\f\c"   # Make sure that the printer is at top-of-form

@@ -1,4 +1,0 @@
-t3800|teleray 3800 series,
-	cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=\EK, ed=\EJ, 
-	cup=\EY%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=\EH, cub1=^H, cuf1=\EC, 
-	ll=\EY7 , cuu1=^K, ind=^J, ht=^I, 

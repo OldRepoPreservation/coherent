@@ -1,17 +1,14 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
+/*
+ * /usr/include/ieeefp.h
+ *
+ * Describes the stack frame presented to a user signal handler,
+ * including (optional) floating point context.
+ *
+ * Revised Mon Mar 22 13:11:43 1993 CST
+ */
 
 #ifndef __IEEEFP_H__
 #define __IEEEFP_H__
-
-/*
- * Describes the stack frame presented to a user signal handler,
- * including (optional) floating point context.
- */
 
 /*
  * The following magic numbers index the "reg" part of a saved signal context.

@@ -1,29 +1,21 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1993 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
-
-#ifndef __PATH_H__
-#define __PATH_H__
-
-/*
- * This header defines constants and function declarations that are not part
- * of any standard.  Users of the path () function are referred to the
- * POSIX standards for portable alternatives.
- */
-
 /*
  * Path lookup.
  *
- * Path takes a path search list, a file name, and an access mode, and
- * searches each directory in the path list for a file with the given name and
- * access mode.
- * The constructed pathname, which is kept in a static buffer, is returned on
- * success. NULL is returned if either pointer argument is NULL, or if the
- * search failed.
+ * Path takes a path search list, a file name, and an access mode,
+ * and searches each directory in the path list
+ * for a file with the given name and access mode.
+ * The constructed pathname, which is kept in a static buffer,
+ * is returned on success.
+ * NULL is returned if either pointer argument is NULL,
+ * or if the search failed.
  */
+#ifndef __PATH_H__
+#define __PATH_H__
 
 #include <common/feature.h>
 #include <unistd.h>

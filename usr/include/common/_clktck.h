@@ -1,16 +1,10 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON__CLKTCK_H__
 #define	__COMMON__CLKTCK_H__
 
 /*
- * This internal header file defines the ISO C constant "CLOCKS_PER_SEC"
- * and the related POSIX.1 constant CLK_TCK.
+ * This internal header file is intended as the sole point of definition for
+ * the ISO C constant "CLOCKS_PER_SEC" and the related POSIX.1 constant
+ * CLK_TCK.
  */
 
 #include <common/feature.h>

@@ -1,5 +1,0 @@
-exidy|exidy2500|exidy sorcerer rmacs dm2500,
-	am, cols#64, lines#30, bel=^G, cr=^M, clear=^^, el=^W, ed=^X, 
-	cup=^L%p2%'`'%^Ec%p1%'`'%^Ec, cud1=^J, home=^B, cub1=^H, cuf1=^\, 
-	cuu1=^Z, dch1=^H, dl1=^P^Z^X, smdc=^P, smir=^P, smso=^N, rmir=^X, 
-	rmso=^X, ich1=^\, il1=^P^J^X, ind=^J, ht=^I, 

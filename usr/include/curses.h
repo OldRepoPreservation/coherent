@@ -22,10 +22,10 @@
 *                decvax!cornell!pavel       (UUCPnet)                *
 *********************************************************************/
 
-#ifndef __CURSES_H__
-#define	__CURSES_H__
+#ifndef WINDOW
 
 #define USE_TERMIO
+
 #define bool    char
 
 typedef unsigned long chtype;
@@ -45,7 +45,7 @@ typedef unsigned long chtype;
 
 #define _NOCHANGE       -1
 
-#include <terminfo.h>
+#include "terminfo.h"
 
 struct _win_st {
 	short   _cury, _curx;
@@ -137,7 +137,7 @@ struct  screen  *newterm(), *set_term();
 #  define mvdelch(y,x)            mvwdelch(stdscr,y,x)
 #  define mvinsch(y,x,c)          mvwinsch(stdscr,y,x,c)
   
-#else /* defined (MINICURSES) */
+#else MINICURSES
 
 #  define addch			  m_addch
 #  define addstr                  m_addstr
@@ -213,7 +213,7 @@ struct  screen  *newterm(), *set_term();
 #  define mvwinch         no_mvwinch
 #  define mvwinsch        no_mvwinsch
 
-#endif /* defined (MINICURSES) */
+#endif MINICURSES
 
 #ifndef MINICURSES
 /* Funny "characters" enabled for various special function keys for input */
@@ -247,6 +247,6 @@ struct  screen  *newterm(), *set_term();
 #define KEY_PRINT       0532            /* print or copy */
 #define KEY_LL          0533            /* home down or bottom (lower left) */
 
-#endif /* ! defined (MINICURSES) */
+#endif MINICURSES
 
-#endif /* ! defined (__CURSES_H__) */
+#endif WINDOW

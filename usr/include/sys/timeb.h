@@ -1,27 +1,31 @@
 /* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
+ * 	COHERENT Version 3.0
+ * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	All rights reserved. May not be copied without permission.
  -lgl) */
+
+/*
+ * /usr/include/sys/timeb.h
+ *
+ * Time buffer for ftime() call.
+ * ftime() is not in BCS, but is in the extended set of calls.
+ *
+ * Revised: Wed Jul 14 11:18:09 1993 CDT
+ */
 
 #ifndef	 __SYS_TIMEB_H__
 #define	 __SYS_TIMEB_H__
 
-/*
- * Time buffer for ftime() call.
- * ftime() is not in iBCS, but is in the extended set of calls.
- */
+#include <sys/types.h>
+#include <common/_time.h>
 
-#include <common/__time.h>
-
+#pragma align 2
 struct timeb {
-	__time_t	time __ALIGN (2);	/* Time since 1970 */
-	unsigned short millitm;			/* Milliseconds */
-	short		timezone;		/* Time zone */
-	short		dstflag;		/* Daylight saving flag */
-#pragma	align 2
+	time_t	time;			/* Time since 1970 */
+	unsigned short millitm;		/* Milliseconds */
+	short	timezone;		/* Time zone */
+	short	dstflag;		/* Daylight saving time applies */
 };
-#pragma	align	/* control structure alignment with Coherent 'cc' */
+#pragma align
 
-#endif /* ! defined (__SYS_TIMEB_H__) */
+#endif /* __SYS_TIMEB_H__ */

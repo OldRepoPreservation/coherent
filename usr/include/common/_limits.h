@@ -1,17 +1,10 @@
-/* (-lgl
- *	Coherent 386 release 4.2
- *	Copyright (c) 1982, 1993 by Mark Williams Company.
- *	All rights reserved. May not be copied without permission.
- *	For copying permission and licensing info, write licensing@mwc.com
- -lgl) */
-
 #ifndef	__COMMON__LIMITS_H__
 #define	__COMMON__LIMITS_H__
 
 /*
  * This header file is the internal equivalent of the ISO C Standard header
- * file <limits.h>.  It defines many similar constants that are useful in
- * system headers for parameterizing definitions based on such things as
+ * file <limits.h>. It defines many similar constants that are useful in
+ * system headers for parameterising definitions based on such things as
  * the representation ranges of various types, but the names of the constants
  * are prefixed with underscores to stay in the implementation namespace.
  *
@@ -21,12 +14,12 @@
  * type rules. If they don't, well, this will tell you that.
  *
  * Note that the "fundamental" constants can be determined at run-time in
- * a portable fashion, but because we need them for the preprocessor we must
+ * a portable fashion, but since we need them for the preprocessor we must
  * depend on someone running such a program and supplying them.
  *
  * The fundamental parameters:
- *	__CHAR_BIT	The number of bits in a character. Although most
- 			systems	built in the 1990s have 8, others are possible.
+ *	__CHAR_BIT	The number of bits in a character. While most systems
+ *			built in the 1990s have 8, others are possible.
  *	__SHORT_DIV	The factor by which to divide the number of bits in
  *			an integer by to give the number of bits in a short.
  *	__TWOSCOMP	This contains 1 if the representation is twos-
@@ -44,7 +37,7 @@
 
 #if	__COHERENT__ || __BORLANDC__ || defined (GNUDOS)
 
-# define	__CHAR_BIT	8U
+# define	__CHAR_BIT	8
 # define	__TWOSCOMP	1
 
 #if	'\x80' < 0
@@ -126,13 +119,13 @@
 
 
 /*
- * A frequent use of all the above is to figure out a mapping from the C data
- * types to machine 8/16/32-bit specific idioms, where the actual assignment
- * of data types to machine widths is highly variable (perhaps even controlled
- * by a compiler switch).
+ * A fequent use of all the above shenanigans is to figure out a mapping from
+ * the C data types to machine 8/16/32-bit specific idioms, where the actual
+ * assignment of data types to machine widths is highly variable (perhaps even
+ * controlled by a compiler switch).
  *
  * Here we create standard aliases for the 8-bit-multiple cases, which careful
- * programs can use token-pasting with to further parameterize things.  If
+ * programs can use token-pasting with to further parameterize things. If
  * other macros use the __CONCAT... () facility from <sys/ccompat.h> to create
  * type-encoded macro names, the extra level of indirection in the
  * preprocessor that comes from using a concatenation macro will cause the
@@ -165,33 +158,6 @@
 # define	__LONG		32
 #elif	__LONG_BIT == 64
 # define	__LONG		64
-#endif
-
-
-/*
- * Of course, the reverse of the above is also highly useful; being able to
- * select the data type that is the best match for a particular width is very
- * useful for setting up data types that must match some external protocol
- * specification (although one much be very careful of alignment issues, which
- * are beyond our scope here).
- *
- * Here we define some reverse mappings from the above.  Although the tests
- * below are clearly biased towards the current state of affairs, at least we
- * have taken steps to parameterize this whole thing.
- */
-
-#if	__CHAR_BIT == 8
-# define	__8	_UCHAR
-#endif
-
-#if	_SHRT_BIT == 16
-# define	__16	_USHRT
-#endif
-
-#if	_INT_BIT == 32
-# define	__32	_UINT
-#elif	_LONG_BIT == 32
-# define	__32	_ULONG
 #endif
 
 #endif	/* ! defined (__COMMON__LIMITS_H__) */

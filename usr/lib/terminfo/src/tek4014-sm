@@ -1,3 +1,0 @@
-tek4014-sm|4014-sm|tektronix 4014 in small font,
-	os, cols#121, lines#58, bel=^G, cr=^M, clear=\E^L$<1000>, cud1=^J, 
-	cub1=^H, ff=^L$<1000>, is2=\E^O\E:, 
