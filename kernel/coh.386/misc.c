@@ -40,39 +40,6 @@ extern unsigned t_piggy;
 #endif
 
 /*
- * Copy `n' bytes from `bp1' to `bp2'.
- */
-kkcopy(bp1, bp2, n)
-register char *bp1;
-register char *bp2;
-unsigned n;
-{
-	register unsigned n1;
-
-	n1 = n;
-	if (n1) {
-		do {
-			*bp2++ = *bp1++;
-		} while (--n1);
-	}
-	return (n);
-}
-
-/*
- * Clear the next `n' bytes starting at `bp'.
- */
-kclear(bp, n)
-register char *bp;
-register unsigned n;
-{
-	if (n) {
-		do {
-			*bp++ = 0;
-		} while (--n);
-	}
-}
-
-/*
  * Make sure we are the super user.
  */
 super()
@@ -150,3 +117,39 @@ char *a1;
 	printf("(%d,%d): %r", major(dev), minor(dev), &a1);
 	printf("\n");
 }
+
+#if 0
+/*
+ * Copy 'n' bytes from 'bp1' to 'bp2'.
+ * Return 'n'.
+ */
+kkcopy(bp1, bp2, n)
+register char *bp1;
+register char *bp2;
+unsigned n;
+{
+	register unsigned n1;
+
+	n1 = n;
+	if (n1) {
+		do {
+			*bp2++ = *bp1++;
+		} while (--n1);
+	}
+	return (n);
+}
+
+/*
+ * Clear the next `n' bytes starting at `bp'.
+ */
+kclear(bp, n)
+register char *bp;
+register unsigned n;
+{
+	if (n) {
+		do {
+			*bp++ = 0;
+		} while (--n);
+	}
+}
+#endif
