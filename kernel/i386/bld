@@ -196,6 +196,7 @@ then
 	OPTS=${OPTS}" ${K386OBJ}/mmas.o ${K386OBJ}/mm.o"
 fi
 make "CFLAGS=$CFLAGS" "CC=$CC" ${KEROBJ} 	|| exit 1
+make "CFLAGS=$CFLAGS" "CC=$CC" libs 	|| exit 1
 set -x
 
 #if [ -f $TARGET ]

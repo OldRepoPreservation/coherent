@@ -410,7 +410,7 @@ register unsigned nfd;
 	if ((fdp=fdget(ofd&~DUP2)) == NULL)
 		return (-1);
 	if ((ofd&DUP2) != 0) {
-		if (nfd >= NUFILE) {
+		if (nfd >= NOFILE) {
 			u.u_error = EBADF;
 			return (-1);
 		}
@@ -423,10 +423,10 @@ register unsigned nfd;
 				return (-1);
 		}
 	} else {
-		for (nfd=0; nfd<NUFILE; nfd++)
+		for (nfd=0; nfd<NOFILE; nfd++)
 			if (u.u_filep[nfd] == NULL)
 				break;
-		if (nfd == NUFILE) {
+		if (nfd == NOFILE) {
 			u.u_error = EMFILE;
 			return (-1);
 		}

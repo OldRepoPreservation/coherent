@@ -13,7 +13,7 @@
 / Uses repeated dword copy for efficiency.
 //////////
 
-String	.equ	8
+String	.equ	12
 Char	.equ	String+4
 Count	.equ	Char+4
 
@@ -22,6 +22,9 @@ Count	.equ	Char+4
 
 memset:
 	push	%edi
+	push	%es			/ save es
+	push	%ds			/ copy ds to es
+	pop	%es
 
 	movl	%edi, String(%esp)	/ String address to EDI
 
@@ -32,10 +35,6 @@ memset:
 	movl	%ecx, Count(%esp)	/ Count to ECX
 	movl	%edx, %ecx		/ Save Count in EDX
 	shrl	%ecx, $2		/ Count/4
-
-	push	%es			/ save es
-	push	%ds			/ copy ds to es
-	pop	%es
 
 	cld
 	rep

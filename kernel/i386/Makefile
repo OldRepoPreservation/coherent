@@ -64,6 +64,8 @@ I386OBJ =\
 	$(K386OBJ)/ff.o \
 	$(K386OBJ)/md.o \
 	$(K386OBJ)/mem_cache.o \
+	$(K386OBJ)/memcpy.o \
+	$(K386OBJ)/memset.o \
 	$(K386OBJ)/mmu.o \
 	$(K386OBJ)/sys1632.o \
 	$(K386OBJ)/tioc.o \
@@ -168,12 +170,13 @@ $(K386LIB)/kl386.a: \
 	$(K386OBJ)/shmcon.o \
 	$(K386OBJ)/ss.o \
 	$(K386OBJ)/tty.o \
-	memcpy.o
+	$(K386OBJ)/memcpy.o \
+	$(K386OBJ)/memset.o
 	rm -f $@
 	$(AR) $(ARFLAGS) $@ $<
 
-$(K386LIB)/ker386.o: $(I386OBJ) coh io memcpy.o memset.o
-	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ) memcpy.o memset.o
+$(K386LIB)/ker386.o: $(I386OBJ) coh io
+	ld -r -o $@ $(I386OBJ) $(COHOBJ) $(IOOBJ)
 
 coh:
 	cd ../coh.386; make "CFLAGS=$(CFLAGS)" "CC=$(CC)"
@@ -186,9 +189,6 @@ ver:
 
 libs:	$(LIBLIST)
 	@/bin/echo "Installation libraries up to date."
-
-$(K386OBJ)/memset.o: memset.s
-	$(AS) -g -o $@ memset.s
 
 $(K386OBJ)/as.o: as.s as.inc
 	$(AS) -g -o $@ as.s
@@ -247,6 +247,12 @@ $(K386OBJ)/md.o: md.c
 
 $(K386OBJ)/mem_cache.o: mem_cache.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(K386OBJ)/memcpy.o: memcpy.s
+	$(AS) -g -o $@ memcpy.s
+
+$(K386OBJ)/memset.o: memset.s
+	$(AS) -g -o $@ memset.s
 
 $(K386OBJ)/tioc.o: tioc.c
 	$(CC) $(CFLAGS) -c -o $@ $<
