@@ -223,8 +223,12 @@ gotoker_:
 	mov	bp, sp
 	mov	es, 6(bp)	/ Point es at the new data segment.
 	mov	si, $seconddat	/ Point ds:si at useful data.
-	add	sp, $2
-	.byte	RETF
+/	add	sp, $2
+/	.byte	RETF
+	mov	bx, bp
+	add	bx, $2
+	xcall	(bx)
+	ret
 
 
 ////////
