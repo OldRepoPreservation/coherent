@@ -21,8 +21,12 @@ lib_set_term.c:	additions for alternate character set
 
 lib_setacs.c:	NEW, initialize alternate character set map
 
+lib_napms.c:	NEW, sleep for some millisecounds
+
 lib_addch.c:	secound parameter changed to chtype
 
 lib_addstr.c:	do not sign extend 8-bit chars
 
 lib_doupdate:	clear attributes in ClearScreen
+
+lib_getch.c:	improved alarm signal handling
