@@ -229,7 +229,9 @@ again:
 	case AFOR:
 		if (++fwlevel >= NNEST)
 			awkerr(toodeep);
-		for (evalact(np->n_O1); evalint(np->n_O2); evalact(np->n_O3)) {
+		if (np->n_O1 != NULL)
+			evalact(np->n_O1);
+		for ( ; evalint(np->n_O2); evalact(np->n_O3)) {
 			if ((i = setjmp(fwenv[fwlevel])) == ABREAK)
 				break;
 			else if (i == ACONTIN)
