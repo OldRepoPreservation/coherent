@@ -19,6 +19,7 @@ char *argv[];
 	static char copen[] = "%s: cannot open.\n";
 
 	nfile = argc-1;
+	efp = stdout;
 	for (i=1; i<argc; ++i) {
 		p = argv[i];
 		if (*p == '-') {
@@ -34,6 +35,7 @@ char *argv[];
 
 				case 'l':
 					++lflag;
+					efp = stderr;
 					break;
 
 				case 'o':
@@ -139,12 +141,10 @@ char *argv[];
 	}
 	outfinish();
 	if (nerr != 0) {
-		if (lflag) {
-			fprintf(stderr, "%d error", nerr);
-			if (nerr != 1)
-				putc('s', stderr);
-			fprintf(stderr, " detected.\n");
-		}
+		if (lflag)
+			fprintf(efp, "%d error%s detected\n",
+				nerr, ((nerr != 1) ? "s" : ""));
+		unlink(ofn);
 		exit(1);
 	}
 #if !RSX && !CPM
@@ -174,7 +174,7 @@ loop:
 		return;
 	if (ctype[c] == DIGIT) {
 		if (get() != ':')
-			qerr();
+			qerr("invalid local symbol");
 		tsp = &tsymp[c-'0'];
 		if (pass == 0) {
 			tp = (struct tsym *) new(sizeof(struct tsym));
@@ -199,12 +199,12 @@ loop:
 		goto loop;
 	}
 	if (ctype[c] != LETTER) 
-		qerr();
+		qerr("invalid identifier");
 	getid(id, c);
 	if ((c=getnb()) == ':') {
 		sp = lookup(id, 1);
 		if (sp == dot)
-			err('.');
+			err('.', "'.' declared as label");
 		if (pass == 0)
 			if (sp->s_type!=S_NEW && (sp->s_flag&S_ASG)==0)
 				sp->s_flag |= S_MDF;
@@ -216,7 +216,7 @@ loop:
 			sp->s_addr = dot->s_addr;
 		} else {
 			if ((sp->s_flag&S_MDF) != 0)
-				err('m');
+				err('m', "multiply defined symbol");
 			phase(sp->s_base.s_lp, sp->s_addr);
 		}
 		lmode = ALIST;
@@ -237,7 +237,7 @@ loop:
 #endif
 		} else {
 			if (sp->s_type!=S_NEW && (sp->s_flag&S_ASG)==0)
-				err('m');
+				err('m', "multiply defined symbol");
 			sp->s_kind = S_USER;
 			sp->s_type = e1.e_type;
 			if (e1.e_type == E_ASEG)
@@ -256,7 +256,7 @@ loop:
 	unget(c);
 	lmode = CLIST;
 	if ((sp=lookup(id, 0)) == NULL) {
-		err('o');
+		uerr(id);
 		return;
 	}
 	switch (sp->s_kind) {
@@ -277,7 +277,7 @@ loop:
 
 	case S_ASCII:
 		if ((d = getnb()) == '\0')
-			qerr();
+			qerr("end of line in string");
 		while ((c = getmap(d)) >= 0)
 			outab(c);
 		lmode = BLIST;
@@ -319,7 +319,7 @@ loop:
 	case S_COMM:
 		getid(id, -1);
 		if (getnb() != ',')
-			qerr();
+			qerr("expected comma");
 		cs = locrup(absexpr());
 		sp = lookup(id, 1);
 		if (sp->s_kind == S_NEW) {
@@ -345,11 +345,11 @@ okdot(esp)
 register struct expr *esp;
 {
 	if (esp->e_type!=E_DIR || esp->e_base.e_lp!=dot->s_base.s_lp) {
-		rerr();
+		rerr("not a direct address in this segment");
 		return (0);
 	}
 	if (esp->e_addr < dot->s_addr) {
-		aerr();
+		aerr("cannot move . back");
 		return (0);
 	}
 	return (1);
@@ -373,7 +373,7 @@ struct loc *lp;
 address a;
 {
 	if (dot->s_base.s_lp!=lp || dot->s_addr!=a)
-		err('p');
+		err('p', "phase error");
 }
 
 newloc(nlp)
