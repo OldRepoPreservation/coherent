@@ -1,6 +1,6 @@
 /*
  * install.c
- * 7/6/90
+ * 10/25/90
  * Install COHERENT disks on a system.
  * This is the back end of the initial COHERENT installation procedure;
  * the first part is in build.c.
@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.8"
+#define	VERSION		"1.9"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
@@ -25,6 +25,7 @@ void	done();
 void	install();
 int	newdisk();
 void	newusr();
+void	setbaud();
 
 /* Globals. */
 int	bflag;				/* build flag		*/
@@ -32,12 +33,23 @@ char	*device;			/* special device name	*/
 char	*id;				/* disk id		*/
 int	ndisks;				/* number of disks	*/
 
+/*
+ * Baud rate table for serial port initialization.
+ * The index in the table gives the baud rate value from <sgtty.h>.
+ */
+#define	MAXBAUD	17
+int	baudrate[MAXBAUD+1] = {
+	0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2000,
+	2400, 3600, 4800, 7200, 9600, 19200
+};
+
 main(argc, argv) int argc; char *argv[];
 {
 	register char *s;
 	register int i;
 
 	argv0 = argv[0];
+	abortmsg = 1;
 	usagemsg = USAGE;
 	if (argc > 1 && argv[1][0] == '-') {
 		for (s = &argv[1][1]; *s; ++s) {
@@ -75,6 +87,15 @@ main(argc, argv) int argc; char *argv[];
 	if (bflag)
 		sys("/etc/mount.all", S_NONFATAL);
 	cls(0);
+
+#if	0
+	/* Execute prefile.  Not required for the moment. */
+	sprintf(cmd, "/conf/%s.pre", id);
+	if (exists(cmd)) {
+		cls(0);
+		sys(cmd, S_NONFATAL);
+	}
+#endif
 
 	/*
 	 * Install disks.
@@ -114,19 +135,27 @@ main(argc, argv) int argc; char *argv[];
 void
 config()
 {
-	register char *s;
-	char c1, c2;
-	char device[4+1];
+	register int port, i, polled;
+	char device[6+1];		/* e.g. "com1pr" */
 
 	cls(1);
 	if (yes_no("Does your computer system have a modem")) {
-		do {
-			s = get_line("Enter 1 if your modem is on serial port COM1, 2 if on COM2:");
-		} while ((*s != '1' && *s != '2') || *(s+1) != '\0');
-		sprintf(cmd, "/bin/ln -f /dev/com%s /dev/modem", s);
+		printf(
+"You must specify which asychronous serial line your modem will use.\n"
+"See the article \"com\" in the COHERENT documentation for details.\n"
+			);
+		port = get_int(1, 4, "Enter 1 to 4 for COM1 through COM4:");
+		i = (port > 2) ? port - 2 : port;	/* 1 or 2 */
+		printf(
+"If your computer system uses both ports COM%d and COM%d,\n"
+"one must be run in polled mode rather than interrupt-driven.\n",
+			i, i+2);
+		polled = yes_no("Do you want to run COM%d in polled mode", port);
+		sprintf(cmd, "/bin/ln -f /dev/com%d%sr /dev/modem",
+			port, (polled) ? "p" : "");
 		if (sys(cmd, S_NONFATAL) == 0)
-			printf("/dev/modem is now linked to /dev/com%s.\n",
-				s);
+			printf("/dev/modem is now linked to /dev/com%d%sr.\n",
+				port, (polled) ? "p" : "");
 		printf("\n");
 	}
 	if (yes_no("Does your computer system have a printer")) {
@@ -137,23 +166,28 @@ again:
 "through parallel port LPT1.\n"
 			);
 		if (yes_no("Is your printer connected through a parallel port")) {
-			do {
-				s = get_line("Enter 1, 2 or 3 for port LPT1, LPT2 or LPT3:");
-			} while (*s < '1' || *s > '3' || *(s+1) != '\0');
-			strcpy(device, "lpt");
+			
+			port = get_int(1, 3, "Enter 1, 2 or 3 for port LPT1, LPT2 or LPT3:");
+			sprintf(device, "lpt%d", port);
 		} else {
-			do {
-				s = get_line("Enter 1 or 2 for port COM1 or COM2:");
-			} while ((*s != '1' && *s != '2') || *(s+1) != '\0');
-			strcpy(device, "com");
+			port = get_int(1, 4, "Enter 1 to 4 for COM1 through COM4:");
+			i = (port > 2) ? port - 2 : port;
+			printf(
+"If your computer system uses both ports COM%d and COM%d,\n"
+"one must be run in polled mode rather than interrupt-driven.\n",
+				i, i+2);
+			polled = yes_no("Do you want to run COM%d in polled mode", port);
+			sprintf(device, "com%d%sl", port, polled);
+			printf("By default, COM%d runs at 9600 baud.\n", port);
+			if (yes_no("Does your device use a different baud rate"))
+				setbaud(port);
 		}
-		strcat(device, s);
 		if (yes_no("Do you want to test whether your printer configuration is correct")) {
 			/* The command below is backgrounded in case it hangs. */
 			printf("Testing /dev/%s: process ", device);
 			fflush(stdout);
 			sprintf(cmd,
-"/bin/echo -n 'This is printing on device /dev/%s.\014' >/dev/%s&",
+"/bin/echo -n 'This is printing on device /dev/%s.\r\n\014' >/dev/%s&",
 				device, device);	/* 014 is formfeed */
 			sys(cmd, S_IGNORE);
 			if (!yes_no("\nDid output appear on your printer"))
@@ -167,22 +201,6 @@ again:
 			if (sys(cmd, S_NONFATAL) == 0)
 				printf("/dev/hp is now linked to /dev/%s.\n", device);
 		}
-		printf("\n");
-	}
-	if (yes_no("Do you use both COHERENT and MS-DOS on your hard disk")) {
-		do {
-			s = get_line("Enter the partition number (0 to 7) of your MS-DOS partition:");
-		} while (*s < '0' || *s > '7' || *(s+1) != '\0');
-		*s -= '0';
-		c1 = *s < 4 ? '0' : '1';
-		c2 = 'a' + *s % 4;
-		sprintf(cmd, "/bin/ln -f /dev/at%c%c /dev/dos", c1, c2);
-		if (sys(cmd, S_NONFATAL) == 0)
-			printf(
-"/dev/dos is now linked to /dev/at%c%c.\n"
-"You can use the \"dos\" command to transfer files\n"
-"to and from the MS-DOS partition.\n",
-			c1, c2);
 		printf("\n");
 	}
 }
@@ -345,6 +363,42 @@ again:
 		}
 	}
 	printf("\n");
+}
+
+/*
+ * Set a serial port baud rate.
+ * Patch the running COHERENT image and /coherent accordingly.
+ */
+void
+setbaud(port) int port;
+{
+	register int i, baud;
+
+again:
+	printf(
+"The COHERENT serial port driver supports the following baud rates:\n"
+"	50, 75, 110, 134, 150, 200, 300, 600, 1200,\n"
+"	1800, 2000, 2400, 3600, 4800, 7200, 9600, 19200\n"
+"Enter the baud rate of your device (or 0 if your baud rate"
+		);
+	baud = get_int(0, 19200, "is not listed):");
+	if (baud == 0)
+		return;
+	for (i = 1; i <= MAXBAUD; i++)
+		if (baudrate[i] == baud)
+			break;
+	if (i > MAXBAUD) {
+		printf("COHERENT does not support baud rate %d.\n", baud);
+		goto again;
+	}
+
+	/* Patch the running COHERENT for possible subsequent test. */
+	sprintf(cmd, "/conf/patch -k /coherent C%dBAUD_=%d", port, i);
+	sys(cmd, S_NONFATAL);
+
+	/* Patch /coherent for specified baudrate. */
+	sprintf(cmd, "/conf/patch /coherent C%dBAUD_=%d", port, i);
+	sys(cmd, S_NONFATAL);
 }
 
 /* end of install.c */
