@@ -1,5 +1,6 @@
 /*
- * Convert time to ascii representation
+ * libc/gen/ctime.c
+ * Convert time to ASCII representation.
  *
  * Pseudo system-5, employs TIMEZONE environment for gmt offset,
  * timezone abbreviations, and daylight savings time information.
@@ -32,9 +33,12 @@
 #define	NWDAY	7		/* Number of weekdays */
 #define	NMON	12		/* Number of months */
 #define	todigit(c) ((c)+'0')
+#define	NTZNAME	31		/* max time zone name size */
 
 long	timezone = 0L;
-char	tzname[2][32] = { "GMT", "" };
+static	char	tz0[NTZNAME+1] = "GMT";
+static	char	tz1[NTZNAME+1] = "";
+char	*tzname[2] = { tz0, tz1 };
 char	tzdstdef[] = "1.1.4:-1.1.10:2:60......";
 static	struct	dsttimes {
 	char dst_month, dst_day, dst_occur;
@@ -66,9 +70,9 @@ settz()
 
 	/* Read primary timezone name and nul terminate */
 	cp2 = tzname[0];
-	while (*cp1 && *cp1 != ':' && cp2 < &tzname[0][31])
+	while (*cp1 && *cp1 != ':' && cp2 < &tzname[0][NTZNAME])
 		*cp2++ = *cp1++;
-	*cp2++ = 0;
+	*cp2++ = '\0';
 	while (*cp1 && *cp1++ != ':');
 
 	/* Read timezone offset and convert to seconds */
@@ -77,13 +81,13 @@ settz()
 
 	/* Read daylight timezone name and nul terminate */
 	cp2 = tzname[1];
-	while (*cp1 && *cp1 != ':' && cp2 < &tzname[1][31])
+	while (*cp1 && *cp1 != ':' && cp2 < &tzname[1][NTZNAME])
 		*cp2++ = *cp1++;
-	*cp2++ = 0;
+	*cp2++ = '\0';
 	while (*cp1 && *cp1++ != ':');
 
 	/* Exit if no daylight time */
-	if (tzname[1][0] == 0)
+	if (tzname[1][0] == '\0')
 		return;
 
 	/* Set default dst parameters */
@@ -151,7 +155,7 @@ char *
 ctime(tp)
 long *tp;
 {
-	return (asctime(localtime(tp)));
+	return asctime(localtime(tp));
 }
 
 /*
@@ -167,16 +171,17 @@ long *tp;
 	settz();
 	ltime = *tp - timezone;
 	gmtime(&ltime);
+
 	/*
 	 * If necessary, adjust for daylight saving time.
 	 */
 	if (isdaylight()) {
 		ltime = *tp - timezone + dstadjust;
 		gmtime(&ltime);
-		tm.tm_isdst = (dstadjust != 0);
+		tm.tm_isdst = 1;
 	} else
 		tm.tm_isdst = 0;
-	return (&tm);
+	return &tm;
 }
 
 /*
@@ -244,7 +249,7 @@ struct tm *tmp;
 	*cp++ = todigit(i%10);
 	*cp++ = '\n';
 	*cp++ = '\0';
-	return (timestr);
+	return timestr;
 }
 
 /*
@@ -298,7 +303,7 @@ long *tp;
 		days -= *mp;
 	tm.tm_mon = mp-dpm;
 	tm.tm_mday = days+1;
-	return (&tm);
+	return &tm;
 }
 
 /*
@@ -309,10 +314,8 @@ isleap(yr)
 register yr;
 {
 	if (yr%4000 == 0)
-		return (0);
-	if (yr%400==0 || (yr%100!=0 && yr%4==0))
-		return (1);
-	return (0);
+		return 0;
+	return (yr%400==0 || (yr%100!=0 && yr%4==0));
 }
 
 /*
@@ -324,23 +327,23 @@ isdaylight()
 	register int xday;
 
 	if (tzname[1][0] == 0)		/* No name, no daylight time */
-		return (0);
+		return 0;
 	if (tm.tm_mon < dsttimes[0].dst_month)
-		return (0);
+		return 0;
 	else if (tm.tm_mon == dsttimes[0].dst_month) {
 		xday = nthday(&dsttimes[0]);
 		if (tm.tm_mday != xday)
 			return (tm.tm_mday > xday);
 		return (tm.tm_hour >= dsthour);
 	} else if (tm.tm_mon < dsttimes[1].dst_month)
-		return (1);
+		return 1;
 	else if (tm.tm_mon == dsttimes[1].dst_month) {
 		xday = nthday(&dsttimes[1]);
 		if (tm.tm_mday != xday)
 			return (tm.tm_mday < xday);
 		return (tm.tm_hour < dsthour-1);
 	}
-	return (0);
+	return 0;
 }
 
 static
@@ -366,5 +369,7 @@ register struct dsttimes *dp;
 			nthday -= 7;
 		while (++nth < 0);
 	}
-	return (nthday);
+	return nthday;
 }
+
+/* end of ctime.c */
