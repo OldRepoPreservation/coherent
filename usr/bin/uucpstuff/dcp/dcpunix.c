@@ -180,17 +180,24 @@ char *dev, *speed, *tel;
 	 * and re-enables any ports if necessary. Bob H. 11/22/91
 	 */
 
+	/* hangup is only called if we are in MASTER mode. If we are slave, then
+	 * we're basically a shell with sdtout and stdin as out read/write
+	 * devices. If slave, then we simply close stdout and stdin.
+	 */
 dcpundial()
 {
 	printmsg(M_DEBUG,"dcpundial: about to call hangup().");
 
-	if (swritefd > 2)
+	if (role == MASTER)
 		hangup(swritefd);
 	else {
 #if 0
 		ioctl(swritefd, TIOCHPCL);
 #endif
-		close(swritefd);
+		/* slave mode */
+		close(swritefd); /* stdout */
+		close(sreadfd);  /* stdin  */
+		close(2);	 /* stderr */
 	}
 
 #if 0
