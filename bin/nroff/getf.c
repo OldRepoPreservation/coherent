@@ -14,7 +14,7 @@
  * If character is escaped but not recognized as a special escape sequence,
  * set escflag and return character unchanged.
  */
-getf(flags)
+getf(flags) int flags;
 {
 	register REG *rp;
 	register int c, n;
@@ -171,7 +171,7 @@ register char *cp;
  * Get a character from the current input source.
  * If EOF is seen: return EOF if eofflag, die if !eofflag.
  */
-getl(eofflag)
+getl(eofflag) int eofflag;
 {
 	register STR *sp;
 	int n;

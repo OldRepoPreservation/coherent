@@ -1,24 +1,28 @@
 /*
  * fwtable.c
- * 4/9/91
- * Usage: fwtable [ -cpv ] [ infile [ outfile ] ]
- * Read HP PCL bitmap font or PostScript AFM file from infile or stdin,
- * write font width table to outfile or stdout.
+ * 6/7/91
+ * Usage: fwtable [ -cptv ] [ -ssymset ] [ infile [ outfile ] ]
+ * Read HP PCL bitmap font, PostScript AFM file, or HP TFM file
+ * from infile or stdin, write font width table to outfile or stdout.
  *
- * Requires floating point output, PostScript routines in fwtableps.c:
- *	cc fwtable.c fwtableps.c -f
+ * Requires floating point output, PostScript routines in fwt_PS.c,
+ * TFM routines in fwt_TFM.c:
+ *	cc fwtable.c fwt_PS.c fwt_TFM.c -f
  *
  * Options:
  *	-c		Write C instead of binary
  *	-p		Input is PostScript AFM file
+ *	-ssymset	Specify desired symbol set with -t option
+ *	-t		Input is HP TFM file
  *	-v		Write one-line font description to stderr
  *
- * Understands PCL bitmap fonts and PostScript AFM files.
+ * Understands PCL bitmap fonts, PostScript AFM files, HP TFM files.
  * Does not understand Intellifont scalable fonts.
  *
  * The following had better agree about the binary FWT format:
  *	troff/fwtable.c/dump_chartab()	writes binary FWT from HP PCL
- *	troff/fwtableps.c/output()	writes binary FWT from PostScript AFM
+ *	troff/fwt_PS.c/outputPS()	writes binary FWT from PostScript AFM
+ *	troff/fwt_TFM.c/outputTFM()	writes binary FWT from HP TFM
  *	troff/fonts.c/loadfont()	reads binary FWT for troff
  *
  * Modified 12/12/90-12/28/90 by steve from dag's original hptable.c source;
@@ -27,19 +31,7 @@
 
 #include <stdio.h>
 #include <canon.h>
-
-extern	long	ftell();
-extern	char	*malloc();
-
-/* Manifest constants. */
-#define	USAGE	"Usage: fwtable [ -cpv ] [ infile [ outfile ] ]\n"
-#define	FLAG_PCL 1			/* PCL font width table flag */
-#define	NBUF	512
-#define	NWIDTH	256			/* character buffer size */
-#define	VERSION	"1.2"
-
-/* Type definitions. */
-typedef unsigned char uchar;
+#include "fwtable.h"
 
 /* PCL bitmap font descriptor format.  Cf. "HP LJ III Tech Ref Man", p. 10-7. */
 typedef struct fnt_hdr {
@@ -96,29 +88,7 @@ typedef struct chr_hdr {
 	short	c_delta_x;		/* delta X		*/
 	uchar	c_data[0];		/* character data	*/
 } character_header;
-
-/* Forward. */
-char		*alloc();
-void		base();
-int		char_code();
 character_header *char_def();
-void		dump_chartab();
-void		dump_glyph();
-void		escape();
-void		escape_cparen();
-void		escape_oparen();
-void		escape_star();
-void		fatal();
-void		getextra();
-int		getparm();
-short		getshort();
-unsigned int	getuchar();
-void		nonfatal();
-void		ofpwrite();
-void		putint();
-void		putstring();
-void		read_header();
-void		usage();
 
 /* Global arrays. */
 /*
@@ -201,11 +171,10 @@ FILE		*ifp = stdin;		/* The input FILE	*/
 int		ipointsz;		/* Integer point size	*/
 FILE		*ofp = stdout;		/* The output FILE	*/
 int		pflag;			/* PostScript input	*/
+char		*symset;		/* Desired symbol set	*/
+int		tflag;			/* TFM input		*/
 int		this_char;		/* Current character	*/
 int		vflag;			/* Verbose		*/
-
-/* Globals in fwtableps.c. */
-extern	int	lineno;
 
 main(argc, argv) int argc; char *argv[];
 {
@@ -221,6 +190,15 @@ main(argc, argv) int argc; char *argv[];
 			case 'p':
 				++pflag;
 				break;
+			case 's':
+				symset = ++s;
+				while (*s)
+					++s;
+				--s;
+				break;
+			case 't':
+				++tflag;
+				break;
 			case 'v':
 				++vflag;
 				break;
@@ -234,6 +212,10 @@ main(argc, argv) int argc; char *argv[];
 		--argc;
 		++argv;
 	}
+	if (pflag && tflag)
+		fatal("options -p and -t are mutually exclusive");
+	if (symset != NULL && !tflag)
+		fatal("-s option requires -t option");
 
 	/* Set up input and output FILEs. */
 	if (argc > 1 && (ifp = fopen(argv[1], "rb")) == NULL)
@@ -246,8 +228,12 @@ main(argc, argv) int argc; char *argv[];
 	/* Do the work. */
 	if (pflag) {
 		/* PostScript. */
-		input();
-		output();
+		inputPS();
+		outputPS();
+	} else if (tflag) {
+		/* TFM. */
+		inputTFM();
+		outputTFM();
 	} else {
 		/* PCL. */
 		if (argc > 1 && cflag)
@@ -363,7 +349,7 @@ dump_chartab()
 	 *	deltax * 720 / 1200.
 	 * and 720/1200 == 3/5.
 	 * troff multiplies by pointsize, this predivides accordingly;
-	 * this is historical and probably wrongheaded.
+	 * this simplifies scaling.
 	 */
 	mult = 3;
 	div = ipointsz * 5;

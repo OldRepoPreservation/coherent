@@ -2,13 +2,19 @@
  * process.c
  * nroff/Troff.
  * Formatting.
+ * This source module does the serious work.
+ * Environmental variables:
+ *	nlinptr	points to next location in linebuf[]
+ *	nlinsiz	contains current horizontal size of linebuf[]
+ *	nlindir	contains non-space directive count
+ *	llinsiz contains horizontal size to end of last word which fits
+ *	tlinsiz	contains horizontal size to previous tab (before expansion)
+ * Very confusing, the way the buffering works should be cleaned up eventually.
  */
 
 #include <ctype.h>
 #include <ascii.h>
 #include "roff.h"
-
-#define	vermove(d)	addidir(DVMOV, (d))	/* vertical movement */
 
 #define	CHYPHEN	'-'				/* hyphenation character */
 
@@ -19,6 +25,20 @@ chkcode()
 {
 	if (nlinptr >= &linebuf[LINSIZE])
 		panic("line buffer overflow");
+}
+
+/* Flush buffered data to avoid buffer overflow. */
+flush(hpos) register int hpos;
+{
+	if (hpos)
+		hormove(-hpos);		/* reset output writer position to margin */
+	if (cdivp == mdivp)
+		flushl(linebuf, nlinptr);
+	else
+		flushd(linebuf, nlinptr);
+	setline();			/* reset buffer pointers */
+	if (hpos)
+		hormove(hpos);		/* restore horizontal position */
 }
 
 /*
@@ -41,8 +61,7 @@ addidir(d, i)
 {
 	chkcode();
 	nlinptr->l_arg.c_code = d;
-	nlinptr->l_arg.c_iarg = i;
-	nlinptr++->l_arg.c_csp = 0;
+	nlinptr++->l_arg.c_iarg = i;
 }
 
 /*
@@ -184,72 +203,15 @@ process()
 			rp->n_reg.r_nval = nlinsiz;
 			continue;
 		case EHLF:		/* Horizontal line drawing function */
-			/*
-			 * This still does not handle line drawing with
-			 * characters other than under-bar.
-			 */
 			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, 1L, 1L) : 0;
 			dprint2(DBGPROC, ".horiz line %d\n", n);
-			if (n == 0)
-				continue;
-			else if (n < 0) {
-				hormove(n);
-				n = -n;
-			}
-			c = curfont;
-			dev_font(ufn);
-			w = width('_');
-			if (n < w) {
-				/* Line length less than '_' width. */
-				hormove(- ((w-n)/2));
-				addchar('_', n + w/2);
-				dev_font(c);
-				continue;
-			}
-			if (n % w != 0)
-				addchar('_', n%w);
-			n /= w;
-			while (n-- != 0)
-				addchar('_', w);
-			dev_font(c);
+			draw_line(n, 1);
 			continue;
 		case EVLF:		/* Vertical line drawing function */
-			dprintd(DBGPROC, ".vertical line\n");
-#if	1
-			printu("vertical line drawing");	/* $$TO_DO$$ */
-			continue;
-#else
 			n = scandel(charbuf, CBFSIZE) ? numb(charbuf, 1L, 1L) : 0;
 			dprint2(DBGPROC, ".vert line %d\n", n);
-			if (n == 0)
-				continue;
-			else if (n < 0) {
-				vermove(n);
-				n = -n;
-			}
-			c = curfont;
-			dev_font(ufn);
-			w = unit(SMVEMS, SDVEMS);
-			if (n < w) {
-				/* Line length less than '_' width. */
-				vermove(-((w-n)/2));
-				addchar('|', 0);
-				vermove(((w-n)/2));
-				dev_font(c);
-				continue;
-			}
-			if (n % w != 0) {
-				addchar('|', 0);
-				vermove(n%w);
-			}
-			n /= w;
-			while (n-- != 0) {
-				addchar('|', 0);
-				vermove(w);
-			}
-			dev_font(c);
+			draw_line(n, 0);
 			continue;
-#endif
 		case EOVS:		/* Overstrike */
 			dprintd(DBGPROC, ".overstrike\n");
 			scandel(charbuf, CBFSIZE);
@@ -269,7 +231,7 @@ process()
 		case ESPR:		/* Break and spread output line */
 			dprintd(DBGPROC, ".break and spread\n");
 			wordbreak(DNULL);
-			linebreak();
+			linebreak(1);
 			continue;
 		case EVRM:		/* Reverse 1 em vertically */
 			dprintd(DBGPROC, ".reverse vertical\n");
@@ -322,12 +284,6 @@ process()
 		case '\t':
 		case ETAB:
 			dprintd(DBGPROC, ".tab\n");
-			if (spcnt != 0
-			 && (llinptr->l_arg.c_code == DHYPH
-			  || llinptr->l_arg.c_code == DHMOV))
-				if (spcnt < ((tabptr + 1)->t_pos - tabptr->t_pos))
-					llinptr->l_arg.c_csp = spcnt;
-			spcnt = 0;
 			wordbreak(DHMOV);
 			movetab(tbc);
 			continue;
@@ -348,10 +304,8 @@ process()
 			default:
 				pad(ssz);
 			}
-			if (fill==0 || cec) {
-				spcnt = 0;
-				linebreak();
-			}
+			if (fill==0 || cec)
+				linebreak(1);
 			if (cec)
 				--cec;
 			if (ulc) {
@@ -368,10 +322,8 @@ process()
 				setbreak();
 			else
 				wordbreak(DPADC);
-
 			if (fill || varsp) {
 				pad(ssz);
-				spcnt += ssz;
 				continue;
 			}
 		case EDWS:		/* Digit width space */
@@ -403,6 +355,96 @@ process()
 }
 
 /*
+ * Draw a horizontal (if hflag) or vertical (if !hflag) line of given length.
+ * This does not handle line drawing with characters other than '_' or '|';
+ * to make it do so, modify number() to store a pointer past the last used char.
+ * If len is positive, draw right or draw down.
+ * If len is negative, move horizontally and then draw right, or draw up.
+ */
+draw_line(len, hflag) register int len; int hflag;
+{
+	register int c, move, hmove, vmove, hpos, negflag, count, excess, savfont;
+
+	if (len == 0)
+		return;				/* no work */
+	hpos = nlinsiz;				/* current horizontal position */
+	if (hflag && len > 0)
+		hpos += len;			/* hpos after line drawn */
+
+#if	1
+	/*
+	 * Implement PostScript lines with PostScript.
+	 * If conditionalized out, troff -p uses character line drawing.
+	 */
+	if (pflag) {
+		addidir((hflag) ? DHLIN : DVLIN, len);
+		flush(hpos);
+		return;
+	}
+#endif
+	negflag = (len < 0);			/* movement is negative */
+	if (negflag)
+		len = -len;			/* absolute length */
+	savfont = curfont;
+	dev_font(ufn);				/* use underline font */
+	if (hflag) {
+		/* Horizontal line. */
+		c = '_';			/* character */
+		move = hmove = width(c);	/* horizontal movement */
+		vmove = 0;			/* vertical movement */
+	} else {
+		/* Vertical line. */
+		c = '|';			/* character */
+		hmove = 0;			/* effective width */
+		move = vmove = unit(SMVEMS, SDVEMS);	/* movement */
+		hormove(-width(c)/2);		/* center the '|' */
+		if (!negflag)
+			vermove(vmove);		/* start below current pos */
+	}
+	count = len / move;			/* number of full chars */
+	excess = len % move;			/* remainder */
+	if (negflag) {
+		if (hflag)
+			hormove(-len);		/* back up horizontally */
+		else {
+			vmove = -vmove;		/* draw vertical line upward */
+			excess = -excess;
+		}
+	}
+
+	/* Output single '_' or '|' characters, move appropriately. */
+	while (count--) {
+		addchar(c, hmove);
+		if (vmove)
+			vermove(vmove);
+	}
+
+	/* Fudge last character position for remaining excess. */
+	if (excess != 0) {
+		if (hflag)
+			hormove(excess - hmove);
+		else
+			vermove(excess - vmove);
+		addchar(c, hmove);
+		if (vmove)
+			vermove(vmove);
+	}
+
+	/* Adjust final position. */
+	if (!hflag) {
+		hormove(width(c)/2);
+		if (!negflag)
+			vermove(-vmove);
+	}
+
+	/* Restore original font. */
+	dev_font(savfont);
+
+	/* Flush to avoid buffer overflow. */
+	flush(hpos);
+}
+
+/*
  * Horizontal move code.
  */
 hormove(n)
@@ -410,6 +452,16 @@ int	n;
 {
 	addidir(DHMOV, n);
 	nlinsiz += n;
+}
+
+/*
+ * Vertical move code.
+ */
+vermove(n)
+int	n;
+{
+	addidir(DVMOV, n);
+	cdivp->d_rpos += n;
 }
 
 /*
@@ -449,14 +501,16 @@ int
 diverse()
 {
 	register int code, arg;
-	register int	cvls, clsp;
-	int c, lastcode;
+	int c, lastcode, cvls, clsp;
 	char *tp;
 
 	lastcode = ' ';
 	for (c = ECOD;  c == ECOD;  c = getf(1)) {
 		code = codeval.l_arg.c_code;
 		arg = codeval.l_arg.c_iarg;
+#if	0
+		fprintf(stderr, "diverse(): code=%d arg=%d\n", code, arg);
+#endif
 		switch (code) {
 		case DSPAR:
 			if (arg==0) {
@@ -470,8 +524,7 @@ diverse()
 				clsp = lsp;
 				vls = 0;
 				lsp = 1;
-				linebreak();
-				spcnt = 0;
+				linebreak(1);
 				vls = cvls;
 				lsp = clsp;
 				sspace(arg);
@@ -505,6 +558,7 @@ diverse()
 			break;
 		case DHMOV:
 			nlinsiz += arg;
+			/* fall through... */
 		case DNULL:
 		case DVMOV:
 		case DHYPH:
@@ -565,7 +619,7 @@ setbreak()
 	wordbreak(DNULL);
 	savfill = fill;
 	fill = 0;
-	linebreak();
+	linebreak(1);
 	fill = savfill;
 }
 
@@ -584,23 +638,21 @@ wordbreak(dir) int dir;
 		return;
 	if (llinptr == linebuf)
 		setwork();
-	else {
-		if (fill!=0 && nlinsiz>lln) {
-			n = nlinptr - (llinptr+1);
-			s = nlinsiz - llinsiz - llinptr->l_arg.c_iarg;
-			d = nlindir - llindir;
-			if (hyp==0 || (hypf = fitword(&n, &s, &d))==0)
-				copystr(wordbuf, llinptr+1, sizeof (CODE), n);
-			if (n > WORSIZE)
-				panic("word buffer overflow");
-			linebreak();
-			hypf = 0;
-			copystr(nlinptr, wordbuf, sizeof (CODE), n);
-			nlinptr += n;
-			nlinsiz += s;
-			nlindir += d;
-			setwork();
-		}
+	else if (fill != 0 && nlinsiz > lln) {
+		n = nlinptr - (llinptr+1);
+		s = nlinsiz - llinsiz - llinptr->l_arg.c_iarg;
+		d = nlindir - llindir;
+		if (hyp==0 || (hypf = fitword(&n, &s, &d))==0)
+			copystr(wordbuf, llinptr+1, sizeof (CODE), n);
+		if (n > WORSIZE)
+			panic("word buffer overflow");
+		linebreak(0);
+		hypf = 0;
+		copystr(nlinptr, wordbuf, sizeof (CODE), n);
+		nlinptr += n;
+		nlinsiz += s;
+		nlindir += d;
+		setwork();
 	}
 	if (mrc != '\0')		/* Added by dag	*/
 		mrch = mrc;
@@ -695,7 +747,7 @@ fitword(np, sp, dp) int *dp; int *sp; int *np;
  * End the current line.
  * This must be called after calling wordbreak.
  */
-linebreak()
+linebreak(flag) int flag;
 {
 	int slsiz, sldir;
 	CODE *slptr;
@@ -737,15 +789,16 @@ linebreak()
 	if (llinsiz > cdivp->d_maxw)
 		cdivp->d_maxw = llinsiz;
 	sspace(preexls);
-	spcnt = 0;
 	if (cdivp == mdivp) {
 		n_reg = llinsiz - linebuf[0].l_arg.c_iarg;
-		linebuf[0].l_arg.c_iarg += pof;
+		/* Kludge nroff output page offset; for troff, cf. output.c. */
+		if (ntroff == NROFF)
+			linebuf[0].l_arg.c_iarg += pof;
 		flushl(linebuf, llinptr);
 		nsm = 0;
 	} else
 		flushd(linebuf, llinptr);
-	if (nlinptr != llinptr)
+	if (flag && nlinptr != llinptr)
 		lineflush();
 	a_reg = posexls;
 	setline();
@@ -775,6 +828,7 @@ lineflush()
 		else
 			flushd(cp, cp+1);
 	}
+	setline();
 }
 
 /*
@@ -831,31 +885,37 @@ justify()
 
 /*
  * Tab to the next tab stop, filling intermediate space with character c.
- * If the character passed is an EOF, this is being called
+ * Because center and right justified tab spacing is determined by the
+ * text following the tab, the code determines the spacing for
+ * the tab before the one entered; arg c==EOF is passed
  * at the end of a line to finish up the final tab stop.
  * This must be called right after calling wordbreak().
  */
 movetab(c)
 {
 	register TAB *tp;
-	int n, w, d2, savfont;
+	int n, w, d2, savfont, ls;
 	register int d, d1;
 	register int pos;
 
-#if	0
-	fprintf(stderr, "movetab(%d) tab=%d ltabchr=%d\n", c, tabptr-tab, ltabchr);
-#endif
+	ls = (nlinsiz != llinsiz) ? nlinsiz : llinsiz;
 	tp = tabptr;
-	pos = tp->t_pos + tin;		/* relative to indent */
+	pos = tp->t_pos;
+	if (cdivp == mdivp)
+		pos += tin;		/* relative to indent */
+#if	0
+	fprintf(stderr, "movetab(%d) tab=%d ltabchr=%d pos=%d tlinsiz=%d ls=%d\n",
+		c, tabptr-tab, ltabchr, pos, tlinsiz, ls);
+#endif
 	switch (tp->t_jus) {
 	case LJUS:
 		d = pos - tlinsiz;
 		break;
 	case CJUS:
-		d = pos - (llinsiz+tlinsiz)/2;
+		d = pos - (ls+tlinsiz)/2;
 		break;
 	case RJUS:
-		d = pos - llinsiz;
+		d = pos - ls;
 		break;
 	case NJUS:
 		llinptr->l_arg.c_iarg += ssz;
@@ -864,12 +924,6 @@ movetab(c)
 	if (ltabchr == 0) {
 		/* Blank tabs. */
 		tlinptr->l_arg.c_iarg += d;
-		if (llinptr->l_arg.c_csp != 0) {
-			/* Remove trailing space padding from last char. */
-			llinptr->l_arg.c_iarg -= llinptr->l_arg.c_csp;
-			llinsiz -= llinptr->l_arg.c_csp;			
-			llinptr->l_arg.c_csp = 0;
-		}
 	} else {
 		/* Leader dots or nonblank tabs. */
 		if ((n = nlinptr - (tlinptr+1)) > WORSIZE)
@@ -900,7 +954,8 @@ movetab(c)
 	tlinptr = llinptr;
 	if (c == EOF)
 		return;
-	while ((++tp)->t_jus != NJUS && tp->t_pos+tin <= llinsiz)
+	ls = (cdivp == mdivp) ? llinsiz-tin : llinsiz;
+	while ((++tp)->t_jus != NJUS && tp->t_pos <= ls)
 		;
 	tabptr = tp;
 	ltabchr = c;
@@ -911,6 +966,9 @@ movetab(c)
  */
 setline()
 {
+#if	0
+	fprintf(stderr, "setline()\n");
+#endif
 	llinptr = nlinptr = tlinptr = linebuf;
 	llinsiz = nlinsiz = tlinsiz = 0;
 	llindir = nlindir = 0;

@@ -190,7 +190,7 @@ req_cc(argc, argv) int argc; char *argv[];
 }
 
 /*
- * Centre all text.
+ * Center all text.
  */
 req_ce(argc, argv) int argc; char *argv[];
 {
@@ -245,17 +245,18 @@ req_ch(argc, argv) int argc; char *argv[];
 /*
  * Copy input verbatim to output.
  * !V7.
- * Added by steve 12/21/90.
+ * Added by steve 12/21/90, usage modified 6/19/91.
  */
 req_co(argc, argv) int argc; char *argv[];
 {
-	char endmark[MSCSIZE];
-	register char *cp;
-	register int c;
+	register char *cp, *endmark;
+	register int c, i;
 	char *cp1;
 
-	strcpy(endmark, (argc == 1) ? ".co" : argv[1]);
-	cp = endmark;
+	putchar('\n');
+	for (i = 1; i < argc; i++)
+		printf("%d ", number(argv[i], SMUNIT, SDUNIT, 0, 0, 0));
+	cp = endmark = ".co";
 	while ((c = getl(1)) != EOF) {
 		if (c == *cp) {			/* match next endmark char */
 			cp++;
@@ -279,7 +280,7 @@ req_cs(argc, argv) int argc; char *argv[];
 	register int n, ems;
 
 	argname(argv[1], name);
-	if ((n = font_number(name, ".fz: ")) < 0)
+	if ((n = font_number(name, ".cs: ")) < 0)
 		return;
 	ems = number(argv[3], SMPOIN, SDPOIN, 0, 0, unit(SMEMSP, SDEMSP));
 	dev_cs(n, numb(argv[2], (long)ems, 36L));
@@ -563,12 +564,10 @@ req_ft(argc, argv) int argc; char *argv[];
  */
 req_fz(argc, argv) int argc; char *argv[];
 {
-	char name[2];
-	register int n;
-
-	argname(argv[1], name);
-	if ((n = font_number(name, ".fz: ")) >= 0)
-		dev_fz(n, argv[2]);
+	if (argc != 3)
+		printe(".fz: requires font name and size");
+	else
+		dev_fz(argv[1], argv[2]);
 }
 
 /*
@@ -722,11 +721,13 @@ req_lc(argc, argv) int argc; char *argv[];
  */
 req_lf(argc, argv) int argc; char *argv[];
 {
-	if (argc != 3) {
+	if (argc < 3) {
 		printe(".lf: requires fontname and filename");
 		return;
 	}
 	load_font(argv[1], argv[2]);
+	if (argc == 4)
+		dev_fz(argv[1], argv[3]);
 }
 
 /*
