@@ -43,7 +43,7 @@
 "Usage: Copy:        doscp [-abkmrv] src dest\n"\
 "       Copy Tree:   doscpdir [-akmrv] src dest\n"\
 "       Cat Files:   doscat src\n"\
-"       Directory:   dosdir [-vn] src   or   dosdir [-vn] src\n"\
+"       Directory:   dosdir [-vn] src   or   dosls [-vn] src\n"\
 "       Mkdir:       dosmkdir dest\n"\
 "       Rmdir:       dosrmdir dest\n"\
 "       Delete:      dosdel src         or   dosrm src\n"\
@@ -102,7 +102,6 @@ extern	time_t		time();
 extern	char *		base, basehold[];
 extern	char *		base1;
 extern	char *		dest;
-
 /* Globals in dos0.c. */
 /* dos1.c globals are declared in dos1.h, included above. */
 extern	short		aflag;
@@ -124,6 +123,7 @@ extern	char		ext[];
 extern	short		sext;
 extern	short		numargs;
 extern	char 		adev[];
+extern  short		isdir_keep;
 
 /* Functions. */
 /* dos1.c functions are declared in dos1.h, included above. */

@@ -34,6 +34,7 @@ char *		base1;
 char		ext[512];		/* Ascii Extension list */
 short		sext = 0;		/* size of extension list */
 short		numargs;
+short		isdir_keep;
 
 char *tran_dev();
 char *tran_file();
