@@ -2,7 +2,7 @@
 
 /* Manifest constants. */
 #define	NBUF		256		/* buffer size			*/
-#define PATCHFILE	"/tmp/patches"
+#define PATCHFILE	"/tmp/patches" /* WARNING! duplicated in fdisk0.h */
 #define LDKERFILE	"/tmp/ldker"
 
 /* Flags for sys(). */
