@@ -11,7 +11,8 @@
 #include <sys/dir.h>
 #include "tboot.h"
 
-int slow_flag = FALSE;	/* Slow down pacifier.  */
+extern int slow_flag;	/* Slow down pacifier.  */
+extern int feet_flag;	/* Enable pacifier footprints.  */
 
 /* If possible, execute "command".
  * Return "true" if the command exists, "false" otherwise.
@@ -56,7 +57,19 @@ interpret(command)
 		return(TRUE);
 	} else if ((0 == strcmp(command, "slow"))) {
 		slow_flag = TRUE;
-		puts("Slow mode.\r\n");
+		puts("Slow pacifier mode.\r\n");
+		return(TRUE); 
+	} else if ((0 == strcmp(command, "fast"))) {
+		slow_flag = FALSE;
+		puts("Normal pacifier mode.\r\n");
+		return(TRUE); 
+	} else if ((0 == strcmp(command, "feet"))) {
+		feet_flag = TRUE;
+		puts("Pacifier footprints enabled.\r\n");
+		return(TRUE); 
+	} else if ((0 == strcmp(command, "nofeet"))) {
+		feet_flag = FALSE;
+		puts("No pacifier footprints.\r\n");
 		return(TRUE); 
 	} else if ((0 == strcmp(command, "gift"))) {
 		dump_gift();	/* Dump boot_gift.  */
@@ -72,7 +85,6 @@ interpret(command)
 		   (0 == strcmp(command, "?")) ) {
 		   puts("info          Print disk information.\r\n");
 		   puts("dir|ls        List contents of /.\r\n");
-		   puts("slow          Slow down pacifier.\r\n");
 		   puts("?|help        Print this list.\r\n");
 		   return(TRUE);
 	} else if (0 == strcmp(command, "mon_on")) {
@@ -86,6 +98,10 @@ interpret(command)
 		   puts("test arg      Test for the presence of arg.\r\n");
 		   puts("monitor       Invoke the mini-monitor.\r\n");
 		   puts("mon_on        Autoinvoke the mini-monitor before kernel.\r\n");
+		   puts("slow          Slow down pacifier.\r\n");
+		   puts("fast          Normal speed pacifier.\r\n");
+		   puts("feet          Enable pacifier footprints.\r\n");
+		   puts("nofeet        Disable pacifier footprints.\r\n");
 		   return(TRUE);
 	} else {
 		return(FALSE);
