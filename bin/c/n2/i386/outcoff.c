@@ -560,7 +560,7 @@ outdlab(i, class) int i; register int class;
 				ctype |= coff_type[type];	/* basic COFF type */
 			else if (type <= DD_ARRAY) {
 				/* Derived types DD_PTR, DD_FUNC, DD_ARRAY. */
-				ctype |= coff_type[type] << (derived++ * N_TSHIFT);
+				ctype |= (coff_type[type] << N_BTSHFT) << (derived++ * N_TSHIFT);
 				if (type == DD_ARRAY
 				 && (csec != N_UNDEF || seg != SANY)) {
 					/* Reconstruct array dim from current/next size. */
@@ -1245,7 +1245,7 @@ copycode()
  */
 write_symbols(dseek) register long dseek;
 {
-	register int i, len;
+	register int i;
 	register SYM *sp;
 	int db_flag, nsecs;
 	SYMENT sym;
