@@ -461,8 +461,12 @@ int mode;
 	 */
 	while (a1->a_in_use && (a1->a_hcls ||
 	  ((dev & NMODC) == 0 && (inb(port+MSR) & MS_RLSD) == 0))) {
+#ifdef _I386
+		x_sleep((char *)(&tp->t_open), pritty, slpriSigCatch, "asyblk");
+#else
 		v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT, SVTTOUT,
 		  "asyblk");
+#endif
 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			u.u_error = EINTR;
 			goto bad_open;
@@ -543,8 +547,14 @@ int mode;
 				 */
 				if (msr & MS_RLSD)
 					break;
-	   	  		sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
-				  SVTTOUT, "need CD");	/* wait for carrier */
+				/* wait for carrier */
+#ifdef _I386
+	   	  		x_sleep((char *)(&tp->t_open), pritty,
+				  slpriSigCatch, "need CD");
+#else
+	   	  		v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
+				  SVTTOUT, "need CD");
+#endif
 		 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 					outb(port+MCR, 0);
 			    		outb(port+IER, 0);
@@ -651,8 +661,12 @@ int mode;
 		if (chipEmpty && siloEmpty)
 			break;
 		need_wake[chan] |= NW_OUTSILO;
+#ifdef _I386
+		x_sleep((char *)out_silo, pritty, slpriSigCatch, "asyclose");
+#else
 		v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
 		  "asyclose");
+#endif
 		if (SELF->p_ssig && nondsig()) {  /* signal? */
 			RAWOUT_FLUSH(out_silo);
 			break;
@@ -686,8 +700,13 @@ int mode;
 		 */
 		maj = major(dev);
 		drvl[maj].d_time = 1;
+#ifdef _I386
+		x_sleep((char *)&drvl[maj].d_time, pritty, slpriNoSig,
+		  "drop DTR");
+#else
 		v_sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT,
 		  "drop DTR");
+#endif
 		drvl[maj].d_time = 0;
 	}
 
@@ -827,8 +846,13 @@ int	com; struct sgttyb *vec;
 			  && (inb(port + LSR) & LS_TxIDLE))
 				break;
 			need_wake[chan] |= NW_OUTSILO;
+#ifdef _I386
+			x_sleep((char *)out_silo, pritty, slpriSigCatch,
+			  "asydrain");
+#else
 			v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
 			  "asydrain");
+#endif
 			if (SELF->p_ssig && nondsig()) {  /* signal? */
 				break;
 			}
@@ -932,10 +956,11 @@ int	com; struct sgttyb *vec;
 		a1->a_brk = 1;
 		timeout(&tp->t_sbrk, HZ/4, endbrk, chan);
 		while(a1->a_brk) {
+#ifdef _I386
+			x_sleep(a1, pritty, slpriNoSig, "asybreak");
+#else
 			v_sleep(a1, CVTTOUT, IVTTOUT, SVTTOUT, "asybreak");
-			if (SELF->p_ssig && nondsig()) {  /* signal? */
-				break;
-			}
+#endif
 		}
 		outb(port+LCR, lcr & ~LC_SBRK);
 	}

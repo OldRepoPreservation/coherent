@@ -59,7 +59,7 @@ struct msqid_ds *buf;
 	switch (cmd) {
 	case IPC_STAT:
 		/* Validate access authority. */
-		if ( (ipcaccess(&qp->msg_perm) & MSG_R) == 0 ) {
+		if ((ipcaccess(&qp->msg_perm) & MSG_R) == 0) {
 			u.u_error = EACCES;
 			break;
 		}
@@ -77,14 +77,14 @@ struct msqid_ds *buf;
 		/*
 		 * Get desired queue size.
 		 */
-		n = getusd( &(buf->msg_qbytes) );
+		n = getusd(&(buf->msg_qbytes));
 		if (u.u_error)
 			break;
 
 		/*
 		 * Only super-user can increase queue size.
 		 */
-		if ( (u.u_uid != 0) && (n > qp->msg_qbytes) ) {
+		if ((u.u_uid != 0) && (n > qp->msg_qbytes)) {
 			u.u_error = EPERM;
 			break;
 		}
@@ -107,7 +107,7 @@ struct msqid_ds *buf;
 
 	case IPC_RMID:
 		 /* Validate removal authority. */
-		if ( (u.u_uid != 0) && (u.u_uid != qp->msg_perm.uid) ) {
+		if ((u.u_uid != 0) && (u.u_uid != qp->msg_perm.uid)) {
 			u.u_error = EPERM;
 			break;
 		}
@@ -135,7 +135,7 @@ struct msqid_ds *buf;
 		u.u_error = EINVAL;
 	}
 
-	if ( u.u_error )
+	if (u.u_error)
 		return -1;
 
 	return 0;
@@ -365,7 +365,7 @@ int 	msgsz, 		/* message size */
 		/* We have to wait here */
 		qp->msg_perm.mode |= MSG_WWAIT;
 		unlock(msg_gate[q_num]);
-		sleep(qp, CVTTOUT, IVTTOUT, SVTTOUT);
+		x_sleep(qp, pritty, slpriSigCatch, "umsgsnd");
 
 		/* Abort if a signal was received */
 		if (SELF->p_ssig && nondsig()) {
@@ -374,7 +374,7 @@ int 	msgsz, 		/* message size */
 		}
 
 		/* Abort if the message queue was removed. */
-		if ( qid != qp->msg_perm.seq ) {
+		if (qid != qp->msg_perm.seq) {
 			u.u_error = EINVAL;
 			return -1;
 		}
@@ -421,7 +421,7 @@ int 	msgsz, 		/* message size */
 	if (ukcopy(&(bufp->mtype), &(mp->msg_type), sizeof(mp->msg_type)) !=
 						sizeof(mp->msg_type))
 		u.u_error = EFAULT;
-	if (ukcopy( &bufp->mtext[0], msg_map[i_spot], msgsz) != msgsz)
+	if (ukcopy(&bufp->mtext[0], msg_map[i_spot], msgsz) != msgsz)
 		u.u_error = EFAULT;
 	if (u.u_error) {
 		msgfree(mp);
@@ -449,9 +449,9 @@ int 	msgsz, 		/* message size */
 
 	/* Unlock queue and wake processes waiting to receive. */
 	unlock(msg_gate[q_num]);
-	if ( qp->msg_perm.mode & MSG_RWAIT ) {
+	if (qp->msg_perm.mode & MSG_RWAIT) {
 		qp->msg_perm.mode &= ~MSG_RWAIT;
-		wakeup( qp );
+		wakeup(qp);
 	}
 	return 0;
 }
@@ -487,7 +487,7 @@ int 		msgflg;	/* Message flag		*/
 	}
 
 	/* Permission denied */
-	if ( (ipcaccess(&qp->msg_perm) & MSG_R) == 0 ) {
+	if ((ipcaccess(&qp->msg_perm) & MSG_R) == 0) {
 		u.u_error = EACCES;
 		return -1;
 	}
@@ -530,7 +530,7 @@ int 		msgflg;	/* Message flag		*/
 			break;
 	
 		/* Can't wait to receive mesg */
-		if ( msgflg & IPC_NOWAIT ) {
+		if (msgflg & IPC_NOWAIT) {
 			u.u_error = EAGAIN;
 			unlock(msg_gate[q_num]);
 			return -1;
@@ -539,10 +539,10 @@ int 		msgflg;	/* Message flag		*/
 		/* We can go sleep now */
 		qp->msg_perm.mode |= MSG_RWAIT;
 		unlock(msg_gate[q_num]);
-		sleep( qp, CVTTOUT, IVTTOUT, SVTTOUT );
+		x_sleep(qp, pritty, slpriSigCatch, "umsgrcv");
 
 		/* Signal received */
-		if ( SELF->p_ssig && nondsig() ) {
+		if (SELF->p_ssig && nondsig()) {
 			u.u_error = EINTR;
 			return -1;
 		}
@@ -563,7 +563,7 @@ int 		msgflg;	/* Message flag		*/
 	}
 
 	/* Transfer message data */
-	if ( msgsz > mp->msg_ts )
+	if (msgsz > mp->msg_ts)
 		msgsz = mp->msg_ts;
 
 	kucopy(&(mp->msg_type), &(bufp->mtype), sizeof(mp->msg_type));
@@ -583,7 +583,7 @@ int 		msgflg;	/* Message flag		*/
 	else
 		qp->msg_first = mp->msg_next;
 
-	if ( qp->msg_last == mp )
+	if (qp->msg_last == mp)
 		qp->msg_last = prev;
 
 
@@ -600,7 +600,7 @@ int 		msgflg;	/* Message flag		*/
 	/* Wakeup processes waiting to send. */
 	if (qp->msg_perm.mode & MSG_WWAIT) {
 		qp->msg_perm.mode &= ~MSG_WWAIT;
-		wakeup( qp );
+		wakeup(qp);
 	}
 	return msgsz;
 }

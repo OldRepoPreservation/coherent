@@ -465,7 +465,11 @@ register unsigned short *ep;
 
 	seqn = semidp->sem_perm.seq;
 	++(*ep);
-	sleep(ep, CVTTOUT, IVTTOUT, SVTTOUT);
+#ifdef _I386
+	x_sleep(ep, pritty, slpriSigCatch, "semwait");
+#else
+	v_sleep(ep, CVTTOUT, IVTTOUT, SVTTOUT, "semwait");
+#endif
 
 	if (semidp->sem_perm.seq != seqn) {	/* semaphore id gone */
 		u.u_error = EIDRM;
