@@ -1,5 +1,7 @@
 #
-# Build - make a complete COHERENT kernel.
+# bld - make a complete COHERENT mwc kernel.
+#
+# $Log$
 #
 
 # Shell variables
@@ -19,6 +21,8 @@
 #		keyboard tables for international support, but requires
 #		full compatibility, and source code is not provided in the
 #		driver kit.
+#	DEBUG is empty for normal kernels, is "dbg" if debug versions of
+#		kernel and drivers are wanted
 
 if [ $USRSYS ]
 then
@@ -28,46 +32,52 @@ if [ $KOBJ ]
 then
 if [ $LOBJ ]
 then
-DRIVERS="rm fl lp mm"
+DRIVERS="rm fl lp mm "
 COH_TYPE=fl
-BOOTDEV="at0a"
 HD=""
+DEBUG=""
 KB=kb
 for ARG
 do
 	case $ARG in
 	at)
-#		BOOTDEV="at0a"
+		BOOTDEV="at0a"
 		HD=$ARG
 		COH_TYPE=$ARG
 		;;
 	aha)
-#		BOOTDEV="sd0a"
+		BOOTDEV="sd0a"
 		HD=aha154x
 		COH_TYPE=$ARG
 		;;
 	ss)
-#		BOOTDEV="ss0a"
+		BOOTDEV="ss0a"
 		HD=$ARG
 		COH_TYPE=$ARG
 		;;
 	kb|nkb|kb_d|kb_f)
 		KB=$ARG
 		;;
-	*)	echo "Usage: $0 { at | ss | aha | fl } { kb | nkb | kb_d | kb_f }"
+	dbg)
+		DEBUG="CFLAGS=-DDEBUG"
+		;;
+	*)	echo "Usage: $0 [at|ss|aha|fl|kb|nkb|kb_d|kb_f|dbg]"
 		exit 0
 		;;
 	esac
 done
+BOOTDEV=${BOOTDEV-fha0}
+BOOTDEV="None"
 DRIVERS="$KB $HD $DRIVERS"
 echo "Kernel:    /coh.$COH_TYPE"
 echo "Version:   `version ID`"
 echo "Devices:   $DRIVERS"
 echo "Default root/pipe device is $BOOTDEV."
+echo $DEBUG
 export KB HD
 ( cd $USRSRC/ldrv; make ld_support )			|| exit 1
-( cd $USRSRC/i8086/drv; make -f Mf.mwc install )	|| exit 1
-( make kernel )						|| exit 1
+( cd $USRSRC/io; make -f Mf.mwc $DEBUG install )	|| exit 1
+( make $DEBUG kernel )					|| exit 1
 ./config.mwc ibm-at $DRIVERS root=$BOOTDEV		|| exit 1
 cp coherent /tmp/coh					|| exit 1
 strip /tmp/coh						|| exit 1
