@@ -6,6 +6,9 @@
  * control, erase and kill, stop and
  * start and common ioctl functions.
  *
+ * Bug: no support for 8-bit characters.
+ * Fix: don't strip keyboard input. 01/22/91.  (norm)
+ *
  * Bug:	Switching modes between cooked and CBREAK/RAW left buffered input
  *	in the input buffer until returning to cooked mode. 05/13/91 norm
  *
@@ -306,7 +309,11 @@ register struct sgttyb *vec;
 			p1 = &tp->t_ib[0];
 			p2 = &tp->t_ib[tp->t_ibx];
 			while (p1 < p2)
+#if NOT_8_BIT
 				putq(&tp->t_iq, (*p1++) & 0177);
+#else
+				putq(&tp->t_iq, (*p1++));
+#endif
 			tp->t_ibx = 0;
 		}
 		break;
@@ -481,7 +488,11 @@ register TTY *tp;
 			tp->t_hpos = 0;
 		else if (c == '\t')
 			tp->t_hpos = (tp->t_hpos|07) + 1;
-		else if (c>=' ' && c<='~')
+#if NOT_8_BIT
+		else if (c >= ' ' && c <= '~')
+#else
+		else if ((c >= ' ' && c <= '~') || (c >= 0200 && c <= 0376))
+#endif
 			++tp->t_hpos;
 	}
 	return (c);
@@ -503,7 +514,9 @@ register c;
 	int dc, i, n;
 
 	if (!ISRIN) {
+#if NOT_8_BIT
 		c &= 0177;
+#endif
 		if (ISINTR) {
 			ttsignal(tp, SIGINT);
 			return;
@@ -543,7 +556,11 @@ register c;
 				ttstash(tp, c);
 			}
 			if (ISECHO) {
+#if NOT_8_BIT
 				putq(&tp->t_oq, c&0177);
+#else
+				putq(&tp->t_oq, c); /* no strip for 8-bit */
+#endif
 				ttstart(tp);
 			}
 			return;
@@ -560,8 +577,13 @@ register c;
 				if (!ISCRT)
 					putq(&tp->t_oq, c);
 				/* don't erase for bell, null, or rubout */
+#if NOT_8_BIT
 				else if (((c = dc&0177) == '\007')
 					|| c == 0 || c == 0177)
+#else
+				else if (((c = dc) == '\007')
+					|| c == 0 || c == 0177 || c == 0377)
+#endif
 				        return;
 				else if (c != '\b' && c != '\t') {
 					putq(&tp->t_oq, '\b');
@@ -571,10 +593,12 @@ register c;
 					n = tp->t_opos + tp->t_escape;
 					for (i=0; i<tp->t_ibx; ++i) {
 						c = tp->t_ib[i];
+#if NOT_8_BIT
 						if ((c&0200) != 0) {
 							++n;
 							c &= 0177;
 						}
+#endif
 						if (c == '\b')
 							--n;
 						else {
@@ -586,12 +610,14 @@ register c;
 					while (n++ < tp->t_hpos)
 						putq(&tp->t_oq, '\b');
 				}
+#if NOT_8_BIT
 				if ((dc&0200) != 0) {
 					if ((dc&0177) != '\b')
 						putq(&tp->t_oq, '\b');
 					putq(&tp->t_oq,  ' ');
 					putq(&tp->t_oq, '\b');
 				}
+#endif
 				ttstart(tp);
 			}
 			return;
@@ -661,7 +687,11 @@ register TTY *tp;
 		p2 = &tp->t_ib[tp->t_ibx];
 		*p2++ = c;			/* Always room */
 		while (p1 < p2)
+#if NOT_8_BIT
 			putq(&tp->t_iq, (*p1++)&0177);
+#else
+			putq(&tp->t_iq, (*p1++));
+#endif
 		tp->t_ibx = 0;
 		tp->t_escape = 0;
 
