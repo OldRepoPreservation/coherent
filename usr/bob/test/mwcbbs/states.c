@@ -16,6 +16,7 @@ WINDOW *win1;
 {
 int row, col;
 
+
 	wclear(win1);
 	for(row = 0;row<11;row++)
 		for(col=1;col<75;col+=15)
@@ -44,7 +45,7 @@ WINDOW *win2;
 {
 FILE *infp;
 int x=2;
-
+int y=0;
 
 	if ((infp=fopen(MAILFILE,"r")) == NULL)
 		{
@@ -88,6 +89,7 @@ int x=2;
 		if( (strcmp(selection,mail_rec.state)== 0) || ((strcmp(selection,"NON-US")==0) && (strcmp(mail_rec.city,"COUNTRY")==0)))
 
 			{
+			y++;
 			wmove(win2,x,0);
 			waddstr(win2,mail_rec.site);
 			wmove(win2,x,16);
@@ -139,9 +141,19 @@ int x=2;
 
 		wmove(win2,18,0);
 		wstandout(win2);
-		waddstr(win2,"That's all folks!");
-		wstandend(win2);
+	
 
+		/* the variable 'y' was used as a counter in the read/print
+		 * loop. If y = 0, the no matches were found and an approp.
+		 * message to this affect will be printed.
+		*/
+	
+		if(y==0)
+			waddstr(win2,"A place not yet heard from!");
+		else
+			waddstr(win2,"That's all folks!");
+
+		wstandend(win2);
 		wmove(win2,19,0);
 		waddstr(win2,"Press <RETURN> to continue..");		
 		wrefresh(win2);
