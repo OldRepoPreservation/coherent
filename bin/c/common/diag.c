@@ -11,6 +11,10 @@
  *	cnomem	for out of memory errors
  *	cstrict	for strict warning messages
  *	cwarn	for warning messages
+ * cbotch, cfatal and cnomem errors are all instantly fatal.
+ * cerror errors allow the current pass to continue but bump the error count
+ * so that compilation terminates after the current pass.
+ * cstrict and cwarn are warning messages only, with no other effect.
  */
 
 #include	<stdio.h>
@@ -56,7 +60,8 @@ char	*fp;
 cwarn(fp, args)
 char	*fp;
 {
-	cmsg(fp, &args, "Warning", 0);
+	if (notvariant(VNOWARN))
+		cmsg(fp, &args, "Warning", 0);
 }
 
 /*
@@ -65,7 +70,8 @@ char	*fp;
 cstrict(fp, args)
 char	*fp;
 {
-	cmsg(fp, &args, "Strict", 0);
+	if (notvariant(VNOWARN))
+		cmsg(fp, &args, "Strict", 0);
 }
 
 /*
