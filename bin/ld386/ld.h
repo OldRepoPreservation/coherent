@@ -18,10 +18,13 @@
 
 #define NHASH 128		/* Hash table divisor */
 
-#define S_TEXT	0
-#define S_DATA	1
+#define S_TEXT	0		/* These segments and only these */
+#define S_DATA	1		/* Go to all executables */
 #define S_BSSD	2
-#define NLSEG	3		/* The normal segment count */
+#define S_COMM	3
+
+#define NLSEG	4		/* The output segment count */
+#define MAXSEG	20		/* The maxamum segment count */
 
 #define SEGROUND 16
 #define KERBASE	 0xFFC00000UL	/* Kernels start here */
@@ -93,6 +96,8 @@ extern long comnb, comns, comnl;	/* common lengths */
 extern sym_t	*symtable[NHASH];	/* hashed symbol table */
 
 extern unsigned short osegs;		/* the number of output segments */
+extern unsigned short segMap[MAXSEG];	/* Segment maping */
+
 extern FILEHDR fileh;
 extern AOUTHDR aouth;
 extern SCNHDR  *secth;		/* output segments */
