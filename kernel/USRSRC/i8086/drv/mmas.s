@@ -1,8 +1,3 @@
-/ (lgl-
-/ 	COHERENT Driver Kit Version 1.1.0
-/ 	Copyright (c) 1982, 1990 by Mark Williams Company.
-/ 	All rights reserved. May not be copied without permission.
-/ -lgl)
 ////////
 /
 /	Memory mapped video driver assembler assist.
@@ -339,6 +334,7 @@ eval:	jcxz	ewait
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 ////////
@@ -356,6 +352,7 @@ mmputc:	stosw				/ Update display memory.
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 0:	cmpb	MM_WRAP(bp), $0		/ Yes past, Wrap around?
@@ -367,6 +364,7 @@ mmputc:	stosw				/ Update display memory.
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 0:	subb	COL, COL		/ Wrap to next line.
@@ -378,6 +376,7 @@ mmputc:	stosw				/ Update display memory.
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 0:	movb	ROW, MM_EROW(bp)	/ Yes past, scroll up 1 line.
@@ -395,6 +394,7 @@ ewait:	call	exit
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 ////////
@@ -414,6 +414,7 @@ mm_cr:	subb	COL, COL
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 ////////
@@ -439,6 +440,7 @@ mm_cub:	sub	POS, $2
 	lodsb
 	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:asctab(bx)
 
 ////////
@@ -510,6 +512,7 @@ csi_n2:	jcxz	0b
 
 csival:	movb	bl, al
 	shlb	bl, $1
+	jc	mmputc
 	ijmp	cs:csitab(bx)
 
 ////////
