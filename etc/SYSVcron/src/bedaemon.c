@@ -38,7 +38,7 @@ bedaemon()
 			exit(0);
 	
 	/* Close all open files, chdir "/", and umask(0). */
-	for (fd = 0; fd < NUFILE; fd++)
+	for (fd = 0; fd < NOFILE; fd++)
 		close(fd);
 	
 	chdir("/");
