@@ -57,6 +57,7 @@ char **argv;
 	char *cp, *cmd, *ttysave, flagchar, display;
 	char *myname;
 	int found, current;
+	char fulldev[20] = {"/dev/"};
 
 	if ((cmd = rindex(argv[0], '/')) == NULL)  /* get command name */
 		cmd = argv[0]; 
@@ -117,6 +118,7 @@ char **argv;
 	for (cp = *(++argv); --argc; cp = *(++argv)) {
 		if (strncmp(cp, "/dev/", 5) == 0)
 			cp += 5;
+		strcat(fulldev,cp);
 		found = 0;
 		for (tp = t; *tp->name; tp++) {
 		   if (strncmp(cp, tp->name, DIRSIZ) == 0) 
@@ -172,9 +174,20 @@ char **argv;
 		fprintf(stderr, "%s: can't signal init\n", cmd);
 		exit(-2);
 	}
-	sleep(2);   /* wait for init, so "disable tty5;enable tty5" works */
+	sleep(4);   /* wait for init, so "disable tty5;enable tty5" works */
+
+	/* change the modes of the device to allow global r/w, this is to
+	 * allow uucp to disable a local device and then call out on a local
+	 * device.
+	 */
+
+	if (flagchar == '0'){
+		chmod(fulldev, 0666);
+	}
+
 	exit(current == '1' ? 1 : 0);  /* return appropriate status */
 }
+
 
 
 
