@@ -16,7 +16,7 @@
 
 #define	SPOOLDIR	"/usr/spool/mail/"
 #define PUBKEYDIR	"/usr/spool/pubkey/"
-#define DELIVER		"/bin/rmail"	/* Delivery agent.  */
+#define XDELIVER	"exec /bin/rxmail"	/* Delivery secret agent.  */
 #define DELIVER		"exec /bin/rmail"	/* Delivery agent.  */
 
 #define	NLINE	512		/* Longest line in a message		*/
