@@ -68,7 +68,7 @@ main()
 				puts("\r\nCan't find \"");
 				puts(cmd_name);
 				puts("\".  Type \"dir\" for a list of files.\r\n");
-				puts("If installing COHERENT, please type begin.\r\n");
+				puts("If installing COHERENT, please type \"begin\".\r\n");
 			}
 
 			/* Fetch new file names, executing them
