@@ -27,6 +27,17 @@
  *		ttopen(), this bit is not written by tty.c.
  *	91/09/15 - hal
  */
+/*
+ * About VMIN and VTIME:
+ * These parameters only apply when ICANON is zero.
+ * If VMIN > 0 and VTIME = 0, block until VMIN characters are received.
+ * If VMIN > 0 and VTIME > 0, block until the first character is received,
+ *   then return after VMIN characters are received or VTIME/10 seconds
+ *   have elapsed since last character, whichever comes first.
+ * If VMIN = 0, return after first character or after VTIME/10 seconds.
+ *   (may return with read count of zero - but will return one character
+ *   if it is available, even if VTIME is zero).
+ */
 
 /*
  * Includes.
@@ -157,6 +168,7 @@ register TTY *tp;
 
 #ifdef _I386
 	tp->t_termio.c_lflag |= ICANON;
+	tp->t_termio.c_cc[VEOL] = '\n';
 	make_termio(&tp->t_sgttyb, &tp->t_tchars, &tp->t_termio);
 	if (tp->t_flags & T_HPCL)
 		tp->t_termio.c_cflag |= HUPCL;
@@ -269,16 +281,25 @@ int (*func1)(), arg1, (*func2)(), arg2;
 #ifdef _I386
 	int time0 = lbolt;
 	int timing = 0;		/* a boolean flag */
+	int got_ch = 0;		/* a boolean flag */
 	char vtime = tp->t_termio.c_cc[VTIME];
-	if (ISBBYB && vtime)
-		timing = 1;
+	char vmin = tp->t_termio.c_cc[VMIN];
 #endif
 
 	while (iop->io_ioc) {
-		if (timing) {	/* start timer before each read from queue */
-			time0 = lbolt;
-			timeout(&tp->t_vtime, vtime*VTICKS, wakeup, &tp->t_iq);
+#ifdef _I386
+		/*
+		 * Start VTIME timer if we got a character or vmin is zero.
+		 */
+		if (ISBBYB && vtime) {
+			if (got_ch || vmin == 0) {
+				timing = 1;
+				time0 = lbolt;
+				timeout(&tp->t_vtime, vtime*VTICKS, wakeup,
+				  &tp->t_iq);
+			}
 		}
+#endif
 
 		o = sphi();
 		while ((c = getq(&tp->t_iq)) < 0) {
@@ -289,14 +310,33 @@ int (*func1)(), arg1, (*func2)(), arg2;
 			}
 
 #ifdef _I386
-			/* T_BRD must give way for VMIN/VTIME in S5.    */
-			if (ISBBYB
-			  && (tp->t_termio.c_cc[VMIN] + iop->io_ioc) <= sioc) {
-				spl(o);
-				goto read_done;
+			/*
+			 * T_BRD must give way for VMIN/VTIME in S5.
+			 *
+			 * If vmin is nonzero, see if that many chars have been
+			 * received.
+			 *
+			 * If vmin is zero and vtime is also zero, return
+			 * whether characters have been received or not.
+			 *
+			 * If vmin is zero, and we got a char, return.
+			 *
+			 * If vtime timer is in use, see if it has expired,
+			 * i.e. if vtime 10th seconds have elapsed.
+			 */
+			if (ISBBYB) {
+				if (vmin) {
+					if ((vmin + iop->io_ioc) <= sioc) {
+						spl(o);
+						goto read_done;
+					}
+				} else {
+					if (got_ch || vtime == 0) {
+						spl(o);
+						goto read_done;
+					}
+				}
 			}
-
-			/* Have vtime tenths of a second elapsed? */
 			if (timing && ((lbolt - time0)/VTICKS) >= vtime) {
 				spl(o);
 				goto read_done;
@@ -341,6 +381,9 @@ int (*func1)(), arg1, (*func2)(), arg2;
 			}
 		}
 
+		/* Got a character "c" from the input queue. */
+		got_ch = 1;
+
 		/*
 		 * Flow control - can we turn on input from the driver yet?
 		 */
@@ -363,6 +406,10 @@ int (*func1)(), arg1, (*func2)(), arg2;
 			goto read_done;
 		if (!ISBBYB && (c=='\n' || ISBRK))
 			goto read_done;
+#ifdef _I386
+		if (ISBBYB && vtime)
+			timing = 1;
+#endif
 	}
 
 read_done:
@@ -469,7 +516,8 @@ int (*func1)(), arg1, (*func2)(), arg2;
  *	Note that flushing the stream now means drain the output
  *	and clear the input.
  */
-void ttioctl(tp, com, vec)
+void
+ttioctl(tp, com, vec)
 register TTY *tp;
 int com;
 register struct sgttyb *vec;
@@ -639,12 +687,22 @@ register struct sgttyb *vec;
 	 * If ioctl just put device into RAWIN mode, make sure device
 	 * is not still waiting for startc.
 	 */
+#if _I386
+	/* Is XON/XOFF flow control off *and* we are waiting for startc? */
+	if ((!ISIXON) && (tp->t_flags & T_XSTOP)) {
+		s = sphi();
+		tp->t_flags &= ~(T_STOP | T_XSTOP);
+		ttstart(tp);
+		spl(s);
+	}
+#else
 	if ((!ISIXON) && (tp->t_flags & T_STOP) && !(tp->t_flags & T_HOPEN)) {
 		s = sphi();
 		tp->t_flags &= ~T_STOP;
 		ttstart(tp);
 		spl(s);
 	}
+#endif
 
 	/*
 	 * Wait for output to drain, or signal to arrive.
@@ -733,7 +791,7 @@ int msec;
 		 * Second look to avoid interrupt race.
 		 */
 		if (tp->t_oq.cq_cc >= OLOLIM)
-			ev &= ~POLLIN;
+			ev &= ~POLLOUT;
 	}
 
 	if (((ev & POLLIN) == 0) && ((tp->t_flags & T_CARR) == 0))
@@ -1165,6 +1223,7 @@ struct tchars * tcp;
 struct termio * trp;
 {
 	char	vmin = 1, vtime = 0;
+	char	veof = 4, veol = 10; /* default to ^D, ^J */
 
 	/*
 	 * If VMIN/VTIME are active, save now for possible restore.
@@ -1172,12 +1231,13 @@ struct termio * trp;
 	if ((trp->c_lflag & ICANON) == 0) {
 		vmin = trp->c_cc[VMIN];
 		vtime = trp->c_cc[VTIME];
+	} else {
+		veol = trp->c_cc[VEOL];
 	}
 
 	trp->c_cc[VINTR] = tcp->t_intrc;
 	trp->c_cc[VQUIT] = tcp->t_quitc;
-	trp->c_cc[VEOF ] = tcp->t_eofc;
-	trp->c_cc[VEOL ] = '\n';
+	veof = tcp->t_eofc;
 	trp->c_cc[VERASE] = sgp->sg_erase;
 	trp->c_cc[VKILL ] = sgp->sg_kill;
 
@@ -1213,7 +1273,7 @@ struct termio * trp;
 	}
 
 	if (sgp->sg_flags & XTABS)
-		trp->c_oflag |= XTABS;
+		trp->c_oflag |= TAB3;
 
 	if (sgp->sg_flags & (EVENP|ODDP)) {
 		trp->c_cflag |= PARENB;
@@ -1237,6 +1297,9 @@ struct termio * trp;
 	if ((trp->c_lflag & ICANON) == 0) {
 		trp->c_cc[VMIN] = vmin;
 		trp->c_cc[VTIME] = vtime;
+	} else {
+		trp->c_cc[VEOF] = veof;
+		trp->c_cc[VEOL] = veol;
 	}
 }
 
@@ -1287,7 +1350,7 @@ struct tchars * tcp;
 	if (trp->c_oflag & OPOST)
 		sgp->sg_flags &= ~RAWOUT;
 
-	if (trp->c_oflag & XTABS)
+	if ((trp->c_oflag & TABDLY) == TAB3)
 		sgp->sg_flags |= XTABS;
 
 	if (trp->c_cflag & PARENB) {
