@@ -48,7 +48,7 @@ register int	fd;
 	if (fd<0)
 		return (NULL);
 	if (append)
-		lseek(fd, 0L, 2);
+		lseek(fd, 0L, SEEK_END);
 	if (fp==NULL && (fp = (FILE *) malloc(sizeof(FILE)))==NULL) {
 		close(fd);
 		return (NULL);
