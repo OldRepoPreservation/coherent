@@ -1,10 +1,10 @@
 /* (-lgl
- * 	COHERENT Version 4.1.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 /*
- * ctype.h
  * C character handling library header.
  * Draft Proposed ANSI C Standard, Section 4.3, 5/13/88 draft.
  * Implemented by table lookup.
@@ -32,14 +32,14 @@ int		isxdigit	__PROTO ((int _c));
 int		tolower		__PROTO ((int _c));
 int		toupper		__PROTO ((int _c));
 
-#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+#if	! _STDC_SOURCE && ! _POSIX_C_SOURCE
 
 int		isascii		__PROTO ((int _c));
 int		toascii		__PROTO ((int _c));
 int		_tolower	__PROTO ((int _c));
 int		_toupper	__PROTO ((int _c));
 
-#endif	/* ! _STDC_SOURCE && ! _POSIX_SOURCE */
+#endif	/* ! _STDC_SOURCE && ! _POSIX_C_SOURCE */
 
 __EXTERN_C_END__
 
@@ -61,25 +61,29 @@ extern	unsigned char _ctype[_CTYPEN];	/* Type table			*/
 #define	_X	0x80			/* Hexadecimal digit		*/
 
 /* Macros covering ANSI Standard functions. */
-#define	isalnum(c)	(_ctype[(c)+1]&(_A|_N))
-#define	isalpha(c)	(_ctype[(c)+1]&_A)
-#define	iscntrl(c)	(_ctype[(c)+1]&_C)
-#define	isdigit(c)	(_ctype[(c)+1]&_N)
-#define	isgraph(c)	(_ctype[(c)+1]&(_P|_A|_N))
-#define	islower(c)	(_ctype[(c)+1]&_L)
-#define	isprint(c)	(_ctype[(c)+1]&(_P|_B|_A|_N))
-#define	ispunct(c)	(_ctype[(c)+1]&_P)
-#define	isspace(c)	(_ctype[(c)+1]&_S)
-#define	isupper(c)	(_ctype[(c)+1]&_U)
-#define	isxdigit(c)	(_ctype[(c)+1]&_X)
+#define isalnum(c)      ((_ctype [(c) + 1] & (_A|_N)) != 0)
+#define isalpha(c)      ((_ctype [(c) + 1] & _A) != 0)
+#define iscntrl(c)      ((_ctype [(c) + 1] & _C) != 0)
+#define isdigit(c)      ((_ctype [(c) + 1] & _N) != 0)
+#define isgraph(c)      ((_ctype [(c) + 1] & (_P | _A | _N)) != 0)
+#define islower(c)      ((_ctype [(c) + 1] & _L) != 0)
+#define isprint(c)      ((_ctype [(c) + 1] & (_P | _B | _A | _N)) != 0)
+#define ispunct(c)      ((_ctype [(c) + 1] & _P) != 0)
+#define isspace(c)      ((_ctype [(c) + 1] & _S) != 0)
+#define isupper(c)      ((_ctype [(c) + 1] & _U) != 0)
+#define isxdigit(c)     ((_ctype [(c) + 1] & _X) != 0)
 
-#if	! _STDC_SOURCE && ! _POSIX_SOURCE
+#if	! _STDC_SOURCE && ! _POSIX_C_SOURCE
 
-#define	isascii(c)	(((c)&~0x7F)==0)
-#define	toascii(c)	((c)&0x7F)
-#define	_tolower(c)	((c)|('a'-'A'))
-#define	_toupper(c)	((c)&~('a'-'A'))
+#if	'a' - 'A' != 0x20
+# error	Your native environment characater set is not ASCII
+#endif
 
-#endif	/* ! _STDC_SOURCE && ! _POSIX_SOURCE */
+#define	isascii(c)	(((c) & ~ 0x7F) == 0)
+#define	toascii(c)	((c) & 0x7F)
+#define	_tolower(c)	((c) | ('a' - 'A'))
+#define	_toupper(c)	((c) & ~ ('a' - 'A'))
+
+#endif	/* ! _STDC_SOURCE && ! _POSIX_C_SOURCE */
 
 #endif	/* ! defined (__CTYPE_H__) */

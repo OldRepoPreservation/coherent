@@ -1,18 +1,20 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1983, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 /*
- * n.out.h
  * This defines the format of the 'l.out' file with 32-bit addressing
  * (for assembler, linkage editor, and compiler).
  * It also has the namelist structure for the nlist routine.
  */
+
 #ifndef	 __L_OUT_H__
 #define	 __L_OUT_H__
 
-#include <sys/types.h>
+#include <common/ccompat.h>
+#include <common/__fsize.h>
 
 #define	NCPLN	16		/* Chars in loader name		*/
 #define NLSEG	9		/* No. of segments		*/
@@ -27,11 +29,11 @@
  * but keep the size of members to longs.  
  */
 struct	ldheader {
-	short	l_magic;		/* Magic number		*/
-	short	l_flag;			/* Flags		*/
-	short	l_machine;		/* Type of target machine */
-	short	l_tbase;		/* Text starts here	*/
-	fsize_t	l_ssize[NLSEG];		/* Segment sizes	*/
+	short		l_magic;		/* Magic number		*/
+	short		l_flag;			/* Flags		*/
+	short		l_machine;		/* Type of target machine */
+	short		l_tbase;		/* Text starts here	*/
+	__fsize_t	l_ssize[NLSEG];		/* Segment sizes	*/
 	union {
 		long lu_entry;	/* Entry point			*/
 		long lu_nhwrel;	/* No. HIWORD/LONG rels, for M_LRG8086 */
@@ -41,7 +43,9 @@ struct	ldheader {
 #define	l_entry		l_u.lu_entry
 #define	l_nhwrel	l_u.lu_nhwrel
 
+
 /* Flags. */
+
 #define LF_SHR	01		/* Bound shared			*/
 #define LF_SEP	02		/* Bound separated		*/
 #define LF_NRB	04		/* No reloc. bits		*/
@@ -55,15 +59,20 @@ struct	ldheader {
 #define	LF_286	0		/* dummy mode [386/exec.c]	*/
 #define	LF_386	0x80000000	/* dummy mode [386/exec.c]	*/
 
+
 /* Formats. */
+
 #define	AFMT	"%08lx"		/* Address			*/
 
 /* Machines. */
+
 #ifndef	__MTYPE_H__
 #include <mtype.h>
 #endif
 
+
 /* Segments */
+
 #define	L_SHRI	0		/* Shared Instruction space	*/
 #define	L_PRVI	1		/* Private Instruction space	*/
 #define	L_BSSI	2		/* Uninitialised Instruction	*/
@@ -76,22 +85,28 @@ struct	ldheader {
 #define L_ABS	9		/* Absolute (symbol table)	*/
 #define L_REF	10		/* Reference (symbol table)	*/
 
+
 /*
  * Symbol.
  * These live in the 'L_SYM' section of the file;
  * the size of this section determines the number of symbols.
  */
+
 struct	ldsym {
-	char	ls_id[NCPLN];		/* Symbol name		*/
+	char	ls_id [NCPLN];		/* Symbol name		*/
 	short	ls_type;		/* Global + Seg.	*/
 #pragma	align 2
-	long	ls_addr;		/* Value of symbol	*/
-};
+	long	ls_addr __ALIGN (2);	/* Value of symbol	*/
 #pragma	align
+#pragma	align 2
+};
+#pragma	align	/* control structure padding with Coherent 'cc' */
+
 
 /*
  * The nlist structure for the nlist routine.
  */
+
 struct nlist	{
 	char	n_name[NCPLN];		/* Symbol name		*/
 	short	n_type;			/* Type flag		*/
@@ -116,6 +131,5 @@ struct nlist	{
 #define LR_WORD		(1<<5)		/* Rel. a word		*/
 #define	LR_LONG		(2<<5)		/* Rel. a long		*/
 #define LR_HIWORD	(3<<5)		/* Rel. via hiword of long */
-#endif
 
-/* end of n.out.h */
+#endif	/* ! defined (__N_OUT_H__) */

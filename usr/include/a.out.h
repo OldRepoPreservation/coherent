@@ -1,18 +1,16 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 
-/*
- * /usr/include/a.out.h
- *
- * COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90
- *
- * Revised Mon Mar 22 15:52:26 1993 CST
- */
 #ifndef __A_OUT_H__
 #define __A_OUT_H__
+
+/*
+ * COFF excerpted from Intel 386 Architecture BCS Supplement, draft 3/3/90
+ */
 
 struct	filehdr {
 	unsigned short	f_magic;	/* I386MAGIC */

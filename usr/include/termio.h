@@ -1,35 +1,14 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- *	Copyright 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
- *
- * 91/10/17 - Adapt for 386 COHERENT.
- *
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * /usr/include/termio.h
- *
- * Line discipline support.
- *
- * Revised Tue Mar 23 14:23:58 1993 CST
- */
+
 #ifndef __TERMIO_H__
 #define __TERMIO_H__
 
 #include <common/feature.h>
-
-#if	_I386 || __KERNEL__
-#define _COH_TERMIO	1
-#endif
-
-/*
- * WARNING:  termio.h command codes are incompatible with device drivers
- *   shipped with COHERENT 286;  sgtty.h command codes are used instead.  This
- *   header is for use principally with COHERENT 386.  If you are using custom
- *   drivers and line discipline with COHERENT 286 and need termio constants
- *   for these modules, then define _COH_TERMIO before this file is included.
- */
-#if	_COH_TERMIO
 
 /*
  *	Terminal Input/Output Parameters
@@ -46,9 +25,11 @@ struct	termio {
 	unsigned char	c_cc[NCC];	/* control chars */
 };
 
+
 /*
  * Basic Terminal Input Control: c_iflag
  */
+
 #define	IGNBRK	0x0001 		/* Ignore break condition */
 #define	BRKINT	0x0002		/* Signal interrupt on break */
 #define	IGNPAR	0x0004 		/* Ignore characters with parity errors */
@@ -63,9 +44,11 @@ struct	termio {
 #define	IXANY	0x0800		/* Enable any character to restart output */
 #define	IXOFF	0x1000		/* Enable start/stop input control */
 
+
 /*
  * Basic Terminal Output Control: c_oflag
  */
+
 #define	OPOST	0x0001		/* Postprocess output */
 #define	OLCUC	0x0002		/* Map lower case to upper on output */
 #define	ONLCR	0x0004		/* Map NL to CR-NL on output */
@@ -97,9 +80,11 @@ struct	termio {
 #define	FF0	0x0000
 #define	FF1	0x8000
 
+
 /*
  * Terminal Hardware Control: c_cflag
  */
+
 #define	CBAUD	0x000F		/* Baud rate: */
 #define	B0	0		/* Hang up */
 #define	B50	1		/* 50 baud */
@@ -131,9 +116,11 @@ struct	termio {
 #define	HUPCL	0x0400		/* Hang up on last close */
 #define	CLOCAL	0x0800		/* Local line, else dial-up */
 
+
 /*
  * Terminal Functions - c_lflag
  */
+
 #define	ISIG	0x0001		/* Enable signals */
 #define	ICANON	0x0002		/* Canonical input (erase and kill) */
 #define	XCASE	0x0004		/* Canonical upper/lower presentation */
@@ -143,9 +130,11 @@ struct	termio {
 #define	ECHONL	0x0040		/* Echo NL */
 #define	NOFLSH	0x0080		/* Disable flush after interrupt or quit */
 
+
 /*
  * Offsets into Control Characters
  */
+
 #define	VINTR	0
 #define	VQUIT	1
 #define	VERASE	2
@@ -155,44 +144,56 @@ struct	termio {
 #define	VEOL2	6
 #define	VMIN	4
 #define	VTIME	5
-#define	VSWTCH	6
+#define	VSWTCH	7
+
 
 /*
- * Character Constants
+ * Character Constants.
  */
+
+#define	CNUL	0
+#define	CINTR	0x03		/* CAN (ctrl-C) */
+				/* iBCS2, SVR4 ABI specifies 0x7F */
 #define CEOF	0x04		/* EOT (ctrl-D) */
 #define CERASE	0x08		/* BS (backspace) */
+				/* iBCS2, SVR4 ABI specifies '#' */
 #define CESC	0x1B		/* ESC (escape) */
+				/* iBCS2, SVR4 ABI specifies '\\' */
 #define CKILL	0x15		/* ACK (ctrl-U) */
+				/* iBCS2, SVR4 ABI specifies '@' */
 #define CQUIT	0x1C		/* FS (ctrl-\) */
 #define CSTART	0x11		/* DC1 (ctrl-Q) */
 #define CSTOP	0x13		/* DC3 (ctrl-S) */
 #define CSWTCH	0x1A		/* EOT (ctrl-Z) */
 
-/*
- * Ioctl Commands - ioctl(fno, com, &termio)
- */
-
-#define	TIOC	('T'<<8)
-#define	TCGETA	(TIOC|1)	/* Get terminal parameters */
-#define	TCSETA	(TIOC|2)	/* Set terminal parameters */
-#define	TCSETAW	(TIOC|3)	/* Wait for drain, then set parameters */
-#define	TCSETAF	(TIOC|4)	/* Wait for drain, flush input, set parms */
 
 /*
- * Ioctl Commands - ioctl(fno, com, arg)
+ * Ioctl Commands - ioctl (fno, com, & termio)
  */
-#define	TCSBRK	(TIOC|5)	/* Send 0.25 second break */
-#define	TCXONC	(TIOC|6)	/* Start/stop control
-				   arg=0 -> suspend output
-				   arg=1 -> restart suspended output
+
+#define	TIOC	('T' << 8)
+#define	TCGETA	(TIOC | 1)	/* Get terminal parameters */
+#define	TCSETA	(TIOC | 2)	/* Set terminal parameters */
+#define	TCSETAW	(TIOC | 3)	/* Wait for drain, then set parameters */
+#define	TCSETAF	(TIOC | 4)	/* Wait for drain, flush input, set parms */
+
+
+/*
+ * Ioctl Commands - ioctl (fno, com, arg)
+ */
+
+#define	TCSBRK	(TIOC | 5)	/* Send 0.25 second break */
+#define	TCXONC	(TIOC | 6)	/*
+				 * arg == 0 -> suspend output
+				 * arg == 1 -> restart suspended output
 				 */
-#define	TCFLSH	(TIOC|7)	/* arg=0 -> flush input queue
-				   arg=1 -> flush output queue
-				   arg=2 -> flush both input and output queues
+#define	TCFLSH	(TIOC | 7)	/*
+				 * arg == 0 -> flush input queue
+				 * arg == 1 -> flush output queue
+				 * arg == 2 -> flush both input and output
 				 */
 
-#if	! _POSIX_SOURCE
+#if	! _POSIX_C_SOURCE
 
 #define TIOCGWINSZ	(TIOC | 104)
 #define TIOCSWINSZ	(TIOC | 103)
@@ -204,8 +205,6 @@ struct winsize {
 	unsigned short ws_ypixel;	/* pixels per column */
 };
 
-#endif	/* ! _POSIX_SOURCE */
-
-#endif	/* _COH_TERMIO */
+#endif	/* ! _POSIX_C_SOURCE */
 
 #endif	/* ! defined (__TERMIO_H__) */

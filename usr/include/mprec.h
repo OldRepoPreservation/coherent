@@ -1,7 +1,8 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 /*
  *	Definitions of all user multi-precision types, macros and
@@ -11,9 +12,6 @@
 #ifndef	__MPREC_H__
 #define	__MPREC_H__
 
-#ifndef NULL
-#define	NULL		((char *)0)
-#endif
 #define TRUE		(0 == 0)
 #define FALSE		(0 != 0)
 #define	BASE		128

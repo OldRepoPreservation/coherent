@@ -1,7 +1,8 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 
 #ifndef	__PWD_H__
@@ -58,11 +59,11 @@ __EXTERN_C_BEGIN__
 struct passwd *	getpwnam	__PROTO ((__CONST__ char * _name));
 struct passwd *	getpwuid	__PROTO ((__uid_t _uid));
 
-#if	! _POSIX_SOURCE
+#if	! _POSIX_C_SOURCE
 
 struct passwd *	getpwent	__PROTO ((void));
-int		setpwent	__PROTO ((void));
-int		endpwent	__PROTO ((void));
+void		setpwent	__PROTO ((void));
+void		endpwent	__PROTO ((void));
 
 #endif
 

@@ -1,19 +1,16 @@
-/*
- * /usr/include/signal.h
- *
- * COHERENT signal support.
- *
- * Revised: Wed May 12 07:56:47 1993 CDT
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	 __SIGNAL_H__
 #define	 __SIGNAL_H__
 
 #include <common/feature.h>
 #include <common/ccompat.h>
 #include <common/__pid.h>
-
-#if	_I386
-
 #include <sys/signal.h>
 
 typedef	long	sig_atomic_t;
@@ -21,8 +18,14 @@ typedef	long	sig_atomic_t;
 
 __EXTERN_C_BEGIN__
 
-__sigfunc_t	signal		__PROTO ((int _sig, __sigfunc_t _func));
+__sighand_t   *	signal		__PROTO ((int _sig, __sighand_t * _func));
 int		raise		__PROTO ((int _sig));
+
+__sighand_t   *	sigset		__PROTO ((int _sig, __sighand_t * _func));
+int		sighold		__PROTO ((int _sig));
+int		sigignore	__PROTO ((int _sig));
+int		sigrelse	__PROTO ((int _sig));
+int		sigpause	__PROTO ((int _sig));
 
 #if	! _STDC_SOURCE
 
@@ -42,7 +45,7 @@ int		sigprocmask	__PROTO ((int _how,
 					  sigset_t * _oset));
 int		sigsuspend	__PROTO ((__CONST__ sigset_t * _sigmask));
 
-#if	_SYSV3
+#if	! _SYSV4
 
 /*
  * Pre-SVR4 systems make these available as inlines. For us, this is optional
@@ -58,28 +61,10 @@ int		sigsuspend	__PROTO ((__CONST__ sigset_t * _sigmask));
 #define	sigdelset(set, signo)	((set)->_sigbits [0] &= \
 					~ __SIGSET_MASK (signo), 0)
 
-#endif	/* _SYSV3 */
+#endif	/* ! _SYSV4 */
 
 #endif	/* ! _STDC_SOURCE */
 
 __EXTERN_C_END__
-
-#else	/* if ! _I386 */
-
-#include <sys/msig.h>
-
-#define SIGHUP	1			/* Hangup */
-#define	SIGINT	2			/* Interrupt */
-#define SIGQUIT	3			/* Quit */
-#define SIGALRM	4			/* Alarm */
-#define SIGTERM	5			/* Software termination signal */
-#define SIGREST	6			/* Restart */
-#define SIGSYS	7			/* Bad argument to system call */
-#define	SIGPIPE	8			/* Write to pipe with no readers */
-#define SIGKILL	9			/* Kill */
-#define SIGTRAP	10			/* Breakpoint */
-#define	SIGSEGV	11			/* Segmentation violation */
-
-#endif	/* ! _I386 */
 
 #endif	/* ! defined (__SIGNAL_H__) */
