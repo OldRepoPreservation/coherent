@@ -2,7 +2,10 @@
  * This program is in public domain; written by Dave G. Conroy.
  * This file contains the main driving routine, and some keyboard processing
  * code, for the MicroEMACS screen editor.
+ * Modified by W. L. Sheldon for use with the COHERENT Operating System -
+ * VT100 terminal key bindings.
  */
+ 
 #include	<stdio.h>
 #include	"ed.h"
 
@@ -338,8 +341,8 @@ getkey()
 #else
 #if	VT100
 	for (;;) {
-		if ((c = tgetc()) == METACH) {		/* Apply M- prefix	*/
-			if ((c = tgetc()) == '[') {	/* Arrow keys.		*/
+		if ((c = tgetc()) == METACH) {	/* Apply M- prefix	*/
+			if ((c = tgetc()) == '[') { /* Arrow keys.	*/
 				switch (tgetc()) {
 				case 'A':
 					return (OBND | CTRL | 'P');
@@ -349,16 +352,55 @@ getkey()
 					return (OBND | CTRL | 'F');
 				case 'D':
 					return (OBND | CTRL | 'B');
-				case 'U':
-					return (OBND | CTRL | 'V');
-				case 'V':
-					return (OBND | META | 'V');
+				case 'P':
+					return (OBND | CTRL | 'D');  /* DEL key */
 				case 'H':
-					return (OBND | META | '<');
+					return (OBND | CTRL | 'A');  /* HOME key */
+				case '1':
+					switch (tgetc()) {
+					case 'x':
+						return (OBND | META | '?'); /* F1 help C/ASM word */
+					case 'y':
+						return (OBND | PFX1 | '2'); /* Alt-F1 open 2nd window */
+					}
 				case '2':
-					if ( (tgetc() == '4') &&
-					     (tgetc() == 'H') )
-						return (OBND | META | '>');
+					switch (tgetc()) {
+					case '4': 
+						if ((tgetc()) == 'H')
+							return (OBND | CTRL | 'E');  /* END key */
+					case 'x': 						
+							return (OBND | PFX1 | CTRL | 'V'); /*  new file F2 */
+					}
+				case 'V':
+					return (OBND | META | 'V');     /* PGUP key */
+				case 'U':
+					return (OBND | CTRL | 'V');     /* PGDN key */
+				case '3':
+					switch (tgetc()) {
+					case 'x':
+						return (OBND | META | 'S');  /* F3 search forward */
+					case 'y':
+						return (OBND | META | '/');  /* ALT-F3 cont search */
+					}
+				case '4':
+					tgetc();
+					return (OBND | META | 'R');  /* F4 search backward */
+				case '5':
+					tgetc();
+					return (OBND | META | '%');  /* F5 search & replace */
+				case '6':				
+					tgetc();
+					return (OBND | PFX1 | 'N');  /* F6 next window */
+				case '8':
+					tgetc();
+					return (OBND | CTRL | 'Z'); /* F8 save/exit */
+				case '0':
+					switch (tgetc()) {
+					case 'x':
+						return (OBND | PFX1 | '1');  /* F10 close other wndws */
+					case 'y':
+						return (OBND | META | 'J');
+					}
 				}
 				continue;
 			}
@@ -384,7 +426,9 @@ getkey()
 		return (META | getCtl());
 #endif
 #endif
-	if (c>=0x00 && c<=0x1F)			/* C0 control -> C-	*/
+	if (c == 0x0D && bind.autoindent)
+		return (OBND | CTRL | 'J');
+	if (c >= 0x00 && c <= 0x1F)			/* C0 control -> C-	*/
 		return (CTRL | '@' | c);
 	return (c);
 }
@@ -496,7 +540,7 @@ setkeys()					/* redefine cursor keys */
 /* manual		*/
 {
 #if	!IBM
-	static char *ctlseq[] = {
+	static uchar *ctlseq[] = {
 		"\033[0;72;16p",	/* up = <ctrl-p>        */
 		"\033[0;77;6p",		/* right = <ctrl-f>     */
 		"\033[0;75;2p",		/* left = <ctrl-b>      */
@@ -509,7 +553,7 @@ setkeys()					/* redefine cursor keys */
 		"\033[0;3;27;46p",	/* <ctrl-@> = <exc>.    */
 		NULL
 	};
-	register char **ctlp;
+	register uchar **ctlp;
 
 	for (ctlp = ctlseq; NULL != *ctlp; ctlp++)
 		mlwrite(*ctlp);
@@ -522,7 +566,7 @@ resetkeys()					/* redefine cursor keys */
 /* to default values    */
 {
 #if  !IBM
-	static char *ctlseq[] = {
+	static uchar *ctlseq[] = {
 		"\033[0;72;0;72p",
 		"\033[0;77;0;77p",
 		"\033[0;75;0;75p",
@@ -535,7 +579,7 @@ resetkeys()					/* redefine cursor keys */
 		"\033[0;3;0;3p",
 		NULL
 	};
-	register char **ctlp;
+	register uchar **ctlp;
 
 	for (ctlp = ctlseq; NULL != *ctlp; ctlp++)
 		mlwrite(*ctlp);
@@ -552,8 +596,10 @@ uchar **argv;
 	extern uchar *flexName();
 	uchar *ptr;
 
-	if (NULL == (ptr = getenv("TABSIZ")) || !(TABSIZ = atoi(ptr)))
-		TABSIZ = 8;
+	if (!bind.tabsiz && 
+	     (NULL == (ptr = getenv("TABSIZ")) ||
+	      !(bind.tabsiz = atoi(ptr))))
+		bind.tabsiz = 8;
 	cfilecnt = 0;
 	flexn = NULL;
 	for (i = 1; i < argc; i++) {

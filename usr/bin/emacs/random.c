@@ -6,8 +6,6 @@
 #include	<stdio.h>
 #include	"ed.h"
 
-int	tabsize;			/* Tab size (0: use real tabs)	*/
-
 /*
  * Return current column.  Stop at first non-blank given TRUE argument.
  */
@@ -143,8 +141,7 @@ twiddle(f, n)
  * its line splitting meaning.  The character is always read, even if it is
  * inserted 0 times, for regularity.  If executing a macro, get the character
  * from memory, otherwise, get it from the keyboard.
- * Bound to "M-Q" (for me) and "C-Q" (for Rich, and only on terminals
- * that don't need XON-XOFF).
+ * Bound to "C-Q"
  */
 quote(f, n)
 register int n;
@@ -171,7 +168,46 @@ register int n;
 	return (linsert(n, c));
 }
 
-int TABSIZ = 8;
+/*
+ * Get character by value, and insert it into the buffer.  All the characters
+ * are taken literally, with the exception of the newline, which always has
+ * its line splitting meaning.  The character is always read, even if it is
+ * inserted 0 times, for regularity.
+ * Bound to "M-Q"
+ */
+quoteval(f, n)
+register int n;
+{
+	register int	s;
+	register int	c;
+	char buf[10];	/* big enough */
+
+	if (TRUE != (s = mlreply("value of char to insert ", buf, sizeof(buf))))
+		return (s);
+
+	if (n < 0)
+		return (FALSE);
+	if (n == 0)
+		return (TRUE);
+
+	c = atoi(buf);
+	if (c == '\n') {
+		do {
+			s = lnewline();
+		} while (s==TRUE && --n);
+		return (s);
+	}
+	return (linsert(n, c));
+}
+
+/*
+ * Toggle autoindent flag.
+ */
+autoind(f, n)
+{
+	bind.autoindent ^= 1;
+}
+
 /*
  * Set tab size if given non-default argument (n <> 1).  Otherwise, insert a
  * tab into file.  If given argument, n, of zero, change to true tabs.
@@ -184,16 +220,16 @@ tab(f, n)
 register int n;
 {
 	if (n < 0) {
-		TABSIZ = -n;
+		bind.tabsiz = -n;
 		return (TRUE);
 	}
-	if (n == 0 || n > 1) {
-		tabsize = n;
+	if (n != 1) {
+		bind.tabsize = n;
 		return (TRUE);
 	}
-	if (! tabsize)
+	if (!bind.tabsize)
 		return (linsert(1, '\t'));
-	return (linsert(tabsize - (getccol(FALSE) % tabsize), ' '));
+	return (linsert(bind.tabsize - (getccol(FALSE) % bind.tabsize), ' '));
 }
 
 /*
@@ -316,8 +352,8 @@ indent(f, n)
 			++nicol;
 		}
 		if (lnewline() == FALSE
-		|| ((i=nicol/TABSIZ)!=0 && linsert(i, '\t')==FALSE)
-		|| ((i=nicol%TABSIZ)!=0 && linsert(i,  ' ')==FALSE))
+		|| ((i=nicol/bind.tabsiz)!=0 && linsert(i, '\t')==FALSE)
+		|| ((i=nicol%bind.tabsiz)!=0 && linsert(i,  ' ')==FALSE))
 			return (FALSE);
 	}
 	return (TRUE);

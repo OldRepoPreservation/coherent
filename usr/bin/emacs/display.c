@@ -106,7 +106,7 @@ register int	c;
 					return;
 				} else
 					vp->v_text[vtcol++] = ' ';		
-			} while (vtcol % TABSIZ);
+			} while (vtcol % bind.tabsiz);
 		} else {
 			vtputc('^');
 			vtputc(c ^ 0x40);

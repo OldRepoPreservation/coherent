@@ -188,6 +188,9 @@ typedef struct BIND {
 	int	ffold;			/* Fold Flag			*/
 	int	fillcol;		/* Current fill column		*/
 	int	bracket;		/* Bracket Mode switch		*/
+	int	tabsiz;			/* tabsize 			*/
+	int	tabsize;		/* Tab size (0: use real tabs)	*/
+	int	autoindent;		/* Autoindent			*/
 } BIND;
 extern BIND bind;
 
@@ -338,8 +341,7 @@ typedef	struct	{
 #define	CF_LONGSCR	(0x4000)	/* Long screen flag		*/
 #define	CF_DEBUG	(0x8000)	/* Debugging flag		*/
 
-#define taber(c) ((c) += ((TABSIZ - (c % TABSIZ)) - 1))
-extern	int	TABSIZ;		/* Tabsiz */
+#define taber(c) ((c) += ((bind.tabsiz - (c % bind.tabsiz)) - 1))
 
 extern	unsigned int runswitch;		/* Switch flags			*/
 
