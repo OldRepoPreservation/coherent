@@ -1,3 +1,53 @@
+Changes to kernel and related files for version #70:
+
+11/30  sys2.c,pty.c: fix typo in POLLOUT polling
+11/25  ktty.h,tty.c: XTABS under sgtty becomes TABDLY=TAB3 under termio
+11/25  sys1.c: ulseek() once again rejects absolute offsets outside
+       the range 0..0x7ffff_ffff.
+11/25  null.c: /dev/kmemhi
+11/25  null.c: can now read/write /dev/mem more than 4096 bytes
+11/25  tty.h,ktty.h,asy.c,*kb*.c: support IXANY
+11/24  tty.c: block before first character if -icanon, vmin > 0.
+
+New /bin/stty, accepts decimal min/time values, ^? for DEL, ^- for <undef>.
+New /conf/patch needed since we can no longer seek past 0x7ffff_ffff!
+
+Changes to kernel and related files for version #69:
+
+Warning: old COHERENT 286-style (was never part of S5) TIOC[C]BREAD is
+no longer supported.  It conflicts with termio-style VMIN/VTIME.  Norm
+said it was ok to drop this.
+
+11/20  fl.c: fix at least one endless retry condition
+11/20  asy.c: setting BAUD 0 now hangs up the line
+11/19  asy.c: TCSBRK now sends 0.25 second break
+11/19  tty.c,asy: TCSETAF,TCSBRK weren't draining output
+11/19  tty.c: TCFLSH was ignoring third argument
+11/18  sys1.c: fix improper u_error setting in setuid()/setgid()
+11/17  mmu.c: fix startup arithmetic bug
+11/17  misc.c: use strchirp() in panic() if paging not enabled
+11/17  as.s: fix comparison in paging()
+11/12  mmu.c: add DV() macro for debugging
+11/12  asy.c: drain port fully on TCSETAW/TIOCSETP
+11/12  tty.c: add support for OCRNL, VMIN, VTIME
+
+Changes to kernel and related files for version #68:
+
+New /bin/ps needed!
+setfpe no longer supported.
+
+11/10  mmu.c,md.c,syscoh.c,as.s: add window server support (iomapOr(),
+       iomapAnd, kiopriv(), mapPhysUser()).
+11/10  msg386.c: vlad's permission 0 fix.
+... ker 67 was in here somewhere but had fatal character processing bug...
+11/06  null.c: improved ps command, uses new /dev/ps
+11/04  sys/ktty.h,tty.c: fix ONLCR/ICRNL check in tty module
+11/04  at.c,misc.c,as.s: atbsyw() and atdrqw() no longer depend on CPU speed
+11/04  sys/ktty.h,*kb*.c: fix ctrl-s/ctrl-q test to check IXON flag
+10/29  sys1.c: fix utimes() return value.
+10/28  287 support (untested)
+10/25  Fix floating point exception handling for 387.  Add NDP sensing.
+
 Changes to kernel and related files for version #66:
 
 New /bin/ps needed!
