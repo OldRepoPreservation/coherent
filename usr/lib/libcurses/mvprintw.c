@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)mvprintw.c	5.4 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)mvprintw.c	5.4 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,9 +31,9 @@ static char sccsid[] = "@(#)mvprintw.c	5.4 (Berkeley) 6/30/88";
 
 mvprintw(y, x, fmt /*, args */ )
 reg int		y, x;
-char		*fmt;
+uchar		*fmt;
 {
-	char	buf[128];
+	uchar	buf[128];
 
 	if (move(y, x) != OK)
 		return ERR;
@@ -44,9 +44,9 @@ char		*fmt;
 mvwprintw(win, y, x, fmt /*, args */)
 reg WINDOW	*win;
 reg int		y, x;
-char		*fmt;
+uchar		*fmt;
 {
-	char	buf[128];
+	uchar	buf[128];
 
 	if (wmove(win, y, x) != OK)
 		return ERR;

@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)insertln.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)insertln.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -31,9 +31,9 @@ static char sccsid[] = "@(#)insertln.c	5.3 (Berkeley) 6/30/88";
 winsertln(win)
 reg WINDOW	*win; {
 
-	reg char	*temp;
+	reg uchar	*temp;
 	reg int		y;
-	reg char	*end;
+	reg uchar	*end;
 
 #ifdef	DEBUG
 	fprintf(outf, "INSERTLN(%0.2o)\n", win);

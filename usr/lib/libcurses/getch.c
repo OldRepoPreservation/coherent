@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)getch.c	5.5 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)getch.c	5.5 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 

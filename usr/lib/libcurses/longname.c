@@ -17,21 +17,22 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)longname.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)longname.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
 # define	reg	register
+# define	uchar	unsigned char
 
 /*
  *	This routine fills in "def" with the long name of the terminal.
  *
  */
-char *
+uchar *
 longname(bp, def)
-reg char	*bp, *def; {
+reg uchar	*bp, *def; {
 
-	reg char	*cp;
+	reg uchar	*cp;
 
 	while (*bp && *bp != ':' && *bp != '|')
 		bp++;
