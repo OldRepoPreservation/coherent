@@ -36,15 +36,17 @@ char *name;
 			if (c == EOF)
 				break;
 		}
-		if (c == '\n') {
+		if (c == '\n' || c == ';') {
 			*cp = '\0';
 			ncp = linebuf;
 			compcom();
 			cp = linebuf;
+			if (c == ';')
+				--lno;
 			continue;
 		}
 		if (c == '\\') {
-			if ((c=getc(fp))!='\n' && c!='\\') {
+			if ((c=getc(fp))!='\n' && c!='\\' && c!=';') {
 				ungetc(c, fp);
 				c = '\\';
 			}
@@ -69,8 +71,11 @@ register char *cp;
 
 	do {
 		lp = linebuf;
-		while ((c=*cp++)!='\0' && c!='\n')
+		while ((c = *cp++) != '\0' && c != '\n' && c != ';') {
+			if (c == '\\' && *cp == ';')
+				c = *cp++;	/* "\;" means ';' */
 			*lp++ = c;
+		}
 		*lp = '\0';
 		ncp = linebuf;
 		compcom();

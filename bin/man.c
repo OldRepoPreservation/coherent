@@ -70,7 +70,7 @@ main(argc, argv) int argc; char *argv[];
 
 	/* Args given.  First read the index. */
 	if ((fd = open(MANINX, 0)) == -1)
-		fatal("cannot open manual index %s", MANINX);
+		fatal("cannot open manual index %s, online manual probably not installed", MANINX);
 	else if ((i = read(fd, manindex, BBBIGBUF)) == -1)
 		fatal("cannot read index buffer");
 	else if (i >= BBBIGBUF)

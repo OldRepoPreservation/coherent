@@ -1,8 +1,11 @@
 /*
- * Banner -- print in large type
+ * banner.c
+ * Print arguments (or stdin) in large type.
  * td 80.09.24
  */
+
 #include <stdio.h>
+
 char font[96][9]={
 0000,0000,0000,0000,0000,0000,0000,0000,0000,	/* sp */
 0010,0010,0010,0010,0010,0000,0010,0000,0000,	/* ! */
@@ -99,13 +102,15 @@ char font[96][9]={
 0010,0010,0010,0000,0010,0010,0010,0000,0000,	/* | */
 0030,0004,0004,0002,0004,0004,0030,0000,0000,	/* } */
 0020,0052,0004,0000,0000,0000,0000,0000,0000,	/* ~ */
-0177,0177,0177,0177,0177,0177,0177,0177,0177,	/* del */
+0177,0177,0177,0177,0177,0177,0177,0177,0177	/* del */
 };
+
 char line[512];
-main(argc, argv)
-char *argv[];
+
+main(argc, argv) int argc; char *argv[];
 {
 	register i;
+
 	if(argc>1) for(i=1;i!=argc;i++){
 		if(i!=1)
 			putchar('\n');
@@ -115,12 +120,14 @@ char *argv[];
 		putchar('\n');
 		banner(line);
 	}
+	exit(0);
 }
-banner(line)
-char *line;
+
+banner(line) char *line;
 {
 	register i, j;
 	register char *s;
+
 	for(i=0;i!=9;i++){
 		for(s=line;*s;s++) for(j=0200;j!=0;j>>=1)
 			if(' '<=*s && *s<=0177 && font[*s-' '][i]&j)
@@ -130,3 +137,5 @@ char *line;
 		putchar('\n');
 	}
 }
+
+/* end of banner.c */

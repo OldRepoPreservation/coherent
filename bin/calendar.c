@@ -5,17 +5,21 @@
 */
 
 #include <stdio.h>
-#include <types.h>
+#include <sys/types.h>
 #include <time.h>
-#include <timeb.h>
+#include <sys/timeb.h>
+#include <string.h>
 
-char *message = "Usage: calendar [-ffile1, -ffile2,..., -ddate, -wdate, -mmonth, -yyear]\n\
-	options:\n\
-		-ffile - file is a calendar, search in order given.\n\
-		     (default is $HOME/.calendar)\n\
-		-ddate - Print all entries matching the given date\n\
-		-wdate - Print entries in the week beginning with the given date\n\
-		-mmonth - Print entries in the same month as \"month\"\n";
+char *message =
+"Usage: calendar [ -a ] [ -ffile ]... [ -d[date] ] [ -w[date] ] [ -m[month] ]\n\
+Options:\n\
+	-a		Search calendars of all users and send mail.\n\
+	-ffile		Search each \"file\" in order given.\n\
+	-d[date]	Print all entries matching \"date\".\n\
+	-w[date]	Print entries in the week beginning with \"date\".\n\
+	-m[month]	Print entries in the given \"month\".\n\
+The default calendar is $HOME/.calendar.  The default date is today.\n\
+";
 
 char *argv0;
 int all = 0;
@@ -72,7 +76,7 @@ char *argv[];
 				mflag = MONTH;
 				continue;
 			default:
-				printf("Unrecognized option %c\n", *cp);
+				fprintf(stderr, "%s: unrecognized option '%c'\n", argv0, *cp);
 				usage();
 		}
 	}
@@ -84,17 +88,17 @@ char *argv[];
 	if (nfiles)  {
 		for (arg = 0; arg <nfiles; arg++ )  {
 			if ((fp[arg] = fopen(filename[arg], "r")) == NULL)
-				printf("Cannot open file %s\n", filename[arg]);
+				fprintf(stderr, "cannot open file %s\n", filename[arg]);
 			else
 				foundfiles++;
 		}
 		if (!foundfiles)
-			fatal("Cannot open any files specified\n");
+			fatal("cannot open any files specified");
 	} else {
 		nfiles = 1;
 		filename[0] = strcat(getenv("HOME"), "/.calendar");
 		if ((fp[0] = fopen(filename[0], "r")) == NULL)
-			fatal("cannot open file $HOME/.calendar\n");
+			fatal("cannot open file $HOME/.calendar");
 	}
 	/*
 	** Find match condition from options or current date
@@ -111,9 +115,9 @@ char *argv[];
 				strcpy(CurLine, matchstr);
 				CurLinep = &CurLine[0];
 				if ((thismonth = findmon()) == -1) 
-					fatal("Invalid month in match date\n");
+					fatal("invalid month in match date");
 				if ((thisday = findday()) == -1)  
-					fatal("Invalid day in match date\n");
+					fatal("invalid day in match date");
 				if ((thisyear = findyear()) == -1)  
 					thisyear = current(1);
 				matchdate = date(thisday, thismonth, thisyear);
@@ -126,7 +130,7 @@ char *argv[];
 				strcpy(CurLine, matchstr);
 				CurLinep = &CurLine[0];
 				if ((matchdate = findmon()) == -1)
-					fatal("Invalid month in match date\n");
+					fatal("invalid month in match date");
 			}
 			break;
 	}
@@ -139,7 +143,7 @@ char *argv[];
 		while ((thisline = fgets(CurLine, 512, fp[arg]))!=NULL) {
 			CurLinep = &CurLine[0];
 			advance = 0;
-			if ((atsign = index(CurLinep, '@')) != NULL)
+			if ((atsign = strchr(CurLinep, '@')) != NULL)
 				advance = atoi(atsign + 1);
 			if ((thismonth = findmon()) == -1)
 				thismonth = 0;
@@ -188,18 +192,16 @@ char *argv[];
 	}
 }
 
-
 usage()
 {
-	printf("%s", message);
+	fprintf(stderr, "%s", message);
 	exit(1);
 }
 
 fatal(str)
 char *str;
 {
-	printf("%s: ", argv0);
-	printf("%r", &str);
+	fprintf(stderr, "%s: %r\n", argv0, &str);
 	exit(1);
 }
 int
@@ -314,7 +316,7 @@ int opt;
 			retval = stimep->tm_mon+1;
 			break;
 		default:
-			fatal("Bad opt to current\n");
+			fatal("bad opt to current");
 	}
 	return (retval);
 }
@@ -355,8 +357,8 @@ doall()
 	int i;
 
 	if ((fp = fopen("/etc/passwd", "r")) == NULL)
-		fatal("cannot open /etc/passwd\n");
-	while ((fgets(&pline[0], 256, fp) != EOF) && (pline[0] != '\0')) {
+		fatal("cannot open /etc/passwd");
+	while ((fgets(&pline[0], 256, fp) != NULL) && (pline[0] != '\0')) {
 		for (cp1 = &pline[0]; *cp1 != '\0'; cp1++)
 			if (*cp1 == '\n')  {
 				*cp1 = '\0';
