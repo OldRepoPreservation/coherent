@@ -1,14 +1,15 @@
-CMDS=kermit vi less cpio modeminit ramdisk me cgrep uuprogs uuins \
-     uuclean ksh
+CMDS=kermit vi less cpio modeminit ramdisk me uuprogs uuins \
+     uuclean ksh cut
 DESTDIR=/interim/usr/bin/
 
 all:	$(CMDS)
 
 kermit:	kermit.c
 	cc -O -o $(DESTDIR)$@ kermit.c
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
+	su root chmog 511 bin bin $(DESTDIR)$@
+
+cut:
+	cd cutpaste/objects ; export SRCPATH=.. ; make
 
 vi:
 	cd elvis; make
@@ -33,12 +34,6 @@ ramdisk:
 	su root chgrp root $(DESTDIR)$@
 	su root chown root $(DESTDIR)$@
 	su root chmod 700 $(DESTDIR)$@
-
-cgrep: cgrep.c
-	cc -O -o $(DESTDIR)$@ cgrep.c -lmisc
-	su root chown bin $(DESTDIR)$@
-	su root chgrp bin $(DESTDIR)$@
-	su root chmod 511 $(DESTDIR)$@
 
 uuins:
 	cd uuinstall/objects ; export SRCPATH=.. ; make
