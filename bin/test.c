@@ -1,6 +1,6 @@
 /*
  * cmd/test.c
- * 2/4/93
+ * 2/8/93
  * Set status based on specified conditions, mostly related to files.
  * Used for control flow in shell scripts.
  * Cf. POSIX P1003.2/D11.2 section 4.62; extensions marked !POSIX below.
@@ -265,8 +265,8 @@ usage()
 		"\t-e file\t\tfile exists\n"
 		"\t-f file\t\tfile exists and is a regular file\n"
 		"\t-g file\t\tfile exists and is setgid\n"
-		"\t-k file\t\tfile exists and has sticky bit set\t(!POSIX)\n"
-		"\t-L file\t\tfile is a link\t\t\t\t(!POSIX)\n"
+		"\t-k file\t\tfile exists and has sticky bit set\t(not Posix)\n"
+		"\t-L file\t\tfile is a link\t\t\t\t(not Posix)\n"
 		"\t-n string\tstring length is nonzero\n"
 		"\t-p file\t\tfile exists and is a named pipe (FIFO)\n"
 		"\t-r file\t\tfile exists and is readable\n"
@@ -282,24 +282,24 @@ usage()
 		"Binary primaries:\n"
 		"\ts1 = s2\t\tstrings s1 and s2 are identical\n"
 		"\ts1 != s2\tstrings s1 and s2 are not identical\n"
-		"\ts1 < s2\t\tstring s1 is less than s2\t\t(!POSIX)\n"
-		"\ts1 > s2\t\tstring s1 is greater than s2\t\t(!POSIX)\n"
-		"\tfile1 -ef file2\tfile1 and file2 are identical\t\t(!POSIX)\n"
+		"\ts1 < s2\t\tstring s1 is less than s2\t\t(not Posix)\n"
+		"\ts1 > s2\t\tstring s1 is greater than s2\t\t(not Posix)\n"
+		"\tfile1 -ef file2\tfile1 and file2 are identical\t\t(not Posix)\n"
 		"\tn1 -eq n2\tnumbers n1 and n2 are equal\n"
 		"\tn1 -ge n2\tnumber n1 is greater than or equal to n2\n"
 		"\tn1 -gt n2\tnumber n1 is greater than n2\n"
 		"\tn1 -le n2\tnumber n1 is less than or equal to n2\n"
 		"\tn1 -lt n2\tnumber n1 is less than n2\n"
 		"\tn1 -ne n2\tnumbers n1 and n2 are not equal\n"
-		"\tfile1 -nt file2\tfile1 is newer than file2\t\t(!POSIX)\n"
-		"\tfile1 -ot file2\tfile1 is older than file2\t\t(!POSIX)\n"
+		"\tfile1 -nt file2\tfile1 is newer than file2\t\t(not Posix)\n"
+		"\tfile1 -ot file2\tfile1 is older than file2\t\t(not Posix)\n"
 		);
 	fprintf(stderr,
 		"Expression grouping:\n"
 		"\t! exp\t\texp is false\n"
-		"\texp1 -a exp2\texp1 and exp2 are true\t\t\t(!POSIX)\n"
-		"\texp1 -o exp2\texp1 or exp2 is true\t\t\t(!POSIX)\n"
-		"\t( exp )\t\tparentheses for grouping\t\t(!POSIX)\n"
+		"\texp1 -a exp2\texp1 and exp2 are true\t\t\t(not Posix)\n"
+		"\texp1 -o exp2\texp1 or exp2 is true\t\t\t(not Posix)\n"
+		"\t( exp )\t\tparentheses for grouping\t\t(not Posix)\n"
 		);
 #endif
 	exit(ERROR);
