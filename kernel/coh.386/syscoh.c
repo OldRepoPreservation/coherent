@@ -51,17 +51,14 @@ static int setfpe();
 /*
  * Only allow this if running as superuser.
  *
- * First argument is the call type.
- *
- * a1 = COH_PRINTF	kernel printf
- *
- * a1 = COH_DEVLOAD	call load() routine for device with major number a2
- *
- * a1 = COH_SETFPE	a2=0, trap on FP;  a2!=0, allow FP
- *
- * a1 = COH_SETBP	a2=bp#,a3=addr,a4=type,a5=len;  set kernel breakpoint
- *
- * a1 = COH_CLRBP	a2=bp#;  clear kernel breakpoint
+ * a1		call type
+ * ----------	----------
+ * COH_PRINTF	kernel printf
+ * COH_DEVLOAD	call load() routine for device with major number a2
+ * COH_SETFPE	a2=0, trap on FP;  a2!=0, allow FP
+ * COH_SETBP	a2=bp#,a3=addr,a4=type,a5=len;  set kernel breakpoint
+ * COH_CLRBP	a2=bp#;  clear kernel breakpoint
+ * COH_REBOOT	reboot
  */
 ucohcall(a1,a2,a3,a4,a5,a6)
 {
@@ -87,6 +84,9 @@ ucohcall(a1,a2,a3,a4,a5,a6)
 		break;
 	case	COH_CLRBP:
 		ret = clrbp(a2);
+		break;
+	case	COH_REBOOT:
+		ret = boot();
 		break;
 	default:
 		SET_U_ERROR(EINVAL, "bad COH function");
@@ -144,22 +144,26 @@ unsigned int bp_num, addr, type, len;
 	switch(bp_num) {
 	case 0:
 		DR0 = addr;
+		write_dr0(DR0);
 		DR7 |= ((type<<16)|(len<<18)|0x303);
 		break;
 	case 1:
 		DR1 = addr;
+		write_dr1(DR1);
 		DR7 |= ((type<<20)|(len<<22)|0x30C);
 		break;
 	case 2:
 		DR2 = addr;
+		write_dr2(DR2);
 		DR7 |= ((type<<24)|(len<<26)|0x330);
 		break;
 	case 3:
 		DR3 = addr;
+		write_dr3(DR3);
 		DR7 |= ((type<<28)|(len<<30)|0x3C0);
 		break;
 	}
-	write_dr7();
+	write_dr7(DR7);
 	return 0;
 }
 
@@ -195,6 +199,6 @@ unsigned int bp_num;
 	}
 	if ((DR7 & 0xFF) == 0)
 		DR7 &= ~0x300;
-	write_dr7();
+	write_dr7(DR7);
 	return 0;
 }
