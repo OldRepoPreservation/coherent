@@ -63,12 +63,12 @@ dev_t dev;
 		return;
 	lock(bp->b_gate);
 	drest(dold);
-	if (blocko(iop->io_seek) != 0) {
-		u.u_error = EIO;
+	if (blocko(iop->io_seek)) {
+		SET_U_ERROR(EIO, "dmareq() seek");
 		goto out;
 	}
 	if ((sp=iomapvp(iop, bp)) == NULL) {
-		u.u_error = EIO;
+		SET_U_ERROR(EIO, "dmareq() iomapvp");
 		goto out;
 	}
 	bp->b_dev = dev;
@@ -80,7 +80,7 @@ dev_t dev;
 	 * have at most two raw transfers separated by a block which
 	 * straddles the segment boundary.
 	 * Life would be simpler if we assumed io_ioc % BSIZE, but
-	 * flioctl comes through here with it's short format buffer.
+	 * flioctl comes through here with its short format buffer.
 	 */
 	while (iop->io_ioc > 0 && (bp->b_flag&BFERR) == 0) {
 		/*
@@ -134,7 +134,7 @@ dev_t dev;
 			bp->b_req = req;
 			bp->b_bno = next_block;
 			dmabuf(bp, dev);
-			if ((bp->b_flag&BFERR) != 0)
+			if (bp->b_flag & BFERR)
 				to_read -= bp->b_resid;
 			iop->io_ioc -= to_read;	   /* cookedio do these */
 			iop->io.pbase += to_read;  /* for everyone */
@@ -147,22 +147,28 @@ dev_t dev;
 	sp->s_lrefc--;
 	if ( stimer.t_last != 0 )
 		wakeup((char *)&stimer);
-	if ((bp->b_flag&BFERR) != 0 && (u.u_error = bp->b_err) == 0)
-		u.u_error = EIO;
+	if ((bp->b_flag&BFERR) && (u.u_error = bp->b_err) == 0)
+		SET_U_ERROR(EIO, "dmareq() BFERR");
 out:
 	unlock(bp->b_gate);
 }
 
+/*
+ * dmabuf()
+ *
+ * Hand off a buf request to the block handler and go to sleep.
+ */
 static
 dmabuf(bp, dev)
 register BUF *bp;
 dev_t dev;
 {
 	register int s;
+
 	bp->b_flag = BFRAW|BFBLK|BFIOC|BFNTP;
 	s = sphi();
 	dblock(dev, bp);
-	while ((bp->b_flag&BFNTP) != 0)
+	while (bp->b_flag&BFNTP)
 		sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO);
 	spl(s);
 }
