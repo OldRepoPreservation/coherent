@@ -1,17 +1,19 @@
 /*
  * Octal dump.
  * The name is a bit of a joke on a
- * machine that uses hexadecimal, but it will
- * stay like this for now.
+ * machine that uses hexadecimal,
+ * but it will stay like this for now.
  * Defaults to hex unless on the PDP11.
  */
+
 #include <stdio.h>
 #include <sys/mdata.h>
 
-
 #ifndef PDP11
+#define	DEFBASE		16
 #define	DEFC		'x'
 #else
+#define	DEFBASE		8
 #define	DEFC		'o'
 #endif
 
@@ -19,19 +21,28 @@
 #define	getbyte()	getc(ifp)
 #define	getword()	getw(ifp)
 
-FILE	*ifp;
-char	buf[BUFSIZ];
+/* Forward. */
+long	getoffs();
+void	mkfmt();
+int	putasc();
+void	usage();
+int	val();
 
-main(argc, argv)
-char *argv[];
+/* Globals. */
+int	base = DEFBASE;
+char	buf[BUFSIZ];
+FILE	*ifp;
+
+main(argc, argv) int argc; char *argv[];
 {
 	register char *p;
 	register c, i;
-	long dofs, oofs;
+	long offs;
 	int bump, fc, mol, nof, nol, pw;
 	char afmt[10], pfmt[10];
-	int found = 0;
+	int found;
 
+	found = 0;
 	i = 1;
 	fc = DEFC;
 	if (i<argc && argv[i][0]=='-') {
@@ -74,26 +85,10 @@ char *argv[];
 	}
 	if (nof && i>=argc)
 		usage();
-	oofs = 0;
+	offs = 0;
 	if (i < argc) {
-		dofs = 0;
-		p = argv[i];
-		while ((c=*p++)>='0' && c<='9') {
-			c -= '0';
-			oofs =  8*oofs + c;
-			dofs = 10*dofs + c;
-		}
-		if (c == '.') {
-			oofs = dofs;
-			c = *p++;
-		}
-		if (c == 'b') {
-			oofs *= BUFSIZ;
-			c = *p++;
-		}
-		if (c != 0)
-			usage();
-		fseek(ifp, oofs, 0);
+		offs = getoffs(argv[i]);
+		fseek(ifp, offs, 0);
 	}
 	if (fc=='b' || fc=='c') {
 		bump = sizeof(char);
@@ -108,7 +103,8 @@ char *argv[];
 	}
 	mkfmt(pfmt, pw, fc);
 	if (DEFC == 'o')
-		mkfmt(afmt, (NBLONG+2)/3, 'O'); else
+		mkfmt(afmt, (NBLONG+2)/3, 'O');
+	else
 		mkfmt(afmt, (NBLONG+3)/4, 'X');
 	for (mol=1; mol < (WIDTH-(NBLONG+2)/3)/(pw+1); mol<<=1)
 		;
@@ -125,20 +121,49 @@ char *argv[];
 			nol = 0;
 		}
 		if (nol == 0)
-			printf(afmt, oofs);
+			printf(afmt, offs);
 		if (fc!='c' || !putasc(c))
 			printf(pfmt, c);
 		++nol;
-		oofs += bump;
+		offs += bump;
 	}
 	if (nol != 0)
 		putchar('\n');
 	exit(0);
 }
 
-mkfmt(p, w, c)
-register char *p;
-register w, c;
+/*
+ * Parse the offset at p (form [0[x]]dd*[.][b]) and return its value.
+ * Much ado about little.
+ */
+long
+getoffs(p) register char *p;
+{
+	register char *ep;
+	int bflag;
+	long offs;
+
+	ep = &p[strlen(p) - 1];		/* pointer to last char of arg */
+	bflag = (*ep == 'b');		/* trailing b means blocks */
+	if (bflag)
+		*ep-- = '\0';
+	if (*ep == '.') {		/* trailing . means decimal */
+		*ep = '\0';
+		base = 10;
+	} else if (*p == '0') {
+		if (*++p == 'x') {	/* leading 0x means hex */
+			++p;
+			base = 16;
+		} else			/* leading 0 means octal */
+			base = 8;
+	}
+	for (offs = 0; *p != '\0'; offs = base * offs + val(*p++))
+		;
+	return (bflag) ? offs * BUFSIZ : offs;
+}
+
+void
+mkfmt(p, w, c) register char *p; register int w, c;
 {
 	if (c >= 'a')
 		*p++ = ' ';
@@ -160,8 +185,8 @@ register w, c;
 	*p = 0;
 }
 
-putasc(c)
-register c;
+int
+putasc(c) register int c;
 {
 	register n;
 
@@ -215,8 +240,35 @@ register c;
 	return (1);
 }
 
+void
 usage()
 {
 	fprintf(stderr, "Usage: od [-bcdox] [file] [ [+] offset[.][b] ]\n");
 	exit(1);
 }
+
+/*
+ * Given ASCII character c, return its integer value.
+ * Give a usage error if the character is illegal in the given base.
+ * Base must be 8, 10 or 16.
+ */
+int
+val(c) register int c;
+{
+	if (c >= '0' && c <= '7')
+		return c - '0';
+	else if (base == 8)
+		usage();
+	else if (c == '8' || c == '9')
+		return c - '0';
+	else if (base == 10)
+		usage();
+	else if (c >= 'a' && c <= 'f')
+		return c + 10 - 'a';
+	else if (c >= 'A' && c <= 'F')
+		return c + 10 - 'A';
+	else
+		usage();
+}
+
+/* end of od.c */
