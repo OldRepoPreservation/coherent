@@ -22,10 +22,12 @@
 int	aflag;				/* Print for each mounted fs */
 int	iflag;				/* Print information on i-nodes */
 int	tflag;				/* Print total device size */
+int	oflag;				/* Print in old (incompatible) format */
 
 char	buf[BSIZE];			/* Basic file system reading buffer */
 struct	mnttab	m_tab[NMOUNT];
 struct	mnttab	*emtabp;
+int	noarg;				/* Was df called without any options */
 
 char	*devname();
 
@@ -52,19 +54,28 @@ char *argv[];
 				tflag++;
 				break;
 
+			case 'o':
+				oflag++;
+				break;
+
 			default:
 				usage();
 			}
 		argc--;
 		argv++;
 	}
+	if (!strcmp(getenv("OLDSTYLE"), "TRUE"))
+		oflag++;
+
 	minit();
 	sync();
 	if (argc < 2) {
 		if (aflag)
 			estat = dfmtab();
-		else
+		else {
+			noarg = 1;
 			estat = df(".");
+                }
 	} else {
 		for (i = 1; i < argc; i++)
 			estat |= df(argv[i]);
@@ -104,8 +115,12 @@ register char *fs;
 	register struct filsys *sbp;
 	struct stat sb;
 	int fd;
-	long	total;
-	long	free;
+	long	btotal;
+	long	bfree;
+	long	itotal;
+	long	ifree;
+	char	*nfs = fs;
+
 
 	if (stat(fs, &sb) < 0) {
 		cmsg("cannot stat '%s'", fs);
@@ -114,14 +129,13 @@ register char *fs;
 	switch (sb.st_mode & S_IFMT) {
 	case S_IFDIR:
 	{
-		char *nfs;
-
 		if ((nfs = devname(sb.st_dev)) == NULL) {
 			cmsg("no file system device found for directory '%s'",
 			    fs);
 			return (1);
 		}
-		fs = nfs;
+		if (noarg)
+			fs = nfs;
 		break;
 	}
 
@@ -133,13 +147,13 @@ register char *fs;
 		cmsg("unknown file type '%s'", fs);
 		return (1);
 	}
-	if ((fd = open(fs, 0)) < 0) {
-		cmsg("cannot open '%s'", fs);
+	if ((fd = open(nfs, 0)) < 0) {
+		cmsg("cannot open '%s'", nfs);
 		return (1);
 	}
 	lseek(fd, (long)BSIZE * SUPERI, 0);
 	if (read(fd, buf, BSIZE) != BSIZE) {
-		cmsg("read error on '%s'", fs);
+		cmsg("read error on '%s'", nfs);
 		close(fd);
 		return (1);
 	}
@@ -147,21 +161,36 @@ register char *fs;
 	sbp = &buf[0];
 	canf(sbp);
 	if (tstf(sbp) == 0) {
-		cmsg("badly formed super block on '%s'", fs);
+		cmsg("badly formed super block on '%s'", nfs);
 		return (1);
 	}
-	printf("%-11s", fs);
-	free = sbp->s_tfree;
-	total = sbp->s_fsize - sbp->s_isize;
-	report(free, total);
-	if (iflag) {
-		printf(", ");
-		total = (sbp->s_isize-INODEI)*INOPB;
-		free = sbp->s_tinode;
-		report(free, total);
+
+	bfree = sbp->s_tfree;
+	btotal = sbp->s_fsize - sbp->s_isize;
+	itotal = (sbp->s_isize-INODEI)*INOPB;
+	ifree = sbp->s_tinode;
+
+
+        if (!oflag)
+	{
+		printf("%-12s   (%-20s): ", fs, nfs);
+		printf(" %7lu blocks   %7lu inodes", bfree, ifree);
+		if (tflag)
+			printf("\n\t\t\t\tTotal:\t%7lu blocks   %7lu inodes",
+								btotal, itotal);
 	}
-	if (tflag)
-		printf(", %lu", sbp->s_fsize);
+	else
+	{
+		printf("%-11s", nfs);
+		report(bfree, btotal);
+		if (iflag)
+		{
+			printf(", ");
+			report(ifree, itotal);
+		}
+		if (tflag)
+			printf(", %lu", sbp->s_fsize);
+	}	
 	printf("\n");
 	return (0);
 }
@@ -172,9 +201,9 @@ long total;
 {
 	long percent;
 
-	printf(" %6lu/%6lu = ", free, total);
+	printf(" %6lu", free);
 	percent = (free * 1000L) / total;
-	printf("%2ld.%1ld%%", percent/10L, percent%10L);
+	printf("/%6lu = %2ld.%1ld%%", total , percent/10L, percent%10L);
 }
 
 /*
@@ -195,8 +224,8 @@ minit()
 	}
 #if 1
 	if ((fd = open("/etc/mtab", 0)) >= 0) {
-		while (read(fd, (char *)emtabp, sizeof(struct mtab)) 
-						== sizeof(struct mtab)) 
+		while (read(fd, (char *)emtabp, sizeof(struct mtab))
+						== sizeof(struct mtab))
 			emtabp++;
 		close(fd);
 	}
