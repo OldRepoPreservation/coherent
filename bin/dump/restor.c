@@ -676,9 +676,11 @@ daddr_t bn;
 		dbp1flag = 0;
 		dbp1 = dbread((long) bn);
 		for (i=0; i<NBN; ++i) {
-			ibn = ((daddr_t *) dbp->db_data)[i];
-			if (ibn != 0)
+			ibn = ((daddr_t *) dbp1->db_data)[i];
+			if (ibn != 0) {
+				candaddr(ibn);	/* Added by Mike */
 				bfree(ibn, nil-1);
+			}
 		}
 	}
 	dbp = dbread((long) SUPERI);
@@ -688,10 +690,10 @@ daddr_t bn;
 		if (dbp1 == NULL)
 			dbp1 = dbread((long) bn);
 		dbp1flag = DB_DIRT;
-		fbp = (struct fblk *) dbp->db_data;
+		fbp = (struct fblk *) dbp1->db_data;
 		fbp->df_nfree = fsp->s_nfree;
 		canshort(fbp->df_nfree);
-		copyb(fbp->df_nfree, fsp->s_free, sizeof(fsp->s_free));
+		copyb(fbp->df_free, fsp->s_free, sizeof(fsp->s_free));
 		fsp->s_nfree = 0;
 	}
 	candaddr(bn);
