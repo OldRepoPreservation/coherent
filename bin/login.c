@@ -33,9 +33,9 @@
  *		f) sets USER to the user name matched in /etc/passwd.
  *		g) sets HOME to the home directory specified in /etc/passwd.
  *		h) sets SHELL to the shell specified in /etc/passwd.
- *		  If "/bin/sh" is specified in /etc/passwd, sets SHELL to NULL
- *		  (Mike, 4-29-85)
- *		i) exec's /bin/sh as -sh.
+ *		i) exec's /bin/sh as "-sh" if and only if the shell
+ *		   specified in /etc/passwd is either blank or /bin/sh,
+ *		   otherwise as "+sh"; the "+/-" is for the benefit of /bin/sh.
  *
  * All other connect procedures and initializations should be performed by
  * including them in /etc/profile or $HOME/.profile which the shell will
@@ -210,10 +210,8 @@ again:	failed = TRUE;	/* assume attempt will fail */
 	      s_uid = pwp->pw_uid;		/* save uid */
 	      s_gid = pwp->pw_gid;		/* save gid */	
 	      strcpy(s_dir, pwp->pw_dir);	/* save directory */
-	      if (*pwp->pw_shell != '\0' &&
-		  strcmp(pwp->pw_shell, "/bin/sh") != 0) {
-		strcpy(s_shell, pwp->pw_shell);	/* save shell */
-	      } else defenv0[4] = defenvn[4] = NULL;
+	      strcpy(s_shell, (*pwp->pw_shell == '\0') ? "/bin/sh"
+						       : pwp->pw_shell);
 	   }
 	}
  	else			/* second pass, remote access password */
@@ -265,7 +263,10 @@ ok:	alarm(0);	/* turn off login alarm timeout */
 			write(2, buff, i);
 		close(fd);
 	}
-	execle("/bin/sh", "-sh", NULL, s_uid == 0 ? defenv0 : defenvn);
+	execle("/bin/sh",
+	        strcmp(s_shell, "/bin/sh") ? "+sh" : "-sh",
+		NULL,
+		s_uid == 0 ? defenv0 : defenvn);
 	fprintf(stderr, "No /bin/sh.\n");
 	slowexit(1);
 }
