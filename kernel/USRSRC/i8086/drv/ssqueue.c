@@ -6,6 +6,9 @@
  *	Should be generalizable for other hard drives.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ssqueue.c,v $
+ * Revision 1.2	91/03/25  13:04:04	root
+ * Minor code fixes.  Now passes unit test.
+ * 
  * Revision 1.1	91/03/22  17:39:06	root
  * Initial code - not tested yet
  * 
@@ -51,10 +54,14 @@ scsi_work_t * ssq_rm_head();
  *
  * Append a scsi_work_t object to the doubly-linked queue.
  * Object to be inserted has been allocated by the caller.
+ * Run at high priority.
  */
 void ssq_wr_tail(sw)
 scsi_work_t * sw;
 {
+	int s;
+
+	s = sphi();
 	if (ssq_count == 0) {
 		ssq_head = ssq_tail = sw;
 		sw->sw_actf = sw->sw_actl = NULL;
@@ -65,6 +72,7 @@ scsi_work_t * sw;
 		ssq_tail = sw;
 	}
 	ssq_count++;
+	spl(s);
 }
 
 /*
@@ -84,6 +92,7 @@ scsi_work_t * ssq_rd_head()
  *
  * Delete head item from the queue.  Return a pointer to the node deleted,
  * or NULL if the queue was already empty.
+ * Run at high priority.
  *
  * This routine does NOT deallocate the node.  That must be done by the
  * calling function after this routine runs.
@@ -91,7 +100,9 @@ scsi_work_t * ssq_rd_head()
 scsi_work_t * ssq_rm_head()
 {
 	scsi_work_t * ret;
+	int s;
 
+	s = sphi();
 	if (ssq_count > 0) {
 		ret = ssq_head;
 		if (ssq_count == 1) {
@@ -103,6 +114,7 @@ scsi_work_t * ssq_rm_head()
 		ssq_count--;
 	} else
 		ret = NULL;
+	spl(s);
 
 	return ret;
 }
