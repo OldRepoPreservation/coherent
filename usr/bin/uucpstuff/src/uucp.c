@@ -29,6 +29,9 @@ char *basename(/* char *filename */);
 char	tempname[] =			"/usr/spool/uucp/TM.XXXXXX";
 char	luser [32];			/* local user name */
 char	notifyusr [32];			/* user to be notified */
+
+char *rmtname = NULL;
+
 static	char	spoolname [BUFSIZ];
 static	char	fsname [BUFSIZ];	/* full spool pathname */
 static	char	dirname [BUFSIZ];	/* full spool pathname */
@@ -432,7 +435,7 @@ finish_commandfile()
 		fprintf(stderr, "Unable to make directory \"%s\"\n", buf);
 		exit(1);
 	}
-	sprintf(buf, "%s/%s/C.%s%c%04d",
+	sprintf(buf, "%s/%s/C.%.6s%c%04d",
 		 spdir, commandsite, commandsite, grade, seqno);
 	if (debugflg > 1)
 		fprintf(stderr, "command file name is %s.\n", buf);
