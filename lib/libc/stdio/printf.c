@@ -247,7 +247,8 @@ static readonly char digits[] = {
 };
 
 /*
- * Print an unsigned integer in base b.
+ * Convert unsigned integer n to ASCII in base b.
+ * Store it through cp and return a pointer past the end.
  */
 static
 char *
@@ -257,16 +258,19 @@ printi(cp, n, b) register char *cp; register unsigned int n; register int b;
 	register char *ep;
 	char pbuf[NIBUF];
 
-	ep = &pbuf[NIBUF];
-	*--ep = '\0';
+	ep = &pbuf[NIBUF-1];
+	*ep = '\0';
 	for ( ; (a = n/b) != 0; n = a)
 		*--ep = digits[n%b];
-	*--ep = digits[n];
-	return strcpy(cp, ep);
+	*cp++ = digits[n];
+	while (*ep)
+		*cp++ = *ep++;
+	return cp;
 }
 
 /*
- * Print an unsigned long integer in base b.
+ * Convert unsigned long integer n to ASCII in base b.
+ * Store it through cp and return a pointer past the end.
  */
 static
 char *
@@ -276,12 +280,14 @@ printl(cp, n, b) register char *cp; register unsigned long n; register int b;
 	register char *ep;
 	char pbuf[NLBUF];
 
-	ep = &pbuf[NLBUF];
-	*--ep = '\0';
+	ep = &pbuf[NLBUF-1];
+	*ep = '\0';
 	for ( ; (a = n/b) != 0; n = a)
 		*--ep = digits[n%b];
-	*--ep = digits[n];
-	return strcpy(cp, ep);
+	*cp++ = digits[n];
+	while (*ep)
+		*cp++ = *ep++;
+	return cp;
 }
 
 /* end of libc/stdio/printf.c */
