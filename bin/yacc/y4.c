@@ -143,8 +143,17 @@ char *argv[];
 				verbose++;
 			}
 		else
+			if( strcmp(ap, "-items")==0 )
+				maxitem = getnum(argv[++i]);
+		else
+			if( strcmp(ap, "-sprod")==0 )
+				maxprodl = getnum(argv[++i]);
+		else
 			if( strcmp(ap,"-prods")==0 )
 				maxprod = getnum(argv[++i]);
+		else
+			if( strcmp(ap,"-reds")==0 )
+				maxreds = getnum(argv[++i]);
 		else
 			if( strcmp(ap,"-terms")==0 )
 				maxterm = getnum(argv[++i]);
@@ -174,8 +183,8 @@ char *argv[];
 	ntrmptr = (struct sym **)yalloc(maxnterm, sizeof *ntrmptr);
 	trmptr = (struct sym **)yalloc(maxterm, sizeof *trmptr);
 	typeptr = (struct sym **)yalloc(maxtype, sizeof *typeptr);
-	nitprod = (struct prod *)yalloc(1, sizeof *nitprod + sizeof(int) * MAXPRODL);
-	nititem = (struct sitem *)yalloc(1, sizeof *nititem + MAXITEM * sizeof nititem->
+	nitprod = (struct prod *)yalloc(1, sizeof *nitprod + sizeof(int) * maxprodl);
+	nititem = (struct sitem *)yalloc(1, sizeof *nititem + maxitem * sizeof nititem->
 			i_items[0]);
 	states = (struct state *)yalloc(maxstates, sizeof *states);
 	items = (struct sitem **)yalloc(maxstates, sizeof *items);

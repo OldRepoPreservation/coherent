@@ -282,7 +282,7 @@ closure()
 				ppp = sp->s_prods;
 				ipp = &itp->i_items[itp->i_nitems];
 				itp->i_nitems += j = sp->s_nprods;
-				bounded(itp->i_nitems, MAXITEM, "items in state");
+				bounded(itp->i_nitems, maxitem, "items in state");
 				do
 					*ipp++ = (*ppp++)->p_right;
 				while( --j );
