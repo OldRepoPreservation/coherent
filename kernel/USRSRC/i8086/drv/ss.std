@@ -1,4 +1,7 @@
-$Log$
+$Log:	/usr/src/sys/i8086/drv/RCS/ss.std,v $
+ * Revision 1.1	91/04/25  17:11:09	root
+ * Initial partial draft.
+ * 
 
 State Transition Diagram for ss driver.
 ---------------------------------------
@@ -26,7 +29,34 @@ State Transition Diagram for ss driver.
 		Take no action.  Remain in current state.
 
 (H_IDLE		T_DISCONNECTED	I_RESELECT)
+	(H_IDLE		T_BUSY		)
+		Command status returned is BUSY.
+	(H_IDLE		T_DEV_RESET	)
+		Command try count exhausted.
+	(H_IDLE		T_DISCONNECTED	)
+		Normal disonnect.
+	(H_IDLE		T_IDLE		)
+		Command status returned is COMPLETE.
+	(H_IDLE		T_REQ_SENSE	)
+		Command status returned is CHECK.
+	(H_IDLE		T_TIMED_OUT	)
+		An awaited bus phase did not occur within the required interval.
 
 (H_IDLE		~T_DISCONNECTED	I_RESELECT)
+	No change in state.
+		Reselect was attempted when it is not expected.
 
 (~H_IDLE	T_DISCONNECTED	I_RESELECT)
+	No change in state.
+		Reselect was attempted when it is not expected.
+
+(H_ARBITRATING	T_IDLE		I_HOST_WATCHDOG)
+	(H_SCSI_RESET		T_IDLE		)
+		The wait for arbitration complete was too long.
+
+(H_ARBITRATING	~T_IDLE		I_HOST_WATCHDOG)
+	Illegal state!
+
+(~H_ARBITRATING	~T_IDLE		I_HOST_WATCHDOG)
+	No change in state.
+		Watchdog unexpected.
