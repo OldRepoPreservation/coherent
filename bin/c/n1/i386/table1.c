@@ -51,7 +51,11 @@ REGDESC	reg[]	= {
 /* esp	*/	0,     0,     -1,      	-1,	-1,	-1,	BESP,
 /* ebp	*/	KBWL,  0,     -1,      	-1,	-1,	-1,	BEBP,
 
+#if	NDP
+/* edx:eax */	0,     0,    MRVALUE,	-1,	EDX,	EAX,	BEDX|BEAX,
+#else
 /* edx:eax */	0,     KD,    MRVALUE,	-1,	EDX,	EAX,	BEDX|BEAX,
+#endif
 
 /* ax	*/	0,     0,     MRVALUE,	EAX,	AH,	AL,	BEAX,
 /* dx	*/	0,     0,     MRVALUE,	EDX,	DH,	DL,	BEDX,
