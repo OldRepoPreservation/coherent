@@ -1,48 +1,34 @@
-# ld/Makefile 10/20/91
-# i80386 Coff loader Makefile.
-CFLAGS=-A -O
-LFLAGS=-s
+O = ld.o pass1.o message.o fake.o
+S = Makefile ld.h ld.c pass1.c message.c fake.c script
+D = ld.c pass1.c
+CFLAGS = -AO
 
-DESTDIR=/interim/bin/
-
-S = Makefile script data.c data.h main.c message.c pass1.c pass2.c
-D = main.c pass1.c pass2.c
-
-OBJ=	main.o\
-	data.o\
-	message.o\
-	pass1.o\
-	pass2.o
-
-# Primary target.
-ld :	$(OBJ)
+drvld: ld
+	ln -f ld drvld
+	
+ld : $O
 	rm -f ld
-	$(CC) $(LFLAGS) -o ld $<
+	cc -so ld $O -lmisc
 
-install : ld
-	su root cp ld /bin
-
-# Save on hp
+# save on mwc!
 save : $S
-	tar cf - $< | compress -c > /tmp/ld.tar.Z
-	uucp -r /tmp/ld.tar.Z mwc!/v/cef/
+	tar cf - $< | compress -c > /tmp/newld.tar.Z
+	uucp -r /tmp/newld.tar.Z mwc!/v/cef/
 
-# Unlinked objects.
-main.o:		main.c data.h
-data.o:		data.c 	data.h
-message.o:	message.c data.h
-pass1.o:	pass1.c	data.h
-pass2.o:	pass2.c	data.h
+# list source files
+list : $S
+	ph $?
+	touch list
 
-# Etc.
-clean:
-	rm *.o
-
-
+# Build error message list in troff format.
 doc : $D
-	cgrep -d @ "(message|fatal|filemsg|modmsg|mpmsg|spmsg)" $< | \
+	cgrep -d @ "(message|fatal|filemsg|modmsg|mpmsg|spmsg|spwarn)" $< | \
 	 sort | \
 	 sed -f `srcpath script` | \
 	 fixdoc > doc
+
+# Install new ld
+install : ld
+	su root `srcpath installer`
 
 # end of ld/Makefile
