@@ -19,6 +19,7 @@ int	bflag;			/* Strip trailing blanks, multiple blanks */
 int	eflag;			/* Editor script */
 int	sflag;			/* Sed script output (used by SCCS) */
 int	rflag;			/* Reversed order of printed (usually -e) */
+int	nflag;			/* Trailing '.' on edit script */
 int	incr;			/* Line number increment for `rflag' diff */
 char	*csymbol;		/* Symbol for C pre-processor (#ifdef) */
 int	sepflag;		/* On if text from both files involved */
@@ -76,6 +77,11 @@ char *argv[];
 
 			case 'f':
 				eflag = 1;
+				rflag = 0;
+				break;
+
+			case 'n':
+				eflag = nflag = 1;
 				rflag = 0;
 				break;
 
@@ -277,8 +283,9 @@ register char *line;
 			putchar(*line++);
 		}
 	} else if (eflag) {
-		if (line[0]=='.' && line[1]=='\n' && line[2]=='\0')
-			fputs("~\n.\ns/~/./\na\n", stdout); else
+		if (!nflag && line[0]=='.' && line[1]=='\n' && line[2]=='\0')
+			fputs("~\n.\ns/~/./\na\n", stdout);
+		else
 			fputs(line, stdout);
 	} else if (csymbol != NULL)
 		fputs(line, stdout);
@@ -301,7 +308,10 @@ unsigned f1, f2, t1, t2;
 	sepflag = 1;
 	if (csymbol != NULL)
 		printf("#ifndef %s\n", csymbol);
-	else {
+	else if (nflag) {
+		printf("d%u %u\n", f1+incr, f2-f1+1);
+		printf("a%u %u\n", f1+incr+f2-f1, t2-t1+1);
+	} else {
 		prange(f1, f2);
 		if (sflag)
 			putchar('c');
@@ -327,7 +337,9 @@ unsigned f, t1, t2;
 {
 	f--;
 	if (csymbol != NULL)
-		printf("#ifndef %s\n", csymbol);
+		printf("#ifdef %s\n", csymbol);
+	else if (nflag)
+		printf("a%u %u\n", f+incr, t2-t1+1);
 	else {
 		prange(f, f);
 		if (sflag)
@@ -353,7 +365,9 @@ delete(f1, f2, t)
 unsigned f1, f2, t;
 {
 	if (csymbol != NULL)
-		printf("#ifdef %s\n", csymbol);
+		printf("#ifndef %s\n", csymbol);
+	else if (nflag)
+		printf("d%u %u\n", f1+incr, f2-f1+1);
 	else {
 		prange(f1, f2);
 		if (eflag)
@@ -391,7 +405,7 @@ prend()
 	else if (caflag) {
 		if (sflag)
 			putchar('\n');
-		else if (eflag)
+		else if (eflag && !nflag)
 			fputs(".\n", stdout);
 	}
 	caflag = 0;
@@ -407,7 +421,8 @@ register unsigned a, b;
 	a += incr;
 	b += incr;
 	if (a == b)
-		printf("%u", a); else
+		printf("%u", a);
+	else
 		printf("%u,%u", a, b);
 }
 
@@ -432,7 +447,7 @@ catchsig()
 }
 usage()
 {
-	fprintf(stderr, "Usage: diff [-bdefhs] [-c symbol] file1 file2\n");
+	fprintf(stderr, "Usage: diff [-bdefhns] [-c symbol] file1 file2\n");
 	exit(2);
 }
 
