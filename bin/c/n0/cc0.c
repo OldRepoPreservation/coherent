@@ -20,7 +20,8 @@
  */
 #if	!OVERLAID
 int	line = 1;		/* Source line */
-char	file[NFNAME];		/* Source file name */
+char	file[NFNAME];		/* Current source file name */
+char	basefile[NFNAME];	/* Original source file name */
 char	id[NCSYMB];		/* Identifier buffer */
 FILE	*ifp;			/* Input file pointer */
 FILE	*ofp;			/* Output file pointer */
@@ -205,6 +206,7 @@ main(argc, argv) int argc; char *argv[];
 	cppi(argv2);		/* second copy of source directory */
 	setid(argv2);
 	setfname();
+	strncpy(basefile, idp->t_id, NFNAME);	/* save again for __BASE_FILE__ */
 	/* Now parse the source file directory */
 	i = 0;
 	for (p = argv2; *p != 0; p += 1)
