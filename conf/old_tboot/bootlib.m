@@ -69,6 +69,7 @@ _bread_:
 	test	ax, ax			/ if block 0, return zeroed buffer
 	jnz	3f
 	test	dx, dx
+	movb	al, $1			/ Say that we read 1 block.
 	jz	2f
 
 	/ Translate block number into cylinder, head, and sector.
@@ -272,86 +273,6 @@ hdinit_:
 
 	ret
 
-
-////////
-/
-/ ffcopy(tooffset, toseg, fromoffset, fromseg, count) 
-/	-- copy far memory to far memory
-/
-////////
-	.shri
-	.globl	ffcopy_
-
-ffcopy_:
-	push	si
-	push	di
-	push	cx
-	push	bp
-	push	es
-	push	ds
-
-	mov	bp, sp
-
-	mov	di, 14(bp)	/ tooffset
-	mov	es, 16(bp)	/ toseg
-	mov	si, 18(bp)	/ fromoffset
-	mov	ds, 20(bp)	/ fromseg
-	mov	cx, 22(bp)	/ count
-
-	/ Make di < size of paragraph, adjusting es to compensate.
-	mov	ax, 14(bp)	/ es = es + di/16
-	shr	ax, $4
-	add	ax, 16(bp)
-	mov	es, ax
-
-	mov	ax, 14(bp)	/ di = di % 16
-	and	ax, $0x0f
-	mov	di, ax
-
-	/ Make si < size of paragraph, adjusting ds to compensate.
-
-	mov	ax, 18(bp)	/ ds = ds + si/16
-	shr	ax, $4
-	add	ax, 20(bp)
-	mov	ds, ax
-
-	mov	ax, 18(bp)	/ si = si % 16
-	and	ax, $0x0f
-	mov	si, ax
-
-	/ Move data one paragraph at a time.
-	cld
-0: / Check for destination paragraph boundry.
-	cmp	di, $0x10
-	jnz	1f
-	mov	di, es	/ At paragraph, so increment segment,
-	inc	di
-	mov	es, di
-	sub	di, di	/ and reset offset.
-1: / Check for source paragraph boundry.
-	cmp	si, $0x10
-	jnz	2f
-	mov	si, ds	/ At paragraph, so increment segment,
-	inc	si
-	mov	ds, si
-	sub	si, si	/ and reset offset.
-2:
-	
-
-	/ This should really be fixed so that if either segment
-	/ wraps, the segment base is adjusted.
-
-	movsb
-	loop	0b
-
-	pop	ds
-	pop	es
-	pop	bp
-	pop	cx
-	pop	di
-	pop	si
-	ret		/ Return from ffcopy_().
-
 ////////
 /
 / Invoke the native monitor.
@@ -364,3 +285,44 @@ intmon_:
 	int	MON
 	ret
 
+////////
+/
+/ void _ffcopy(from_fp, to_fp, count)
+/ faddr_t from_fp, to_fp;
+/ int count;
+/
+/ Copy count bytes from from_fp to to_fp.
+/
+/ Here is the stack after initial "push bp":
+/
+/	12(bp)	count
+/	10(bp)	FP_SEL(to_fp)
+/	8(bp)	FP_OFF(to_fp)
+/	6(bp)	FP_SEL(from_fp)
+/	4(bp)	FP_OFF(from_fp)
+/	2(bp)	return IP
+/	0(bp)	old bp
+/
+////////
+
+	.globl	_ffcopy_
+_ffcopy_:
+	push	bp
+	mov	bp, sp
+	push	es
+	push	di
+	push	ds
+	push	si
+
+	lds	si, 4(bp)	/ from_fp  to DS:SI
+	les	di, 8(bp)	/ to_fp to ES:DI
+	mov	cx, 12(bp)	/ rep count to CX
+	rep
+	movsb
+
+	pop	si
+	pop	ds
+	pop	di
+	pop	es
+	pop	bp
+	ret		/ return from _ffcopy()
