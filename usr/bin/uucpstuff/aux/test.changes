@@ -1,0 +1,34 @@
+echo alarm.c
+diff alarm.c /tmp/aux/alarm.c
+echo checktime.c
+diff checktime.c /tmp/aux/checktime.c
+echo ckdir.c
+diff ckdir.c /tmp/aux/ckdir.c
+echo debuglog.c
+diff debuglog.c /tmp/aux/debuglog.c
+echo exec.c
+diff exec.c /tmp/aux/exec.c
+echo fatal.c
+diff fatal.c /tmp/aux/fatal.c
+echo getline.c
+diff getline.c /tmp/aux/getline.c
+echo getopt.c
+diff getopt.c /tmp/aux/getopt.c
+echo getseq.c
+diff getseq.c /tmp/aux/getseq.c
+echo knowhost.c
+diff knowhost.c /tmp/aux/knowhost.c
+echo ldev.c
+diff ldev.c /tmp/aux/ldev.c
+echo lock.c
+diff lock.c /tmp/aux/lock.c
+echo log.c
+diff log.c /tmp/aux/log.c
+echo lsys.c
+diff lsys.c /tmp/aux/lsys.c
+echo permission.c
+diff permission.c /tmp/aux/permission.c
+echo uucpname.c
+diff uucpname.c /tmp/aux/uucpname.c
+echo whoami.c
+diff whoami.c /tmp/aux/whoami.c
