@@ -258,15 +258,15 @@ startup()
 		if ( !checkrmt() )
 			FAIL2("Unknown host %s", rmtname);
 
-		if ( (devname=ttyname(fileno(stdin))) == NULL )
+		if ( (rdevname=ttyname(fileno(stdin))) == NULL )
 			FAIL1("No attached tty device.");
-		devname += 5;
+		rdevname += 5;
 
 	/* The incoming device will already have been locked by login.  */
 		if (MASTER == role) { 
-			if ( lockit(devname) < 0 ) {
-				cp = devname;
-				devname = NULL;
+			if ( lockit(rdevname) < 0 ) {
+				cp = rdevname;
+				rdevname = NULL;
 				FAIL2("Incoming device locked: %s", cp);
 			}
 		}
@@ -493,10 +493,10 @@ calluperr:
 
 sysend()
 {
-	if ( lockexist(devname) ) {
+	if ( lockexist(rdevname) ) {
 		if ( role == MASTER )
 			dcpundial();
-		lockrm(devname);
+		lockrm(rdevname);
 	}
 	if ( !leavelock && lockexist(rmtname) )
 		lockrm(rmtname);
