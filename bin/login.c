@@ -1,7 +1,9 @@
+static char _version[]="login version 3.2.1";
 /*		       
  * Rec'd from Lauren Weinstein, 7-16-84.
  * Hacked by rec to enable remote kludge on pdp11 10-84.
  * Hacked extensively by rec 84-11-02.
+ * Added terminal locking and version number October 1991 by piggy.
  *
  * login connects a user terminal:
  *	1) unless executed by /etc/getty, the terminal is set back to
@@ -25,7 +27,9 @@
  *		at the remote access password prompt.
  *	5) An unsuccessful login appends a utmp record to the file
  *		/usr/adm/failed if it exists.
+ *		It also removes the tty lock from /usr/spool/uucp.
  *	6) A successful login:
+ *		a-1) Locks the tty in /usr/spool/uucp.
  *		a) chdir's to the home directory specified by /etc/passwd
  *		b) writes utmp records to /usr/adm/wtmp and /etc/utmp if.
  *			possible.
@@ -193,6 +197,10 @@ main(argc, argv) int argc; char *argv[];
 		fprintf(stderr, "%s: cannot find terminal.\n", argv0);
 		slowexit(1);
 	}
+
+	/* Let's lock this tty, so noone else grabs it till we're done.  */
+	lockit(strrchr(s_tty, '/') + 1);
+
 	if (argv0[0] != '-'		/* Not called from /etc/getty */
 	 && settty(2) != 0) {		/* Reset terminal failed */
 		perror(s_tty);
@@ -228,7 +236,12 @@ again:	failed = TRUE;	/* assume attempt will fail */
  	   }
 	   pwp = getpwnam(buff);	/* get name entry */
 	   if (pwp != NULL)		/* if entry found */
-	   {  strcpy(s_user, pwp->pw_name);	/* save name */
+	   {
+	      if (strcmp(pwp->pw_name, ACCNAME) == 0) {
+		printf("Login incorrect\n");	/* disallow remacc logins */
+		goto again;
+	      }
+	      strcpy(s_user, pwp->pw_name);	/* save name */
 	      s_uid = pwp->pw_uid;		/* save uid */
 	      s_gid = pwp->pw_gid;		/* save gid */	
 	      strcpy(s_dir, pwp->pw_dir);	/* save directory */
@@ -397,6 +410,12 @@ settty(fd)
 /* sleep for 2 seconds to make sure output has flushed, then exit */
 slowexit(status)
 {
+    char *s_tty;
+
+    if ((s_tty = ttyname(2)) != NULL) {
+	unlockit(strrchr(s_tty, '/') + 1);
+    }
+
     sleep(2);
     exit(status);
 }
