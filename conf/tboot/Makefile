@@ -3,22 +3,32 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
-CC=cc286
-LD=cc286
-AR=/bin/286/ar
-RANLIB=/bin/286/ranlib
-CP=cp
-AS=/bin/286/as
+#CC=cc286
+#LD=cc286
+#AR=/bin/286/ar
+#RANLIB=/bin/286/ranlib
+#CP=cp
+#AS=/bin/286/as
 
-DESTDIR=/
+CC=cc
+LD=/bin/ld
+AR=/bin/ar
+ranlib=/bin/ranlib
+CP=cp
+AS=/bin/as
+
+DESTDIR386=/bin386/bin/
+DESTDIR=/interim/
 
 LIBOBJECTS=bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
 	l.out.o coff.o bio.o gift.o objects.o pacifier.o \
-	fifo_b.o fifo_k.o sys.o fdisk.o arg_exist.o
+	fifo_b.o fifo_k.o sys.o fdisk.o arg_exist.o execute.o \
+	cpu_type.o
 
 LIBSOURCES=bootlib.m cbootlib.c diskio.c indirect.c intcall.m monitor.c \
 	l.out.c coff.c bio.c gift.c objects.c pacifier.c \
-	fifo_b.c fifo_k.c sys.c fdisk.c arg_exist.c
+	fifo_b.c fifo_k.c sys.c fdisk.c arg_exist.c execute.c \
+	cpu_type.s
 
 OBJECTS=Startup.o $(LIBOBJECTS)
 
@@ -70,6 +80,12 @@ clean:
 
 install:
 	cp tboot $(DESTDIR)
-	chown root $(DESTDIR)/tboot
-	chgrp daemon $(DESTDIR)/tboot
-	chmod ugo=r $(DESTDIR)/tboot
+	chown root $(DESTDIR)tboot
+	chgrp daemon $(DESTDIR)tboot
+	chmod ugo=r $(DESTDIR)tboot
+
+install386:
+	cp tboot $(DESTDIR386)
+	chown root $(DESTDIR386)tboot
+	chgrp daemon $(DESTDIR386)tboot
+	chmod ugo=r $(DESTDIR386)tboot
