@@ -5,11 +5,6 @@
 	.globl	ndpInit
 	.globl	ndpSense
 
-fsetpm	.macro
-	.byte	0xDB
-	.byte	0xE4
-	.endm
-
 / void ndpInit(short cw);
 ndpInit:
 	fninit

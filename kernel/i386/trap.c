@@ -624,6 +624,7 @@ char *eip;
 			eax = read_cr0();
 			eip += 3;
 			break;
+#if 0
 		case WRITE_CR0:
 			if (eax & 4)
 				setfpe(0);
@@ -631,6 +632,7 @@ char *eip;
 				setfpe(1);
 			eip += 3;
 			break;
+#endif
 		case READ_CR2:
 			eax = read_cr2();
 			eip += 3;

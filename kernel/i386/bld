@@ -158,8 +158,6 @@ done
 if [ ${USE_IPC} = "y" ]
 then
 	OPTS=${OPTS}" ${K386OBJ}/ipc.o"
-	OPTS=${OPTS}" ${K386OBJ}/msgcon.o ${K386OBJ}/msg.o"
-	PATCH="${PATCH} drvl+500=msgcon"
 	OPTS=${OPTS}" ${K386OBJ}/semcon.o ${K386OBJ}/sem.o"
 	PATCH="${PATCH} drvl+460=semcon"
 	OPTS=${OPTS}" ${K386OBJ}/shmcon.o ${K386OBJ}/shm.o"

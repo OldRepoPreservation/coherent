@@ -1,11 +1,6 @@
-	.globl	ATSREG
 	.globl	_canl
 	.globl	aicodep		/ Position of code.
 	.globl	aicodes		/ Size of code.
-	.globl	atbsyw
-	.globl	atdrqw
-	.globl	atrecv
-	.globl	atsend
 	.globl	boot
 	.globl	clearseg_b
 	.globl	clearseg_d
@@ -17,8 +12,6 @@
 	.globl	copyseg_b
 	.globl	copyseg_d
 	.globl	cs_sel
-	.globl	defend
-	.globl	defer
 	.globl	dev1
 	.globl	dev10
 	.globl	dev11
@@ -105,25 +98,22 @@
 	.globl	waitq
 	.globl	write_cmos
 
-	.set	VIDEO,		0x10	/ Video BIOS interrupt for early debugging.
 	.set	BPC1SHIFT,	10	/ BPCSHIFT - log2(sizeof(long))
 	.set	BPCSHIFT,	12
-	.set	BSY_ST, 0x80
+	.set	BSY_ST,		0x80
 	.set	CMOSA,		0x70	/ Real-time Clock/CMOS addr I/O port.
 	.set	CMOSD,		0x71	/ Real-time Clock/CMOS data I/O port.
-	.set	DRQ_ST, 0x08
+	.set	DRQ_ST,		0x08
 	.set	EFAULT,		14	/ Bad argument
-	.set	IBMNBSY,0x80
+	.set	IBMNBSY,	0x80
 	.set	JMPF,		0xEA	/ Jump far, direct.
 	.set	KBCTRL,		0x64	/ 8042 keyboard mpu ctrl I/O port.
 	.set	KBDATA,		0x60	/ 8042 keyboard mpu data I/O port.
-	.set	LPDATA,	0x378
-	.set	LPSTAT,	LPDATA+1
-	.set	LPCSR,	LPDATA+2
+	.set	LPDATA,		0x378
 	.set	NBPC,		4096
 	.set	NCPCL,		124	/ # of characters in a clist block
 	.set	NIDT,		256
-	.set	NINIT,	0x04
+	.set	NINIT,		0x04
 	.set	PBASE,		0x00002
 	.set	PIC,		0x20	/ 8259 CSR  I/O port.
 	.set	PICM,		0x21	/ 8259 IMR  I/O port.
@@ -134,6 +124,11 @@
 	.set	PX_OPND,	0x66	/ register values & immediates
 	.set	R_USR,		3	/ user level ring number
 	.set	SBASE,		0xFFC00
+	.set	TSS_IOMAP,	0x68	/ offset of io bitmap in tss
+	.set	VIDEO,		0x10	/ Video BIOS interrupt for early debugging.
+
+	.set	LPSTAT,		LPDATA+1
+	.set	LPCSR,		LPDATA+2
 
 ////
 /
