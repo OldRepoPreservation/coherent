@@ -66,6 +66,7 @@
 #define SYS_START	0x0100		/* System entry point. */
 
 #define THE_DEV		((dev_t)0x01)	/* The one disk device we recognize.  */
+#define THE_XDEV	((dev_t)0x02)	/* The whole disk device, rather than partition.  */
 
 /* WAIT_DELAY is how long to wait after finding autoboot before booting.  */
 #define WAIT_DELAY	182	/* 10 seconds * 18.2 clicks per second.  */
