@@ -1,6 +1,7 @@
 /*
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
+ * $Log$
  */
  
 /*
@@ -13,6 +14,27 @@
 #define SS_RAM_LEN	128	/* ST0x has 128 bytes of RAM */
 #define SS_DAT_LEN	0x400	/* Byte range mapped to data port */
 #define SS_SEL_LEN	0x2000	/* Total size of memory-mapped area */
+
+#define WC_ENABLE_SCSI	0x80	/* Write Control (WC) register bits */
+#define WC_ENABLE_IRPT	0x40
+#define WC_ENABLE_PRTY	0x20
+#define WC_ARBITRATE	0x10
+#define WC_ATTENTION	0x08
+#define WC_BUSY  	0x04
+#define WC_SELECT  	0x02
+#define WC_SCSI_RESET  	0x01
+ 
+#define RS_ARBIT_COMPL	0x80	/* Read STATUS (RS) register bits */
+#define RS_PRTY_ERROR	0x40
+#define RS_SELECT	0x20
+#define RS_REQUEST	0x10
+#define RS_CTRL_DATA	0x08
+#define RS_I_O  	0x04
+#define RS_MESSAGE  	0x02
+#define RS_BUSY  	0x01
+
+#define HOST_ID		0x80	/* Host adapter is SCSI ID #7 */
+#define BUS_RETRIES	100
  
 /*
  * Includes.
@@ -30,6 +52,7 @@
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
+#include	<scsiwork.h>
 
 /*
  * Export Functions.
@@ -103,6 +126,10 @@ CON	sscon	= {
 static void
 ssload()
 {
+	int i;
+	char status;
+	int await_bus;
+
 	/*
 	 * Claim IRQ vector.
 	 */
@@ -133,6 +160,40 @@ ssload()
 		return;
 	} else
 		printf("ST0x passed memory test\n");
+	/*
+	 * Check out Bus Stuff.
+	 *
+	 * First, do ST0x arbitration.
+	 */	
+	sfbyte(ss_csr, 0);		/* De-assert SCSI enable bit */
+	sfbyte(ss_dat, HOST_ID);	/* Write my SCSI id to port */
+	sfbyte(ss_csr, WC_ARBITRATE);	/* Start arbitration */
+
+	for ( i = 0, await_bus = 1; i < BUS_RETRIES; i++) {
+		status = ffbyte(ss_csr);
+		if (status & RS_ARBIT_COMPL) {
+			await_bus = 0;
+		}
+	}
+	if (await_bus) {
+		printf("Error - ST0x doesn't complete arbitration\n");
+		return;
+	}
+	
+	sfbyte(ss_dat, HOST_ID | 1);	/* Write two SCSI id's to port */
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_SELECT);
+	
+	for ( i = 0, await_bus = 1; i < BUS_RETRIES; i++) {
+		status = ffbyte(ss_csr);
+		if (status & RS_BUSY) {
+			await_bus = 0;
+		}
+	}
+	if (await_bus) {
+		printf("Error - ST0x drive doesn't assert BUSY\n");
+		return;
+	} else
+		printf("Arbitration phase succeeded.\n");
 
 	/*
 	 * Initialize Drive Size.
@@ -278,6 +339,7 @@ register BUF	*bp;
 static void
 ssintr()
 {
+	printf("ss IRPT\n");
 }
 
 static void	sswatch()
