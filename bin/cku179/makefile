@@ -327,7 +327,7 @@ SHELL=/bin/sh
 # directories, "make install" will fail.
 
 WERMIT = makewhat
-DESTDIR =
+DESTDIR =/bin386/usr/bin/
 BINDIR = /usr/local/bin
 MANDIR = /usr/man/manl
 MANEXT = l
@@ -356,12 +356,13 @@ wermit:	ckcmai.$(EXT) ckucmd.$(EXT) ckuusr.$(EXT) ckuus2.$(EXT) ckuus3.$(EXT) \
 		ckcfn2.$(EXT) ckcfn3.$(EXT) ckuxla.$(EXT) ckucon.$(EXT) \
 		ckutio.$(EXT) ckufio.$(EXT) ckudia.$(EXT) ckuscr.$(EXT) \
 		ckcnet.$(EXT)
-	$(CC2) $(LNKFLAGS) -o wermit ckcmai.$(EXT) ckutio.$(EXT) \
+	$(CC2) $(LNKFLAGS) -o $(DESTDIR)kermit ckcmai.$(EXT) ckutio.$(EXT) \
 		ckufio.$(EXT) ckcfns.$(EXT) ckcfn2.$(EXT) ckcfn3.$(EXT) \
 		ckuxla.$(EXT) ckcpro.$(EXT) ckucmd.$(EXT) ckuus2.$(EXT) \
 		ckuus3.$(EXT) ckuus4.$(EXT) ckuus5.$(EXT) ckuus6.$(EXT) \
 		ckuus7.$(EXT) ckuusx.$(EXT) ckuusy.$(EXT) ckuusr.$(EXT) \
 		ckucon.$(EXT) ckudia.$(EXT) ckuscr.$(EXT) ckcnet.$(EXT) $(LIBS)
+	su root ln -f $(DESTDIR)kermit $(DESTDIR)ckermit
 
 #Malloc Debugging version
 

@@ -22,7 +22,7 @@
 #                decvax!cornell!pavel       (UUCPnet)                *
 #********************************************************************/
 
-# $Header:   RCS/Caps.v  Revision 2.1  82/10/25  14:45:23  pavel  Exp$
+# $Header: /src386/usr/lib/ncurses/RCS/Caps,v 1.1 92/04/13 14:41:22 bin Exp Locker: bin $
 #
 #       Format for the Caps file:
 #               variable_name    "capname"   type   Comment

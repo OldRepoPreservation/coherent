@@ -28,6 +28,9 @@
 **	The routine endwin().
 **
 ** $Log:	lib_endwin.c,v $
+ * Revision 1.9  93/04/12  14:13:36  bin
+ * Udo: third color update
+ * 
  * Revision 1.3  92/06/10  14:16:50  bin
  * changed ref to sys/fcntl.h
  * 
@@ -49,7 +52,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_endwin.c,v 1.3 92/06/10 14:16:50 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_endwin.c,v 1.9 93/04/12 14:13:36 bin Exp Locker: bin $";
 #endif
 
 #ifdef COHERENT

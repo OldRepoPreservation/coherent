@@ -23,7 +23,7 @@
 #********************************************************************/
 
 #
-#  $Header:   RCS/MKcaptab.v  Revision 2.1  82/10/25  14:45:02  pavel  Exp$
+#  $Header: /src386/usr/bin/tic/RCS/MKcaptab.awk,v 1.1 92/03/13 10:45:33 bin Exp $
 #
 
 

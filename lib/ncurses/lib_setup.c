@@ -31,6 +31,9 @@
  *	If XTABS was on, remove the tab and backtab capabilities.
  *
  *  $Log:	lib_setup.c,v $
+ * Revision 1.11  93/04/12  14:14:08  bin
+ * Udo: third color update
+ * 
  * Revision 2.4  92/11/29  15:40:02  munk
  * Conditional usage of termio
  *
@@ -73,7 +76,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_setup.c,v 1.5 92/06/02 12:05:36 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_setup.c,v 1.11 93/04/12 14:14:08 bin Exp Locker: bin $";
 #endif
 
 #include <stdio.h>

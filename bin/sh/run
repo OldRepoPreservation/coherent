@@ -1,3 +1,0 @@
-: yacc sh.y
-cc -i -O -DVERSION='"VERSION='"`version`"'"' -o sh *.c
-rm *.o

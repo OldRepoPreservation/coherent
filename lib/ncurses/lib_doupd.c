@@ -27,7 +27,10 @@
  *
  *	The routine doupdate() and its dependents
  *
- *  $Log:	lib_doupdate.c,v $
+ *  $Log:	lib_doupd.c,v $
+ * Revision 1.1  92/08/31  08:55:43  bin
+ * Initial revision
+ * 
  * Revision 3.2  91/04/20  18:20:16  munk
  * Usage of register variables
  *
@@ -44,7 +47,7 @@
  */
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header: lib_doupdate.c,v 3.2 91/04/20 18:20:16 munk Exp $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_doupd.c,v 1.1 92/08/31 08:55:43 bin Exp Locker: bin $";
 #endif
 
 #include <signal.h>

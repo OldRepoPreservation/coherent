@@ -3,7 +3,7 @@
 #
 # Written by Mark H. Colburn (mark@jhereg.mn.org)
 #
-# $Id: Makefile,v 1.1 92/08/28 08:01:45 bin Exp Locker: bin $
+# $Id: Makefile,v 1.2 92/08/28 08:43:25 bin Exp Locker: bin $
 #
 
 #
@@ -30,7 +30,7 @@ CFLAGS = -O $(POSIX)
 CC = cc
 COPY = /bin/cp
 DESTDIR=/bin386/usr/bin/
-DESTDIR2=/bin386/bin
+DESTDIR2=/bin386/bin/
 
 #
 # Set LFLAGS to whatever makes your linker happy

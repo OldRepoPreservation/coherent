@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/pathname.c,v $
+/* $Source: /src386/usr/bin/pax/pathname.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * pathname.c - directory/pathname support functions 
  *
@@ -28,7 +28,10 @@
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * $Log:	/usr/local/src/pax/pathname.c,v $
+ * $Log:	pathname.c,v $
+ * Revision 1.1  92/08/28  08:02:47  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:48:23  jep
  * Initial revision
  * 
@@ -38,7 +41,7 @@
  */
 
 #ifndef lint
-static char *ident = "$Id: pathname.c,v 1.2 89/02/12 10:05:13 mark Exp $";
+static char *ident = "$Id: pathname.c,v 1.1 92/08/28 08:02:47 bin Exp Locker: bin $";
 static char *copyright = "Copyright (c) 1989 Mark H. Colburn.\nAll rights reserved.\n";
 #endif /* ! lint */
 

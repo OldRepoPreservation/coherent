@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/pax.h,v $
+/* $Source: /src386/usr/bin/pax/pax.h,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * pax.h - defnitions for entire program
  *

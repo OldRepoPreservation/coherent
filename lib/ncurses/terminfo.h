@@ -23,12 +23,15 @@
 *********************************************************************/
 
 /*
- *  $Header: /src386/usr/lib/ncurses/RCS/terminfo.h,v 1.2 92/04/13 14:40:21 bin Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/terminfo.h,v 1.6 93/03/03 09:38:17 bin Exp Locker: bin $
  *
  *	terminfo.h - those things needed for programs runnning at the
  *			terminfo level.
  *
  *  $Log:	terminfo.h,v $
+ * Revision 1.6  93/03/03  09:38:17  bin
+ * udo: added color support
+ * 
  * Revision 2.4  92/11/29  15:42:29  munk
  * Conditional ussage of termio
  *

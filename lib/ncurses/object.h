@@ -23,7 +23,7 @@
 *********************************************************************/
 
 /*
-** $Header: /src386/usr/lib/ncurses/RCS/object.h,v 1.2 92/04/13 14:40:12 bin Exp Locker: bin $
+** $Header: /src386/usr/lib/ncurses/RCS/object.h,v 1.7 93/04/12 14:11:00 bin Exp Locker: bin $
 **
 **	object.h - Format of compiled terminfo files
 **
@@ -47,6 +47,9 @@
 **	this system (I hope).
 **
 **  $Log:	object.h,v $
+ * Revision 1.7  93/04/12  14:11:00  bin
+ * udo: 3rd color update
+ * 
  * Revision 1.2  92/04/13  14:40:12  bin
  * *** empty log message ***
  * 

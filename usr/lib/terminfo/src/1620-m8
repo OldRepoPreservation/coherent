@@ -1,4 +1,0 @@
-1620-m8|1640-m8|diablo 1620 w/8 column left margin,
-	hc, os, cols#124, bel=^G, cr=^M, tbc=\E2, hpa=\E^I%i%p1%c, cud1=^J, 
-	cub1=^H, cuu1=\E^J, hd=\ED, ff=^L, is2=^M        \E9, kbs=^H, ind=^J, 
-	hts=\E1, ht=^I, hu=\EU, 

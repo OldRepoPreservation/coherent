@@ -1069,9 +1069,11 @@ rcvfil(n) char *n; {
     xp = xname;				/* OK to proceed. */
     if (fncnv && !*cmarg2)
       zrtol((char *)srvcmd,xp);		/* convert name to local form */
-    else				/* otherwise, */
-      strcpy(xname,(char *)srvcmd);	/* use it literally */
-    if (cmarg2) *cmarg2 = '\0';
+    else{				/* otherwise, */
+         strcpy(xname,(char *)srvcmd);	/* use it literally */
+         if (cmarg2) 
+		*cmarg2 = '\0';
+    }
     debug(F110,"rcvfil as",xname,0);
 
 #ifdef COMMENT				/* Old code... */

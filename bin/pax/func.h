@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/func.h,v $
+/* $Source: /src386/usr/bin/pax/func.h,v $
  *
- * $Revision: 1.3 $
+ * $Revision: 1.1 $
  *
  * func.h - function type and argument declarations
  *

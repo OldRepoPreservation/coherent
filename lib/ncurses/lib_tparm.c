@@ -26,6 +26,9 @@
  *	tparm.c
  *
  *  $Log:	lib_tparm.c,v $
+ * Revision 1.8  93/04/12  14:14:30  bin
+ * Udo: third color update
+ * 
  * Revision 2.4  92/10/23  00:31:38  munk
  * npush(npop()...) does not work with COHERENT's cc
  * because of side effects, use x = npop(); npush(x...) instead.
@@ -57,7 +60,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_tparm.c,v 1.2 92/04/13 14:38:35 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_tparm.c,v 1.8 93/04/12 14:14:30 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

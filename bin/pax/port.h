@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/port.h,v $
+/* $Source: /src386/usr/bin/pax/port.h,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * port.h - defnitions for portability library
  *

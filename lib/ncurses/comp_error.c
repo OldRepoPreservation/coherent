@@ -26,6 +26,9 @@
  *	comp_error.c -- Error message routines
  *
  *  $Log:	comp_error.c,v $
+ * Revision 1.8  93/04/12  14:12:56  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:35:55  bin
  * update by vlad
  * 
@@ -49,7 +52,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/comp_error.c,v 1.2 92/04/13 14:35:55 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_error.c,v 1.8 93/04/12 14:12:56 bin Exp Locker: bin $";
 #endif
 
 #include "compiler.h"

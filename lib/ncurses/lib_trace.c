@@ -26,6 +26,9 @@
  *	lib_trace.c - Tracing/Debugging routines
  *
  *  $Log:	lib_trace.c,v $
+ * Revision 1.8  93/04/12  14:14:36  bin
+ * Udo: third color update
+ * 
  * Revision 1.2  92/04/13  14:38:45  bin
  * update by vlad
  * 
@@ -53,7 +56,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-    "$Header: /src386/usr/lib/ncurses/RCS/lib_trace.c,v 1.2 92/04/13 14:38:45 bin Exp Locker: bin $";
+    "$Header: /src386/usr/lib/ncurses/RCS/lib_trace.c,v 1.8 93/04/12 14:14:36 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"

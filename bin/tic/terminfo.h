@@ -23,12 +23,15 @@
 *********************************************************************/
 
 /*
- *  $Header:   RCS/terminfo.v  Revision 2.2  91/02/10  12:27:05  munk   Exp$
+ *  $Header: /src386/usr/bin/tic/RCS/terminfo.h,v 1.1 92/03/13 10:46:40 bin Exp $
  *
  *	terminfo.h - those things needed for programs runnning at the
  *			terminfo level.
  *
- *  $Log:	RCS/terminfo.v $
+ *  $Log:	terminfo.h,v $
+ * Revision 1.1  92/03/13  10:46:40  bin
+ * Initial revision
+ * 
 Revision 2.2  91/02/10  12:27:05  munk
 Added conditional 8-bit characters for UNIX on PC's
 

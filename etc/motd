@@ -1,4 +1,0 @@
-The system Message Of The Day is displayed each time a user logs in.
-
-To change this message, edit /etc/motd.
-

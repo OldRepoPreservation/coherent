@@ -25,7 +25,10 @@
 /*
  *	comp_error.c -- Error message routines
  *
- *  $Log:	RCS/comp_error.v $
+ *  $Log:	comp_error.c,v $
+ * Revision 1.1  92/03/13  10:45:36  bin
+ * Initial revision
+ * 
  * Revision 2.1  82/10/25  14:45:31  pavel
  * Added Copyright Notice
  * 
@@ -46,7 +49,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header:   RCS/comp_error.v  Revision 2.1  82/10/25  14:45:31  pavel  Exp$";
+	"$Header: /src386/usr/bin/tic/RCS/comp_error.c,v 1.1 92/03/13 10:45:36 bin Exp $";
 #endif
 
 #include "compiler.h"

@@ -25,9 +25,12 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 2.3 93/04/10 00:25:06 munk Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.7 93/04/12 14:10:55 bin Exp Locker: bin $
  *
  *  $Log:	curses.h,v $
+ * Revision 1.7  93/04/12  14:10:55  bin
+ * udo: 3rd color update
+ * 
  * Revision 2.3  93/04/10  00:23:00  munk
  * SV.3 compatible color support
  *

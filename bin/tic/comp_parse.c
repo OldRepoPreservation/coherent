@@ -28,6 +28,9 @@
  *			etc.
  *
  *   $Log:	comp_parse.c,v $
+ * Revision 1.1  92/03/13  10:45:43  bin
+ * Initial revision
+ * 
  * Revision 3.2  91/07/28  13:59:10  munk
  * Made all the large arrays static
  *
@@ -54,7 +57,7 @@
 
 #ifndef COHERENT
 static char RCSid[] =
-	"$Header: comp_parse.c,v 3.2 91/07/28 13:59:10 munk Exp $";
+	"$Header: /src386/usr/bin/tic/RCS/comp_parse.c,v 1.1 92/03/13 10:45:43 bin Exp $";
 #endif
 
 #include <sys/types.h>

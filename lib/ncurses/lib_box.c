@@ -28,6 +28,9 @@
 **	The routine box().
 **
 ** $Log:	lib_box.c,v $
+ * Revision 1.11  93/04/12  14:13:22  bin
+ * Udo: third color update
+ * 
  * Revision 1.5  92/06/02  12:04:59  bin
  * *** empty log message ***
  * 
@@ -48,7 +51,7 @@
 
 #ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_box.c,v 1.5 92/06/02 12:04:59 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_box.c,v 1.11 93/04/12 14:13:22 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

@@ -3,7 +3,10 @@
  *
  * Purpose:	main program for recording process
  *
- * $Log$
+ * $Log:	server.c,v $
+ * Revision 1.2  92/06/15  10:04:57  bin
+ * *** empty log message ***
+ * 
  */
 
 /*

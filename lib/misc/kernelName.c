@@ -3,6 +3,10 @@
 #undef KERNEL
 #include <fcntl.h>
 
+#ifndef T_NULL
+#define T_NULL ((char *)0)
+#endif
+
 /*
  * Return name of current kernel.
  * Usefull for things like ps and drvld that need to read the

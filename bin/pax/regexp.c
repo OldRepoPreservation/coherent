@@ -1,6 +1,6 @@
-/* $Source: /usr/local/src/pax/regexp.c,v $
+/* $Source: /src386/usr/bin/pax/regexp.c,v $
  *
- * $Revision: 1.2 $
+ * $Revision: 1.1 $
  *
  * regexp.c - regular expression matching
  *
@@ -42,7 +42,10 @@
  *
  * Sponsored by The USENIX Association for public distribution. 
  *
- * $Log:	/usr/local/src/pax/regexp.c,v $
+ * $Log:	regexp.c,v $
+ * Revision 1.1  92/08/28  08:02:59  bin
+ * Initial revision
+ * 
  * Revision 1.1  89/02/14  16:48:42  jep
  * Initial revision
  * 
@@ -56,7 +59,7 @@
 #include "pax.h"
 
 #ifndef lint
-static char    *Ident = "$Id: regexp.c,v 1.2 89/02/12 10:05:39 mark Exp $";
+static char    *Ident = "$Id: regexp.c,v 1.1 92/08/28 08:02:59 bin Exp Locker: bin $";
 #endif
 
 
