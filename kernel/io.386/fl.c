@@ -1,9 +1,17 @@
+/* (-lgl
+ *	COHERENT Device Driver Kit version 2.0.1.b
+ *	Copyright (c) 1982, 1991, 1992 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ -lgl) */
 /*
- * This is a driver for the IBM AT (286 & up) floppy, using interrupts and DMA
- * on the NEC 756 floppy chip.
- * Handles single/double/quad density drives, 8/9/15/18 sectors per track.
+ * This is a driver for the IBM AT and "above"
+ * floppy drives, using interrupts and DMA on
+ * the NEC 756 floppy chip. Ugh.
+ * Handles single, double and quad
+ * density drives, 8, 9, 15 or 18 sectors per track.
+ * It wil NOT run on an XT;  it requires the CMOS setup memory.
  *
- * Minor device assignments: xxuuhkkk
+ * Minor device assignments: xxuuhkkk   (try pronouncing that--)
  *	uu - unit = 0/1/2/3
  *	kkk - kind, struct fdata infra.
  *	h - alternating head rather than side by side
@@ -11,37 +19,62 @@
  */
 
 #include	<sys/coherent.h>
-#include	<sys/buf.h>
-#include	<sys/con.h>
-#include	<sys/stat.h>
-#include	<errno.h>
-#include	<sys/timeout.h>
-#include	<sys/fdioctl.h>
-#include	<sys/sched.h>
-#include	<sys/dmac.h>
-#include	<sys/devices.h>
-
-#ifdef _I386
+#ifdef	_I386
 #include	<sys/reg.h>
 #else
 #include	<sys/i8086.h>
 #endif
+#include	<sys/buf.h>
+#include	<sys/con.h>
+#include	<sys/stat.h>
+#include	<errno.h>
+#include	<sys/uproc.h>
+#include	<sys/fdioctl.h>
+	/*
+	 * Additional internal commands not available
+	 * to outside users:
+	 */
+#define FDDRVSTATUS	101			/* Read drive status */
+#include	<sys/sched.h>
+#include	<sys/dmac.h>
+#include	<sys/devices.h>
+#include	<sys/seg.h>
+#include	<sys/inode.h>
 
 #define		BIT(n)		(1 << (n))
 
+#define MAXDRVS  2	/* Maximum number of drives that we will support */
+#define MAXSCTRS 21	/* Maximum acceptable sectors per track.  It is  */
+			/* possible to put as many as 10 sectors/track	 */
+			/* on low density diskettes, 18 sectors/track on */
+			/* 5 1/4" high-density diskettes, and 21 sectors */
+			/* per track on 3 1/2" high density diskettes.   */
+			/* the maximum on "2.88" meg diskettes is not    */
+			/* known as of this writing, but may be as high  */
+			/* as 42.					 */
+#define MAXTYPE  4	/* Maximum "type" value as set in the CMOS RAM.  */
+			/* The current value of this is 4, the type for  */
+			/* 1.44 meg diskettes.				 */
 /*
- * Patchable parameters (default to IBM PC/XT values).
+ * Patchable parameters.
  */
 
-int	fl_srt = 0xC;	/* Floppy seek step rate, in unit 2 millisec */
+int	fl_srt = 0xD;	/* Floppy seek step rate, in unit -2 millisec */
 			/* NOT DIRECTLY ENCODED */
-			/* COMPAQ wants 0xD */
+			/* All drives HAVE to work at 5 msec/step, so */
+			/* they HAVE to work at 6 msec/step!  (The use of */
+			/* 8 msec/step in the old PCs was just IBM being */
+			/* excessively conservative. MS/PC-DOS, starting with */
+			/* version 2.0, changes it to 6 msec/step.  There */
+			/* are, in fact, lots of drives that will step at */
+			/* 4 msec/step, but there's no sense in pushing it.) */
 int	fl_hlt = 1;	/* Floppy head load time, in unit 4 millisec */
 int	fl_hut = 0xF;	/* Floppy head unload time, in unit 32 millisec */
 
 int	flload();
 int	flunload();
 int	flopen();
+int	flclose();
 int	flblock();
 int	flread();
 int	flwrite();
@@ -50,11 +83,10 @@ int	fldelay();
 int	flintr();
 int	fltimeout();
 int	nulldev();
-int	nonedev();
 
 CON	flcon	= {
-	DFBLK|DFCHR,			/* Flags */
-	FL_MAJOR,				/* Major index */
+	DFBLK | DFCHR,			/* Flags */
+	FL_MAJOR,			/* Major index */
 	flopen,				/* Open */
 	nulldev,			/* Close */
 	flblock,			/* Block */
@@ -68,10 +100,13 @@ CON	flcon	= {
 };
 
 #define	MTIMER	2			/* Motor timeout */
-#define	FDCDOR	0x3F2			/* Digital output */
+#define FDCDOR	0x3F2			/* Digital output */
 #define	FDCDAT	0x3F5			/* Data register */
 #define	FDCMSR	0x3F4			/* Main status register */
 #define	FDCRATE	0x3F7			/* Transfer rate (500,300,250 Kbps) */
+#define FDCCHGL 0x3F7			/* Port where we read the disk */
+					/* changed line */
+#define DSKCHGD 0x80			/* Diskette changed line bit. */
 
 #define	DORDS	0x03			/* Drive select bits */
 #define	DORNMR	0x04			/* Not master reset */
@@ -129,7 +164,7 @@ CON	flcon	= {
 #define	ST3_TS	0x08			/* Two Sides */
 #define	ST3_T0	0x10			/* Track 0 */
 #define	ST3_RDY	0x20			/* Ready */
-#define	ST3_WP	0x40			/* Write Protected */
+#define ST3_WP	0x40			/* Write Protected */
 #define	ST3_FT	0x80			/* Fault */
 
 /*
@@ -140,7 +175,9 @@ CON	flcon	= {
 #define	CMDSEEK	0x0F			/* Seek */
 #define	CMDRDAT	0x66			/* Read data */
 #define	CMDWDAT	0x45			/* Write data */
-#define	CMDSINT	0x08			/* Sense status */
+#define CMDSINT 0x08			/* Sense interrupt status */
+#define CMDSDRV 0x04			/* Sense drive status */
+#define CMDRDID 0x4A			/* Read ID */
 #define	CMDFMT	0x4D			/* Format track */
 
 /*
@@ -153,13 +190,19 @@ CON	flcon	= {
 #define	SDELAY	4			/* Delay before next disk operation */
 #define	SHDLY	5			/* Head settling delay before r/w */
 #define SLOCK	6			/* Got DMA controller lock */
+#define SRECAL1 7			/* First recalibrate attempt */
+#define SRECAL2 8			/* Try seeking to track 2 */
+#define SRECAL3 9			/* Second recalibrate, if necessary */
+#define SGOTO2	10			/* After seek to cylinder 2 */
+#define SRDID	11			/* Get sector ID from FDC */
+#define SSIDTST 12			/* Testing # of sides */
 
-#define funit(x)	(minor(x)>>4)	/* Unit/drive number */
-#define fkind(x)	(minor(x)&0x7)	/* Kind of format */
-#define	fhbyh(x)	(minor(x)&0x8)	/* 0=Side by side, 1=Head by head */
+#define funit(x)	(minor(x) >> 4)   /* Unit/drive number */
+#define fkind(x)	(minor(x) & 0x7)  /* Kind of format */
+#define fhbyh(x)	(minor(x) & 0x8)  /* 0=Side by side, 1=Head by head */
 
-static
-struct	fdata {
+static			/* Parameters for each kind of format */
+struct	FDATA	{
 	int	fd_size;	/* Blocks per diskette */
 	int	fd_nhds;	/* Heads per drive */
 	int	fd_trks;	/* Tracks per side */
@@ -170,32 +213,50 @@ struct	fdata {
 	char	fd_FGPL;	/* Format gap length */
 } fdata[] = {
 /* 8 sectors per track, surface by surface seek. */
-	{  320,1,40,0, 8, { 0x00,0x23,0x2A }, 2,0x50 }, /* Single sided */
-	{  640,2,40,0, 8, { 0x00,0x23,0x2A }, 2,0x50 }, /* Double sided */
-	{ 1280,2,80,0, 8, { 0x00,0x23,0x2A }, 2,0x50 }, /* Quad density */
+	{  320,1,40,0, 8, { 0x00,0x20,0x20 }, 2,0x58 }, /* Single sided */
+	{  640,2,40,0, 8, { 0x00,0x20,0x20 }, 2,0x58 }, /* Double sided */
+	{ 1280,2,80,0, 8, { 0x00,0x20,0x20 }, 2,0x58 }, /* Quad density */
 /* 9 sectors per track, surface by surface seek. */
-	{  360,1,40,0, 9, { 0x00,0x23,0x2A }, 2,0x50 }, /* Single sided */
-	{  720,2,40,0, 9, { 0x00,0x23,0x2A }, 2,0x50 }, /* Double sided */
-	{ 1440,2,80,0, 9, { 0x00,0x23,0x2A }, 2,0x50 }, /* Quad density */
+	{  360,1,40,0, 9, { 0x00,0x20,0x20 }, 2,0x50 }, /* Single sided */
+	{  720,2,40,0, 9, { 0x00,0x20,0x20 }, 2,0x50 }, /* Double sided */
+	{ 1440,2,80,0, 9, { 0x00,0x20,0x20 }, 2,0x50 }, /* Quad density */
 /* 15 sectors per track, surface by surface seek. */
 	{ 2400,2,80,0,15, { 0x1B,0x00,0x00 }, 2,0x54 }, /* High capacity */
 /* 18 sectors per track, surface by surface seek. */
-	{ 2880,2,80,0,18, { 0x1B,0x00,0x00 }, 2,0x54 }	/* 1.44 3.5" */
+	{ 2880,2,80,0,18, { 0x1B,0x00,0x00 }, 2,0x6C }	/* 1.44 3.5" */
 };
 
+static			/* Parameters for each device type */
+struct	FRATES	{
+	char	fl_hi_kind;		/* "fdata" initial try for hi dens. */
+	char	fl_hi_rate;		/* -1 here for lo-dens. 	    */
+	char	fl_lo_kind;		/* Lo-dens "fdata" entry to try 1st.*/
+	char	fl_lo_rate;		/* Proper lo-density rate for type. */
+	char	dflt_kind;		/* Default parameters.		    */
+	char	dflt_rate;		/* Default data rate.		    */
+} frates[] =	{
+	{ 4,-1, 4,-1, 4, 2 },		/* Type 0 = no drive */
+	{ 4,-1, 4, 2, 4, 2 },		/* Type 1 = 360K  */
+	{ 6, 0, 4, 1, 6, 0 },		/* Type 2 = 1.2M  */
+	{ 4,-1, 5, 2, 5, 2 },		/* Type 3 = 720K  */
+	{ 7, 0, 5, 2, 7, 0 }		/* Type 4 = 1.44M */
+};
 
 static
-struct	fl	{
+struct	FL	{
 	BUF	*fl_actf;		/* Queue, forward */
 	BUF	*fl_actl;		/* Queue, backward */
 	paddr_t	fl_addr;		/* Address */
 	int	fl_nsec;		/* # of sectors */
 	int	fl_secn;		/* Current sector */
-	struct	fdata fl_fd;		/* Disk kind data */
+	struct	FDATA fl_fd[MAXDRVS];	/* Disk kind data */
 	int	fl_fcyl;		/* Floppy cylinder # */
-	char	fl_incal[4];		/* Disk in cal flags */
-	char	fl_ndsk;		/* # of 5 1/4" drives */
-	char	fl_unit;		/* Unit # */
+	int	fl_2step[MAXDRVS];	/* =1 for double-stepping */
+	char	fl_incal[MAXDRVS];	/* Disk in cal flags and current cyl */
+	char	fl_dsk_chngd[MAXDRVS];	/* Diskette changed flags */
+	char	fl_ndsk;		/* # of drives */
+	char	fl_unit;		/* Current unit # */
+	char	fl_selected_unit;	/* Last unit selected */
 	char	fl_mask;		/* Handy unit mask */
 	char	fl_hbyh;		/* 0/1 = Side by side/Head by head */
 	char	fl_nerr;		/* Error count */
@@ -203,21 +264,48 @@ struct	fl	{
 	char	fl_cmdstat[8];		/* Command Status buffer */
 	int	fl_nintstat;		/* Number of intr status bytes recvd */
 	char	fl_intstat[4];		/* Interrupt Status buffer */
+	int	fl_ndrvstat;		/* Number of drv status bytes read */
+	char	fl_drvstat[2];		/* Drive Status buffer */
 	int	fl_fsec;		/* Floppy sector # */
 	int	fl_head;		/* Floppy head */
-	char	fl_init;		/* FDC init done flag */
 	char	fl_state;		/* Processing state */
 	char	fl_mstatus;		/* Motor status */
-	char	fl_time[4];		/* Motor timeout */
-	char	fl_rate;		/* Data rate: 500,300,250,?? kbps */
-	char	fl_type[4];		/* Type of drive: 2 = HiCap */
+	char	fl_time[MAXDRVS];	/* Motor timeout */
+	char	fl_rate[MAXDRVS];	/* Data rate: 500,300,250,?? kbps */
+	char	fl_type[MAXDRVS];	/* Type of drive: 2 = HiCap */
+	char	fl_rate_set;		/* Currently set data rate */
 	int	fl_wflag;		/* Write operation  */
 	int	fl_recov;		/* Recovery initiated */
 }	fl;
 
-static	BUF	flbuf;
+/*
+ *	We need some areas in global RAM to use as BUF structures
+ *	and as data areas for special functions such as formatting,
+ *	reading the drive status and reading sector IDs.  There is
+ *	one set for each drive.  When the blocks for a drive are in
+ *	use, the "drv_locked" char is set to non-zero, and is
+ *	cleared otherwise.  While this scheme doesn't provide
+ *	complete reentrancy, it does allow both drives to be used
+ *	"at once" by separate tasks.
+ */
+static	char	drv_locked[MAXDRVS];	/* One for each possible drive */
+static	char	sw3[MAXDRVS];
+static  BUF     flbuf[MAXDRVS];
+/*
+ *	These next items are related to the floppy disk system
+ *	in general, so we only need one of each.
+ */
 static	TIM	fltim;
-static	TIM	fldmalck;	/* DMA lock deferred function structure.     */
+static	TIM	fldmalck;	/* DMA lock deferred function structure. */
+static	char   *scratch_buffer;
+static	char	fl_clrng_cd;
+static	char	fl_intlv_ct,	/* Counts sectors to find interleave.	 */
+		fl_get_intlv,	/* =1 to start search for interleave.	 */
+		fl_lk4_id,	/* Sector ID to look for for interleave. */
+		fl_alt_kind,	/* Alternate disk parameter index and	 */
+		fl_alt_rate,	/* data rate to use if not first value.  */
+		fl_1st_ID,	/* Detects when all track sectors scanned*/
+		fl_hi_ID;	/* Highest sector ID read so far.	 */
 
 /*
  * The load routine asks the
@@ -230,7 +318,11 @@ static
 flload()
 {
 	register int	eflag;
-	register int	s;
+	register int	s, t;
+
+	if ( (scratch_buffer = kalloc(512)) == NULL )
+		printf("No buffer.\n");
+	fl_clrng_cd = 0;
 
 	/*
 	 * Ensure DMA channel 2 is turned off.
@@ -249,61 +341,53 @@ flload()
 	eflag = inb( 0x71 );
 
 	/*
-	 * Flag hardware as an IBM AT if neither equipment byte nibble is
-	 * greater than 4 (since 5 through 15 are reserved nibble values - see
-	 * IBM AT Technical Reference manual, page 1-50).  Note that this
-	 * relies on the fact that in the XT, this byte will "float" high.
-	 * NOTE: 1.44 Mbyte 3.5 inch drives are type 4
+	 * Reinitialize patchable parameters for IBM AT.
 	 */
-	if ( (eflag & 0x88) == 0 ) {
+	fl_srt = 0xD;	/* Floppy seek step rate, in unit -2 ms */
+			/* NOT DIRECTLY ENCODED */
+	fl_hlt = 25;	/* Floppy head load time, in unit 4 ms */
 
-		/*
-		 * Reinitialize patchable parameters for IBM AT.
-		 */
-		fl_srt = 0xD;	/* Floppy seek step rate, in unit 2 ms */
-				/* NOT DIRECTLY ENCODED */
-		fl_hlt = 25;	/* Floppy head load time, in unit 4 ms */
-
-		/*
-		 * Define AT drive information.
-		 */
-		fl.fl_type[0]	= eflag >> 4;
-		fl.fl_type[1]	= eflag & 15;
-		fl.fl_rate	= 1; /* Must not be 2 */
-
-		/*
-		 * Determine number of AT floppy drives.
-		 */
-		if ( eflag & 0xF0 ) {
-			fl.fl_ndsk++;
-			if ( eflag & 0x0F )
-				fl.fl_ndsk++;
-		}
-	} else {
-		/*
-		 * Define XT drive information.
-		 */
-		eflag		= int11();
-		fl.fl_rate	= 2;
-		if ( eflag & 1 )
-			fl.fl_ndsk = ((eflag >> 6) & 0x03) + 1;
+	/*
+	 * Define AT drive information.
+	 */
+	fl.fl_type[0] = eflag >> 4;
+	fl.fl_type[1] = eflag & 15;
+	fl.fl_ndsk = 0;
+	for ( s = 0; s < MAXDRVS; s++ ) {
+		drv_locked[s] = 0;
+		fl.fl_dsk_chngd[s] = 1;
+		fl.fl_incal[s] = -1;
+		t = fl.fl_type[s];
+		if (t > MAXTYPE)		  /* --in case we get, like, */
+			fl.fl_type[s] = t = MAXTYPE;	/* a 2.88 meg drive. */
+		fl.fl_rate[s] = frates[t].dflt_rate;
+		fl.fl_fd[s] = fdata[ frates[t].dflt_kind ];
+		if (t) fl.fl_ndsk = s + 1;	  /* Type 0 = no drive. */
 	}
 
+	fl.fl_rate_set = 0;
+
+	/*
+	 * Initialize the floppy disk controller (if we
+	 * have any floppy drives).
+	 */
 	if ( fl.fl_ndsk ) {
 
 		s = sphi();
+
 		outb(FDCDOR, 0);
 		setivec(6, &flintr);
-
+		/* "Not Reset FDC" must remain low for at least 14 clocks */
 		outb(FDCDOR, 0);
-		outb(FDCDOR, DORNMR);
+		fl.fl_state = SIDLE;
+		outb(FDCDOR, DORNMR | DORIEN);
 
-		if ( fl.fl_rate != 2 )
-			outb(FDCRATE, fl.fl_rate );
+		fl.fl_mstatus = 0;		/* No motors on */
+		fl.fl_selected_unit = -1;	/* No unit selected */
 
-		flput(CMDSPEC);
-		flput((fl_srt<<4)|fl_hut);
-		flput(fl_hlt<<1);
+		flspecify();
+		outb(FDCRATE, fl.fl_rate_set );
+
 		spl( s );
 	}
 }
@@ -314,25 +398,32 @@ flload()
 flunload()
 {
 	/*
+	 * Cancel timed function.
+	 */
+	timeout( &fltim, 0, NULL, NULL );
+
+	/*
+	 * Cancel periodic (1 second) invocation.
+	 */
+	drvl[ FL_MAJOR ].d_time = 0;
+
+	/*
+	 * Turn motors off.
+	 */
+	outb(FDCDOR, DORNMR );		/* Leave interrupts disabled. */
+
+	/*
 	 * Clear interrupt vector.
 	 */
 	if ( fl.fl_ndsk )
 		clrivec(6);
 
 	/*
-	 * Cancel timed function.
+	 * Return allocated storage
 	 */
-	timeout( &fltim, 0, NULL, NULL );
+	if ( scratch_buffer )
+		kfree( scratch_buffer );
 
-	/*
-	 * Cancel periodic [1 second] invocation.
-	 */
-	drvl[FL_MAJOR].d_time = 0;
-
-	/*
-	 * Turn motors off.
-	 */
-	outb(FDCDOR, DORNMR | DORIEN );
 }
 
 /*
@@ -350,17 +441,85 @@ dev_t	dev;
 int	mode;
 
 {
+	register int unit_number = funit(dev);
+	register int s;
+
 	/*
-	 * Validate existence and data rate [Gap length != 0].
+	 * Validate existence and data rate (Gap length != 0).
 	 */
-	if ( ( funit(dev) >= fl.fl_ndsk )
+	if ( ( unit_number >= fl.fl_ndsk )
+	  || ( fl.fl_type[ unit_number ] == 0 )
 	  || ( fdata[ fkind(dev) ].fd_GPL[ flrate(dev) ] == 0 ) ) {
 
 		u.u_error = ENXIO;
 		return;
 	}
+	/*
+	 * If need to write, be sure there is no write protect tab.
+	 * We do this with a "Sense Drive Status" command.  Since
+	 * this requires the use of the FDC, we have to schedule it
+	 * like data transfer I/O or FORMAT even though it doesn't
+	 * use the DMA.
+	 */
+
+	if ( (mode & IPW) && scratch_buffer ) {
+		if ( drv_locked[ unit_number ] ) {	/* Work areas avail? */
+			u.u_error = EBUSY;		/* No. */
+
+		} else {
+
+			drv_locked[ unit_number ] = 1;	/* Grab work areas. */
+			flbuf[ unit_number ].b_dev = dev;
+			flbuf[ unit_number ].b_req = FDDRVSTATUS;
+			sw3[ unit_number ] = 0;
+							/* Get drive status. */
+			s = flQhang( &flbuf[ unit_number ] );
+			do {				/* Unitl we can use */
+				s = sphi();		/* "sleep()".	    */
+				if ( fl.fl_state == SIDLE )
+					flfsm();
+				spl( s );
+			} while ( sw3[ unit_number ] == 0 );
+
+                        if ( flbuf[ unit_number ].b_resid != 0 )
+				u.u_error = EDATTN;	/* Couldn't get drive */
+							/* status. */
+			else if ( sw3[ unit_number ] & ST3_WP )
+				u.u_error = EROFS;	/* Diskette write */
+							/* protected. */
+
+			drv_locked[ unit_number ] = 0;	/* Release work areas */
+		}
+	}
+
+	/*
+	 * If the drive is low density (no change line) we should
+	 * flag the need to verify the disk format and density.
+	 * High density drives (which are also dual density) have
+	 * change lines that we can check each time we want to read
+	 * the drive.
+	 */
+
+	if ( frates[ fl.fl_type[ unit_number ] ].fl_hi_rate == -1 ) {
+		fl.fl_incal[ unit_number ] = -1;
+		fl.fl_dsk_chngd[ unit_number ] = 1;
+	}
 }
 
+/*
+ * The close routine makes sure that all pending I/O is complete and all
+ * the buffers are flushed of data not yet written.
+ */
+/*
+static
+flclose( dev, mode )
+
+dev_t	dev;
+int	mode;
+
+{
+}
+*/
 /*
  * The read routine just calls
  * off to the common raw I/O processing
@@ -375,7 +534,7 @@ dev_t	dev;
 IO	*iop;
 
 {
-	dmareq(&flbuf, iop, dev, BREAD);
+	dmareq(&flbuf[ funit(dev) ], iop, dev, BREAD);
 }
 
 /*
@@ -391,12 +550,12 @@ dev_t	dev;
 IO	*iop;
 
 {
-	dmareq(&flbuf, iop, dev, BWRITE);
+	dmareq(&flbuf[ funit(dev) ], iop, dev, BWRITE);
 }
 
 /*
  * The ioctl routine simply queues a format request
- * using flbuf.
+ * using the flbuf for the specified drive.
  * The only valid command is to format a track.
  * The parameter block contains the header records supplied to the controller.
  */
@@ -413,13 +572,13 @@ char	*par;
 	register struct fdata *fdp;
 	unsigned hd, cyl;
 
-	if (com != FDFORMAT) {
+	if ( com != FDFORMAT ) {
 		u.u_error = EINVAL;
 		return;
 	}
 
-	fdp = &fdata[ fkind(dev) ];
-	cyl = getubd(par);
+	fdp = &fdata[ fkind(dev) ];		/* Locate formatting	*/
+	cyl = getubd(par);			/* parameters.		*/
 	hd  = getubd(par+1);
 
 	if (hd > 1 || cyl >= fdp->fd_trks) {
@@ -449,7 +608,7 @@ char	*par;
 	u.u_io.io_base = par;
 #endif
 	u.u_io.io_ioc = fdp->fd_nspt * 4;
-	dmareq(&flbuf, &u.u_io, dev, FDFORMAT);
+	dmareq(&flbuf[ funit(dev) ], &u.u_io, dev, FDFORMAT);
 }
 
 /*
@@ -471,30 +630,55 @@ register BUF	*bp;
 	register unsigned bno;
 
 	bno = bp->b_bno + (bp->b_count >> 9) - 1;
-	if ((unsigned)bp->b_bno > fdata[ fkind(bp->b_dev) ].fd_size) {
+	if ( (bp->b_req == FDFORMAT)
+	&&   ((unsigned)bp->b_bno >= fdata[ fkind(bp->b_dev) ].fd_size) ) {
 		bp->b_flag |= BFERR;
 		bdone(bp);
 		return;
 	}
 
-	if (bp->b_req != FDFORMAT && bno >= fdata[ fkind(bp->b_dev) ].fd_size) {
-		bp->b_resid = bp->b_count;
-		if (bp->b_flag & BFRAW)
+	if ( bp->b_req != FDFORMAT ) {
+		if ( (unsigned)bp->b_bno >=
+				       fl.fl_fd[ funit(bp->b_dev) ].fd_size )  {
 			bp->b_flag |= BFERR;
-		bdone(bp);		/* return w/ b_resid != 0 */
-		return;
-	}
-
-	if ((bp->b_count&0x1FF) != 0) {
-		if (bp->b_req != FDFORMAT) {
+			bdone(bp);
+			return;
+		}
+		if (bno >= fl.fl_fd[ funit(bp->b_dev) ].fd_size) {
+			if (bp->b_flag & BFRAW)
+				bp->b_flag |= BFERR;
+			bp->b_resid = bp->b_count;
+			bdone(bp);		/* return w/ b_resid != 0 */
+			return;
+		}
+		if ((bp->b_count & 0x1FF) != 0) {
 			bp->b_flag |= BFERR;
 			bdone(bp);
 			return;
 		}
 	}
 
+	flQhang( bp );			/* Put the block in the queue. */
+
+	s = sphi();
+	if (fl.fl_state == SIDLE)	/* --if necessary, to */
+		flfsm();		/* get things moving. */
+	spl(s);
+}
+
+/*
+ * This routine hangs a BUF in the processing queue
+ */
+
+static
+flQhang( bp )
+
+register BUF *bp;
+
+{
+	register int s = sphi();     /* No interrupts during chaining, please */
+
 	bp->b_actf = NULL;
-	s = sphi();	/* s was already == sphi() on at least PC/XT. */
 
 	if (fl.fl_actf == NULL)
 		fl.fl_actf = bp;
@@ -502,9 +686,6 @@ register BUF	*bp;
 		fl.fl_actl->b_actf = bp;
 
 	fl.fl_actl = bp;
-
-	if (fl.fl_state == SIDLE)
-		flfsm();
 
 	spl( s );
 }
@@ -531,21 +712,42 @@ again:
 	switch (fl.fl_state) {
 
 	case SIDLE:
-T_HAL(0x100000, printf("SIDLE "));
-		drvl[FL_MAJOR].d_time = 1;
+
+		drvl[ FL_MAJOR ].d_time = 1;
 
 		if ( bp == NULL )
 			break;
 
-		fl.fl_fd   = fdata[ fkind(bp->b_dev) ];
 		fl.fl_unit = funit( bp->b_dev );
-		fl.fl_hbyh = fhbyh( bp->b_dev );
-
 		fl.fl_mask = 0x10 << fl.fl_unit;
+
+/* printf("drv%d: cmd=%d (%s), position=%d, count=%d\n",
+fl.fl_unit,
+bp->b_req,
+  (bp->b_req == BREAD)	     ? "BREAD"
+: (bp->b_req == BWRITE)      ? "BWRITE"
+: (bp->b_req == FDDRVSTATUS) ? "FDDRVSTATUS"
+: (bp->b_req == FDFORMAT)    ? "FDFORMAT"       : "?????",
+bp->b_bno,
+bp->b_count ); */
+		/*
+		 * We do an entire check for drive status here
+		 */
+		if ( bp->b_req == FDDRVSTATUS ) {
+			fl.fl_drvstat[0] = 0;
+			fldrvstatus();
+			sw3[ fl.fl_unit ] = fl.fl_drvstat[0] | 3;
+			bp->b_resid = (fl.fl_ndrvstat == 1) ? 0 : 1;
+			fl.fl_actf  = bp->b_actf;
+			fl.fl_state = SIDLE;
+			goto again;
+		}
+
+		fl.fl_hbyh = fhbyh( bp->b_dev );
 
 		fl.fl_addr = bp->b_paddr;
 		fl.fl_secn = bp->b_bno;
-		fl.fl_time[fl.fl_unit] = 0;
+		fl.fl_time[ fl.fl_unit ] = 0;
 
 		if ((fl.fl_nsec = bp->b_count>>9) == 0)
 			fl.fl_nsec = 1;
@@ -553,86 +755,377 @@ T_HAL(0x100000, printf("SIDLE "));
 		fl.fl_nerr = 0;
 
 		/*
-		 * Set data rate if changed.
-		 * NOTE: XT never changes data rate.
+		 * Motor is turned off - turn it on, wait 1 second
+		 * (for write operations only)
 		 */
-		if ( (i = flrate(bp->b_dev)) != fl.fl_rate )
-			outb(FDCRATE, fl.fl_rate = i );
-
-		/*
-		 * Motor is turned off - turn it on, wait 1 second.
-		 */
-		if ((fl.fl_mstatus&fl.fl_mask) == 0) {
-
-			fl.fl_mstatus |= fl.fl_mask;
-			outb(FDCDOR, DORNMR|DORIEN|fl.fl_mstatus|fl.fl_unit);
-			flsense();
-
-			timeout( &fltim, HZ, fldelay, SSEEK );
-			fl.fl_time[fl.fl_unit] = 0;
-			fl.fl_state = SDELAY;
-			break;
+		if ( ((fl.fl_mstatus & fl.fl_mask) == 0)
+		|| (fl.fl_unit != fl.fl_selected_unit) ) {
+			fldrvselect();
+			if ( (bp->b_req == BWRITE)
+			|| (bp->b_req == FDFORMAT) ) {
+				timeout( &fltim, HZ, fldelay, SSEEK );
+				fl.fl_state = SDELAY;
+				break;
+			}
 		}
+
 		/* no break */
 
 	case SSEEK:
-T_HAL(0x100000, printf("SSEEK "));
-		fl.fl_time[fl.fl_unit] = 0;
-		outb(FDCDOR, DORNMR|DORIEN|fl.fl_mstatus|fl.fl_unit);
-		flsense();
+		fldrvselect();			/* Keep drive turned on */
 
+		/*
+		 * Test dual-density drive's disk changed line.  We must
+		 * test now before we (possibly) recalibrate the drive
+		 * which would lose us the disk changed indication.
+		 */
+
+		if ( (frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate != -1)
+		&&   (inb(FDCCHGL) & DSKCHGD)
+		&&   ( fl_clrng_cd == 0 ) ) {
+			fl.fl_dsk_chngd[ fl.fl_unit ] = 1;
+			fl.fl_incal[ fl.fl_unit ] = -1;
+		}
+
+		fl_clrng_cd = 0;
+
+		/*
+		 * If we have a format command on cylinder zero, head
+		 * zero, we must recalibrate the drive first, and set
+		 * up the transfer speed and FDC stuff.  We ignore
+		 * a disk changed condition since the current format
+		 * (it may, remember, be unformatted!) is of no
+		 * consequence.
+		 */
+		if ( bp->b_req == FDFORMAT ) {
+			fl.fl_dsk_chngd[ fl.fl_unit ] = 0;
+			fl.fl_fd[ fl.fl_unit ] = fdata[ fkind(bp->b_dev) ];
+			fl.fl_rate[ fl.fl_unit ] =
+			fl.fl_rate_set		 = flrate(bp->b_dev);
+			if ( ( fl.fl_fd[ fl.fl_unit ].fd_trks < 45 )
+			  && ( fl.fl_type[ fl.fl_unit ] != 1 ) )
+				fl.fl_2step[ fl.fl_unit ] = 1;
+			outb( FDCRATE, fl.fl_rate_set );
+			if (fl.fl_secn == 0)
+				fl.fl_incal[ fl.fl_unit ] = -1;
+		}
 		/*
 		 * Drive is not calibrated - seek to track 0.
 		 */
-		if (fl.fl_incal[fl.fl_unit] == 0) {
-			++fl.fl_incal[fl.fl_unit];
+		if (fl.fl_incal[ fl.fl_unit ] == -1) {
 			flput(CMDRCAL);
 			flput(fl.fl_unit);
-			fl.fl_state = SSEEK;
+			fl.fl_state = SRECAL1;
 			break;
+		} else goto Recalibrated;
+
+	case SRECAL1:
+		/*
+		 * If the recalibrate had to step more than 77 cylinders
+		 * it will fail.  We must check for this condition and
+		 * try once more.  With some controllers we will also get
+		 * an error if the head STARTS over cylinder 0.  In either
+		 * event we will force a seek to track 2, then recalibrate
+		 * again.  If this fails, we can't recalibrate the drive.
+		 */
+		if ( ( fl.fl_nintstat != 2 )
+		  || ( (fl.fl_intstat[0] & (ST0_IC | ST0_SE)) != ST0_SE ) ) {
+			flput(CMDSEEK);
+			flput(fl.fl_unit);
+			flput(2);
+			fl.fl_state = SRECAL2;
+			break;
+		} else goto RecalibrateOK;
+	case SRECAL2:
+		flput(CMDRCAL);
+		flput(fl.fl_unit);
+		fl.fl_state = SRECAL3;
+		break;
+	case SRECAL3:
+		if ( ( fl.fl_nintstat != 2 )
+		  || ( (fl.fl_intstat[0] & (ST0_IC | ST0_SE)) != ST0_SE ) ) {
+RecalFailed:
+			printf("fd%d: <Can't Recalibrate>\n", fl.fl_unit);
+			clrQ( bp->b_dev );
+			goto again;
+		}
+RecalibrateOK:
+		flput(CMDSEEK); 		/* We now get off of cyl 0  */
+		flput(fl.fl_unit);		/* to try to clear the disk */
+		flput(2);			/* changed line, which acts */
+		fl.fl_state = SGOTO2;		/* differently on different */
+		break;				/* controllers.  <sigh>  We */
+						/* use cyl 2 since all for- */
+	case SGOTO2:				/* matted disks will have a */
+		if ( ( fl.fl_nintstat != 2 )	/* track here.		    */
+		  || ( (fl.fl_intstat[0] & (ST0_IC | ST0_SE)) != ST0_SE ) )
+			goto RecalFailed;
+
+		fl.fl_incal[ fl.fl_unit ] = 2;	/* Heads now on cylinder 2. */
+
+Recalibrated:
+		/*
+		 * Now, if we don't have to check the interleave factor,
+		 * we can continue with the seek!
+		 */
+		if ( fl.fl_dsk_chngd[ fl.fl_unit ] == 0 ) goto RateKnown;
+
+		/*
+		 * <sigh>.  Okay, first we'll try the requested density.
+		 */
+
+						/* First we'll make sure   */
+						/* we're sitting on cyl 2. */
+		if ( fl.fl_incal[ fl.fl_unit ] != 2 ) goto RecalibrateOK;
+
+		/*
+		 * We start by trying the requested density:
+		 */
+
+							/* Get requested rate.*/
+		i = fl.fl_rate[ fl.fl_unit ] = flrate(bp->b_dev);
+							/* This next mess gets*/
+							/* the disk parameters*/
+							/* and the alternate  */
+							/* values.	      */
+		if ( i == frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate ) {
+
+			fl.fl_fd[ fl.fl_unit ] =
+			 fdata[ frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_kind ];
+			fl_alt_kind =
+				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_lo_kind;
+			fl_alt_rate =
+				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_lo_rate;
+		} else {
+			fl.fl_fd[ fl.fl_unit ] =
+			 fdata[ frates[ fl.fl_type[ fl.fl_unit ] ].fl_lo_kind ];
+			fl_alt_kind =
+				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_kind;
+			fl_alt_rate =
+				  frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate;
 		}
 
-		fl.fl_fsec = (fl.fl_secn % fl.fl_fd.fd_nspt) + 1;
+		fl.fl_state  = SRDID;		/* Set up to read sector IDs. */
+		fl_get_intlv = 1;
+		fl_intlv_ct  =
+		fl_lk4_id    =
+		fl_1st_ID    =
+		fl_hi_ID     = 0;
+
+		/*
+		 * Now we try the rate to see if we can read sector IDs
+		 */
+TryRate:
+		if ( fl.fl_rate_set != i )
+			outb( FDCRATE, fl.fl_rate_set = i );
+GetNextID:
+		flput(CMDRDID);
+		flput(fl.fl_unit);		/* Always read side 0. */
+
+		break;				/* Wait for ID to arrive. */
+
+	case SRDID:
+
+		if ( (fl.fl_ncmdstat < 7)	/* Did we get an ID? */
+		  || ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT)  ) {
+			if (fl_alt_rate == -1) { /* No, is there an alternate?*/
+				flstatus();	 /* No, we can't go on.       */
+				clrQ(bp->b_dev);
+				goto again;
+			} else {
+				fl.fl_fd[ fl.fl_unit ] = fdata[ fl_alt_kind ];
+				i = fl.fl_rate[ fl.fl_unit ] = fl_alt_rate;
+				fl_alt_rate = -1; /* Flag tried alternate.    */
+				goto TryRate;	  /* Try alternate density.   */
+			}
+		}
+
+		/*
+		 * Test interleave
+		 */
+
+		if ( fl_get_intlv )		/* Looking for interleave? */
+			if ( fl_lk4_id ) {	/* Yes; started yet?	   */
+				if (fl_lk4_id == fl.fl_cmdstat[5]) /* Yes. */
+					fl_get_intlv = 0; /* We have a hit.*/
+				else			  /* No hit yet,   */
+					fl_intlv_ct++;	  /* count sector. */
+			} else if (fl.fl_cmdstat[5] < 5) {/* Can we start yet?*/
+				fl_intlv_ct = 1;	     /* Yes; count, */
+				fl_lk4_id = fl.fl_cmdstat[5] + 1;/* set ID  */
+			}					 /* to find.*/
+
+		/*
+		 * Look for highest ID on track
+		 */
+
+		if ( fl.fl_cmdstat[5] != fl_1st_ID ) {
+			if ( fl_1st_ID == 0 )
+				fl_1st_ID = fl.fl_cmdstat[5];
+			if ( fl.fl_cmdstat[5] > fl_hi_ID )
+				fl_hi_ID = fl.fl_cmdstat[5];
+			goto GetNextID;
+		}
+
+		/*
+		 * Be sure we have the interleave
+		 */
+
+		if ( fl_get_intlv ) goto GetNextID;
+
+		/*
+		 * So now we know the density and sectors/track
+		 */
+
+		fl.fl_dsk_chngd[ fl.fl_unit ] = 0;
+		fl.fl_fd[ fl.fl_unit ].fd_nspt = fl_hi_ID;
+
+		/*
+		 * We're (supposedly) sitting on track 2.  We'll
+		 * look at the last sector ID we've read.  If it's 1,
+		 * we need to do double-stepping.
+		 */
+
+		if ( fl.fl_2step[ fl.fl_unit ] = (fl.fl_cmdstat[3] == 1) ) {
+			fl.fl_fd[ fl.fl_unit ].fd_trks = 42;
+			fl.fl_incal[ fl.fl_unit ] = 1;
+		} else					/* Most 1.2M drives */
+			fl.fl_fd[ fl.fl_unit ].fd_trks = /* have 83 cyls!   */
+				(fl.fl_type[ fl.fl_unit ] == 2) ? 83 : 82;
+
+		/*
+		 * We next test for one or two sides:
+		 */
+
+		if ( fl.fl_rate[ fl.fl_unit ] == 0) {	    /* If diskette is */
+			fl.fl_fd[ fl.fl_unit ].fd_nhds = 2; /* high-density it*/
+			goto DiskEstablished;		    /* will have two  */
+		}					    /* sides.	      */
+
+		/*
+		 * If the diskette is requested by caller as low density
+		 * we use the specified number of sides------
+		 */
+
+		if ( fdata[ fkind(bp->b_dev) ].fd_nspt < 12 ) {
+			fl.fl_fd[ fl.fl_unit ].fd_nhds =
+					      fdata[ fkind(bp->b_dev) ].fd_nhds;
+			goto DiskEstablished;
+		}
+
+		/*
+		 * --otherwise we check to see:
+		 */
+
+		flput(CMDRDID); 		/* Just try to read ANY sector*/
+		flput( fl.fl_unit | 0x04 );	/* ID from side two.	      */
+		fl.fl_state = SSIDTST;
+		break;
+
+	case SSIDTST:				/* If we succeeded, we have */
+						/* 2 sides, else we have 1. */
+		fl.fl_fd[ fl.fl_unit ].fd_nhds = ( (fl.fl_ncmdstat < 7)
+			  || ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT)  ) ? 1 : 2;
+
+		/*
+		 * So now we now know all about the diskette!
+		 */
+DiskEstablished:
+		fl.fl_fd[ fl.fl_unit ].fd_size = fl.fl_fd[ fl.fl_unit ].fd_nhds
+					       * fl.fl_fd[ fl.fl_unit ].fd_trks
+					       * fl.fl_fd[ fl.fl_unit ].fd_nspt;
+#if 0
+printf("fl%d: rate=%d, sctrs/trk=%d, hds=%d, cyls=%d, size=%d, intlv=%d, stp=%d\n",
+fl.fl_unit,
+fl.fl_rate[fl.fl_unit],
+fl.fl_fd[fl.fl_unit].fd_nspt,
+fl.fl_fd[fl.fl_unit].fd_nhds,
+fl.fl_fd[fl.fl_unit].fd_trks,
+fl.fl_fd[fl.fl_unit].fd_size,
+fl_intlv_ct,
+fl.fl_2step[fl.fl_unit]+1 );
+#endif
+		/*
+		 * Finally, if the diskette drive has a change line
+		 * we'll force it off by reading a sector on cylinder 2.
+		 * Usually the testing for rate, the seek to cylinder 2
+		 * and the soon-to-follow read or write would clear this,
+		 * but there are some controllers that don't always clear
+		 * it.	The machine I've been testing on clears it sometimes
+		 * and not other times.  I hope there aren't machines even
+		 * flakier than this!
+		 */
+
+		if ( (frates[ fl.fl_type[ fl.fl_unit ] ].fl_hi_rate != -1)
+		&&   ( scratch_buffer )
+		&&   (inb(FDCCHGL) & DSKCHGD) ) {
+			fl.fl_fcyl = fl.fl_incal[ fl.fl_unit ];
+			fl.fl_head = 0;
+			fl.fl_fsec = 1;
+#ifdef _I386
+			fl.fl_addr = MAPIO(allocp.sr_segp->s_vmem,
+			  ((int)scratch_buffer - (int)allocp.sr_base));
+#else
+			fl.fl_addr = vtop( scratch_buffer, sds );
+#endif
+			fl_clrng_cd = 1;
+			goto Suck;
+		}
+
+RateKnown:
+		/*
+		 * Set data rate if changed.
+		 */
+		if ( fl.fl_rate_set != (i = fl.fl_rate[ fl.fl_unit ]) )
+			outb( FDCRATE, fl.fl_rate_set = i );
+
+		/*
+		 * Next we must convert the ordinal block number to
+		 * cylinder/head/sector form.
+		 */
+		fl.fl_fsec = (fl.fl_secn % fl.fl_fd[ fl.fl_unit ].fd_nspt) + 1;
 
 		/*
 		 * Seek cylinder by cylinder (XENIX/DOS compatible).
 		 */
 		if (fl.fl_hbyh) {
-	                fl.fl_head = fl.fl_secn / fl.fl_fd.fd_nspt;
-			fl.fl_fcyl = fl.fl_head / fl.fl_fd.fd_nhds;
-			fl.fl_head = fl.fl_head % fl.fl_fd.fd_nhds;
+			fl.fl_head = fl.fl_secn / fl.fl_fd[ fl.fl_unit ].fd_nspt;
+			fl.fl_fcyl = fl.fl_head / fl.fl_fd[ fl.fl_unit ].fd_nhds;
+			fl.fl_head = fl.fl_head % fl.fl_fd[ fl.fl_unit ].fd_nhds;
 		}
 		
 		/*
 		 * Seek surface by surface.
 		 */
 		else {
-			fl.fl_fcyl = fl.fl_secn / fl.fl_fd.fd_nspt;
-			fl.fl_head = fl.fl_fcyl / fl.fl_fd.fd_trks;
-			fl.fl_fcyl = fl.fl_fcyl % fl.fl_fd.fd_trks;
+			fl.fl_fcyl = fl.fl_secn / fl.fl_fd[ fl.fl_unit ].fd_nspt;
+			fl.fl_head = fl.fl_fcyl / fl.fl_fd[ fl.fl_unit ].fd_trks;
+			fl.fl_fcyl = fl.fl_fcyl % fl.fl_fd[ fl.fl_unit ].fd_trks;
 		}
+					/* Don't seek unless we have to. */
+		if ( fl.fl_fcyl == fl.fl_incal[ fl.fl_unit ] )
+			goto Suck;		/* Past tense of seek?? */
+
+		fl.fl_incal[ fl.fl_unit ] = fl.fl_fcyl; /* Save new cylinder. */
 
 		flput(CMDSEEK);
 		flput((fl.fl_head<<2) | fl.fl_unit);
-
-		if ( fl.fl_fd.fd_trks == 80 )
-			flput(fl.fl_fcyl);
-		else if ( fl.fl_type[fl.fl_unit] == 2 )
-			flput(fl.fl_fcyl << 1);		/* double step */
-		else if ( fl.fl_type[fl.fl_unit] == 4 )
-			flput(fl.fl_fcyl << 1);		/* double step */
+						/* If disk is around 40 tracks*/
+						/* and drive is not 40 track- */
+		if ( ( fl.fl_fd[ fl.fl_unit ].fd_trks < 45 )
+		  && ( fl.fl_type[ fl.fl_unit ] != 1 ) )
+			flput(fl.fl_fcyl << 1); 	/* -use double step.  */
 		else
-			flput(fl.fl_fcyl);
+			flput(fl.fl_fcyl);		/* Single step.       */
 
 		fl.fl_state = SHDLY;
 		break;
 
 	case SHDLY:
-T_HAL(0x100000, printf("SHDLY "));
 		/*
 		 * Delay for minimum 15 milliseconds after seek before w/fmt.
-		 * 2 clock ticks would give 10-20 millisecond [100 Hz clock].
-		 * 3 clock ticks gives      20-30 millisecond [100 Hz clock].
+		 * 2 clock ticks would give 10-20 millisecond (100 Hz clock).
+		 * 3 clock ticks gives	    20-30 millisecond (100 Hz clock).
 		 */
 		if ( bp->b_req != BREAD ) {
 			timeout( &fltim, 3, fldelay, SRDWR );
@@ -642,11 +1135,11 @@ T_HAL(0x100000, printf("SHDLY "));
 		/* no break */
 
 	case SRDWR:
-T_HAL(0x100000, printf("SRDWR "));
+Suck:
 		/*
 		 * Disable watchdog timer while waiting to lock DMA controller.
 		 */
-		fl.fl_time[fl.fl_unit] = -1;
+		fl.fl_time[ fl.fl_unit ] = -1;
 
 		/*
 		 * Next state will be DMA locked state.
@@ -660,43 +1153,44 @@ T_HAL(0x100000, printf("SRDWR "));
 			return;
 
 	case SLOCK:
-T_HAL(0x100000, printf("SLOCK "));
 		/*
 		 * Reset watchdog timer to restart timeout sequence.
 		 */
-		fl.fl_time[fl.fl_unit] = 0;
+
+		fl.fl_time[ fl.fl_unit ] = 0;
 
 		flcmd = CMDRDAT;
 		fl.fl_wflag = 0;
 
-		if (bp->b_req == BREAD)
-			;
+		if ( fl_clrng_cd == 0 )
+			if (bp->b_req == BWRITE) {
+				fl.fl_wflag = 1;
+				flcmd = CMDWDAT;
+			}
 
-		else if (bp->b_req == BWRITE) {
-			fl.fl_wflag = 1;
-			flcmd = CMDWDAT;
-		}
-		
-		else {
-			fl.fl_wflag = 1;
-			flcmd = CMDFMT;
+			else if (bp->b_req == FDFORMAT) {
+				fl.fl_wflag = 1;
+				flcmd = CMDFMT;
 
 #ifdef _I386
-			if(!dmaon(2, P2P(fl.fl_addr),bp->b_count,fl.fl_wflag))
+				if(!dmaon(2, P2P(fl.fl_addr),bp->b_count,
+				  fl.fl_wflag))
 #else
-			if(dmaon(2, fl.fl_addr, bp->b_count, fl.fl_wflag) == 0)
+				if( dmaon( 2, fl.fl_addr, bp->b_count,
+				  fl.fl_wflag ) == 0 )
 #endif
-				goto straddle;
+					goto straddle;
 
-			else
-				goto command;
-		}
+				else
+					goto command;
+			}
 
 #ifdef _I386
-		if (dmaon(2, P2P(fl.fl_addr), 512, fl.fl_wflag) == 0) {
+		if (dmaon(2, P2P(fl.fl_addr), 512, fl.fl_wflag) == 0)
 #else
-		if (dmaon(2, fl.fl_addr, 512, fl.fl_wflag) == 0) {
+		if (dmaon(2, fl.fl_addr, 512, fl.fl_wflag) == 0)
 #endif
+		{
 straddle:
 			devmsg(bp->b_dev, "fd: DMA page straddle at %x:%x",
 				fl.fl_addr);
@@ -711,42 +1205,59 @@ command:
 		flput((fl.fl_head<<2) | fl.fl_unit);
 
 		if (bp->b_req == FDFORMAT) {
-			flput(fl.fl_fd.fd_N);		/* N */
-			flput(fl.fl_fd.fd_nspt);	/* SC */
-			flput(fl.fl_fd.fd_FGPL);	/* GPL */
-			flput(0xF6);			/* D */
+			flput(fl.fl_fd[ fl.fl_unit ].fd_N);	/* N */
+			flput(fl.fl_fd[ fl.fl_unit ].fd_nspt);	/* SC */
+			flput(fl.fl_fd[ fl.fl_unit ].fd_FGPL);	/* GPL */
+			flput(0xF6);				/* D */
 		}
 		
 		else {
 			flput(fl.fl_fcyl);
 			flput(fl.fl_head);
 			flput(fl.fl_fsec);
-			flput(fl.fl_fd.fd_N);		/* N */
-			flput(fl.fl_fd.fd_nspt);	/* EOT */
-			flput(fl.fl_fd.fd_GPL[fl.fl_rate]); /* GPL */
-			flput(0xFF);			/* DTL */
+			flput(fl.fl_fd[ fl.fl_unit ].fd_N);	/* N */
+			flput(fl.fl_fd[ fl.fl_unit ].fd_nspt);	/* EOT */
+                        flput(fl.fl_fd[ fl.fl_unit ].fd_GPL[ fl.fl_rate_set ]);
+								/* GPL */
+			flput(0xFF);				/* DTL */
 		}
 
 		fl.fl_state = SENDIO;
 		break;
 
 	case SENDIO:
-T_HAL(0x100000, printf("SENDIO "));
-		fl.fl_time[fl.fl_unit] = 0;
+		fl.fl_time[ fl.fl_unit ] = 0;
 		dmaoff(2);
 		dmaunlock( &fldmalck );
 
-		if ((fl.fl_cmdstat[0]&ST0_IC) != ST0_NT) {
-			if (++fl.fl_nerr < 5) {
-T_HAL(0x100000, printf("fail #%d ", fl.fl_nerr));
-T_HAL(0x100000, flstatus());
-				fl.fl_incal[fl.fl_unit] = 0;
-				fl.fl_state = SSEEK;
-			}
-			
-			else {
-				flstatus();
-				bp->b_flag |= BFERR;
+		if ( fl_clrng_cd ) {
+			fl.fl_state = SIDLE;
+			goto again;
+		}
+
+		/*
+		 * We now check for errors.  If the error is a data
+		 * CRC error, we KNOW we're on the correct track, and
+		 * we just retry the read once before recalibrating.
+		 * We recalibrate for all other errors.
+		 */
+		if ((fl.fl_cmdstat[0] & ST0_IC) != ST0_NT) {
+			if (++fl.fl_nerr < 9) {
+				if ( fl.fl_cmdstat[2] & ST2_DD ) {
+					if ( fl.fl_nerr & 1 )
+					  goto SetSEEKState;
+					else
+					  goto Ask4Recal;
+				} else {
+					fl.fl_nerr = (fl.fl_nerr=2) & 0xFE;
+Ask4Recal:
+					fl.fl_incal[ fl.fl_unit ] = -1;
+SetSEEKState:
+					fl.fl_state = SSEEK;
+				}
+			} else {
+				flstatus();		/* Total failure; */
+				bp->b_flag |= BFERR;	/* we give up.	  */
 				fldone(bp);
 			}
 		}
@@ -774,7 +1285,6 @@ T_HAL(0x100000, flstatus());
 		goto again;
 
 	case SDELAY:
-T_HAL(0x100000, printf("SDELAY "));
 		/*
 		 * Ignore interrupts until timeout occurs.
 		 */
@@ -812,35 +1322,11 @@ static int
 flrate( dev )
 register dev_t dev;
 {
-	register int rate;
+	register int unit = funit(dev);
+	register int rate = frates[ fl.fl_type[ unit ] ].fl_hi_rate;
 
-	/*
-	 * Default is 250 Kbps.
-	 */
-	rate = 2;
-
-	/*
-	 * Check for high capacity drive.
-	 */
-	if ( fl.fl_type[ funit(dev) ] == 2 ) {
-
-		/*
-		 * 300 Kbps.
-		 */
-		rate--;
-
-		/*			       
-		 * Check for high capacity media.
-		 */
-		if ( fdata[ fkind(dev) ].fd_nspt == 15 ) {
-
-			/*
-			 * 500 Kbps.
-			 */
-			rate--;
-		}
-	} else if (fl.fl_type[funit(dev)] == 4 && fkind(dev) == 7)
-		rate = 0;
+	if ( (rate == -1 ) || ( fdata[ fkind(dev) ].fd_nspt < 15 ) )
+		rate = frates[ fl.fl_type[ unit ] ].fl_lo_rate;
 
 	return( rate );
 }
@@ -864,7 +1350,7 @@ fltimeout()
 	/*
 	 * Scan all drives, looking for motor timeouts.
 	 */
-	for ( unit=0, mask=0x10; unit < 4; unit++, mask <<= 1 ) {
+	for ( unit=0, mask=0x10; unit < MAXDRVS; unit++, mask <<= 1 ) {
 
 		/*
 		 * Ignore drives which aren't spinning.
@@ -876,19 +1362,21 @@ fltimeout()
 		 * If timer is disabled (i.e. we are waiting for the DMA
 		 * controller), go on to the next drive.
 		 */
-		if ( fl.fl_time[unit] < 0 )
+		if ( fl.fl_time[ unit ] < 0 )
 			continue;
 
 		/*
 		 * Leave recently accessed (in last 4 seconds) drives spinning.
 		 */
-		if ( ++fl.fl_time[unit] < MTIMER )
+		if ( ++fl.fl_time[ unit ] < MTIMER )
 			continue;
 
 		/*
 		 * Timeout drives which have been inactive for 5 seconds.
 		 */
 		fl.fl_mstatus &= ~mask;
+		if ( unit == fl.fl_selected_unit )
+			fl.fl_selected_unit = -1;
 
 		/*
 		 * Not selected drive, or selected drive is idle.
@@ -918,8 +1406,39 @@ fltimeout()
 	 * Stop checking once all drives have been stopped.
 	 */
 	if ( fl.fl_mstatus == 0 )
-		drvl[FL_MAJOR].d_time = 0;
+		drvl[ FL_MAJOR ].d_time = 0;
 
+	spl(s);
+}
+
+/*
+ * Remove all pending requests for a device from the queue
+ * (used after errors).
+ */
+static
+clrQ( dev )
+register int dev;
+{
+	register BUF *bp, *bp2;
+	int s;
+
+	s = sphi();
+
+	while ( (bp = fl.fl_actf) && (bp->b_dev == dev) ) {
+		bp->b_flag |= BFERR;		/* Strip BUFs from front */
+		fl.fl_actf = bp->b_actf;	/* of queue.		 */
+		bdone(bp);
+	}
+	while ( bp ) {
+		fl.fl_actl = bp;
+		if ( (bp2 = bp->b_actf) && (bp2->b_dev == dev) ) {
+			bp2->b_flag |= BFERR;	  /* Strip BUFs from rest  */
+			bp->b_actf = bp2->b_actf; /* rest of queue.	   */
+			bdone(bp2);
+		} else
+			bp = bp2;
+	}
+	fl.fl_state = SIDLE;
 	spl(s);
 }
 
@@ -928,11 +1447,10 @@ fltimeout()
  * and discards any queued requests on the current drive.
  * This is required if the floppy door is open, or diskette is missing.
  */
-
+static
 flrecov()
 {
-	register BUF * bp;
-	register dev_t dev;
+	register int	x;
 
 	/*
 	 * Disable DMA transfer.
@@ -943,48 +1461,44 @@ flrecov()
 	/*
 	 * Unlock the controller if locked by us.
 	 */
-	dmaunlock( &fldmalck );
 
 	outb(FDCDOR, 0);
-	outb(FDCDOR, DORNMR);
+	fl.fl_state = SIDLE;
+	dmaunlock( &fldmalck ); 		/* Ensures 14 clock cycles */
+	outb(FDCDOR, DORNMR | DORIEN);
 
-	/*
-	 * Program transfer bps.
-	 */
-	if ( fl.fl_rate != 2 )
-		outb( FDCRATE, fl.fl_rate );
+	fl.fl_mstatus = 0;			/* No motors on */
+	fl.fl_selected_unit = -1;		/* No unit selected */
 
 	/*
 	 * Program floppy controller.
 	 */
-	flput( CMDSPEC );
-	flput( (fl_srt << 4) | fl_hut );
-	flput( fl_hlt << 1 );
+	flspecify();				/* Forces wait */
+
+	/*
+	 * Program transfer bps.
+	 */
+	outb( FDCRATE, fl.fl_rate_set );
 
 	/*
 	 * Drives are no longer in calibration.
 	 */
-	fl.fl_incal[0] =
-	fl.fl_incal[1] =
-	fl.fl_incal[2] =
-	fl.fl_incal[3] = 0;
+	for ( x = 0; x < MAXDRVS; x++ )
+		fl.fl_incal[1] = -1;
 
 	/*
 	 * Abort all block requests on current drive after 1st recov attempt.
 	 */
-	if ( bp = fl.fl_actf ) {
-		printf("fd%d: <Door Open>\n", fl.fl_unit );
-		dev = bp->b_dev;
-		do {
-			bp->b_flag |= BFERR;
-			fldone( bp );
-		} while ( (bp = fl.fl_actf) && (bp->b_dev == dev) );
+	if ( fl.fl_actf ) {
+		printf("fd%d: <Door Open>\n", fl.fl_unit );     /* Message    */
+		clrQ( fl.fl_actf->b_dev );		/* Dump pending reqs. */
+		fl.fl_dsk_chngd[ fl.fl_unit ] = 1;	/* Make disk changed. */
 	}
 
 	/*
 	 * Delay before setting controller state to idle.
 	 * This gives time for spurious floppy interrupts to occur.
-	 * NOTE: Can't call flfsm(), since it may call us [future revision].
+	 * NOTE: Can't call flfsm(), since it may call us (future revision).
 	 */
 	timeout( &fltim, HZ/4, fldelay, SIDLE );
 	fl.fl_state = SDELAY;
@@ -1025,6 +1539,18 @@ register BUF * bp;
 }
 
 /*
+ * Send Specify command and data bytes to FDC
+ */
+
+static
+flspecify()
+{
+        flput( CMDSPEC );
+        flput( (fl_srt << 4) | fl_hut );
+        flput( fl_hlt << 1 );
+}
+
+/*
  * Flsense() issues a sense interrupt status command
  * to restore the controller to a quiescent state.
  */
@@ -1032,9 +1558,19 @@ register BUF * bp;
 static
 flsense()
 {
+	flcmdstatus();			/* Get command status. */
+	flintstatus();			/* Get int status, just in case. */
+}
+
+/*
+ * Get status (if any) from last command
+ */
+static
+flcmdstatus()
+{
 	register int	b;
-	register int	n;
-	register int	i = 0;
+	register int	n = 0;		/* # of status bytes read */
+	register int	i = 0;		/* Timeout count */
 	register int	s;
 
 	s = sphi();
@@ -1042,17 +1578,16 @@ flsense()
 	/*
 	 * Read all the status bytes the controller will give us.
 	 */
-	n = 0;
 
 	for (;;) {
-		while (((b=inb(FDCMSR))&MSRRQM) == 0) {
+		while (((b=inb(FDCMSR)) & MSRRQM) == 0) {
 			if ( --i == 0 ) {
 				printf("flintr: timeout\n");
 				break;
 			}
 		}
 
-		if ((b&MSRDIO) == 0)
+		if ((b & MSRDIO) == 0)
 			break;
 
 		b = inb(FDCDAT);
@@ -1061,22 +1596,36 @@ flsense()
 	}
 
 	fl.fl_ncmdstat = n;
+	spl( s );
+}
+
+/*
+ * Get Inteerupt status
+ */
+static
+flintstatus()
+{
+	register int	b;
+	register int	n = 0;		/* # of status bytes read */
+	register int	i = 0;		/* Timeout count */
+	register int	s;
+
+	s = sphi();
 
 	/*
-	 * Issue a sense interrupt command and discard result.
+	 * Issue a sense interrupt command and stash result.
 	 */
-	outb(FDCDAT, CMDSINT);
+	flput(CMDSINT);
 
 	n = 0;
 	for (;;) {
-		while (((b=inb(FDCMSR))&MSRRQM) == 0) {
+		while (((b=inb(FDCMSR)) & MSRRQM) == 0)
 			if ( --i == 0 ) {
-				printf("flsense: timeout\n");
+				printf("flintsense: timeout\n");
 				break;
 			}
-		}
 
-		if ((b&MSRDIO) == 0)
+		if ((b & MSRDIO) == 0)
 			break;
 
 		b = inb(FDCDAT);
@@ -1084,8 +1633,59 @@ flsense()
 			fl.fl_intstat[n++] = b;
 	}
 	fl.fl_nintstat = n;
-
 	spl( s );
+}
+
+/*
+ * Get the drive status
+ */
+static
+fldrvstatus()
+{
+	register int	b;
+	register int	n = 0;		/* # of status bytes read */
+	register int	i = 0;		/* Timeout count */
+	register int	s;
+
+	s = sphi();
+
+	fldrvselect();			/* Be sure drive is selected */
+
+	/*
+	 * Issue a sense drive status command and stash result.
+	 */
+	flput(CMDSDRV);
+	flput(fl.fl_unit);
+
+	for (;;) {
+		while (((b=inb(FDCMSR)) & MSRRQM) == 0)
+			if ( --i == 0 ) {
+				printf("fldrvsense: timeout\n");
+				break;
+			}
+
+		if ((b & MSRDIO) == 0)
+			break;
+
+		b = inb(FDCDAT);
+		if ( n < sizeof(fl.fl_drvstat) )
+			fl.fl_drvstat[n++] = b;
+	}
+	fl.fl_ndrvstat = n;
+	spl( s );
+}
+
+/*
+ *	fldrvselect() selects the drive and turns its motor on
+ */
+static
+fldrvselect()
+{
+	fl.fl_time[ fl.fl_unit ] = 0;		/* Start motor-on timeout. */
+	fl.fl_mstatus |= fl.fl_mask;
+	outb(FDCDOR, DORNMR | DORIEN | fl.fl_mstatus | fl.fl_unit);
+	fl.fl_selected_unit = fl.fl_unit;	/* This unit is running. */
+	flsense();				/* Just in case --- */
 }
 
 /*
@@ -1103,9 +1703,9 @@ int	b;
 {
 	register int i = 0;
 
-	while ( (inb(FDCMSR) & (MSRRQM|MSRDIO)) != MSRRQM ) {
+	while ( (inb(FDCMSR) & (MSRRQM | MSRDIO)) != MSRRQM ) {
 		if ( --i == 0 ) {
-			printf("flput: timeout\n");
+			printf("flput(%x): timeout\n",b);
 			return;
 		}
 	}
@@ -1180,3 +1780,4 @@ flstatus()
 
 	printf("\n");
 }
+/*			  * * * * End of FL.C * * * *			     */
