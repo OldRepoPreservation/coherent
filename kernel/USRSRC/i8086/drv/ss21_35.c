@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.30	91/04/17  02:17:43	root
+ * Trying to figure out disconnect after write.
+ * 
  * Revision 1.29	91/04/16  22:40:19	root
  * Whole disk devices working - need to implement HDGETA.
  * 
@@ -393,7 +396,6 @@ printf("fdisk() failed\n");
 	&& (fdp[partn].p_base+fdp[partn].p_size) > fdp[WHOLE_DRIVE].p_size) {
 		u.u_error = EBADFMT;
 		valid_open = 0;
-printf("BARF\n");
 	}
 
 	if (valid_open && partn != WHOLE_DRIVE && fdp[partn].p_size == 0) {
@@ -614,7 +616,7 @@ printf("@");
  */
 static void sswatch()
 {
-	int s_id;
+	int s_id, rs_id;
 	ss_type * ssp;
 
 printf("*");
@@ -622,7 +624,6 @@ printf("*");
 		ssp = ss[s_id];
 		if (ssp && ssp->dr_watch) {
 			ssp->dr_watch--;
-printf("1 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 			if (ssp->dr_watch == 0) {
 printf("BFERR 4\n");
 				bus_dev_reset(s_id);
@@ -631,11 +632,11 @@ printf("SCSI id #%d: bno=%lu <Watchdog Timeout>\n", s_id, ss[s_id]->bp->b_bno);
 				ss_done(s_id);
 			} else {
 				while (1) {
-					s_id = chk_reconn();
-					if (s_id == -1)
+					rs_id = chk_reconn();
+					if (rs_id == -1)
 						break;
 					else
-						reconnect(s_id);
+						reconnect(rs_id);
 				} /* endwhile */
 			}
 		}
@@ -985,6 +986,7 @@ int we_wrote=0;
 				break;
 			case MSG_DISCONNECT:
 				ssp->msg_in = msg_in;
+sfbyte(ss_csr, WC_ENABLE_IRPT); /* FOO */
 				break;
 			case MSG_ABORT:
 				break;
@@ -1305,7 +1307,6 @@ static void ss_start()
 			ssq_rm_head();
 			ssp->id_busy = 1;
 			ssp->dr_watch = WATCHDOG_SECONDS;
-printf("2 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 			if (ss_rw(s_id)) {
 				if (bp->b_req == BREAD)
 					bp->b_resid -= ssp->data_bytes_in;
@@ -1336,15 +1337,18 @@ int s_id;
 {
 	ss_type * ssp = ss[s_id];
 	BUF * bp = ssp->bp;
+	int s;
 
+	s = sphi();
 	ssp->id_busy = 0;
 	ssp->dr_watch = 0;
-printf("3 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 	ssp->in_buf = ssp->out_buf = NULL;
 	if (bp) {
 		bdone(bp);
 		ssp->bp = NULL;
 	}
+	spl(s);
+
 	ss_start();
 }
 
@@ -1432,7 +1436,6 @@ static int chk_reconn()
 	csr = ffbyte(ss_csr);
 	if (csr & RS_SELECT) {
 		dat = ffbyte(ss_dat);
-printf("chk_reconn: csr=%x dat=%x\n",csr,dat);
 		if ((dat & HOST_ID) && (dat & NSDRIVE)) {
 			dat &= ~HOST_ID;
 			s_id = 0;
@@ -1473,7 +1476,6 @@ int s_id;
 			if (cmd_ok && ssp->cmdstat == CS_GOOD) {
 				if (ssp->msg_in == MSG_DISCONNECT) {
 					ssp->dr_watch = WATCHDOG_SECONDS;
-printf("4 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 				} else
 					ss_done(s_id);
 			} else {
@@ -1519,13 +1521,11 @@ printf("ss_rw(%d)\n", s_id);
 	ssp->cmdbuf[9] = 0;
 	ssp->cmdlen = G1CMDLEN;
 	if (retval = bus_pre_xfer(s_id)) {
-printf("ss_rw(): bus_pre_xfer ok\n");
 		bus_info_xfer(ssp);
 printf("cmdlen=%d cmd_bytes_out=%d cmdstat=%d\n", ssp->cmdlen,
 	ssp->cmd_bytes_out, ssp->cmdstat);
 		retval = (ssp->cmdlen == ssp->cmd_bytes_out);
-	} else
-printf("ss_rw(): bus_pre_xfer not ok\n");
+	}
 
 	if (ssp->cmdstat == CS_CHECK) {
 printf("ss_rw(): requesting sense\n");
@@ -1535,6 +1535,5 @@ printf("ss_rw(): requesting sense\n");
 
 	retval = (retval &&
 		(ssp->cmdstat == CS_GOOD || ssp->msg_in == MSG_DISCONNECT));
-printf("ss_rw(): retval=%d\n", retval);
 	return retval;
 }
