@@ -221,6 +221,7 @@ register int n;
 {
 	if (n < 0) {
 		bind.tabsiz = -n;
+		curwp->w_flag |= WFMODE|WFFORCE|WFHARD;
 		return (TRUE);
 	}
 	if (n != 1) {
