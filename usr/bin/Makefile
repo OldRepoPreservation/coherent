@@ -1,4 +1,4 @@
-CMDS=kermit vi less cpio modeminit ramdisk me cgrep
+CMDS=kermit vi less cpio modeminit ramdisk me cgrep uudecode uuencode
 DESTDIR=/interim/usr/bin/
 
 all:	$(CMDS)
@@ -35,6 +35,18 @@ ramdisk:
 
 cgrep: cgrep.c
 	cc -O -o $(DESTDIR)$@ cgrep.c -lmisc
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+
+uudecode: uudecode.c
+	cc -O -o $(DESTDIR)$@ uudecode.c
+	su root chown bin $(DESTDIR)$@
+	su root chgrp bin $(DESTDIR)$@
+	su root chmod 511 $(DESTDIR)$@
+
+uuencode: uuencode.c
+	cc -O -o $(DESTDIR)$@ uuencode.c
 	su root chown bin $(DESTDIR)$@
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
