@@ -23,7 +23,7 @@
 #********************************************************************/
 
 #
-#  $Header:   RCS/MKcaptab.v  Revision 2.1  82/10/25  14:45:02  pavel  Exp$
+#  $Header: /src386/usr/lib/ncurses/RCS/MKcaptab.awk,v 1.1 92/03/26 11:44:26 bin Exp Locker: bin $
 #
 
 
@@ -44,17 +44,17 @@ BEGIN	{
 	}
 
 
-$3 == "bool"	{
+$4 == "bool"	{
 		    printf "\t0,%15s,\tBOOLEAN,\t%3d,\n", $2, BoolCount++
 		}
 
 
-$3 == "number"	{
+$4 == "number"	{
 		    printf "\t0,%15s,\tNUMBER,\t\t%3d,\n", $2, NumCount++
 		}
 
 
-$3 == "str"	{
+$4 == "str"	{
 		    printf "\t0,%15s,\tSTRING,\t\t%3d,\n", $2, StrCount++
 		}
 
