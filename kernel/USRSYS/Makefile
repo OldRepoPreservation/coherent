@@ -2,6 +2,11 @@
 #
 # Makefile for ibm specific coherent sources and coherent images.
 #
+# Requires environment variables
+#	USRSYS (e.g. /usr/sys)
+#	USRSRC (e.g. /usr/src/sys)
+#	KOBJ (e.g. /tmp/kobj)
+#
 # $Log:	/usr/src/sys/i8086/ibm_at/RCS/Makefile,v $
 # Revision 1.3	89/06/30  16:26:39 	src
 # Bug:	Lack of DMA lock resulted in failed transfers between SCSI drive
@@ -24,12 +29,6 @@ IBMATSRC=$(USRSRC)/i8086/ibm_at
 KERSRC=$(USRSRC)/ker
 TTYSRC=$(USRSRC)/ttydrv
 
-# Object directories
-I86OBJ=$(USRSRC)/i8086/objects
-DRVOBJ=$(USRSRC)/i8086/drv/objects
-SRCOBJ=$(USRSRC)/i8086/src/objects
-IBMATOBJ=$(USRSRC)/i8086/ibm_at/objects
-
 # Library directory
 DRVLIB=$(USRSYS)/lib
 
@@ -37,54 +36,51 @@ DRVLIB=$(USRSYS)/lib
 CC=exec /bin/cc
 CFLAGS=
 
-HERE=	$(IBMATOBJ)/md2.o \
-	$(IBMATOBJ)/dmac.o \
-	$(DRVOBJ)/pccon.o \
-	$(DRVOBJ)/console.o \
-	$(DRVOBJ)/dmareq.o \
-	$(IBMATOBJ)/mmu.o \
-	$(SRCOBJ)/support.o
+HERE=	$(KOBJ)/md2.o \
+	$(KOBJ)/dmac.o \
+	$(KOBJ)/pccon.o \
+	$(KOBJ)/console.o \
+	$(KOBJ)/dmareq.o \
+	$(KOBJ)/mmu.o \
+	$(KOBJ)/support.o
 
-DOTDOT=	$(I86OBJ)/alloc.o \
-	$(I86OBJ)/as1.o \
-	$(I86OBJ)/bio.o \
-	$(I86OBJ)/clist.o \
-	$(I86OBJ)/clock.o \
-	$(I86OBJ)/ct.o \
-	$(I86OBJ)/defer.o \
-	$(I86OBJ)/dmalock.o	\
-	$(I86OBJ)/exec.o \
-	$(I86OBJ)/fd.o \
-	$(I86OBJ)/fs1.o $(I86OBJ)/fs2.o $(I86OBJ)/fs3.o \
-	$(I86OBJ)/krunch.o \
-	$(I86OBJ)/ld.o $(I86OBJ)/ldas.o \
-	$(I86OBJ)/main.o \
-	$(I86OBJ)/md1.o \
-	$(I86OBJ)/misc.o \
-	$(I86OBJ)/mmain.o \
-	$(I86OBJ)/null.o \
-	$(I86OBJ)/pipe.o \
-	$(I86OBJ)/poll.o \
-	$(I86OBJ)/printf.o \
-	$(I86OBJ)/proc.o \
-	$(I86OBJ)/seg.o \
-	$(I86OBJ)/sig.o \
-	$(I86OBJ)/sys1.o $(I86OBJ)/sys2.o $(I86OBJ)/sys3.o \
-	$(I86OBJ)/tab.o \
-	$(I86OBJ)/timeout.o \
-	$(I86OBJ)/trap.o \
-	$(I86OBJ)/var.o
+DOTDOT=	$(KOBJ)/alloc.o \
+	$(KOBJ)/as1.o \
+	$(KOBJ)/bio.o \
+	$(KOBJ)/clist.o \
+	$(KOBJ)/clock.o \
+	$(KOBJ)/ct.o \
+	$(KOBJ)/defer.o \
+	$(KOBJ)/dmalock.o	\
+	$(KOBJ)/exec.o \
+	$(KOBJ)/fd.o \
+	$(KOBJ)/fs1.o $(KOBJ)/fs2.o $(KOBJ)/fs3.o \
+	$(KOBJ)/krunch.o \
+	$(KOBJ)/ld.o $(KOBJ)/ldas.o \
+	$(KOBJ)/main.o \
+	$(KOBJ)/md1.o \
+	$(KOBJ)/misc.o \
+	$(KOBJ)/mmain.o \
+	$(KOBJ)/null.o \
+	$(KOBJ)/pipe.o \
+	$(KOBJ)/poll.o \
+	$(KOBJ)/printf.o \
+	$(KOBJ)/proc.o \
+	$(KOBJ)/seg.o \
+	$(KOBJ)/sig.o \
+	$(KOBJ)/sys1.o $(KOBJ)/sys2.o $(KOBJ)/sys3.o \
+	$(KOBJ)/tab.o \
+	$(KOBJ)/timeout.o \
+	$(KOBJ)/trap.o \
+	$(KOBJ)/var.o
 
-kernel:	$(IBMATOBJ) $(USRSYS)/atkernel.o $(DRVLIB)/support.a $(DRVLIB)/tty.a
+kernel:	$(KOBJ) $(USRSYS)/atkernel.o $(DRVLIB)/support.a $(DRVLIB)/tty.a
 	@exec /bin/sync
 
 shrink:
-	rm -f $(IBMATOBJ)/* $(I86OBJ)/* $(DRVOBJ)/*
+	rm -f $(KOBJ)/* $(KOBJ)/* $(KOBJ)/*
 
-$(IBMATOBJ):
-	mkdir $(IBMATOBJ)
-
-$(DRVOBJ)/pccon.o: \
+$(KOBJ)/pccon.o: \
 	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 				$(SYSINC)/machine.h $(SYSINC)/param.h \
 				$(SYSINC)/fun.h \
@@ -94,7 +90,7 @@ $(DRVOBJ)/pccon.o: \
 	$(DRVSRC)/pccon.c
 	$(CC) $(CFLAGS) -c -o $@ $(DRVSRC)/pccon.c
 
-$(DRVOBJ)/console.o:	\
+$(KOBJ)/console.o:	\
 	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 				$(SYSINC)/machine.h $(SYSINC)/param.h \
 				$(SYSINC)/fun.h \
@@ -105,7 +101,7 @@ $(DRVOBJ)/console.o:	\
 	$(DRVSRC)/console.c
 	$(CC) $(CFLAGS) -c -o $@ $(DRVSRC)/console.c
 
-$(DRVOBJ)/dmareq.o:	\
+$(KOBJ)/dmareq.o:	\
 	$(SYSINC)/buf.h		\
 	$(SYSINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
 				$(SYSINC)/machine.h $(SYSINC)/param.h \
@@ -122,160 +118,160 @@ $(DRVOBJ)/dmareq.o:	\
 	$(DRVSRC)/dmareq.c
 	$(CC) $(CFLAGS) -c -o $@ $(DRVSRC)/dmareq.c
 
-$(USRSYS)/atkernel.o: $(IBMATOBJ)/as2.obj $(HERE) $(DOTDOT)
+$(USRSYS)/atkernel.o: $(KOBJ)/as2.obj $(HERE) $(DOTDOT)
 	exec /bin/ld -r -o $@ $<
 
-$(IBMATOBJ)/as2.obj: $(IBMATSRC)/as2.s
+$(KOBJ)/as2.obj: $(IBMATSRC)/as2.s
 	exec as -go $@ $<
 
-$(IBMATOBJ)/dmac.o: $(IBMATSRC)/dmac.c
+$(KOBJ)/dmac.o: $(IBMATSRC)/dmac.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(IBMATOBJ)/dump.o: $(IBMATSRC)/dump.c
+$(KOBJ)/dump.o: $(IBMATSRC)/dump.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(IBMATOBJ)/md2.o: $(IBMATSRC)/md2.c
+$(KOBJ)/md2.o: $(IBMATSRC)/md2.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Define REAL_MODE if real mode is also required
-$(IBMATOBJ)/mmu.o: $(IBMATSRC)/mmu.c
+$(KOBJ)/mmu.o: $(IBMATSRC)/mmu.c
 	$(CC) $(CFLAGS) -DREAL_MODE -c -o $@ $<
 
-$(SRCOBJ)/support.o: $(I86SRC)/support.c
+$(KOBJ)/support.o: $(I86SRC)/support.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # this stuff was in the /usr/src/sys/i8086 Makefile before 90/08/08
 C86FLAGS=-c -DNOMONITOR=1
 #
-$(I86OBJ):
-	mkdir $(I86OBJ)
+$(KOBJ):
+	mkdir $(KOBJ)
 
-$(I86OBJ)/alloc.o: $(COHSRC)/alloc.c
+$(KOBJ)/alloc.o: $(COHSRC)/alloc.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/as1.o: $(I86SRC)/as1.s
+$(KOBJ)/as1.o: $(I86SRC)/as1.s
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/bio.o: $(COHSRC)/bio.c
+$(KOBJ)/bio.o: $(COHSRC)/bio.c
 	$(CC) $(C86FLAGS) -DREADAHEAD=0 -o $@ $<
 
 # Clists are assembly source on i8086
-$(I86OBJ)/clist.o: $(I86SRC)/clist.s $(SYSINC)/const.h
+$(KOBJ)/clist.o: $(I86SRC)/clist.s $(SYSINC)/const.h
 	/lib/cpp -E -Isys -o clist.i $(I86SRC)/clist.s
 	as -go $@ clist.i
 	rm clist.i
 
-$(I86OBJ)/clock.o: $(COHSRC)/clock.c
+$(KOBJ)/clock.o: $(COHSRC)/clock.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/ct.o: $(TTYSRC)/ct.c
+$(KOBJ)/ct.o: $(TTYSRC)/ct.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/defer.o: $(I86SRC)/defer.s
+$(KOBJ)/defer.o: $(I86SRC)/defer.s
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/dmalock.o: $(I86SRC)/dmalock.c
+$(KOBJ)/dmalock.o: $(I86SRC)/dmalock.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/exec.o: $(I86SRC)/exec.c
+$(KOBJ)/exec.o: $(I86SRC)/exec.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/fd.o: $(COHSRC)/fd.c
+$(KOBJ)/fd.o: $(COHSRC)/fd.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/fs1.o: $(COHSRC)/fs1.c
+$(KOBJ)/fs1.o: $(COHSRC)/fs1.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/fs2.o: $(COHSRC)/fs2.c
+$(KOBJ)/fs2.o: $(COHSRC)/fs2.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/fs3.o: $(COHSRC)/fs3.c
+$(KOBJ)/fs3.o: $(COHSRC)/fs3.c
 	$(CC) $(C86FLAGS) -DTINY=1 -o $@ $<
 
-$(I86OBJ)/krunch.o: $(I86SRC)/krunch.c
+$(KOBJ)/krunch.o: $(I86SRC)/krunch.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/ld.o: $(I86SRC)/ld.c
+$(KOBJ)/ld.o: $(I86SRC)/ld.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/ldas.o: $(I86SRC)/ldas.s
+$(KOBJ)/ldas.o: $(I86SRC)/ldas.s
 	as -gxo $@ $<
 
-$(I86OBJ)/main.o: $(USRSYS)/version $(COHSRC)/main.c
+$(KOBJ)/main.o: $(USRSYS)/version $(COHSRC)/main.c
 	$(CC) $(C86FLAGS) `$(USRSYS)/version` -o $@ $(COHSRC)/main.c
 
-$(I86OBJ)/md1.o: $(I86SRC)/md1.c
+$(KOBJ)/md1.o: $(I86SRC)/md1.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/misc.o: $(COHSRC)/misc.c
+$(KOBJ)/misc.o: $(COHSRC)/misc.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/mmain.o: $(I86SRC)/mmain.c $(SYSINC)/const.h
+$(KOBJ)/mmain.o: $(I86SRC)/mmain.c $(SYSINC)/const.h
 	$(CC) $(C86FLAGS) -o $@ $(I86SRC)/mmain.c
 
-$(I86OBJ)/null.o: $(COHSRC)/null.c
+$(KOBJ)/null.o: $(COHSRC)/null.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/pipe.o: $(COHSRC)/pipe.c
+$(KOBJ)/pipe.o: $(COHSRC)/pipe.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/poll.o: $(COHSRC)/poll.c
+$(KOBJ)/poll.o: $(COHSRC)/poll.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/printf.o: $(COHSRC)/printf.c
+$(KOBJ)/printf.o: $(COHSRC)/printf.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/proc.o: $(COHSRC)/proc.c
+$(KOBJ)/proc.o: $(COHSRC)/proc.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/seg.o: $(COHSRC)/seg.c
+$(KOBJ)/seg.o: $(COHSRC)/seg.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/sig.o: $(COHSRC)/sig.c
+$(KOBJ)/sig.o: $(COHSRC)/sig.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/swap.o: $(KERSRC)/swap.c
+$(KOBJ)/swap.o: $(KERSRC)/swap.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/elog.o: $(KERSRC)/elog.c
+$(KOBJ)/elog.o: $(KERSRC)/elog.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/sys1.o: $(COHSRC)/sys1.c
+$(KOBJ)/sys1.o: $(COHSRC)/sys1.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/sys2.o: $(COHSRC)/sys2.c
+$(KOBJ)/sys2.o: $(COHSRC)/sys2.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/sys3.o: $(COHSRC)/sys3.c
+$(KOBJ)/sys3.o: $(COHSRC)/sys3.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/tab.o: $(I86SRC)/tab.c
+$(KOBJ)/tab.o: $(I86SRC)/tab.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/timeout.o: $(COHSRC)/timeout.c
+$(KOBJ)/timeout.o: $(COHSRC)/timeout.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/trap.o: $(I86SRC)/trap.c
+$(KOBJ)/trap.o: $(I86SRC)/trap.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
-$(I86OBJ)/var.o: $(COHSRC)/var.c
+$(KOBJ)/var.o: $(COHSRC)/var.c
 	$(CC) $(C86FLAGS) -o $@ $<
 
 # Additional libraries searched when "config" runs.
 
-$(DRVLIB)/support.a:	$(SRCOBJ)/cs_sel.o $(SRCOBJ)/clocked.o
+$(DRVLIB)/support.a:	$(KOBJ)/cs_sel.o $(KOBJ)/clocked.o
 	rm -f $@
 	ar rc $@ $<
 
-$(SRCOBJ)/cs_sel.o: $(I86SRC)/cs_sel.s
+$(KOBJ)/cs_sel.o: $(I86SRC)/cs_sel.s
 	as -gxo $@ $<
 
-$(SRCOBJ)/clocked.o: $(I86SRC)/clocked.c
+$(KOBJ)/clocked.o: $(I86SRC)/clocked.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(DRVLIB)/tty.a:	$(DRVOBJ)/tty.o
+$(DRVLIB)/tty.a:	$(KOBJ)/tty.o
 	rm -f $@
 	ar rc $@ $<
 
-$(DRVOBJ)/tty.o: $(TTYSRC)/tty.c
+$(KOBJ)/tty.o: $(TTYSRC)/tty.c
 	$(CC) $(CFLAGS) -c -o $@ $<
