@@ -189,6 +189,9 @@ stat:
       | FOR_ '(' e ';' e ';' e specparen stat {
 		$$ = node(AFOR, $3, $5, $7, $9);
 	}
+      | FOR_ '(' ';' e ';' e specparen stat {
+		$$ = node(AFOR, NULL, $4, $6, $8);
+	}
       | BREAK_ ';' {
 		$$ = node(ABREAK);
 	}
