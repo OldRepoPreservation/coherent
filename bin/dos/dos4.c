@@ -1,13 +1,13 @@
 /* dos4.c */
 
 #include "dos0.h"
-
+char *fequiv();
 /*
  * Compare two MDIR names.
  * Directories precede ordinary files.
  * Called by qsort().
  */
-int
+short
 namecmp(mdpp1, mdpp2) MDIR **mdpp1, **mdpp2;
 {
 	register MDIR *mdp1, *mdp2;
@@ -41,12 +41,12 @@ DIR *
 newdir(parent, mdp, files)
 DIR *parent;
 register MDIR *mdp;
-int files;
+short files;
 {
 	register DIR *dp;
 
 	/* Allocate a new DIR. */
-	dbprintf(("newdir(parent=\"%s\" mdp=%x files=%u): ", (parent==NULL)?"<root>":parent->d_dname, mdp, files));
+	dbprintf(("newdir(parent=\"%s\" mdp=%x files=%u): \n", (parent==NULL)?"<root>   ":parent->d_dname, mdp, files));
 	if ((dp = (DIR *)malloc(sizeof(DIR))) == NULL)
 		fatal("directory allocation failed");
 
@@ -94,7 +94,7 @@ void
 readmdir(dp) register DIR *dp;
 {
 	register MDIR *mdp;
-	register int n;
+	register unsigned short n;
 
 	dbprintf(("readmdir(%s) blocks=%u cl=%x\n", dp->d_dname, dp->d_dirblocks, dp->d_cluster));
 	if ((mdp = (MDIR *)calloc(dp->d_dirblocks, ssize)) == NULL)
@@ -105,7 +105,7 @@ readmdir(dp) register DIR *dp;
 	if (dp->d_cluster == 0) {
 		if (dp->d_parent != NULL)
 			return;			/* new subdirectory */
-		diskread(mdp, dirbase, dp->d_dirblocks, "directory");
+		diskread(mdp, (long)dirbase, dp->d_dirblocks, "directory");
 	} else
 		for (n = dp->d_cluster ; n <= CLMAX; n = getcluster(n)) {
 			diskread(mdp, cltosec(n), clsize, "subdirectory");
@@ -127,7 +127,7 @@ readmdir(dp) register DIR *dp;
  * Replace one or more files on the MS-DOS file system.
  */
 void
-replace(nargs, args) int nargs; char *args[];
+replace(nargs, args) short nargs; char *args[];
 {
 	register char **ap, *tmp;
 	struct stat s;
@@ -144,21 +144,15 @@ replace(nargs, args) int nargs; char *args[];
 		if (stat(*ap, &s) == -1)
 			fatal("replace: \"%s\" not found", *ap);
 
-		if ((tmp = strrchr(*ap, '/')) != NULL) {
-			base = *ap;
-			*(tmp++) = '\0';
-		}
-		else {
-			base = NULL;
-			tmp = *ap;
-		}
+		base = basehold;
+		strcpy(base,*ap);
 		
 		if (s.st_mode & S_IFDIR) {
 			if (!sflag)
-				replacedir(tmp);
+				replacedir(*ap);
 		}
 		else
-			replacefile(tmp);
+			replacefile(*ap);
 	}
 	free(clbuf);
 }
@@ -172,7 +166,7 @@ replacedir(name) char *name;
 {
 	register struct direct *dirp;
 	register char *cp;
-	int fd;
+	short fd;
 	struct stat s;
 	char dirbuf[sizeof(struct direct) + 1];
 	char namebuf[NAMEMAX];
@@ -188,15 +182,15 @@ replacedir(name) char *name;
 	}
 	dirp = dirbuf;
 	dirbuf[sizeof(struct direct)] = '\0';	/* NUL-terminate d_name */
-	if ((fd = open(makef(name), 0)) == -1)
+	if ((fd = open(name, 0)) == -1)
 		fatal("cannot search directory \"%s\"", name);
-	while (read(fd, dirbuf, sizeof(struct direct)) == sizeof(struct direct)) {
+	while(read(fd,dirbuf, sizeof(struct direct))==sizeof(struct direct)) {
 		if (dirp->d_ino == 0
 		 || strcmp(dirp->d_name, ".") == 0
 		 || strcmp(dirp->d_name, "..") == 0) 
 			continue;
 		strncpy(cp, dirp->d_name, DIRSIZ);
-		if (stat(makef(namebuf), &s) == -1)
+		if (stat(namebuf, &s) == -1)
 			fatal("replacedir botch");
 		else if (s.st_mode & S_IFDIR) {
 			if (!sflag)
@@ -215,13 +209,13 @@ void
 replacefile(file) char *file;
 {
 	register MDIR *mdp;
-	register int nread;
+	register short nread;
 	DIR *dp;
 	FILE *ifp;
 	char *cp, *filename;
-	int writesize;
-	unsigned int next, prev;
-	char *tmp, tmp2[6];
+	short writesize;
+	unsigned short next, prev;
+	char *tmp, tmp2[6], *files;
 
 	if (!bflag && ((tmp = strrchr(file, '.')) != NULL)) {
 		sprintf(tmp2, "%s.", tmp);
@@ -230,23 +224,27 @@ replacefile(file) char *file;
 
 	/* Create the file in the appropriate directory. */
 	dbprintf(("replacefile(%s)\n", file));
-	if ((cp = strrchr(file, '/')) == NULL) {
-		filename = file;
+	files = makef(file, 0);
+
+	if ((cp = strrchr(files, '/')) == NULL) {
+		filename = files;
 		dp = root;
 	} else {
 		filename = cp + 1;
 		*cp = '\0';			/* NUL-terminate dirname */
-		dp = creatdir(file);		/* find the directory */
+		dp = creatdir(files);		/* find the directory */
 		*cp = '/';			/* restore the / */
 	}
+
 	mdp = creatfile(filename, dp);		/* create the file */
+
 
 	/* Read from the COHERENT file and write the MS-DOS file. */
 	if (vflag)
 		fprintf(stderr, "r %s\n", file);
 	if (pflag)
 		ifp = stdin;
-	else if ((ifp = fopen(makef(file), "r")) == NULL)
+	else if ((ifp = fopen(file, "r")) == NULL)
 		fatal("replace: cannot open \"%s\"", file);
 	writesize = clsize * ssize;
 	for (prev = 0; ; prev = next) {
@@ -272,34 +270,82 @@ replacefile(file) char *file;
 /*
  * Make a full path from base and name 
  */
-char * makef(name) char * name;
+char * makef(name, cr) char * name; short cr;
 {
 	static char tname[80];
-	register char  *t;
+	register char  *t = tname;
+
+	if (base1) {
+		strcpy(t, base1);
+		t += strlen(base1);
+		*t++ = '/';
+	}
+	strcpy(t, fequiv(name));
+	if (cr)
+		maketree(tname);
+/* printf("base = <%s>, base1 = <%s>, tname = <%s>\n", base, base1, tname); */
+	return tname;
+}
+
+char *fequiv(name) char *name;
+{
+	char *tmp;
+	short basesize;
+
+	if (!base)		/* No base at all means a full disk copy */
+		return name;
+				/* No path means return the whole name */
+	if (strchr(name, '/') == NULL) 
+		return name;
+
+	if (!strcmp(base, name))  /* No wc or subdir means return the fname */
+		return strrchr(name, '/') + 1;
+	
+	
+	if ((tmp = strrchr(base, '/')) != NULL)
+		basesize = tmp-base;
+	else
+		basesize = 0;
+
+	return strchr(name + basesize + 1, '/') + 1;
+}
+
+maketree(name) char *name;
+{
+
+	char *h, c[80];
 	struct stat s;
 
-	if (base == NULL)
-		t = name;
-	else if ((stat(base, &s) == -1) || (!(s.st_mode & S_IFDIR)))
-		t = base;
-	else {
-		sprintf(tname, "%s/%s", base, name);
-		t = tname;	
-	}
-	return t;
+	h = strchr(name, '/');
+	while (h) {
+		*h = '\0';
+		if (stat(name, &s) == -1) {
+			sprintf(c, "mkdir %s", name);	
+		system(c);
+			if (stat(name, &s) == -1)
+				fatal("Cannot create directory %s", name);
+			}
+		*h = '/';
+		h = strchr(h+1, '/');		
+	} 
 }
+				
+
+
+
+
 
 /*
  * Produce a listing of the MS-DOS file system.
  */
 void
-table(nargs, args) int nargs; char *args[];
+table(nargs, args) short nargs; char *args[];
 {
-	register int n, i;
+	register unsigned short n, i;
 	register char **ap, *npap, *temp;
 	register MDIR *mdp;
 	DIR *dp;
-	int free, bad, reserved;
+	short free, bad, reserved;
 	char buf[12];
 
 	if (vflag) {
@@ -317,7 +363,7 @@ table(nargs, args) int nargs; char *args[];
 		else {
 			strncpy(buf, volume->m_name, 11);
 			buf[11] = '\0';
-			printf("Disk labelled %s:\n", buf);
+			printf("Volume in Drive %s is labeled %s\n",adev,buf);
 		}
 		printf("\t%ld bytes free\n",
 			(long)free*clsize*ssize);
@@ -339,6 +385,7 @@ table(nargs, args) int nargs; char *args[];
 			do {
 				if((strcmp(npap,cohn(mdp->m_name)) == 0) 
 							    && isdir(mdp))
+
 					tabledir(dp, cohn(mdp->m_name));
 				else
 					tablefile(mdp, cohn(mdp->m_name));
@@ -380,7 +427,7 @@ tabledir(dp, name) register DIR *dp; char *name;
 void
 tablefile(mdp, name) register MDIR *mdp; char *name;
 {
-	register int attr;
+	register short attr;
 
 	if (vflag) {
 		attr = mdp->m_attr;
@@ -388,18 +435,22 @@ tablefile(mdp, name) register MDIR *mdp; char *name;
 		putchar((attr & MHIDDEN) ? 'h' : '-');
 		putchar((attr & MSYSTEM) ? 's' : '-');
 		putchar((attr & MVOLUME) ? 'v' : '-');
-		putchar((attr & MSUBDIR) ? 'd' : '-');
 		putchar((attr & MARCHIV) ? 'a' : '-');
+		putchar((attr & MSUBDIR) ? 'd' : '-');
+
 		printf("  %02d/%02d/%02d %02d:%02d %6ld  ",
-			mdp->m_mon, mdp->m_day, mdp->m_year+80, mdp->m_hour, mdp->m_min,
-			(isdir(mdp)) ? (long)dirclusters(mdp)*clsize*ssize : mdp->m_size);
+			m_month(mdp), m_day(mdp), m_year(mdp)+80, 
+			m_hour(mdp),  m_min(mdp), (isdir(mdp)) ? 
+			   (long)dirclusters(mdp)*clsize*ssize : mdp->m_size);
 	}
+
 	if (name == NULL) {
 		cohname(mdp->m_name, root);
 		name = cohfile;
 	}
 	printf("%s\n", name);
 }
+
 
 /*
  * Convert NUL-terminated name to UPPERCASE in place.
@@ -408,7 +459,7 @@ char *
 uppercase(name) unsigned char *name;
 {
 	register unsigned char *s;
-	register int c;
+	register short c;
 
 	for (s = name; (c = *s) != '\0'; s++)
 		if (islower(c))
@@ -423,18 +474,20 @@ void
 writedir(dp) register DIR *dp;
 {
 	register MDIR *mdp;
-	register unsigned int n;
+	register unsigned short n;
 
 	if (dp->d_child != NULL)
 		writedir(dp->d_child);
 	if (dp->d_sibling != NULL)
 		writedir(dp->d_sibling);
 	mdp = dp->d_dir;
-	dbprintf(("writedir(%s) flag=%u cl=%x blocks=%u mdp=%x\n", dp->d_dname, dp->d_dirflag, dp->d_cluster, dp->d_dirblocks, mdp));
+	dbprintf(("writedir(%s) flag=%u cl=%x blocks=%u mdp=%x\n", 
+	      dp->d_dname, dp->d_dirflag, dp->d_cluster, dp->d_dirblocks, mdp));
+
 	if (dp->d_dirflag == 0)
 		return;				/* DIR was unchanged */
 	if (dp->d_cluster == 0)			/* Write the root */
-		diskwrite(dp->d_dir, dirbase, dp->d_dirblocks, "directory");
+		diskwrite(dp->d_dir, (long)dirbase, dp->d_dirblocks, "directory");
 	else					/* Write a subdirectory */
 		for (mdp = dp->d_dir, n = dp->d_cluster; n <= CLMAX; n = getcluster(n)) {
 			diskwrite(mdp, cltosec(n), clsize, "subdirectory");

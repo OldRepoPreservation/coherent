@@ -1,8 +1,8 @@
 # dos/Makefile 3/26/90
 # Does not include header file dependencies.
 
-CFLAGS=-A
-#CFLAGS=-DDEBUG -A
+CFLAGS= -A
+#CFLAGS=-DDEBUG 
 OBJ=\
 	copyright.o\
 	dos0.o\

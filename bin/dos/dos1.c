@@ -16,41 +16,41 @@ BPB	s9floppy  = { 512, 1, 1, 2,  64,  360, 0xFC, 2,  9, 1, 0 };
 char		*argv0;			/* Command name			*/
 unsigned char	bootb[BBSIZE];		/* Boot block			*/
 BPB		*bpb;			/* Disk parameters		*/
-int		cflag;			/* Readonly			*/
+short		cflag;			/* Readonly			*/
 unsigned char	*clbuf;			/* One cluster buffer		*/
-unsigned int	clsize;			/* Sectors per cluster		*/
-unsigned int	dirbase;		/* First root directory sector	*/
-unsigned int	dirsize;		/* Root dir size in sectors	*/
-unsigned int	fatbase;		/* First FAT sector		*/
-unsigned int	fatbytes;		/* Bytes per FAT entry (1 means 1.5) */
-unsigned int	*fatcache;		/* File allocation table cache	*/
-unsigned int	fatccount;		/* Sectors in FAT cache		*/
-unsigned int	fatcfirst;		/* First sector in FAT cache	*/
-int		fatcflag;		/* FAT must be written		*/
-unsigned int	fatcmax;		/* Max cluster in FAT cache	*/
-unsigned int	fatcmin;		/* Min cluster in FAT cache	*/
-unsigned int	fatsize;		/* FAT size in sectors		*/
-unsigned int	filebase;		/* First disk file data sector	*/
-int		fsfd;			/* File system file descriptor	*/
-unsigned int	heads;			/* Heads			*/
-unsigned int	maxcluster;		/* Max cluster number		*/
-unsigned int	mdirsize;		/* MDIRs per cluster		*/
-unsigned int	nspt;			/* Sectors per track		*/
-unsigned int	sectors;		/* Sectors			*/
-unsigned int	ssize;			/* Sector size			*/
+unsigned short	clsize;			/* Sectors per cluster		*/
+unsigned short	dirbase;		/* First root directory sector	*/
+unsigned short	dirsize;		/* Root dir size in sectors	*/
+unsigned short	fatbase;		/* First FAT sector		*/
+unsigned short	fatbytes;		/* Bytes per FAT entry (1 means 1.5)*/
+unsigned short	*fatcache;		/* File allocation table cache	*/
+unsigned short	fatccount;		/* Sectors in FAT cache		*/
+unsigned short	fatcfirst;		/* First sector in FAT cache	*/
+short		fatcflag;		/* FAT must be written		*/
+unsigned short	fatcmax;		/* Max cluster in FAT cache	*/
+unsigned short	fatcmin;		/* Min cluster in FAT cache	*/
+unsigned short	fatsize;		/* FAT size in sectors		*/
+unsigned short	filebase;		/* First disk file data sector	*/
+short		fsfd;			/* File system file descriptor	*/
+unsigned short	heads;			/* Heads			*/
+unsigned short	maxcluster;		/* Max cluster number		*/
+unsigned short	mdirsize;		/* MDIRs per cluster		*/
+unsigned short	nspt;			/* Sectors per track		*/
+unsigned short	sectors;		/* Sectors			*/
+unsigned short	ssize;			/* Sector size			*/
 char		*usagemsg;		/* Usage message		*/
-int		vflag;			/* Verbose			*/
+short		vflag;			/* Verbose			*/
 
 /*
  * Convert cluster number n to a block number.
  * Complain if the cluster number is out of range.
  */
-unsigned int
-cltosec(n) register unsigned int n;
+unsigned long
+cltosec(n) register unsigned short n;
 {
 	if (n < 2 || n > maxcluster)
 		fatal("cluster number %u out of range", n);
-	return ((n - 2) * clsize + filebase);
+	return ((long)(n - 2) * (long)clsize + filebase);
 }
 
 /*
@@ -58,18 +58,18 @@ cltosec(n) register unsigned int n;
  * The FAT is already in the FAT cache and the cache is big enough
  * for the expanded version with 2-byte entries.
  * The flag is 0 to decode after read, 1 to encode before write.
- * This lazy code uses int pointers on char boundaries.
+ * This lazy code uses short pointers on char boundaries.
  */
 void
-decodefat(flag) int flag;
+decodefat(flag) short flag;
 {
-	register unsigned int i, u;
-	register unsigned int *ip;
+	register unsigned short i;
+	register unsigned short u, *ip;
 	register unsigned char *cp;
 
 	cp = fatcache;
 	if (flag == 0) {
-		/* Expand 1.5-byte entries to unsigned ints. */
+		/* Expand 1.5-byte entries to unsigned shorts. */
 		for (i = maxcluster; ; i--) {
 			ip = &cp[i*3/2];
 			fatcache[i] = *ip;
@@ -103,10 +103,10 @@ decodefat(flag) int flag;
  * Failure is fatal.
  */
 void
-diskread(buf, n, size, msg) char *buf; register unsigned int n, size; char *msg;
+diskread(buf, n, size, msg) char *buf; unsigned long n; short size; char *msg;
 {
 	diskseek(n);
-	while (size--) {
+	while (size-- > 0) {
 		if (read(fsfd, buf, ssize) != ssize)
 			fatal("%s read error", msg);
 		buf += ssize;
@@ -117,10 +117,10 @@ diskread(buf, n, size, msg) char *buf; register unsigned int n, size; char *msg;
  * Seek to the specified sector on the disk.
  */
 void
-diskseek(n) register unsigned n;
+diskseek(n) unsigned long n;
 {
-	if (lseek(fsfd, partseek + (long)n * ssize, 0) == -1L)
-		fatal("seek failed 0x%lx", (long)n * ssize);
+	if (lseek(fsfd, partseek + n * ssize, 0) == -1L)
+		fatal("seek failed 0x%lx", n * ssize);
 }
 
 /*
@@ -128,7 +128,7 @@ diskseek(n) register unsigned n;
  * Failure is fatal.
  */
 void
-diskwrite(buf, n, size, msg) char *buf; register unsigned int n, size; char *msg;
+diskwrite(buf, n, size, msg) char *buf; unsigned long n; short size; char *msg;
 {
 	if (cflag)
 		return;
@@ -147,6 +147,7 @@ diskwrite(buf, n, size, msg) char *buf; register unsigned int n, size; char *msg
 void
 fatal(x) char *x;
 {
+	fflush(stdout);
 	fprintf(stderr, "%s: %r\n", argv0, &x);
 	rm_lock();
 	exit(1);
@@ -155,6 +156,7 @@ fatal(x) char *x;
 void
 fatal1(x) char *x;
 {
+	fflush(stdout);
 	fprintf(stderr, "%s: %r\n", argv0, &x);
 	exit(1);
 }
@@ -165,13 +167,13 @@ fatal1(x) char *x;
 void
 fatcflush()
 {
-	register unsigned int i, n;
+	register unsigned short i, n;
 
 	if (fatcflag)
 		for (n = fatbase + fatcfirst, i = 1;
 		     i <= bpb->b_fats;
 		     n += fatsize, i++)
-			diskwrite(fatcache, n, fatccount, "FAT cache");
+			diskwrite(fatcache, (long)n, fatccount, "FAT cache");
 	fatcflag = 0;
 }
 
@@ -179,7 +181,7 @@ fatcflush()
  * Read segment of FAT including cluster n into the FAT cache.
  */
 void
-fatcread(n) register unsigned int n;
+fatcread(n) register unsigned short n;
 {
 	fatcflush();				/* flush previous contents */
 	fatcflag = 0;				/* clear dirty flag */
@@ -189,14 +191,18 @@ fatcread(n) register unsigned int n;
 		fatccount = fatsize - fatcfirst;	/* read less at end */
 	fatcmin = fatcfirst * FATCNPSEC;	/* min cluster in cache */
 	fatcmax = (fatcfirst + fatccount) * FATCNPSEC - 1;	/* max cl */
-	diskread(fatcache, fatbase + fatcfirst, fatccount, "FAT cache");
+/*
+printf("n=%d,fatbase=%d,fatcfirst=%d,(long)(fatbase+fatcfirst)=%d,fatccount=%d\n", 
+n,fatbase,fatcfirst,(long)(fatbase + fatcfirst),fatccount);
+*/
+	diskread(fatcache, (long)(fatbase + fatcfirst),fatccount,"FAT cache");
 }
 
 /*
  * Get the FAT entry for cluster n.
  */
-unsigned int
-getcluster(n) register unsigned int n;
+unsigned short
+getcluster(n) register unsigned short n;
 {
 	if (n < 2 || n > maxcluster)
 		fatal("getcluster: bad cluster number %u", n);
@@ -212,9 +218,9 @@ getcluster(n) register unsigned int n;
  * Return a pointer to the NUL terminator.
  */
 char *
-lcname(dst, src, n) unsigned char *dst, *src; register int n;
+lcname(dst, src, n) unsigned char *dst, *src; register short n;
 {
-	register int c;
+	register short c;
 
 	while (n--) {
 		if ((c = *src++) == ' ')
@@ -231,7 +237,7 @@ lcname(dst, src, n) unsigned char *dst, *src; register int n;
  * Put val in the FAT entry for cluster n.
  */
 void
-putcluster(n, val) unsigned n; register int val;
+putcluster(n, val) unsigned short n; register short val;
 {
 	if (n < 2 || n > maxcluster)
 		fatal("putcluster: bad cluster number %u", n);
@@ -253,7 +259,7 @@ putcluster(n, val) unsigned n; register int val;
 void
 readfat()
 {
-	register unsigned int i;
+	register unsigned short i;
 	unsigned char id[3];
 	char *s;
 
@@ -304,7 +310,6 @@ readfat()
 		heads,
 		bpb->b_hidden);
 #endif
-
 	/*
 	 * Allocate space for a FAT cache.
 	 * If the FAT contains 1.5-byte entries, the cache must be big
@@ -351,18 +356,21 @@ setglobals()
 	if (ssize != BBSIZE)
 		fatal("ssize=%u BBSIZE=%u", ssize, BBSIZE);
 
-	/* This program is untested for disks with more than 64K sectors. */
-	/* To make it work requires changing all cluster numbers to longs. */
-	if (sectors == 0)
-		fatal("more than 64K sectors (%lu)", bpb->b_bigsectors);
-
 	/* Compute base file sector, number of clusters, etc. */
 	dirbase = fatbase + fatsize * bpb->b_fats;
 	dirsize = (bpb->b_files * sizeof(MDIR) + ssize - 1) / ssize;
-	fatbytes = (sectors / clsize > (FATMASK & CLMAX)) ? 2 : 1;
 	filebase = dirbase + dirsize;
-	maxcluster = 1 + (sectors - filebase) / clsize;
 	mdirsize = clsize * ssize / sizeof(MDIR);
+
+	if (sectors == 0) {
+		fatbytes = 2;
+		maxcluster=1+(unsigned short)((bpb->b_bigsectors-filebase)/clsize);
+	}
+	else {
+		fatbytes = (sectors / clsize > (FATMASK & CLMAX)) ? 2 : 1;
+		maxcluster = 1 + (sectors - filebase) / clsize;
+	}
+
 	dbprintf(("dirbase=%u dirsize=%u fatbytes=%u filebase=%u maxcluster=%u mdirsize=%u\n", dirbase, dirsize, fatbytes, filebase, maxcluster, mdirsize));
 }
 
@@ -400,7 +408,7 @@ writefat()
 void
 xpartition()
 {
-	register int part;
+	register short part;
 	HDISK_S hd;
 	FDISK_S *p1, *p2;
 
