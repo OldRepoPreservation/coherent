@@ -9,5 +9,5 @@ code 1 external default " "
 							A Add new entry
 							C add Comment
 							D Delete this entry
-							E show Escape codes
+							E Expect Send notes
 							X eXit  [!]
