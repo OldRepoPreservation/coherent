@@ -780,9 +780,9 @@ char *eip;
 				eip = &__xtrap_break__;
 				goto pf_end;
 			} else {
-				printf("&uesp=>\n");
+				printf("&uesp=>");
 				SDUMP(&uesp);
-				printf("*(&uesp + 2)=>\n");
+				printf("*(&uesp + 2)=>");
 				SDUMP(*((&uesp) + 2));
 				printf("cr2=%x", cr2);
 				RDUMP();
