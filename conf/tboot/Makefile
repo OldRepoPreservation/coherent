@@ -3,6 +3,8 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
+DESTDIR=/
+
 OBJECTS=Startup.o bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
 	l.out.o coff.o
 SOURCES=Startup.s bootlib.s cbootlib.c diskio.c indirect.c intcall.m monitor.c \
@@ -25,3 +27,9 @@ dir: dir.o $(OBJECTS)
 
 clean:
 	rm -f l.out *.o
+
+install:
+	cp tboot $(DESTDIR)
+	chown root $(DESTDIR)/tboot
+	chgrp daemon $(DESTDIR)/tboot
+	chmod ugo=r $(DESTDIR)/tboot
