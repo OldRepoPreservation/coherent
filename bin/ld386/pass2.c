@@ -169,7 +169,7 @@ mod_t *  mp;
 				mpmsg(mp,
 				      "unknown relocation r_type $d", 
 				      rel.r_type);
-				/* Unknown type on COFF relocation record */
+				/* Unknown type on COFF relocation record. */
 			}
 			w_message("%s(%d) %lx = %s(%d, %lx) + %lx",
 				mtype,

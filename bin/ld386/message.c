@@ -6,6 +6,7 @@
 
 #include "data.h"
 #include <path.h>
+#include <errno.h>
 
 extern char *memset();
 
@@ -32,7 +33,11 @@ void
 fatal(args)
 char * args;
 {
+	int  save = errno;
+
 	printf("ld: %r\n", &args);
+	if (0 != (errno = save))
+		perror("errno reports");
 	exit(1);
 }
 
@@ -129,22 +134,6 @@ char	*args;
 		message(msg, sp->name, &args);
 	else
 		mpmsg(sp->mod, msg, sp->name, &args);
-}
-
-/*
- * Get space or die.
- */
-char *
-alloc(n)
-unsigned n;
-{
-	char	*tmp;
-
-	if (NULL == (tmp = malloc(n)))
-		fatal(memok() ?
-			"Out of space" :
-			"Internal error: arena corrupt");
-	return (memset(tmp, '\0', n));
 }
 
 /*

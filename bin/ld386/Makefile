@@ -5,7 +5,7 @@ LFLAGS=-s
 
 DESTDIR=/interim/bin/
 
-S = Makefile data.c data.h main.c message.c pass1.c pass2.c
+S = Makefile script data.c data.h main.c message.c pass1.c pass2.c
 D = main.c pass1.c pass2.c
 
 OBJ=	main.o\
