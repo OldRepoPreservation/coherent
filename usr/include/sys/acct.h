@@ -9,7 +9,7 @@
 #define	 __SYS_ACCT_H__
 
 #include <sys/types.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 
 typedef	unsigned short	comp_t;
 

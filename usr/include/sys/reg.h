@@ -14,16 +14,6 @@
 #include <sys/param.h>
 
 /*
- * Alloc definitions.
- */
-#define	align(p)	((ALL *) ((int) (p) & ~1))
-#define	link(p)		align((p)->a_link)
-#define	tstfree(p)	(((int) (p)->a_link&1) == 0)
-#define	setfree(p)	((p)->a_link = (int) (p)->a_link & ~1)
-#define	setused(p)	((p)->a_link = (int) (p)->a_link | 1)
-
-
-/*
  * Functions.
  * blockn - block number from byte number
  * blocko - block offset from byte number
@@ -180,7 +170,7 @@ typedef int MGEN[1];
 #define NUM_IRQ_LEVELS		16	/* counting master & slave PIC's */
 #define LOWEST_SLAVE_IRQ	8	/* master is 0-7; slave is 8-15 */
 
-#ifdef	ENABLE_STREAMS
+#if	_ENABLE_STREAMS
 
 /*
  * NIGEL: I have made some small modifications here to allow me to slot in the
@@ -193,16 +183,19 @@ typedef int MGEN[1];
  * the CPU global mask bit.
  */
 
-void		DDI_BASE_SLAVE_MASK ();
-void		DDI_BASE_MASTER_MASK ();
+__EXTERN_C_BEGIN__
 
-#else	/* if ! defined (ENABLE_STREAMS) */
+void		DDI_BASE_SLAVE_MASK	__PROTO ((uchar_t _mask));
+void		DDI_BASE_MASTER_MASK	__PROTO ((uchar_t _mask));
+
+__EXTERN_C_END__
+
+#else	/* if ! _ENABLE_STREAMS */
 
 #define	DDI_BASE_SLAVE_MASK(m)		outb (SPICM, m)
 #define	DDI_BASE_MASTER_MASK(m)		outb (PICM, m)
 
-#endif	/* ! defined (ENABLE_STREAMS) */
-
+#endif	/* ! _ENABLE_STREAMS */
 
 /*
  * Trap codes.

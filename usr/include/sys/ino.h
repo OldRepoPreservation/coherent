@@ -11,7 +11,7 @@
 #define	 __SYS_INO_H__
 
 #include <sys/types.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 
 
 /*

@@ -10,6 +10,7 @@
 #ifndef	__SYS_MACHINE_H__
 #define	__SYS_MACHINE_H__
 
+#include <common/feature.h>
 #include <sys/const.h>
 #include <sys/types.h>
 
@@ -17,15 +18,6 @@
  * Offsets for registers.
  */
 #define	OIP	-3
-
-/*
- * Alloc definitions.
- */
-#define	align(p)	((ALL *) ((int) (p) & ~1))
-#define	link(p)		align((p)->a_link)
-#define	tstfree(p)	(((int) (p)->a_link&1) == 0)
-#define	setfree(p)	((p)->a_link = (int) (p)->a_link & ~1)
-#define	setused(p)	((p)->a_link = (int) (p)->a_link | 1)
 
 /*
  * Functions.
@@ -106,7 +98,7 @@
  * Register structure.
  */
 typedef union mreg_u {
-	unsigned m_reg[];
+	unsigned m_reg [1];
 	unsigned m_int;
 } MREG;
 
@@ -154,7 +146,8 @@ typedef	struct mcon_s {
 typedef struct mgen {
 } MGEN;
 
-#ifdef KERNEL
+#if	__KERNEL__
+
 /*
  * Global variables.
  */
@@ -163,6 +156,7 @@ extern	unsigned scs;			/* System code segment */
 extern	unsigned sds;			/* System data segment */
 
 extern saddr_t uasa;			/* Currently active uarea segment */
-#endif
 
-#endif
+#endif	/* __KERNEL__ */
+
+#endif	/* ! defined (__SYS_MACHINE_H__) */

@@ -14,7 +14,8 @@
 #ifndef	 __SYS_IO_H__
 #define	 __SYS_IO_H__
 
-#include <sys/__paddr.h>
+#include <common/feature.h>
+#include <common/__paddr.h>
 #include <sys/types.h>
 
 /*
@@ -23,7 +24,7 @@
 typedef struct io {
 	int	 io_seg;		/* Space */
 	unsigned io_ioc;		/* Count */
-#ifdef _I386
+#if	_I386
 	off_t	 io_seek;		/* Seek posiion */
 	union {
 		caddr_t	vbase;		/* Virtual base */
@@ -45,8 +46,10 @@ typedef struct io {
 #define IOPHY	2			/* Physical */
 
 /*
- * No delay if results are not immediately available.
+ * No delay if results are not immediately available. IONDLY is the funky
+ * internal name for O_NDELAY and IONONBLOCK is the version for O_NONBLOCK.
  */
-#define	IONDLY	8
+#define	IONDLY		8
+#define	IONONBLOCK	16
 
-#endif
+#endif	/* ! defined (__SYS_IO_H__) */

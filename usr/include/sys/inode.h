@@ -11,9 +11,10 @@
 #ifndef	__SYS_INODE_H__
 #define	__SYS_INODE_H__
 
+#include <common/feature.h>
 #include <sys/types.h>
 #include <sys/ksynch.h>
-#include <sys/_time.h>
+#include <common/_time.h>
 #include <poll.h>
 
 
@@ -56,8 +57,9 @@ typedef struct inode {
 	time_t	i_atime;		/* Last access time */
 	time_t	i_mtime;		/* Last modify time */
 	time_t	i_ctime;		/* Creation time */
-#ifdef _I386
+#if	_I386
 	struct	rlock	*i_rl;		/* List of record locks */
+	daddr_t	i_lastblock;		/* for readahead */
 #endif
 } INODE;
 
@@ -82,34 +84,20 @@ typedef struct inode {
 #define	IFMOD	0x2			/* File has been modified */
 #define	IFCRT	0x4			/* File has been created */
 #define IFMNT	0x8			/* Contains mounted file system */
-#ifdef _I386
+
+#if	_I386
 #define	IFEXCL	0x80			/* Exclusive open */
-#endif /* _I386 */
+#endif	/* _I386 */
 
 /*
- * Permission bits.
+ * This relates to a hack in the 16-bit system-call interface; this value is
+ * jammed into 16-bit file descriptors. If NOFILE ever gets bigger than this,
+ * 16-bit applications stand to lose big.
  */
-#define IPE	0x01			/* Execute */
-#define IPW	0x02			/* Write */
-#define IPR	0x04			/* Read */
+#define	DUP2	0x40
 
-/*
- * Modifier bits for fdopen().
- */
-#define	IPNDLY	 0x08
-#define	IPAPPEND 0x10
-#ifdef _I386
-#define IPSYNC	 0x20
-#define IPEXCL	 0x40
-#define IPNOCTTY 0x80
-#endif /* _I386 */
+#if	__KERNEL__
 
-/*
- * Bit for dup system call.
- */
-#define DUP2	0x40
-
-#ifdef KERNEL
 /*
  * Macro functions.
  */
@@ -160,8 +148,6 @@ extern	int	ronflag;		/* Root is read only */
 extern	INODE	*inodep;		/* Pointer to in core inodes */
 extern	INODE	*acctip;		/* Accounting file pointer */
 
-#endif
+#endif	/* __KERNEL__ */
 
-#endif
-
-/* end of sys/inode.h */
+#endif	/* ! defined (__SYS_INODE_H__) */

@@ -12,5 +12,6 @@
 
 #define NLIOC	('N' << 8)
 #define NLCALL	(NLIOC|1)	/* Call a function with arguments.  */
+#define NLIDLE	(NLIOC|2)	/* Get idle time of the system process */
 
 #endif /* NULL_H */

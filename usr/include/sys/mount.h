@@ -10,6 +10,7 @@
 #ifndef	 __SYS_MOUNT_H__
 #define	 __SYS_MOUNT_H__
 
+#include <common/feature.h>
 #include <sys/types.h>
 #include <sys/filsys.h>
 #include <sys/ksynch.h>
@@ -33,7 +34,8 @@ typedef struct mount {
  */
 #define	MFRON	001			/* Read only file system */
 
-#ifdef KERNEL
+#if	__KERNEL__
+
 /*
  * Functions.
  */
@@ -45,6 +47,6 @@ MOUNT	*getment();			/* fs2.c */
  */
 extern	MOUNT	*mountp;		/* Mount table */
 
-#endif
+#endif	/* __KERNEL__ */
 
-#endif
+#endif	/* ! defined (__SYS_MOUNT_H__) */

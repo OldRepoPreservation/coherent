@@ -13,8 +13,15 @@
 #ifndef	__SYS_MMU_H__
 #define	__SYS_MMU_H__
 
-#ifdef _I386
-#include <sys/__paddr.h>
+#include <common/feature.h>
+
+#if	! __KERNEL__
+# error	You must be compiling the kernel to use this header
+#endif
+
+#if	_I386
+
+#include <common/__paddr.h>
 #include <sys/types.h>
 #include <sys/uproc.h>
 
@@ -129,6 +136,7 @@ typedef	long		cseg_t;
 #define	regread(n)	ptable0_v[(n)>>BPC1SHIFT]
 #define	regload(n, v)	{ ptable0_v[(n)>>BPC1SHIFT] = v; mmuupd(); }
 
+#define	__xmode_286(regp)	((regp)->_i386._ds == (SEG_286_UD | R_USR))
 #define	xmode(ty)	((u.u_regl[DS]&0xffff) \
   == ((ty)==286 ? (SEG_286_UD|R_USR) : (SEG_386_UD|R_USR)))
 #define	XMODE_286	((u.u_regl[DS]&0xffff) == (SEG_286_UD|R_USR))
@@ -229,7 +237,7 @@ typedef struct {
 extern	EVENT	evtab[NEV];
 EVENT	*evtrap();
 
-#else /* From here to EOF is for 286 kernels.  */
+#else	 /* if ! _I386 */
 
 /*
  * The following macros facilitate independent access
@@ -238,7 +246,8 @@ EVENT	*evtrap();
 #define	FP_OFF(f)	( ((unsigned short *) &(f))[0] )
 #define	FP_SEL(f)	( ((unsigned short *) &(f))[1] )
 
-#ifdef	KERNEL
+#if	__KERNEL__
+
 /*
  * The following selector accesses the global descriptor table.
  */
@@ -252,8 +261,9 @@ extern	faddr_t	ptovx();	/* faddr_t ptovx( paddr_t );		*/
 extern	__paddr_t vtop();	/* __paddr_t vtop( faddr_t );		*/
 extern	void	vrelse();	/* void    vrelse( faddr_t );		*/
 extern	void	vremap();	/* void    vremap( SEG * );		*/
-#endif /* KERNEL */
 
-#endif /* _I386 */
+#endif	/* __KERNEL__ */
 
-#endif /* MMU_H */
+#endif	/* ! _I386 */
+
+#endif	/* ! defined (__SYS_MMU_H__) */

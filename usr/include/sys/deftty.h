@@ -11,17 +11,21 @@
 #ifndef __SYS_DEFTTY_H__
 #define __SYS_DEFTTY_H__
 
-#include <sys/ascii.h>
+#if	'A' != 65 || '@' != 64
+# error	Your native character set should be ASCII
+#else
+# define	__CTRL(c)	((c) - '@')
+#endif
 
 #define DEF_SG_ISPEED	B9600
 #define DEF_SG_OSPEED	B9600
-#define	DEF_SG_ERASE	A_BS
-#define	DEF_SG_KILL	A_NAK
+#define	DEF_SG_ERASE	'\b'
+#define	DEF_SG_KILL	__CTRL ('U')
 #define	DEF_SG_FLAGS	CRMOD|ECHO|XTABS|CRT
-#define	DEF_T_INTRC	A_ETX
-#define	DEF_T_QUITC	A_FS
-#define	DEF_T_STARTC	A_DC1
-#define	DEF_T_STOPC	A_DC3
-#define	DEF_T_EOFC	A_EOT
+#define	DEF_T_INTRC	__CTRL ('C')
+#define	DEF_T_QUITC	__CTRL ('|')
+#define	DEF_T_STARTC	__CTRL ('Q')
+#define	DEF_T_STOPC	__CTRL ('S')
+#define	DEF_T_EOFC	__CTRL ('D')
 #define	DEF_T_BRKC	-1
 #endif
