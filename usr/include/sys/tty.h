@@ -22,13 +22,15 @@
 #define	T_ISTOP	0x0200		/* Input overflow stop */
 #define T_MODC	0x0400		/* Modem control */
 #define T_CARR	0x0800		/* Carrier detect status */
+#ifndef _I386
 #define	T_BRD	0x1000		/* Blocking read in CBREAK/RAW mode */
+#endif
 #define	T_HOPEN	0x2000		/* Hanging in open (for modem control) */
 #define	T_HCLOS	0x4000		/* Hanging in close (for modem control) */
 #define	T_CFLOW	0x8000		/* Use RTS/CTS flow control */
-
-/* don't reset these flags when flushing the input and output queues */
-#define T_SAVE	 (T_HPCL|T_EXCL|T_MODC|T_CARR|T_HOPEN|T_BRD|T_HCLOS|T_CFLOW)
+#ifdef _I386
+#define	T_XSTOP	0x10000		/* Stopped by receiving a Ctrl-S */
+#endif
 
 #define NMODC	0x80		/* Minor device modem control bit */
 				/* Set for NO modem control       */
