@@ -2,9 +2,9 @@
  * This is the host adaptor specific portion of the
  * Adaptec AHA154x driver.
  *
- * $Log:	/usr/src/sys/i8086/drv/RCS/aha.c,v $
- * Revision 1.2	91/05/01  04:54:43	root
- * Debug code and kalloc arg fixes.
+ * $Log:	aha.c,v $
+ * Revision 1.1  93/03/18  10:31:13  root
+ * r74
  * 
  * Revision 1.1	91/04/30  11:01:41	root
  * Shipped with COH 3.1.0
@@ -47,6 +47,173 @@ static	long	aha_timeout[] = {
 #define	TIMEOUT_POLL	2
 	0x100L
 };
+
+/*
+ * NIGEL: The 'ccb_t' structure defined in <sys/aha154x.h> has data for the
+ * SCSI controller, at least at the base. Presumably the 'ccb_sw' member is
+ * not for the SCSI controller, so data after the 'cmd_status' member is
+ * for the driver. The 'buffer' member is not used....
+ *
+ * Below I create a wrapper structure that separates driver-private data from
+ * the Adaptec 'ccb' like the original author should have written. This allows
+ * the 'ccb' to be threaded on a work list, and would obviate the need for the
+ * stupid machinery in "i386/mem_cache.c" (although not even that would be
+ * needed had page management been done right...)
+ *
+ * The primary motivation for this is to allow ccb's to be deallocated safely.
+ * The 286 version of the driver deallocated the structures in aha_process (),
+ * which was deferred from aha_intr (). The 4.0 version can not do that because
+ * due to the large size of the buffer cache a defer-table overflow might
+ * result. We compromise by creating a deferred work list and threading the
+ * ccb's on that and only deferring the 'start work' operation. Since
+ * aha_process () does no actual work but merely calls bdone () then frees the
+ * data, we create a 'free list' of ccb's and a deferred routine to free them,
+ * and leave aha_process () to call bdone () at interrupt level to give maximum
+ * throughput.
+ *
+ * You are now passing the Hack City limits. You are now in the Interdicted
+ * Zone.
+ */
+
+#include <stddef.h>			/* import offsetof () */
+
+typedef struct driver_ccb	drv_ccb_t;
+
+struct driver_ccb {
+	ccb_t		aha_ccb;	/* the driver CCB */
+	drv_ccb_t     *	next;		/* for threading on work list */
+};
+	
+static	drv_ccb_t     *	free_list;	/* ccb's to free */
+static	int		free_active;	/* nonzero if cleanup routine active */
+
+/*
+ * There are two low-level allocators in use, one for 3.2 and one for 4.0,
+ * and rather than #ifdef the usage we call them via a macro below.
+ */
+
+#ifdef	_I386
+#define	AHA_ALLOC(size)		palloc (size)
+#define	AHA_FREE(size)		pfree (size)
+#else
+#define	AHA_ALLOC(size)		kalloc (size)
+#define	AHA_FREE(size)		kfree (size)
+#endif
+
+
+/*
+ * Cleanup routine for free list, called via defer () from ccb_free ().
+ *
+ * Many fields of active ccb's are filled in with other dynamically allocated
+ * structures; this code has responsibility for freeing all of them.
+ */
+void
+ccb_cleanup ()
+{
+	drv_ccb_t     *	work;
+	int		s;
+
+	s = sphi ();
+	while ((work = free_list) != NULL) {
+		free_list = work->next;
+		spl (s);
+
+#ifdef	_I386
+		/*
+		 * The following code is insane; the DSL stuff should be part
+		 * of this ccb system. This will be fixed when a total revamp
+		 * of memory management occurs, and the "mem_cache.c" stuff
+		 * gets spaced.
+		 *
+		 * In the original code, the ccb_forget () was done after the
+		 * ccb was totally freed. I put it here to save conditionals.
+		 */
+		dsl_free (work->aha_ccb.dataptr);
+		ccb_forget (& work->aha_ccb);
+#endif
+
+		if (work->aha_ccb.ccb_sw != NULL)
+			AHA_FREE (work->aha_ccb.ccb_sw);
+		AHA_FREE (work);
+
+		s = sphi ();
+	}
+
+	free_active = 0;		/* defer () needed to reschedule */
+	spl (s);
+}
+
+
+/*
+ * Allocate a ccb and return a pointer to it. Call from base level only.
+ * The scsi_work_t * value passed here is remembered so that when the ccb
+ * is deallocated it will be too. In addition, code in aha_process () uses
+ * this stored value to map back from a ccb to a buffer-cache entry.
+ */
+ccb_t *
+ccb_alloc (sw)
+scsi_work_t   *	sw;
+{
+	drv_ccb_t     *	drvccb;
+
+	if ((drvccb = (drv_ccb_t *) AHA_ALLOC (sizeof (* drvccb))) == NULL)
+		return NULL;
+
+	/*
+	 * Remember the 'sw' value. Note that this really should be put in
+	 * our wrapper structure, but that is to be fixed later.
+	 */
+
+	drvccb->aha_ccb.ccb_sw = sw;
+
+	/*
+	 * Return a pointer to the inner adaptec ccb.
+	 */
+
+	return & drvccb->aha_ccb;
+}
+
+
+/*
+ * Return a ccb to the free pool. Callable from base or interrupt level. All
+ * the dynamically allocated member data of the ccb should be freed by this
+ * routine.
+ */
+void
+ccb_free (ccb)
+ccb_t	      *	ccb;
+{
+	int		s;
+	drv_ccb_t     *	work;
+
+	/*
+	 * Perform a portable downcast from the aha_ccb to the base structure.
+	 */
+
+	work = (drv_ccb_t *) ((char *) ccb - offsetof (drv_ccb_t, aha_ccb));
+
+	s = sphi ();
+	work->next = free_list;
+	free_list = work;
+
+	if (free_active == 0) {
+		defer (ccb_cleanup, 0);
+		free_active = 1;
+	}
+	spl (s);
+}
+
+
+/*
+ * Map from a ccb to the 'scsi_work_t' that was memoized when the ccb was
+ * allocated.
+ */
+
+#define	ccb_to_scsiwork(ccb)	(ccb->ccb_sw)
+
+/*
+ * NIGEL: Welcome back to Hack City. Beware of mutant code!
+ */
 
 #if	0
 static
@@ -111,30 +278,16 @@ aha_get_base()
 aha_process(ccb)
 	ccb_t *ccb;
 {
-	register scsi_work_t *sw = ccb->ccb_sw;
+	register scsi_work_t *sw;
 	register BUF *bp;
 
-	T_PIGGY(0x8000, {
-		printf("aha_process: ccb %x ", ccb);
-		printf("sw=%x", ccb->ccb_sw);
-		if (0 != ccb->ccb_sw) {
-			printf(" bp=%x", ccb->ccb_sw->sw_bp);
-		}
-		printf("\n");
-		aha_ccb_print(ccb);
-	});
-	if(ccb->ccb_sw == 0) {
-		T_PIGGY(0x8000, 
-			printf("process: ccb %x with NULL sw\n", ccb);
-		);
+	if ((sw = ccb_to_scsiwork (ccb)) == NULL) {
 		ccb->opcode = AHA_OP_INVALID;
 		wakeup(ccb);
 		return;
 	}
 
 	bp = sw->sw_bp;
-
-	T_PIGGY(0x8000, printf("bp = %x\n", bp););
 
 	if((ccb->hoststatus != 0) || (ccb->targetstatus != 0)) {
 		if(--sw->sw_retry > 0
@@ -155,21 +308,9 @@ aha_process(ccb)
 	} else {
 		bp->b_resid = 0;
 	}
-	T_PIGGY(0x8000, printf("bp flag = %x\n", bp->b_flag););
 
 	bdone(bp);
-#ifdef _I386
-	T_PIGGY(0x80000, printf("pf(sw)"););
-	pfree(sw);
-	T_PIGGY(0x80000, printf("df(d)"););
-	dsl_free(ccb->dataptr);
-	T_PIGGY(0x80000, printf("pf(ccb)"););
-	pfree(ccb);
-	ccb_forget(ccb);
-#else /* _I386 */
-	kfree(sw);
-	kfree(ccb);
-#endif /* _I386 */
+	ccb_free(ccb);
 }
 
 static
@@ -208,10 +349,6 @@ void	aha_cmd_out(value)
 		    & AHA_SCSIIDLE) != 0) {
 			aha_1out(value);
 			return;
-		} else {
-			T_PIGGY(0x8000, 
-				printf("aha: cmd_out status = %x\r", i);
-			);
 		}
 	}
 	SETMSG("timeout sending cmd byte");
@@ -335,7 +472,6 @@ aha_device_info()
 
 int	aha_unload(ireq)
 {
-	T_PIGGY(0x8000, printf("aha_unload: %x\n", ireq););
 	/*
 	 *	we should really verify that everything
 	 *	out there gets flushed.
@@ -343,12 +479,7 @@ int	aha_unload(ireq)
 	if (!aha_loaded)
 		return;
 	if(mailbox_out) {
-#ifdef _I386
-		T_PIGGY(0x80000, printf("pf(mbo)"););
-		pfree(mailbox_out);
-#else /* _I386 */
-		kfree(mailbox_out);
-#endif /* _I386 */
+		AHA_FREE (mailbox_out);
 		mailbox_out = 0;
 	}
 	clrivec(ireq);
@@ -360,17 +491,10 @@ scsi_work_t *head;
 	register int	i;
 	unsigned char	adr[4];
 
-	T_PIGGY(0x8000,
-		printf("aha_load(%d, %d, 0x%x);\n", dma, ireq, base);
-	);
 	aha_set_base(base);
 	if(mailbox_out == 0) {
-		if((mailbox_out = 
-#ifdef _I386
-		     palloc(2 * MAX_MAILBOX * sizeof(mailentry))) == 0) {
-#else /* _I386 */
-		     kalloc(2 * MAX_MAILBOX * sizeof(mailentry))) == 0) {
-#endif /* _I386 */
+		if ((mailbox_out = 
+		     AHA_ALLOC (2 * MAX_MAILBOX * sizeof(mailentry))) == 0) {
 			no_mem();
 			return -1;
 		} else {
@@ -422,24 +546,11 @@ register scsi_cmd_t *sc;
 	short	count = sc->blklen;
 	long	block = sc->block;
 
-#ifdef _I386
-	T_PIGGY(0x100000, printf("pa(ac)"););
-	ccb = (ccb_t *) palloc(sizeof (ccb_t));
-#else /* _I386 */
-	ccb = (ccb_t *) kalloc(sizeof (ccb_t));
-#endif /* _I386 */
-	if (ccb == (ccb_t *) 0) {
+	if ((ccb = ccb_alloc (NULL)) == NULL) {
 		no_mem();
 		return -1;
 	}
-	T_PIGGY(0x8000, {
-		printf("aha_command(SCSI ID %d, LUN %d, c %x, b %x",
-			sc->unit >> 2, sc->unit & 0x3, sc->cmd, sc->block); 
-		printf(" [%d] @%x:%x)\n",
-			sc->buflen, sc->buffer);
-	});
 
-	ccb->ccb_sw = 0;
 #ifdef _I386
 	ccb->opcode = AHA_OP_SIC_SG;		/* SCSI_INITIATOR*/
 #else /* _I386 */
@@ -474,7 +585,6 @@ register scsi_cmd_t *sc;
 	aha_l_to_p3(VTOP2(ccb, sds), mailbox_out[0].adr);
 #endif /* _I386 */
 
-	T_PIGGY(0x8000, aha_ccb_print(ccb););
 	mailbox_out[0].cmd = MBO_TO_START;
 
 	/* Start the AHA-154x scanning the mailboxes.  */
@@ -490,11 +600,6 @@ register scsi_cmd_t *sc;
 		/* The AHA-154x driver is waiting for a ccb to complete.  */
 	}
 	
-	T_PIGGY(0x8000,
-		printf("done with status = %d, %d\n\n",
-			ccb->hoststatus, ccb->targetstatus);
-	);
-
 	if((ccb->targetstatus == CHECK_TARGET_STATUS)
 	   && (ccb->cmd_status[12] != SENSE_UNIT_ATTENTION)) {
 		printf("aha: SCSI ID %d LUN %d. SCSI sense =",
@@ -504,15 +609,14 @@ register scsi_cmd_t *sc;
 		printf("\n");
 	}
 	i = ccb->hoststatus | ccb->targetstatus;
-#ifdef _I386
-	T_PIGGY(0x80000, printf("df(d2)"););
-	dsl_free(ccb->dataptr);
-	T_PIGGY(0x80000, printf("pf(ccb2)"););
-	pfree(ccb);
-	ccb_forget(ccb);
-#else /* _I386 */
-	kfree(ccb);
-#endif /* _I386 */
+
+	/*
+	 * NIGEL: If you are worried that the ccb memory is not getting freed
+	 * soon enough, add a parameter to ccb_cleanup () to flag whether it
+	 * should clear the active flag and call it directly here.
+	 */
+	ccb_free(ccb);
+
 	return i;
 }
 
@@ -520,19 +624,10 @@ ccb_t	*buildccb(sw)
 register scsi_work_t *sw;
 {
 	register ccb_t *ccb;
-#ifdef _I386
-	T_PIGGY(0x100000, printf("pa(bld)"););
-	ccb = (ccb_t *)palloc(sizeof(ccb_t));
-#else /* _I386 */
-	ccb = (ccb_t *)kalloc(sizeof(ccb_t));
-#endif /* _I386 */
 
-	T_PIGGY(0x8000,
-		printf("build: sw:%x, drv:%x, bno:%D  ",
-			sw, sw->sw_drv, sw->sw_bno);
-	);
+	if ((ccb = ccb_alloc(sw)) == NULL)
+		return NULL;
 
-	ccb->ccb_sw = sw;
 #ifdef _I386
 	ccb->opcode = AHA_OP_SIC_SG;		/* SCSI_INITIATOR*/
 #else /* _I386 */
@@ -566,6 +661,9 @@ register scsi_work_t *sw;
 	aha_l_to_p3((long)sw->sw_bp->b_count, ccb->datalen);
 	aha_l_to_p3(vtop(sw->sw_bp->b_faddr), ccb->dataptr);
 #endif /* _I386 */
+	/*
+	 * The ccb's returned here are going to be freed by aha_process ().
+	 */
 	return ccb;
 #if	0
 /* start of ioctl code */
@@ -600,8 +698,13 @@ aha_start()
 				int s;
 
 				++n;
-				ccb = buildccb(sw);
-				T_PIGGY(0x8000, aha_ccb_print(ccb););
+				if ((ccb = buildccb (sw)) == NULL) {
+					/*
+					 * NIGEL: Earlier kernels did not
+					 * diagnose this! 
+					 */
+					goto out_of_mem;
+				}
 #ifdef _I386
 				aha_l_to_p3(vtop(ccb),
 						mailbox_out[i].adr);
@@ -611,15 +714,6 @@ aha_start()
 						mailbox_out[i].adr);
 #endif /* _I386 */
 				mailbox_out[i].cmd = MBO_TO_START;
-
-				T_PIGGY(0x8000, {
-				printf("MBO[%d] = %x:%x:%x:%x, ccb = %x ",
-					i, mailbox_out[i].cmd,
-					mailbox_out[i].adr[0],
-					mailbox_out[i].adr[1],
-					mailbox_out[i].adr[2], ccb);
-	printf("sw=%x bp=%x\n", ccb->ccb_sw, ccb->ccb_sw->sw_bp);
-				}); /* T_PIGGY() */
 
 				aha_1out(AHA_DO_SCSI_START);
 
@@ -635,40 +729,27 @@ aha_start()
 		if(i == MAX_MAILBOX)
 			break;
 	}
+out_of_mem:
 	--locked;
 	return n;
 }
 
-int	aha_completed()
+int
+aha_completed()
 {
 	register int i, n;
 
 	for(n = 0, i = 0; i < MAX_MAILBOX; ++i)
 		if(mailbox_in[i].cmd != MBI_IS_FREE) {
-		T_PIGGY(0x8000 ,
-			printf("aha: mail[%d] = %x:%x:%x:%x\n",
-				i, mailbox_in[i].cmd,
-				mailbox_in[i].adr[0],
-				mailbox_in[i].adr[1],
-				mailbox_in[i].adr[2]);
-		);
+			/*
+			 * NIGEL: Earlier kernels deferred these, but with the
+			 * ccb_free ()/ccb_alloc () system that is no longer
+			 * necessary in either 4.x or 3.x systems.
+			 */
 #ifdef _I386
-#if 0
-			aha_process (ccb_recall(mailbox_in[i].adr));
-#else
-			/*  
-			 * In 386 kernels prior to r73, this call was not  
-			 * deferred. In those kernels, this must have been  
-			 * benign, but now that the driver block entry points 
-			 * are no longer wrapped by sphi () it quickly became 
-			 * apparent that this code was causing a pfree () at  
-			 * interrupt level via aha_process ().  
-			 */  
-			defer (aha_process, ccb_recall (mailbox_in[i].adr));  
-#endif
+			aha_process(ccb_recall(mailbox_in[i].adr));
 #else /* _I386 */
-			defer(aha_process,
-				aha_p3_to_v(mailbox_in[i].adr));
+			aha_process(aha_p3_to_v(mailbox_in[i].adr));
 #endif /* _I386 */
 			mailbox_in[i].cmd = MBI_IS_FREE;
 			++n;
@@ -676,30 +757,23 @@ int	aha_completed()
 	return n;
 }
 
-void	aha_intr()
+void
+aha_intr()
 {
 	register int i;
-
-	T_PIGGY(0x8000, printf("aha_interrupt routine\n"););
 
 	if(((i = INB(aha_i_o_base+AHA_INTERRUPT)) & AHA_ANY_INTER) == 0)
 		printf("aha: spurious interrupt %x\n", i);
 
-	T_PIGGY(0x8000, printf("aha_interrupt: %x\n", i););
-
 	switch(i & AHA_ALL_INTERRUPTS) {
 	case AHA_RESETED:
-		T_PIGGY(0x8000, printf("aha: reseted\n"););
 		break;
 	case AHA_CMD_DONE:
-		T_PIGGY(0x8000, printf("aha: adapter command completed\n"););
 		break;
 	case AHA_MBO_EMPTY:
-		T_PIGGY(0x8000, printf("aha: MAILBOX emptied\n"););
 		defer(aha_start, (char *)0);
 		break;
 	case AHA_MBI_STORED:
-		T_PIGGY(0x8000, printf("aha: MAILBOX in stored\n"););
 		aha_completed();
 		break;
 	default:
