@@ -15,7 +15,7 @@ typedef struct cache_entry {
 	struct cache_entry *next;
 	struct cache_entry *prev;
 
-	vaddr_t vaddr;
+	caddr_t vaddr;
 	paddr_t paddr;
 } CACHE_ENTRY;
 
@@ -34,7 +34,7 @@ static CACHE_ENTRY *cache_head = NULL;
  */
 void
 mem_remember(vaddr, paddr)
-	vaddr_t vaddr;
+	caddr_t vaddr;
 	paddr_t paddr;
 {
 	CACHE_ENTRY *entry;
@@ -99,12 +99,12 @@ mem_forget(vaddr)
  * Recall the vaddr that goes with 'paddr'.  Returns 0 if we don't know
  * what paddr goes with.
  */
-vaddr_t
+caddr_t
 mem_recall(paddr)
 	paddr_t paddr;
 {
 	CACHE_ENTRY *entry;
-	vaddr_t retval;
+	caddr_t retval;
 
 	T_PIGGY( 0x40, printf("mem_recall(%x)=", paddr); );
 
@@ -126,7 +126,7 @@ mem_recall(paddr)
  */
 static CACHE_ENTRY *
 find_vaddr(vaddr)
-	register vaddr_t vaddr;
+	register caddr_t vaddr;
 {
 	register CACHE_ENTRY *entry;
 

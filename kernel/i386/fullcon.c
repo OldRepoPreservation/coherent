@@ -36,7 +36,7 @@ DRV	drvl[NDRV] = {
 /*
  * Time.
  */
-TIME timer ={
+struct _TIME_OF_DAY timer ={
 	0,				/* Initial time */
 	0,				/* Ticks */
 	8*60,				/* Pacific */
