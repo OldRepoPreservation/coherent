@@ -177,6 +177,41 @@ tm_t* jday_to_tm(jd) jday_t jd;
 time_t jday_to_time(jd) jday_t jd;
 	Turn Julian date structure to COHERENT time.
 
+void bedaemon()
+	Make the caller a daemon.
+
+	[From "The New Hacker's Dictionary":]
+	daemon: /day'mn/ or /dee'mn/
+
+	n.  A program that is not invoked explicitly, but lies dormant
+	waiting for some condition(s) to occur.  The idea is that the
+	perpetrator of the condition need not be aware that a daemon is
+	lurking (though often a program will commit an action only because
+	it knows that it will implicitly invoke a daemon.)...
+
+	For example, when you submit a program to be
+	printed with 'hpr', your file is copied to
+	/usr/spool/hpd, and then the printer daemon,
+	'/usr/bin/hpd' is notified that there is another
+	file to print.  The advantage is that the user
+	program, 'hpr', need not compete with other user
+	programs for access to the printer--'/usr/bin/hpd'
+	handles all access to the printer.
+
+	Another example of a daemon in /etc/crond (or
+	/etc/cron).  It spends most of its time waiting.
+	When the time comes about for the next job from
+	crontab, the daemon wakes up and starts the job.
+
+	As a general rule, anything that does not interact
+	directly with users can be classified as a daemon.
+	Daemons do not generally generate output to a
+	user's terminal.
+
+	Any time you have a resource, like a printer or
+	database, to which access should be controlled,
+	you can use a daemon.  
+
 long randl()
 	Return a long random number uniformly distributed in
 	1..2147483562.  This comes from "Communications of the
@@ -295,3 +330,59 @@ char *vfind(vid, disp, dirty) unsigned vid, dirty; unsigned long disp;
 	that the block will be written back before it is read over.
 	Blocks are 512 bytes long so int's or long's can be read
 	or written without multiple accesses to vfind.
+
+libmisc holds a number of routines with which you can lock and
+unlock files and devices. It is adapted from the mechanism used by the
+COHERENT implementation of UUCP.
+Lock files are created in $SPOOLDIR. A lock file is given the name
+LCK.resource. The lock file contains a decimal representation of the
+process identifier of the process that created the lock.
+
+It is possible to provide an alternate pid by using one of the "n"
+routines. The unlocking routines regard a pid of zero as an override --
+they remove the lock regardless of which process created the lock.
+
+For a tty device, the resource is a string that consists of a decimal
+representation of its major number, a decimal point, and the lower five
+bits of its minor number. This conversion is done by function
+gen_res_name().
+
+Each routine takes a string that names a resource to be locked or unlocked.
+The tty routines want the base name of the tty to be locked (without the
+``/dev/'' part).
+
+With the exception of gen_res_name(), all lock routines all return zero on
+failure and one on success.
+
+char *gen_res_name(tty) char *tty;
+	Generate a resource name for a tty.
+
+lockit(resource) char *resource;
+	Use a resource string to lock a tty.
+
+lockexist(resource) char *resource;
+	Check whether a lock file exists for the tty with resource.
+
+locknrm(resource, pid) char *resource; int	pid;
+	Remove a lock file for a tty owned by process pid.
+
+lockrm(resource) char *resource;
+	Remove a lock file for tty with resource.
+
+lockntty(tty, pid) char *tty; int pid;
+	Lock a tty for process pid.
+
+locktty(tty) char *tty;
+	Lock a tty.
+
+lockttyexist(tty) char *tty;
+	Check whether a given tty is locked.
+
+unlockntty(tty, pid) char *tty; int pid;
+	Unlock a tty for process pid.
+
+unlocktty(tty) char *tty;
+	Unlock a tty that the current process owns.
+
+unlockit(resource, pid) char *resource; int pid;
+	Unlock something for process pid.

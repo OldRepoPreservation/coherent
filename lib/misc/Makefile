@@ -13,13 +13,15 @@ O = \
 	flatten.o \
 	getline.o \
 	is_fs.o \
+	jdtoti.o \
+	jdtotm.o \
 	lcase.o \
+	lock.o \
 	match.o \
 	metaphone.o \
 	newcpy.o \
 	pathn.o \
 	picture.o \
-	qsort.o \
 	randl.o \
 	replace.o \
 	regexp.o \
@@ -34,8 +36,6 @@ O = \
 	strdlen.o \
 	titojd.o \
 	tmtojd.o \
-	jdtoti.o \
-	jdtotm.o \
 	tocont.o \
 	trim.o \
 	ucase.o \
