@@ -91,14 +91,10 @@ main()
 	_CHIRP('6', 156);
 #ifdef _I386
 	rlinit();
-	/*
-	 * Below this point, chirp() should not be needed any more.
-	 * So, remove the remaining chirp marks.
-	 */
-	_CHIRP(' ', 156);
-	CHIRP(' ');
+	_CHIRP('7', 156);
 
 	putchar_init();
+	_CHIRP('8', 156);
 	printf("*** COHERENT Version %s - 386 Mode.  %uKB free memory. ***\n",
 		release, ctob(allocno())/1024);
 	if ((int11() & 0x30) == 0x30)
