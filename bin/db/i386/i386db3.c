@@ -18,6 +18,7 @@
  *		E - modR/M selects operand
  *		F - flags register
  *		G - reg field of modR/M selects general register
+ *		H - sign-extended immediate data (same as I but sign-extended)
  *		I - immediate data
  *		J - relative offset added to IP
  *		K - as J, except find symbol, if possible
@@ -108,7 +109,7 @@ char *op_map_1[] = {
 	/* 6 */
 	"pusha%Zv",          "popa%Zv",		  "bound%Zv %Gv,%Ma", "arpl %Ew,%Gw",
 	"fs:",		     "gs:",		  "%so",	      "%sa",
-	"push%Zv %Iv",     "imul%Zv %Gv,%Ev,%Iv", "push%Zb %Ib",      "imul%Zv %Gv,%Ev,%Ib",
+	"push%Zv %Iv",     "imul%Zv %Gv,%Ev,%Iv", "push%Zb %Ib",      "imul%Zv %Gv,%Ev,%Hb",
 	"ins%Zb %Yb",        "ins%Zv %Yv",	  "outs%Zb %Xb",      "outs%Zv %Xv",
 
 	/* 7 */
@@ -118,7 +119,7 @@ char *op_map_1[] = {
 	"jl %Jb",	     "jge %Jb",		  "jle %Jb",	       "jg %Jb",
 
 	/* 8 */
-	"%g1%Zb %Eb,%Ib",    "%g1%Zv %Ev,%Iv",	  "mov%Zb al,%Ib",     "%g1%Zv %Ev,%Ib",
+	"%g1%Zb %Eb,%Ib",    "%g1%Zv %Ev,%Iv",	  "mov%Zb al,%Ib",     "%g1%Zv %Ev,%Hb",
 	"test%Zb %Eb,%Gb",   "test%Zv %Ev,%Gv",	  "xchg%Zb %Eb,%Gb",   "xchg%Zv %Ev,%Gv",
 	"mov%Zb %Eb,%Gb",    "mov%Zv %Ev,%Gv",	  "mov%Zb %Gb,%Eb",    "mov%Zv %Gv,%Ev",
 	"mov%Zw %Ew,%Sw",    "lea%Zv %Gv,%M ",	  "mov%Zw %Sw,%Ew",    "pop%Zv %Ev",

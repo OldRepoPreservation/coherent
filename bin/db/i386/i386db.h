@@ -3,7 +3,7 @@
  * A debugger.
  * i386-specific header file.
  * i386/mdb.h contains definitions used by machine-independent code.
- * i386/mdbdefs.h defines externals referenced by machine-dependent code.
+ * i386/mdbdefs.h defines externals referenced by machine-independent code.
  * i386/i386db.h contains definitions used only by machine-dependent code.
  */
 
@@ -94,6 +94,7 @@ typedef	struct	ndpmtab	{
  * which are referenced by machine-independent code.
  */
 /* i386db1.c */
+extern	int	get_fp_reg	__((struct _fpreg *fpregp, double *dp));
 extern	int	get_sized	__((int s, ADDR_T *lp));
 extern	ADDR_T	get_sp		__((void));
 
@@ -119,8 +120,6 @@ extern	void	out_modRM32	__((int c2));
 extern	void	output		__((char *src));
 extern	void	out_segpre	__((void));
 extern	void	out_sib		__((int dispsize, int m));
-/* i386db4.s */
-extern	double	get_fp_reg	__((struct _fpreg *fpregp));
 
 /*
  * Global symbols.
@@ -128,6 +127,7 @@ extern	double	get_fp_reg	__((struct _fpreg *fpregp));
  * which are referenced by machine-independent code.
  */
 /* i386db0.c */
+extern	int	NDP_flag;		/* NDP instructions are usable	*/
 extern	ADDR_T	sys_add;		/* Address of op after syscall	*/
 extern	BIN	sys_in;			/* Instruction after sys call	*/
 extern	UREG	ureg;			/* Child program registers	*/

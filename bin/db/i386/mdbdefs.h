@@ -3,7 +3,7 @@
  * A debugger.
  * i386-specific header.
  * i386/mdb.h contains definitions used by machine-independent code.
- * i386/mdbdefs.h defines externals referenced by machine-dependent code.
+ * i386/mdbdefs.h defines externals referenced by machine-independent code.
  * i386/i386db.h contains definitions used only by machine-dependent code.
  */
 
@@ -22,6 +22,7 @@ extern	ADDR_T	get_fp		__((void));
 extern	ADDR_T	get_pc		__((void));
 extern	int	get_regs	__((int flag));
 extern	int	get_sig		__((void));
+extern	void	init_mch	__((void));
 extern	int	is_call		__((void));
 extern	int	is_reg		__((SYM *sp));
 extern	int	is_syscall	__((int *flagp));
@@ -37,6 +38,8 @@ extern	void	set_sig		__((int sig));
 extern	void	traceback	__((int levels));
 /* i386db2.c */
 extern	char	*disassemble	__((char *dest, int s));
+/* i386db4.s */
+extern	double	_get_fp_reg	__((struct _fpreg *fpregp));
 
 /*
  * Variables defined by machine-dependent code.

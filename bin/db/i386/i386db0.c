@@ -11,6 +11,7 @@
  * Global variables.
  */
 BIN	bin = { TRAP };			/* Breakpoint instruction	*/
+int	NDP_flag;			/* NDP instructions are usable	*/
 ADDR_T	sys_add;			/* Address of op after syscall	*/
 int	sys_flag;			/* Executing a system call	*/
 BIN	sys_in;				/* Instruction after sys call	*/

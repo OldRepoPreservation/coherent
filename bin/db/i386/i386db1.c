@@ -7,6 +7,7 @@
  */
 
 #include <sys/ptrace.h>
+#include <sys/sysi86.h>
 #include <errno.h>
 #include "i386db.h"
 
@@ -159,8 +160,10 @@ display_reg(flag) int flag;
 #endif
 			switch(tagbits) {
 			case 0:			/* Normal */
-				d = get_fp_reg(&fstp->_st[i]);
-				printx("%g", d);
+				if (get_fp_reg(&fstp->_st[i], &d) == 0)
+					printx("(none)");	/* no NDP */
+				else
+					printx("%g", d);
 #if	0
 				for (j = 0; j < 4; j++)
 					printx("%04X ", fstp->_st[i].significand[j]);
@@ -260,6 +263,23 @@ get_fp()
 }
 
 /*
+ * Store the value from an NDP register into a double.
+ * If the machine has no NDP, fail and return 0.
+ * If the machine has an NDP (or NDP emulation),
+ * use the coprocessor instructions in _get_fp_reg()
+ * to convert the 80-bit arg to the 64-bit result
+ * and return 1.
+ */
+int
+get_fp_reg(fpregp, dp) struct _fpreg *fpregp; double *dp;
+{
+	if (!NDP_flag)
+		return 0;			/* sorry */
+	*dp = _get_fp_reg(fpregp);		/* store converted result */
+	return 1;
+}
+
+/*
  * Return the program counter.
  * Mask to 16-bit value for l.out.
  */
@@ -349,6 +369,22 @@ ADDR_T
 get_sp()
 {
 	return (IS_LOUT) ? ureg.ur_sp & 0xFFFF : ureg.ur_sp;
+}
+
+/*
+ * Perform i386-specific initialization.
+ * This checks whether NDP (or emulation) is present;
+ * get_fp_reg requires either NDP or emulation
+ * to convert an 80-bit NDP double to 64-bit format.
+ */
+void
+init_mch()
+{
+	int NDPstate;
+
+	if (sysi86(SI86FPHW, &NDPstate) == -1)
+		panic("sysi86() call failed");
+	NDP_flag = (NDPstate != FP_NO);
 }
 
 /*

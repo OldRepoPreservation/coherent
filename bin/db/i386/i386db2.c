@@ -243,13 +243,16 @@ outreg:
 		goto outreg;
 		break;
 
+	case 'H':
 	case 'I':
 		*obp++ = '$';
 		c2 = adj_op_size(c2);
 		val = get_value(c2, SIGNED, ABSOLUTE);
-		switch (get_nbytes(c2)) {
-		case 1:	val &= 0xFF;		break;
-		case 2:	val &= 0xFFFF;		break;
+		if (c1 == 'I') {
+			switch (get_nbytes(c2)) {
+			case 1:	val &= 0xFF;		break;
+			case 2:	val &= 0xFFFF;		break;
+			}
 		}
 		out_disp('x', SIGNED, val);
 		break;
