@@ -45,13 +45,14 @@
 #include <sys/buf.h>
 #include <canon.h>
 #include <dirent.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/io.h>
 #include <sys/mount.h>>
 #include <sys/stat.h>
+#include <sys/file.h>
 
 /*
  * Get character for `ftoi' depending on what space the characters are
@@ -321,6 +322,7 @@ iattach(dev, ino)
 			ip->i_ino = ino;
 			ip->i_refc = 1;
 			ip->i_lrt = timer.t_time;
+			ip->i_lastblock = -1;
 			if (icopydm(ip) == 0) {
 				ip->i_ino = 0;
 				ip->i_refc = 0;

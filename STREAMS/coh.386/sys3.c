@@ -19,7 +19,7 @@
 #include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <fcntl.h>
 #include <sys/fd.h>
 #include <sys/filsys.h>
@@ -28,6 +28,7 @@
 #include <sys/io.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 
 /*
  * Open the file `np' with the mode `mode'.
@@ -37,7 +38,7 @@ char *np;
 {
 	register int f;
 	register INODE *ip;
-	register int fd;
+	register fd_t fd;
 	int cflag;	/* Flag is set if we create a file.  */
 
 	cflag = 0;	/* Nothing created so far.  */
@@ -51,7 +52,7 @@ char *np;
 	 * Do it right; allocate the resources first!
 	 */
 
-	if ((fd = fdalloc ()) < 0)
+	if ((fd = fdalloc ()) == ERROR_FD)
 		return -1;
 
 
@@ -74,7 +75,7 @@ char *np;
 	}
 
 	/* Process the O_CREAT flag.  */
-	if ( oflag & O_CREAT ) {
+	if ((oflag & O_CREAT) != 0) {
 		if (ftoi(np, 'c') != 0) {
 			T_PIGGY( 0x10000,
 				printf("<open: bad ftoi(%s, 'c')>", np); );
@@ -95,7 +96,7 @@ char *np;
 			/*
 			 * Exclusive O_CREAT on existing file should fail.
 			 */
-			if ( oflag & O_EXCL ) {
+			if ((oflag & O_EXCL) != 0) {
 				idetach(ip);
 				SET_U_ERROR( EEXIST,
 					 "exclusive creat on existing file");
@@ -157,7 +158,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	 * have valid permissions on.
 	 */
 
-	if ( ip->i_flag & IFEXCL) {
+	if ((ip->i_flag & IFEXCL) != 0) {
 		idetach(ip);
 		SET_U_ERROR( EEXIST, "open: file already open O_EXCL" );
 		goto done;	/* Somebody else has an exclusive open.  */
@@ -166,7 +167,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	/*
 	 * If requesting exclusive open, fail if someone else has it open.
 	 */
-	if ( oflag & O_EXCL ) {
+	if ((oflag & O_EXCL) != 0) {
 		if (ip->i_refc != 1) {
 			idetach(ip);
 			SET_U_ERROR( EEXIST, "<open: O_EXCL but already open>" );
@@ -177,21 +178,18 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 		ip->i_flag &= IFEXCL;
 	}
 
-	if ( oflag & O_NDELAY ) {
+	if ((oflag & O_NDELAY) != 0)
 		f |= IPNDLY;
-	}
-	if ( oflag & O_APPEND ) {
+	if ((oflag & O_NONBLOCK) != 0)
+		f |= IPNONBLOCK;
+	if ((oflag & O_APPEND) != 0)
 		f |= IPAPPEND;
-	}
-	if ( oflag & O_SYNC ) {
+	if ((oflag & O_SYNC) != 0)
 		f |= IPSYNC;
-	}
-	if ( oflag & O_EXCL ) {
+	if ((oflag & O_EXCL) != 0)
 		f |= IPEXCL;
-	}
-	if ( oflag & O_NOCTTY ) {
+	if ((oflag & O_NOCTTY) != 0)
 		f |= IPNOCTTY;
-	}
 
 	if (fdinit (fd, ip, f) < 0) {
 		idetach(ip);
@@ -202,7 +200,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	}
 
 	/* If requested, truncate the file.  */
-	if ( (oflag&O_TRUNC) && ((ip->i_mode&IFPIPE)!=IFPIPE) ) {
+	if ((oflag & O_TRUNC) != 0 && ((ip->i_mode & IFPIPE) != IFPIPE)) {
 		if (0 == cflag) {	/* No need to truncate a new file.  */
 			if (iaccess(ip, IPW) != 0) {
 				iclear(ip);
@@ -219,8 +217,9 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	iunlock(ip);
 
 done:
-	return fdfinish (fd);
+	return (fd = fdfinish (fd)) == ERROR_FD ? -1 : fd;
 }
+
 
 /*
  * Create a pipe.  Notice, we must do the IPR fdopen with IPNDLY so that
@@ -231,14 +230,14 @@ upipe(fdp)
 short fdp[2];
 {
 	register INODE *ip;
-	register int fd1;
-	register int fd2;
+	register fd_t fd1;
+	register fd_t fd2;
 
 	if ((ip=pmake(0)) == NULL)
 		return;
-	if ((fd1=fdopen(ip, IPR|IPNDLY)) >= 0) {
+	if ((fd1 = fdopen (ip, IPR | IPNDLY)) != ERROR_FD) {
 		ip->i_refc++;
-		if ((fd2=fdopen(ip, IPW)) >= 0) {
+		if ((fd2 = fdopen (ip, IPW)) != ERROR_FD) {
 			iunlock(ip);
 			u.u_rval2 = fd2;
 			ufcntl(fd1, F_SETFL, 0);
@@ -315,7 +314,12 @@ int do_write;
 	u.u_io.io_seek = fdp->f_seek;
 	u.u_io.io.vbase = bp;
 	u.u_io.io_ioc  = n;
-	u.u_io.io_flag = (fdp->f_flag & IPNDLY) ? IONDLY : 0;
+	u.u_io.io_flag = 0;
+	if ((fdp->f_flag & IPNDLY) != 0)
+		u.u_io.io_flag |= IONDLY;
+	if ((fdp->f_flag & IPNONBLOCK) != 0)
+		u.u_io.io_flag |= IONONBLOCK;
+
 	if (do_write) {
 		iwrite(ip, &u.u_io);
 	} else {

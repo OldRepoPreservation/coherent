@@ -15,8 +15,10 @@
  * Coherent.
  * System calls (filesystem related).
  */
+
+#include <kernel/_sleep.h>
 #include <sys/coherent.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <fcntl.h>
 #include <sys/fd.h>
 #include <sys/ino.h>
@@ -24,6 +26,7 @@
 #include <sys/mount.h>
 #include <sys/sched.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 
 /*
  * Determine accessibility of the given file.
@@ -216,7 +219,7 @@ register int mode;
  */
 udup(ofd)
 {
-	return ufcntl(ofd, F_DUPFD, 0);
+	return fddup (ofd, 0);
 }
 
 /*
@@ -244,25 +247,25 @@ ufcntl( fd, cmd, arg )
 int fd, cmd, arg;
 {
 	register FD * fdp;
-	FLOCK sfl;
+	struct flock sfl;
 
 	T_VLAD(2, printf("fcntl(%d,%x,%x) ", fd, cmd, arg));
 
 	/*
 	 * Validate file descriptor.
 	 */
-	if ( (fd < 0) || (fd >= NOFILE) || ((fdp = u.u_filep[fd]) == 0) ) {
+	if ((fdp = fdget (fd)) == NULL) {
 		u.u_error = EBADF;
 		return;
 	}
 
-	switch ( cmd ) {
+	switch (cmd) {
 
 	case F_DUPFD:
 		/*
 		 * Validate base file descriptor.
 		 */
-		if ( (arg < 0) || (arg >= NOFILE) ) {
+		if ((arg < 0) || (arg >= NOFILE)) {
 			u.u_error = EINVAL;
 			return;
 		}
@@ -270,61 +273,62 @@ int fd, cmd, arg;
 		/*
 		 * Search for next available file descriptor.
 		 */
-		do {
-			if ( u.u_filep[arg] == 0 ) {
-				u.u_filep[arg] = fdp;
-				fdp->f_refc++;
-				return arg;
-			}
-		} while ( ++arg < NOFILE );
 
-		u.u_error = EMFILE;
-		return;
+		return fddup (fd, arg);
 
 	case F_SETFL:
-		fdp->f_flag &= ~(IPNDLY|IPAPPEND);
-		if ( arg & O_NDELAY )
+		fdp->f_flag &= ~ (IPNDLY | IPAPPEND | IPNONBLOCK);
+		if (arg & O_NDELAY)
 			fdp->f_flag |= IPNDLY;
-		if ( arg & O_APPEND )
+		if (arg & O_APPEND)
 			fdp->f_flag |= IPAPPEND;
-		/* no break */
+		if (arg & O_NONBLOCK)
+			fdp->f_flag |= IPNONBLOCK;
+
+		/*
+		 * Originally, this call returned the previous flag values,
+		 * as permitted by the various standards. However, many
+		 * programs incorrectly check for "== 0" as the return
+		 * condition from this function rather than "!= -1" as they
+		 * should.
+		 */
+		return 0;
 
 	case F_GETFL:
-		switch ( fdp->f_flag & (IPR+IPW) ) {
+		switch (fdp->f_flag & (IPR | IPW)) {
 		case IPR: arg = O_RDONLY; break;
 		case IPW: arg = O_WRONLY; break;
 		default:  arg = O_RDWR;   break;
 		}
-		if ( fdp->f_flag & IPNDLY )
+		if (fdp->f_flag & IPNDLY)
 			arg |= O_NDELAY;
-		if ( fdp->f_flag & IPAPPEND )
+		if (fdp->f_flag & IPAPPEND)
 			arg |= O_APPEND;
+		if (fdp->f_flag & IPNONBLOCK)
+			arg |= O_NONBLOCK;
 		return arg;
 
 	case F_GETLK:
 	case F_SETLK:
 	case F_SETLKW:
-		ukcopy(*(FLOCK **)&arg, &sfl, sizeof(FLOCK));
+		ukcopy(*(struct flock **)&arg, &sfl, sizeof (struct flock));
 		if (u.u_error)
 			return -1;
 		if (rlock(fdp, cmd, &sfl))
 			return -1;
 		if (cmd == F_GETLK) {
-			kucopy(&sfl, *(FLOCK **)&arg, sizeof(FLOCK));
+			kucopy(&sfl, *(struct flock **)&arg,
+			       sizeof(struct flock));
 			if (u.u_error)
 				return -1;
 		}
 		return 0;
 
 	case F_GETFD:
-		return fdp->f_flag2 & FD_CLOEXEC;
+		return fdgetflags (fd);
 
 	case F_SETFD:
-		if (arg & FD_CLOEXEC)
-			fdp->f_flag2 |= FD_CLOEXEC;
-		else
-			fdp->f_flag2 &= ~FD_CLOEXEC;
-		return 0;
+		return fdsetflags (fd, arg);
 
 	default:
 		T_VLAD(0x02,
@@ -673,21 +677,29 @@ remember:
 		/*
 		 * Wake for polled event, poll timeout, or signal.
 		 */
-		x_sleep(&cprocp->p_polls, pritty, slpriSigCatch, "poll");
-		/* Wakeup for polled event, poll timeout, or signal.  */
 
-		/*
-		 * Terminate event monitoring.
-		 */
-		pollexit();
+		{
+			__sleep_t	sleep;
 
-		/*
-		 * Signal woke us up.
-		 */
-		if (nondsig()) {
-			u.u_error = EINTR;
-			goto poll_done;
+			sleep = x_sleep (& cprocp->p_polls, pritty,
+					 slpriSigCatch, "poll");
+
+			/*
+			 * Terminate event monitoring.
+			 */
+
+			pollexit();
+
+			/*
+			 * Signal woke us up.
+			 */
+
+			if (sleep == PROCESS_SIGNALLED) {
+				u.u_error = EINTR;
+				goto poll_done;
+			}
 		}
+
 		/*
  		 * We were woken up by timeout wakeup.
  		 */
@@ -736,7 +748,8 @@ int msec;
 	 * Wake for timeout or signal.
 	 */
 	lbolt0 = lbolt;
-	if (x_sleep(&cprocp->p_polls, pritty, slpriSigCatch, "nap")) {
+	if (x_sleep (& cprocp->p_polls, pritty, slpriSigCatch,
+		     "nap") == PROCESS_SIGNALLED) {
 		/*
 		 * Signal woke us up.
 		 */
