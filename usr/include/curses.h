@@ -25,11 +25,11 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.4 93/01/06 09:21:57 bin Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.5 93/02/02 18:18:07 bin Exp Locker: bin $
  *
  *  $Log:	curses.h,v $
- * Revision 1.4  93/01/06  09:21:57  bin
- * vlad: update from Udo
+ * Revision 1.5  93/02/02  18:18:07  bin
+ * Udo update, added color code
  * 
  * Revision 2.2  92/10/25  22:36:15  munk
  * Several changes to make it more SV.3 compatible
@@ -158,14 +158,14 @@ struct  screen  *newterm(), *set_term();
 #  define mvwgetch(win,y,x)       (wmove(win,y,x) == ERR ? ERR : wgetch(win))
 #  define mvwaddstr(win,y,x,str)  (wmove(win,y,x) == ERR ? ERR \
 							 : waddstr(win,str))
-#  define mvwgetstr(win,y,x, str) (wmove(win,y,x) == ERR ? ERR : wgetstr(win, str))
+#  define mvwgetstr(win,y,x,str)  (wmove(win,y,x) == ERR ? ERR : wgetstr(win,str))
 #  define mvwinch(win,y,x)        (wmove(win,y,x) == ERR ? ERR : winch(win))
 #  define mvwdelch(win,y,x)       (wmove(win,y,x) == ERR ? ERR : wdelch(win))
 #  define mvwinsch(win,y,x,c)     (wmove(win,y,x) == ERR ? ERR : winsch(win,c))
 #  define mvaddch(y,x,ch)         mvwaddch(stdscr,y,x,ch)
 #  define mvgetch(y,x)            mvwgetch(stdscr,y,x)
 #  define mvaddstr(y,x,str)       mvwaddstr(stdscr,y,x,str)
-#  define mvgetstr(y,x, str)      mvwgetstr(stdscr,y,x, str)
+#  define mvgetstr(y,x,str)       mvwgetstr(stdscr,y,x,str)
 #  define mvinch(y,x)             mvwinch(stdscr,y,x)
 #  define mvdelch(y,x)            mvwdelch(stdscr,y,x)
 #  define mvinsch(y,x,c)          mvwinsch(stdscr,y,x,c)
