@@ -1,8 +1,10 @@
 /*
+ * n0/init.c
  * C compiler.
  * Initializers.
- * (All storage classes).
+ * All storage classes.
  */
+
 #ifdef   vax
 #include "INC$LIB:cc0.h"
 #else
@@ -122,14 +124,11 @@ again:
  * this is necessary for the call to build() in iassign()
  * to do the correct things.
  */
-sinit(sp, bo)
-SYM	*sp;
-sizeof_t bo;
+sinit(sp, bo) SYM *sp; sizeof_t bo;
 {
 	register SYM	*mp;
 	register INFO	*ip;
-	register int	n;
-	int		brace, c, t, f;
+	int		n, brace, c, t, f, bfflag;
 	sizeof_t	mo, lo;
 	SYM		sym;
 
@@ -149,6 +148,7 @@ sizeof_t bo;
 	}
 	lo = n = f = 0;
 	while (s != RBRACE) {
+		bfflag = 0;
 		if (n >= ip->i_nsp) {
 			if (f == 0) {
 				cerror("too many structure initializers");
@@ -163,19 +163,24 @@ sizeof_t bo;
 			sym.s_dp   = mp->s_dp;
 			sym.s_ip   = mp->s_ip;
 			mo = mp->s_value;
-			if (mp->s_width != 0)
-				cerror("cannot initialize fields");
 			if (!isauto(&sym) && lo!=mo) {
+				/* Output BLOCK item for padding. */
 				bput(BLOCK);
 				zput(mo-lo);
 				lo = mo;
 			}
+			if (mp->s_width != 0)		/* bitfield initializer */
+				bfflag = bfinit(&sym, mp, ip, &n, bo+mo);
 		}
-		init(&sym, sym.s_dp, bo+mo, 0);
+		if (!bfflag)
+			init(&sym, sym.s_dp, bo+mo, 0);
 		lo += ssize(&sym);
-		if (s != COMMA || (n>=ip->i_nsp && !brace))
+		if (bfflag != 2 && s != COMMA)
 			break;
-		itrail();
+		if (n >= ip->i_nsp && !brace)
+			break;
+		if (bfflag != 2)
+			itrail();	/* skip COMMA, check for RBRACE */
 	}
 	if (brace)
 		mustbe(RBRACE);
@@ -232,21 +237,19 @@ iskip()
  * for the initialization item.
  * Registers are considered auto.
  */
-isauto(sp)
-register SYM	*sp;
+int
+isauto(sp) register SYM *sp;
 {
-	register int	c;
+	register int c;
 
 	c = sp->s_class;
-	if (c==C_AUTO || c==C_PAUTO || c==C_REG)
-		return (1);
-	return (0);
+	return (c==C_AUTO || c==C_PAUTO || c==C_REG);
 }
 
 /*
  * This routine actually performs the initialization.
- * Either an assignment node is built up and evaluated for effect,
- * or an initialization tree is output.
+ * Either an build an assignment node and evaluate it for effect,
+ * or output an initialization tree.
  */
 icollect(tp, bo, sp, dp)
 register TREE	*tp;
@@ -290,3 +293,65 @@ DIM		*dp;
 	tp = build(ASSIGN, ip, tp);
 	tput(EEXPR, 0, tp);
 }
+
+/*
+ * Collect one or more bitfield initializers.
+ * Each bitfield initializer must be an integer constant.
+ * Multiple bitfield initializers get output as a single initialization item:
+ * look for more initializers if the next
+ * structure member is another bitfield at the same offset (s_value).
+ * This may or may not need to look ahead to the next initializer,
+ * so it returns 1 if it has not read COMMA, 2 if it has read the COMMA.
+ */
+int
+bfinit(sp, mp, ip, np, off) SYM *sp; register SYM *mp; INFO *ip; register int *np; sizeof_t off;
+{
+	register unsigned long val, mval, mask;
+	int status;
+
+	for (val = (unsigned long)0; ; ) {
+
+		status = 1;			/* COMMA not read yet */
+
+		/* Widen the initialized symbol base type if necessary. */
+		if (ssize(sp) < ssize(mp))
+			sp->s_type = mp->s_type;
+
+		/* Grab the initializer value. */
+		++ininit;
+		mval = iconexpr();
+		--ininit;
+
+		/* Make sure the initializer is appropriate. */
+		mask = (((unsigned long)1) << mp->s_width) - 1;
+		if ((mval & ~mask) != (unsigned long)0 && (mval & ~mask) != ~mask)
+			cwarn("bitfield initializer out of range");
+		mval &= mask;			/* mask value to bitfield width */
+
+		/* Build up the initializer in val. */
+		val |= (mval << mp->s_offset);	/* put value in the right place */
+
+		/* Check whether more bitfield initializers follow. */
+		if (s != COMMA)			/* no more initializers */
+			break;
+		itrail();			/* skip COMMA */
+		++status;			/* COMMA has been read */
+		if (s == LBRACE || s == RBRACE	/* { or }, no more bitfield inits */
+		 || *np >= ip->i_nsp		/* no more members */
+		 || ip->i_sp[*np]->s_width==0	/* next not a bitfield */
+		 || ip->i_sp[*np]->s_value != mp->s_value)	/* next at different value */
+			break;
+		mp = ip->i_sp[(*np)++];		/* repeat for next bitfield */
+	}
+
+	/*
+	 * Output the bitfield initializer built up in val.
+	 * FIX_ME The initializer value collected in unsigned long 'val'
+	 * is passed to icollect() as bicon((ival_t)val),
+	 * this does not seem not quite right.
+	 */
+	icollect(bicon((ival_t)val), off, sp, NULL);
+	return status;
+}
+
+/* end of n0/init.c */
