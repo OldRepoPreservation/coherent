@@ -21,7 +21,10 @@ static char version[] =	"patch version 2.6 for COHERENT v.4.0";
  * Certain hot patches may not be effective, since some values are only
  * referenced once at system initialization.
  *
- * $Log:	/newbits/conf/patch/patch.c,v $
+ * $Log:	patch.c,v $
+ * Revision 1.5  92/07/06  15:41:09  bin
+ * piggy: all hex numbers have leading zeroes to indicate their length
+ * 
  * Revision 1.1	91/04/24  14:20:20 	bin
  * Initial revision
  * 
@@ -40,7 +43,7 @@ char helpmessage[] = "\
 Options:\n\
 	-v	Verbose mode--print what's being done.\n\
 	-p	Peek only--do not write.\n\
-	-k	Patch running system via /dev/kmem.\n\
+	-k	Patch running system via /dev/kmem, /dev/kmemhi.\n\
 	-K	Like -k but do not alter imagename.\n\
 Patch alters the value of 'symbol' to 'value' in the binary 'imagename'.\n\
 Both 'symbol' and 'value' may be composed of a decimal numeric constant\n\
@@ -76,7 +79,7 @@ PLIST pl[NNLS];
 
 char *namep;		/* Name of object file to patch.  */
 int nobin = 0;		/* Should we not patch the image?  */
-int hotpatch = 0;	/* Are we patching /dev/kmem?  */
+int hotpatch = 0;	/* Are we patching /dev/kmem,/dev/kmemhi?  */
 int verbose = 0;	/* Are we printing feedback?  */
 int peek = 0;		/* Just peek--don't actually do the patch.  */
 
@@ -386,31 +389,56 @@ void
 setkmem(n)
 	int n;
 {
-	int u;
+	int fdlo, fdhi;
 	register int i;
 	char *symname;	/* Name of symbol in LHS being patched.  */
 
 	/* Open up live memory for patching.  */
 	if (peek) {
-		if ((u=open("/dev/kmem", O_RDONLY)) < 0) {
+		if ((fdlo=open("/dev/kmem", O_RDONLY)) < 0) {
 			fprintf(stderr, "Cannot open /dev/kmem for reading.\n");
 			return;
 		}
+		if ((fdhi=open("/dev/kmemhi", O_RDONLY)) < 0) {
+			fprintf(stderr, "Cannot open /dev/kmemhi for reading.\n");
+			return;
+		}
 	} else {
-		if ((u=open("/dev/kmem", O_RDWR)) < 0) {
+		if ((fdlo=open("/dev/kmem", O_RDWR)) < 0) {
 			fprintf(stderr, "Cannot open /dev/kmem.\n");
+			return;
+		}
+		if ((fdhi=open("/dev/kmemhi", O_RDWR)) < 0) {
+			fprintf(stderr, "Cannot open /dev/kmemhi.\n");
 			return;
 		}
 	}
 
 	/* Walk through pl[] blasting the new values into live memory.  */
 	for (i = 0; i < n; i += 1) {
-		lseek(u, pl[i].p_lval, 0);
+		int seekOffset = pl[i].p_lval;
 		symname = &(symbols[pl[i].p_lvnp->n_offset - sizeof(long)]);
-		if (patch(u, &pl[i], "/dev/kmem", symname) < 0)
-			fprintf(stderr, "Write error in /dev/kmem\n");
+
+		if ((seekOffset & 0x80000000) == 0) {
+			if(lseek(fdlo, seekOffset, 0) != -1L) {
+				if (patch(fdlo, &pl[i], "/dev/kmem",
+				  symname) < 0)
+					fprintf(stderr,
+					  "Write error in /dev/kmem\n");
+			} else
+				fprintf(stderr, "Seek error in /dev/kmem\n");
+		} else {
+			if(lseek(fdhi, seekOffset-0x80000000, 0) != -1L) {
+				if (patch(fdhi, &pl[i], "/dev/kmemhi",
+				  symname) < 0)
+					fprintf(stderr,
+					  "Write error in /dev/kmemhi\n");
+			} else
+				fprintf(stderr, "Seek error in /dev/kmemhi\n");
+		}
 	}
-	close(u);
+	close(fdlo);
+	close(fdhi);
 }
 
 
