@@ -1,6 +1,6 @@
 /*
  * prps.c
- * 2/14/91
+ * 6/26/91
  * Produce PostScript pages containing input files.
  * By default, each page has a header line and text enclosed in a box.
  * See usage() for usage and options.
@@ -13,12 +13,13 @@
 #endif
 
 /* Manifest constants. */
-#define	VERSION		"1.6"
+#define	VERSION		"1.7"
 #define	DEFFONT		"Courier"	/* default font			*/
 #define	DEFFONTB	"-Bold"		/* default boldface font suffix	*/
 #define	DEFFONTI	"-Oblique"	/* default italic font suffix	*/
 #define	DEFFONTR	""		/* default Roman font suffix	*/
 #define	DEFPTSIZE	10		/* default point size		*/
+#define	DEFPTSIZEL2	8		/* default point size with -l2	*/
 #define	DEFTAB		8		/* default tab setting		*/
 #define	NBUF		512		/* buffer size			*/
 #define	PAGEDX		8.5		/* page width			*/
@@ -42,7 +43,7 @@ int	bflag;				/* Suppress box.		*/
 char	buf[NBUF];			/* Input buffer.		*/
 char	buf2[NBUF];			/* Buffer for PSstring.		*/
 char	buf3[NBUF];			/* Buffer for printline.	*/
-char	curfont = 'R';			/* Current font ('R','B','I').	*/
+char	curfont;			/* Current font ('R','B','I').	*/
 char	*fontname = DEFFONT;		/* Font name.			*/
 char	*fontBsuffix = DEFFONTB;	/* Boldace font suffix.		*/
 char	*fontIsuffix = DEFFONTI;	/* Italic font suffix.		*/
@@ -76,9 +77,9 @@ struct	pformat {
 	double	p_textdy;		/* text height	*/
 } format[3] = {
       /*  boxx boxy  boxdx boxdy  hdry   textx textdy */
-	{ .75, .50,  7.250, 9.5, 10.250, 1.000, 9.00 },
-	{ .50, .50, 10.000, 7.0,  7.750,  .750, 6.50 },
-	{ .25, .25,  5.125, 7.5,  7.875,  .375, 7.25 }
+	{ .75, .50,  7.250, 9.750, 10.500, 1.000, 9.175 },
+	{ .50, .50, 10.000, 7.125,  7.875,  .750, 6.750 },
+	{ .25, .25,  5.125, 7.500,  7.950,  .375, 7.400 }
 };
 
 main(argc, argv) int argc; char *argv[];
@@ -234,11 +235,11 @@ file(name) char *name;
 				printf("%chpage\n", (rhpage) ? 'r' : 'l');
 			else
 				printf("startpage\n");
+			curfont = 'R';		/* startpage sets Roman */
 		}
 		printline();
 		if (line == nlines) {
 			/* End of page. */
-			curfont = 'R';		/* grestore restores Roman */
 			if (lflag == 2 && !rhpage != 0)
 				putchar('\n');
 			else
@@ -347,8 +348,8 @@ init()
 
 	/* Determine the point size and text lines per page. */
 	/* lines = inches * points/inch / points/line */
-	if (ptsize == 0 && nlines == 0)
-		ptsize = DEFPTSIZE;		/* neither specified */
+	if (ptsize == 0 && nlines == 0)		/* neither specified */
+		ptsize = (lflag == 2) ? DEFPTSIZEL2 : DEFPTSIZE;
 	else if (ptsize == 0)			/* nlines specified */
 		ptsize = p->p_textdy * 72 / nlines;
 	else if (nlines != 0) {			/* both specified */
@@ -370,12 +371,21 @@ init()
 	printf(
 		"%% Global definitions.\n"
 		"/state save def\n"
-		"/FS {findfont exch scalefont} bind def\n"
+		"/FS { findfont ptsize scalefont } bind def\n"
 		"/S { show } bind def\n"
 		);
-	printf("/fontR %d /%s%s FS def\n", ptsize, fontname, fontRsuffix);
-	printf("/fontB %d /%s%s FS def\n", ptsize, fontname, fontBsuffix);
-	printf("/fontI %d /%s%s FS def\n", ptsize, fontname, fontIsuffix);
+	printf("/ptsize %d def\n", ptsize);
+	printf("/fontH /%s findfont %d scalefont def\n",
+		DEFFONT, (lflag==2) ? DEFPTSIZEL2 : DEFPTSIZE);
+	printf("/fontR /%s%s FS def\n", fontname, fontRsuffix);
+	printf("/fontB /%s%s FS def\n", fontname, fontBsuffix);
+	printf("/fontI /%s%s FS def\n", fontname, fontIsuffix);
+	printf(
+		"/fH {fontH setfont} bind def\n"
+		"/fR {fontR setfont} bind def\n"
+		"/fB {fontB setfont} bind def\n"
+		"/fI {fontI setfont} bind def\n"
+		);
 	putchar('\n');
 
 	/* PostScript routines. */
@@ -396,22 +406,18 @@ init()
 			"} bind def\n"
 			);
 	printf("/endpage {grestore showpage} bind def\n");
-	printf(
-		"/fR {fontR setfont} bind def\n"
-		"/fB {fontB setfont} bind def\n"
-		"/fI {fontI setfont} bind def\n"
-		);
 	if (!hflag) {
 		printf(
 			"/hdr\t%% Uses hdrname, hdrdate, hdrpage.\n"
 			"{\n"
 			"\tgsave\n"
+			"\tfH\n"
 			);
 		printf("\t%d %d translate 0 0 moveto\n",
 			inch(hdrx), inch(p->p_hdry));
 		printf("\thdrname S\n");
-		printf("\t%d hdrdate stringwidth pop 2 div sub 0 moveto\n",
-			inch(hdrdx/2));
+		printf("\t%d hdrdate stringwidth pop 2 div sub %d neg moveto\n",
+			inch(hdrdx/2), (lflag==2) ? DEFPTSIZEL2 : DEFPTSIZE);
 		printf("\thdrdate S\n");
 		printf("\t%d hdrpage stringwidth pop sub 0 moveto\n",
 			inch(hdrdx));
@@ -449,8 +455,8 @@ init()
 		inch(p->p_textx),
 		(indent) ? " indent add" : "",
 		inch(texty) - ptsize);
-	printf("\t0 0 moveto\n} bind def\n");
-	printf("\n%% Text.\nfR\n");
+	printf("\t0 0 moveto\n\tfR\n} bind def\n");
+	printf("\n%% Text.\n");
 }
 
 /*
