@@ -3,6 +3,9 @@
 / I/O for Seagate ST01/ST02 SCSI Host Adapters.
 /
 / $Log:	/usr/src/sys/i8086/drv/RCS/ssas.s,v $
+/ Revision 1.5	91/05/20  17:22:03	root
+/ Not using ss_put() any more.
+/ 
 / Revision 1.4	91/05/20  16:21:35	root
 / Call to ss_putc() now works.
 / 
@@ -29,8 +32,8 @@
 /	Export functions.
 /
 ////////
-	.globl	ss_get_
-/	.globl	ss_put_
+	.globl	ss_getb_
+	.globl	ss_putb_
 
 ////////
 /
@@ -54,12 +57,13 @@
 
 ////////
 /
-/ ss_get(ss_dat_fp, buf_fp)
+/ ss_getb(ss_dat_fp, buf_fp)
 / faddr_t ss_dat_fp, buf_fp;
 /
 / Fetch input bytes from host adapter and store at buffer address.
-/ (Also used conversely - this routine should be called "ff_bcopy()"
-/ for "far-to-far block copy".)
+/
+/ Do REQ handshaking and return the number of bytes remaining to transfer.
+/ (So return value of 0 means no error.)
 /
 / Here is the stack after initial "push bp":
 /
@@ -72,7 +76,7 @@
 /
 ////////
 
-ss_get_:
+ss_getb_:
 	push	bp
 	mov	bp, sp
 	push	es
@@ -80,11 +84,27 @@ ss_get_:
 	push	ds
 	push	si
 
-	lds	si, 4(bp)	/ ss_dat_fp  to DS:SI
+	lds	si, 4(bp)	/ ss_dat_fp to DS:SI
+	mov	bx, si		/ .. and to DS:BX
+	sub	bx, $CSR_OFF	/ ss_csr to DS:BX
 	les	di, 8(bp)	/ buf_fp to ES:DI
 	mov	cx, $BSIZE	/ rep count to CX
-	rep
+
+G01:				/ start outer loop - reading bytes from SCSI
+	mov	ax, $REQ_LIM	/ max # of times to look for REQ
+G02:				/ start inner loop - polling for REQ
+	movb	dl, (bx)
+	testb	dl, $RS_REQUEST
+	jne	G03		/ got REQ
+	dec	ax
+	jnz	G02		/ no REQ - look again
+	jmp	G04		/ no REQ - give up
+
+G03:				/ got REQ - ok to read a byte
 	movsb
+	loop	G01
+G04:				/ all done
+	mov	ax, cx		/ normal exit returns 0
 
 	pop	si
 	pop	ds
@@ -93,11 +113,9 @@ ss_get_:
 	pop	bp
 	ret
 
-/ THE FOLLOWING ROUTINE APPEARS TO BE UNNECESSARY, SO IS COMMENTED OUT.
-
 ////////
 /
-/ int ss_put(ss_dat_fp, buf_fp)
+/ int ss_putb(ss_dat_fp, buf_fp)
 / faddr_t ss_dat_fp, buf_fp;
 /
 / Write output bytes to host adapter from buffer address.
@@ -115,37 +133,37 @@ ss_get_:
 /
 ////////
 
-/ss_put_:
-/	push	bp
-/	mov	bp, sp
-/	push	es
-/	push	di
-/	push	ds
-/	push	si 
-/	lds	si, 8(bp)	/ buf_fp to DS:SI
-/	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
-/	mov	bx, di		/ .. and to ES:BX
-/	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
-/	mov	cx, $BSIZE	/ count to CX
-/
-/P01:				/ start outer loop - writing bytes to SCSI
-/	mov	ax, $REQ_LIM	/ max # of times to look for REQ
-/P02:				/ start inner loop - polling for REQ
-/	movb	dl, es:(bx)
-/	testb	dl, $RS_REQUEST
-/	jne	P03
-/	dec	ax
-/	jnz	P02
-/	jmp	P04
-/
-/P03:				/ got REQ - ok to write a byte
-/	movsb
-/	loop	P01
-/P04:				/ all done - now restore registers
-/	mov	ax, cx
-/	pop	si
-/	pop	ds
-/	pop	di
-/	pop	es
-/	pop	bp
-/	ret
+ss_putb_:
+	push	bp
+	mov	bp, sp
+	push	es
+	push	di
+	push	ds
+	push	si 
+	lds	si, 8(bp)	/ buf_fp to DS:SI
+	les	di, 4(bp)	/ ss_dat_fp  to ES:DI
+	mov	bx, di		/ .. and to ES:BX
+	sub	bx, $CSR_OFF	/ ss_csr to ES:BX
+	mov	cx, $BSIZE	/ count to CX
+
+P01:				/ start outer loop - writing bytes to SCSI
+	mov	ax, $REQ_LIM	/ max # of times to look for REQ
+P02:				/ start inner loop - polling for REQ
+	movb	dl, es:(bx)
+	testb	dl, $RS_REQUEST
+	jne	P03		/ got REQ
+	dec	ax
+	jnz	P02		/ no REQ - look again
+	jmp	P04		/ no REQ - give up
+
+P03:				/ got REQ - ok to write a byte
+	movsb
+	loop	P01
+P04:				/ all done - now restore registers
+	mov	ax, cx
+	pop	si
+	pop	ds
+	pop	di
+	pop	es
+	pop	bp
+	ret
