@@ -23,7 +23,7 @@ static	int	eosflag;		/* for pgetc/pungetc */
  */
 static	int	*xallrp;		/* Running pointer for xalloc */
 static	int	*xallep;		/* End pointer for xfree */
-char *
+CHAR *
 xalloc(size)
 register unsigned size;
 {
@@ -31,7 +31,7 @@ register unsigned size;
 
 	if ((rp = (int *)malloc(size)) == NULL)
 		awkerr("Out of memory");
-	return ((char *)rp);
+	return ((CHAR *)rp);
 }
 
 /*
@@ -83,7 +83,7 @@ int op, c;
  */
 NODE *
 snode(s, type)
-register char *s;
+register CHAR *s;
 int type;
 {
 	register NODE *np;
@@ -177,7 +177,7 @@ register NODE *np;
 isfloat(np)
 register NODE *np;
 {
-	register char *cp;
+	register CHAR *cp;
 	register int isfloat = 0, sawDigit = 0;
 
 	if (np->t_flag & T_NUM)
@@ -225,8 +225,18 @@ pgetc()
 			eosflag = 1;
 			return ('\n');
 		}
-	} else
-		c = getc(pfp);
+	} else {
+		while ((c = getc(pfp)) == '\\') {
+			if ((c = getc(pfp)) != '\n') {
+				ungetc(c, pfp);
+				return ('\\');
+			}
+			/* bypass \ newline */
+			if (lineno == 0)
+				lineno++;
+			lineno++;
+		}
+	}
 	if (c == '\n') {
 		if (lineno == 0)
 			lineno++;
@@ -240,7 +250,7 @@ pgetc()
  * lexical analyser to read.
  */
 pgetinit(s)
-char *s;
+CHAR *s;
 {
 	parg = s;
 	eosflag = 0;

@@ -11,7 +11,7 @@
 
 YYSTYPE	yylval;
 
-char	*readclass();
+CHAR	*readclass();
 NODE	*instring();
 NODE	*innumber();
 
@@ -20,13 +20,13 @@ NODE	*innumber();
  */
 main(argc, argv)
 int argc;
-char *argv[];
+CHAR *argv[];
 {
 	register int i;
-	register char *ap;
+	register CHAR *ap;
 	register FILE *fp;
-	register char *prog = NULL;
-	register char *progfile;
+	register CHAR *prog = NULL;
+	register CHAR *progfile;
 	NODE *yyparse();
 
 	awkinit();
@@ -107,9 +107,9 @@ char *argv[];
  * is properly reset.
  */
 parameter(s)
-char *s;
+CHAR *s;
 {
-	register char *cp;
+	register CHAR *cp;
 	register int c;
 	NODE *left, *right;
 
@@ -177,7 +177,7 @@ yylex()
 {
 	static int nlf = 1;
 	static int prev, next;
-	register char *cp;
+	register CHAR *cp;
 	register int c;
 	register int t;
 	register NODE *np;
@@ -412,10 +412,10 @@ int nc;
  * Read in a character class from
  * a regular expression (called from relex).
  */
-char *
+CHAR *
 readclass()
 {
-	register char *cc;
+	register CHAR *cc;
 	register c, i, pc;
 	int comp;
 
@@ -458,7 +458,7 @@ NODE *
 instring(ec)
 register int ec;
 {
-	register char *cp;
+	register CHAR *cp;
 	register int c;
 	register int octal, nc;
 
@@ -510,7 +510,7 @@ register int ec;
 		}
 	}
 	*cp = '\0';
-	cp = xalloc(strlen(wordbuf)+sizeof(char));
+	cp = xalloc(strlen(wordbuf)+sizeof(CHAR));
 	strcpy(cp, wordbuf);
 	return (snode(cp, T_ALLOC));
 }
@@ -523,7 +523,7 @@ NODE *
 innumber(c)
 register int c;
 {
-	register char *np;
+	register CHAR *np;
 	register int floatflag = 0;
 
 	np = wordbuf;

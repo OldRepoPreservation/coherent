@@ -6,9 +6,9 @@
 #include "awk.h"
 #include "y.tab.h"
 
-static	char	*sb;		/* String beginning -- evalre */
-static	char	toodeep[] = "For/while nesting too deep";
-char	*reexec();
+static	CHAR	*sb;		/* String beginning -- evalre */
+static	CHAR	toodeep[] = "For/while nesting too deep";
+CHAR	*reexec();
 
 /*
  * Called for each input file
@@ -20,9 +20,9 @@ char	*reexec();
 awk(np, fp, fn)
 register NODE *np;
 register FILE *fp;
-char *fn;
+CHAR *fn;
 {
-	char ibuf[MAXRECORD];
+	CHAR ibuf[MAXRECORD];
 
 	sassign(FILENAMEp, fn);
 	if (fp == NULL) {
@@ -53,11 +53,12 @@ unsigned lim;
 register FILE *fp;
 {
 	register int c;
-	register unsigned char *s;
+	register CHAR *s;
 	register int rs;
 	register STRING ret;
 	register int nf = 0;
 	register int spcflag = 0;
+	extern int whitesw;
 
 	if ((rs = RS[0]) == '\0') {
 		rs = '\n';
@@ -76,7 +77,7 @@ register FILE *fp;
 	ret = c==EOF && s==as ? NULL : as;
 	s = as;
 	for (;;) {
-		if (whitesw)
+		if(whitesw)
 			while (FSMAP[*s])
 				s++;
 		else
@@ -382,11 +383,11 @@ register NODE *np;
  * Evaluate an expression and
  * return the resultant string.
  */
-char *
+CHAR *
 evalstring(np)
 register NODE *np;
 {
-	static char numbuf[100];
+	static CHAR numbuf[100];
 
 	np = evalexpr(np);
 	if (np->n_flag & T_NUM) {
@@ -439,7 +440,7 @@ register NODE *np;
  */
 evalre(np, s)
 register NODE *np;
-register char *s;
+register CHAR *s;
 {
 	sb = s;
 	if (np!=NULL && np->n_op==ARBOL)
@@ -456,13 +457,13 @@ register char *s;
  * Internal regular expression
  * execution routines
  */
-char *
+CHAR *
 reexec(np, s)
 register NODE *np;
-register char *s;
+register CHAR *s;
 {
 	register c;
-	register char *ss, *es;
+	register CHAR *ss, *es;
 
 	for ( ; np != NULL; np = np->n_O3)
 		switch (np->n_op) {

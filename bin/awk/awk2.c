@@ -14,9 +14,9 @@ void	funcenter();
 
 typedef	struct	FUNC {
 	int	(*f_funcp)();
-	char	*f_name;
-	char	f_minarg;		/* Minimum number of arguments */
-	char	f_maxarg;		/* Maximum # args (-1 = variable) */
+	CHAR	*f_name;
+	CHAR	f_minarg;		/* Minimum number of arguments */
+	CHAR	f_maxarg;		/* Maximum # args (-1 = variable) */
 }	FUNC;
 
 FUNC	functions[] = {
@@ -34,7 +34,7 @@ FUNC	functions[] = {
 
 typedef	struct	KEYW	{
 	int	k_lval;
-	char	*k_name;
+	CHAR	*k_name;
 }	KEYW;
 
 KEYW	keywords[] = {
@@ -98,7 +98,7 @@ awkinit()
 	NRp = install("NR", (INT)0);
 	NFp = install("NF", (INT)0);
 	FILENAMEp = lookup("FILENAME");
-	sassign(FSp = install("FS", (INT)0), " \t\n");
+	sassign(FSp = install("FS", (INT)0), " \t");
 	sassign(RSp = install("RS", (INT)0), "\n");
 	sassign(OFSp = install("OFS", (INT)0), " ");
 	sassign(ORSp = install("ORS", (INT)0), "\n");
@@ -115,15 +115,15 @@ awkinit()
  */
 NODE *
 lookup(id)
-char *id;
+CHAR *id;
 {
-	register char *ip;
+	register CHAR *ip;
 	register TERM *tp;
 	register unsigned hash;
 	register unsigned nb;
 
 	hash = 0;
-	nb = sizeof (char);
+	nb = sizeof (CHAR);
 	for (ip = id; *ip != '\0'; hash++, nb++)
 		hash += *ip++;
 	for (tp = symtab[hash%NHASH]; tp != NULL; tp = tp->t_next)
@@ -132,7 +132,7 @@ char *id;
 			return (tp);
 	tp = (TERM *)xalloc(sizeof(NODE) + nb);
 	strcpy(tp->t_name, id);
-	tp->t_STRING = xalloc(sizeof(char));
+	tp->t_STRING = xalloc(sizeof(CHAR));
 	tp->t_STRING[0] = '\0';
 	tp->t_op = ATERM;
 	tp->t_flag = T_VAR|T_ALLOC;
@@ -153,17 +153,17 @@ char *id;
  */
 NODE *
 alookup(array, index)
-char *array;
-char *index;
+CHAR *array;
+CHAR *index;
 {
-	register char *ip;
+	register CHAR *ip;
 	register TERM *tp;
 	register unsigned hash;
 	register unsigned nba, nbi;
 	register unsigned hash2;
 
 	hash = 0;
-	nba = nbi = sizeof (char);
+	nba = nbi = sizeof (CHAR);
 	for (ip = array; *ip != '\0'; hash++, nba++)
 		hash += *ip++;
 	hash2 = hash;
@@ -176,7 +176,7 @@ char *index;
 	tp = (TERM *)xalloc(sizeof(NODE) + nba + nbi);
 	strcpy(tp->t_name, array);
 	strcpy(tp->t_name+nba, index);
-	tp->t_STRING = xalloc(sizeof(char));
+	tp->t_STRING = xalloc(sizeof(CHAR));
 	tp->t_STRING[0] = '\0';
 	tp->t_op = ATERM;
 	tp->t_flag = T_ARRAY|T_ALLOC;
@@ -193,7 +193,7 @@ char *index;
  */
 NODE *
 install(id, val)
-char *id;
+CHAR *id;
 INT val;
 {
 	register NODE *np;
@@ -212,16 +212,16 @@ INT val;
  */
 void
 keyenter(word, lval)
-char *word;
+CHAR *word;
 int lval;
 {
-	register char *ip;
+	register CHAR *ip;
 	register unsigned hash;
 	register TERM *tp;
 	register int nb;
 
 	hash = 0;
-	nb = sizeof (char);
+	nb = sizeof (CHAR);
 	for (ip = word; *ip != '\0'; hash++, nb++)
 		hash += *ip++;
 	tp = (TERM *)xalloc(nb + sizeof(TERM));
@@ -242,17 +242,17 @@ int lval;
  */
 void
 funcenter(name, fun, min, max)
-char *name;
+CHAR *name;
 int (*fun)();
 int min, max;
 {
-	register char *np;
+	register CHAR *np;
 	register unsigned hash;
 	register TERM *tp;
 	register unsigned nb;
 
 	hash = 0;
-	nb = sizeof (char);
+	nb = sizeof (CHAR);
 	for (np = name; *np != '\0'; hash++, nb++)
 		hash += *np++;
 	tp = (TERM *)xalloc(nb + sizeof(TERM));
@@ -306,10 +306,12 @@ INT i;
  * buffer is disturbed.
  */
 fsmapinit(fsp)
-register char *fsp;
+register CHAR *fsp;
 {
-	register char *cp;
+	register CHAR *cp;
+	extern int whitesw;
 
+	whitesw = !strcmp(fsp, " \t");
 	for (cp = FSMAP; cp < &FSMAP[NCSET]; )
 		*cp++ = 0;
 	while (*fsp != '\0')
