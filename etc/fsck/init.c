@@ -154,6 +154,12 @@ alloctables()
 #if SMALLMODEL
 	initV(numl, numl, num, num); /* virtual allocation */
 #else
+	if (NULL != linkPtr) {
+		free(linkPtr);
+		free(flagPtr);
+		free(blockPtr);
+		free(dupPtr);
+	}
 	linkPtr = calloc(numl, 1);
 	flagPtr = calloc(numl, 1);
 	blockPtr = calloc(num, 1);

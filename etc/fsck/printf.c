@@ -7,9 +7,6 @@
  *    be held in an exact number of ints.
  */
 #include "fsck.h"
-#if SMALLMODEL
-#define NULL ((char *)0)
-#define putchar(c) { char b = c; write(1, &b, 1); }
 #include <sys/mdata.h>
 
 union	alltypes {
@@ -234,4 +231,3 @@ register b;
 		*cp++ = *ep++;
 	return (cp);
 }
-#endif
