@@ -1,6 +1,6 @@
 /*
  * Floating point output conversion routines for 'printf'.
- * Conditionalized #if NDP to do 8087 conversion.
+ * Conditionalized #if _IEEE to do 80x87 conversion.
  */
 
 #include <math.h>
@@ -11,7 +11,7 @@ extern	double	frexp();
 extern	double	modf();
 extern	double	_pow10();
 
-#if	NDP
+#if	_IEEE
 #include <stdio.h>
 
 extern	char	*strcpy();
@@ -61,8 +61,8 @@ register char	*buf;
 	double		d;
 
 	d = *dp;
-#if	NDP
-	/* Print given string if 8087 format is special. */
+#if	_IEEE
+	/* Print given string if 80x87 format is special. */
 	if ((cp=fxamsg[_fxam(d)]) != NULL) {
 		strcpy(buf, cp);
 		return(buf + strlen(buf));
