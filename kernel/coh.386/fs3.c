@@ -59,9 +59,19 @@ register INODE *ip;
 		ilock(ip);
 		break;
 	case IFDIR:
-		if ((mode&IPW) != 0) {
-			if (super() == 0)
+		if (mode & IPW) {
+
+			/* Return (EISDIR) if not superuser. */
+			if (super() == 0) {
+				/* Override EPERM set when super() failed. */
+				u.u_error = EISDIR;
 				return;
+			}
+
+			/*
+			 * Opening a directory O_WRONLY is insane, even
+			 * if you are superuser!
+			 */
 			if (mode == IPW) {
 				u.u_error = EISDIR;
 				return;
@@ -76,19 +86,25 @@ register INODE *ip;
 
 /*
  * Given an inode, close it.
+ *
+ * NIGEL: Modified for new dclose ().
  */
 iclose(ip, mode)
 register INODE *ip;
 {
+	register int type;
+
 	ilock(ip);
-	switch (ip->i_mode&IFMT) {
+	switch (type = ip->i_mode&IFMT) {
 	case IFBLK:
 		bflush(ip->i_a.i_rdev);
+		/* FALL THROUGH */
 	case IFCHR:
 		iunlock(ip);
-		dclose(ip->i_a.i_rdev);
+		dclose(ip->i_a.i_rdev, mode,  type==IFCHR ? DFCHR : DFBLK);
 		ilock(ip);
 		break;
+
 	case IFPIPE:
 		pclose(ip, mode);
 		break;

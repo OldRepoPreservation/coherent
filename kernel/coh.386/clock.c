@@ -7,8 +7,8 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
+ *	COHERENT Version 5.0
+ *	Copyright (c) 1982, 1993.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  -lgl) */
@@ -67,7 +67,7 @@ int clocks;
  * and the CPL of the interrupted code (0..3).
  */
 clock(pc, umode)
-vaddr_t pc;
+caddr_t pc;
 {
 	register PROC *pp;
 
@@ -108,6 +108,7 @@ vaddr_t pc;
 	timer.t_tick += 1;
 	quantum -= 1;
 
+#ifndef _I386
 	/*
 	 * Give processes their schedule values per tick.
 	 */
@@ -115,12 +116,15 @@ vaddr_t pc;
 		procq.p_lforw->p_cval -= CVCLOCK;
 		procq.p_cval += CVCLOCK;
 	}
+#endif
 
 	/*
 	 * Tax current process and update his times.
 	 */
 	pp = SELF;
+#ifndef _I386
 	pp->p_cval >>= 1;
+#endif
 	if (umode == R_USR) {
 		pp->p_utime++;
 		u.u_ppc = pc;
@@ -248,6 +252,8 @@ stand()
 
 		spl(s);
 
+		STREAMS_TIMEOUT ();
+
 	} while (clocks);
 
 	/*
@@ -276,16 +282,17 @@ stand()
 		 * Increment the (short) profiling entry at
 		 *	base + (pc - offset) * scale
 		 */
-		register vaddr_t a;
+		register caddr_t a;
 
-		a = (u.u_pbase + pscale(u.u_ppc-u.u_pofft, u.u_pscale)) & ~1;
+		a = (caddr_t) ((long) (u.u_pbase + pscale(u.u_ppc-u.u_pofft,
+							  u.u_pscale)) & ~1);
 		if (a < u.u_pbend)
 			putusd(a, getusd(a)+1);
 	}
 #else		/* profiling */
 	if (u.u_pscale) {
 		register unsigned p;
-		register vaddr_t a;
+		register caddr_t a;
 
 		p = u.u_pscale;
 		a = (int *)u.u_pbase +
@@ -329,7 +336,9 @@ stand()
 		dispatch();
 		spl(s);
 	}
-stand_done:
+
+	STREAMS_SCHEDULER ();
+
 	return;
 }
 

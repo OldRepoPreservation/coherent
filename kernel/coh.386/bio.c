@@ -54,6 +54,12 @@
 #include <sys/seg.h>
 #include <sys/stat.h>
 
+/*
+ * NIGEL: Whatever a "dold_t" was, there is no such thing now. Strip them
+ * out sometime soon.
+ */
+typedef	unsigned char	dold_t;
+
 static	BUF	**hasharray;		/* pointer to hash buckets */
 static	BUF	*firstbuf;		/* pointer to first in LRU chain */
 static	BUF	*lastbuf;		/* pointer to last in LRU chain */
@@ -97,7 +103,7 @@ bufinit()
 {
 	register BUF *bp;
 	paddr_t p;
-	vaddr_t v;
+	caddr_t v;
 	int	i;
 
 	p = MAPIO(blockp.sr_segp->s_vmem, 0);
@@ -212,17 +218,27 @@ register int sync;
 		}
 		bp->b_req = BREAD;
 		bp->b_count = BSIZE;
-		s = sphi();
+/*
+ * NIGEL: It is my sincere hope that whoever put this sphi () here (and in the
+ * corresponding places lower down) was simply having a bad day and that there
+ * is no real reason for this. Delete this comment and the bad code as soon as
+ * we have determined that it isn't really important. Look for the sign of the
+ * good and bad magicians below...
+ *
+ * BAD MAGIC		s = sphi();
+ */
 		dblock(dev, bp);
 		if (!sync) {
-			spl(s);
+/* BAD MAGIC			spl(s); */
 			return (NULL);
 		}
 		/*
 		 * If buffer is not valid, wait for it.
 		 */
+
+		s = sphi ();	/* GOOD MAGIC */
 		while (bp->b_flag&BFNTP) {
-			v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "bpwait");
+			x_sleep((char *)bp, pridisk, slpriNoSig, "bpwait");
 			/* If buffer is not valid, wait for it.  */
 		}
 		spl(s);
@@ -416,7 +432,7 @@ again:
 #endif
 		s = sphi();
 		bufneed = 1;
-		v_sleep((char *)&bufneed, CVBLKIO, IVBLKIO, SVBLKIO, "bufneed");
+		x_sleep((char *)&bufneed, pridisk, slpriNoSig, "bufneed");
 		/* There are no buffers available.  */
 		spl(s);
 	} /* forever */
@@ -444,14 +460,15 @@ register BUF *bp;
 	bp->b_flag |= BFNTP;
 	bp->b_req = BWRITE;
 	bp->b_count = BSIZE;
-	s = sphi();
+/* BAD MAGIC 	s = sphi(); */
 	dblock(bp->b_dev, bp);
 	if (!sync) {
-		spl(s);
+/* BAD MAGIC		spl(s); */
 		return;
 	}
+	s = sphi ();	/* GOOD MAGIC */
 	while (bp->b_flag&BFNTP) {
-		v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "bwrite");
+		x_sleep((char *)bp, pridisk, slpriNoSig, "bwrite");
 		/* Waiting for a buffer write to finish.  */
 	}
 	spl(s);
@@ -684,10 +701,11 @@ dev_t dev;
 		bp->b_bno = blockn(iop->io_seek);
 		bp->b_count = iop->io_ioc;
 	}
-	s = sphi();
+/*BAD MAGIC	s = sphi(); */
 	dblock(dev, bp);
+	s = sphi ();	/* GOOD MAGIC */
 	while (bp->b_flag&BFNTP) {
-		v_sleep((char *)bp, CVBLKIO, IVBLKIO, SVBLKIO, "ioreq");
+		x_sleep((char *)bp, pridisk, slpriNoSig, "ioreq");
 		/* Ask norm what this sleep means.  */
 	}
 	spl(s);
@@ -722,7 +740,7 @@ register BUF *bp;
 {
 	register SR *srp;
 	register SEG *sp;
-	register vaddr_t iobase, base;
+	register caddr_t iobase, base;
 	unsigned ioc;
 	int i;
 
@@ -780,10 +798,21 @@ devinit()
 			dev_loaded |= (1<<mind);
 		}
 	}
+
+	/*
+	 * Inform STREAMS that it is time to set up shop.
+	 */
+
+	STREAMS_INIT ();
 }
 
 /*
  * Open a device.
+ *
+ * NIGEL: In order to make it at all possible to support the System V DDI/DDK
+ * calling conventions for driver entry points, it is necessary for this code
+ * to pass the *type* of open being made to the underlying device (which is
+ * passed in the 'f' parameter below).
  */
 dopen(dev, m, f)
 register dev_t dev;
@@ -797,14 +826,21 @@ register dev_t dev;
 		SET_U_ERROR(ENXIO, "dopen()");
 		return;
 	}
-	(*cp->c_open)(dev, m);
+	(*cp->c_open)(dev, m, f);			/* NIGEL */
 	drest(dold);
 }
 
 /*
  * Close a device.
+ *
+ * NIGEL: In order to be able to support the System V DDI/DDK calling
+ * conventions for driver entry points, this function has to be altered to
+ * accept a file-mode and character/block mode parameter. Note that the
+ * Coherent 4.0 driver kit documentation says that the driver close entry
+ * point is passed the same parameters as the open entry. After this mod,
+ * this will be true for the first time.
  */
-dclose(dev)
+dclose(dev, mode, typ)
 register dev_t dev;
 {
 	register CON *cp;
@@ -812,7 +848,7 @@ register dev_t dev;
 
 	if ((cp=drvmap(dev, &dold)) == NULL)
 		return;
-	(*cp->c_close)(dev);
+	(*cp->c_close)(dev, mode, typ);			/* NIGEL */
 	drest(dold);
 }
 
@@ -866,8 +902,15 @@ register IO *iop;
 
 /*
  * Call the ioctl function for a device.
+ *
+ * NIGEL: In order to support the System V DDI/DDK calling conventions for
+ * device driver entry points, this function needs to pass a "mode" parameter
+ * indicating the open mode of the file. There are only two calls to this
+ * function, for uioctl () and in the /dev/tty driver, "io.386/ct.c" which is
+ * passing its arguments back here (ie, a layered open). The "ct.c" call has
+ * not been changed.
  */
-dioctl(dev, com, vec)
+dioctl(dev, com, vec, mode)
 register dev_t dev;
 union ioctl *vec;
 {
@@ -879,7 +922,7 @@ union ioctl *vec;
 	if (XMODE_286)
 		tioc(dev, com, vec, cp->c_ioctl);
 	else
-		(*cp->c_ioctl)(dev, com, vec);
+		(*cp->c_ioctl)(dev, com, vec, mode);	/* NIGEL */
 	drest(dold);
 }
 
@@ -953,10 +996,20 @@ dev_t dev;
 	return (f);
 }
 
+
 /*
  * Given a device, and a pointer to a driver map save area, save the
  * current map in the driver map save area and map in the new device,
  * returning a pointer to the configuration entry for that device.
+ *
+ * NIGEL: This function is the only code that references drvl [] directly
+ * other than the bogus code that manages the load and unload entry points,
+ * which we will also need to "enhance". What we add to this code is a range
+ * check so that it no longer can index off the end of drvl [], and in the
+ * case that we would go off the end of drvl [] we vector instead to the
+ * STREAMS system and ask it to return a kludged-up "CON *". The mapping
+ * code referred to above is for the i286 and does nothing whatsoever, so
+ * all this function really does as it stands is a table lookup.
  */
 CON *
 drvmap(dev, doldp)
@@ -967,6 +1020,16 @@ dold_t *doldp;
 	register unsigned m;
 
 	if ((m=major(dev)) >= drvn) {
+		CON	      *	conp;
+
+		/*
+		 * NIGEL: If STREAMS is disabled or there is no device
+		 * corresponding to this (external) major number, flag ENXIO.
+		 */
+
+		if ((conp = STREAMS_GETCON (dev)) != NULL)
+			return conp;
+
 		SET_U_ERROR(ENXIO, "drvmap()");
 		return (NULL);
 	}
@@ -980,8 +1043,10 @@ dold_t *doldp;
 		return (NULL);
 	}
 	dsave(*doldp);
+#ifndef	_I386
 	if (dp->d_map)
 		dmapv(dp->d_map);
+#endif
 	return (dp->d_conp);
 }
 
