@@ -6,6 +6,7 @@
  * 3) All of long, int, char*, and double are assumed to
  *    be held in an exact number of ints.
  */
+#if SMALLMODEL
 
 #define NULL ((char *)0)
 #define putchar(c) { char b = c; write(1, &b, 1); }
@@ -233,3 +234,4 @@ register b;
 		*cp++ = *ep++;
 	return (cp);
 }
+#endif

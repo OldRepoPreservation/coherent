@@ -140,8 +140,7 @@ extern	char 	*tmpfile;	/* TMP File name for virtual.c */
  *	Macros for tables
  */
 
-#define	LOGNBPC	3		/* Log2 Number of Bits per Character    */
-
+#if SMALLMODEL
 /* Actions for virtual block system */
 enum vact { testBlock, markBlock, unmarkBlock, grabBlock,
 	    testDup, markDup, unmarkDup, setDup,
@@ -166,18 +165,40 @@ enum vact { testBlock, markBlock, unmarkBlock, grabBlock,
 
 #define badblks(ino)	( flags(ino)&IBAD_IDUP )
 
+#define putchar(c) { char b = c; write(1, &b, 1); }
+
+#else
+char *linkPtr, *flagPtr, *blockPtr, *dupPtr;
+	      
+#define testblock(bn)	(blockPtr[bn >> LOGNBPC] &  (1 << (bn & (NBPC - 1))))
+#define markblock(bn)	(blockPtr[bn >> LOGNBPC] |= (1 << (bn & (NBPC - 1))))
+#define unmarkblock(bn) (blockPtr[bn >> LOGNBPC] ^= (1 << (bn & (NBPC - 1))))
+
+#define testdup(bn)	(dupPtr[bn >> LOGNBPC] &  (1 << (bn & (NBPC - 1))))
+#define markdup(bn)	(dupPtr[bn >> LOGNBPC] |= (1 << (bn & (NBPC - 1))))
+#define unmarkdup(bn)	(dupPtr[bn >> LOGNBPC] ^= (1 << (bn & (NBPC - 1))))
+
+#define flags(ino)		flagPtr[ino - 1]
+#define setflags(ino, data)	(flags(ino) = data)
+#define orflags(ino, data)	(flags(ino) |= data)
+
+#define linkctr(ino)	linkPtr[ino - 1]
+#define inclinkctr(ino) (++linkctr(ino))
+#define setlinkctr(ino, data)	(linkctr(ino) = data)
+
+#define badblks(ino)	(flags(ino) & IBAD_IDUP)
+#endif
+
 /*
  *	Miscellany
  */
-
 #define	NBPC	8			/* number of bits per character */
+#define	LOGNBPC	3		/* Log2 Number of Bits per Character    */
 #define	MAXINTN	255			/* used for interleave table	*/
 					/* in phase6.c			*/
 /*
  *	Stdio Stuff
  */
-
-#define putchar(c) { char b = c; write(1, &b, 1); }
 extern char *malloc();
 extern char *calloc();
 
