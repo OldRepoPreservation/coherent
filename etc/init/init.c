@@ -502,7 +502,8 @@ char *np, *ap;
 #endif
 	setpgrp();
 	fakearg(1, tp->t_tty);
-	chmod(tp->t_tty, 04000);
+	if(strcmp(tp->t_tty, "/dev/null"))
+		chmod(tp->t_tty, 04000);
 	while ((fd=open(tp->t_tty, 2)) < 0 && errno==EDBUSY)
 		sleep(1);
 	if (fd < 0)
