@@ -25,6 +25,8 @@ lib_setacs.c:	NEW, initialize alternate character set map
 
 lib_napms.c:	NEW, sleep for some millisecounds
 
+lib_color.c:	NEW, color functions
+
 lib_addch.c:	secound parameter changed to chtype
 
 lib_addstr.c:	do not sign extend 8-bit chars
