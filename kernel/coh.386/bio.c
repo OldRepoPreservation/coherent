@@ -544,6 +544,9 @@ register BUF *bp;
 
 /*
  * Read data from the I/O segment into kernel space.
+ *
+ * "v" is the destination virtual address.
+ * "n" is the number of bytes to read.
  */
 ioread(iop, v, n)
 register IO *iop;

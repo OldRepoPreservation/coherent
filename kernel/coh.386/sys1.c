@@ -609,6 +609,12 @@ register int m;
  * iBCS2 says the same system call number is wait() and waitpid(), the
  * distinction being in how the psw is set on entry.
  *
+ * iBCS2 fails to mention that when wait() or waitpid() report status
+ * by writing into the pointer supplied, the status is put into %edx by
+ * the kernel, and moved from there into user space by the function in
+ * libc.a.  uwait() and uwaitpid() specify a value for %edx by writing
+ * to u.u_rval2.
+ *
  * Do wait() unless (ZF|PF|SF|OF) (=WPMASK) are set in psw.
  */
 #define	WPMASK	0x8C4
