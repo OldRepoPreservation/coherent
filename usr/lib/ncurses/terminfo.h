@@ -29,6 +29,9 @@
  *			terminfo level.
  *
  *  $Log:	terminfo.h,v $
+ * Revision 2.4  92/11/29  15:42:29  munk
+ * Conditional ussage of termio
+ *
  * Revision 2.3  92/10/25  22:52:49  munk
  * Now supports 16-bit characters
  * Defines for alternate character set added
@@ -62,9 +65,16 @@
 #ifndef A_STANDOUT
 
 #include <stdio.h>
+#ifdef USE_TERMIO
+#include <termio.h>
+#define DEF_VEOF	CEOF
+#define DEF_VEOL	0
+#define DEF_VMIN	1
+#define DEF_VTIME	0
+#else
 #include <sgtty.h>
-
 #define SGTTY	struct sgttyb
+#endif
 
 /* Video attributes */
 

@@ -55,6 +55,8 @@
 
 #ifndef WINDOW
 
+#define USE_TERMIO
+
 #define bool    char
 
 typedef unsigned long chtype;

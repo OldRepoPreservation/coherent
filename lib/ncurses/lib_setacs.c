@@ -42,7 +42,7 @@ setup_acs()
 {
 	register char *p;
 
-	/* initialize acs_map with ASCII defaults */
+	/* initialize acs_map with ASCII defaults for possible chars */
 	acs_map['l'] = acs_map['m'] = acs_map['k'] = acs_map['j'] = '+';
 	acs_map['u'] = acs_map['t'] = acs_map['v'] = acs_map['w'] = '+';
 	acs_map['q'] = '-';
@@ -51,10 +51,7 @@ setup_acs()
 	acs_map['o'] = '_';
 	acs_map[','] = '<';
 	acs_map['+'] = '>';
-	acs_map['0'] = acs_map['h'] = acs_map['a'] = ' ' | A_REVERSE;
-	acs_map['s'] = acs_map['`'] = acs_map['f'] = ' ';
-	acs_map['g'] = acs_map['~'] = acs_map['.'] = acs_map['-'] = ' ';
-	acs_map['i'] = ' ';
+	acs_map['0'] = ' ' | A_REVERSE;
 
 	/* now get the alternate characters from acs_chars and fill map */
 	p = acs_chars;
