@@ -1,4 +1,3 @@
-
 /* (-lgl
  *	COHERENT Device Driver Kit version 2.0.1.b
  *	Copyright (c) 1982, 1991, 1992 by Mark Williams Company.
@@ -103,18 +102,10 @@ open or a reset. The code
 			jopen = 2;
 
 indicates the need to pretend that the disk has changed. It is set to 2 since
-there are two parts to the change procedure. The code
-
-		if (DSKCHPROB) {
-			if (!jopen)
-				break;
-			else
-				jopen--;
-		}
-
-says that if we have not just down an open, then we should skip the recal.
-Otherwise, decrement the counter, and do the recal. - mlk
-*/
+there are two parts to the change procedure. Additional code dependent on
+the value of DSKCHPROB says that if we have not just down an open, then
+we should skip the recal.  Otherwise, decrement the counter, and do the
+recal. - mlk */
 
 int	flload();
 int	flunload();
@@ -815,6 +806,7 @@ flfsm()
 	register BUF	*bp;
 	register int	flcmd;
 	register int	i;
+	int		dods;	/* for PS/1, do disk swap */
 
 again:
 	bp = fl.fl_actf;
@@ -896,17 +888,17 @@ T_HAL(0x40000, printf("SSEEK "));
 		if ((frates[fl.fl_type[fl.fl_unit]].fl_hi_rate != -1)
 		&&   (inb(FDCCHGL) & DSKCHGD)
 		&&   (fl_clrng_cd == 0)) {
-
-                         /* See note at def of DSKCHPROB above */
-			 if (DSKCHPROB) {
-				 if (!jopen)
-					 break;
-				 else
-					 jopen--;
-			 }
-
-			fl.fl_dsk_chngd[fl.fl_unit] = 1;
-			fl.fl_incal[fl.fl_unit] = -1;
+			/* See note at def of DSKCHPROB above */
+			if (DSKCHPROB) {
+				if (jopen) {
+					jopen--;
+					fl.fl_dsk_chngd[fl.fl_unit] = 1;
+					fl.fl_incal[fl.fl_unit] = -1;
+				}
+			} else {
+				fl.fl_dsk_chngd[fl.fl_unit] = 1;
+				fl.fl_incal[fl.fl_unit] = -1;
+			}
 		}
 
 		fl_clrng_cd = 0;
@@ -1155,7 +1147,7 @@ PUSH3(-1,0,4);
 
 		if (fdata[fkind(bp->b_dev)].fd_nspt < 12) {
 			fl.fl_fd[fl.fl_unit].fd_nhds =
-					      fdata[fkind(bp->b_dev)].fd_nhds;
+			  fdata[fkind(bp->b_dev)].fd_nhds;
 PUSH3(-1,0,5);
 			goto DiskEstablished;
 		}
@@ -1181,8 +1173,8 @@ T_HAL(0x40000, printf("SSIDTST "));
 		 */
 DiskEstablished:
 		fl.fl_fd[fl.fl_unit].fd_size = fl.fl_fd[fl.fl_unit].fd_nhds
-					       * fl.fl_fd[fl.fl_unit].fd_trks
-					       * fl.fl_fd[fl.fl_unit].fd_nspt;
+		  * fl.fl_fd[fl.fl_unit].fd_trks
+		  * fl.fl_fd[fl.fl_unit].fd_nspt;
 
 		if (fl_disp) {
 			printf("fl%d: rate=%d, sctrs/trk=%d, hds=%d, cyls=%d,"
@@ -1211,26 +1203,28 @@ DiskEstablished:
 
 		if ((frates[fl.fl_type[fl.fl_unit]].fl_hi_rate != -1)
 		  && (inb(FDCCHGL) & DSKCHGD)) {
+			dods = 1;
 
-                         /* See note at def of DSKCHPROB above */
+			/* See note at def of DSKCHPROB above */
 			if (DSKCHPROB) {
-				if (!jopen)
-					break;
-				else
+				if (jopen) {
 					jopen--;
+				} else
+					dods = 0;
 			}
-
-			fl.fl_fcyl = fl.fl_incal[fl.fl_unit];
-			fl.fl_head = 0;
-			fl.fl_fsec = 1;
+			if (dods) {
+				fl.fl_fcyl = fl.fl_incal[fl.fl_unit];
+				fl.fl_head = 0;
+				fl.fl_fsec = 1;
 #ifdef _I386
-			fl.fl_addr = MAPIO(allocp.sr_segp->s_vmem,
-			  ((int)scratch_buffer - (int)allocp.sr_base));
+				fl.fl_addr = MAPIO(allocp.sr_segp->s_vmem,
+				((int)scratch_buffer - (int)allocp.sr_base));
 #else
-			fl.fl_addr = vtop(scratch_buffer, sds);
+				fl.fl_addr = vtop(scratch_buffer, sds);
 #endif
-			fl_clrng_cd = 1;
-			goto Sought;
+				fl_clrng_cd = 1;
+				goto Sought;
+			}	
 		}
 
 RateKnown:
@@ -1381,7 +1375,7 @@ command:
 			flput(fl.fl_fsec);
 			flput(fl.fl_fd[fl.fl_unit].fd_N);	/* N */
 			flput(fl.fl_fd[fl.fl_unit].fd_nspt);	/* EOT */
-                        flput(fl.fl_fd[fl.fl_unit].fd_GPL[fl.fl_rate_set]);
+			flput(fl.fl_fd[fl.fl_unit].fd_GPL[fl.fl_rate_set]);
 								/* GPL */
 			flput(0xFF);				/* DTL */
 		}
@@ -1717,9 +1711,9 @@ register BUF * bp;
 static
 flspecify()
 {
-        flput(CMDSPEC);
-        flput((fl_srt << 4) | fl_hut);
-        flput(fl_hlt << 1);
+	flput(CMDSPEC);
+	flput((fl_srt << 4) | fl_hut);
+	flput(fl_hlt << 1);
 }
 
 /*
@@ -1958,4 +1952,4 @@ flstatus()
 
 	printf("\n");
 }
-/*			  * * * * End of FL.C * * * *			     */
+/*			  * * * * End of FL.C * * * *			*/
