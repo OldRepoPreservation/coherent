@@ -1,26 +1,28 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1990 by Mark Williams Company.
+ * 	COHERENT Version 4.1
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
- * Structure for the mount table maintained by
- * '/etc/mount' and '/etc/umount'.
- * The file '/etc/mtab' is an array of these structures.
+ * /usr/include/mnttab.h
+ * "/etc/mount" and "/etc/umount" maintain the mount table "/etc/mnttab",
+ * which is an array of these structures.
  */
 
-#ifndef MNTTAB_H
-#define	MNTTAB_H	MNTTAB_H
+#ifndef _MNTTAB_H
+#define	_MNTTAB_H
 
 #include <sys/types.h>
 
-#define	MNTNSIZ	32		/* Size of a mount filename */
+#define	MNTNSIZ	32		/* Size of a mount filename	*/
 
 struct	mnttab {
-	char	mt_dev[MNTNSIZ];	/* Directory */
-	char	mt_filsys[MNTNSIZ];	/* Special file */
-	int	mt_ro_flg;		/* Read only flag */
-	time_t	mt_time;		/* Time mounted */
+	char	mt_dev[MNTNSIZ];	/* Directory		*/
+	char	mt_filsys[MNTNSIZ];	/* Special file		*/
+	int	mt_ro_flg;		/* Read only flag	*/
+	time_t	mt_time;		/* Time mounted		*/
 };
 
 #endif
+
+/* end of /usr/include/mnttab.h */
