@@ -162,6 +162,9 @@ gdt:
 gdtFixBegin:
 	/ segment 0090 - SEG_MMUUPD - Call gate for mmu update
 	CALL_GATE	SEG_RNG0_TXT,mmuupdfR0,0,DPL_1
+
+	/ segment 0098 - SEG_SET_EM - Call gate for writing CR0 EM bit
+	CALL_GATE	SEG_RNG0_TXT,setEmfR0,1,DPL_1
 gdtFixEnd:
 gdtend:
 
