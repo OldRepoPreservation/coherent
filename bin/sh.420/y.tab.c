@@ -17,7 +17,7 @@ extern short yyerrflag;
 #endif
 YYSTYPE yyval, yylval;
 
-#line 569 "sh.y"
+#line 570 "sh.y"
 
 /*
  * Create a node.
@@ -478,7 +478,7 @@ case 1: {
 #line 66 "sh.y"
 
 		sesp->s_node = NULL;
-		reset(RCMD);
+		reset (RCMD);
 		NOTREACHED;
 	}break;
 
@@ -487,7 +487,7 @@ case 2: {
 #line 72 "sh.y"
 
 		sesp->s_node = yypvt[0].yu_node;
-		reset(errflag ? RERR : RCMD);
+		reset (errflag ? RERR : RCMD);
 		NOTREACHED;
 	}break;
 
@@ -495,95 +495,95 @@ case 3: {
 
 #line 77 "sh.y"
 
-		keyflush();
+		keyflush ();
 		keyflag = 1;
-		reset(RERR);
+		reset (RERR);
 		NOTREACHED;
 	}break;
 
 case 9: {
 
-#line 94 "sh.y"
-	yyval.yu_nval = NWHILE;	}break;
+#line 95 "sh.y"
+	yyval.yu_nval = NWHILE; }break;
 
 case 10: {
 
-#line 95 "sh.y"
-	yyval.yu_nval = NUNTIL;	}break;
+#line 96 "sh.y"
+	yyval.yu_nval = NUNTIL; }break;
 
 case 22: {
 
-#line 117 "sh.y"
+#line 118 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 23: {
 
-#line 120 "sh.y"
+#line 121 "sh.y"
 
 		yyval.yu_node = node(NBACK, yypvt[-1].yu_node, NULL);
 	}break;
 
 case 24: {
 
-#line 123 "sh.y"
+#line 124 "sh.y"
 
 		yyval.yu_node = yypvt[-1].yu_node;
 	}break;
 
 case 25: {
 
-#line 126 "sh.y"
+#line 127 "sh.y"
 
 		yyval.yu_node = node(NBACK, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 26: {
 
-#line 129 "sh.y"
+#line 130 "sh.y"
 
 		yyval.yu_node = node(NLIST, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 27: {
 
-#line 135 "sh.y"
+#line 136 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 28: {
 
-#line 138 "sh.y"
+#line 139 "sh.y"
 
 		yyval.yu_node = node(NORF, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 29: {
 
-#line 141 "sh.y"
+#line 142 "sh.y"
 
 		yyval.yu_node = node(NANDF, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 30: {
 
-#line 147 "sh.y"
+#line 148 "sh.y"
 
 		yyval.yu_node = node(NPIPE, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 31: {
 
-#line 150 "sh.y"
+#line 151 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 32: {
 
-#line 162 "sh.y"
+#line 163 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 		keypop ();
@@ -591,7 +591,7 @@ case 32: {
 
 case 33: {
 
-#line 168 "sh.y"
+#line 169 "sh.y"
 
 		keypush ();
 		keyflag = 1;
@@ -599,21 +599,21 @@ case 33: {
 
 case 34: {
 
-#line 175 "sh.y"
+#line 176 "sh.y"
 
 		yyval.yu_node = node (NCOMS, yypvt[0].yu_node, NULL);
 	}break;
 
 case 35: {
 
-#line 178 "sh.y"
+#line 179 "sh.y"
 
 		yyval.yu_node = node (NCOMS, yypvt[0].yu_node, NULL);
 	}break;
 
 case 36: {
 
-#line 181 "sh.y"
+#line 182 "sh.y"
 
 		yypvt[-1].yu_node->n_next = yypvt[0].yu_node;
 		yyval.yu_node = node (NCOMS, yypvt[-1].yu_node, NULL);
@@ -621,56 +621,56 @@ case 36: {
 
 case 37: {
 
-#line 185 "sh.y"
+#line 186 "sh.y"
 
 		yyval.yu_node = node (NCOMS, yypvt[0].yu_node, NULL);
 	}break;
 
 case 38: {
 
-#line 188 "sh.y"
+#line 189 "sh.y"
 
 		yyval.yu_node = node (NRET, yypvt[0].yu_strp, NULL);
 	}break;
 
 case 39: {
 
-#line 191 "sh.y"
+#line 192 "sh.y"
 
 		yyval.yu_node = node (NRET, "", NULL);
 	}break;
 
 case 40: {
 
-#line 197 "sh.y"
+#line 198 "sh.y"
 
 		yyval.yu_node = node (NCTRL, yypvt[0].yu_node, NULL);
 	}break;
 
 case 41: {
 
-#line 203 "sh.y"
+#line 204 "sh.y"
 
 		yyval.yu_node = node (NCTRL, node (NFUNC, yypvt[-5].yu_strp, yypvt[-1].yu_node), NULL);
 	}break;
 
 case 42: {
 
-#line 209 "sh.y"
+#line 210 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 43: {
 
-#line 212 "sh.y"
+#line 213 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 44: {
 
-#line 218 "sh.y"
+#line 219 "sh.y"
 
 		NODE	      *	tmp = yypvt[-2].yu_node;
 		/*
@@ -687,7 +687,7 @@ case 44: {
 
 case 45: {
 
-#line 231 "sh.y"
+#line 232 "sh.y"
 
 		NODE	      *	tmp = yypvt[-1].yu_node;
 		/*
@@ -704,56 +704,56 @@ case 45: {
 
 case 46: {
 
-#line 244 "sh.y"
+#line 245 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 47: {
 
-#line 247 "sh.y"
+#line 248 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 48: {
 
-#line 250 "sh.y"
+#line 251 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 49: {
 
-#line 256 "sh.y"
+#line 257 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 50: {
 
-#line 259 "sh.y"
+#line 260 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 51: {
 
-#line 262 "sh.y"
+#line 263 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 52: {
 
-#line 265 "sh.y"
+#line 266 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 53: {
 
-#line 271 "sh.y"
+#line 272 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 		keyflag = 0;
@@ -761,7 +761,7 @@ case 53: {
 
 case 54: {
 
-#line 278 "sh.y"
+#line 279 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 		keyflag = 0;
@@ -769,98 +769,98 @@ case 54: {
 
 case 55: {
 
-#line 293 "sh.y"
+#line 294 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 56: {
 
-#line 296 "sh.y"
+#line 297 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 57: {
 
-#line 299 "sh.y"
+#line 300 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 58: {
 
-#line 302 "sh.y"
+#line 303 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 59: {
 
-#line 305 "sh.y"
+#line 306 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 60: {
 
-#line 308 "sh.y"
+#line 309 "sh.y"
 
 		(yyval.yu_node = yypvt[-1].yu_node)->n_next = yypvt[0].yu_node;
 	}break;
 
 case 61: {
 
-#line 314 "sh.y"
+#line 315 "sh.y"
 
 		yyval.yu_node = node (NARGS, duplstr (strt, 0), NULL);
 	}break;
 
 case 77: {
 
-#line 405 "sh.y"
+#line 406 "sh.y"
 
 		yyval.yu_node = node (NIORS, yypvt[0].yu_strp, NULL);
 	}break;
 
 case 78: {
 
-#line 410 "sh.y"
+#line 411 "sh.y"
 
 		yyval.yu_strp = duplstr (strt, 0);
 	}break;
 
 case 79: {
 
-#line 415 "sh.y"
+#line 416 "sh.y"
 
 		yyval.yu_node = node (NARGS, yypvt[0].yu_strp, NULL);
 	}break;
 
 case 80: {
 
-#line 420 "sh.y"
+#line 421 "sh.y"
 
 		yyval.yu_strp = duplstr (strt, 0);
 	}break;
 
 case 81: {
 
-#line 426 "sh.y"
+#line 427 "sh.y"
 
 		yyval.yu_node = node (NASSG, yypvt[0].yu_strp, NULL);
 	}break;
 
 case 82: {
 
-#line 431 "sh.y"
+#line 432 "sh.y"
 
 		yyval.yu_strp = duplstr (strt, 0);
 	}break;
 
 case 83: {
 
-#line 437 "sh.y"
+#line 438 "sh.y"
 
 		yyval.yu_node = node(NFOR, yypvt[-4].yu_strp, node(NFOR2, yypvt[-3].yu_node, node(NLIST, yypvt[-1].yu_node, NULL)));
 		yyval.yu_node->n_next->n_next->n_next = yyval.yu_node->n_next;
@@ -868,7 +868,7 @@ case 83: {
 
 case 84: {
 
-#line 441 "sh.y"
+#line 442 "sh.y"
 
 		yyval.yu_node = node(NFOR, yypvt[-3].yu_strp, node(NFOR2, yypvt[-2].yu_node, node(NLIST, yypvt[-1].yu_node, NULL)));
 		yyval.yu_node->n_next->n_next->n_next = yyval.yu_node->n_next;
@@ -876,21 +876,21 @@ case 84: {
 
 case 85: {
 
-#line 445 "sh.y"
+#line 446 "sh.y"
 
 		yyval.yu_node = node(NCASE, yypvt[-4].yu_strp, yypvt[-1].yu_node);
 	}break;
 
 case 86: {
 
-#line 448 "sh.y"
+#line 449 "sh.y"
 
 		yyval.yu_node = node(NCASE, yypvt[-3].yu_strp, yypvt[-1].yu_node);
 	}break;
 
 case 87: {
 
-#line 451 "sh.y"
+#line 452 "sh.y"
 
 		yyval.yu_node = node(yypvt[-3].yu_nval, yypvt[-2].yu_node, node(NLIST, yypvt[-1].yu_node, NULL));
 		yyval.yu_node->n_next->n_next = yyval.yu_node;
@@ -898,56 +898,56 @@ case 87: {
 
 case 88: {
 
-#line 455 "sh.y"
+#line 456 "sh.y"
 
 		yyval.yu_node = node(NIF, node(NNULL, yypvt[-4].yu_node, yypvt[-2].yu_node), yypvt[-1].yu_node);
 	}break;
 
 case 89: {
 
-#line 458 "sh.y"
+#line 459 "sh.y"
 
 		yyval.yu_node = node(NPARN, yypvt[-1].yu_node, NULL);
 	}break;
 
 case 90: {
 
-#line 461 "sh.y"
+#line 462 "sh.y"
 
 		yyval.yu_node = node(NBRAC, yypvt[-1].yu_node, NULL);
 	}break;
 
 case 91: {
 
-#line 467 "sh.y"
+#line 468 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 92: {
 
-#line 470 "sh.y"
+#line 471 "sh.y"
 
 		yyval.yu_node = node(NARGS, "\"$@\"", NULL);
 	}break;
 
 case 93: {
 
-#line 476 "sh.y"
+#line 477 "sh.y"
 
 		yyval.yu_node = node(NARGS, yypvt[-1].yu_strp, yypvt[0].yu_node);
 	}break;
 
 case 94: {
 
-#line 479 "sh.y"
+#line 480 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
 case 95: {
 
-#line 485 "sh.y"
+#line 486 "sh.y"
 
 		register NODE *np;
 
@@ -959,98 +959,98 @@ case 95: {
 
 case 96: {
 
-#line 493 "sh.y"
+#line 494 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 97: {
 
-#line 496 "sh.y"
+#line 497 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
 case 98: {
 
-#line 502 "sh.y"
+#line 503 "sh.y"
 
 		yyval.yu_node = node(NCASE2, yypvt[0].yu_node, yypvt[-2].yu_node);
 	}break;
 
 case 99: {
 
-#line 508 "sh.y"
+#line 509 "sh.y"
 
 		yyval.yu_node = node(NCASE3, yypvt[-2].yu_strp, yypvt[0].yu_node);
 	}break;
 
 case 100: {
 
-#line 511 "sh.y"
+#line 512 "sh.y"
 
 		yyval.yu_node = node(NCASE3, yypvt[0].yu_strp, NULL);
 	}break;
 
 case 101: {
 
-#line 517 "sh.y"
+#line 518 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 102: {
 
-#line 520 "sh.y"
+#line 521 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
 case 103: {
 
-#line 526 "sh.y"
+#line 527 "sh.y"
 
 		yyval.yu_node = node(NIF, node(NNULL, yypvt[-3].yu_node, yypvt[-1].yu_node), yypvt[0].yu_node);
 	}break;
 
 case 104: {
 
-#line 529 "sh.y"
+#line 530 "sh.y"
 
 		yyval.yu_node = node(NELSE, yypvt[0].yu_node, NULL);
 	}break;
 
 case 105: {
 
-#line 532 "sh.y"
+#line 533 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
 case 106: {
 
-#line 538 "sh.y"
+#line 539 "sh.y"
 
 		yyval.yu_node = yypvt[0].yu_node;
 	}break;
 
 case 107: {
 
-#line 542 "sh.y"
+#line 543 "sh.y"
 
 		yyval.yu_node = NULL;
 	}break;
 
 case 108: {
 
-#line 548 "sh.y"
+#line 549 "sh.y"
 
 		yyval.yu_node = node(NLIST, yypvt[-2].yu_node, yypvt[0].yu_node);
 	}break;
 
 case 109: {
 
-#line 551 "sh.y"
+#line 552 "sh.y"
 
 		yyval.yu_node = yypvt[-1].yu_node;
 	}break;

@@ -82,16 +82,17 @@ int shell_builtin ()
 	register INLINE *ip;
 	register int ahash;
 
-	if (inls[0].i_hash==0)
-		for (ip=inls; ip->i_name!=NULL; ip++)
-			ip->i_hash = ihash(ip->i_name);
+	if (inls[0].i_hash == 0)
+		for (ip = inls ; ip->i_name != NULL ; ip ++)
+			ip->i_hash = ihash (ip->i_name);
 	if (nargv[0] == NULL)
 		return 0;
-	ahash = ihash(nargv[0]);
-	for (ip=inls; ip->i_name!=NULL; ip++)
-		if (ip->i_hash==ahash && strcmp(nargv[0], ip->i_name)==0)
+	ahash = ihash (nargv [0]);
+	for (ip = inls ; ip->i_name != NULL ; ip ++)
+		if (ip->i_hash == ahash &&
+		    strcmp (nargv [0], ip->i_name) == 0)
 			break;
-	if ((s_func=ip->i_func) == SNULL)
+	if ((s_func = ip->i_func) == SNULL)
 		return 0;
 	/*
 	 * Process exec specially, because it has unique semantics for
@@ -103,7 +104,7 @@ int shell_builtin ()
 	 * redirected, but in a subshell it had no effect).
 	 */
 	if (s_func == s_exec)
-		slret = (* s_func) ();
+		slret = s_exec ();
 	else {
 		REDIR_UNDO    *	undo = NULL;
 
@@ -111,24 +112,6 @@ int shell_builtin ()
 			slret = 1;
 		else 
 			slret = (* s_func) ();
-
-		/*
-		 * NB: The rationale for the following kludge is not clear,
-		 * but with the ability to properly redirect builtins and
-		 * execute the in the top-level context, it no longer works.
-		 * It could be added back in, but since it conflicts with
-		 * POSIX.2 anyway, why bother.
-		 */
-#if 0
-		if (s_func == s_eval)
-			slret = (*s_func)();
-		else {
-			/* Kludge stderr output to stdout. */
-			dup2(1, 2);
-			close(1);
-			slret = (*s_func)();
-		}
-#endif
 
 		redirundo (& undo);
 	}
@@ -139,7 +122,8 @@ ihash(cp)
 register char *cp;
 {
 	register int i;
-	for (i=0; *cp; i+=*cp++);
+	for (i = 0 ; *cp ; i += * cp ++)
+		/* DO NOTHING */ ;
 	return i;
 }
 
@@ -154,17 +138,18 @@ s_colon()
 
 s_dot()
 {
-	if (nargc==2) {
-		ffind(NULL);
-		if (ffind(vpath, nargv[1], 4))
-			return session(SFILE, duplstr(strt, 0));
+	if (nargc == 2) {
+		ffind (NULL);
+		if (ffind (vpath, nargv [1], 4))
+			return session (SFILE, duplstr (strt, 0));
 		else {
-			ecantfind(nargv[1]);
+			ecantfind (nargv [1]);
 			return 1;
 		}
-	} else if (nargc==1)
+	} else if (nargc == 1)
 		return 0;
-	syntax();
+
+	syntax ();
 	return 1;
 }
 
@@ -175,18 +160,19 @@ s_break()
 	register int n;
 	int ret;
 
-	ret = nargv[0][0]=='b' ? 2 : 1;
-	n = nargc>1 ? atoi(nargv[1]) : 1;
+	ret = nargv[0][0] == 'b' ? 2 : 1;
+	n = nargc > 1 ? atoi (nargv [1]) : 1;
+
 	for (cp = sesp->s_con; cp; cp = cp->c_next) {
 		t = cp->c_node->n_type;
-		if ((t==NWHILE || t==NFOR || t==NUNTIL) && --n == 0) {
+		if ((t == NWHILE || t == NFOR || t == NUNTIL) && --n == 0) {
 			sesp->s_con = cp;
-			longjmp(cp->c_envl, ret);
+			longjmp (cp->c_envl, ret);
 			break;
 		}
-		freebuf(cp->c_bpp);
+		DESTROY_CON (cp);
 	}
-	printe("%s out of bounds", ret==1 ? "Continue" : "Break");
+	printe ("%s out of bounds", ret == 1 ? "Continue" : "Break");
 }
 
 /* s_continue is overlaid with s_break */
@@ -195,11 +181,12 @@ s_cd()
 {
 	register char *dir;
 
-	if ((dir = cd((nargc<2) ? vhome : nargv[1])) == NULL)
+	if ((dir = cd (nargc < 2 ? vhome : nargv [1])) == NULL)
 		return -1;			/* cd failed */
-	if (dstack[dstkp] != NULL)
-		sfree(dstack[dstkp]);
-	dstack[dstkp] = duplstr(dir, 1);	/* update dir stack */
+
+	if (dstack [dstkp] != NULL)
+		sfree (dstack [dstkp]);
+	dstack [dstkp] = duplstr (dir, 1);	/* update dir stack */
 	return 0;
 }
 
@@ -214,41 +201,39 @@ s_dirs()
 
 s_eval()
 {
-	if (nargc>1)
-		return session(SARGV, ++nargv);
-	else
-		return 0;
+	return nargc > 1 ? session (SARGV, ++ nargv) : 0;
 }
 
 s_exec()
 {
 	if (redirect (niovp, NULL) < 0) {
-		if (nargc>1) {
-			exit(1);
+		if (nargc > 1) {
+			exit (1);
 			NOTREACHED;
 		}
 		return 1;
 	}
-	if (nargc==1)
+	if (nargc == 1)
 		return 0;
+
 	if (no1flag) {
 		cleanup_shell_fns ();
 		unlink_temp (capture_temp ());
 	}
-	dflttrp(ICMD);
-	++nargv;
-	--nargc;
+	dflttrp (ICMD);
+	++ nargv;
+	-- nargc;
 	nenvp = envlvar(nenvp);
-	flexec();
-	exit(1);
+	flexec ();
+	exit (1);
 	NOTREACHED;
 }
 
 s_exit()
 {
 	if (nargc > 1)
-		slret = atoi(nargv[1]);
-	reset(RUEXITS);
+		slret = atoi (nargv [1]);
+	reset (RUEXITS);
 	NOTREACHED;
 }
 
@@ -257,15 +242,18 @@ s_export()
 	register int flag;
 	register char **varv;
 
-	flag = nargv[0][0]=='e' ? VEXP : VRDO;
+	flag = nargv [0][0]=='e' ? VEXP : VRDO;
 	if (nargc < 2)
-		tellvar(flag);
-	else
-		for (varv=++nargv; *varv; )
-			if (namevar(*varv))
-				flagvar(*varv++, flag);
+		tellvar (flag);
+	else {
+		varv = ++ nargv;
+		while (* varv) {
+			if (namevar (* varv))
+				flagvar (* varv ++, flag);
 			else
-				eillvar(*varv++);
+				eillvar (* varv ++);
+		}
+	}
 	return 0;
 }
 
@@ -273,9 +261,9 @@ s_login()
 {
 	register char *cmd;
 
-	cmd = nargv[0][0]=='l' ? "/bin/login" : "/bin/newgrp";
-	execve(cmd, nargv, envlvar(nenvp));
-	ecantfind(cmd);
+	cmd = nargv [0][0] == 'l' ? "/bin/login" : "/bin/newgrp";
+	execve (cmd, nargv, envlvar (nenvp));
+	ecantfind (cmd);
 	return 1;
 }
 
@@ -286,26 +274,26 @@ s_popd()
 	register int i, j, n, ret;
 
 	if (nargc == 1)
-		return popd();
+		return popd ();
 	/*
 	 * Kludge to pop one or more specific dir stack elements.
 	 * Do args backwards so e.g. "popd 2 3 4" works as expected.
 	 * Internal indices [0, dstkp] are user indices [dstkp, 0].
 	 */
-	for (ret = 0, i = nargc-1; i > 0; i--) {
-		if ((n = atoi(nargv[i])) == 0)
-			ret |= popd();
+	for (ret = 0, i = nargc - 1; i > 0; i --) {
+		if ((n = atoi (nargv [i])) == 0)
+			ret |= popd ();
 		else if (n < 0 || n > dstkp) {
-			printe("Illegal arg: %d", n);
+			printe ("Illegal arg: %d", n);
 			ret = -1;
 			continue;
 		} else {
 			j = dstkp - n;
-			if (dstack[j] != NULL)
-				sfree(dstack[j]);
-			for ( ; j < dstkp; j++)
-				dstack[j] = dstack[j+1];
-			--dstkp;
+			if (dstack [j] != NULL)
+				sfree (dstack [j]);
+			for ( ; j < dstkp; j ++)
+				dstack [j] = dstack [j + 1];
+			-- dstkp;
 		}
 	}
 	return ret;
@@ -320,14 +308,14 @@ s_pushd()
 		/* Exchange top two stack elements. */
 		if (dstkp == 0)
 			return 1;		/* only one element on stack */
-		dir = dstack[dstkp-1];
-		dstack[dstkp-1] = dstack[dstkp];
-		dstack[dstkp] = dir;		/* exchange top two */
-		return ((cd(dir) == NULL) ? -1 : 0);	/* and cd accordingly */
+		dir = dstack [dstkp - 1];
+		dstack [dstkp - 1] = dstack [dstkp];
+		dstack [dstkp] = dir;		/* exchange top two */
+		return cd (dir) == NULL ? -1 : 0;	/* and cd accordingly */
 	}
 	/* Push one or more directories to stack. */
-	for (ret = 0, i = 1; i < nargc; i++)
-		ret |= pushd(nargv[i]);
+	for (ret = 0, i = 1; i < nargc; i ++)
+		ret |= pushd (nargv [i]);
 	return ret;
 }
 
@@ -486,20 +474,20 @@ s_trap()
 	register int err;
 
 	err = 0;
-	if (nargc==1)
-		return telltrp();
-	vp = ++nargv;
-	cp = *vp;
-	if (class(cp[0], MDIGI)
-	 && (cp[1]=='\0' || (class(cp[1], MDIGI) && cp[2]=='\0')))
+	if (nargc == 1)
+		return telltrp ();
+	vp = ++ nargv;
+	cp = * vp;
+	if (class (cp [0], MDIGI) &&
+	    (cp [1] == '\0' || (class (cp [1], MDIGI) && cp [2]=='\0')))
 		cp = NULL;
 	else
-		++vp;
-	while (*vp) {
-		if (class(vp[0][0], MDIGI))
-			err |= setstrp(atoi(*vp++), cp);
+		++ vp;
+	while (* vp) {
+		if (class (vp [0][0], MDIGI))
+			err |= setstrp (atoi (* vp ++), cp);
 		else {
-			printe("Bad trap: %s", *vp++);
+			printe ("Bad trap: %s", * vp ++);
 			err |= 1;
 		}
 	}
@@ -547,11 +535,12 @@ s_wait()
 char *
 cd(dir) register char *dir;
 {
-	if (chdir(dir) < 0) {
-		printe("%s: bad directory", dir);
+	if (chdir (dir) < 0) {
+		printe ("%s: bad directory", dir);
 		return NULL;
 	}
-	if (*dir != '/') {
+
+	if (* dir != '/') {
 		/*
 		 * Find an absolute pathname for the dstack and $CWD.
 		 * The directory now in dstack[dstkp] is "." if _getwd() failed
@@ -559,11 +548,11 @@ cd(dir) register char *dir;
 		 * down the path to "/", or "." was rm'ed by another process).
 		 * Avoid _getwd() in this case, it can undo the chdir() above.
 		 */
-		if ((strcmp(dstack[dstkp], ".") == 0)
-		 || ((dir = _getwd()) == NULL))
+		if ((strcmp (dstack [dstkp], ".") == 0) ||
+		    (dir = _getwd ()) == NULL)
 			return NULL;
 	}
-	assnvar("CWD", dir);
+	assnvar ("CWD", dir);
 	return dir;
 }
 
@@ -573,12 +562,12 @@ cd(dir) register char *dir;
 popd()
 {
 	if (dstkp == 0) {
-		printe("Directory stack underflow");
+		printe ("Directory stack underflow");
 		return -1;
 	}
-	if (dstack[dstkp] != NULL)
-		sfree(dstack[dstkp]);
-	return (cd(dstack[--dstkp]) == NULL ? -1 : 0);
+	if (dstack [dstkp] != NULL)
+		sfree (dstack [dstkp]);
+	return cd (dstack [-- dstkp]) == NULL ? -1 : 0;
 }
 
 /*
@@ -586,14 +575,14 @@ popd()
  */
 pushd(dir) register char *dir;
 {
-	if ((dir = cd(dir)) == NULL)
+	if ((dir = cd (dir)) == NULL)
 		return -1;			/* cd failed */
-	if (++dstkp >= DSTACKN) {
-		--dstkp;
-		printe("Directory stack overflow");
+	if (++ dstkp >= DSTACKN) {
+		-- dstkp;
+		printe ("Directory stack overflow");
 		return -1;
 	}
-	dstack[dstkp] = duplstr(dir, 1);
+	dstack [dstkp] = duplstr (dir, 1);
 	return 0;
 }
 
@@ -620,15 +609,15 @@ register char *argv[];
 		register char *fp;
 
 		n++;
-		for (cp = &argv[1][1]; *cp; cp++) {
-			if ((fp=index(shfnams, *cp)) == NULL
-			 || (fp+=shflags-shfnams) == NULL
-			 || (fp != &lgnflag && fp > &xflag && flag == 0))
-				printe("-%c: Bad option", *cp);
-			else if (fp != &lgnflag)
-				*fp = *cp;
+		for (cp = & argv [1][1] ; * cp ; cp ++) {
+			if ((fp = index (shfnams, * cp)) == NULL ||
+			    (fp += shflags - shfnams) == NULL ||
+			    (fp != & lgnflag && fp > & xflag && flag == 0))
+				printe ("-%c: Bad option", *cp);
+			else if (fp != & lgnflag)
+				* fp = * cp;
 		}
-		if (cp == &argv[1][1]) {
+		if (cp ==  &argv [1][1]) {
 			vflag = 0;
 			xflag = 0;
 		}
@@ -638,8 +627,8 @@ register char *argv[];
 	if (errflag)
 		return 1;
 	if (sargv != NULL)
-		vfree(sargv);
-	sargv = vdupl(argv);
+		vfree (sargv);
+	sargv = vdupl (argv);
 	sargc = argc - n;
 	sargp = sargv + n;
 	return 0;
@@ -765,7 +754,10 @@ void cleanup_shell_fns ()
 /*
  * Define a shell function.
  */
-def_shell_fn(np) register NODE *np;
+
+def_shell_fn (np, temps)
+NODE	      *	np;
+TEMP_FILE     *	temps;
 {
 	register char *name;
 	register SHFUNC *fnp;
@@ -781,7 +773,7 @@ def_shell_fn(np) register NODE *np;
 		fnp->fn_hash = ihash(name);	/* and set member info */ 
 		fnp->fn_name = duplstr(name, 1);
 	}
-	fnp->fn_temp = capture_temp ();
+	fnp->fn_temp = temps;
 	fnp->fn_body = copy_node(np->n_next);	/* and copy function body */
 }
 

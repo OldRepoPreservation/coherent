@@ -65,19 +65,19 @@ extern	NODE	*node();
 session:
 	'\n' {
 		sesp->s_node = NULL;
-		reset(RCMD);
+		reset (RCMD);
 		NOTREACHED;
 	}
 |
 	cmd_list {
 		sesp->s_node = $1;
-		reset(errflag ? RERR : RCMD);
+		reset (errflag ? RERR : RCMD);
 		NOTREACHED;
 	}
 |	error '\n' {
-		keyflush();
+		keyflush ();
 		keyflag = 1;
-		reset(RERR);
+		reset (RERR);
 		NOTREACHED;
 	}
 |
@@ -91,8 +91,9 @@ elif:	_ELIF optnls ;
 
 else:	_ELSE optnls ;
 
-whuntile:	_WHILE optnls {	$$ = NWHILE;	}
-|	_UNTIL optnls {	$$ = NUNTIL;	}
+whuntile:
+	_WHILE optnls {	$$ = NWHILE; }
+|	_UNTIL optnls {	$$ = NUNTIL; }
 ;
 
 do:	_DO optnls | _DO ';' optnls ;
