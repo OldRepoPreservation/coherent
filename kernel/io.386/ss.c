@@ -2463,7 +2463,7 @@ int tbnum, s_id;
 	if (drv_parm[s_id].ncyl == 0
 	&& F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
 
-		if (T_NULL != (tp = fifo_read(ffp))) {
+		if (tp = fifo_read(ffp)) {
 			BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
 			if ((T_BIOS_DISK == tp->ts_type) &&
 			    (tbnum == bdp->dp_drive) ) {
