@@ -33,7 +33,7 @@ int b;
 	if (ofp == NULL) {
 		if (outbufp == outbufmax) {
 			extern char *realloc();
-			char *cp;
+			unsigned char *cp;
 
 			tempsize += tempsize / 2;
 			cp = inbuf;
