@@ -1,16 +1,14 @@
-# /usr/src/libc/sys/Makefile 1/9/92
+# /usr/src/libc/sys/Makefile 9/28/92
 
 OBJ=\
-	dup2.o\
 	execl.o\
 	execle.o\
 	execlp.o\
+	execlpe.o\
 	execv.o\
+	execve.o\
 	execvp.o\
-	msgop.o\
-	semop.o\
-	shmop.o\
-	time.o
+	execvpe.o
 
 UNUSED=\
 	brk.o
@@ -27,15 +25,13 @@ sys$(MCH):
 	SRCPATH=$(SRCPATH)/$(MCH) make -e
 
 # Secondary targets.
-dup2.o:		dup2.c
 execl.o:	execl.c
 execle.o:	execle.c
 execlp.o:	execlp.c
+execlpe.o:	execlpe.c
 execv.o:	execv.c
+execve.o:	execve.c
 execvp.o:	execvp.c
-msgop.o:	msgop.c
-semop.o:	semop.c
-shmop.o:	shmop.c
-time.o:		time.c
+execvpe.o:	execvpe.c
 
 # end of /usr/src/libc/sys/Makefile
