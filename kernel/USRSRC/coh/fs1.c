@@ -298,6 +298,13 @@ iattach(dev, ino)
 		if (ip < inodep) {
 			if ((ip=fip) == NULL) {
 				devmsg(dev, "Inode table overflow");
+/*DEBUG*/
+{ char cmd[11];int i;
+for(i=0;i<10&&u.u_comm[i];i++)
+    cmd[i]=u.u_comm[i];
+cmd[i]='\0';
+printf("cmd=%s time=%lu\n",cmd, u.u_btime);
+}
 				u.u_error = ENFILE;
 				return (NULL);
 			}
