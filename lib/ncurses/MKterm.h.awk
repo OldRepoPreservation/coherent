@@ -23,7 +23,7 @@
 #********************************************************************/
 
 #
-# $Header: /src386/usr/lib/ncurses/RCS/MKterm.h.awk,v 1.1 92/03/26 11:44:28 bin Exp Locker: bin $
+# $Header: /src386/usr/lib/ncurses/RCS/MKterm.h.awk,v 1.2 92/06/10 13:40:14 bin Exp Locker: bin $
 #
 
 BEGIN		{
@@ -66,8 +66,13 @@ END		{
 			print  "   char	 *term_names;	/* offset in str_table of terminal names */"
 			print  "   char	 *str_table;	/* pointer to string table */"
 			print  "   short Filedes;	/* file description being written to */"
+			print  "#ifdef USE_TERMIO"
+			print  "   struct termio Otermio,"
+			print  "                 Ntermio;"
+			print  "#else"
 			print  "   SGTTY Ottyb,		/* original state of the terminal */"
 			print  "	 Nttyb;		/* current state of the terminal */"
+			print  "#endif"
 			print  ""
 			printf "   char		 Booleans[%d];\n", BoolCount
 			printf "   short	 Numbers[%d];\n", NumberCount

@@ -28,6 +28,9 @@
 **	The routine getch().
 **
 ** $Log:	lib_getch.c,v $
+ * Revision 2.3  92/11/21  14:47:37  munk
+ * Improved alarm signal handling
+ *
  * Revision 1.3  92/06/10  14:17:06  bin
  * changed ref to sys/fcntl.h
  * 
@@ -119,8 +122,10 @@ register WINDOW	*win;
 
         if (win->_use_keypad)
             ch = kgetch();
-        else
-	    ch = nextc();
+        else {
+	    while ((ch = nextc()) == EOF)	/* ignore interrupted */
+	    	;				/* system call        */
+	}
 
 	if (SP->_echo  &&  ch < 0400 && ch >= 0)/* ch < 0400 => not a keypad key */
 	{
@@ -173,12 +178,14 @@ kgetch()
 	
 	do
 	{
+    readagain:
 	    ch = nextc();
 	    if (ch != EOF)		/* do not put EOF in buffer */
 	        *(bufp++) = ch;
-
-	    if (alarmed)
-	        break;
+	    else if (alarmed)		/* handle interrupted system */
+	        break;			/* call properly             */
+	    else
+	    	goto readagain;
 	    
 	    while (ptr != NULL  &&  ptr->ch != ch)
 	        ptr = ptr->sibling;

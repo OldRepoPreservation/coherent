@@ -31,6 +31,9 @@
  *	If XTABS was on, remove the tab and backtab capabilities.
  *
  *  $Log:	lib_setup.c,v $
+ * Revision 2.4  92/11/29  15:40:02  munk
+ * Conditional usage of termio
+ *
  * Revision 2.3  92/10/27  22:23:15  munk
  * Initialize alternate character set map
  *
@@ -150,12 +153,21 @@ int	*errret;
 	strncpy(ttytype, cur_term->term_names, NAMESIZE - 1);
 	ttytype[NAMESIZE - 1] = '\0';
 	cur_term->Filedes = filedes;
+#ifdef USE_TERMIO
+	ioctl(filedes, TCGETA, &cur_term->Otermio);
+	if ((cur_term->Otermio.c_oflag & TABDLY) == TAB3)
+	    tab = back_tab = NULL;
+
+	cur_term->Ntermio = cur_term->Otermio;
+	cur_term->Ntermio.c_oflag &= ~TAB3;
+#else
 	gtty(filedes, &cur_term->Ottyb);
 	if (cur_term->Ottyb.sg_flags & XTABS)
 	    tab = back_tab = NULL;
 
 	cur_term->Nttyb = cur_term->Ottyb;
 	cur_term->Nttyb.sg_flags &= ~XTABS;
+#endif
 
 	setup_acs();
 	fixterm();

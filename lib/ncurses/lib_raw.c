@@ -41,6 +41,9 @@
  *	nocbreak() == crmode()
  *
  *  $Log:	lib_raw.c,v $
+ * Revision 2.2  92/11/29  15:37:59  munk
+ * Conditional usage of termio
+ *
  * Revision 1.2  92/04/13  14:38:19  bin
  * update by vlad
  * 
@@ -79,8 +82,16 @@ raw()
 	    _tracef("raw() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_lflag &= ~(ECHOK|ECHONL|ISIG|ICANON);
+    cur_term->Ntermio.c_oflag &= ~(OPOST);
+    cur_term->Ntermio.c_cc[VMIN] = DEF_VMIN;
+    cur_term->Ntermio.c_cc[VTIME] = DEF_VTIME;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags |= RAW;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_raw = TRUE;
     SP->_nlmapping = TRUE;
@@ -94,8 +105,13 @@ cbreak()
 	    _tracef("cbreak() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_lflag &= ~ICANON;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags |= CBREAK;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_cbreak = TRUE;
 }
@@ -119,8 +135,13 @@ echo()
 	    _tracef("echo() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_lflag |= ECHO;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags |= ECHO;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_echo = TRUE;
 }
@@ -133,8 +154,14 @@ nl()
 	    _tracef("nl() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_iflag |= ICRNL;
+    cur_term->Ntermio.c_oflag |= ONLCR;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags |= CRMOD;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_nl = TRUE;
     SP->_nlmapping = ! SP->_raw;
@@ -148,13 +175,20 @@ noraw()
 	    _tracef("noraw() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_lflag |= (ECHOK|ECHONL|ISIG|ICANON);
+    cur_term->Ntermio.c_oflag |= OPOST;
+    cur_term->Ntermio.c_cc[VEOF] = DEF_VEOF;
+    cur_term->Ntermio.c_cc[VEOL] = DEF_VEOL;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags &= ~RAW;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_raw = FALSE;
     SP->_nlmapping = SP->_nl;
 }
-
 
 nocbreak()
 {
@@ -163,8 +197,13 @@ nocbreak()
 	    _tracef("nocbreak() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_lflag |= ICANON;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags &= ~CBREAK;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_cbreak = FALSE;
 }
@@ -188,8 +227,13 @@ noecho()
 	    _tracef("noecho() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_lflag &= ~ECHO;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags &= ~ECHO;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_echo = FALSE;
 }
@@ -202,8 +246,14 @@ nonl()
 	    _tracef("nonl() called");
 #endif
 
+#ifdef USE_TERMIO
+    cur_term->Ntermio.c_iflag &= ~ICRNL;
+    cur_term->Ntermio.c_oflag &= ~ONLCR;
+    ioctl(cur_term->Filedes, TCSETA, &cur_term->Ntermio);
+#else
     cur_term->Nttyb.sg_flags &= ~CRMOD;
     stty(cur_term->Filedes, &cur_term->Nttyb);
+#endif
 
     SP->_nl = FALSE;
     SP->_nlmapping = FALSE;
