@@ -1,124 +1,95 @@
 /*
+ * cmd/mv.c
  * Move (rename) files.
  * Usage: mv file1 file2
  *	  mv file ... directory
- *	  mvdir olddir newdir
- *
- * When using mvdir, "olddir" must be a directory.
- * For both commands, if "directory" or "newdir" contain a trailing '/'
- * character, verify that the target exists and is a directory (BSD-like).
  * Define SLOW for block at a time copying (not recommended).
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <access.h>
 #include <signal.h>
 #include <sys/dir.h>
+#include <string.h>
+
 #define NOTREACHED return
 
+/* Global. */
 #ifndef		SLOW
 char	buf[50*BUFSIZ];
 #else
 char	buf[BUFSIZ];
 #endif
 
-char	*mvusage = "\
+char	*usage = "\
 Usage:	mv [-f] file1 file2\n\
 	mv [-f] file ... directory\n\
 ";
-char	*mvdirusage = "\
-Usage:	mvdir olddir newdir\n\
-";
-
 char	*nowrite = "unwritable: %s";
 char	*nolink = "link %s %s failed";
 char	*nounlink = "unlink %s failed";
-char	*cmd;
+char	*cmd = "mv: ";		/* for error routines */
 int	myuid;
-int	mygid;
 int	newid;
 char	*child;
 struct	stat	sb1, sb2, sb3;
 int	estat;
 int	fflag;
 int	interrupted;
-char	*concat(),
-	*strcpy(),
-	*strcat(),
-	*strncpy(),
-	*strrchr(),
-	*getparent(),
-	*getchild();
+
+/* External. */
 long	lseek();
 
-main(argc, argv)
-char *argv[];
+/* Forward. */
+int	mv();
+void	cp();
+int	iszero();
+int	equals();
+char	*concat();
+char	*getparent();
+char	*getchild();
+void	warn();
+void	nomemory();
+void	onintr();
+void	catch();
+void	fatal();
+
+main(argc, argv) int argc; char *argv[];
 {
 	register int i;
-	struct stat sb;
 
-	cmd = strrchr(argv[0], '/');
-	if (cmd == NULL)
-		cmd = argv[0];
-	else
-		++cmd;
-	if (streq(cmd, "mvdir")) {
-		if (argc != 3) {
-			fputs(mvdirusage, stderr);
-			exit(EINVAL);
-			NOTREACHED;
-		}
-		if (stat(argv[1], &sb) < 0) {
-			fatal(ENOENT, argv[1]);
-			NOTREACHED;
-		}
-		if ((sb.st_mode&S_IFMT) != S_IFDIR) {
-			fatal(ENOTDIR, argv[1]);
-			NOTREACHED;
-		}
-	} else if (argc > 1 && *argv[1] == '-') {
+	if (argc>1 && *argv[1]=='-')
 		if (argv[1][1] == 'f' && argv[1][2] == '\0') {
 			fflag = 1;
 			argc--;
 			argv++;
 		} else {
-			fputs(mvusage, stderr);
+			fputs(usage, stderr);
 			exit(EINVAL);
 			NOTREACHED;
 		}
-	}
 
 	catch(SIGINT);
 	catch(SIGHUP);
 	signal(SIGQUIT, SIG_IGN);
 
 	myuid = getuid();
-	mygid = getgid();
 
 	if (--argc >= 2
-	  && stat(argv[argc], &sb2) >= 0
-	  && (sb2.st_mode&S_IFMT) == S_IFDIR) {
+	 && stat(argv[argc], &sb2) >= 0
+	 && (sb2.st_mode&S_IFMT) == S_IFDIR)
 		for (i = 1; i < argc && !interrupted; i += 1) {
 			child = getchild(argv[i]);
 			mv(argv[i], concat(0, argv[argc], child));
 		}
-	} else if (argc == 2) {
-		if (argv[2][strlen(argv[2])-1] == '/') {
-			if (stat(argv[2], &sb) < 0) {
-				fatal(ENOENT, argv[2]);
-				NOTREACHED;
-			}
-			if ((sb.st_mode&S_IFMT) != S_IFDIR) {
-				fatal(ENOTDIR, argv[2]);
-				NOTREACHED;
-			}
-		}
+	else if (argc == 2) {
 		child = getchild(argv[1]);
 		mv(argv[1], argv[2]);
 	} else {
-		fputs(streq(cmd, "mvdir") ? mvdirusage : mvusage, stderr);
+		fputs(usage, stderr);
 		exit(EINVAL);
 		NOTREACHED;
 	}
@@ -128,8 +99,8 @@ char *argv[];
 /*
  * move f1 to f2 if at all possible.
  */
-mv(f1, f2)
-char *f1, *f2;
+int
+mv(f1, f2) char *f1, *f2;
 {
 	int isdir, isxdev, nocopy;
 	char *p2, *lp2;
@@ -197,7 +168,7 @@ char *f1, *f2;
 
 	/* Do the mv, either cp or ln/rm */
 	if (isxdev)
-		cp(f1, f2, sb1.st_mode);
+		cp(f1, f2, sb1.st_mode, sb1.st_uid, sb1.st_gid);
 	else {
 		if (link(f1, f2))
 			return (warn(errno, nolink, f1, f2));
@@ -220,10 +191,10 @@ char *f1, *f2;
 
 /*
  * Copy f1 to f2.
- * The mode must be maintained.
+ * The mode and ownership must be maintained.
  */
-cp(f1, f2, mode)
-char *f1, *f2;
+void
+cp(f1, f2, mode, uid, gid) char *f1, *f2; int mode, uid, gid;
 {
 	register int fd1, fd2;
 	register int i, n;
@@ -241,7 +212,7 @@ char *f1, *f2;
 	if (newid)
 		mode &= 0777;
 	chmod(f2, mode&07777);
-	chown(f2, myuid, mygid);
+	chown(f2, uid, gid);
 	size = sb1.st_size;
 	while ((n = read(fd1, buf, sizeof buf)) != 0) {
 		if (n < 0) {
@@ -269,6 +240,7 @@ char *f1, *f2;
 /*
  * Check for zeroes in a buffer of size BLKSIZ.
  */
+int
 iszero(bufp) char *bufp;
 {
 	register int i;
@@ -283,8 +255,8 @@ iszero(bufp) char *bufp;
 /*
  * Check two path names for equality knowing that p2 could be '/' terminated.
  */
-equals(p1, p2)
-register char *p1, *p2;
+int
+equals(p1, p2) register char *p1, *p2;
 {
 	while (*p1++ == *p2)
 		if (*p2++ == '\0')
@@ -298,9 +270,7 @@ register char *p1, *p2;
  * Concatenate s1 and s2 with a '/' between them.
  */
 char *
-concat(l, s1, s2)
-int l;
-register char *s1, *s2;
+concat(l, s1, s2) int l; register char *s1, *s2;
 {
 	register char *s3;
 	static char *tmp[2];
@@ -320,11 +290,10 @@ register char *s1, *s2;
 	return (s3);
 }
 
-warn(err, arg1)
-int err;
-char *arg1;
+void
+warn(err, arg1) int err; char *arg1;
 {
-	fprintf(stderr, "%s: %r", cmd, &arg1);
+	fprintf(stderr, "%s%r", cmd, &arg1);
 	if (err > 0 && err < sys_nerr)
 		fprintf(stderr, " %s", sys_errlist[err]);
 	fputs("\n", stderr);
@@ -335,8 +304,7 @@ char *arg1;
  * return name of parent
  */
 char *
-getparent(dir)
-char	*dir;
+getparent(dir) char *dir;
 {
 	register	i;
 	register char	*p;
@@ -364,13 +332,11 @@ char	*dir;
 	return (par);
 }
 
-
 /*
  * return rightmost component of pathname
  */
 char *
-getchild(dir)
-register char	*dir;
+getchild(dir) register char *dir;
 {
 	register	i;
 	register char	*p;
@@ -394,39 +360,32 @@ register char	*dir;
 	return (strncpy( ch, p, DIRSIZ));
 }
 
-
-
+void
 nomemory( )
 {
-
 	fatal( ENOMEM, "out of mem");
 	NOTREACHED;
 }
 
-
+void
 onintr( )
 {
-
 	signal( SIGINT, SIG_IGN);
 	signal( SIGHUP, SIG_IGN);
 	++interrupted;
 }
 
-
-catch( sig)
+void
+catch( sig) int sig;
 {
-
 	if( signal( sig, SIG_IGN) == SIG_DFL)
 		signal( sig, onintr);
 }
 
-
-fatal(err, arg1)
-unsigned int err;
-char *arg1;
+void
+fatal(err, arg1) unsigned int err; char *arg1;
 {
 	fputs(cmd, stderr);
-	fputs(": ", stderr);
 	if (err < sys_nerr) {
 		fputs(sys_errlist[err], stderr);
 		fputs(": ", stderr);
@@ -435,3 +394,5 @@ char *arg1;
 	exit(err);
 	NOTREACHED;
 }
+
+/* end of mv.c */
