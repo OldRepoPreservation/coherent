@@ -11,6 +11,7 @@
 #include <access.h>
 #endif
 
+char	_cmdname[] = "wc";
 int	nfiles;
 int	lineflg;
 int	wordflg;
@@ -24,10 +25,6 @@ char *argv[];
 	register int i = 0;
 	register char *ap;
 	register FILE *fp;
-
-#ifdef MSDOS
-	msdoscvt("wc", &argc, &argv);
-#endif
 
 	while (argv[1] != NULL && *argv[1] == '-') {
 		for (ap = &argv[1][1]; *ap; ap++)
