@@ -1,13 +1,13 @@
 /* (-lgl
  * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1991 by Mark Williams Company.
+ * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
 /*
  * kb.h:	Keyboard definitions and constants for user configurable
  *		AT keyboard driver.
  *
- *		Version 1.1,  06/24/92
+ *		Version 1.2,  07/09/92
  */
 #ifndef	KB_H
 #define	KB_H
@@ -148,6 +148,19 @@
 #define	f59	59	/* function key 59 */
 #define	f60	60	/* function key 60 */
 #define	f61	61	/* function key 61 */
+#define	f62	62	/* function key 62 */
+#define	f63	63	/* function key 63 */
+#define	f64	64	/* function key 64 */
+#define	f65	65	/* function key 65 */
+#define	f66	66	/* function key 66 */
+#define	f67	67	/* function key 67 */
+#define	f68	68	/* function key 68 */
+#define	f69	69	/* function key 69 */
+#define	f70	70	/* function key 70 */
+#define	f71	71	/* function key 71 */
+#define	f72	72	/* function key 72 */
+#define	f73	73	/* function key 73 */
+#define	f74	74	/* function key 74 */
 
 /*
  * table entry definition
@@ -240,7 +253,7 @@ typedef	struct	{
  * These are byte values, and MUST NOT overlap with f0..fn values above.
  *
  * For VTKEY test to work, virtual terminal selector values must be
- * in a contiguous range from VTKEY_HOME to VTKEY_NEXT.
+ * in a contiguous range from VTKEY_HOME to VTKEY_MAX.
  */
 
 #define	vt0		80
@@ -294,12 +307,22 @@ typedef	struct	{
 #define mono14		mono0+14
 #define mono15		mono0+15
 
+/*
+ * vtn - next logical session (increasing minor numbers)
+ * vtp - previous logical session (decreasing minor numbers)
+ * vtt - toggle current with latest session
+ */
 #define	vtn		vt0+48
+#define	vtp		vt0+49
+#define	vtt		vt0+50
 
 #define	VTKEY_HOME	vt0
 #define	VTKEY_NEXT	vtn
+#define	VTKEY_PREV	vtp
+#define	VTKEY_TOGL	vtt
+#define	VTKEY_MAX	vtt
 
-#define	VTKEY(x)	((x)>=VTKEY_HOME && (x)<=VTKEY_NEXT)
+#define	VTKEY(x)	((x)>=VTKEY_HOME && (x)<=VTKEY_MAX)
 
 /*
  * function key definitions
