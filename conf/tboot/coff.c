@@ -1,6 +1,6 @@
 /* coff.c -- rutines for manipulating coff executable files.  */
 
-#include <a_out.h>
+#include <a.out.h>
 #include "tboot.h"
 
 /* Convert COFF to load table.
