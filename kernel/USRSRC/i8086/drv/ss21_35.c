@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.26	91/04/16  16:13:10	root
+ * First clean compile with block routine.
+ * 
  * Revision 1.25	91/04/16  01:45:35	root
  * lots of strategy code added - but not ready to compile
  * 
@@ -188,7 +191,7 @@ static faddr_t	ss_csr;		/* (far *) to control/status */
 static faddr_t	ss_dat;		/* (far *) to data port */
 
 static int	num_drives;	/* number of controller SCSI id's */
-static ss_type *ss_block;	/* points to block of "ss" structs */
+static ss_type *ss_tbl;		/* points to block of "ss" structs */
 static int	st0x_busy;	/* 1 if SCSI host adapter busy */
 
 static TIM	delay_tim;	/* needed for calls to ssdelay() */
@@ -251,15 +254,15 @@ static void ssload()
 		if (num_drives == 0) {
 			printf("Error - ss has no valid target id's\n");
 			erf = 1;
-		} else if ((ss_block = kalloc(num_drives*sizeof(ss_type)))
+		} else if ((ss_tbl = kalloc(num_drives*sizeof(ss_type)))
 		== NULL) {
 			printf("Error - ss can't allocate structs\n");
 			erf = 1;
 		} else
-			kclear(ss_block, num_drives * sizeof(ss_type));
+			kclear(ss_tbl, num_drives * sizeof(ss_type));
 	}
 	if (!erf) {
-		ss_type *foo = ss_block;
+		ss_type *foo = ss_tbl;
 
 		for (i = 0; i < MAX_SCSI_ID -1; i++)
 			if ((NSDRIVE >> i) & 1)
@@ -284,8 +287,8 @@ static void ssunload()
 	/*
 	 * Deallocate driver heap space.
 	 */
-	if (ss_block)
-		kfree(ss_block);
+	if (ss_tbl)
+		kfree(ss_tbl);
 
 	/*
 	 * Free the ST0x selector.
@@ -663,7 +666,7 @@ int s_id;
 			devmsg(dev, "Request Sense Failed");
 
 	if (retval)
-		if (inquiry(s_id), query_buf) {
+		if (inquiry(s_id, query_buf)) {
 			query_buf[INQUIRYLEN] = 0;
 			devmsg(dev, query_buf + 8);
 			if (query_buf[0] == 0) {
@@ -674,7 +677,7 @@ int s_id;
 			devmsg(dev, "Inquiry Failed");
 
 	if (retval)
-		if (read_cap(s_id), query_buf) {
+		if (read_cap(s_id, query_buf)) {
 			retval = 1;
 			ssp->capacity = query_buf[3] | (query_buf[2] << 8)
 			| (((long)(query_buf[1])) << 16)
@@ -1039,6 +1042,7 @@ int *to_ptr;
 static int req_sense(s_id)
 int s_id;
 {
+	uchar sense_buf[SENSELEN];
 	int ret = 0;
 
 	rqs.cmdbuf[0] = ScmdREQUESTSENSE;
@@ -1047,6 +1051,7 @@ int s_id;
 		rqs.cmdbuf[4] = SENSELEN;
 	rqs.cmdlen = G0CMDLEN;
 	rqs.in_buf_len = SENSELEN;
+	rqs.in_buf = sense_buf;
 
 	if (bus_pre_xfer(s_id)) {
 		bus_info_xfer(&rqs);
