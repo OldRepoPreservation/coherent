@@ -155,7 +155,7 @@ char *argv[];
 	if (nocicoflg || called_uux)
 		return 0;
 	else
-		exec_cico();
+		exec_cico(commandsite);
 	exit(0);
 }
 
