@@ -28,6 +28,11 @@
 #define BLOCK	512	/* 512 bytes per disk block.  */
 #define LINESIZE 81	/* Size of typical line with NUL terminator.  */
 #define	MAX_SEGS 8	/* Maximum number of executable file segs + 1.  */
+#define RBOOTS 0x8000	/* This constant is from Startup.s.  It is the
+			 * segment to which tboot relocates itself.
+			 * Setting it in this file will only affect
+			 * the check in seg_too_high().
+			 */
 #define NORMAL_MAGIC 0x10B	/* Value of optional header magic
 				 * for normal executable file.
 				 */
@@ -73,11 +78,21 @@
 /* WAIT_DELAY is how long to wait after finding autoboot before booting.  */
 #define WAIT_DELAY	91	/* 5 seconds * 18.2 clicks per second.  */
 
+/* Maximum number of tokens on one command line.  */
+#define MAX_TOKENS	10
+
 /* Useful macros.  */
 #define GREATEST(a, b, c) (a > (b>c?b:c) ? a : (b>c?b:c))
 #define LESSER(a, b) (a < b ? a : b)
 #define HIGH(x)	(x >> 8)	/* High byte of 16 bit number.  */
 #define LOW(x)	(x & 0xff)	/* Low byte of 16 bit number.  */
+#define VERBOSE(c) if (verbose_flag) { c; }
+/*
+ * Macros for evaluating return codes from get_cpu_type().
+ */
+#define IS_PRE_AT(f)	((f)==0)
+#define IS_I286(f)	((f)==1)
+#define IS_I386(f)	((f)==2)
 
 /* Register structure used by call_bios().  */
 struct reg {
@@ -166,5 +181,5 @@ extern int errno;	/* Error number for "system" calls.  */
 EXTERN uint16 sys_base;	/* Segment into which to load the kernel.  */
 EXTERN int sys_base_set;	/* Has sys_base been explicitly set?  */
 EXTERN int want_monitor;	/* Should we invoke monitor before execution?  */
-
+EXTERN int verbose_flag;	/* Be verbose?  */
 #endif /* TBOOT_H */

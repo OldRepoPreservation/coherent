@@ -20,9 +20,7 @@ lout2load(ip, table, data_seg)
 	int i;				/* Loop counter.  */
 	struct ldheader imageheader;	/* l.out header for boot image.  */
 
-#ifdef VERBOSE
-	puts("Reading the l.out header.\r\n");
-#endif /* VERBOSE */
+	VERBOSE( puts("Reading the l.out header.\r\n"); );
 
 	/* Read the header.  */
 	iread(ip, &imageheader,
@@ -44,9 +42,7 @@ lout2load(ip, table, data_seg)
 #define L_DATA table[1]
 	/* Calculate remaining entries.  */
 	if (imageheader.l_flag & LF_SEP) { /* if sep i/d executable */
-#ifdef VERBOSE
-		puts("Generating table for sep i/d l.out.\r\n");
-#endif /* VERBOSE */
+		VERBOSE( puts("Generating table for sep i/d l.out.\r\n"); );
 		L_TEXT.valid = (1==1);
 		L_TEXT.message = "\r\nLoading 286 COHERENT...\r\n";
 		/* Load the shared and private code segments as one.  */
@@ -83,9 +79,7 @@ lout2load(ip, table, data_seg)
 	} else { /* if not sep i/d executable */
 #define SEGMENT table[0]
 		
-#ifdef VERBOSE
-		puts("Generating table for non-sep i/d l.out.\r\n");
-#endif /* VERBOSE */
+		VERBOSE( puts("Generating table for non-sep i/d l.out.\r\n"); );
 
 		SEGMENT.valid = (1==1);
 		SEGMENT.message = "\r\nLoading ancient COHERENT...\r\n";
@@ -111,9 +105,25 @@ lout2load(ip, table, data_seg)
 
 
 /*
+ * Wrapper for l_out_nlist() to make it look palitable.
+ */
+unsigned int
+wrap_l_out_nlist(filename, symbol)
+	char *filename;
+	char *symbol;
+{
+	struct nlist nlp[2];	/* For talking with l_out_nlist().  */
+
+	strcpy(nlp[0].n_name, symbol);
+	strcat(nlp[0].n_name, "_");
+	nlp[1].n_name[0] = '\0';
+	l_out_nlist(filename, nlp);
+	return( nlp[0].n_value );
+}
+
+/*
  * Get entries from l.out name list.
  */
-
 void
 l_out_nlist(fn, nlp)
 char *fn;

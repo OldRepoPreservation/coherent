@@ -4,7 +4,7 @@
 #include <sys/inode.h>
 #include <sys/types.h>
 #include <l.out.h>
-#include <filehdr.h>	/* COFF */
+#include <coff.h>	/* COFF */
 
 #include "tboot.h"
 
@@ -31,24 +31,20 @@ object2load(magic, ip, table, data_seg)
 	switch (magic) {
 	/* Is this an i386 COFF executable?  */
 	case I386MAGIC:
-#ifdef VERBOSE
-		puts("COFF!  COFF!\r\n");
-#endif
+		VERBOSE( puts("COFF!  COFF!\r\n"); );
 		retval = 
 			coff2load(ip, table, data_seg);
 		break;
 		
 	/* Is this an l.out executable?  */
 	case L_MAGIC:
-#ifdef VERBOSE
-		puts("l.out!\r\n");
-#endif
+		VERBOSE( puts("l.out!\r\n"); );
 		retval =
 			lout2load(ip, table, data_seg);
 		break;
 	
 	default:
-		retval = (1==2);
+		retval = FALSE;
 		break;
 	} /* switch (magic) */
 
@@ -76,7 +72,6 @@ object_nlist(magic, filename, symbol)
 {
 	uint32 tmp;
 	unsigned int retval;		/* Return value.  */
-	struct nlist nlp[2];		/* For talking with l_out_nlist().  */
 
 	switch (magic) {
 	/* Is this an i386 COFF executable?  */
@@ -98,11 +93,7 @@ object_nlist(magic, filename, symbol)
 		
 	/* Is this an l.out executable?  */
 	case L_MAGIC:
-		strcpy(nlp[0].n_name, symbol);
-		strcat(nlp[0].n_name, "_");
-		nlp[1].n_name[0] = '\0';
-		l_out_nlist(filename, nlp);
-		retval = nlp[0].n_value;
+		retval = wrap_l_out_nlist(filename, symbol);
 		break;
 	
 	default:
