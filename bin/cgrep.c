@@ -150,6 +150,8 @@ static FILE *tfp;		/* tmp file pointer */
 static int lineno;		/* current line number */
 static int marked;		/* 1 if pattern found on line. */
 
+static int matched;		/* 1 if any match found. */
+
 /*
  * Character types table
  * for the ASCII character set modified to see _ as alpha.
@@ -245,6 +247,7 @@ char *what;		/* the string we have or NULL */
 
 	if (rswitch) {	/* replace mode works on tokens only */
 		marked = (word == got) && regexec(pat, what);
+		matched |= marked;
 		return;
 	}
 
@@ -286,6 +289,7 @@ char *what;		/* the string we have or NULL */
 					emacsLine(p, tokens[i].atline);
 				else {
 					marked = 1;
+					matched = 1;
 					if (dswitch) {
 						strcpy(dtoken, p);
 						cswitch = sswitch = 1;
@@ -465,7 +469,7 @@ lex()
 			tfp = stdout;
 		else if ((NULL == (tname = tempnam(NULL, "cse"))) ||
 			 (NULL == (tfp = fopen(tname, "w"))))
-		  	fatal("csed: Cannot open tmp file");
+		  	fatal("cgrep: Cannot open tmp file");
 	}
 
 	lineno = 1;
@@ -761,5 +765,5 @@ register char **argv;
 			lex();
 		}
 	}
-	exit(0);
+	exit(! matched);
 }
