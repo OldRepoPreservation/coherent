@@ -34,7 +34,6 @@ char	cfline[300];		/* Control file line */
 char	comment[300];		/* Comment line */
 FILE	*lp;
 int	printing;		/* On while printing */
-int	banyes = 1;		/* On if banner page is to be printed */
 
 char	*lgets();
 int	cancel();
@@ -62,13 +61,7 @@ char *argv[];
 	write(fd, &pid, sizeof pid);
 	close(fd);
 	if (argc > 1)
-		if (*argv[1] == '-')
-			if (*++argv[1] == 'y')
-				banyes = 1;
-			else
-				banyes = 0;
-		else
-			printer = argv[1];
+		printer = argv[1];
 	if ((lp = fopen(printer, "w")) == NULL)
 		lperr( "%s: %s", printer, sys_errlist[errno]);
 	ioctl(fileno(lp), TIOCEXCL, NULL);
@@ -116,12 +109,11 @@ register char *cfname;
 	FILE *cfp;
 	char mbuf[MAXCOM+40];
 	char *message = "%s: Listing complete: %.*s\n";
+	int state;	/* 0 to suppress header, 1 before first banner, 2 after */
 
 	if ((cfp = fopen(cfname, "r")) != NULL) {
 again:
-		printing = 1;
-		if (banyes)
-			fprintf(lp, "%s\n\n", cfname);
+		printing = state = 1;
 		while (lgets(cfline, sizeof cfline, cfp) != NULL) {
 			if (!printing)
 				message = "%s: Listing killed by order: %.*s\n";
@@ -132,10 +124,17 @@ again:
 			}
 			switch (cfline[0]) {
 			case 'A':
+				if (state)
+					putc(FF, lp);	/* FF after banner */
 				if (print(cfline+1)) {
 					message = "%s: Printer file error: %.*s\n";
 					strcpy(comment, cfline+1);
 				}
+				putc(FF, lp);		/* FF after file */
+				break;
+
+			case 'B':
+				state = 0;		/* suppress header */
 				break;
 
 			case 'D':
@@ -143,6 +142,12 @@ again:
 				break;
 
 			case 'L':
+				if (state == 0)
+					break;
+				if (state == 1) {
+					state = 2;
+					fprintf(lp, "%s\n\n", cfname);
+				}
 				if (printing > 0) {
 					cfline[BANWID+1] = '\0';
 /* Paper tiger controls
@@ -173,9 +178,6 @@ again:
 			}
 		}
 		fclose(cfp);
-#ifndef LASER
-		putc(FF, lp);
-#endif
 		printing = 0;
 	}
 	unlink(cfname);
