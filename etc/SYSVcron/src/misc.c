@@ -158,7 +158,7 @@ char	*file_name;
 			return FALSE;	/* Lock exist */
 		else {
 			/* Something bad with system at all */
-			fprintf(stderr, "crond: cannot lock\n");
+			fprintf(stderr, "cron: cannot lock\n");
 			exit(1);
 		}
 	else
@@ -185,13 +185,13 @@ char	*cpUserName;
 		 */
 		if (setgid(stpPwd->pw_gid)) {
 			fprintf(stderr, 
-				"crond: cannot set gid %d for user %s\n", 
+				"cron: cannot set gid %d for user %s\n", 
 						stpPwd->pw_gid, cpUserName);
 			return FALSE;
 		}			
 		if (setuid(stpPwd->pw_uid)) {
 			fprintf(stderr, 
-					"crond: cannot set uid %d for user %s\n", 
+					"cron: cannot set uid %d for user %s\n", 
 						stpPwd->pw_uid, cpUserName);
 			return FALSE;
 		}
@@ -278,6 +278,7 @@ FILE	*fpOpenTable(cmd)
 char	*cmd;
 {
 	char	*pcTableName;
+	FILE	*fp;
 
 	if ((pcTableName = malloc(strlen(D_SPOOL) + MAX_UNAME + 1)) == NULL) {
 		system("echo \"cron*: not enough memory\" > /dev/console");
@@ -289,5 +290,25 @@ char	*cmd;
 
 	Dprint("Destination file is %s\n", pcTableName);
 	
-	return(fopen(pcTableName, cmd));
+	fp = fopen(pcTableName, cmd);
+	free(pcTableName);
+	return(fp);
 }
+
+/*
+ * if_log - return TRUE if log file should be used.
+ */
+if_log()
+{
+	char	buf[64];
+	FILE	*fp_log;
+
+	if ((fp_log = fopen(F_DEF, "r")) == NULL)
+		return FALSE;
+	
+	fgets(buf, 64, fp_log);
+	if (!strncmp(buf, "CRONLOG=YES", 11))
+		return TRUE;
+	return FALSE;
+}
+	

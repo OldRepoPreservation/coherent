@@ -1,6 +1,6 @@
 /*
  * cronpipe.c 
- * Special version of popen, that allows to crond keep track about
+ * Special version of popen, that allows to cron keep track about
  * children.
  */
 #include <stdio.h>
@@ -55,7 +55,7 @@ char *command, *type;
 			/* If file name is not user name ignore it */
 			if ((set_uid_flag = set_uid(acRealUser)) != TRUE) {
 				fprintf(stderr, 
-				  "crond: cannot find/set user '%s'\n", 
+				  "cron: cannot find/set user '%s'\n", 
 				   acRealUser);
 				return(NULL);
 			}
@@ -78,12 +78,11 @@ char *command, *type;
 	/* Parent */
 	/* We will keep track about keeds only in SV mode */
 	if (flag320 == FALSE) {
-		Dprint("cronpipe before fork: Name %s\n", acRealUser);
-		Dprint("                      Pid %d\n", poppid[fd]);
-		Dprint("                      Name %s\n", acRealUser);
-		Dprint("                      Time %s\n", ctime(&clock));
+		Dprint("cronpipe before fork: Name %s\t", acRealUser);
+		Dprint("                      Pid %d\t", poppid[fd]);
 		Dprint("                      Command %s\n", command);
 		current = add_entry(poppid[fd], acRealUser, clock, command);
+		Dprint("cronpipe: after add. Pid is %d\n", current->pid);
 	}
 	if (mode == W) {
 		close(pd[R]);
