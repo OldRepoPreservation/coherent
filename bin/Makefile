@@ -1,12 +1,16 @@
 # CFLAGS are not needed for i8086
 CFLAGS= -O -DNEWTTYS
-DESTDIR= /f1/bin/
-CMDS= login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
+DESTDIR= /interim/bin/
+CMDS= expr/expr conv/conv as/as awk/awk \
+      bc/bc check/check compress/compress dc/dc diff/diff dos/dos dump/dump \
+      ed/ed find/find grep/grep lex/lex mail/mail make/make sed/sed sh/sh \
+      test/test tsort/tsort yacc/yacc \
+      login passwd su ac ar at bad banner basename c cal calendar cat chgrp \
       chmod chown cmp col comm cp cpdir crypt date dd deroff df du echo egrep \
       factor file fixstack from head help join kill lc ln look ls m4 mail man \
       mesg mkdir msg mv newgrp nm od pr prep prof pwd quot ranlib rev rm rmdir \
       sa scat size sleep sort split strings strip stty sum sync tail tar tee \
-      time touch tr tty typo uniq units wc who write yes qfind as
+      time touch tr tty typo uniq units wc who write yes qfind 
 
 all:	$(CMDS)
 	>all
@@ -530,5 +534,68 @@ qfind:	qfind.c
 	su root chgrp bin $(DESTDIR)$@
 	su root chmod 511 $(DESTDIR)$@
 
-as:
-	cd as; make
+as/as:
+	./make.in as
+
+awk/awk:
+	./make.in awk
+
+bc/bc:
+	./make.in bc
+
+check/check:
+	./make.in check
+
+compress/compress:
+	./make.in compress
+
+dc/dc:
+	./make.in dc
+
+diff/diff:
+	./make.in diff
+
+dos/dos:
+	./make.in dos
+
+dump/dump:
+	./make.in dos
+
+ed/ed:
+	./make.in ed
+
+find/find:
+	./make.in find
+
+grep/grep:
+	./make.in grep
+
+lex/lex:
+	./make.in lex
+
+mail/mail:
+	./make.in mail
+
+make/make:
+	./make.in make
+
+sed/sed:
+	./make.in sed
+
+sh/sh:
+	./make.in sh
+
+test/test:
+	./make.in test
+
+tsort/tsort:
+	./make.in tsort
+
+yacc/yacc:
+	./make.in yacc
+
+expr/expr:
+	./make.in expr
+
+conv/conv:
+	./make.in conv
