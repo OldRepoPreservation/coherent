@@ -5,7 +5,7 @@
 # Requires environment variables
 #	USRSYS (e.g. /usr/sys)
 #	USRSRC (e.g. /usr/src/sys)
-#	KOBJ (e.g. /tmp/kobj)
+#	KOBJ (e.g. /usr/kobj)
 #
 # $Log:	/usr/src/sys/i8086/ibm_at/RCS/Makefile,v $
 # Revision 1.3	89/06/30  16:26:39 	src
