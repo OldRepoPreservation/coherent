@@ -2,11 +2,11 @@
  * h/i386/mch.h
  * Machine specific header for the i386 compiler.
  * Typedefs, register names and macros for all compiler phases.
- * This one builds a debug (!TINY) i386 COHERENT compiler with disk tempfiles.
+ * This one builds a TINY i386 COHERENT compiler with memory tempfiles.
  */
 
-#define	DATE		"1/5/93"	/* Date			*/
-#define	VERSMWC		"V4.0.N"	/* MWC version number	*/
+#define	DATE		"3/24/93"	/* Date			*/
+#define	VERSMWC		"V4.1.9"	/* MWC version number	*/
 #define	VERSINT		"X324"		/* Intel version number	*/
 
 #define	EATDOL		0	/* Eat '$' in identifiers?	*/
@@ -14,8 +14,9 @@
 #define	IEEE		1	/* IEEE format?			*/
 #define	DECVAX		0	/* DECVAX format?		*/
 #define	NATIVEFP	0	/* Host fp == target fp?	*/
+#define	FOLD_DOUBLES	1	/* Fold doubles? Assumes host fp == target fp! */
 #define MCFFP		0	/* Motorola fast floating point? */
-#define	TINY		0	/* No code gen debug info?	*/
+#define	TINY		1	/* No code gen debug info?	*/
 #ifndef	YATC
 #define	YATC		0	/* Not code table compile	*/
 #endif
@@ -24,7 +25,7 @@
 #define AS_FORMAT	1	/* Coherent/Rainbow .s format?	*/
 #define	INTEL		0	/* Intel copyright?		*/
 #define	OMF286		0	/* 286 object format?		*/
-#define	TEMPBUF		0	/* Memory tempfile buffers?	*/
+#define	TEMPBUF		1	/* Memory tempfile buffers?	*/
 
 #define	EMUFIXUPS	0	/* M: 8087 emulation fixups?	*/
 
@@ -78,12 +79,16 @@
  * Allocation types.
  */
 #ifdef  vax
-typedef	int	ival_t;		/* 32 bits			*/
-typedef	int	lval_t;		/* 32 bits			*/
-typedef int	sizeof_t;	/* sizeof constants		*/
+typedef	int	ival_t;		/* 32 bit ints			*/
+typedef	unsigned int uival_t;	/* 32 bit uints			*/
+typedef	int	lval_t;		/* 32 bit longs			*/
+typedef	unsigned int ulval_t;	/* 32 bit ulongs		*/
+typedef int	sizeof_t;	/* 32 bit sizeof constants	*/
 #else
 typedef	long	ival_t;		/* 32 bit ints			*/
+typedef	unsigned long uival_t;	/* 32 bit uints			*/
 typedef	long	lval_t;		/* 32 bit longs			*/
+typedef	unsigned long ulval_t;	/* 32 bit ulongs		*/
 typedef long	sizeof_t;	/* 32 bit sizeof constants	*/
 #endif
 typedef	char	dval_t[8];	/* doubles			*/
