@@ -7,7 +7,7 @@
 #include <sys/sched.h>
 #include <sys/types.h>
 #include <sys/uproc.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/con.h>
 #include <sys/seg.h>
@@ -365,10 +365,10 @@ int 	msgsz, 		/* message size */
 		/* We have to wait here */
 		qp->msg_perm.mode |= MSG_WWAIT;
 		unlock(msg_gate[q_num]);
-		x_sleep(qp, pritty, slpriSigCatch, "umsgsnd");
 
-		/* Abort if a signal was received */
-		if (SELF->p_ssig && nondsig()) {
+		if (x_sleep (qp, pritty, slpriSigCatch, "umsgsnd")
+		    == PROCESS_SIGNALLED) {
+			/* Abort if a signal was received */
 			u.u_error = EINTR;
 			return -1;
 		}
@@ -539,10 +539,8 @@ int 		msgflg;	/* Message flag		*/
 		/* We can go sleep now */
 		qp->msg_perm.mode |= MSG_RWAIT;
 		unlock(msg_gate[q_num]);
-		x_sleep(qp, pritty, slpriSigCatch, "umsgrcv");
-
-		/* Signal received */
-		if (SELF->p_ssig && nondsig()) {
+		if (x_sleep (qp, pritty, slpriSigCatch, "umsgrcv")
+		    == PROCESS_SIGNALLED) {
 			u.u_error = EINTR;
 			return -1;
 		}
