@@ -27,9 +27,8 @@
 %token	_R _W _F _D _S _T _Z _N
 %token	SEQ SNEQ
 %token	_EQ _NE _GT _GE _LT _LE
-%token	<fname> STR
 %type	<nodeptr> exp
-
+%token	<fname> STR
 %%
 
 command:
@@ -65,23 +64,24 @@ exp:
 struct	prim	{
 	char	*p_name;
 	int	p_lval;
+	int	p_bin;
 }	prims[] = {
-	"-r", _R,
-	"-w", _W,
-	"-f", _F,
-	"-d", _D,
-	"-s", _S,
-	"-t", _T,
-	"-z", _Z,
-	"-n", _N,
-	"-eq", _EQ,
-	"-ne", _NE,
-	"-gt", _GT,
-	"-ge", _GE,
-	"-lt", _LT,
-	"-le", _LE,
-	"-o", OR,
-	"-a", AND
+	"-r", _R, 0,
+	"-w", _W, 0,
+	"-f", _F, 0,
+	"-d", _D, 0,
+	"-s", _S, 0,
+	"-t", _T, 0,
+	"-z", _Z, 0,
+	"-n", _N, 0,
+	"-eq", _EQ, 1,
+	"-ne", _NE, 1,
+	"-gt", _GT, 1,
+	"-ge", _GE, 1,
+	"-lt", _LT, 1,
+	"-le", _LE, 1,
+	"-o", OR, 1,
+	"-a", AND, 1
 };
 
 
@@ -133,23 +133,40 @@ char *argv[];
  */
 yylex()
 {
+	static char laststr = 0; /* 1 if last token was string */
 	register char *ap;
 	register struct prim *pp;
 
-	if ((ap = next()) == NULL)
+	if ((yylval.fname = ap = next()) == NULL)
 		return ('\n');
-	if (ap[1] == '\0')
-		if (ap[0]=='(' || ap[0]==')' || ap[0]=='!')
-			return (ap[0]);
-	if (ap[0]=='!' && ap[1]=='=' && ap[2]=='\0')
-		return (SNEQ);
-	if (ap[0]=='=' && ap[1]=='\0')
-		return (SEQ);
-	if (*ap == '-')
-		for (pp = prims; pp < &prims[NPRIM]; pp++)
-			if (strcmp(pp->p_name, ap) == 0)
+
+	if (*ap == '-') {
+		for (pp = prims; pp < &prims[NPRIM]; pp++) {
+			if (strcmp(pp->p_name, ap) == 0) {
+				if (!laststr && pp->p_bin)
+					break;
+				laststr = 0;
 				return (pp->p_lval);
-	yylval.fname = ap;
+			}
+		}
+	}
+	else {
+		laststr = 0;
+		if (strcmp("!=", ap) == 0)
+			return (SNEQ);
+
+		if (ap[1] == '\0') {
+			if (ap[0]==')') {
+				laststr = 1;
+				return(')');
+			}
+			if (ap[0]=='(' || ap[0]=='!')
+				return (ap[0]);
+			if (ap[0]=='=')
+				return (SEQ);
+		}
+	}
+	laststr = 1;
 	return (STR);
 }
 
