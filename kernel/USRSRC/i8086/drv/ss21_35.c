@@ -8,6 +8,9 @@ int busted;
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.22	91/04/10  16:55:59	root
+ * Starting to get block operations working.
+ * 
  * Revision 1.21	91/04/10  15:21:41	root
  * Move define's to ss.h and scsiwork.h.  Other cleanup
  * 
@@ -71,12 +74,12 @@ int stats[100], statsptr;
 #include	<sys/stat.h>
 #include	<sys/devices.h>		/* SCSI_MAJOR */
 #include	<errno.h>
-#include	<ss.h>
 
 #include 	<sys/fdisk.h>
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
 #include	<scsiwork.h>
+#include	<ss.h>
 
 /*
  * Export Functions.
@@ -95,10 +98,6 @@ int	SS_BASE = 0xDE00;	/* Segment addr of ST0x communication area */
 extern int	nulldev();
 extern int	nonedev();
 extern unsigned char ffbyte();
-
-extern void ssq_wr_tail();
-extern scsi_work_t * ssq_rd_head();
-extern scsi_work_t * ssq_rm_head();
 
 /*
  * Local Functions.
@@ -301,14 +300,24 @@ static void ssunload()
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
-static void ssopen( dev, mode )
+static void ssopen(dev, mode)
 register dev_t	dev;
 {
 	int drive, partn;
-	int erf = 0;
+	int valid_open;
+	struct	fdisk_s	*fdp;
+	struct ss * ssp;
+	int s_id;
 
+	/*
+	 * Set up local variables.
+	 */
+	valid_open = 1;
 	drive = DEV_SCSI_ID(dev);
 	partn = DEV_PARTN(dev);
+	s_id = DEV_SCSI_ID(dev);
+	ssp = ss[s_id];
+	fdp = ssp->parmp;
 
 	/*
 	 * LUN must be zero.
@@ -316,60 +325,80 @@ register dev_t	dev;
 	 */
 	if (DEV_LUN(dev) != 0 || ((1 << drive) & NSDRIVE) == 0) {
 		u.u_error = ENXIO;
-		erf = 1;
+		valid_open = 0;
 	}
 
 	/*
-	 * If "special" bit is set, partition must be zero.
+	 * If "special" bit is set, partition field must be zero.
 	 */
-	if (!erf && DEV_SPECIAL(dev) && partn != 0) {
+	if (valid_open && DEV_SPECIAL(dev) && partn != 0) {
 		u.u_error = ENXIO;
-		erf = 1;
+		valid_open = 0;
 	}
 
 	/*
-	 * If "special" bit is NOT set, error return for now.
+	 * Subscripting gimmick for partition table.
 	 */
-	if (!erf && !DEV_SPECIAL(dev)) {
-		u.u_error = ENXIO;
-		erf = 1;
+	if (valid_open && dev & SDEV)
+		partn = WHOLE_DRIVE;
+
+	/*
+	 * If not accessing whole drive and the partition table has not
+	 * been read yet, try to read it now.
+	 */
+	if (valid_open && partn != WHOLE_DRIVE && !(ssp->ptab_read))
+		if (fdisk(dev, fdp)) {
+int p;
+printf("fdisk() succeeded\n");
+for (p=0; p<WHOLE_DRIVE; p++)
+	printf("p=%d base=%ld size=%ld\n", p, fdp[p].p_base, fdp[p].p_size);
+			ssp->ptab_read = 1;
+		} else {
+printf("fdisk() failed\n");
+			u.u_error = ENXIO;
+			valid_open = 0;
+		}
+
+	/*
+	 * Ensure partition lies within drive boundaries and is non-zero size.
+	 */
+	if (valid_open
+	&& (fdp[partn].p_base+fdp[partn].p_size) > fdp[WHOLE_DRIVE].p_size) {
+		u.u_error = EBADFMT;
+		valid_open = 0;
+	}
+
+	if (valid_open && fdp[partn].p_size == 0) {
+		u.u_error = ENODEV;
+		valid_open = 0;
 	}
 
 	/*
 	 * OK - open the device.
 	 */
-	if (!erf) {
+	if (valid_open) {
 		++drvl[SCSI_MAJOR].d_time;
 	}
-#if 0
-	/*
-	 * Ensure partition lies within drive boundaries and is non-zero size.
-	 */
-	if ((pparm[p].p_base+pparm[p].p_size) > pparm[d+NDRIVE*NPARTN].p_size)
-		u.u_error = EBADFMT;
-	else if ( pparm[p].p_size == 0 )
-		u.u_error = ENODEV;
-#endif
 }
 
 /*
  * ssclose()
  */
-static void ssclose( dev )
+static void ssclose(dev)
 dev_t dev;
 {
 	--drvl[SCSI_MAJOR].d_time;	
 }
 
 /*
- * ssread()	- write a block to the raw disk
+ * ssread()	- read a block from the raw disk
  *
  *	Input:	dev = disk device to be written to.
  *		iop = pointer to source I/O structure.
  *
  *	Action:	Invoke the common raw I/O processing code.
  */
-static void ssread( dev, iop )
+static void ssread(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
@@ -384,7 +413,7 @@ IO	*iop;
  *
  *	Action:	Invoke the common raw I/O processing code.
  */
-static void sswrite( dev, iop )
+static void sswrite(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
@@ -401,7 +430,7 @@ IO	*iop;
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
-static int ssioctl( dev, cmd, vec )
+static int ssioctl(dev, cmd, vec)
 register dev_t	dev;
 int cmd;
 char * vec;
@@ -628,16 +657,7 @@ int s_id;
 		} else
 			devmsg(dev, "Read Capacity Failed");
 
-#if 0
-	if (retval) {
-		retval = fdisk(dev, ss[s_id]->parmp);
-		if (retval) {
-			printf("fdisk scsi id #%d succeeded\n", s_id);
-			ss[s_id]->ptab_read = 1;
-		} else
-			printf("fdisk scsi id #%d failed\n", s_id);
-	}
-#else
+#if 1
 	/*
 	 * For test purposes only, try to read the partition table.
 	 */
@@ -766,7 +786,6 @@ printf("Select dropped by target\n");
 		if (connected) {
 			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
 			if (bus_wait(RS_SELECT << 8 | 0)) {
-printf("Select deasserted by target\n");
 				sfbyte(ss_csr, WC_ENABLE_SCSI);
 				bus_info_xfer(ssp);
 				retval = (ssp->cmdstat == CS_GOOD);
