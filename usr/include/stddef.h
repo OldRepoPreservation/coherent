@@ -22,27 +22,11 @@ typedef	int		ptrdiff_t;	/* pointer difference type	*/
 #endif
 #endif
 
-#ifndef	_SIZE_T
-#define	_SIZE_T
-typedef	unsigned int	size_t;		/* sizeof result type		*/
-#endif
-
-#ifndef	_WCHAR_T
-#define	_WCHAR_T
-typedef	char		wchar_t;	/* extended character set type	*/
-#endif
-
-/* Macros. */
-#ifndef	NULL
-#define	NULL	((char *)0)		/* null pointer constant	*/
-#endif
-#ifndef	Void
-#define	Void	char		/* Use "Void *" as generic pointer type	*/
-#endif
+#include <common/_size.h>
+#include <common/_wchar.h>
+#include <common/_null.h>
 
 #define offsetof(s,id)	((size_t)&(((s *)0)->id))
 				/* offset of member id in struct s	*/
 
-#endif
-
-/* end of stddef.h */
+#endif	/* ! defined (__STDDEF_H__) */

@@ -12,9 +12,13 @@
 #ifndef	__STDIO_H__
 #define	__STDIO_H__
 
-#ifndef	NULL
-#define	NULL	((char *)0)
-#endif
+#include <common/feature.h>
+#include <common/ccompat.h>
+#include <common/__off.h>
+#include <common/__valist.h>
+#include <common/_size.h>
+#include <common/_null.h>
+#include <common/whence.h>
 
 /* Macros. */
 #define	BUFSIZ		512		/* default buffer size	*/
@@ -26,17 +30,11 @@
 #define	_NSTDFILE	3		/* number of predefined FILEs	*/
 #define	L_tmpnam	64		/* tmpnam length	*/
 #define	P_tmpdir	"/tmp"		/* default temporary directory */
-#define	SEEK_CUR	1		/* from current position */
-#define	SEEK_END	2		/* from end		*/
-#define	SEEK_SET	0		/* from beginning	*/
 #define	TMP_MAX		91		/* number of tmpnams	*/
 
 /* Types. */
 typedef long		fpos_t;		/* file position type	*/
-#ifndef	_SIZE_T
-#define	_SIZE_T
-typedef	unsigned int	size_t;		/* sizeof result type	*/
-#endif
+
 /*
  * The order the first 5 FILE members corresponds to the order in iBCS2,
  * to allow a degree of binary compatability.
@@ -68,7 +66,10 @@ typedef	struct	_FILE2 {
 #define	_flag	_ff1
 #define	_file	_fd
 
-/* Standard FILEs. */
+/*
+ * Standard FILEs. Technically, these definitions violate the user name-space,
+ * but these names are required for iBCS2.
+ */
 extern	FILE	_iob[_NSTDFILE];
 extern	FILE	*_fp[_NFILE];
 #define	stdin	(&_iob[0])
@@ -79,9 +80,11 @@ extern	FILE	*_fp[_NFILE];
 #define	_IOFBF		0x00		/* fully buffered	*/
 #define	_IONBF		0x04		/* unbuffered		*/
 #define	_IOLBF		0x40		/* line buffered	*/
+
 /* Flags in _ff1, cf. iBCS2. */
 #define	_FEOF		0x10		/* end of file		*/
 #define	_FERR		0x20		/* error		*/
+
 /* Non-iBCS2 flags in _ff1. */
 #define	_FRONLY		0x01		/* read only		*/
 #define	_FWONLY		0x02		/* write only		*/
@@ -104,48 +107,88 @@ extern	FILE	*_fp[_NFILE];
 
 /* External declarations for non-conforming implementations. */
 /* Standard functions. */
-extern	void	clearerr();		/* 4.9.10.1 */
-extern	int	fclose	();		/* 4.9.5.1  */
-extern	int	feof	();		/* 4.9.10.2 */
-extern	int	ferror	();		/* 4.9.10.3 */
-extern	int	fflush	();		/* 4.9.5.2  */
-extern	int	fgetc	();		/* 4.9.7.1  */
-extern	int	fgetpos	();		/* 4.9.9.1  */
-extern	char *	fgets	();		/* 4.9.7.2  */
-extern	FILE *	fopen	();		/* 4.9.5.3  */
-extern	int	fprintf	();		/* 4.9.6.1  */
-extern	int	fputc	();		/* 4.9.7.3  */
-extern	int	fputs	();		/* 4.9.7.4  */
-extern	size_t	fread	();		/* 4.9.8.1  */
-extern	FILE *	freopen	();		/* 4.9.5.4  */
-extern	int	fscanf	();		/* 4.9.6.2  */
-extern	int	fseek	();		/* 4.9.9.2  */
-extern	int	fsetpos	();		/* 4.9.9.3  */
-extern long int	ftell	();		/* 4.9.9.4  */
-extern	size_t	fwrite	();		/* 4.9.8.2  */
-extern	int	getc	();		/* 4.9.7.5  */
-extern	int	getchar	();		/* 4.9.7.6  */
-extern	char *	gets	();		/* 4.9.7.7  */
-extern	void	perror	();		/* 4.9.10.4 */
-extern	int	printf	();		/* 4.9.6.3  */
-extern	int	putc	();		/* 4.9.7.8  */
-extern	int	putchar	();		/* 4.9.7.9  */
-extern	int	puts	();		/* 4.9.7.10 */
-extern	int	remove	();		/* 4.9.4.1  */
-extern	int	rename	();		/* 4.9.4.2  */
-extern	void	rewind	();		/* 4.9.9.5  */
-extern	int	scanf	();		/* 4.9.6.4  */
-extern	void	setbuf	();		/* 4.9.5.5  */
-extern	int	setvbuf	();		/* 4.9.5.6  */
-extern	int	sprintf	();		/* 4.9.6.5  */
-extern	int	sscanf	();		/* 4.9.6.6  */
-extern	FILE *	tmpfile	();		/* 4.9.4.3  */
-extern	char *	tmpnam	();		/* 4.9.4.4  */
-extern	int	ungetc	();		/* 4.9.7.11 */
-extern	int	vfprintf();		/* 4.9.6.7  */
-extern	int	vprintf	();		/* 4.9.6.8  */
-extern	int	vsprintf();		/* 4.9.6.9  */
 
+__EXTERN_C_BEGIN__
+
+int		remove		__PROTO ((__CONST__ char * _filename));
+int		rename		__PROTO ((__CONST__ char * _old,
+					  __CONST__ char * _new));
+FILE	      *	tmpfile		__PROTO ((void));
+char	      *	tmpnam		__PROTO ((char * _s));
+int		fclose		__PROTO ((FILE * _stream));
+int		fflush		__PROTO ((FILE * _stream));
+FILE	      *	fopen		__PROTO ((__CONST__ char * _filename,
+					  __CONST__ char * _mode));
+FILE	      *	freopen		__PROTO ((__CONST__ char * _filename,
+					  __CONST__ char * _mode,
+					  FILE * _stream));
+void		setbuf		__PROTO ((FILE * _stream, char * _buf));
+int		setvbuf		__PROTO ((FILE * _stream, char * _buf,
+					  int _mode, size_t _size));
+void		fprintf		__PROTO ((FILE * _stream,
+					  __CONST__ char * _format, ...));
+int		fscanf		__PROTO ((FILE * _stream,
+					  __CONST__ char * _format, ...));
+int		printf		__PROTO ((__CONST__ char * _format, ...));
+int		scanf		__PROTO ((__CONST__ char * _format, ...));
+int		sprintf		__PROTO ((char * _s,
+					  __CONST__ char * _format, ...));
+int		sscanf		__PROTO ((__CONST__ char * _s,
+					  __CONST__ char * _format, ...));
+int		vfprintf	__PROTO ((FILE * _stream,
+					  __CONST__ char * _format,
+					  __va_list arg));
+int		vprintf		__PROTO ((__CONST__ char * _format,
+					  __va_list arg));
+int		vsprintf	__PROTO ((char * _s,
+					  __CONST__ char * _format,
+					  __va_list arg));
+int		fgetc		__PROTO ((FILE * _stream));
+char	      *	fgets		__PROTO ((char * _s, int _n, FILE * _stream));
+int		fputc		__PROTO ((int _c, FILE * _stream));
+int		fputs		__PROTO ((__CONST__ char * _s,
+					  FILE * _stream));
+int		getc		__PROTO ((FILE * stream));
+int		getchar		__PROTO ((void));
+char	      *	gets		__PROTO ((char * _s));
+int		putc		__PROTO ((int _c, FILE * _stream));
+int		putchar		__PROTO ((int _c));
+int		puts		__PROTO ((__CONST__ char * _s));
+int		ungetc		__PROTO ((int _c, FILE * _stream));
+size_t		fread		__PROTO ((__VOID__ * _ptr, size_t _size,
+					  size_t _nmemb, FILE * _stream));
+size_t		fwrite		__PROTO ((__CONST__ __VOID__ * _ptr,
+					  size_t _size, size_t _nmemb,
+					  FILE * _stream));
+int		fgetpos		__PROTO ((FILE * _stream, fpos_t * _pos));
+int		fseek		__PROTO ((FILE * _stream, __off_t _offset,
+					  int whence));
+int		fsetpos		__PROTO ((FILE * _stream,
+					  __CONST__ fpos_t * pos));
+__off_t		ftell		__PROTO ((FILE * _stream));
+void		rewind		__PROTO ((FILE * _stream));
+void		clearerr	__PROTO ((void));
+int		feof		__PROTO ((FILE * _stream));
+int		ferror		__PROTO ((FILE * _stream));
+void		perror		__PROTO ((__CONST__ char * _s));
+
+#if	! _STDC_SOURCE
+
+FILE	      *	fdopen		__PROTO ((int _fildes,
+					  __CONST__ char * _type));
+int		fileno		__PROTO ((FILE * _stream));
+
+#if	! _POSIX_SOURCE
+
+FILE	      *	popen		__PROTO ((__CONST__ char * _command,
+					  __CONST__ char * _how));
+
+#endif	/* ! _POSIX_SOURCE */
+#endif	/* ! _STDC_SOURCE */
+
+__EXTERN_C_END__
+
+#if	0
 /* Internal functions. */
 extern	void	_dassign();
 extern	int	_dscan	();
@@ -170,9 +213,7 @@ extern	int	_fputt	();
 extern	int	_scanf	();
 extern	FILE *	_stropen();
 
-/* Nonstandard functions. */
-extern	FILE *	fdopen();
-extern	FILE *	popen();
+#endif	/* not permitted in <stdio.h> */
 
 /* Macros covering standard functions. */
 #define	clearerr(fp)	((fp)->_ff1 &= ~(_FERR|_FEOF))
@@ -187,6 +228,5 @@ extern	FILE *	popen();
 
 /* Other macros, non-ANSI. */
 #define	fileno(fp)	((fp)->_fd)
-#endif
 
-/* end of stdio.h */
+#endif	/* ! defined (__STDIO_H__) */

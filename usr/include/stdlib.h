@@ -12,6 +12,12 @@
 #ifndef	__STDLIB_H__
 #define	__STDLIB_H__
 
+#include <common/ccompat.h>
+#include <common/_size.h>
+#include <common/_wchar.h>
+#include <common/_null.h>
+
+
 /* Macros. */
 #define	_ATEXITN	32		/* number of atexit()-registered fns */
 #define	EXIT_FAILURE	1
@@ -22,19 +28,6 @@
 /* Types. */
 typedef	struct { int quot; int rem; } div_t;	/* div result type	*/
 typedef	struct { long quot; long rem; } ldiv_t;	/* ldiv result type	*/
-#ifndef	_SIZE_T
-#define	_SIZE_T
-typedef	unsigned int	size_t;		/* sizeof result type		*/
-#endif
-#ifndef	_WCHAR_T
-#define	_WCHAR_T
-typedef	char		wchar_t;	/* extended character set type	*/
-#endif
-#define	Void	char		/* Use "Void *" as generic pointer type	*/
-#define	const			/* Ignore type modifier "const"		*/
-#ifndef	NULL
-#define	NULL	((char *)0)		/* null pointer constant	*/
-#endif
 
 /*
  * Functions in /lib/libc.a corresponding to ANSI <stdlib.h>.
@@ -42,51 +35,67 @@ typedef	char		wchar_t;	/* extended character set type	*/
  * comply with the ANSI standard;
  * see the COHERENT documentation for details on each function.
  */
-extern	void	abort(		/* void */				);
-extern	int	abs(		/* int j */				);
-extern	int	atexit(		/* void (*func)(void) */		);
-extern	double	atof(		/* const char *nptr */			);
-extern	int	atoi(		/* const char *nptr */			);
-extern	long int atol(		/* const char *nptr */			);
-extern	Void	*bsearch(	/* const void *key,
-				   const void *base,
-				   size_t nmemb,
-				   size_t size,
-				   int (*compar)(const void *, const void *) */ );
-extern	Void	*calloc(	/* size_t nmemb, size_t size */		);
-extern	div_t	div(		/* int numer, int denom */		);
-extern	void	exit(		/* int status */			);
-extern	void	free(		/* Void *ptr */				);
-extern	char	*getenv(	/* const char *name */			);
-extern	long int labs(		/* long int j */			);
-extern	ldiv_t	ldiv(		/* long int numer, long int denom */	);
-extern	Void	*malloc(	/* size_t size */			);
-extern	void	qsort(		/* void *base, size_t nmemb, size_t size,
-				int (*compar)(const void *, const void *) */ );
-extern	int	rand(		/* void */				);
-extern	Void	*realloc(	/* void *ptr, size_t size */		);
-extern	void	srand(		/* unsigned int seed */			);
-extern	double	strtod(		/* const char *nptr, char **endptr */	);
-extern	long int strtol(	/* const char *nptr, char **endptr, int base */ );
-extern	unsigned long strtoul(	/* const char *nptr, char **endptr, int base */ );
-extern	int	system(		/* const char *string */		);
 
-#if	0
-/*
- * Functions in ANSI <stdlib.h> not currently implemented in COHERENT libc.a.
- */
-extern	int	mblen(	/* const char *s, size_t n */			);
-extern	int	mbtowc(	/* wchar_t *pwc, const char *s, size_t n */	);
-extern	size_t	mbstowcs(/* wchar_t *pwcs, const char *s, size_t n */	);
-extern	size_t	wcstombs(/* char *s, const wchar_t *pwcs, size_t n */	);
-extern	int	wctomb(	/* char *s, wchar_t wchar */			);
-#endif
+__EXTERN_C_BEGIN__
+
+double		atof		__PROTO ((__CONST__ char * _nptr));
+int		atoi		__PROTO ((__CONST__ char * _nptr));
+long		atol		__PROTO ((__CONST__ char * _nptr));
+double		strtod		__PROTO ((__CONST__ char * _nptr,
+					  char ** _endptr));
+long		strtol		__PROTO ((__CONST__ char * _nptr,
+					  char ** _endptr, int _base));
+unsigned long	strtoul		__PROTO ((__CONST__ char * _nptr,
+					  char ** _endptr, int _base));
+int		rand		__PROTO ((void));
+void		srand		__PROTO ((unsigned _seed));
+__VOID__      *	calloc		__PROTO ((size_t _nmemb, size_t _size));
+void		free		__PROTO ((__VOID__ * _ptr));
+__VOID__      *	malloc		__PROTO ((size_t _size));
+__VOID__      *	realloc		__PROTO ((__VOID__ * _ptr, size_t _size));
+void		abort		__PROTO ((void));
+int		atexit		__PROTO ((void (* _func) (void)));
+int		exit		__PROTO ((int _status));
+char	      *	getenv		__PROTO ((__CONST__ char * _name));
+int		system		__PROTO ((__CONST__ char * _string));
+__VOID__      *	bsearch		__PROTO ((__CONST__ __VOID__ * _key,
+					  __CONST__ __VOID__ * _base,
+					  size_t _nmemb, size_t _size,
+					  int (* _compar)
+						(__CONST__ __VOID__ *,
+						 __CONST__ __VOID__ *)));
+void		qsort		__PROTO ((__VOID__ * _base, size_t _nmemb,
+					  size_t _size,
+					  int (* _compar)
+						(__CONST__ __VOID__ *,
+						 __CONST__ __VOID__ *)));
+int		abs		__PROTO ((int _j));
+div_t		div		__PROTO ((int _numer, int _denom));
+long		labs		__PROTO ((long _j));
+ldiv_t		ldiv		__PROTO ((long _numer, long _denom));
+
+#if	0		/* not implemented */
+
+int		mblen		__PROTO ((__CONST__ char * _s, size_t _n));
+int		mbtowc		__PROTO ((wchar_t * _pwc, __CONST__ char * _s,
+					  size_t _n));
+int		wctomb		__PROTO ((char * _s, wchar_t _wchar));
+size_t		mbstowcs	__PROTO ((wchar_t * _pwcs,
+					  __CONST__ char * _s, size_t _n));
+size_t		wcstombs	__PROTO ((char * _s,
+					  __CONST__ wchar_t * _pwcs,
+					  size_t _n));
+#endif	/* not implemented */
+
+__EXTERN_C_END__
+
+#if	1
 
 /* Internal data and functions. */
 extern	int		_atexitn;
 extern	void		(**_atexitfp)();
 extern	double		_pow10	   ();
 
-#endif
+#endif		/* not permitted in this header */
 
-/* end of stdlib.h */
+#endif	/* ! defined (__STDLIB_H__) */
