@@ -21,7 +21,7 @@ extern	NODE	*node();
 
 %token _NULL _DSEMI _ANDF _ORF _NAME _IORS _ASGN
 %token _CASE _DO _DONE _ELIF _ELSE _ESAC _FI _FOR _IF _IN _THEN
-%token _UNTIL _WHILE _OBRAC _CBRAC
+%token _UNTIL _WHILE _OBRAC _CBRAC _PARENS _RET
 
 %type <yu_node> command_line	command_list	logical_command
 %type <yu_node> pipe_command	command		argument_list
@@ -136,6 +136,12 @@ command:
 		$$ = node(NCOMS, $2, NULL);
 		keypop();
 	}
+|	_RET name {
+		$$ = node(NRET, $2, NULL);
+	}
+|	_RET {
+		$$ = node(NRET, "", NULL);
+	}
 ;
 
 argument_list_init:
@@ -220,6 +226,9 @@ control:
 	}
 |	obrack opt_command_sequence _CBRAC {
 		$$ = node(NBRAC, $2, NULL);
+	}
+|	name _PARENS optnls obrack command_sequence _CBRAC  {
+		$$ = node(NFUNC, $1, $5);
 	}
 ;
 
