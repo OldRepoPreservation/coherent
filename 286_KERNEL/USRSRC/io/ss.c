@@ -8,19 +8,23 @@
  *	separate SCSI layer from host-dependent stuff
  *
  * $Log:	ss.c,v $
+ * Revision 3.4  91/11/05  16:02:25  hal
+ * Allow access to WHOLE_DRIVE even if no partition table.
+ * Delete lbolt test code.
+ *
  * Revision 3.3  91/06/21  10:46:27  hal
  * Now talks to TMC-881 + ST4350N.
- * 
+ *
  * Revision 3.2  91/06/20  17:10:32  hal
  * First version for TMC-881.
- * 
+ *
  * Revision 3.1  91/06/17  07:43:25  hal
  * Add TMC-840 code.
- * 
+ *
  * Revision 1.1  91/06/17  07:42:27  hal
  * Add TMC-840 code.
- * 
- * 
+ *
+ *
  */
 
 /*
@@ -69,6 +73,7 @@ static int s_id;
 #include	<sys/hdioctl.h>
 #include	<sys/buf.h>
 #include	<sys/scsiwork.h>
+#include	<sys/typed.h>
 
 /*
  * Definitions.
@@ -77,7 +82,6 @@ static int s_id;
  *	Typedefs.
  *	Enums.
  */
-
 #define SS_RAM		0x1800	/* Offset of parameter RAM */
 
 				/* Future Domain */
@@ -251,6 +255,7 @@ static int	ssinit();
 static void	ssintr();
 static int	start_arb();
 static void	stop_timeout();
+static void	tbparms();
 static uchar	xpmod();
 
 /*
@@ -259,6 +264,8 @@ static uchar	xpmod();
  *	Export Variables.
  *	Local Variables.
  */
+extern short n_atdr; /* set by atcount() before any load routines run */
+ 
 CON	sscon	= {
 	DFBLK|DFCHR,			/* Flags */
 	SCSI_MAJOR,			/* Major index */
@@ -346,6 +353,7 @@ static void ssload()
 	int i;
 	int max_id = -1;
 	int num_drives = 0;
+	int tbnum;
 
 	/*
 	 * Allocate a selector to map into ST0x memory-mapped comm area.
@@ -432,14 +440,24 @@ static void ssload()
 
 	/*
 	 * Initialize drives we know about (i.e. in NSDRIVE bitmap).
+	 *
+	 * Part of this is getting parameters from tboot, if any.
+	 * The drive number in tboot's data block must be matched with
+	 * the SCSI id in question.  Drive numbering in tboot is assumed
+	 * to start with any "at" drives (n_atdr counts these)
+	 * then proceed with SCSI drives in increasing id number order.
 	 */
+	tbnum = n_atdr; /* tboot drive number for first SCSI drive */
 	host_claimed = -1;
 	bufq_init(max_id + 1);
 	max_req_poll = INL_MAX_REQ_POLL;
 	if (!erf) {
 		for (i = 0; i < MAX_SCSI_ID; i++)
-			if ((NSDRIVE >> i) & 1)
+			if ((NSDRIVE >> i) & 1) {
+				tbparms(tbnum, i);  /* get tboot parms */
 				ssinit(i);
+				tbnum++;
+			}
 	}
 	max_req_poll = WKG_MAX_REQ_POLL;
 }
@@ -878,7 +896,7 @@ PR1("DUM");
 			}
 			break;
 		case XP_MSG_OUT:
-			sfbyte(ss_dat, MSG_NOP); 
+			sfbyte(ss_dat, MSG_NOP);
 			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 			break;
 		case XP_STAT_IN:
@@ -959,7 +977,7 @@ unsigned short flags;
  *
  * Attempt to initialize the (unique) drive with a given SCSI id.
  * Assume only one drive per SCSI id, having LUN = 0.
- * 
+ *
  * Return 1 if success, 0 if failure.
  */
 static int ssinit(s_id)
@@ -1126,7 +1144,7 @@ PR4("MO");
 			 * This case shouldn't happen.  We weren't
 			 * asserting ATTENTION.  Abort the bus cycle.
 			 */
-			sfbyte(ss_dat, MSG_NOP); 
+			sfbyte(ss_dat, MSG_NOP);
 			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 			break;
 		case XP_STAT_IN:
@@ -1937,22 +1955,22 @@ int s_id;
  *
  * RV_A_TIMEOUT (arbitration timeout)
  * Host adapter takes too long to respond with arbitration complete.
- * 
+ *
  * RV_P_TIMEOUT (protocol timeout)
  * Timeout waiting for desired SCSI bus status while connected to a target.
- * 
+ *
  * RV_R_TIMEOUT (reconnect timeout)
  * Timeout after target disconnects, waiting for reconnect.
- * 
+ *
  * RV_BF_TIMEOUT (bus free timeout)
  * Waited too long for host not busy and BUS_FREE.
- * 
+ *
  * RV_CS_BUSY (target device busy)
  * Command status returned was Busy.
- * 
+ *
  * RV_CS_CHECK (target device check)
  * Command status returned was CHECK.
- * 
+ *
  * Whenever an error occurs, one of the above inputs, together with the SCSI id
  * of the target, is sent to the recovery process.  The recovery process in turn
  * programs the next state for the machine.
@@ -2174,7 +2192,7 @@ if (xct < 100)
 			 * This case shouldn't happen.  We weren't
 			 * asserting ATTENTION.
 			 */
-			sfbyte(ss_dat, MSG_NOP); 
+			sfbyte(ss_dat, MSG_NOP);
 			sfbyte(ss_csr, WC_ENABLE_PRTY | WC_ENABLE_SCSI);
 			break;
 		case XP_STAT_IN:
@@ -2365,4 +2383,35 @@ uchar oldphase;
 			ret |= RS_MESSAGE;
 	}
 	return ret;
-} 
+}
+
+/*
+ * tbparms()
+ *
+ * If the drive table has already been patched for this SCSI id, do nothing.
+ * Otherwise, given the real-mode drive number (tbnum) and the SCSI id (s_id),
+ * look for drive parameters from tertiary boot, and copy into driver
+ * data block if we find them.
+ */
+static void tbparms(tbnum, s_id)
+int tbnum, s_id;
+{
+	FIFO *ffp;
+	typed_space *tp;
+	extern typed_space boot_gift;
+
+	if (drv_parm[s_id].ncyl == 0
+	&& F_NULL != (ffp = fifo_open(&boot_gift, 0))) {
+
+		if (T_NULL != (tp = fifo_read(ffp))) {
+			BIOS_DISK *bdp = (BIOS_DISK *)tp->ts_data;
+			if ((T_BIOS_DISK == tp->ts_type) &&
+			    (tbnum == bdp->dp_drive) ) {
+				drv_parm[s_id].ncyl = bdp->dp_cylinders;
+				drv_parm[s_id].nhead = bdp->dp_heads;
+				drv_parm[s_id].nspt = bdp->dp_sectors;
+			}
+		}
+		fifo_close(ffp);
+	}
+}
