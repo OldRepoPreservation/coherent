@@ -13,11 +13,13 @@
 #define	W	1	/* Pipe write descriptor index */
 
 extern child_id	*add_entry();	/* Add an new entry to a link list */
-extern child_id *current;	/* Pointer to the current child id */
 
 extern char	acRealUser[MAX_UNAME];
 extern time_t	clock;
+extern child_id *current;	/* Pointer to the current child id */
 extern int	flag320;
+extern int	mailFlag;
+extern int	set_uid_flag;
 
 static	int	poppid[_NFILE];
 
@@ -44,6 +46,20 @@ char *command, *type;
 		return (NULL);
 	}
 	if (poppid[fd] == 0) {		/* Child */
+		/* Set uid to user which crontab is going to be executed.
+	 	 * In case of COHERENT3.2.0 set uid to daemon (set_uid_flag
+		 * is TRUE).
+	 	 */
+		Dprint("Set user ID to '%s'\n", acRealUser);
+		if (set_uid_flag == FALSE) {
+			/* If file name is not user name ignore it */
+			if ((set_uid_flag = set_uid(acRealUser)) != TRUE) {
+				fprintf(stderr, 
+				  "crond: cannot find/set user '%s'\n", 
+				   acRealUser);
+				return(NULL);
+			}
+		}
 		if (mode == W) {
 			close(pd[W]);
 			close(fileno(stdin));

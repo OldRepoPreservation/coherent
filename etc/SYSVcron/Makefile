@@ -8,7 +8,8 @@ COMMON = src/cron.h Makefile
 
 TABOBJ = obj/crontab.o obj/misc.o 
 
-DAEMOBJ = obj/cron.o obj/misc.o obj/cronpipe.o obj/entry.o obj/gethostname.o
+DAEMOBJ = obj/cron.o obj/misc.o obj/cronpipe.o \
+	obj/entry.o obj/gethostname.o obj/bedaemon.o
 
 all: $(ALL)
 	@echo All done.
@@ -18,12 +19,17 @@ bin/crond: $(DAEMOBJ)
 	su root chown root bin/crond
 	su root chgrp root bin/crond
 	su root chmod 4511 bin/crond
+	su root strip	bin/crond
 
 bin/crontab: $(TABOBJ) 
 	cc -DDEBUG=$(DEBUG) -o bin/crontab $(TABOBJ)
 	su root chown root bin/crontab
 	su root chgrp root bin/crontab
 	su root chmod 4511 bin/crontab
+	su root strip bin/crontab
+
+obj/bedaemon.o: src/bedaemon.c $(COMMON)
+	cc -c src/bedaemon.c -o obj/bedaemon.o
 
 obj/cron.o: src/cron.c $(COMMON)
 	cc -DDEBUG=$(DEBUG) -c src/cron.c -o obj/cron.o

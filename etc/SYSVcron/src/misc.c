@@ -148,7 +148,7 @@ void vMailEnable()
 
 /* 
  * Create a cron lock FIFO. Return TRUE on succes, FALSE if lock exist,
- * exit 1 if cannot lock
+ * exit 1 if cannot lock.
  */
 int lock(file_name)
 char	*file_name;
@@ -280,8 +280,7 @@ char	*cmd;
 	char	*pcTableName;
 
 	if ((pcTableName = malloc(strlen(D_SPOOL) + MAX_UNAME + 1)) == NULL) {
-		fprintf(stderr, "cron*: not enough memory\n");
-		exit(1);
+		system("echo \"cron*: not enough memory\" > /dev/console");
 	}
 
 	strcpy(pcTableName, D_SPOOL);
