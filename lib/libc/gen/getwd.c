@@ -1,11 +1,15 @@
 /*
+ * libc/gen/getwd.c
  * Return a static string containing the current
  * working directory for this process.
- * (Warning: this call may change the current directory
- * of the process if for any reason it fails.)
+ * The arguments to this function are NOT compatible with
+ * the BSD function getwd(), so it is now called _getwd().
+ * Warning: this call may change the current directory
+ * of the process if for any reason it fails.
  */
 
 #include <stdio.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/dir.h>
@@ -13,7 +17,6 @@
 
 #define	MAXNAME	400		/* Longest pathname */
 
-extern	int	errno;
 static	int	oerrno;
 
 static
@@ -26,7 +29,7 @@ fail()
 }
 
 char *
-getwd()
+_getwd()
 {
 	struct stat d, dd;
 	struct direct dir;
@@ -95,3 +98,5 @@ getwd()
 	errno = oerrno;
 	return dp;
 }
+
+/* end of libc/gen/getwd.c */
