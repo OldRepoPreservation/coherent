@@ -38,6 +38,7 @@ extern char	*realloc();
 static char	*CM, *CE, *CL, *SO, *SE;
 static uchar	*ptr;	/* pointer to first free spot in termcap buffer */
 
+
 TERM term = {
 	NROW-1,
 	NCOL,
@@ -74,8 +75,15 @@ register uchar *ref;
  */
 tcapopen()
 {
+	 /* buffer for the strings we need to keep */
+	static uchar 	*tcapbuf = NULL;
 	uchar tcbuf[TERMBUF];	/* address saved by termcap for tgetstr */
-	
+
+	if (NULL != tcapbuf) {	/* we've been here before */
+		ttopen();
+		return;
+	}
+
 	/*
 	 * Set up termcap type.
 	 */
@@ -98,8 +106,6 @@ tcapopen()
 	 * Get termcap entries for later use.
 	 */
 	{
-		uchar *tcapbuf;	/* buffer for the strings we need to keep */
-
 		/* get far too much space and shrink later */
 		if (NULL == (ptr = tcapbuf = malloc(TERMBUF)))
 			abort();
@@ -108,8 +114,9 @@ tcapopen()
 		 * Get required entries. There must be cd= clear after cursor
 		 * or cl= clear screen
 		 */
-		if (NULL == (CL = tgetstr("cl")))
+		if (NULL == (CL = tgetstr("cl", &ptr)))
 			CL = qgetstr("cd");
+	
 		CM = qgetstr("cm");	/* move cursor to row, col */
 		CE = qgetstr("ce");	/* clear to end of line */
 
