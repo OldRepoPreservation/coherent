@@ -65,7 +65,6 @@ envset()
 	mrch = '\0';
 	nbc = '\'';
 	nnc = 0;
-	spcnt = 0;
 	ssz = sszmul = (ntroff == NROFF) ? unit(SMEMSP, SDEMSP)
 					 : unit(SMEMSP * 12, SDEMSP * 36);
 	sszdiv = psz;	

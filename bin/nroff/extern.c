@@ -39,6 +39,9 @@ unsigned long	tmpseek;		/* Pointer into temp file	*/
 int		T_reg;			/* .T register			*/
 int		varsp;			/* Variable spacing		*/
 int		xflag;			/* Suppress page eject on exit	*/
+#if	ZKLUDGE
+int		Zflag;			/* PS save/restore kludge	*/
+#endif
 
 /* Code global, declared in code.h. */
 CODE		codeval;
