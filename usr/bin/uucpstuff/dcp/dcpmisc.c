@@ -21,9 +21,9 @@ fatal(x)
 	printmsg(M_LOG, "%r", &x);
 	if ( lockexist(rmtname) )
 		lockrm(rmtname);
-	if ( lockexist(devname) ) {
+	if ( lockexist(rdevname) ) {
 		dcpundial();
-		lockrm(devname);
+		lockrm(rdevname);
 	}
 	close_logfile();
 	exit(1);
