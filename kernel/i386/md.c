@@ -1,5 +1,6 @@
-/* $Header: /v4a/i386/RCS/md.c,v 1.2 92/01/06 10:48:05 hal Exp $ */
 /* (lgl-
+ *	md.c
+ *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
  *	license agreement,  and may be  copied or disclosed  only under the
@@ -39,46 +40,6 @@ vaddr_t ip;
 	u.u_regl[EIP] = ip;
 	u.u_regl[UESP] = sp;
 }
-
-/*
- * Set the given address in the user area to the given value if it is
- * okay to do so.
- */
-msetuof(a, v)
-register int a;
-{
-	register int *ap;
-
-	ap = (int *)&u+a/sizeof(long);
-	if (ap<&u.u_regl[GS] || a>&u.u_regl[SS])
-		return (0);
-	if (ap == &u.u_regl[ERR])		/* Protect trap id */
-		return (0);
-	*ap = v;
-	return (1);
-}
-
-
-/*
- * Cause the next instruction to single step.
- */
-msigsin()
-{
-	u.u_regl[EFL] |= MFTTB;
-}
-
-#if 0
-/*
- * Idle kernel process.
- */
-idle()
-{
-	for (;;) {
-		disflag = 1;
-		_idle();
-	}
-}
-#endif
 
 int nirqslave;
 /*
@@ -215,4 +176,3 @@ long l;
 		l >>= 3;
 	return ((exp<<13) | l);
 }
-
