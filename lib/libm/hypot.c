@@ -1,0 +1,23 @@
+
+/*
+ * Hypotenuse function.
+ */
+#include <math.h>
+
+double
+hypot(x, y)
+double x;
+double y;
+{
+	double r;
+
+	if (x == 0.)
+		r = y;
+	else {
+		r = y/x;
+		r = x * sqrt(1.0 + r*r);
+	}
+	return (r < 0. ? -r : r);
+}
+
+
