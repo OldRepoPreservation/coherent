@@ -1071,7 +1071,7 @@ outdone()
 /* Second pass. */
 copycode()
 {
-	register int op, i;
+	register int op, i, flags;
 	register SEG *segp;
 	register SYM *sp;
 	register long dseek;
@@ -1082,12 +1082,14 @@ copycode()
 	SCNHDR *shp;
 
 	/* Assign symbol table indices for sections, different if debug. */
+	flags = 0;		/* COFF header flags */
 	nsecs = C_NSECS;	/* number of sections, including .comment */
 	if (refnum != -1) {
 		symindex[C_TEXT_SEG] = C_TEXT_DB;
 		symindex[C_DATA_SEG] = C_DATA_DB;
 		symindex[C_BSS_SEG] = C_BSS_DB;
 	} else {
+		flags |= F_LSYMS;		/* no local symbols */
 		symindex[C_TEXT_SEG] = C_TEXT_SEG;
 		symindex[C_DATA_SEG] = C_DATA_SEG;
 		symindex[C_BSS_SEG] = C_BSS_SEG;
@@ -1148,7 +1150,8 @@ copycode()
 		oseek(dseek);
 		write_lnnums();
 		dseek += scn_hdr[C_TEXT_SEG].s_nlnno * sizeof(LINENO);
-	}
+	} else
+		flags |= F_LNNO;		/* no line numbers */
 
 	/* Write symbols. */
 	write_symbols(dseek);
@@ -1224,7 +1227,7 @@ copycode()
 	coff_hdr.f_nscns = nsecs;
 	coff_hdr.f_timdat = time(NULL);
 	coff_hdr.f_opthdr = 0;
-	coff_hdr.f_flags = F_AR32WR | F_LNNO | F_LSYMS;
+	coff_hdr.f_flags = F_AR32WR | flags;
 	oseek(0L);
 	owrite((char *)&coff_hdr, sizeof(coff_hdr));
 
