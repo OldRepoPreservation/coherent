@@ -65,12 +65,14 @@ void		c_free();
 int		c_grow();
 int		countsize();
 void		doload();
+char *		getPhysMem();
 void		i8086();
 void		idtinit();
 void		init_phy_seg();
 void		mchinit();
 void		msigend();
 void		msigstart();
+void		physMemInit();
 SR		*loaded();
 unsigned int	read16_cmos();
 void		segload();
@@ -460,6 +462,110 @@ register	BLOCKLIST *sp;
 	}
 }
 
+MAKESR(physMem, _physMem);
+int	PHYS_MEM = 0;		/* Number of bytes of contiguous RAM needed */
+
+/*
+ * A block of contiguous physical memory has been allocated for special
+ * i/o devices.
+ * Problem: clicks of physical memory are in reverse order in the
+ * page table.
+ * This routine reverses the page table entries for the pages
+ * involved.  It relies *heavily* on all pages having virtual addresses
+ * in the FFCx xxxx segment.
+ *
+ * If all goes well, assign physAvailStart to the virtual address of
+ * the beginning of the region, and physAvailBytes to the number of bytes
+ * in the region.  Otherwise, leave physAvailStart and physAvailBytes at 0.
+ */
+static int	physAvailStart;	/* virtual address of contiguous memory area */
+static int	physAvailBytes;	/* number of bytes in contiguous memory area */
+
+void
+physMemInit()
+{
+	int m, vaddr;
+	int err = 0, num_clicks = btoc(PHYS_MEM);
+	int prevPaddr, paddr;
+
+	/*
+	 * Going half way into page table for physMem
+	 *   If entry and its complementary entry aren't both in top segment
+	 *     Error exit (no phys mem will be available).
+	 *   Get page table entries and swap them.
+	 */
+	for (m = 0; m < num_clicks/2; m++) {
+		int m2 = num_clicks - 1 - m;	/* complementary index */
+
+		/* compute virtual addresses */
+		int lo_addr = physMem.sr_base + ctob(m);
+		int hi_addr = physMem.sr_base + ctob(m2);
+
+		/* compute indices into page table (ptable1_v) */
+		int lo_p1ix = btocrd(lo_addr);
+		int hi_p1ix = btocrd(hi_addr);
+
+		/* fetch physical addresses from page table */
+		int lo_paddr = ptable1_v[lo_p1ix];
+		int hi_paddr = ptable1_v[hi_p1ix];
+
+		/* abort if either address is not in top segment */
+		if (btosrd(lo_addr) != 0x3FF) {
+			err = 1;
+			break;
+		}
+		if (btosrd(hi_addr) != 0x3FF) {
+			err = 1;
+			break;
+		}
+
+		/* exchange page table entries */
+		ptable1_v[lo_p1ix] = hi_paddr;
+		ptable1_v[hi_p1ix] = lo_paddr;
+	}
+
+	/*
+	 * Final sanity check.
+	 * In case someone gets creative with startup code, check
+	 * again here that the memory is actually contiguous.
+	 */
+	prevPaddr = vtop(physMem.sr_base);
+	for (m = 0; m < num_clicks - 1; m++) {
+		paddr = vtop(physMem.sr_base + ctob(m + 1));
+		if (paddr - prevPaddr != NBPC) {
+			err = 1;
+			break;
+		}
+		prevPaddr = paddr;
+	}
+
+	if (!err) {
+		physAvailStart = physMem.sr_base;
+		physAvailBytes = PHYS_MEM;
+	}
+}
+
+/*
+ * Return virtual address of block of contiguous physical memory.
+ * If request cannot be granted, return 0.
+ *
+ * Expect physMem resource to be granted during load routine of device
+ * drivers.  Once allocated, memory is not returned to the physMem pool.
+ */
+char *
+getPhysMem(numBytes)
+unsigned int numBytes;
+{
+	char * ret = NULL;
+
+	if (numBytes <= physAvailBytes) {
+		ret = (char *)physAvailStart;
+		physAvailStart += numBytes;
+		physAvailBytes -= numBytes;
+	}
+	return ret;
+}
+
 #undef	ptable1_v
 #undef	ptable0_v
 #define	ptable0_v	((long *)(&stext[ctob(-1)]))
@@ -527,8 +633,8 @@ mchinit()
 	CHIRP('2');
 
 	/*
-	 * 3. Calculate total system memory in taking
-	 *    into account the space used by the system and the page
+	 * 3. Calculate total system memory.
+	 *    Count the space used by the system and the page
 	 *    descriptors, the interrupt stack, and the refresh work area
 	 *
 	 * a. initialize allocation area and adjust system size
@@ -572,7 +678,7 @@ mchinit()
 	zero_fill(ONE_MEG+ctob(SBASE-PBASE), hi);
 	CHIRP('Y');
 	
-	/* Record the total memory for later use.  */
+	/* Record total memory for later use.  */
 	total_mem = ctob(sysmem.lo) + lo + hi;
 
 	nalloc = (lo+hi) / (sizeof(short) + SPLASH*sizeof(long) + NBPC);
@@ -801,7 +907,7 @@ mchinit()
 	 * 10. load page table base address into MMU
 	 *	fix up the interrupt vectors
 	 */
-	mmuupd();
+	mmuupdnR0();
 	CHIRP('U');
 	idtinit();
 	CHIRP('I');
@@ -828,16 +934,24 @@ idtinit()
 {
 	extern IDT	idt[], idtend[];
 	extern IDT	ldt[], ldtend[];
+	extern IDT	gdtFixBegin[], gdtFixEnd[];
+
 	register IDT *ip;
 	register unsigned short tmp;
 
-	for (ip = idt; ip <idtend; ip++) {
+	for (ip = idt; ip < idtend; ip++) {
 		tmp = ip->off_hi;
 		ip->off_hi = ip->seg;
 		ip->seg = tmp;
 	}
 
-	for (ip = ldt; ip <ldtend; ip++) {
+	for (ip = ldt; ip < ldtend; ip++) {
+		tmp = ip->off_hi;
+		ip->off_hi = ip->seg;
+		ip->seg = tmp;
+	}
+
+	for (ip = gdtFixBegin; ip < gdtFixEnd; ip++) {
 		tmp = ip->off_hi;
 		ip->off_hi = ip->seg;
 		ip->seg = tmp;
@@ -940,6 +1054,15 @@ i8086()
 	/*
 	 * Allocate a click for ring 0 stack.
 	 */
+	if (PHYS_MEM) {
+		physMem.sr_size = (PHYS_MEM+NBPC-1)&~(NBPC-1);
+		valloc(&physMem);
+		physMemInit();
+	}
+
+	/*
+	 * Allocate a click for ring 0 stack.
+	 */
 	r0stk.sr_size = NBPC;
 	valloc(&r0stk);
 	tss_sp0 = r0stk.sr_base + NBPC;
@@ -954,7 +1077,6 @@ i8086()
 	 * It is the number of megabytes of calc_mem above 1 meg, i.e.,
 	 * a number between 0 and 11.
 	 */
-#ifndef FOO
 	if (total_mem < ONE_MEG)
 		calc_mem = ONE_MEG;
 	else if (total_mem > 12 * ONE_MEG)
@@ -963,7 +1085,6 @@ i8086()
 		calc_mem = total_mem;
 
 	boost = (calc_mem - ONE_MEG) / ONE_MEG;
-#endif
 
 	/*
 	 * If the number of cache buffers was not explicitly set (i.e., !0)
