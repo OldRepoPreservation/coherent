@@ -88,7 +88,7 @@ faddr_t faddr;
  */
 paddr_t
 vtop(vaddr)
-vaddr_t vaddr;
+caddr_t vaddr;
 {
 	paddr_t	retval;
 	unsigned int ptable_idx;	/* Index into ptable1_v[].  */
@@ -124,7 +124,7 @@ vaddr_t vaddr;
 			 * all above bit 11 in the PTE.
 			 */
 			retval = (ptable1_v[ptable_idx] & ~(NBPC - 1));
-			retval += (vaddr & (NBPC - 1));
+			retval += ((long) vaddr & (NBPC - 1));
 		}
 	}
 
@@ -166,7 +166,7 @@ paddr_t vpaddr;
  */
 paddr_t
 vtovp(vaddr)
-vaddr_t vaddr;
+caddr_t vaddr;
 {
 	paddr_t	retval;
 

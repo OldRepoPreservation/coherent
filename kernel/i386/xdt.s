@@ -1,3 +1,4 @@
+	.unixorder
 	.llen	132
 	.include	as.inc
 	.text

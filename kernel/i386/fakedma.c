@@ -90,7 +90,7 @@ paddr_t	to;
 dmain(nbytes, to, vaddr)
 long	nbytes;
 paddr_t	to;
-vaddr_t	vaddr;
+caddr_t	vaddr;
 {
 	unsigned off;
 	unsigned	n, n1;
@@ -187,7 +187,7 @@ vaddr_t	vaddr;
 dmaout(nbytes, to, vaddr)
 long	nbytes;
 paddr_t	to;
-vaddr_t	vaddr;
+caddr_t	vaddr;
 {
 	unsigned off;
 	unsigned	n, n1;

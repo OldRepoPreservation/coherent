@@ -144,8 +144,13 @@ msigstart(signum, func)
 	u.u_regl[EFL] &= ~MFTTB;
 	u.u_regl[EIP] = func;
 	u.u_regl[UESP] = uesp;
-	if (signum+1 != SIGTRAP)
+
+	/* Unhook the signal handler. */
+	if (signum+1 != SIGTRAP) {
 		u.u_sfunc[signum] = SIG_DFL;
+		SELF->p_dfsig |= (1 << signum);
+	}
+
 
 	/*
 	 * We are about to enter a signal handling function for the process.
@@ -248,8 +253,7 @@ msigend(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
 	ukcopy(uesp, u.u_regl, (SS+1) * sizeof(long));
 
 	/*
-	 * if the signal has been sigset
-	 * simulate a sigrelse(signal)
+	 * If the signal has been sigset simulate a sigrelse(signal).
 	 */
 	if (pp->p_hsig & 1<<signo) {
 		pp->p_hsig &= ~(1 << signo);
