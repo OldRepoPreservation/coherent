@@ -9,7 +9,7 @@
 	.globl	boot
 	.globl	clearseg_b
 	.globl	clearseg_d
-	.globl	clk 
+	.globl	clk
 	.globl	clrq
 	.globl	cltinit
 	.globl	conrest
@@ -19,25 +19,25 @@
 	.globl	cs_sel
 	.globl	defend
 	.globl	defer
-	.globl	dev1 
-	.globl	dev10 
-	.globl	dev11 
-	.globl	dev12 
-	.globl	dev13 
-	.globl	dev14 
-	.globl	dev15 
-	.globl	dev3 
-	.globl	dev4 
-	.globl	dev5 
-	.globl	dev6 
-	.globl	dev7 
-	.globl	dev8 
-	.globl	dev9 
+	.globl	dev1
+	.globl	dev10
+	.globl	dev11
+	.globl	dev12
+	.globl	dev13
+	.globl	dev14
+	.globl	dev15
+	.globl	dev3
+	.globl	dev4
+	.globl	dev5
+	.globl	dev6
+	.globl	dev7
+	.globl	dev8
+	.globl	dev9
 	.globl	envrest
 	.globl	envsave
 	.globl	eoi
-	.globl	gdt 
-	.globl	gdtinit 
+	.globl	gdt
+	.globl	gdtinit
 	.globl	gdtmap
 	.globl	getq
 	.globl	getubd
@@ -54,7 +54,6 @@
 	.globl	kucopy
 	.globl	ldt
 	.globl	ldtend
-/	.globl	loc10 
 	.globl	mmuupd
 	.globl	msysgen
 	.globl	outb
@@ -76,22 +75,23 @@
 	.globl	stext
 	.globl	syc
 	.globl	syc32
-	.globl	trap0 
-	.globl	trap1 
-	.globl	trap10 
-	.globl	trap11 
-	.globl	trap12 
-	.globl	trap13 
-	.globl	trap14 
-	.globl	trap16 
-	.globl	trap2 
-	.globl	trap3 
-	.globl	trap4 
-	.globl	trap5 
-	.globl	trap6 
-	.globl	trap7 
-	.globl	trap8 
-	.globl	trap9 
+	.globl	trap0
+	.globl	trap1_ker
+	.globl	trap1_usr
+	.globl	trap10
+	.globl	trap11
+	.globl	trap12
+	.globl	trap13
+	.globl	trap14
+	.globl	trap16
+	.globl	trap2
+	.globl	trap3
+	.globl	trap4
+	.globl	trap5
+	.globl	trap6
+	.globl	trap7
+	.globl	trap8
+	.globl	trap9
 	.globl	trapcode
 	.globl	tsave
 	.globl	tss
@@ -137,20 +137,20 @@
 / Selector index values.
 /
 ////
-	.set	SEG_386_UI,	0x08	/ 32 bit code segment descriptor (user) 
-	.set	SEG_386_UD,	0x10 	/ 32 bit data segment descriptor (user) 
+	.set	SEG_386_UI,	0x08	/ 32 bit code segment descriptor (user)
+	.set	SEG_386_UD,	0x10 	/ 32 bit data segment descriptor (user)
 	.set	SEG_386_KI,	0x18	/ 32 bit code segment descriptor (kernel)
 	.set	SEG_RNG0_TXT,	0x18	/ synonym for SEG_386_KI
 	.set	SEG_386_KD,	0x21	/ 32 bit data segment descriptor (kernel)
-	.set	SEG_286_UI,	0x28 	/ 16 bit code segment descriptor (user) 
-	.set	SEG_286_UD,	0x30 	/ 16 bit data segment descriptor (user) 
+	.set	SEG_286_UI,	0x28 	/ 16 bit code segment descriptor (user)
+	.set	SEG_286_UD,	0x30 	/ 16 bit data segment descriptor (user)
 	.set	SEG_TSS,	0x38 	/ task segment descriptor (386 mode)
 	.set	SEG_ROM,	0x40	/ ROM descriptor
 	.set	SEG_VIDEOa,	0x48	/ 0x48: video descriptor @ B0000
 	.set	SEG_VIDEOb,	0x50	/ 0x50: video descriptor @ B8000
 	.set	SEG_386_II,	0x58	/ 32 bit code segment (kernel init)
 	.set	SEG_386_ID,	0x60	/ 32 bit data segment (kernel init)
-	.set	SEG_286_UII,	0x68 	/ 16 bit code, sep I/D (user) 
+	.set	SEG_286_UII,	0x68 	/ 16 bit code, sep I/D (user)
 	.set	SEG_LDT,	0x70	/ local descriptor table index in GDT
 	.set	SEG_RNG0_STK,	0x78	/ Stack for ring 0 CPL
 	.set	SEG_RNG1_TXT,	0x81	/ Text for ring 1
