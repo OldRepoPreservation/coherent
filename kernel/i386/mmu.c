@@ -1302,11 +1302,6 @@ msigstart(signum, func)
 			wrNdpSaved(1);
 		}
 
-		/*
-		 * Other OS's couldn't get "sw" right the first time.
-		 * We did, so we just copy it to "status".
-		 */
-		u.u_ndpCon.status = u.u_ndpCon.sw;
 		putuwd(uesp + (SS+5) * sizeof(long), u.u_ndpFlags);
 
 		kucopy(&u.u_ndpCon, uesp + (SS+6)*sizeof(long),

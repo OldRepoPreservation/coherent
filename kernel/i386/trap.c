@@ -227,6 +227,7 @@ char *eip;
 		sigcode = SIGILL;
 		break;
 
+#if 0
 	case SIXNP:
 		/*
 		 * Processor extension not available
@@ -236,6 +237,7 @@ char *eip;
 		else
 			sigcode = SIGFPE;
 		break;
+#endif
 
 	case SIDBL:
 		/*

@@ -1,7 +1,7 @@
 /*
  * File:	ndp.c
  *
- * Purpose:	all ndp-related functions, other than low-level stuff
+ * Purpose:	all ndp-related functions, except for assembler routines
  *
  * $Log$
  */
@@ -26,6 +26,15 @@
 #define NF_NDP_USER	1	/* this process has used the ndp */
 #define NF_NDP_SAVED	2	/* ndp status is saved in u area */
 
+/* supported coprocessor types - will autosense if initially unpatched */
+#define NDP_TYPE_UNPATCHED	0
+#define NDP_TYPE_NONE		1
+#define NDP_TYPE_287		2
+#define NDP_TYPE_387		3
+#define NDP_TYPE_486		4
+
+#define NDP_IRQ		13	/* 387 uses Irq for unmasked exceptions */
+#define NDP_PORT	0xF0	/* 387 uses this port to clear exception */
 /*
  * ----------------------------------------------------------------------
  * Functions.
@@ -33,18 +42,21 @@
  *	Export Functions.
  *	Local Functions.
  */
-void ndpConRest();
-void ndpNewOwner();
-void ndpNewProc();
-void ndpEndProc();
-int rdNdpUser();
-int rdNdpSaved();
-void wrNdpUser();
-void wrNdpSaved();
-void wrNdpSavedU();
-void ndpEmTraps();
-void ndpDetach();
-void ndpMine();
+void	ndpConRest();
+void	ndpDetach();
+void	ndpEmTraps();
+void	ndpEndProc();
+void	ndpIrq();
+void	ndpMine();
+void	ndpNewOwner();
+void	ndpNewProc();
+char *	ndpTypeName();
+int	rdNdpSaved();
+int	rdNdpUser();
+void	senseNdp();
+void	wrNdpSaved();
+void	wrNdpSavedU();
+void	wrNdpUser();
 
 /*
  * ----------------------------------------------------------------------
@@ -65,13 +77,15 @@ void ndpMine();
  * ZM - zero divide mask
  * DM - denormal operand mask
  * IM - invalid operation mask
- *
  * for masks, 1 masks the exception
+ *
  * iBCS2 page 3-46 specifies the following:
- *   0000 : 00 10 : 0 1 1 1 : 0 0 1 0
+ *   0000 : 00 10 : 0 1 1 1 : 0 0 1 0 = 0x0272
  */
-short ndpCW = 0x0272;
-short ndpDump = 0;
+/* Patchable ndp-related variables. */
+short ndpCW = 0x0272;	/* NDP Control Word at start of each NDP process. */
+short ndpDump = 0;	/* Patch to 1 for NDP register dump on FP exceptions. */
+short ndpType = NDP_TYPE_UNPATCHED;	/* Patch overrides NDP type sensing. */
 
 static int	kerEm = 1;	/* RAM copy of CR0 EM bit */
 static int	ndpUseg;	/* system global address of U segment */
@@ -182,26 +196,26 @@ fptrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
   eip, cs, efl, uesp, ss)
 char *eip;
 {
-	register int	sigcode;
 	unsigned short	sw;		/* ndp status word */
 	struct _fpstate * fsp = &u.u_ndpCon;
 
 	if (err == SIFP)
 		u.u_regl = &gs;	/* hook in register set for consave/conrest */
 
-	sigcode = SIGFPE;
 	/*
 	 * Send user a signal.
 	 */
 	ndpSave(fsp);
+	/* Clear exception flag in NDP to prevent runaway trap. */
+	sw = fsp->status = fsp->sw;
+	fsp->sw &= 0x7f00;
 	wrNdpSaved(1);
 	if (ndpDump) {
 		RDUMP();
 		printf("\nfcs=%x  fip=%x  fos=%x  foo=%x\n",
 		  fsp->cssel&0xffff, fsp->ipoff,
 		  fsp->datasel&0xffff, fsp->dataoff);
-		printf("sigcode=#%d  User Floating Point Trap: ", sigcode);
-		sw = fsp->sw;
+		printf("User Floating Point Trap: ");
 		if (sw & 1)
 			printf("Invalid Operation");
 		else if (sw & 2)
@@ -216,6 +230,27 @@ char *eip;
 			printf("Precision");
 		else
 			printf("???");
+	}
+	sendsig(SIGFPE, SELF);
+}
+
+/*
+ * emtrap()
+ *
+ * Entered when NDP opcode is executed and EM bit of CR0 is 1.
+ * err is SIXNP (Device Not Available Fault)
+ */
+emtrap(gs, fs, es, ds, edi, esi, ebp, esp, ebx, edx, ecx, eax, trapno, err,
+  eip, cs, efl, uesp, ss)
+char *eip;
+{
+	if (ndpType == NDP_TYPE_387 || ndpType == NDP_TYPE_486)
+		ndpNewOwner();
+	else {
+		if (ndpDump) {
+			RDUMP();
+		}
+		sendsig(SIGFPE, SELF);
 	}
 }
 
@@ -303,4 +338,95 @@ ndpMine()
 
 	ndpOwner = SELF;
 	ndpUseg = MAPIO(sp->s_vmem, U_OFFSET);
+}
+
+/*
+ * Code concerned with identifying coprocessor type, and taking specialized
+ * action depending on the type.
+ */
+
+/*
+ * Using usual algorithms, determine existence and type of NDP.
+ * If interrupt vector needs to be set for FP exception, do it.
+ *
+ * If 2's bit of int11 is on, NDP is present.
+ */
+void
+senseNdp()
+{
+	if (ndpType == NDP_TYPE_UNPATCHED) {
+		ndpEmTraps(0);		/* Will need to do some FP code. */
+		ndpType = ndpSense();	/* Rely on assembler tricks now. */
+		ndpEmTraps(1);
+	}
+	if (ndpType == NDP_TYPE_387) {
+		setivec(NDP_IRQ, ndpIrq);
+	}
+}
+
+/*
+ * Called from main().
+ * Return name string for the type of coprocessor detected.
+ */
+char *
+ndpTypeName()
+{
+	char * ret = "**ERROR: Bad ndp type**";
+
+	switch(ndpType) {
+	case NDP_TYPE_NONE:
+		ret = "No NDP.  ";
+		break;
+	case NDP_TYPE_287:
+		ret = "NDP=287.  ";
+		break;
+	case NDP_TYPE_387:
+		ret = "NDP=387.  ";
+		break;
+	case NDP_TYPE_486:
+		ret = "NDP=486.  ";
+		break;
+	}
+	return ret;
+}
+
+/*
+ * IRQ 13 handler.  Not used with 486.
+ */
+void
+ndpIrq()
+{
+	struct _fpstate * fsp = &u.u_ndpCon;
+	unsigned short sw;
+
+	outb(NDP_PORT, 0);
+	/*
+	 * Send user a signal.
+	 */
+	ndpSave(fsp);
+	/* Clear exception flag in NDP to prevent runaway trap. */
+	sw = fsp->status = fsp->sw;
+	fsp->sw &= 0x7f00;
+	wrNdpSaved(1);
+	if (ndpDump) {
+		printf("\nfcs=%x  fip=%x  fos=%x  foo=%x\n",
+		  fsp->cssel&0xffff, fsp->ipoff,
+		  fsp->datasel&0xffff, fsp->dataoff);
+		printf("User 387 Trap: ");
+		if (sw & 1)
+			printf("Invalid Operation");
+		else if (sw & 2)
+			printf("Denormalized Operand");
+		else if (sw & 4)
+			printf("Divide by Zero");
+		else if (sw & 8)
+			printf("Overflow");
+		else if (sw & 0x10)
+			printf("Underflow");
+		else if (sw & 0x20)
+			printf("Precision");
+		else
+			printf("???");
+	}
+	sendsig(SIGFPE, SELF);
 }
