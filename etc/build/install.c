@@ -1,8 +1,10 @@
 /*
  * install.c
- * 4/24/90
+ * 5/9/90
  * Install COHERENT disks on a system.
- * The first part of the initial install procedure is in build.c.
+ * This is the back end of the initial COHERENT installation procedure;
+ * the first part is in build.c.
+ * Without the -b option, it installs an update to an existing COH system.
  * Uses common routines in build0.o: cc install.c build0.c
  * Usage: install [ -bdv ] id device ndisks
  * Options:
@@ -14,7 +16,7 @@
 #include <stdio.h>
 #include "build0.h"
 
-#define	VERSION		"1.6"
+#define	VERSION		"1.7"
 #define	USAGE		"Usage: /etc/install [ -bdv ] id device ndisks\n"
 
 /* Forward. */
@@ -65,14 +67,20 @@ main(argc, argv) int argc; char *argv[];
 	sys("/bin/date >>/etc/install.log", S_NONFATAL);
 
 	/* Remove old ids and postfile if present. */
-	sprintf(cmd, "/bin/rm -f /%s.* /conf/%s.post", id, id);
+	if (bflag)	/* Leave disk 1 marker on /. */
+		sprintf(cmd, "/bin/rm -f /%s.[023456789]* /conf/%s.post", id, id);
+	else
+		sprintf(cmd, "/bin/rm -f /%s.* /conf/%s.post", id, id);
 	sys(cmd, S_IGNORE);
 	if (bflag)
 		sys("/etc/mount.all", S_NONFATAL);
 	cls(0);
 
-	/* Install disks. */
-	for (i = 1; i <= ndisks; ++i)
+	/*
+	 * Install disks.
+	 * Disk numbers are 2 to ndisks for build, 1 to ndisks otherwise.
+	 */
+	for (i = ((bflag) ? 2 : 1); i <= ndisks; ++i)
 		install(i);
 	if (bflag) {
 		newusr();
@@ -95,6 +103,7 @@ main(argc, argv) int argc; char *argv[];
 		sys("/etc/umount.all", S_NONFATAL);
 	cls(0);
 	printf("You have completed the installation procedure successfully.\n");
+	printf("Don't forget to remove the last diskette from the disk drive.\n");
 	sync();
 	exit(0);
 }
@@ -107,6 +116,7 @@ config()
 {
 	register char *s;
 	char c1, c2;
+	char device[4+1];
 
 	cls(1);
 	if (yes_no("Does your computer system have a modem")) {
@@ -119,7 +129,7 @@ config()
 				s);
 		printf("\n");
 	}
-	if (yes_no("Does your computer system have a line printer")) {
+	if (yes_no("Does your computer system have a printer")) {
 		printf(
 "Your printer is connected to your computer system either through a\n"
 "parallel port or through a serial port; most printers are connected\n"
@@ -129,18 +139,21 @@ config()
 			do {
 				s = get_line("Enter 1, 2 or 3 for port LPT1, LPT2 or LPT3:");
 			} while (*s < '1' || *s > '3' || *(s+1) != '\0');
-			sprintf(cmd, "/bin/ln -f /dev/lpt%s /dev/lp", s);
-			if (sys(cmd, S_NONFATAL) == 0)
-				printf("/dev/lp is now linked to /dev/lpt%s.\n",
-					s);
+			strcpy(device, "lpt");
 		} else {
 			do {
 				s = get_line("Enter 1 or 2 for port COM1 or COM2:");
 			} while ((*s != '1' && *s != '2') || *(s+1) != '\0');
-			sprintf(cmd, "/bin/ln -f /dev/com%s /dev/lp", s);
+			strcpy(device, "com");
+		}
+		strcat(device, s);
+		sprintf(cmd, "/bin/ln -f /dev/%s /dev/lp", device);
+		if (sys(cmd, S_NONFATAL) == 0)
+			printf("/dev/lp is now linked to /dev/%s.\n", device);
+		if (yes_no("Is your printer an HP LaserJet compatible laser printer")) {
+			sprintf(cmd, "/bin/ln -f /dev/%s /dev/hp", device);
 			if (sys(cmd, S_NONFATAL) == 0)
-				printf("/dev/lp is now linked to /dev/com%s.\n",
-					s);
+				printf("/dev/hp is now linked to /dev/%s.\n", device);
 		}
 		printf("\n");
 	}
@@ -151,10 +164,10 @@ config()
 		*s -= '0';
 		c1 = *s < 4 ? '0' : '1';
 		c2 = 'a' + *s % 4;
-		sprintf(cmd, "/bin/ln -f /dev/rat%c%c /dev/dos", c1, c2);
+		sprintf(cmd, "/bin/ln -f /dev/at%c%c /dev/dos", c1, c2);
 		if (sys(cmd, S_NONFATAL) == 0)
 			printf(
-"/dev/dos is now linked to /dev/rat%c%c.\n"
+"/dev/dos is now linked to /dev/at%c%c.\n"
 "You can use the \"dos\" command to transfer files\n"
 "to and from the MS-DOS partition.\n",
 			c1, c2);
@@ -244,9 +257,9 @@ newdisk()
 void
 newusr()
 {
-	register int n, status;
+	register int n, status, passwd;
 	register char *s;
-	char homedir[NBUF];
+	char homeparent[80], user[80];
 
 	cls(0);
 	printf(
@@ -256,11 +269,24 @@ newusr()
 "\"daemon\" (the spooler), \"sys\" (to access system information), and\n"
 "\"uucp\" (for communication with other COHERENT systems).\n"
 "\n"
-"If your system has multiple users or allows remote logins, you should use\n"
-"the \"passwd\" program after you finish installing COHERENT to assign a\n"
-"password to each user, including users \"root\" and \"bin\".\n"
+"If your system has multiple users or allows remote logins, you should assign\n"
+"a password to each user.\n"
 "\n"
-"You should create a login for each additional user of your system.\n"
+	);
+	passwd = yes_no("Do you want to assign passwords to users");
+	if (passwd) {
+		printf("You must enter each password twice.\n");
+		if (yes_no("Do you want to assign a password for user \"root\""))
+			sys("passwd root", S_NONFATAL);
+		if (yes_no("Do you want to assign a remote access password"))
+			sys("passwd remacc", S_NONFATAL);
+		if (yes_no("Do you want to assign a password for user \"bin\""))
+			sys("passwd bin", S_NONFATAL);
+		if (yes_no("Do you want to assign a password for user \"uucp\""))
+			sys("passwd uucp", S_NONFATAL);
+	}
+	printf(
+"\nYou should create a login for each additional user of your system.\n"
 		);
 	for (n = 0; ;) {
 		if (!yes_no("Do you want to create another login"))
@@ -273,7 +299,7 @@ newusr()
 "Do not type quotation marks around the names you enter.\n"
 				);
 			if (yes_no("Do you want home directories in \"/usr\"")) 
-				strcpy(homedir, "/usr");
+				strcpy(homeparent, "/usr");
 			else {
 again:
 				s = get_line("Where do you want home directories?");
@@ -283,23 +309,28 @@ again:
 						);
 					goto again;
 				} else
-					strcpy(homedir, s);
+					strcpy(homeparent, s);
 			}
-			if ((status = is_dir(homedir)) == -1) {
+			if ((status = is_dir(homeparent)) == -1) {
 				printf("%s is not a directory, try again.\n",
-					homedir);
+					homeparent);
 				goto again;
 			} else if (status == 0) {
-				sprintf(cmd, "/bin/mkdir -r %s", homedir);
+				sprintf(cmd, "/bin/mkdir -r %s", homeparent);
 				if (sys(cmd, S_NONFATAL) != 0)
 					goto again;
 			}
 		}
 		s = get_line("Login name:");
+		strcpy(user, s);
 		sprintf(cmd, "/etc/newusr %s ", s);
 		s = get_line("Full name:");
-		sprintf(&cmd[strlen(cmd)], "\"%s\" %s", s, homedir);
+		sprintf(&cmd[strlen(cmd)], "\"%s\" %s", s, homeparent);
 		sys(cmd, S_NONFATAL);
+		if (passwd && yes_no("Do you want to assign a password for user \"%s\"", user)) {
+			sprintf(cmd, "passwd %s", user);
+			sys(cmd, S_NONFATAL);
+		}
 	}
 	printf("\n");
 }
