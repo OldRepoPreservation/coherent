@@ -3,7 +3,7 @@
  *
  * C compiler compatibility definitions.
  *
- * Revised: Mon Apr  5 16:05:38 1993 CDT
+ * Revised: Wed May 19 10:30:25 1993 CDT
  */
 #ifndef	__SYS_CCOMPAT_H__
 #define	__SYS_CCOMPAT_H__
@@ -516,7 +516,7 @@
  * undefine _STDC_SOURCE.
  */
 
-#if	_POSIX_SOURCE
+#if	defined(_POSIX_SOURCE)
 #undef	_STDC_SOURCE
 #endif
 
@@ -542,7 +542,7 @@
  * functionality or alteration of behaviour when _POSIX_SOURCE is used.
  */
 
-#if	_POSIX_SOURCE
+#if	defined(_POSIX_SOURCE)
 
 # define	__NON_POSIX(name)	_##name
 
