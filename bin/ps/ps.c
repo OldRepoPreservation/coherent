@@ -1,4 +1,4 @@
-static char _version[]="ps version 2.3";
+static char _version[]="ps version 2.4";
 /*
  *	Modifications copyright INETCO Systems Ltd.
  *
@@ -51,6 +51,7 @@ static char _version[]="ps version 2.3";
 #include <sys/uproc.h>
 #include <sys/signal.h>
 #include <sys/mmu.h>
+#include <access.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -126,6 +127,7 @@ int	rflag;				/* Print out real sizes */
 int	tflag;				/* Print times */
 int	wflag;				/* Wide format */
 int	xflag;				/* Get special processes */
+int	Pflag;				/* UNDOCUMENTED: ignore present bit.  */
 dev_t	ttdev;				/* Terminal device */
 
 /*
@@ -206,6 +208,9 @@ main(argc, argv)
 			case 'n':
 				nflag++;
 				continue;
+			case 'P':
+				Pflag++;
+				continue;
 			case 'r':
 				rflag++;
 				continue;
@@ -240,6 +245,7 @@ initialise()
 	lflag = 0;
 	mflag = 0;
 	nflag = 0;
+	Pflag = 0;
 	xflag = 0;
 	nfile = pick_nfile();
 	kfile = "/dev/kmem";
@@ -286,15 +292,37 @@ execute()
 	fflush(stdout);
 #endif /* 0 */
 
-	coffnlist(nfile, nl, "", NUM_SYMS);
+	/*
+	 * Check to see if the desired kernel exists and is accessable.
+	 */
+	if (0 != access(nfile, AREAD)) {
+		panic("%s is not readable or does not exist.", nfile);
+	}
 
-	if (nl[0].n_type == -1)
+	/*
+	 * Extract symbol information from the kernel.
+	 */
+	if (0 == coffnlist(nfile, nl, "", NUM_SYMS) ) {
+		panic("Can not use kernel image %s.", nfile);
+	}
+
+	if (nl[0].n_type == -1) {
 		panic("Bad namelist file %s", nfile);
+	}
 
-	if ((mfd=open(mfile, 0)) < 0)
+	/*
+	 * Open the physical memory device.
+	 */
+	if ((mfd=open(mfile, 0)) < 0) {
 		panic("Cannot open %s", mfile);
-	if ((kfd = open(kfile, 0)) < 0)
+	}
+
+	/*
+	 * Open the virtual memory device.
+	 */
+	if ((kfd = open(kfile, 0)) < 0) {
 		panic("Cannot open %s", kfile);
+	}
 
 	/*
 	 * Open swap device if it exists
@@ -306,13 +334,20 @@ execute()
 	fflush(stdout);
 #endif /* 0 */
 
-	/* Fetch the head of the process queue.  */
+	/*
+	 * Fetch the head of the process queue.
+	 */
 	kread((long)aprocq, &cprocq, sizeof (cprocq));
-	/* Fetch information about system memory.  */
+
+	/*
+	 * Fetch information about system memory.
+	 */
 	kread((long)asysmem, &sysmem, sizeof (sysmem));
 
 	
-	/* Take a snapshot of kernel memory.  */
+	/*
+	 * Take a snapshot of kernel memory.
+	 */
 	kread((unsigned long)aallocp, &callocp, sizeof (callocp));
 
 #if 0
@@ -855,9 +890,22 @@ u_init(sp, bp)
 			return (0);
 		}
 	} else if (dread((long)sp1->s_daddr*BSIZE, bp, sizeof(UPROC)) < 0 ){
-			return( 0 );
+			return (0);
 	}
 
+#ifdef UPROC_VERSION
+	if ( ((UPROC *) bp)->u_version != UPROC_VERSION) {
+		static int printed_once = FALSE;
+		if (!printed_once) {
+			fprintf( stderr,
+				"\nps WARNING: u area version is %x, not %x.\n",
+				((UPROC *) bp)->u_version, UPROC_VERSION );
+			printed_once = TRUE;
+		}
+		return (0);
+	}
+#endif /* UPROC_VERSION */
+		
 	return (1);
 }
 
@@ -1031,8 +1079,12 @@ pt_mread(table, s, bp, n)
 
 	pt_entry = pt_index(table, s>>BPCSHIFT);
 
-	if (!PT_PRESENT(pt_entry)) {
-		printf("partition not present: %x\n", pt_entry);
+	if (!Pflag && !PT_PRESENT(pt_entry)) {
+		static printed_once = FALSE;
+		if (!printed_once) {
+			printf("\npartition not present: %x\n", pt_entry);
+			printed_once = TRUE;
+		}
 		return(0);
 	}
 	pt_entry &= PT_CLICK_ADDR;	/* Extract Address of click.  */
@@ -1055,7 +1107,7 @@ pt_mread(table, s, bp, n)
 		bp += to_read;	/* To where?  */
 
 		pt_entry = pt_index(table, s>>BPCSHIFT);
-		if (!PT_PRESENT(pt_entry)) {
+		if (!Pflag && !PT_PRESENT(pt_entry)) {
 			printf("partition not present: %x.\n", pt_entry);
 			return(0);
 		}
