@@ -651,7 +651,7 @@ char * opt;
 	int	ret = 1;
 
 	if (strcmp(opt, "sane") == 0) {
-		simple("icrnl", c_list, &t.c_cflag);
+		simple("icrnl", c_list, &t.c_iflag);
 		simple("opost", o_list, &t.c_oflag);
 		simple("onlcr", o_list, &t.c_oflag);
 		simple("isig", l_list, &t.c_lflag);
