@@ -1,5 +1,5 @@
 /*
- * File:	tioc286.c
+ * File:	tioc.c
  *
  * Purpose:	Convert COH286 tty ioctl's to Sys 5 compatible calls.
  *
@@ -84,8 +84,6 @@ typedef unsigned long ulong;
  *	Export Functions.
  *	Local Functions.
  */
-int tioc286in();
-void tioc286out();
 
 static void to_s5_sgfld();
 static void to_s5speed();
@@ -132,10 +130,10 @@ static unsigned short cvtsgtty[] = {
  */
 
 /*
- * tioc286()
+ * tioc()
  *
- * For tty devices, this is called from the ioctl con entry in the driver.
- * Its arguments are the arguments passed to the ioctl, plus the local driver's
+ * This function is called by dioctl() whenever a 286 binary does an ioctl().
+ * Its arguments are the arguments for to the ioctl, plus the local driver's
  * ioctl function, which should support S5 sgtty and termio commands.
  *
  * 1.  If com is COH 286 TIOC, translate it to S5 TIOC.
@@ -145,7 +143,7 @@ static unsigned short cvtsgtty[] = {
  * 4.  Call driver's ioctl().
  * 5.  If just finished a converted TIOCGETP, convert back to COH 286 sgttyb.
  */
-void tioc286(dev, com, vec, iocfn)
+void tioc(dev, com, vec, iocfn)
 int dev, com, vec, (*iocfn)();
 {
 	struct sgttyb sg;
