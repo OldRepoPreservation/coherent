@@ -29,7 +29,7 @@ s//////////
 	.globl	_fucvt
 	.globl	_ficvt
 
-cwchop	.word	0x0fbf			/ chop control word
+cwchop	.word	0x0F3F			/ chop control word
 two	.word	2			/ constant 2
 
 RASIZE	=	4			/ size of a return address
@@ -203,7 +203,11 @@ _vdcvt:
 	fistpll	INT64(%ebp)		/ convert to integer and
 	fldcw	SAVECW(%ebp)		/ put control word back.
 	movl	%eax, INT64(%ebp)	/ Unsigned long result to %eax.
+	cmpl	INT64+4(%ebp), $0	/ If hi result dword is zero,
+	je	?0			/ return lo result dword.
+	movl	%eax, $-1		/ Overflow, return UINTMAX.
 
+?0:
 	movl	%esp, %ebp
 	pop	%ebp
 	ret
