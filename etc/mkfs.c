@@ -1,11 +1,11 @@
 /*
  * mkfs.c
- * 2/6/92
+ * 7/14/92
  * Make a filesystem.
  * Efficiently, rec 84.08.31
  */
 
-#define	VERSION	"1.1"
+#define	VERSION	"1.2"
 #define NDEBUG		1	/* No assertions turned on */
 #define ES_SUCCESS	0	/* No problems at all */
 #define ES_IGNORED	1	/* Some problems ignored */
@@ -27,6 +27,7 @@
 #include <access.h>
 #include <assert.h>
 #include <string.h>
+#include <sys/mdata.h>
 
 #define inodeb(i)	(INODEI + ((i)-1)/8)
 #define inodei(i)	(((i)-1)%8)
@@ -171,6 +172,8 @@ magic()
 		nino = fsize / 7;
 	else
 		nino = fsize / 5;
+	if (nino > MAXUINT-5)		/* must fit into a short! */
+		nino = MAXUINT - 5;
 	p = b+8;
 	while (nino != 0) {
 		*--p = nino % 10 + '0';
