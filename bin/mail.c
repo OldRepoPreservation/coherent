@@ -1,6 +1,10 @@
 /*
- * $Header: /usr/src/cmd/mail.c,v 1.3 88/09/01 14:27:41 bin Exp $
+ * $Header: /usr/src/cmd/mail.c,v 1.4 88/09/01 14:44:49 bin Exp $
  * $Log:	/usr/src/cmd/mail.c,v $
+ * Revision 1.4	88/09/01  14:44:49	bin
+ * Mark Epsteins changes for ASKCC and for message scrolling, and interrupt
+ * handling during processing.
+ * 
  * Revision 1.3	88/09/01  14:27:41	bin
  * declare getenv to get rid of integer pointer pun error message.
  * 
@@ -13,7 +17,7 @@
  */
 static	char	*rcsrev = "$Revision 1.1 $";
 static	char	*rcshdr =
-	"$Header: /usr/src/cmd/mail.c,v 1.3 88/09/01 14:27:41 bin Exp $";
+	"$Header: /usr/src/cmd/mail.c,v 1.4 88/09/01 14:44:49 bin Exp $";
 
 /*
  * The mail command.
@@ -89,6 +93,10 @@ then the public key cryptosystem is applied to the message.\n\
 #define	NARGS	64		/* Maximum # args to interactive command */
 #define	NLINE	512		/* Longest line in a message */
 #define	NCLINE	256		/* Length of an interactive command */
+
+extern	char	*getenv();
+
+
 
 int	mflag;			/* `You have mail.' message to recipient */
 int	rflag;			/* Reverse order of print */
