@@ -1,11 +1,13 @@
 /*
- * system calls introduced by the 386 port
+ * coh.386/sys5.c
  *
- * Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
+ * System calls introduced when going from COH 286 to COH 386.
+ *
+ * Revised: Mon Jul 12 12:27:55 1993 CDT
  */ 
 #include <sys/coherent.h>
 #include <sys/buf.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <canon.h>
 #include <sys/con.h>
 #include <fcntl.h>
@@ -22,6 +24,9 @@
 #include <ustat.h>
 #include <sys/statfs.h>
 #include <sys/sysi86.h>
+#include <sys/file.h>
+#include <ulimit.h>
+
 
 utime(tp)
 long *tp;
@@ -99,9 +104,9 @@ int func, arg1, arg2, arg3, arg4;
  *
  * int ustat(int dev, struct ustat *buf)
  * Before lcall instruction 4(%esp) contains buf (REVERSE order of argument)
- * 8(%esp) contains dev, and 12(%esp) contains the value 0.
+ * 8(%esp) contains dev, and 12(%esp) contains the value 2.
  */
-int
+
 uutssys(arg1, arg2, func)
 {
 	switch(func) {	
@@ -117,11 +122,6 @@ uutssys(arg1, arg2, func)
 extern char	version[];	/* Defined in main.c */
 extern char 	release[];	/* Defined in main.c */
 
-/*
- * uname() should return a non-negative value on success
- * On failure, u.u_error is set.
- */
-int
 uname(name)
 struct utsname	*name;
 {
@@ -135,58 +135,45 @@ struct utsname	*name;
 	/* Check if *name is an available user area */
 	if (!useracc((char *) name, sizeof(struct utsname), 1)) {
 		u.u_error = EFAULT;
-		return;
+		return(0);
 	}
-
 	/* Find the size of the version number */
 	for (rcp = version, i = 0; *rcp != '\0' && i < SYS_NMLN; i++, rcp++)
 			;
-
 	/* Write version number to user area */
-	if (!kucopy(version, name->version, i)) {
-		u.u_error = EFAULT;
-		return;
-	}
-
+	if (!kucopy(version, name->version, i))
+		return(0);
 	/* Find the size of the release number */
 	for (rcp = release, i = 0; *rcp != '\0' && i < SYS_NMLN; i++, rcp++)
 			;
-
 	/* Write release number to user area */
-	if (!kucopy(release, name->release, i)) {
-		u.u_error = EFAULT;
+	if (!kucopy(release, name->release, i))
 		return;
-	}
-
 	/* Write "machine" to user area */
-	if (!kucopy("i386", name->machine, 4)) {
-		u.u_error = EFAULT;
+	if (!kucopy("i386", name->machine, 4))
 		return;
-	}
-
-	/* We supposed that system name and nodename are in /etc/uucpname */
+	/*
+	 * We supposed that system name and nodename are in /etc/uucpname
+	 * NIGEL: Set the global io segment to IOSYS so that ftoi () will use
+	 * the right method of getting at the argument passed to it.
+	 */
+	u.u_io.io_seg = IOSYS;
 	if (ftoi("/etc/uucpname", 'r') != 0)
 		return(sys_unknown(name));
-
 	ip = u.u_cdiri;
 	if ((fl = ip->i_size) == 0) {
 		idetach(ip);
 		return(sys_unknown(name));
 	}
-
-	/* iaccess() sets u_error if it fails. */
 	if (iaccess(ip, IPR) == 0) {
 		idetach(ip);
 		return;
 	}
-
 	if ((bp = vread(ip, (daddr_t) 0)) == NULL) {
 		brelease(bp);
 		idetach(ip);
-		u.u_error = EFAULT;
 		return;
 	}
-
 	/* namebuf should be not more than SYS_NMLN - 1 characters long */
 	fl = (fl > SYS_NMLN) ? SYS_NMLN : fl;
 	kkcopy(bp->b_vaddr, namebuf, fl);
@@ -195,7 +182,6 @@ struct utsname	*name;
 
 	if (fl == 1 && namebuf[0] == '\n')
 		return(sys_unknown(name));
-
 	for (rcp = namebuf, i = 0; i < fl; rcp++) {
 		i++;
 		if (*rcp == '\n') {
@@ -204,44 +190,27 @@ struct utsname	*name;
 		}
 	}
 	namebuf[i - 1] = '\0';
+	/* Write system name to user area */
+	if (!kucopy(namebuf, name->sysname, i))
+		return(0);
 
 	/* Write system name to user area */
-	if (!kucopy(namebuf, name->sysname, i)) {
-		u.u_error = EFAULT;
-		return;
-	}
-
-	/* Write system name to user area */
-	if (!kucopy(namebuf, name->nodename, i)) {
-		u.u_error = EFAULT;
-		return;
-	}
-
+	if (!kucopy(namebuf, name->nodename, i))
+		return(0);
 	return 0;
 }
 
 /*
  * sys_unknown - write name unknown to utsname struct
- * Return 0 on success.
- * Set u.u_error on failure.
  */
 char	unknown[] = "UNKNOWN";
-
-int
 sys_unknown(name)
 struct utsname	*name;
 {
-	if (!kucopy(unknown, name->sysname, sizeof(unknown))) {
-		u.u_error = EFAULT;
+	if (!kucopy(unknown, name->sysname, sizeof(unknown)))
 		return;
-	}
-
-	if (!kucopy(unknown, name->nodename, sizeof(unknown))) {
-		u.u_error = EFAULT;
+	if (!kucopy(unknown, name->nodename, sizeof(unknown)))
 		return;
-	}
-
-	return 0;
 }
 
 /* 
@@ -307,10 +276,10 @@ uulimit(cmd, newlimit)
 	int freeClicks;
 
 	switch (cmd) {
-	case 1:	/* Get max # of 512-byte blocks per file. */
+	case UL_GETFSIZE:	/* Get max # of 512-byte blocks per file. */
 		return u.u_bpfmax;
 		break;
-	case 2: /* Set max # of 512-byte blocks per file. */
+	case UL_SETFSIZE: /* Set max # of 512-byte blocks per file. */
 		/* (only superuser may increase this) */
 		if (newlimit <= u.u_bpfmax || super()) {
 			u.u_bpfmax = newlimit;
@@ -318,7 +287,7 @@ uulimit(cmd, newlimit)
 		}
 		/* else super() will have set u.u_error to EPERM */
 		break;
-	case 3: /* Get max break value. */
+	case UL_GMEMLIM: /* Get max break value. */
 		/* return (current brk value) + (amount of free space) */
 		/* Don't report all free clicks - leave a cushion. */
 		freeClicks = allocno() - BRK_CUSHION;
@@ -327,7 +296,8 @@ uulimit(cmd, newlimit)
 		return u.u_segl[SIPDATA].sr_base
 		  + SELF->p_segp[SIPDATA]->s_size + NBPC * freeClicks;
 		break;
-	case 4: /* Return configured number of open files per process. */
+	case UL_GDESLIM:
+		/* Return configured number of open files per process. */
 		return NOFILE;
 		break;
 	default:
@@ -413,61 +383,108 @@ urmdir(path)
 char	*path;
 {
 	register INODE	*ip;
+	int		ioType;		/* type of I/O operation */
+	int		iPathLen;	/* Size of the string */
 	int 		isdirempty();
+	extern int	strUserAcc();
 	
-	if (ftoi(path, 'r') != 0)
+	ioType = u.u_io.io_seg;
+
+	/* Check if path points to a valid user buffer.*/
+	if ((iPathLen = strUserAcc(path, 0)) < 0) {
+		u.u_error = EFAULT;
 		return;
+	}
+	u.u_io.io_seg = IOUSR;
+
+	if (ftoi(path, 'r') != 0) {
+		u.u_io.io_seg = ioType;
+		return;
+	}
+	u.u_io.io_seg = ioType;
+
 	ip = u.u_cdiri;
 
 	/* Check if path is a directory */
 	if ((ip->i_mode & IFMT) != IFDIR) {
+		SET_U_ERROR(ENOTDIR, "rmdir: no such directory");
 		idetach(ip);
-		SET_U_ERROR(ENOTDIR, "rmdir: no such file or directory");
 		return;
 	}
 	/* We have to check if directory is empty */
 	if (!isdirempty(ip)) {
-		idetach(ip);
 		SET_U_ERROR(EEXIST, "rmdir: directory is not empty");
+		idetach(ip);
 		return;
 	}
 	idetach(ip);
-	removedir(path);
-	return (u.u_error);
+	removedir(path, iPathLen);
+	return 0;
 }
 
 /*
- * remove a directory entry.
+ * Remove a directory.
  * path is a pointer to user area.
  */
-removedir(path)
-char	*path;
+removedir(path, iPathLen)
+char	*path;	/* Directory name */
+int	iPathLen;	/* Path length */
 {
-	char		buf[512];
-	char		*cpbuf,		/* to internal file_name buffer */
-			*cppath;	/* to user file_name buffer */
+	char		*buf;
+	char		*cpbuf,		/* internal file_name buffer */
+			*cppath;	/* user file_name buffer */
+	int		ioType;		/* Type of I/O */
 
-	/* Write path to a kernel buffer buf */
+	/* Allocate kernel buffer. We need extra space for '/', '.', '..' 
+	 * and '\0'
+	 */
+	if ((buf = kalloc(iPathLen + 4)) == NULL) {
+		SET_U_ERROR(ENOSPC, "rmdir: out of kernel space");
+		return;
+	}
 	cpbuf = buf;
 	cppath = path;
 
+	/* Copy path to the kernel buffer. */
 	while ((*cpbuf = getubd(cppath)) != '\0') {
 		cppath++;
-		if (++cpbuf >= &buf[sizeof(buf) - 3]) {
-			SET_U_ERROR(ENOENT, "rmdir: path too long");
-			return;
-		}
+		cpbuf++;
 	}
 	*cpbuf++ = '/';
 	*cpbuf++ = '.';
 	*cpbuf = '\0';
+	ioType = u.u_io.io_seg;
 	u.u_io.io_seg = IOSYS;
+
 	dunlink(buf);
+	if (u.u_error) {
+		kfree(buf);
+		u.u_io.io_seg = ioType;
+		return;
+	}
+
 	*cpbuf++ = '.';
 	*cpbuf = '\0';
+
 	dunlink(buf);
-	u.u_io.io_seg = IOUSR;
-	dunlink(path);
+	if (u.u_error) {
+	/* We have to link '.' back here. */
+		kfree(buf);
+		u.u_io.io_seg = ioType;
+		return;
+	}
+
+	buf[iPathLen] = '\0';
+
+	dunlink(buf);
+	if (u.u_error) {
+	/* We have to link '.' and '..' back here. */
+		kfree(buf);
+		u.u_io.io_seg = ioType;
+		return;
+	}
+	kfree(buf);
+	u.u_io.io_seg = ioType;
 	return;
 }
 
@@ -480,12 +497,11 @@ char *np;
 	register INODE *ip;
 	register dev_t dev;
 
-	if (ftoi(np, 'u') != 0)
+	if (file_to_inode(np, 'u', 1) != 0)
 		return;
  
 	ip = u.u_pdiri;
 	if (iaccess(ip, IPW) == 0) {
-		u.u_error = EACCES;
 		goto err;
 	}
 
@@ -504,7 +520,7 @@ char *np;
 
 err:
 	idetach(ip);
-	return (0);
+	return;
 }
 
 /*
@@ -591,6 +607,13 @@ int	mode;
 			bufparent[512];
 	int		uid;
 	int		error;
+
+	/* Check if path points to a valid user buffer.*/
+	if (strUserAcc(path, 0) < 0) {
+		u.u_error = EFAULT;
+		return;
+	}
+
 	/*
 	 * Create a local copies of "path" which we can use to build up
 	 * the required directory links:
@@ -671,11 +694,11 @@ int	mode;
 /*
  * Create a directory.
  *
- * Cannot use original ulink because it makes the directories
- * only for superuser.
- * In case of failure, return NULL and set u.u_error.
+ * We cannot use original ulink because it makes the directories only
+ * for superuser.
  */
-INODE *dmknod(np, mode)
+INODE *
+dmknod(np, mode)
 char	*np;	/* Direcotory name */
 int	mode;
 {
@@ -686,7 +709,7 @@ int	mode;
 	type |= S_IFDIR;
 
 	/* If ftoi returns nonzero, u.u_error has been set. */
-	if (ftoi(np, 'c'))
+	if (ftoi(np, 'c') != 0)
 		return NULL;
 
 	if ((ip=u.u_cdiri) != NULL) {
@@ -806,7 +829,11 @@ off_t		*offset;
 	u.u_io.io_seek = fdp->f_seek;
 	u.u_io.io.vbase = bp;
 	u.u_io.io_ioc  = n;
-	u.u_io.io_flag = (fdp->f_flag & IPNDLY) ? IONDLY : 0;
+	u.u_io.io_flag = 0;
+	if ((fdp->f_flag & IPNDLY) != 0)
+		u.u_io.io_flag |= IONDLY;
+	if ((fdp->f_flag & IPNONBLOCK) != 0)
+		u.u_io.io_flag |= IONONBLOCK;
 
 	iread(ip, &u.u_io);
 	iacc(ip);		/* read - atime */
