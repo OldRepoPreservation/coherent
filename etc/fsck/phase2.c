@@ -295,8 +295,11 @@ register struct direct *elemnt;
 			zeroent(elemnt);
 			return(UNALLOC);
 		}
-		if ( (flags(inum)&MODEMASK)==IDIR )
-			return(UNALLOC);
+		if ( (flags(inum)&MODEMASK)==IDIR ) {
+			linkincr(inum);
+			numfiles++;
+			return(UNALLOC);	/* Don't traverse this baby */
+		}
 	}
 
 	linkincr(inum);
