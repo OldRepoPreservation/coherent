@@ -1,0 +1,4 @@
+vc303a|vc403a|volker-craig 303a,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=^X$<40>, el=^V$<20>, 
+	cud1=^J, home=^Y$<40>, cub1=^H, cuf1=^U, ll=^P, cuu1=^Z, kcud1=^J, 
+	kcub1=^H, kcuf1=^U, kcuu1=^Z, 

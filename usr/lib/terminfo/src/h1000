@@ -1,0 +1,3 @@
+h1000|hazeltine 1000,
+	cols#80, lines#12, bel=^G, cr=^M, clear=^L, cud1=^J, home=^K, 
+	cub1=^H, cuf1= , ind=^J, 

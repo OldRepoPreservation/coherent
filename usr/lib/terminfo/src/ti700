@@ -1,0 +1,2 @@
+ti700|ti733|735|ti735|ti silent 700,
+	hc, os, cols#80, bel=^G, cr=^M$<162>, cud1=^J, cub1=^H, ind=^J, 

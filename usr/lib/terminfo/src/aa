@@ -1,0 +1,5 @@
+aa|annarbor|4080|ann arbor 4080,
+	am, cols#80, lines#40, bel=^G, cr=^M, tbc=^\^P^P, clear=^L$<2>, 
+	cup=^O%p2%{10}%/%{16}%*%p2%{10}%m%+%c%p1%?%p1%{19}%>%t%{12}%+%;%'@'%+%c, 
+	cud1=^J, home=^K, cub1=^H, cuf1=^_, cuu1=^N, kbs=^^, kcud1=^J, 
+	khome=^K, kcub1=^H, kcuf1=^_, kcuu1=^N, ind=^J, hts=^]^P1, 

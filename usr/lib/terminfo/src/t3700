@@ -1,0 +1,2 @@
+t3700|teleray|dumb teleray 3700,
+	cols#80, lines#24, bel=^G, cr=^M, clear=^L, cud1=^J, cub1=^H, ind=^J, 

@@ -1,0 +1,2 @@
+43|tty43|model 43 teletype,
+	am, hc, os, cols#132, bel=^G, cr=^M, cud1=^J, cub1=^H, kbs=^H, ind=^J, 

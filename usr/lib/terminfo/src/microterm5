@@ -1,0 +1,4 @@
+microterm5|act5|microterm act v,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=^^, ed=^_, 
+	cup=^T%p1%c%p2%c, cud1=^J, home=^], cub1=^H, cuf1=^X, cuu1=^Z, 
+	kcud1=^K, kcub1=^H, kcuf1=^X, kcuu1=^Z, ind=^J, ri=\EH$<3>, uc=\EA, 

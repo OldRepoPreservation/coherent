@@ -1,0 +1,6 @@
+viewpoint|addsviewpoint|adds viewpoint,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=^L, el=\EK, ed=\Ek, 
+	cup=\EY%p1%' '%+%c%p2%' '%+%c, cud1=^J, cub1=^H, cnorm=^O\E0`, 
+	cuf1=^F, ll=^A, cuu1=^Z, cvvis=^O\E0P, smso=^N, smul=^N, rmso=^O, 
+	rmul=^O, is2=^O\E0`, kcud1=^J, khome=^A, kcub1=^U, kcuf1=^F, 
+	kcuu1=^Z, ind=^J, 

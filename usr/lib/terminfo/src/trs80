@@ -1,0 +1,2 @@
+trs80|trs-80|Radio Shack TRS-80 model I,
+	am, cols#64, lines#16, bel=^G, cr=^M, cud1=^J, cub1=^H, ind=^J, 

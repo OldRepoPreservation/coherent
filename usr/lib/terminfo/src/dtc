@@ -1,0 +1,6 @@
+dtc|mc0|dtc382|382,
+	am, xhp, da, db, cols#80, lines#24, lm#96, bel=^G, cr=^P^M, 
+	clear=^P^]$<20>, el=^P^U, ed=^P^U^P^S^P^S, cup=^P^Q%p2%c%p1%c, 
+	cud1=^J, home=^P^R, cub1=^H, cnorm=^Pb, cuf1=^PR, cuu1=^P^L, 
+	cvvis=^PB, dch1=^X, dl1=^P^S, smir=^PI, smul=^P ^P, rmcup=^P^]$<20>, 
+	rmir=^Pi, rmul=^P \200, il1=^P^Z, pad=\177, ind=^J, 

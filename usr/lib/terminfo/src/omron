@@ -1,0 +1,5 @@
+omron|Omron 8025AG,
+	am, da, db, cols#80, lines#24, bel=^G, cr=^M, clear=\EJ, el=\EK, 
+	ed=\ER, cud1=^J, home=\EH, cub1=^H, cnorm=, cuf1=\EC, cuu1=\EA, 
+	cvvis=\EN, dch1=\EP, dl1=\EM, smso=\Ef, rmso=\E4, il1=\EL, ind=\ES, 
+	ri=\ET, 

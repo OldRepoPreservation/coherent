@@ -1,0 +1,3 @@
+ep48|ep4080|execuport 4080,
+	am, os, cols#80, bel=^G, cr=^M, cud1=^J, cub1=^H, hd=^\, ind=^J, 
+	hu=^^, 

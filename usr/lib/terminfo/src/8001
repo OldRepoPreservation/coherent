@@ -1,0 +1,5 @@
+8001|isc8001|compucolor|intecolor,
+	am, cols#80, lines#40, bel=^G, cr=^M, clear=^L$<3*>, ed=\EF, 
+	cup=^C%p2%c%p1%c, cud1=^J, home=^H$<1>, cub1=^Z, cuf1=^Y$<1>, 
+	cuu1=^\, dch1=\177, dl1=\EV, smdc=\EQ, smir=\EQ, rmdc=\EQ, rmir=\EF, 
+	il1=\EU, ind=^J, ht=^I$<8>, 

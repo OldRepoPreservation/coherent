@@ -1,0 +1,8 @@
+vi200-f|visual|visual 200 no function keys,
+	am, cols#80, lines#24, bel=^G, cr=^M, clear=\Ev, el=\Ex$<4*>, ed=\Ey, 
+	cup=\EY%p1%' '%+%c%p2%' '%+%c, cud1=^J, home=\EH, cub1=^H, cnorm=\Ec, 
+	cuf1=\EC, cuu1=\EA, cvvis=\Ed, dch1=\EO$<4*>, dl1=\EM$<4*>, 
+	is2=\E3\Eb\Ej\E\\El\EG\Ed\Ek, ich1=\Ei ^H\Ej, il1=\EL, kcud1=\EB, 
+	kf0=\E?p, kf1=\E?q, kf2=\E?r, kf3=\E?s, kf4=\E?t, kf5=\E?u, kf6=\E?v, 
+	kf7=\E?w, kf8=\E?x, kf9=\E?y, khome=\EH, kcub1=\ED, kcuf1=\EC, 
+	kcuu1=\EA, rmkx=\E>, smkx=\E=, ind=^J, ri=\EI, ht=^I, 

@@ -1,0 +1,2 @@
+4112-5|4112 in 5 line dialog area,
+	am, cols#80, lines#5, bel=^G, cr=^M, clear=\ELZ, cud1=^J, cub1=^H, 

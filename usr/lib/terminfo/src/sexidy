@@ -1,0 +1,3 @@
+sexidy|exidy smart,
+	cols#64, lines#24, bel=^G, cr=^M, clear=^L, cud1=^J, home=^Q, 
+	cub1=^A, cuf1=^S, cuu1=^W, kcud1=^S, ind=^J, 

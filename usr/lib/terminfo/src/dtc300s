@@ -1,0 +1,3 @@
+dtc300s|300|300s|dtc 300s,
+	hc, os, cols#132, bel=^G, cr=^M, tbc=\E3, cud1=^J, cub1=^H, cuu1=^Z, 
+	hd=\Eh, ff=^L, kbs=^H, ind=^J, hts=\E1, ht=^I, hu=\EH, 

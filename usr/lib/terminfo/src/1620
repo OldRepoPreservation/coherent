@@ -1,0 +1,4 @@
+1620|1640|450|diablo 1620,
+	hc, os, cols#132, bel=^G, cr=^M, tbc=\E2, hpa=\E^I%i%p1%c, cud1=^J, 
+	cub1=^H, cuu1=\E^J, hd=\ED, ff=^L, kbs=^H, ind=^J, hts=\E1, ht=^I, 
+	hu=\EU, 
