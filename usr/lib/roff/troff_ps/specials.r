@@ -1,6 +1,6 @@
-.\" /usr/lib/roff/troff_ps/specials.r 5/3/91
+.\" /usr/lib/roff/troff_ps/specials.r 10/10/91
 .\" Default special character definitions for PostScript troff.
-.\" Uses Symbol font as \fS.
+.\" Uses Symbol font as \fS, Dingbat font as \f(DB.
 .lf S Symbol.fwt
 .dc em \XD0
 .dc hy -
@@ -111,7 +111,7 @@
 .dc mo \fS\XCE\fP
 .dc br \fS\XBD\fP
 .dc dd \XB3
-.dc rh \fS\X2B\fP
+.dc rh \f(DB\X2B\fP
 .dc lh <-
 .dc or |
 .dc ci O
