@@ -252,9 +252,10 @@ unsigned mode;
 		ino = sbp->s_inode[--sbp->s_ninode];
 		--sbp->s_tinode;
 		sbp->s_fmod = 1;
-		unlock(mp->m_ilock);
-		if ((ip=iattach(dev, ino)) != NULL) {
-			if (ip->i_mode != 0) {
+/*		unlock(mp->m_ilock);	*/
+		if (ip=iattach(dev, ino)) {
+			if (ip->i_mode) {
+				unlock(mp->m_ilock);
 				devmsg(dev, "Inode %u busy", ino);
 				idetach(ip);
 				continue;
@@ -265,7 +266,8 @@ unsigned mode;
 			ip->i_uid = u.u_uid;
 			ip->i_gid = u.u_gid;
 		}
-		return (ip);
+		unlock(mp->m_ilock);
+		return ip;
 	}
 }
 
