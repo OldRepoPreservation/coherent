@@ -65,6 +65,7 @@ int counter = 0;		/* newcol = column after arrow		  */
 				
 WINDOW *win1, *win2;		
 				
+
 	noecho();
 
 	/* allocate memory for window. print message on failure. */
@@ -91,7 +92,11 @@ WINDOW *win1, *win2;
 	*/
 
 	if ( (strcmp(workfile,FILE4) == 0) )
+		{
 		print_states(win1);
+		EOF_FLAG = -1;
+		}
+
 	else
 		write_win(win1);
 
