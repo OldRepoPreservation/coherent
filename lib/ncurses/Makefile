@@ -35,7 +35,7 @@ INCL=/usr/include
 #	TRACE	compile library with trace function
 #	RCSHDR	compile the RCS headers into the functions
 #
-CFLAGS= -O -DSRCDIR='"$(SRCDIR)"' -I. -I..
+CFLAGS= -O -DSRCDIR='"$(SRCDIR)"'
 
 SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	comp_parse.c read_entry.c \
@@ -49,7 +49,8 @@ SRCS=	comp_main.c comp_hash.c comp_captab.c comp_scan.c comp_error.c \
 	lib_printw.c lib_scanw.c lib_erase.c lib_getch.c lib_options.c \
 	lib_box.c lib_clear.c lib_delch.c lib_deleteln.c lib_insch.c \
 	lib_insertln.c lib_getstr.c lib_mvwin.c lib_longname.c lib_tstp.c \
-	lib_newterm.c lib_set_term.c lib_overlay.c lib_scrreg.c lib_setacs.c
+	lib_newterm.c lib_set_term.c lib_overlay.c lib_scrreg.c lib_setacs.c \
+	lib_napms.c
 
 #
 # Normal, optimised object files
@@ -62,7 +63,8 @@ LIBOBJS= lib_setup.o lib_fixterm.o lib_tparm.o read_entry.o lib_tputs.o \
 	lib_scanw.o lib_erase.o lib_getch.o lib_options.o \
 	lib_box.o lib_clear.o lib_delch.o lib_deleteln.o lib_insch.o \
 	lib_insertln.o lib_getstr.o lib_mvwin.o lib_longname.o lib_tstp.o \
-	lib_newterm.o lib_set_term.o lib_overlay.o lib_scrreg.o lib_setacs.o
+	lib_newterm.o lib_set_term.o lib_overlay.o lib_scrreg.o lib_setacs.o \
+	lib_napms.o
 
 COMPOBJS= comp_main.o comp_hash.o comp_captab.o comp_scan.o comp_error.o \
 	comp_parse.o read_entry.o
@@ -73,7 +75,7 @@ all:	tic infocmp captoinfo lib
 	@echo "all done"
 
 install: all
-	su root `srcpath installer`
+	su root installer
 
 lib:	libcurses.a	
 	@echo "lib done"
@@ -82,14 +84,14 @@ libcurses.a:	$(LIBOBJS)
 	rm -f $(DESTDIR)libcurses.a
 	ar rcs $(DESTDIR)libcurses.a $(LIBOBJS)
 
-term.h: MKterm.h.awk Caps 
-	awk -f `srcpath MKterm.h.awk` `srcpath Caps` > term.h
+term.h: Caps MKterm.h.awk
+	awk -f MKterm.h.awk Caps > term.h
 
 tic: $(COMPOBJS)
 	cc -s -o $(DESTDIR2)tic $(COMPOBJS)
 
 comp_captab.c: Caps MKcaptab.awk
-	awk -f `srcpath MKcaptab.awk` `srcpath Caps` > comp_captab.c
+	awk -f MKcaptab.awk Caps > comp_captab.c
 
 comp_captab.o: comp_captab.c
 
@@ -97,8 +99,8 @@ captoinfo:	$(CTOIOBJS)
 		cc -s $(CFLAGS) $(CTOIOBJS) -o $(DESTDIR2)captoinfo
 
 putinfo.c: Caps infotail.src MKinfo.awk
-	awk -f `srcpath MKinfo.awk` `srcpath Caps`
-	cat boolnames numnames strnames `srcpath infotail.src` > putinfo.c
+	awk -f MKinfo.awk Caps
+	cat boolnames numnames strnames infotail.src > putinfo.c
 	-rm -f boolnames numnames strnames
 
 captoinfo.o:	captoinfo.c
@@ -117,7 +119,7 @@ dump.o: dump.c term.h compiler.h
 dump_names.o: dump_names.c
 
 dump_names.c: Caps MKnames.awk
-	awk -f `srcpath MKnames.awk` `srcpath Caps`
+	awk -f MKnames.awk Caps
 	cat boolnames numnames strnames > dump_names.c
 	-rm -f boolnames numnames strnames
 
