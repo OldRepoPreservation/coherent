@@ -16,11 +16,6 @@ cleanup()
 	close(fsfd);
 #if SMALLMODEL
 	cleanV();
-#else
-	free(linkPtr);
-	free(flagPtr);
-	free(blockPtr);
-	free(dupPtr);
 #endif
 	return(retval);
 }

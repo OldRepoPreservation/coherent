@@ -169,20 +169,21 @@ enum vact { testBlock, markBlock, unmarkBlock, grabBlock,
 #define inclinkctr(ino) findblock((unsigned long)(ino), incLinkctr)
 #define setlinkctr(ino, data) findblock((unsigned long)(ino), setLinkctr, data)
 
-#define badblks(ino)	( flags(ino)&IBAD_IDUP )
-
-#define putchar(c) { char b = c; write(1, &b, 1); }
+#define badblks(ino)	(flags(ino)&IBAD_IDUP)
 
 #else
 char *linkPtr, *flagPtr, *blockPtr, *dupPtr;
-	      
-#define testblock(bn)	(blockPtr[bn >> LOGNBPC] &  (1 << (bn & (NBPC - 1))))
-#define markblock(bn)	(blockPtr[bn >> LOGNBPC] |= (1 << (bn & (NBPC - 1))))
-#define unmarkblock(bn) (blockPtr[bn >> LOGNBPC] ^= (1 << (bn & (NBPC - 1))))
 
-#define testdup(bn)	(dupPtr[bn >> LOGNBPC] &  (1 << (bn & (NBPC - 1))))
-#define markdup(bn)	(dupPtr[bn >> LOGNBPC] |= (1 << (bn & (NBPC - 1))))
-#define unmarkdup(bn)	(dupPtr[bn >> LOGNBPC] ^= (1 << (bn & (NBPC - 1))))
+#define bix(bn)	 (((unsigned long)(bn)) >> LOGNBPC)
+#define bitm(bn) (1 << ((bn) & (NBPC - 1)))
+
+#define testblock(bn)	(blockPtr[bix(bn)] &  bitm(bn))
+#define markblock(bn)	(blockPtr[bix(bn)] |= bitm(bn))
+#define unmarkblock(bn) (blockPtr[bix(bn)] ^= bitm(bn))
+
+#define testdup(bn)	(dupPtr[bix(bn)] &  bitm(bn))
+#define markdup(bn)	(dupPtr[bix(bn)] |= bitm(bn))
+#define unmarkdup(bn)	(dupPtr[bix(bn)] ^= bitm(bn))
 
 #define flags(ino)		flagPtr[ino - 1]
 #define setflags(ino, data)	(flags(ino) = data)
@@ -207,4 +208,4 @@ char *linkPtr, *flagPtr, *blockPtr, *dupPtr;
  */
 extern char *malloc();
 extern char *calloc();
-
+#define putchar(c) { char b = c; write(1, &b, 1); }
