@@ -26,10 +26,7 @@ int	c, ls;
 	int		aok;	/* Args are OK flag */
 	sizeof_t	bound;	/* Array bound */
 
-	if (llex == 0 && (c==C_GDEF || c==C_GREF || c==C_SEX))
-		aok = 1;
-	else
-		aok = 0;
+	aok = (llex == 0 && (c==C_GDEF || c==C_GREF || c==C_SEX));
 	while (s == CONST || s == VOLATILE) {
 		/* Ignore these for now.  They should be treated as MUL */
 		/* They can appear before the type-name as well */
@@ -38,22 +35,21 @@ int	c, ls;
 	if (s == MUL) {
 		lex();
 		if (gdecl(asp, adp, NULL, c, ls) == 0)
-			return (0);
+			return 0;
 		*adp = tackdim(*adp, D_PTR, (sizeof_t)0);
 		while (tdp != NULL) {
 			*adp = tackdim(*adp, tdp->d_type, tdp->d_bound);
 			tdp = tdp->d_dp;
 		}
-		return (1);
+		return 1;
 	}
 	if (s == LPAREN) {
 		lex();
 		if (gdecl(asp, adp, NULL, c, ls) == 0)
-			return (0);
+			return 0;
 		mustbe(RPAREN);
 		sp = *asp;
 		dp = *adp;
-		aok = 0;
 	} else if (s == ID) {
 		if (c==C_ARG || c==C_PAUTO || c==C_PREG)
 			ll = LL_ARG;
@@ -68,7 +64,7 @@ int	c, ls;
 		cerror("declarator syntax");
 		while (s!=EOF && s!=COMMA && s!=SEMI)
 			skip();
-		return (0);
+		return 0;
 	}
 again:
 	if (s == LPAREN) {
@@ -92,7 +88,7 @@ again:
 	}
 	*asp = sp;
 	*adp = dp;
-	return (1);
+	return 1;
 }
 
 /*
@@ -426,11 +422,11 @@ sizeof_t b;
 	dp1->d_type = t;
 	dp1->d_bound = b;
 	if ((dp2 = dp) == NULL)
-		return (dp1);
+		return dp1;
 	while (dp2->d_dp != NULL)
 		dp2 = dp2->d_dp;
 	dp2->d_dp = dp1;
-	return (dp);
+	return dp;
 }
 
 /*
@@ -455,12 +451,12 @@ register DIM	*dp;
 	register DIM	*np;
 
 	if (dp == NULL)
-		return (NULL);
+		return NULL;
 	np = (struct dim *) new(sizeof(struct dim));
 	np->d_dp = dupldim(dp->d_dp);
 	np->d_type = dp->d_type;
 	np->d_bound = dp->d_bound;
-	return (np);
+	return np;
 }
 
 /*
@@ -489,7 +485,7 @@ SYM	*sp;
 	}
 	ip->i_sp[i] = sp;
 	ip->i_nsp += 1;
-	return (ip);
+	return ip;
 }
 
 /*
@@ -518,15 +514,15 @@ sizeof_t getbound()
 		bound = tp->t_zval;
 	else {
 		cerror("array bound must be a constant");
-		return (0);
+		return 0;
 	}
 	t = tltype(tp);
 	if ((t==T_CHAR || t==T_SHORT || t==T_INT || t==T_LONG)
 	&& bound < 0) {
 		cerror("array bound must be positive");
-		return (0);
+		return 0;
 	}
-	return (szcheck(bound, 1, "array bound"));
+	return szcheck(bound, 1, "array bound");
 }
 
 /*
@@ -560,7 +556,7 @@ cast()
 
 	gcandt(&c, &t, &dp, &ip, &rf);
 	if (c==C_NONE && t==T_NONE && rf==0)
-		return (NULL);
+		return NULL;
 	if (rf != 0 || c != C_NONE)
 		cerror("storage class not allowed in cast");
 	if (t == T_NONE) {
@@ -579,7 +575,7 @@ cast()
 	tp->t_dp = dp;
 	tp->t_ip = ip;
 	xdropinfo(t, ip);
-	return (tp);
+	return tp;
 }
 
 /* this is the cast version of gdecl() */
@@ -633,7 +629,7 @@ DIM	*tdp;
 		dp = cast2(dp, tdp->d_type, tdp->d_bound);
 		tdp = tdp->d_dp;
 	}
-	return (dp);
+	return dp;
 }
 
 /* this is the cast version of tackdim() */
@@ -650,11 +646,11 @@ sizeof_t b;
 	dp1->d_type = t;
 	dp1->d_bound = b;
 	if ((dp2 = dp) == NULL)
-		return (dp1);
+		return dp1;
 	while (dp2->d_dp != NULL)
 		dp2 = dp2->d_dp;
 	dp2->d_dp = dp1;
-	return (dp);
+	return dp;
 }
 
 cproto(adp) DIM **adp;
