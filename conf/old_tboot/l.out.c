@@ -20,7 +20,9 @@ lout2load(ip, table, data_seg)
 	int i;				/* Loop counter.  */
 	struct ldheader imageheader;	/* l.out header for boot image.  */
 
+#ifdef VERBOSE
 	puts("Reading the l.out header.\r\n");
+#endif /* VERBOSE */
 
 	/* Read the header.  */
 	iread(ip, &imageheader,
@@ -42,7 +44,9 @@ lout2load(ip, table, data_seg)
 #define L_DATA table[1]
 	/* Calculate remaining entries.  */
 	if (imageheader.l_flag & LF_SEP) { /* if sep i/d executable */
+#ifdef VERBOSE
 		puts("Generating table for sep i/d l.out.\r\n");
+#endif /* VERBOSE */
 		L_TEXT.valid = (1==1);
 		L_TEXT.message = "\r\nLoading l.out code segments...\r\n";
 		/* Load the shared and private code segments as one.  */
@@ -79,7 +83,9 @@ lout2load(ip, table, data_seg)
 	} else { /* if not sep i/d executable */
 #define SEGMENT table[0]
 		
+#ifdef VERBOSE
 		puts("Generating table for non-sep i/d l.out.\r\n");
+#endif /* VERBOSE */
 
 		SEGMENT.valid = (1==1);
 		SEGMENT.message = "\r\nLoading all l.out segments...\r\n";
