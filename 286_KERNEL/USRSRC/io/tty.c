@@ -7,10 +7,14 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.12  91/11/14  14:28:51  hal
+ * Move flow control out of tty.c.
+ * Make ttin() run at hi priority.
+ *
  * Revision 1.11  91/09/16  18:11:08  hal
  * Update t_flags in ttstart() at high priority.
  * Document that ttstash() is local.
- * 
+ *
  * Revision 1.10  91/09/16  15:58:26  hal
  * Mask interrrupts when modifying tp->t_flags as some IRQ handlers change this.
  *
@@ -186,10 +190,12 @@ dev_t ctdev;
 
 	pp = SELF;
 	if (pp->p_group == 0) {
-		if (tp->t_group == 0)
+		if (tp->t_group == 0) {
 			tp->t_group = pp->p_pid;
+		}	
 		pp->p_group = tp->t_group;
 	}
+
 	if (pp->p_ttdev == NODEV)
 		pp->p_ttdev = ctdev;
 }
@@ -448,7 +454,7 @@ register struct sgttyb *vec;
 		break;
 	case TIOCFLUSH:
 		++flush;        /* flush both input and output */
-		++drain;
+/*		++drain;	Why? - hws - 91/11/22	*/
 		break;
 	case TIOCBREAD:		/* blocking read for CBREAK/RAW mode */
 		s = sphi();
@@ -617,8 +623,7 @@ register TTY *tp;
  *
  *	Pass a character to the device independent typewriter routines.
  *	Handle erase and kill, tandem flow control, and other magic.
- *	Was often called at high priority from the driver's interrupt processor,
- *	but now also runs explicitly at hi priority. - hws 91/11/12
+ *	Often called at high priority from the driver's interrupt routine.
  */
 void ttin(tp, c)
 register TTY *tp;
@@ -627,7 +632,6 @@ register c;
 	int dc, i, n;
 	int s;
 
-	s = sphi();
 	if (!ISRIN) {
 #if NOT_8_BIT
 		c &= 0177;
@@ -745,7 +749,9 @@ register c;
 	if (ISBBYB) {
 		putq(&tp->t_iq, c);
 		if ((tp->t_flags&T_INPUT) != 0) {
+			s = sphi();
 			tp->t_flags &= ~T_INPUT;
+			spl(s);
 			defer(wakeup, (char *) &tp->t_iq);
 		}
 		if (tp->t_ipolls.e_procp) {
@@ -766,16 +772,20 @@ register c;
 			ttstart(tp);
 		}
 	}
-	if ((n=tp->t_iq.cq_cc)>=IHILIM)
+	if ((n=tp->t_iq.cq_cc)>=IHILIM) {
+		s = sphi();
 		tp->t_flags |= T_ISTOP;
-	else if (ISTAND && (tp->t_flags&T_TSTOP)==0 && n>=ITSLIM) {
+		spl(s);
+	} else if (ISTAND && (tp->t_flags&T_TSTOP)==0 && n>=ITSLIM) {
+		s = sphi();
 		tp->t_flags |= T_TSTOP;
+		spl(s);
 		putq(&tp->t_oq, stopc);
 		ttstart(tp);
 	}
 
 ttin_ret:
-	spl(s);
+	return;
 }
 
 /*
@@ -833,7 +843,7 @@ register TTY *tp;
 
 	n = tp->t_flags;
 	if (n & T_STOP)
-		return;
+		goto stdone;
 
 	if ((n&T_DRAIN)!=0 && tp->t_oq.cq_cc==0
 	   && (n&T_INL)==0 && tp->t_nfill==0) {
@@ -841,13 +851,13 @@ register TTY *tp;
 		tp->t_flags &= ~T_DRAIN;
 		spl(s);
 		defer(wakeup, (char *) &tp->t_oq);
-		return;
+		goto stdone;
 	}
 
 	NEAR_OR_FAR_CALL(t_start)
 
 	if (tp->t_oq.cq_cc > OLOLIM)
-		return;
+		goto stdone;
 
 	if (n & T_HILIM) {
 		s = sphi();
@@ -860,6 +870,8 @@ register TTY *tp;
 		tp->t_opolls.e_procp = 0;
 		defer(pollwake, (char *) &tp->t_opolls);
 	}
+stdone:
+	return;
 }
 
 /*
@@ -871,6 +883,8 @@ register TTY *tp;
 void ttflush(tp)
 register TTY *tp;
 {
+	int s;
+
 	clrq(&tp->t_iq);
 	clrq(&tp->t_oq);
 
@@ -892,7 +906,9 @@ register TTY *tp;
 
 	tp->t_ibx = 0;
 	tp->t_escape = 0;
+	s = sphi();
 	tp->t_flags &= T_SAVE;  /* reset most flag bits */
+	spl(s);
 }
 
 /*
@@ -909,12 +925,15 @@ int sig;
 
 	g = tp->t_group;
 	if (g == 0)
-		return;
+		goto sigdone;
 	ttflush(tp);
 	pp = &procq;
 	while ((pp=pp->p_nforw) != &procq)
-		if (pp->p_group == g)
+		if (pp->p_group == g) {
 			sendsig(sig, pp);
+		}
+sigdone:
+	return;
 }
 
 /*
@@ -926,11 +945,6 @@ int sig;
 void tthup(tp)
 register TTY *tp;
 {
-	int s;
-
-	s = sphi();
-	tp->t_flags &= ~T_CARR;  /* indicate no carrier */
-	spl(s);
 	ttflush(tp);
 	ttsignal(tp, SIGHUP);
 }
