@@ -1,6 +1,6 @@
 /*
  * cmd/test.c
- * 2/8/93
+ * 5/4/93
  * Set status based on specified conditions, mostly related to files.
  * Used for control flow in shell scripts.
  * Cf. POSIX P1003.2/D11.2 section 4.62; extensions marked !POSIX below.
@@ -21,6 +21,8 @@
 #include <sys/stat.h>
 
 #define	ERROR	2				/* error exit status */
+#define	FALSE	""				/* false (empty) arg */
+#define	TRUE	"T"				/* true (nonempty) arg */
 #define	equal(s1, s2)	(strcmp((s1), (s2)) == 0)
 
 /* Primary operators. */
@@ -32,6 +34,7 @@ typedef	struct	prim	{
 /* Forward function definitions. */
 int	(*is_binary)();
 int	(*is_unary)();
+int	rparen();
 int	test();
 int	testsub();
 void	usage();
@@ -169,6 +172,24 @@ int
 }
 
 /*
+ * argv[0] is '(', so find the matching ')' and return its index.
+ * Return -1 if not found.
+ */
+int
+rparen(argc, argv) int argc; char *argv[];
+{
+	register int n, count;
+
+	for (count = n = 1; n < argc; n++) {
+		if (equal(argv[n], "("))
+			++count;
+		else if (equal(argv[n], ")") && --count == 0)
+			return n;
+	}
+	return -1;
+}
+
+/*
  * Parse and evaluate the test expression.
  * The order in which subexpressions are tried here determines the parsing.
  * Handle parens, "-a", "-o", "!" directly here.
@@ -179,7 +200,7 @@ int
 test(argc, argv) register int argc; char *argv[];
 {
 	register int (*fnp)();
-	register int n;
+	register int n, i;
 
 #if	DEBUG
 	printf("test(argc=%d, argv={ ", argc);
@@ -204,8 +225,16 @@ test(argc, argv) register int argc; char *argv[];
 		if (argc == 4 && (fnp = is_binary(argv[2])) != NULL)
 			return !(*fnp)(argv[1], argv[3]);
 	}
-	if (equal(argv[0], "(") && equal(argv[argc-1], ")"))
-		return test(argc-2, ++argv);
+	if (equal(argv[0], "(")) {
+		/* Find the matching ")" and evaluate the subexpression. */
+		if ((n = rparen(argc, argv)) == -1)
+			return -1;
+		else if ((i = test(n - 1, &argv[1])) == -1)
+			return -1;
+		/* Replace the subexpression by TRUE or FALSE, evaluate the rest. */
+		argv[n] = (i) ? TRUE : FALSE;
+		return test(argc - n, &argv[n]);
+	}
 	if ((n = testsub(argc, argv, "-o")) != -1)
 		return n;
 	if ((n = testsub(argc, argv, "-a")) != -1)
