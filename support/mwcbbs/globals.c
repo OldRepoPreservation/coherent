@@ -3,6 +3,7 @@
 
 #include "contents.h"
 
+char recdir[50];
 char selection[15];
 char filenames [MAXRECORDS][15];
 char workfile[15];

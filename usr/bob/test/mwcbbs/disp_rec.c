@@ -121,7 +121,7 @@ int x;
 		{
 		strcpy(getfiles[0],HOST);
 		strcat(getfiles[0],record.pathname);
-		strcat(getfiles[0],RECEIVER);
+		strcat(getfiles[0],recdir);
 		wmove(win2,5,0);
 		waddstr(win2,getfiles);
 		wrefresh(win2);

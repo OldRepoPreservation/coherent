@@ -29,7 +29,7 @@ char choice = '\0';
 
 	strcpy(mapcommand,HOST);
 	strcat(mapcommand, map_rec.path);
-	strcat(mapcommand, RECEIVER);
+	strcat(mapcommand, recdir);
 	
 	wclear(win2);
 	wmove(win2,0,1);

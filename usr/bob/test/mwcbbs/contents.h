@@ -88,7 +88,7 @@ struct map	{
 		char path[60];
 		};
 
-
+extern char recdir[50];
 extern char selection[15];
 extern char filenames [MAXRECORDS][15];
 extern char workfile[15];
