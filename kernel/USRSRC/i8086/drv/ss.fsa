@@ -1,4 +1,7 @@
 $Log:	/usr/src/sys/i8086/drv/RCS/ss.fsa,v $
+ * Revision 1.3	91/04/25  17:12:33	root
+ * Clarify, with aid of ss.std rev.1.
+ * 
  * Revision 1.2	91/04/24  10:28:04	root
  * Case 1.a. completed.
  * 
@@ -65,12 +68,19 @@ Inputs.
 		determined that a specific target is reconnecting.
 
 	I_HOST_WATCHDOG.
-		Once started, the host watchdog will be invoked once per second
-		until stopped.
+		Started when arbitration takes a long time.  The host adapter
+		is polled at frequent intervals for arbitration complete, using
+		timeouts.  If this watchdog timer decrements to zero, the
+		attempt to seize SCSI bus control has failed.  Once started,
+		the host watchdog will be invoked once per second.  Input to
+		state machine occurs if the timer decrements to zero.
 
 	I_TGT_WATCHDOG.
-		Once started, a target watchdog will be invoked once per second
-		until stopped.
+		A target watchdog is started when the target device disconnects
+		in the middle of a block i/o command, in order to prevent
+		waiting forever after a disconnect.  If the timer decrements to
+		zero, the command being executed has failed.  Once started, a
+		target watchdog will be invoked once per second until stopped.
 
 	I_HOST_TIMEOUT.
 		A timeout set for the host adapter has expired.  Only one host
@@ -80,8 +90,8 @@ Inputs.
 		A timeout set for a target device has expired.  Only one target
 		timeout per device may be set at a time.
 
-1. Host State = H_IDLE.
-	a.  input = I_CALL_SSBLOCK (valid arguments assumed).
+input = I_CALL_SSBLOCK (valid arguments assumed).
+	host_state = H_IDLE.
 		Load arguments to ssblock() into a request node and place at
 		tail of request queue for the target.
 		If tgt_state = T_IDLE
@@ -93,70 +103,93 @@ Inputs.
 			Go into high priority loop looking for arbitration
 			complete.
 			If arbitration not complete at end of loop
-				host_state <- H_ARBITRATING.
-				Set host timeout to 250 msec
-				Start host watchdog.
-			Else
+				device_try_count++
+				if (device_try_count too high)
+					Set host timeout to 0 msec.
+					host_state <- H_SCSI_RESET.
+				else
+					Set host timeout to 20 msec
+					host_state <- H_ARBITRATING.
+					Start host watchdog.
+			Else // arbitration complete
 				Stop host watchdog.
-				Attempt to get to information transfer phases.
-				Allow interrupts after last byte of command
-				is sent.
-				Update static byte counts for the current
-				request.
-				When information transfer phase ends:
-				If disconnect message was received
-					Start target watchdog.
-					tgt_state <- T_DISCONNECTED.
-				else if command status is BUSY
-					device_try_count++
-					if (device_try_count too high)
-						tgt_state <- T_DEV_RESET.
-					else
-						Set target timeout to 250 msec.
-						tgt_state <- T_BUSY.
-				else if command status is CHECK
-					device_try_count++
-					if (device_try_count too high)
-						tgt_state <- T_DEV_RESET.
-					else
-						tgt_state <- T_REQ_SENSE.
-					Set target timeout to 0 msec. (defer)
-				else if command status is COMPLETE
-					Turn off target watchdog.
-					If this was a kernel block request
-						Update b_resid.
-						Release buffer to the kernel.
-					Clear work structure for the drive.
-					Set target timeout to 0 msec. (defer)
-					(tgt_state is still T_IDLE)
-				else // something timed out during SCSI cycle
-					device_try_count++
-					if (device_try_count too high)
-						tgt_state <- T_DEV_RESET.
-					else
-						Set target timeout to 250 msec.
-						tgt_state <- T_TIMED_OUT.
-		Else // tgt_state != T_IDLE
+				INFO_XFER
+		tgt_state != T_IDLE
 			Drive is busy and has pending timeout or watchdog.
 			Do nothing.
-	b.  input = I_RESELECT.
+	host_state != H_IDLE
+		Host is busy with arbitration or reset.
+		Do nothing.
+
+input = I_RESELECT.
+	host_state = H_IDLE.
 		If tgt_state = T_DISCONNECTED
-		else // tgt_state != T_DISCONNECTED
-			(need to discard this try)
-			Set target timeout to 20 msec.
-			tgt_state <- T_SETTLING
-	c.  input = I_WATCHDOG.
-	d.  input = I_TO_HOST.
+			INFO_XFER
+		tgt_state != T_DISCONNECTED
+			ignore the interrupt
+	host_state != H_IDLE
+		ignore the interrupt
 
-2. Host State = H_ARBITRATING.
-	a.  input = I_CALL_SSBLOCK.
-	b.  input = I_INTERRUPT.
-	c.  input = I_WATCHDOG.
-		Cancel host adapter timeout.
-	d.  input = I_TO_HOST.
+input = I_HOST_WATCHDOG
+	if timer count is zero
+		shut off host watchdog timer
+		host_state = H_ARBITRATING
+			Set host timeout to 0 msec.
+			host_state <- H_SCSI_RESET
+		host_state != H_ARBITRATING
+			ignore the watchdog timeout
+	else
+		decrement timer count
 
-3. Host State = H_xxx.
-	a.  input = I_CALL_SSBLOCK.
-	b.  input = I_INTERRUPT.
-	c.  input = I_WATCHDOG.
-	d.  input = I_TO_HOST.
+input = I_TGT_WATCHDOG.
+	if timer count is zero
+		shut off target watchdog timer
+		host_state = H_ARBITRATING
+			Set host timeout to 0 msec.
+			host_state <- H_SCSI_RESET
+		host_state != H_ARBITRATING
+			ignore the watchdog timeout
+	else
+		decrement timer count
+
+
+INFO_XFER
+	Attempt to perform information transfer phases.
+	Allow interrupts after last byte of command is sent.
+	Update static byte counts for the current request.
+	When information transfer phase ends:
+	If disconnect message was received
+		Start target watchdog.
+		tgt_state <- T_DISCONNECTED.
+	else if command status is BUSY
+		device_try_count++
+		if (device_try_count too high)
+			Set target timeout to 0 msec.
+			tgt_state <- T_DEV_RESET.
+		else
+			Set target timeout to 250 msec.
+			tgt_state <- T_BUSY.
+	else if command status is CHECK
+		device_try_count++
+		if (device_try_count too high)
+			tgt_state <- T_DEV_RESET.
+		else
+			tgt_state <- T_REQ_SENSE.
+		Set target timeout to 0 msec.
+	else if command status is COMPLETE
+		Turn off target watchdog.
+		If this was a kernel block request
+			Update b_resid.
+			Release buffer to the kernel.
+		Clear work structure for the drive.
+		Set target timeout to 0 msec.
+		tgt_state <- T_IDLE
+	else // something timed out during SCSI cycle
+		device_try_count++
+		if (device_try_count too high)
+			Set target timeout to 0 msec.
+			tgt_state <- T_DEV_RESET.
+		else
+			Set target timeout to 250 msec.
+			tgt_state <- T_TIMED_OUT.
+(end INFO_XFER)
