@@ -410,6 +410,7 @@ again:
 				rp  = tp1;
 			}
 			if (op==EQ || op==NE) { 
+				lp = modtree(lp, MFLOW, tp);
 				if (lp->t_op == QUEST) {
 					/*
 					 * Change "(a ? b : c) op 0"
@@ -424,8 +425,7 @@ again:
 					tp1->t_rp = leftnode(op, tp1->t_rp, tt, ts);
 					tp1->t_rp->t_rp = ivalnode((ival_t)0);
 					goto again;
-				} else
-					lp = modtree(lp, MFLOW, tp);
+				}
 			} else
 				lp = modtree(lp, MRVALUE, tp);
 		} else
