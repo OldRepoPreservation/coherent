@@ -1,5 +1,5 @@
 /* (-lgl
- * 	COHERENT Version 4.0
+ * 	COHERENT Version 4.0.1
  * 	Copyright (c) 1982, 1992 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
@@ -33,8 +33,8 @@
 #define	MB_LEN_MAX	1
 #define	SCHAR_MAX	127
 #define	SCHAR_MIN	-128
-#define	SHRT_MAX	0x7FFF
-#define	SHRT_MIN	0x8000
+#define	SHRT_MAX	32767
+#define	SHRT_MIN	-32768
 #define	UCHAR_MAX	255
 #if	IAPX86
 #define	UINT_MAX	0xFFFFU
