@@ -17,7 +17,7 @@
 
 #ifndef COHERENT
 #ifndef lint
-static char sccsid[] = "@(#)newwin.c	5.3 (Berkeley) 6/30/88";
+static uchar sccsid[] = "@(#)newwin.c	5.3 (Berkeley) 6/30/88";
 #endif /* not lint */
 #endif /* not COHERENT */
 
@@ -41,7 +41,7 @@ newwin(num_lines, num_cols, begy, begx)
 int	num_lines, num_cols, begy, begx;
 {
 	reg WINDOW	*win;
-	reg char	*sp;
+	reg uchar	*sp;
 	reg int		i, by, bx, nl, nc;
 	reg int		j;
 
@@ -169,7 +169,7 @@ int	num_lines, num_cols, begy, begx; {
 # ifdef DEBUG
 	fprintf(outf, "MAKENEW: nl = %d\n", nl);
 # endif
-	if ((win->_y = (char **) malloc(nl * sizeof win->_y[0])) == NULL) {
+	if ((win->_y = (uchar **) malloc(nl * sizeof win->_y[0])) == NULL) {
 		free(win);
 		return NULL;
 	}
