@@ -224,8 +224,10 @@ register SEG *sp;
 	}
 
 	lock(seglink);
+
 	--sp->s_lrefc;
 	if (--sp->s_urefc != 0) {
+/*printf("IT SHOULD NEVER HAPPENS\n");*/
 		unlock(seglink);
 		return;
 	}
@@ -236,11 +238,16 @@ register SEG *sp;
 	c_free(sp->s_vmem, btoc(sp->s_size));
 
 	unlock(seglink);
-
 	if (sp->s_lrefc != 0)
 		panic("Bad segment count");
-	if ((ip=sp->s_ip) != NULL)
+
+	/*
+	 * Check if inode is ilocked, in order to allow the process
+	 * to exec itself (file with the same inode as parent). Vlad.
+	 */
+	if ((ip=sp->s_ip) && !ilocked(ip)) {
 		ldetach(ip);
+	}
 	kfree(sp);
 }
 
