@@ -21,13 +21,13 @@
  *		0 = failure (could not read block, or bad signature)
  */
 
-#include <coherent.h>
-#include <uproc.h>
+#include "coherent.h"
+#include <sys/uproc.h>
 #include <errno.h>
-#include <inode.h>
+#include <sys/inode.h>
 #include <sys/fdisk.h>
-#include <buf.h>
-#include <con.h>
+#include <sys/buf.h>
+#include <sys/con.h>
 
 fdisk( dev, fp )
 dev_t dev;
