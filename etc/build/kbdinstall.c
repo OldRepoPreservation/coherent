@@ -1,14 +1,13 @@
 /*
  * kbdinstall.c
- * 6/4/91
+ * 10/24/91
  * Keyboard support installation.
  *
  * cc kbdinstall.c -lcurses -lterm
- * Usage: kbdinstall [ -b ]
- * Option -b means kbdinstall was invoked from build.
- *
- * Steve's first curses program, screen handling might be more efficient
- * if I had time to figure out how curses works.
+ * Usage: kbdinstall [ -bu ]
+ * Options:
+ *	-b	invoked from build
+ *	-u	invoked from update install, don't patch running system
  */
 
 #include <stdio.h>
@@ -18,18 +17,21 @@
 extern	char	*fgets();
 extern	char	*malloc();
 
-#define	VERSION	"1.2"			/* Version number.	*/
+#define	VERSION	"2.2"			/* Version number.	*/
 #define	KBDDIR	"/conf/kbd"		/* Keyboard directory.	*/
 #define	KBDLIST	"/conf/kbd/.list"	/* List of keyboards.	*/
-#define	KBDY	8			/* y-coordinate of keyboard list. */
+#define	KBDFILE	"/tmp/kbd"		/* File containing driver object name */
+#define	KBDY	4			/* y-coordinate of keyboard list. */
 #define	NLINE	512			/* Line length.		*/
-#define	NKBDS	10			/* Number of keyboards.	*/
-					/* N.B. must be <=10 for now! */
+#define	NKBDS	(24-KBDY)		/* Max number of keyboards */
+#define	USAGE	"Usage: /etc/kbdinstall [-bu]\n"
 
 /* Keyboard list file entries. */
 typedef	struct	kline	{
-	char	*k_file;		/* File name.		*/
-	char	*k_desc;		/* Description.		*/
+	int	k_loadable;		/* True: loadable tables supported */
+	char	*k_driver;		/* Name of keyboard driver object */
+	char	*k_table;		/* Keyboard table name	*/
+	char	*k_desc;		/* Keyboard description	*/
 }	KLINE;
 
 /* Forward. */
@@ -37,6 +39,7 @@ char	*copystr();
 void	display_line();
 void	display_rev();
 void	fatal();
+void	format_error();
 void	nonfatal();
 void	read_klist();
 
@@ -46,19 +49,34 @@ char	buf[NLINE];			/* Input buffer.	*/
 KLINE	klist[NKBDS];			/* Keyboard list.	*/
 int	nkbds;				/* Number of keyboards.	*/
 int	initflag;			/* Curses initialized.	*/
+int	uflag;				/* Invoked from update.	*/
+int	default_entry = -1;		/* Which entry to default to */
 
 main(argc, argv) int argc; char *argv[];
 {
-	register int n, c, status;
+	register int n, c;
+	char *s;
 
 	/* Process command line options. */
-	if (argc > 1 && strcmp(argv[1], "-b") == 0) {
-		++bflag;
+	while (argc > 1 && argv[1][0] == '-') {
+		for (s = &argv[1][1]; *s != '\0'; s++) {
+			switch (*s) {
+			case 'b':	++bflag;			break;
+			case 'u':	++uflag;			break;
+			case 'V':	nonfatal("V%s", VERSION);	break;
+			default:
+				fprintf(stderr, USAGE);
+				exit(1);
+			}
+		}
 		--argc;
 		++argv;
 	}
-	if (argc > 1 && strcmp(argv[1], "-V") == 0)
-		nonfatal("V%s", VERSION);
+
+	if (bflag && uflag) {
+		fprintf(stderr, USAGE);
+		exit(1);
+	}
 
 	/* Read the keyboard list file. */
 	read_klist();
@@ -73,56 +91,76 @@ main(argc, argv) int argc; char *argv[];
 	/* Display instructions at top of screen. */
 	mvaddstr(0, 0, "Select the entry below which indentifies your keyboard type.");
 	mvaddstr(1, 0, "Hit <Enter> to select the highlighted entry.");
-	mvaddstr(2, 0, "Hit <space> to move down to the next entry.");
-	mvaddstr(3, 0, "Hit the desired number on the numeric keypad");
-	mvaddstr(4, 0, "if the NumLock light is on.");
-	mvaddstr(5, 0, "Do not use the arrow keys or number keys.");
+	mvaddstr(2, 0, "Hit <space> or use arrow keys to move to the next entry.");
 
 	/* Display choices. */
 	for (n = 0; n < nkbds; n++)
 		display_line(n);
 
 	/* Interactive input loop: display choice n highlighted. */
-	for (n = 0; ; ) {
+	for (n = (default_entry >= 0) ? default_entry : 0; ; ) {
 		display_rev(n);		/* display default choice in reverse */
 		refresh();
-		switch(c = getch()) {
-		case ' ':		/* space: try next choice */
-			if (++n == nkbds)
+		switch (c = getch()) {
+		case 'A':		/* n.b.:  ESC [ A is Up Arrow key */
+			if (--n < 0)
+				n = nkbds - 1;
+			continue;
+		case ' ':		/* space/Down Arrow: try next choice */
+		case 'B':		/* n.b.:  ESC [ B is Down Arrow key */
+			if (++n >= nkbds)
 				n = 0;
 			continue;
 		case '\n':
 		case '\r':		/* enter: take default value */
 			break;
 		default:
-			if (c < '0' || c > '9')
-				continue;	/* nondigit: ignore */
-			if (c - '0' >= nkbds)
-				continue;	/* out of range: ignore */
-			/* Gotcha. Must look for more digits if NKBDS > 10. */
-			n = c - '0';		/* use given value */
-			break;
+			continue;	/* ignore */
 		}
 		break;			/* done, choice is in n */
 	}
 	endwin();
 
-	/* Execute the keyboard support file. */
-	sprintf(buf, "%s/%s", KBDDIR, klist[n].k_file);
-	if ((status = system(buf)) != 0)
-		nonfatal("command \"%s\" failed", buf);
-
-	/* Echo appropriate line to /tmp/drvld.all if invoked from build. */
-	if (status == 0 && bflag) {
-		sprintf(buf,
-			"/bin/echo %s/%s >>/tmp/drvld.all",
-			KBDDIR, klist[n].k_file);
-		if (system(buf) != 0)
-			nonfatal("command \"%s\" failed", buf);
+	/*
+	 * Execute the keyboard table file only if invoked by the user
+	 * (i.e., not Build nor Update).
+	 */
+	if (!uflag && !bflag) {
+		if (klist[n].k_loadable) {
+			sprintf(buf, "%s/%s", KBDDIR, klist[n].k_table);
+			if (system(buf) != 0)
+			    fatal("Loadable keyboard tables not supported by this kernel", buf);
+		} else {
+			fatal("Selected entry is not a loadable keyboard table");
+		}
+		exit(0);
 	}
 
+	/*
+	 * Build or Update:
+	 *	Store keyboard driver name in file specified by KBDFILE.
+	 *	If loadable keyboard table selected, store name of keyboard
+	 *	table into /tmp/drvld.all if invoked from build,
+	 *	or to /etc/drvld.all if an update.
+	 */
+	if (klist[n].k_loadable) {
+		sprintf(buf,
+		"/bin/echo %s >%s ; /bin/echo %s/%s >>%s/drvld.all",
+			klist[n].k_driver, KBDFILE, 
+			KBDDIR, klist[n].k_table,
+			(bflag) ? "/tmp" : "/etc");
+	} else {
+		sprintf(buf, "/bin/echo %s >%s",
+			klist[n].k_driver, KBDFILE);
+	}
+	if (system(buf) != 0)
+		fatal("command \"%s\" failed", buf);
+
+	printf(	"Your keyboard selection will not take effect until after\n"
+		"your system %s has completed and the system has rebooted!\n",
+		bflag ? "installation" : "update");
 	/* Done. */
-	exit(status);
+	exit(0);
 }
 
 /*
@@ -145,10 +183,6 @@ copystr(s) register char *s;
 void
 display_line(n) register int n;
 {
-	char val[6];
-
-	sprintf(val, "%d", n);
-	mvaddstr(KBDY+n, 8, val);
 	mvaddstr(KBDY+n, 12, klist[n].k_desc);
 }
 
@@ -194,40 +228,86 @@ nonfatal(s) char *s;
 /*
  * Read a file containing keyboard file names and descriptions,
  * build a keyboard list.
+ *
+ * Format of input is:
+ *	# Comment line
+ * or
+ *	Default <tab> Loadable <tab> Driver <tab> Table <tab> Descr.
  */
 void
 read_klist()
 {
 	register FILE *fp;
-	register char *s, *s1;
+	register unsigned char *s, *s1;
 
 	if ((fp = fopen(KBDLIST, "r")) == NULL)
 		fatal("cannot open \"%s\"", KBDLIST);
 	while (fgets(buf, sizeof buf, fp) != NULL) {
+		if (buf[0] == '#')
+			continue;		/* ignore comments */
 		if (nkbds == NKBDS) {
 			nonfatal("more than %d keyboard entries", NKBDS-1);
 			continue;
 		}
 
-		/* Look for '\t' separating filename and description. */
+		/*
+		 * Parse input lines and emit error messages if input bad.
+		 */
+		if (buf[0] == 'Y' || buf[0] == 'y')
+			default_entry = nkbds;
 		if ((s = strchr(buf, '\t')) == NULL) {
-			nonfatal("no tab in \"%s\"", buf);
+			format_error(buf);
+			continue;
+		}
+
+		switch (*++s) {
+		case 'Y': case 'y':
+			klist[nkbds].k_loadable = TRUE;
+			break;
+		case 'N': case 'n':
+			if (!bflag && !uflag)
+				continue;	/* ignore if interactive */
+			break;
+		default:
+			format_error(buf);
+			continue;
+		}
+		if ((s = strchr(++s, '\t')) == NULL) {
+			format_error(buf);
+			continue;
+		}
+		if ((s1 = strchr(++s, '\t')) == NULL) {
+			format_error(buf);
+			continue;
+		}
+		*s1++ = '\0';
+		klist[nkbds].k_driver = copystr(s);	/* keyboard driver */
+		if ((s = strchr(s1, '\t')) == NULL) {
+			format_error(s1);
 			continue;
 		}
 		*s++ = '\0';
-		klist[nkbds].k_file = copystr(buf);
-
-		/* Look for '\n' ending description. */
+		klist[nkbds].k_table = copystr(s1);	/* keyboard table */
 		if ((s1 = strchr(s, '\n')) == NULL) {
 			nonfatal("no newline in \"%s\"", s);
 			continue;
 		}
 		*s1 = '\0';
-		klist[nkbds].k_desc = copystr(s);
+		klist[nkbds].k_desc = copystr(s);	/* kbd description */
 
 		nkbds++;
 	}
 	fclose(fp);
+}
+
+/*
+ * Input error found: display an error message and continue.
+ */
+void
+format_error(line)
+char *line;
+{
+	nonfatal("Input format error found in \"%s\" -- ignored.", line);
 }
 
 /* end of kbdinstall.c */
