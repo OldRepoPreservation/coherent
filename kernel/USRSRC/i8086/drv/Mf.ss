@@ -6,6 +6,8 @@
 #
 # Makefile for Seagate ST01/ST02 SCSI driver "ss"
 #
+# $Log$
+#
 AS=exec /bin/as
 CC=exec /bin/cc
 CPP=exec /lib/icpp
@@ -22,9 +24,22 @@ USRSYS=/usr/sys
 ss: $(USRSYS)/lib/ss.a
 	:
 
-$(USRSYS)/lib/ss.a: objects/ss.o
+$(USRSYS)/lib/ss.a: objects/ss.o objects/fdisk.o
 	rm -f $(USRSYS)/lib/ss.a
-	ar rc $(USRSYS)/lib/ss.a objects/ss.o
+	ar rc $(USRSYS)/lib/ss.a objects/ss.o objects/fdisk.o
 
 objects/ss.o: ss.c
 	$(CC) $(CFLAGS) -DVERBOSE=1 -c -o objects/ss.o ss.c
+
+objects/fdisk.o:			\
+		$(SYSINC)/buf.h		\
+		$(KERINC)/coherent.h	$(SYSINC)/types.h $(SYSINC)/timeout.h \
+					$(SYSINC)/machine.h $(SYSINC)/param.h \
+					$(SYSINC)/fun.h \
+		$(SYSINC)/con.h		\
+		$(USRINC)/errno.h	\
+		$(SYSINC)/fdisk.h	\
+		$(SYSINC)/inode.h	\
+		$(SYSINC)/uproc.h	\
+		fdisk.c
+	$(CC) $(CFLAGS) -c -o $@ fdisk.c
