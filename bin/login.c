@@ -46,14 +46,15 @@
 #include <pwd.h>
 #include <signal.h>
 #include <utmp.h>
-#include <dir.h>
+#include <sys/dir.h>
 #include <sys/stat.h>
 #include <sgtty.h>
-#define	HP386 1
 #if NEWTTYS
 #include <sys/tty.h>
 #endif
 #include <sys/deftty.h>
+
+extern long lseek();
 
 #define FALSE	0
 #define TRUE 	1
@@ -64,6 +65,8 @@
 #define PASSLEN 13		/* Length of encrypted passwords */
 #define ACCNAME "remacc"	/* Remote access password dummy username */
 #define	NBUF	128		/* Assorted buffers */
+#define	LOGMSG	"/etc/logmsg"	/* Login message file */
+#define	DEFMSG	"Login: "	/* Default login message */
 
 /*
  * Default sgtty and tchars settings.
@@ -114,8 +117,7 @@ char	*prompt[] = {
 char	buff[NBUF];			/* I/O buffer */
 char	*argv0 = "login";		/* Command name */
 
-main(argc, argv)
-char *argv[];
+main(argc, argv) int argc; char *argv[];
 {
 	register char *cp;		/* Password pointer */
 	register struct passwd *pwp;
@@ -175,7 +177,7 @@ char *argv[];
 		slowexit(1);
 	}
 
-	if (isremote(s_tty))		/* Isolate remote determination */
+	if (argv0[0] == '-' && argv0[1] == 'r')	/* Isolate remote determination */
 	{  remote = TRUE;
 	   signal(SIGALRM, &timeout);   /* catch login timeout */
 	   alarm(MAXTIME);  		/* set timeout alarm */
@@ -194,8 +196,8 @@ again:	failed = TRUE;	/* assume attempt will fail */
 	   else 
   	   {
 	      do {
-	         printf("Name: ");
-	         if (fgets(buff, NBUF-1, stdin) == NULL)  
+		 printprompt();
+	         if (fgets(buff, NBUF-1, stdin) == NULL)
 		 {  putchar('\n');
 		    slowexit(1);
 	         }
@@ -269,50 +271,8 @@ ok:	alarm(0);	/* turn off login alarm timeout */
 }
 
 /*
- * Determine remoteness of login.
- * Remote logins will require some password,
- * either the user's own password, or the REMACC pseudo
- * user's password.
- */
-isremote(tp)
-char *tp;	/* ttyname result */
-{
-#if NEWTTYS
-	unsigned ttyflags;
-	ioctl(1, TIOCGETTF, &ttyflags); /* get tty flags */
-	return (ttyflags & T_HPCL);  	/* assume remote line if HUPCLS */
-#else
-#ifdef HP386
-	register int i;
-	static char *rttys[] = {	/* Quick and dirty */
-		"/dev/al0",
-		"/dev/al0r",
-		"/dev/tty16",
-		""
-	};
-	for (i = 0; rttys[i][0] != 0; i += 1)
-		if (strcmp(rttys[i], tp) == 0)
-			return (1);
-	return (0);
-#endif
-#ifdef SFSTEVE
-	register int i;
-	static char *rttys[] = {	/* Quick and dirty */
-		"/dev/al0",
-		"/dev/al0r",
-		""
-	};
-	for (i = 0; rttys[i][0] != 0; i += 1)
-		if (strcmp(rttys[i], tp) == 0)
-			return (1);
-	return (0);
-#endif
-#endif
-}
-
-/*
  * Write out an accounting entry for
- * `tty' and `username' into filename pointed to by "filep".
+ * 'tty' and 'username' into filename pointed to by "filep".
  * If "success" is TRUE (indicating a good login) also write 'utmp' entry.
  */
 setutmp(tty, username, filep, success)
@@ -385,4 +345,47 @@ slowexit(status)
 {
     sleep(2);
     exit(status);
+}
+
+/*
+ * Initial attempt failed, print a new prompt.
+ * The prompt is the last line of file LOGMSG or DEFMSG.
+ */
+printprompt()
+{
+#define	BSIZE	128
+	static char	*msg;
+	int		msgfd, count;
+	long		n;
+	static char	msgbuf[BSIZE+1];    /* login msg buffer */
+
+	if (msg != NULL) {			/* Prompt already known. */
+		printf("\r\n%s", msg);
+		return;
+	}
+	if ((msgfd = open(LOGMSG, 0)) < 0) {    /* try for login msg file */
+		printf(DEFMSG);
+		msg = DEFMSG;
+		return;
+	}
+	n = lseek(msgfd, 0L, 2);
+	if (n > BSIZE)
+		lseek(msgfd, -(long)BSIZE, 2);
+	else
+		lseek(msgfd, 0L, 0);
+	count = read(msgfd, msgbuf, BSIZE);	/* read from file */
+	close(msgfd);
+	while (count > 0 && msgbuf[count-1] == '\n')
+	         --count;			/* skip trailing newlines */
+	msgbuf[count] = '\0';
+	if (count == 0) {
+		printf(DEFMSG);
+		msg = DEFMSG;
+		return;
+	}
+	/* Reprint only the last line of the message file. */
+	for (msg = &msgbuf[count]; msg >= msgbuf && *msg != '\n'; msg--)
+		;
+	++msg;
+	printf("\r\n%s", msg);
 }
