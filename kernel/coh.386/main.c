@@ -63,6 +63,7 @@ main()
 	register SEG *sp;
 #ifdef _I386
 	int speed1, speed2;
+	char * ndpTypeName();
 #else
 	extern int realmode;
 #endif
@@ -104,10 +105,14 @@ main()
 		printf("Monochrome.  ");
 	else
 		printf("Color.  ");
+	senseNdp();
+	printf(ndpTypeName());
+#if 0
 	if (int11() & 2)
 		printf("x87.  ");
 	else
 		printf("No x87.  ");
+#endif
 #else
 	printf("*** COHERENT Version %s - %s Mode.  %uKB free memory. ***\n",
 		release, (realmode ? "Real" : "Protected"), msize);
