@@ -23,7 +23,7 @@
 #********************************************************************/
 
 #
-# $Header:   RCS/MKterm.h.v  Revision 2.1  82/10/25  14:45:11  pavel  Exp$
+# $Header: /src386/usr/lib/ncurses/RCS/MKterm.h.awk,v 1.1 92/03/26 11:44:28 bin Exp Locker: bin $
 #
 
 BEGIN		{
@@ -45,15 +45,15 @@ BEGIN		{
 		}
 
 
-$3 == "bool"	{
-		    printf "#define %-30s CUR Booleans[%d]\n", $1, BoolCount++
+$4 == "bool"	{
+	    printf "#define %-30s CUR Booleans[%d]\n", $1, BoolCount++
 		}
 
-$3 == "number"	{
+$4 == "number"	{
 		    printf "#define %-30s CUR Numbers[%d]\n", $1, NumberCount++
 		}
 
-$3 == "str"	{
+$4 == "str"	{
 		    printf "#define %-30s CUR Strings[%d]\n", $1, StringCount++
 		}
 
@@ -74,7 +74,7 @@ END		{
 			printf "   char		 *Strings[%d];\n", StringCount
 			print  "};"
 			print  ""
-			print  "struct term	_first_term;"
+			print  "extern struct term _first_term;"
 			print  "struct term	*cur_term;"
 			print  ""
 			printf "#define BOOLCOUNT %d\n", BoolCount
