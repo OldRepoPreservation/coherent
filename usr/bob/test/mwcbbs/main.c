@@ -118,11 +118,19 @@ char dummy[50];
 
 		/* if we're printing, call the print function. After
 		 * completion, exit the program. We want to exit the
-		 * becausze we don't want the user to automatically 
+		 * because we don't want the user to automatically 
 		 * run the print function again and overwrite the 
 		 * data file written by the previous run-through.
 		*/
-		if(printflag == 1)
+
+
+		/* added 11/21/91: If 'quit' was selected from the 
+		 * menu, we don't want to run the print option. Beta
+		 * version 3 would allow the print routine to be entered
+		 * and would later exit with a 'cannot find QUIT' message.
+		 */
+
+		if((printflag == 1) && (strcmp(workfile,"QUIT") != 0))
 			{
 			print(win2);
 			strcpy(workfile,"QUIT");
