@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/sys3.c,v 1.6 92/12/18 14:08:13 root Exp $ */
+/* $Header: /y/coh.386/RCS/sys3.c,v 1.8 93/02/24 11:51:12 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -18,6 +18,7 @@
  */
 #include <sys/coherent.h>
 #include <sys/buf.h>
+#include <sys/con.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/fd.h>
@@ -41,6 +42,19 @@ char *np;
 
 	cflag = 0;	/* Nothing created so far.  */
 
+	/*
+	 * NIGEL: As reported numerous times by customers, this stupid code
+	 * will create a file before looking to see whether it can open a file
+	 * descriptor. In fact, any error in here will leave a new file around
+	 * despite the error return.
+	 *
+	 * Do it right; allocate the resources first!
+	 */
+
+	if ((fd = fdalloc ()) < 0)
+		return -1;
+
+
 	/* Determine read or write status for fdopen.  */
 
 	switch (oflag & 3) {
@@ -56,7 +70,7 @@ char *np;
 	default:
 		SET_U_ERROR( EINVAL, "bad oflag" );
 		T_PIGGY( 0x10000, printf("<open: bad oflag %x>", oflag); );
-		return;
+		goto done;
 	}
 
 	/* Process the O_CREAT flag.  */
@@ -64,7 +78,7 @@ char *np;
 		if (ftoi(np, 'c') != 0) {
 			T_PIGGY( 0x10000,
 				printf("<open: bad ftoi(%s, 'c')>", np); );
-			return;
+			goto done;
 		}
 
 		/* If it didn't exist, but its parent did, then make it.  */
@@ -74,7 +88,7 @@ char *np;
 					printf("<open: bad imake(%x, 0)>",
 						(magic&~IFMT)|IFREG);
 				);
-				return;
+				goto done;
 			}
 			cflag = 1;	/* Note that we just created a file.  */
 		} else {	/* The file already exists.  */
@@ -85,7 +99,7 @@ char *np;
 				idetach(ip);
 				SET_U_ERROR( EEXIST,
 					 "exclusive creat on existing file");
-				return;
+				goto done;
 			}
 			/* Do not write to a read only file system;
 			 * never write to a directory;
@@ -98,7 +112,7 @@ char *np;
 			case IFDIR:
 				idetach(ip);
 				SET_U_ERROR( EISDIR, "<open: EISDIR>" );
-				return;
+				goto done;
 			default:
 				if (getment(ip->i_dev, 1) == NULL) {
 					idetach(ip);
@@ -106,7 +120,7 @@ char *np;
 						"Could not fetch mount entry");
 					T_PIGGY( 0x10000,
 printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
-					return;
+					goto done;
 				}
 			}
 		} /* Did the file exist?  */
@@ -116,7 +130,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 			T_PIGGY( 0x10000, printf("<open: bad ftoi(%s, 'r')>",
 				np);
 			);
-			return;
+			goto done;
 		}
 		ip = u.u_cdiri;	/* This must be the inode we wanted.  */
 	}
@@ -135,7 +149,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 		T_PIGGY( 0x10000,
 			printf("<open: bad access(ip:%x, f:%x)>", ip, f);
 		);
-		return;
+		goto done;
 	}
 
 	/*
@@ -146,7 +160,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 	if ( ip->i_flag & IFEXCL) {
 		idetach(ip);
 		SET_U_ERROR( EEXIST, "open: file already open O_EXCL" );
-		return;	/* Somebody else has an exclusive open.  */
+		goto done;	/* Somebody else has an exclusive open.  */
 	}
 
 	/*
@@ -156,7 +170,7 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 		if (ip->i_refc != 1) {
 			idetach(ip);
 			SET_U_ERROR( EEXIST, "<open: O_EXCL but already open>" );
-			return;
+			goto done;
 		}
 
 		/* Mark this open inode as exclusive.  */
@@ -179,16 +193,16 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 		f |= IPNOCTTY;
 	}
 
-	if ((fd=fdopen(ip, f)) < 0) {
+	if (fdinit (fd, ip, f) < 0) {
 		idetach(ip);
 		T_PIGGY( 0x10000,
 			printf("<open: bad fdopen(ip: %x, f: %x>", ip, f);
 		);
-		return;
+		goto done;
 	}
 
 	/* If requested, truncate the file.  */
-	if ( oflag & O_TRUNC ) {
+	if ( (oflag&O_TRUNC) && ((ip->i_mode&IFPIPE)!=IFPIPE) ) {
 		if (0 == cflag) {	/* No need to truncate a new file.  */
 			if (iaccess(ip, IPW) != 0) {
 				iclear(ip);
@@ -197,13 +211,15 @@ printf("<open: bad getment(ip->i_dev: %x, 1)>", ip->i_dev); );
 				T_PIGGY( 0x10000,
 				    printf("<open: No access to truncate.>");
 				);
-				return;
+				goto done;
 			}
 		}
 	}
 
 	iunlock(ip);
-	return (fd);
+
+done:
+	return fdfinish (fd);
 }
 
 /*
@@ -286,8 +302,15 @@ int do_write;
 		ilock(ip);
 	if ( fdp->f_flag & IPAPPEND )
 		fdp->f_seek = ip->i_size;
+	if ( do_write && ((ip->i_mode&IFMT)==IFREG) ) {
+		long maxbyte = ((long)u.u_bpfmax) * BSIZE;
+		if ( maxbyte <= fdp->f_seek )
+			n = 0;
+		else if ( ((long)n) > (maxbyte - fdp->f_seek) )
+			n = (unsigned) (maxbyte - fdp->f_seek);
+	}
 	u.u_io.io_seek = fdp->f_seek;
-	u.u_io.io.vbase = (vaddr_t) bp;
+	u.u_io.io.vbase = bp;
 	u.u_io.io_ioc  = n;
 	u.u_io.io_flag = (fdp->f_flag & IPNDLY) ? IONDLY : 0;
 	if (do_write) {
@@ -400,7 +423,7 @@ char *sp;
 			ip->i_ino = 0;
 	}
 	bflush(rdev);
-	dclose(rdev);
+	dclose(rdev, mp->m_flag ? IPR : IPR | IPW, DFBLK);/* NIGEL */
 	*mpp = mp->m_next;
 	mp->m_ip->i_flag &= ~IFMNT;
 	ldetach(mp->m_ip);
@@ -518,10 +541,10 @@ int writeUsr, count;
  * "Safe" ukcopy and kucopy - use useracc to check user address supplied.
  */
 int
-kucopyS(k, u, n)
+kucopyS(kernel, user, n)
 {
-	if (useracc(u, n, 1))
-		return kucopy(k, u, n);
+	if (useracc(user, n, 1))
+		return kucopy(kernel, user, n);
 	else {
 		u.u_error = EFAULT;
 		return 0;
@@ -529,10 +552,10 @@ kucopyS(k, u, n)
 }
 
 int
-ukcopyS(u, k, n)
+ukcopyS(user, kernel, n)
 {
-	if (useracc(u, n, 0))
-		return ukcopy(u, k, n);
+	if (useracc(user, n, 0))
+		return ukcopy(user, kernel, n);
 	else {
 		u.u_error = EFAULT;
 		return 0;

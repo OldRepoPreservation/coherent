@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/fs1.c,v 1.4 92/07/16 16:33:32 hal Exp $ */
+/* $Header: /y/coh.386/RCS/fs1.c,v 1.7 93/02/23 15:50:51 root Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -17,6 +17,9 @@
  * Filesystem (mostly handling of in core inodes).
  *
  * $Log:	fs1.c,v $
+ * Revision 1.7  93/02/23  15:50:51  root
+ * after caddr_t change, before blclear
+ * 
  * Revision 1.4  92/07/16  16:33:32  hal
  * Kernel #58
  * 
@@ -419,7 +422,7 @@ register INODE *ip;
 	register BUF *bp;
 	register ino_t ino;
 	struct dinode dinode;
-	vaddr_t v;
+	caddr_t v;
 
 	ip->i_flag = 0;
 	ino = ip->i_ino;
@@ -486,7 +489,7 @@ register INODE *ip;
 	register BUF *bp;
 	register ino_t ino;
 	struct dinode dinode;
-	vaddr_t v;
+	caddr_t v;
 
 	if (getment(ip->i_dev, 0) == NULL)
 		return;
@@ -496,7 +499,6 @@ register INODE *ip;
 		iclear(ip);
 		ip->i_lrt = 0;
 		ip->i_mode = 0;
-		ifree(ip->i_dev, ino);
 	}
 
 	dip = &dinode;
@@ -550,6 +552,8 @@ register INODE *ip;
 	bp->b_flag |= BFMOD;
 	brelease(bp);
 	ip->i_flag &= ~(IFACC|IFMOD|IFCRT);
+	if (ip->i_refc==0 && ip->i_nlink==0 && ino!=BADFIN && ino!=ROOTIN)
+		ifree(ip->i_dev, ino);
 }
 
 /*
@@ -584,9 +588,7 @@ register INODE *ip;
 
 	switch (ip->i_mode&IFMT) {
 	case IFPIPE:
-		ip->i_pnc = 0;
-		ip->i_prx = 0;
-		ip->i_pwx = 0;
+		ip->i_pnc = ip->i_prx = ip->i_pwx = 0;
 		n = ND;
 		while (n > 0) {
 			if ((b=ip->i_pipe[--n]) != 0)
@@ -613,6 +615,15 @@ register INODE *ip;
 	ip->i_size = 0;
 	iamc(ip);	/* creat/pipe - atime/mtime/ctime */
 }
+
+/*
+ * blclear(ip, lbn)  --  Clear all blocks in inode ip beginning with
+ * logical blocks number lbn.  Called from uchsize() in sys5.c
+ */
+blclear(ip, lbn)
+register INODE *ip;
+fsize_t lbn;
+{}
 
 /*
  * Copy the appropriate information from the inode to the stat buffer.
@@ -671,8 +682,17 @@ register int mode;
 imode(ip, uid, gid)
 register INODE *ip;
 {
-	if (uid == 0)
-		return (IPR|IPW|IPE);
+	if (uid == 0) {
+		/* Superuser can read or write anything. */
+		int ret = IPR | IPW;
+		/*
+		 * If superuser, say the file is executable if any
+		 * of the 'x' perm bits is set.
+		 */
+		if (ip->i_mode & 0111)
+			ret |= IPE;
+		return ret;
+	}
 	if (uid == ip->i_uid)
 		return ((ip->i_mode>>6) & 07);
 	if (gid == ip->i_gid)

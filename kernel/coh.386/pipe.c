@@ -58,27 +58,31 @@ pmake(mode)
 {
 	register INODE *ip;
 
-	if ((ip=ialloc(pipedev, IFPIPE|mode)) != NULL) {
-		iclear(ip);
-		ip->i_pnc =
-		ip->i_prx =
-		ip->i_pwx =
-		ip->i_par =
-		ip->i_paw =
-		ip->i_psr =
-		ip->i_psw = 0;
-		ip->i_iev.e_pnext =
-		ip->i_iev.e_dnext =
-		ip->i_iev.e_dlast =
-		ip->i_iev.e_procp =
-		ip->i_oev.e_pnext =
-		ip->i_oev.e_dnext =
-		ip->i_oev.e_dlast =
-		ip->i_oev.e_procp = NULL;
-	}
+	if ((ip=ialloc(pipedev, IFPIPE|mode)) != NULL)
+		pclear(ip);
+	pdump("M", ip, mode);
 	return(ip);
 }
 
+pclear(ip)
+register INODE *ip;
+{
+	ip->i_pnc =
+	ip->i_prx =
+	ip->i_pwx =
+	ip->i_par =
+	ip->i_paw =
+	ip->i_psr =
+	ip->i_psw = 0;
+	ip->i_iev.e_pnext =
+	ip->i_iev.e_dnext =
+	ip->i_iev.e_dlast =
+	ip->i_iev.e_procp =
+	ip->i_oev.e_pnext =
+	ip->i_oev.e_dnext =
+	ip->i_oev.e_dlast =
+	ip->i_oev.e_procp = NULL;
+}
 
 /*
  *  popen(ip, mode)  --  Opens a pipe inode, with the given mode.
@@ -103,6 +107,7 @@ pmake(mode)
 popen(ip, mode)
 register INODE *ip;
 {
+	pdump("OA", ip, mode);
 	switch ( mode&(IPR|IPW) ) {
 	case IPR:
 		++ip->i_par;
@@ -145,6 +150,7 @@ register INODE *ip;
 	}
 
 popen_done:
+	pdump("OZ", ip, mode);
 	return;
 }
 
@@ -161,6 +167,7 @@ popen_done:
 pclose(ip, mode)
 register INODE *ip;
 {
+	pdump("CA", ip, mode);
 	pwake(ip, IFWFR);
 	pwake(ip, IFWFW);
 	if ( mode & IPR )
@@ -171,7 +178,8 @@ register INODE *ip;
 			panic("Out of sync IPW in pclose");
 
 	if ( !ip->i_paw && !ip->i_psw && !ip->i_par && !ip->i_psr )
-		iclear(ip);
+		pclear(ip);
+	pdump("CZ", ip, mode);
 }
 
 
@@ -202,6 +210,7 @@ register IO *iop;
 	register unsigned n;
 	register unsigned ioc;
 
+	pdump("R", ip, 0);
 	while (ip->i_pnc == 0) {
 		if ( iop->io_flag & IONDLY )
 			goto pread_done;
@@ -273,6 +282,7 @@ register IO *iop;
 	register unsigned n;
 	register unsigned ioc;
 
+	pdump("W", ip, 0);
 	ioc = iop->io_ioc;
 	while ( !u.u_error && (ioc > 0) ) {
 		if ( !ip->i_par && !ip->i_psr ) {
@@ -318,25 +328,27 @@ pwrite_done:
 psleep(ip, who)
 register INODE *ip;
 {
-	if ( (who!=IFWFW) && (who!=IFWFR) )
-		panic("psleep() internal error");
+	pdump("SA", ip, 0);
 	iunlock(ip);
 	switch ( who ) {
 	case IFWFW:
 		--ip->i_par;  ++ip->i_psr;
-		v_sleep((char *)&ip->i_psw, CVPIPE, IVPIPE, SVPIPE, "pipe wx");
+		x_sleep((char *)&ip->i_psw, primed, slpriSigCatch, "pipe wx");
 		++ip->i_par;  --ip->i_psr;
 		break;
 	case IFWFR:
 		--ip->i_paw;  ++ip->i_psw;
-		v_sleep((char *)&ip->i_psr, CVPIPE, IVPIPE, SVPIPE, "pipe rx");
+		x_sleep((char *)&ip->i_psr, primed, slpriSigCatch, "pipe rx");
 		++ip->i_paw;  --ip->i_psw;
 		break;
+	default:
+		panic("psleep() internal error");
 	}
 	ilock(ip);
+	pdump("SZ", ip, 0);
 	if ( SELF->p_ssig && nondsig() ) {
 		u.u_error = EINTR;
-		return(-1);
+		return -1;
 	}
 	return(0);
 }
@@ -350,6 +362,7 @@ register INODE *ip;
 pwake(ip, who)
 register INODE *ip;
 {
+	pdump("KA", ip, 0);
 	switch ( who ) {
 	case IFWFW:
 		if ( ip->i_psr )
@@ -363,7 +376,10 @@ register INODE *ip;
 		if ( (ip->i_pnc<PIPSIZE) && (ip->i_par || ip->i_psr) )
 			pollwake(&ip->i_oev);
 		break;
+	default:
+		panic("pwake() internal error");
 	}
+	pdump("KZ", ip, 0);
 }
 
 
@@ -402,7 +418,6 @@ int ev, msec;
 	return( rval );
 }
 
-#if 0
 /*
  *  pdump(loc, ip, mode)  --  A kernel debugging output line.
  *  char *loc  --  prefix of line (two characters indicating where we are)
@@ -410,6 +425,10 @@ int ev, msec;
  *  int mode   --  The mode of the IO call, i.e. IPW, IPR, IPNDLY, ...
  */
 
+#if 1
+pdump()
+{}
+#else
 pdump(loc, ip, mode)
 char *loc;
 register INODE *ip;
