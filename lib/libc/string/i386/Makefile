@@ -1,13 +1,15 @@
-# /usr/src/libc/string/i386/Makefile 1/10/92
+# /usr/src/libc/string/i386/Makefile 7/6/93
 
 CRTI386=\
 	_memxchg.o\
+	index.o\
 	memccpy.o\
 	memchr.o\
 	memcmp.o\
 	memcpy.o\
 	memmove.o\
 	memset.o\
+	rindex.o\
 	strcat.o\
 	strchr.o\
 	strcmp.o\
@@ -28,12 +30,14 @@ STRINGI386:	$(CRTI386)
 
 # Secondary targets.
 _memxchg.o:	_memxchg.s
+index.o:	index.s
 memccpy.o:	memccpy.s
 memchr.o:	memchr.s
 memcmp.o:	memcmp.s
 memcpy.o:	memcpy.s
 memmove.o:	memmove.s
 memset.o:	memset.s
+rindex.o:	rindex.s
 strcat.o:	strcat.s
 strchr.o:	strchr.s
 strcmp.o:	strcmp.s
