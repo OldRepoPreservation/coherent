@@ -4,20 +4,35 @@
 
 
 
-main(argc, argv)
-int argc;
-char *argv[];
+main()
 {
 
+WINDOW *win1, *win2;		
 int x;
 
 
 	initscr();
 	raw();
+	noecho();
 
-	open_mode = argv[1][0];
+	/* allocate memory for windows. print message on failure. */
+
+	if((win1=newwin(20, 79, 0,0)) == NULL)
+	{
+		printf("\007Window Memroy allocation for win1 failed!\n");
+		exit(1);
+	}
+
+	if((win2=newwin(20, 79, 0,0)) == NULL)
+	{
+		printf("\007Window Memroy allocation for win2 failed!\n");
+		exit(1);
+	}
 
 	screen_num = 0;
+
+
+	/* now we get the user's choice of file to process */
 
 	do	{
 		getfilename();
@@ -31,7 +46,7 @@ int x;
 
 		if (strcmp(workfile,MAILFILE)!=0)
 			x = rfile();
-		show_files(x);
+		show_files(win1, win2, x);
 
 		}
 	while( strcmp(workfile,FILE6) != 0);
@@ -51,7 +66,8 @@ int x;
 */
 
 
-void show_files(EOF_FLAG)
+void show_files(win1, win2, EOF_FLAG)
+WINDOW *win1, win2;
 int EOF_FLAG;
 
 {
@@ -63,24 +79,6 @@ int newcol =1;  		/* newrow = row after arrow		  */
 int counter = 0;		/* newcol = column after arrow		  */
 				
 				
-WINDOW *win1, *win2;		
-				
-
-	noecho();
-
-	/* allocate memory for window. print message on failure. */
-
-	if((win1=newwin(20, 79, 0,0)) == NULL)
-	{
-		printf("\007Window Memroy allocation for win1 failed!\n");
-		exit(1);
-	}
-
-	if((win2=newwin(20, 79, 0,0)) == NULL)
-	{
-		printf("\007Window Memroy allocation for win2 failed!\n");
-		exit(1);
-	}
 
 
 	/* if the mail option was selected, print the states to the window,
@@ -220,8 +218,6 @@ WINDOW *win1, *win2;
 			case 'Q':
 			case 'q':
 				screen_num = 0;
-				delwin(win1);
-				delwin(win2);
 				break;
 
 			case 13:
