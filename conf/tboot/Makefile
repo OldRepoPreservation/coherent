@@ -3,9 +3,10 @@
 #
 # La Monte H. Yarroll <piggy@mwc.com>, September 1991
 
-LD=ld
-AR=ar
-RANLIB=ranlib
+CC=cc286
+LD=/bin/286/ld
+AR=/bin/286/ar
+RANLIB=/bin/286/ranlib
 CP=cp
 
 DESTDIR=/
@@ -22,8 +23,8 @@ OBJECTS=Startup.o $(LIBOBJECTS)
 
 SOURCES=Startup.s $(LIBSOURCES)
 
-LIBS=libtboot.a -lc
-INCLUDE=-I/usr/include/coff -I.
+LIBS=libtboot.a libtboot.a libtboot.a /lib/286/libc.a
+INCLUDE=-I.
 CFLAGS=$(INCLUDE)
 
 # NB: Startup.o must come first in the link line, so the entry
@@ -33,7 +34,7 @@ tboot: sys/typed.h sys/ptypes.h  Startup.o tboot.o builtin.o libtboot.a
 
 libtboot.a: $(LIBOBJECTS) 
 	rm -f $@
-	$(AR) rku $@ $(LIBOBJECTS)
+	$(AR) rkus $@ $(LIBOBJECTS)
 	$(RANLIB) $@
 
 sys/typed.h: typed.h
