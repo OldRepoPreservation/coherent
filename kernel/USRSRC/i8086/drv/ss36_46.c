@@ -2,16 +2,9 @@
  * Device driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
- *	local commands: (right now there aren't any!)
- *		local_buf = 0
- *		local_done = 0
- *		local_failed = 0
- *
- * Cleanup:
  *	set host_claimed conscientiously
- *	get rid of declarations for deleted functions
+ *	works but hogs CPU during big dd to /dev/null
  *
- * To try after initial working version:
  *	bufq_rd_head()
  *	bufq_rm_head()
  *	bufq_wr_tail()
@@ -19,8 +12,13 @@
  *	bus_pre_xfer() -> start_arb() + host_ident()
  *	mask interrupts on finishing arbitration, etc.
  *	backoff & retry when bdr or req sense needed
+ *	nonzero LUN's
+ *	assembler I/O
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.40	91/05/15  15:19:52	root
+ * First clean compile of state machine version.
+ * 
  * Revision 1.39	91/05/15  09:35:58	root
  * Code recover, do_connect, etc..
  * 
@@ -35,10 +33,33 @@
  * 
  */
 
+/*
+ * Debug levels.
+ * DEBUG = 0	No debug output.
+ * DEBUG = 1	Debug output on error only.
+ * DEBUG = 2	Debug output on error only and at other selected places.
+ * DEBUG = 3	Maximum debug output.
+ */
+#if (DEBUG >= 1)
+#define PR1(str)		printf(str)
+#else
+#define PR1(str)
+#endif
+#if (DEBUG >= 2)
+#define PR2(str)		printf(str)
+#else
+#define PR2(str)
+#endif
+#if (DEBUG >= 3)
+#define PR3(str)		printf(str)
+#else
+#define PR3(str)
+#endif
+
 /* TEMPORARY S**T */
 #define bufq_rd_head(s_id)	ssq_rd_head()
 #define bufq_rm_head(s_id)	ssq_rm_head()
-#define bufq_wr_tail(s_id, foo)	ssq_wr_head(foo)
+#define bufq_wr_tail(s_id, foo)	ssq_wr_tail(foo)
 
 /*
  * Includes.
@@ -76,9 +97,6 @@
 #define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
-#define WATCHDOG_SECONDS  4
-
-#define IN_BUF_SIZE	512	/* buffer size in "ss" structs */
 
 #define BUS_FREE	((ffbyte(ss_csr) & (RS_BUSY | RS_SELECT)) == 0)
 #define TGT_RSEL	\
@@ -99,6 +117,7 @@
 typedef unsigned char	uchar;
 typedef unsigned int	uint;
 typedef unsigned long	ulong;
+
 typedef enum {			/* values for current driver state */
 	SST_DEQUEUE =0,
 	SST_BUS_DEV_RESET,
@@ -147,9 +166,6 @@ typedef struct ss {
 	uchar	try_count;
 	uint	busy:1;		/* 1 if command uses local buffer */
 	uint	expired:1;	/* 1 if target's timer has expired */
-	uint	local_buf:1;	/* 1 if command uses local buffer */
-	uint	local_done:1;	/* 1 if local command is finished */
-	uint	local_fail:1;	/* 1 if local command ended in error */
 	uint	ptab_read:1;	/* 1 if partition table has been read */
 	uint	waiting:1;	/* 1 if target timer is running */
 }	ss_type;
@@ -194,11 +210,7 @@ static void	nonpolled();
 static int	read_cap();
 static void	recover();
 static int	req_sense();
-static int	rezero();
 static int	rsel_handshake();
-static int	scsicmd();
-static void	scsireset();
-static void	ss_done();
 static void	ss_finished();
 static void	ss_mach();
 static void	set_timeout();
@@ -257,9 +269,6 @@ static faddr_t	ss_csr;		/* (far *) to control/status */
 static faddr_t	ss_dat;		/* (far *) to data port */
 
 static int	num_drives;	/* number of controller SCSI id's */
-
-static TIM	reset_tim;	/* needed for calls to scsireset() */
-static TIM	timeout_tim;	/* needed for calls to timeout() */
 
 static int	do_sst_op;	/* 1 when state machine iteration continues */
 static int	host_claimed;	/* -1 or SCSI id of target using the host */
@@ -399,7 +408,11 @@ register dev_t	dev;
 	s_id = DEV_SCSI_ID(dev);
 	ssp = ss[s_id];
 	fdp = ssp->parmp;
+
+#if (DEBUG >= 3)
 devmsg(dev, "ssopen");
+#endif
+
 	/*
 	 * LUN must be zero.
 	 * SCSI id must have corresponding 1 in NSDRIVE bitmapped variable.
@@ -432,20 +445,34 @@ devmsg(dev, "ssopen");
 		int fdisk_dev;
 
 		fdisk_dev = (dev | SDEV) & 0xfff0;
-devmsg(fdisk_dev, "calling fdisk");
+
+#if (DEBUG >=3)
+		devmsg(fdisk_dev, "calling fdisk");
 		if (fdisk(fdisk_dev, fdp)) {
-int p;
+			int p;
+
 			fdp[WHOLE_DRIVE].p_size = ssp->capacity;
 			fdp[WHOLE_DRIVE].p_base = 0;
-printf("fdisk() succeeded\n");
-for (p=0; p<=WHOLE_DRIVE; p++)
+			printf("fdisk() succeeded\n");
+			for (p=0; p<=WHOLE_DRIVE; p++)
 	printf("p=%d base=%ld size=%ld\n", p, fdp[p].p_base, fdp[p].p_size);
 			ssp->ptab_read = 1;
 		} else {
-printf("fdisk() failed\n");
+			printf("fdisk() failed\n");
 			u.u_error = ENXIO;
 			valid_open = 0;
 		}
+#else
+		if (fdisk(fdisk_dev, fdp)) {
+			fdp[WHOLE_DRIVE].p_size = ssp->capacity;
+			fdp[WHOLE_DRIVE].p_base = 0;
+			ssp->ptab_read = 1;
+		} else {
+			u.u_error = ENXIO;
+			valid_open = 0;
+		}
+#endif
+
 	}
 
 	/*
@@ -490,7 +517,11 @@ dev_t dev;
 	 */
 	--drvl[SCSI_MAJOR].d_time;	
 	--ssp->dr_watch;
+
+#if (DEBUG >= 3)
 devmsg(dev, "ssclose");
+#endif
+
 }
 
 /*
@@ -551,15 +582,17 @@ char * vec;
 
 	switch(cmd) {
 	case HDGETA:
-printf("HDGETA ");
+PR3("HDGETA ");
 		fdp = ssp->parmp;
 		*(short *)&hdparm.landc[0] =
 		*(short *)&hdparm.ncyl[0] = drv_parm[s_id].ncyl;
 		hdparm.nhead = drv_parm[s_id].nhead;
 		hdparm.nspt = drv_parm[s_id].nspt;
+#if (DEBUG >= 3)
 printf("ncyl=%d nhead=%d nspt=%d\n",
   hdparm.ncyl[0]+((int)hdparm.ncyl[1]<<8), (int)hdparm.nhead, (int)hdparm.nspt);
 		kucopy( &hdparm, vec, sizeof hdparm );
+#endif
 		ret = 0;
 		break;
 	default:
@@ -605,12 +638,12 @@ register BUF	*bp;
 	if (!(ssp->ptab_read)) {
 		if ( partition == WHOLE_DRIVE ) {
 			if ((bp->b_bno != 0) || (bp->b_count != BSIZE)) {
-printf("BF1 ");
+PR1("BF1 ");
 				bp->b_flag |= BFERR;
 				valid_op = 0;
 			}
 		} else {
-printf("BF2 ");
+PR2("BF2 ");
 			devmsg(dev, "no partition table");
 			bp->b_flag |= BFERR;
 			valid_op = 0;
@@ -628,7 +661,7 @@ printf("BF2 ");
 	 */
 	else if ( (bp->b_bno + (bp->b_count/BSIZE))
 	> fdp[partition].p_size ) {
-printf("BF3 ");
+PR3("BF3 ");
 		bp->b_flag |= BFERR;
 		valid_op = 0;
 	}
@@ -662,8 +695,10 @@ static void ssintr()
 	int s_id;
 
 	s_id = chk_reconn();
-	if (s_id != -1)
+	if (s_id != -1) {
 		defer(ss_mach, s_id);
+PR3("!");
+	}
 }
 
 /*
@@ -711,8 +746,10 @@ unsigned short flags;
 		}
 	}
 
+#if (DEBUG >= 1)
 	if (!found)
 		printf("TO:f=%x s=%x ", flags, status);
+#endif
 
 	return found;
 }
@@ -736,7 +773,9 @@ int s_id;
 	if (retval)
 		if (inquiry(s_id, query_buf)) {
 			query_buf[INQUIRYLEN] = 0;
+#if (debug >= 2)
 			devmsg(dev, query_buf + 8);
+#endif
 			if (query_buf[0] == 0) {
 				retval = 1;
 			} else
@@ -753,23 +792,29 @@ int s_id;
 			ssp->blocklen = query_buf[7] | (query_buf[6] << 8)
 			| (((long)(query_buf[5])) << 16)
 			| (((long)(query_buf[4])) << 24);
+#if (DEBUG >= 3)
 printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
+#endif
 		} else
 			devmsg(dev, "Read Capacity Failed");
 
 	if (retval)
 		if (mode_sense(s_id, query_buf)) {
+#if (DEBUG >= 3)
 #define FMT_PG	(4+8+8+12)
 #define DDG_PG	(4+8+8+12+24)
-			uchar heads;
-			unsigned short spt;
-			ulong cyls;
+
+uchar heads;
+unsigned short spt;
+ulong cyls;
+
 spt=((int)query_buf[FMT_PG+10]<<8) + query_buf[FMT_PG+11];
 cyls=((int)query_buf[DDG_PG+2]<<16) + ((int)query_buf[DDG_PG+3]<<8) + query_buf[DDG_PG+4];
 heads=query_buf[DDG_PG+5];
 printf("%d sectors per track\n", spt);
 printf("%ld cylinders\n", cyls);
 printf("%d heads\n", heads);
+#endif
 		} else
 			devmsg(dev, "Mode Sense Failed");
 
@@ -960,6 +1005,7 @@ int s_id;
 		} /* endswitch */
 	}
 	spl(s);
+#if (DEBUG >= 1)
 switch(ssp->cmdstat) {
 case -1:
 	if (msg_in != MSG_DISCONNECT)
@@ -976,9 +1022,11 @@ case CS_BUSY:
 case CS_RESERVED:
 default:
 	printf("CS%x",ssp->cmdstat);
+#endif
 }
 	return (bus_timeout) ? 0 : 1 ;
 }
+
 /*
  * req_wait()
  *
@@ -1010,8 +1058,11 @@ int *to_ptr;
 		}
 	}
 
-	if (*to_ptr)
+#if (DEBUG >= 1)
+	if (*to_ptr) {
 		printf("TX: s=%x ", status);
+	}
+#endif
 
 	return req_found;
 }
@@ -1158,7 +1209,7 @@ static int bus_dev_reset(s_id)
 	int bdr_ok = 1;
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
-printf("bdr");
+PR1("bdr");
 
 	if (bdr_ok) {
 		/*
@@ -1244,15 +1295,18 @@ void	ss_mach(s_id)
 int s_id;
 {
 	ss_type * ssp = ss[s_id];
-	BUF * bp = ssp->bp;
+	BUF * bp;
+	int s;
 
 	do_sst_op = 1; /* plan to run this routine again in most cases */
 	while (do_sst_op) {
+		bp = ssp->bp;  /* nonpolled() below can change ssp->bp */
 		switch (ssp->state) {
 		/*
 		 * Polling states execute whether ssp->waiting or not.
 		 */
 		case SST_POLL_ARBITN:
+PR3("PA ");
 			if (ffbyte(ss_csr) & RS_ARBIT_COMPL) {
 				ssp->waiting = 0;
 				if (host_ident(s_id))
@@ -1268,7 +1322,8 @@ int s_id;
 			}
 			break;
 		case SST_POLL_BEGIN_IO:
-			if (bp == NULL && ssp->local_buf == 0)
+PR3("PBI ");
+			if (bp == NULL)
 				ssp->state = SST_DEQUEUE;
 			else {
 				/*
@@ -1279,12 +1334,17 @@ int s_id;
 					host_claimed = s_id;
 					ssp->waiting = 0;
 					init_pointers(s_id);
+					s=sphi();
 					if (start_arb()) {
-						if (host_ident(s_id))
+						if (host_ident(s_id)) {
 							do_connect(s_id);
-						else
+							spl(s);
+						} else {
+							spl(s);
 							recover(s_id, RV_P_TIMEOUT);
+						}
 					} else {
+						spl(s);
 						ssp->state = SST_POLL_ARBITN;
 						set_timeout(s_id, DELAY_ARB);
 					}
@@ -1298,12 +1358,17 @@ int s_id;
 			}
 			break;
 		case SST_POLL_RESELECT:
+PR3("PR ");
 			if (TGT_RSEL) {
 				ssp->waiting = 0;
-				if (rsel_handshake())
+				s=sphi();
+				if (rsel_handshake()) {
 					do_connect(s_id);
-				else
+					spl(s);
+				} else {
+					spl(s);
 					recover(s_id, RV_P_TIMEOUT);
+				}
 			} else  { /* Reselect poll is negative */
 				if (ssp->expired) {
 					ssp->expired = 0;
@@ -1343,6 +1408,7 @@ int s_id;
 
 	switch (ssp->state) {
 	case SST_BUS_DEV_RESET:
+PR3("BDR ");
 		if (bus_dev_reset(s_id)) {
 			do_sst_op = 0;
 			set_timeout(s_id, DELAY_BDR);
@@ -1352,6 +1418,7 @@ int s_id;
 		break;
 	case SST_DEQUEUE:
 		if(bufq_rd_head(s_id) != NULL && !ssp->busy) {
+PR3("DQ ");
 			ssp->busy = 1;
 			bp = bufq_rm_head(s_id);
 			ssp->bp = bp;
@@ -1388,6 +1455,7 @@ int s_id;
 		break;
 	case SST_HIPRI_RESET:
 	case SST_LOPRI_RESET:
+PR1("rst");
 		/*
 		 * SST_LOPRI_RESET is same as SST_HIPRI_RESET for now.
 		 * Later, can implement a delay to allow other targets to
@@ -1398,15 +1466,18 @@ int s_id;
 		set_timeout(s_id, DELAY_RST);
 		break;
 	case SST_REQ_SENSE:
+PR1("RQS ");
 		if (req_sense(s_id))
 			ssp->state = SST_POLL_BEGIN_IO;
 		else
 			recover(s_id, RV_P_TIMEOUT);
 		break;
 	case SST_RESET_DONE:
+PR3("RDN ");
 		ssp->state = SST_POLL_BEGIN_IO;
 		break;
 	case SST_RESET_OFF:
+PR3("RFF ");
 		sfbyte(ss_csr, 0); /* reset OFF */
 		ssp->state = SST_RESET_DONE;
 		set_timeout(s_id, DELAY_RST);
@@ -1459,14 +1530,7 @@ int s_id;
 
 		if (bus_wait(((RS_REQUEST|RS_CTRL_DATA|RS_I_O|RS_MESSAGE) << 8)
 		| (RS_REQUEST|RS_CTRL_DATA|RS_MESSAGE))) {
-			/*
-			 * If using a local buffer rather than doing a kernel
-			 * block i/o request, inhibit Disconnect.
-			 */
-			if (ss[s_id]->local_buf)
-				sfbyte(ss_dat, MSG_IDENTIFY);
-			else
-				sfbyte(ss_dat, MSG_IDENT_DC);
+			sfbyte(ss_dat, MSG_IDENT_DC); /* allow Disconnect */
 			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_ENABLE_IRPT);
 			ret = 1;
 		}
@@ -1645,9 +1709,6 @@ RV_TYPE errtype;
 	} else { /* try_count >= MAX_TRY_COUNT */
 		if (bp)
 			bp->b_flag |= BFERR;
-		if (ssp->local_buf) {
-			ssp->local_fail = 1;
-		}
 		ss_finished(s_id);
 	}
 }
@@ -1675,11 +1736,6 @@ int s_id;
 		else
 			bp->b_resid -= ssp->data_bytes_out;
 		bdone(bp);
-	}
-	if (ssp->local_buf) {
-		ssp->local_buf = 0;
-		ssp->local_done = 1;
-		ssp->state = SST_POLL_BEGIN_IO;
 	}
 }
 
