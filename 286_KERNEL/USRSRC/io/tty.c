@@ -7,10 +7,13 @@
  *	erase and kill, stop and start, and common ioctl functions.
  *
  * $Log:	tty.c,v $
+ * Revision 1.10  91/09/16  15:58:26  hal
+ * Mask interrrupts when modifying tp->t_flags as some IRQ handlers change this.
+ *
  * Revision 1.9  91/09/16  10:27:47  hal
  * Explain T_ISTOP/T_TSTOP/T_STOP.
  * Add check for TANDEM before sending t_startc.
- * 
+ *
  * Revision 1.8  91/09/13  18:01:39  piggy
  * Only do XON/XOFF flow control if TANDEM is set.
  *
@@ -129,8 +132,9 @@ void ttread();
 void ttsetgrp();
 void ttsignal();
 void ttstart();
-void ttstash();
 void ttwrite();
+
+static void ttstash();
 
 /*
  * Global Data.
@@ -792,7 +796,7 @@ register c;
  *
  *	Only called from ttin(), and ttin() is called at high priority.
  */
-void ttstash(tp, c)
+static void ttstash(tp, c)
 register TTY *tp;
 {
 	register char *p1, *p2;
@@ -829,12 +833,12 @@ register TTY *tp;
  *
  *	Start output on a tty.
  *	Duck out if stopped.  Do wakeups.
- *	Only called at high priority.
  */
 void ttstart(tp)
 register TTY *tp;
 {
 	register int n;
+	int s;
 
 	n = tp->t_flags;
 	if (n & T_STOP)
@@ -842,7 +846,9 @@ register TTY *tp;
 
 	if ((n&T_DRAIN)!=0 && tp->t_oq.cq_cc==0
 	   && (n&T_INL)==0 && tp->t_nfill==0) {
+		s = sphi();
 		tp->t_flags &= ~T_DRAIN;
+		spl(s);
 		defer(wakeup, (char *) &tp->t_oq);
 		return;
 	}
@@ -853,7 +859,9 @@ register TTY *tp;
 		return;
 
 	if (n & T_HILIM) {
+		s = sphi();
 	   	tp->t_flags &= ~T_HILIM;
+		spl(s);
 		defer(wakeup, (char *) &tp->t_oq);
 	}
 
