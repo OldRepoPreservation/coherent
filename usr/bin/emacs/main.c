@@ -167,14 +167,11 @@ uchar	*argv[];
 	bind.pfx2 = bind.pfx3 = -1;
 	bind.repeat = CTRL|'U';
 	argproc(argc, argv);			/* Parse the arg list	*/
-#if	GEM && NATIVE
-	topen();				/* Force the length setup */
-	tclose();				/* and then continue.	*/
-#endif
 #if	GEM
 	if (runswitch & CF_GRABMEM)		/* Get largest chunk of	*/
 		grabmem(0, 0);			/* memory (ST only)	*/
 #endif
+	topen();				/* Force the length setup */
 	strcpy(bname, "main");			/* Work out the name of	*/
 	if (cfilecnt > 0)			/* the default buffer.	*/
 		makename(bname, cfiles[0]);	/* Make a buffer name	*/
@@ -404,7 +401,7 @@ getkey()
 				}
 				continue;
 			}
-			if (c == 'O') {
+			if (c == 'O') { 	/* function keys */
 				switch (tgetc()) {
 				case 'P':		/* PF1 => M-X (Future)	*/
 					return (OBND | META | 'X');
