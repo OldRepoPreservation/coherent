@@ -275,7 +275,7 @@ register TREE *tp;
 			continue;
 
 		case M_JMPB:
-			label = mp - macros - 1 - mp[0];
+			label = ((char *)mp) - macros - 1 - mp[0];
 			goto jump;
 
 		case M_JMP2:
