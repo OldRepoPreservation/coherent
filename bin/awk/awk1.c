@@ -9,8 +9,6 @@
 #include "awk.h"
 #include "y.tab.h"
 
-YYSTYPE	yylval;
-
 CHAR	*readclass();
 NODE	*instring();
 NODE	*innumber();

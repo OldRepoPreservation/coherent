@@ -272,7 +272,7 @@ STRING asval;
 {
 	CHAR *xfield1();
 	register CHAR *as, *s1, *s2;
-	register int c, i1, nf;
+	register int c, i1;
 	register unsigned nb;
 	extern int whitesw;
 

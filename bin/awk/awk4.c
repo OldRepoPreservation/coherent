@@ -184,7 +184,7 @@ register NODE *np;
 		return (!(np->t_flag & T_INT));
 
 	for (cp = np->t_STRING;;cp++) {
-		switch(*cp) {
+		switch (*cp) {
 		case 0:
 			return (isfloat);
 		case 'e':
