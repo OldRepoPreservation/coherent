@@ -37,7 +37,7 @@
  * 85/04/17	Allan Cornish
  * eliminated test for rootdev in msync()
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <acct.h>
 #include <sys/buf.h>
 #include <canon.h>

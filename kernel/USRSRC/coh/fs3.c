@@ -27,7 +27,7 @@
  * Added code to fwrite() to avoid needless writing of pipe blocks.
  * Throughput on 6 Mhz AT rose from 30 Kbytes/sec to 79 Kbytes/sec.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <canon.h>
 #include <sys/con.h>

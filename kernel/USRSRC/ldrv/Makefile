@@ -1,4 +1,4 @@
-# $Header: /usr/src/sys/ldrv/RCS/Makefile,v 1.2 91/04/30 18:38:22 root Exp $
+# $Header: $(USRSRC)/ldrv/RCS/Makefile,v 1.2 91/04/30 18:38:22 root Exp $
 #
 #	The  information  contained herein  is a trade secret  of INETCO
 #	Systems, Ltd, and is  confidential information.   It is provided
@@ -14,7 +14,7 @@
 
 # Loadable Drivers - Makefile
 #
-# $Log:	/usr/src/sys/ldrv/RCS/Makefile,v $
+# $Log:	$(USRSRC)/ldrv/RCS/Makefile,v $
 # Revision 1.2	91/04/30  18:38:22	root
 # Changes to support polled async driver "hs"
 
@@ -32,62 +32,45 @@
 # Revision 1.1	88/03/24  16:30:21	src
 # Initial revision
 #
-# 88/02/16	Jim Belton		/usr/src/sys/ldrv/Makefile
+# 88/02/16	Jim Belton		$(USRSRC)/ldrv/Makefile
 # Added vtop linkage routine to ldlib.a.
-
-USRSYS=/usr/sys
 
 # Include directories
 USRINC=/usr/include
 SYSINC=/usr/include/sys
-KERINC=/usr/src/sys/sys
-DRVINC=/usr/src/sys/i8086/sys
-USSINC=/usr/src/sys
 
 # Source directories
-COHSRC=/usr/src/sys/coh
-DRVSRC=/usr/src/sys/i8086/drv
-I86SRC=/usr/src/sys/i8086/src
-IBMATSRC=/usr/src/sys/i8086/ibm_at
-KERSRC=/usr/src/sys/ker
-TTYSRC=/usr/src/sys/ttydrv
+COHSRC=$(USRSRC)/coh
+DRVSRC=$(USRSRC)/i8086/drv
+I86SRC=$(USRSRC)/i8086/src
+IBMATSRC=$(USRSRC)/i8086/ibm_at
+KERSRC=$(USRSRC)/ker
+TTYSRC=$(USRSRC)/ttydrv
 
 # Object directories
-I86OBJ=/usr/src/sys/i8086/objects
-DRVOBJ=/usr/src/sys/i8086/drv/objects
-IBMATOBJ=/usr/src/sys/i8086/ibm_at/objects
+I86OBJ=$(USRSRC)/i8086/objects
+DRVOBJ=$(USRSRC)/i8086/drv/objects
+IBMATOBJ=$(USRSRC)/i8086/ibm_at/objects
 
 CC=exec /bin/cc
-CFLAGS=-I$(DRVINC) -I$(KERINC) -I$(SYSINC)
+CFLAGS=
 
-TARGETS=objects/ldrts0.o	\
-	objects/ldmain.o	\
-	objects/ldswap.o	\
-	objects/ldlib.a
+TARGETS=$(USRSYS)/lib/ldrts0.o	\
+	$(USRSYS)/lib/ldmain.o	\
+	$(USRSYS)/lib/ldswap.o	\
+	$(USRSYS)/lib/ldlib.a
 
-all:		$(TARGETS)
+ld_support:	$(TARGETS)
 	@sync
 
-install:	$(TARGETS)	\
-		ldconfig
-	cp $(TARGETS) /tmp/usr/sys/lib
-	cp ldconfig /tmp/usr/sys
+$(USRSYS)/lib/ldrts0.o:	ldrts0.s
+	as -xo $@ $<
 
-shrink:
-	rm -f objects/*
+$(USRSYS)/lib/ldmain.o:	ldmain.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-objects/ldrts0.o:	ldrts0.s
-	as -x ldrts0.s
-	mv l.out $@
-
-objects/ldmain.o:	ldmain.c
-	$(CC) $(CFLAGS) -c ldmain.c
-	mv ldmain.o $@
-
-#	$(CC) $(CFLAGS) -c ldswap.c
-objects/ldswap.o:	ldswap.c
-	$(CC) $(CFLAGS) -DNOMONITOR -c ldswap.c
-	mv ldswap.o $@
+$(USRSYS)/lib/ldswap.o:	ldswap.c
+	$(CC) $(CFLAGS) -DNOMONITOR -c -o $@ $<
 
 # The following script creates a interface stub to a kernel function.
 GEN_DRV=objects/mkstub.sh
@@ -227,14 +210,13 @@ LIBOBJ2=objects/outb.o		\
 	objects/waitq.o		\
 	objects/wakeup.o	\
 
-objects/ldlib.a:	$(GEN_DRV)	\
+$(USRSYS)/lib/ldlib.a:	$(GEN_DRV)	\
 			$(LIBOBJ1)	\
 			$(LIBOBJ2)
 	rm -f  $@
 	ar rc  $@ $(LIBOBJ1)
 	ar rc  $@ $(LIBOBJ2)
 	ranlib $@
-	cp $@ /usr/sys/lib
 
 #
 # Create the script to create an interface stub to a kernel function.
@@ -287,8 +269,7 @@ objects/clrq.o:
 	$(GEN_DRV) $*
 
 objects/cs_self.o:	cs_self.s
-	as -gxo cs_self.o cs_self.s
-	mv cs_self.o $@
+	as -gxo $@ $<
 
 objects/dblock.o:
 	$(GEN_DRV) $*
@@ -297,8 +278,7 @@ objects/dclose.o:
 	$(GEN_DRV) $*
 
 objects/defer.o:	defer.s
-	as -gxo defer.o defer.s
-	mv defer.o $@
+	as -gxo $@ $<
 
 objects/devmsg.o:
 	$(GEN_DRV) $*
@@ -307,8 +287,7 @@ objects/dmago.o:
 	$(GEN_DRV) $*
 
 objects/dmalock.o:	dmalock.c
-	$(CC) $(CFLAGS) -c dmalock.c
-	mv dmalock.o $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 objects/dmaoff.o:
 	$(GEN_DRV) $*
@@ -335,16 +314,13 @@ objects/fdisk.o:
 	$(GEN_DRV) $*
 
 objects/ffbyte.o:	ffbyte.s
-	as -gxo ffbyte.o ffbyte.s
-	mv ffbyte.o $@
+	as -gxo $@ $<
 
 objects/ffword.o:	ffword.s
-	as -gxo ffword.o ffword.s
-	mv ffword.o $@
+	as -gxo $@ $<
 
 objects/ffmem.o:	ffmem.s
-	as -gxo ffmem.o ffmem.s
-	mv ffmem.o $@
+	as -gxo $@ $<
 
 objects/fkcopy.o:
 	$(GEN_DRV) $*
@@ -359,8 +335,7 @@ objects/fucopy.o:
 	$(GEN_DRV) $*
 
 objects/getcs.o:	getcs.s
-	as -gxo getcs.o getcs.s
-	mv getcs.o $@
+	as -gxo $@ $<
 
 objects/getq.o:
 	$(GEN_DRV) $*
@@ -372,8 +347,7 @@ objects/getuwd.o:
 	$(GEN_DRV) $*
 
 objects/inb.o:		inb.s
-	as -gxo inb.o inb.s
-	mv inb.o $@
+	as -gxo $@ $<
 
 objects/int11.o:
 	$(GEN_DRV) $*
@@ -400,8 +374,7 @@ objects/ipcaccess.o:
 	$(GEN_DRV) $*
 
 objects/kcall.o:	kcall.s
-	as -gxo kcall.o kcall.s
-	mv kcall.o $@
+	as -gxo $@ $<
 
 objects/kclear.o:
 	$(GEN_DRV) $*
@@ -446,16 +419,13 @@ objects/nondsig.o:
 	$(GEN_DRV) $*
 
 objects/nonedev.o:	nonedev.c
-	$(CC) $(CFLAGS) -c nonedev.c
-	mv nonedev.o $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 objects/nulldev.o:	nulldev.c
-	$(CC) $(CFLAGS) -c nulldev.c
-	mv nulldev.o $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 objects/outb.o:		outb.s
-	as -gxo outb.o outb.s
-	mv outb.o $@
+	as -gxo $@ $<
 
 objects/panic.o:
 	$(GEN_DRV) $*
@@ -518,23 +488,19 @@ objects/sendsig.o:
 	$(GEN_DRV) $*
 
 objects/setivec.o:	setivec.c
-	$(CC) $(CFLAGS) -c setivec.c
-	mv setivec.o $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 objects/sfree.o:
 	$(GEN_DRV) $*
 
-objects/sfbyte.o:
-	as -gxo sfbyte.o sfbyte.s
-	mv sfbyte.o $@
+objects/sfbyte.o:	sfbyte.s
+	as -gxo $@ $<
 
-objects/sfword.o:
-	as -gxo sfword.o sfword.s
-	mv sfword.o $@
+objects/sfword.o:	sfword.s
+	as -gxo $@ $<
 
-objects/sfmem.o:
-	as -gxo sfmem.o sfmem.s
-	mv sfmem.o $@
+objects/sfmem.o:	sfmem.s
+	as -gxo $@ $<
 
 objects/sg_to_s5.o:
 	$(GEN_DRV) $*
@@ -545,17 +511,14 @@ objects/sleep.o:
 objects/slrcopy.o:
 	$(GEN_DRV) $*
 
-objects/sphi.o:
-	as -gxo sphi.o sphi.s
-	mv sphi.o $@
+objects/sphi.o:	sphi.s
+	as -gxo $@ $<
 
-objects/spl.o:
-	as -gxo spl.o spl.s
-	mv spl.o $@
+objects/spl.o:	spl.s
+	as -gxo $@ $<
 
-objects/splo.o:
-	as -gxo splo.o splo.s
-	mv splo.o $@
+objects/splo.o:	splo.s
+	as -gxo $@ $<
 
 objects/super.o:
 	$(GEN_DRV) $*
@@ -567,8 +530,7 @@ objects/tc_to_s5.o:
 	$(GEN_DRV) $*
 
 objects/timeout.o:	timeout.c
-	$(CC) $(CFLAGS) -c timeout.c
-	mv timeout.o $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 objects/ttclose.o:
 	$(GEN_DRV) $*
@@ -650,4 +612,3 @@ objects/waitq.o:
 
 objects/wakeup.o:
 	$(GEN_DRV) $*
-

@@ -45,13 +45,13 @@
  * 87/01/05	Allan Cornish		/usr/src/sys/coh/proc.c
  * pexit() now wakes the swapper before terminating.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <acct.h>
 #include <errno.h>
 #include <sys/inode.h>
 #include <sys/proc.h>
-#include <ptrace.h>
-#include <sched.h>
+#include <sys/ptrace.h>
+#include <sys/sched.h>
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/stat.h>

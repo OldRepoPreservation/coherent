@@ -23,7 +23,7 @@
  * Initial revision
  * 
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/con.h>
 #include <errno.h>
 #include <sys/stat.h>

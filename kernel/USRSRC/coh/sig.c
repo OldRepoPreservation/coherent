@@ -26,14 +26,14 @@
  * 86/11/19	Allan Cornish		/usr/src/sys/coh/sig.c
  * sigdump() initializes the (new) (IO).io_flag field to 0.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <errno.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/io.h>
 #include <sys/proc.h>
-#include <ptrace.h>
-#include <sched.h>
+#include <sys/ptrace.h>
+#include <sys/sched.h>
 #include <sys/seg.h>
 #include <signal.h>
 #include <sys/uproc.h>

@@ -25,7 +25,7 @@
  * 
  */
 
-#include <coherent.h>
+#include <sys/coherent.h>
 
 typedef void (* vfp_t)();		/* Void function pointer type.	     */
 

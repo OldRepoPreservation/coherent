@@ -12,7 +12,7 @@
  * 86/12/16	Allan Cornish		/usr/src/sys/coh/printf.c
  * Added '%D' and '%X options to printf().
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 
 /*
  * For indirecting and incrementing argument pointer.

@@ -47,15 +47,14 @@
  * ISTSIZE [stack size] changed from a define in /usr/include/sys/const.h to a
  * extern int in /usr/include/sys/param.h, with 4 Kbyte default set in var.c
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <sys/con.h>
 #include <sys/inode.h>
 #include <sys/mount.h>
 #include <sys/proc.h>
-#include <ptrace.h>
+#include <sys/ptrace.h>
 #include <sys/seg.h>
-#include <sys/timeout.h>
 
 int	 debflag = 0;			/* coherent.h */
 

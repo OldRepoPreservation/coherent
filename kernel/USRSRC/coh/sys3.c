@@ -37,7 +37,7 @@
  * uopen() now checks mode for O_NDELAY and sets IPNDLY bit in fdp->f_flag.
  * sysio() now checks fdp->f_flag for IPNDLY and sets IONDLY bit in io_flag.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <errno.h>
 #include <sys/fcntl.h>

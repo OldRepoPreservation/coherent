@@ -34,13 +34,13 @@
  * 87/11/13	Allan Cornish	/usr/src/sys/coh/seg.c
  * Support for protected mode segmentation added.
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <sys/buf.h>
 #include <errno.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
 #include <sys/proc.h>
-#include <sched.h>
+#include <sys/sched.h>
 #include <sys/seg.h>
 #include <sys/uproc.h>
 

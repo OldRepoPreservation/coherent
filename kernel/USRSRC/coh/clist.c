@@ -21,7 +21,7 @@
  * Initial revision
  * 
  */
-#include <coherent.h>
+#include <sys/coherent.h>
 #include <clist.h>
 #include <sched.h>
 
