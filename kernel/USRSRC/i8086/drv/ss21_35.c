@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.25	91/04/16  01:45:35	root
+ * lots of strategy code added - but not ready to compile
+ * 
  * Revision 1.24	91/04/12  17:19:25	root
  * Some rearrangements - still working on block & related routines
  * 
@@ -91,6 +94,7 @@ typedef unsigned long	ulong;
 typedef struct ss {
 	ulong	capacity;
 	ulong	blocklen;
+	ulong	bno;
 	int	msg_in;
 	int	dr_watch;	/* number of seconds for pending timeout */
 	uchar	cmdbuf[G1CMDLEN];
@@ -522,12 +526,6 @@ register BUF	*bp;
 	 * Fill fields in the node and queue the request.
 	 */
 	if (valid_op) {
-#ifdef BNO_CALC
-		if (partition != WHOLE_DRIVE)
-			sw->sw_bno = fdp[partition].p_base + bp->b_bno;
-		else
-			sw->sw_bno = bp->b_bno;
-#endif
 
 printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
 	drive, (long)sw->sw_bno, bp, bp->b_flag);
@@ -554,14 +552,17 @@ static void ssintr()
 {
 	int s_id;
 
+printf("@");
 	s_id = chk_reconn();
 	if (s_id != -1)
 		defer(reconnect, s_id);
-printf("@");
 }
 
 /*
  * sswatch()
+ *
+ * Invoked once per second if any devices going through this driver are open.
+ * Poll for any reselect, in case interrupt got lost.
  */
 static void sswatch()
 {
@@ -575,11 +576,17 @@ printf("*");
 			ssp->dr_watch--;
 			if (ssp->dr_watch == 0) {
 				bus_dev_reset(s_id);
+				ssp->bp->b_flag |= BFERR;
+				ss_done(s_id);
 printf("SCSI id #%d: bno=%lu <Watchdog Timeout>\n", s_id, ss[s_id]->bp->b_bno);
 			} else {
-				s_id = chk_reconn();
-				if (s_id != -1)
-					reconnect(s_id);
+				while (1) {
+					s_id = chk_reconn();
+					if (s_id == -1)
+						break;
+					else
+						reconnect(s_id);
+				} /* endwhile */
 			}
 		}
 	} /* endfor */
@@ -630,6 +637,8 @@ static int ssinit(s_id)
 int s_id;
 {
 	int retval = 0;
+	uchar query_buf[INQUIRYLEN + 1];
+	ss_type * ssp = ss[s_id];
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
 	/*
@@ -654,10 +663,10 @@ int s_id;
 			devmsg(dev, "Request Sense Failed");
 
 	if (retval)
-		if (inquiry(s_id)) {
-			ss[s_id]->in_buf[INQUIRYLEN] = 0;
-			devmsg(dev, ss[s_id]->in_buf + 8);
-			if (ss[s_id]->in_buf[0] == 0) {
+		if (inquiry(s_id), query_buf) {
+			query_buf[INQUIRYLEN] = 0;
+			devmsg(dev, query_buf + 8);
+			if (query_buf[0] == 0) {
 				retval = 1;
 			} else
 				devmsg(dev, "Not Direct Access Device");
@@ -665,39 +674,17 @@ int s_id;
 			devmsg(dev, "Inquiry Failed");
 
 	if (retval)
-		if (read_cap(s_id)) {
+		if (read_cap(s_id), query_buf) {
 			retval = 1;
+			ssp->capacity = query_buf[3] | (query_buf[2] << 8)
+			| (((long)(query_buf[1])) << 16)
+			| (((long)(query_buf[0])) << 24);
+			ssp->blocklen = query_buf[7] | (query_buf[6] << 8)
+			| (((long)(query_buf[5])) << 16)
+			| (((long)(query_buf[4])) << 24);
+printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
 		} else
 			devmsg(dev, "Read Capacity Failed");
-
-#if 0
-	/*
-	 * For test purposes only, try to read the partition table.
-	 */
-	if (retval) {
-#define READ_PTS	1
-int foo,fof;
-for (foo=0,fof=0;foo<READ_PTS;){
-	busted=0;
-	drvl[SCSI_MAJOR].d_time++;
-		if (read_pt(s_id)) {
-			retval = 1;
-		} else {
-			devmsg(dev, "Read Partition Table Failed");
-			break;
-		}
-foo++;
-	if (!rpt_irpt){
-		fof++;
-		if (fof>=3) {
-			printf("3 irq's lost\n");
-			break;
-		}
-	}
-} /*endfor*/
-printf("%d read_pt's\n",foo);
-	}
-#endif
 
 	return retval;
 }
@@ -740,69 +727,16 @@ int s_id;
 {
 	int retval;
 	ss_type *ssp = ss[s_id];
-	int tries;
 
-	tries = 0;
-	do {
-		if (tries > 0)
-			ssdelay(100);
+	if (retval = bus_pre_xfer(s_id)) {
+		bus_info_xfer(ssp);
+		retval = (ssp->cmdlen == ssp->cmd_bytes_out
+			&& ssp->cmdstat == CS_GOOD);
+	}
 
-		if (retval = bus_pre_xfer(s_id)) {
-			bus_info_xfer(ssp);
-			retval = (ssp->cmdlen == ssp->cmd_bytes_out
-				&& ssp->cmdstat == CS_GOOD);
-		}
-
-		if (ssp->cmdstat == CS_CHECK) {
-			if (req_sense(s_id))
-				retval = (ssp->cmdlen == ssp->cmd_bytes_out);
-		}
-
-		tries++;
-	} while (ssp->cmdstat == CS_BUSY && tries < LOPRI_RETRIES);
-
-	if (ssp->msg_in == MSG_DISCONNECT) {
-		int connected = 0;
-		uchar dat, csr;
-
-printf("Disconnected ");
-{
-	int s;
-	s=sphi();
-	while(!rpt_irpt && !busted)
-		sleep(&rpt_irpt, CVBLKIO,IVBLKIO,SVBLKIO);
-	spl(s);
-}
-		for (tries = 0; tries < 10; tries++) {
-			csr = ffbyte(ss_csr);
-			if (csr & RS_SELECT) {
-				dat = ffbyte(ss_dat);
-				if (dat & HOST_ID) {
-printf("%d tries Reconnected\n",tries);
-					connected = 1;
-					break;
-				} else {
-					int t;
-printf("Host not selected\n");
-					for (t = 0; t < 10; t++) {
-						if (ffbyte(ss_csr) & RS_SELECT == 0) {
-printf("Select dropped by target\n");
-							break;
-						}
-						ssdelay(10);
-					}
-				}
-			}
-			ssdelay(10);
-		}
-		if (connected) {
-			sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
-			if (bus_wait(RS_SELECT << 8 | 0)) {
-				sfbyte(ss_csr, WC_ENABLE_SCSI);
-				bus_info_xfer(ssp);
-				retval = (ssp->cmdstat == CS_GOOD);
-			}
-		}
+	if (ssp->cmdstat == CS_CHECK) {
+		if (req_sense(s_id))
+			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
 	}
 
 	return retval;
@@ -1040,10 +974,10 @@ SSDUMP(ssp, "Command overrun");
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
-			if (ssp->data_bytes_out < ssp->out_buf_len && ssp->out_buf)
+			if (ssp->data_bytes_out < ssp->out_buf_len && ssp->out_buf) {
 				sfbyte(ss_dat, ssp->out_buf[ssp->data_bytes_out]);
 				ssp->data_bytes_out++;
-			else {	/* This case should not happen. */
+			} else { /* This case should not happen. */
 SSDUMP(ssp, "Data out overrun");
 				scsireset();
 			}
@@ -1133,22 +1067,27 @@ int s_id;
  * Inquiry command for a device.
  * Find out if device is direct access, removable, etc.
  *
+ * Put result of inquiry into supplied buffer.
  * Return 1 if command succeeds, else 0.
  */
-static int inquiry(s_id)
+static int inquiry(s_id, buf)
 int s_id;
+uchar * buf;
 {
 	int ret = 0;
 	ss_type * ssp = ss[s_id];
 
+	ssp->id_busy = 1;
 	ssp->cmdbuf[0] = ScmdINQUIRY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] =
 		ssp->cmdbuf[5] = 0;
 		ssp->cmdbuf[4] = INQUIRYLEN;
 	ssp->cmdlen = G0CMDLEN;
+	ssp->in_buf = buf;
 	ssp->in_buf_len = INQUIRYLEN;
 
 	ret = scsicmd(s_id);
+	ssp->id_busy = 0;
 
 	return ret;
 }
@@ -1160,29 +1099,24 @@ int s_id;
  *
  * Return 1 if command succeeds, else 0.
  */
-static int read_cap(s_id)
+static int read_cap(s_id, buf)
 int s_id;
+uchar * buf;
 {
 	int ret = 0;
 	ss_type * ssp = ss[s_id];
 
+	ssp->id_busy = 1;
 	ssp->cmdbuf[0] = ScmdREADCAPACITY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
 	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[7] = ssp->cmdbuf[8] = 0;
 	ssp->cmdbuf[9] = 0;
 	ssp->cmdlen = G1CMDLEN;
+	ssp->in_buf = buf;
 	ssp->in_buf_len = 8;
 
 	ret = scsicmd(s_id);
-	if (ret) {
-		ssp->capacity = ssp->in_buf[3] | (ssp->in_buf[2] << 8)
-		| (((long)(ssp->in_buf[1])) << 16)
-		| (((long)(ssp->in_buf[0])) << 24);
-		ssp->blocklen = ssp->in_buf[7] | (ssp->in_buf[6] << 8)
-		| (((long)(ssp->in_buf[5])) << 16)
-		| (((long)(ssp->in_buf[4])) << 24);
-printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
-	}
+	ssp->id_busy = 0;
 
 	return ret;
 }
@@ -1216,6 +1150,9 @@ static void ss_start()
 	static char locked;
 	int s_id;
 	ss_type * ssp;
+	struct	fdisk_s	*fdp;
+	int partition;
+	dev_t dev;
 
 	s = sphi();
 	if(locked) {
@@ -1229,6 +1166,13 @@ static void ss_start()
 		s_id = DEV_SCSI_ID(bp->b_dev);
 		ssp = ss[s_id];
 		ssp->bp = bp;
+		dev = bp->b_dev;
+		partition = DEV_PARTN(dev);
+		fdp = ssp->parmp;
+		if (partition != WHOLE_DRIVE)
+			ssp->bno = fdp[partition].p_base + bp->b_bno;
+		else
+			ssp->bno = bp->b_bno;
 		if (!(ssp->id_busy)) {
 			ssq_rm_head();
 			ssp->id_busy = 1;
@@ -1268,34 +1212,6 @@ int s_id;
 		ssp->bp = NULL;
 	}
 	ss_start();
-}
-
-/*
- * read_pt()
- *
- * Read partition table for a device.
- *
- * Return 1 if command succeeds, else 0.
- */
-static int read_pt(s_id)
-int s_id;
-{
-	int ret = 0;
-	ss_type * ssp = ss[s_id];
-
-	ssp->cmdbuf[0] = ScmdREADEXTENDED;
-	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
-	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[7] = ssp->cmdbuf[9] = 0;
-	ssp->cmdbuf[8] = 1;	/* transfer 1 block */
-	ssp->cmdlen = G1CMDLEN;
-	ssp->in_buf_len = BSIZE;
-
-	ret = scsicmd(s_id);
-	if (ret) {
-printf("signature low:%x high:%x\n", ssp->in_buf[510], ssp->in_buf[511]);
-	}
-
-	return ret;
 }
 
 /*
@@ -1402,23 +1318,32 @@ printf("R%d", s_id);
 static void reconnect(s_id)
 int s_id;
 {
+	uchar dat;
 	int cmd_ok = 0;
 	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
 
-	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
-	if (bus_wait(RS_SELECT << 8 | 0)) {
-		sfbyte(ss_csr, WC_ENABLE_SCSI);
-		if (bus_info_xfer(ssp) && ssp->cmdstat == CS_GOOD)
-			cmd_ok = 1;
+	dat = ffbyte(ss_dat);
+	if ((dat & HOST_ID) && (dat & (1 << s_id))) {
+		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+		if (bus_wait(RS_SELECT << 8 | 0)) {
+			sfbyte(ss_csr, WC_ENABLE_SCSI);
+			cmd_ok = bus_info_xfer(ssp);
+			if (bp->b_req == BREAD)
+				bp->b_resid -= ssp->data_bytes_in;
+			else
+				bp->b_resid -= ssp->data_bytes_out;
+			if (cmd_ok && ssp->cmdstat == CS_GOOD) {
+				if (ssp->msg_in == MSG_DISCONNECT)
+					ssp->dr_watch = WATCHDOG_SECONDS;
+				else
+					ss_done(s_id);
+			} else {
+				bp->b_flag |= BFERR;
+				ss_done(s_id);
+			}
+		}
 	}
-/* This is not finished: dr_watch, bdone, id_busy, etc. 
-and what of another disconnect??? */
-/* no disconnect allowed for inquiry, test ready, read capacity, etc. */
-		bp->b_resid -= BSIZE;
-	if (cmd_ok)
-	if (ssp->msg_in != MSG_DISCONNECT)
-		ssp->dr_watch = WATCHDOG_SECONDS;
-
 }
 
 /*
@@ -1442,10 +1367,15 @@ int s_id;
 		ssp->out_buf_len = bp->b_count;
 		ssp->out_buf = FP_OFF(bp->b_faddr);
 	}
-	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
-	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[9] = 0;
+	ssp->cmdbuf[1] = 0;
+	ssp->cmdbuf[2] = ssp->bno >> 24;
+	ssp->cmdbuf[3] = ssp->bno >> 16;
+	ssp->cmdbuf[4] = ssp->bno >>  8;
+	ssp->cmdbuf[5] = ssp->bno;
+	ssp->cmdbuf[6] = 0;
 	ssp->cmdbuf[7] = bp->b_count / (BSIZE * 256L);
 	ssp->cmdbuf[8] = bp->b_count / BSIZE;
+	ssp->cmdbuf[9] = 0;
 	ssp->cmdlen = G1CMDLEN;
 	if (retval = bus_pre_xfer(s_id)) {
 		bus_info_xfer(ssp);
