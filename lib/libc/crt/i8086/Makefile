@@ -1,7 +1,6 @@
-# /usr/src/libc/crt/i8086/Makefile 4/29/92
+# /usr/src/libc/crt/i8086/Makefile 7/16/92
 
 OBJ=\
-	_prof.o\
 	blkmv.o\
 	count.o\
 	ddxad.o\
@@ -41,7 +40,6 @@ CRTI8086:	$(OBJ)
 	: libc/crt/i8086 done.
 
 # Secondary targets.
-_prof.o:	_prof.c
 blkmv.o:	blkmv.s
 count.o:	count.s
 ddxad.o:	ddxad.s
