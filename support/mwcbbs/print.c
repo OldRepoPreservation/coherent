@@ -171,7 +171,7 @@ char choice, dummy;
 		year = atoi(new_date);
 
 
-if ((choice != 'y') || ((choice == 'y') && ((month > cmp_month) && (year >= cmp_year))))
+if ((choice != 'y') || ((choice == 'y') && ((month > cmp_month) && (year >= cmp_year) || (year > cmp_year) )))
 			{
 			fprintf(outfp,"\nFILE: %15s\t\tDATE: %d/%d/%d\t\tSIZE: %s\n\n",
 				record.filename, month, day, year ,record.filesize);
