@@ -33,8 +33,10 @@ int x;
 				break;
 			if(argv[1][x] == '?')
 				{
-				printf("Usage:\tmwcbbs [Pp]");
+				printf("Usage:\tmwcbbs [options]\n");
+				printf("\t -P:	print Contents files\n");
 				printf("\t -p:	print Contents files\n");
+				printf("\t -?:	usage message\n");
 				exit(1);
 				}
 			}
