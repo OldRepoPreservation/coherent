@@ -7,7 +7,7 @@
 
 extern char    buffer[];
 
-
+
 /*
  * get_termcap:
  *	read next termcap entry into buffer from standard input.

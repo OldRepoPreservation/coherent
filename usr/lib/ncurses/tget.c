@@ -14,6 +14,7 @@ extern char    buffer[];
  *	similar to index/strchr, except that if char not found, returns
  *	pointer to null at end of string, instead of a null pointer.
  */
+
 char *
 scan (s, c)
 register char	*s;
@@ -24,11 +25,13 @@ register char	c;
     return (s);
 }
 
+
 /* findcap:
  * 	returns pointer to just after capname (trailing ':' for flags,
  *	'#' for nums, '=' for strs, '@' for disabled stuff) or to null
  *	 after termcap if not found.
  */
+
 char *
 findcap (capname)
 char	*capname;
@@ -54,10 +57,12 @@ char	*capname;
     return (bptr);
 }
 
+
 /*
  * tgetname:
  *	store name of termcap entry in name
  */
+
 tgetname (name)
 char	*name;
 {
@@ -70,10 +75,12 @@ char	*name;
     *(name) = '\0';
 }
 
+
 /*
  * tgetflag:
  *	return 1 if capname present, 0 otherwise, -1 if '@'ed.
  */
+
 int
 tgetflag (capname)
 char	*capname;
@@ -89,10 +96,12 @@ char	*capname;
 	return (1);
 }
 
+
 /*
  * tgetnum:
  *	return value of capname, -1 if not present, -2 if '@'ed.
  */
+
 int
 tgetnum (capname)
 char	*capname;
@@ -116,11 +125,13 @@ char	*capname;
 	return (-1);
 }
 
+
 /*
  * tgetstr:
  *	store binary value of capname into value, store null if
  *	not present, store "@" if '@'ed.
  */
+
 tgetstr (capname, value)
 char		*capname;
 register char	*value;

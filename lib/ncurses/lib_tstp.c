@@ -27,7 +27,10 @@
 **
 **	The routine tstp().
 **
-** $Log:	RCS/lib_tstp.v $
+** $Log:	lib_tstp.c,v $
+ * Revision 1.2  92/04/13  14:38:48  bin
+ * update by vlad
+ * 
  * Revision 2.1  82/10/25  14:49:39  pavel
  * Added Copyright Notice
  * 
@@ -37,9 +40,9 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_tstp.v  Revision 2.1  82/10/25  14:49:39  pavel  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_tstp.c,v 1.2 92/04/13 14:38:48 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"
@@ -65,10 +68,7 @@ tstp()
 
 	endwin();
 
-#ifdef COHERENT
-	kill(0, SIGTRAP);
-	signal(SIGTRAP, tstp);
-#else
+#ifdef SIGTSTP
 	kill(0, SIGTSTP);
 	signal(SIGTSTP, tstp);
 #endif

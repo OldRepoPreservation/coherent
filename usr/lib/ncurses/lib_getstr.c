@@ -27,7 +27,10 @@
 **
 **	The routine wgetstr().
 **
-** $Log:	RCS/lib_getstr.v $
+** $Log:	lib_getstr.c,v $
+ * Revision 1.2  92/04/13  14:37:34  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  19:07:12  munk
  * Usage of register variables
  *
@@ -40,9 +43,9 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_getstr.v  Revision 2.2  91/04/20  19:07:12  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_getstr.c,v 1.2 92/04/13 14:37:34 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"

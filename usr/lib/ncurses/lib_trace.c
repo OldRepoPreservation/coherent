@@ -25,7 +25,10 @@
 /*
  *	lib_trace.c - Tracing/Debugging routines
  *
- *  $Log:	RCS/lib_trace.v $
+ *  $Log:	lib_trace.c,v $
+ * Revision 1.2  92/04/13  14:38:45  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  22:00:18  munk
  * Usage of register variables
  * Made the large arrays static
@@ -48,17 +51,17 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-    "$Header:   RCS/lib_trace.v  Revision 2.2  82/10/25  22:00:18  munk   Exp$";
+    "$Header: /src386/usr/lib/ncurses/RCS/lib_trace.c,v 1.2 92/04/13 14:38:45 bin Exp Locker: bin $";
 #endif
 
 #include "term.h"
 #include "curses.h"
 #include "curses.priv.h"
 
-
 static int	tracefd;
+
 
 _init_trace()
 {

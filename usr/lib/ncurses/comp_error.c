@@ -25,7 +25,10 @@
 /*
  *	comp_error.c -- Error message routines
  *
- *  $Log:	RCS/comp_error.v $
+ *  $Log:	comp_error.c,v $
+ * Revision 1.2  92/04/13  14:35:55  bin
+ * update by vlad
+ * 
  * Revision 2.1  82/10/25  14:45:31  pavel
  * Added Copyright Notice
  * 
@@ -44,15 +47,16 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/comp_error.v  Revision 2.1  82/10/25  14:45:31  pavel  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_error.c,v 1.2 92/04/13 14:35:55 bin Exp Locker: bin $";
 #endif
 
 #include "compiler.h"
 
 extern char *string_table;
 extern short term_names;
+
 
 warning(fmt, a1, a2, a3, a4, a5, a6)
 char	*fmt, *a1, *a2, *a3, *a4, *a5, *a6;

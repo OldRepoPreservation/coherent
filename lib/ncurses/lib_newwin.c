@@ -28,6 +28,10 @@
 **	The routines newwin(), subwin() and their dependent
 **
 ** $Log:	lib_newwin.c,v $
+ * Revision 2.3  92/11/08  15:33:25  munk
+ * Correct definition of calloc() and malloc()
+ * and usage of cast operator
+ *
  * Revision 1.5  92/06/02  12:05:26  bin
  * *** empty log message ***
  * 
@@ -46,16 +50,19 @@
 **
 */
 
+#ifdef RCSHDR
+static char RCSid[] =
+	"$Header:   RCS/lib_newwin.v  Revision 2.3  92/11/08  15:46:35  munk   Exp$";
+#endif
+
 #include "term.h"
 #include "curses.h"
 #include "curses.priv.h"
 
-short	*calloc();
-#ifndef COHERENT
-WINDOW	*malloc();
-#endif
+char	*calloc(), *malloc();
 
 static WINDOW	*makenew();
+
 
 WINDOW *
 newwin(num_lines, num_columns, begy, begx)
@@ -108,19 +115,18 @@ int	num_lines, num_columns, begy, begx;
 }
 
 
-
 WINDOW *
 subwin(orig, num_lines, num_columns, begy, begx)
-WINDOW	*orig;
+register WINDOW	*orig;
 int	num_lines, num_columns, begy, begx;
 {
 	register WINDOW	*win;
-	register int	i;
-	int		j, k;
+	int		i, j, k;
 
 #ifdef TRACE
 	if (_tracing)
-	    _tracef("subwin(%d,%d,%d,%d) called", num_lines, num_columns, begy, begx);
+	    _tracef("subwin(%d,%d,%d,%d) called",
+	    	 num_lines, num_columns, begy, begx);
 #endif
 	/* no negative displacments */
 	if ((0 > (j = begy)) || (0 > (k = begx)))
@@ -132,16 +138,14 @@ int	num_lines, num_columns, begy, begx;
 	if (!num_columns)
 	    num_columns = orig->_maxx - begx;
 
-	/* absolute location */
+	/* turn relative location to absolute location */
 	begx += orig->_begx;
 	begy += orig->_begy;
 
-	if ((0 > num_lines) || (0 > num_columns))
-		return(ERR);
-	/*
-	** make sure window fits inside the original one
-	*/
-	if (((begy + num_lines) > (orig->_begy + orig->_maxy)) ||
+	/* more sanity checks */
+	if ((0 > num_lines) || 
+	    (0 > num_columns) ||
+	    ((begy + num_lines) > (orig->_begy + orig->_maxy)) ||
 	    ((begx + num_columns) > (orig->_begx + orig->_maxx)))
 		return(ERR);
 
@@ -180,7 +184,7 @@ int	num_lines, num_columns, begy, begx;
 		return(ERR);
 	}
 
-	if ((win->_firstchar = calloc(num_lines, sizeof(short))) == NULL)
+	if ((win->_firstchar = (short *) calloc(num_lines, sizeof(short))) == NULL)
 	{
 		free(win->_line);
 		free(win);
@@ -188,7 +192,7 @@ int	num_lines, num_columns, begy, begx;
 		return(ERR);
 	}
 
-	if ((win->_lastchar = calloc(num_lines, sizeof(short))) == NULL)
+	if ((win->_lastchar = (short *) calloc(num_lines, sizeof(short))) == NULL)
 	{
 		free(win->_firstchar);
 		free(win->_line);
@@ -197,7 +201,7 @@ int	num_lines, num_columns, begy, begx;
 		return(ERR);
 	}
 
-	if ((win->_numchngd = calloc(num_lines, sizeof(short))) == NULL)
+	if ((win->_numchngd = (short *) calloc(num_lines, sizeof(short))) == NULL)
 	{
 		free(win->_lastchar);
 		free(win->_firstchar);

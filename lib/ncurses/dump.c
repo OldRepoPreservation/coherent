@@ -27,6 +27,9 @@
  *		 human-readable format.
  *
  *  $Log:	dump.c,v $
+ * Revision 1.4  92/06/02  12:04:49  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:36:41  bin
  * update by vlad
  * 
@@ -51,9 +54,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/dump.c,v 1.2 92/04/13 14:36:41 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/dump.c,v 1.4 92/06/02 12:04:49 bin Exp Locker: bin $";
 #endif
 
 #include "compiler.h"
@@ -61,6 +64,7 @@ static char RCSid[] =
 
 extern char *BoolNames[BOOLCOUNT], *NumNames[NUMCOUNT], *StrNames[STRCOUNT];
 struct term _first_term;
+
 
 main(argc, argv)
 int	argc;

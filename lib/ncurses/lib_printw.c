@@ -27,7 +27,10 @@
 **
 **	The routines printw(), wprintw() and friend.
 **
-** $Log:	RCS/lib_printw.v $
+** $Log:	lib_printw.c,v $
+ * Revision 1.2  92/04/13  14:38:17  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/01/27  15:17:12  munk
  * Rewritten for COHERENT and portable usage of variable arguments
  *
@@ -40,15 +43,16 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_printw.v  Revision 2.2  91/01/27  15:17:12  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_printw.c,v 1.2 92/04/13 14:38:17 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
 #include "curses.priv.h"
 
 static char buf[512];
+
 
 printw(string)
 char	*string;
@@ -61,7 +65,6 @@ char	*string;
 	sprintf(buf, "%r", (char **) &string);
 	return(waddstr(stdscr, buf));
 }
-
 
 
 wprintw(win, string)
@@ -78,7 +81,6 @@ char	*string;
 }
 
 
-
 mvprintw(y, x, string)
 int		y, x;
 char		*string;
@@ -88,7 +90,6 @@ char		*string;
 	sprintf(buf, "%r", (char **) &string);
 	return(waddstr(stdscr, buf));
 }
-
 
 
 mvwprintw(win, y, x, string)
@@ -101,4 +102,3 @@ char	*string;
 	sprintf(buf, "%r", (char **) &string);
 	return(waddstr(win, buf));
 }
-

@@ -28,6 +28,9 @@
  *			etc.
  *
  *   $Log:	comp_parse.c,v $
+ * Revision 1.5  92/06/02  12:04:31  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:36:22  bin
  * update by vlad
  * 
@@ -55,9 +58,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/comp_parse.c,v 1.2 92/04/13 14:36:22 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_parse.c,v 1.5 92/06/02 12:04:31 bin Exp Locker: bin $";
 #endif
 
 #include <sys/types.h>
@@ -67,7 +70,6 @@ static char RCSid[] =
 #include "compiler.h"
 #include "term.h"
 #include "object.h"
-
 
 char	*string_table;
 int	next_free;	/* next free character in string_table */
@@ -111,6 +113,7 @@ int			use_count = 0;
  *	          use_list
  *
  */
+
 
 /*
  *	compile()
@@ -191,6 +194,7 @@ compile()
 	    exit(1);
 	}
 }
+
 
 dump_list(str)
 char *str;
@@ -355,7 +359,6 @@ struct use_item	*item_ptr;
 }
 
 
-
 /*
  *	enqueue(offset)
  *
@@ -391,7 +394,6 @@ long	offset;
 
 	use_count ++;
 }
-
 
 
 /*
@@ -549,7 +551,6 @@ short	Strings[];
 	    }
 	}
 }
-
 
 
 /*
@@ -739,6 +740,7 @@ short	Numbers[], Strings[];
 **	Returned value is 0 if it was a backward link and we
 **	successfully read it in, -1 if a forward link.
 */
+
 int
 handle_use(item_ptr, entry_offset, Booleans, Numbers, Strings)
 long		entry_offset;

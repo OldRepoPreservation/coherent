@@ -25,7 +25,10 @@
 /*
  *	comp_scan.c --- Lexical scanner for terminfo compiler.
  *
- *   $Log:	RCS/comp_scan.v $
+ *   $Log:	comp_scan.c,v $
+ * Revision 1.2  92/04/13  14:36:34  bin
+ * update by vlad
+ * 
  * Revision 2.1  82/10/25  14:45:55  pavel
  * Added Copyright Notice
  * 
@@ -44,9 +47,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/comp_scan.v  Revision 2.1  82/10/25  14:45:55  pavel  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/comp_scan.c,v 1.2 92/04/13 14:36:34 bin Exp Locker: bin $";
 #endif
 
 #include <stdio.h>
@@ -55,11 +58,9 @@ static char RCSid[] =
 
 #define iswhite(ch)	(ch == ' '  ||  ch == '\t')
 
-
 static int	first_column;		/* See 'next_char()' below */
 
 
-
 /*
  *	int
  *	get_token()
@@ -240,7 +241,6 @@ get_token()
 }
 
 
-
 /*
  *	char
  *	next_char()
@@ -300,7 +300,6 @@ backspace()
 }
 
 
-
 /*
  *	reset_input()
  *
@@ -314,7 +313,6 @@ reset_input()
 }
 
 
-
 /*
  *	char
  *	trans_string(ptr)
@@ -437,9 +435,11 @@ char	*ptr;
 	return(ch);
 }
 
+
 /*
  * Panic mode error recovery - skip everything until a "ch" is found.
  */
+
 panic_mode(ch)
 char ch;
 {

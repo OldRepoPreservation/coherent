@@ -27,7 +27,13 @@
 **
 **	The routine waddch().
 **
-** $Log:	RCS/lib_addch.v $
+** $Log:	lib_addch.c,v $
+ * Revision 2.3  92/11/01  15:55:32  munk
+ * Second parameter is a chtype now
+ *
+ * Revision 1.2  92/04/13  14:36:58  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/04/20  17:52:20  munk
  * Usage of register variables
  *
@@ -40,9 +46,9 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_addch.v  Revision 2.2  91/04/20  17:52:20  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_addch.c,v 1.2 92/04/13 14:36:58 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
@@ -50,13 +56,12 @@ static char RCSid[] =
 #include "unctrl.h"
 
 
-waddch(win, c)
+waddch(win, ch)
 register WINDOW *win;
-char	c;
+chtype	ch;
 {
 	register int	x, y;
 	int		newx;
-	chtype		ch = c;
 
 #ifdef TRACE
 	if (_tracing)

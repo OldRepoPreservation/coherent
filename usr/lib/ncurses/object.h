@@ -23,7 +23,7 @@
 *********************************************************************/
 
 /*
-** $Header:   RCS/object.v  Revision 2.1  82/10/25  14:49:50  pavel  Exp$
+** $Header: /src386/usr/lib/ncurses/RCS/object.h,v 1.2 92/04/13 14:40:12 bin Exp Locker: bin $
 **
 **	object.h - Format of compiled terminfo files
 **
@@ -46,25 +46,27 @@
 **	read_entry() automatically fixes this up on machines which don't use
 **	this system (I hope).
 **
-**  $Log:	RCS/object.v $
-Revision 2.1  82/10/25  14:49:50  pavel
-Added Copyright Notice
-
-Revision 2.0  82/10/24  15:18:19  pavel
-Beta-one Test Release
-
-Revision 1.3  82/08/23  22:31:12  pavel
-The REAL Alpha-one Release Version
-
-Revision 1.2  82/08/19  19:10:18  pavel
-Alpha Test Release One
-
-Revision 1.1  82/08/12  18:48:55  pavel
-Initial revision
-
+**  $Log:	object.h,v $
+ * Revision 1.2  92/04/13  14:40:12  bin
+ * *** empty log message ***
+ * 
+ * Revision 2.1  82/10/25  14:49:50  pavel
+ * Added Copyright Notice
+ * 
+ * Revision 2.0  82/10/24  15:18:19  pavel
+ * Beta-one Test Release
+ * 
+ * Revision 1.3  82/08/23  22:31:12  pavel
+ * The REAL Alpha-one Release Version
+ * 
+ * Revision 1.2  82/08/19  19:10:18  pavel
+ * Alpha Test Release One
+ * 
+ * Revision 1.1  82/08/12  18:48:55  pavel
+ * Initial revision
+ * 
 **
 */
-
 
 #define MAGIC	0432
 

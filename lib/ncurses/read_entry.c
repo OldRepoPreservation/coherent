@@ -26,6 +26,9 @@
  *	read_entry.c -- Routine for reading in a compiled terminfo file
  *
  *  $Log:	read_entry.c,v $
+ * Revision 1.2  92/04/13  14:39:01  bin
+ * update by vlad
+ * 
  * Revision 3.2  91/07/28  14:12:20  munk
  * Made the large arrays static
  *
@@ -50,9 +53,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: read_entry.c,v 3.2 91/07/28 14:12:20 munk Exp $";
+	"$Header: /src386/usr/lib/ncurses/RCS/read_entry.c,v 1.2 92/04/13 14:39:01 bin Exp Locker: bin $";
 #endif
 
 #include <sys/types.h>
@@ -226,7 +229,6 @@ struct term	*ptr;
 }
 
 
-
 /*
  *	int
  *	must_swap()

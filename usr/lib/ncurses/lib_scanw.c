@@ -27,7 +27,10 @@
 **
 **	The routines scanw(), wscanw() and friend.
 **
-** $Log:	RCS/lib_scanw.v $
+** $Log:	lib_scanw.c,v $
+ * Revision 1.2  92/04/13  14:38:23  bin
+ * update by vlad
+ * 
  * Revision 2.2  91/01/27  15:17:12  munk
  * Rewritten for COHERENT and portable usage of variable arguments
  *
@@ -40,15 +43,15 @@
 **
 */
 
-#define VARARGS	v1, v2, v3, v4, v5, v6, v7, v8, v9, v10
-
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_scanw.v  Revision 2.2  91/01/27  15:17:12  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_scanw.c,v 1.2 92/04/13 14:38:23 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
 #include "curses.priv.h"
+
+#define VARARGS	v1, v2, v3, v4, v5, v6, v7, v8, v9, v10
 
 
 scanw(fmt, VARARGS)
@@ -62,7 +65,6 @@ int	VARARGS;
 
 	return(sscans(stdscr, fmt, VARARGS));
 }
-
 
 
 wscanw(win, fmt, VARARGS)
@@ -79,7 +81,6 @@ int	VARARGS;
 }
 
 
-
 mvscanw(y, x, fmt, VARARGS)
 int	y, x;
 char	*fmt;
@@ -87,7 +88,6 @@ int	VARARGS;
 {
 	return(move(y, x) == OK ? sscans(stdscr, fmt, VARARGS) : ERR);
 }
-
 
 
 mvwscanw(win, y, x, fmt, VARARGS)
@@ -100,7 +100,6 @@ int	VARARGS;
 }
 
 
-
 /*
 **	This routine actually executes the scanf from the window.
 */

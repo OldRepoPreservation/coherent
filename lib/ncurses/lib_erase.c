@@ -27,7 +27,10 @@
 **
 **	The routine werase().
 **
-** $Log:	RCS/lib_erase.v $
+** $Log:	lib_erase.c,v $
+ * Revision 1.2  92/04/13  14:37:27  bin
+ * update by vlad
+ * 
  * Revision 2.3  91/04/20  18:32:50  munk
  * Usage of register variables
  *
@@ -43,14 +46,13 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_erase.v  Revision 2.3  91/04/20  18:32:50  munk   Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_erase.c,v 1.2 92/04/13 14:37:27 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
 #include "curses.priv.h"
-
 
 
 werase(win)

@@ -28,6 +28,9 @@
 **	The routine box().
 **
 ** $Log:	lib_box.c,v $
+ * Revision 1.5  92/06/02  12:04:59  bin
+ * *** empty log message ***
+ * 
  * Revision 1.2  92/04/13  14:37:07  bin
  * update by vlad
  * 
@@ -43,14 +46,13 @@
 **
 */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header: /src386/usr/lib/ncurses/RCS/lib_box.c,v 1.2 92/04/13 14:37:07 bin Exp Locker: bin $";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_box.c,v 1.5 92/06/02 12:04:59 bin Exp Locker: bin $";
 #endif
 
 #include "curses.h"
 #include "curses.priv.h"
-
 
 
 box(win, vert, hor)

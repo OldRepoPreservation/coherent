@@ -25,7 +25,10 @@
 /*
  * define unctrl codes for each character
  *
- *  $Log:	RCS/lib_unctrl.v $
+ *  $Log:	lib_unctrl.c,v $
+ * Revision 1.2  92/04/13  14:38:51  bin
+ * update by vlad
+ * 
  * Revision 2.1  82/10/25  14:49:42  pavel
  * Added Copyright Notice
  * 
@@ -44,9 +47,9 @@
  *
  */
 
-#ifndef COHERENT
+#ifdef RCSHDR
 static char RCSid[] =
-	"$Header:   RCS/lib_unctrl.v  Revision 2.1  82/10/25  14:49:42  pavel  Exp$";
+	"$Header: /src386/usr/lib/ncurses/RCS/lib_unctrl.c,v 1.2 92/04/13 14:38:51 bin Exp Locker: bin $";
 #endif
 
 /* LINTLIBRARY */
