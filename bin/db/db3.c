@@ -86,11 +86,13 @@ command(vp) register VAL *vp;
 			     : signame[sig]);
 		return 1;
 
-	/* :h		Print help info */
+	/* :h[f]		Print help info */
 	case 'h':
+		if ((c = getn()) != 'f')
+			ungetn(c);
 		if (getn() != '\n')
 			break;
-		helpinfo();
+		helpinfo(c == 'f');
 		return 1;
 
 	/* [n]:k	??? send a signal ??? */
@@ -204,99 +206,90 @@ command(vp) register VAL *vp;
 char *
 conform(sp, s, t1, t2) register char *sp; int s, t1, t2;
 {
-	int n;
 	register char *lp;
-	unsigned char c[1];
+	char c;
+	unsigned char uc;
+	short sh;
+	unsigned short us;
+	int  i;
+	unsigned int ui;
+	long l;
 	unsigned char v[3];
-	unsigned short h[1];
 	ADDR_T p;
-	int  i[1];
-	long l[1];
 #ifndef	NOFP
-	float f[1];
-	double d[1];
-	struct _fpreg fpreg[1];
+	float f;
+	double d;
+	struct _fpreg fpreg;
 #endif
 
-	dbprintf(("conform(... s=%d t1=%c t2=%c)\n",s, t1, t2));
+	dbprintf(("conform(... s=%d t1=%c t2=%c)\n", s, t1, t2));
 	switch (t1) {
 
 	case 'b':				/* byte */
-		if (getb(s, c, sizeof(c)) == 0)
+		if (getb(s, &uc, sizeof(uc)) == 0)
 			return NULL;
-		modsize = sizeof(c);
+		modsize = sizeof(uc);
 
-		/*
-		 * There should be a better way to do this.
-		 */
+		/* Sign-extend or 0-extend depending on display format. */
 		if (t2 != 'd')
-			i[0] = c[0];
-		else {
-			char x[1];
-
-			x[0] = c[0];
-			i[0] = x[0];
-		}
-		sprintf(sp, get_format(t1, t2), i[0]);
+			i = ui = (unsigned int)uc;
+		else
+			i = c = uc;
+		sprintf(sp, get_format(t1, t2), i);
 		break;
 	case 'c':				/* char with escapes */
-		if (getb(s, c, sizeof(c)) == 0)
+		if (getb(s, &uc, sizeof(uc)) == 0)
 			return NULL;
-		modsize = sizeof(c);
-		return printable(sp, c[0]);
+		modsize = sizeof(uc);
+		return printable(sp, uc);
 	case 'C':				/* char */
-		if (getb(s, c, sizeof(c)) == 0)
+		if (getb(s, &uc, sizeof(uc)) == 0)
 			return NULL;
-		modsize = sizeof(c);
-		*sp++ = (c[0] >= 040 && c[0] < 0177) ? c[0] : '.';
+		modsize = sizeof(uc);
+		*sp++ = (uc >= 0x20 && uc < 0x7F) ? uc : '.';
 		return sp;
 #ifndef	NOFP
 	case 'f':				/* float */
-		if (getb(s, (char *)f, sizeof(f)) == 0)
+		if (getb(s, (char *)&f, sizeof(f)) == 0)
 			return NULL;
 		modsize = sizeof(f);
-		sprintf(sp, get_format(t1, t2), f[0]);
+		sprintf(sp, get_format(t1, t2), f);
 		break;
 	case 'F':				/* double */
-		if (getb(s, (char *)d, sizeof(d)) == 0)
+		if (getb(s, (char *)&d, sizeof(d)) == 0)
 			return NULL;
 		modsize = sizeof(d);
-		sprintf(sp, get_format(t1, t2), d[0]);
+		sprintf(sp, get_format(t1, t2), d);
 		break;
 	case 'N':				/* NDP fp register */
-		if (getb(s, (char *)fpreg, sizeof(fpreg)) == 0)
+		if (getb(s, (char *)&fpreg, sizeof(fpreg)) == 0)
+			return NULL;
+		if (get_fp_reg(&fpreg, &d) == 0)
 			return NULL;
 		modsize = sizeof(fpreg);
-		d[0] = get_fp_reg(fpreg);
-		sprintf(sp, get_format('F', t2), d[0]);
+		sprintf(sp, get_format('F', t2), d);
 		break;
 #endif
 	case 'h':
-		if (getb(s, (char *)h, sizeof(h)) == 0)
+		if (getb(s, (char *)&us, sizeof(us)) == 0)
 			return NULL;
-		modsize = sizeof(h);
+		modsize = sizeof(us);
 
-		/*
-		 * Oh well.
-		 */
+		/* Sign-extend or 0-extend depending on display format. */
 		if (t2 != 'd')
-			i[0] = h[0];
-		else {
-			short x[1];
-
-			x[0] = h[0];
-			i[0] = x[0];
-		}
-		sprintf(sp, get_format(t1, t2), i[0]);
+			i = ui = us;
+		else
+			i = sh = us;
+		sprintf(sp, get_format(t1, t2), i);
 		break;
 	case 'i':				/* machine instruction */
 		modsize = INLEN;
 		return disassemble(sp, s);
 	case 'l':				/* long */
-		if (getb(s, (char *)l, sizeof(l)) == 0)
+		if (getb(s, (char *)&l, sizeof(l)) == 0)
 			return NULL;
 		modsize = sizeof(l);
-		sprintf(sp, get_format(t1, t2), l[0]);
+		sprintf(sp, get_format(t1, t2), l);
 		break;
 	case 'p':				/* pointer */
 		if (getb(s, (char *)&p, sizeof(p)) == 0)
@@ -306,16 +299,15 @@ conform(sp, s, t1, t2) register char *sp; int s, t1, t2;
 	case 's':				/* string with escapes */
 	case 'S':				/* string */
 		lp = &sp[DISSIZE];
-		c[0] = '\0';
 		for (;;) {
-			if (getb(s, c, sizeof(c)) == 0)
+			if (getb(s, &uc, sizeof(uc)) == 0)
 				return NULL;
-			if (c[0] == '\0')
+			if (uc == '\0')
 				break;
 			if (t1 == 's')
-				sp = printable(sp, c[0]);
+				sp = printable(sp, uc);
 			else
-				*sp++ = c[0];
+				*sp++ = uc;
 			if (sp > lp)
 				return NULL;
 		}
@@ -325,15 +317,14 @@ conform(sp, s, t1, t2) register char *sp; int s, t1, t2;
 		if (getb(s, (char *)v, sizeof(v)) == 0)
 			return NULL;
 		modsize = sizeof(v);
-		l3tol(l, v, 1);
-		sprintf(sp, get_format(t1, t2), l[0]);
+		l3tol(&l, v, 1);
+		sprintf(sp, get_format(t1, t2), l);
 		break;
 	case 'w':				/* word */
-		n = (IS_LOUT) ? sizeof(short) : sizeof(int);
-		if (getb(s, (char *)i, n) == 0)
+		if (getb(s, (char *)&us, sizeof(us)) == 0)
 			return NULL;
-		modsize = n;
-		sprintf(sp, get_format(t1, t2), (IS_LOUT) ? (unsigned short)i[0] : i[0]);
+		modsize = sizeof(us);
+		sprintf(sp, get_format(t1, t2), (int)us);
 		break;
 	case 'Y':				/* time */
 		modsize = sizeof(i);
@@ -355,6 +346,7 @@ display(s, n) int s, n;
 	register char *sp3, *fp;
 	register ADDR_T nad, pad, uad;
 
+	dbprintf(("display(%d, %d) dot=%x\n", s, n, dot));
 	r = 1;
 	t2 = '\0';
 	add = nad = pad = uad = dot;
@@ -503,14 +495,38 @@ flushb(addr) ADDR_T addr;
 
 /*
  * Display help info.
+ * The flag is false for :h, true for :hf.
  */
 void
-helpinfo()
+helpinfo(flag) int flag;
 {
-	printf(
-		"Requests:\n"
+	printf(flag
+	 ?	"[addr][,n]?[ft]\tDisplay formatted information.\n"
+		"Display formats:\n"
+		"\tb\tbyte\n"
+		"\tc\tchar, control and non-chars escaped\n"
+		"\tC\tchar, control and non-chars print as '.'\n"
+		"\td\tdecimal\n"
+		"\tf\tfloat\n"
+		"\tF\tdouble\n"
+		"\ti\tdisassembled machine instruction\n"
+		"\tl\tlong\n"
+		"\tn\toutput '\\n'\n"
+		"\tN\tNDP (80387) floating point register (10 bytes)\n"
+		"\to\toctal\n"
+		"\tp\tsymbolic address\n"
+		"\ts\tstring (NUL-terminated) with escapes\n"
+		"\tS\tstring (NUL-terminated)\n"
+		"\tu\tunsigned\n"
+		"\tv\tfilesystem l3 block address (3 bytes)\n"
+		"\tw\tword\n"
+		"\tx\thexadecimal\n"
+		"\tY\ttime\n"
+		"[doux] specify numeric bases (decimal, octal, unsigned decimal, hexadecimal).\n"
+		"Each may be followed by [bwl] to indicate a datum size [byte, word, long].\n"
+	 :	"Requests:\n"
 		"\t[addr][,n]?[ft]\tDisplay formatted information.\n"
-		"\t\t\tFormats: bcCdfFilnNOpsSuwxY\n"
+		"\t\t\tFormats: bcCdfFilnNopsSuvwxY [see :hf for details]\n"
 		"\taddr?\t\tPrint address\n"
 		"\t[addr]=\t\tPrint address\n"
 		"\t[addr]=val...\tPatch address with val...\n"
@@ -523,7 +539,7 @@ helpinfo()
 		"\t[addr]:d[r][s]\tDelete breakpoint\n"
 		"\t[addr]:e args\tExecute\n"
 		"\t:f\t\tPrint fault type\n"
-		"\t:h\t\tPrint help information\n"
+		"\t:h[f]\t\tPrint help information [about display formats]\n"
 /*		"\t:k\t\t???\n"	*/
 		"\t:m\t\tPrint segmentation map\n"
 #ifndef	NOCANON
@@ -539,14 +555,14 @@ helpinfo()
 }
 
 /*
- * Get the current time.
+ * Get a long representing the current time and convert it.
  */
 char *
 gettime(sp, s) register char *sp; int s;
 {
 	long l;
 
-	if (getb(s, (char *) &l, sizeof(l)) == 0)
+	if (getb(s, (char *)&l, sizeof(l)) == 0)
 		return NULL;
 	memcpy(sp, ctime(&l), 24);
 	return sp + 24;
@@ -912,11 +928,13 @@ request()
 			if ((c = getn()) == '=') {
 				l = lvalue(&val[0], dot);
 				if ((c = getn()) == '\n') {
+					dbprintf(("print seg=%d loc=%lx fmt=%s\n", segn, l, addr_fmt));
 					printx(addr_fmt, l);
 					printx("\n");
 					continue;
 				}
 				ungetn(c);
+				dbprintf(("assign to seg=%d loc=%lx\n", segn, l));
 				if (setdata(segn, l) == 0)
 					break;
 				continue;
@@ -928,6 +946,7 @@ request()
 					c = getn();
 				}
 				*cp++ = '\0';
+				dbprintf(("new seg_format[%d]=%s\n", segn, seg_format[segn]));
 			}
 			d = dot;
 			l = old_add;

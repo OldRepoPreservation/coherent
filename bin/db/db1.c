@@ -54,9 +54,10 @@ canlout()
 void
 initialize()
 {
-	strcpy(seg_format[DSEG], "w");
+	init_mch();
+	strcpy(seg_format[DSEG], "w");		/* patched in set_prog() if COFF */
 	strcpy(seg_format[ISEG], "i");
-	strcpy(seg_format[USEG], "w");
+	strcpy(seg_format[USEG], "w");		/* patched in set_prog() if COFF */
 	bpt_init();
 	reg_flag = R_INVALID;
 }
