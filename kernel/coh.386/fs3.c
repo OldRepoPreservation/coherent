@@ -77,7 +77,7 @@ register INODE *ip;
 /*
  * Given an inode, close it.
  */
-iclose(ip)
+iclose(ip, mode)
 register INODE *ip;
 {
 	ilock(ip);
@@ -90,7 +90,7 @@ register INODE *ip;
 		ilock(ip);
 		break;
 	case IFPIPE:
-		pclose(ip);
+		pclose(ip, mode);
 		break;
 	}
 	idetach(ip);
