@@ -46,8 +46,7 @@ register NODE *np;
 		NOTREACHED;
 	}
 
-	for ( ; np; np=np->n_next) {
-
+	for ( ; np != NULL; np=np->n_next) {
 	recover(ICMD);
 	f = 0;
 	nllflag = mynllflag;
@@ -95,8 +94,10 @@ register NODE *np;
 		break;
 	case NIF:
 		nllflag = 0;
-		if ( ! command(np->n_auxp->n_auxp))
+		if (!command(np->n_auxp->n_auxp))
 			np = np->n_auxp;
+		else if (np->n_next == NULL)
+			slret = 0;		/* exit status 0 if no elsepart */
 		continue;
 	case NELSE:
 		command(np->n_auxp);
@@ -160,7 +161,8 @@ register NODE *np;
 	}
 break2:
 	nllflag = mynllflag;
-	sesp->s_con = sesp->s_con->c_next;
+	if (sesp->s_con != NULL)
+		sesp->s_con = sesp->s_con->c_next;
 	if (f)
 		waitc(f);
 	if (slret)
@@ -170,7 +172,7 @@ break2:
 		reset(RUABORT);
 		NOTREACHED;
 	}
-	return (slret);
+	return slret;
 }
 
 /*
