@@ -28,7 +28,6 @@
 #include <time.h>
 #include <sys/timeb.h>
 
-
 #define	FEB	1
 #define	NWDAY	7		/* Number of weekdays */
 #define	NMON	12		/* Number of months */
@@ -41,8 +40,11 @@ static	char	dpm[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 static	int	dstadjust = 60*60;	/* In seconds */
 static	char	dsthour = 2;
 static	struct	dsttimes {
-	char dst_month, dst_day, dst_occur;
-} dsttimes[2];
+	char dst_occur, dst_day, dst_month;
+} dsttimes[2] = { 
+	{  1, 0, 3 },			/* First Sunday in April */
+	{ -1, 0, 9 }			/* Last Sunday in October */
+};
 static	char	months[3*NMON+1] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 static	char	timestr[] = "AAA AAA DD DD:DD:DD DDDD\n";
 static	struct	tm	tm;
