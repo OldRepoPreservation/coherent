@@ -3,11 +3,11 @@
  */
 
 #include	<coherent.h>
-#include	<buf.h>
+#include	<sys/buf.h>
 #include	<errno.h>
-#include	<uproc.h>
-#include	<seg.h>
-#include	<con.h>
+#include	<sys/uproc.h>
+#include	<sys/seg.h>
+#include	<sys/con.h>
 #include	<sys/inode.h>
 #include	<sys/stat.h>
 
