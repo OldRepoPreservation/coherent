@@ -1,13 +1,19 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__COMMON__WAIT_H__
 #define	__COMMON__WAIT_H__
 
 /*
- * This internal header file is intended as the sole point of definition for
- * the manifest constants and macros related to the POSIX.1 wait () system
- * call. The definitions of these constants and macros is kept here to avoid
- * entanglement in namespace-reservation issues.
+ * This internal header file defines the manifest constants and macros related
+ * to the POSIX.1 wait () system call.  These constants and macros are
+ * defined here to avoid entanglement in namespace-reservation issues.
  *
- * Note that the POSIX.1 standard does not require that the W... contants be
+ * Note that the POSIX.1 standard does not require that the W... constants be
  * integral constant expressions suitable for use in #if-expressions, so we
  * use that freedom to built enumerations instead.
  */

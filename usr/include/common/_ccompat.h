@@ -1,13 +1,20 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__COMMON__CCOMPAT_H__
 #define	__COMMON__CCOMPAT_H__
 
 /*
- * Define some handy things that allow us to work with K&R, ANSI and C++
- * compilers in a way that is at least less painful than not working. This
- * file does mandate an ANSI C pre-processing environment.
+ * This header defines some handy things that allow us to work with K&R,
+ * ANSI, and C++  * compilers in a way that is at least less painful than
+ * not working. This file does mandate an ANSI C pre-processing environment.
  *
- * While ANSI allows us to not define function prototypes, C++ mandates that
- * they exist, and it's a *really* good idea to use them whereever possible.
+ * Although ANSI allows us not to define function prototypes, C++ mandates that
+ * they exist, and it's a good idea to use them whereever possible.
  *
  * This file also deals with some compiler-specific features that are either
  * in the C or C++ language standards but not always available, and some
@@ -22,7 +29,7 @@
 
 
 /*
- * There is some complexity on the way __STDC__ is used in practice: the ANSI
+ * There is some complexity on the way __STDC__ is used in practice.  The ANSI
  * committee merely says that if __STDC__ is defined and value 1, then the
  * implementation is ISO-conforming.
  *
@@ -30,22 +37,22 @@
  * means that some non-conforming compilers which defined __STDC__ as zero
  * caused problems (the Coherent 3.x compiler is one such; the 4.x compiler
  * uses the alternate convention). The #if test is preferable in programs,
- * since in preprocessor tests undefined symbols assume value 0, but still
+ * because in preprocessor tests, undefined symbols assume value 0, but still
  * many programs use the alternate form.
  *
- * For compilers with an intermediate status, eg. with an ISO preprocessor,
- * or support for "const" but not prototypes, or prototypes but not "const"
- * we perform individual featurectomies below.
+ * For compilers with an intermediate status, e.g., with an ISO preprocessor,
+ * or support for "const" but not prototypes, or prototypes but not "const",
+ * we perform individual feature-ectomies below.
  *
  * A general rule for future extensions: use double-underscores before and
- * after for non-parameterized macros, double-underscores before for macros
- * that take parameters. If this file's definitions are to be used by user-
+ * after for non-parameterized macros, double-underscores to prefix macros
+ * that take parameters.  If this file's definitions are to be used by user-
  * level code, create a header that exports the definitions into the user
  * namespace.
  *
- * Jun '93 - split profile in two sections in anticipation of future growth.
- * We can't assume more than 16-bit arithmetic because of some extremely
- * losing preprocessors out there.
+ * June '93 - split profile into two sections in anticipation of future growth.
+ * We can't assume more than 16-bit arithmetic because some preprocessors
+ * are limited.
  */
 
 /* __STD_PROFILE__ bits */
@@ -62,13 +69,14 @@
 /* __MISC_PROFILE__ bits */
 #define	__NOTUSED_M__	0x0001	/* allows "not used" warning suppression */
 #define	__REGISTER_M__	0x0002	/* requires "register" declaration */
-#define	__LINKID_M__	0x0004	/* requires linkage specifier (eg C++) */
+#define	__LINKID_M__	0x0004	/* requires linkage specifier (e.g. C++) */
 #define	__INLINE_M__	0x0008	/* allows inline functions */
 #define	__INLINEL_M__	0x0010	/* allows inline functions with loops */
 #define	__DOTDOTDOT_M__	0x0020	/* requires (...) rather than () */
 #define	__NOMERGESTR_M__ 0x0040	/* cannot merge identical strings */
+#define	__ANONUNION_M__	0x0080	/* allows anonymous unions (e.g. C++) */
 
-#define	__MISC_PROFILE_MASK__	0x007F
+#define	__MISC_PROFILE_MASK__	0x00FF
 
 
 /*
@@ -93,7 +101,7 @@
  * fail to be maintainable when the matrix of features and translators grows
  * larger than about 3x3.
  *
- * Jun '93 - With the split into two parts, we still let people use the single
+ * June '93 - With the split into two parts, we still let people use the single
  * __PROFILE__ definition if their translator's preprocessor can deal with
  * 32-bit arithmetic.
  */
@@ -130,11 +138,12 @@
 #  define __STD_PROFILE__	__STDC_M__
 #  define __MISC_PROFILE__	(__NOTUSED_M__ | __LINKID_M__ | \
 				 __INLINE_M__ | __INLINEL_M__ | \
-				 __DOTDOTDOT_2M__)
+				 __DOTDOTDOT_M__ | __ANONUNION_M__)
 # else
 #  define __STD_PROFILE__	__STDC_M__
 #  define __MISC_PROFILE__	(__NOTUSED_M__ | __LINKID_M__ | \
-				 __INLINE_M__ | __DOTDOTDOT_M__)
+				 __INLINE_M__ | __DOTDOTDOT_M__ | \
+				 __ANONUNION_M__)
 # endif
 
 #elif	__BORLANDC__					/* Borland C */
@@ -150,7 +159,8 @@
 #elif	defined (__GNUC__)				/* GCC w/o C++ */
 
 # define  __STD_PROFILE__	__STDC_M__
-# define  __MISC_PROFILE__	(__INLINE_M__ | __INLINEL_M__)
+# define  __MISC_PROFILE__	(__INLINE_M__ | __INLINEL_M__ | \
+				 __ANONUNION_M__)
 
 #elif	__STDC__ + 0					/* minimal ANSI C */
 
@@ -172,8 +182,7 @@
 
 /*
  * In the following sections we determine the responses to take on the basis
- * of whether or not each feature/misfeature is supported by the current
- * translator.
+ * of whether the current translator supports each feature.
  *
  * In cases where the feature requires considerable change to source code,
  * such as prototyping and inline functions, we define both an existence
@@ -183,39 +192,44 @@
  * appear at all in the souce code unless unlining is supported (and because
  * often a macro may suffice in place, although with less safety).
  *
- * In addition, the tests below always check to see whether a particular
- * symbol is defined already, allowing almost any feature to be turned on or
- * off at will from the command-line. This is useful when testing the
- * characteristics of a new translator, and may often be useful to suppress
- * certain features to aid in debugging.
+ * In addition, the tests below always check whether a given symbol is defined
+ * already, which allow almost any feature to be turned on or off at will from
+ * the command-line.  This is useful when testing the characteristics of a new
+ * translator, and may often be useful to suppress certain features to aid in
+ * debugging.
  */
 
 /*
  * Some old Reiser preprocessors looked for macro-expansions unside quoted
  * strings; this was useful, but dangerous, so ISO C defined a new operator
- * for doing just this job. A tip of the hat to P.J. Plauger for the form of
+ * for doing just this job.  A tip of the hat to P.J. Plauger for the form of
  * these macros.
  */
 
 #ifndef	__STRING
 # if	__STD_PROFILE__ & __STRINGIZE_M__
 
-#  define __STRING(x)	__VALUE(x)
-#  define __VALUE(x)	#x
+#  define __STRING(x)	#x
+#  define __STRINGVAL(x) __STRING(x)
+#  define _HAVE_STRINGIZE	1
 
 # else
 
 #  define __STRING(x)	"x"
+#  define __STRINGVAL(x) __STRING(x)
 
 # endif
 #endif
 
 
 /*
- * As above, this is a feature supported in old systems by ill-advised hacks,
- * so ISO C has a special operator just for the job. We define __CONCAT3 ()
- * and __CONCAT4 () as primitives just for fun; it's handy, and nested calls
- * to __CONCAT () are just too messy to be practical.
+ * As above, this is a feature supported in old systems that ISO C implements
+ * in a special operator.  We define __CONCAT3 () and __CONCAT4 () as
+ * primitives just for fun; it's handy, and nested calls to __CONCAT () are
+ * just too messy to be practical.  Furthermore, many of the users of
+ * token-pasting need to be very careful about avoiding extra rescanning when
+ * building a composite token, because some of the intermediate steps may
+ * match other macros; sometimes this is useful, sometimes not.
  */
 
 #ifndef	__CONCAT
@@ -236,19 +250,19 @@
 
 
 /*
- * __USE_PROTO__ is a general test which can be performed in .c files to see
- * whether to use a prototype form or a K&R form, since the two are so
- * different. This has the advantage that some tools which are hard-wired for
- * K&R source code can get confused by macros in the function header, so
- * keeping a real K&R header around can help.
+ * __USE_PROTO__ is a general test that can be performed in .c files to see
+ * whether to use a prototype form or a K&R form, because the two are so
+ * different. Because some tools are hard-wired for K&R source code, they
+ * can be confused by macros in the function header; therefore, keeping a
+ * real K&R header around can help.
  *
- * __PROTO () is a macro that can be used in header files, since all that
- * differs between K&R and ANSI external definitions is whether the types
+ * __PROTO () is a macro that can be used in header files, because all that
+ * differs between K&R and ANSI external declarations is whether the types
  * are present.
  *
  * The difference between the two is important, especially when "lint"-like
- * tools are used. In order to check for consistency between the prototype
- * and K&R-style definitions, it may be necessary to enable prototypes in
+ * tools are used.  To check for consistency between the prototype and
+ * K&R-style definitions, it may be necessary to enable prototypes in
  * the header files while suppressing them in the C files.
  */
 
@@ -271,13 +285,10 @@
 
 
 /*
- * There are several existing compilers still in use which either do not
- * support the notion of a "const" language element or implement the feature
- * incorrectly with respect to the C standard.
- *
- * For these compilers, we allow the "const" specifier in prototypes, local
- * variables and structure declarations to be suppressed. Note that "const"
- * will never appear in a K&R function header.
+ * Several existing compilers either do not support the notion of a "const"
+ * language element.  For these compilers, we let you suppress the "const"
+ * specifier in prototypes, local variables, and structure declarations.  Note
+ * that "const" will never appear in a K&R function header.
  */
 
 #ifndef	__CONST__
@@ -295,12 +306,10 @@
 
 /*
  * For symmetry with the "const" definition, we provide a wrapper for the
- * "volatile" feature. Note that for some reason "volatile" is available in
- * some compilers that do not implement "const", probably because the feature
- * was defined in simpler terms.
- *
- * For these compilers, we allow the "volatile" specifier in prototypes,
- * local variables, and structure declarations to be suppressed.
+ * "volatile" feature.  Note that for some reason, "volatile" is available in
+ * some compilers that do not implement "const".  For these compilers, we let
+ * you suppress the "volatile" specifier in prototypes, local variables, and
+ * structure declarations.
  */
 
 #ifndef	__VOLATILE__
@@ -319,15 +328,15 @@
 /*
  * Some compilers support the "void" type, but not the semantics of "void *".
  *
- * The following definition is similar to a usage in System V documentation
- * which probably exists for the same reason, except that we use two
- * underscores in ours before and after, where theirs is called _VOID.
+ * The following definition resembles the usage in System V documentation
+ * (which probably exists for the same reason), except that we use two
+ * underscores in ours before and after, whereas theirs is called "_VOID".
  *
- * A word of explanation; what we are doing here is declaring an incomplete
- * type; pointers to this incomplete type should function more-or-less as
- * a pointer to "void" would except for lacking the implicit conversions that
- * are special to "void *", because "void" is an "incomplete type that cannot
- * be completed". Read the standard if you don't know about incomplete types.
+ * A word of explanation:  What we do here is declare an incomplete type;
+ * pointers to this incomplete type should function more-or-less as
+ * a pointer to "void" would, except that they lack the implicit conversions
+ * that are special to "void *", because "void" is an "incomplete type that
+ * cannot be completed".  For details, see section 3.5.4 the Standard.
  */
 
 #ifndef	__VOID__
@@ -337,7 +346,7 @@
 
 # else	/* void with a pointer is not supported */
 
-#  if	__COHERENT__ && ! __GNUC__	/* stroke a bug in Coherent 'cc' */
+#  if	__COHERENT__ && __MWC__	/* stroke a bug in Coherent 'cc' */
 
 #   define  __VOID__		char
 
@@ -353,23 +362,26 @@ typedef	struct __deep_magic__	__void__;
 
 
 /*
- * In order for some of the useful compiler extensions below to be kept
- * available during a "strict" compile (assuming that the feature-tests above
- * enable their use) then the convention is to prepend compiler-specific
- * keywords with double-underscores.
+ * For some of the useful compiler extensions below to be kept available
+ * during a "strict" compile (assuming that the feature-tests above enable
+ * their use), the convention is to prefix compiler-specific keywords with
+ * two underscore characters.
  *
- * This also serves to document which usages are not ISO C. Note that this
- * may have to change a little for a potential standardized C++.
+ * This also serves to document which usages are not ISO C.  Note that this
+ * may have to change a little for a potential standardized C++.  Also note
+ * that as with __NON_POSIX () below, we do not use __CONCAT () but directly
+ * use whatever style of token-pasting is available to avoid the effects of
+ * macro-rescanning.
  */
 
 #if	__STDC__ + 0
-
-# define   __NON_ISO(k)		__CONCAT (__, k)
-
+# if	__STD_PROFILE__ & __PASTE_M__
+#  define __NON_ISO(name)	__##name
+# else
+#  define __NON_ISO(name)	__/**/name
+# endif
 #else
-
 # define   __NON_ISO(k)		k
-
 #endif
 
 
@@ -379,16 +391,16 @@ typedef	struct __deep_magic__	__void__;
  * in some cases by omitting the name of the variable in the function
  * prototype and merely giving the type.
  *
- * This feature is common in type-checking compilers since the checking of
- * function pointer arguments and other extra checks mean that functions
+ * This feature is common in type-checking compilers because checks of
+ * function-pointer arguments and other extra checks mean that functions
  * must be declared with unused arguments to match the shape of some function
  * pointer.
  *
  * Of course, it is desirable to leave the original name of the variable in
- * the same place for documentation purposes, often commented out, but this
- * usage chokes some compilers. It seems preferable use the following
- * definition to explicitly state the intention, even in cases where the
- * compiler generates spurious warnings.
+ * the same place for documentation purposes (often commented out), but this
+ * usage chokes some compilers. It seems preferable to use the following
+ * definition to state the intention, even in cases where the compiler
+ * generates spurious warnings.
  */
 
 #ifndef	__NOTUSED
@@ -406,14 +418,18 @@ typedef	struct __deep_magic__	__void__;
 
 /*
  * Most modern compilers perform their own register allocation and ignore
- * the "register" directive from K&R C. Such compilers usually have debugging
+ * the "register" directive from K&R C.  Such compilers usually have debugging
  * tools that know how to deal with variables that spend at least part of
  * their lifetime in a machine register (or at worst, the option to suppress
  * the auto-register allocation).
  *
- * For compilers that require a register declaration for a variable to be
+ * For compilers that require a "register" declaration for a variable to be
  * placed in a machine register, often it is desirable to suppress the use
  * of registers when debugging.
+ *
+ * Of course, most uses of "register" are machine-specific.  It is worthwhile
+ * to profile a function before you insert some of its variables into
+ * registers.
  */
 
 #ifndef	__REGISTER__
@@ -430,12 +446,12 @@ typedef	struct __deep_magic__	__void__;
 
 
 /*
- * Some compilers for C-like languages such as C++, Objective-C or even
- * conceivably Pascal/Modula-2/Fortran support cross-language linkage.
+ * Some compilers for C-like languages such as C++, Objective-C, or even
+ * Pascal/Modula-2/Fortran, support cross-language linkage.
  *
- * The standard way of doing this within the C family is to use a special
- * form of "extern" which names the language a function is implemented in.
- * Functions which are implemented in C in a library should be declared as
+ * The standard way to do this within the C family is to use a special
+ * form of "extern" that names the language in which a function is implemented.
+ * Functions that are implemented in C in a library should be declared as
  * such in the exported header.
  *
  * Currently, this is most important for C++.
@@ -464,18 +480,18 @@ typedef	struct __deep_magic__	__void__;
  * casts so they are only used in safe contexts, (ii) can be used as an
  * alternative to macros that allow arguments with side-effects.
  *
- * This comes in two strengths: can inline anything, and can inline anything
- * that does not contain a loop. GNU C has extra strength, can inline tail-
- * recursive inline function, but that facility is not sufficiently widespread
- * to be useful as yet.
+ * This comes in two strengths:  can inline anything; or can inline anything
+ * that does not contain a loop.  GNU C has extra strength and can inline tail-
+ * recursive inline function, but that facility is not yet sufficiently
+ * widespread to be useful.
  *
  * The question is, what should the default setting of the client tests be?
- * #if ! __NO_INLINE__ is a double-negative, so don't use that. The
- * possibility of defining __INLINE__ as "static" so that inline functions
- * appear in the module separately breakpointable from other modules is a
+ * #if ! __NO_INLINE__ is a double-negative, so don't use that.  The
+ * possibility of defining __INLINE__ as "static", so that inline functions
+ * appear in the module separately breakpoint-able from other modules, is a
  * desirable facility (assuming the debug namespace is separate from the
  * linkage namespace, likely in a system sophisticated enough to support
- * inlining). Furthermore, be aware of any interactions with the __LOCAL__
+ * inlining).  Furthermore, be aware of any interactions with the __LOCAL__
  * macro defined in <common/xdebug.h>
  */
 
@@ -508,33 +524,30 @@ typedef	struct __deep_magic__	__void__;
 
 /*
  * One particular incompatibility between ANSI C and C++ code exists in the
- * way in which prototypes which do not specify any types at all are handled.
- * Under C++, the () form is used to imply (void), since such declarations
+ * way in which prototypes that do not specify any types at all are handled.
+ * Under C++, the () form is used to imply (void), because such declarations
  * are extremely common and because early versions of the C++ translators did
  * not allow any declarations in the argument lists of constructors or
  * destructors, not even void, so this form was used to syntactically imply
  * (void).
  *
- * The ANSI C committe declared that a prototype of the form
+ * The ANSI C committee declared that a prototype of the form
  *	extern char * malloc ();
- * said nothing whatsoever about the types of it's arguments, since such
+ * said nothing whatsoever about the types of its arguments, because such
  * declarations were extremely common in K&R C code, and doing anything else
  * would gratuitously require considerable rewriting.
  *
- * Unfortunately, the ANSI C committee decided that the special form "..." to
- * introduce variable arguments was not valid unless preceeded by a regular
- * argument type declaration, so that there is no way of being unambiguous
- * that will compile under both transators.
+ * The ANSI C committee decided that the special form "..." to introduce
+ * variable arguments was not valid unless preceeded by a regular argument
+ * type declaration.  Therefore, there is no way of to be unambiguous that
+ * will compile under both transators.
  *
  *		ANSI		C++
- *
  * ()		(...)		(void)		ambiguous
- *
  * (void)	(void)		(void)		unambiguous
+ * (...)	error		(...)
  *
- * (...)	error		(...)		thanks, X3J11
- *
- * Use the preprocessor symbol __ANY_ARGS__ in this context to expand to
+ * So, use the preprocessor symbol __ANY_ARGS__ in this context to expand to
  * whatever the current translator needs to see for it to make no assumptions
  * about the number and type of any function arguments.
  */
@@ -553,22 +566,21 @@ typedef	struct __deep_magic__	__void__;
 
 
 /*
- * String constants have been mightily botched in C, largely because K&R C
- * always treated strings as unique, writeable data. The introduction of the
- * 'const' qualifier should have made things simpler by allowing compilers to
- * figure out whether a string is being used in a 'const' or non-'const'
- * way. However, the precedent of just making all strings which are not being
+ * String constants are associated with problems in C, largely because K&R C
+ * always treated strings as unique, writeable data.  The introduction of the
+ * 'const' qualifier should have made things simpler, as it allows a compiler
+ * to discover whether a string is being used in a 'const' or non-'const'
+ * way.  However, the precedent of just making all strings that are not being
  * used as character array initializers into shareable constants has already
  * been established.
  *
- * This has an effect on complex macros, because a string in a macro may (in
- * a K&R environment or an ISO environment with certain switch settings)
+ * This has an effect on complex macros, because a string in a macro may
  * cause a host of anonymous, identical string constants to be created, which
- * have to be suppressed by using a static declaration. On the other hand,
- * this does worse than a compiler which does share strings, because if the
- * macro is not actually used then the data space is still taken up.
+ * have to be suppressed by using a static declaration.  On the other hand,
+ * this does worse than a compiler that does share strings, because if the
+ * macro is not used, the data space is still taken up.
  *
- * Here we give a hint to those macros that care.
+ * Here, we give a hint to those macros that care.
  */
 
 #ifndef	_SHARED_STRINGS
@@ -581,14 +593,35 @@ typedef	struct __deep_magic__	__void__;
 
 
 /*
- * It is frequently convenient to be able to map a pointer to a member of a
- * structure back to a pointer to the parent structure. Unfortunately, while
- * ISO C mandates that conversions between pointer types and will not cause
- * loss of information, there are few things that can portably be done with
- * such a converted pointer. In particular, the easy way of mapping back from
- * a structure member pointer to the containing structure performs address
- * arithmetic on character pointers using offsetof (). It appears that this
- * puts us in the realm of implementation-defined behaviour, except when the
+ * The use of anonymous unions in C++ greatly simplifies the problems caused
+ * by attempts to forward structure tags into unions with use of #define.  This
+ * use of unions is the primary reason why names that would normally be
+ * properly scope-controlled in C are given over to the preprocessor to wreak
+ * havok globally.
+ *
+ * Below, we expand __ANON__ into empty if such items need no tag, and
+ * leave it undefined otherwise, and make _ANONYMOUS a feature-test.
+ */
+
+#ifndef	_ANONYMOUS
+# if	(__MISC_PROFILE__ & __ANONUNION_M__) != 0
+
+#  define	__ANONYMOUS__
+#  define	_ANONYMOUS	1
+
+# endif
+#endif
+
+
+/*
+ * Often, it is convenient to map a pointer to a member of a structure back
+ * to a pointer to the parent structure.  Unfortunately, while ISO C mandates
+ * that conversions between pointer types will not cause loss of information,
+ * there are few things that can portably be done with such a converted
+ * pointer. In particular, the easy way of mapping back from a structure
+ * member pointer to the containing structure performs address arithmetic
+ * on character pointers using offsetof ().  It appears that this puts us in
+ * the realm of implementation-defined behavior, except when the
  * offsetof () the member is 0.
  */
 
@@ -606,39 +639,49 @@ typedef	struct __deep_magic__	__void__;
  * ISO C idiom of enclosing a macro name in parentheses to suppress macro
  * expansion when this idiom is used in function declarations. To get around
  * this, we can use the ISO preprocessor in a clumsy fashion by providing an
- * identity macro to provide the same overall effect of making the name we
- * wish to suppress expansion for not be immediately followed by a left
- * parenthesis (it will be followed by a parenthesis eventually, but since the
- * proprocessor won't revisit the text it has seen before the expansion of
- * the identity macro we get the behaviour we want).
+ * identity macro to provide the same overall effect of making the name for
+ * which we wish to suppress expansion not be immediately followed by a left
+ * parenthesis.  (It will be followed by a parenthesis eventually, but because
+ * the proprocessor won't revisit the text it has seen before the expansion of
+ * the identity macro we get the behavior we want.)
  */
 
 #define	__ARGS(x)	x
 
 
 /*
- * The POSIX.1 standard discusses a special namespace issue; how can standard
+ * The POSIX.1 standard discusses a special namespace issue:  how can standard
  * structures be portably extended, given that the structure tags are in the
- * user namespace. For structures which have members with regular names and
- * which are likely to be extended, the POSIX.1 standard deals with this by
+ * user namespace.  For structures that have members with regular names and
+ * that are likely to be extended, the POSIX.1 standard deals with this by
  * implicitly reserving all names of that form (something which further
  * underscores the restrictions on standard headers not including each other).
  *
- * However, for situations where we wish to extend a structure not covered by
- * the namespace reservation rules, or we wish to name a member according to
- * some other usage, we must take care to not define the member such that it
- * might conflict with some macro name which the user is permitted to define.
- * See POSIX.1 B.2.7.2 for discussion of this point.
+ * However, when we wish to extend a structure not covered by the namespace
+ * reservation rules, or wish to name a member according to some other usage,
+ * we must not define the member such that it might conflict with some macro
+ * name that the user is permitted to define. See POSIX.1 B.2.7.2 for
+ * discussion of this point.
  *
- * The following definition can be used to wrap the definition of structure
+ * The following definition can be used to wrap the definition of structure-
  * member names such that those names will not conflict with user macros if
- * _POSIX_SOURCE is defined. This form can be used in references to the member
- * name which may be encapsulated in macros so that there is no loss of
- * functionality or alteration of behaviour when _POSIX_SOURCE is used.
+ * _POSIX_SOURCE or _POSIX_C_SOURCE is defined.  You can use this form
+ * in references to the member name that may be encapsulated in a macro so
+ * that there is no loss of functionality or alteration of behavior when
+ * POSIX compilation is used.
+ *
+ * Note that we do not use __CONCAT () here:  the aim of this is to cause no
+ * accidental conflicts with user-defined macros, but using __CONCAT () would
+ * result in an extra layer of macro processing, thus causing the "name"
+ * argument to be expanded anyway.
  */
 
-#if	_POSIX_SOURCE
-# define	__NON_POSIX(name)	__CONCAT (_, name)
+#if	_POSIX_C_SOURCE
+# if	__STD_PROFILE__ & __PASTE_M__
+#  define __NON_POSIX(name)	__##name
+# else
+#  define __NON_POSIX(name)	__/**/name
+# endif
 #else
 # define	__NON_POSIX(name)	name
 #endif
@@ -648,15 +691,60 @@ typedef	struct __deep_magic__	__void__;
  * GCC has a special feature for declaring functions as not ever returning.
  */
 
-#if	__GNUC__
-# define	__NO_RETURN__	volatile
+#if	__GNUC__ && ! __PEDANTIC__
+# define	__NO_RETURN__	volatile void
 #else
-# define	__NO_RETURN__
+# define	__NO_RETURN__	void
 #endif
 
 
 /*
- * Undefine all our internal symbols... why pollute the namespace?
+ * With some systems, structure alignment is configured as a compiler global
+ * via #pragma, whereas GCC deals with alignment on a per-item basic via
+ * keyword extensions. The GCC way is preferable (since #pragma is not only
+ * non-portable, it can't be conditionally wrapped in a macro) and so we wrap
+ * it up in a macro.
+ *
+ * Note that in GCC, the maximum member alignment determines the size to which
+ * the structure is rounded.  COHERENT 'cc' instead pads structures based on the
+ * largest default alignment, ignoring the actual item alignment; if a non-
+ * default alignment is in effect at the end of the structure (the exact way
+ * to do that is not defined, but at the moment that is the alignment in
+ * effect at the next token *after* the '}' at the end of the structure), then
+ * that alignment is used as the amount to round the structure size to.
+ *
+ * Furthermore, GCC aligns structures based on the strictest actual alignment
+ * of any member.  COHERENT 'cc' aligns structures based on the strictest
+ * *default* alignment of any member, and this can only be overridden when the
+ * structure is later used.
+ */
+
+#if	__GNUC__
+# define	__ALIGN(n)	__attribute__ ((packed, aligned (n)))
+#else
+# define	__ALIGN(n)
+#endif
+
+
+/*
+ * A feature of both GCC and many "lint" packages is the ability to specify
+ * that a user-defined function should have special type-checking based on a
+ * printf () or scanf () format string.
+ */
+
+#if	__GNUC__
+# define	__PRINTF_LIKE(fmt, first) \
+			__attribute__ ((format (printf, fmt, first)))
+# define	__SCANF_LIKE(fmt, first) \
+			__attribute__ ((format (scanf, fmt, first)))
+#else
+# define	__PRINTF_LIKE(fmt, first)
+# define	__SCANF_LIKE(fmt, first)
+#endif
+
+
+/*
+ * Undefine all our internal symbols.
  */
 
 #undef	__STRINGIZE_M__
