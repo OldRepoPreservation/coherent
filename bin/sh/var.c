@@ -27,6 +27,7 @@ char **envp;
 		VSET,	"PATH=:/bin:/usr/bin",
 		VSET,	"HOME=",
 		VSET,	"CWD=",
+		VRDO,	VERSION,
 		0,	NULL
 	};
 	static char lasterror[] = "LASTERROR";
@@ -151,7 +152,7 @@ register char *cp;
 	if ((vp=findvar(cp)) == NULL)
 		vp = varp = vnode(0, NULL, varp);
 	if (vp->v_flag & VRDO) {
-		printe("Can't set %s", cp);
+		printe("Cannot set %s", cp);
 		return (NULL);
 	}
 	sfree(vp->v_strp);
