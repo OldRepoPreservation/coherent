@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 #define	NBPC	8		/* Bits in a char */
 #define	NIB	64		/* Input bits in a unit */
@@ -190,8 +191,6 @@ static	char	maptab[NSCSET] = {
 	'4', '5', '6', '7', '8', '9', '.', '/'
 };
 
-#define	Ci		cd
-#define	Di		(&cd[NUKB])
 static	char	Ki[NITER][NOKB];
 
 /*
@@ -226,8 +225,8 @@ char key[NKB];
 
 	permute(key, cd, PC1, NUKB);
 	for (ni=0; ni<NITER; ni++) {
-		lrot(Ci, shifts[ni], NUKB/2);
-		lrot(Di, shifts[ni], NUKB/2);
+		lrot(cd, shifts[ni], NUKB/2);
+		lrot(&cd[NUKB/2], shifts[ni], NUKB/2);
 		permute(cd, &Ki[ni][0], PC2, NOKB);
 	}
 }
@@ -261,7 +260,7 @@ char *key, *salt;
 		*bp++ = '\0';
 	unpack(bkey, NKB);
 	setkey(bkey);
-	bcopy("Password", stuff, NIB/NBPC);
+	memcpy(stuff, "Password", NIB/NBPC);
 	unpack(stuff, NIB);
 	encrypt(stuff, 0);
 	cp = passwd;
@@ -348,8 +347,8 @@ char obits[NIB];
 	register int n;
 	register int i;
 
-	bcopy(ibits, left, NIB/2);
-	bcopy(&ibits[NIB/2], right, NIB/2);
+	memcpy(left, ibits, NIB/2);
+	memcpy(right, &ibits[NIB/2], NIB/2);
 	for (n=0; n<NITER; n++) {
 		/*
 		 * L' = R
@@ -361,11 +360,11 @@ char obits[NIB];
 		dosboxes(t1bits, t2bits);
 		permute(t2bits, t1bits, P, NIB/2);
 		m2add(t1bits, left, t2bits, NIB/2);
-		bcopy(right, left, NIB/2);
-		bcopy(t2bits, right, NIB/2);
+		memcpy(left, right, NIB/2);
+		memcpy(right, t2bits, NIB/2);
 	}
-	bcopy(right, obits, NIB/2);
-	bcopy(left, &obits[NIB/2], NIB/2);
+	memcpy(obits, right, NIB/2);
+	memcpy(&obits[NIB/2], left, NIB/2);
 }
 
 /*
@@ -444,20 +443,6 @@ char obits[NIB/2];
 			tempout <<= 1;
 		}
 	}
-}
-
-/*
- * Byte copy routine
- */
-static
-bcopy(in, out, nb)
-register char *in, *out;
-register unsigned nb;
-{
-	if (nb)
-		do {
-			*out++ = *in++;
-		} while (--nb);
 }
 
 /*
