@@ -26,6 +26,8 @@ CC=${CC-"exec /bin/cc"}
 
 OPTS="${K386OBJ}/tty.o ${K386OBJ}/pipe.o ${K386OBJ}/putchar.o"
 OPTS=${OPTS}" ${K386OBJ}/rm.o ${K386OBJ}/fl.o"
+OPTS=${OPTS}" ${K386OBJ}/ipc.o"
+
 DEFAULT_KB=y
 DEFAULT_ASYNC=y
 DEFAULT_MM=y
@@ -72,7 +74,7 @@ do
 		DEFAULT_ASYNC=n
 		;;
 	fha)
-OPTS=${OPTS}" stubs.o ${K386OBJ}/at.o ${K386OBJ}/ss.o"
+OPTS=${OPTS}" ${K386OBJ}/stubs.o ${K386OBJ}/at.o ${K386OBJ}/ss.o"
 OPTS=${OPTS}" ${K386OBJ}/aha_dsl.o ${K386OBJ}/aha.o ${K386OBJ}/scsi.o"
 PATCH="${PATCH} rootdev=makedev(4,14) pipedev=makedev(8,131) ronflag=1"
 PATCH="${PATCH} NBUF=64 NHASH=61 NCLIST=16 ALLSIZE=32768"
@@ -157,7 +159,6 @@ done
 
 if [ ${USE_IPC} = "y" ]
 then
-	OPTS=${OPTS}" ${K386OBJ}/ipc.o"
 	OPTS=${OPTS}" ${K386OBJ}/semcon.o ${K386OBJ}/sem.o"
 	PATCH="${PATCH} drvl+460=semcon"
 	OPTS=${OPTS}" ${K386OBJ}/shmcon.o ${K386OBJ}/shm.o"
