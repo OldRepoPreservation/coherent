@@ -11,11 +11,11 @@ CP=cp
 DESTDIR=/
 
 LIBOBJECTS=bootlib.o cbootlib.o diskio.o indirect.o intcall.o monitor.o \
-	l.out.o coff.o bio.o gift.o objects.o \
+	l.out.o coff.o bio.o gift.o objects.o pacifier.o \
 	fifo_b.o fifo_k.o sys.o fdisk.o arg_exist.o
 
 LIBSOURCES=bootlib.m cbootlib.c diskio.c indirect.c intcall.m monitor.c \
-	l.out.c coff.c bio.c gift.c objects.c \
+	l.out.c coff.c bio.c gift.c objects.c pacifier.c \
 	fifo_b.c fifo_k.c sys.c fdisk.c arg_exist.c
 
 OBJECTS=Startup.o $(LIBOBJECTS)
@@ -28,10 +28,10 @@ CFLAGS=$(INCLUDE)
 
 # NB: Startup.o must come first in the link line, so the entry
 # point in Startup lines up correctly.
-tboot: sys/typed.h sys/ptypes.h tboot.o builtin.o libtboot.a
+tboot: sys/typed.h sys/ptypes.h  Startup.o tboot.o builtin.o libtboot.a
 	$(LD) -o tboot Startup.o tboot.o builtin.o $(LIBS)
 
-libtboot.a: $(LIBOBJECTS)
+libtboot.a: $(LIBOBJECTS) 
 	rm -f $@
 	$(AR) rku $@ $(LIBOBJECTS)
 	$(RANLIB) $@
@@ -41,6 +41,9 @@ sys/typed.h: typed.h
 
 sys/ptypes.h: ptypes.h
 	$(CP) ptypes.h sys/ptypes.h
+
+pacifier.o:	pacifier.c pac_states.h
+	$(CC) -c $(CFLAGS) pacifier.c
 
 hello: hello.o $(OBJECTS)
 	$(LD) -o hello $(OBJECTS) hello.o $(LIBS)
