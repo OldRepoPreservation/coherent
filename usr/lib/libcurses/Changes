@@ -1,0 +1,9 @@
+Fixed cr_put.c replaceing uses of DO with uses of NL.
+Fixed cr_put.c so that if in raw mode the system didn't
+assume it could use tabs.
+Fixed endwin.c to go to the end of the screen.
+Fixed newwin.c to mark each line of a new window as changed
+from beginning to end.
+Changed Makefile to take advantage of $SRCPATH
+3-18 Changed newwin to only return NULL on error conditions.
+3-19 Changed endwin to fflush(stdout) at end.
