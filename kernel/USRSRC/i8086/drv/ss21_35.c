@@ -6,6 +6,9 @@
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.29	91/04/16  22:40:19	root
+ * Whole disk devices working - need to implement HDGETA.
+ * 
  * Revision 1.28	91/04/16  20:48:47	root
  * Kernel fdisk works, fdisk command gets garbage.
  * 
@@ -147,6 +150,7 @@ static int	bus_info_xfer();
 static int	bus_pre_xfer();
 static int	chk_reconn();
 static int	inquiry();
+static int	mode_sense();
 static int	read_cap();
 static void	reconnect();
 static int	req_sense();
@@ -204,7 +208,6 @@ static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
 static int	ss_expired;	/* 1 after local timeout */
 static ss_type  *ss[MAX_SCSI_ID-1], rqs;
-static int	dr_watch[MAX_SCSI_ID-1];
 
 /*
  * ssload()	- load routine.
@@ -357,7 +360,6 @@ devmsg(dev, "ssopen");
 	 */
 	if (valid_open && dev & SDEV)
 		partn = WHOLE_DRIVE;
-printf("adj partn=%d\n", partn);
 	/*
 	 * If not accessing whole drive and the partition table has not
 	 * been read yet, try to read it now.
@@ -461,9 +463,9 @@ IO	*iop;
  *	Action:	Validate the minor device.
  *		Update the paritition table if necessary.
  */
-#define NHEAD	7
-#define NSEC	28
-#define NCYL	1066
+#define NHEAD	4
+#define NSEC	52
+#define NCYL	1004
 
 static int ssioctl(dev, cmd, vec)
 register dev_t	dev;
@@ -489,7 +491,7 @@ printf("HDGETA\n");
 		hdparm.nhead = NHEAD;
 		hdparm.nspt = NSEC;
 printf("ncyl=%d nhead=%d nspt=%d\n",
-  hdparm.ncyl[0] + hdparm.ncyl[1]<<8, (int)hdparm.nhead, (int)hdparm.nspt);
+  hdparm.ncyl[0]+((int)hdparm.ncyl[1]<<8), (int)hdparm.nhead, (int)hdparm.nspt);
 		kucopy( &hdparm, vec, sizeof hdparm );
 		ret = 0;
 		break;
@@ -620,12 +622,13 @@ printf("*");
 		ssp = ss[s_id];
 		if (ssp && ssp->dr_watch) {
 			ssp->dr_watch--;
+printf("1 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 			if (ssp->dr_watch == 0) {
 printf("BFERR 4\n");
 				bus_dev_reset(s_id);
 				ssp->bp->b_flag |= BFERR;
-				ss_done(s_id);
 printf("SCSI id #%d: bno=%lu <Watchdog Timeout>\n", s_id, ss[s_id]->bp->b_bno);
+				ss_done(s_id);
 			} else {
 				while (1) {
 					s_id = chk_reconn();
@@ -684,7 +687,7 @@ static int ssinit(s_id)
 int s_id;
 {
 	int retval = 0;
-	uchar query_buf[INQUIRYLEN + 1];
+	uchar query_buf[MODESENSELEN];
 	ss_type * ssp = ss[s_id];
 	int dev = ((sscon.c_mind << 8) | 0x80 | (s_id << 4));
 
@@ -733,6 +736,22 @@ printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
 		} else
 			devmsg(dev, "Read Capacity Failed");
 
+	if (retval)
+		if (mode_sense(s_id, query_buf)) {
+#define FMT_PG	(4+8+8+12)
+#define DDG_PG	(4+8+8+12+24)
+			uchar heads;
+			unsigned short spt;
+			ulong cyls;
+spt=((int)query_buf[FMT_PG+10]<<8) + query_buf[FMT_PG+11];
+cyls=((int)query_buf[DDG_PG+2]<<16) + ((int)query_buf[DDG_PG+3]<<8) + query_buf[DDG_PG+4];
+heads=query_buf[DDG_PG+5];
+printf("%d sectors per track\n", spt);
+printf("%ld cylinders\n", cyls);
+printf("%d heads\n", heads);
+		} else
+			devmsg(dev, "Mode Sense Failed");
+
 	return retval;
 }
 
@@ -750,6 +769,8 @@ int s_id;
 	int retval;
 	ss_type * ssp = ss[s_id];
 
+	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
 	ssp->cmdbuf[0] = ScmdTESTREADY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] =
 		ssp->cmdbuf[5] = 0;
@@ -943,10 +964,9 @@ ss_type *ssp;
 	int no_msg_rcvd = 1;
 	int s;
 	int bytes_to_send;
+int we_wrote=0;
 
 	ssp->cmdstat = -1;
-	ssp->data_bytes_in = 0;
-	ssp->data_bytes_out = 0;
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
 	s = sphi();
@@ -1020,6 +1040,10 @@ SSDUMP(ssp, "Command overrun");
 				ffbyte(ss_dat);
 			break;
 		case XP_DATA_OUT:
+if (!we_wrote) {
+	we_wrote=1;
+	printf("W");
+}
 			/*
 			 * Copy output buffer bytes to data register.
 			 */
@@ -1094,6 +1118,8 @@ int s_id;
 	uchar sense_buf[SENSELEN];
 	int ret = 0;
 
+	rqs.data_bytes_in = 0;
+	rqs.data_bytes_out = 0;
 	rqs.cmdbuf[0] = ScmdREQUESTSENSE;
 	rqs.cmdbuf[1] = rqs.cmdbuf[2] = rqs.cmdbuf[3] =
 		rqs.cmdbuf[5] = 0;
@@ -1132,6 +1158,8 @@ uchar * buf;
 	int ret = 0;
 	ss_type * ssp = ss[s_id];
 
+	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
 	ssp->id_busy = 1;
 	ssp->cmdbuf[0] = ScmdINQUIRY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] =
@@ -1141,6 +1169,45 @@ uchar * buf;
 	FP_OFF(ssp->in_buf) = buf;
 	FP_SEL(ssp->in_buf) = sds;
 	ssp->in_buf_len = INQUIRYLEN;
+
+	ret = scsicmd(s_id);
+	ssp->id_busy = 0;
+
+	return ret;
+}
+
+/*
+ * mode_sense()
+ *
+ * Mode Sense command for a device.
+ * Use this to get disk parameters:
+ *	number of cylinders
+ *	number of heads
+ *	number of sectors per track.
+ *
+ * Put result of mode sense into supplied buffer.
+ * Return 1 if command succeeds, else 0.
+ */
+static int mode_sense(s_id, buf)
+int s_id;
+uchar * buf;
+{
+	int ret = 0;
+	ss_type * ssp = ss[s_id];
+
+	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
+	ssp->id_busy = 1;
+	ssp->cmdbuf[0] = ScmdMODESENSE;
+	ssp->cmdbuf[1] = 0;
+	ssp->cmdbuf[2] = 0x3F;
+	ssp->cmdbuf[3] = 0;
+	ssp->cmdbuf[4] = MODESENSELEN;
+	ssp->cmdbuf[5] = 0;
+	ssp->cmdlen = G0CMDLEN;
+	FP_OFF(ssp->in_buf) = buf;
+	FP_SEL(ssp->in_buf) = sds;
+	ssp->in_buf_len = MODESENSELEN;
 
 	ret = scsicmd(s_id);
 	ssp->id_busy = 0;
@@ -1162,6 +1229,8 @@ uchar * buf;
 	int ret = 0;
 	ss_type * ssp = ss[s_id];
 
+	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
 	ssp->id_busy = 1;
 	ssp->cmdbuf[0] = ScmdREADCAPACITY;
 	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
@@ -1222,20 +1291,21 @@ static void ss_start()
 	if((bp = ssq_rd_head()) != NULL) {
 		s_id = DEV_SCSI_ID(bp->b_dev);
 		ssp = ss[s_id];
-		ssp->bp = bp;
 		dev = bp->b_dev;
 		partition = DEV_PARTN(dev);
 		if (dev & SDEV)
 			partition = WHOLE_DRIVE;
 		fdp = ssp->parmp;
-		if (partition != WHOLE_DRIVE)
-			ssp->bno = fdp[partition].p_base + bp->b_bno;
-		else
-			ssp->bno = bp->b_bno;
 		if (!(ssp->id_busy)) {
+			if (partition != WHOLE_DRIVE)
+				ssp->bno = fdp[partition].p_base + bp->b_bno;
+			else
+				ssp->bno = bp->b_bno;
+			ssp->bp = bp;
 			ssq_rm_head();
 			ssp->id_busy = 1;
 			ssp->dr_watch = WATCHDOG_SECONDS;
+printf("2 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 			if (ss_rw(s_id)) {
 				if (bp->b_req == BREAD)
 					bp->b_resid -= ssp->data_bytes_in;
@@ -1243,6 +1313,9 @@ static void ss_start()
 					bp->b_resid -= ssp->data_bytes_out;
 				if (ssp->msg_in != MSG_DISCONNECT)
 					ss_done(s_id);
+				else
+					printf("D");
+printf("%d in  %d out\n",ssp->data_bytes_in,ssp->data_bytes_out);
 			} else {
 printf("BFERR 5\n");
 				bp->b_flag |= BFERR;
@@ -1266,10 +1339,9 @@ int s_id;
 
 	ssp->id_busy = 0;
 	ssp->dr_watch = 0;
+printf("3 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
 	ssp->in_buf = ssp->out_buf = NULL;
 	if (bp) {
-if (bp->b_flag & BFERR)
-  printf("BFERR\n");
 		bdone(bp);
 		ssp->bp = NULL;
 	}
@@ -1354,17 +1426,20 @@ printf("bus_dev_reset\n");
  */
 static int chk_reconn()
 {
-	uchar dat;
+	uchar csr, dat;
 	int s_id = -1;
 
-	if (ffbyte(ss_csr) && RS_SELECT) {
+	csr = ffbyte(ss_csr);
+	if (csr & RS_SELECT) {
 		dat = ffbyte(ss_dat);
+printf("chk_reconn: csr=%x dat=%x\n",csr,dat);
 		if ((dat & HOST_ID) && (dat & NSDRIVE)) {
 			dat &= ~HOST_ID;
 			s_id = 0;
 			while (dat >>=1)
 				s_id++;
 printf("R%d", s_id);
+if(s_id!=0)s_id=-1;
 		}
 	}
 
@@ -1386,7 +1461,7 @@ int s_id;
 	BUF * bp = ssp->bp;
 
 	dat = ffbyte(ss_dat);
-	if ((dat & HOST_ID) && (dat & (1 << s_id))) {
+	if ((dat & HOST_ID) && (dat & (1 << s_id)) && ssp && ssp->id_busy) {
 		sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
 		if (bus_wait(RS_SELECT << 8 | 0)) {
 			sfbyte(ss_csr, WC_ENABLE_SCSI);
@@ -1396,9 +1471,10 @@ int s_id;
 			else
 				bp->b_resid -= ssp->data_bytes_out;
 			if (cmd_ok && ssp->cmdstat == CS_GOOD) {
-				if (ssp->msg_in == MSG_DISCONNECT)
+				if (ssp->msg_in == MSG_DISCONNECT) {
 					ssp->dr_watch = WATCHDOG_SECONDS;
-				else
+printf("4 s_id=%d dr_w=%d\n",s_id,ssp->dr_watch);
+				} else
 					ss_done(s_id);
 			} else {
 printf("BFERR 6\n");
@@ -1430,6 +1506,8 @@ printf("ss_rw(%d)\n", s_id);
 		ssp->out_buf_len = bp->b_count;
 		ssp->out_buf = bp->b_faddr;
 	}
+	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
 	ssp->cmdbuf[1] = 0;
 	ssp->cmdbuf[2] = ssp->bno >> 24;
 	ssp->cmdbuf[3] = ssp->bno >> 16;
