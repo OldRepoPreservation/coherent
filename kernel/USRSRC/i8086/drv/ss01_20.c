@@ -2,6 +2,9 @@
  * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.9	91/03/12  16:08:23	root
+ * need to finish bus_info_xfer()
+ * 
  * Revision 1.8	91/03/11  17:41:10	root
  * started ssopen()/wrote stub for ssinit()
  * 
@@ -69,6 +72,18 @@
 #define CS_BUSY		0x08
 #define CS_RESERVED	0x18
 
+/*
+ * Information Transfer Phase masks -
+ * setting of RS_MESSAGE, RS_I_O, and RS_CTRL_DATA determines which of six
+ * possible info transfer phases is occurring.
+ */
+#define XP_MSG_IN	(RS_MESSAGE | RS_I_O | RS_CTRL_DATA)
+#define XP_MSG_OUT	(RS_MESSAGE          | RS_CTRL_DATA)
+#define XP_CMD_IN	(             RS_I_O | RS_CTRL_DATA)
+#define XP_CMD_OUT	(                      RS_CTRL_DATA)
+#define XP_DATA_IN	(             RS_I_O               )
+#define XP_DATA_OUT	(                                 0)
+
 #define DEBUG	1
 #if DEBUG
 int stats[40], statsptr;
@@ -133,8 +148,8 @@ static void	ssblock();
 static int	ssinit();
 static void	scsireset();
 static void	scsidelay();
-static int	bus_pre_xfer(s_id);
-static int	bus_info_xfer(s_id);
+static int	bus_pre_xfer();
+static int	bus_info_xfer();
 
 static void	ssintr();
 
@@ -646,13 +661,14 @@ int s_id;
  * pseudocode:
  *
  * while (wait for REQ true or BUSY false on SCSI bus)
- *  if (BUSY false)
- *    break from while loop
- *  else
- *    switch (xfer phase = RS_CTRL_DATA|RS_I_O|RS_MESSAGE)
- *      case XP_MSG_IN/XP_MSG_OUT/...
- *        handle the indicated information transfer phase
- *    endswitch
+ *   if (BUSY false)
+ *     break from while loop
+ *   else
+ *     switch (xfer phase = RS_CTRL_DATA|RS_I_O|RS_MESSAGE)
+ *       case XP_MSG_IN/XP_MSG_OUT/...
+ *         handle the indicated information transfer phase
+ *     endswitch
+ *   endif
  * endwhile
  */
 static int bus_info_xfer(cmdbuf, cmdlen)
@@ -661,9 +677,26 @@ int cmdlen;
 {
 	int ret;
 	int bus_timeout;
+	unsigned char phase_type;
 
 	while(req_wait(&bus_timeout)) {
-		
+		phase_type = ffbyte(ss_csr) & (RS_MESSAGE|RS_I_O|RS_CTRL_DATA);
+		switch (phase_type) {
+			case XP_MSG_IN:
+				break;
+			case XP_MSG_OUT:
+				break;
+			case XP_CMD_IN:
+				break;
+			case XP_CMD_OUT:
+				break;
+			case XP_DATA_IN:
+				break;
+			case XP_DATA_OUT:
+				break;
+			default:
+				break;
+		} /* endswitch */
 	}
 	return (cmdlen == 0);
 }
