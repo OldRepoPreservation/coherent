@@ -198,8 +198,11 @@ main(argc, argv) int argc; char *argv[];
 		slowexit(1);
 	}
 
-	/* Let's lock this tty, so noone else grabs it till we're done.  */
-	lockit(strrchr(s_tty, '/') + 1);
+	/* Let's lock this tty, so nobody else grabs it until we log out.  */
+	if (-1 == lockit(strrchr(s_tty, '/') + 1) ){
+		fprintf(stderr, "%s: cannot lock terminal.\n", argv0);
+		slowexit(1);
+	}
 
 	if (argv0[0] != '-'		/* Not called from /etc/getty */
 	 && settty(2) != 0) {		/* Reset terminal failed */
