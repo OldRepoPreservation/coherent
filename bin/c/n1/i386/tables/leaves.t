@@ -491,10 +491,13 @@ LEAF:
 
 / Hardware coprocessor (NDP) floating point.
 / Push direct double.
+/ The fwait is required to assure completion of any pending NDP operation,
+/ notably a store into the location being pushed.
 %	PFNARG|PNDP
 	FF64		NONE	*	*	NONE
 		DIR|MMX		FF64
 		*		*
+			[ZFWAIT]
 			[ZPUSH]	[HI AL]
 			[ZPUSH]	[LO AL]
 
