@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/null.c,v 1.6 92/11/09 17:10:54 root Exp $ */
+/* $Header: /src386/kernel/coh.386/RCS/null.c,v 1.10 93/03/02 08:16:25 bin Exp Locker: bin $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -24,6 +24,9 @@
  *  Minor device 7 is /dev/kmemhi, virtual memory 0x8000_0000-0xFFFF_FFFF
  *
  * $Log:	null.c,v $
+ * Revision 1.10  93/03/02  08:16:25  bin
+ * kernel 73 update
+ * 
  * Revision 1.6  92/11/09  17:10:54  root
  * Just before adding vio segs.
  * 
@@ -341,14 +344,6 @@ register IO *iop;
 			psData.size = (short) (uLen>>10);
 			psData.rsize = (short) (uLenR>>10);
 			psData.p_schedPri = pp1->p_schedPri;
-#if 0
-			psData.p_schedPri = pp1->p_schedPri;
-
-			psData.p_cval = pp1->p_cval;
-			psData.p_sval = pp1->p_sval;
-			psData.p_ival = pp1->p_ival;		
-			psData.p_rval = pp1->p_rval;
-#endif
 			psData.p_utime = pp1->p_utime;
 			psData.p_stime = pp1->p_stime;
 			kkcopy(psBuf, psData.pr_argv, ARGSZ);
