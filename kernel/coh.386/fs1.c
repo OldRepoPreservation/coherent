@@ -355,14 +355,27 @@ iattach(dev, ino)
 idetach(ip)
 register INODE *ip;
 {
+#if 0
 	if (ilocked(ip)==0 || ip->i_refc<=0)
 		panic("idetach(%p)", ip);
+#else
+	if (ilocked(ip)==0) {
+		printf("bad unlocked inode, dev=%x, ino=%d, flags=%x\n",
+			ip->i_dev, ip->i_ino, ip->i_flag);
+		panic("idetach(%p)", ip);
+	}
+	if (ip->i_refc<=0) {
+		printf("negative refc, dev=%x, ino=%d, flags=%x, refc=%d\n",
+			ip->i_dev, ip->i_ino, ip->i_flag, ip->i_refc);
+		panic("idetach(%p)", ip);
+	}
+#endif
 	if (--ip->i_refc == 0) {
 #if	1
-		if (ip->i_rl != NULL)
+		if (ip->i_rl)
 			panic("idetach(%p) with locked records", ip);
 #endif
-		if ((ip->i_flag&(IFACC|IFMOD|IFCRT)) != 0
+		if ((ip->i_flag&(IFACC|IFMOD|IFCRT))
 		 || ip->i_nlink == 0)
 			icopymd(ip);
 	}
