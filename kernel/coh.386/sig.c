@@ -511,6 +511,7 @@ next:
 				u.u_error = EINVAL;
 			break;
 		case PTRACE_RESUME:
+			u.u_regl[EFL] &= ~MFTTB;
 			goto sig;
 		case PTRACE_TERM:
 			sign = SIGKILL;
