@@ -1412,7 +1412,7 @@ trap6:
 trap7:
 	push	$0x07			/ Processor Extension not available.
 	call	tsave
-	jmp	trap
+	jmp	emtrap
 
 trap8:
 /	pop	%ss:trapcode		/ Get error code from stack [always 0]
@@ -1457,7 +1457,7 @@ trap13:
 trap14:
 /	pop	%ss:trapcode		/ Get error code from stack
 	add	$4,%esp
-	push	$0x0E			/ General protection
+	push	$0x0E			/ Page Fault
 	call	tsave
 	jmp	trap
 
