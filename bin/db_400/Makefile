@@ -1,4 +1,3 @@
-# $Header: /usr/src/cmd/db/RCS/Makefile,v 1.2 88/10/17 06:16:36 src Exp $
 #
 #				DB makefile
 #				===========
@@ -6,16 +5,6 @@
 #	This makefile creates the 'db' command from the appropriate source
 #	files.
 #
-#					Angus Telfer (Oct 1984)
-#
-# $Log:	/usr/src/cmd/db/RCS/Makefile,v $
-# Revision 1.2	88/10/17  06:16:36 	src
-# Modified for use with RCS and complete use of 'objects' directory (ART).
-# 
-# Revision 1.1	88/10/17  11:06:14	src
-# Initial revision
-# 
-
 LIBNAME=libc.a
 CC=exec /bin/cc
 AS=exec /bin/as
@@ -28,11 +17,11 @@ RUNDIR=.
 LCLDIR=.
 LFLAGS=-i
 LIBNAME=db.a
-CPPFLAGS=
+CPPFLAGS="-D_POSIX_SOURCE=0" "-D__KERNEL__=1"
 CFLAGS=$(CPPFLAGS) -O
 ARFLAGS=rs
 CRT=/lib/crts0.o
-LIBC=/lib/libc386.a /lib/libc.a
+LIBC=/lib/libc.a
 
 OBJECTS=trace0.o	\
 	trace1.o	\
@@ -49,7 +38,6 @@ MCHOBJS=i8086a.o	\
 
 db:		$(OBJECTS) $(MCHOBJS)
 	$(CC) -o db $(OBJECTS) $(MCHOBJS)	#	$(LD) $(LFLAGS) $(CRT) $(OBJECTS) $(MCHOBJS) $(LIBC) -o db
-	nm -vp db | sort >db.nlist
 
 trace0.o:	trace0.c		\
 			$(INCDIR)/stdio.h	\
@@ -145,23 +133,3 @@ i8086d.o:	i8086d.c	\
 			$(SYSINCDIR)/types.h	\
 			i8086trace.h	\
 			i8086.h
-
-shrink:
-	rm -f *.a
-		for FILE in *.c *.h Makefile ; \
-		do ; \
-		  if [ -r $$FILE -a ! -w $$FILE -a -r "RCS/$${FILE},v" ] ; \
-		  then \
-			rm -fv $$FILE; \
-		  fi ; \
-		done ; true
-		for FILE in i8086*.c i8086*.h ; \
-		do ; \
-		  if [ -r $$FILE -a ! -w $$FILE -a -r "RCS/$${FILE},v" ] ; \
-		  then \
-			rm -fv $$FILE; \
-		  fi ; \
-		done ; true
-
-install:
-	cp db $(RUNDIR)/db

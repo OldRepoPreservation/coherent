@@ -1,4 +1,4 @@
-/* $Header: /src386/bin/db/RCS/i8086d.c,v 1.2 92/12/09 08:53:15 bin Exp Locker: bin $
+/* $Header: /src386/bin/db/RCS/i8086d.c,v 1.1 92/06/10 14:36:47 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -11,26 +11,6 @@
  *	Copyright (c) 1982, 1983, 1984.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
- */
-/*
- * A debugger.
- * Intel 8086.
- *
- * $Log:	i8086d.c,v $
- * Revision 1.2  92/12/09  08:53:15  bin
- * 
- * Revision 1.1  92/06/10  14:36:47  bin
- * Initial revision
- * 
- * Revision 1.2	89/06/19  16:46:29 	src
- * Bug:	80286 virtual mode instructions not supported [ie: lgdt].
- * Fix:	Metakey 'V' added to support 3 byte virtual mode instructions. (ABC)
- * 
- * Revision 1.1	88/10/17  04:03:49 	src
- * Initial revision
- *
- * Revision: 386 version 92/05/01 
- * Bernard Wald, Wald Software Consulting, Germany
  */
 
 #include <stdio.h>
@@ -142,7 +122,7 @@ char *opStrMap1[] = {
 	"pusha%Zv", "popa%Zv", "bound%Zv %Gv,%Ma", "arpl %Ew,%Gw",
 	"fs:", "gs:", "%so", "%sa",
 	"push%Zv %Iv", "imul%Zv %Gv=%Ev*%Iv", "push%Zb %Ib", "imul%Zv %Gv=%Ev*%Ib",
-	"ins%Zb %Yb", "ins%Zv %Yv", "outs%Zb %lxb", "outs%Zv %Xv",
+	"ins%Zb %Yb", "ins%Zv %Yv", "outs%Zb %Xb", "outs%Zv %Xv",
 
 	/* 7 */
 	"jo %Jb", "jno %Jb", "jb %Jb", "jae %Jb",
@@ -164,10 +144,10 @@ char *opStrMap1[] = {
 	"pushf%Zv", "popf%Zv", "sahf", "lahf",
 
 	/* A */
-	"mov%Zb al,%lob", "mov%Zv %eax,%lov", "mov%Zb %lob,al", "mov%Zv %lov,%eax",
-	"movs%Zb %lxb%Yb", "movs%Zz %lxv%Yv", "cmps%Zb %lxb%Yb", "cmps%Zz %lxv%Yv",
+	"mov%Zb al,%Ob", "mov%Zv %eax,%Ov", "mov%Zb %Ob,al", "mov%Zv %Ov,%eax",
+	"movs%Zb %Xb%Yb", "movs%Zz %Xv%Yv", "cmps%Zb %Xb%Yb", "cmps%Zz %Xv%Yv",
 	"test%Zb al,%Ib", "test%Zv %eax,%Iv", "stos%Zb %Yb", "stos%Zz %Yv",
-	"lods%Zb %lxb", "lods%Zz %lxv", "scas%Zb %lxb", "scas%Zv %lxv",
+	"lods%Zb %Xb", "lods%Zz %Xv", "scas%Zb %Xb", "scas%Zv %Xv",
 
 	/* B */
 	"mov%Zb al,%Ib", "mov%Zb cl,%Ib", "mov%Zb dl,%Ib", "mov%Zb bl,%Ib",
@@ -217,7 +197,7 @@ char *opStrMap2[] = {
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 
 	/* 2 */
-	"mov%Zd %Rd,%Cd", "mov%Zd %Rd,%ldd", "mov%Zd %Cd,%Rd", "mov%Zd %ldd,%Rd",
+	"mov%Zd %Rd,%Cd", "mov%Zd %Rd,%Dd", "mov%Zd %Cd,%Rd", "mov%Zd %Dd,%Rd",
 	"mov%Zd %Rd,%Td", NULL, "mov%Zd %Td,%Rd", NULL,
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/db/i8086/RCS/i8086c.c,v 1.1 88/10/17 04:04:02 src Exp $
+/* $Header: /src386/bin/db/RCS/i8086c.c,v 1.1 92/06/10 14:36:44 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * A debugger.
  * Tables for the Intel 8086.
  *
- * $Log:	/usr/src/cmd/db/i8086/RCS/i8086c.c,v $
+ * $Log:	i8086c.c,v $
+ * Revision 1.1  92/06/10  14:36:44  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/10/17  04:04:02 	src
  * Initial revision
  * 
@@ -78,19 +81,33 @@ char *signame[] ={
 	"Hangup",
 	"Interrupt",
 	"Quit",
-	"Alarm clock",
-	"Termination signal",
-	"Restart",
-	"Bad argument to system call",
-	"Write on open pipe",
+	"Illegal Instruction",
+	"Trace Trap",
+	"Abort",
+	"Emulator Trap",
+	"Floating Point Exception",
 	"Kill",
-	"Breakpoint",
-	"Segmentation violation",
-	"Divide error",
-	"Overflow",
-	"Signal 14",
-	"Signal 15",
-	"Signal 16",
+	"Bus Error",
+	"Segmentation Violation",
+	"Invalid System Call Number",
+	"Write to Pipe with no Readers",
+	"Alarm",
+	"Termination",
+	"USR1",
+	"USR2",
+	"Death of Child",
+	"Restart",
+	"Window Change",
+	"Polled Event",
+	"Signal 23",
+	"Signal 24",
+	"Signal 25",
+	"Signal 26",
+	"Signal 27",
+	"Signal 28",
+	"Signal 29",
+	"Signal 30",
+	"Signal 31",
 };
 
 /*

@@ -1,8 +1,5 @@
-static char Copyright[] =	"$Copyright: (c) 1984, INETCO Systems, Ltd.$";
-static char Release[] =		"$Release: INETCO COHERENT V8.0$";
-static char Date[] =		"$Date: 88/10/17 04:05:14 $";
-
-/* $Header: /usr/src/cmd/db/RCS/trace1.c,v 1.1 88/10/17 04:05:14 src Exp $
+/*
+ *	trace1.c
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -15,24 +12,16 @@ static char Date[] =		"$Date: 88/10/17 04:05:14 $";
  *	Copyright (c) 1982, 1983, 1984.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
- */
-/*
- * A debugger.
- * Initialisation, command line parsing.
  *
- * $Log:	/usr/src/cmd/db/RCS/trace1.c,v $
- * Revision 1.1	88/10/17  04:05:14 	src
- * Initial revision
- *
- * Revision: 386 version 92/05/01 
- * Bernard Wald, Wald Software Consulting, Germany
- * 
+ *	Initialization, command line parsing.
  */
 #include <stdio.h>
 #include <ctype.h>
 #include <canon.h>
 #include <l.out.h>
+#include <sys/timeout.h>
 #include <sys/proc.h>
+#include <sys/ptrace.h>
 #include <signal.h>
 #include <sys/uproc.h>
 #include "trace.h"
@@ -61,15 +50,13 @@ leave()
 }
 
 /*
- * Initialise.
+ * Initialize segment formats and clear the breakpoint table.
  */
 initialise()
 {
-	register int i;
-
-	for (i=0; i<NSEGM; i++)
-		strcpy(&segform[i][0], "w");
-	strcpy(&segform[1][0], "i");
+	strcpy(segform[DSEG], "w");
+	strcpy(segform[ISEG], "i");
+	strcpy(segform[USEG], "w");
 	bptinit();
 }
 
@@ -87,6 +74,8 @@ char **argv;
 
 	t = '\0';
 	tflag = 0;
+
+	/* process command line switches -[cdefkorst] */
 	for (; argc>1; argc--, argv++) {
 		cp = argv[1];
 		if (*cp++ != '-')
@@ -99,6 +88,7 @@ char **argv;
 			case 'f':
 			case 'k':
 			case 'o':
+				/* only one of [cdefko] is allowed */
 				if (t != '\0')
 					usage();
 				t = c;
@@ -121,8 +111,8 @@ char **argv;
 	case '\0':
 		switch (argc) {
 		case 1:
-			setfh("l.out", 3);
-			setcore("core");
+			setfh(DEFLT_OBJ, 3);
+			setcore(DEFLT_AUX);
 			break;
 		case 2:
 			setfh(argv[1], 3);
@@ -138,8 +128,8 @@ char **argv;
 	case 'c':
 		switch (argc) {
 		case 1:
-			setfh("l.out", 3);
-			setcore("core");
+			setfh(DEFLT_OBJ, 3);
+			setcore(DEFLT_AUX);
 			break;
 		case 2:
 			setcore(argv[1]);
@@ -206,7 +196,7 @@ char **argv;
 	case 'o':
 		switch (argc) {
 		case 1:
-			setfh("l.out", 3);
+			setfh(DEFLT_OBJ, 3);
 			break;
 		case 2:
 			setfh(argv[1], 3);
@@ -295,7 +285,7 @@ char *np;
 }
 
 /*
- * Canonize an l.out header.
+ * Canonicalize an l.out header.
  */
 canlout(ldp)
 struct ldheader *ldp;
@@ -418,24 +408,24 @@ char *np;
 }
 
 /*
- * Find out fault type.
+ * Find out signal sent to traced process.
  */
 settrap()
 {
 	int f;
 
 	trapstr = "???";
-	add = offset(uproc, u_signo);
-	if (getb(2, (char *)&f, sizeof(f)) == 0) {
-		printr("Cannot read fault type");
-		return (0);
+	add = PTRACE_SIG;
+	if (getb(USEG, (char *)&f, sizeof(f)) == 0) {
+		printr("Cannot read signal in traced process");
+		return 0;
 	}
 	if (f<=0 || f>NSIG) {
-		printr("Bad fault type");
-		return (0);
+		printr("Bad signal in traced process");
+		return 0;
 	}
 	trapstr = signame[f-1];
-	return (f);
+	return f;
 }
 
 /*
@@ -478,8 +468,7 @@ char *np;
 /*
  * Initialise an element of a segment map.
  */
-MAP *
-setsmap(next, base, size, offt, getf, putf, segi)
+MAP * setsmap(next, base, size, offt, getf, putf, segi)
 MAP *next;
 fsize_t base;
 fsize_t size;
@@ -503,8 +492,7 @@ int (*putf)();
 /*
  * Clear a section of a segment map.
  */
-MAP *
-clrsmap(mp, np)
+MAP * clrsmap(mp, np)
 register MAP *mp;
 register MAP *np;
 {
@@ -545,6 +533,15 @@ clramap()
 char	*read_str_tab();
 SCNHDR	*read_scns();
 
+/*
+ * Setup object file.
+ *
+ * Arguments:
+ *	np = file name
+ *	f is bit mapped
+ *		set 1's bit if reading symbol table info from file "np"
+ *		set 2's bit if reading segment info from file "np"
+ */
 setfh (np,f)
 char	*np;
 {
@@ -567,7 +564,7 @@ int	f;
 	hdrinfo.magic = coffhp->f_magic;
 	hdrinfo.defsegatt = DSA32;
 	objflag = 1;
-	if ((f&1) != 0) {
+	if (f&1) {
 		if (coffhp->f_nsyms) {
 			sbase = (fsize_t)coffhp->f_symptr;
 			snsym = (fsize_t)coffhp->f_nsyms; 
@@ -579,7 +576,7 @@ int	f;
 			}
 		}
 	}
-	if ((f&2) != 0) {
+	if (f&2) {
 		lfn = np;
 		setcoffseg(fp, coffhp);
 	}
@@ -601,6 +598,9 @@ FILEHDR	*coffhp;
 
 	scnhp = read_scns(fp, coffhp->f_nscns
 				, sizeof(FILEHDR)+coffhp->f_opthdr);
+
+	/* could get entry point here FIX 386 */
+
 	if (scnhp == NULL)
 		return;
 

@@ -1,4 +1,4 @@
-/* $Header: /usr/src/cmd/db/RCS/trace3.c,v 1.1 88/10/17 04:05:31 src Exp $
+/* $Header: /src386/bin/db/RCS/trace3.c,v 1.1 92/06/10 14:36:59 bin Exp Locker: bin $
  *
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -16,7 +16,10 @@
  * A debugger.
  * Display.
  *
- * $Log:	/usr/src/cmd/db/RCS/trace3.c,v $
+ * $Log:	trace3.c,v $
+ * Revision 1.1  92/06/10  14:36:59  bin
+ * Initial revision
+ * 
  * Revision 1.1	88/10/17  04:05:31 	src
  * Initial revision
  * 
@@ -38,18 +41,25 @@ char *cp;
 {
 	register INP *ip;
 
-	while ((ip=inpp) != NULL) {
+	/* Delete list starting at "inpp" */
+	while (ip=inpp) {
 		inpp = ip->i_st1.i_next;
 		nfree(ip);
 	}
+
+	/* muck with some globals */
 	modsize = sizeof(int);
 	sincmod = SNULL;
 	dot = getpc();
 	lastc = '\0';
+
+	/* put string "cp" in first node at "inpp" list */
 	if (cp) {
 		addstrp(cp);
 		request();
 	}
+
+	/* print if interrupt occurred - mess with more globals */
 	testint();
 }
 
@@ -222,7 +232,7 @@ syscall()
 
 /*
  * Print out data according to a format string.  `n' is the number
- * of times this is done.
+ * of times this is done.  Segment number is 's'.
  */
 dispfmt(s, fs, n)
 char *fs;
@@ -357,7 +367,7 @@ long a;
 /*
  * Given a format character `f' and a function `func', print out
  * data according to the given format.  The function `get' is
- * called to read characters.
+ * called to read characters.  Segment number is 's'.
  */
 char *
 conform(sp, s, t1, t2, get)

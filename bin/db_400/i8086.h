@@ -1,29 +1,10 @@
-/* $Header: /usr/src/cmd/db/i8086/RCS/i8086.h,v 1.2 89/06/19 16:45:41 src Exp $
- *
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.35
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- */
 /*
- * Trace bit.
- *
- * $Log:	/usr/src/cmd/db/i8086/RCS/i8086.h,v $
- * Revision 1.2	89/06/19  16:45:41 	src
- * Bug:	80286 virtual mode instructions not supported [ie: lgdt].
- * Fix:	vminstab[] added to support 80286 specific instructions. (ABC)
- * 
- * Revision 1.1	88/10/17  04:03:04 	src
- * Initial revision
- * 
+ * i8086.h
  */
+#define FPTEST 1
+
+#include <sys/reg.h>
+#include <ieeefp.h>
 
 #define	TBIT	0x0100
 
@@ -56,7 +37,9 @@
 /*
  * Offsets into the users area.
  */
+#if 0
 #define UREGOFF	(UPASIZE-(sizeof (struct ureg)))
+#endif
 
 /*
  * Registers from the user area after a core dump.
@@ -81,6 +64,10 @@ struct ureg {
 	long	ur_fw;			/* fw */
 	long	ur_sp;			/* sp */
 	long	ur_ss;			/* ss */
+#if FPTEST
+	long	ur_filler;
+	struct _fpstate ur_fpstate;
+#endif
 };
 
 /*
@@ -99,8 +86,11 @@ typedef	struct reg {
 	unsigned r_ds;			/* Data segment */
 	unsigned r_ss;			/* Stack segment */
 	unsigned r_es;			/* Extra segment */
+	unsigned r_fs;
+	unsigned r_gs;
 	unsigned r_ip;			/* Instruction pointer */
 	unsigned r_fw;			/* Status flags */
+	unsigned valid;			/* 0 = uninitialized */
 } REG;
 
 /*
