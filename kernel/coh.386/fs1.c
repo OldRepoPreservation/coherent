@@ -588,24 +588,29 @@ register INODE *ip;
 		ip->i_prx = 0;
 		ip->i_pwx = 0;
 		n = ND;
+		while (n > 0) {
+			if ((b=ip->i_pipe[--n]) != 0)
+				bfree(ip->i_dev, b);
+		}
+		kclear(ip->i_pipe, sizeof(ip->i_pipe));
 		break;
 	case IFDIR:
 	case IFREG:
 		n = NADDR;
+		while (n > ND) {
+			if ((b=ip->i_a.i_addr[--n]) != 0)
+				indfree(ip->i_dev, b, 1+n-ND);
+		}
+		while (n > 0) {
+			if ((b=ip->i_a.i_addr[--n]) != 0)
+				bfree(ip->i_dev, b);
+		}
+		kclear(ip->i_a.i_addr, sizeof(ip->i_a.i_addr));
 		break;
 	default:
 		return;
 	}
-	while (n > ND) {
-		if ((b=ip->i_a.i_addr[--n]) != 0)
-			indfree(ip->i_dev, b, 1+n-ND);
-	}
-	while (n > 0) {
-		if ((b=ip->i_a.i_addr[--n]) != 0)
-			bfree(ip->i_dev, b);
-	}
 	ip->i_size = 0;
-	kclear(ip->i_a.i_addr, sizeof(ip->i_a.i_addr));
 	iamc(ip);	/* creat/pipe - atime/mtime/ctime */
 }
 

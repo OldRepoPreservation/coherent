@@ -101,7 +101,7 @@ register unsigned fd;
 	if (fdp->f_refc == 0)
 		panic("fdclose()");
 	if (--fdp->f_refc == 0) {
-		iclose(fdp->f_ip);
+		iclose(fdp->f_ip, fdp->f_flag);
 		kfree(fdp);
 	}
 }
