@@ -177,6 +177,7 @@ char	*getlogin();
 char	*mktemp();
 int	catchintr();
 int	catchpipe();
+void	catchchild();
 int	close_fds();
 char	asuser [32];
 
@@ -199,6 +200,7 @@ char *argv[];
 		logdump("argv0 = rmail\n");
 
 	asuser [0] = '\0';
+	signal(SIGCLD, catchchild);
 	signal(SIGINT, catchintr);
 	signal(SIGPIPE, catchpipe);
 	while ((c = getopt(argc, argv, "a:f:mpqrv")) != EOF) {
@@ -300,7 +302,7 @@ int uid;
 	lockname = lock;
 	sprintf(lock, "/tmp/maillock%d", uid);
 
-	while (access(lockname, AEXISTS)){
+	while ( (access(lockname, AEXISTS)) == 0 ){
 		sprintf(BOBerrmsg, "{%d} sleeping(1)\n",getpid());
 		logdump(BOBerrmsg);
 		sleep(1);
@@ -378,6 +380,12 @@ catchintr()
 		rmexit(1);
 	intrflag = 1;
 	signal(SIGINT, catchintr);
+}
+
+void catchchild()
+{
+	logdump("Caught SIGCLD\n");
+	signal(SIGCLD, catchchild);
 }
 
 catchpipe()
