@@ -47,15 +47,14 @@ opendir( dirname )
 	register int	fd;		/* file descriptor for read */
 	struct stat	sbuf;		/* result of fstat() */
 
-	if ( (fd = open( dirname, O_RDONLY )) < 0 )
-		return NULL;		/* errno set by open() */
-
-	if ( fstat( fd, &sbuf ) != 0 || !S_ISDIR( sbuf.st_mode ) )
+	if ( stat( dirname, &sbuf ) != 0 || !S_ISDIR( sbuf.st_mode ) )
 		{
-		(void)close( fd );
 		errno = ENOTDIR;
 		return NULL;		/* not a directory */
 		}
+
+	if ( (fd = open( dirname, O_RDONLY )) < 0 )
+		return NULL;		/* errno set by open() */
 
 	if ( (dirp = (DIR *)malloc( sizeof(DIR) )) == NULL
 	  || (dirp->dd_buf = (char *)malloc( (unsigned)DIRBUF )) == NULL
