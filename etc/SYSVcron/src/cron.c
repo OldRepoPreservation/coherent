@@ -77,11 +77,12 @@ extern child_id	*add_entry(),	/* Add an new entry to a link list */
 		*find_entry(),	/* Find an entry in the link list */
 		*del_entry();	/* Remove an entry from the link list */
 
+int ifmail();
+
 child_id	*current;	/* Pointer to the current structure */
 char	acRealUser[MAX_UNAME];	/* Real user name */
 
 int	mailFlag = TRUE;
-int	lock_flag = FALSE;
 int	flag320 = FALSE;
 
 struct	tm *tm;
@@ -105,19 +106,36 @@ struct dirent	*dp;
 main()
 {
 	int 	n;
-	int	pid;
 	int	child_pid;
 
 	sigsetup();
 
 	tokbuf = malloc(buflen);
-
-	/* Check if crond chould be into cron 320 mode */
+	/* Check if crond should be in COHERENT 3.2.0 mode */
 	if ((f = fopen(crontab, "r")) != NULL) {
 		fclose(f);
 		chdir("/bin");	/* Under 3.2.0 cron started from /bin. */
 		flag320 = TRUE;
-	}		
+	} else  /* Check if cron was fired. Do it only for SV cron. */
+		if (lock(F_LOCK) == FALSE) {
+			fprintf(stderr, "crond: locked.\n");
+			exit(1);
+		}
+
+#if !DEBUG
+	/* Disassociate from controling terminal and process
+	 * group. Close all open files.
+	 */
+	bedaemon();
+#endif			
+	/* Open spool directory. SV mode  */
+	if (flag320 == FALSE)
+		if ((dirp = opendir(D_SPOOL)) == NULL) {
+			system("echo crond: cannot open spool directory"
+			   " > /dev/console");
+			exit(1);
+		}
+
 	time(&clock);
 	tm = localtime(&clock);
 	alarm(61 - tm->tm_sec);
@@ -149,69 +167,69 @@ main()
 				fprintf(stderr, "crond: cannot open %s\n", 
 						crontab);
 		} else {			/* Run SV mode */
-			if (lock_flag == FALSE)	{/* We didn't lock yet */
-			/* Check if cron was fired. Do it only for SV cron. */
-				if (lock(F_LOCK) == FALSE) {
-					fprintf(stderr, "crond: locked.\n");
-					exit(1);
-				}
-				lock_flag = TRUE;
-			}
-			if (dirp == NULL)	/* Open dirp only once */
-				if ((dirp = opendir(D_SPOOL)) == NULL) {
-					fprintf(stderr, 
-					   "crond: cannot open directory %s.\n",
-					  			 D_SPOOL);
-					exit(1);
-				}
 			while ((dp = readdir(dirp)) != NULL) {
+				char	Dbuf[80];
+
 				/* Skip '.' and '..' */
 				if (!strcmp(dp->d_name, ".") ||
 						!strcmp(dp->d_name, ".."))
 					continue;
 		
 				strcpy(acRealUser, dp->d_name);
+				sprintf(Dbuf, "echo X%s > /dev/console", 
+							acRealUser);
+				system("/bin/sh -c 'echo XXXX  >/dev/console'");
 				Dprint("User name is %s\n", acRealUser);
 				set_uid_flag = FALSE; 
 
-				if ((pid = fork()) < 0) {
-					fprintf(stderr, "crond: cannot fork\n");
-					exit(1);
+				if ((f = fpOpenTable("r")) == NULL) {
+					sprintf(Dbuf,"crond: cannot open table"
+					   " '%s' > /dev/console", acRealUser);
+					system(Dbuf);
 				}
-				if (pid == 0) { /* Child */
-					if ((f = fpOpenTable("r")) == NULL) {
-						fprintf(stderr, 
-				"crond: cannot open table '%s'\n", acRealUser);
-						exit(1);
-					}
-					while (tex() != EOF)
-						;
-					fclose(f);
-					/* wait for grandchildren */
-					while ((child_pid = wait(&n)) != -1) {
-						static child_id	*pstDone;
-
-						Dprint("\nmain: child id %d",
-								 child_pid);
-						Dprint("\treturn is %d\n", n);
-						pstDone = find_entry(child_pid);
-						if (n && (mailFlag == TRUE))
-							mail_entry(pstDone);
-						current = del_entry(pstDone);
-					} /* while wait */
-					exit(0);
-				} /*if child*/
+				while (tex() != EOF)
+					;
+				fclose(f);
 			} /* while readdir */
 			rewinddir(dirp);
 			/* Wait for the children */
-			while (wait(&n) != -1) 
-				;
+			while ((child_pid = wait(&n)) != -1) {
+				static child_id	*pstDone;
+
+				Dprint("\nmain: child id %d",child_pid);
+				Dprint("\treturn is %d\n", n);
+				pstDone = find_entry(child_pid);
+				if (n && ifmail(pstDone))
+					mail_entry(pstDone);
+
+				current = del_entry(pstDone);
+			} /* while wait */
 			if (errno == ECHILD)
 				pause();
 			
 		} /* if 320 */
 	} /* for */
 } /* main */
+
+/*
+ * Check do user want to have a mail messages. 
+ */
+int ifmail(entry)
+child_id	*entry;
+{
+	char	*cBuf;
+	int	fd;	/* Descriptor of lock file */
+
+	if ((cBuf = malloc(sizeof(D_MAIN) + strlen(entry->name) + 1)) == NULL) {
+		fprintf(stderr, "crond: out of memory\n");
+		return(0);	
+	}
+	sprintf(cBuf, "%s/%s", D_MAIN, entry->name);
+	if ((fd = open(cBuf, 0)) == -1) 
+		return(1);
+	close(fd);
+	return(0);
+}
 
 /*
  * Test and Execute: tests a crontab entry against the time fields in `tm' to
@@ -457,39 +475,6 @@ do_it()
 	if ((c = gettoken()) != STR  &&  c != STRPLUS) {
 		ungettoken(c);
 		return (skip_it());
-	}
-	/* Set uid to user which crontab is going to be executed.
-	 * In case of COHERENT3.2.0 set uid to daemon (set_uid_flag is TRUE).
-	 */
-	Dprint("Set user ID to '%s'\n", acRealUser);
-	if (set_uid_flag == FALSE) {
-		/* Check do user want to have a mail messages.
-		 * We have to do it right now, while we still superuser.
-		 */
-		char	*cBuf;
-		int	fd;	/* Descriptor of the mail lock file */
-
-		if ((cBuf = malloc(sizeof(D_MAIN) + strlen(acRealUser) + 1)) 
-								== NULL) {
-			fprintf(stderr, "crond: out of memory\n");
-			return;	/* We don't want exit here. Things can change */
-		}
-		sprintf(cBuf, "%s/%s", D_MAIN, acRealUser);
-
-		/* Does user want to receive mail. */
-		if ((fd = open(cBuf, 0)) != -1) {
-			close(fd);
-			mailFlag = FALSE;
-		} else
-			mailFlag = TRUE;
-
-		/* If file name is not user name ignore it */
-		if ((set_uid_flag = set_uid(acRealUser)) != TRUE) {
-			fprintf(stderr, 
-				"crond: cannot find/set user '%s'\n", 
-								acRealUser);
-			return(EOF);
-		}
 	}
 	
 	Dprint("Tokken is %s\n", tokbuf);
