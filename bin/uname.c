@@ -1,18 +1,8 @@
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or pursuant to the license agreement is unlawful.
- *
- *	COHERENT Version 4.0
- *	Copyright (c) 1982, 1992.
- *	All rights reserved.
- -lgl) */
 /*
- * uname.c print information about current COHERENT system.
+ * uname.c
+ * Print information about current COHERENT system.
  */
+
 #include	<stdio.h>
 #include	<fcntl.h>
 #include	<sys/utsname.h>
@@ -66,23 +56,42 @@ char	*argv[];
 	if (Snf)
 		changename(sname);
 	else {
+		int space;
+
 		if (uname(&tsname) < 0) {
 			perror("uname");
 			exit(1);
 		}
-		if (snf)
-			printf("%.*s ", SYS_NMLN, tsname.sysname);
-		if (nnf)
-			printf("%.*s ", SYS_NMLN, tsname.nodename);
-		if (srf)
-			printf("%.*s ", SYS_NMLN, tsname.release);
-		if (svf)
-			printf("%.*s ", SYS_NMLN, tsname.version);
-		if (mhf)
-			printf("%.*s ", SYS_NMLN, tsname.machine);
-		puts("");
+		space = 0;
+		if (snf) {
+			printf("%.*s", SYS_NMLN, tsname.sysname);
+			space = 1;
+		}
+		if (nnf) {
+			if (space)
+				putchar(' ');
+			printf("%.*s", SYS_NMLN, tsname.nodename);
+			space = 1;
+		}
+		if (srf) {
+			if (space)
+				putchar(' ');
+			printf("%.*s", SYS_NMLN, tsname.release);
+			space = 1;
+		}
+		if (svf) {
+			if (space)
+				putchar(' ');
+			printf("%.*s", SYS_NMLN, tsname.version);
+			space = 1;
+		}
+		if (mhf) {
+			if (space)
+				putchar(' ');
+			printf("%.*s", SYS_NMLN, tsname.machine);
+		}
+		putchar('\n');
 	}
-		
 	exit(0);
 }
 
@@ -117,3 +126,5 @@ usage()
 	printf("usage:\tuname [-snrvma]\n\tuname [-S system_name]\n");
 	exit(1);
 }
+
+/* end of uname.c */
