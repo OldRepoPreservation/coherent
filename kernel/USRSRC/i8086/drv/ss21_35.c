@@ -1,13 +1,14 @@
-int rpt_irpt;
-int busted;
 /*
- * This is a driver for Seagate ST01/ST02 scsi hard disk controllers.
+ * This is a driver for Seagate ST01/ST02 scsi host adapters.
  *
  * To do:
  *	figure out a better storage class for rqs
  *      make input buffer for commands dynamic (?)
  *
  * $Log:	/usr/src/sys/i8086/drv/RCS/ss.c,v $
+ * Revision 1.24	91/04/12  17:19:25	root
+ * Some rearrangements - still working on block & related routines
+ * 
  * Revision 1.23	91/04/11  12:51:50	root
  * ssopen compiles - not tested
  * 
@@ -57,14 +58,9 @@ int busted;
 #define HIPRI_RETRIES	400	/* # of times to retry while hogging CPU */
 #define LOPRI_RETRIES	5	/* # of retries with sleep between tries */
 #define WHOLE_DRIVE	NPARTN
+#define WATCHDOG_SECONDS  4
 
 #define IN_BUF_SIZE	512	/* buffer size in "ss" structs */
-
-				/* Device States */
-#define	SIDLE		0	/* controller idle */
-#define	SRETRY		1	/* seeking */
-#define	SREAD		2	/* reading */
-#define	SWRITE		3	/* writing */
 
 #define DEBUG	1
 #if DEBUG
@@ -91,18 +87,23 @@ int stats[100], statsptr;
 #endif
 
 typedef unsigned char	uchar;
+typedef unsigned long	ulong;
 typedef struct ss {
-	long	capacity;
-	long	blocklen;
+	ulong	capacity;
+	ulong	blocklen;
 	int	msg_in;
+	int	dr_watch;	/* number of seconds for pending timeout */
 	uchar	cmdbuf[G1CMDLEN];
 	int	cmdlen;
 	int	cmd_bytes_out;
 	int	cmdstat;
-	uchar	in_buf[IN_BUF_SIZE];
+	uchar	*in_buf;
 	int	in_buf_len;
 	int	data_bytes_in;
-	BUF	*bp;
+	uchar	*out_buf;
+	int	out_buf_len;
+	int	data_bytes_out;
+	BUF	*bp;		/* current I/O request node, or NULL */
 	struct	fdisk_s parmp[NPARTN+1];
 	unsigned int	ptab_read:1;  /* 1 if partition table has been read */
 	unsigned int	id_busy:1;  /* 1 if device with this SCSI id busy */
@@ -131,14 +132,15 @@ static void	ssunload();
 static void	bus_dev_reset();	/* additional support functions */
 static int	bus_info_xfer();
 static int	bus_pre_xfer();
-static void	chk_reconn();
-static void	do_ss();
+static int	chk_reconn();
 static int	inquiry();
 static int	read_cap();
+static void	reconnect();
 static int	req_sense();
 static int	scsicmd();
 static void	scsireset();
 static void	ss_done();
+static int	ss_rw();
 static void	ss_start();
 static void	ss_start_timing();
 static void	ss_stop_timing();
@@ -188,7 +190,6 @@ static int	st0x_busy;	/* 1 if SCSI host adapter busy */
 static TIM	delay_tim;	/* needed for calls to ssdelay() */
 static TIM	timeout_tim;	/* needed for calls to timeout() */
 static int	ss_expired;	/* 1 after local timeout */
-static int	ss_state;	/* starts at SIDLE */
 static ss_type  *ss[MAX_SCSI_ID-1], rqs;
 static int	dr_watch[MAX_SCSI_ID-1];
 
@@ -376,7 +377,8 @@ printf("fdisk() failed\n");
 	}
 
 	/*
-	 * OK - open the device.
+	 * OK to open the device.
+	 * Start watchdog timer (if not already started) for the host adapter.
 	 */
 	if (valid_open) {
 		++drvl[SCSI_MAJOR].d_time;
@@ -389,6 +391,9 @@ printf("fdisk() failed\n");
 static void ssclose(dev)
 dev_t dev;
 {
+	/*
+	 * Decrement the number of watchdog timer requests open for host board.
+	 */
 	--drvl[SCSI_MAJOR].d_time;	
 }
 
@@ -513,37 +518,22 @@ register BUF	*bp;
 	}
 
 	/*
-	 * See if we can allocate a request node for this operation.
-	 */
-	if (valid_op) {
-		bp->b_actf = NULL;
-		sw = (scsi_work_t *)kalloc( sizeof(*sw) );
-		if (sw == NULL) {
-			devmsg(dev, "out of kernel memory");
-			bp->b_flag |= BFERR;
-			valid_op = 0;
-		}
-	}
-
-	/*
-	 * Operation appears valid and we have a node for it.
+	 * Operation appears valid.
 	 * Fill fields in the node and queue the request.
 	 */
 	if (valid_op) {
-		sw->sw_bp = bp;
-		sw->sw_drv = drive;
+#ifdef BNO_CALC
 		if (partition != WHOLE_DRIVE)
 			sw->sw_bno = fdp[partition].p_base + bp->b_bno;
 		else
 			sw->sw_bno = bp->b_bno;
-		sw->sw_retry = 1;
+#endif
 
 printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
 	drive, (long)sw->sw_bno, bp, bp->b_flag);
 
 		ssq_wr_tail(sw);
-		if (ss_state == SIDLE)
-			ss_start();
+		ss_start();
 	/*
 	 * Operation cannot be done.  Release the kernel buffer structure.
 	 * Value of "bp->b_flag" tells caller if error occurred.
@@ -555,12 +545,19 @@ printf("ssblock: drv %x bno %x:%x  bp=%x, flag = %o\n",
 
 /*
  * ssintr()	- Interrupt routine.
+ *
+ * If we have been reselected by a recognized target device
+ *	let kernel get out of interrupt mode (defer) and do SCSI
+ *	reconnect stuff.
  */
 static void ssintr()
 {
-	printf("@");
-	rpt_irpt=1;
-	wakeup(&rpt_irpt);
+	int s_id;
+
+	s_id = chk_reconn();
+	if (s_id != -1)
+		defer(reconnect, s_id);
+printf("@");
 }
 
 /*
@@ -568,21 +565,24 @@ static void ssintr()
  */
 static void sswatch()
 {
-	int	s_id;
+	int s_id;
+	ss_type * ssp;
 
-	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++)
-		if (dr_watch[s_id]) {
-			dr_watch[s_id]--;
-			chk_reconn();
-			if (dr_watch[s_id] == 0) {
+printf("*");
+	for (s_id = 0; s_id < MAX_SCSI_ID-1; s_id++) {
+		ssp = ss[s_id];
+		if (ssp && ssp->dr_watch) {
+			ssp->dr_watch--;
+			if (ssp->dr_watch == 0) {
 				bus_dev_reset(s_id);
 printf("SCSI id #%d: bno=%lu <Watchdog Timeout>\n", s_id, ss[s_id]->bp->b_bno);
+			} else {
+				s_id = chk_reconn();
+				if (s_id != -1)
+					reconnect(s_id);
 			}
 		}
-	printf("*");
-	busted = 1;
-	drvl[SCSI_MAJOR].d_time--;
-	wakeup(&rpt_irpt);
+	} /* endfor */
 }
 
 /*
@@ -670,7 +670,7 @@ int s_id;
 		} else
 			devmsg(dev, "Read Capacity Failed");
 
-#if 1
+#if 0
 	/*
 	 * For test purposes only, try to read the partition table.
 	 */
@@ -678,7 +678,6 @@ int s_id;
 #define READ_PTS	1
 int foo,fof;
 for (foo=0,fof=0;foo<READ_PTS;){
-	rpt_irpt=0;
 	busted=0;
 	drvl[SCSI_MAJOR].d_time++;
 		if (read_pt(s_id)) {
@@ -966,6 +965,7 @@ ss_type *ssp;
 
 	ssp->cmdstat = -1;
 	ssp->data_bytes_in = 0;
+	ssp->data_bytes_out = 0;
 	ssp->cmd_bytes_out = 0;
 	ssp->msg_in = -1;
 	s = sphi();
@@ -1029,18 +1029,24 @@ SSDUMP(ssp, "Command overrun");
 			 * If caller's buffer has room, keep incoming
 			 * data byte.  Else toss it.
 			 */
-			if (ssp->data_bytes_in < ssp->in_buf_len)
+			if (ssp->data_bytes_in < ssp->in_buf_len && ssp->in_buf) {
 				ssp->in_buf[ssp->data_bytes_in]
 				= ffbyte(ss_dat);
-			else
+				ssp->data_bytes_in++;
+			} else
 				ffbyte(ss_dat);
-			ssp->data_bytes_in++;
 			break;
 		case XP_DATA_OUT:
 			/*
-			 * Temporary filler.
+			 * Copy output buffer bytes to data register.
 			 */
-			sfbyte(ss_dat, 0xAA);
+			if (ssp->data_bytes_out < ssp->out_buf_len && ssp->out_buf)
+				sfbyte(ss_dat, ssp->out_buf[ssp->data_bytes_out]);
+				ssp->data_bytes_out++;
+			else {	/* This case should not happen. */
+SSDUMP(ssp, "Data out overrun");
+				scsireset();
+			}
 			break;
 		default:
 			break;
@@ -1184,16 +1190,32 @@ printf("capacity=%ld   block length=%ld\n", ssp->capacity, ssp->blocklen);
 /*
  * ss_start()
  *
- * Invoked whenever there is I/O to do.  Pull first request, if any,
- * off the queue, send it to the drive, and delete it from the queue.
+ * Invoked whenever there might be I/O to do.
  *
  * Disallow re-entrancy in this routine (variable "locked").
+ * If there is a next I/O request queued (peek at head of queue)
+ *   get the target SCSI ID.
+ *   If target is not busy
+ *     remove request from queue
+ *     mark target device busy
+ *     start watchdog timer
+ *     send command to host adapter
+ *     if command succeeded
+ *       cleanup after command
+ *       adjust b_resid field
+ *     else if command failed
+ *       set error flag
+ *       cleanup after command
+ *     else (disconnected)
+ *       do nothing
  */
 static void ss_start()
 {
 	int s;
-	scsi_work_t *sw;
+	BUF * bp;
 	static char locked;
+	int s_id;
+	ss_type * ssp;
 
 	s = sphi();
 	if(locked) {
@@ -1203,40 +1225,28 @@ static void ss_start()
 	++locked;
 	spl(s);
 
-	if((sw = ssq_rm_head()) != NULL) {
-		if (sw->sw_bp->b_req == BWRITE)
-			ss_state = SWRITE;
-		else if (sw->sw_bp->b_req == BREAD)
-			ss_state = SREAD;
-		else
-			printf("Error:  b_req=%d\n", sw->sw_bp->b_req);
-		do_ss(sw);
+	if((bp = ssq_rd_head()) != NULL) {
+		s_id = DEV_SCSI_ID(bp->b_dev);
+		ssp = ss[s_id];
+		ssp->bp = bp;
+		if (!(ssp->id_busy)) {
+			ssq_rm_head();
+			ssp->id_busy = 1;
+			ssp->dr_watch = WATCHDOG_SECONDS;
+			if (ss_rw(s_id)) {
+				if (bp->b_req == BREAD)
+					bp->b_resid -= ssp->data_bytes_in;
+				else
+					bp->b_resid -= ssp->data_bytes_out;
+				if (ssp->msg_in != MSG_DISCONNECT)
+					ss_done(s_id);
+			} else {
+				bp->b_flag |= BFERR;
+				ss_done(s_id);
+			}
+		}
 	}
 	--locked;
-}
-
-/*
- * do_ss()
- *
- * Begin a block read or write command as found in an "sw" queue entry.
- */
-static void do_ss(sw)
-struct scsi_work_t * sw;
-{
-	BUF * bp;
-
-printf("do_ss\n");
-	bp = sw->sw_bp;
-	switch(ss_state) {
-	case SREAD:
-		bp->b_resid -= BSIZE;
-		ss_done(sw);
-		break;
-	case SWRITE:
-		bp->b_resid -= BSIZE;
-		ss_done(sw);
-		break;
-	}
 }
 
 /*
@@ -1244,22 +1254,20 @@ printf("do_ss\n");
  *
  * Release current i/o buffer to the O/S.
  */
-static void ss_done(sw)
-struct scsi_work_t * sw;
+static void ss_done(s_id)
+int s_id;
 {
-	BUF * bp;
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
 
-printf("ss_done\n");
-	if (sw) {
-		bp = sw->sw_bp;
-
-		ss_state = SIDLE;
+	ssp->id_busy = 0;
+	ssp->dr_watch = 0;
+	ssp->in_buf = ssp->out_buf = NULL;
+	if (bp) {
 		bdone(bp);
-		kfree(sw);
+		ssp->bp = NULL;
 	}
-
-	if (ssq_rd_head())
-		ss_start();
+	ss_start();
 }
 
 /*
@@ -1347,7 +1355,7 @@ printf("bus_dev_reset\n");
 	}
 	for (tries = 0; tries < BDR_CHECK_COUNT; tries++) {
 		if (ffbyte(ss_csr) == 0) {
-			printf("bus device reset done\n");
+	printf("bus device reset done\n");
 			break;
 		}
 		ssdelay(BDR_CHECK_INTERVAL);
@@ -1357,10 +1365,98 @@ printf("bus_dev_reset\n");
 /*
  * chk_reconn()
  *
- * Poll to see if any SCSI device has tried to reconnect to the host
+ * Check SELECT to see if any SCSI device has tried to reconnect to the host
  * adapter.  Called if there is an interrupt, and by the timer in case
  * we somehow lose an interrupt.
+ *
+ * Return -1 if no reselect detected, or the SCSI ID of the reselecting
+ * target if there is one.
+ *
+ * Call reconnect() after this if reselect has occurred.
  */
-static void chk_reconn()
+static int chk_reconn()
 {
+	uchar dat;
+	int s_id = -1;
+
+	if (ffbyte(ss_csr) && RS_SELECT) {
+		dat = ffbyte(ss_dat);
+		if ((dat & HOST_ID) && (dat & NSDRIVE)) {
+			dat &= ~HOST_ID;
+			s_id = 0;
+			while (dat >>=1)
+				s_id++;
+printf("R%d", s_id);
+		}
+	}
+
+	return s_id;
+}
+
+/*
+ * reconnect()
+ *
+ * Given SCSI ID of target device that is issuing reselect, do reconnect
+ * SCSI bus stuff.
+ */
+static void reconnect(s_id)
+int s_id;
+{
+	int cmd_ok = 0;
+	ss_type * ssp = ss[s_id];
+
+	sfbyte(ss_csr, WC_ENABLE_SCSI | WC_BUSY);
+	if (bus_wait(RS_SELECT << 8 | 0)) {
+		sfbyte(ss_csr, WC_ENABLE_SCSI);
+		if (bus_info_xfer(ssp) && ssp->cmdstat == CS_GOOD)
+			cmd_ok = 1;
+	}
+/* This is not finished: dr_watch, bdone, id_busy, etc. 
+and what of another disconnect??? */
+/* no disconnect allowed for inquiry, test ready, read capacity, etc. */
+		bp->b_resid -= BSIZE;
+	if (cmd_ok)
+	if (ssp->msg_in != MSG_DISCONNECT)
+		ssp->dr_watch = WATCHDOG_SECONDS;
+
+}
+
+/*
+ * ss_rw()
+ *
+ * Send read or write command to the host adapter.
+ */
+static int ss_rw(s_id)
+int s_id;
+{
+	ss_type * ssp = ss[s_id];
+	BUF * bp = ssp->bp;
+	int retval;
+
+	if (bp->b_req == BREAD) {
+		ssp->cmdbuf[0] = ScmdREADEXTENDED;
+		ssp->in_buf_len = bp->b_count;
+		ssp->in_buf = FP_OFF(bp->b_faddr);
+	} else {
+		ssp->cmdbuf[0] = ScmdWRITEXTENDED;
+		ssp->out_buf_len = bp->b_count;
+		ssp->out_buf = FP_OFF(bp->b_faddr);
+	}
+	ssp->cmdbuf[1] = ssp->cmdbuf[2] = ssp->cmdbuf[3] = ssp->cmdbuf[4] = 0;
+	ssp->cmdbuf[5] = ssp->cmdbuf[6] = ssp->cmdbuf[9] = 0;
+	ssp->cmdbuf[7] = bp->b_count / (BSIZE * 256L);
+	ssp->cmdbuf[8] = bp->b_count / BSIZE;
+	ssp->cmdlen = G1CMDLEN;
+	if (retval = bus_pre_xfer(s_id)) {
+		bus_info_xfer(ssp);
+		retval = (ssp->cmdlen == ssp->cmd_bytes_out
+			&& ssp->cmdstat == CS_GOOD);
+	}
+
+	if (ssp->cmdstat == CS_CHECK) {
+		if (req_sense(s_id))
+			retval = (ssp->cmdlen == ssp->cmd_bytes_out);
+	}
+
+	return retval;
 }
