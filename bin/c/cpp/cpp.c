@@ -1,11 +1,12 @@
 /*
  * cpp/cpp.c
- * Run CC0 (from LIBPATH under GEMDOS) for old cpp functionality.
+ * Run cc0 (from LIBPATH under GEMDOS) for old cpp functionality.
  * Default to stdin and stdout.
  * See usage() for details.
- * v0 -- dag 870722
- * v1 -- steve 870730	COHERENT and MSDOS conditionalization
- * v2 -- steve 920716	-C and -P options
+ * v0   -- dag 870722
+ * v1   -- steve 870730	COHERENT and MSDOS conditionalization
+ * v2   -- steve 920716	-C and -P options
+ * v4.0 -- steve 930128	-VCPLUS option
  */
 
 #include <stdio.h>
@@ -13,7 +14,10 @@
 #include "var.h"
 #include "varmch.h"
 
-#define	VERBOSITY	1	/* must be 0 to compile using old cpp */
+#define	NEWCPP	1	/* must be 0 to compile using old cpp */
+			/* because it does not understand "string1" "string2" */
+
+#define	VERSION	"4.0"
 
 #if	COHERENT
 #define	CC0NAME	"cc0"
@@ -44,7 +48,7 @@ VARIANT	variant;
 int 	verbose = 0;
 char	vstr[2*VMAXIM/VGRANU + 1];
 
-main(argc, argv) register int argc; register char *argv[];
+main(argc, argv) int argc; char *argv[];
 {
 	register char *ap;
 	register int i, s;
@@ -54,6 +58,10 @@ main(argc, argv) register int argc; register char *argv[];
 #if	MSDOS
 	register int len;
 	register char *tail;
+#endif
+
+#if	COHERENT
+	_addargs("CPP", &argc, &argv);
 #endif
 
 	cppargc = 4;
@@ -106,6 +114,11 @@ main(argc, argv) register int argc; register char *argv[];
 				break;
 
 			case 'V':
+				if (strcmp(&ap[2], "CPLUS") == 0) {
+					setvariant(VCPLUS);
+					break;
+				}
+				fprintf(stderr, "cpp: V%s\n", VERSION);
 				verbose++;
 				break;
 
@@ -166,21 +179,22 @@ void
 usage()
 {
 	fprintf(stderr, "Usage:\t/lib/cpp [ option... ] [ file ]\n");
-#if	VERBOSITY
+#if	NEWCPP
 	fprintf(stderr,
 		"Options:\n"
 #if	VCNEST
 		/* UNDOCUMENTED: -3 */
 #endif
-		"   -C\t\t\tdo not suppress comments\n"
-		"   -Dvariable[=val]\tdefine variable with val [default=1]\n"
-		"   -E\t\t\tstrip file line number information\n"
-		"   -Idirectory\t\tadd directory to #include file search list\n"
-		"   -o outfile\t\twrite output to outfile [default=stdout]\n"
-		"   -P\t\t\tstrip file line number information (same as -E)\n"
-		"   -Q\t\t\tsupress all messages\n"
-		"   -Uvariable\t\tundefine variable\n"
-		"   -V\t\t\tprint verbose information\n"
+		"\t-C\t\t\tdo not suppress comments\n"
+		"\t-Dvariable[=val]\tdefine variable with val [default=1]\n"
+		"\t-E\t\t\tstrip file line number information\n"
+		"\t-Idirectory\t\tadd directory to #include file search list\n"
+		"\t-o outfile\t\twrite output to outfile [default=stdout]\n"
+		"\t-P\t\t\tstrip file line number information (same as -E)\n"
+		"\t-Q\t\t\tsupress all messages\n"
+		"\t-Uvariable\t\tundefine variable\n"
+		"\t-V\t\t\tprint verbose information\n"
+		"\t-VCPLUS\t\t\tprocess C++ - style online comments\n"
 		);
 #endif
 	exit(1);
