@@ -152,7 +152,7 @@ FILE *tfp;
 			continue;
 		}
 		chown(boxname, pwp->pw_uid, pwp->pw_gid);
-		fprintf(xfp, "\n\1\1\1\1\n");
+		fprintf(xfp, "\1\1\1\1\n");
 	        mcopy(tfp, xfp, ftell(tfp), (fsize_t)MAXLONG, 0);
 		fprintf(xfp, "\n\1\1\1\1\n");
 		fclose(xfp);
