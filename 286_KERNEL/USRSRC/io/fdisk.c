@@ -3,6 +3,9 @@
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
  -lgl) */
+/*
+ * $Log$
+ */
 /**
  *
  * fdisk( dev, fp )	--	Fixed Disk Configuration
@@ -37,6 +40,7 @@ register struct fdisk_s *fp;
 	BUF *bp;
 	int s, i;
 	int ret = 0;
+int erf = -1;
 
 	s = sphi( );
 	dopen( dev, IPR, DFBLK );
@@ -55,10 +59,20 @@ register struct fdisk_s *fp;
 
 				ret   = 1;
 			}
+else erf=1;
 			brelease( bp );
 		}
 		dclose( dev );
 	}
+else erf=0;
 	spl( s );
+switch (erf) {
+case 0:
+	devmsg(dev, "fdisk: open failed");
+	break;
+case 1:
+	devmsg(dev, "fdisk: bad signature");
+	break;
+}
 	return ret;
 }
