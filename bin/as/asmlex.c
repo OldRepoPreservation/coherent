@@ -37,10 +37,10 @@ unget(c)
 
 getmap(d)
 {
-	register c, n, v;
+	register c, v, n;
 
 	if ((c = get()) == '\0')
-		qerr();
+		qerr("unexpected end of line");
 	if (c == d)
 		return (-1);
 	if (c == '\\') {
@@ -67,6 +67,23 @@ getmap(d)
 			c = '\t';
 			break;
 
+		case 'v':					/* 150 */
+			c = 013;	/* vertical tab */	/* 150 */
+			break;					/* 150 */
+		case 'x':
+			for(n = v = 0; n < 2; n++) {	/* hex stuff */
+				v = (v << 4) + (c = get());
+				if(c >= '0' && c <= '9')
+					v -= '0';
+				else if(c >= 'a' && c <= 'f')
+					v -= ('a' - 10);
+				else if(c >= 'A' && c <= 'F')
+					v -= ('A' - 10);
+				else
+					qerr("Invalid hex expression");
+			}
+			c = v;
+			break;		
 		case '0':
 		case '1':
 		case '2':
