@@ -1,31 +1,30 @@
-%h sitename of remote system
-sys, -20,, nonNull
-%h ACU, None or a DIR line in devices
-Line, -7,, checkLine
-%h 110, 300, 600, 1200, 2400, 4800, 9600 or 19200
-baudRate, -6,, numeric
-%h must be in the format understood by your dialer
-phoneNo, -14
-% 3 7
-%h Su Mo Tu We Th Fr Sa Wk Any Never
-day, -15,, checkDay, group
-%h 0000 to 2400 or null for any
-timeFrom, -4,, checkTime, 1
-%h 0000 to 2400
-timeTo, -4,, checkTime
-% 2 3
-%h Expected message from remote site
-expect, -20
-%h Reply
-send, -20
+sys 20 verify nonNull help "sitename of remote system"
+
+Line 7 verify checkLine help "ACU, None or a DIR line in devices"
+
+baudRate 6 verify numeric help "110, 300, 600, 1200, 2400, 4800, 9600 or 19200"
+
+phoneNo 14 verify noWhite \
+	help "must be in the format understood by your dialer"
+
+do 7
+	day 15 verify checkDay skip group \
+		help "Su Mo Tu We Th Fr Sa Wk Any Never"
+	timeFrom 4 verify checkTime skip 1 \
+		help "0000 to 2400 or null for any"
+	timeTo 4 verify checkTime help "0000 to 2400"
+done
+
+do 8
+	expect 28 long verify noWhite help "Expected message from remote site"
+	send 28 long verify noWhite help "Reply"
+done
 %%
 		Connected system list
-
 System		!
 Line		!
 baud rate	!
 phone number	!
-
 Day to call     Time From    Time To     
 !		!	     !
 !		!	     !
@@ -34,10 +33,11 @@ Day to call     Time From    Time To
 !		!	     !
 !		!	     !
 !		!	     !
-
-expect	!
-send	!
-expect	!
-send	!
-expect	!
-send	!
+expect !                            send !
+expect !                            send !
+expect !                            send !
+expect !                            send !
+expect !                            send !
+expect !                            send !
+expect !                            send !
+expect !                            send !
