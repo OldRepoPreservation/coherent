@@ -2,6 +2,9 @@
  * 	COHERENT Driver Kit Version 1.1.0
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
+ *
+ * $Log$
+ *
  -lgl) */
 /*
  * Keyboard/display driver.
@@ -219,7 +222,7 @@ isload()
 	setivec(1, isrint);
 
 	/*
-	 * Initiailize video display.
+	 * Initialize video display.
 	 */
 	mmstart( &istty );
 }
@@ -715,13 +718,35 @@ static
 isin( c )
 register int c;
 {
+	int cache_it = 1;
+	TTY * tp = &istty;
+
+	/*
+	 * If using software incoming flow control, process and
+	 * discard t_stopc and t_startc.
+	 */
+	if (!ISRIN) {
+		if (ISSTOP) {
+			if ((tp->t_flags&T_STOP) == 0)
+				tp->t_flags |= T_STOP;
+			cache_it = 0;
+		}
+		if (ISSTART) {
+			tp->t_flags &= ~T_STOP;
+			ttstart(tp);
+			cache_it = 0;
+		}
+	}
+
 	/*
 	 * Cache received character.
 	 */
-	istty.t_rawin.si_buf[ istty.t_rawin.si_ix ] = c;
+	if (cache_it) {
+		istty.t_rawin.si_buf[ istty.t_rawin.si_ix ] = c;
 
-	if ( ++istty.t_rawin.si_ix >= sizeof(istty.t_rawin.si_buf) )
-		istty.t_rawin.si_ix = 0;
+		if ( ++istty.t_rawin.si_ix >= sizeof(istty.t_rawin.si_buf) )
+			istty.t_rawin.si_ix = 0;
+	}
 }
 
 /**
