@@ -25,12 +25,9 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.5 93/02/02 18:18:07 bin Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 1.2 92/04/13 14:40:04 bin Exp Locker: bin $
  *
  *  $Log:	curses.h,v $
- * Revision 1.5  93/02/02  18:18:07  bin
- * Udo update, added color code
- * 
  * Revision 2.2  92/10/25  22:36:15  munk
  * Several changes to make it more SV.3 compatible
  *
@@ -106,7 +103,8 @@ struct _win_st {
 
 extern WINDOW	*stdscr, *curscr;
 
-int	LINES, COLS, COLORS, COLOR_PAIRS;
+extern int	LINES, COLS, COLORS, COLOR_PAIRS;
+extern short	pair, f, b, color, r, g, b;
 
 WINDOW  *initscr(), *newwin(), *subwin();
 char    *longname();

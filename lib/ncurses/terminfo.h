@@ -99,14 +99,14 @@
 #define COLOR_PAIR(n)	((n) << 25)
 #define PAIR_NUMBER(n)	(((n) & A_COLOR) >> 25)
 
-#define COLOR_BLACK	1
-#define COLOR_RED	2
-#define COLOR_GREEN	3
-#define COLOR_YELLOW	4
-#define COLOR_BLUE	5
-#define COLOR_MAGENTA	6
-#define COLOR_CYAN	7
-#define COLOR_WHITE	8
+#define COLOR_BLACK	0
+#define COLOR_RED	1
+#define COLOR_GREEN	2
+#define COLOR_YELLOW	3
+#define COLOR_BLUE	4
+#define COLOR_MAGENTA	5
+#define COLOR_CYAN	6
+#define COLOR_WHITE	7
 
 #define ACS_ULCORNER	(acs_map['l'])	/* upper left corner */
 #define ACS_LLCORNER	(acs_map['m'])	/* lower left corner */
