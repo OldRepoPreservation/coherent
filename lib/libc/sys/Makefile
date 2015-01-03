@@ -1,37 +1,24 @@
-# /usr/src/libc/sys/Makefile 9/28/92
+# /usr/src/libc/sys/Makefile 6/8/94
 
-OBJ=\
-	execl.o\
-	execle.o\
-	execlp.o\
-	execlpe.o\
-	execv.o\
-	execve.o\
-	execvp.o\
-	execvpe.o
+LIBOBJ=\
+	$(TARGET)(execl.o) \
+	$(TARGET)(execle.o) \
+	$(TARGET)(execlp.o) \
+	$(TARGET)(execlpe.o) \
+	$(TARGET)(execv.o) \
+	$(TARGET)(execve.o) \
+	$(TARGET)(execvp.o) \
+	$(TARGET)(execvpe.o)
 
 UNUSED=\
 	brk.o
 
 # Primary target.
-all:	SYS sys$(MCH)
+all:	$(LIBOBJ) sys$(MCH)
 	: libc/sys done.
 
-# Pseudotargets.
-SYS:	$(OBJ)
-	$(AR) rkus libc.a $?
-	touch $@
+# Secondary target.
 sys$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
-
-# Secondary targets.
-execl.o:	execl.c
-execle.o:	execle.c
-execlp.o:	execlp.c
-execlpe.o:	execlpe.c
-execv.o:	execv.c
-execve.o:	execve.c
-execvp.o:	execvp.c
-execvpe.o:	execvpe.c
+	$(MAKE) $(MAKEARGS) "SRCPATH=$(SRCPATH)/$(MCH)" "MAKEARGS=$(MAKEARGS)"
 
 # end of /usr/src/libc/sys/Makefile

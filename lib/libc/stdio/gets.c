@@ -7,7 +7,7 @@
  * Do not retain newline.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 char *
 gets(s) char *s;

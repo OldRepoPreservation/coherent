@@ -1,51 +1,99 @@
 # Master makefile
-# Use of GCC for compilations of DDI/DKI drivers caused by this makefile is
-# strongly recommended. Comment out the following lines if you cannot use gcc
-# for some reason. The default compiler is fine for the Space.c and conf.c
-# files, though.
 
-CC=gcc
-CFLAGS=-O2 -Wall -ansi -pedantic
 CONFDIR=.
+PREFIX=.
+MANIFEST=$(PREFIX)/conf
+MAKEFILE=Makefile
+GCC=gcc
+#GCCFLAGS=-O2 $(CFLAGS) # -Wall -ansi -pedantic
+GCCFLAGS=$(CFLAGS) # -Wall -ansi -pedantic
+GLDFLAGS=-nostdlib /lib/crts0.o
+GLIBFLAGS=/lib/libc.a
 
-all: drivers $(CONFDIR)/drvbld.mak configure
+MAKEARGS="CC=$(CC)" "CFLAGS=$(CFLAGS)" "LDFLAGS=$(LDFLAGS)" \
+	"LIBFLAGS=$(LIBFLAGS)" "CONFDIR=$(CONFDIR)"
+EXTRA_ARGS=	MTUNE_FILE=$(MTUNE_FILE) STUNE_FILE=$(STUNE_FILE) \
+		MDEV_FILE=$(MDEV_FILE) SDEV_FILE=$(SDEV_FILE) \
+		TEMPL_FILE=$(TEMPL_FILE) KEEP_FILE=$(KEEP_FILE) \
+		FORCE_KERNEL=$(FORCE_KERNEL)
+BIN=bin
 
-# Update binaries of drivers and the 'devadm' program
+DRIVERS=$(CONFDIR)/drvbld.mak
 
-drivers:
-	j=$$CWD; for i in */src/[Mm]akefile; do \
-		if [ -f $$i ]; then \
-			DEVDIR=`expr $$i : '\(.*\)/.*'`; \
-			echo "$$DEVDIR"; \
-			cd $$DEVDIR; \
-			make CC="$(CC)" CFLAGS="$(CFLAGS)" || exit 1; \
-			cd $$j; \
-		fi; \
+everything:	all $(DRIVERS) configure
+
+all clean setup depend:
+	@+j=$$(pwd); for i in */src/[Mm]akefile; do \
+		case $$i in \
+		[!*]*)	cd $${i%/*} ; echo $$(pwd); \
+			$(MAKE) $(MAKEARGS) $(EXTRA_ARGS) \
+				PREFIX=$(MANIFEST)/$${i%%/*} $@ || exit 1; \
+			cd $$j; ;; \
+		esac \
 	done
 
+gcc:
+	@+exec $(MAKE) $(EXTRA_ARGS) \
+		"CC=$(GCC)" "CFLAGS=$(GCCFLAGS)" "LDFLAGS=$(GLDFLAGS)" \
+		"LIBFLAGS=$(GLIBFLAGS)" "CONFDIR=$(CONFDIR)" -f $(MAKEFILE)
+
+# The only difference between this and the action above is Hal's desire
+# to see the system walk over the directories.
+
+manifest distrib:
+	@j=$$(pwd); for i in */src/[Mm]akefile; do \
+		case $$i in \
+		[!*]*)	cd $${i%/*} ; \
+			$(MAKE) $(MAKEARGS) $(EXTRA_ARGS) \
+				PREFIX=$(MANIFEST)/$${i%%/*} $@ || exit 1; \
+			cd $$j; ;; \
+		esac \
+	done
+
+# Update binaries of drivers and the 'devadm' program
 # As a detail, we check to see that a device for major number 4 is installed,
 # otherwise the kernel will be built without a console and will fail to be
 # very useful.
 
-$(CONFDIR)/drvbld.mak: $(CONFDIR)/mdevice $(CONFDIR)/sdevice \
-			$(CONFDIR)/template.mak
-	bin/idcheck -i $(CONFDIR) -B -l 4; if [ $$? -gt 0 -a $$? -lt 100 ]; \
+$(DRIVERS):	$(MDEV_FILE) $(SDEV_FILE) \
+		$(TEMPL_FILE) $(BIN)/idcheck \
+		$(BIN)/devadm
+	@$(BIN)/idcheck -i $(CONFDIR) -B -l 4 -u 4; if [ $$? -gt 0 -a $$? -lt 100 ]; \
 		then exit 0; \
 		else echo "No console device configured"; exit 1;\
 		fi
-	CONFPATH=$$CWD bin/devadm -d -I $(CONFDIR)
+	CONFPATH=$$(pwd) $(BIN)/devadm -X $(MDEV_FILE) -Y $(SDEV_FILE) \
+				-Z $(TEMPL_FILE) -d -I $(CONFDIR)
 
 configure:
-	export CONFPATH=$$CWD; cd $(CONFDIR); \
-		make K386LIB=$(K386LIB) TARGET=$(TARGET) -f drvbld.mak
+	export CONFPATH=$$(pwd); cd $(CONFDIR); \
+		$(MAKE) $(MAKEARGS) $(EXTRA_ARGS) \
+			K386LIB=$(K386LIB) TARGET=$(TARGET) -f drvbld.mak
 
-clean:	newconf
-	j=$$CWD; for i in */src/[Mm]akefile; do \
-		cd `expr $$i : '\(.*\)/.*'`; \
-		make clean || exit 1; \
-		cd $$j; \
+# Set up additional dependencies for top-level actions, and then define the
+# additional actions.
+
+clean:	conf_clean
+setup:	conf_setup
+manifest: conf_manifest
+distrib: conf_distrib
+
+conf_clean:
+	rm -f drvbld.mak conf.[ch] obj/*
+
+conf_setup:
+	[ -d obj ] || mkdir obj
+	[ -d lib ] || mkdir lib
+
+conf_manifest:
+	@for i in Makefile; do \
+		echo $(MANIFEST)/$$i; \
 	done
 
-newconf:
-	rm -f $(CONFDIR)/drvbld.mak $(CONFDIR)/conf.c $(CONFDIR)/conf.h \
-		$(CONFDIR)/obj/*
+conf_distrib:
+	@for i in Makefile bin/id* bin/devadm bin/cohtune bin/ndptype \
+		  bin/bports bin/kbdselect bin/conf_bits \
+		  bin/cxtype bin/conf_lib.sh lib/k*; do \
+		echo $(MANIFEST)/$$i; \
+	done
+

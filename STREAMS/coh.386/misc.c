@@ -1,70 +1,81 @@
+/* $Header: /ker/coh.386/RCS/misc.c,v 2.5 93/10/29 00:55:20 nigel Exp Locker: nigel $ */
 /*
- * coh.386/misc.c
- *
- * Miscellaneous routines.
- *
- * Revised: Thu Jul 15 14:18:13 1993 CDT
+ * $Log:	misc.c,v $
+ * Revision 2.5  93/10/29  00:55:20  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.4  93/08/19  03:26:34  nigel
+ * Nigel's r83 (Stylistic cleanup)
  */
-#include <sys/coherent.h>
-#include <sys/acct.h>
-#include <sys/errno.h>
-#include <sys/ino.h>
-#include <sys/stat.h>
 
-#ifdef TRACER
-extern unsigned t_piggy;
-#endif
+#include <kernel/proc_lib.h>
+#include <sys/cmn_err.h>
+#include <sys/types.h>
+#include <sys/errno.h>
+#include <sys/stat.h>
+#include <sys/cred.h>
+#include <stddef.h>
+
+#define	_KERNEL		1
+
+#include <sys/uproc.h>
+#include <sys/proc.h>
+#include <sys/acct.h>
+#include <sys/ino.h>
+
 
 /*
  * Make sure we are the super user.
  */
 
-super()
+int
+super ()
 {
-	if (u.u_uid) {
-		u.u_error = EPERM;
+	if (SELF->p_credp->cr_uid != 0) {
+		set_user_error (EPERM);
 		return 0;
 	}
 	u.u_flag |= ASU;
 	return 1;
 }
 
+
 /*
- * Make sure we are the gived `uid' or the super user.
+ * Make sure we are the given 'uid' or the super user.
  */
 
-owner(uid)
+int
+owner (uid)
+n_uid_t		uid;
 {
-	if (u.u_uid == uid)
+	if (SELF->p_credp->cr_uid == uid)
 		return 1;
-	if (u.u_uid == 0) {
-		u.u_flag |= ASU;
-		return 1;
-	}
-	u.u_error = EPERM;
-	return 0;
+	return super ();
 }
+
 
 /*
  * Use printf to generate a call-trace.
  */
 
-void backtrace (dummy)
+void
+backtrace (dummy)
 long		dummy;
 {
 	long	      *	bp = (& dummy) - 2;
 
-	printf ("Call backtrace: ");
+	cmn_err (CE_CONT, "Call backtrace: ");
 	do {
 		bp = (long *) * bp;
-		printf (" -> %x", * (bp + 1));
+		cmn_err (CE_CONT, " -> %x", * (bp + 1));
 	} while (* bp != NULL);
-	printf ("\n");
+	cmn_err (CE_CONT, "\n");
 }
 
 /*
  * Panic.
  */
+
 void
 panic(a1)
 char *a1;
@@ -73,40 +84,15 @@ char *a1;
 
 	sphi ();
 
-#ifdef TRACER
-	if (t_piggy & 0x80) {
-		if (panflag ++ == 0) {
-			printf ("Panic: %r", &a1);
-			putchar ('\n');
-			usync ();
-		}
-		printf ("relax! It really isn't so bad.\n");
-	} else {
-		if (panflag ++ == 0) {
-			if (paging ()) {
-				printf ("Panic: %r", &a1);
-				putchar ('\n');
-			} else {
-				strchirp ("Panic: ");
-				strchirp (a1);
-			}
-			backtrace (0);
-			for (;;)
-				/* DO NOTHING */ ;
-			usync ();
-		}
-		halt ();
-	}
-#else
 	if (panflag ++ == 0) {
 		printf ("Panic: %r", &a1);
 		putchar ('\n');
+		backtrace ();
 		for (;;)
 			/* DO NOTHING */ ;
 		usync ();
 	}
 	halt ();
-#endif /* TRACER */
 
 	-- panflag;
 }
@@ -114,6 +100,8 @@ char *a1;
 /*
  * Print a message from a device driver.
  */
+
+void
 devmsg(dev, a1)
 dev_t dev;
 char *a1;

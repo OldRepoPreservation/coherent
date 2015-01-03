@@ -3,6 +3,8 @@
 / i387 mathematics library
 / ceil(d), floor(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

@@ -2,13 +2,14 @@
  * libm/fmod.c
  * C mathematics library.
  * fmod()
- * ANSI 4.5.6.4.
  * Floating point remainder function.
+ * ANSI 4.5.6.4.
  * Implementation-defined behavior:
  *	issues EDOM error and returns 0.0 when y==0.0.
  */
 
 #include <math.h>
+#include <errno.h>
 
 #if	EMU87
 #include "emumath.h"

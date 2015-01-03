@@ -7,6 +7,7 @@
 / Common error exit for system calls.
 //////////
 
+	.unixorder
 	.globl	.cerror
 	.globl	errno
 	.comm	errno,4

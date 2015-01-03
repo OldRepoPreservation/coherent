@@ -4,6 +4,7 @@
 / Not in ANSI C standard.
 //////////
 
+	.intelorder
 
 //////////
 / void _memxchg(char *S1, char *S2, size_t Count)

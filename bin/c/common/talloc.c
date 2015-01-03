@@ -30,8 +30,8 @@ int ts_size;
  * To make life a lot easier for the rest of the world,
  * tree space is zeroed.
  */
-extern char *malloc();
-char *talloc()
+char *
+talloc()
 {
 	register char *p;
 	register int n;

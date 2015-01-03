@@ -6,7 +6,7 @@
  * Write string s to stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 fputs(s, stream) register const char *s; register FILE *stream;

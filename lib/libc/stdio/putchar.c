@@ -6,7 +6,7 @@
  * Write character c to stdout.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #undef	putchar
 
 int

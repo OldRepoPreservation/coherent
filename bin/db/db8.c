@@ -7,7 +7,6 @@
 
 #include <errno.h>
 #include <signal.h>
-#include <sys/param.h>
 #include <sys/ptrace.h>
 #include "db.h"
 
@@ -181,7 +180,7 @@ startc(argv, ifn, ofn, aflag) char **argv; char *ifn; char *ofn; int aflag;
 	map_init();
 	map_set(DSEG, MIN_ADDR, MAX_ADDR, (off_t)0, MAP_CHILD);
 	map_set(ISEG, MIN_ADDR, MAX_ADDR, (off_t)0, MAP_CHILD);
-	map_set(USEG, MIN_ADDR, (ADDR_T)UPASIZE, (off_t)0, MAP_CHILD);
+	map_set(USEG, MIN_ADDR, (ADDR_T)PTRACE_UEND-1, (off_t)0, MAP_CHILD);
 	execflag = 1;
 	get_regs(R_SOME);
 	return 1;

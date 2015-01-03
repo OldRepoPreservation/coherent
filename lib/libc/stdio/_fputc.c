@@ -6,7 +6,7 @@
  * Conditional for _FASCII and errno == EINTR code.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #if	COHERENT || GEMDOS
 #include <errno.h>
 #endif

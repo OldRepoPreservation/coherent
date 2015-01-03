@@ -11,7 +11,7 @@
 /*
  * Limits.
  */
-#define NARGS   32		/* Max. args in a function */
+#define NARGS   64		/* Max. args in a function */
 #define	NCSYMB	256		/* Max symbol */
 #define	NMNAME	64		/* Longest module name */
 

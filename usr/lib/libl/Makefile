@@ -1,6 +1,4 @@
-# /usr/src/libl/Makefile 2/14/92
-
-DESTDIR=/interim/usr/lib/
+# /usr/src/libl/Makefile 2/14/91
 
 OBJ=\
 	auto.o \
@@ -19,7 +17,7 @@ OBJ=\
 
 # Primary target.
 libl.a:	$(OBJ)
-	$(AR) rckus $(DESTDIR)$@ $?
+	ar rckus $@ $?
 
 # Secondary targets.
 auto.o:		auto.c lexlib.h lextype.h
@@ -38,5 +36,3 @@ wrap.o:		wrap.c
 
 clean:	libl.a $(OBJ)
 	rm libl.a $(OBJ)
-
-# end of /usr/src/libl/Makefile

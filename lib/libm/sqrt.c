@@ -1,15 +1,19 @@
 /*
+ * libm/sqrt.c
+ * C mathematics library.
+ * sqrt()
  * Square root function.
  */
+
 #include <math.h>
+#include <errno.h>
 
 #if	EMU87
 #include "emumath.h"
 #endif
 
 double
-sqrt(x)
-double x;
+sqrt(x) double x;
 {
 	double s;
 	int i;
@@ -17,10 +21,10 @@ double x;
 
 	if (x < 0.0) {
 		errno = EDOM;
-		return (0.0);
+		return 0.0;
 	}
 	if (x == 0.)
-		return(0.);
+		return 0.0;
 	n = L2L2P;
 	/* The assignment in the following line is to avoid compiler bug. */
 	s = frexp(x, &i);
@@ -28,5 +32,7 @@ double x;
 	do {
 		s = (s + x/s) / 2.0;
 	} while (--n);
-	return (s);
+	return s;
 }
+
+/* end of libm/sqrt.c */

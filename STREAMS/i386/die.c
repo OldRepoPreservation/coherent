@@ -1,3 +1,17 @@
+/* $Header: /ker/i386/RCS/die.c,v 2.3 93/10/29 00:56:42 nigel Exp Locker: nigel $ */
+/*
+ * die.c -- Get information out from a very young kernel which probably
+ * can't do printf()'s.
+ *
+ * $Log:	die.c,v $
+ * Revision 2.3  93/10/29  00:56:42  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.2  93/08/19  03:40:00  nigel
+ * Nigel's R83
+ * 
+ */
+
 #if KLAATU
 #define SERIAL_CONSOLE	1
 #define INS8250 0x3f8	/* klaatu */
@@ -12,12 +26,9 @@
 #define INS8250 0x3f8
 #endif
 
-/*
- * die.c -- Get information out from a very young kernel which probably
- * can't do printf()'s.
- */
+#define	_KERNEL		1
 
-#include <sys/coherent.h>
+#include <kernel/reg.h>
 #include <sys/mmu.h>
 #include <ctype.h>
 
@@ -49,7 +60,7 @@ int off;
 		*((char *) (ctob(VIDEOb) + off)) = c;
 	}
 #endif
-} /* _chirp() */
+}
 
 /*
  * void chirp(char c);
@@ -63,7 +74,7 @@ chirp(c)
 char c;
 {
 	_chirp(c, 158);
-} /* chirp() */
+}
 
 /*
  * void strchirp(char *str);
@@ -80,11 +91,11 @@ char *str;
 {
 	char c;
 	
-	while (c = *str++) {
-		_chirp(c, chirp_off);
+	while ((c = * str ++) != 0) {
+		_chirp (c, chirp_off);
 		chirp_off += 2;
 	}
-} /* strchirp() */
+}
 
 /*
  * void mchirp(char c);
@@ -103,10 +114,14 @@ char c;
 	if ('\0' != c) {
 		_chirp(c, chirp_off);
 		chirp_off += 2;
-	}
-	else
+
+		/* Don't go past 80 x 25 screen */
+
+		if (chirp_off > 4000)	/* Don't go past 80 x 25 screen */
+			chirp_off = 0;
+	} else
 		chirp_off = 0;
-} /* mchirp() */
+}
 
 /*
  * void dchirp(char c, charpos);
@@ -118,9 +133,10 @@ char c;
 void
 dchirp(c, charpos)
 	char c;
+	int charpos;
 {
 	_chirp(c, charpos<<1);
-} /* dchirp() */
+}
 
 /*
  * void die(char c);
@@ -150,7 +166,7 @@ puts(s)
 		mchirp(*s++);
 	}
 
-} /* puts() */
+}
 
 
 #define BS '\010'
@@ -161,19 +177,13 @@ puts(s)
 #define DIGITS_PER_INT16	4	/* Maximum hex digits in a 16 bit number.  */
 #define DIGITS_PER_INT8		2	/* Maximum hex digits in an 8 bit number.  */
 
-/*
- * Print a 32/16/8 bit integers in hexadecimal.
- */
-void print32(num)	{hexprint(num,8);}
-void print16(num)	{hexprint(num,4);}
-void print8(num)	{hexprint(num,2);}
-
 #if SERIAL_CONSOLE
 #define OUTCH(c)	__putchar(c)
 #else
 #define OUTCH(c)	mchirp(c)
 #endif
 
+void
 hexprint(n, hexdigits)
 int n, hexdigits;
 {
@@ -191,6 +201,16 @@ int n, hexdigits;
 	OUTCH(' ');
 }
 
+/*
+ * Print a 32/16/8 bit integers in hexadecimal.
+ */
+
+void print32(num) int num;	{hexprint(num,8);}
+void print16(num) int num;	{hexprint(num,4);}
+void print8(num)  int num;	{hexprint(num,2);}
+
+
+void
 outch(c)
 int c;
 {
@@ -238,6 +258,7 @@ int c;
 #define	DR	0x01
 #define	THRE	0x20
 
+void
 __cinit()
 {
 #if SERIAL_CONSOLE
@@ -263,9 +284,10 @@ __cinit()
 #define CTLQ	0021
 #define CTLS	0023
 
+int
 __getchar()
 {
-	register c;
+	register int c;
 
 	while( (inb(LSR) & DR) == 0 )
 		;
@@ -276,10 +298,11 @@ __getchar()
 	return( c );
 }
 
+int
 __putchar( c )
-register c;
+register char c;
 {
-	register f;
+	register int f;
 
 #if	ASCII
 	if (c == '\n')

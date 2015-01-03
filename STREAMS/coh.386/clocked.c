@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/clocked.c,v 2.2 93/07/26 15:22:04 nigel Exp $ */
+/* $Header: /ker/coh.386/RCS/clocked.c,v 2.4 93/10/29 00:55:01 nigel Exp Locker: nigel $ */
 /*
  * clocked.c - support routines for alternate clock rate
  *
@@ -18,18 +18,20 @@
  *    90/08/14 hws	make it more like a Unix system call
  *
  * $Log:	clocked.c,v $
+ * Revision 2.4  93/10/29  00:55:01  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.3  93/08/19  03:26:23  nigel
+ * Nigel's r83 (Stylistic cleanup)
+ * 
  * Revision 2.2  93/07/26  15:22:04  nigel
  * Nigel's R80
- * 
  */
 
-#include	<sys/coherent.h>		/* altclk */
-
-#ifdef _I386
 #include	<kernel/param.h>		/* HZ */
-#else
-#include	<kernel/const.h>		/* HZ */
-#endif
+
+extern	int	 (*altclk)();		/* hook for polled devices */
+
 
 #define	PIT	0x40		/* 8253 port */
 #define	TMR0_M3	0x36		/* timer 0, mode 3 */
@@ -37,6 +39,7 @@
 
 typedef int (*PFI)();		/* pointer to function returning int */
 
+int
 altclk_rate(hz)
 unsigned int hz;
 {
@@ -58,7 +61,8 @@ unsigned int hz;
 	return ret;
 }
 
-int altclk_in(hz, fn)
+int
+altclk_in(hz, fn)
 int hz;
 PFI fn;
 {
@@ -69,7 +73,8 @@ PFI fn;
 	return ret;
 }
 
-PFI altclk_out()
+PFI
+altclk_out()
 {
 	PFI ret;
 

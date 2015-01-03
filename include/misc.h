@@ -1,26 +1,33 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
 
-/*
- * /usr/include/misc.h
- * Miscellaneous useful user functions.
- * Sugggestions and additions are welcome.
- *
- * Revised Wed Mar 24 16:44:33 1993 CST
- */
 #ifndef __MISC_H__
 #define __MISC_H__
 
+/*
+ * Miscellaneous user functions.
+ */
 #ifndef OFFSETOF
 
-/* Handy defines */
+/*
+ * Do not use this, use offsetof () from <stddef.h> instead.
+ */
 #define OFFSETOF(type, mem) (&((char *)((type *)NULL)->m) - NULL)
+
 #define ENDOF(x) (((char *)(x))+sizeof(x)) /* end of some thing */
+
 #define SETIN(a, b) !((a) & ~(b))	/* a in b */
 
+/*
+ * This code has no portable equivalent; note that subtracting two pointers
+ * in C yields a value of type ptrdiff_t (defined in <stddef.h>), but any
+ * attempt to deal with the difference between two pointers not derived from
+ * the same object yields undefined behaviour.
+ */
 #ifdef M68000
 #define ptrdiff(a, b) ((long)a - (long)b)
 #else
@@ -32,33 +39,7 @@
 #endif
 
 #include <stdio.h>
-
-/*
- * Needed for select()
- */
-struct timeval {
-	long tv_sec;
-	long tv_usec;
-};
-
-#include <sys/param.h>
-
-#if NOFILE <= 32
-typedef int fd_set;
-
-#define FD_ZERO(fdp)	{*fdp = 0;}
-#define FD_SET(b,fdp)	(*fdp |= 1 << (b))
-#define FD_ISSET(b,fdp)	(*fdp & 1 << (b))
-#define FD_SETSIZE 32
-#else
-typedef int fd_set[2];
-
-#define FD_ZERO(fdp)	{(*fdp)[0]=(*fdp)[1]=0;}
-#define FD_SET(b,fdp)	((*fdp)[((b)>>5)&1] |= 1 << ((b)&0x1F))
-#define FD_ISSET(b,fdp)	((*fdp)[((b)>>5)&1] & 1 << ((b)&0x1F))
-#define FD_SETSIZE 64
-#endif
-/* end of select() support */
+#include <sys/select.h>
 
 extern void fatal();	/* like fprintf(stderr, ...); exit(1); */
 extern char * getline();/* char * getline(FILE *fp, int *lineNo);

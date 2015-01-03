@@ -84,7 +84,7 @@ fold0(op, lp, rp) int op; TREE *lp, *rp;
 	 */
 	if (op == SHL || op == SHR)
 		rt = T_INT;
-	gt = cvdope[13 * (lt - T_CHAR) + (rt - T_CHAR)] & GOAL;
+	gt = goaltype(lt, rt);
 
 	/* Set unsigned, long, ZCON flags based on goal type. */
 	uflag = (gt == T_UINT || gt == T_ULONG);
@@ -251,7 +251,6 @@ foldd(op, lp, rp) int op; TREE *lp, *rp;
 	if (rp != NULL)
 		rv = grabdval(rp);
  
-
 	/* Perform the folding, leaving result in lv or in bool (0 or 1). */
 	bool = -1;
 	switch(op) {
@@ -302,12 +301,12 @@ grabdval(tp) register TREE *tp;
 	switch (tp->t_op) {
 	case ICON:
 		return ((t = tp->t_type) == T_UINT || t == T_ULONG)
-				? (uival_t)tp->t_ival : tp->t_ival;
+			? (double)(uival_t)tp->t_ival : (double)tp->t_ival;
 	case ZCON:
-		return (uival_t)tp->t_zval;
+		return (double)(uival_t)tp->t_zval;
 	case LCON:
 		return ((t = tp->t_type) == T_UINT || t == T_ULONG)
-				? (ulval_t)tp->t_lval : tp->t_lval;
+			? (double)(ulval_t)tp->t_lval : (double)tp->t_lval;
 	case DCON:
 		return dval_to_d(tp);
 	}

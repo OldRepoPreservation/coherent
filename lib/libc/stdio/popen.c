@@ -3,7 +3,7 @@
  * Make streams to or from a process.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <signal.h>
 
 #define	R	0	/* Pipe read descriptor index */

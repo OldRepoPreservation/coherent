@@ -6,7 +6,7 @@
  * Find logical file position on stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <errno.h>
 
 #define	EFGETPOS	EINVAL

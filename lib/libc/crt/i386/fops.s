@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / double _fadd(float f)
 / Return f + %edx:eax in %edx:%eax.

@@ -1,4 +1,4 @@
-/* $Header: /ker/coh.386/RCS/printf.c,v 2.2 93/07/26 14:29:00 nigel Exp $ */
+/* $Header: /ker/coh.386/RCS/printf.c,v 2.5 93/10/29 00:55:29 nigel Exp Locker: nigel $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,10 +13,15 @@
  *	All rights reserved.
  -lgl) */
 /*
- * Coherent.
  * Print formatted.
  *
  * $Log:	printf.c,v $
+ * Revision 2.5  93/10/29  00:55:29  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.4  93/08/19  03:26:42  nigel
+ * Nigel's r83 (Stylistic cleanup)
+ * 
  * Revision 2.2  93/07/26  14:29:00  nigel
  * Nigel's R80
  * 
@@ -32,7 +37,9 @@
  * 86/12/16	Allan Cornish		/usr/src/sys/coh/printf.c
  * Added '%D' and '%X options to printf().
  */
-#include <sys/coherent.h>
+
+#include <stddef.h>
+
 
 /*
  * For indirecting and incrementing argument pointer.
@@ -43,20 +50,42 @@
 /*
  * Table for printing out digits.
  */
-char digtab[] ={
+char digtab [] = {
 	'0',	'1',	'2',	'3',	'4',	'5',	'6',	'7',
 	'8',	'9',	'A',	'B',	'C',	'D',	'E',	'F'
 };
 
+
+/*
+ * Print out the unsigned long `v' in the base `b'.
+ */
+
+static void
+printn( v, b )
+unsigned long v;
+int b;
+{
+	unsigned long n;
+
+	if ((n=v/b) != 0)
+		printn(n, b);
+
+	putchar(digtab[v%b]);
+}
+
+
 /*
  * A simple printf.
  */
+
+void
 printf(fp, a1)
-register char *fp;
+char *fp;
+int a1;
 {
 	char * cp;
-	register int c;
-	register unsigned *ap;
+	int c;
+	unsigned *ap;
 	int lflag;
 
 	ap = (char *)&a1;
@@ -169,18 +198,4 @@ register char *fp;
 			continue;
 		}
 	}
-}
-
-/*
- * Print out the unsigned long `v' in the base `b'.
- */
-printn( v, b )
-unsigned long v;
-{
-	unsigned long n;
-
-	if ((n=v/b) != 0)
-		printn(n, b);
-
-	putchar(digtab[v%b]);
 }

@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
+#include <kernel/dir.h>
 #include <canon.h>
 
 #define	MAXNAME	400		/* Longest pathname */

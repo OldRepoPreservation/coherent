@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
+#include <kernel/dir.h>
 
 extern char *index();
 
@@ -33,7 +33,7 @@ _ttyslot(fd) int fd;
 {
 	register FILE *fp;
 	register short fd_mode;
-	register dev_t fd_rdev;
+	register o_dev_t fd_rdev;
 	register int slot;
 	struct stat sb;
 

@@ -5,7 +5,7 @@
  * Write character to read-only stream; always returns error.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fpute(c, fp) int c; FILE *fp;

@@ -6,7 +6,7 @@
  * Executed on first write after seek on append mode stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fputa(c, fp) int c; register FILE *fp;

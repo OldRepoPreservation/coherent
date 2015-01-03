@@ -1,7 +1,15 @@
+/* $Header: /ker/io.386/RCS/putchar.c,v 2.4 93/10/29 00:58:53 nigel Exp Locker: nigel $ */
 /*
- * File:	putchar.c
- *
  * $Log:	putchar.c,v $
+ * Revision 2.4  93/10/29  00:58:53  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.3  93/08/19  04:03:08  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  15:32:13  nigel
+ * Nigel's R80
+ * 
  * Revision 1.5  93/04/14  10:12:14  root
  * r75
  * 
@@ -9,8 +17,6 @@
  * Use putchar_init on (2,0) as well as async.
  * 
  * Revision 1.3  92/06/11  21:05:27  root
- * *** empty log message ***
- * 
  */
 
 #if KLAATU
@@ -24,6 +30,7 @@
 #endif
 
 #include <sys/coherent.h>
+#include <sys/uproc.h>
 #include <sys/stat.h>
 #include <sys/con.h>
 #include <sys/io.h>
@@ -43,8 +50,9 @@ int ok_to_use_dev = 0;	/* Can we use the console device yet?  */
 int coninit = 0;
 dev_t condev = makedev(2,0);
 
+void
 putchar(c)
-int c;
+char c;
 {
 #if SERIAL_CONSOLE
 __putchar(c);
@@ -57,20 +65,25 @@ __putchar(c);
 	 */
 	if (!ok_to_use_dev) {
 		if (p_off == P_LEN) {
-			p_buf[P_LEN-1] = '*';	/* Mark an overrun.  */
+			p_buf [P_LEN - 1] = '*';	/* Mark an overrun.  */
 		} else {
-			p_buf[p_off++] = c;	/* Stash the character.  */
+			p_buf [p_off ++] = c;	/* Stash the character.  */
 		}
 		return;
 	}
 
 	if (coninit == 0) {
-		++coninit;
-		dopen(condev, IPW, DFCHR);
+		++ coninit;
+
+		/*
+		 * NIGEL: This has better not involve clone devices...
+		 */
+
+		(void) dopen (condev, IPW, DFCHR, NULL);
 	}
 
 	if (c == '\n')
-		putchar('\r');
+		putchar ('\r');
 
 	iob.io_seg  = IOSYS;
 	iob.io_ioc  = 1;
@@ -80,15 +93,18 @@ __putchar(c);
 	iob.io_base = &c;
 #endif
 	iob.io_flag = 0;
-	dwrite(condev, &iob);
+	dwrite (condev, &iob, NULL);
 #endif
-} /* putchar() */
+}
+
 
 /*
  * putchar_init() is called from main() once devices have been
  * initialized.  It marks the condev as usable, and then prints
  * anything that has been stored away.
  */
+
+void
 putchar_init()
 {
 	int i;
@@ -102,4 +118,4 @@ putchar_init()
 
 	if ('*' == p_buf[P_LEN-1])
 		printf("\npb buffer overrun detected.\n");
-} /* putchar_init() */
+}

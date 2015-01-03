@@ -13,7 +13,8 @@ strdup(s) register char *s;
 {
 	register char *cp;
 
-	return ((cp = malloc(strlen(s) + 1)) == NULL) ? cp : strcpy(cp, s);
+	return (s == NULL) ? s
+	     : ((cp = malloc(strlen(s) + 1)) == NULL) ? cp : strcpy(cp, s);
 }
 
 /* end of strdup.c */

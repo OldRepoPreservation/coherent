@@ -11,8 +11,10 @@
 NEG:
 
 / Longs.
+/ The node type is DWORD rather than LONG because the parser handles
+/ casts like ((int *)-int_var) by just changing the node type type to PTR.
 %	PEFFECT|PVALUE|PGE|PLT|P_SLT
-	LONG		ANYR	ANYR	*	TEMP
+	DWORD		ANYR	ANYR	*	TEMP
 		TREG		LONG
 		*		*
 			[ZNEG]	[R]

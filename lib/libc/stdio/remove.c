@@ -5,7 +5,7 @@
  * Remove a file.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 remove(filename) char *filename;

@@ -6,7 +6,7 @@
  * Set i/o buffer.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 
 /*

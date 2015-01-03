@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / double _ducvt()
 / Convert unsigned int in %eax to double, return in %edx:%eax.

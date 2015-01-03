@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / int _ifcvt()
 /

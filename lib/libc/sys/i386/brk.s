@@ -1,4 +1,6 @@
 /	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
+
+	.unixorder
 	.globl	sbrk
 	.globl	brk
 	.globl	__end

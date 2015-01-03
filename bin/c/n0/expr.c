@@ -15,10 +15,10 @@
 #define	 INARGS	0200
 
 #define	bcvint(p)	bconvert((p), T_INT, NULL, NULL, NULL)
-#define	isfloat(t)	((t)==T_FLOAT || (t)==T_DOUBLE)
-#define	isshift(op)	((op)==ASHL || (op)==ASHR || (op)==SHL || (op)==SHR)
-#define	issgnint(t)	((t)== T_CHAR || (t)== T_SHORT || (t)== T_INT || (t)== T_LONG)
-#define	isunsint(t)	((t)==T_UCHAR || (t)==T_USHORT || (t)==T_UINT || (t)==T_ULONG)
+#define	isfloat(t)	((t) == T_FLOAT || (t) == T_DOUBLE)
+#define	isshift(op)	((op) == ASHL || (op) == ASHR || (op) == SHL || (op) == SHR)
+#define	issgnint(t)	((t) ==  T_CHAR || (t) ==  T_SHORT || (t) ==  T_INT || (t) ==  T_LONG)
+#define	isunsint(t)	((t) == T_UCHAR || (t) == T_USHORT || (t) == T_UINT || (t) == T_ULONG)
 
 static	char	tclash[] = "type clash";
 
@@ -59,7 +59,7 @@ tree(n)
 	int		c, d, op, p, isarray, isinargs;
 
 	isinargs = 0;
-	if ((n&INARGS) != 0) {
+	if ((n & INARGS) != 0) {
 		++isinargs;
 		n &= ~INARGS;
 	}
@@ -86,7 +86,7 @@ tree(n)
 
 		case DOT:
 		case ARROW:
-			lp = build((s==DOT?ADDR:NOP), lp, NULL);
+			lp = build((s == DOT ? ADDR : NOP), lp, NULL);
 			if (lex() != ID) {
 				cerror("missing member");
 				break;
@@ -94,8 +94,8 @@ tree(n)
 			sp = moslookup(lp);
 			if (bitcompat(T_PTR, tltype(lp)) == 0)
 				cerror("left side of \"%s\" not usable",
-					s==DOT?".":"->");
-			if (sp==NULL || ((c=sp->s_class)!=C_MOS && c!=C_MOU)) {
+					s == DOT ? "." : "->");
+			if (sp == NULL || ((c = sp->s_class) != C_MOS && c != C_MOU)) {
 				cerror("member \"%s\" is not defined", id);
 				sp = fakedef(SL_MOS);
 			} else if (isvariant(VSMEMB))
@@ -108,7 +108,7 @@ tree(n)
 			lp = tp;
 			isarray = 0;
 			dp = sp->s_dp;
-			if (dp!=NULL && dp->d_type==D_ARRAY) {
+			if (dp != NULL && dp->d_type == D_ARRAY) {
 				++isarray;
 				dp = tdalloc(dp->d_dp, D_MOSAR, dp->d_bound);
 			} else
@@ -129,21 +129,21 @@ tree(n)
 
 		case INCBEF:
 		case DECBEF:
-			op = s+INCAFT-INCBEF;
+			op = s + INCAFT - INCBEF;
 			lex();
 			lp = build(op, lp, bicon((ival_t)1));
 			break;
 
 		default:
-			if ((s==COMMA && ininit!=0 && isinargs==0)
-			||  (s==COLON))
+			if ((s == COMMA && ininit != 0 && isinargs == 0)
+			||  (s == COLON))
 				goto out;
-			if (s<MIOBASE || s>=MDOBASE)
+			if (s < MIOBASE || s >= MDOBASE)
 				goto out;
 			d = opdope[s-MIOBASE];
-			if ((p=(d&PRIO)) == 0)
+			if ((p = (d & PRIO)) == 0)
 				goto out;
-			if (p<n || ((d&RAS)==0 && p==n))
+			if (p < n || ((d & RAS) == 0 && p == n))
 				goto out;
 			if ((op = s) == QUEST) {
 				lex();
@@ -153,7 +153,7 @@ tree(n)
 				lp = build(QUEST, lp, rp);
 				break;
 			}
-			if (op==COMMA && isinargs!=0)
+			if (op == COMMA && isinargs != 0)
 				op = ARGLST;
 			lex();
 			lp = build(op, lp, tree(p));
@@ -181,15 +181,20 @@ SYM	*sp;
 	int 		i;
 
 	type = lp->t_type;
-	if (lp->t_dp==NULL || lp->t_dp->d_type!=D_PTR
-	|| type<T_STRUCT || type>T_FUNION) {
+	if (lp->t_dp == NULL || lp->t_dp->d_type != D_PTR
+	 || type < T_STRUCT || type > T_FUNION) {
 		cstrict("potentially nonportable structure access");
 		return;
 	}
-	if ((type==T_STRUCT || type==T_UNION) && (sp->s_flag&S_TAG)!=0) {
+	if ((type == T_FSTRUCT || type == T_FUNION) && (sp->s_flag & S_TAG) != 0) {
+		tsp = (SYM *)(lp->t_ip);
+		msg = (type == T_FSTRUCT) ? "structure" : "union";
+		cerror("forward referenced %s %s does not contain member %s\n",
+			msg, tsp->s_id, sp->s_id);
+	} else if ((type == T_STRUCT || type == T_UNION) && (sp->s_flag & S_TAG) != 0) {
 		ip = lp->t_ip;
 		if (ip != NULL) {
-			for (i=0; i<ip->i_nsp && ip->i_sp[i]!=sp; ++i)
+			for (i = 0; i < ip->i_nsp && ip->i_sp[i] != sp; ++i)
 				;
 			if (i >= ip->i_nsp) {
 				tsp = taglookup(ip);
@@ -250,7 +255,7 @@ term()
 		break;
 
 	case ID:
-		if ((sp=reflookup(SL_VAR)) == NULL) {
+		if ((sp = reflookup(SL_VAR)) == NULL) {
 			/*
 			 * An undefined name followed by a "(" is declared
 			 * to be a function that returns an integer.
@@ -276,8 +281,8 @@ term()
 
 	case LPAREN:
 		lex();
-		if ((cp=cast()) != NULL) {
-			if (cp->t_type==T_FLOAT && cp->t_dp==NULL)
+		if ((cp = cast()) != NULL) {
+			if (cp->t_type == T_FLOAT && cp->t_dp == NULL)
 				cp->t_type = T_DOUBLE;
 			cp->t_lp = build(NOP, tree(HIGH), NULL);
 			tt = tltype(cp);
@@ -310,7 +315,7 @@ term()
 		lex();
 		if (s == LPAREN) {
 			lex();
-			if ((tp=cast()) == NULL) {
+			if ((tp = cast()) == NULL) {
 				tp = tree(LOW);
 				mustbe(RPAREN);
 			}
@@ -353,7 +358,7 @@ term()
 
 	default:
 		cerror("error in expression syntax");
-		while (s!=EOF && s!=SEMI && s!=LBRACE && s!=RBRACE)
+		while (s != EOF && s != SEMI && s != LBRACE && s != RBRACE)
 			skip();
 		return bicon((ival_t)0);
 	}
@@ -385,9 +390,10 @@ build(op, lp, rp) int op; TREE *lp; TREE *rp;
 	}
 	chmos(lp);
 	lp = charray(lp);
-	if (op!=ADDR && op!=CALL)
+	if (op != ADDR && op != CALL)
 		lp = chfun(lp);
 	lt = tltype(lp);
+	d = opdope[op-MIOBASE];
 	if (op == NOP)
 		goto conversion;
 	/*
@@ -396,43 +402,42 @@ build(op, lp, rp) int op; TREE *lp; TREE *rp;
 	 * Look mainly at the type, although some consideration
 	 * is made of storage class.
 	 */
-	if (lt==T_VOID || rt==T_VOID) {
-		if ((op!=COMMA && op!=QUEST && op!=COLON)
-		 || (op==COLON && lt!=rt)
-		 || (op==QUEST && lt==T_VOID)) {
+	if (lt == T_VOID || rt == T_VOID) {
+		if ((op != COMMA && op != QUEST && op != COLON)
+		 || (op == COLON && lt != rt)
+		 || (op == QUEST && lt == T_VOID)) {
 			cerror("illegal operation on \"void\" type");
 			lt = T_INT;
 			rt = T_INT;
 		}
 	}
-	if (op==ADDR && lp->t_op==REG)
+	if (op == ADDR && lp->t_op == REG)
 		cerror("cannot apply unary '&' to a register variable");
-	if (op==ADDR && lp->t_op==FIELD)
+	if (op == ADDR && lp->t_op == FIELD)
 		cerror("cannot apply unary '&' to a bit field");
-	if (op==ADDR && lp->t_op==GID && lp->t_seg==SALIEN)
+	if (op == ADDR && lp->t_op == GID && lp->t_seg == SALIEN)
 		cerror("cannot apply unary '&' to an alien function");
-	d = opdope[op-MIOBASE];
-	if ((d&RLVL) != 0
-	 && (lp->t_op<=DCON
-	  || (lp->t_op>=MIOBASE && lp->t_op!=STAR && lp->t_op!=FIELD
-	   && (lp->t_op!=CALL || lp->t_type!=T_STRUCT || lp->t_dp!=NULL)
+	if ((d & RLVL) != 0
+	 && (lp->t_op <= DCON
+	  || (lp->t_op >= MIOBASE && lp->t_op != STAR && lp->t_op != FIELD
+	   && (lp->t_op != CALL || lp->t_type != T_STRUCT || lp->t_dp != NULL)
 	   )))
 		cerror("lvalue required");
-	if ((d&NFLT)!=0 && (isfloat(lt) || isfloat(rt)))
+	if ((d & NFLT) != 0 && (isfloat(lt) || isfloat(rt)))
 		cerror("illegal use of floating point");
-	if (((d&NPTL)!=0 && lt==T_PTR) || ((d&NPTR)!=0 && rt==T_PTR))
+	if (((d & NPTL) != 0 && lt == T_PTR) || ((d & NPTR) != 0 && rt == T_PTR))
 		cerror("illegal use of a pointer");
-	if (((d&NSTL)!=0 && lt==T_STRUCT) || ((d&NSTR)!=0 && rt==T_STRUCT))
+	if (((d & NSTL) != 0 && lt == T_STRUCT) || ((d & NSTR) != 0 && rt == T_STRUCT))
 		cerror("illegal use of a structure or union");
-	if ((d&RTOL) != 0)
+	if ((d & RTOL) != 0)
 		truth(lp);
-	if ((d&RTOR) != 0)
+	if ((d & RTOR) != 0)
 		truth(rp);
 	/*
 	 * The operation may just fold away to nothing.
 	 * If so, return a pointer to the new, constant tree node.
 	 */
-	if ((tp=fold0(op, lp, rp)) != NULL)
+	if ((tp = fold0(op, lp, rp)) != NULL)
 		return tp;
 	/*
 	 * Insert conversion nodes.
@@ -447,7 +452,7 @@ conversion:
 		if (rp->t_op != COLON)
 			cerror("mismatched conditional");
 		/* Make sure the condition type 'lt' is computational. */
-		gt.t_type = (cvdope[13 * (lt - T_CHAR) + lt - T_CHAR] & GOAL);
+		gt.t_type = goaltype(lt, lt);
 		gt.t_dp = lp->t_dp;
 		gt.t_ip = lp->t_ip;
 		if (bitcompat(tltype(&gt), lt) == 0)
@@ -468,11 +473,11 @@ conversion:
 		break;
 
 	case CALL:
-		if ((dp = lp->t_dp)!=NULL && dp->d_type==D_FUNC)
+		if ((dp = lp->t_dp) != NULL && dp->d_type == D_FUNC)
 			gt.t_dp = dp->d_dp;
-		else if ((dp = lp->t_dp)!=NULL
-		      && dp->d_type==D_PTR
-		      && dp->d_dp->d_type==D_FUNC) {
+		else if ((dp = lp->t_dp) != NULL
+		      && dp->d_type == D_PTR
+		      && dp->d_dp->d_type == D_FUNC) {
 			cwarn("implicit '*' added to function call");
 			lp = build(STAR, lp, NULL);
 			gt.t_dp = dp->d_dp->d_dp;
@@ -487,7 +492,7 @@ conversion:
 		break;
 
 	case STAR:
-		if ((dp = lp->t_dp)!=NULL && dp->d_type==D_PTR)
+		if ((dp = lp->t_dp) != NULL && dp->d_type == D_PTR)
 			gt.t_dp = dp->d_dp;
 		else
 			cerror("indirection through non pointer");
@@ -513,33 +518,43 @@ conversion:
 				rp = bcvint(rp);
 			rt = T_INT;
 		}
-		cv = cvdope[13*(lt-T_CHAR) + rt - T_CHAR];
+		cv = getdope(lt, rt);
 		if (noconvert(op, lt, rt))
 			cv &= ~(CVL|CVR|CVRA|CARA);
 		else if (isshift(op))
 			cv &= ~(CVR|CVRA);
-		gt.t_type  = cv&GOAL;
+		gt.t_type  = cv & GOAL;
 		gt.t_rp = NULL;
-		if ((cv&(GTL|GTR)) != 0) {
-			gtp = ((cv&GTL)!=0) ? lp : rp;
+		if ((cv & (GTL | GTR)) != 0) {
+			gtp = ((cv & GTL) != 0) ? lp : rp;
 			gt.t_type = gtp->t_type;
 			gt.t_dp = gtp->t_dp;
 			gt.t_ip = gtp->t_ip;
-			if ((cv&(CVL|CVR|CVRA)) != 0)
-				gt.t_rp = bzcon(psize(gtp));
+			if ((cv & (CVL | CVR | CVRA)) != 0) {
+				/*
+				 * Avoid the call to psize() for a pointer
+				 * to a function, to avoid error message.
+				 */
+				if (gtp->t_dp != NULL
+				 && gtp->t_dp->d_type == D_PTR
+				 && gtp->t_dp->d_dp->d_type == D_FUNC)
+					gt.t_rp = bzcon(0);
+				else
+					gt.t_rp = bzcon(psize(gtp));
+			}
 		}
-		if (gt.t_type == T_NONE && op!=NOP && lt!=T_VOID)
+		if (gt.t_type == T_NONE && op != NOP && lt != T_VOID)
 			cerror(tclash);
-		if ((d&ASGN) != 0) {
+		if ((d & ASGN) != 0) {
 			gt.t_type = lp->t_type;
 			gt.t_dp = lp->t_dp;
 			gt.t_ip = lp->t_ip;
 			if (gt.t_dp == NULL) {
-				if (gt.t_type==T_CHAR
-				 || gt.t_type==T_UCHAR
-				 || gt.t_type==T_SHORT
-				 || gt.t_type==T_ENUM
-				 || gt.t_type==T_FENUM)
+				if (gt.t_type == T_CHAR
+				 || gt.t_type == T_UCHAR
+				 || gt.t_type == T_SHORT
+				 || gt.t_type == T_ENUM
+				 || gt.t_type == T_FENUM)
 					gt.t_type = T_INT;
 				if (gt.t_type == T_USHORT)
 					gt.t_type = T_UINT;
@@ -556,7 +571,7 @@ conversion:
  * effect as "i = (double)i * 1.5;" but it currently does "i *= (int) 1.5;".
  * This code the most obvious inconsistencies, though.
  */
-			if ((cv&CVRA) != 0) {
+			if ((cv & CVRA) != 0) {
 				if ((op == ADIV || op == AREM)
 				 && issgnint(gt.t_type) && isunsint(rt)) {
 					gt.t_type = sgn2uns(gt.t_type);
@@ -564,13 +579,13 @@ conversion:
 					gt.t_type = uns2sgn(gt.t_type);
 				} else
 					rp = bcvt(rp, &gt);
-			} else if ((cv&CARA) != 0) {
+			} else if ((cv & CARA) != 0) {
 				gt.t_op = CAST;
 				gt.t_rp = NULL;
 				rp = bcvt(rp, &gt);
 			}
 		} else {
-			if (op>=INCBEF && op<=DECAFT)
+			if (op >= INCBEF && op <= DECAFT)
 				cv &= ~CVL;
 			if (op == COLON && lt != rt) {
 				if (lt == T_PTR) {
@@ -586,25 +601,25 @@ conversion:
 					} else
 						cerror(tclash);
 				}
-			} else if (op == COLON && lt==T_VOID && rt==T_VOID)
+			} else if (op == COLON && lt == T_VOID && rt == T_VOID)
 				gt.t_type = T_VOID;
-			if ((cv&CVL) != 0)
+			if ((cv & CVL) != 0)
 				lp = bcvt(lp, &gt);
-			if (op==SHL || op==SHR) {
+			if (op == SHL || op == SHR) {
 				gt.t_type = lp->t_type;
 				gt.t_dp = lp->t_dp;
 				gt.t_ip = lp->t_ip;
-			} else if (rp!=NULL && (cv&CVR)!=0)
+			} else if (rp != NULL && (cv & CVR) != 0)
 				rp = bcvt(rp, &gt);
-			if ((cv&UREL)!=0 && (op>=GT && op<=LT))
-				op += UGT-GT;
-			if (op>=EQ && op<=ULT) {
+			if ((cv & UREL) != 0 && (op >= GT && op <= LT))
+				op += UGT - GT;
+			if (op >= EQ && op <= ULT) {
 				gt.t_type = T_INT;
 				gt.t_dp = gt.t_ip = NULL;
 			}
 		}
 	}
-	if (op==NOP)
+	if (op == NOP)
 		return lp;
 	tp = talloc();
 	tp->t_op = op;
@@ -613,22 +628,22 @@ conversion:
 	tp->t_ip = gt.t_ip;
 	tp->t_lp = lp;
 	tp->t_rp = rp;
-	if (lt==T_PTR && rt==T_PTR) {
+	if (lt == T_PTR && rt == T_PTR) {
 		if (op == ADD)
 			cerror("cannot add pointers");
 		if (op == SUB) {
-			if ((ll=psize(lp)) != (lr=psize(rp)))
+			if ((ll = psize(lp)) != (lr = psize(rp)))
 				cerror("illegal subtraction of pointers");
 			tp = bconvert(tp, T_INT, NULL, NULL, bzcon(ll));
 		}
 	}
-	if (op==ASSIGN && lt==T_STRUCT && rt==T_STRUCT) {
+	if (op == ASSIGN && lt == T_STRUCT && rt == T_STRUCT) {
 		notbook();
-		if ((ll=tsize(lp)) != (lr=tsize(rp)))
+		if ((ll = tsize(lp)) != (lr = tsize(rp)))
 			cerror("illegal structure assignment");
 	}
 	if (isvariant(VSPVAL) && lt != rt
-	 && ((lt==T_PTR && !iszero(rp)) || (rt==T_PTR && !iszero(lp)))) {
+	 && ((lt == T_PTR && !iszero(rp)) || (rt == T_PTR && !iszero(lp)))) {
 		if (op == ASSIGN)
 			cstrict("integer pointer pun");
 		else if (op >= EQ && op <= ULT)
@@ -646,7 +661,7 @@ TREE *tp;
 {
 	register struct dim *dp;
 
-	if ((dp = tp->t_dp)!=NULL && dp->d_type==D_MOSAR) {
+	if ((dp = tp->t_dp) != NULL && dp->d_type == D_MOSAR) {
 		dp->d_type = D_PTR;
 		dp->d_bound = 0;
 	}
@@ -842,7 +857,7 @@ bstring()
 	nbb = nbs = adj = 0;
 again:
 	instring = '"';
-	while ((c=getmap('\"')) >= 0) {
+	while ((c = getmap('\"')) >= 0) {
 		++nbs;
 		if (nbb >= 10) {		/* Leave space for NUL */
 			bsflush(bb, nbb);
@@ -898,7 +913,7 @@ again:
 	tp->t_dp   = dp;
 	tp->t_ip   = ip;
 	if ((op = tp->t_op) == ADDR) {
-		if (dp==NULL || (dp->d_type!=D_PTR && dp->d_type!=D_MOSAR))
+		if (dp == NULL || (dp->d_type != D_PTR && dp->d_type != D_MOSAR))
 			return;
 		dp = dp->d_dp;
 		tp = tp->t_lp;
@@ -909,9 +924,9 @@ again:
 		tp = tp->t_lp;
 		goto again;
 	}
-	if (dp!=NULL && dp->d_type==D_MOSAR)
+	if (dp != NULL && dp->d_type == D_MOSAR)
 		dp = tdalloc(dp->d_dp, D_PTR, (sizeof_t)0);
-	if (op==CAST && bitcompat(tltype(tp), tltype(tp->t_lp))) {
+	if (op == CAST && bitcompat(tltype(tp), tltype(tp->t_lp))) {
 		tp = tp->t_lp;
 		goto again;
 	}
@@ -929,7 +944,7 @@ register TREE	*tp;
 	register sizeof_t n;
 
 	dp = tp->t_dp;
-	if (dp==NULL || dp->d_type!=D_PTR)
+	if (dp == NULL || dp->d_type != D_PTR)
 		return 1;
 	tp->t_dp = dp->d_dp;
 	n = tsize(tp);
@@ -948,7 +963,7 @@ register TREE *tp;
 	register DIM	*dp;
 
 	dp = tp->t_dp;
-	if (dp!=NULL && dp->d_type==D_FUNC) {
+	if (dp != NULL && dp->d_type == D_FUNC) {
 		tp = build(ADDR, tp, NULL);
 		adjust(tp, tp->t_type, tp->t_dp, tp->t_ip);
 	}
@@ -970,7 +985,7 @@ register TREE	*tp;
 	register DIM	*dp;
 
 	dp = tp->t_dp;
-	if (dp!=NULL && dp->d_type==D_ARRAY) {
+	if (dp != NULL && dp->d_type == D_ARRAY) {
 		ap = talloc();
 		ap->t_op = ADDR;
 		ap->t_type = tp->t_type;
@@ -1042,7 +1057,7 @@ register TREE *tp;
 {
 	tp = transform(tp, why, -1);
 	bput(why);
-	if (why==TEXPR || why==FEXPR)
+	if (why == TEXPR || why == FEXPR)
 		iput((ival_t) lab);
 	tput1(tp);
 }
@@ -1087,7 +1102,7 @@ register TREE *tp;
 	case LID:
 	case GID:
 		zput(tp->t_offs);
-		if (op==LID || op==GID) {
+		if (op == LID || op == GID) {
 			bput(tp->t_seg);
 			if (op == LID)
 				iput((ival_t) tp->t_label);

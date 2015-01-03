@@ -5,7 +5,7 @@
  * File structures.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 extern	_FILE2	_iob2[_NSTDFILE];
 
 /*

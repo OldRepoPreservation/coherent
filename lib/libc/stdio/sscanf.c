@@ -6,7 +6,7 @@
  * Formatted input from string.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdarg.h>
 
 int

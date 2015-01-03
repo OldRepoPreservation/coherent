@@ -5,7 +5,7 @@
  * Write character, buffered.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fputb(c, fp) register int c; register FILE *fp;

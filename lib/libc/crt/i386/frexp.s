@@ -6,6 +6,8 @@
 / frexp()
 //////////
 
+	.intelorder
+
 //////////
 / double
 / frexp(real, ep) double real; int *ep;

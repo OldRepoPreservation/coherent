@@ -1,38 +1,64 @@
-O = ld.o pass1.o message.o fake.o
-LI = ld.c pass1.c message.c fake.c
-S = Makefile ld.h ld.c pass1.c message.c fake.c script
-D = ld.c pass1.c
-CFLAGS = -AO
+USRINC=/usr/include
+GCC=gcc
+GCCFLAGS=-O2 $(CFLAGS) -Wall -ansi -pedantic
+GLDFLAGS=-nostdlib /lib/crts0.o -Xlinker '-R*' -Xlinker '-Im*'
+GLIBFLAGS=/lib/libc.a
 
-drvld: ld
-	ln -f ld drvld
+MAKEFILE=Makefile
+
+SRCS=ld.c pass1.c message.c crc.c
+OBJS=$(SRCS:.c=.o)
 	
-ld : $O
+ld: $(OBJS)
 	rm -f ld
-	cc -so ld $O -lmisc
+	$(CC) $(LDFLAGS) -o ld $(OBJS) $(LIBFLAGS) >ld.nm
 
-pick : $(LI)
-	lint -I/usr/include co $(LI) > pick
 
-# save on mwc!
-save : $S
-	tar cf - $< | compress -c > /tmp/newld.tar.Z
-	uucp -r /tmp/newld.tar.Z mwc!/v/cef/
+gcc:
+	@+exec $(MAKE)	"CC=$(GCC)" "CFLAGS=$(GCCFLAGS)" \
+			"LDFLAGS=$(GLDFLAGS)" "LIBFLAGS=$(GLIBFLAGS)" \
+			-f $(MAKEFILE)
 
-# list source files
-list : $S
-	ph $?
-	touch list
+clean:
+	rm -f *.o ld
 
-# Build error message list in troff format.
-doc : $D
-	cgrep -d @ "(message|fatal|filemsg|modmsg|mpmsg|spmsg|spwarn)" $< | \
-	 sort | \
-	 sed -f `srcpath script` | \
-	 fixdoc > doc
+depend:
+	echo > makedep
+	grep "^\#include" * \
+		| sed 's/\(.*\)\.c:.*"\(.*\)".*/\1.o: \2/' \
+		| sed '/\#include/d' >> makedep
+	grep "^\#include" * \
+		| sed 's/\(.*\)\.c:.*<\(.*\)>.*/\1.o: $$(USRINC)\/\2/' \
+		| sed '/\#include/d' >> makedep
+	echo '/^\# DO NOT DELETE THIS LINE/+1,$$d' > eddep
+	echo '$$r makedep' >> eddep
+	echo 'w' >> eddep
+	ed $(MAKEFILE) < eddep
+	rm makedep eddep
+	echo >> $(MAKEFILE)
+	echo "\# DEPENDENCIES MUST END AT END OF FILE:" \
+	     "IF YOU PUT STUFF HERE, IT WILL GO AWAY" >> $(MAKEFILE)
+	echo "\# See make depend, above" >> $(MAKEFILE)
 
-# Install new ld
-install : ld
-	su root `srcpath installer`
+# DO NOT DELETE THIS LINE - make depend needs it
 
-# end of ld/Makefile
+ld.o: ld.h
+message.o: ld.h
+pass1.o: ld.h
+crc16.o: $(USRINC)/sys/compat.h
+crc16.o: $(USRINC)/stddef.h
+ld.o: $(USRINC)/stdlib.h
+ld.o: $(USRINC)/signal.h
+ld.o: $(USRINC)/ctype.h
+ld.o: $(USRINC)/path.h
+ld.o: $(USRINC)/string.h
+ld.o: $(USRINC)/unistd.h
+message.o: $(USRINC)/sys/compat.h
+message.o: $(USRINC)/errno.h
+message.o: $(USRINC)/string.h
+message.o: $(USRINC)/unistd.h
+pass1.o: $(USRINC)/string.h
+pass1.o: $(USRINC)/stdlib.h
+
+# DEPENDENCIES MUST END AT END OF FILE: IF YOU PUT STUFF HERE, IT WILL GO AWAY
+# See make depend, above

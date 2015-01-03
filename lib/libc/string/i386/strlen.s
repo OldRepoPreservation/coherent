@@ -4,6 +4,8 @@
 / ANSI 4.11.6.3.
 //////////
 
+	.intelorder
+
 //////////
 / size_t
 / strlen(char *String)

@@ -1,29 +1,20 @@
-# c/n3/Makefile 3/26/92
+# c/n3/Makefile 6/9/94
 
 CC3=\
-	cc3.$X\
-	dbgt3.$X\
-	itree.$X
+	cc3.a(cc3.$X) \
+	cc3.a(dbgt3.$X) \
+	cc3.a(itree.$X)
 
 CC3MCH=\
-	icode.$X\
-	igen.$X
+	cc3.a(icode.$X) \
+	cc3.a(igen.$X)
 
 # Primary target.
-cc3:	$(CC3) $(CC3MCH) $(CLIB)
-	$(CC) $(LDFLAGS) -o $@ $<
+cc3:	cc3.a common.a
+	$(CC) $(LDFLAGS) -o $@ cc3.a common.a
 
-# Monolithic compiler cc3 library.
+# cc3 library.
 cc3.a:	$(CC3) $(CC3MCH)
-	$(AR) rucks $@ $<
-
-# Machine independent.
-cc3.$X:		cc3.c
-dbgt3.$X:	dbgt3.c
-itree.$X:	itree.c
-
-# Machine dependent.
-icode.$X:	icode.c
-igen.$X:	igen.c
+	: cc3.a done
 
 # end of c/n3/Makefile

@@ -6,7 +6,7 @@
  * Open file with first available stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 FILE *
 fopen(filename, mode) const char *filename, *mode;

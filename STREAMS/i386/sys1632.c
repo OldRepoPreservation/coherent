@@ -1,42 +1,73 @@
+/* $Header: /ker/i386/RCS/sys1632.c,v 2.7 93/10/29 00:57:24 nigel Exp Locker: nigel $ */
 /*
- * i386/sys1632.c
+ * This file contains the implementations of system calls for Coherent 286,
+ * and the machinery for making a system call from a 286 process.
  *
- * This file contains the code for those system calls whose implementation
- * must vary, according to system call arguments size (16 or 32 bits)
- *
- * exec: argv[], envp[] pointers (ingoing and outgoing)
- * istat:alignment of longs (called by ustat, ufstat in [sys?.c])
- * ftime:alignment of longs
- * lseek:argument is a long pointer
- * dup, dup2: old implementation
- *
- * Revised: Fri Jul 16 12:23:39 1993 CDT
+ * $Log:	sys1632.c,v $
+ * Revision 2.7  93/10/29  00:57:24  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.6  93/09/13  07:51:09  nigel
+ * Extra debugging (show 286 system-call return value)
+ * 
+ * Revision 2.5  93/09/02  18:12:18  nigel
+ * Minor edits to use new flag system
+ * 
+ * Revision 2.4  93/08/19  03:40:15  nigel
+ * Nigel's R83
  */
 
 #include <common/_limits.h>
 #include <common/_tricks.h>
 #include <common/_gregset.h>
+#include <sys/errno.h>
 #include <sys/debug.h>
+#include <sys/cmn_err.h>
+#include <signal.h>
+#include <stddef.h>
 
-#include <sys/coherent.h>
+#define	_KERNEL		1
+
+#include <kernel/trace.h>
+#include <kernel/reg.h>
 #include <sys/acct.h>
 #include <sys/buf.h>
-#include <canon.h>
 #include <sys/con.h>
-#include <sys/errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
-#include <l.out.h>
 #include <sys/proc.h>
+#include <sys/uproc.h>
 #include <sys/sched.h>
 #include <sys/seg.h>
-#include <signal.h>
-#include <sys/oldstat.h>
 #include <sys/timeb.h>
 #include <sys/fd.h>
+#include <l.out.h>
+#include <canon.h>
 
 #include <kernel/systab.h>
+
+/*
+ * Structure returned by COH-286 stat and fstat system calls.
+ */
+
+struct oldstat {
+	o_dev_t	 st_dev;		/* Device */
+	o_ino_t	 st_ino;		/* Inode number */
+	unsigned short st_mode;		/* Mode */
+	short	 st_nlink;		/* Link count */
+	short	 st_uid;		/* User id */
+	short	 st_gid;		/* Group id */
+	o_dev_t	 st_rdev;		/* Real device */
+#pragma	align 2
+	long	 st_size __ALIGN (2);	/* Size */
+	long	 st_atime __ALIGN (2);	/* Access time */
+	long	 st_mtime __ALIGN (2);	/* Modify time */
+	long	 st_ctime __ALIGN (2);	/* Change time */
+#pragma align
+#pragma	align 2
+};
+#pragma align	/* controls structure padding in Coherent 'cc' */
 
 
 /*
@@ -66,7 +97,6 @@ int	usysi86();
 int	ulock();
 int	ufcntl();
 int	uexece();
-int	obrk();
 long	oalarm2 ();
 long	otick ();
 
@@ -76,13 +106,14 @@ long	otick ();
  * sequence as the dup2 system call and even uses the silly DUP2 bit.
  */
 
+int
 coh286dup(ofd, nfd)
-register unsigned ofd;
-register unsigned nfd;
+unsigned ofd;
+unsigned nfd;
 {
-	register FD *fdp;
+	__fd_t	      *	fdp;
 
-	if ((fdp = fdget (ofd & ~ DUP2)) == NULL)
+	if ((fdp = fd_get (ofd & ~ DUP2)) == NULL)
 		return -1;
 	if ((ofd & DUP2) != 0) {
 		if (nfd >= NOFILE) {
@@ -93,14 +124,14 @@ register unsigned nfd;
 		if (ofd == nfd)
 			return nfd;
 		if (u.u_filep [nfd] != NULL) {
-			fdclose (nfd);
-			if (u.u_error)
+			fd_close (nfd);
+			if (get_user_error ())
 				return -1;
 		}
 	} else
 		nfd = 0;
 
-	return fddup (ofd, nfd);
+	return fd_dup (ofd, nfd);
 }
 
 
@@ -129,13 +160,13 @@ short	      *	pipep;
 int
 osetpgrp ()
 {
-	upgrp (1);
+	return setpgrp ();
 }
 
 int
 ogetpgrp ()
 {
-	upgrp (0);
+	return getpgrp ();
 }
 
 
@@ -175,18 +206,18 @@ unsigned	signal;
 }
 
 
-__sigfunc_t
+__sighand_t *
 osignal (signal, func, regsetp)
 unsigned	signal;
-__sigfunc_t	func;
+__sighand_t   *	func;
 gregset_t     *	regsetp;
 {
 	if (signal >= __ARRAY_LENGTH (cvtsig)) {
 		SET_U_ERROR (EINVAL, "286 signal ()");
-		return -1;
+		return (__sighand_t *) -1;
 	}
 
-	return usigsys (cvtsig [signal], func, regsetp);
+	return (__sighand_t *) usigsys (cvtsig [signal], func, regsetp);
 }
 
 
@@ -217,8 +248,9 @@ gregset_t     *	regsetp;
 	int		i;
 	int		res;
 	int		args [MSACOUNT];
+	struct __menv	sigenv;
 
-	u.u_error = 0;
+	set_user_error (0);
 	callnum = getusd (NBPS + regsetp->_i286._ip - sizeof (short));
 
 	/*
@@ -228,29 +260,20 @@ gregset_t     *	regsetp;
 	 * get to 286 code.
 	 */
 
-	if (u.u_error || (callnum & 0xFF) != 0xCD) 
+	if (get_user_error () || (callnum & 0xFF) != 0xCD) 
 		return SIGSYS;
 	callnum = (callnum >> 8) & 0x7F;
-
-	/* Print out this 286 call number only if tracing is on.  */
-	T_PIGGY (0x2, printf ("[%d]", callnum));
 
 	if (callnum >= __ARRAY_LENGTH (sys286tab))
 		return SIGSYS;
 	stp = sys286tab + callnum;
 
-	/*
-	 * This is crass bullshit which allows fucked code to get away with
-	 * not fully intializing a structure which shouldn't even be in the
-	 * U area at all.
-	 */
+	/* Print out this 286 call only if tracing is on.  */
+	T_ERRNO (4, cmn_err (CE_CONT, "[%s", stp->s_name));
+	stp->s_stat ++;
 
-#if	0
-	u.u_io.io_seg = IOUSR;
-#endif
-
-	if (envsave (& u.u_sigenv)) {
-		u.u_error = EINTR;
+	if (envsave (u.u_sigenvp = & sigenv)) {
+		set_user_error (EINTR);
 		goto done;
 	}
 
@@ -260,7 +283,7 @@ gregset_t     *	regsetp;
 				       i * sizeof (short));
 	}
 
-	if (u.u_error)
+	if (get_user_error ())
 		return SIGSYS;
 
 	/*
@@ -276,66 +299,31 @@ gregset_t     *	regsetp;
 	regsetp->_i286._ax = res;
 
 done:
-	if (u.u_error) {
+	u.u_sigenvp = NULL;
+	if (get_user_error ()) {
+		T_ERRNO (4, cmn_err (CE_NOTE, "-err"));
 		regsetp->_i286._ax = regsetp->_i286._dx = -1;
-		putubd (MUERR, u.u_error);
-		if (u.u_error == EFAULT)
+		putubd (MUERR, get_user_error ());
+		if (get_user_error () == EFAULT)
 			return SIGSYS;
 	}
+	T_ERRNO (4, cmn_err (CE_NOTE, "=%d] ", regsetp->_i286._ax));
 	return 0;
 }
 
-
-/*
- * Given a file descriptor, return a status structure.
- */
-
-ofstat(fd, stp)
-struct oldstat *stp;
-{
-	register INODE *ip;
-	register FD *fdp;
-	struct oldstat stat;
-
-	if ((fdp = fdget (fd)) == NULL)
-		return -1;
-	ip = fdp->f_ip;
-	oistat (ip, & stat);
-	kucopy (& stat, stp, sizeof (stat));
-	return 0;
-}
-
-/*
- * Return a status structure for the given file name.
- */
-ostat(np, stp)
-char *np;
-struct oldstat *stp;
-{
-	register INODE *ip;
-	struct oldstat stat;
-	IO		io;
-	struct direct	dir;
-
-	if (ftoi (np, 'r', & io, & dir) != 0)
-		return -1;
-
-	ip = u.u_cdiri;
-	oistat (ip, & stat);
-
-	if (kucopy (& stat, stp, sizeof (stat)) != sizeof (stat))
-		SET_U_ERROR (EFAULT, "286 stat ()");
-
-	idetach(ip);
-	return 0;
-}
 
 /*
  * Copy the appropriate information from the inode to the stat buffer.
  */
+
+#if	__USE_PROTO__
+__LOCAL__ void oistat (struct inode * ip, struct oldstat * sbp)
+#else
+__LOCAL__ void
 oistat(ip, sbp)
-register INODE *ip;
-register struct oldstat *sbp;
+struct inode  *	ip;
+struct oldstat *sbp;
+#endif
 {
 	sbp->st_dev = ip->i_dev;
 	sbp->st_ino = ip->i_ino;
@@ -343,7 +331,7 @@ register struct oldstat *sbp;
 	sbp->st_nlink = ip->i_nlink;
 	sbp->st_uid = ip->i_uid;
 	sbp->st_gid = ip->i_gid;
-	sbp->st_rdev = NODEV;
+	sbp->st_rdev = (o_dev_t) -1;
 	sbp->st_size = ip->i_size;
 	sbp->st_atime = ip->i_atime;
 	sbp->st_mtime = ip->i_mtime;
@@ -352,7 +340,7 @@ register struct oldstat *sbp;
 	switch (ip->i_mode & IFMT) {
 	case IFBLK:
 	case IFCHR:
-		sbp->st_rdev = ip->i_a.i_rdev;
+		sbp->st_rdev = ip->i_rdev;
 		sbp->st_size = 0;
 		break;
 
@@ -362,10 +350,59 @@ register struct oldstat *sbp;
 	}
 }
 
+
+/*
+ * Given a file descriptor, return a status structure.
+ */
+
+int
+ofstat(fd, stp)
+int	fd;
+struct oldstat *stp;
+{
+	INODE *ip;
+	__fd_t	      *	fdp;
+	struct oldstat stat;
+
+	if ((fdp = fd_get (fd)) == NULL)
+		return -1;
+	ip = fdp->f_ip;
+	oistat (ip, & stat);
+	kucopy (& stat, stp, sizeof (stat));
+	return 0;
+}
+
+
+/*
+ * Return a status structure for the given file name.
+ */
+
+int
+ostat(np, stp)
+char *np;
+struct oldstat *stp;
+{
+	struct oldstat stat;
+	struct direct	dir;
+
+	if (ftoi (np, 'r', IOUSR, NULL, & dir, SELF->p_credp) != 0)
+		return -1;
+
+	oistat (u.u_cdiri, & stat);
+
+	if (kucopy (& stat, stp, sizeof (stat)) != sizeof (stat))
+		SET_U_ERROR (EFAULT, "286 stat ()");
+
+	idetach (u.u_cdiri);
+	return 0;
+}
+
+
 /*
  * Return date and time.
  */
 
+int
 oftime(tbp)
 struct timeb *tbp;
 {
@@ -379,8 +416,11 @@ struct timeb *tbp;
 	timeb.timezone = timer.t_zone;
 	timeb.dstflag = timer.t_dstf;
 
-	if (kucopy (& timeb, tbp, sizeof (timeb)) != sizeof (timeb))
+	if (kucopy (& timeb, tbp, sizeof (timeb)) != sizeof (timeb)) {
 		SET_U_ERROR (EFAULT, "286 ftime ()");
+		return -1;
+	}
+	return 0;
 }
 
 
@@ -415,6 +455,7 @@ long n;
 	return s;
 }
 
+
 /*
  * Return elapsed ticks since system startup.
  */
@@ -425,30 +466,34 @@ otick()
 	return lbolt;
 }
 
+
 /*
  * Cause a signal routine to be executed.
  * Called from [coh/sig.c]
  */
-oldsigstart (n, func, regsetp)
-__sigfunc_t	func;
+
+void
+oldsigstart (sig, func, regsetp)
+int		sig;
+__sighand_t   *	func;
 gregset_t     *	regsetp;
 {
 	int		i;
 	struct {
 		ushort_t	sf_signo;
 		ushort_t	sf_prev_ip;
-		ushort_t	sf_flags;
+		__286_flags_t	sf_flags;
 	} signal_frame;
 
 	/*
 	 *                 -1
-	 * calculate cvtsig  [n]
+	 * calculate cvtsig  [sig]
 	 *
  	 */
 
-	signal_frame.sf_signo = n;
+	signal_frame.sf_signo = sig;
 	for (i = 0 ; i < __ARRAY_LENGTH (cvtsig) ; i ++)
-		if (cvtsig [i] == n) {
+		if (cvtsig [i] == sig) {
 			signal_frame.sf_signo = i;
 			break;
 		}
@@ -460,8 +505,9 @@ gregset_t     *	regsetp;
 	 * Turn off single-stepping in signal handler.
 	 */
 
-	regsetp->_i286._flags &= ~ MFTTB;
-	regsetp->_i286._ip = (ushort_t) func;
+	__FLAG_REG (regsetp) = __FLAG_CLEAR_FLAG (__FLAG_REG (regsetp),
+						  __TRAP);
+	regsetp->_i286._ip = (ushort_t) (ulong_t) func;
 	regsetp->_i286._usp -= sizeof (signal_frame);
 
 	i = kucopy (& signal_frame, regsetp->_i286._usp,
@@ -469,17 +515,20 @@ gregset_t     *	regsetp;
 	ASSERT (i == sizeof (signal_frame));
 }
 
+
 /*
  * obrk()
  *
  * Argument is the new linear space value for the end of the PDATA segment.
  * As was done in COH286, arg of zero asks for the old upper limit.
  */
+
+__EXTERN_C__	caddr_t		ubrk	__PROTO ((unsigned cp));
+
+caddr_t
 obrk (cp)
 unsigned	cp;
 {
-	register int res;
-
 	/*
 	 * If cp nonzero
 	 *	resize user data segment
@@ -488,10 +537,8 @@ unsigned	cp;
 	 */
 
 	if (cp)
-		res = ubrk (cp);
+		return ubrk (cp);
 	else
-		res = u.u_segl [SIPDATA].sr_base +
-			SELF->p_segp [SIPDATA]->s_size;
-
-	return res; 
+		return SELF->p_segl [SIPDATA].sr_base +
+			SELF->p_segl [SIPDATA].sr_segp->s_size;
 }

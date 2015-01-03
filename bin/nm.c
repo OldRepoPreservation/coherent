@@ -1,103 +1,374 @@
 /*
- * List a coff symbol table.
+ * nm.c
+ * 7/1/94
+ * Usage: see usage[] below.
+ * List symbols.
+ * This understands l.out/n.out objects and archives
+ * as well as COFF objects and archives.
  */
-#include <misc.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <canon.h>
 #include <l.out.h>
 #include <ar.h>
 #include <errno.h>
+#include <coff.h>
+#include <arcoff.h>
 
-FILE *fd;	/* Current input file */
-
-int asw;	/* list all symbols */
-int dsw;	/* list only defined symbols */
-int gsw;	/* print only global symbols */
-int nsw;	/* list numerically not alphabetically */
-int osw;	/* append file name to each line */
-int psw;	/* print symbols in symbol table order */
-int rsw;	/* print in reverse alpha order */
-int usw;	/* print only undefined symbols */
-int vsw;	/* print coff type symbols */
-
-int namesw;	/* one if header is required */
-char *str_tab;
-char *fname;
+/* Compilation options. */
+#define	COMEAU	1			/* special handling for Comeau */
 
 /*
- * Old form sort logic.
+ * <coff.h> defines n_name as a macro, which conflicts with <l.out.h> member.
+ * Use n_cname in this source instead for COFF n_name member.
  */
-ncomp_old(s1, s2)
-struct nlist *s1, *s2;
+#undef	n_name
+#define	n_cname		_n._n_name
+
+/* Shorthand for case statements. */
+#define case_class(x)	case C_ ## x: printf("%6.6s ", #x); break
+#define case_type(x)	case T_ ## x: printf("%6.6s ", #x); break
+
+/* Flags. */
+int	aflag;			/* list all symbols			*/
+int	dflag;			/* list only defined symbols		*/
+int	gflag;			/* list only global symbols		*/
+int	nflag;			/* sort numerically not alphabetically	*/
+int	oflag;			/* append file name to each line	*/
+int	pflag;			/* list symbols in symbol table order	*/
+int	rflag;			/* list in reverse alphabetic order	*/
+int	uflag;			/* list only undefined symbols		*/
+int	vflag;			/* print coff type information		*/
+
+/* Other globals. */
+#if	COMEAU
+int	Comeau_flag;		/* special output format for Comeau	*/
+#endif
+FILHDR	filehdr;		/* file header				*/
+char	*fname;			/* file name				*/
+FILE	*fp;			/* input file				*/
+int	need_hdr;		/* one if header is required		*/
+SCNHDR	*sectab;		/* sections				*/
+int	status;			/* exit status				*/
+char	*strtab;		/* string table				*/
+
+char *gname[] = {
+	"SI", "PI", "BI",
+	"SD", "PD", "BD",
+	" D", "  ", "  ",
+	" A", " C", "??"
+};
+char *lname[] = {
+	"si", "pi", "bi",
+	"sd", "pd", "bd",
+	" d", "  ", "  ",
+	" a", " c", "??"
+};
+char nospace[] = "out of space";
+char nosyms[] = "no symbols\n";
+char usage[] =
+	"Usage: nm [ -adgnopruv ] file ...\n"
+	"Options:\n"
+	"\t-a\tList all symbols\n"
+	"\t-d\tList only defined symbols\n"
+	"\t-g\tList only global symbols\n"
+	"\t-n\tSort numerically not alphabetically\n"
+	"\t-o\tPrepend file name to each line\n"
+	"\t-p\tList symbols in symbol table order\n"
+	"\t-r\tSort in reverse alphabetic order\n"
+	"\t-u\tList only undefined symbols\n"
+	"\t-v\tPrint COFF type information\n";
+
+/* Forward. */
+char	*alloc();
+void	archive();
+int	cmp_a();
+int	cmp_n();
+int	cmp_r();
+int	C_symbol();
+void	error();
+void	fatal();
+void	old_ar();
+int	old_cmp_a();
+int	old_cmp_n();
+int	old_cmp_r();
+void	old_nout();
+int	read_hdrs();
+void	read_syms();
+char	*sym_name();
+void	xread();
+
+int
+main(argc, argv) int argc; char *argv[];
+{
+	char c;
+
+#if	COMEAU
+	char *s;
+
+	if ((s = getenv("COMEAU")) != NULL)
+		Comeau_flag = atoi(s);
+#endif
+
+	while (EOF != (c = getopt(argc, argv, "adgnopruv?"))) {
+		switch (c) {
+		case 'a':	aflag = 1;			break;
+		case 'd':	dflag = 1;			break;
+		case 'g':	gflag = 1;			break;
+		case 'n':	nflag = 1;			break;
+		case 'o':	oflag = 1;			break;
+		case 'p':	pflag = 1;			break;
+		case 'r':	rflag = 1;			break;
+		case 'u':	uflag = 1;			break;
+		case 'v':	vflag = 1;			break;
+		case '?':	fprintf(stderr, usage);	break;
+		default:	fprintf(stderr, usage);	exit(1);
+		}
+	}
+	if (pflag + rflag + nflag > 1)
+		fatal("more than one sort order");
+
+	need_hdr = (argc - optind) > 1;
+	for (; optind < argc; optind++) {
+		fname = argv[optind];
+		if (NULL == (fp = fopen(fname, "rb")))
+			fatal("%s: cannot open", fname);
+#if	COMEAU
+		if (Comeau_flag)
+			printf("%s\n", fname);
+		else
+#endif
+			printf("%s:\n", fname);
+		read_hdrs(0L, 0L);
+		fclose(fp);
+	}
+	exit(status);
+}
+
+/*
+ * Get space or die.
+ */
+char *
+alloc(n) register unsigned n;
+{
+	register char *s;
+
+	if (NULL == (s = malloc(n)))
+		fatal(nospace);
+	return memset(s, '\0', n);
+}
+
+/*
+ * Print members of archive.
+ */
+void
+archive(seek) long seek;
+{
+	long arhend;
+	struct ar_hdr coff_arh;
+	struct old_ar_hdr arh;
+	char *p;
+
+	need_hdr = 0;
+	for (arhend = seek + SARMAG; ; ) {
+		fseek(fp, arhend, 0);
+		if (1 != fread(&coff_arh, sizeof(coff_arh), 1, fp))
+			break;
+		memset(&arh, '\0', sizeof(arh));
+		memcpy(arh.ar_name, coff_arh.ar_name, DIRSIZ);
+		if (NULL != (p = strchr(arh.ar_name, '/')))
+			*p = '\0';
+
+		sscanf(coff_arh.ar_date, "%ld %d %d %o %ld",
+			&arh.ar_date, &arh.ar_uid,
+			&arh.ar_gid, &arh.ar_mode, &arh.ar_size);
+
+		arhend += sizeof(coff_arh);
+		if (arh.ar_name[0]) {
+#if	COMEAU
+			if (Comeau_flag)
+				printf("%s[%s]\n", fname, arh.ar_name);
+			else
+#endif
+				printf("%s(%s):\n", fname, arh.ar_name);
+			read_hdrs(arhend, arh.ar_size);
+		}
+		arhend += arh.ar_size;
+		if (arhend & 1)
+			arhend++;		
+	}
+	need_hdr = 1;
+}
+
+/*
+ * Sort by alpha.
+ */
+int
+cmp_a(s1, s2) register SYMENT *s1, *s2;
+{
+	char w1[SYMNMLEN + 1], w2[SYMNMLEN + 1];
+
+	return strcmp(sym_name(s1, w1), sym_name(s2, w2));
+}
+
+/*
+ * Sort by value;
+ */
+int
+cmp_n(s1, s2) register SYMENT *s1, *s2;
 {
 	long i;
 
 	if (!(i = (s1->n_value - s2->n_value)))
-		return (0);
-	if (i < 0)
-		return (-1);
-	return (1);
-}
-
-acomp_old(s1, s2)
-struct nlist *s1, *s2;
-{
-	return(strncmp(s1->n_name, s2->n_name, NCPLN));
-}
-
-rcomp_old(s1, s2)
-struct nlist *s1, *s2;
-{
-	return(strncmp(s2->n_name, s1->n_name, NCPLN));
+		return 0;
+	return (i < 0) ? -1 : 1;
 }
 
 /*
- * Process old ar files.
+ * Sort by reverse alpha.
  */
-old_ar(filen, at)
-char *filen;
-long at;
+int
+cmp_r(s1, s2) register SYMENT *s1, *s2;
+{
+	char w1[SYMNMLEN + 1], w2[SYMNMLEN + 1];
+
+	return -strcmp(sym_name(s1, w1), sym_name(s2, w2));
+}
+
+/*
+ * This routine gets called if we
+ * are not in '-a' mode. It determines if
+ * the symbol pointed to by 'sp' is a C
+ * style symbol (trailing '_' or longer than
+ * (NCPLN-1) characters). If it is it eats the '_'
+ * and returns true.
+ */
+int
+C_symbol(sp) register struct ldsym *sp;
+{
+	register char *cp1, *cp2;
+
+	cp1 = &sp->ls_id[0];
+	cp2 = &sp->ls_id[NCPLN];
+	while (cp2!=cp1 && *--cp2==0)
+		;
+	if (*cp2 != 0) {
+		if (*cp2 == '_') {
+			*cp2 = 0;
+			return 1;
+		}
+		if (cp2-cp1 >= (NCPLN-1))
+			return 1;
+	}
+	return 0;
+}
+
+/*
+ * Print a nonfatal error message.
+ */
+void
+error(s) char *s;
+{
+	fprintf(stderr, "nm: %r\n", &s);
+	status = 1;
+}
+
+/*
+ * Print an error message and die.
+ */
+void
+fatal(s) char *s;
+{
+	int save = errno;
+
+	fprintf(stderr, "nm: %r\n", &s);
+#if	0
+	if (0 != (errno = save))
+		perror("errno reports");
+#endif
+	exit(1);
+}
+
+/*
+ * Process old format archives.
+ */
+void
+old_ar(name, seek) char *name; long seek;
 {
 	long arhend;
 	struct old_ar_hdr arh;
 
-	namesw = 0;
-	for (arhend = at + sizeof(short); ; ) {
-		fseek(fd, arhend, 0);
-		if (1 != fread(&arh, sizeof(arh), 1, fd))
+	need_hdr = 0;
+	for (arhend = seek + sizeof(short); ; ) {
+		fseek(fp, arhend, 0);
+		if (1 != fread(&arh, sizeof(arh), 1, fp))
 			break;
 		arhend += sizeof(arh);
 		arh.ar_date = 0;	/* terminate name */
 		cansize(arh.ar_size);
 		if (strcmp(arh.ar_name, HDRNAME)) {
-			printf("%s(%s)\n", filen, arh.ar_name);
-			readHeaders(arhend, arh.ar_size);
+			printf("%s(%s):\n", name, arh.ar_name);
+			read_hdrs(arhend, arh.ar_size);
 		}
 		arhend += arh.ar_size;
 	}
-	namesw = 1;
+	need_hdr = 1;
 }
 
 /*
- * Process old form stuff.
+ * n.out sort by alpha.
  */
-old_nout(at)
-long at;
+int
+old_cmp_a(s1, s2) struct nlist *s1, *s2;
+{
+	return strncmp(s1->n_name, s2->n_name, NCPLN);
+}
+
+/*
+ * n.out sort by value.
+ */
+int
+old_cmp_n(s1, s2) struct nlist *s1, *s2;
+{
+	long i;
+
+	if (!(i = (s1->n_value - s2->n_value)))
+		return 0;
+	return (i < 0) ? -1 : 1;
+}
+
+/*
+ * n.out sort by reverse alpha.
+ */
+int
+old_cmp_r(s1, s2) struct nlist *s1, *s2;
+{
+	return strncmp(s2->n_name, s1->n_name, NCPLN);
+}
+
+/*
+ * Process n.out stuff.
+ */
+void
+old_nout(seek) long seek;
 {
 	struct ldheader ldh;
-	struct ldsym *sym, *s;
-	register unsigned i, syms, ct;
+	register struct ldsym *sym, *s;
+	register unsigned i, syms, n;
 	long toSym;
 	short type;
-	extern char *realloc();
 
-	fseek(fd, at, 0);
+	fseek(fp, seek, 0);
 	xread(&ldh, sizeof(ldh), "n.out header");
 	if (!ldh.l_ssize[L_SYM]) {
-		printf("No symbols in %s\n", fname);
+		printf(nosyms);
 		return;
 	}
 
-	if (namesw)
+	if (need_hdr)
 		printf("%s:\n", fname);
 
 	canshort(ldh.l_machine);
@@ -109,31 +380,31 @@ long at;
 			toSym += ldh.l_ssize[i];
 	}
 
-	fseek(fd, at + toSym, 0);
+	fseek(fp, seek + toSym, 0);
 	cansize(ldh.l_ssize[L_SYM]);
 	i = ldh.l_ssize[L_SYM];
 	if (i != ldh.l_ssize[L_SYM])
-		fatal("Out of space");
+		fatal(nospace);
 	sym = alloc(i);
 	xread(sym, i, "symbol table");
-	ct = i / sizeof(*sym);
+	n = i / sizeof(*sym);
 
-	/* squeeze out unneeded stuff before sort */
-	for (i = syms = 0; i < ct; i++) {
+	/* Squeeze out unneeded stuff before sort. */
+	for (i = syms = 0; i < n; i++) {
 		canshort(sym[i].ls_type);
 		canshort(sym[i].ls_addr);
 		type = sym[i].ls_type;
-		if (gsw && !(type & L_GLOBAL))
+		if (gflag && !(type & L_GLOBAL))
 			continue;
 		if ((type & ~L_GLOBAL) == L_REF) {	/* a reference */
-			if (dsw)	/* list only defined */
+			if (dflag)	/* list only defined */
 				continue;
-			if (usw && sym[i].ls_addr)
+			if (uflag && sym[i].ls_addr)
 				continue;
 		}
-		else if (usw)
+		else if (uflag)
 			continue;
-		if (!asw && !csymbol(sym + i))
+		if (!aflag && !C_symbol(sym + i))
 			continue;
 		if (i != syms)
 			sym[syms] = sym[i];
@@ -141,28 +412,15 @@ long at;
 	}
 	sym = realloc(sym, syms * sizeof(*sym));
 
-	if (nsw)
-		qsort(sym, syms, sizeof(*sym), ncomp_old);
-	else if (rsw)
-		qsort(sym, syms, sizeof(*sym), rcomp_old);
-	else if (!psw)
-		qsort(sym, syms, sizeof(*sym), acomp_old);
+	if (!pflag)
+		qsort(sym, syms, sizeof(*sym),
+			nflag ? old_cmp_n
+		      : rflag ? old_cmp_r
+		      :		old_cmp_a);
 
 	for (s = sym; s < (sym + syms); s++) {
-		static char *gn[] = {
-			"SI", "PI", "BI",
-			"SD", "PD", "BD",
-			" D", "  ", "  ",
-			" A", " C", "??"
-		};
-		static char *ln[] = {
-			"si", "pi", "bi",
-			"sd", "pd", "bd",
-			" d", "  ", "  ",
-			" a", " c", "??"
-		};
-		if (osw)
-			printf("%s ", fname);
+		if (oflag)
+			printf("%s:\t", fname);
 		i = s->ls_type & L_GLOBAL;
 		type = s->ls_type & ~ L_GLOBAL;
 		if (type < L_SHRI || type > L_REF)
@@ -172,241 +430,73 @@ long at;
 		else
 			printf("%04x %s",
 				s->ls_addr,
-				i ? gn[type] : ln[type]);
+				i ? gname[type] : lname[type]);
 		printf(" %.*s\n", NCPLN, s->ls_id);
 	}
-
 	free(sym);
 }
 
 /*
- * This routine gets called if we
- * are not in '-a' mode. It determines if
- * the symbol pointed to by 'sp' is a C
- * style symbol (trailing '_' or longer than
- * (NCPLN-1) characters). If it is it eats the '_'
- * and returns true.
+ * Read header info and process appropriately.
  */
-csymbol(sp)
-register struct ldsym *sp;
-{
-	register char *cp1, *cp2;
-
-	cp1 = &sp->ls_id[0];
-	cp2 = &sp->ls_id[NCPLN];
-	while (cp2!=cp1 && *--cp2==0)
-		;
-	if (*cp2 != 0) {
-		if (*cp2 == '_') {
-			*cp2 = 0;
-			return (1);
-		}
-		if (cp2-cp1 >= (NCPLN-1))
-			return (1);
-	}
-	return (0);
-}
-
-/*
- * Note some #defines in these include files interferes with
- * items in preceeding include files. Hence the strange
- * program order.
- */
-#include <coff.h>
-#include <arcoff.h>
-
-#define cx(x) case C_ ## x: printf("%6.6s ", #x); break
-#define ct(x) case T_ ## x: printf("%6.6s ", #x); break
-
-static char helpmsg[] =
-	"-d list only defined symbols\n"
-	"-g print only global symbols\n"
-	"-n list numerically not alphabetically\n"
-	"-o append file name to each line\n"
-	"-p print symbols in symbol table order\n"
-	"-r print in reverse alpha order\n"
-	"-u print only undefined symbols\n"
-	"-v print coff type symbols\n";
-
-FILEHDR fh;
-SCNHDR *scns;
-
-/*
- * Symbol name.
- */
-static char *
-symName(sym, work)
-SYMENT *sym;
-char *work;
-{
-	if (!sym->n_zeroes)
-		return (str_tab + sym->n_offset - 4);
-
-	/* make sure it's zero terminated */
-	memcpy(work, sym->n_name, SYMNMLEN);
-	work[SYMNMLEN] = '\0';
-	return (work);
-}
-
-main(argc, argv)
-char *argv[];
-{
-	char c;
-	extern int optind;
-	extern char *optarg;
-
-	while (EOF != (c = getopt(argc, argv, "adgnopruv?"))) {
-		switch (c) {
-		case '?':
-			printf(helpmsg);
-			break;
-		case 'a':
-			asw = 1;
-		case 'd':
-			dsw = 1;
-			break;
-		case 'g':
-			gsw = 1;
-			break;
-		case 'n':
-			nsw = 1;
-			break;
-		case 'o':
-			osw = 1;
-			break;
-		case 'p':
-			psw = 1;
-			break;
-		case 'r':
-			rsw = 1;
-			break;
-		case 'u':
-			usw = 1;
-			break;
-		case 'v':
-			vsw = 1;
-			break;
-		default:
-			printf("usage: nm [-dgnopruv?] file ...\n");
-			exit(1);
-		}
-	}
-
-	if ((psw + rsw + nsw) > 1)
-		fatal("More than one sort order");
-
-	namesw = (argc - optind) > 1;
-	for (; optind < argc; optind++) {
-		fd = xopen(fname = argv[optind], "rb");
-
-		readHeaders(0L, 0L);
-		fclose(fd);
-	}
-
-	exit (0);
-}
-
-static
-xread(to, size, msg)
-char *to;
-unsigned size;
-char *msg;
-{
-	if (1 != fread(to, size, 1, fd))
-		fatal("Error reading %s - %s", fname, msg);
-}
-
-static
-readHeaders(at, size)
-long at, size;
+int
+read_hdrs(seek, size) long seek, size;
 {
 	unsigned i;
 
-	xread(&fh, sizeof(fh), "coff header");
-	if (C_386_MAGIC != fh.f_magic) {
-		if (!memcmp(ARMAG, &fh, SARMAG))
-			return(archive(at));
-
-		canshort(fh.f_magic);
-		if (fh.f_magic == OLD_ARMAG)
-			return (old_ar(fname, at));
-		if (fh.f_magic == L_MAGIC)
-			return (old_nout(at));
-		printf("Inappropriate filetype %s\n", fname);
-		return (0);
+	if (1 != fread(&filehdr, sizeof(filehdr), 1, fp)) {
+		if (ferror(fp))
+			fatal("%s: read error", fname);
+		else
+			error("%s: inappropriate filetype", fname);
+		return 0;
 	}
-	if (fh.f_opthdr)	/* pass opt hdr */
-		fseek(fd, at + sizeof(fh) + fh.f_opthdr, 0);
-	scns = alloc(i = (fh.f_nscns * sizeof(SCNHDR)));
-	xread(scns, i, "section headers");
+	if (C_386_MAGIC != filehdr.f_magic) {
+		if (!memcmp(ARMAG, &filehdr, SARMAG))
+			return archive(seek);
 
-	if (fh.f_nsyms)
-		readSymbols(at, size);
+		canshort(filehdr.f_magic);
+		if (filehdr.f_magic == OLD_ARMAG)
+			return old_ar(fname, seek);
+		if (filehdr.f_magic == L_MAGIC)
+			return old_nout(seek);
+		error("%s: inappropriate filetype", fname);
+		return 0;
+	}
+	if (filehdr.f_opthdr)	/* pass opt hdr */
+		fseek(fp, seek + sizeof(filehdr) + filehdr.f_opthdr, 0);
+	sectab = alloc(i = (filehdr.f_nscns * sizeof(SCNHDR)));
+	xread(sectab, i, "section headers");
+
+	if (filehdr.f_nsyms)
+		read_syms(seek, size);
 	else
-		printf("No symbols in %s\n", fname);
-
+		printf(nosyms);
 }
 
 /*
- * Sort by alpha.
+ * Read COFF symbols.
  */
-acomp(s1, s2)
-SYMENT *s1, *s2;
+void
+read_syms(seek, size) long seek, size;
 {
-	char w1[SYMNMLEN + 1], w2[SYMNMLEN + 1];
-
-	return (strcmp(symName(s1, w1), symName(s2, w2)));
-}
-
-/*
- * Sort by reverse alpha.
- */
-rcomp(s1, s2)
-SYMENT *s1, *s2;
-{
-	char w1[SYMNMLEN + 1], w2[SYMNMLEN + 1];
-
-	return (- strcmp(symName(s1, w1), symName(s2, w2)));
-}
-
-/*
- * Sort by value;
- */
-ncomp(s1, s2)
-SYMENT *s1, *s2;
-{
-	long i;
-
-	if (!(i = (s1->n_value - s2->n_value)))
-		return (0);
-	if (i < 0)
-		return (-1);
-	return (1);
-}
-
-static
-readSymbols(at, size)
-long at;
-{
-	register SYMENT *s;
-	SYMENT *sym;
+	register SYMENT *s, *sym;
 	long str_len;
 	unsigned len;
-	int i, aux, syms;
-	extern char *realloc();
+	register int i, aux, syms;
 
-	/* read whole symbol table */
-	fseek(fd, at + fh.f_symptr, 0);
-	len = str_len = SYMESZ * fh.f_nsyms;
+	/* Read the whole symbol table. */
+	fseek(fp, seek + filehdr.f_symptr, 0);
+	len = str_len = SYMESZ * filehdr.f_nsyms;
 	if (str_len != len)
-		fatal("Cannot process small model");
+		fatal("symbol table too large");
 	sym = alloc(len);
 	xread(sym, len, "symbol table");
 
-	/* squeeze out unneeded stuff before sort */
-	for (i = aux = syms = 0; i < fh.f_nsyms; i++) {
+	/* Squeeze out unneeded stuff before sort. */
+	for (i = aux = syms = 0; i < filehdr.f_nsyms; i++) {
 		if (aux) {
-			aux--;
+			aux--;			/* ignore an aux entry */
 			continue;
 		}
 		s = sym + i;
@@ -414,37 +504,37 @@ long at;
 		switch (s->n_sclass) {
 		case C_EXT:
 			if (s->n_scnum || s->n_value) { /* defined */
-				if (usw)	/* print only undefined */
+				if (uflag)	/* print only undefined */
 					continue;
 			} else {			/* undefined */
-				if (dsw)	/* print only defined */
+				if (dflag)	/* print only defined */
 					continue;
 			}
 			break;
 		case C_EXTDEF:
-			if (dsw)
+			if (dflag)
 				continue;
 			break;
 		case C_STAT:
-			if (gsw || usw)
+			if (gflag || uflag)
 				continue;
 			switch (s->n_scnum) {
 			case 1:
-				if (!strcmp(s->n_name, ".text"))
+				if (!strcmp(s->n_cname, ".text"))
 					continue;
 				break;
 			case 2:
-				if (!strcmp(s->n_name, ".data"))
+				if (!strcmp(s->n_cname, ".data"))
 					continue;
 				break;
 			case 3:
-				if (!strcmp(s->n_name, ".bss"))
+				if (!strcmp(s->n_cname, ".bss"))
 					continue;
 				break;
 			}
 			break;
 		default:
-			if (!vsw)
+			if (!vflag)
 				continue;
 		}
 		if (i != syms)
@@ -452,45 +542,53 @@ long at;
 		syms++;
 	}
 	sym = realloc(sym, syms * SYMESZ);
-
 	str_len = 0;
-	if (!size || ((fh.f_symptr + len + sizeof(long)) < size))
-		if (1 != fread(&str_len, sizeof(str_len), 1, fd))
+	if (!size || ((filehdr.f_symptr + len + sizeof(long)) < size))
+		if (1 != fread(&str_len, sizeof(str_len), 1, fp))
 			str_len = 0;
 	if (str_len) {
 		len = str_len -= 4;
 		if (len != str_len)
-			fatal("Cannot process small model");
-		str_tab = alloc(len);
-		xread(str_tab, len, "string table");
+			fatal("string table too large");
+		strtab = alloc(len);
+		xread(strtab, len, "string table");
 	}
 
-	if (nsw)
-		qsort(sym, syms, SYMESZ, ncomp);
-	else if (rsw)
-		qsort(sym, syms, SYMESZ, rcomp);
-	else if (!psw)
-		qsort(sym, syms, SYMESZ, acomp);
+	if (!pflag)
+		qsort(sym, syms, SYMESZ,
+			nflag ? cmp_n
+		      : rflag ? cmp_r
+		      :		cmp_a);
 
 	for (s = sym; s < (sym + syms); s++) {
 		char w1[SYMNMLEN + 1], *n;
 
-		i = strlen(n = symName(s, w1));
+		i = strlen(n = sym_name(s, w1));
 
-		if (osw)
-			printf("%s ", fname);
+#if	COMEAU
+		if (Comeau_flag) {
+			char c;
 
-		/* display section name */
+			switch (s->n_scnum) {
+			case N_UNDEF:	c = (s->n_value) ? 'C' : 'U';	break;
+			case 1:		c = 'T';			break;
+			case 2:		c = 'D';			break;
+			case 3:		c = 'B';			break;
+			default:
+				continue;
+			}
+			printf("%c %s\n", c, n);
+			continue;
+		}
+#endif
+		if (oflag)
+			printf("%s:\t", fname);
+
+		/* Display section name. */
 		switch (s->n_scnum) {
-		case N_DEBUG:
-			printf("DEBUG    ");
-			break;
-		case N_ABS:
-			printf("ABSOLUTE ");
-			break;
-		case N_TV:
-			printf("TV       ");
-			break;		
+		case N_DEBUG:	printf("DEBUG    ");		break;
+		case N_ABS:	printf("ABSOLUTE ");		break;
+		case N_TV:	printf("TV       ");		break;		
 		case N_UNDEF:
 			if (s->n_value)
 				printf(".comm    ");
@@ -498,36 +596,37 @@ long at;
 				printf("UNDEF    ");
 			break;
 		default:
-			printf("%-8.8s ", scns[s->n_scnum - 1].s_name);
+			printf("%-8.8s ", sectab[s->n_scnum - 1].s_name);
 		}
 
-		if (vsw) {	/* print coff type data */
-			/* display storage class */
+		if (vflag) {	/* Print coff type data. */
+
+			/* Display storage class. */
 			switch (s->n_sclass) {
-			cx(EFCN);
-			cx(NULL);
-			cx(AUTO);
-			cx(EXT);
-			cx(STAT);
-			cx(REG);
-			cx(EXTDEF);
-			cx(LABEL);
-			cx(ULABEL);
-			cx(MOS);
-			cx(ARG);
-			cx(STRTAG);
-			cx(MOU);
-			cx(UNTAG);
-			cx(TPDEF);
-			cx(USTATIC);
-			cx(ENTAG);
-			cx(MOE);
-			cx(REGPARM);
-			cx(FIELD);
-			cx(BLOCK);
-			cx(FCN);
-			cx(EOS);
-			cx(FILE);
+			case_class(EFCN);
+			case_class(NULL);
+			case_class(AUTO);
+			case_class(EXT);
+			case_class(STAT);
+			case_class(REG);
+			case_class(EXTDEF);
+			case_class(LABEL);
+			case_class(ULABEL);
+			case_class(MOS);
+			case_class(ARG);
+			case_class(STRTAG);
+			case_class(MOU);
+			case_class(UNTAG);
+			case_class(TPDEF);
+			case_class(USTATIC);
+			case_class(ENTAG);
+			case_class(MOE);
+			case_class(REGPARM);
+			case_class(FIELD);
+			case_class(BLOCK);
+			case_class(FCN);
+			case_class(EOS);
+			case_class(FILE);
 			default:
 				printf("unknown ");
 			}
@@ -549,68 +648,56 @@ long at;
 			else
 				printf("- ");
 	
-			/* display type */
+			/* Display type. */
 			switch (BTYPE(s->n_type)) {
-			ct(NULL);
-			ct(ARG);
-			ct(CHAR);
-			ct(SHORT);
-			ct(INT);
-			ct(LONG);
-			ct(FLOAT);
-			ct(DOUBLE);
-			ct(STRUCT);
-			ct(UNION);
-			ct(ENUM);
-			ct(MOE);
-			ct(UCHAR);
-			ct(USHORT);
-			ct(UINT);
-			ct(ULONG);
+			case_type(NULL);
+			case_type(VOID);
+			case_type(CHAR);
+			case_type(SHORT);
+			case_type(INT);
+			case_type(LONG);
+			case_type(FLOAT);
+			case_type(DOUBLE);
+			case_type(STRUCT);
+			case_type(UNION);
+			case_type(ENUM);
+			case_type(MOE);
+			case_type(UCHAR);
+			case_type(USHORT);
+			case_type(UINT);
+			case_type(ULONG);
 			default:
 				printf("unknown ");
 			}
 		}
-
-		printf("%08lX %s\n", s->n_value, n);
+		printf("%08lX %s\n", s->n_value, n);		/* value */
 	}
 	free(sym);
 }
 
 /*
- * Print members of archive.
+ * Return a pointer to a symbol name, not necessarily in the given buffer.
  */
-archive(at)
-long at;
+char *
+sym_name(sym, work) SYMENT *sym; char *work;
 {
-	long arhend;
-	struct ar_hdr coff_arh;
-	struct old_ar_hdr arh;
-	char *p;
-	extern char *strchr();
+	if (sym->n_zeroes == 0L)
+		return strtab + sym->n_offset - 4;	/* sym in string table */
 
-	namesw = 0;
-	for (arhend = at + SARMAG; ; ) {
-		fseek(fd, arhend, 0);
-		if (1 != fread(&coff_arh, sizeof(coff_arh), 1, fd))
-			break;
-		memset(&arh, '\0', sizeof(arh));
-		memcpy(arh.ar_name, coff_arh.ar_name, DIRSIZ);
-		if (NULL != (p = strchr(arh.ar_name, '/')))
-			*p = '\0';
-
-		sscanf(coff_arh.ar_date, "%ld %d %d %o %ld",
-			&arh.ar_date, &arh.ar_uid,
-			&arh.ar_gid, &arh.ar_mode, &arh.ar_size);
-
-		arhend += sizeof(coff_arh);
-		if (arh.ar_name[0]) {
-			printf("%s(%s)\n", fname, arh.ar_name);
-			readHeaders(arhend, arh.ar_size);
-		}
-		arhend += arh.ar_size;
-		if (arhend & 1)
-			arhend++;		
-	}
-	namesw = 1;
+	/* Make sure symbol name is NUL-terminated. */
+	memcpy(work, sym->n_cname, SYMNMLEN);
+	work[SYMNMLEN] = '\0';
+	return work;
 }
+
+/*
+ * Read, die on error.
+ */
+void
+xread(dest, size, msg) char *dest; unsigned int size; char *msg;
+{
+	if (1 != fread(dest, size, 1, fp))
+		fatal("%s: read error (%s)", fname, msg);
+}
+
+/* end of nm.c */

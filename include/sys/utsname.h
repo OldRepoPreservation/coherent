@@ -1,11 +1,17 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_UTSNAME_H__
 #define	__SYS_UTSNAME_H__
 
-
 /*
- * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990, and as
- * such client programs which include this header should not use any symbols
- * which end in "_t".
+ * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990; and, as
+ * such, client programs that include it should not use any symbols
+ * that end in "_t".
  */
 
 /*
@@ -16,26 +22,20 @@
  * System V, Release 4.
  */
 
-#include <sys/ccompat.h>
+#include <common/feature.h>
+#include <common/ccompat.h>
 
 
-#if	_SYSV4
-
+#if	_SYSV4 && ! _SYSV3
 # define	__SYS_NMLN	257
-
 #else
-
 # define	__SYS_NMLN	9
-
 #endif
 
 
-#if	! _POSIX_SOURCE
-
+#if	! _POSIX_C_SOURCE
 # define	SYS_NMLN	__SYS_NMLN
-
 #endif
-
 
 struct utsname {
 	char		sysname [__SYS_NMLN];
@@ -44,7 +44,6 @@ struct utsname {
 	char		version [__SYS_NMLN];
 	char		machine [__SYS_NMLN];
 };
-
 
 __EXTERN_C_BEGIN__
 

@@ -3,6 +3,8 @@
 / i387 mathematics library
 / cabs(z), hypot(x, y)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

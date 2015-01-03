@@ -1,21 +1,34 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * /usr/include/sys/kb.h
- *
- * Keyboard definitions and constants for user configurable AT keyboard driver.
- *
- * Revised: Wed Apr  7 17:15:34 1993 CDT
- */
+
 #ifndef	__SYS_KB_H__
 #define	__SYS_KB_H__
 
 /*
- * ASCII Macro Definitions - stolen from <ascii.h>
+ * Keyboard definitions and constants for user configurable AT keyboard driver.
  */
+
+#include <common/feature.h>
+
+/*
+ * Language spec for non-loadable keyboard drivers.
+ */
+
+enum {
+	kb_lang_us = 0,
+	kb_lang_de = 1,
+	kb_lang_fr = 2
+};
+
+
+/*
+ * ASCII Macro Definitions.
+ */
+
 #define nul	0x00	/* Null			*/
 #define soh	0x01	/* Start Of Header	*/
 #define stx	0x02	/* Start Of Text	*/
@@ -52,9 +65,11 @@
 #define del	0x7F	/* Delete		*/
 #define rub	0x7F	/* Rubout (Delete)	*/
 
+
 /*
  * special and shift keys
  */
+
 #define	none	0xFF	/* no key value */
 #define	scroll	1	/* SCROLL lock key */
 #define	num	2	/* NUM lock key */
@@ -67,9 +82,11 @@
 #define	rctrl	9	/* right CTRL key */
 #define	altgr	10	/* ALT GR. key */
 
+
 /*
  * flag/mode field definitions
  */
+
 #define	O	0	/* OFF: no special processing */
 #define	N	0x01	/* NUM lock applies */
 #define	C	0x02	/* CAP lock applies */
@@ -83,9 +100,11 @@
 #define	MB	0x80	/* "Make/Break" mode */
 #define	TMB	0xC0	/* "Typematic/Make/Break" mode */
 
+
 /*
  * function key definitions
  */
+
 #define	reboot	f0	/* reboot system */
 #define	f0	0	/* function key 0 */
 #define	f1	1	/* function key 1 */
@@ -167,15 +186,38 @@
 #define	f77	77	/* function key 77 */
 #define	f78	78	/* function key 78 */
 #define	f79	79	/* function key 79 */
+#define	f80	80	/* function key 80 */
+#define	f81	81	/* function key 81 */
+#define	f82	82	/* function key 82 */
+#define	f83	83	/* function key 83 */
+#define	f84	84	/* function key 84 */
+#define	f85	85	/* function key 85 */
+#define	f86	86	/* function key 86 */
+#define	f87	87	/* function key 87 */
+#define	f88	88	/* function key 88 */
+#define	f89	89	/* function key 89 */
+#define	f90	90	/* function key 90 */
+#define	f91	91	/* function key 91 */
+#define	f92	92	/* function key 92 */
+#define	f93	93	/* function key 93 */
+#define	f94	94	/* function key 94 */
+#define	f95	95	/* function key 95 */
+#define	f96	96	/* function key 96 */
+#define	f97	97	/* function key 97 */
+#define	f98	98	/* function key 98 */
+#define	f99	99	/* function key 99 */
+
 
 /*
  * table entry definition
  */
+
 typedef	struct	{
 	unsigned char	k_key;		/* Scan code set 3 key value */
 	unsigned char	k_val[9];	/* key value for each mode */
 	unsigned char	k_flags;	/* flags and mode bits */
 } KBTBL;
+
 
 /*
  * Index values for k_val[] array.
@@ -188,6 +230,7 @@ typedef	struct	{
  *
  * Use of the Alt Graphic key ignores other shift modes.
  */
+
 #define	BASE		0
 #define	SHIFT		1
 #define	CTRL		2
@@ -198,9 +241,11 @@ typedef	struct	{
 #define	ALT_CTRL_SHIFT	7
 #define	ALT_GR		8
 
+
 /*
  * Keyboard responses to system
  */
+
 #define	K_BREAK		0xF0		/* break code prefix byte */
 #define	K_ACK		0xFA		/* Acknowledgement */
 #define	K_BAT_OK	0xAA		/* BAT Completion code */
@@ -212,9 +257,11 @@ typedef	struct	{
 #define	K_OVERRUN_23	0x00		/* Buffer overrun, code sets 2 & 3 */
 #define	K_RESEND	0xFE		/* Resend prior command */
 
+
 /*
  * Keyboard commands
  */
+
 #define	K_LED_CMD	0xED		/* Set/reset LEDs */
 #define	K_ECHO_CMD	0xEE		/* Echo */
 #define	K_SCANCODE_CMD	0xF0		/* Select scan code set */
@@ -231,16 +278,17 @@ typedef	struct	{
 #define	K_RESEND_CMD	0xFE		/* Resend */
 #define	K_RESET_CMD	0xFF		/* Reset keyboard */
 
+
 /*
  * function key definitions
  *
- * Struct member k_fnval contains the actual function key values.
+ * After this structure are the actual function key text strings.
  * Entries are delimited by DELIM (0xFF or '\377') to allow NUL characters to
  * be embedded in function strings.
  */
+
 typedef	struct	{
 	unsigned char	k_nfkeys;	/* number of function keys */
-	unsigned char	k_fnval[];	/* linear array of values */
 } FNKEY;
 
 #define	MAX_KEYS	256		/* all that can fit in a char */
@@ -249,10 +297,6 @@ typedef	struct	{
 #define	MAX_FCHAR	2048		/* default Fn key arena size */
 #define	DELIM		0xFF		/* function key delimiter */
 
-/*
-================================================================================
-================================================================================
-*/
 
 /*
  * Virtual terminal key definitions.
@@ -262,7 +306,7 @@ typedef	struct	{
  * in a contiguous range from VTKEY_HOME to VTKEY_MAX.
  */
 
-#define	vt0		80
+#define	vt0		130
 #define	vt1		vt0+1
 #define	vt2		vt0+2
 #define	vt3		vt0+3
@@ -313,11 +357,13 @@ typedef	struct	{
 #define mono14		mono0+14
 #define mono15		mono0+15
 
+
 /*
  * vtn - next logical session (increasing minor numbers)
  * vtp - previous logical session (decreasing minor numbers)
  * vtt - toggle current with latest session
  */
+
 #define	vtn		vt0+48
 #define	vtp		vt0+49
 #define	vtt		vt0+50
@@ -330,12 +376,13 @@ typedef	struct	{
 
 #define	VTKEY(x)	((x)>=VTKEY_HOME && (x)<=VTKEY_MAX)
 
+
 /*
- * The following is provisional, pending STREAMS enhancements to the console.
- *
  * "fgk" is normally bound to <alt>+<enter>.
  */
+
 #define fgk		(VTKEY_MAX+1)
+
 
 /*
  * function key definitions
@@ -347,11 +394,13 @@ typedef	struct	{
 
 #define	VNKB_FALSE	0
 #define	VNKB_TRUE	1
-#ifdef	KERNEL
+
+#if	_KERNEL
 
 /*
  * patchable params for non-standard keyboards
  */
+
 extern	int	KBDATA;			/* Keyboard data */
 extern	int	KBCTRL;			/* Keyboard control */
 extern	int	KBSTS_CMD;		/* Keyboard status/command */
@@ -359,23 +408,9 @@ extern	int	KBFLAG;			/* Keyboard reset flag */
 extern	int	KBBOOT;			/* 0: disallow reboot from keyboard */
 extern	int	KBTIMEOUT;		/* shouldn't need this much */
 extern	int	KBCMDBYTE;		/* no translation */
-
-#ifndef	_I386
-extern	SEG	*kbsegp;		/* keyboard table segment */
-#endif
 extern	int	isbusy;			/* Raw input conversion busy */
 extern	int	vt_kb_state, vt_kb_cmd2, vt_kb_prev_cmd;
 
-#if	VT_MAJOR != KB_MAJOR
-extern	Ksetivec(), Kisrint();
-extern	Kclrivec();
-#endif
+#endif	/* _KERNEL */
 
-#endif	/* KERNEL */
-/*
-================================================================================
-================================================================================
-*/
-
-#endif	/* KB_H */
-/* end of kb.h */
+#endif	/* ! defined (__SYS_KB_H__) */

@@ -6,7 +6,7 @@
  * Close a stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 fclose(stream) register FILE *stream;

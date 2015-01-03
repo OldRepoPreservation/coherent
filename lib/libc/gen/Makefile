@@ -1,125 +1,57 @@
-# /usr/src/libc/gen/Makefile 11/16/92
+# /usr/src/libc/gen/Makefile 9/13/94
 
-OBJ=\
-	__assertfail.o\
-	_addargs.o\
-	_cleanup.o\
-	_pow10.o\
-	abs.o\
-	atof.o\
-	atoi.o\
-	atol.o\
-	bsearch.o\
-	coffnlist.o\
-	crypt.o\
-	ctime.o\
-	ctol.o\
-	decvax_d.o\
-	decvax_f.o\
-	ftok.o\
-	getcwd.o\
-	getenv.o\
-	getgrent.o\
-	getlogin.o\
-	getopt.o\
-	getpass.o\
-	getpw.o\
-	getpwent.o\
-	getwd.o\
-	ieee_d.o\
-	ieee_f.o\
-	isatty.o\
-	labs.o\
-	lockf.o\
-	ltoc.o\
-	mktemp.o\
-	monitor.o\
-	mtype.o\
-	nlist.o\
-	notify.o\
-	path.o\
-	pnmatch.o\
-	putenv.o\
-	qsort.o\
-	rand.o\
-	shellsort.o\
-	sleep.o\
-	strtod.o\
-	strtol.o\
-	swab.o\
-	sys_err.o\
-	system.o\
-	tempnam.o\
-	ttyname.o\
-	ttyslot.o
+# N.B. ttyname compilation requires -DNEWTTYS=1, now #defined in the source.
+LIBOBJ=\
+	$(TARGET)(__assertfail.o) \
+	$(TARGET)(__fltused.o) \
+	$(TARGET)(_addargs.o) \
+	$(TARGET)(_cleanup.o) \
+	$(TARGET)(_pow10.o) \
+	$(TARGET)(coffnlist.o) \
+	$(TARGET)(crypt.o) \
+	$(TARGET)(ctol.o) \
+	$(TARGET)(decvax_d.o) \
+	$(TARGET)(decvax_f.o) \
+	$(TARGET)(drand48.o) \
+	$(TARGET)(fnmatch.o) \
+	$(TARGET)(ftok.o) \
+	$(TARGET)(getcwd.o) \
+	$(TARGET)(getgrent.o) \
+	$(TARGET)(getlogin.o) \
+	$(TARGET)(getopt.o) \
+	$(TARGET)(getpass.o) \
+	$(TARGET)(getpw.o) \
+	$(TARGET)(getpwent.o) \
+	$(TARGET)(getspent.o) \
+	$(TARGET)(getwd.o) \
+	$(TARGET)(ieee_d.o) \
+	$(TARGET)(ieee_f.o) \
+	$(TARGET)(isatty.o) \
+	$(TARGET)(lockf.o) \
+	$(TARGET)(ltoc.o) \
+	$(TARGET)(mkfifo.o) \
+	$(TARGET)(mktemp.o) \
+	$(TARGET)(monitor.o) \
+	$(TARGET)(mtype.o) \
+	$(TARGET)(nlist.o) \
+	$(TARGET)(notify.o) \
+	$(TARGET)(path.o) \
+	$(TARGET)(pnmatch.o) \
+	$(TARGET)(raise.o) \
+	$(TARGET)(shellsort.o) \
+	$(TARGET)(sleep.o) \
+	$(TARGET)(swab.o) \
+	$(TARGET)(sys_err.o) \
+	$(TARGET)(tempnam.o) \
+	$(TARGET)(ttyname.o) \
+	$(TARGET)(ttyslot.o)
 
 # Primary target.
-all:	GEN genctype gen$(MCH) genmalloc
+all:	$(LIBOBJ) gen$(MCH)
 	: libc/gen done.
 
-# Pseduotargets.
-GEN:	$(OBJ)
-	$(AR) rkus libc.a $?
-	touch $@
-genctype:
-	SRCPATH=$(SRCPATH)/ctype make -e
+# Secondary target.
 gen$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
-genmalloc:
-	SRCPATH=$(SRCPATH)/malloc make -e
-
-# Secondary targets.
-__assertfail.o:	__assertfail.c
-_addargs.o:	_addargs.c
-_cleanup.o:	_cleanup.c
-_pow10.o:	_pow10.c
-abs.o:		abs.c
-atof.o:		atof.c
-atoi.o:		atoi.c
-atol.o:		atol.c
-bsearch.o:	bsearch.c
-coffnlist.o:	coffnlist.c
-crypt.o:	crypt.c
-ctime.o:	ctime.c
-ctol.o:		ctol.c
-decvax_d.o:	decvax_d.c
-decvax_f.o:	decvax_f.c
-ftok.o:		ftok.c
-getcwd.o:	getcwd.c
-getenv.o:	getenv.c
-getgrent.o:	getgrent.c
-getlogin.o:	getlogin.c
-getopt.o:	getopt.c
-getpass.o:	getpass.c
-getpw.o:	getpw.c
-getpwent.o:	getpwent.c
-getwd.o:	getwd.c
-ieee_d.o:	ieee_d.c
-ieee_f.o:	ieee_f.c
-isatty.o:	isatty.c
-labs.o:		labs.c
-lockf.o:	lockf.c
-ltoc.o:		ltoc.c
-mktemp.o:	mktemp.c
-monitor.o:	monitor.c
-mtype.o:	mtype.c
-nlist.o:	nlist.c
-notify.o:	notify.c
-path.o:		path.c
-pnmatch.o:	pnmatch.c
-putenv.o:	putenv.c
-qsort.o:	qsort.c
-rand.o:		rand.c
-shellsort.o:	shellsort.c
-sleep.o:	sleep.c
-strtod.o:	strtod.c
-strtol.o:	strtol.c
-swab.o:		swab.c
-sys_err.o:	sys_err.c
-system.o:	system.c
-tempnam.o:	tempnam.c
-# N.B. ttyname compilation requires -DNEWTTYS=1, now #defined in the source.
-ttyname.o:	ttyname.c
-ttyslot.o:	ttyslot.c
+	$(MAKE) $(MAKEARGS) "SRCPATH=$(SRCPATH)/$(MCH)" "MAKEARGS=$(MAKEARGS)"
 
 # end of /usr/src/libc/gen/Makefile

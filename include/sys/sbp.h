@@ -1,6 +1,13 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
 /*
  * Constants for Sound Blaster Pro
  */
+
 #ifndef __SYS_SBP_H__
 #define __SYS_SBP_H__
 
@@ -35,4 +42,6 @@
 #define DSP_SPKR_OFF	0xD3
 #define DSP_GET_SPK_ST	0xD8
 #define DSP_GET_VERSION	0xE1
-#endif
+
+#endif	/* ! defined (__SYS_SBP_H__) */
+

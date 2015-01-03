@@ -5,7 +5,8 @@
 / waitpid() is designated by setting all of PSW flags ZF, PF, SF, and OF.
 //////////
 
-	.text
+	.unixorder
+
 	.globl	wait
 	.globl	waitpid
 	.globl	.cerror

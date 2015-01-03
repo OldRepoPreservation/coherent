@@ -512,7 +512,7 @@ setcoffseg()
 	off_t tsp, dsp, bsp;
 	int i;
 
-	fbase = sizeof(FILEHDR) + coff_hdr.f_opthdr;
+	fbase = sizeof(FILHDR) + coff_hdr.f_opthdr;
 	tbase = tsize = dbase = dsize = bbase = bsize = MIN_ADDR;
 	tsp = dsp = bsp = (off_t)0;
 	oshp = shp = (SCNHDR *)nalloc(coff_hdr.f_nscns*sizeof(SCNHDR), "COFF section headers");

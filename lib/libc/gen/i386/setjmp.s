@@ -4,6 +4,8 @@
 / ANSI 4.6.1.1, 4.6.2.1.
 //////////
 
+	.intelorder
+
 //////////
 / #include <setjmp.h>
 /

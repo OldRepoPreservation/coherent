@@ -126,9 +126,9 @@ void free();
 void exit();
 
 /* tables from symtab.c */
-extern symt typTab[];
-extern char charLump[];
-extern opc prefTab[];
-extern nhash hashCodes[];
+extern readonly symt typTab[];
+extern readonly char charLump[];
+extern readonly opc prefTab[];
+extern readonly nhash hashCodes[];
 extern psym symtab[];
 

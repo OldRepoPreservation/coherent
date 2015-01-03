@@ -3,6 +3,8 @@
 / i387 mathematics library
 / _edomain(), _erange()
 //////////
+.intelorder
+
 
 	.globl  _edomain
 	.globl	_erange

@@ -1,10 +1,13 @@
-# c/cpp/Makefile 4/25/91
+# c/cpp/Makefile 6/9/94
+
+CPPOBJ=\
+	cpp.a(cpp.$X)
 
 # Primary target.
-cpp:	cpp.$X $(CLIB)
-	$(CC) $(LDFLAGS) -o cpp $<
+cpp:	cpp.a common.a
+	$(CC) $(LDFLAGS) -o $@ cpp.a common.a
 
-# Secondary target.
-cpp.$X: cpp.c
+cpp.a:	$(CPPOBJ)
+	: cpp.a done
 
 # end of c/cpp/Makefile

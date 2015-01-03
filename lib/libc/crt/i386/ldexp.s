@@ -6,6 +6,8 @@
 / ldexp()
 //////////
 
+	.intelorder
+
 //////////
 / double
 / ldexp(dbl, exp) double dbl; int exp;

@@ -3,6 +3,8 @@
 / i387 mathematics library
 / fabs(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

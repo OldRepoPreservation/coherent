@@ -68,20 +68,21 @@ typedef	union	REG	{
 /*
  * Global variables.
  */
-extern	REG	*nrctreg;		/* Character type */
-extern	REG	*nrdlreg;		/* Max width of last diversion */
-extern	REG	*nrdnreg;		/* Height of last diversion */
-extern	REG	*nrdwreg;		/* Day of the week */
-extern	REG	*nrdyreg;		/* Day of the month */
-extern	REG	*nrhpreg;		/* Current horizontal place */
-extern	REG	*nrlnreg;		/* Output line number */
-extern	REG	*nrmoreg;		/* Month */
+extern	REG	*nrctreg;		/* Character type		*/
+extern	REG	*nrddreg;		/* Process id			*/
+extern	REG	*nrdlreg;		/* Max width of last diversion	*/
+extern	REG	*nrdnreg;		/* Height of last diversion	*/
+extern	REG	*nrdwreg;		/* Day of the week		*/
+extern	REG	*nrdyreg;		/* Day of the month		*/
+extern	REG	*nrhpreg;		/* Current horizontal place	*/
+extern	REG	*nrlnreg;		/* Output line number		*/
+extern	REG	*nrmoreg;		/* Month			*/
 extern	REG	*nrnlreg;		/* Position of last printed line */
-extern	REG	*nrpnreg;		/* Current page number */
-extern	REG	*nrsbreg;		/* Depth of string below base */
-extern	REG	*nrstreg;		/* Height of string above base */
-extern	REG	*nryrreg;		/* Year */
-extern	REG	*regt[RHTSIZE];		/* Register hash table */
+extern	REG	*nrpnreg;		/* Current page number		*/
+extern	REG	*nrsbreg;		/* Depth of string below base	*/
+extern	REG	*nrstreg;		/* Height of string above base	*/
+extern	REG	*nryrreg;		/* Year				*/
+extern	REG	*regt[RHTSIZE];		/* Register hash table		*/
 
 /* Page number. */
 #define	 pno	(nrpnreg->n_reg.r_nval)

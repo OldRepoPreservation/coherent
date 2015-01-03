@@ -7,8 +7,8 @@
 #include <stddef.h>
 #include <canon.h>
 #include <signal.h>
+#include <sys/types.h>
 #include <sys/core.h>
-#include <sys/uproc.h>
 #include "db.h"
 
 int
@@ -103,25 +103,18 @@ again:
 /*
  * Set up segmentation for a core dump.
  * The registers are also read.
- * hal improved the core file format 4/93 for COHERENT V4.0.1r75.
- * Compiling without -DOLD_CORE builds db which groks only the new format.
- * Compiling with -DOLD_CORE builds db which groks both old and new formats.
- * This hack should disappear when the old format becomes irrelevant.
+ * This version is for interim COHERENT 4.2beta.r90 headers 10/7/93.
  */
 void
 set_core(name) char *name;
 {
-	struct ch_info ch_info;
-	long offset;
-	register unsigned i;
-	register char *cp;
-	register ADDR_T size;
-	register off_t offt;
-	ADDR_T regl;		/* an address, int * in <sys/uproc.h> */
-	int iflag, textflag;
-	int signo;
-	char ucomm[U_COMM_LEN+1];
-	SR usegs[NUSEG];
+	struct ch_info		ch_info;
+	struct core_seg		core_seg;
+	long			offset, end;
+	int			iflag, textflag, seg, nsegs;
+	char			*corename, *cp;
+
+	corename = NULL;
 
 	/* Open the core file. */
 	cfn = name;
@@ -130,116 +123,119 @@ set_core(name) char *name;
 	/* Read the core file header and set uproc offset. */
 	if (fread(&ch_info, sizeof ch_info, 1, cfp) != 1)
 		panic("Cannot read core file header");
-#if	!OLD_CORE
 	if (ch_info.ch_magic != CORE_MAGIC)
 		panic("Not a core file");
-	offset = ch_info.ch_info_len + ch_info.ch_uproc_offset;
-#else
-	if (ch_info.ch_magic == CORE_MAGIC)
-		offset = ch_info.ch_info_len + ch_info.ch_uproc_offset;
-	else
-		offset = (long)U_OFFSET;
-#endif
-
-	/* Read the file name from the core file. */
-	if (fseek(cfp, offset+offsetof(UPROC, u_comm[0]), SEEK_SET) != -1
-	 && (cp = lfn) != NULL
-	 && fread(ucomm, sizeof(ucomm), 1, cfp) == 1) {
-
-		/* Compare object filename to core filename. */
-		while (strchr(cp, '/') != NULL)
-			cp = strchr(cp, '/') + 1;	/* skip past '/' */
-		if (strncmp(cp, ucomm, sizeof(ucomm)) != 0) {
-			ucomm[U_COMM_LEN] = '\0';
-			printr("Core file name \"%s\" different from object file name \"%s\"",
-				ucomm, lfn);
-		}
-	}
-
-	/* Read the core file segment information. */
-	if (fseek(cfp, offset+offsetof(UPROC, u_segl[0]), SEEK_SET) == -1
-	 || fread(usegs, sizeof(usegs), 1, cfp) != 1)
-		panic("Bad core file");
-
-	/* Read the core file signal number and register pointer. */
-	if (fseek(cfp, offset+offsetof(UPROC, u_signo), SEEK_SET) == -1
-	 || fread(&signo, sizeof(signo), 1, cfp) != 1)
-		panic("cannot read signo");
-	dbprintf(("signo=%d\n", signo));
-	if (fread(&regl, sizeof(regl), 1, cfp) != 1)
-		panic("cannot read regl");
-	regl &= (NBPC - 1);
-#if	OLD_CORE
-	if (ch_info.ch_magic == CORE_MAGIC)
-		regl += ch_info.ch_info_len;
-#else
-	regl += ch_info.ch_info_len;
-#endif
-	dbprintf(("regl=%d\n", regl));
-
-#if	__I386__
-	/* Adjust the i386 stack segment base. */
-	usegs[SISTACK].sr_base -= usegs[SISTACK].sr_size;
-	dbprintf(("adjust usegs[SISTACK].sr_base to %x\n", usegs[SISTACK].sr_base));
-#endif
+	offset = ch_info.ch_info_len;
+	if (ch_info.ch_info_len == sizeof(ch_info))
+		panic("No core_proc info in core file\n");
 
 	/*
-	 * The new core dump format might or might not include the text segment
-	 * but does not include a flag stating if it has been dumped (oops);
-	 * this decides if text is present/absent by adding up segment sizes.
-	 * Presumably it should be setting SRFDUMP flag correctly instead...
+	 * The registers are located at member cp_registers of the core_proc
+	 * structure which follows the ch_info structure in the core file.
+	 * Map the registers.
+	 * Older versions of COHERENT allowed access to the entire u-area,
+	 * but now only the registers are mapped by db.
 	 */
-	textflag = 0;
-#if	OLD_CORE
-	if (ch_info.ch_magic == CORE_MAGIC) {
-#endif
-		offt = usegs[0].sr_size + ch_info.ch_info_len;
-		for (i=1; i<NUSEG; i++) {
-			if (usegs[i].sr_segp == (SEG *)NULL)
-				continue;
-			if ((~usegs[i].sr_flag) & (SRFDUMP|SRFPMAP))
-				continue;
-			offt += usegs[i].sr_size;
-		}
-		fseek(cfp, 0L, SEEK_END);
-		textflag = (ftell(cfp) != offt);
-		dbprintf(("cfp_len=%lx offt=%lx textflag=%d", ftell(cfp), offt, textflag));
-#if	OLD_CORE
-	}
-#endif
+	map_set(USEG, MIN_ADDR, (ADDR_T)sizeof(struct core_proc),
+		(off_t)(sizeof(struct ch_info) + offsetof(struct core_proc, cp_registers)),
+		MAP_CORE);
 
-	/* Set up segmentation. */
-	iflag = ISPACE == DSPACE;
-	map_set(USEG, MIN_ADDR, (ADDR_T)UPASIZE, (off_t)regl, MAP_CORE);
+	/*
+	 * There is currently no way to tell how many segments are dumped
+	 * in a core file, so this uses the file size.
+	 */
+	if (fseek(cfp, (long)0, SEEK_END) == -1)
+		panic("core file seek failed");
+	end = ftell(cfp);
+
+	/*
+	 * Read the struct core_seg headers at the front of each memory segment.
+	 * Set up segmentation accordingly.
+	 * Because there is no rational way to tell which segment is which,
+	 * this uses a nasty machine-dependent kludge.
+	 */
+	iflag = ISPACE == DSPACE;		/* non-sepid flag */
+	textflag = 0;				/* iff text segment dumped */
 	map_clear(DSEG, endpure);
-	offt = usegs[0].sr_size;
-#if	OLD_CORE
-	if (ch_info.ch_magic == CORE_MAGIC)
-		offt += ch_info.ch_info_len;
+	for (nsegs = 0; offset < end; ++nsegs) {
+		dbprintf(("reading seg hdr %d at offset 0x%lx:\n", nsegs, offset));
+		if (fseek(cfp, offset, SEEK_SET) == -1L)
+			panic("core file seek failed");
+		if (fread(&core_seg, sizeof(core_seg), 1, cfp) != 1)
+			panic("core file segment header read failed");
+		dbprintf(("pathlen=%x dumped=%x ", core_seg.cs_pathlen, core_seg.cs_dumped));
+		dbprintf(("base=%x size=%x\n", core_seg.cs_base, core_seg.cs_size));
+		offset += sizeof(core_seg) + core_seg.cs_pathlen;
+		if (corename == NULL && core_seg.cs_pathlen != 0) {
+			/* Read the core file name and compare it to name. */
+			corename = nalloc(core_seg.cs_pathlen + 1, "core file name");
+			corename[core_seg.cs_pathlen] = '\0';
+			if (fread(corename, core_seg.cs_pathlen, 1, cfp) != 1)
+				panic("core file name read failed");
+			if ((cp = strrchr(lfn, '/')) != NULL)
+				++cp;		/* ignore pathname to '/' */
+			else
+				cp = lfn;
+			if (strcmp(corename, cp) != 0)
+				printr("Core file name \"%s\" different from object file name \"%s\"", corename, cp);
+		}
+		if (core_seg.cs_dumped == 0)
+			continue;			/* segment not dumped */
+		if (core_seg.cs_dumped != core_seg.cs_size)
+			printr("segment base 0x%x: dumped 0x%x of 0x%x bytes",
+				core_seg.cs_base, core_seg.cs_dumped,
+				core_seg.cs_size);
+#if	__I386__
+		if (IS_LOUT) {
+			/*
+			 * Set up segmentation for l.out core file.
+			 */
+			dbprintf(("core file assumed l.out\n"));
+			if (core_seg.cs_base == (caddr_t)0) {
+				seg = (nsegs == 0) ? ISEG : DSEG;
+			} else if (core_seg.cs_base == (caddr_t)0x10000) {
+				seg = DSEG;
+				/* Adjust the i386 stack segment base. */
+				core_seg.cs_base -= core_seg.cs_size;
+				dbprintf(("Adjust stack segment base to %x\n", core_seg.cs_base));
+			} else {
+				seg = NOSEG;
+			}
+		} else {
+			/* Set up segmentation for COFF core file. */
+			dbprintf(("core file assumed COFF\n"));
+			if (core_seg.cs_base == (caddr_t)0) {
+				seg = ISEG;
+				if (textflag == 0) {
+					++textflag;
+					map_clear(ISEG, NULL);
+				}
+			} else if (core_seg.cs_base == (caddr_t)0x400000) {
+				seg = DSEG;
+			} else if (core_seg.cs_base == (caddr_t)0x80000000) {
+				seg = DSEG;
+				/* Adjust the i386 stack segment base. */
+				core_seg.cs_base -= core_seg.cs_size;
+				dbprintf(("Adjust stack segment base to %x\n", core_seg.cs_base));
+			} else {
+				seg = NOSEG;
+			}
+		}
 #else
-	offt += ch_info.ch_info_len;
+		panic("segment base setup code is currently i386-specific!");
 #endif
-	if (textflag) {
-		/* Map the text segment. */
-		map_clear(ISEG, NULL);
-		size = usegs[SISTEXT].sr_size;
-		map_set(ISEG, (ADDR_T)usegs[SISTEXT].sr_base, size, offt, MAP_CORE);
-		offt += size;
+		if (seg == NOSEG)
+			printr("unrecognized segment: base=0x%x size=0x%x",
+				core_seg.cs_base, core_seg.cs_size);
+		else
+			map_set(seg, (ADDR_T)core_seg.cs_base,
+				(ADDR_T)core_seg.cs_dumped,
+				(off_t)offset, MAP_CORE);
+		offset += core_seg.cs_dumped;
 	}
-	for (i=1; i<NUSEG; i++) {
-		if (usegs[i].sr_segp == (SEG *)NULL)
-			continue;
-		if ((~usegs[i].sr_flag) & (SRFDUMP|SRFPMAP))
-			continue;
-		size = usegs[i].sr_size;
-		map_set(DSEG, (ADDR_T)usegs[i].sr_base, size, offt, MAP_CORE);
-		offt += size;
-	}
+	get_regs(R_ALL);			/* read the registers */
 	if (iflag)
 		ISPACE = DSPACE;
-	get_regs(R_ALL);			/* read the registers */
-	if (!rflag)
-		set_sig(signo);			/* correct signal number */
 }
 
 /*
@@ -310,6 +306,13 @@ set_prog(name, flag) char *name; int flag;
 		else
 			setcoffseg();
 	}
+	/*
+	 * Read additional COFF symbols as specified by the -a option.
+	 * This follows setcoffseg() so that the segmentation information is
+	 * already set up, because the .sym file currently does not include it.
+	 */
+	if (symfile != NULL)
+		read_symfile();
 }
 
 /*
@@ -344,6 +347,13 @@ setup(argc, argv) int argc; char *argv[];
 				if (t != '\0')
 					usage();
 				t = c;
+				continue;
+			case 'a':
+				if (argc < 3)
+					usage();
+				--argc;
+				symfile = argv[2];
+				++argv;
 				continue;
 			case 'p':
 				if (argc < 3)
@@ -513,8 +523,9 @@ void
 usage()
 {
 	panic(
-		"Usage: db [ -cdefkorst ] [ [ mapfile ] program ]\n"
+		"Usage: db [ -acdefkoprst ] [ [ mapfile ] program ]\n"
 		"Options:\n"
+		"\t-a sym\tRead additional symbols from file sym\n"
 		"\t-c\tprogram is a core file\n"
 		"\t-d\tprogram is a system dump; mapfile defaults to /coherent\n"
 		"\t-e\tNext argument is object file and rest of command line is passed\n"

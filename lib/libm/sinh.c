@@ -1,9 +1,12 @@
 /*
  * libm/sinh.c
+ * C mathematics library.
+ * sinh()
  * Hyperbolic sine.
  */
 
 #include <math.h>
+#include <errno.h>
 
 #if	EMU87
 #include "emumath.h"
@@ -36,8 +39,8 @@ sinh(x) double x;
 	e = errno;
 	r = exp(x);
 	errno = e;
-	r = (r-1.0/r) / 2.0;
+	r = (r - 1.0 / r) / 2.0;
 	return r;
 }
 
-/* end of sinh.c */
+/* end of libm/sinh.c */

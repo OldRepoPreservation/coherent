@@ -4,6 +4,8 @@
 / ANSI 4.11.2.1.
 //////////
 
+	.intelorder
+
 //////////
 / void *
 / memcpy(void *To, void *From, size_t Count)

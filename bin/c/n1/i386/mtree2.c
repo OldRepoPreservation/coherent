@@ -44,7 +44,7 @@ doautos()
 TREE *
 modoper(tp, ac, ptp) register TREE *tp; int ac; TREE *ptp;
 {
-	register TREE	*lp, *rp, *tp1, *tp2, *tp3;
+	register TREE	*lp, *rp, *tp2, *tp3;
 	register int	c, op, nseg;
 	register int	tt, lt, rt;
 	sizeof_t	offs;
@@ -93,6 +93,29 @@ modoper(tp, ac, ptp) register TREE *tp; int ac; TREE *ptp;
 	}
 
 	/*
+	 * Watch out for relational type mismatches.
+	 * cc0/i386/bind.c/noconvert() passes a relation with byte args
+	 * or word args on both sides to cc1 as is,
+	 * for efficiency in the generated code.
+	 * But if either side of the relation is a byte or word bitfield,
+	 * modefld() modifies it to extract to a computational type.
+	 * Since the relop.t code table does not support byte::dword or
+	 * word::dword relations, the modified relation would not match.
+	 * Insert a conversion node to kludge it back to a byte or word type.
+	 * This problem is specific to relations because noconvert() only
+	 * allows nonconversion of assignments, casts and relations.
+	 */
+	if (isrelop(op) && modkind(lt) != modkind(rt)) {
+		if (isbyte(rt) || isword(rt)) {
+			lp = tp->t_lp = leftnode(CONVERT, lp, rt);
+			lt = lp->t_type;
+		} else if (isbyte(lt) || isword(lt)) {
+			rp = tp->t_rp = leftnode(CONVERT, rp, lt);
+			rt = rp->t_type;
+		}
+	}
+
+	/*
 	 * If there is an NDP, rewrite conversions
 	 * from bytes and unsigned things
 	 * and all conversions from float to fixed
@@ -129,9 +152,20 @@ modoper(tp, ac, ptp) register TREE *tp; int ac; TREE *ptp;
 
 	case CONVERT:
 	case CAST:
+		/* Simplify (type1)type2 when they represent the same bits. */
 		if (modkind(tt) == modkind(lp->t_type)) {
 			lp->t_type = tt;
 			return lp;
+		}
+		/*
+		 * Simplify (type1)(type2)type3 when type1 represents
+		 * the same bits as type3 and type2 is wider.
+		 */
+		if (iswiden(lp)
+		 && modkind(tt) == modkind(lp->t_lp->t_type)
+		 && tp->t_size == lp->t_lp->t_size) {
+			lp->t_lp->t_type = tt;		/* result type type1 */
+			return lp->t_lp;
 		}
 	}
 
@@ -224,6 +258,8 @@ modcall(tp, c) register TREE *tp; int c;
 TREE *
 modargs(tp, ptp) register TREE *tp; TREE *ptp;
 {
+	register int tt;
+
 	if (tp == NULL)
 		return NULL;
 	if (tp->t_op == ARGLST) {
@@ -234,6 +270,15 @@ modargs(tp, ptp) register TREE *tp; TREE *ptp;
 	if (tp->t_type == BLK) {
 		tp = leftnode(ADDR, tp,	PTB, tp->t_size);
 		return modtree(tp, MRVALUE, ptp);
+	}
+	if (isbyte(tt = tp->t_type) || isword(tt)) {
+		/*
+		 * Force a byte or word arg to be a computational type,
+		 * so that e.g. (char) or (short) casts on an arg
+		 * truncate the argument as desired.
+		 */
+		tp = leftnode(CONVERT, tp, tt);
+		fixtoptype(tp);
 	}
 	return modtree(tp, MFNARG, ptp);
 }

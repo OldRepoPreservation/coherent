@@ -24,7 +24,7 @@ n *	mode a.k.a.  notfound	found	mode   truncate	append
  * later, possibly after a setvbuf() call specifying desired buffering.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 
 #define	RMODE	0

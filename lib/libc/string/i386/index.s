@@ -4,6 +4,8 @@
 / index() entry point to strchr(), retained for backward compatability.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / index(char *String, int Char)

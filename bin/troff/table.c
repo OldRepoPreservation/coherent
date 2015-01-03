@@ -125,6 +125,7 @@ REQ reqtab[] ={
 	's', 'p', req_sp,
 	's', 's', req_ss,
 	's', 'v', req_sv,
+	's', 'y', req_sy,
 	't', 'a', req_ta,
 	't', 'c', req_tc,
 	't', 'i', req_ti,

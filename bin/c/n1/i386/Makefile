@@ -1,6 +1,6 @@
-# c/n1/i8086/Makefile 12/17/91
-# Execute $(TABGEN) to build new code tables in current directory.
-# Expects $(TABGEN) and $(TFLAGS) to be set accordingly.
+# c/n1/i386/Makefile 6/9/94
+# Execute tabgen to build new code tables in current directory.
+# Expects $(TFLAGS) to be set accordingly.
 
 ALL=\
 	prefac.f \
@@ -28,6 +28,6 @@ ALL=\
 	sub.t
 
 macros.c patern.c: $(ALL)
-	$(TABGEN) $(TFLAGS) $<
+	tabgen $(TFLAGS) $(ALL)
 
-# end of c/n1/i8086/Makefile
+# end of c/n1/i386/Makefile

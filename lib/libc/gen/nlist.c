@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <l.out.h>
 #include <canon.h>
+#include <common/_fsize.h>
 
 nlist(fn, nlp)
 char *fn;

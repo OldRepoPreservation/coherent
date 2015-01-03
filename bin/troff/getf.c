@@ -158,7 +158,7 @@ getwidth(cp) char *cp;
 scanoptdel(cp, n) register char *cp; int n;
 {
 	register int c, retval;
-	static char buf[2];
+	static char buf[2];			/* N.B. buf[1] always '\0' */
 
 	c = getf(0);
 	if (c != '-' && c != '+' && !isdigit(c)) {
@@ -175,6 +175,7 @@ scanoptdel(cp, n) register char *cp; int n;
 			*cp++ = c;
 		c = getf(0);
 	} while (isdigit(c));
+	*cp = '\0';
 	buf[0] = c;
 	adscore(buf);				/* push back nondigit */
 	return retval;

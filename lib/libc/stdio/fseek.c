@@ -6,7 +6,7 @@
  * Seek to offset from whence in stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 fseek(stream, offset, whence) register FILE *stream; long offset; int whence;

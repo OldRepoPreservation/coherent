@@ -6,7 +6,7 @@
  * Write an error message to stderr.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <errno.h>
 #include <string.h>
 

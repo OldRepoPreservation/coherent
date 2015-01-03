@@ -103,6 +103,7 @@ extern	int	req_so();
 extern	int	req_sp();
 extern	int	req_ss();
 extern	int	req_sv();
+extern	int	req_sy();	/* !V7 */
 extern	int	req_ta();
 extern	int	req_tc();
 extern	int	req_ti();

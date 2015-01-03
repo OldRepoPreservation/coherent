@@ -1,12 +1,13 @@
 /*
- * Coherent I/O Library.
+ * libc/gen/getlogin.c
+ * Coherent Standard C Library.
+ * getlogin()
  * Get login name from the utmp file.
  */
 
 #include <stdio.h>
 #include <utmp.h>
-
-char	*ttyname();
+#include <unistd.h>
 
 char *
 getlogin()
@@ -26,9 +27,11 @@ getlogin()
 				if (strncmp(up->ut_line, tname, 8) == 0) {
 					close(ufd);
 					strncpy(uname, up->ut_name, DIRSIZ);
-					return (uname);
+					return uname;
 				}
 		close(ufd);
 	}
-	return (NULL);
+	return NULL;
 }
+
+/* end of libc/gen/getlogin.c */

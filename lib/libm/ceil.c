@@ -1,5 +1,7 @@
 /*
  * libm/ceil.c
+ * C mathematics library.
+ * ceil()
  * Ceiling.
  */
 

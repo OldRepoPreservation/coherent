@@ -1,24 +1,39 @@
+/* $Header: /ker/i386/RCS/fakedma.c,v 2.5 93/10/29 00:56:44 nigel Exp Locker: nigel $ */
 /*
  * these routines are written in C until the 386 compiler/assembler
  * are available
  *
  * Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
+ *
+ * $Log:	fakedma.c,v $
+ * Revision 2.5  93/10/29  00:56:44  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.4  93/09/02  18:11:13  nigel
+ * Remove unreferenced globals
+ * 
+ * Revision 2.3  93/08/19  03:40:02  nigel
+ * Nigel's R83
  */
 
 #include <sys/debug.h>
-#include <kernel/reg.h>
-
-#include <sys/coherent.h>
-#include <sys/clist.h>
+#include <sys/inline.h>
 #include <sys/errno.h>
+#include <sys/cmn_err.h>
+#include <signal.h>
+
+#define	_KERNEL		1
+
+#include <kernel/reg.h>
+#include <sys/mmu.h>
 #include <sys/inode.h>
 #include <sys/proc.h>
 #include <sys/seg.h>
-#include <signal.h>
-#include <sys/uproc.h>
-#include <sys/buf.h>
 
 #define	min(a, b)	((a) < (b) ? (a) : (b))
+
+#define	OLD_DMA		0
+
 
 /*
  * dmacopy()
@@ -26,27 +41,24 @@
  * Copy "npage" 4 kbyte pages from phys addr "from" to phys addr "to".
  */
 
+void
 dmacopy(npage, from, to) 
 long	npage;
 cseg_t	*from, *to;
 {
-	int work = workAlloc ();	/* Get a virtual click pair. */
-
 	ASSERT (npage > 0);
 
 	for (;;) {
-		ptable1_v [work] = * from ++ | SEG_SRW;
-		ptable1_v [work + 1] = * to ++ | SEG_SRW;
-		memcpy (ctob (work + 1), ctob (work), NBPC);
+		cseg_t		src = * from ++ & ~ (NBPC - 1);
+		cseg_t		dest = * to ++ & ~ (NBPC - 1);
+
+		memcpy (__PTOV (dest), __PTOV (src), NBPC);
 
 		if (-- npage == 0)
 			break;
-
-		mmuupd ();		/* flush paging TLB */
 	}
-
-	workFree(work);
 }
+
 
 /*
  * dmaclear()
@@ -56,33 +68,32 @@ cseg_t	*from, *to;
 
 void
 dmaclear (nbytes, to)
-long	nbytes;
+int	nbytes;
 paddr_t	to;
 {
-	unsigned off;
-	int	n;
-	cseg_t *base;
-	int work = workAlloc ();	/* Get a virtual click pair. */
-
-	off = to & (NBPC - 1);
-	base = & sysmem.u.pbase [btocrd (to)];
-	n = min (nbytes, NBPC - off);
-	ptable1_v [work] = * base ++ | SEG_SRW;
-
-	memset (ctob (work) + off, 0, n);
-	nbytes -= n;
-
 	while (nbytes > 0) {
-		n = min (nbytes, NBPC);
-		ptable1_v [work] = * base ++ | SEG_SRW;
-		mmuupd ();
 
-		memset (ctob (work), 0, n);
-		nbytes -= n;
+		unsigned int start_offset, x;
+
+		/* Compute offset within page of starting s.g. address. */
+		start_offset = to & (NBPC - 1);
+
+		/* Compute number of bytes from "to" through end of page. */
+		x = NBPC - start_offset;
+
+		/* Bytes to clear is minimum of "nbytes" and "x". */
+		if (x > nbytes)
+			x = nbytes;
+
+		/* Clear bytes.  Stay within a single system global page. */
+		memset (__PTOV (P2P (to)), 0, x);
+
+		/* Update start address and byte count. */
+		to += x;
+		nbytes -= x;
 	}
-
-	workFree(work);
 }
+
 
 /*
  * dmain()
@@ -90,38 +101,37 @@ paddr_t	to;
  * Copy in "nbytes" from system global address "to" to kernel address
  * "vaddr".
  */
+
+void
 dmain(nbytes, to, vaddr)
 long	nbytes;
 paddr_t	to;
 caddr_t	vaddr;
 {
-	unsigned off;
-	unsigned	n, n1;
-	cseg_t* base;
-	int work = workAlloc ();	/* Get a virtual click pair. */
-
-	off = to & (NBPC - 1);
-	base = & sysmem.u.pbase [btocrd (to)];
-
-	n = min (nbytes, NBPC - off);
-	ptable1_v [work] = * base ++ | SEG_SRW;
-
-	memcpy (vaddr, ctob (work) + off, n);
-	vaddr += n;
-	nbytes -= n;
-
 	while (nbytes > 0) {
-		n = min (nbytes, NBPC);
-		ptable1_v [work] = * base ++ | SEG_SRW;
-		mmuupd ();
 
-		memcpy (vaddr, ctob (work), n);
-		vaddr += n;
-		nbytes -= n;
+		unsigned int start_offset, x;
+
+		/* Compute offset within page of starting s.g. address. */
+		start_offset = to & (NBPC - 1);
+
+		/* Compute number of bytes from "to" through end of page. */
+		x = NBPC - start_offset;
+
+		/* Bytes to copy is minimum of "nbytes" and "x". */
+		if (x > nbytes)
+			x = nbytes;
+
+		/* Copy bytes.  Stay within a single system global page. */
+		memcpy (vaddr, __PTOV (P2P (to)), x);
+
+		/* Update start addresses and byte count. */
+		to += x;
+		vaddr += x;
+		nbytes -= x;
 	}
-
-	workFree (work);
 }
+
 
 /*
  * dmaout()
@@ -129,108 +139,37 @@ caddr_t	vaddr;
  * Copy out "nbytes" from kernel address "vaddr" to system global address
  * "to".
  */
+
+void
 dmaout(nbytes, to, vaddr)
 long	nbytes;
 paddr_t	to;
 caddr_t	vaddr;
 {
-	unsigned off;
-	unsigned	n, n1;
-	cseg_t *base;
-	int work = workAlloc ();	/* Get a virtual click pair. */
-
-	off = to & (NBPC - 1);
-	base = & sysmem.u.pbase [btocrd (to)];
-
-	n = min (nbytes, NBPC - off);
-	ptable1_v [work] = * base ++ | SEG_SRW;
-
-	memcpy (ctob (work) + off, vaddr, n);
-	vaddr += n;
-	nbytes -= n;
-
 	while (nbytes > 0) {
-		n = min (nbytes, NBPC);
-		ptable1_v [work] = * base ++ | SEG_SRW;
-		mmuupd ();
 
-		memcpy (ctob (work), vaddr, n);
-		vaddr += n;
-		nbytes -= n;
+		unsigned int start_offset, x;
+
+		/* Compute offset within page of starting s.g. address. */
+		start_offset = to & (NBPC - 1);
+
+		/* Compute number of bytes from "to" through end of page. */
+		x = NBPC - start_offset;
+
+		/* Bytes to copy is minimum of "nbytes" and "x". */
+		if (x > nbytes)
+			x = nbytes;
+
+		/* Copy bytes.  Stay within a single system global page. */
+		memcpy (__PTOV (P2P (to)), vaddr, x);
+
+		/* Update start addresses and byte count. */
+		to += x;
+		vaddr += x;
+		nbytes -= x;
 	}
-
-	workFree(work);
 }
 
-/*
- * dmaio2()
- * 
- * Copy in "nbytes" from an I/O port "port" to the system global address
- * "to".
- */
-dmaio2(nbytes, to, port)
-long	nbytes, port;
-paddr_t	to;
-{
-	unsigned off;
-	int	n;
-	cseg_t *base;
-	int work = workAlloc ();	/* Get a virtual click pair. */
-
-	off = to & (NBPC - 1);
-	base = & sysmem.u.pbase [btocrd (to)];
-
-	n = min (nbytes, NBPC - off);
-	ptable1_v [work] = * base ++ | SEG_SRW;
-	
-	io2seg (n, ctob (work) + off, port);
-	nbytes -= n;
-
-	while (nbytes > 0) {
-		n = min (nbytes, NBPC);
-		ptable1_v [work] = * base ++ | SEG_SRW;
-		mmuupd ();
-		io2seg(n, ctob (work), port);
-		nbytes -= n;
-	}
-
-	workFree(work);
-}
-
-/*
- * dma2io()
- * 
- * Copy out "nbytes" from the system global address "from" to an I/O port
- * "port".
- */
-dma2io(nbytes, to, port)
-long	nbytes, port;
-paddr_t	to;
-{
-	unsigned off;
-	int	n;
-	cseg_t *base;
-	int work = workAlloc ();	/* Get a virtual click pair. */
-
-	off = to & (NBPC - 1);
-	base = & sysmem.u.pbase [btocrd (to)];
-
-	n = min (nbytes, NBPC - off);
-	ptable1_v [work] = * base ++ | SEG_SRW;
-	
-	seg2io (n, ctob (work) + off, port);
-	nbytes -= n;
-
-	while (nbytes > 0) {
-		n = min (nbytes, NBPC);
-		ptable1_v [work] = * base ++ | SEG_SRW;
-		mmuupd ();
-		seg2io (n, ctob (work), port);
-		nbytes -= n;
-	}
-
-	workFree(work);
-}
 
 /*
  * pxcopy()
@@ -239,22 +178,25 @@ paddr_t	to;
  * 	system global address space		(space & SEG_VIRT)
  * 	physical memory				! (space & SEG_VIRT)
  * Rights are determined by (space & ~ SEG_VIRT):
- * 	"v" can be anywhere in kernel address space	SEG_386_KD
- * 	"v" must be an address accessible to the user	SEG_386_UD
+ * 	"v" can be anywhere in kernel address space	SEL_386_KD
+ * 	"v" must be an address accessible to the user	SEL_386_UD
  * Up to one click of data can be copied. No alignment restrictions
  * on "uo" apply.
  */
+
+int
 pxcopy(uo, v, n, space)
 unsigned	uo;
 char	*v;
-register int n;
+int n;
+int space;
 {
 	cseg_t	      *	base;
 	int		save;
 	int		err;
 	int		work;
 
-	if (n > NBPC)
+	if (n > NBPC || n == 0)
 		return 0;
 
 	work = workAlloc ();
@@ -285,23 +227,25 @@ register int n;
  *      system global address space                      (space&SEG_VIRT)
  *      physical memory                                 !(space&SEG_VIRT)
  * Rights are determined by (space&~SEG_VIRT):
- *      "v" can be anywhere in kernel address space      SEG_386_KD
- *      "v" must be an address accessible to the user    SEG_386_UD
+ *      "v" can be anywhere in kernel address space      SEL_386_KD
+ *      "v" must be an address accessible to the user    SEL_386_UD
  * Up to one click of data can be copied. No alignment restrictions on "uo"
  * apply.
  */
 
+int
 xpcopy(v, uo, n, space)
 char	*v;
 unsigned uo;
-register int n;
+int n;
+int space;
 {
 	cseg_t	      *	base;
 	int		save;
 	int		err;
 	int		work;
 
-	if (n > NBPC)
+	if (n > NBPC || n == 0)
 		return 0;
 
 	work = workAlloc ();

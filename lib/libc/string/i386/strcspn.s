@@ -4,6 +4,8 @@
 / ANSI 4.11.5.3.
 //////////
 
+	.intelorder
+
 //////////
 / size_t
 / strcspn(char *String1, char *String2)

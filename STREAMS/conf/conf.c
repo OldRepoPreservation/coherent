@@ -1,21 +1,18 @@
 /*
  * The code in this file was automatically generated. Do not hand-modify!
- * Generated at Wed Aug  4 15:58:20 1993
+ * Generated at Tue Jul 26 15:34:03 1994
  */
 
 #define _KERNEL		1
 #define _DDI_DKI	1
 
 #include <sys/confinfo.h>
-
-/* entry points for "hai" facility */
-
-DECLARE_DRVL (scsi)
-
+#include <sys/types.h>
 
 /* entry points for "at" facility */
 
 DECLARE_DRVL (at)
+DECLARE_INTR (at)
 
 
 /* entry points for "pty" facility */
@@ -33,14 +30,21 @@ DECLARE_DRVL (rm)
 DECLARE_DRVL (asy)
 
 
-/* entry points for "fd" facility */
+/* entry points for "fdc" facility */
 
 DECLARE_DRVL (fdc)
+DECLARE_INTR (fdc)
 
 
-/* entry points for "vtnkb" facility */
+/* entry points for "lp" facility */
 
-DECLARE_DRVL (vtnkb)
+DECLARE_DRVL (lp)
+
+
+/* entry points for "vtkb" facility */
+
+DECLARE_DRVL (vtkb)
+DECLARE_INTR (vtkb)
 
 
 /* entry points for "ct" facility */
@@ -53,7 +57,7 @@ DECLARE_DRVL (ct)
 DECLARE_DRVL (nl)
 
 
-/* entry points for "console" facility */
+/* entry points for "tty" facility */
 
 
 
@@ -61,9 +65,61 @@ DECLARE_DRVL (nl)
 
 
 
-init_t inittab [1];
+/* entry points for "console" facility */
 
-unsigned int ninit= 0;
+
+
+/* entry points for "mm" facility */
+
+
+
+/* entry points for "fd" facility */
+
+
+
+/* entry points for "msg" facility */
+
+DECLARE_INIT (msg)
+
+
+/* entry points for "shm" facility */
+
+DECLARE_INIT (shm)
+
+
+/* entry points for "sem" facility */
+
+DECLARE_INIT (sem)
+
+
+/* entry points for "streams" facility */
+
+DECLARE_INIT (streams)
+
+
+/* entry points for "em87" facility */
+
+
+
+/* entry points for "timeout" facility */
+
+DECLARE_INIT (timeout)
+
+
+/* entry points for "clock" facility */
+
+DECLARE_INTR (clock_)
+
+
+init_t inittab [] = {
+	INIT (msg),
+	INIT (shm),
+	INIT (sem),
+	INIT (streams),
+	INIT (timeout)
+};
+
+unsigned int ninit = sizeof (inittab) / sizeof (* inittab);
 
 start_t starttab [1];
 
@@ -100,20 +156,42 @@ __minor_t _minor [] = {
 };
 
 intmask_t _masktab [] = {
-	0x0UL, 0x0UL, 0x0UL, 0x0UL, 
-	0x0UL, 0x0UL, 0x0UL, 0x0UL, 
+	0x0UL, 0x2UL, 0x2UL, 0x2UL, 
+	0x2UL, 0x4042UL, 0x4042UL, 0x4043UL, 
 	0xFFFFFFFFUL
 };
 
-intr_t inttab [1];
+BEGIN_THUNK (0, 0x4043UL)
+	CALL_INTR (0, 0, clock_)
+END_THUNK (0)
 
-unsigned int nintr = 0;
+BEGIN_THUNK (1, 0x2UL)
+	CALL_INTR (1, 0, vtkb)
+END_THUNK (1)
 
+BEGIN_THUNK (6, 0x4042UL)
+	CALL_INTR (6, 0, fdc)
+END_THUNK (6)
+
+BEGIN_THUNK (14, 0x4042UL)
+	CALL_INTR (14, 0, at)
+END_THUNK (14)
+
+intr_t inttab [] = {
+	INTR_THUNK (0, 0, 0x4043UL, clock_),
+	INTR_THUNK (1, 0, 0x2UL, vtkb),
+	INTR_THUNK (6, 0, 0x4042UL, fdc),
+	INTR_THUNK (14, 0, 0x4042UL, at)
+};
+
+unsigned int nintr = sizeof (inttab) / sizeof (* inttab);
+
+unsigned long	physical_mapping_map = 0;
 DRV drvl [32] = {
 	DRVL_ENTRY (nl),
 	DRVL_ENTRY (ct),
-	DRVL_ENTRY (vtnkb),
-	NULL_DRVL (),
+	DRVL_ENTRY (vtkb),
+	DRVL_ENTRY (lp),
 	DRVL_ENTRY (fdc),
 	DRVL_ENTRY (asy),
 	NULL_DRVL (),
@@ -123,7 +201,7 @@ DRV drvl [32] = {
 	NULL_DRVL (),
 	DRVL_ENTRY (at),
 	NULL_DRVL (),
-	DRVL_ENTRY (scsi),
+	NULL_DRVL (),
 	NULL_DRVL (),
 	NULL_DRVL (),
 	NULL_DRVL (),

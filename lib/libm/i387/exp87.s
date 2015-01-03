@@ -3,6 +3,8 @@
 / i387 mathematics library
 / exp(d), _two()
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

@@ -1,5 +1,7 @@
 /*
  * libm/tanh.c
+ * C mathematics library.
+ * tanh()
  * Hyperbolic tangent.
  */
 
@@ -35,9 +37,9 @@ tanh(x) double x;
 	 */
 	if (s = (x < 0.0))
 		x = -x;
-	r = exp(-2.0*x);
-	r = (1.0-r) / (1.0+r);
-	return s ? -r : r;
+	r = exp(-2.0 * x);
+	r = (1.0 - r) / (1.0 + r);
+	return (s) ? -r : r;
 }
 
-/* end of tanh.c */
+/* end of libm/tanh.c */

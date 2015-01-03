@@ -1,62 +1,36 @@
+/* $Header: /ker/coh.386/RCS/nlp.c,v 1.3 93/08/19 03:25:00 nigel Exp $ */
 /*
- * File:	nlp.c
+ * Find next lower prime from a number
+ * Only use for this module now is calculating NHASH given NBUF.
  *
- * Purpose:	find next lower prime from a number
- *		Only use for this module now is calculating NHASH given NBUF.
- *
- *		Compile -DTEST=1 for test version.
- *
- * Revised: Wed Aug  4 12:44:29 1993 CDT
+ * Compile -DTEST=1 for test version.
+ * $Log:	nlp.c,v $
+ * Revision 1.3  93/08/19  03:25:00  nigel
+ * Nigel's R83 (Stylistic cleanup)
+ * 
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
 #include <common/_tricks.h>
 #include <common/ccompat.h>
 #include <common/xdebug.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-#if TEST
-#include <stdio.h>
-#define TESTPRINT(args)		(printf args)
-int main  __PROTO((void));
-#else
-#define TESTPRINT(args)
-#endif
+#if	TEST
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
+# include <stdio.h>
+# define	TESTPRINT(args)		(printf args)
+int		main		__PROTO((void));
+
+#else
+
+#define TESTPRINT(args)
+
+#endif	/* ! TEST */
+
 unsigned int		nlp		__PROTO ((unsigned int num));
 
 __LOCAL__ int		isprime		__PROTO ((unsigned int num));
 __LOCAL__ unsigned int	isqrt		__PROTO ((unsigned int num));
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
-
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
 
 /************************************************************************
  * nlp
@@ -80,11 +54,11 @@ unsigned int num;
 	case 2:
 		ret = 0;
 		break;
+
 	default:
 		for (num--;  num > 2; num--) {
-			if (isprime(num)) {
+			if (isprime(num))
 				break;
-			}
 		}
 		ret = num;
 	}
@@ -191,10 +165,11 @@ unsigned int num;
 }
 
 #if TEST
-#if __USE_PROTO
-int main(void)
+
+#if __USE_PROTO__
+int main (void)
 #else
-int main()
+int main ()
 #endif
 {
 	unsigned int num;
@@ -210,4 +185,5 @@ int main()
 
 	return 0;
 }
+
 #endif /* TEST */

@@ -176,7 +176,7 @@ read_coff_sym()
 	/* Read the COFF section headers. */
 	len = coff_hdr.f_nscns * sizeof(SCNHDR);
 	shp = (SCNHDR *)nalloc(len, "COFF section headers");
-	if (fseek(sfp, (long)(sizeof(FILEHDR) + coff_hdr.f_opthdr), SEEK_SET) == -1
+	if (fseek(sfp, (long)(sizeof(FILHDR) + coff_hdr.f_opthdr), SEEK_SET) == -1
 	 || fread(shp, len, 1, sfp) != 1)
 		return printe("Cannot read section headers");
 
@@ -255,6 +255,46 @@ read_lout_sym(symseek) long symseek;
 		new_sym(id, (ADDR_T)lds.ls_addr, segn);
 	}
 	dbprintf(("l.out nsyms=%d\n", nsyms));
+	return 1;
+}
+
+/*
+ * Read additional COFF symbols from .sym file given by -a.
+ */
+int
+read_symfile( /* void */ )
+{
+	register FILE *symfp;
+	register ADDR_T addr;
+	register int n;
+	char *cp;
+
+	if (IS_LOUT)
+		panic("-a option may not be used with l.out files");
+	symfp = openfile(symfile, 1);
+	while (fgets(miscbuf, MISSIZE, symfp) != NULL) {
+		n = strlen(miscbuf);
+		if (miscbuf[n-1] == '\n')
+			miscbuf[n-1] = '\0';
+		addr = (ADDR_T)strtoul(miscbuf, &cp, 16);
+		while (isspace(*cp))
+			cp++;
+		/*
+		 * Find the segment associated with the address by kludge.
+		 * This should be in the .sym file but currently is not.
+		 * If this were not necessary, this whole routine would live
+		 * in read_coff_sym() where it belongs, but for now this
+		 * must follow setting of segment map information.
+		 */
+		for (n = 0; n < NSEGS; n++)
+			if (map_addr(n, addr) != NULL)
+				break;
+		if (n == NSEGS)
+			n = DSEG;	/* unknown segment, call it data... */
+		++nsyms;
+		new_sym(cp, addr, n);
+	}
+	fclose(symfp);
 	return 1;
 }
 

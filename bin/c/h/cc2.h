@@ -1,10 +1,12 @@
 /*
+ * h/cc2.h
  * Header file for the 'direct-to-bits' code generator and optimizer.
  * This contains all of the machine independent data structures and macros. 
  * Definitions dealing with the object code are in another file.
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <setjmp.h>
 #ifdef   vax
 #include "INC$LIB:mch.h"
@@ -179,3 +181,5 @@ extern	int	labgen;
 #if OVERLAID
 extern	jmp_buf	death;
 #endif
+
+/* end of h/cc2.h */

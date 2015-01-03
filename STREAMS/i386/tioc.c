@@ -1,28 +1,25 @@
+/* $Header: /ker/i386/RCS/tioc.c,v 2.5 93/10/29 00:57:26 nigel Exp Locker: nigel $ */
 /*
- * i386/tioc.c
- *
  * Convert COH286 tty ioctl's to Sys 5 compatible calls.
  *
- * Revised: Wed May 26 16:49:20 1993 CDT
+ * $Log:	tioc.c,v $
+ * Revision 2.5  93/10/29  00:57:26  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.4  93/08/19  10:38:10  nigel
+ * r83 ioctl (), corefile, new headers
+ * 
+ * Revision 2.3  93/08/19  03:40:16  nigel
+ * Nigel's R83
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
-#include <sys/coherent.h>
-#include <sgtty.h>
+#include <sys/types.h>
 #include <sys/errno.h>
+#include <sgtty.h>
 
+#define	_KERNEL		1
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
+#include <sys/mmu.h>
 
 #define	OIOC_LOW	0100
 #define OIOC_HIGH	0110
@@ -30,6 +27,7 @@
 /*
  * Bits from COH286 sgttyb sg_flags field.
  */
+
 #define	O_EVENP		0x0001	/* Allow even parity */
 #define	O_ODDP		0x0002	/* Allow odd parity */
 #define	O_CRMOD		0x0004	/* Map '\r' to '\n' */
@@ -68,26 +66,11 @@
 #define	O_EXTA	18		/* External A (DH-11) */
 #define	O_EXTB	19		/* External B (DH-11) */
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-
 static void to_s5_sgfld();
 static void to_s5speed();
 static void to_coh_sgfld();
 static void to_cohspeed();
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 /*
  * Here are the COH286 values for tty ioctl's.
  * In cvtsgtty[] below, subtract 0100 from the 286 COH ioctl value to
@@ -116,11 +99,6 @@ static unsigned short cvtsgtty[] = {
 };
 
 /*
- * ----------------------------------------------------------------------
- * Code.
- */
-
-/*
  * tioc()
  *
  * This function is called by dioctl() whenever a 286 binary does an ioctl().
@@ -134,14 +112,18 @@ static unsigned short cvtsgtty[] = {
  * 4.  Call driver's ioctl().
  * 5.  If just finished a converted TIOCGETP, convert back to COH 286 sgttyb.
  */
-void tioc(dev, com, vec, iocfn, mode)
-int dev, com, vec, (*iocfn)();
+
+int
+tioc (dev, com, vec, mode, credp, rvalp, iocfn)
+int dev, com, mode, credp, rvalp, (*iocfn)();
+caddr_t		vec;
 {
 	struct sgttyb sg;
-	int my_com = com, my_vec = vec, old_getp = 0;
+	int my_com = com, old_getp = 0;
+	caddr_t		my_vec = vec;
 	int		space;
 
-	if (com >= OIOC_LOW && com <= OIOC_HIGH && u.u_error == 0) {
+	if (com >= OIOC_LOW && com <= OIOC_HIGH && get_user_error () == 0) {
 
 		my_com = cvtsgtty [com - OIOC_LOW];
 
@@ -149,12 +131,12 @@ int dev, com, vec, (*iocfn)();
 			ukcopy (vec, & sg, sizeof (struct sgttyb));
 			sg.sg_flags &= 0xffff;
 			to_s5_sgfld (& sg);
-			my_vec = & sg;
+			my_vec = (caddr_t) & sg;
 		}
 
 		if (my_com == TIOCGETP) {
 			old_getp = 1;
-			my_vec = &sg;
+			my_vec = (caddr_t) & sg;
 		}
 	}
 
@@ -166,18 +148,21 @@ int dev, com, vec, (*iocfn)();
 	 */
 
 	if (my_vec != vec)
-		space = setspace (SEG_386_KD);
+		space = setspace (SEL_386_KD);
 
-	(* iocfn) (dev, my_com, my_vec, mode);
+	(* iocfn) (dev, my_com, my_vec, mode, credp, rvalp);
 
 	if (my_vec != vec)
 		(void) setspace (space);
 
-	if (old_getp && u.u_error == 0) {
+	if (old_getp && get_user_error () == 0) {
 		to_coh_sgfld (my_vec);
 		kucopy (my_vec, vec, sizeof (struct sgttyb) - 2);
 	}
+
+	return 0;
 }
+
 
 /*
  * to_s5_sgfld()
@@ -266,9 +251,9 @@ unsigned char *speed;
 		B1800,BADSPD,B2400,BADSPD,B4800,BADSPD,B9600,EXTA,EXTA,EXTB};
 
 	if (* speed >= sizeof (s5sp))
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 	else if (s5sp [* speed] == BADSPD)
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
 		* speed = s5sp [* speed];
 }
@@ -330,7 +315,7 @@ unsigned char *speed;
 	};
 
 	if (* speed >= sizeof (cohsp))
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
 		* speed = cohsp [* speed];
 }

@@ -1,126 +1,56 @@
-/* $Header: $
- *
- * System V Stream Operations.
- *
- * $Log: $
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_STROPTS_H__
 #define	__SYS_STROPTS_H__
 
 /*
- * Read options
+ * Stuff related to STREAMS ioctl ()'s that matter to STREAMS drivers and
+ * modules. Constants that were defined in System V Release 3.2 STREAMS have
+ * actual values as defined in the Intel iBCS2 documentation, pp6-56 through
+ * 6-58.
+ *
+ * Values added in the System V Release 4 edition of STREAMS have numeric
+ * values taken from the System V ABI, Intel386 Supplement pp6-70 through
+ * 6-75
  */
-#define	RNORM	0		/* read msg norm */
-#define	RMSGD	1		/* read msg discard */
-#define	RMSGN	2		/* read msg no discard */
 
 /*
- * Flush options
+ * Stream head read option constants.
  */
-#define	FLUSHR	1		/* flush read queue */
-#define	FLUSHW	2		/* flush write queue */
-#define	FLUSHRW	3		/* flush both queues */
+
+#define	RNORM		0x0000		/* Byte-stream mode */
+#define	RMSGD		0x0001		/* Message-discard mode */
+#define	RMSGN		0x0002		/* Message-nondiscard mode */
+#define	__RINVAL	0x0003		/* Invalid */
+
+#define	RMODEMASK	0x0003		/* Separate mode from flag bits below */
+
+#define	RPROTDAT	0x0004          /*
+					 * deliver control portion of message
+					 * as data for read ()
+					 */
+#define	RPROTDIS	0x0008          /*
+					 * discard the control portion of a
+					 * message on user read ()
+					 */
+#define	RPROTNORM	0x0010		/*
+					 * fail read () with EBADMSG on msg
+					 * other than M_DATA
+					 */
 
 /*
- * Events for which to be sent SIGPOLL signal
+ * What to flush in an M_FLUSH message, also used in I_FLUSH and I_FLUSHBAND
  */
-#define	S_INPUT	 001		/* regular priority msg on read Q */
-#define	S_HIPRI	 002		/* high priority msg on read Q */
-#define	S_OUTPUT 004		/* write Q no longer full */
-#define	S_MSG	 010		/* signal msg on front of read Q */
 
-/*
- * Flags for recv() and send() syscall arguments
- */
-#define	RS_HIPRI 1		/* send/recv high priority messages */
+#define FLUSHR          0x01
+#define FLUSHW          0x02
+#define FLUSHRW         (FLUSHR | FLUSHW)
+#define	FLUSHBAND	0x04
 
-/*
- * Flags returned as value of recv() syscall
- */
-#define	MORECTL	 1		/* more ctl info is left in message */
-#define	MOREDATA 2		/* more data is left in message */
 
-/*
- * Stream Ioctl defines
- */
-#define	STR		('S'<<8)
-#define	I_NREAD		(STR|01)
-#define	I_PUSH		(STR|02)
-#define	I_POP		(STR|03)
-#define	I_LOOK		(STR|04)
-#define	I_FLUSH		(STR|05)
-#define	I_SRDOPT	(STR|06)
-#define	I_GRDOPT	(STR|07)
-#define	I_STR		(STR|010)
-#define	I_SETSIG	(STR|011)
-#define	I_GETSIG	(STR|012)
-#define	I_FIND		(STR|013)
-#define	I_LINK		(STR|014)
-#define	I_UNLINK	(STR|015)
-#define	I_PEEK		(STR|017)
-#define	I_FDINSERT	(STR|020)
-#define	I_SENDFD	(STR|021)
-#define	I_RECVFD	(STR|022)
-
-/*
- * User level ioctl format for ioctl that go downstream I_STR.
- */
-struct strioctl {
-	int	ic_cmd;		/* command */
-	int	ic_timeout;	/* timeout value */
-	int	ic_len;		/* length of data */
-	char *	ic_dp;		/* pointer to data */
-};
-
-/*
- * Values for timeouts (ioctl,select) that denotes infinity.
- */
-#define	INFTIM		(-1)
-
-/*
- * Stream buffer structure for send and recv system calls.
- */
-struct strbuf {
-	int	maxlen;		/* number of bytes in buffer */
-	int	len;		/* number of bytes returned */
-	char *	buf;		/* pointer to data */
-};
-
-/*
- * Stream I_PEEK ioctl format.
- */
-struct strpeek {
-	struct strbuf	ctlbuf;
-	struct strbuf	databuf;
-	long		flags;
-};
-
-/*
- * Stream I_FDINSERT ioctl format.
- */
-struct strfdinsert {
-	struct strbuf	ctlbuf;
-	struct strbuf	databuf;
-	long		flags;
-	int		fildes;
-	int		off/* set */;
-};
-
-/*
- * Receive file descriptor structure.
- */
-struct strrecvfd {
-#ifdef	KERNEL
-	union {
-		struct file * fp;
-		int fd;
-	} f;
-#else
-	int fd;
-#endif
-	unsigned short uid;
-	unsigned short gid;
-	char fill[8];
-};
-
-#endif
+#endif	/* ! defined (__SYS_STROPTS_H__) */

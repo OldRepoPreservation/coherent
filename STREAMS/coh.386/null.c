@@ -1,4 +1,3 @@
-/* $Header: /ker/coh.386/RCS/null.c,v 2.2 93/07/26 14:28:57 nigel Exp $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -7,8 +6,8 @@
  *	material without the express written authorization of Mark Williams
  *	Company or persuant to the license agreement is unlawful.
  *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
+ *	COHERENT Version 2.6
+ *	Copyright (c) 1982, 1994.
  *	An unpublished work by Mark Williams Company, Chicago.
  *	All rights reserved.
  -lgl) */
@@ -23,8 +22,21 @@
  *  Minor device 6 is /dev/ps
  *  Minor device 7 is /dev/kmemhi, virtual memory 0x8000_0000-0xFFFF_FFFF
  *  Minor device 11 is /dev/idle
+ *  Minor device 12 is /dev/freemem
  *
+ * Revision 2.7  94/03/08  20:35:15  udo
+ * Cleaned up and /dev/freemem added
+ * 
  * $Log:	null.c,v $
+ * Revision 2.6  93/10/29  00:55:25  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.5  93/09/13  07:58:47  nigel
+ * Updated to reflect the fact that most driver entry points are 'void' again.
+ * 
+ * Revision 2.4  93/08/19  03:26:39  nigel
+ * Nigel's r83 (Stylistic cleanup)
+ * 
  * Revision 2.2  93/07/26  14:28:57  nigel
  * Nigel's R80
  * 
@@ -42,47 +54,54 @@
  * 
  * Revision 1.1	88/03/24  16:14:04	src
  * Initial revision
- * 
  */
+
+#include <kernel/ddi_cpu.h>
+#include <kernel/proc_lib.h>
+#include <sys/errno.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <sys/cred.h>
+#include <sys/types.h>
+#include <stddef.h>
+
+#define	_KERNEL		1
+
+#include <kernel/typed.h>
+#include <sys/con.h>
+#include <sys/inode.h>
+#include <sys/seg.h>
+#include <sys/coh_ps.h>
+#include <sys/io.h>
+#include <sys/proc.h>
+#include <sys/uproc.h>
+#include <sys/mmu.h>
+
+#include <sys/null.h>
 
 /*
  * The symbol "DANGEROUS" should be undefined for a production system.
  */
 #ifdef TRACER
-#define NULL_IOCTL	/* Allow ioctl()s for /dev/kmem.  */
+#define KMEM_IOCTL	/* Allow ioctl()s for /dev/kmem.  */
 #define DANGEROUS	/* Allow dangerous ioctl()s for /dev/null.  */
 #endif
-#define IDLE_DEV
 
-#include <kernel/typed.h>
+unsigned char 	read_cmos	__PROTO ((unsigned offset));
+void	 	write_cmos 	__PROTO ((unsigned offset,
+					  unsigned char value));
 
-#include <sys/coherent.h>
-#include <sys/con.h>
-#include <sys/errno.h>
-#include <sys/stat.h>
-#include <sys/inode.h>
-#include <sys/seg.h>
-#include <sys/coh_ps.h>
-#include <sys/file.h>
-#if defined NULL_IOCTL || defined IDLE_DEV
-   #include <sys/null.h>
-#endif /* NULL_IOCTL || IDLE_DEV */
-
-
-#if	TRACER
-#include <sys/buf.h>
-#endif
-
-/* These are minor numbers.  */
+/* These are minor numbers. */
 #define DEV_NULL	0	/* /dev/null	*/
 #define DEV_MEM		1	/* /dev/mem	*/
 #define DEV_KMEM	2	/* /dev/kmem	*/
 #define DEV_CMOS	3	/* /dev/cmos	*/
-#define DEV_BOOTGIFT	4	/* /dev/bootgift  */
-#define DEV_CLOCK	5	/* /dev/clock  */
-#define DEV_PS		6	/* /dev/ps  */
-#define DEV_KMEMHI	7	/* /dev/kmemhi  */
-#define DEV_IDLE	11	/* /dev/idle    */
+#define DEV_BOOTGIFT	4	/* /dev/bootgift*/
+#define DEV_CLOCK	5	/* /dev/clock	*/
+#define DEV_PS		6	/* /dev/ps	*/
+#define DEV_KMEMHI	7	/* /dev/kmemhi	*/
+#define DEV_IDLE	11	/* /dev/idle	*/
+#define DEV_FMEM	12	/* /dev/freemem	*/
 
 #define KMEMHI_BASE	0x80000000
 #define PXCOPY_LIM	4096
@@ -110,102 +129,114 @@
 #define UIP	0x80	/* Update In Progress bit of SRA.	*/
 #define NO_UPD	0x80	/* No Update bit of SRB.		*/
 
-/*
- * Functions for configuration.
- */
-void	nlopen();
-void	nlclose();
-void	nlread();
-void	nlwrite();
-int	nlioctl();
-int	nulldev();
-int	nonedev();
 
 /*
- * Configuration table.
+ * int lock_clock() -- Stop the update cycle on the CMOS RT clock and
+ * wait for it to settle.  Returns 0 if the clock would not settle
+ * in time.
  */
-CON nlcon ={
-	DFCHR,				/* Flags */
-	0,				/* Major index */
-	nlopen,				/* Open */
-	nlclose,			/* Close */
-	nulldev,			/* Block */
-	nlread,				/* Read */
-	nlwrite,			/* Write */
-#if defined NULL_IOCTL || defined IDLE_DEV
-	nlioctl,			/* Ioctl */
-#else /* NULL_IOCTL || IDLE_DEV */
-	nonedev,			/* Ioctl */
-#endif /* NULL_IOCTL || IDLE_DEV */
-	nulldev,			/* Powerfail */
-	nulldev,			/* Timeout */
-	nulldev,			/* Load */
-	nulldev				/* Unload */
-};
+static int
+lock_clock()
+{
+	register int i;
 
-int lock_clock();
-void unlock_clock();
+	/*
+	 * Wait for the clock to settle.  If it does not settle in
+	 * a reasonable amount of time, give up.
+	 */
+
+	i = 65536;	/* Loop for a longish time.  */
+	while (-- i > 0) {
+		if (0 == (UIP & read_cmos (SRA))) {
+			break;	/* Break if there is no update in progress.  */
+		}
+	}
+	
+	if (0 == i) {
+		/* The clock would not settle.  */
+		return 0;
+	}
+
+	/*
+	 * There is a tiny race here--an interrupt could conceivably
+	 * come here, thus allowing enough delay for another update to
+	 * begin.  But if we take interrupts that take a full second
+	 * to process, other things are going to break horribly.
+	 */
+	
+	/*
+	 * Lock out updates.
+	 * We set the No Updates bit in Clock Status Register B.
+	 */
+	write_cmos (SRB, read_cmos (SRB) | NO_UPD);
+	return 1;
+}
+
+
+/*
+ * void unlock_clock() -- Restart the update cycle on the CMOS RT clock.
+ */ 
+static void
+unlock_clock()
+{
+	/*
+	 * We clear the No Updates bit in Clock Status Register B.
+	 */
+	write_cmos (SRB, read_cmos(SRB) & ~ NO_UPD);
+}
+
 
 /*
  * Null/memory open routine.
  */
-void
+static void
 nlopen(dev, mode)
 dev_t dev;
 int mode;
 {
 	switch (minor(dev)) {
-#ifdef IDLE_DEV
-	case DEV_IDLE:
-#endif
 	case DEV_PS:
 		/* /dev/ps is read only */
 		if (IPR != (IPR & mode)) 
-			SET_U_ERROR( EACCES, "/dev/ps is read only" );
+			set_user_error (EACCES);
 		break;
+
 	default:
 		/*
-		 * For minor devices on NULL there is
+		 * For other minor devices there is
 		 * usually no action for open().
 		 */
 		break;
 	}
 	return;
-} /* nlopen() */
+}
+
 
 /*
  * Null/memory close routine.
  */
-void
+static void
 nlclose(dev, mode)
 dev_t dev;
 int mode;
 {
-	/*
-	 * For minor devices on NULL there is
-	 * Usually no action for close().
-	 */
-	return;
-} /* nlclose() */
+}
+
 
 /*
  * Null/memory read routine.
  */
-void
-nlread(dev, iop)
+static void
+nlread (dev, iop)
 dev_t dev;
-register IO *iop;
+IO *iop;
 {
 	register unsigned 	bytesRead;
 	register PROC 		*pp1;		/* */
 	char			psBuf[ARGSZ];	/* buffer for command line
 						 * arguments for ps. */
 	stMonitor		psData;		/* All process data for */
-	UPROC	      		*uprc;		/* pointer to u area */
-	int			ndpUseg;	/* System global address 
-						 * of U segment */
 	unsigned int 		seek;
-	unsigned char 		read_cmos();
 	extern typed_space 	boot_gift;
 
 	switch (minor (dev)) {
@@ -226,13 +257,12 @@ register IO *iop;
 			if (numBytes > iop->io_ioc)
 				numBytes = iop->io_ioc;
 
-			bytesRead = pxcopy (src, dest, numBytes,
-					    SEG_386_UD | R_USR);
+			bytesRead = pxcopy (src, dest, numBytes, SEL_386_UD);
 			src += bytesRead;
 			dest += bytesRead;
 			iop->io_ioc -= bytesRead;
-			if (u.u_error == EFAULT) {
-				u.u_error = 0;
+			if (get_user_error () == EFAULT) {
+				set_user_error (0);
 				break;
 			}
 		}
@@ -240,9 +270,9 @@ register IO *iop;
 	}
 
 	case DEV_KMEM:
-		iowrite (iop, iop->io_seek, iop->io_ioc);
-		if (u.u_error == EFAULT)
-			u.u_error = 0;
+		iowrite (iop, (caddr_t) iop->io_seek, iop->io_ioc);
+		if (get_user_error () == EFAULT)
+			set_user_error (0);
 		break;
 
 	case DEV_CLOCK:
@@ -257,15 +287,15 @@ register IO *iop;
 		 */
 
 		if (lock_clock () == 0) {
-			SET_U_ERROR (EIO, "RT clock will not settle.");
+			set_user_error (EIO);
 			break;
 		}
 
 		/*
 		 * Read the requested data out of the CMOS.
 		 */
-		for (seek = iop->io_seek; seek < CLOCK_LEN; seek++) {
-			if(ioputc(read_cmos(seek), iop) == -1)
+		for (seek = iop->io_seek; seek < CLOCK_LEN ; seek++) {
+			if (ioputc (read_cmos (seek), iop) == -1)
 				break;
 		}
 
@@ -273,7 +303,7 @@ register IO *iop;
 		 * Now that we are done reading the CMOS, let
 		 * the clock loose.
 		 */
-		unlock_clock();
+		unlock_clock ();
 		break;
 
 	case DEV_CMOS:
@@ -286,8 +316,8 @@ register IO *iop;
 		/*
 		 * Read the requested data out of the CMOS.
 		 */
-		for (seek = iop->io_seek; seek < CMOS_LEN; seek++) {
-			if(ioputc(read_cmos(seek), iop) == -1)
+		for (seek = iop->io_seek; seek < CMOS_LEN; seek ++) {
+			if (ioputc (read_cmos (seek), iop) == -1)
 				break;
 		}
 		break;
@@ -305,23 +335,21 @@ register IO *iop;
 			if (iop->io_seek + bytesRead > BG_LEN)
 				bytesRead = BG_LEN - iop->io_seek;
 
-			iowrite (iop, (char *) (& boot_gift) + iop->io_seek,
+			iowrite (iop, (char *) & boot_gift + iop->io_seek,
 				 bytesRead);
 		}
 		break;
 
 	case DEV_PS:
-		/* Lock the process table. It allows to have an atomic ps. */
-		lock (pnxgate);
+		__GLOBAL_LOCK_PROCESS_TABLE ("nlread ()");
+
 		/* Main driver loop. Go through all processes. Fill struct PS
 		 * and send put to user buffer.
 		 */
 		for (pp1 = & procq; (pp1 = pp1->p_nforw) != & procq; ) {
-			register int		i;	/* loop index */
-			register unsigned	uLen, 	/* Process size */
-						uLenR;	/* Real process size */
-			register SEG	*sp;	/* u area segment */
-			int work;	/* virtual click number */
+			int		i;	/* loop index */
+			unsigned	uLen; 	/* Process size */
+			unsigned	uLenR;	/* Real process size */
 
 			/* Check if driver can send next proc data */ 
 			if (iop->io_ioc < sizeof (stMonitor)) 
@@ -330,48 +358,29 @@ register IO *iop;
 			/* Calculate the size of process. */
 			uLen = uLenR = 0;
 			for (i = 0 ; i < NUSEG ; i++) {
-				if ((sp = pp1->p_segp [i]) == NULL)
+				SEG	      *	sp;
+
+				if ((sp = pp1->p_segl [i].sr_segp) == NULL)
 					continue;
 				uLenR += sp->s_size;
-				if (i == SIUSERP || i == SIAUXIL)
+				if (i == SIUSERP /* || i == SIAUXIL */)
 					continue;
 				uLen += sp->s_size;
-		
 			} 
 
-			/* Find u area for process pp1 */
-			sp = pp1->p_segp [SIUSERP];
-			ndpUseg = MAPIO (sp->s_vmem, U_OFFSET);
-			work = workAlloc ();
-			ptable1_v [work] = 
-				   sysmem.u.pbase [btocrd (ndpUseg)] | SEG_RW;
-			uprc = (UPROC *) (ctob (work) + U_OFFSET);
-			memcpy (psData.u_comm, uprc->u_comm, ARGSZ);
-			memcpy (psData.u_sleep, uprc->u_sleep, U_SLEEP_LEN);
-			workFree (work);
-
-#ifdef	TRACER
-			if (strncmp (psData.u_sleep, "lock",
-				     U_SLEEP_LEN) == 0) {
-				GATE	      *	g = pp1->p_event;
-				printf ("[%d] locked at %x lock %s (%d) = %x\n",
-					pp1->p_pid, g, g->_name, g->_count,
-					g->_lock [0]);
-			}
-			if (strncmp (psData.u_sleep, "bpwait",
-				     U_SLEEP_LEN) == 0) {
-				BUF	      *	bp = pp1->p_event;
-				printf ("[%d] blocked on %x flags = %x\n",
-					pp1->p_pid, bp, bp->b_flag);
-			}
-#endif
+			memcpy (psData.u_comm, pp1->p_comm, ARGSZ);
+			if (pp1->p_sleep == NULL)
+				psData.u_sleep [0] = 0;
+			else
+				strncpy (psData.u_sleep, pp1->p_sleep,
+					 sizeof (psData.u_sleep));
 
 			/* fill up stMonitor */
 			psData.p_pid = pp1->p_pid;
 			psData.p_ppid = pp1->p_ppid;
-			psData.p_uid = pp1->p_uid;
-			psData.p_ruid = pp1->p_ruid;
-			psData.p_rgid = pp1->p_rgid;
+			psData.p_uid = pp1->p_credp->cr_uid;
+			psData.p_ruid = pp1->p_credp->cr_ruid;
+			psData.p_rgid = pp1->p_credp->cr_rgid;
 			psData.p_state = pp1->p_state;
 			psData.p_flags = pp1->p_flags;
 			psData.rrun = (char *) pp1 != pp1->p_event;
@@ -389,31 +398,31 @@ register IO *iop;
 			/* send data to user */
 			iowrite (iop, (char *) & psData, sizeof (stMonitor));
 		}
-		unlock (pnxgate);
+		__GLOBAL_UNLOCK_PROCESS_TABLE ();
 		break;
 
 	case DEV_KMEMHI:
-		iowrite (iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
-		if (u.u_error == EFAULT)
-			u.u_error = 0;
+		iowrite (iop, (caddr_t) iop->io_seek - KMEMHI_BASE,
+			 iop->io_ioc);
+		if (get_user_error () == EFAULT)
+			set_user_error (0);
 		break;
 
 	default:
-		SET_U_ERROR (ENXIO, "nlread(): illegal minor device for null");
+		set_user_error (ENXIO);
 	}
-	return;
 }
+
 
 /*
  * Null/memory write routine.
  */
-void
+static void
 nlwrite(dev, iop)
 dev_t dev;
-register IO *iop;
+IO *iop;
 {
-	register unsigned bytesWrit;
-	unsigned write_cmos();
+	unsigned bytesWrit;
 	unsigned seek;
 	int	ch;
 
@@ -433,20 +442,19 @@ register IO *iop;
 			if (numBytes > iop->io_ioc)
 				numBytes = iop->io_ioc;
 
-			bytesWrit = xpcopy (src, dest, numBytes,
-					    SEG_386_UD | R_USR);
+			bytesWrit = xpcopy (src, dest, numBytes, SEL_386_UD);
 			src += bytesWrit;
 			dest += bytesWrit;
 			iop->io_ioc -= bytesWrit;
-			if (u.u_error == EFAULT) {
-				u.u_error = 0;
+			if (get_user_error () == EFAULT) {
+				set_user_error (0);
 				break;
 			}
 		}
 		break;
 
 	case DEV_KMEM:
-		ioread (iop, iop->io_seek, iop->io_ioc);
+		ioread (iop, (caddr_t) iop->io_seek, iop->io_ioc);
 		break;
 
 	case DEV_CLOCK:
@@ -460,7 +468,7 @@ register IO *iop;
 		 * Lock the clock before any writing.
 		 */
 		if (lock_clock () == 0) {
-			SET_U_ERROR (EIO, "RT clock will not settle.");
+			set_user_error (EIO);
 			break;
 		}
 
@@ -498,97 +506,14 @@ register IO *iop;
 		}
 		break;
 
-	case DEV_BOOTGIFT:
-		/*
-		 * /dev/bootgift is not writable.
-		 */
-		break;
-
-	case DEV_PS:
-		/*
-		 * We should not be able to open /dev/ps to write.
-		 * Just paranoya.
-		 */
-		break;
-
 	case DEV_KMEMHI:
-		ioread (iop, iop->io_seek - KMEMHI_BASE, iop->io_ioc);
+		ioread (iop, (caddr_t) iop->io_seek - KMEMHI_BASE, iop->io_ioc);
 		break;
 
 	default:
-		SET_U_ERROR (ENXIO,
-			     "nlwrite(): illegal minor device for null");
+		set_user_error (ENXIO);
 	}
-	return;
 }
-
-#if defined NULL_IOCTL || defined IDLE_DEV /* Includes all of nlioctl().  */
-
-/*
- * Do an ioctl call for /dev/null.
- */
-int
-nlioctl(dev, cmd, vec)
-	dev_t dev;
-	int cmd;
-	char * vec;
-{
-	/* Only /dev/kmem and /dev/idle have an ioctl.  */
-	switch (minor (dev)) {
-#ifdef NULL_IOCTL
-	case DEV_KMEM:
-		switch (cmd) {
-#ifdef DANGEROUS
-		case NLCALL:	/* Call a function.  */
-		return docall (vec);
-#endif /* DANGEROUS */
-		default:
-			SET_U_ERROR (EINVAL,
-				     "nioctl(): illegal command for kmem");
-			return -1;
-		}
-#endif /* NULL_IOCTL */
-#ifdef IDLE_DEV
-	case DEV_IDLE:
-		if (cmd != NLIDLE) { 
-			SET_U_ERROR (EINVAL,
-				     "nioctl(): illegal command for idle");
-			return -1;
-		} else {
-			register PROC *pp;
-			register int *mem = vec;
-
-
-			pp = & procq;	/* point to process queue */
-
-			if (pp->p_pid != 0) {
-				while ((pp = pp->p_nforw) != &procq)
-					if (pp->p_pid == 0)       /* idle process ? */
-						break;
-			}
-
-			/*
-			 * At this point, pp->p_utime and pp->p_stime contain
-			 * the idle time of the system process
-			 */
-
-			if (pp->p_pid != 0)
-				putuwd (mem ++, 0);
-			else
-				putuwd (mem ++, pp->p_utime + pp->p_stime);
-			putuwd (mem, lbolt);
-			return 1; 
-		}
-
-#endif /* IDLE_DEV */
-	default:
-		SET_U_ERROR(EINVAL, "illegal minor device for null ioctl");
-		return -1;
-	} /* switch on minor device */
-
-} /* nlioctl() */
-
-#endif /* NULL_IOCTL || IDLE_DEV */
 
 #ifdef DANGEROUS /* Includes all of docall().  */
 /*
@@ -604,9 +529,9 @@ nlioctl(dev, cmd, vec)
  *
  * Returns the return value of the called fuction in uvec[0].
  */
-int
+static int
 docall(uvec)
-	unsigned uvec[];
+unsigned uvec [];
 {
 	int (* func)();
 	unsigned kvec[7];
@@ -619,7 +544,7 @@ docall(uvec)
 
 	if (kvec [0] < 2 || kvec[0] > 7) {
 		/* Invalid number of elements in uvec.  */
-		SET_U_ERROR (EINVAL, "Invalid number of elements in uvec");
+		set_user_error (EINVAL);
 		return -1;
 	}
 	
@@ -633,60 +558,104 @@ docall(uvec)
 	retval = (* func) (kvec [2], kvec [3], kvec [4], kvec [5], kvec [6]);
 
 	kucopy (& retval, uvec, sizeof (unsigned));
-} /* docall() */
-
+	return retval;
+}
 #endif /* DANGEROUS */
 
+
 /*
- * int lock_clock() -- Stop the update cycle on the CMOS RT clock and
- * wait for it to settle.  Returns 0 if the clock would not settle
- * in time.
+ * Do an ioctl call for /dev/null.
  */
-int
-lock_clock()
+static void
+nlioctl(dev, cmd, vec, mode, credp, rvalp)
+dev_t	  dev;
+int	  cmd;
+char	* vec;
+int	  mode;
+cred_t	* credp;
+int	* rvalp;
 {
-	register int i;
-
-	/*
-	 * Wait for the clock to settle.  If it does not settle in
-	 * a reasonable amount of time, give up.
-	 */
-
-	i = 65536;	/* Loop for a longish time.  */
-	while (-- i > 0) {
-		if (0 == (UIP & read_cmos (SRA))) {
-			break;	/* Break if there is no update in progress.  */
+	switch (minor (dev)) {
+#ifdef KMEM_IOCTL
+	case DEV_KMEM:
+		switch (cmd) {
+#ifdef DANGEROUS
+		case NLCALL:	/* Call a function.  */
+			* rvalp = docall (vec);
+			break;
+#endif /* DANGEROUS */
+		default:
+			set_user_error (EINVAL);
+			break;
 		}
-	}
-	
-	if (0 == i) {
-		/* The clock would not settle.  */
-		return 0;
+#endif /* KMEM_IOCTL */
+
+	case DEV_IDLE: {
+		/*
+		 * Write into a two-word user struct at "vec" -
+		 *
+		 * Low address gets number of ticks for which system was
+		 * idle, since boot.
+		 *
+		 * High address gets total number of ticks since boot.
+		 *
+		 * By looking at time differences of these, we can estimate
+		 * CPU load factor - this is how xload does it.
+		 */
+
+		IDLESYS *mem = (IDLESYS *) vec;
+
+		if (cmd != NLIDLE) { 
+			set_user_error (EINVAL);
+			break;
+		}
+
+		putuwd ((char *)&mem->idle_ticks, ddi_cpu_data()->dc_idle_ticks);
+		putuwd ((char *)&mem->total_ticks, lbolt);
+		break;
 	}
 
-	/*
-	 * There is a tiny race here--an interrupt could conceivably
-	 * come here, thus allowing enough delay for another update to
-	 * begin.  But if we take interrupts that take a full second
-	 * to process, other things are going to break horribly.
-	 */
-	
-	/*
-	 * Lock out updates.
-	 * We set the No Updates bit in Clock Status Register B.
-	 */
-	write_cmos (SRB, read_cmos (SRB) | NO_UPD);
-	return 1;
-} /* lock_clock() */
+	case DEV_FMEM: {
+		/*
+		 * Compute amount of memory left for user processes
+		 * and amount of free memory and return them in a
+		 * two-word structure. Both values are kbytes.
+		 */
+
+		FREEMEM *mem = (FREEMEM *) vec;
+
+		if (cmd != NLFREE) { 
+			set_user_error (EINVAL);
+			break;
+		}
+
+		putuwd ((char *)&mem->avail_mem, (sysmem.efree - sysmem.tfree) << 2);
+		putuwd ((char *)&mem->free_mem, (sysmem.pfree - sysmem.tfree) << 2);
+		break;
+	}
+
+	default:
+		set_user_error (EINVAL);
+		break;
+	}
+
+}
+
 
 /*
- * void unlock_clock() -- Restart the update cycle on the CMOS RT clock.
- */ 
-void
-unlock_clock()
-{
-	/*
-	 * We clear the No Updates bit in Clock Status Register B.
-	 */
-	write_cmos (SRB, read_cmos(SRB) & ~ NO_UPD);
-} /* unlock_clock() */
+ * Configuration table.
+ */
+CON nlcon ={
+	DFCHR,				/* Flags */
+	0,				/* Major index */
+	nlopen,				/* Open */
+	nlclose,			/* Close */
+	NULL,				/* Block */
+	nlread,				/* Read */
+	nlwrite,			/* Write */
+	nlioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	NULL,				/* Timeout */
+	NULL,				/* Load */
+	NULL				/* Unload */
+};

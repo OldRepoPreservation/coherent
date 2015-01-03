@@ -87,12 +87,14 @@ getgrent()
 	return (&gr);
 }
 
+void
 setgrent()
 {
 	if (grfile != NULL)
 		rewind(grfile);
 }
 
+void
 endgrent()
 {
 	if (grfile != NULL) {

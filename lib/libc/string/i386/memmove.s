@@ -4,6 +4,8 @@
 / ANSI 4.11.2.2.
 //////////
 
+	.intelorder
+
 ////////
 / void *
 / memmove(void *To, void *From, size_t Count)

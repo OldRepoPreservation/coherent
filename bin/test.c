@@ -20,10 +20,11 @@
 
 #include <sys/compat.h>
 #include <sys/stat.h>
-#include <access.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#define	WRITESTR(s)	write (2, s, strlen (s))
 
 enum {
 	SYNTAX_ERROR	= 2
@@ -48,25 +49,29 @@ typedef	int  (*	file_unop_p)	PROTO ((struct stat * stat));
  * Miscellaneous comparison operators.
  */
 
-#define	CMP_OP(name)	static int name SELECT ((long diff), (diff) long diff;)
+#ifdef USE_PROTO
+#define	CMP_OP2(name)	static int name (long arg1, long arg2)
+#else
+#define	CMP_OP2(name)	static int name (arg1, arg2) long arg1, arg2;
+#endif
 
-CMP_OP (cmp_eq) {
-	return diff != 0;
+CMP_OP2 (cmp_eq) {
+	return arg1 != arg2;
 }
-CMP_OP (cmp_neq) {
-	return diff == 0;
+CMP_OP2 (cmp_neq) {
+	return arg1 == arg2;
 }
-CMP_OP (cmp_lt) {
-	return diff >= 0;
+CMP_OP2 (cmp_lt) {
+	return arg1 >= arg2;
 }
-CMP_OP (cmp_gt) {
-	return diff <= 0;
+CMP_OP2 (cmp_gt) {
+	return arg1 <= arg2;
 }
-CMP_OP (cmp_le) {
-	return diff > 0;
+CMP_OP2 (cmp_le) {
+	return arg1 > arg2;
 }
-CMP_OP (cmp_ge) {
-	return diff < 0;
+CMP_OP2 (cmp_ge) {
+	return arg1 < arg2;
 }
 
 
@@ -146,13 +151,13 @@ STRING_UNOP (strfile_istty) {
 	return ! isatty (atoi (str));
 }
 STRING_UNOP (strfile_readable) {
-	return access (str, AREAD);
+	return access (str, R_OK);
 }
 STRING_UNOP (strfile_writeable) {
-	return access (str, AWRITE);
+	return access (str, W_OK);
 }
 STRING_UNOP (strfile_executable) {
-	return access (str, AEXEC);
+	return access (str, X_OK);
 }
 
 
@@ -231,18 +236,22 @@ char	      *	str;
  * We return 0 on success, non-zero on failure.
  */
 
-#define	convert_number(str,nump)	(* (nump) = atol (str), 0)
-
 #ifdef	USE_PROTO
-int (convert_number) (char * string, long * numberp)
+int convert_number (char * string, long * numberp)
 #else
 int
-convert_number ARGS ((string, numberp))
+convert_number (string, numberp)
 char	      *	string;
 long	      *	numberp;
 #endif
 {
-	return convert_number (string, numberp);
+	char *		cp;
+
+	*numberp = strtol (string, & cp, 0);
+
+	/* If strtol failed, it leaves cp at start of str. */
+	/* Empty arg "" represents 0 for Unix compatability. */
+	return (string == cp) ? (*cp != 0) : 0;
 }
 
 enum {
@@ -274,8 +283,9 @@ int		paren;
 	int		result;
 	int		operator_flag = 1;
 
-	if (argc < 1)
+	if (argc < 1) {
 		return SYNTAX_ERROR;	/* syntax error in subexpr */
+	}
 
 	/*
 	 * Begin by looking for binary operator at argv [argc - 2].
@@ -291,7 +301,7 @@ int		paren;
 
 		if ((cmp = is_string_binop (argv [argc - 2])) != NULL) {
 			result = (* cmp) (strcmp (argv [argc - 3],
-						  argv [argc - 1]));
+						  argv [argc - 1]), 0);
 			goto negate;
 		}
 		if ((cmp = is_arith_binop (argv [argc - 2])) != NULL) {
@@ -300,7 +310,8 @@ int		paren;
 
 			if (convert_number (argv [argc - 3], & left) == 0 &&
 			    convert_number (argv [argc - 1], & right) == 0) {
-				result = (* cmp) (left - right);
+
+				result = (* cmp) (left, right);
 				goto negate;
 			}
 
@@ -424,8 +435,9 @@ int		paren;
 		int		matched;
 
 		if ((left = test_primop (argc, argv, & matched,
-					 paren)) == SYNTAX_ERROR)
+					 paren)) == SYNTAX_ERROR) {
 			return SYNTAX_ERROR;
+		}
 
 		right = right || left;	/* "and" */
 		* matchedp += matched;
@@ -473,8 +485,9 @@ int		paren;
 		int		matched;
 
 		if ((left = test_booland (argc, argv, & matched,
-					  paren)) == SYNTAX_ERROR)
+					  paren)) == SYNTAX_ERROR) {
 			return SYNTAX_ERROR;
+		}
 
 		(* matchedp) += matched;
 		argc -= matched;
@@ -523,32 +536,39 @@ char	      *	argv [];
 
 	if ((value = test_boolor (argc, argv, & matched,
 				  NO_PAREN)) == SYNTAX_ERROR ||
-	    matched != argc)
+	    matched != argc) {
 		return SYNTAX_ERROR;
+	}
 
 	return value;
 }
 
 
-#ifdef	TEST
+#if	! _SHELL
 
-#define	WRITESTR(s)	write (2, s, strlen (s))
 #define	WRITECONST(s)	write (2, s, sizeof (s))
 
 #ifdef	USE_PROTO
-void error (char * prog, char * str)
+void error (char ** argv, char * str)
 #else
 void
-error (prog, str)
-char	      *	prog;
+error (argv, str)
+char	     **	argv;
 char	      *	str;
 #endif
 {
-	WRITESTR (prog);
-	WRITECONST (":");
+	WRITESTR (* argv);
+	WRITECONST (" ");
+
+	while (* ++ argv != NULL) {
+		WRITESTR (* argv);
+		WRITECONST (" ");
+	}
+	WRITECONST (": ");
 	WRITESTR (str);
 	WRITECONST ("\n");
 
+#if	0
 	WRITECONST ("Unary primaries:\n"
 		"\t-b file\t\tfile exists and is a block special file\n"
 		"\t-c file\t\tfile exists and is a character special file\n"
@@ -591,6 +611,7 @@ char	      *	str;
 		"\texp1 -o exp2\texp1 or exp2 is true\t\t\t(not Posix)\n"
 		"\t( exp )\t\tparentheses for grouping\t\t(not Posix)\n"
 		);
+#endif
 
 	exit (2);
 }
@@ -605,16 +626,36 @@ int		argc;
 char	      *	argv [];
 #endif
 {
-	if (strcmp (argv [0], "[") == 0) {
+	/*
+	 * Let's splurge and use a variable for arg 0 length.
+	 * A small price to pay for clarity and correctness.
+	 */
+
+	int		arg0len;
+
+	/*
+	 * The following comment added by Hal.  Keep it here.
+	 *
+	 * If argv[0] ends with '[', look for matching ']'.
+	 * If we just string match "[", it's hard to debug things like
+	 * /tmp/foo/[ xxx yyy zzz ].
+	 */
+
+	arg0len = strlen(argv[0]);
+
+	if (argv[0][arg0len - 1] == '[') {
 		if (strcmp (argv [argc - 1], "]") != 0)
-			error (argv [0], "Missing ']'");
+			error (argv, "Missing ']'");
+
+		/* Discard trailing ']'. */
+
 		argc --;
 	}
 
 	if ((argc = test (argc - 1, argv + 1)) == 2)
-		error (argv [0], "syntax error");
+		error (argv, "syntax error");
 
 	return argc;
 }
 
-#endif
+#endif	/* ! _SHELL */

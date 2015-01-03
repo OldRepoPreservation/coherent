@@ -5,7 +5,7 @@
  * Align file seek address with current pointer in buffer.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fpseek(fp) register FILE *fp;

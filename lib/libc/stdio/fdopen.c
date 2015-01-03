@@ -4,7 +4,7 @@
  * Get file structure for given file descriptor.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 FILE *
 fdopen(fd, type)

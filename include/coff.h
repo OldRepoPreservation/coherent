@@ -1,18 +1,18 @@
 /* (-lgl
- * 	COHERENT Version 4.1.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * /usr/include/coff.h
- *
- * Common Object File Format (COFF) header for COHERENT.
- *
- * Revised Mon Mar 29 14:28:09 1993 CST
- */
 
 #ifndef __COFF_H__
 #define __COFF_H__
+
+#include <common/ccompat.h>
+
+/*
+ * Common Object File Format (COFF) header for COHERENT.
+ */
 
 /* File header. */
 typedef	struct	filehdr	{
@@ -23,7 +23,7 @@ typedef	struct	filehdr	{
 	long		f_nsyms;		/* Number of symbols	*/
 	unsigned short	f_opthdr;		/* Optional header size	*/
 	unsigned short	f_flags;		/* Flags		*/
-}	FILEHDR;
+}	FILHDR;
 
 /* Magic number. */
 #define	C_386_MAGIC	0x14C			/* Intel iAPX 80386	*/
@@ -104,14 +104,14 @@ typedef	struct	shrlib	{
 
 /* Relocation items. */
 typedef	struct	reloc	{
-	long		r_vaddr;		/* Address (where)	*/
-	long		r_symndx;		/* Symbol index (what)	*/
+	long		r_vaddr __ALIGN (2);	/* Address (where)	*/
+	long		r_symndx __ALIGN (2);	/* Symbol index (what)	*/
 	unsigned short	r_type;			/* Type (how)		*/
-#pragma align 2
+#pragma	align 2
 }	RELOC;
-#pragma align
+#pragma	align	/* control structure padding with Coherent 'cc' */
 
-#define RELSZ	(sizeof(RELOC))
+#define RELSZ	(sizeof (RELOC))
 
 /* Relocation types. */
 #define	R_DIR8		0x07			/* 8-bit direct		*/
@@ -130,13 +130,13 @@ typedef struct lineno {
 	union	{
 		long	l_symndx;		/* Fn name symbol index	*/
 		long	l_paddr;		/* Physical address	*/
-	} l_addr;
+	} l_addr __ALIGN (2);
 	unsigned short l_lnno;			/* Line num., 0 for fn	*/
-#pragma align 2
+#pragma	align 2
 }	LINENO;
-#pragma align
+#pragma	align	/* control structure padding with Coherent 'cc' */
 
-#define	LINESZ	(sizeof(LINENO))
+#define	LINESZ	(sizeof (LINENO))
 
 /* Symbol table. */
 #define	SYMNMLEN	8			/* Symbol name length	*/
@@ -145,23 +145,23 @@ typedef struct lineno {
 
 typedef	struct	syment	{
 	union	{
-		char	_n_name[SYMNMLEN];	/* Name			*/
+		char	_n_name [SYMNMLEN];	/* Name			*/
 		struct	{
 			long	_n_zeroes;	/* If name[0-3] zero,	*/
 			long	_n_offset;	/* string table offset	*/
 		} _n_n;
-		char	*_n_nptr[2];
-	} _n;
-	long		n_value;		/* Value		*/
+		char	* _n_nptr [2];
+	} _n __ALIGN (2);
+	long		n_value __ALIGN (2);	/* Value		*/
 	short		n_scnum;		/* Section number	*/
 	unsigned short	n_type;			/* Type			*/
 	char		n_sclass;		/* Storage class	*/
 	char		n_numaux;		/* Auxilliary entries	*/
-#pragma align 2
+#pragma	align 2
 }	SYMENT;
-#pragma align
+#pragma	align	/* control structure padding with Coherent 'cc' */
 
-#define SYMESZ	(sizeof(SYMENT))
+#define SYMESZ	(sizeof (SYMENT))
 #define	n_name		_n._n_name
 #define	n_zeroes	_n._n_n._n_zeroes
 #define	n_offset	_n._n_n._n_offset
@@ -203,7 +203,7 @@ typedef	struct	syment	{
 
 /* Fundimental types. */
 #define T_NULL		0
-#define T_ARG		1
+#define T_VOID		1
 #define T_CHAR		2
 #define T_SHORT		3
 #define T_INT		4
@@ -241,7 +241,6 @@ typedef	struct	syment	{
 
 /* Symbol aux entries. */
 typedef union auxent	{
-#pragma align 2
 	struct	{
 		long	x_tagndx;	/* struct/union/enum tag index	*/
 		union	{
@@ -257,21 +256,28 @@ typedef union auxent	{
 				long	x_endndx;	/* index of .eb	*/
 			} x_fcn;
 			struct	{		/* Arrays		*/
-				unsigned short x_dimen[DIMNUM];	/* Dims	*/
+				unsigned short x_dimen [DIMNUM];/* Dims	*/
 			} x_ary;
 		} x_fcnary;
 		unsigned short	x_tvndx;	/* TV index		*/
+#pragma	align 2
 	} x_sym;
+#pragma	align	/* control structure padding with Coherent 'cc' */
+
 	struct {				/* File names		*/
-		char x_fname[FILNMLEN];		/* File name		*/
+		char x_fname [FILNMLEN];	/* File name		*/
 	} x_file;
+
 	struct	{				/* Sections		*/
 		long	x_scnlen;		/* Section length	*/
 		unsigned short	x_nreloc;	/* Reloc entrys		*/
 		unsigned short	x_nlinno;	/* Line number entries	*/
 	} x_scn;
+
+#pragma	align	2
 }	AUXENT;
-#pragma align
+#pragma	align	/* control structure padding with Coherent 'cc' */
+
 #define	ae_tagndx	x_sym.x_tagndx
 #define	ae_lnno		x_sym.x_misc.x_lnsz.x_lnno
 #define	ae_size		x_sym.x_misc.x_lnsz.x_size
@@ -284,8 +290,6 @@ typedef union auxent	{
 #define	ae_scnlen	x_scn.x_scnlen
 #define	ae_nreloc	x_scn.x_nreloc
 #define	ae_nlinno	x_scn.x_nlinno
-#define AUXESZ	(sizeof(AUXENT))
+#define AUXESZ	(sizeof (AUXENT))
 
-#endif						 /* COFF_H */
-
-/* end of coff.h */
+#endif	/* ! defined (__COFF_H__) */

@@ -1,8 +1,13 @@
 /*
- * Evaluate the logarithm (base 10) function.
+ * libm/log10.c
+ * C mathematics library.
+ * log10()
+ * Common (base 10) logarithm function.
  * (Hart 2355, 19.74)
  */
+
 #include <math.h>
+#include <errno.h>
 
 #if	EMU87
 #include "emumath.h"
@@ -22,23 +27,24 @@ static readonly double logmtab[] ={
 };
 
 double
-log10(x)
-double x;
+log10(x) double x;
 {
 	double r, z;
 	int n;
 
 	if (x <= 0.0) {
 		errno = EDOM;
-		return (0.0);
+		return 0.0;
 	}
 	if (x == 1.)
-		return(0.);
+		return 0.0;
 	x = frexp(x, &n);
 	x *= SQRT2;
-	z = (x-1.0)/(x+1.0);
-	r = z*z;
-	r = z*(_pol(r, logntab, 4)/_pol(r, logmtab, 4));
-	r += (n-0.5)*LOG2B10;
-	return (r);
+	z = (x - 1.0) / (x + 1.0);
+	r = z * z;
+	r = z * (_pol(r, logntab, 4) / _pol(r, logmtab, 4));
+	r += (n - 0.5) * LOG2B10;
+	return r;
 }
+
+/* end of libm/log10.c */

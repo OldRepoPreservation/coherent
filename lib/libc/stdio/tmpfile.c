@@ -6,7 +6,7 @@
  * Create a temporary stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 
 FILE *

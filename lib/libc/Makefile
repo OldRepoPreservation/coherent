@@ -1,49 +1,98 @@
-# /usr/src/libc/Makefile 11/19/92
+# /usr/src/libc/Makefile 6/9/94
+#
 # Assumes $(SRCPATH) defines root libc source directory, e.g. /usr/src/libc.
 # Assumes $(MCH) defines target machine, e.g. i8086 or i386.
-# Assumes $(AR), $(AS), $(AFLAGS), $(CC), $(CFLAGS) defined appropriately.
-# To build a new libc.a, move to an empty object directory and
-# type "make -e SRCPATH=/usr/src/libc MCH=i8086" (or other pathname as appropriate).
-# This takes about 20 minutes from scratch on 20 MHz 386.
+#
+# To build a new native libc.a, move to an empty object directory and type e.g.
+#	make SRCPATH=/usr/src/libc MCH=i386
+# or
+#	export SRCPATH=/usr/src/libc
+#	export MCH=i386
+#	make
+# To build a new native NDP libc.a, type e.g.
+#	export CFLAGS=-VNDP
+#	export SRCPATH=/usr/src/libc
+#	export MCH=i386
+#	make -e
+#
+# To build a library in a cross-development environment,
+# set $(AR), $(AS), $(ASFLAGS), $(CC), $(CFLAGS) appropriately
+# in the environment and then invoke make -e.
+#
+# Takes about 8 minutes from scratch on 33 MHz i386 running COH 4.2.
+SRCPATH=.
+MCH=i386
+TARGET=libc.a
+ARFLAGS=rckus
+CC=cc
+CFLAGS=
 
-# Copyright module is first entry in the archive.
-OBJ=\
-	copyright.o
+# The order of targets here is significant.
+# stdio.dir must be the last target, because it plays tricks to reduce size
+# of executable if stdio is not required.
+# gen.dir is next to last because e.g. perror() references stdio.
+# copyright.dir is not included because it is the first object in the archive.
+# crt.dir is not included because it is different for NDP and non-NDP versions.
+DIRS= \
+	ctype.dir \
+	ndir.dir \
+	string.dir \
+	sys.dir \
+	stdlib.dir \
+	time.dir \
+	gen.dir \
+	stdio.dir
+
+# Arguments for make.
+MAKEARGS=-e MCH=$(MCH) TARGET=$(TARGET) ARFLAGS=$(ARFLAGS) CC=$(CC) CFLAGS=$(CFLAGS) MAKE=$(MAKE)
+
+# Traverse a subtree with make.
+GODOWN=$(MAKE) $(MAKEARGS) "SRCPATH=$(SRCPATH)/$*" "MAKEARGS=$(MAKEARGS)"
 
 # Primary target.
-# The order of targets here is significant.
-# dstdio must be the last target, because it plays tricks to reduce size
-# of executable if stdio is not required.
-# dgen is next to last because e.g. perror() references stdio.
-all:	ROOT dcrt dndir dstring dsys dstdlib dgen dstdio
+all:	copyright.dir crt.dir $(DIRS)
 	: libc done.
 
-# Pseudotargets.
-# The lower case pseudotargets are made every time to check each subdirectory.
-# The upper case pseudotargets indicate when the objects in a given directory
-# were last made, allowing replacement of only the stale object files.
-ROOT:	$(OBJ)
-	$(AR) rckus libc.a $?
-	touch $@
-dcrt:	
-	SRCPATH=$(SRCPATH)/crt make -e
-dgen:
-	SRCPATH=$(SRCPATH)/gen make -e
-dndir:
-	SRCPATH=$(SRCPATH)/ndir make -e
-dstdio:
-	SRCPATH=$(SRCPATH)/stdio make -e
-dstdlib:
-	SRCPATH=$(SRCPATH)/stdlib make -e
-dstring:
-	SRCPATH=$(SRCPATH)/string make -e
-dsys:
-	SRCPATH=$(SRCPATH)/sys make -e
+# Primary target for NDP library.
+ndp:	copyright.dir crtndp.dir $(DIRS)
+	: NDP libc done.
+
+# Directory pseudotargets.
+copyright.dir:
+	$(GODOWN)
+
+crt.dir:
+	$(GODOWN)
+
+crtndp.dir:
+	$(MAKE) $(MAKEARGS) "SRCPATH=$(SRCPATH)/crt" "MAKEARGS=$(MAKEARGS)" ndp
+
+ctype.dir:
+	$(GODOWN)
+
+ndir.dir:
+	$(GODOWN)
+
+string.dir:
+	$(GODOWN)
+
+sys.dir:
+	$(GODOWN)
+
+stdlib.dir:
+	$(GODOWN)
+
+time.dir:
+	$(GODOWN)
+
+gen.dir:
+	$(GODOWN)
+
+stdio.dir:
+	$(GODOWN)
 
 # Secondary targets.
-copyright.o:	$(SRCPATH)/gen/copyright.c
-
 clean:
-	rm *.o
+	rm -f $(TARGET)
 
 # end of /usr/src/libc/Makefile

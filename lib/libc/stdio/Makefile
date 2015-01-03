@@ -1,4 +1,4 @@
-# /usr/src/libc/stdio/Makefile 1/26/93
+# /usr/src/libc/stdio/Makefile 9/13/94
 
 # The order of stdio objects in libc.a is significant and a bit complicated.
 # To reduce the size of linked objects when possible,
@@ -18,163 +18,94 @@
 # then it resolves the _finish() reference in exit() with the fake _finish.o,
 # which does nothing.
 
-OBJ=\
-	_dscan.o\
-	_fgetb.o\
-	_fgetc.o\
-	_fgete.o\
-	_fgetstr.o\
-	_filbuf.o\
-	_flsbuf.o\
-	_fopen.o\
-	_fpseek.o\
-	_fputa.o\
-	_fputb.o\
-	_fputc.o\
-	_fpute.o\
-	_fputt.o\
-	_scanf.o\
-	_stropen.o\
-	clearerr.o\
-	ecvt.o\
-	fclose.o\
-	fcvt.o\
-	fdopen.o\
-	feof.o\
-	ferror.o\
-	fflush.o\
-	fgetc.o\
-	fgetpos.o\
-	fgets.o\
-	fopen.o\
-	fputc.o\
-	fputs.o\
-	fread.o\
-	freopen.o\
-	fscanf.o\
-	fseek.o\
-	fsetpos.o\
-	ftell.o\
-	fwrite.o\
-	gcvt.o\
-	getc.o\
-	getchar.o\
-	gets.o\
-	perror.o\
-	popen.o\
-	putc.o\
-	putchar.o\
-	puts.o\
-	remove.o\
-	rename.o\
-	rewind.o\
-	scanf.o\
-	setbuf.o\
-	setvbuf.o\
-	sscanf.o\
-	tmpfile.o\
-	tmpnam.o\
-	ungetc.o
+LIBOBJ=\
+	$(TARGET)(_dscan.o) \
+	$(TARGET)(_fgetb.o) \
+	$(TARGET)(_fgetc.o) \
+	$(TARGET)(_fgete.o) \
+	$(TARGET)(_fgetstr.o) \
+	$(TARGET)(_filbuf.o) \
+	$(TARGET)(_flsbuf.o) \
+	$(TARGET)(_fopen.o) \
+	$(TARGET)(_fpseek.o) \
+	$(TARGET)(_fputa.o) \
+	$(TARGET)(_fputb.o) \
+	$(TARGET)(_fputc.o) \
+	$(TARGET)(_fpute.o) \
+	$(TARGET)(_fputt.o) \
+	$(TARGET)(_scanf.o) \
+	$(TARGET)(_stropen.o) \
+	$(TARGET)(clearerr.o) \
+	$(TARGET)(ctermid.o) \
+	$(TARGET)(ecvt.o) \
+	$(TARGET)(fclose.o) \
+	$(TARGET)(fcvt.o) \
+	$(TARGET)(fdopen.o) \
+	$(TARGET)(feof.o) \
+	$(TARGET)(ferror.o) \
+	$(TARGET)(fflush.o) \
+	$(TARGET)(fgetc.o) \
+	$(TARGET)(fgetpos.o) \
+	$(TARGET)(fgets.o) \
+	$(TARGET)(fopen.o) \
+	$(TARGET)(fputc.o) \
+	$(TARGET)(fputs.o) \
+	$(TARGET)(fread.o) \
+	$(TARGET)(freopen.o) \
+	$(TARGET)(fscanf.o) \
+	$(TARGET)(fseek.o) \
+	$(TARGET)(fsetpos.o) \
+	$(TARGET)(ftell.o) \
+	$(TARGET)(fwrite.o) \
+	$(TARGET)(gcvt.o) \
+	$(TARGET)(getc.o) \
+	$(TARGET)(getchar.o) \
+	$(TARGET)(gets.o) \
+	$(TARGET)(perror.o) \
+	$(TARGET)(popen.o) \
+	$(TARGET)(putc.o) \
+	$(TARGET)(putchar.o) \
+	$(TARGET)(puts.o) \
+	$(TARGET)(remove.o) \
+	$(TARGET)(rewind.o) \
+	$(TARGET)(scanf.o) \
+	$(TARGET)(setbuf.o) \
+	$(TARGET)(setvbuf.o) \
+	$(TARGET)(sscanf.o) \
+	$(TARGET)(tmpfile.o) \
+	$(TARGET)(tmpnam.o) \
+	$(TARGET)(ungetc.o)
+
+# rename is a system call as of COHERENT 4.2.r05.
+LIBUNUSED=\
+	$(TARGET)(rename.o)
 
 # N.B. The order of objects in $(OBJ2) is significant,
 # see the lengthy comment above and be extremely careful if you change it.
-OBJ2=\
-	_dtefg.o\
-	fprintf.o\
-	printf.o\
-	sprintf.o\
-	vprintf.o\
-	vsprintf.o\
-	vfprintf.o\
-	_fdtefg.o\
-	_fp.o\
-	_finit.o\
-	exit.o\
-	_finish.o
+LIBOBJ2=\
+	$(TARGET)(_dtefg.o) \
+	$(TARGET)(fprintf.o) \
+	$(TARGET)(printf.o) \
+	$(TARGET)(sprintf.o) \
+	$(TARGET)(vprintf.o) \
+	$(TARGET)(vsprintf.o) \
+	$(TARGET)(vfprintf.o) \
+	$(TARGET)(_fdtefg.o) \
+	$(TARGET)(_fp.o) \
+	$(TARGET)(_finit.o) \
+	$(TARGET)(exit.o) \
+	$(TARGET)(_finish.o)
 
 # Primary target.
-all:	stdio$(MCH) STDIO
-	: libc/stdio done.
-
-# Pseudotargets.
-stdio$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
 # This assumes that either libc.a is being made from scratch
 # or the names of the objects in $(OBJ2) are unchanged.
-# Otherwise, "$(AR) rkus lib.c $?" may not preserve the required object order.
+# Otherwise, "$(AR) rkus libc.a $?" may not preserve the required object order.
 # It could be done more correctly with $(AR) positional specifications.
-STDIO:	$(OBJ) $(OBJ2)
-	$(AR) rkus libc.a $?
-	touch $@
+all:	stdio$(MCH) $(LIBOBJ) $(LIBOBJ2)
+	: libc/stdio done.
 
-# Secondary targets.
-_dscan.o:	_dscan.c
-_dtefg.o:	_dtefg.c
-_fdtefg.o:	_fdtefg.c
-_fgetb.o:	_fgetb.c
-_fgetc.o:	_fgetc.c
-_fgete.o:	_fgete.c
-_fgetstr.o:	_fgetstr.c
-_filbuf.o:	_filbuf.c
-_finish.o:	_finish.c
-_finit.o:	_finit.c
-_flsbuf.o:	_flsbuf.c
-_fopen.o:	_fopen.c
-_fp.o:		_fp.c
-_fpseek.o:	_fpseek.c
-_fputa.o:	_fputa.c
-_fputb.o:	_fputb.c
-_fputc.o:	_fputc.c
-_fpute.o:	_fpute.c
-_fputt.o:	_fputt.c
-_scanf.o:	_scanf.c
-_stropen.o:	_stropen.c
-clearerr.o:	clearerr.c
-ecvt.o:		ecvt.c
-exit.o:		exit.c
-fclose.o:	fclose.c
-fcvt.o:		fcvt.c
-fdopen.o:	fdopen.c
-feof.o:		feof.c
-ferror.o:	ferror.c
-fflush.o:	fflush.c
-fgetc.o:	fgetc.c
-fgetpos.o:	fgetpos.c
-fgets.o:	fgets.c
-fopen.o:	fopen.c
-fprintf.o:	fprintf.c
-fputc.o:	fputc.c
-fputs.o:	fputs.c
-fread.o:	fread.c
-freopen.o:	freopen.c
-fscanf.o:	fscanf.c
-fseek.o:	fseek.c
-fsetpos.o:	fsetpos.c
-ftell.o:	ftell.c
-fwrite.o:	fwrite.c
-gcvt.o:		gcvt.c
-getc.o:		getc.c
-getchar.o:	getchar.c
-gets.o:		gets.c
-perror.o:	perror.c
-popen.o:	popen.c
-printf.o:	printf.c
-putc.o:		putc.c
-putchar.o:	putchar.c
-puts.o:		puts.c
-remove.o:	remove.c
-rename.o:	rename.c
-rewind.o:	rewind.c
-scanf.o:	scanf.c
-setbuf.o:	setbuf.c
-setvbuf.o:	setvbuf.c
-sprintf.o:	sprintf.c
-sscanf.o:	sscanf.c
-tmpfile.o:	tmpfile.c
-tmpnam.o:	tmpnam.c
-ungetc.o:	ungetc.c
-vprintf.o:	vprintf.c
-vfprintf.o:	vfprintf.c
-vsprintf.o:	vsprintf.c
+# Secondary target.
+stdio$(MCH):
+	$(MAKE) $(MAKEARGS) "SRCPATH=$(SRCPATH)/$(MCH)" "MAKEARGS=$(MAKEARGS)"
 
 # end of /usr/src/libc/stdio/Makefile

@@ -1,8 +1,13 @@
 /* (-lgl
- * 	COHERENT Version 3.0
- * 	Copyright (c) 1982, 1993 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
+#ifndef __DUMPTAPE_H__
+#define __DUMPTAPE_H__
+
 /*
  * Dump tapes.
  * A dump tape begins with a header
@@ -12,32 +17,47 @@
  * arrays of dumpdata records. The map comes first,
  * then all the directories, then all the files.
  */
-#ifndef __DUMPTAPE_H__
-#define __DUMPTAPE_H__
 
-#include <sys/types.h>
-#include <sys/dir.h>
+#include <common/__time.h>
+#include <common/__daddr.h>
+#include <common/__fsize.h>
+#include <common/_uid.h>
+
 #include <sys/ino.h>
+
+/*
+ * Please note that this header uses magic numbers related to raw file system
+ * structure that are not portable. Because it uses raw file system structure,
+ * this command will not run on any file system other than the old-style
+ * COHERENT file system.
+ */
+
+#if	! DIRSIZ
+# define	DIRSIZ		14
+#endif
+#if	! __BUFSIZ
+# define	__BUFSIZ	512
+#endif
 
 /*
  * Dump tape header.
  * All entries are in cannonical
  * format on the tape.
  */
-struct	dumpheader
-{
-	int	dh_magic;		/* Magic number */
-	ino_t	dh_nino;		/* # of inodes on file system */
-	time_t	dh_bdate;		/* Date at beginning of dump */
-	time_t	dh_ddate;		/* Dump since date */
-	int	dh_level;		/* Dump level */
-	int	dh_reel;		/* Reel number in dump */
-	fsize_t	dh_nbyte;		/* Length of disc */
-	int	dh_blocking;		/* Blocking factor */
-	char	dh_dev[DIRSIZ];		/* Name of dumped device */
-	char	dh_fname[6];		/* File system name */
-	char	dh_fpack[6];		/* File system pack name */
-	int	dh_checksum;		/* Byte checksum */
+
+struct	dumpheader {
+	int		dh_magic;	/* Magic number */
+	o_ino_t		dh_nino;	/* # of inodes on file system */
+	__time_t	dh_bdate;	/* Date at beginning of dump */
+	__time_t	dh_ddate;	/* Dump since date */
+	int		dh_level;	/* Dump level */
+	int		dh_reel;	/* Reel number in dump */
+	__fsize_t	dh_nbyte;	/* Length of disc */
+	int		dh_blocking;	/* Blocking factor */
+	char		dh_dev [DIRSIZ];/* Name of dumped device */
+	char		dh_fname [6];	/* File system name */
+	char		dh_fpack [6];	/* File system pack name */
+	int		dh_checksum;	/* Byte checksum */
 };
 
 #define	DH_MAG	0123456			/* Magic number */
@@ -48,31 +68,31 @@ struct	dumpheader
  * They are packed into much larger
  * blocks on the tape.
  */
-union	dumpdata
-{
+
+union	dumpdata {
 	struct	{
-		int	dd_type;	/* Type = DD_EOT */
+		int		dd_type;	/* Type = DD_EOT */
 	} dd_st1;
 
 	struct	{
-		int	dd_type;	/* Type = DD_DATA */
-		ino_t	dd_ino;		/* Inode number */
-		daddr_t	dd_block;	/* Block number in file */
-		int	dd_size;	/* Bytes used in this block */
-		char	dd_data[BUFSIZ];/* Data */
+		int		dd_type;	/* Type = DD_DATA */
+		o_ino_t		dd_ino;		/* Inode number */
+		__daddr_t	dd_block;	/* Block number in file */
+		int		dd_size;	/* Bytes used in this block */
+		char		dd_data	[__BUFSIZ];/* Data */
 	} dd_st2;
 
 	struct	{
-		int	dd_type;	/* Type = DD_INO */
-		ino_t	dd_ino;		/* Inode number */
-		struct	dinode dd_dinode; /* On disc inode */
+		int		dd_type;	/* Type = DD_INO */
+		o_ino_t		dd_ino;		/* Inode number */
+		struct dinode	dd_dinode;	/* On disc inode */
 	} dd_st3;
 
 	struct	{
-		int	dd_type;	/* Type = DD_MAP */
-		ino_t	dd_ino;		/* Base inode of this map block */
-		int	dd_nmap;	/* # of map entries */
-		char	dd_map[BUFSIZ];	/* Some map */
+		int		dd_type;	/* Type = DD_MAP */
+		o_ino_t		dd_ino;		/* Base inode of this map block */
+		int		dd_nmap;	/* # of map entries */
+		char		dd_map [__BUFSIZ]; /* Some map */
 	} dd_st4;
 };
 
@@ -92,14 +112,15 @@ union	dumpdata
  * to hold the dump dates in the
  * file `/etc/ddate'.
  */
+
 struct	idates {
-	char	id_name[DIRSIZ];	/* Device name */
-	int	id_incno;		/* Level */
-	time_t	id_ddate;		/* The date of the dump */
+	char		id_name[DIRSIZ];	/* Device name */
+	int		id_incno;		/* Level */
+	__time_t	id_ddate;		/* The date of the dump */
 };
 
-#define	DDATE	"/etc/ddate"		/* Date file name */
-#define	DTAPE	"/dev/dump"		/* Default dump tape */
-#define	DFSYS	""			/* No default file system */
+#define	DDATE	"/etc/ddate"	/* Date file name */
+#define	DTAPE	"/dev/dump"	/* Default dump tape */
+#define	DFSYS	""		/* No default file system */
 
-#endif
+#endif	/* ! defined (__DUMPTAPE_H__) */

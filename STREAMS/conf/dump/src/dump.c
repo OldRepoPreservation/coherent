@@ -11,8 +11,10 @@
 
 #include <common/ccompat.h>
 #include <sys/inline.h>
+#include <sys/types.h>
 #include <sys/file.h>
 #include <sys/errno.h>
+#include <sys/cred.h>
 #include <stddef.h>
 
 /*
@@ -30,9 +32,8 @@
  * boundaries.
  */
 
-#include "sys/types.h"
-#include "sys/stream.h"
-#include "sys/cmn_err.h"
+#include <sys/stream.h>
+#include <sys/cmn_err.h>
 #include "dump.h"
 
 static struct module_info dumprinfo = {

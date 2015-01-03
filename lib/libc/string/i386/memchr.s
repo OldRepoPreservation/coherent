@@ -4,6 +4,8 @@
 / ANSI 4.11.5.1.
 //////////
 
+	.intelorder
+
 //////////
 / void *
 / memchr(void *String, int Char, size_t Count)

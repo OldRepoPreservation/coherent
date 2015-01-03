@@ -8,7 +8,7 @@
  * without floating point support.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 
 #if	0
@@ -121,7 +121,7 @@ _dscan(buf, fp, width, dp) register char *buf; FILE *fp; int width; double *dp;
  * Assign *dp through *vp, width depending on flag.
  */
 void
-_dassign(vp, dp, flag) Void *vp; double *dp; int flag;
+_dassign(vp, dp, flag) __VOID__ *vp; double *dp; int flag;
 {
 #if	LONGDOUBLE
 	if (flag == 'L')

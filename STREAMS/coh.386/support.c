@@ -1,4 +1,4 @@
-#define	__KERNEL__	1
+#define	_KERNEL		1
 
 #include <sys/al.h>
 /*

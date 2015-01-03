@@ -1,7 +1,11 @@
 /*
- * Compute the inverse tangent function.
+ * libm/atan.c
+ * C mathematics library.
+ * atan()
+ * Inverse tangent function.
  * (Hart 5100, 17.24)
  */
+
 #include <math.h>
 
 #if	EMU87
@@ -28,8 +32,7 @@ static readonly double tanmtab[] ={
 };
 
 double
-atan(x)
-double x;
+atan(x) double x;
 {
 	double r;
 	register int i, s;
@@ -47,8 +50,8 @@ double x;
 	r = x * x;
 	r = x * (_pol(r, tanntab, 7)/_pol(r, tanmtab, 7));
 	if (i)
-		r = PI/2.0 - r;
-	if (s)
-		r = -r;
-	return (r);
+		r = PI / 2.0 - r;
+	return (s) ? -r : r;
 }
+
+/* end of libm/atan.c */

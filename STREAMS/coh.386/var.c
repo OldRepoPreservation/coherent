@@ -1,12 +1,30 @@
+/* $Header: /ker/coh.386/RCS/var.c,v 2.7 93/10/29 00:56:29 nigel Exp Locker: nigel $ */
 /*
- * var.c
- *
  * Coherent global variables.
+ *
+ * $Log:	var.c,v $
+ * Revision 2.7  93/10/29  00:56:29  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.6  93/08/25  12:38:42  nigel
+ * Remove numerous unreferenced globals
+ * 
+ * Revision 2.5  93/08/19  10:37:46  nigel
+ * r83 ioctl (), corefile, new headers
+ * 
+ * Revision 2.4  93/08/19  03:27:01  nigel
+ * Nigel's r83 (Stylistic cleanup)
  */
 
+#include <stddef.h>
+
+#define	_KERNEL		1
+
 #include <kernel/timeout.h>
-#include <kernel/systab.h>	
-#include <sys/coherent.h>
+#include <kernel/systab.h>
+#include <kernel/_timers.h>
+#include <kernel/trace.h>
+#include <sys/uproc.h>
 #include <sys/buf.h>
 #include <sys/con.h>
 #include <sys/inode.h>
@@ -15,95 +33,78 @@
 #include <sys/ptrace.h>
 #include <sys/seg.h>
 #include <sys/mmu.h>
-#include <sys/clist.h>
+#include <sys/ino.h>
 
+char		__PROC_V_SYM (__PROC_VERSION) [] = __DATE__;
+char		__UAREA_V_SYM (__UAREA_VERSION) [] = __TIME__;
 
-int	debflag = 0;			/* coherent.h */
+long	 lbolt;				/* _timers.h */
 
-int	batflag;			/* coherent.h */
-int	dev_loaded;			/* coherent.h */
-int	outflag;			/* coherent.h */
-int	ttyflag;			/* coherent.h */
-unsigned utimer;			/* coherent.h */
-long	 lbolt;				/* coherent.h */
-TIM	stimer;				/* coherent.h */
-unsigned asize;				/* coherent.h */
-paddr_t	 clistp;			/* coherent.h */
-MAKESR(blockp, _blockp);		/* coherent.h */
-MAKESR(allocp, _allocp);		/* coherent.h */
-heap_t	      *	allkp;			/* coherent.h */
-#if USE_SLOT
-int	NSLOT	= 64;			/* coherent.h */
-int	slotsz	= 64;			/* coherent.h */
-int	*	slotp;			/* coherent.h */
-#endif
-unsigned total_mem;			/* coherent.h */
-
-unsigned bufseqn;			/* buf.h */
-int	bufneed;			/* buf.h */
-BUF	 swapbuf;			/* buf.h */
-BUF	*bufl;				/* buf.h */
-
-int	cltwant;			/* clist.h */
-cmap_t	cltfree;			/* clist.h */
-
-INODE	*inodep;			/* inode.h */
 INODE	*acctip;			/* inode.h */
 
-SYSMEM	sysmem;				/* mmu.h */
+struct __sysmem	sysmem;				/* mmu.h */
 MOUNT	*mountp;			/* mount.h */
 
-#ifdef TRACER				/* mwc_coherent.h */
+#if	TRACER & TRACE_ERRNO
 unsigned t_errno = 0;
+#endif
+#if	TRACER & TRACE_HAL
 unsigned t_hal = 0;
+#endif
+#if	TRACER & TRACE_PIGGY
 unsigned t_piggy = 0;
-unsigned t_vlad =0;
-unsigned t_con =0;
-unsigned t_msgq =0;
-#endif /* TRACER */
+#endif
+#if	TRACER & TRACE_VLAD
+unsigned t_vlad = 0;
+#endif
+#if	TRACER & TRACE_CON
+unsigned t_con = 0;
+#endif
+#if	TRACER & TRACE_MSGQ
+unsigned t_msgq = 0;
+#endif
+#if	TRACER & TRACE_INODE
+unsigned short t_inumber = 0;
+#endif
+#if	TRACER & TRACE_FILESYS
+unsigned short t_filesys = 0;
+unsigned short t_filedev = 0;
+#endif
 
-int	ISTSIZE	= 2048;			/* sys/param.h */
+
+/*
+ * Time.
+ */
+
+struct _TIME_OF_DAY timer = {
+	0,				/* Initial time */
+	0,				/* Ticks */
+	-1 * 60,			/* Mittel Europa Zeit */
+	1				/* Daylight saving time */
+};
+
+/* for ulimit - max # of blocks per file */
+int	BPFMAX	= (ND + NBN + NBN*NBN + NBN*NBN*NBN);
+
+unsigned	ISTSIZE	= 2048;		/* sys/param.h */
 int	quantum;			/* proc.h */
 int	disflag;			/* proc.h */
-int	intflag;			/* proc.h */
-int	cpid;				/* proc.h */
-#if QWAKEUP
-int	ntowake;			/* proc.h */
-#endif
-GATE	pnxgate;			/* proc.h */
+
+__DUMB_GATE	__pnxgate = __GATE_DECLARE ("process table");
 PROC	procq;				/* proc.h */
-PROC	*iprocp;			/* proc.h */
+
 PROC	*eprocp;			/* proc.h */
-PROC	*cprocp = &procq;		/* proc.h */
-PLINK	linkq[NHPLINK];			/* proc.h */
+PROC	*cprocp;			/* proc.h */
 
-struct	ptrace pts;			/* ptrace.h */
-
-int	sexflag;			/* seg.h */
-GATE	seglink;			/* seg.h */
-#if	MONITOR
-int	swmflag;			/* seg.h */
-#endif
-SEG	segswap;			/* seg.h */
-SEG	segmq;				/* seg.h */
-SEG	segdq;				/* seg.h */
-SEG	segiom;				/* seg.h */
-
-extern caddr_t	aicodep;
-extern caddr_t	aicodes;
-
-char	 *icodep = (char *)&aicodep;	/* coherent.h */
-int	icodes = (int)&aicodes;	/* coherent.h */
-
-TIM *	timq[256];			/* timeout.h */
+TIM *	timq [32];			/* timeout.h */
 
 int	vtactive;
 
 /*
  * System call functions.
  */
+
 int	unone();
-int	unull();
 int	uexit();
 int	ufork();
 int	uread();
@@ -134,8 +135,6 @@ int	ualarm();
 int	ufstat();
 int	upause();
 int	uutime();
-int	ustty();
-int	ugtty();
 int	uaccess();
 int	unice();
 int	uftime();
@@ -149,20 +148,18 @@ int	uprofil();
 int	usetgid();
 int	ugetgid();
 int	(*usigsys())();
-int	usload();
-int	usuload();
 int	uacct();
 int	ulock();
 int	uioctl();
 int	ugetegid();
 int	uumask();
 int	uchroot();
-int	ufcntl();
 int	usetpgrp();
 int	uulimit();
 int	ufcntl();
 int	upoll();
-int	upgrp();
+/* int	upgrp(); supplanted by a real implementation of system call 39 */
+int		upgrpsys ();
 int	usysi86();
 int	umsgsys();
 int	ushmsys();
@@ -174,10 +171,15 @@ int	ugetdents();
 int	ustatfs();
 int	ufstatfs();
 int	uadmin();
+
+int		ugetmsg ();
+int		uputmsg ();
+
 /*
  * Added by hal 91/10/10.
  * These are undocumented Xenix/V7 compatibility calls.
  */
+
 int	ustty();
 int	ugtty();
 
@@ -203,7 +205,7 @@ int	ogetegid ();
 int	okill ();
 int	osignal ();
 long	olseek ();
-int	ounique();
+int	ounique ();
 
 
 /*
@@ -213,7 +215,8 @@ int	ounique();
  */
 
 #define	SYSCALL(nargs,type,func) \
-	{ nargs, __CONCAT (__SYSCALL_, type), (__sysfunc_t) func }
+	{ nargs, __CONCAT (__SYSCALL_, type), (__sysfunc_t) func, \
+	  __STRING (func) }
 
 
 /*
@@ -223,7 +226,7 @@ int	ounique();
 int	ucohcall();
 struct systab cohcall =	SYSCALL (6, INT, ucohcall);
 
-struct systab sysitab [NMICALL] ={
+struct systab sysitab [NMICALL] = {
 	SYSCALL (0, INT,  unone),		/*  0 = ??? */
 	SYSCALL (1, INT,  uexit),		/*  1 = exit */
 	SYSCALL (0, INT,  ufork),		/*  2 = fork */
@@ -263,7 +266,7 @@ struct systab sysitab [NMICALL] ={
 	SYSCALL (0, INT,  usync),		/* 36 = sync */
 	SYSCALL (2, INT,  ukill),		/* 37 = kill */
 	SYSCALL (4, INT,  ufstatfs),		/* 38 = ufstatfs */
-	SYSCALL (1, INT,  upgrp),		/* 39 = pgrp */
+	SYSCALL (3, INT,  upgrpsys),		/* 39 = pgrp */
 	SYSCALL (0, LONG, unone),		/* 40 = ??? */
 	SYSCALL (1, INT,  udup),		/* 41 = dup */
 	SYSCALL (0, INT,  upipe),		/* 42 = pipe */
@@ -309,8 +312,8 @@ struct systab sysitab [NMICALL] ={
 	SYSCALL (0, INT,  unone),		/* 82 = ??? */
 	SYSCALL (0, INT,  unone),		/* 83 = ??? */
 	SYSCALL (0, INT,  unone),		/* 84 = ??? */
-	SYSCALL (0, INT,  unone),		/* 85 = ??? */
-	SYSCALL (0, INT,  unone),		/* 86 = ??? */
+	SYSCALL (4, INT,  ugetmsg),		/* 85 = getmsg */
+	SYSCALL (4, INT,  uputmsg),		/* 86 = putmsg */
 	SYSCALL (3, INT,  upoll)		/* 87 = poll */
 };
 
@@ -324,7 +327,7 @@ struct systab sysitab [NMICALL] ={
  * part of the old 286 API. Of course, so did the code I based this on...
  */
 
-struct systab sys286tab [NMICALL] ={
+struct systab sys286tab [NMICALL] = {
 	SYSCALL (0, INT,  unone),		/*  0 = ??? */
 	SYSCALL (1, INT,  uexit),		/*  1 = exit */
 	SYSCALL (0, INT,  ufork),		/*  2 = fork */
@@ -364,13 +367,13 @@ struct systab sys286tab [NMICALL] ={
 	SYSCALL (0, INT,  usync),		/* 36 = sync */
 	SYSCALL (2, INT,  ukill),		/* 37 = kill */
 	SYSCALL (4, INT,  ufstatfs),		/* 38 = ufstatfs */
-	SYSCALL (1, INT,  upgrp),		/* 39 = pgrp */
+	SYSCALL (0, INT,  unone),		/* 39 = pgrp */
 	SYSCALL (0, INT,  unone),		/* 40 = ??? */
 	SYSCALL (2, INT,  coh286dup),		/* 41 = 286 dup */
 	SYSCALL (1, INT,  opipe),		/* 42 = 286 pipe */
 	SYSCALL (1, INT,  utimes),		/* 43 = times */
 	SYSCALL (4, INT,  uprofil),		/* 44 = profil */
-	SYSCALL (0, INT,  ounique),		/* 45 = unique */
+	SYSCALL (0, INT,  ounique),		/* 45 = 286 unique */
 	SYSCALL (1, INT,  usetgid),		/* 46 = setgid */
 	SYSCALL (0, INT,  ugetgid),		/* 47 = getgid */
 	SYSCALL (2, INT,  osignal),		/* 48 = 286 signal */
@@ -424,6 +427,21 @@ struct systab sys286tab [NMICALL] ={
 int	uchsize();
 int	unap();
 
+/*
+ * Coherent 4.2 new system calls available only from 386 code.
+ */
+
+int	usigaction ();
+int	usigpending ();
+int	usigprocmask ();
+int	usigsuspend ();
+int	upathconf ();
+int	ufpathconf ();
+int	usysconf ();
+int	ugetgroups ();
+int	usetgroups ();
+int	urename ();
+
 struct systab h28itab [H28CALL] = {
 	SYSCALL (0, INT,  unone),		/* 0x0128 = locking */
 	SYSCALL (0, INT,  unone),		/* 0x0228 = creatsem */
@@ -435,7 +453,7 @@ struct systab h28itab [H28CALL] = {
 	SYSCALL (0, INT,  unone),		/* 0x0828 = ??? */
 	SYSCALL (0, INT,  unone),		/* 0x0928 = ??? */
 	SYSCALL (2, INT,  uchsize),		/* 0x0A28 = chsize */
-	SYSCALL (0, INT,  unone),		/* 0x0B28 = ftime */
+	SYSCALL (1, INT,  oftime),		/* 0x0B28 = ftime */
 	SYSCALL (1, INT,  unap),		/* 0x0C28 = nap */
 	SYSCALL (0, INT,  unone),		/* 0x0D28 = _sdget */
 	SYSCALL (0, INT,  unone),		/* 0x0E28 = sdfree */
@@ -463,17 +481,14 @@ struct systab h28itab [H28CALL] = {
 	SYSCALL (0, INT,  unone),		/* 0x2428 = ?? */
 	SYSCALL (0, INT,  unone),		/* 0x2528 = ?? */
 	SYSCALL (0, INT,  unone),		/* 0x2628 = ?? */
-	SYSCALL (0, INT,  unone),		/* 0x2728 = sigaction */
-	SYSCALL (0, INT,  unone),		/* 0x2828 = sigprocmask */
-	SYSCALL (0, INT,  unone),		/* 0x2928 = sigpending */
-	SYSCALL (0, INT,  unone),		/* 0x2A28 = sigsuspend */
-	SYSCALL (0, INT,  unone),		/* 0x2B28 = getgroups */
-	SYSCALL (0, INT,  unone),		/* 0x2C28 = setgroups */
-	SYSCALL (0, INT,  unone),		/* 0x2D28 = sysconf */
-	SYSCALL (0, INT,  unone),		/* 0x2E28 = pathconf */
-	SYSCALL (0, INT,  unone),		/* 0x2F28 = fpathconf */
-	SYSCALL (0, INT,  unone)		/* 0x3028 = rename */
+	SYSCALL (3, INT,  usigaction),		/* 0x2728 = sigaction */
+	SYSCALL (3, INT,  usigprocmask),	/* 0x2828 = sigprocmask */
+	SYSCALL (1, INT,  usigpending),		/* 0x2928 = sigpending */
+	SYSCALL (2, INT,  usigsuspend),		/* 0x2A28 = sigsuspend */
+	SYSCALL (2, INT,  ugetgroups),		/* 0x2B28 = getgroups */
+	SYSCALL (2, INT,  usetgroups),		/* 0x2C28 = setgroups */
+	SYSCALL (1, INT,  usysconf),		/* 0x2D28 = sysconf */
+	SYSCALL (2, INT,  upathconf),		/* 0x2E28 = pathconf */
+	SYSCALL (2, INT,  ufpathconf),		/* 0x2F28 = fpathconf */
+	SYSCALL (2, INT,  urename)		/* 0x3028 = rename */
 };
-
-extern	CON nlcon;
-int	(*altclk)();		/* hook for polled devices */

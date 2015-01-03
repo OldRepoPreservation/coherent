@@ -1,6 +1,4 @@
-# /usr/src/liby/Makefile 2/12/92
-
-DESTDIR=/interim/usr/lib/
+# /usr/src/liby/Makefile 2/12/91
 
 OBJ=\
 	yyerror.o \
@@ -8,6 +6,6 @@ OBJ=\
 	yymain.o
 
 liby.a:	$(OBJ)
-	$(AR) rckus $(DESTDIR)$@ $?
+	ar rckus $@ $?
 
 # end of /usr/src/liby/Makefile

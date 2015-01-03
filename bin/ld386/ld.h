@@ -3,20 +3,19 @@
  *
  * By Charles Fiterman for Mark Williams 3/30/92.
  */
-#include <misc.h>
-#ifdef GEMDOS
-#include <stat.h>
-#define DIRSIZ 14
-#else
+
+#include <sys/compat.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
-#endif
 #include <mtype.h>
 #include <coff.h>
 #include <arcoff.h>
 #include <path.h>
 
+#define	VERSION	"4.2.4"
 #define NHASH 128		/* Hash table divisor */
+
+/* Compilation option. */
+#define	COMEAU	1		/* Special error message handling for Comeau */
 
 #define S_TEXT	0		/* These segments and only these */
 #define S_DATA	1		/* Go to all executables */
@@ -46,7 +45,7 @@ typedef char flag_t;		/* command line flag option */
  */
 struct mod_t {
 	mod_t		*next;	/* the next module in the chain. */
-	FILEHDR		*f;	/* the file header */
+	FILHDR		*f;	/* the file header */
 	SCNHDR		*s;	/* the first section header */
 	char		*l;	/* trailing long symbols */
 	char		*fname;	/* file name */
@@ -77,9 +76,14 @@ extern flag_t	reloc,	/* Combine input into a new .o not an executable */
 		watch,	/* Produce a trace */
 		nolcl,	/* Discard C local symbols */
 		noilcl,	/* Discard all local symbols */
+		Gflag,	/* No warn on common/global */
 		qflag,	/* No warn on commons of different length */
 		Qflag,	/* Absolute silence */
 		debflg;	/* Pass through aux symbols */
+
+#if	COMEAU
+extern	flag_t	Comeau_flag;	/* special error message handling for Comeau */
+#endif
 
 extern int	errCount;
 extern int	nundef;
@@ -98,14 +102,45 @@ extern sym_t	*symtable[NHASH];	/* hashed symbol table */
 extern unsigned short osegs;		/* the number of output segments */
 extern unsigned short segMap[MAXSEG];	/* Segment maping */
 
-extern FILEHDR fileh;
+extern FILHDR fileh;
 extern AOUTHDR aouth;
 extern SCNHDR  *secth;		/* output segments */
 extern char *argv0;		/* main(  , argv[0]) */
-extern char *mktemp(), *optarg;
-extern int optix;
-extern char *strchr(), *realloc(), *strrchr(), *strcpy(), *alloca();
-extern void driver_fail(), spwarn(), showUndef();
-extern int driver_alloc();
-extern void fatal();
+extern char *mktemp();
+extern void showUndef();
 extern char *symName();
+
+EXTERN_C_BEGIN
+
+__VOID__      *	alloc		PROTO ((size_t _size));
+NO_RETURN	fatal		PROTO ((CONST char * _format, ...))
+				PRINTF_LIKE (1, 2);
+void		message		PROTO ((CONST char * _format, ...))
+				PRINTF_LIKE (1, 2);
+void		watch_message	PROTO ((CONST char * _format, ...))
+				PRINTF_LIKE (1, 2);
+void		filemsg		PROTO ((CONST char * _fname,
+					CONST char * _format, ...))
+				PRINTF_LIKE (2, 3);
+void		modmsg		PROTO ((CONST char * _fname,
+					CONST char * _mname,
+					CONST char * _format, ...))
+				PRINTF_LIKE (3, 4);
+void		mpmsg		PROTO ((CONST mod_t * _mp,
+					CONST char * _format, ...))
+				PRINTF_LIKE (2, 3);
+void		spmsg		PROTO ((CONST sym_t * _sp,
+					CONST char * _format, ...))
+				PRINTF_LIKE (2, 3);
+void		spwarn		PROTO ((CONST sym_t * sp,
+					CONST char * _format, ...))
+				PRINTF_LIKE (2, 3);
+NO_RETURN	corrupt		PROTO ((CONST mod_t * _mp));
+NO_RETURN	help		PROTO ((void));
+NO_RETURN	usage		PROTO ((void));
+unsigned long	strcrc		PROTO ((CONST char * _str));
+
+void		addsym		PROTO ((SYMENT * _s, mod_t * _mp));
+int		qopen		PROTO ((CONST char * _fn, int _do_creat));
+
+EXTERN_C_END

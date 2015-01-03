@@ -10,7 +10,7 @@
  *	"%p" format is same as "%#.<PPREC>X" or "%#.<PPREC>lX"
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <limits.h>

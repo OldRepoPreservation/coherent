@@ -3,6 +3,8 @@
 / i387 mathematics library
 / log(x), log10(x), ylog2x
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

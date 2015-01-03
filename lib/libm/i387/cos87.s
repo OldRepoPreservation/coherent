@@ -3,6 +3,8 @@
 / i387 mathematics library
 / cos(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

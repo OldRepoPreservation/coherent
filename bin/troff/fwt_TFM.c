@@ -1,6 +1,6 @@
 /*
  * fwt_TFM.c
- * 3/30/93
+ * 4/24/95
  * Build troff font width table from HP TFM file.
  * Reference: Hewlett Packard, "Tagged Font Metric Specification".
  * However, as of 6/7/91, steve has not seen the official spec,
@@ -11,6 +11,11 @@
 
 #include <stdio.h>
 #include "fwtable.h"
+
+/* Avoid misfeature of Sparc <stdio.h>. */
+#ifndef	SEEK_SET
+#define	SEEK_SET	0
+#endif	/* SEEK_SET */
 
 /* Manifest constants. */
 #define	INTEL_ORDER	0x4949
@@ -251,9 +256,9 @@ outputTFM()
 	if (spacing == 0)
 		putshort(0);		/* pitch, proportional */
 	else {
-		/* UNTESTED, is this right? */
-		i = (point.r_div * nominal_point.r_div * design_units.r_mul) /
-		    (point.r_mul * nominal_point.r_mul * design_units.r_div * spacing);
+		/* The 1200 is here because the unit is quarterdots / char. */
+		i = (int)(.5 + 1200. * (point.r_mul * nominal_point.r_mul * design_units.r_div * spacing)
+			 / (point.r_div * nominal_point.r_div * design_units.r_mul));
 		putshort(i);		/* pitch, fixed spacing */
 	}
 	i = 10 * nominal_point.r_mul / nominal_point.r_div;
@@ -320,13 +325,13 @@ PCL_width(n) int n;
  * Allocate space for n integer words.
  * Read the array of integers and return a pointer to the array.
  */
-int *
+short *
 read_array(n) int n;
 {
 	register int i;
 	register short *ip, *p;
 
-	p = ip = alloc(n * sizeof(short));
+	p = ip = (short *)alloc(n * sizeof(short));
 	for (i = 0; i < n; i++, ip++) {
 		*ip = getword();
 #if	0

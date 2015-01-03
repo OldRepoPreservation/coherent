@@ -16,13 +16,16 @@
 #define	DOTSEEN	02			/* A decimal point has appeared */
 #define	NEGDEXP	04			/* Decimal exp. is negative */
 
-/*
- * The following values are returned on exponent overflow.
- * The bits are the same in both formats.
- * This does not use the special IEEE representation for Infinity.
- */
+/* The following values are returned on exponent overflow. */
+#if	IEEE
+/* This uses the special IEEE representation for Infinity. */
+static BIG poshuge = { 0x7F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static BIG neghuge = { 0xFF, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+#endif
+#if	DECVAX
 static BIG poshuge = { 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 static BIG neghuge = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+#endif
 
 /*
  * Transform a number from ASCII to either

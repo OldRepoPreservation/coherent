@@ -1,62 +1,36 @@
-# c/n0/Makefile 3/26/92
+# c/n0/Makefile 6/9/94
 
 CC0=\
-	cc0.$X\
-	cc0key.$X\
-	cc0sym.$X\
-	cpp.$X\
-	dbgt0.$X\
-	ddecl.$X\
-	dope.$X\
-	double.$X\
-	etc.$X\
-	expand.$X\
-	expr.$X\
-	fold.$X\
-	gcandt.$X\
-	gdecl.$X\
-	get.$X\
-	init.$X\
-	lex.$X\
-	locals.$X\
-	sharp.$X\
-	size.$X\
-	stat.$X
-CC0MCH=\
-	bind.$X
+	cc0.a(cc0.$X) \
+	cc0.a(cc0key.$X) \
+	cc0.a(cc0sym.$X) \
+	cc0.a(cpp.$X) \
+	cc0.a(dbgt0.$X) \
+	cc0.a(ddecl.$X) \
+	cc0.a(dope.$X) \
+	cc0.a(double.$X) \
+	cc0.a(etc.$X) \
+	cc0.a(expand.$X) \
+	cc0.a(expr.$X) \
+	cc0.a(fold.$X) \
+	cc0.a(gcandt.$X) \
+	cc0.a(gdecl.$X) \
+	cc0.a(get.$X) \
+	cc0.a(init.$X) \
+	cc0.a(lex.$X) \
+	cc0.a(locals.$X) \
+	cc0.a(sharp.$X) \
+	cc0.a(size.$X) \
+	cc0.a(stat.$X)
+CC0MCH= \
+	cc0.a(bind.$X)
 
 # Primary target.
-cc0:	$(CC0) $(CC0MCH) $(CLIB)
-	$(CC) $(LDFLAGS) -o cc0 $<
+cc0:	cc0.a common.a
+	$(CC) $(LDFLAGS) -o $@ cc0.a common.a
 
-# Monolithic compiler cc0 library.
+# cc0 library.
 cc0.a:	$(CC0) $(CC0MCH)
-	$(AR) rucks $@ $<
-
-# Machine independent.
-cc0.$X:		cc0.c
-cc0key.$X:	cc0key.c
-cc0sym.$X:	cc0sym.c
-cpp.$X:		cpp.c
-dbgt0.$X:	dbgt0.c
-ddecl.$X:	ddecl.c
-dope.$X:	dope.c
-double.$X:	double.c
-etc.$X:		etc.c
-expand.$X:	expand.c
-expr.$X:	expr.c
-fold.$X:	fold.c
-gcandt.$X:	gcandt.c
-gdecl.$X:	gdecl.c
-get.$X:		get.c
-init.$X:	init.c
-lex.$X:		lex.c
-locals.$X:	locals.c
-sharp.$X:	sharp.c
-size.$X:	size.c
-stat.$X:	stat.c
-
-# machine dependent
-bind.$X:	bind.c
+	: cc0.a done
 
 # end of c/n0/Makefile

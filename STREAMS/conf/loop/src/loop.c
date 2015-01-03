@@ -16,37 +16,14 @@
 #define	_DDI_DKI	1
 #define	_SYSV4		1
 
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__USE_PROTO__
- *		__ARGS ()
- *		__PROTO ()
- *	<sys/kmem.h>
- *		KM_NOSLEEP
- *	<sys/ksynch.h>
- *		lkinfo_t
- *		lock_t
- *		LOCK_ALLOC ()
- *		LOCK ()
- *		UNLOCK ()
- *	<sys/cmn_err.h>
- *		CE_PANIC
- *		CE_WARN
- *		cmn_err ()
- *	<sys/errno.h>
- *		ENXIO
- *		EBUSY
- *		EINVAL
- *	<stddef.h>
- *		NULL
- */
-
 #include <common/ccompat.h>
+#include <sys/types.h>
+#include <sys/cred.h>
 #include <sys/kmem.h>
 #include <sys/ksynch.h>
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
+#include <sys/cred.h>
 #include <stddef.h>
 
 /* #include "sys/param.h" */
@@ -54,12 +31,10 @@
 /* #include "sys/dir.h" */
 /* #include "sys/signal.h" */
 /* #include "sys/user.h" */
-/* #include "sys/cred.h" */
 
-#include "sys/types.h"
-#include "sys/stream.h"
-#include "sys/stropts.h"
-#include "sys/ddi.h"
+#include <sys/stream.h>
+#include <sys/stropts.h>
+#include <sys/ddi.h>
 
 
 static struct module_info minfo = {

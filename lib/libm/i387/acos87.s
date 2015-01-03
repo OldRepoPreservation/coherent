@@ -3,6 +3,8 @@
 / i387 mathematics library
 / acos(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

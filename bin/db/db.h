@@ -4,7 +4,7 @@
  * Header file.
  */
 
-#define	VERSION	"4.1.9"			/* Version number		*/
+#define	VERSION	"4.2.2"			/* Version number		*/
 
 /* Use or ignore function prototypes. */
 #ifdef	PROTO_OK
@@ -19,7 +19,9 @@
 #include <ctype.h>
 #include <l.out.h>
 #include <coff.h>		/* header bug: must follow l.out.h */
+#if	0
 #include <sys/reg.h>
+#endif
 #include <ieeefp.h>		/* header bug: must follow <sys/reg.h> */
 #include <sys/types.h>
 #include "mdb.h"
@@ -40,8 +42,6 @@
 #if	DBPTRACE
 #define	ptrace(cmd, id, loc, val)	dbptrace((cmd), (id), (loc), (val))
 #endif
-
-#define	OLD_CORE	1	/* Support both core formats, just for now */
 
 #define	PROMPT	"db: "			/* default interactive prompt	*/
 
@@ -100,6 +100,7 @@ typedef struct	b_st	{
 #define DSEG	0			/* Data				*/
 #define ISEG	1			/* Instructions			*/
 #define USEG	2			/* User				*/
+#define	NOSEG	-1			/* Unknown segment		*/
 #define	DSPACE	seg_map[DSEG]		/* Data space			*/
 #define ISPACE	seg_map[ISEG]		/* Instruction space		*/
 #define USPACE	seg_map[USEG]		/* User area			*/
@@ -254,6 +255,7 @@ extern	int	is_symbol	__((SYM *sp));
 extern	void	new_sym		__((char *id, ADDR_T addr, int s));
 extern	int	read_coff_sym	__((void));
 extern	int	read_lout_sym	__((long symseek));
+extern	int	read_symfile	__((void));
 extern	char	*read_strtab	__((void));
 extern	char	*symName	__((SYMENT *sym, char *strtab));
 extern	int	symval		__((VAL *vp));
@@ -317,7 +319,7 @@ extern	int	cantype;		/* Canonization type		*/
 #endif
 extern	char	*cfn;			/* Core file name		*/
 extern	FILE	*cfp;			/* Core file pointer		*/
-extern	FILEHDR	coff_hdr;		/* COFF file header		*/
+extern	FILHDR	coff_hdr;		/* COFF file header		*/
 extern	int	cseg;			/* Current segment		*/
 extern	ADDR_T	dot;			/* Current address		*/
 extern	MAP	*endpure;		/* End of pure area		*/
@@ -346,6 +348,7 @@ extern	char	*step_cmd;		/* Command for single step	*/
 extern	int	step_count;		/* Single step count		*/
 extern	int	step_mode;		/* Single step mode		*/
 extern	int	step_prev;		/* Last mode run (if single)	*/
+extern	char	*symfile;		/* Symbol file given by -m	*/
 extern	SYM	*symhash[NHASH];	/* SYM table hash buckets	*/
 extern	int	ungotc;			/* Ungot character		*/
 

@@ -4,6 +4,8 @@
 / Not in ANSI C standard.
 //////////
 
+	.intelorder
+
 ////////
 / char *
 / memccpy(char *dest, char *src, int c, size_t n)

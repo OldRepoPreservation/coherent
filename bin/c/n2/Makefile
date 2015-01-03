@@ -1,60 +1,32 @@
-# c/n2/Makefile 3/26/92
+# c/n2/Makefile 6/9/94
 # Expects $(OUTPUT) to define desired output writer.
 
 CC2=\
-	cc2.$X\
-	cc2sym.$X\
-	dbgt2.$X\
-	emit0.$X\
-	getfun.$X\
-	optim.$X
+	cc2.a(cc2.$X) \
+	cc2.a(cc2sym.$X) \
+	cc2.a(dbgt2.$X) \
+	cc2.a(emit0.$X) \
+	cc2.a(getfun.$X) \
+	cc2.a(optim.$X)
 
 CC2MCH=\
-	afield.$X\
-	asm.$X\
-	emit1.$X\
-	getcod.$X\
-	optab.$X\
-	peep.$X\
-	unasm.$X
+	cc2.a(afield.$X) \
+	cc2.a(asm.$X) \
+	cc2.a(emit1.$X) \
+	cc2.a(getcod.$X) \
+	cc2.a(optab.$X) \
+	cc2.a(peep.$X) \
+	cc2.a(unasm.$X)
+
+CC2OUT=\
+	cc2.a($(OUTPUT))
 
 # Primary target.
-cc2:	$(CC2) $(CC2MCH) $(OUTPUT) $(CLIB)
-	$(CC) $(LDFLAGS) -o cc2 $<
+cc2:	cc2.a common.a
+	$(CC) $(LDFLAGS) -o $@ cc2.a common.a
 
-# Monolithic compiler cc2 library.
-cc2.a:	$(CC2) $(CC2MCH) $(OUTPUT)
-	$(AR) rucks $@ $<
-
-# Machine independent.
-cc2.$X:		cc2.c
-cc2sym.$X:	cc2sym.c
-dbgt2.$X:	dbgt2.c
-emit0.$X:	emit0.c
-getfun.$X:	getfun.c
-optim.$X:	optim.c
-
-# Machine dependent.
-afield.$X:	afield.c
-asm.$X:		asm.c
-emit1.$X:	emit1.c
-getcod.$X:	getcod.c
-optab.$X:	optab.c
-peep.$X:	peep.c
-unasm.$X:	unasm.c
-
-# Output writers.
-# Machine dependent to a great extent, though they shouldn't be.
-# out286 - writes Intel 80286 object format
-# outcoh - writes COHERENT l.out.h format
-# outcoff - writes COFF format
-# outcsd - writes Intel 8087 object format with csd DEBUG segment
-# outrel - writes COHERENT reloc.h format
-# outomf - writes Intel 8086 object format
-out286.$X:	out286.c
-outcoh.$X:	outcoh.c
-outcsd.$X:	outcsd.c
-outomf.$X:	outomf.c
-outrel.$X:	outrel.c
+# cc2 library.
+cc2.a:	$(CC2) $(CC2MCH) $(CC2OUT)
+	: cc2.a done
 
 # c/n2/Makefile

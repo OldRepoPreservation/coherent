@@ -4,6 +4,8 @@
 / ANSI 4.11.3.1., 4.11.3.2.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / strcat(char *To, char *From)

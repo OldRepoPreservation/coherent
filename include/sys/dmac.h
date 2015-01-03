@@ -1,8 +1,10 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
+
 #ifndef	__SYS_DMAC_H__
 #define	__SYS_DMAC_H__
 
@@ -17,15 +19,21 @@
 #define	MASKOFF	0x00			/* Mask bit off */
 #define	MASKON	0x04			/* Mask bit on */
 
-#ifdef _I386
-#define DMASEG_SIZE	NBPC		/* Size of a DMA segment.  */
-#include <sys/param.h>
-/*
- * Identify the dma segment of a physical address.
- */
-#define	dmaseg(p)	((p) & ~(NBPC-1))
-#else
-#define dmaseg(p)	((p)&0xF0000L)
-#endif
+/* For compatibility with other DDK's. */
+#define DMA_Wrmode      0x48    /* single, read, increment, no auto-init */
+#define DMA_Rdmode      0x44    /* single, write, increment, no auto-init */
+
+/* Channels 0-3 are for 8-bit transfers. */
+#define DMA_CH0		0
+#define DMA_CH1		1
+#define DMA_CH2		2
+#define DMA_CH3		3
+
+/* Channels 4-7 are for 8-bit transfers. */
+#define DMA_CH4		4
+#define DMA_CH5		5
+#define DMA_CH6		6
+#define DMA_CH7		7
                                
-#endif
+#endif	/* ! defined (__SYS_DMAC_H__) */
+

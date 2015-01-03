@@ -99,37 +99,6 @@
 
 
 /*
- * Simple realloc () function for memory allocated with kmem_alloc ()
- * (assuming that it is our kmem_alloc (), that is).
- */
-
-#if	__USE_PROTO__
-__LOCAL__ _VOID * (kmem_realloc) (_VOID * mem, size_t newsize, size_t oldsize)
-#else
-__LOCAL__ _VOID *
-kmem_realloc __ARGS ((mem, newsize, oldsize))
-_VOID	      *	mem;
-size_t		newsize;
-size_t		oldsize;
-#endif
-{
-	pl_t		prev_pl;
-
-	ASSERT (mem != NULL && newsize > 0 && oldsize > 0);
-
-	prev_pl = LOCK (str_mem->sm_other_lock, str_other_pl);
-
-	mem = st_realloc (str_mem->sm_other_heap, mem, newsize, oldsize);
-
-	OTHER_ALLOCED (newsize - oldsize);
-
-	UNLOCK (str_mem->sm_other_lock, prev_pl);
-
-	return mem;
-}
-
-
-/*
  * This internal function actually implements the queue freezing; in addition,
  * it asserts that the queue is non-NULL, traces who froze the queue, and
  * so forth. If a queue monitoring facility is introduced, this would be the
@@ -205,7 +174,7 @@ __CONST__ char * name;
  * The queue passed to this function must be frozen.
  */
 
-#if	! defined (VECTOR_BANDS) || defined (VECTOR_BANDS_TEST)
+#if	! _VECTOR_BANDS || _VECTOR_BANDS_TEST
 
 #if	__USE_PROTO__
 qband_t * (QUEUE_BAND) (queue_t * q, uchar_t pri)
@@ -234,7 +203,7 @@ uchar_t		pri;
 
 	ASSERT (pri > q->q_nband ? qbandp == NULL : qbandp != NULL);
 
-#ifdef	VECTOR_BANDS_TEST
+#if	_VECTOR_BANDS_TEST
 	/*
 	 * For extra fun, we define a mode where we work everything out both
 	 * ways to ensure correctness. The #undef makes all the later uses
@@ -285,7 +254,7 @@ qband_t	      *	qbandp;
 		ASSERT (scan != NULL);
 	}
 
-#ifdef VECTOR_BANDS_TEST
+#if	_VECTOR_BANDS_TEST
 	ASSERT (scan == QBAND_PREV (q, qbandp));
 
 # undef	QBAND_PREV
@@ -294,7 +263,7 @@ qband_t	      *	qbandp;
 	return scan;
 }
 
-#endif	/* ! defined (VECTOR_BANDS) || defined (VECTOR_BANDS_TEST) */
+#endif	/* ! _VECTOR_BANDS || _VECTOR_BANDS_TEST */
 
 
 /*
@@ -332,7 +301,7 @@ uchar_t		pri;
 	 * kept in a single block of memory.
 	 */
 
-#ifdef VECTOR_BANDS
+#if	_VECTOR_BANDS
 	if (q->q_bandp != NULL) {
 		/*
 		 * There are some existing band structures to be moved around
@@ -367,7 +336,7 @@ uchar_t		pri;
 			     KM_NOSLEEP)) == NULL)
 		return NULL;
 
-#ifndef VECTOR_BANDS
+#if	! _VECTOR_BANDS
 	newband->qb_flag = QB_FIRST;
 
 	/*
@@ -375,8 +344,8 @@ uchar_t		pri;
 	 * band.
 	 */
 
-	if (q->q_nbands > 0)
-		QUEUE_BAND (q, q->q_nbands)->qb_next = newband;
+	if (q->q_nband > 0)
+		QUEUE_BAND (q, q->q_nband)->qb_next = newband;
 #endif
 
 	/*

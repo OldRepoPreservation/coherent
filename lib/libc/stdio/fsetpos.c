@@ -9,7 +9,7 @@
  * fseek() does not set errno if an error occurs.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <errno.h>
 
 #define	EFSETPOS	EINVAL

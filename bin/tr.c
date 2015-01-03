@@ -1,16 +1,18 @@
 /*
- * Tr translates characters from the standard input to the standard output.
- * It usage is as follows:
- *	tr [-c] [-d] [-s] [string1] [string2]
+ * tr.c
+ * 9/28/93
+ * Translate characters from the standard input to the standard output.
+ * Usage:
+ *	tr [ -cds ] [ string1 [ string2 ]]
  * In the two strings, in addition to normal characters, one can include
  *	`x-y'	all characters between `x' and `y'
- *	\r	ascii carriage return
- *	\n	ascii line feed
- *	\b	ascii back space
- *	\t	ascii horizontal tab
- *	\f	ascii form feed
+ *	\b	ASCII back space
+ *	\f	ASCII form feed
+ *	\n	ASCII line feed
+ *	\r	ASCII carriage return
+ *	\t	ASCII horizontal tab
  *	\d, \dd or \ddd
- *		character with ascii code d (or dd or ddd) in octal
+ *		character with ASCII code d (or dd or ddd) in octal
  *	\x	`x' for any `x' not listed above
  * In the absence of any options, tr simply converts any character appearing
  * in string1 to the character in the same position in string2.  If string2
@@ -25,21 +27,20 @@
  * This means that multiple occurances of the same character are compressed
  * to one occurance.
  */
+
 #include <stdio.h>
-#include <sys/mdata.h>
+#include <stdlib.h>
+#include <limits.h>
 
-
+/* Manifest constants. */
 #define	bool	char			/* boolean type */
-#define	not	!			/* logical negation operator */
-#define	and	&&			/* logical conjunction */
-#define	or	||			/* logical disjunction */
 #define	TRUE	(0 == 0)
-#define	FALSE	(not TRUE)
+#define	FALSE	(!TRUE)
 #define	EOS	'\0'			/* end-of-string char */
-#define	CSIZE	(1 << NBCHAR)		/* character set size */
-#define	MAXDIG	((NBCHAR+2) / 3)	/* max digits in character constant */
+#define	CSIZE	(1 << CHAR_BIT)		/* character set size */
+#define	MAXDIG	((CHAR_BIT+2) / 3)	/* max digits in character constant */
 
-
+/* Type definition. */
 /*
  * List is used to hold a character list from which characters are begin
  * extrated.  It allows expansion of character ranges, backslash-protected
@@ -53,7 +54,7 @@ typedef struct	list {
 			l_rhi;		/* maximum to give if inrange */
 }	list;
 
-
+/* Globals. */
 bool		cflag,			/* compliment string 1 */
 		dflag,			/* delete chars in string 1 */
 		sflag,			/* remove duplicates in string 2 */
@@ -61,6 +62,7 @@ bool		cflag,			/* compliment string 1 */
 		squeeze[CSIZE];		/* set of chars to squeeze on output */
 unsigned char	map[CSIZE];		/* map to apply to characters */
 
+/* Forward. */
 int		nextchar();		/* get next char of list */
 void		die(),			/* print error message and exit */
 		usage(),		/* print usage message and exit */
@@ -81,29 +83,26 @@ register char	*argv[];
 	register unsigned char	*str1,
 				*str2;
 
-	for (str1=*++argv; str1 != NULL  &&  *str1 == '-'; str1=*++argv)
-		while (*++str1 != EOS)
+	for (str1=*++argv; str1 != NULL && *str1 == '-'; str1=*++argv) {
+		while (*++str1 != EOS) {
 			switch (*str1) {
-			case 'c':
-				cflag = TRUE;
-				break;
-			case 'd':
-				dflag = TRUE;
-				break;
-			case 's':
-				sflag = TRUE;
-				break;
-			default:
-				usage();
+			case 'c':	cflag = TRUE;		break;
+			case 'd':	dflag = TRUE;		break;
+			case 's':	sflag = TRUE;		break;
+			default:	usage();
 			}
-	if (str1 == NULL)
-		usage();
+		}
+	}
+	if (str1 == NULL) {
+		str1 = str2 = "";
+	} else {
+		str2 = *++argv;
+		if (str2 != NULL && *++argv != NULL)
+			usage();
+	}
 	if (cflag)
 		str1 = cstr(str1);
-	str2 = *++argv;
-	if (str2 != NULL  &&  *++argv != NULL)
-		usage();
-	if (dflag)
+	if (dflag) {
 		if (sflag) {		/* -d and -s */
 			if (str2 == NULL)
 				usage();
@@ -116,8 +115,8 @@ register char	*argv[];
 			makeset(str1, delete);
 			maketrans("", "", map);
 		}
-	else
-		if (sflag)
+	} else {
+		if (sflag) {
 			if (str2 == NULL) {	/* -s, no -d and one string */
 				maketrans("", "", map);
 				makeset(str1, squeeze);
@@ -125,13 +124,14 @@ register char	*argv[];
 				maketrans(str1, str2, map);
 				makeset(str2, squeeze);
 			}
-		else {			/* no -s, no -d */
+		} else {			/* no -s, no -d */
 			if (str2 == NULL)
 				usage();
 			maketrans(str1, str2, map);
 		}
+	}
 	scan();
-	return (0);
+	return 0;
 }
 
 
@@ -142,7 +142,7 @@ void
 die(str)
 char	*str;
 {
-	fprintf(stderr, "%r\n", &str);
+	fprintf(stderr, "tr: %r\n", &str);
 	exit(1);
 }
 
@@ -153,7 +153,8 @@ char	*str;
 void
 usage()
 {
-	die("usage: tr [-cds] [from_list [to_list]]");
+	fprintf(stderr, "Usage: tr [ -cds ] [ from_list [ to_list ]]\n");
+	exit(1);
 }
 
 
@@ -175,7 +176,7 @@ scan()
 		if (delete[ch])
 			continue;
 		ch = map[ch];
-		if (ch == lastch  &&  squeeze[ch])
+		if (ch == lastch && squeeze[ch])
 			continue;
 		putchar(ch);
 		lastch = ch;
@@ -202,7 +203,6 @@ register bool	*set;
 	startlist(&cl, str);
 	while ((n=nextchar(&cl)) != EOF)
 		set[n] = TRUE;
-	return;
 }
 
 
@@ -233,12 +233,12 @@ unsigned char	*str1,
 	n = nextchar(&l2);
 	if (n == EOF) {
 		if (nextchar(&l1) != EOF)
-			die("Second string empty");
+			die("second string empty");
 		return;
 	}
 	for (extra=FALSE; (m=nextchar(&l1)) != EOF;) {
 		rp[m] = n;
-		if (not extra) {
+		if (!extra) {
 			m = nextchar(&l2);
 			if (m != EOF)
 				n = m;
@@ -246,9 +246,8 @@ unsigned char	*str1,
 				extra = TRUE;
 		}
 	}
-	if (not extra  &&  nextchar(&l2) != EOF)
-		die("Extra characters in second string");
-	return;
+	if (!extra && nextchar(&l2) != EOF)
+		die("extra characters in second string");
 }
 
 
@@ -268,15 +267,15 @@ unsigned char	*str;
 	makeset(str, set);
 	res = rp = (unsigned char *)alloc(3 + 2 + CSIZE + 1);
 	sp = set;
-	if (not *sp++) {		/* handle EOS specially */
+	if (!*sp++) {		/* handle EOS specially */
 		*rp++ = '\\';
 		*rp++ = '0';
 		*rp++ = '0';
 		*rp++ = '0';
 	}
 	for (n=0; ++n < CSIZE;)
-		if (not *sp++) {
-			if (n == '\\'  ||  n == '-')
+		if (!*sp++) {
+			if (n == '\\' || n == '-')
 				*rp++ = '\\';
 			*rp++ = n;
 		}
@@ -313,28 +312,28 @@ register list	*lp;
 	if (lp->l_inr) {
 		res = lp->l_rnext;
 		lp->l_inr = ++lp->l_rnext <= lp->l_rhi;
-		return (res);
+		return res;
 	}
 	res = *lp->l_next++;
 	if (res == EOS)
-		return (EOF);
+		return EOF;
 	if (res == '\\')
 		res = getprot(lp);
 	if (*lp->l_next != '-')
-		return (res);
+		return res;
 	++lp->l_next;
 	lp->l_rnext = res;
 	res = *lp->l_next++;
 	if (res == EOS)
-		die("Unexpected end of character list in `%s'", lp->l_start);
+		die("unexpected end of character list in `%s'", lp->l_start);
 	if (res == '\\')
 		res = getprot(lp);
 	if (lp->l_rnext > res)
-		die("Bad character range in `%s'", lp->l_start);
+		die("bad character range in `%s'", lp->l_start);
 	lp->l_rhi = res;
 	res = lp->l_rnext;
 	lp->l_inr = ++lp->l_rnext <= lp->l_rhi;
-	return (res);
+	return res;
 }
 
 
@@ -353,29 +352,23 @@ register list	*lp;
 	ch = *lp->l_next++;
 	switch (ch) {
 	case EOS:
-		die("Unexpected end of character list in `%s'", lp->l_start);
-	case 'r':
-		return ('\r');
-	case 'b':
-		return ('\b');
-	case 't':
-		return ('\t');
-	case 'n':
-		return ('\n');
-	case 'f':
-		return ('\f');
-	default:
-		break;
+		die("unexpected end of character list in `%s'", lp->l_start);
+	case 'r':	return '\r';
+	case 'b':	return '\b';
+	case 't':	return '\t';
+	case 'n':	return '\n';
+	case 'f':	return '\f';
+	default:	break;
 	}
-	if ('0' > ch  ||  ch > '7')
-		return (ch);
+	if ('0' > ch || ch > '7')
+		return ch;
 	n = ch - '0';
 	ch = *lp->l_next;
-	for (m=MAXDIG; --m > 0  &&  '0' <= ch  &&  ch <= '7'; ch=*++lp->l_next)
+	for (m=MAXDIG; --m > 0 && '0' <= ch && ch <= '7'; ch=*++lp->l_next)
 		n = n*8 + ch-'0';
 	if (n >= CSIZE)
-		die("Illegal character constant in `%s'", lp->l_start);
-	return (n);
+		die("illegal character constant in `%s'", lp->l_start);
+	return n;
 }
 
 
@@ -388,12 +381,11 @@ alloc(len)
 unsigned	len;
 {
 	register char	*res;
-	extern char	*malloc();
 
 	res = malloc(len);
 	if (res == NULL)
-		die("Out of space");
-	return (res);
+		die("out of space");
+	return res;
 }
 
 
@@ -407,10 +399,11 @@ char		*cp;
 unsigned	len;
 {
 	register char	*res;
-	extern char *realloc();
 
 	res = realloc(cp, len);
 	if (res == NULL)
-		die("Out of space");
-	return (res);
+		die("out of space");
+	return res;
 }
+
+/* end of tr.c */

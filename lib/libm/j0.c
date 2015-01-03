@@ -1,5 +1,8 @@
 /*
- * Evaluate the Bessel function of the first kind for the zeroth order.
+ * libm/j0.c
+ * C mathematics library.
+ * j0()
+ * Bessel function of the first kind for the zeroth order.
  */
 
 #include <math.h>
@@ -68,8 +71,7 @@ static readonly double j0qmtab[] ={
 };
 
 double
-j0(x)
-double x;
+j0(x) double x;
 {
 	double r, p, q, z, xn;
 
@@ -87,5 +89,7 @@ double x;
 		q = z*_pol(r, j0qntab, 5) / _pol(r, j0qmtab, 6);
 		r = sqrt(2.0/(PI*x)) * (p*cos(xn) - q*sin(xn));
 	}
-	return (r);
+	return r;
 }
+
+/* end of libm/j0.c */

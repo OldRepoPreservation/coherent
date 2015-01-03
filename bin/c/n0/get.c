@@ -38,15 +38,16 @@ skipto(d) int d;
 
 /*
  * Look at a newly opened file.
+ * Add implicit newline if empty.
+ * This is almost certainly extraneous after steve's 9/13/94 change to get().
  */
 emptyfilep()
 {
 	register int c;
 
 	c = getc(ifp);
-	if (c == EOF) {
+	if (c == EOF)
 		c = '\n';
-	}
 	ungetc(c, ifp);
 }
 
@@ -68,10 +69,17 @@ get()
 		goto file_char;
 
 	case DS_FILE:	/* Read next character from source file */
-		while ((c = getc(ifp)) < 0) {		/* Pop include stack */
- eof:			fclose(ifp);
-			if (lastchar != '\n' && lastchar != EOF)
- eof_in_line:			cfatal("EOF in midline");
+		while ((c = getc(ifp)) < 0) {
+#if	GEMDOS || MSDOS
+eof:
+#endif
+			/* Insert implicit newline before EOF if absent. */
+			if (lastchar != '\n' && lastchar != EOF) {
+				c = '\n';
+				goto file_char;
+			}
+			/* EOF seen, close input file and pop include stack. */
+			fclose(ifp);
 			if (istackp < istack+NLEV) {
 				if (cstackp != istackp->i_cstackp)
 					cerror("missing #endif");
@@ -91,13 +99,14 @@ get()
 				cerror("missing #endif");
 			cstackp = cstack + NLEV;
 			lastchar = c;
-			return c;			/* ie, EOF */
+			return c;		/* ie, EOF */
 		}
-  file_char:	lastchar = c;
+file_char:
+		lastchar = c;
 		switch (ct[c]) {
 
-		case SKIP:		/* New line? */
-#if GEMDOS || MSDOS			/* Assuming use of bingetc() */
+		case SKIP:			/* New line? */
+#if	GEMDOS || MSDOS				/* Assuming use of bingetc() */
 			if (c == '\r')
 				continue;
 #endif
@@ -120,15 +129,13 @@ get()
 		case QUEST:		/* Trigraph? */
 			if (notvariant(V3GRAPH))
 				break;
-			if ((c = getc(ifp)) < 0)
-				goto eof_in_line;
+			c = get_non_EOF(0);
 			if (c != '?') {
 				ungetc(c, ifp);
 				c = '?';
 				break;
 			}
-			if ((c = getc(ifp)) < 0)
-				goto eof_in_line;
+			c = get_non_EOF(0);
 			switch (c) {
 			case '=': ungetc('#', ifp); continue;
 			case '(': ungetc('[', ifp); continue;
@@ -151,13 +158,17 @@ get()
 				break;
 			if (isvariant(VCPP) && isvariant(VCPPC))
 				break;
-			if ((c = getc(ifp)) < 0)
-				goto eof_in_line;
-			else if (isvariant(VCPLUS) && c == '/') {
+			c = get_non_EOF(0);
+			if (isvariant(VCPLUS) && c == '/') {
 				/* Ignore //-delimited C++ online comment. */
-				while ((c = getc(ifp)) != '\n')
-					if (c < 0)
-						goto eof_in_comment;
+				while ((c = getc(ifp)) != '\n') {
+					if (c < 0) {
+						c = '\n';	/* implicit at EOF */
+						break;
+					}
+				}
+				ungetc(c, ifp);
+				--line;		/* '\n' will get read again */
 				break;
 			} else if (c != '*') {
 				ungetc(c, ifp);
@@ -165,17 +176,14 @@ get()
 				break;
 			}
 			for (;;) {
-				if ((c = getc(ifp)) < 0)
- eof_in_comment:			cfatal("EOF in comment");
+				c = get_non_EOF(1);
 				if (c == '*') {
-					if ((c = getc(ifp)) < 0)
-						goto eof_in_comment;
+					c = get_non_EOF(1);
 					if (c == '/')
 						break;
 					ungetc(c, ifp);
 				} else if (c == '/') {
-					if ((c = getc(ifp)) < 0)
-						goto eof_in_comment;
+					c = get_non_EOF(1);
 					if (c == '*')
 						cwarn("nested comments");
 					ungetc(c, ifp);
@@ -185,14 +193,13 @@ get()
 			c = ' ';
 			break;
 
-		case BACKDIV:		/* Splice? */
- try_again:		if ((c = getc(ifp)) < 0)
-				goto eof_in_line;
-			if (c != '\n') {
-#if GEMDOS || MSDOS			/* Assuming use of bingetc() */
-				if (c == '\r')
-					goto try_again;
+		case BACKDIV:			/* Splice? */
+			c = get_non_EOF(0);
+#if	GEMDOS || MSDOS				/* Assuming use of bingetc() */
+			while (c == '\r')
+				c = get_non_EOF(0);
 #endif
+			if (c != '\n') {
 				ungetc(c, ifp);
 				c = '\\';
 				break;
@@ -205,8 +212,8 @@ get()
 		case HIGH2:
 		case HIGH3:
 		case JUNK:
-#if GEMDOS || MSDOS			/* Assuming use of bingetc() */
-			if (c == 26)	/* ^Z */
+#if	GEMDOS || MSDOS				/* Assuming use of bingetc() */
+			if (c == 26)		/* ^Z */
 				goto eof;
 #endif
 			if (instring || (c > ' ' && c < 0177) || cstate != 0)
@@ -297,6 +304,19 @@ get()
 		continue;
 	return c;
     }
+}
+
+/*
+ * Get a character with fatal error if EOF occurs.
+ * The flag is true if in a comment.
+ */
+get_non_EOF(cflag) int cflag;
+{
+	register int c;
+
+	if ((c = getc(ifp)) < 0)
+		cfatal((cflag) ? "EOF in comment" : "EOF in midline");
+	return c;
 }
 
 /*

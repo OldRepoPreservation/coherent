@@ -1,7 +1,4 @@
-
-
-yylex( )
+yylex()
 {
-
-	return (getchar( ));
+	return getchar();
 }

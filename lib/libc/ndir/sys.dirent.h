@@ -7,7 +7,7 @@
 #ifndef SDIRENT_H 
 #define SDIRENT_H 1
 
-#include <sys/dir.h>
+#include <kernel/dir.h>
 #ifdef DIR
 #undef DIR
 #endif

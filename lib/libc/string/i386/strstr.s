@@ -4,6 +4,8 @@
 / ANSI 4.11.5.7.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / strstr(char *String1, char *String2)

@@ -1,10 +1,13 @@
 /*
  * libm/tan.c
- * Evaluate the tangent function.
+ * C mathematics library.
+ * tan()
+ * Tangent function.
  * (Hart 4245, 17.08)
  */
 
 #include <math.h>
+#include <errno.h>
 
 #if	EMU87
 #include "emumath.h"
@@ -47,15 +50,15 @@ tan(x) double x;
 	}
 	x *= 8.0;
 	r = x * x;
-	r = x * (_pol(r, tanntab, 4)/_pol(r, tanmtab, 4));
+	r = x * (_pol(r, tanntab, 4) / _pol(r, tanmtab, 4));
 	if (i) {
-		if (r < 1.0/HUGE_VAL) {
+		if (r < 1.0 / HUGE_VAL) {
 			errno = ERANGE;
 			return HUGE_VAL;
 		}
-		r = 1/r;
+		r = 1 / r;
 	}
-	return s ? -r : r;
+	return (s) ? -r : r;
 }
 
 /* end of libm/tan.c */

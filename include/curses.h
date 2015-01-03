@@ -25,9 +25,13 @@
 /*
  *      curses.h - Main header file for the curses package
  *
- *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 2.3 93/04/10 00:25:06 munk Exp Locker: bin $
+ *  $Header: /src386/usr/lib/ncurses/RCS/curses.h,v 2.3 93/11/03 23:20:05 munk Exp Locker: bin $
  *
  *  $Log:	curses.h,v $
+ * Revision 2.4  93/11/03  23:20:05  munk
+ * Portability for COHERENT 4.2
+ * Backtab key added
+ *
  * Revision 2.3  93/04/10  00:23:00  munk
  * SV.3 compatible color support
  *
@@ -56,9 +60,10 @@
  * Initial revision
  */
 
-#ifndef WINDOW
+#ifndef __CURSES_H__
+#define	__CURSES_H__
 
-#define USE_TERMIO
+#define _USE_TERMIO
 
 #define bool    char
 
@@ -79,7 +84,7 @@ typedef unsigned long chtype;
 
 #define _NOCHANGE       -1
 
-#include "terminfo.h"
+#include <terminfo.h>
 
 struct _win_st {
 	short   _cury, _curx;
@@ -170,7 +175,7 @@ struct  screen  *newterm(), *set_term();
 #  define mvdelch(y,x)            mvwdelch(stdscr,y,x)
 #  define mvinsch(y,x,c)          mvwinsch(stdscr,y,x,c)
   
-#else MINICURSES
+#else /* MINICURSES */
 
 #  define addch			  m_addch
 #  define addstr                  m_addstr
@@ -246,7 +251,7 @@ struct  screen  *newterm(), *set_term();
 #  define mvwinch         no_mvwinch
 #  define mvwinsch        no_mvwinsch
 
-#endif MINICURSES
+#endif /* MINICURSES */
 
 #ifndef MINICURSES
 /* Funny "characters" enabled for various special function keys for input */
@@ -279,7 +284,8 @@ struct  screen  *newterm(), *set_term();
 #define KEY_RESET       0531            /* reset or hard reset (unreliable) */
 #define KEY_PRINT       0532            /* print or copy */
 #define KEY_LL          0533            /* home down or bottom (lower left) */
+#define KEY_BTAB	0534		/* Backtab (Shift-Tab) */
 
-#endif MINICURSES
+#endif /* MINICURSES */
 
-#endif WINDOW
+#endif /* __CURSES_H__ */

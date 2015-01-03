@@ -85,7 +85,7 @@ typedef	struct	dbsym	{
 	unsigned short	db_level;	/* Lexical level	*/
 	char		db_seg;		/* C segment		*/
 	char		db_flags;	/* Flags		*/
-	char		db_name[];	/* NUL or name if > 8	*/
+	char		db_name[];	/* NUL or name if > SYMNMLEN */
 } DBSYM;
 #define	db_se	db_u.db_use
 #define	db_ae	db_u.db_uae
@@ -142,7 +142,7 @@ extern	LNNUM	*new_ln();
  * Output writer globals.
  */
 SYMLIST	*blockp;			/* Open .bb block list	*/
-FILEHDR	coff_hdr;			/* Header buffer	*/
+FILHDR	coff_hdr;			/* Header buffer	*/
 DBSYM	*db_list;			/* Debug symbol list	*/
 DBSYM	**db_lastp = &db_list;		/* Last db_list pointer	*/
 int	dot_sec;			/* Current COFF section	*/
@@ -185,8 +185,6 @@ char	sec_index[] = {
 /*
  * Map C debug scalar types to COFF types.
  * Indexed by type as defined in h/ops.h.
- * COFF has no direct representation for "void" type,
- * it uses <DT_FCN T_NULL> for a void function.
  */
 char	coff_type[] = {
 	T_NULL,				/* DT_NONE	*/
@@ -200,7 +198,7 @@ char	coff_type[] = {
 	T_ULONG,			/* DT_ULONG	*/
 	T_FLOAT,			/* DT_FLOAT	*/
 	T_DOUBLE,			/* DT_DOUBLE	*/
-	T_NULL,				/* DT_VOID	*/
+	T_VOID,				/* DT_VOID	*/
 	T_STRUCT,			/* DT_STRUCT	*/
 	T_UNION,			/* DT_UNION	*/
 	T_ENUM,				/* DT_ENUM	*/
@@ -426,7 +424,7 @@ outnzb(n, flag) register sizeof_t n; int flag;
  */
 outdlab(i, class) int i; register int class;
 {
-	register int line, type, n;
+	register int line, type, n, flag;
 	int csec, ctype, cclass, tagn;
 	ival_t size, value, cvalue, array_size, last_size, sue_size;
 	int seg, width, derived, dims, suppress;
@@ -499,6 +497,7 @@ outdlab(i, class) int i; register int class;
 		if (sp == NULL)
 			cbotch("global %s not found", id);
 		seg = sp->s_seg;
+
 		/* Grab section and value; cvalue gets patched later for commons. */
 		if (is_def(sp)) {
 			csec = sec_index[seg] + 1;
@@ -539,8 +538,11 @@ outdlab(i, class) int i; register int class;
 	} else if (class == DC_LAB)
 		csec = C_TEXT_SEG + 1;
 
-	/* Get type. */
-	for (;;) {
+	/*
+	 * Get type.
+	 * Derived types go through this loop multiple times.
+	 */
+	for (flag = 0; ; ++flag) {
 		type = bget();				/* type */
 		if (class == DC_MOE)
 			type = enumtype;		/* fudge DT_NONE */
@@ -548,7 +550,7 @@ outdlab(i, class) int i; register int class;
 
 		if (type < DC_SEX) {
 			size = iget();			/* size */
-			if (csec == N_UNDEF && seg != SANY)
+			if (flag == 0 && csec == N_UNDEF && seg != SANY)
 				cvalue = size;		/* cvalue means size for commons */
 			if (last_size != 0) {
 				/* Compute array dim from last/current size. */
@@ -594,8 +596,10 @@ outdlab(i, class) int i; register int class;
 				}
 				if (suppress)
 					break;
+#if	0
 				if (csec == N_UNDEF && dims > 0)
 					cvalue = array_size;
+#endif
 				dp = new_sym(id, cvalue, csec, ctype, cclass);
 				dp->db_seg = seg;
 				if (cclass == C_FIELD) {
@@ -631,9 +635,12 @@ outdlab(i, class) int i; register int class;
 				if (suppress)
 					ap = &(dp->db_ae);
 				else {
+#if	0
 					if (csec == N_UNDEF && dims > 0)
 						cvalue = array_size;
+#endif
 					dp = new_sym(id, cvalue, csec, ctype, cclass);
+					dp->db_seg = seg;
 					ap = new_aux();
 					ap->ae_size = size;
 				}
@@ -648,7 +655,7 @@ outdlab(i, class) int i; register int class;
 						enumtype = (size == 1) ? DT_UCHAR : DT_INT;
 				} else if (ISFCN(ctype))
 					db_func(dp);
-				if (dims != 0) {
+				if (dims != 0 && !suppress) {
 					arrayap = ap;
 					arrayap->ae_size = array_size;
 				}
@@ -826,7 +833,7 @@ new_db(name) register char *name;
 	register int size, len;
 
 	size = sizeof(*dp);
-	if (name != NULL && (len = strlen(name)) > 8)
+	if (name != NULL && (len = strlen(name)) > SYMNMLEN)
 		size += len + 1;
 	dp = (DBSYM *)malloc(size);
 	if (dp == NULL)
@@ -835,8 +842,8 @@ new_db(name) register char *name;
 	*db_lastp = dp;
 	db_lastp = &(dp->db_next);
 	if (name != NULL) {
-		if (len <= 8)
-			strncpy(dp->db_se.n_name, name, 8);
+		if (len <= SYMNMLEN)
+			strncpy(dp->db_se.n_name, name, SYMNMLEN);
 		else {
 			strcpy(dp->db_name, name);
 			dp->db_flags = DB_LNAME;
@@ -1102,7 +1109,7 @@ copycode()
 
 	/* Assign segment base addresses. */
 	dot_sec = -1;
-	dseek = sizeof(FILEHDR) + nsecs * sizeof(SCNHDR);
+	dseek = sizeof(FILHDR) + nsecs * sizeof(SCNHDR);
 	mseek = 0;
 	for (i = SCODE, segp = &seg[SCODE]; i <= SBSS; ++i, ++segp) {
 		segsize = RUP(segp->s_dot);
@@ -1426,6 +1433,20 @@ write_dbsym()
 	free(dp);
 }
 
+#if	0
+/* Dump the DBSYM list, for debugging. */
+db_dump()
+{
+	register DBSYM *dp;
+	register int n;
+
+	for (n = 1, dp = db_list; dp != NULL; n++, dp = dp->db_next) {
+		printf("%d: %s\n", n, (is_lname(dp)) ? dp->db_name : dp->db_se.n_name);
+	}
+	printf("\n");
+}
+#endif
+
 /*
  * Set reference number of symbol sp by searching the debug symbol list,
  * so that fixups targeting it get the right symbol number.
@@ -1473,10 +1494,10 @@ db_strcmp(dp, s) register DBSYM *dp; register char *s;
 
 	if (is_lname(dp))
 		return strcmp(dp->db_name, s);		/* compare long db name */
-	status = strncmp(dp->db_se.n_name, s, 8);	/* compare short db name */
+	status = strncmp(dp->db_se.n_name, s, SYMNMLEN); /* compare short db name */
 	if (status != 0)
 		return status;				/* mismatch */
-	return (strlen(s) <= 8) ? status : 1;		/* first 8 match */
+	return (strlen(s) <= SYMNMLEN) ? status : 1;	/* first SYMNMLEN match */
 }
 
 /* Buffering and output writing routines. */
