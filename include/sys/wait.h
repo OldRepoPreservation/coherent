@@ -1,10 +1,9 @@
-/*
- * /usr/include/sys/wait.h
- *
- * Support for wait() and waitpid() system calls.
- *
- * Revised Mon Mar 22 13:10:53 1993 CST
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
 
 #ifndef	__SYS_WAIT_H__
 #define	__SYS_WAIT_H__
@@ -23,45 +22,38 @@
  * System V, Release 4.
  */
 
-#include <sys/ccompat.h>
-#include <sys/__pid.h>
+#include <common/ccompat.h>
+#include <common/__pid.h>
+#include <common/_wait.h>
 
+#if	_SYSV4 && ! _SYSV3
 
-#define	__WSIGMASK		0x7F
-#define	__WSTOPFLG		0x7F
-
-#if	_SYSV4
-
-# define	WEXITED		0x01
-# define	WTRAPPED	0x02
+# define	WEXITED		__WEXITED
+# define	WTRAPPED	__WTRAPPED
 
 # define	WSTOPFLG	__WSTOPFLG
-# define	WCOREFLG	0x80
+# define	WCOREFLG	__WCOREFLG
 
-# define	WCONTINUED	0x08
-# define	WNOWAIT		0x80
+# define	WCONTINUED	__WCONTINUED
+# define	WNOWAIT		__WNOWAIT
 
-# define	WCOREDUMP(stat)	((stat) & WCOREFLG)
+# define	WIFCONTINUED(stat)	__WIFCONTINUED (stat)
+# define	WCOREDUMP(stat)		__WCOREDUMP (stat)
 
 #endif
 
 
-#define	WUNTRACED	0x04
-#define	WNOHANG		0x40
+#define	WUNTRACED	__WUNTRACED
+#define	WNOHANG		__WNOHANG
 
+#define	WIFEXITED(stat)		__WIFEXITED (stat)
+#define	WEXITSTATUS(stat)	__WEXITSTATUS (stat)
 
-#define	__WLOBYTE(stat)		((stat) & 0xFF)
-#define	__WHIBYTE(stat)		(((stat) >> 8) & 0xFF)
+#define	WIFSIGNALED(stat)	__WIFSIGNALED (stat)
+#define	WTERMSIG(stat)		__WTERMSIG (stat)
 
-#define	WIFEXITED(stat)		(__WLOBYTE (stat) == 0)
-#define	WEXITSTATUS(stat)	(__WHIBYTE (stat))
-
-#define	WIFSIGNALED(stat)	(__WLOBYTE (stat) > 0 && __WHIBYTE (stat) == 0)
-#define	WTERMSIG(stat)		(__WLOBYTE (stat) & __WSIGMASK)
-
-#define	WIFSTOPPED(stat)	(__WLOBYTE (stat) == __WSTOPFLG && \
-				 __WHIBYTE (stat) != 0)
-#define	WSTOPSIG(stat)		(__WHIBYTE (stat))
+#define	WIFSTOPPED(stat)	__WIFSTOPPED (stat)
+#define	WSTOPSIG(stat)		__WSTOPSIG (stat)
 
 
 __EXTERN_C_BEGIN__

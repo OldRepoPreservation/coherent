@@ -1,134 +1,56 @@
+/* $Header: /ker/coh.386/RCS/syscoh.c,v 2.7 93/10/29 00:55:59 nigel Exp Locker: nigel $ */
 /*
- * File:	syscoh.c
- *
- * Purpose:	Functions for the COHERENT-specific system call
+ * Functions for the COHERENT-specific system call.
  *
  * $Log:	syscoh.c,v $
- * Revision 1.3  92/11/12  10:06:19  root
- * Ker #68
+ * Revision 2.7  93/10/29  00:55:59  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
  * 
- * Revision 1.2  92/11/09  17:11:25  root
- * Just before adding vio segs.
+ * Revision 2.6  93/09/02  18:08:41  nigel
+ * Nigel's r85, minor edits only
  * 
- * Revision 1.1  92/10/06  23:49:04  root
- * Ker #64
- * 
+ * Revision 2.5  93/08/19  03:27:00  nigel
+ * Nigel's r83 (Stylistic cleanup)
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
-#include <sys/coherent.h>
+#include <kernel/proc_lib.h>
+#include <sys/errno.h>
+
+#define	_KERNEL		1
+
+#include <kernel/trace.h>
+#include <sys/uproc.h>
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/types.h>
+#include <sys/cyrix.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-int ucohcall();
-
-static int devload();
-
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
-
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
-
-/*
- * Only allow this if running as superuser.
- *
- * a1		call type
- * ----------	----------
- * COH_PRINTF	kernel printf
- * COH_DEVLOAD	call load() routine for device with major number a2
- * COH_SETBP	a2=bp#,a3=addr,a4=type,a5=len;  set kernel breakpoint
- * COH_CLRBP	a2=bp#;  clear kernel breakpoint
- * COH_REBOOT	reboot
- */
-ucohcall(a1,a2,a3,a4,a5,a6)
-{
-	int ret = 0;
-
-	if (!super()) {
-		SET_U_ERROR(EPERM, "cohcall, must be root");
-		goto ucc_done;
-	}
-
-	switch(a1) {
-	case	COH_PRINTF:
-		printf(a2);
-		break;
-	case	COH_DEVLOAD:
-		ret = devload(a2);
-		break;
-	case	COH_SETBP:
-		ret = setbp(a2,a3,a4,a5);
-		break;
-	case	COH_CLRBP:
-		ret = clrbp(a2);
-		break;
-	case	COH_REBOOT:
-		ret = boot();
-		break;
-	case	COH_VIO:
-		ret = vio(a2,a3,a4,a5);
-		break;
-	case	COH_SHM:
-		ret = coh_shm(a2,a3,a4,a5);
-		break;
-	case	COH_WTEXT:
-		ret = cohWtext(a2,a3,a4);
-		break;
-	default:
-		SET_U_ERROR(EINVAL, "bad COH function");
-	}
-ucc_done:
-	return ret;
-}
 
 /*
  * Allow user to write to his own text segment.
  */
-int
-cohWtext(dest,src,numBytes)
+
+static int
+cohWtext (dest,src,numBytes)
+caddr_t dest;
+caddr_t src;
+size_t numBytes;
 {
-	if ((accdata(src, numBytes)
-	  || accstack(src, numBytes)
-	  || acctext(src, numBytes)
-	  || accShm(src, numBytes))
-	  && acctext(dest, numBytes)) {
-		memcpy(dest, src, numBytes);
+	if ((accdata(src, numBytes) || accstack(src, numBytes) ||
+	     acctext(src, numBytes) || accShm(src, numBytes)) &&
+	     acctext (dest, numBytes)) {
+		memcpy (dest, src, numBytes);
 		return 0;
-	} else
-		u.u_error = EINVAL;
+	}
+	set_user_error (EINVAL);
+	return -1;
 }
+
 
 /*
  * Test of shared memory support.
  */
-int
+
+static int
 coh_shm(x1, x2, x3, x4)
 int x1, x2, x3, x4;
 {
@@ -138,9 +60,11 @@ int x1, x2, x3, x4;
 	case 0:
 		return shmAlloc(x2);
 		break;
+
 	case 1:
 		return shmFree(x2);
 		break;
+
 	case 2:
 		/* Since we are out of args, will use interface
 		 * cohcall(COH_SHM, 2, numBytes, base+index, segp)
@@ -154,9 +78,11 @@ int x1, x2, x3, x4;
 		} else
 			SET_U_ERROR(EINVAL, "bad COH shm index");
 		break;
+
 	case 3:
 		return shmDetach(x2);
 		break;
+
 	default:
 		SET_U_ERROR(EINVAL, "bad COH shm function");
 		break;
@@ -167,23 +93,28 @@ int x1, x2, x3, x4;
 /*
  * Test of video io map support.
  */
-int
+
+static int
 vio(x1, x2, x3, x4)
-int x1, x2, x3;
+int x1, x2, x3, x4;
 {
 	switch (x1) {
 	case 0:
 		return iomapOr(x2, x3);
 		break;
+
 	case 1:
 		return iomapAnd(x2, x3);
 		break;
+
 	case 2:
 		return kiopriv(x2, x3);
 		break;
+
 	case 3:
 		return mapPhysUser(x2, x3, x4);
 		break;
+
 	default:
 		SET_U_ERROR(EINVAL, "bad COH vio function");
 		break;
@@ -191,40 +122,14 @@ int x1, x2, x3;
 	return -1;
 }
 
-/*
- * Initialize a device.
- */
-int
-devload(maj_num)
-int maj_num;
-{
-	int ret = -1;
-	int mask = 1<<maj_num;
-
-	if (dev_loaded & mask) {
-		SET_U_ERROR(EIO, "already loaded");
-		goto dldone;
-	}
-
-	if (drvl[maj_num].d_conp == 0) {
-		SET_U_ERROR(EIO, "no driver");
-		goto dldone;
-	}
-
-	if (drvl[maj_num].d_conp->c_load) {
-		(*drvl[maj_num].d_conp->c_load)();
-		dev_loaded |= mask;
-		ret = 0;
-	}
-dldone:
-	return ret;
-}
 
 unsigned int DR0,DR1,DR2,DR3,DR7;
+
 /*
  * Set a kernel breakpoint.
  */
-int
+
+static int
 setbp(bp_num, addr, type, len)
 unsigned int bp_num, addr, type, len;
 {
@@ -237,36 +142,42 @@ unsigned int bp_num, addr, type, len;
 		SET_U_ERROR(EINVAL, "bad bp setting");
 		return -1;
 	}
+
 	switch(bp_num) {
 	case 0:
 		DR0 = addr;
-		write_dr0(DR0);
-		DR7 |= ((type<<16)|(len<<18)|0x303);
+		write_dr0 (DR0);
+		DR7 |= (type << 16) | (len << 18) | 0x303;
 		break;
+
 	case 1:
 		DR1 = addr;
-		write_dr1(DR1);
-		DR7 |= ((type<<20)|(len<<22)|0x30C);
+		write_dr1 (DR1);
+		DR7 |= (type << 20) | (len << 22) | 0x30C;
 		break;
+
 	case 2:
 		DR2 = addr;
-		write_dr2(DR2);
-		DR7 |= ((type<<24)|(len<<26)|0x330);
+		write_dr2 (DR2);
+		DR7 |= (type << 24) | (len << 26) | 0x330;
 		break;
+
 	case 3:
 		DR3 = addr;
-		write_dr3(DR3);
-		DR7 |= ((type<<28)|(len<<30)|0x3C0);
+		write_dr3 (DR3);
+		DR7 |= (type << 28) | (len << 30) | 0x3C0;
 		break;
 	}
-	write_dr7(DR7);
+	write_dr7 (DR7);
 	return 0;
 }
+
 
 /*
  * Clear a kernel breakpoint.
  */
-int
+
+static int
 clrbp(bp_num)
 unsigned int bp_num;
 {
@@ -275,26 +186,139 @@ unsigned int bp_num;
 	 * Call routine (while in RING 1) which will cause GP fault.
 	 * GP Fault handler (in RING 0) will copy RAM images to DR's.
 	 */
+
 	if (bp_num >= 4) {
 		SET_U_ERROR(EINVAL, "bad bp # to clear");
 		return -1;
 	}
+
 	switch(bp_num) {
 	case 0:
-		DR7 &= ~0x3;
+		DR7 &= ~ 0x3;
 		break;
+
 	case 1:
-		DR7 &= ~0xC;
+		DR7 &= ~ 0xC;
 		break;
+
 	case 2:
-		DR7 &= ~0x30;
+		DR7 &= ~ 0x30;
 		break;
+
 	case 3:
-		DR7 &= ~0xC0;
+		DR7 &= ~ 0xC0;
 		break;
 	}
 	if ((DR7 & 0xFF) == 0)
 		DR7 &= ~0x300;
-	write_dr7(DR7);
+
+	write_dr7 (DR7);
 	return 0;
 }
+
+
+/*
+ * Only allow this if running as superuser.
+ *
+ * a1		call type
+ * ----------	----------
+ * COH_PRINTF	kernel printf
+ * COH_DEVLOAD	call load() routine for device with major number a2
+ * COH_SETBP	a2=bp#,a3=addr,a4=type,a5=len;  set kernel breakpoint
+ * COH_CLRBP	a2=bp#;  clear kernel breakpoint
+ * COH_REBOOT	reboot
+ * COH_GETINT11 returns hardware equipment word saved at boot time
+ * COH_GETCYRIX returns Cyrix CPU id (see cyrix.c for details)
+ */
+
+int
+ucohcall(a1,a2,a3,a4,a5)
+int a1, a2, a3, a4, a5;
+{
+	int ret = 0;
+
+	if (! super()) {
+		SET_U_ERROR (EPERM, "cohcall, must be root");
+		return -1;
+	}
+
+	switch(a1) {
+	case COH_PRINTF:
+		printf (a2);
+		break;
+
+#if	0
+	case COH_DEVLOAD:
+		ret = devload (a2);
+		break;
+#endif
+	case COH_SETBP:
+		ret = setbp (a2, a3, a4, a5);
+		break;
+
+	case COH_CLRBP:
+		ret = clrbp (a2);
+		break;
+
+	case COH_REBOOT:
+		ret = boot ();
+		break;
+
+	case COH_VIO:
+		ret = vio (a2, a3, a4, a5);
+		break;
+
+	case COH_SHM:
+		ret = coh_shm (a2, a3, a4, a5);
+		break;
+
+	case COH_WTEXT:
+		ret = cohWtext (a2, a3, a4);
+		break;
+
+	case COH_GETINT11:
+		ret = (int11 () & 0x0000FFFF);
+		break;
+
+	case COH_GETCYRIX:
+		ret = CYRIX_CPU;
+		break;
+
+	default:
+		SET_U_ERROR (EINVAL, "bad COH function");
+	}
+	return ret;
+}
+
+#if	0
+/*
+ * Initialize a device.
+ */
+int
+devload(maj_num)
+int maj_num;
+{
+	int ret = -1;
+	int mask = 1<<maj_num;
+
+	if (dev_loaded & mask) {
+		SET_U_ERROR (EIO, "already loaded");
+		return -1;
+	}
+
+	if (drvl [maj_num].d_conp == 0) {
+		SET_U_ERROR (EIO, "no driver");
+		return -1;
+	}
+
+	if (drvl [maj_num].d_conp->c_load) {
+		(* drvl [maj_num].d_conp->c_load) ();
+		dev_loaded |= mask;
+		ret = 0;
+	}
+
+	return ret;
+}
+
+#endif
+

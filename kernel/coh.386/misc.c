@@ -1,132 +1,113 @@
-/* $Header: /y/coh.386/RCS/misc.c,v 1.4 93/04/14 10:06:36 root Exp $ */
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
- *
- *	COHERENT Version 2.3.37
- *	Copyright (c) 1982, 1983, 1984.
- *	An unpublished work by Mark Williams Company, Chicago.
- *	All rights reserved.
- -lgl) */
+/* $Header: /ker/coh.386/RCS/misc.c,v 2.5 93/10/29 00:55:20 nigel Exp Locker: nigel $ */
 /*
- * Coherent.
- * Miscellaneous routines.
- *
  * $Log:	misc.c,v $
- * Revision 1.4  93/04/14  10:06:36  root
- * r75
+ * Revision 2.5  93/10/29  00:55:20  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
  * 
- * Revision 1.3  92/11/09  17:10:53  root
- * Just before adding vio segs.
- * 
- * Revision 1.2  92/01/06  11:59:45  hal
- * Compile with cc.mwc.
- * 
- * Revision 1.1	88/03/24  16:14:01	src
- * Initial revision
- * 
- * 87/05/08	Allan Cornish		/usr/src/sys/coh/misc.c
- * System code and data segments no longer reported in panic messages.
- *
- * 87/02/17	Allan Cornish		/usr/src/sys/coh/misc.c
- * Panic message now includes system code and data segments.
+ * Revision 2.4  93/08/19  03:26:34  nigel
+ * Nigel's r83 (Stylistic cleanup)
  */
-#include <sys/coherent.h>
-#include <sys/acct.h>
-#include <errno.h>
-#include <sys/ino.h>
-#include <sys/stat.h>
 
-#ifdef TRACER
-extern unsigned t_piggy;
-#endif
+#include <kernel/proc_lib.h>
+#include <sys/cmn_err.h>
+#include <sys/types.h>
+#include <sys/errno.h>
+#include <sys/stat.h>
+#include <sys/cred.h>
+#include <stddef.h>
+
+#define	_KERNEL		1
+
+#include <sys/uproc.h>
+#include <sys/proc.h>
+#include <sys/acct.h>
+#include <sys/ino.h>
+
 
 /*
  * Make sure we are the super user.
  */
-super()
+
+int
+super ()
 {
-	if (u.u_uid) {
-		u.u_error = EPERM;
-		return (0);
+	if (SELF->p_credp->cr_uid != 0) {
+		set_user_error (EPERM);
+		return 0;
 	}
 	u.u_flag |= ASU;
-	return (1);
+	return 1;
 }
 
+
 /*
- * Make sure we are the gived `uid' or the super user.
+ * Make sure we are the given 'uid' or the super user.
  */
-owner(uid)
+
+int
+owner (uid)
+n_uid_t		uid;
 {
-	if (u.u_uid == uid)
-		return (1);
-	if (u.u_uid == 0) {
-		u.u_flag |= ASU;
-		return (1);
-	}
-	u.u_error = EPERM;
-	return (0);
+	if (SELF->p_credp->cr_uid == uid)
+		return 1;
+	return super ();
+}
+
+
+/*
+ * Use printf to generate a call-trace.
+ */
+
+void
+backtrace (dummy)
+long		dummy;
+{
+	long	      *	bp = (& dummy) - 2;
+
+	cmn_err (CE_CONT, "Call backtrace: ");
+	do {
+		bp = (long *) * bp;
+		cmn_err (CE_CONT, " -> %x", * (bp + 1));
+	} while (* bp != NULL);
+	cmn_err (CE_CONT, "\n");
 }
 
 /*
  * Panic.
  */
+
 void
 panic(a1)
 char *a1;
 {
 	static panflag;
-	sphi();
 
-#ifdef TRACER
-	if ( t_piggy & 0x80 ) {
-		if (panflag++ == 0) {
-			printf("Panic: %r", &a1);
-			putchar('\n');
-			usync();
-		}
-		printf("relax! It really isn't so bad.\n");
-	} else {
-		if (panflag++ == 0) {
-			if (paging()) {
-				printf("Panic: %r", &a1);
-				putchar('\n');
-			} else {
-				strchirp("Panic: ");
-				strchirp(a1);
-			}
-			for (;;);
-			usync();
-		}
-		halt();
-	}
-#else
-	if (panflag++ == 0) {
-		printf("Panic: %r", &a1);
-		putchar('\n');
-		for (;;);
-		usync();
-	}
-	halt();
-#endif /* TRACER */
+	sphi ();
 
-	--panflag;
+	if (panflag ++ == 0) {
+		printf ("Panic: %r", &a1);
+		putchar ('\n');
+		backtrace ();
+		for (;;)
+			/* DO NOTHING */ ;
+		usync ();
+	}
+	halt ();
+
+	-- panflag;
 }
 
 /*
  * Print a message from a device driver.
  */
+
+void
 devmsg(dev, a1)
 dev_t dev;
 char *a1;
 {
-	printf("(%d,%d): %r", major(dev), minor(dev), &a1);
-	printf("\n");
+	printf ("(%d,%d): %r", major(dev), minor(dev), &a1);
+	printf ("\n");
 }
 
 /*
@@ -155,23 +136,23 @@ int ticks;
 
 	int tickCt = 0;
 	int flips = 0;
-	int p0 = (read_t0() < THRESH)?0:1;
+	int p0 = read_t0 () < THRESH ? 0 : 1;
 	int p1;
 
 	for (;;) {
-		if (fn && (*fn)())
+		if (fn && (* fn) ())
 			return 1;
 
 		/* did we change halves of counter cycle? */
-		p1 = (read_t0() < THRESH)?0:1;
+		p1 = read_t0 () < THRESH ? 0 : 1;
 		if (p0 != p1) {
 			p0 = p1;
-			flips++;
+			flips ++;
 
 			/* two phase flips make a tick */
 			if (flips >= 2) {
 				flips = 0;
-				tickCt++;
+				tickCt ++;
 				if (tickCt > ticks)
 					return 0;
 			}
@@ -194,7 +175,7 @@ int ticks;
  */
 
 int
-busyWait2(fn, counts)
+busyWait2 (fn, counts)
 int (*fn)();
 unsigned int counts;
 {
@@ -204,14 +185,14 @@ unsigned int counts;
 	 */
 
 	unsigned int totCt = 0;
-	unsigned int ct0 = read_t0();
+	unsigned int ct0 = read_t0 ();
 	unsigned int ct1;
 
 	for (;;) {
-		if (fn && (*fn)())
+		if (fn && (* fn) ())
 			return 1;
 
-		ct1 = read_t0();
+		ct1 = read_t0 ();
 		if (ct1 > ct0) {
 			/* no timer 0 rollover */
 			totCt += ct1 - ct0;

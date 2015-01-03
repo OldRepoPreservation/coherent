@@ -10,7 +10,7 @@
 #define	ENVWIDTH	3		/* Special \w environment	*/
 #define	ENVTITLE	4		/* Special .tl environment	*/
 #define	ENVSTACK	20		/* Pushdown stack for environments */
-#define	LINSIZE		300		/* Size of line buffer		*/
+#define	LINSIZE		1024		/* Size of line buffer		*/
 #define	NFONTS		50		/* Max number of fonts		*/
 #define	TABSIZE		20		/* Maximum number of tab stops	*/
 #define	WORSIZE		200		/* Size of word buffer		*/

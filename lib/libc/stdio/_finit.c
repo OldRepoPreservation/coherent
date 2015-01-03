@@ -5,7 +5,7 @@
  * Initialize file for i/o.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <errno.h>
 
 /*

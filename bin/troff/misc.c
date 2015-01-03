@@ -5,9 +5,16 @@
  */
 
 #include "roff.h"
-#include <access.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <ctype.h>
 #include <string.h>
+
+#if	defined(__STDC__)
+extern	panic(char *s, ...);
+extern	printe(char *a1, ...);
+#endif
 
 /*
  * Define a macro.
@@ -155,12 +162,15 @@ spc_find(name) char name[2];
  */
 lib_file(s, flag) char *s; int flag;
 {
-	register char file[40];
+	char file[40];
+	char *libdir;
 
 	/* Look file, process it if found. */
-	sprintf(file, "%s%s%s", LIBDIR,
+	if ((libdir = getenv("ROFF_LIB")) == NULL)
+		libdir = LIBDIR;
+	sprintf(file, "%s%s%s", libdir,
 		(ntroff == NROFF) ? NRDIR : (pflag) ? TPSDIR : TPCLDIR, s);
-	if (access(file, AREAD) != 0)
+	if (access(file, R_OK) != 0)
 		return 0;
 	if (flag) {
 		adsfile(file);
@@ -259,14 +269,13 @@ copystr(s1, s2, size, n) char *s1, *s2; int size; register int n;
 char	*
 nalloc(n)
 {
-	extern char *calloc();
 	register char *cp;
 
 	if ((cp = calloc(n, 1)) == NULL)
-#if	MSDOS
-		panic("out of space");		/* no memok() in MS-DOS libc */
-#else
+#if	COHERENT
 		panic("out of space - memory %s", (memok() ? "good" : "bad"));
+#else
+		panic("out of space");		/* no memok() in MS-DOS libc */
 #endif
 	return cp;
 }
@@ -480,10 +489,15 @@ setfont(name, setflag) char name[2]; int setflag;
 /*
  * Print out a warning.
  */
+#if	defined(__STDC__)
+printe(char *a1, ...)
+#else
 /*VARARGS*/
 printe(a1) char *a1;
+#endif
 {
 	register STR *sp;
+	va_list ap;
 
 	fprintf(stderr, "%s: ", argv0);
 	for (sp=strp; sp; sp=sp->x1.s_next) {
@@ -492,7 +506,10 @@ printe(a1) char *a1;
 			break;
 		}
 	}
-	fprintf(stderr, "%r\n", &a1);
+	va_start(ap, a1);
+	vfprintf(stderr, a1, ap);
+	va_end(ap);
+	fputc('\n', stderr);
 	if (dflag)
 		fprintf(stderr, "Request: %s\n", miscbuf);
 }
@@ -509,10 +526,20 @@ printu(s) char *s;
  * An irrecoverable error was found.
  * Print out an error message and leave.
  */
+#if	defined(__STDC__)
+panic(char *s, ...)
+#else
 /*VARARGS*/
 panic(s)
+#endif
 {
-	fprintf(stderr, "%s: %r\n", argv0, &s);
+	va_list ap;
+
+	fprintf(stderr, "%s: ", argv0);
+	va_start(ap, s);
+	vfprintf(stderr, s, ap);
+	va_end(ap);
+	fputc('\n', stderr);
 	leave(1);
 }
 
@@ -560,12 +587,20 @@ static char *dbgtbl[] = {
 	"CALL tracing"
 };
 
-printd(lvl, fmt)
-int lvl;
-char *fmt;
+#if	defined(__STDC__)
+printd(int lvl, char *fmt, ...)
+#else
+/* VARARGS */
+printd(lvl, fmt) int lvl; char *fmt;
+#endif
 {
-	if (lvl & dbglvl)
-		fprintf(stderr, "%r", &fmt);
+	va_list ap;
+
+	if (lvl & dbglvl) {
+		va_start(ap, fmt);
+		vfprintf(stderr, fmt, ap);
+		va_end(ap);
+	}
 }
 
 void dbginit()

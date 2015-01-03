@@ -1,6 +1,8 @@
 /*
  * libm/cos.c
- * Evaluate the cosine function.
+ * C mathematics library.
+ * cos()
+ * Cosine function.
  */
 
 #include <math.h>
@@ -42,7 +44,7 @@ cos(x) double x;
 	double r;
 	register int s;
 
-	if ((x = modf(x/(2.0*PI), &r)) < 0.0) {
+	if ((x = modf(x / (2.0 * PI), &r)) < 0.0) {
 		x += 1.0;
 		r -= 1.0;
 	}
@@ -56,13 +58,13 @@ cos(x) double x;
 		x = 0.5 - x;
 	}
 	if (x > 0.125) {
-		x = 3.0 - 12.0*x;
-		r = x*_pol(x*x, sintab, 7);
+		x = 3.0 - 12.0 * x;
+		r = x * _pol(x * x, sintab, 7);
 	} else {
-		x *= 8.0;
-		r = _pol(x*x, costab, 8);
+		x  *= 8.0;
+		r = _pol(x * x, costab, 8);
 	}
-	return s ? -r : r;
+	return (s) ? -r : r;
 }
 
 /* end of libm/cos.c */

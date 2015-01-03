@@ -82,6 +82,74 @@ get_int(min, max, prompt) int min, max; char *prompt;
 }
 
 /*
+ * Get an integer value from a given list.
+ * Val_list is a an int array of acceptable int values.
+ * Num_vals is the number of acceptable values in val_list, must be > 0.
+ * If strict is 0, allow user to enter value not in list after a warning.
+ * If default is not -1, display it in brackets and use it if just <enter>
+ * is pressed.
+ * If hex is nonzero, display numeric values in hexadecimal, else decimal.
+ */
+/* VARARGS */
+int
+get_allowed_int(val_list, num_vals, hex, default_val, strict_val, prompt)
+int * val_list;
+int num_vals;
+int hex;
+int default_val;
+int strict_val;
+char *prompt;
+{
+	register char *s;
+	register int i;
+	int user_val;
+	char * fmt_str;
+
+	/* Display the given prompt string. */
+	printf("%r\n", &prompt);
+
+	/* Get input from user. */
+	for (;;) {
+		/* Display second prompt line with acceptable values. */
+		if (strict_val)
+			printf("Valid choices are ");
+		else
+			printf("Standard choices are ");
+
+		for (i = 0;  i < num_vals;  i++) {
+			if (i > 0)
+				putchar('/');
+			fmt_str = hex ? "%x" : "%d" ;
+			printf(fmt_str, val_list[i]);
+		}
+
+		if (default_val != -1) {
+			fmt_str = hex ? " [%x]" : " [%d]" ;
+			printf(fmt_str, default_val);
+		}
+		s = get_line(" : ");
+
+		if (*s == '\0')
+			return default_val;
+
+		fmt_str = hex ? "%x" : "%d" ;
+
+		if (sscanf(s, fmt_str, & user_val)) {
+
+			/* Check the value entered. */
+			for (i = 0;  i < num_vals;  i++) {
+				if (user_val == val_list[i])
+					return user_val;
+			}
+			if (!strict_val &&
+			  yes_no("That is not one of the standard values.  "
+			  "Use anyway? "))
+				return user_val;
+		}
+	}
+}
+
+/*
  * Print the args and get a line from the user to buf[].
  * Strip the trailing newline and return a pointer to the first non-space.
  */

@@ -1,4 +1,6 @@
 /*
+ * tabgen.c
+ * 6/9/94
  * Table processor for the
  * new compiler, machine independent.
  * Runs under Coherent.  Uses
@@ -7,20 +9,9 @@
  * Caches pattern flags, node flags, and type flags.
  * Overlays common sequences before end of macros.
  */
-char helpmessage[] = "\
-Usage: tabgen [-s] [-d define] [-p pfn] [-m mfn] file ...\n\
-";
-/*
- * Options:
- *	-s		report statistics
- *	-d define	treat 'define' as defined in #ifdef and #ifndef
- *			NDEF is limit on number of -d define's
- *	-p pfn	make 'pfn' the pattern file name
- *	-m mfn	make 'mfn' the macro file name
- * Arguments are concatenated into the tables with attention
- * #ifdef's and #ifndef's.
- */
 
+#include	<stdlib.h>
+#include	<string.h>
 #include	<ctype.h>
 #define	YATC	1
 #ifdef vax
@@ -30,6 +21,22 @@ Usage: tabgen [-s] [-d define] [-p pfn] [-m mfn] file ...\n\
 #include	"host.h"
 #include	"cc1.h"
 #endif
+
+#define	USAGE	"Usage: tabgen [-s] [-d define] [-p pfn] [-m mfn] [-t tdir] file ...\n"
+
+char helpmessage[] = USAGE;
+
+/*
+ * Options:
+ *	-s		report statistics
+ *	-d define	treat 'define' as defined in #ifdef and #ifndef
+ *			NDEF is limit on number of -d define's
+ *	-p pfn		make 'pfn' the pattern file name
+ *	-m mfn		make 'mfn' the macro file name
+ *	-t tdir		look in tdir for files if not found
+ * Arguments are concatenated into the tables with attention
+ * #ifdef's and #ifndef's.
+ */
 
 #define	nel(x)	(sizeof(x)/sizeof(x[0]))
 
@@ -93,6 +100,7 @@ int	ndef	= 0;
 int	hiteof	= 0;
 int	ungetc	= -1;
 int	opseq	= 1;
+char	*tabledir;
 int	fargc;
 char	**fargv;
 
@@ -219,6 +227,12 @@ char	*argv[];
 					mfn = argv[i];
 					break;
 
+				case 't':
+					if (++i >= argc)
+						usage();
+					tabledir = argv[i];
+					break;
+
 				case 's':
 					sflag = 1;
 					break;
@@ -281,12 +295,14 @@ char *pfn;
 		exit(ABORT);
 	}
 	intro(pfp);
-	fprintf(pfp, "#if !TINY\n");
-	fprintf(pfp, "#define fl(f,l)	, f, l\n");
-	fprintf(pfp, "#else\n");
-	fprintf(pfp, "#define fl(f,l)	/* f, l */\n");
-	fprintf(pfp, "#endif\n");
-	fprintf(pfp, "extern char macros[];\n");
+	fprintf(pfp,
+		"#if !TINY\n"
+		"#define fl(f,l)	, f, l\n"
+		"#else\n"
+		"#define fl(f,l)	/* f, l */\n"
+		"#endif\n"
+		"extern char macros[];\n"
+		);
 }
 
 minit(mfn)
@@ -331,28 +347,37 @@ mfinis()
 intro(fp)
 FILE *fp;
 {
-	fprintf(fp, "#ifdef vax\n");
-	fprintf(fp, "#include \"INC$LIB:cc1.h\"\n");
-	fprintf(fp, "#else\n");
-	fprintf(fp, "#include \"cc1.h\"\n");
-	fprintf(fp, "#endif\n");
+	fprintf(fp,
+		"#ifdef vax\n"
+		"#include \"INC$LIB:cc1.h\"\n"
+		"#else\n"
+		"#include \"cc1.h\"\n"
+		"#endif\n"
+		);
 }
 
 ncompile()
 {
-	extern char *rindex();
 	for (fnseq = 0; fnseq < fargc; fnseq += 1) {
 		fname = fargv[fnseq];
 		if ((ifp = fopen(fname, "r")) == NULL) {
-			fprintf(stderr, "%s: cannot open\n", fname);
-			exit(ABORT);
+			/* fname not found, try again in tabledir */
+			if (tabledir != NULL) {
+				strcpy(pbuf, tabledir);
+				strcat(pbuf, "/");
+				strcat(pbuf, fname);
+			}
+			if (tabledir == NULL || (ifp = fopen(pbuf, "r")) == NULL) {
+				fprintf(stderr, "%s: cannot open\n", fname);
+				exit(ABORT);
+			}
 		}
 		lineno = 0;
 		hiteof = 0;
 		fprintf(pfp, "/* %s */\n", fname);
 		fprintf(mfp, "/* %s */\n", fname);
-		if (rindex(fname, '/') != 0)
-			fname = rindex(fname, '/')+1;
+		if (strrchr(fname, '/') != 0)
+			fname = strrchr(fname, '/')+1;
 		findcache(fname, CFILE);
 		compile();
 		if (tlevel!=0 || flevel!=0)
@@ -663,7 +688,6 @@ register int	c;
 	static char digita[] = "0123456789ABCDEF";
 	static char digitb[] = "0123456789abcdef";
 	static char nbuf[16];
-	extern char *index();
 
 	while (c == ' ')
 		c = get();
@@ -678,9 +702,9 @@ register int	c;
 		}
 	}
 	for (;;) {
-		if ((p = index(digita, c)) && (p-digita) < b)
+		if ((p = strchr(digita, c)) && (p-digita) < b)
 			c = p - digita;
-		else if ((p = index(digitb, c)) && (p-digitb) < b)
+		else if ((p = strchr(digitb, c)) && (p-digitb) < b)
 			c = p - digitb;
 		else
 			break;
@@ -1054,3 +1078,5 @@ register char	*p2;
 	}
 	return (1);
 }
+
+/* end of tabgen.c */

@@ -1,5 +1,8 @@
 /*
- * Evaluate the Bessel function of the first kind for the first order.
+ * libm/j1.c
+ * C mathematics library.
+ * j1()
+ * Bessel function of the first kind for the first order.
  */
 
 #include <math.h>
@@ -79,18 +82,18 @@ double x;
 		m = 1;
 	}
 	if (x <= 8.0) {
-		r = x*x;
-		r = x*_pol(r, j1sntab, 8)/_pol(r, j1smtab, 8);
+		r = x * x;
+		r = x * _pol(r, j1sntab, 8) / _pol(r, j1smtab, 8);
 	} else {
 		/* N.B. misprint in Hart 1968 edition, corrected 1978 reprint */
 		z = 8.0 / x;
-		xn = x - (3.0*PI)/4.0;
-		r = z*z;
+		xn = x - (3.0 * PI) / 4.0;
+		r = z * z;
 		p = _pol(r, j1pntab, 5) / _pol(r, j1pmtab, 6);
-		q = z*_pol(r, j1qntab, 5) / _pol(r, j1qmtab, 6);
-		r = sqrt(2.0/(PI*x)) * (p*cos(xn) - q*sin(xn));
+		q = z * _pol(r, j1qntab, 5) / _pol(r, j1qmtab, 6);
+		r = sqrt(2.0/(PI * x)) * (p * cos(xn) - q * sin(xn));
 	}
-	if (m)
-		r = -r;
-	return (r);
+	return (m) ? -r : r;
 }
+
+/* end of libm/j1.c */

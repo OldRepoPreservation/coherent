@@ -1,10 +1,14 @@
 /*
- * realloc.c
+ * libc/stdlib/malloc/realloc.c
+ * C general utilities library.
+ * Memory allocation routines.
+ * realloc()
+ * ANSI 4.10.3.4.
  * Fits System V requirements.
  * Knows format of malloc arena.
  */
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <sys/malloc.h>
 
 extern char *malloc();
@@ -69,5 +73,7 @@ realloc(cp, size) register char *cp; unsigned size;
 		return NULL;
 	memcpy(mp, cp, len - sizeof(unsigned));
 	free(cp);
-	return((char *)mp);
+	return (char *)mp;
 }
+
+/* end of libc/gen/stdlib/realloc.c */

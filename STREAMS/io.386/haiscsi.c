@@ -29,6 +29,7 @@
 /*
  *  Constants.
  */
+
 #define GROUPMASK   0xe0
 #define GROUP0	  0x00		/* SCSI-1/2 */
 #define GROUP1	  0x20		/* SCSI-1/2 */
@@ -38,18 +39,17 @@
 /* Configurable variables - see /etc/conf/hai/Space.c. */
 extern int HAI_DISK;
 extern int HAI_TAPE;
-
-extern int nonedev();	   /* Set error and exit. */
-extern int nulldev();	   /* Do nothing and exit. */
+extern int HAI_CDROM;
 
 /*
  * Device type entry points.
  */
+
 extern dca_t    sddca;		/* Fixed disk control routines */
 extern dca_t    ctdca;		/* Cartridge tape control routines */
 extern dca_t	haict3600;	/* Cartridge tape (Tandberg TDC3600) */
 
-dca_t  mdca[MAXDEVS];		/* Initialized by setup_mdca(). */
+dca_p  mdca [MAXDEVS];		/* Initialized by setup_mdca(). */
 
 static void scsi_open();	/* Open dispatcher */
 static void scsi_close();	/* Close dispatcher */
@@ -71,11 +71,11 @@ CON scsicon = {
 	scsi_read,		/* Read Entry point */
 	scsi_write,		/* write entry point */
 	scsi_ioctl,		/* IO control entry point */
-	nulldev,		/* No powerfail entry (yet?) */
+	NULL,			/* No powerfail entry (yet?) */
 	hatimer,		/* timeout entry point */
 	scsi_load,		/* Load entry point */
 	scsi_unload,		/* Unload entry point */
-	nulldev			/* No poll entry yet either. */
+	NULL			/* No poll entry yet either. */
 };
 
 static char *errstr[] = {
@@ -101,7 +101,6 @@ char iofailmsg[] = "%s: status(0x%x)";
 int  HAI_HAID	= 7;
 
 extern int hapresent;		/* Provided/Controled by host adapter module */
-extern dca_p mdca[MAXDEVS];	/* See haicfg.c */
 
 /***********************************************************************
  *  int scsi_open(dev_t dev, int mode)
@@ -117,9 +116,9 @@ int mode;
 	register dca_p d = mdca[tid(dev)];
 
 	if (!hapresent || !d)
-		u. u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
-		(*(d->d_open))(dev, mode);
+		(* d->d_open) (dev, mode);
 }   /* scsi_open() */
 
 /***********************************************************************
@@ -134,9 +133,9 @@ register dev_t dev;
 	register dca_p d = mdca[tid(dev)];
 
 	if (!hapresent || !d)
-		u. u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
-		(*(d->d_close))(dev);
+		(* d->d_close)(dev);
 }   /* scsi_close() */
 
 /***********************************************************************
@@ -169,11 +168,12 @@ void scsi_read(dev, iop)
 register dev_t  dev;
 register IO  *iop;
 {
-	register dca_p d = mdca[tid(dev)];
+	register dca_p d = mdca [tid(dev)];
+
 	if (!hapresent || !d)
-		u. u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
-		(*(d->d_read))(dev, iop);
+		(* d->d_read)(dev, iop);
 }   /* scsi_read() */
 
 /***********************************************************************
@@ -188,9 +188,9 @@ IO  *iop;
 {
 	register dca_p d = mdca[tid(dev)];
 	if (!hapresent || !d)
-		u. u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
-		(*(d->d_write))(dev, iop);
+		(* d->d_write)(dev, iop);
 }   /* scsi_write() */
 
 /***********************************************************************
@@ -207,9 +207,9 @@ char			*vec;
 	register dca_p d = mdca[tid(dev)];
 
 	if (!hapresent || !d)
-		u. u_error = EINVAL;
+		set_user_error (EINVAL);
 	else
-		(*(d->d_ioctl))(dev, cmd, vec);
+		(* d->d_ioctl)(dev, cmd, vec);
 }   /* scsi_ioctl() */
 
 /***********************************************************************
@@ -296,7 +296,7 @@ int cpycdb(dst, src)
 register cdb_p dst;
 register cdb_p src;
 {
-		switch (src->g0. opcode & GROUPMASK) {
+		switch (src->g0.opcode & GROUPMASK) {
 		case GROUP0:
 			memcpy(dst, src, sizeof(g0cmd_t));
 			return sizeof(g0cmd_t);
@@ -318,13 +318,15 @@ register cdb_p src;
  *  Dump memory from (p) for (s) bytes.
  */
 
-static char hexchars[] = "0123456789abcdef",
-			linebuf[] = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 | ................\n";
+static char hexchars[] = "0123456789abcdef";
+static char linebuf[] = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
+	"| ................\n";
 
-void dumpmem(m, p, s)
-char m[];
-register unsigned char *p;
-register size_t s;
+void
+dumpmem(m, p, s)
+char		m[];
+unsigned char *	p;
+size_t		s;
 {
 	register int i;
 	char *l;
@@ -357,7 +359,8 @@ register size_t s;
  *  Wake up processes sleeping on SRB (r).
  */
 
-static int scsidone(r)
+static int
+scsidone(r)
 register srb_p	r;
 {
 	wakeup(&(r->status));
@@ -370,7 +373,8 @@ register srb_p	r;
  *  fields of the given srb r.  Uses v_sleep().
  */
 
-void reqsense(r)
+void
+reqsense(r)
 register srb_p r;
 {
 	int			 s;
@@ -392,20 +396,21 @@ register srb_p r;
 		memcpy(&cdb, &(r->cdb), sizeof(cdb_t));
 
 		r->timeout = 4;
-		r->buf. space = KRNL_ADDR;
-		r->buf. addr. caddr = (caddr_t) r->sensebuf;
-		r->buf. size = sizeof(r->sensebuf);
+		r->tries = 10;
+		r->buf.space = KRNL_ADDR;
+		r->buf.addr.caddr = (caddr_t) r->sensebuf;
+		r->buf.size = sizeof(r->sensebuf);
 		r->xferdir = DMAREAD;
 		r->cleanup = &scsidone;
 		memset(&(r->cdb), 0, sizeof(cdb_t));
-		r->cdb. g0. opcode = 0x03;
-		r->cdb. g0. lun_lba = (r->lun << 5);
-		r->cdb. g0. xfr_len = r->buf. size;
+		r->cdb.g0.opcode = 0x03;
+		r->cdb.g0.lun_lba = (r->lun << 5);
+		r->cdb.g0.xfr_len = r->buf.size;
 		s = sphi();
 		startscsi(r);
 		while (r->status == ST_PENDING) {
 			if (x_sleep(&(r->status), pritape, slpriSigCatch, "reqsense")) {
-				u. u_error = EINTR;
+				set_user_error (EINTR);
 				status = ST_USRABRT;
 				break;
 			}
@@ -426,37 +431,40 @@ register srb_p r;
  *  doscsi()
  *
  *  An alternative to startscsi() which handles everything including
- *  any request sense commands necessary if the command failed.  All
- *  information is returned in given srb.  Note:  you can only use
+ *  any request sense commands necessary if the command failed. All
+ *  information is returned in given srb. Note:  you can only use
  *  this routine when the u structure for a process is available (from
- *  an open, close, read, write, or ioctl routine).  Since this calls
+ *  an open, close, read, write, or ioctl routine). Since this calls
  *  sleep it will screw things up something fierce if you call it from
- *  a load, unload, block, timer or interrupt routine.  Also note
+ *  a load, unload, block, timer or interrupt routine. Also note
  *  that some host adapters do the sense part this automatically.
  */
 
-void doscsi(r, retrylimit, schedPri, sleepPri, reason)
-register srb_p  r;
-int			 retrylimit;
-int			 schedPri;
-int			 sleepPri;
-char			reason[];
+void
+doscsi(r, retrylimit, schedPri, sleepPri, reason)
+srb_p		r;
+int		retrylimit;
+int		schedPri;
+int		sleepPri;
+char		reason[];
 {
 	int	 s;
 
 	r->cleanup = &scsidone;
 	for (r->tries = 0; r->tries < retrylimit; ) {
-		if (startscsi(r)) {
+		if (startscsi (r)) {
 			s = sphi();
 			while (r->status == ST_PENDING) {
-				if (x_sleep(&(r->status), schedPri, sleepPri, reason)) {
+				if (x_sleep (& r->status, schedPri, sleepPri, reason)) {
 					abortscsi(r);
 					r->status = ST_USRABRT;
-					u. u_error = EINTR;
+					set_user_error (EINTR);
 				}
 			}
 			spl(s);
-			if (r->status == ST_GOOD)
+			if (r->status == ST_GOOD
+			  || r->status == ST_USRABRT
+			  || r->status == ST_DRVABRT)
 				return;
 
 			if (r->status == ST_CHKCOND)
@@ -470,11 +478,12 @@ char			reason[];
 /***********************************************************************
  *  printsense()
  *
- *  Print out the results in the given sense buffer.  This is done
+ *  Print out the results in the given sense buffer. This is done
  *  in English, almost.
  */
 
-void printsense(dev, msg, e)
+void
+printsense(dev, msg, e)
 register dev_t	  dev;
 register char	   *msg;
 register extsense_p e;
@@ -505,11 +514,12 @@ register extsense_p e;
 /***********************************************************************
  *  printerror()
  *  
- *  Print an error after command completion.  Be silent if the command
+ *  Print an error after command completion. Be silent if the command
  *  was aborted by the user.
  */
 
-int printerror(r, msg)
+int
+printerror(r, msg)
 register srb_p r;
 register char *msg;
 {
@@ -528,17 +538,18 @@ register char *msg;
  *  haiioctl()  --	  I/O Controls common to all devices.
  *  
  *  This function provides I/O Control functions common to all SCSI
- *  devices.  The chain of operation should be as follows:
+ *  devices. The chain of operation should be as follows:
  *  
  *  You:
  *	  1)  Make sure that the device is in an appropriate state to
- *		  perform the I/O Control.  (It might not be a good idea to
+ *		  perform the I/O Control. (It might not be a good idea to
  *		  format the disk drive with the root partition).
  *  
  *	  2)  Call haiioctl() with your srb and cmd from I/O Control.
  */
 
-void haiioctl(r, cmd, vec)
+void
+haiioctl(r, cmd, vec)
 register srb_p  r;			  /* Device's srb */
 register int	cmd;			/* Command to do */
 register char   *vec;		   /* Additional information (if needed) */
@@ -551,28 +562,31 @@ register char   *vec;		   /* Additional information (if needed) */
 	case HAIMDSLCT0:
 	case HAIMDSNS2:
 	case HAIMDSLCT2:
-		u. u_error = ENXIO;
+		set_user_error (ENXIO);
 		return;
+
 	case HAIUSERCDB:
-		if (super()) {
-			if (!ukcopy(vec, &h, sizeof(haiusercdb_t)))
-				return;
-			r->buf. space = USER_ADDR;
-			r->buf. addr. caddr = vec + sizeof(haiusercdb_t);
-			r->buf. size = h. buflen;
-			r->xferdir = h. xferdir;
-			r->timeout = h. timeout;
-			memcpy(&(r->cdb), &(h. cdb), sizeof(cdb_t));
-			doscsi(r, 1, pritty, slpriSigCatch, "haiioctl");
-			if (!kucopy(r->sensebuf, ((haiusercdb_p) vec)->sensebuf, SENSELEN))
-				return;
-		}
+		if (!ukcopy(vec, &h, sizeof(haiusercdb_t)))
+			return;
+		r->buf.space = USER_ADDR;
+		r->buf.addr.caddr = vec + sizeof(haiusercdb_t);
+		r->buf.size = h.buflen;
+		r->xferdir = h.xferdir;
+		r->timeout = h.timeout;
+		memcpy(&(r->cdb), &(h.cdb), sizeof(cdb_t));
+		doscsi(r, 1, pritty, slpriSigCatch, "haiioctl");
+		putusd((((haiusercdb_p) vec)->status), r->status);
+		putusd((((haiusercdb_p) vec)->hastat), r->hastat);
+		kucopy(r->sensebuf, ((haiusercdb_p) vec)->sensebuf,
+		  SENSELEN);
+		if (r->status != ST_GOOD)
+			set_user_error (ENXIO);
 		return;
+	
 	default:
-		u. u_error = ENXIO;
-		return;
+		set_user_error (ENXIO);
+		break;
 	}
-	return;
 }   /* haiioctl() */
 
 /***********************************************************************
@@ -580,14 +594,15 @@ register char   *vec;		   /* Additional information (if needed) */
  *					  have block entry points.
  *  
  *  Since this is a multiplexing driver and some devices behind it
- *  will have block entry points and some shouldn't.  ALL do.
+ *  will have block entry points and some shouldn't. ALL do.
  */
 
-void hainonblk(bp)
-register BUF	*bp;
+void
+hainonblk(bp)
+BUF	*bp;
 {
 	bp->b_flag |= BFERR;
-	bdone(bp);
+	bdone (bp);
 }   /* hainonblk() */
 
 /*
@@ -595,6 +610,7 @@ register BUF	*bp;
  *
  * Load mdca table based on globals HAI_DISK and HAI_TAPE.
  */
+
 void
 setup_mdca()
 {
@@ -604,11 +620,10 @@ setup_mdca()
 
 	for (id = 0; id < 8; id ++) {
 		mask = 1 << id;
-		if (HAI_DISK & mask)
+		if (HAI_DISK & mask) {
 			mdca[id] = & sddca;
-		if (HAI_TAPE & mask)
+		} else if (HAI_TAPE & mask) {
 			mdca[id] = & ctdca;
+		}
 	}
 }
-
-/* End of file */

@@ -1,83 +1,49 @@
-# c/n1/Makefile 3/26/92
+# c/n1/Makefile 6/9/94
 # This presumes that the code macros and patterns macros.c and patern.c
 # have been made in the current directory by n1/$(MACHINE)/Makefile.
 
 CC1=\
-	cc1.$X\
-	cc1sym.$X\
-	code.$X\
-	mtree0.$X\
-	mtree1.$X\
-	mtree3.$X\
-	node.$X\
-	out.$X\
-	pool.$X\
-	reg0.$X\
-	sel0.$X\
-	sel1.$X\
-	snap0.$X\
-	tree0.$X\
-	tree1.$X
+	cc1.a(cc1.$X) \
+	cc1.a(cc1sym.$X) \
+	cc1.a(code.$X) \
+	cc1.a(mtree0.$X) \
+	cc1.a(mtree1.$X) \
+	cc1.a(mtree3.$X) \
+	cc1.a(node.$X) \
+	cc1.a(out.$X) \
+	cc1.a(pool.$X) \
+	cc1.a(reg0.$X) \
+	cc1.a(sel0.$X) \
+	cc1.a(sel1.$X) \
+	cc1.a(snap0.$X) \
+	cc1.a(tree0.$X) \
+	cc1.a(tree1.$X)
+
 CC1MCH=\
-	altemp.$X\
-	amd.$X\
-	fixtop.$X\
-	gen1.$X\
-	gen2.$X\
-	mtree2.$X\
-	mtree4.$X\
-	outmch.$X\
-	reg1.$X\
-	sel2.$X\
-	snap1.$X\
-	table0.$X\
-	table1.$X
+	cc1.a(altemp.$X) \
+	cc1.a(amd.$X) \
+	cc1.a(fixtop.$X) \
+	cc1.a(gen1.$X) \
+	cc1.a(gen2.$X) \
+	cc1.a(mtree2.$X) \
+	cc1.a(mtree4.$X) \
+	cc1.a(outmch.$X) \
+	cc1.a(reg1.$X) \
+	cc1.a(sel2.$X) \
+	cc1.a(snap1.$X) \
+	cc1.a(table0.$X) \
+	cc1.a(table1.$X)
+
 CC1TABLES=\
-	macros.$X\
-	patern.$X
+	cc1.a(macros.$X) \
+	cc1.a(patern.$X)
 
-# primary target
-cc1:	$(CC1) $(CC1MCH) $(CC1TABLES) $(CLIB)
-	$(CC) $(LDFLAGS) -o cc1 $<
+# Primary target.
+cc1:	cc1.a common.a
+	$(CC) $(LDFLAGS) -o cc1 cc1.a common.a
 
-# monolithic compiler cc1 library
+# cc1 library.
 cc1.a:	$(CC1) $(CC1MCH) $(CC1TABLES)
-	$(AR) rucks $@ $<
-
-# machine independent
-cc1.$X:		cc1.c
-cc1sym.$X:	cc1sym.c
-code.$X:	code.c
-mtree0.$X:	mtree0.c
-mtree1.$X:	mtree1.c
-mtree3.$X:	mtree3.c
-node.$X:	node.c
-out.$X:		out.c
-pool.$X:	pool.c
-reg0.$X:	reg0.c
-sel0.$X:	sel0.c
-sel1.$X:	sel1.c
-snap0.$X:	snap0.c
-tree0.$X:	tree0.c
-tree1.$X:	tree1.c
-
-# machine dependent
-altemp.$X:	altemp.c
-amd.$X:		amd.c
-fixtop.$X:	fixtop.c
-gen1.$X:	gen1.c
-gen2.$X:	gen2.c
-mtree2.$X:	mtree2.c
-mtree4.$X:	mtree4.c
-outmch.$X:	outmch.c
-reg1.$X:	reg1.c
-sel2.$X:	sel2.c
-snap1.$X:	snap1.c
-table0.$X:	table0.c
-table1.$X:	table1.c
-
-# code macros and patterns
-macros.$X:	macros.c
-patern.$X:	patern.c
+	: cc1.a done
 
 # end of c/n1/Makefile

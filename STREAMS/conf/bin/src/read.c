@@ -43,9 +43,11 @@
 #include "ehand.h"
 #include "input.h"
 #include "lex.h"
+#include "ecodes.h"
 
 #include "read.h"
 
+#include "val_str.h"
 
 /*
  * Simple glue functions to encapsulate the input system.
@@ -60,7 +62,8 @@ input_t	      *	input;
 #endif
 {
 	if (input == NULL)
-		throw_error ("NULL parameter passed to read_char ()");
+		throw_error (INTERNAL_ERROR,
+			     "NULL parameter passed to read_char ()");
 
 	return (* input->in_read) (input);
 }
@@ -75,7 +78,8 @@ input_t	      *	input;
 #endif
 {
 	if (input == NULL)
-		throw_error ("NULL parameter passed to unread_char ()");
+		throw_error (INTERNAL_ERROR,
+			     "NULL parameter passed to unread_char ()");
 
 	(* input->in_unread) (input);
 }
@@ -90,7 +94,8 @@ input_t	      *	input;
 #endif
 {
 	if (input == NULL)
-		throw_error ("NULL parameter passed to read_error ()");
+		throw_error (INTERNAL_ERROR,
+			     "NULL parameter passed to read_error ()");
 
 	(* input->in_error) (input);
 }
@@ -105,7 +110,8 @@ input_t	      *	input;
 #endif
 {
 	if (input == NULL)
-		throw_error ("NULL parameter passed to read_close ()");
+		throw_error (INTERNAL_ERROR,
+			     "NULL parameter passed to read_close ()");
 
 	(* input->in_close) (input);
 }
@@ -124,10 +130,10 @@ int		ch;
 #endif
 {
 	if (ch == '\n')
-		throw_error ("premature end of line");
+		throw_error (FORMAT_ERROR, "premature end of line");
 
 	if (ch == READ_EOF)
-		throw_error ("premature end of input");
+		throw_error (FORMAT_ERROR, "premature end of input");
 }
 
 
@@ -188,7 +194,8 @@ token_t	      *	tokenp;
 	int		err;
 
 	if (input == NULL || lexp == NULL || heap == NULL || tokenp == NULL)
-		throw_error ("invalid parameters in read_token ()");
+		throw_error (INTERNAL_ERROR,
+			     "invalid parameters in read_token ()");
 
 	if (input->in_readtok != NULL) {
 		/*
@@ -236,7 +243,8 @@ token_t	      *	tokenp;
 		tokenp->tok_len ++;
 
 		if ((err = build_addchar (heap, ch)) != BUILD_OK)
-			throw_error ("build_addchar () reported %d (%s)", err,
+			throw_error (INTERNAL_ERROR,
+				     "build_addchar () reported %d (%s)", err,
 				     build_error (err));
 	}
 }
@@ -267,11 +275,12 @@ token_t	      *	tok;
 	null = 0;
 
 	if (tok->tok_len != 0 ?
-			(build_add (tok->tok_heap, 1, & null) != 0) ||
+			(build_add (tok->tok_heap, 1, & null) != BUILD_OK) ||
 			 (tok->tok_data =
 				build_end (tok->tok_heap, NULL)) == NULL :
-			build_end (tok->tok_heap, NULL) != NULL)
-		throw_error ("Error ending token construction");
+			build_abandon (tok->tok_heap) != BUILD_OK)
+		throw_error (INTERNAL_ERROR,
+			     "Error ending token construction");
 }
 
 
@@ -308,12 +317,14 @@ build_t	      *	heap;
 	    (err = build_add (heap, 1, & null)) != 0 ||
 	    (err = BUILD_NO_OBJECT,
 	     (data = build_end (heap, NULL)) == NULL))
-		throw_error ("Cannot copy token data to heap, %s",
+		throw_error (INTERNAL_ERROR,
+			     "Cannot copy token data to heap, %s",
 			     build_error (err));
 
 	if (tok->tok_heap != NULL &&
 	    (err = build_release (heap, tok->tok_data)) != 0)
-		throw_error ("Cannot release data from old heap, %s",
+		throw_error (INTERNAL_ERROR,
+			     "Cannot release data from old heap, %s",
 			     build_error (err));
 
 	tok->tok_data = data;
@@ -339,7 +350,8 @@ token_t	      *	tok;
 
 	if (tok->tok_heap != NULL &&
 	    (err = build_release (tok->tok_heap, tok->tok_data)) != 0)
-		throw_error ("Cannot release token data, error %s",
+		throw_error (INTERNAL_ERROR,
+			     "Cannot release token data, error %s",
 			     build_error (err));
 }
 
@@ -435,6 +447,7 @@ int	      *	radixp;
 {
 	int		ch;
 	int		errflag;
+	int		chsave;
 
 	* ulongp = 0;
 
@@ -449,6 +462,7 @@ int	      *	radixp;
 		return 1;
 
 	case '0':	/* octal or hexadecimal */
+		collect_val_str(ch);
 		switch (ch = (* input->in_read) (input)) {
 
 		case IN_EOF:
@@ -466,6 +480,7 @@ int	      *	radixp;
 			 * converting the first digit right here.
 			 */
 
+			collect_val_str(ch);
 			* radixp = 16;
 			errflag = -1;
 
@@ -499,12 +514,15 @@ int	      *	radixp;
 	 * also deal with that.
 	 */
 
+	chsave = ch;
+
 	if ((ch = char_to_digit (ch, * radixp)) == -1) {
 
 		(* input->in_unread) (input);
 		return errflag;
 	}
 
+	collect_val_str(chsave);
 	* ulongp = ch;
 	return 0;
 }
@@ -540,7 +558,8 @@ int		radix;
 	int		read_something;
 
 	if (input == NULL || ulongp == NULL || radix < 0 || radix > 16)
-		throw_error ("Invalid parameter passed to read_ulong ()");
+		throw_error (INTERNAL_ERROR,
+			     "Invalid parameter passed to read_ulong ()");
 
 	* ulongp = 0;
 
@@ -574,8 +593,12 @@ int		radix;
 
 	for (;;) {
 
+		char		chsave;
+
 		if ((ch = (* input->in_read) (input)) == IN_EOF)
 			break;
+
+		chsave = ch;
 
 		if ((ch = char_to_digit (ch, radix)) == -1) {
 
@@ -596,6 +619,8 @@ int		radix;
 
 		read_something = 1;
 		temp = (temp * radix) + ch;
+
+		collect_val_str(chsave);
 
 		if (temp < ch) {
 			/*
@@ -656,10 +681,12 @@ int		radix;
 		return 1;
 
 	case '-':
+		collect_val_str(ch);
 		sign = -1;
 		break;
 
 	case '+':
+		collect_val_str(ch);
 		sign = 1;
 		break;
 
@@ -750,7 +777,8 @@ int		rangeflag;
 {
 	if ((rangeflag != RANGE && rangeflag != NO_RANGE) ||
 	    input == NULL || lexp == NULL || number == NULL)
-		throw_error ("Invalid parameter to read_ulongs ()");
+		throw_error (INTERNAL_ERROR,
+			     "Invalid parameter to read_ulongs ()");
 
 	/*
 	 * We permit initial whitespace according to the current lexical
@@ -760,7 +788,7 @@ int		rangeflag;
 	read_flush (input, lexp);
 
 	if (read_ulong (input, number, 0) != 1)
-		throw_error ("Illegal unsigned long number");
+		throw_error (FORMAT_ERROR, "Illegal unsigned long number");
 
 	if (rangeflag == RANGE) {
 		int		ch;
@@ -773,7 +801,8 @@ int		rangeflag;
 			 */
 
 			if (read_ulong (input, number + 1, 0) != 1)
-				throw_error ("Illegal second half of unsigned long range");
+				throw_error (FORMAT_ERROR,
+					     "Illegal second half of unsigned long range");
 		} else
 			number [1] = number [0];
 	}
@@ -802,7 +831,8 @@ int		rangeflag;
 
 	if ((rangeflag != RANGE && rangeflag != NO_RANGE) ||
 	    input == NULL || lexp == NULL || number == NULL)
-		throw_error ("Invalid parameter to read_ints ()");
+		throw_error (INTERNAL_ERROR,
+			     "Invalid parameter to read_ints ()");
 
 	/*
 	 * We permit initial whitespace according to the current lexical
@@ -817,7 +847,7 @@ int		rangeflag;
 #else
 	    value > INT_MAX || value < INT_MIN)
 #endif
-		throw_error ("Illegal integer number");
+		throw_error (FORMAT_ERROR, "Illegal integer number");
 
 	number [0] = (int) value;
 
@@ -837,7 +867,7 @@ int		rangeflag;
 #else
 			    value > INT_MAX || value < INT_MIN)
 #endif
-				throw_error ("Illegal second half of integer range");
+				throw_error (FORMAT_ERROR, "Illegal second half of integer range");
 		}
 
 		number [1] = (int) value;
@@ -865,7 +895,8 @@ int		rangeflag;
 {
 	if ((rangeflag != RANGE && rangeflag != NO_RANGE) ||
 	    input == NULL || lexp == NULL || number == NULL)
-		throw_error ("Invalid parameter to read_longs ()");
+		throw_error (INTERNAL_ERROR,
+			     "Invalid parameter to read_longs ()");
 
 	/*
 	 * We permit initial whitespace according to the current lexical
@@ -874,8 +905,10 @@ int		rangeflag;
 
 	read_flush (input, lexp);
 
+	init_val_str();
+
 	if (read_long (input, number, 0) != 1)
-		throw_error ("Illegal long-integer number");
+		throw_error (FORMAT_ERROR, "Illegal long-integer number");
 
 	if (rangeflag == RANGE) {
 		int		ch;
@@ -888,7 +921,8 @@ int		rangeflag;
 			 */
 
 			if (read_long (input, number + 1, 0) != 1)
-				throw_error ("Illegal second half of long-integer range");
+				throw_error (FORMAT_ERROR,
+					     "Illegal second half of long-integer range");
 		}
 	}
 
@@ -918,7 +952,8 @@ int		rangeflag;
 
 	if ((rangeflag != RANGE && rangeflag != NO_RANGE) ||
 	    input == NULL || lexp == NULL || number == NULL)
-		throw_error ("Invalid parameter to read_ints ()");
+		throw_error (INTERNAL_ERROR,
+			     "Invalid parameter to read_ints ()");
 
 	/*
 	 * We permit initial whitespace according to the current lexical
@@ -928,7 +963,7 @@ int		rangeflag;
 	read_flush (input, lexp);
 
 	if (read_ulong (input, & value, 0) != 1 || value > UINT_MAX)
-		throw_error ("Illegal unsigned integer number");
+		throw_error (FORMAT_ERROR, "Illegal unsigned integer number");
 
 	number [0] = (unsigned int) value;
 
@@ -944,7 +979,8 @@ int		rangeflag;
 
 			if (read_ulong (input, & value, 0) != 1 ||
 			    value > UINT_MAX)
-				throw_error ("Illegal second half of unsigned integer range");
+				throw_error (FORMAT_ERROR,
+					     "Illegal second half of unsigned integer range");
 		}
 
 		number [1] = (unsigned int) value;

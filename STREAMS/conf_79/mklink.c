@@ -27,6 +27,10 @@
  *	<string.h>
  *		strerror ()
  *		strftime ()
+ *		strlen ()
+ *	<unistd.h>
+ *		chdir ()
+ *		getcwd ()
  *	"ehand.h"
  *		ehand_t
  *		PUSH_HANDLER ()
@@ -45,7 +49,8 @@
  *	"mdev.h"
  *		MD_ENABLED
  *		mdev_t
- *		mdevices ()
+ *		miter_t
+ *		for_all_mdevices ()
  *	"symbol.h"
  *		symbol_t
  *	"read.h"
@@ -63,6 +68,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
 
 #include "ehand.h"
 #include "buildobj.h"
@@ -70,6 +77,7 @@
 #include "symbol.h"
 #include "read.h"
 #include "mkinput.h"
+#include "ecodes.h"
 
 #include "mkconf.h"
 
@@ -128,6 +136,8 @@
  * kernel build phase.
  */
 
+#define PATH_MACRO	1
+
 struct macro_spec {
 	char		ms_macrochar;	/* character after '%' sign */
 	CONST char    *	ms_envname;	/* environment variable to override */
@@ -136,7 +146,7 @@ struct macro_spec {
 } macros [] = {
 	{ 'p' },				/* built at run-time */
 	{ 'P', "CONFPATH", DOS_OR_UNIX (".", ".") },
-	{ 'T', "TMP", DOS_OR_UNIX (".", ".") },
+	{ 'T', "OBJPATH", DOS_OR_UNIX ("obj", "obj") },
 	{ 'o', "OBJEXT", DOS_OR_UNIX ("obj", "o") },
 	{ 'O', "LIBEXT", DOS_OR_UNIX ("lib", "a") },
 	{ 'c', "CEXT", DOS_OR_UNIX ("c", "c") },
@@ -151,9 +161,14 @@ struct macro_spec {
 
 enum {
 	TEST_FILE,
-	LINK_ENTRY,
+	OBJ_LINK_ENTRY,
+	LIB_LINK_ENTRY,
 	COMPILE_RULES,
 	CLEAN_ENTRY,
+	BEFORE_ENTRY,
+	BEFORE_RULES,
+	AFTER_ENTRY,
+	AFTER_RULES,
 
 	MAKE_MAX
 };
@@ -182,20 +197,37 @@ struct make_spec {
 };
 
 make_t config_commands [] = {
-	{ { "%P/%p/Driver.%O", "%P/%p/Driver.%O ", NULL, NULL } },
-	{ { "%P/%p/Driver.%o", "%P/%p/Driver.%o ", NULL, NULL } },
-	{ { "%P/%p/Space.%c", "%T/%p.%o ",
-		"%2: %1\n\t$(CC) $(CFLAGS) -o"
+	{ { "%P/%p/Driver.%O", NULL, "%P/%p/Driver.%O ", NULL, NULL,
+		NULL, NULL, NULL, NULL } },
+	{ { "%P/%p/Driver.%o", "%P/%p/Driver.%o ", NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL } },
+	{ { "%P/%p/Space.%c", "%T/%p.%o ", NULL,
+		"%2: %1\n\t$(CC) $(CFLAGS) -I%P/%p -I. -o"
 			DOS_OR_UNIX ("", " ") "%2 -c %1\n\n",
-		SAME_AS [LINK_ENTRY] } },
-	{ { "%P/%p/Space.%C", "%T/%p.%o",
-		"%2: %1\n\t$(CC) $(CFLAGS) -o"
+		SAME_AS [OBJ_LINK_ENTRY],
+		NULL, NULL, NULL, NULL } },
+	{ { "%P/%p/Space.%C", "%T/%p.%o", NULL,
+		"%2: %1\n\t$(CC) $(CFLAGS) -I%P/%p -o"
 			DOS_OR_UNIX ("", " ") "%2 -c %1\n\n",
-		SAME_AS [LINK_ENTRY] } }
+		SAME_AS [OBJ_LINK_ENTRY],
+		NULL, NULL, NULL, NULL } }
 };
 
 make_t stub_commands [] = {
-	{ { "%P/%p/Stub.%o", "%P/%p/Stub.%o ", NULL, NULL } }
+	{ { "%P/%p/Stub.%o", "%P/%p/Stub.%o ", NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL } }
+};
+
+make_t pre_commands [] = {
+	{ { "%P/%p/before", NULL, NULL, NULL, NULL,
+		"%P/%p/before ", NULL,
+		NULL, NULL } }
+};
+
+make_t post_commands [] = {
+	{ { "%P/%p/after", NULL, NULL, NULL, NULL,
+		NULL, NULL,
+		"%P/%p/after ", NULL } }
 };
 
 #define	ARRAY_LENGTH(a)		(sizeof (a) / sizeof (* a))
@@ -205,7 +237,7 @@ make_t stub_commands [] = {
  * Check the named file for existence.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 LOCAL int file_exists (CONST char * name)
 #else
 LOCAL int
@@ -228,7 +260,7 @@ CONST char    *	name;
  * function also sets up the 'prefix' macro variable.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 LOCAL void (init_macros) (CONST char * prefix)
 #else
 LOCAL void
@@ -255,7 +287,7 @@ CONST char    *	prefix;
  * Macroexpand a single entry in a make specification.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 LOCAL void (expand_line) (make_t * spec, make_t * target, build_t * heap,
 			  int line)
 #else
@@ -289,7 +321,8 @@ int		line;
 	 */
 
 	if ((i = build_begin (heap, 0, NULL)) != 0)
-		throw_error ("Cannot begin make line, error %s",
+		throw_error (INTERNAL_ERROR,
+			     "Cannot begin make line, error %s",
 			     build_error (i));
 
 	for (;;) {
@@ -313,7 +346,8 @@ int		line;
 
 		if ((i = scan - start - (ch != 0)) > 0 &&
 		    (i == build_add (heap, i, start)) != 0)
-			throw_error ("Unable to add to make macro, error %s",
+			throw_error (INTERNAL_ERROR,
+				     "Unable to add to make macro, error %s",
 				     build_error (i));
 
 		if (ch == 0) {
@@ -324,7 +358,8 @@ int		line;
 
 			if ((target->m_specs [line] =
 					build_end (heap, NULL)) == NULL)
-				throw_error ("Error ending make macro");
+				throw_error (INTERNAL_ERROR,
+					     "Error ending make macro");
 			return;
 		}
 
@@ -340,7 +375,8 @@ int		line;
 		ch = * scan ++;
 
 		if (ch == 0)
-			throw_error ("Bad macro specification in expand_line ()");
+			throw_error (FORMAT_ERROR,
+				     "Bad macro specification in expand_line ()");
 		else if (ch > '0' && ch - '1' < line)
 			start = target->m_specs [ch - '1'];
 		else if (ch == '%')
@@ -367,7 +403,8 @@ int		line;
 
 		if (start != NULL &&
 		    (i = build_add (heap, strlen (start), start)) != 0)
-			throw_error ("Unable to add to make macro, error %s",
+			throw_error (INTERNAL_ERROR,
+				     "Unable to add to make macro, error %s",
 				     build_error (i));
 	}
 }
@@ -380,7 +417,7 @@ int		line;
  * return an indication that the caller should record this entry.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 LOCAL int (expand_spec) (make_t * spec, make_t * target, build_t * heap)
 #else
 LOCAL int
@@ -397,7 +434,8 @@ build_t	      *	heap;
 	if (! file_exists (target->m_specs [TEST_FILE])) {
 
 		if (build_release (heap, target->m_specs [TEST_FILE]) != 0)
-			throw_error ("Cannot release macro memory in expand_spec ()");
+			throw_error (INTERNAL_ERROR,
+				     "Cannot release macro memory in expand_spec ()");
 
 		return 0;
 	}
@@ -421,7 +459,7 @@ build_t	      *	heap;
  * This function builds up part of a makefile specification.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 LOCAL make_t * (make_make) (build_t * heap, CONST char * prefix,
 			    make_t * specs, int nspecs, make_t * makelist)
 #else
@@ -465,7 +503,8 @@ make_t	      *	makelist;
 			if ((scan = (make_t *)
 					build_malloc (heap,
 						      sizeof (temp))) == NULL)
-				throw_error ("Out of memory in make_make ()");
+				throw_error (NO_MEMORY,
+					     "Out of memory in make_make ()");
 
 			* scan = temp;
 			scan->m_next = makelist;
@@ -478,11 +517,79 @@ make_t	      *	makelist;
 
 
 /*
+ * Structure for emulating local functions in C with the function following.
+ */
+
+struct make {
+	build_t	      *	_heap;
+	make_t	      *	_spec;
+};
+
+#if	USE_PROTO
+LOCAL void _write_makefile (struct make * make, mdev_t * mdevp)
+#else
+LOCAL void
+_write_makefile (make, mdevp)
+struct make   *	make;
+mdev_t	      *	mdevp;
+#endif
+{
+	CONST char *	data = mdevp->md_devname->s_data;
+
+	make->_spec = mdevp->md_configure == MD_ENABLED ?
+		make_make (make->_heap, data, config_commands,
+			   ARRAY_LENGTH (config_commands),
+			   make_make (make->_heap, data, post_commands,
+				      ARRAY_LENGTH (post_commands),
+				      make_make (make->_heap, data,
+						 pre_commands,
+						 ARRAY_LENGTH (pre_commands),
+						 make->_spec))) :
+		make_make (make->_heap, data, stub_commands,
+			   ARRAY_LENGTH (stub_commands), make->_spec);
+}
+
+
+/*
+ * Write a list of expanded macros out to the target makefile, breaking
+ * long lines.
+ */
+
+#if	USE_PROTO
+LOCAL void _write_macro (FILE * out, __CONST__ make_t * scan, int macno)
+#else
+LOCAL void
+_write_macro (out, scan, macno)
+FILE	      *	out;
+__CONST__ make_t
+	      *	scan;
+int		macno;
+#endif
+{
+	int		column = 0;
+
+	for (; scan != NULL ; scan = scan->m_next) {
+		if (scan->m_specs [macno] == NULL)
+			continue;
+
+		if (strchr (scan->m_specs [macno], '\n') == NULL &&
+		    column + strlen (scan->m_specs [macno]) > 60) {
+			column = 0;
+			fputs ("\\\n\t", out);
+		}
+
+		fputs (scan->m_specs [macno], out);
+		column += strlen (scan->m_specs [macno]);
+	}
+}
+
+
+/*
  * Iterate over all the mdevice entries and run over either the 'config' or
  * 'stub' make-file specifications.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 LOCAL void (write_makefile) (FILE * out, input_t * example, build_t * heap)
 #else
 LOCAL void
@@ -492,20 +599,27 @@ input_t	      *	example;
 build_t	      *	heap;
 #endif
 {
-	mdev_t	      *	mdevp;
-	make_t	      *	spec = NULL;
 	int		ch;
+	struct make	make;
+	char		pathbuf [80];
 
-	for (mdevp = mdevices () ; mdevp != NULL ; mdevp = mdevp->md_next) {
-		int		config = mdevp->md_configure == MD_ENABLED;
+	make._heap = heap;
+	make._spec = NULL;
 
-		spec = make_make (heap, mdevp->md_prefix->s_data,
-				  config ? config_commands : stub_commands,
-				  config ? ARRAY_LENGTH (config_commands) :
-					   ARRAY_LENGTH (stub_commands),
-				  spec);
-	}
+	init_macros (NULL);
+	
+	if (getcwd (pathbuf, sizeof (pathbuf)) == NULL)
+		throw_error (CANNOT_UPDATE,
+			     "write_makefile () : cannot save current directory");
 
+	if (chdir (macros [PATH_MACRO].ms_value) != 0)
+		throw_error (CANNOT_UPDATE,
+			     "write_makefile () : cannot change directory, "
+			     "OS says %s", strerror (errno));
+	     
+	for_all_mdevices ((miter_t) _write_makefile, & make);
+
+	chdir (pathbuf);
 
 	/*
 	 * Actually generate the output from a template file, expanding '%'-
@@ -513,7 +627,6 @@ build_t	      *	heap;
 	 */
 
 	while ((ch = read_char (example)) != READ_EOF) {
-		make_t	      *	scan;
 
 		switch (ch) {
 
@@ -525,35 +638,45 @@ build_t	      *	heap;
 				break;
 
 			case 'T':
-				ch = TEST_FILE;
-				goto write_list;
+				_write_macro (out, make._spec, TEST_FILE);
+				break;
+
+			case 'l':
+				_write_macro (out, make._spec, OBJ_LINK_ENTRY);
+				break;
 
 			case 'L':
-				ch = LINK_ENTRY;
-				goto write_list;
+				_write_macro (out, make._spec, LIB_LINK_ENTRY);
+				break;
 
 			case 'C':
-				ch = COMPILE_RULES;
-				goto write_list;
+				_write_macro (out, make._spec, COMPILE_RULES);
+				break;
 
-			case 'R':
+			case 'r':
+				_write_macro (out, make._spec, CLEAN_ENTRY);
+				break;
 
-				ch = CLEAN_ENTRY;
-write_list:
-				for (scan = spec ; scan != NULL ;
-				     scan = scan->m_next) {
+			case 'b':
+				_write_macro (out, make._spec, BEFORE_ENTRY);
+				break;
 
-					if (scan->m_specs [ch] == NULL)
-						continue;
+			case 'B':
+				_write_macro (out, make._spec, BEFORE_RULES);
+				break;
 
-					fputs (scan->m_specs [ch], out);
-				}
+			case 'a':
+				_write_macro (out, make._spec, AFTER_ENTRY);
+				break;
 
+			case 'A':
+				_write_macro (out, make._spec, AFTER_RULES);
 				break;
 
 			default:
 				read_error (example);
-				throw_error ("Bad %%-entry in template file");
+				throw_error (FORMAT_ERROR,
+					     "Bad %%-entry in template file");
 			}
 			break;
 
@@ -572,7 +695,7 @@ write_list:
  * based on the presence of files with appropriate names.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 int (write_link) (CONST char * outname, CONST char * inname)
 #else
 int
@@ -583,28 +706,36 @@ CONST char    *	inname;
 {
 	time_t		gentime;
 	char		timebuf [70];
-	FILE	      *	out;
-	input_t	      *	example;
+	FILE * VOLATILE	out;
+	FILE *		in;
+	input_t	* VOLATILE example;
 	ehand_t		err;
 	build_t	      *	heap;
+	int		closein = 1;
+	int		closeout = 1;
 
 	if ((heap = builder_alloc (256, 1)) == NULL)
-		throw_error ("Unable to allocate temporary heap in write_link ()");
+		throw_error (NO_MEMORY,
+			     "Unable to allocate temporary heap in write_link ()");
 
-	if (inname == NULL)
-		example = make_file_input (stdin, "template", '#');
-	else if ((out = fopen (inname, "r")) == NULL)
-		throw_error ("Unable to open template file in write_link ()");
-	else
-		example = make_file_input (out, inname, '#');
+	if (inname == NULL) {
+		in = stdin;
+		inname = "template";
+		closein = 0;
+	} else if ((in = fopen (inname, "r")) == NULL)
+		throw_error (MISSING_FILE,
+			     "Unable to open template file in write_link ()");
 
-	if (example == NULL)
-		throw_error ("Out of memory in write_link ()");
-
-	if (outname == NULL)
+	if (outname == NULL) {
 		out = stdout;
-	else if ((out = fopen (outname, "w")) == NULL)
-		throw_error ("Unable to open output file for writing in write_link ()");
+		closeout = 0;
+	} else if ((out = fopen (outname, "w")) == NULL)
+		throw_error (CANNOT_UPDATE,
+			     "Unable to open output file for writing in write_link ()");
+
+	if ((example = make_filter (in, inname, closein, '#',
+				    out, closeout)) == NULL)
+		throw_error (NO_MEMORY, "Out of memory in write_link ()");
 
 	if (PUSH_HANDLER (err) == 0) {
 		time (& gentime);
@@ -626,21 +757,11 @@ CONST char    *	inname;
 
 		write_makefile (out, example, heap);
 
-		if (out != stdout)
-			fclose (out);
-
-		if (inname != NULL)
-			read_close (example);
-
+		read_close (example);
 		builder_free (heap);
 
 	} else {
-		if (out != stdout)
-			fclose (out);
-
-		if (inname != NULL)
-			read_close (example);
-
+		read_close (example);
 		builder_free (heap);
 
 		CHAIN_ERROR (err);

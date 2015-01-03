@@ -3,6 +3,8 @@
 / i387 mathematics library
 / asin(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

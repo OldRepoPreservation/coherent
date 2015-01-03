@@ -1,3 +1,4 @@
+/* Generated from Space.spc on Tue Jul 26 15:07:49 1994 PDT */
 /*
  * Space allocation for the dump driver.
  */

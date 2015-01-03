@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <coff.h>
 
 /*
@@ -29,11 +30,11 @@ SYMENT *nlp;	/* names to look up */
 char *names;	/* long names */
 int count;	/* size of passed table */
 {
-	FILEHDR head;
-	FILE *fp;
-	char *str_tab;
-	long str_length;
-	int aux, i;
+	FILHDR	head;
+	FILE	*fp;
+	char	*str_tab;
+	long	str_length;
+	int 	aux, i;
 
 	if (NULL == (fp = fopen(fn, "rb")))
 		return(0);

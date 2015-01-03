@@ -132,7 +132,7 @@ process()
 		case ETLI:		/* Transparent line indicator */
 			dprintd(DBGPROC, ".transparent line indicator\n");
 			for (cp = charbuf; ; c = *cp++ = getl(0)) {
-				if (c == '\n' || cp == &charbuf[CBFSIZE-1]) {
+				if (c == '\n' || cp == (unsigned char *)&charbuf[CBFSIZE-1]) {
 					*cp = '\0';
 					addtrab(duplstr(charbuf));
 					if (c == '\n')

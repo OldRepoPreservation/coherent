@@ -4,6 +4,8 @@
 / ANSI 4.10.6.2, 4.10.6.4.
 //////////
 
+	.intelorder
+
 //////////
 / #include <stdlib.h>
 /

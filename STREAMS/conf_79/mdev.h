@@ -1,36 +1,7 @@
 #ifndef	MDEV_H
 #define	MDEV_H
 
-/*
- *-IMPORTS:
- *	<sys/compat.h>
- *		CONST
- *		EXTERN_C_BEGIN
- *		EXTERN_C_END
- *		PROTO ()
- */
-
-#include <sys/compat.h>
-
-#ifndef	SYMBOL_T
-#define	SYMBOL_T
-typedef	struct symbol	symbol_t;
-#endif
-
-#ifndef	SDEV_T
-#define	SDEV_T
-typedef	struct sdevice	sdev_t;
-#endif
-
-#ifndef	MDEV_T
-#define	MDEV_T
-typedef	struct mdevice	mdev_t;
-#endif
-
-#ifndef	MDLIST_T
-#define	MDLIST_T
-typedef struct mdlist	mdlist_t;
-#endif
+#include "devadm.h"
 
 
 enum {
@@ -41,7 +12,7 @@ enum {
 
 
 /*
- * Structure of the data gathered by the mkdev routines.
+ * Structure of the data gathered by the mdev routines.
  */
 
 typedef	unsigned int	maj_t;
@@ -49,9 +20,10 @@ typedef	unsigned int	min_t;
 
 struct mdevice {
 	mdev_t	      *	md_next;	/* global list of all entries */
-	mdev_t	      *	md_link1;	/* for sorts */
-	mdev_t	      *	md_link2;	/* for sorts */
-	mdev_t	      *	md_link3;	/* for sorts */
+	mdev_t	      *	md_chrlink;	/* for sorts */
+	mdev_t	      *	md_blklink;	/* for sorts */
+	mdev_t	      *	md_modlink;	/* for sorts */
+	mdev_t	      *	md_cohlink;	/* for sorts */
 
 	sdev_t	      *	md_sdevices;	/* thread of "sdevice" entries */
 	int		md_configure;	/* See MD_... constants */
@@ -77,23 +49,13 @@ struct mdevice {
 
 
 /*
- * Structure of a list of "mdevice" entries.
- */
-
-struct mdlist {
-	mdev_t	      *	mdl_first;	/* first mdevice in list */
-	mdev_t	      *	mdl_last;	/* last mdevice in list */
-	int		mdl_count;	/* count of mdevices */
-};
-
-
-/*
  * Types suitable for use as selection and comparison predicates for the
  * mdev_sort () function.
  */
 
 typedef	int  (*	msel_t)		PROTO ((mdev_t * _mdevp));
 typedef int  (*	mcmp_t)		PROTO ((mdev_t * _left, mdev_t * _right));
+typedef	void (*	miter_t)	PROTO ((VOID * _extra, mdev_t * _mdevp));
 
 
 /*
@@ -101,56 +63,74 @@ typedef int  (*	mcmp_t)		PROTO ((mdev_t * _left, mdev_t * _right));
  * old-style Coherent device-driver system.
  */
 
-enum {	MAJOR_RESERVED = 32,
-	MAX_DEVNAME = 8,
-	MAX_PREFIX = 4
+enum {
+	MAJOR_RESERVED		= 32,
+	MAX_DEVNAME		= 8,
+	MAX_PREFIX		= 4
 };
 
+enum {
+	MDEV_OPEN		= 'o',
+	MDEV_CLOSE		= 'c',
+	MDEV_READ		= 'r',
+	MDEV_WRITE		= 'w',
+	MDEV_IOCTL		= 'i',
+	MDEV_START		= 's',
+	MDEV_EXIT		= 'x',
+	MDEV_INIT		= 'I',
+	MDEV_HALT		= 'h',
+	MDEV_CHPOLL		= 'p',
 
-#define	MDEV_OPEN		'o'
-#define	MDEV_CLOSE		'c'
-#define	MDEV_READ		'r'
-#define	MDEV_WRITE		'w'
-#define	MDEV_IOCTL		'i'
-#define	MDEV_STARTUP		's'
-#define	MDEV_EXIT		'x'
-#define	MDEV_INIT		'I'
-#define	MDEV_HALT		'h'
-#define	MDEV_CHPOLL		'p'
-
-#define	MDEV_MMAP		'M'	/* not defined in SVR4 mdevice (4) */
-#define	MDEV_SIZE		'z'	/* not defined in SVR4 mdevice (4) */
+	MDEV_MMAP		= 'M',	/* not defined in SVR4 mdevice (4) */
+	MDEV_SIZE		= 'z'	/* not defined in SVR4 mdevice (4) */
+};
 
 #define	MDEV_FUNCS		"ocrwisxIhpMz"
 
+enum {
+	MDEV_INSTALLABLE	= 'i',
+	MDEV_CHAR		= 'c',
+	MDEV_BLOCK		= 'b',
+	MDEV_STREAM		= 'S',
+	MDEV_DDI_DDK		= 'f',
+	MDEV_TTY		= 't',
+	MDEV_ONE_SDEVICE	= 'o',
+	MDEV_REQUIRED		= 'r',
+	MDEV_SAME_MAJORS	= 'u',
+	MDEV_HARDWARE		= 'H',
+	MDEV_NO_INT		= 'G',
+	MDEV_SHARE_DMA		= 'D',
+	MDEV_MULTIPLE_MAJORS	= 'M',
+	MDEV_ALLOW_IOA_OVERLAP	= 'O',
 
-#define	MDEV_INSTALLABLE	'i'
-#define	MDEV_CHAR		'c'
-#define	MDEV_BLOCK		'b'
-#define	MDEV_STREAM		'S'
-#define	MDEV_DDI_DDK		'f'
-#define	MDEV_TTY		't'
-#define	MDEV_ONE_SDEVICE	'o'
-#define	MDEV_REQUIRED		'r'
-#define	MDEV_SAME_MAJORS	'u'
-#define	MDEV_HARDWARE		'H'
-#define	MDEV_NO_INT		'G'
-#define	MDEV_SHARE_DMA		'D'
-#define	MDEV_MULTIPLE_MAJORS	'M'
-#define	MDEV_ALLOW_IOA_OVERLAP	'O'
+/*
+ * The following flag specifies that we are dealing with an old-style Coherent
+ * device driver. These drivers ignore any interrupt settings, doing their
+ * work though the mtune/stune system instead, so the 'G' flag also applies.
+ * The 'o' flag is also appropriate.
+ */
 
-#define	MDEV_FLAGS		"icbSftoruHGDMO"
+	MDEV_COHERENT		= 'C'
+};
+
+#define	MDEV_FLAGS		"icbSftoruHGDMOC"
 
 
 EXTERN_C_BEGIN
 
 mdev_t	      *	find_mdev	PROTO ((symbol_t * _sym));
-mdev_t	      *	mdevices	PROTO ((void));
+void		for_all_mdevices PROTO ((miter_t _iter, VOID * _extra));
 int		mdev_func	PROTO ((mdev_t * _mdevp, char _func));
 int		mdev_flag	PROTO ((mdev_t * _mdevp, char _flag));
-void		read_mdev_file	PROTO ((CONST char * _name));
-void		mdev_sort	PROTO ((mdlist_t * _mlistp, msel_t _selpred,
-					mcmp_t _cmppred, size_t ptroff));
+void		read_mdev_file	PROTO ((CONST char * _inname,
+					CONST char * _outname,
+					VOID * _extra));
+void		read_mdev_string PROTO ((CONST char * _string,
+					 VOID * _extra));
+int		mdev_sort	PROTO ((mdev_t ** _mlistp, mdev_t ** _mdendp,
+					msel_t _selpred, mcmp_t _cmppred,
+					size_t _ptroff));
+void		write_mdevice	PROTO ((mdev_t * _mdevp, input_t * _input));
 
 EXTERN_C_END
 

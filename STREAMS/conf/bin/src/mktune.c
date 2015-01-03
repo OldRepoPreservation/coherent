@@ -33,6 +33,7 @@
 #include "stune.h"
 #include "symbol.h"
 #include "ehand.h"
+#include "ecodes.h"
 
 #include "mkconf.h"
 
@@ -120,7 +121,8 @@ CONST char    *	name;
 	if (name == NULL)
 		out = stdout;
 	else if ((out = fopen (name, "w")) == NULL)
-		throw_error ("Unable to open output file for writing");
+		throw_error (CANNOT_UPDATE,
+			     "Unable to open output file for writing");
 
 	if (PUSH_HANDLER (err) == 0) {
 		time (& gentime);

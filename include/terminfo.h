@@ -65,7 +65,7 @@
 #ifndef A_STANDOUT
 
 #include <stdio.h>
-#ifdef USE_TERMIO
+#ifdef _USE_TERMIO
 #include <termio.h>
 #define DEF_VEOF	CEOF
 #define DEF_VEOL	0

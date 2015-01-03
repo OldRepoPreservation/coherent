@@ -1,9 +1,33 @@
+/* $Header: /ker/io.386/RCS/al.c,v 2.6 93/10/29 00:58:23 nigel Exp Locker: nigel $ */
 /* (-lgl
  * 	COHERENT Device Driver Kit version 1.2.0
  * 	Copyright (c) 1982, 1991 by Mark Williams Company.
  * 	All rights reserved. May not be copied without permission.
+ -lgl) */
+/*
+ * Driver for an IBM PC asyncronous
+ * line, using interrupts. The interface
+ * uses a Natty/WD 8250 chip.
  *
  * $Log:	al.c,v $
+ * Revision 2.6  93/10/29  00:58:23  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.5  93/09/13  08:05:53  nigel
+ * Changed to reflect the fact that entry points are 'void' once more
+ * 
+ * Revision 2.4  93/08/19  10:38:23  nigel
+ * r83 ioctl (), corefile, new headers
+ * 
+ * Revision 2.3  93/08/19  04:02:03  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  15:27:50  nigel
+ * Nigel's R80
+ * 
+ * Revision 1.8  93/04/14  10:09:40  root
+ * r75
+ * 
  * Revision 1.7  92/07/27  18:16:05  hal
  * Kernel #59
  * 
@@ -32,20 +56,10 @@
  * 
  * Revision 1.7  91/12/02  19:22:00  hal
  * Last version before FIFO testing.
- * 
- -lgl) */
-/*
- * Driver for an IBM PC asyncronous
- * line, using interrupts. The interface
- * uses a Natty/WD 8250 chip.
  */
-
 #include <sys/coherent.h>
-#ifndef _I386
-#include <sys/i8086.h>
-#endif
 #include <sys/con.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/tty.h>
 #include <sys/clist.h>
@@ -101,46 +115,15 @@
 /*
  * Functions.
  */
-int	alxopen();
-int	alxclose();
-int	alxioctl();
-int	alxtimer();
-int	alxparam();
-int	alxcycle();
-int	alxstart();
-int	alxbreak();
 
-int	alintr();
-int	alopen();
-int	alclose();
-int	alread();
-int	alwrite();
-static int alioctl();
-int	alload();
-int	alunload();
-int	alpoll();
-int	nulldev();
-int	nonedev();
-static int alioctl();
-
-/*
- * Configuration table.
- */
-CON ALNAME ={
-	DFCHR|DFPOL,			/* Flags */
-	ALMAJ,				/* Major index */
-	alopen,				/* Open */
-	alclose,			/* Close */
-	nulldev,			/* Block */
-	alread,				/* Read */
-	alwrite,			/* Write */
-	alioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	alxtimer,			/* Timeout */
-	alload,				/* Load */
-	alunload,			/* Unload */
-	alpoll				/* Poll */
-};
+void	alxopen();
+void	alxclose();
+void	alxioctl();
+void	alxtimer();
+void	alxparam();
+void	alxcycle();
+void	alxstart();
+void	alxbreak();
 
 /*
  * Terminal structures.
@@ -163,7 +146,14 @@ int ALSPEEDb = B9600;
  */
 int ALCNT = 2;
 
-static
+
+static void
+alintr()
+{
+	alxintr(irqtty);
+}
+
+static void
 alload()
 {
 	register int s;
@@ -188,9 +178,9 @@ alload()
 		else
 			ALCNT = 2;
 	}
-	if (init == 0 && ALCNT
-	  && (alttab = (TTY *)kalloc(ALCNT * sizeof(TTY)))
-	  && (ddp = (COM_DDP *)kalloc(ALCNT * sizeof(COM_DDP)))) {
+	if (init == 0 && ALCNT &&
+	    (alttab = (TTY *)kalloc(ALCNT * sizeof(TTY))) != NULL &&
+	    (ddp = (COM_DDP *)kalloc(ALCNT * sizeof(COM_DDP))) != NULL) {
 		kclear(alttab, ALCNT*sizeof(TTY));
 		kclear(ddp, ALCNT*sizeof(COM_DDP));
 		++init;
@@ -225,7 +215,6 @@ alload()
 			outb(port+LCR, LC_CS8);
 			alttab[i].t_start = alxstart;
 			alttab[i].t_param = alxparam;
-			alttab[i].t_cs_sel= cs_sel();
 		}
 
 		spl(s);
@@ -235,13 +224,13 @@ alload()
 	return;	
 }
 
-static
+static void
 alunload()
 {
 	int port, i;
 
 	for (i = 0;  i < ALCNT; i++) {
-		port = ((COM_DDP *)(alttab[i].t_ddp))->port;
+		port = ((COM_DDP *) alttab[i].t_ddp)->port;
 		outb(port+IER, 0);	/* disable port interrupts */
 		outb(port+MCR, 0);	/* hangup port */
 		timeout(alttab[i].t_rawtim, 0, NULL, 0);/* cancel timer */
@@ -253,18 +242,18 @@ alunload()
 	}
 }
 
-static
+static void
 alopen(dev, mode)
 dev_t	dev;
 int	mode;
 {
-	if (minor_st(dev) < ALCNT) {
-		alxopen(dev, mode, &DEV_TTY, &irqtty);
-	} else
-		u.u_error = ENXIO;
+	if (minor_st (dev) < ALCNT)
+		alxopen (dev, mode, & DEV_TTY, & irqtty);
+	else
+		set_user_error (ENXIO);
 }
 
-static
+static void
 alclose(dev, mode)
 dev_t	dev;
 int	mode;
@@ -275,15 +264,15 @@ int	mode;
 	alxclose(dev, mode, &DEV_TTY);
 }
 
-static
+static void
 alread(dev, iop)
 dev_t	dev;
 IO	*iop;
 {
-	ttread(&DEV_TTY, iop, 0);
+	ttread (& DEV_TTY, iop, 0);
 }
 
-static
+static void
 alwrite(dev, iop)
 dev_t	dev;
 register IO	*iop;
@@ -319,15 +308,16 @@ register IO	*iop;
 	}
 }
 
-static int
+static void
 alioctl(dev, com, vec)
 dev_t	dev;
+int com;
 struct sgttyb *vec;
 {
-	alxioctl(dev, com, vec, &DEV_TTY);
+	alxioctl(dev, com, vec, & DEV_TTY);
 }
 
-static
+static int
 alpoll(dev, ev, msec)
 dev_t dev;
 int ev;
@@ -336,8 +326,24 @@ int msec;
 	return ttpoll(&DEV_TTY, ev, msec);
 }
 
-static
-alintr()
-{
-	alxintr(irqtty);
-}
+
+/*
+ * Configuration table.
+ */
+
+CON ALNAME ={
+	DFCHR|DFPOL,			/* Flags */
+	ALMAJ,				/* Major index */
+	alopen,				/* Open */
+	alclose,			/* Close */
+	NULL,				/* Block */
+	alread,				/* Read */
+	alwrite,			/* Write */
+	alioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	alxtimer,			/* Timeout */
+	alload,				/* Load */
+	alunload,			/* Unload */
+	alpoll				/* Poll */
+};
+

@@ -1,3 +1,5 @@
+#define	_KERNEL		1
+
 #include <sys/al.h>
 /*
  * the following kernel resident parts are shared by loadable serial drivers

@@ -1,5 +1,5 @@
 /*
- * /usr/src/libc/gen/strtod.c
+ * /usr/src/libc/stdlib/strtod.c
  * C general utilities library.
  * strtod()
  * ANSI 4.10.1.4.
@@ -182,7 +182,7 @@ done:
 		errno = ERANGE;
 		d = HUGE_VAL;
 	}
-	return ((flag & NEG) ? -d : d);
+	return (flag & NEG) ? -d : d;
 }
 
-/* end of libc/gen/strtod.c */
+/* end of libc/stdlib/strtod.c */

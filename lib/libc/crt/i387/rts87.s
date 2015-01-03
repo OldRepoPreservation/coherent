@@ -3,6 +3,8 @@
 / cc386 80x87 runtime support.
 //////////
 
+	.intelorder
+
 	.text
 
 	.globl	_fwait

@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <setjmp.h>
 #ifdef   vax
 #include "INC$LIB:mch.h"

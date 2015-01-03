@@ -1,5 +1,9 @@
 /*
- * libc/gen/malloc/memok.c
+ * libc/stdlib/malloc/memok.c
+ * C general utilities library.
+ * memok()
+ * Not ANSI by a long shot.
+ * Memory allocation routines.
  * Test for corruption of malloc arena.
  * Assumes contiguous allocation from __a_first to __a_top.
  */
@@ -30,4 +34,4 @@ memok()
 	return ((1 == flag) && (mp == __a_first));
 }
 
-/* end of memok.c */
+/* end of libc/gen/stdlib/memok.c */

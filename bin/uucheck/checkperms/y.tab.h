@@ -1,24 +1,36 @@
-#define FOREACH 256
-#define PATHNAME 257
-#define STRING 258
-#define INDENT 259
-#define UNINDENT 260
-#define NL 261
-#define ERROR_TOKEN 262
-#define WARNING_TOKEN 263
-#define EXIST 264
-#define OWNER 265
-#define GROUP 266
-#define CHMOD_PERMISSION 267
-#define NUMBER 268
-#define FILE_TOKEN 269
-#define DIRECTORY 270
-#define PIPE 271
-#define CHARACTER_SPECIAL 272
-#define BLOCK_SPECIAL 273
-typedef	int	YYSTYPE;
+
+#line 16 "/u/steve/sh.fns/sh.y"
+typedef union {
+	NODE	*yu_node;
+	char	*yu_strp;
+	int	yu_nval;
+} YYSTYPE;
+#define _ANDF 256
+#define _ASGN 257
+#define _CASE 258
+#define _CBRAC 259
+#define _DO 260
+#define _DONE 261
+#define _DSEMI 262
+#define _ELIF 263
+#define _ELSE 264
+#define _ESAC 265
+#define _FI 266
+#define _FOR 267
+#define _IF 268
+#define _IN 269
+#define _IORS 270
+#define _NAME 271
+#define _NULL 272
+#define _OBRAC 273
+#define _ORF 274
+#define _PARENS 275
+#define _RET 276
+#define _THEN 277
+#define _UNTIL 278
+#define _WHILE 279
 #ifdef YYTNAMES
-extern struct yytname
+extern readonly struct yytname
 {
 	char	*tn_name;
 	int	tn_val;

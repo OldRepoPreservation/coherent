@@ -4,6 +4,8 @@
 / Not in ANSI C standard.
 //////////
 
+	.intelorder
+
 //////////
 / int
 / streq(char *String1, char *String2)

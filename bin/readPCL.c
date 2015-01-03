@@ -1,6 +1,6 @@
 /*
  * readPCL.c
- * 5/20/93
+ * 12/13/93
  *
  * Usage: readPCL [ -n ] [ infile [ outfile ]]
  * Option:
@@ -19,7 +19,7 @@
  * Reference: HP "LaserJet III Technical Reference Manual", App. B.
  */
  
-#if	__STDC__
+#if	defined(__STDC__)
 #define	__(args)	args
 #else
 #define	__(args)	()
@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#define	VERSION	"1.4"
+#define	VERSION	"1.5"
 #define	ESC	'\033'
 #define	NVALUE	80				/* max parameter value length */
 
@@ -81,6 +81,7 @@ PCMD	pcmds[] = {
 	{	'&',	'l',	'f',	"text length=%g"	},
 	{	'&',	'l',	'p',	"page length=%g"	},
 	{	'(',	'0',	'u',	"symset=ASCII"		},
+	{	'(',	'8',	'u',	"symset=Roman-8"	},
 	{	'(',	's',	'b',	"weight=%g"		},
 	{	'(',	's',	'h',	"pitch=%g"		},
 	{	'(',	's',	't',	"typeface=%g"		},

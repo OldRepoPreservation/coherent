@@ -1,37 +1,24 @@
-# /usr/src/libc/ndir/Makefile 5/12/92
+# /usr/src/libc/ndir/Makefile 6/8/94
 
-OBJ=\
-	closedir.o\
-	getdents.o\
-	opendir.o\
-	readdir.o\
-	rewinddir.o\
-	seekdir.o\
-	telldir.o
+LIBOBJ=\
+	$(TARGET)(closedir.o) \
+	$(TARGET)(getdents.o) \
+	$(TARGET)(opendir.o) \
+	$(TARGET)(readdir.o) \
+	$(TARGET)(rewinddir.o) \
+	$(TARGET)(seekdir.o) \
+	$(TARGET)(telldir.o)
 
-CCFLAGS = -I$(SRCPATH) -DUFS -DBIT_16
+# Add some explicit definitions to the passed CFLAGS.
+CCFLAGS=-I$(SRCPATH) -DUFS -DBIT_16
+
+.c.a:
+	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
+	$(AR) $(ARFLAGS) $@ $%
+	rm -f $%
 
 # Primary target.
-all:	NDIR
+all:	$(LIBOBJ)
 	: libc/ndir done
-
-# Pseudotargets. 
-NDIR:		$(OBJ)
-	$(AR) rkus libc.a $?
-	touch $@
-closedir.o:	closedir.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
-getdents.o:	getdents.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
-opendir.o:	opendir.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
-readdir.o:	readdir.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
-rewinddir.o:	rewinddir.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
-seekdir.o:	seekdir.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
-telldir.o:	telldir.c
-	$(CC) -c $(CFLAGS) $(CCFLAGS) $<
 
 # end of /usr/src/libc/ndir/Makefile

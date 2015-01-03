@@ -7,17 +7,24 @@
  * v1   -- steve 870730	COHERENT and MSDOS conditionalization
  * v2   -- steve 920716	-C and -P options
  * v4.0 -- steve 930128	-VCPLUS option
+ * v4.1 -- steve 940204 Comeau foolishness
+ * v4.2 -- steve 940209 more Comeau foolishness
+ * v4.3 -- steve 940318 minor Comeau fix
+ * v4.4 -- steve 940426 withdrew v4.3 change
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <path.h>
 #include "var.h"
 #include "varmch.h"
 
+/* Compilation options. */
 #define	NEWCPP	1	/* must be 0 to compile using old cpp */
 			/* because it does not understand "string1" "string2" */
+#define	COMEAU	1	/* Special handling for Comeau */
 
-#define	VERSION	"4.0"
+#define	VERSION	"4.4"
 
 #if	COHERENT
 #define	CC0NAME	"cc0"
@@ -66,6 +73,12 @@ main(argc, argv) int argc; char *argv[];
 
 	cppargc = 4;
 	setvariant(VCPP);
+#if	COMEAU
+	if ((ap = getenv("COMEAU")) != NULL && strcmp(ap, "1") == 0) {
+		setvariant(VCPLUS);
+		cppargs[cppargc++] = "-D__STDC__";
+	}
+#endif
 	argc--;
 	while (argc-- > 0) {
 		ap = *++argv;
@@ -140,7 +153,7 @@ main(argc, argv) int argc; char *argv[];
 #if	GEMDOS || COHERENT
 	if ((libptr = getenv("LIBPATH")) == NULL)
 		libptr = DEFLIBPATH;
-	if ((ap = path(libptr, CC0NAME, AEXEC)) == NULL)
+	if ((ap = path(libptr, CC0NAME, X_OK)) == NULL)
 		cpperror("cannot find cc0");
 	cppargs[0] = ap;
 #endif

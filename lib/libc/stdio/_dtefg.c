@@ -7,7 +7,7 @@
  * Conditionalized #if _IEEE to do 8087 conversion.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 #include <float.h>
 #include <math.h>
@@ -29,7 +29,7 @@ extern	char	*_dtof();
  * The number is converted if the entry is NULL,
  * otherwise the entry gives the string to print.
  */
-static readonly char *fxamsg[] = {
+static const char *fxamsg[] = {
 	"{+ Unnormal}",
 	"{+ NAN}",
 	"{- Unnormal}",

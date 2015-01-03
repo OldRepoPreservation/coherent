@@ -1,57 +1,39 @@
+/* $Header: /ker/i386/RCS/work.c,v 2.4 93/10/29 00:58:17 nigel Exp Locker: nigel $ */
 /*
- * File:	work.c
+ * Manage temporary pages of virtual memory.
+ * Pages are allocated in virtually contiguous pairs to allow
+ * for straddle operations in target code.
  *
- * Purpose:	Manage temporary pages of virtual memory.
- *		Pages are allocated in virtually contiguous pairs to allow
- *		for straddle operations in target code.
- *
- * $Log$
+ * $Log:	work.c,v $
+ * Revision 2.4  93/10/29  00:58:17  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.3  93/08/19  03:40:20  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  13:57:36  nigel
+ * Nigel's R80
+ * 
+ * Revision 1.1  93/04/14  10:29:40  root
+ * r75
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
-#include <sys/coherent.h>
+#define	_KERNEL		1
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
+#include <kernel/reg.h>
+#include <sys/mmu.h>
+
 #define	START_WORK	0xFFFFA		/* Highest scratchpad click pair. */
 #define MAX_WORK_PAIRS	4		/* Max # in use at one time */
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
 int	workAlloc();
 void	workFree();
 void	workPoolInit();
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 static int	numWorkPairs;	/* Number of click pairs in use. */
-static int	maxWorkPairs;	/* For monitoring resource use. */
 
 static int	workPool[MAX_WORK_PAIRS];
 
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
 void
 workPoolInit()
 {
@@ -78,12 +60,6 @@ workAlloc()
 		panic("Work pair pool empty");
 	ret = workPool[numWorkPairs++];
 	spl(s);
-#if 0
-	if (numWorkPairs > maxWorkPairs) {
-		maxWorkPairs = numWorkPairs;
-		printf("Now using %d work pairs ", maxWorkPairs);
-	}
-#endif
 	return ret;
 }
 
@@ -98,6 +74,10 @@ int w;
 
 	if (w > START_WORK || w <= START_WORK - MAX_WORK_PAIRS)
 		panic("workFree(%x)", w);
+
+	ptable1_v [w + 1] = ptable1_v [w] = SEG_ILL;
+	mmuupd ();
+
 	s = sphi();
 	if (numWorkPairs == 0)
 		panic("Work pair pool exploded");

@@ -17,6 +17,7 @@
  *		memset ()
  */
 
+#include <stdio.h>
 #include <sys/compat.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,16 +33,16 @@
  * the space on allowing stacklike allocation (which we don't, normally).
  */
 
-
 typedef	struct buildchunk	bchunk_t;
 typedef	struct objinfo		obj_t;
 
 struct objinfo {
-	obj_t	      *	o_prev;		/* previous object */
-	VOID	      *	o_base;		/* base of object */
-	size_t		o_size;		/* size of object */
-	unsigned char	o_building;	/* object being built */
+	size_t	      *	o_prev;		/* previous object info */
+	size_t	      *	o_base;		/* base of object */
+	size_t	      *	o_last;		/* last object that was built */
 };
+
+#define	OBJ_OVERHEAD	(sizeof (size_t))
 
 struct builder {
 	bchunk_t      *	b_first;	/* first allocated chunk */
@@ -61,6 +62,44 @@ struct buildchunk {
 
 
 /*
+ * This function transfers the notion of "current" chunk to a different chunk,
+ * transferring any partially built object along with it.
+ */
+
+#if	USE_PROTO
+void (BUILD_SELECT) (build_t * heap, bchunk_t * bchunkp)
+#else
+void
+BUILD_SELECT ARGS ((heap, bchunkp))
+build_t	      *	heap;
+bchunk_t      *	bchunkp;
+#endif
+{
+	/*
+	 * Copy any previously existing data to the new chunk.
+	 */
+
+	if (heap->b_obj.o_base != NULL) {
+		size_t		size = * heap->b_obj.o_base;
+
+		memcpy (bchunkp->bc_base, heap->b_obj.o_base, size);
+
+		heap->b_chunkp->bc_base -= size;	/* free old space */
+		heap->b_chunkp->bc_free += size;
+		memset (heap->b_chunkp->bc_base, 0, size);
+
+		heap->b_obj.o_base = (size_t *) bchunkp->bc_base;
+
+		bchunkp->bc_base += size;
+		bchunkp->bc_free -= size;
+	} else
+		heap->b_obj.o_base = (size_t *) bchunkp->bc_base;
+
+	heap->b_chunkp = bchunkp;
+}
+
+
+/*
  * This internal function allocates a new chunk of memory to be parcelled out
  * to clients. Allocate "b_chunksize" bytes of memory to give out, and copy
  * any partial allocation over to the new chunk (since we typically only
@@ -68,44 +107,44 @@ struct buildchunk {
  * overflows the biggest available block of space).
  */
 
-#ifdef	USE_PROTO
-bchunk_t * (BUILD_CHUNK) (build_t * heap, bchunk_t * bchunkp)
+#if	USE_PROTO
+bchunk_t * (BUILD_CHUNK) (build_t * heap, size_t required)
 #else
 bchunk_t *
-BUILD_CHUNK ARGS ((heap, bchunkp))
+BUILD_CHUNK ARGS ((heap, required))
 build_t	      *	heap;
-bchunk_t      *	bchunkp;
+size_t		required;
 #endif
 {
+	bchunk_t      *	bchunkp;
 
 	/*
 	 * Ok, let's add a new chunk.
 	 */
 
+	if ((required += required >> 1) > heap->b_chunksize)
+		heap->b_chunksize = required;
+
 	if ((bchunkp = (bchunk_t *) malloc (heap->b_chunksize +
 					    sizeof (bchunk_t))) == NULL)
 		return NULL;
 
+	bchunkp->bc_next = NULL;
+
+	if (heap->b_first == NULL)
+		 heap->b_first = bchunkp;
+	else
+		heap->b_last->bc_next = bchunkp;
+
+	heap->b_last = bchunkp;
 	bchunkp->bc_base = (char *) (bchunkp + 1);
 	bchunkp->bc_free = heap->b_chunksize;
 
 	/*
-	 * Copy any previously existing data to the new chunk.
+	 * Make the new chunk the current chunk.
 	 */
 
-	if (heap->b_obj.o_size > 0) {
-
-		memcpy (bchunkp->bc_base, heap->b_obj.o_base,
-			heap->b_obj.o_size);
-
-		bchunkp->bc_base += heap->b_obj.o_size;
-		bchunkp->bc_free -= heap->b_obj.o_size;
-	}
-
-
-	heap->b_chunkp = bchunkp;
-	heap->b_obj.o_base = (char *) (bchunkp + 1);
-
+	BUILD_SELECT (heap, bchunkp);
 	return bchunkp;
 }
 
@@ -120,21 +159,24 @@ bchunk_t      *	bchunkp;
  * allocated data in the same group.
  */
 
-#ifdef	USE_PROTO
-int (BUILD_ADD) (build_t * heap, size_t size, VOID * init)
+#if	USE_PROTO
+int (BUILD_ADD) (build_t * heap, size_t size, CONST VOID * init)
 #else
 int
 BUILD_ADD ARGS ((heap, size, init))
 build_t	      *	heap;
 size_t		size;
-VOID          *	init;
+CONST VOID    *	init;
 #endif
 {
 	bchunk_t      *	bchunkp;
-	size_t		total = size + heap->b_obj.o_size;
+	size_t		total;
 
-	if (size == 0)
+	if ((total = size) == 0)
 		return BUILD_OK;
+
+	if (heap->b_obj.o_base != NULL)
+		total += * heap->b_obj.o_base;
 
 	if (total < size || total + sizeof (bchunk_t) < total)
 		return BUILD_SIZE_OVERFLOW;
@@ -144,9 +186,7 @@ VOID          *	init;
 	 * If there are no chunks allocated yet, let's start.
 	 */
 
-	bchunkp = heap->b_chunkp;
-
-	if ((bchunkp != NULL && bchunkp->bc_free < size) || bchunkp == NULL) {
+	if ((bchunkp = heap->b_chunkp) == NULL || bchunkp->bc_free < size) {
 		/*
 		 * First, try and find an already allocated chunk that will
 		 * hold the expanded allocation.
@@ -155,34 +195,20 @@ VOID          *	init;
 		while (bchunkp != NULL) {
 
 			if (bchunkp->bc_free >= total) {
-				/*
-				 * Transfer existing object information to new
-				 * chunk.
-				 */
 
-				if (heap->b_obj.o_size > 0)
-					memcpy (bchunkp->bc_base,
-						heap->b_obj.o_base,
-						heap->b_obj.o_size);
-
-				heap->b_obj.o_base = bchunkp->bc_base;
-				heap->b_chunkp = bchunkp;
-
-				bchunkp->bc_base += heap->b_obj.o_size;
-				bchunkp->bc_free -= heap->b_obj.o_size;
-
+				BUILD_SELECT (heap, bchunkp);
 				goto gotmem;
 			}
 
 			bchunkp = bchunkp->bc_next;
 		}
 
-		if (total > heap->b_chunksize)
-			heap->b_chunksize = total + (total >> 1);
-
-		if ((bchunkp = BUILD_CHUNK (heap, bchunkp)) == NULL)
+		if ((bchunkp = BUILD_CHUNK (heap, total)) == NULL)
 			return BUILD_NO_MEMORY;
 	}
+
+	if (heap->b_obj.o_base == NULL)
+		heap->b_obj.o_base = (size_t *) bchunkp->bc_base;
 
 gotmem:
 	/*
@@ -206,9 +232,54 @@ gotmem:
 
 	bchunkp->bc_base += size;
 	bchunkp->bc_free -= size;
-	heap->b_obj.o_size += size;
+	(* heap->b_obj.o_base) += size;
 
 	return BUILD_OK;
+}
+
+
+/*
+ * At some stage we need to deal with alignment issues resulting from a chunk
+ * allocation by rounding off the base and free size of a chunk's remaining
+ * space. At present, we do this when we are about to build a new object,
+ * since only then are we totally sure that we are finished with the old one.
+ */
+
+#if	USE_PROTO
+int (BUILD_ALIGN) (build_t * heap)
+#else
+int
+BUILD_ALIGN ARGS ((heap))
+build_t	      *	heap;
+#endif
+{
+	if (heap->b_chunkp != NULL) {
+		size_t		adjust;
+
+		adjust = heap->b_chunkp->bc_free & (heap->b_align - 1);
+
+		/*
+		 * Waste some space at the end to make the alignment happen.
+		 */
+
+		if (adjust) {
+			adjust = heap->b_align - adjust;
+
+			heap->b_chunkp->bc_base += adjust;
+			heap->b_chunkp->bc_free -= adjust;
+		}
+	}
+
+	/*
+	 * Since we do this only when we are about to do something new, set up
+	 * for a new allocation.
+	 */
+
+	heap->b_chunkp = heap->b_first;
+	heap->b_obj.o_base = NULL;
+	heap->b_obj.o_last = NULL;
+
+	return BUILD_ADD (heap, OBJ_OVERHEAD, INIT_ZERO);
 }
 
 
@@ -229,26 +300,78 @@ gotmem:
  *   mandated by ISO C, and the notion of object identity is hotly debated
  *   in C++ circles. Since we will be using pointers that have been derived
  *   via convential means we can ignore such notions of aliasing. ]
+ *
+ * In order to deal with alignment, we have changed this function a little; it
+ * recovers a chunk address for the given object and makes it current, undoing
+ * any alignment done to the chunk since the object in question was left
+ * there. Return -1 on failure, 0 on success.
  */
 
-#ifdef	USE_PROTO
-LOCAL bchunk_t * (FIND_CHUNK) (build_t * heap, VOID * obj, size_t size)
+#if	USE_PROTO
+int (FIND_CHUNK) (build_t * heap, size_t * obj)
 #else
-LOCAL bchunk_t *
-FIND_CHUNK ARGS ((heap, obj, size))
+int
+FIND_CHUNK ARGS ((heap, obj))
 build_t	      *	heap;
-VOID	      *	obj;
-size_t		size;
+size_t	      *	obj;
 #endif
 {
 	bchunk_t      *	scan;
 
-	for (scan = heap->b_first ; scan != NULL ; scan = scan->bc_next)
-		if (scan->bc_base - size == obj)
-			return scan;
+	for (scan = heap->b_first ; scan != NULL ; scan = scan->bc_next) {
+		size_t	      *	temp;
+		size_t		adjust;
 
-	return NULL;
+		/*
+		 * When we do this we have to watch out for the fact that a
+		 * chunk may or may not have been aligned. If the chunk has
+		 * been aligned, dealign it.
+		 */
+
+		adjust = (scan->bc_free + * obj) & (heap->b_align - 1);
+		temp = (size_t *) (scan->bc_base - * obj - adjust);
+
+		if (temp == obj && * temp == * obj) {
+			heap->b_chunkp = scan;
+			scan->bc_free += adjust;
+			scan->bc_base -= adjust;
+			return 0;
+		}
+	}
+
+	return -1;
 }
+
+
+#if	0
+/*
+ * This function dumps a variety of information about a heap.
+ */
+
+#if	USE_PROTO
+void (build_dump) (build_t * heap)
+#else
+void
+build_dump ARGS ((heap))
+build_t	      *	heap;
+#endif
+{
+	bchunk_t      *	scan;
+
+	printf ("Heap b_first = %x b_last = %x chunksize = %d align = %d\n",
+		heap->b_first, heap->b_last, heap->b_chunksize, heap->b_align);
+
+	for (scan = heap->b_first ; scan != NULL ; scan = scan->bc_next) {
+		size_t	      *	obj = (size_t *) (scan + 1);
+
+		printf ("Chunk at %x, %x free:\n", scan, scan->bc_free);
+		while ((char *) obj < scan->bc_base) {
+			printf ("  Object at %x, size %d\n", obj, * obj);
+			obj = (size_t *) ((char *) obj + * obj);
+		}
+	}
+}
+#endif
 
 
 /*
@@ -258,7 +381,7 @@ size_t		size;
  * clients.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 build_t * (builder_alloc) (size_t chunksize, size_t align)
 #else
 build_t *
@@ -274,11 +397,10 @@ size_t		align;
 
 	if ((buildp = (build_t *) malloc (sizeof (build_t))) != NULL) {
 
-		buildp->b_first = buildp->b_last = NULL;
-		buildp->b_chunksize = chunksize;
+		buildp->b_chunkp = buildp->b_first = NULL;
 		buildp->b_align = align == 0 ? 1 : align;
+		buildp->b_chunksize = chunksize & ~ (buildp->b_align - 1);
 
-		buildp->b_obj.o_building = 0;
 		buildp->b_obj.o_prev = NULL;	/* no previous object */
 		buildp->b_obj.o_base = NULL;	/* not building an object */
 	}
@@ -292,7 +414,7 @@ size_t		align;
  * attached to itself during its lifetime.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 void (builder_free) (build_t * heap)
 #else
 void
@@ -320,7 +442,7 @@ build_t	      *	heap;
  * Simple function to allocate just a single chunk.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 VOID * (build_malloc) (build_t * heap, size_t size)
 #else
 VOID *
@@ -329,21 +451,18 @@ build_t	      *	heap;
 size_t		size;
 #endif
 {
-	if (heap == NULL || heap->b_obj.o_building != 0 ||
-	    (heap->b_obj.o_base != NULL && heap->b_obj.o_prev != NULL))
+	if (heap == NULL || heap->b_obj.o_base != NULL ||
+	    (heap->b_obj.o_last != NULL && heap->b_obj.o_prev != NULL))
 		return NULL;
 
-	heap->b_obj.o_size = 0;
+	if (BUILD_ALIGN (heap) != BUILD_OK ||
+	    BUILD_ADD (heap, size, NULL) != BUILD_OK)
+		return NULL;
+
+	heap->b_obj.o_last = heap->b_obj.o_base;
 	heap->b_obj.o_base = NULL;
 
-	heap->b_chunkp = heap->b_first;
-
-#ifdef	__COHERENT__
-	return BUILD_ADD (heap, size, NULL) == 0 ? heap->b_obj.o_base :
-		(VOID *) NULL;
-#else
-	return BUILD_ADD (heap, size, NULL) == 0 ? heap->b_obj.o_base : NULL;
-#endif
+	return (VOID *) (heap->b_obj.o_last + 1);
 }
 
 
@@ -353,19 +472,21 @@ size_t		size;
  * new allocation.
  */
 
-#ifdef	USE_PROTO
-int (build_begin) (build_t * heap, size_t size, VOID * init)
+#if	USE_PROTO
+int (build_begin) (build_t * heap, size_t size, CONST VOID * init)
 #else
 int
 build_begin ARGS ((heap, size, init))
 build_t	      *	heap;
 size_t		size;
-VOID          *	init;
+CONST VOID    *	init;
 #endif
 {
+	int		error;
+
 	if (heap == NULL)
 		return BUILD_NULL_HEAP;
-	if (heap->b_obj.o_building != 0)
+	if (heap->b_obj.o_base != 0)
 		return BUILD_OBJECT_BEGUN;
 
 	/*
@@ -376,15 +497,11 @@ VOID          *	init;
 	 * unwound.
 	 */
 
-	if (heap->b_obj.o_base != NULL &&
-	    heap->b_obj.o_prev != NULL)
+	if (heap->b_obj.o_last != NULL && heap->b_obj.o_prev != NULL)
 		return BUILD_BAD_NESTING;
 
-	heap->b_obj.o_size = 0;
-	heap->b_obj.o_base = NULL;
-	heap->b_obj.o_building = 1;
-
-	heap->b_chunkp = heap->b_first;
+	if ((error = BUILD_ALIGN (heap)) != BUILD_OK)
+		return error;
 
 	return BUILD_ADD (heap, size, init);
 }
@@ -394,19 +511,19 @@ VOID          *	init;
  * Add "size" bytes to the current variable-sized object.
  */
 
-#ifdef	USE_PROTO
-int (build_add) (build_t * heap, size_t size, VOID * init)
+#if	USE_PROTO
+int (build_add) (build_t * heap, size_t size, CONST VOID * init)
 #else
 int
 build_add ARGS ((heap, size, init))
 build_t	      *	heap;
 size_t		size;
-VOID      *	init;
+CONST VOID    *	init;
 #endif
 {
 	if (heap == NULL)
 		return BUILD_NULL_HEAP;
-	if (heap->b_obj.o_building == 0)
+	if (heap->b_obj.o_base == NULL)
 		return BUILD_NO_OBJECT;
 
 	return BUILD_ADD (heap, size, init);
@@ -419,7 +536,7 @@ VOID      *	init;
  * any easy way of predetermining the size.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 int (build_addchar) (build_t * heap, char ch)
 #else
 int
@@ -432,21 +549,76 @@ char		ch;
 
 	if (heap == NULL)
 		return BUILD_NULL_HEAP;
-	if (heap->b_obj.o_building == 0)
+	if (heap->b_obj.o_base == NULL)
 		return BUILD_NO_OBJECT;
 
 	/*
 	 * Like BUILD_ADD (), but faster in the simplest case.
 	 */
 
-	if ((bchunkp = heap->b_chunkp) == NULL || bchunkp->bc_free == 0)
-		if ((bchunkp = BUILD_CHUNK (heap, bchunkp)) == NULL)
+	if ((bchunkp = heap->b_chunkp) == NULL || bchunkp->bc_free == 0) {
+		bchunkp = BUILD_CHUNK (heap, * heap->b_obj.o_base + 1);
+		if (bchunkp == NULL)
 			return BUILD_NO_MEMORY;
+	}
 
 	* bchunkp->bc_base ++ = ch;
 	bchunkp->bc_free --;
-	heap->b_obj.o_size ++;
+	(* heap->b_obj.o_base) ++;
 
+	return BUILD_OK;
+}
+
+
+/*
+ * Reduce the space allocated to an object.
+ */
+
+#if	USE_PROTO
+int (build_reduce) (build_t * heap, size_t size)
+#else
+int
+build_reduce ARGS ((heap, size))
+build_t	      *	heap;
+size_t		size;
+#endif
+{
+	if (heap == NULL)
+		return BUILD_NULL_HEAP;
+	if (heap->b_obj.o_base == NULL)
+		return BUILD_NO_OBJECT;
+	if (size + OBJ_OVERHEAD > * heap->b_obj.o_base)
+		return BUILD_SIZE_OVERFLOW;
+
+	heap->b_chunkp->bc_base -= size;
+	heap->b_chunkp->bc_free += size;
+	* heap->b_obj.o_base -= size;
+
+	return BUILD_OK;
+}
+
+
+/*
+ * Abandon construction of an object.
+ */
+
+#if	USE_PROTO
+int (build_abandon) (build_t * heap)
+#else
+int
+build_abandon ARGS ((heap))
+build_t	      *	heap;
+#endif
+{
+	if (heap == NULL)
+		return BUILD_NULL_HEAP;
+	if (heap->b_obj.o_base == NULL)
+		return BUILD_NO_OBJECT;
+
+	heap->b_chunkp->bc_base -= * heap->b_obj.o_base;
+	heap->b_chunkp->bc_free += * heap->b_obj.o_base;
+
+	heap->b_obj.o_base = NULL;
 	return BUILD_OK;
 }
 
@@ -456,7 +628,7 @@ char		ch;
  * occupied.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 VOID * (build_end) (build_t * heap, size_t * size)
 #else
 VOID *
@@ -465,30 +637,43 @@ build_t	      *	heap;
 size_t	      *	size;
 #endif
 {
-	size_t		adjust;
-
-	if (heap == NULL || heap->b_obj.o_building == 0)
+	if (heap == NULL || heap->b_obj.o_base == NULL)
 		return NULL;
 
 	if (size != NULL)
-		* size = heap->b_obj.o_size;
+		* size = * heap->b_obj.o_base - OBJ_OVERHEAD;
 
-	if ((adjust = heap->b_obj.o_size & (heap->b_align - 1)) != 0) {
-		/*
-		 * Waste some space at the end to make the alignment happen.
-		 */
+	heap->b_obj.o_last = heap->b_obj.o_base;
+	heap->b_obj.o_base = NULL;
 
-		adjust = heap->b_align - adjust;
-
-		heap->b_obj.o_size += adjust;
-		heap->b_chunkp->bc_base += adjust;
-		heap->b_chunkp->bc_free -= adjust;
-	}
-
-	heap->b_obj.o_building = 0;
-	return heap->b_obj.o_base;
+	return (VOID *) (heap->b_obj.o_last + 1);
 }
 
+
+/*
+ * Resume construction of the last built object.
+ */
+
+#if	USE_PROTO
+int (build_resume) (build_t * heap)
+#else
+int
+build_resume ARGS ((heap))
+build_t	      *	heap;
+#endif
+{
+	if (heap == NULL)
+		return BUILD_NULL_HEAP;
+	if (heap->b_obj.o_base != NULL)
+		return BUILD_OBJECT_BEGUN;
+	if (heap->b_obj.o_last == NULL)
+		return BUILD_NOT_LAST;
+
+	heap->b_obj.o_base = heap->b_obj.o_last;
+	heap->b_obj.o_last = NULL;
+
+	return BUILD_OK;
+}
 
 
 /*
@@ -499,35 +684,33 @@ size_t	      *	size;
  * alone. Perhaps later we can add options to allow this.
  */
 
-#ifdef	USE_PROTO
-int (build_release) (build_t * heap, VOID * base)
+#if	USE_PROTO
+int (build_release) (build_t * heap, CONST VOID * base)
 #else
 int
 build_release ARGS ((heap, base))
 build_t	      *	heap;
-VOID      *	base;
+CONST VOID    *	base;
 #endif
 {
 	if (heap == NULL)
 		return BUILD_NULL_HEAP;
 	if (base == NULL)
 		return BUILD_NULL_BASE;
-	if (heap->b_obj.o_building == 1)
+	if (heap->b_obj.o_base != NULL)
 		return BUILD_OBJECT_BEGUN;
-	if (heap->b_obj.o_base != base)
+	if ((VOID *) (heap->b_obj.o_last + 1) != base)
 		return BUILD_NOT_LAST;
 
 	/*
-	 * Return "heap->b_size" bytes to the chunk that the last object was
+	 * Return object's space to the chunk that the last object was
 	 * constructed in. We also forget that the object was ever built,
 	 * which will allow nested builds to happen.
 	 */
 
-	heap->b_chunkp->bc_base -= heap->b_obj.o_size;
-	heap->b_chunkp->bc_free += heap->b_obj.o_size;
-
-	heap->b_obj.o_base = NULL;
-	heap->b_obj.o_size = 0;
+	heap->b_chunkp->bc_base -= * heap->b_obj.o_last;
+	heap->b_chunkp->bc_free += * heap->b_obj.o_last;
+	heap->b_obj.o_last = NULL;
 
 	return BUILD_OK;
 }
@@ -536,16 +719,18 @@ VOID      *	base;
 /*
  * Temporarily suspend construction of an object and begin nested construction
  * of another object. Once a nested build context has been entered, only one
- * object may be allowed to be built (although it may be thrown away and
- * another one begun).
+ * object is allowed to be built (although it may be thrown away and another
+ * one begun).
  */
 
-#ifdef	USE_PROTO
-int (build_push) (build_t * heap)
+#if	USE_PROTO
+int (build_push) (build_t * heap, VOID * data, size_t size)
 #else
 int
-build_push ARGS ((heap))
+build_push ARGS ((heap, data, size))
 build_t	      *	heap;
+VOID	      *	data;
+size_t		size;
 #endif
 {
 	obj_t		temp;
@@ -564,26 +749,37 @@ build_t	      *	heap;
 
 	temp = heap->b_obj;
 
-	heap->b_obj.o_size = 0;
-
-	if ((err = BUILD_ADD (heap, sizeof (temp), & temp)) != 0) {
+	if ((err = BUILD_ALIGN (heap)) != BUILD_OK ||
+	    (err = BUILD_ADD (heap, sizeof (temp) + size, NULL)) != BUILD_OK) {
 		/*
 		 * We couldn't create space for the saved context, so restore
 		 * the state and return the error to the caller.
 		 */
 
 		heap->b_obj = temp;
+		(void) FIND_CHUNK (heap, heap->b_obj.o_base);
 	} else {
+		/*
+		 * Copy our own save data plus the user-specified data into
+		 * the save record we have allocated. We record the size of
+		 * the user data as well.
+		 */
+
+		* (obj_t *) (heap->b_obj.o_base + 1) = temp;
+		if (size > 0 && data != NULL) {
+			memcpy ((char *) heap->b_obj.o_base +
+				OBJ_OVERHEAD + sizeof (obj_t), data, size);
+		}
+
+
 		/*
 		 * Record the location where the saved snapshot was stored as
 		 * the back-link in the snapshot chain. Then, we clear the
 		 * top object record for use in at most one nested allocation.
 		 */
 
-		heap->b_obj.o_prev = (obj_t *) heap->b_obj.o_base;
-
-		heap->b_obj.o_size = 0;
-		heap->b_obj.o_base = NULL;
+		heap->b_obj.o_prev = heap->b_obj.o_base;
+		heap->b_obj.o_last = heap->b_obj.o_base = NULL;
 	}
 
 	return err;
@@ -593,17 +789,22 @@ build_t	      *	heap;
 /*
  * Undo the actions of build_push (). If there is an allocation in the current
  * top-level object record, discard it implicitly.
+ *
+ * The user can also request the retrieval of data stored when the context was
+ * saved, if "data" and "sizep" are both non-NULL.
  */
 
-#ifdef	USE_PROTO
-int (build_pop) (build_t * heap)
+#if	USE_PROTO
+int (build_pop) (build_t * heap, VOID * data, size_t * sizep)
 #else
 int
-build_pop ARGS ((heap))
+build_pop ARGS ((heap, data, sizep))
 build_t	      *	heap;
+VOID	      *	data;
+size_t	      *	sizep;
 #endif
 {
-	bchunk_t      *	temp;
+	size_t		size;
 
 	if (heap == NULL)
 		return BUILD_NULL_HEAP;
@@ -611,48 +812,65 @@ build_t	      *	heap;
 		return BUILD_STACK_EMPTY;
 
 	/*
+	 * Implicitly discard top object.
+	 */
+
+	if (heap->b_obj.o_base != NULL) {
+		heap->b_chunkp->bc_base -= * heap->b_obj.o_base;
+		heap->b_chunkp->bc_free += * heap->b_obj.o_base;
+	}
+	if (heap->b_obj.o_last != NULL) {
+		heap->b_chunkp->bc_base -= * heap->b_obj.o_last;
+		heap->b_chunkp->bc_free += * heap->b_obj.o_last;
+	}
+
+	
+	/*
 	 * Before we retrieve the previous object context, we have to find
 	 * the chunk it is stored in (so that we can discard the saved
 	 * context record).
 	 */
 
-	if ((temp = FIND_CHUNK (heap, heap->b_obj.o_prev,
-				sizeof (obj_t))) == NULL)
+	size = * heap->b_obj.o_prev - (sizeof (obj_t) + OBJ_OVERHEAD);
+
+	if (size > 0) {
+		/*
+		 * Perhaps retrieve the saved user data.
+		 */
+
+		if (sizep == NULL || * sizep < size)
+			return BUILD_TOO_BIG;
+		* sizep = size;
+
+		if (data != NULL) {
+			memcpy (data, (char *) heap->b_obj.o_prev +
+				      sizeof (obj_t) + OBJ_OVERHEAD, size);
+		}
+	}
+
+	if (FIND_CHUNK (heap, heap->b_obj.o_prev) != 0)
 		return BUILD_CORRUPT;
 
 	/*
-	 * Implicitly discard top object.
+	 * Free saved record and recover the data stored there.
 	 */
 
-	if (heap->b_obj.o_base != NULL) {
+	size = * heap->b_obj.o_prev;
+	heap->b_obj = * (obj_t *) (heap->b_obj.o_prev + 1);
+	heap->b_chunkp->bc_base -= size;
+	heap->b_chunkp->bc_free += size;
 
-		heap->b_chunkp->bc_base -= heap->b_obj.o_size;
-		heap->b_chunkp->bc_free += heap->b_obj.o_size;
-	}
-
-
-	/*
-	 * Free saved record and recover the data stored there. We do it in
-	 * that backwards order to avoid storing too many temporary pointers,
-	 * and because it is safe for us (we won't be interrupted, and our
-	 * code doesn't overwrite newly-freed memory).
-	 */
-
-	temp->bc_base -= sizeof (obj_t);
-	temp->bc_free += sizeof (obj_t);
-
-	heap->b_obj = * heap->b_obj.o_prev;
-
-
+	
 	/*
 	 * We don't store the previous chunk pointer in the object record
 	 * because we can recover it easily if necessary (and it often isn't).
 	 */
 
-	if (heap->b_obj.o_base != NULL &&
-	    (heap->b_chunkp = FIND_CHUNK (heap, heap->b_obj.o_base,
-					  heap->b_obj.o_size)) == NULL)
-		return BUILD_CORRUPT;
+	if (heap->b_obj.o_base != NULL) {
+		if (FIND_CHUNK (heap, heap->b_obj.o_base) != 0)
+			return BUILD_CORRUPT;
+	} else
+		heap->b_chunkp = NULL;
 
 	return 0;
 }
@@ -662,7 +880,7 @@ build_t	      *	heap;
  * Return a human-readable string from an error code.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 CONST char * (build_error) (int errcode)
 #else
 CONST char *
@@ -688,6 +906,7 @@ int		errcode;
 		"can build only one object in inner nesting level",
 		"pop of empty saved object stack",
 		"heap appears to be corrupt",
+		"user data bigger than indicated maximum",
 		"<not a valid error>"
 	};
 
@@ -696,3 +915,285 @@ int		errcode;
 	return (errcode > 0 || - errcode >= ARRAY_LEN (errors) ?
 			errors [ARRAY_LEN (errors) - 1] : errors [- errcode]);
 }
+
+
+/*
+ * Return the current size of the current object; this size is suitable for
+ * use in recording subsection positions within structured data (since an
+ * object may move while being built, a relative address is more suitable than
+ * an absolute one).
+ */
+
+#if	__USE_PROTO__
+size_t (build_offset) (CONST build_t * heap)
+#else
+size_t
+build_offset __ARGS ((heap))
+CONST build_t *	heap;
+#endif
+{
+	return heap == NULL ? 0 : * heap->b_obj.o_base - OBJ_OVERHEAD;
+}
+
+
+#if	BUILDOBJ_DELTA_EXTENSIONS
+/*
+ * Here we define some simple extensions to the object builder for making
+ * builds of structured data simpler. We encode sub-object offsets from the
+ * start of allocated space in a printable (but not necessarily human-
+ * readable) form and allow such offsets to be written into an object that is
+ * still under construction.
+ */
+
+#include <assert.h>
+
+#ifdef	BUILD_DELTA_CODE
+
+static unsigned char _delta_digits [DELTA_RADIX] = BUILD_DELTA_CODE;
+static unsigned char _delta_digit_base;
+
+#if	_SHARED_STRINGS
+# define	DELTA_DIGITS		BUILD_DELTA_CODE
+#else
+# define	DELTA_DIGITS		_delta_digits
+#endif
+#define	DELTA_CODE_DIGIT(dig)	DELTA_DIGITS [dig]
+
+
+/*
+ * Decoding the digits based on a string is a pain; we do it through a
+ * function pointer so that we can have an init function which binds to a
+ * decode function appropriate to the nature of the code... on most machines,
+ * a simple subtraction will be all that is needed. The digit-decoding
+ * functions return a -1 if the digit is invalid, or the decoded value
+ * otherwise.
+ */
+
+int		delta_decode_init	PROTO ((unsigned _digit));
+static	int	     (*	_delta_decode)	PROTO ((unsigned _digit)) =
+				delta_decode_init;
+#define	DELTA_DECODE_DIGIT(dig)	(* _delta_decode) (dig)
+
+
+/*
+ * Code to perform string-based (i.e., slow) digit-decoding.
+ */
+
+#if	USE_PROTO
+int (delta_nasty) (unsigned digit)
+#else
+int
+delta_nasty ARGS ((digit))
+unsigned	digit;
+#endif
+{
+	unsigned char *	temp;
+
+	return (temp = memchr (_delta_digits, digit, DELTA_RADIX))
+	       == NULL ? -1 : temp - _delta_digits;
+}
+
+
+/*
+ * This function performs fast conversion from a coded digit to a plain digit
+ * in the case where a simple range-test and subtraction is all that is
+ * needed.
+ */
+
+#if	USE_PROTO
+int (delta_quick) (unsigned digit)
+#else
+int
+delta_quick ARGS ((digit))
+unsigned	digit;
+#endif
+{
+	return (digit -= _delta_digit_base) < DELTA_RADIX ? digit : -1;
+}
+
+
+/*
+ * Set up the digit-decoding method by selecting either the slow or fast
+ * digit-conversion system. While we're at it, assertion-check the string.
+ */
+
+#if	USE_PROTO
+int (delta_decode_init) (unsigned digit)
+#else
+int
+delta_decode_init ARGS ((digit))
+unsigned	digit;
+#endif
+{
+	unsigned	code;
+
+	_delta_digit_base = DELTA_CODE_DIGIT (0);
+	_delta_decode = delta_quick;
+
+	assert (SIZET_CODE_SIZE < DELTA_RADIX * DELTA_RADIX);
+
+	for (code = 1 ; code < DELTA_RADIX ; code ++) {
+		if (DELTA_CODE_DIGIT (code) != _delta_digit_base + code)
+			_delta_decode = delta_nasty;
+
+		assert (memchr (DELTA_DIGITS, DELTA_CODE_DIGIT (code),
+				code) == NULL);
+	}
+
+	printf (_delta_decode == delta_quick ? "fast\n" : "slow\n");
+	return DELTA_DECODE_DIGIT (digit);
+}
+
+#else	/* if ! defined (BUILD_DELTA_CODE) */
+
+#define	DELTA_CODE_DIGIT(dig)		(dig)
+#define	DELTA_DECODE_DIGIT(dig)		(dig)
+
+#endif
+
+/*
+ * This function writes a size_t into a string buffer (with at least
+ * SIZET_CODE_SIZE bytes of space) in printable form suitable for following
+ * with delta_read (). The value written is the maximum necessary width for
+ * this machine.
+ */
+
+#if	USE_PROTO
+unsigned char * (delta_store) (unsigned char * buf, size_t offset)
+#else
+unsigned char *
+delta_store ARGS ((buf, offset))
+unsigned char *	buf;
+size_t		offset;
+#endif
+{
+	unsigned char *	end;
+
+	/*
+	 * Now, we don't fuss about with creating canonical minimum-length
+	 * encodings because we don't need to.
+	 */
+
+	if (SIZET_CODE_SIZE >= DELTA_RADIX) {
+		buf [0] = DELTA_CODE_DIGIT (0);
+		buf [1] = DELTA_CODE_DIGIT (SIZET_CODE_SIZE / DELTA_RADIX);
+		buf [2] = DELTA_CODE_DIGIT (SIZET_CODE_SIZE % DELTA_RADIX);
+		buf += 2;
+	} else
+		* buf = DELTA_CODE_DIGIT (SIZET_CODE_SIZE);
+	end = buf + SIZET_CODE_SIZE;
+
+	while (end != buf) {
+		* end -- = DELTA_CODE_DIGIT (offset % DELTA_RADIX);
+		offset /= DELTA_RADIX;
+	}
+
+	return buf + SIZET_CODE_SIZE + 1;
+}
+
+
+/*
+ * Here we update a preexisting delta-code with a new value. We return a
+ * pointer to the space after the code, or NULL if the space reserved for the
+ * code was insufficient to encode the supplied value.
+ */
+
+#if	USE_PROTO
+unsigned char * (delta_update) (unsigned char * buf, size_t offset)
+#else
+unsigned char *
+delta_update ARGS ((buf, offset))
+unsigned char *	buf;
+size_t		offset;
+#endif
+{
+	unsigned char *	end;
+	unsigned char *	scan;
+
+	if ((scan = end = buf + DELTA_DECODE_DIGIT (buf [0])) == buf) {
+		/*
+		 * We have hit a multi-digit length.
+		 */
+
+		assert (DELTA_DECODE_DIGIT (buf [1]) != 0);
+		scan = end = buf + 2 + DELTA_DECODE_DIGIT (buf [2]) +
+			     DELTA_DECODE_DIGIT (buf [1]) * DELTA_RADIX;
+		buf += 2;
+	}
+	while (scan != buf) {
+		* scan -- = DELTA_CODE_DIGIT (offset % DELTA_RADIX);
+		offset /= DELTA_RADIX;
+	}
+
+	return offset == 0 ? end + 1 : NULL;
+}
+
+
+/*
+ * Read the delta code at "buf" and write it into "* value", returning the
+ * byte in "buf" following the delta code.
+ */
+
+#if	USE_PROTO
+unsigned char * (delta_read) (unsigned char * buf, size_t * value)
+#else
+unsigned char *
+delta_read ARGS ((buf, value))
+unsigned char *	buf;
+size_t	      *	value;
+#endif
+{
+	unsigned char *	end;
+	size_t		offset = 0;
+
+	if (value == NULL)
+		return NULL;
+
+	if ((end = buf + DELTA_DECODE_DIGIT (buf [0])) == buf) {
+		/*
+		 * We have hit a multi-digit length.
+		 */
+
+		assert (DELTA_DECODE_DIGIT (buf [1]) != 0);
+		end = buf + 2 + DELTA_DECODE_DIGIT (buf [2]) +
+		      DELTA_DECODE_DIGIT (buf [1]) * DELTA_RADIX;
+		buf += 2;
+	}
+	while (buf != end) {
+		int		digit = * ++ buf;
+
+		if ((digit = DELTA_DECODE_DIGIT (digit)) < 0) {
+			* value = -1;
+			return NULL;
+		}
+
+		offset = offset * DELTA_RADIX + digit;
+	}
+
+	* value = offset;
+	return end + 1;
+}
+
+
+int main () {
+	unsigned char	buf [10];
+	size_t		foo;
+
+	printf ("codesize = %d = ceil (%d/%d)\n", SIZET_CODE_SIZE,
+		LOG_SIZET_RADIX_256, LOG_DELTA_RADIX_256);
+
+	* delta_store (buf, 0) = 0;
+	printf ("delta(0) = %s\n", buf);
+
+	printf ("read (buf) = %s, ", delta_read (buf, & foo));
+	printf ("%d\n", foo);
+
+	printf ("update(100) = %s, %s\n", delta_update (buf, 100), buf);
+
+	printf ("read (buf) = %s, ", delta_read (buf, & foo));
+	printf ("%d\n", foo);
+
+	return 0;
+}
+
+#endif	/* BUILDOBJ_DELTA_EXTENSIONS */

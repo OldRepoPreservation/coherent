@@ -4,23 +4,22 @@
 / ANSI 4.11.5.2.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / strchr(char *String, int Char)
 /
 / Find Char in String, return pointer or NULL.
-/ Previously known as index();
-/ index() entry point retained for backward compatability.
+/ Previously known as index().
 //////////
 
 String	.equ	8
 Char	.equ	String+4
 
 	.globl	strchr
-	.globl	index
 
 strchr:
-index:
 	push	%esi
 
 	movl	%esi, String(%esp)	/ String address to ESI

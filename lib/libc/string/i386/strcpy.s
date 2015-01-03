@@ -4,6 +4,8 @@
 / ANSI 4.11.2.3, 4.11.2.4.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / strcpy(char *To, char *From)

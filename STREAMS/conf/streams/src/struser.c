@@ -6,7 +6,7 @@
  */
 
 #include <common/ccompat.h>
-#include <kernel/fhsys.h>
+#include <kernel/ddi_lock.h>
 #include <kernel/strmlib.h>
 #include <sys/confinfo.h>
 #include <sys/types.h>
@@ -18,6 +18,8 @@
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
 #include <sys/signal.h>
+#include <sys/fd.h>
+#include <sys/cred.h>
 #include <stropts.h>
 #include <string.h>
 #include <poll.h>
@@ -1680,7 +1682,7 @@ int	      *	retvalp;
 			* retvalp = SHEAD_SLEEP_LOCKED (sheadp, SH_OPENCLOSE,
 							0, CHECK_SIGNALS);
 
-			if (retvalp != 0) {
+			if (* retvalp != 0) {
 				/*
 				 * If the lock attempt failed because of a
 				 * clone open changing the stream head's
@@ -3809,7 +3811,6 @@ short		events;
 	pl_t		prev_pl;
 	mblk_t	      *	msg;
 
-
 	/*
 	 * Check the conditions that do not depend on the status of the first
 	 * queued message (if any).
@@ -4045,12 +4046,6 @@ sigcheck:
  * must lock the stream somehow.
  */
 
-#if	! _NO_INSTALLABLE_FILESYSTEMS
-
-extern fprocs_t		streams_fsys;
-
-#endif
-
 
 #if	__USE_PROTO__
 __LOCAL__ shead_t * (FH_TO_STREAM) (int fd, int * retvalp)
@@ -4061,31 +4056,18 @@ int		fd;
 int	      *	retvalp;
 #endif
 {
-	fhandle_t     *	handle;
-	scookie_t     *	cookie;
+	__fd_t	      *	fdp;
 
 	ASSERT (retvalp != NULL);
 
-	if ((handle = fd_get_handle (fd)) == NULL) {
+	if ((fdp = fd_get (fd)) == NULL) {
 
 		* retvalp = EBADF;
 		return NULL;
-#if	! _NO_INSTALLABLE_FILESYSTEMS
-	} else if (fh_procs (handle) == & streams_fsys) {
-
-		* retvalp = EINVAL;
-		return NULL;
-#endif
 	}
 
-	cookie = (scookie_t *) fh_get_cookie (handle);
-
-	ASSERT (cookie != NULL);
-
-	if (cookie->sheadp == NULL)
-		cmn_err (CE_WARN, "Bad cookie in streams");
-
-	return cookie->sheadp;
+	* retvalp = EINVAL;
+	return NULL;
 }
 
 
@@ -4096,7 +4078,7 @@ int	      *	retvalp;
  */
 
 struct passfp {
-	sftab_t	      *	sftab;	/* system file table entry address */
+	__fd_t	      *	fdp;	/* system file table entry address */
 	n_uid_t		uid;
 	n_gid_t		gid;
 };
@@ -4171,7 +4153,7 @@ struct strrecvfd
 
 	if (msg->b_datap->db_type != M_PASSFP)
 		retval = EBADMSG;
-	else if (! fd_can_add ())
+	else if ((recvp->fd = fd_get_free ()) == ERROR_FD)
 		retval = EMFILE;
 	else {
 
@@ -4191,7 +4173,7 @@ struct strrecvfd
 
 	fp = (struct passfp *) msg->b_rptr;
 
-	if ((retval = fd_add_sftab (fp->sftab, & recvp->fd)) == 0 &&
+	if ((retval = fd_recv (recvp->fd, fp->fdp)) == 0 &&
 	    ((recvp->uid = (o_uid_t) fp->uid) != fp->uid ||
 	     (recvp->gid = (o_gid_t) fp->gid) != fp->gid))
 		retval = EOVERFLOW;
@@ -4218,7 +4200,7 @@ cred_t	      *	credp;
 {
 	mblk_t	      *	msg;
 	struct passfp *	fp;
-	sftab_t	      *	sftab;
+	__fd_t	      *	fdp;
 	shead_t	      *	other;
 	int		retval;
 
@@ -4233,7 +4215,7 @@ cred_t	      *	credp;
 	 * here we turn that into a kernel-level abstract entity.
 	 */
 
-	if ((sftab = fd_get_sftab (fd)) == NULL)
+	if ((fdp = fd_get (fd)) == NULL)
 		return EBADF;
 
 	other = SHEAD_OTHER (sheadp);
@@ -4253,7 +4235,7 @@ cred_t	      *	credp;
 
 	msg->b_datap->db_type = M_PASSFP;
 
-	fp->sftab = sftab;
+	fp->fdp = fdp;
 	fp->uid = credp->cr_uid;
 	fp->gid = credp->cr_gid;
 
@@ -4710,16 +4692,18 @@ int		hipri;
 
 #if	__USE_PROTO__
 __LOCAL__ mblk_t * (SHEAD_MAKEMSG) (shead_t * sheadp, int mode,
-				    struct strbuf * ctlbuf,
-				    struct strbuf * databuf,
+				    __CONST__ struct strbuf * ctlbuf,
+				    __CONST__ struct strbuf * databuf,
 				    int flags, int band, int * retvalp)
 #else
 __LOCAL__ mblk_t *
 SHEAD_MAKEMSG __ARGS ((sheadp, mode, ctlbuf, databuf, flags, band, retvalp))
 shead_t	      *	sheadp;
 int		mode;
-struct strbuf *	ctlbuf;
-struct strbuf *	databuf;
+__CONST__ struct strbuf
+	      *	ctlbuf;
+__CONST__ struct strbuf
+	      *	databuf;
 int		flags;
 int		band;
 int	      *	retvalp;
@@ -4754,6 +4738,12 @@ int	      *	retvalp;
 	}
 
 	mode &= ~ FREAD;
+
+	if (sheadp->sh_linked != NULL) {
+
+		* retvalp = EINVAL;
+		return NULL;
+	}
 
 
 	/*
@@ -4862,7 +4852,7 @@ int	      *	retvalp;
 			ctlmsg->b_cont = datamsg;
 
 		datamsg->b_band = band;
-		datamsg->b_wptr = datamsg->b_wptr = datamsg->b_rptr + wroff;
+		datamsg->b_wptr = datamsg->b_rptr += wroff;
 
 		if (datasize > 0 &&
 		    copyin (databuf->buf, datamsg->b_rptr, datasize) != 0) {
@@ -5787,16 +5777,18 @@ shead_t	      *	sheadp;
 #if	__USE_PROTO__
 int (STREAMS_GETPMSG) (shead_t * sheadp, struct strbuf * ctlbuf,
 		       struct strbuf * databuf, int * bandp, int * flagsp,
-		       int mode, int * rvalp)
+		       int mode, cred_t * credp, int * rvalp)
 #else
 int
-STREAMS_GETPMSG __ARGS ((sheadp, ctlbuf, databuf, bandp, flagsp, mode, rvalp))
+STREAMS_GETPMSG __ARGS ((sheadp, ctlbuf, databuf, bandp, flagsp, mode, credp,
+			 rvalp))
 shead_t	      *	sheadp;
 int		mode;
 struct strbuf *	ctlbuf;
 struct strbuf *	databuf;
 int	      *	bandp;
 int	      *	flagsp;
+cred_t	      *	credp;
 int	      *	rvalp;
 #endif
 {
@@ -5808,7 +5800,8 @@ int	      *	rvalp;
 		return EBADF;
 
 	mode &= ~ FWRITE;
-
+	if (sheadp->sh_linked != NULL)
+		return EINVAL;
 
 	/*
 	 * As discussed in the general comment on read synchronization and in
@@ -5870,8 +5863,10 @@ int	      *	rvalp;
 
 		QUNFREEZE_TRACE (sheadp->sh_head, plbase);
 
-		if (retval != 0)
+		if (retval != 0) {
+			SHEAD_UNLOCK (sheadp, plbase);
 			return retval;
+		}
 
 		if (msg != NULL)
 			break;
@@ -5883,6 +5878,8 @@ int	      *	rvalp;
 		 */
 
 		if (SHEAD_HANGUP (sheadp)) {
+			SHEAD_UNLOCK (sheadp, plbase);
+
 			/*
 			 * Hangups are not an error for getpmsg ().
 			 */
@@ -5896,8 +5893,7 @@ int	      *	rvalp;
 			return 0;
 		}
 
-		if ((retval = SHEAD_WAIT_NONBLOCK (sheadp, FREAD,
-						   SH_READ_WAIT,
+		if ((retval = SHEAD_WAIT_NONBLOCK (sheadp, mode, SH_READ_WAIT,
 						   CHECK_SIGNALS)) != 0)
 			return retval;
 	}
@@ -5929,6 +5925,7 @@ int	      *	rvalp;
 	if (msg != NULL)
 		putbq (sheadp->sh_head, msg);
 
+	SHEAD_UNLOCK (sheadp, plbase);
 	return retval;
 }
 
@@ -6166,12 +6163,13 @@ mblk_t	      *	msg;
  */
 
 #if	__USE_PROTO__
-int (STREAMS_READ) (shead_t * sheadp, uio_t * uiop)
+int (STREAMS_READ) (shead_t * sheadp, uio_t * uiop, cred_t * credp)
 #else
 int
-STREAMS_READ __ARGS ((sheadp, uiop))
+STREAMS_READ __ARGS ((sheadp, uiop, credp))
 shead_t	      *	sheadp;
 uio_t	      *	uiop;
+cred_t	      *	credp;
 #endif
 {
 	mblk_t	      *	msg;
@@ -6184,6 +6182,8 @@ uio_t	      *	uiop;
 
 	mode = uiop->uio_fmode & ~ FWRITE;
 
+	if (sheadp->sh_linked != NULL)
+		return EINVAL;
 
 	/*
 	 * We (optionally) take out a lock on the stream head to single-thread
@@ -6255,18 +6255,22 @@ shead_t	      *	sheadp;
  */
 
 #if	__USE_PROTO__
-int (STREAMS_PUTPMSG) (shead_t * sheadp, struct strbuf * ctlbuf,
-		       struct strbuf * databuf, int band, int flags,
-		       int mode, int * rvalp)
+int (STREAMS_PUTPMSG) (shead_t * sheadp, __CONST__ struct strbuf * ctlbuf,
+		       __CONST__ struct strbuf * databuf, int band, int flags,
+		       int mode, cred_t * credp, int * rvalp)
 #else
 int
-STREAMS_PUTPMSG __ARGS ((sheadp, ctlbuf, databuf, band, flags, mode, rvalp))
+STREAMS_PUTPMSG __ARGS ((sheadp, ctlbuf, databuf, band, flags, mode, credp,
+			 rvalp))
 shead_t	      *	sheadp;
 int		mode;
-struct strbuf *	ctlbuf;
-struct strbuf *	databuf;
+__CONST__ struct strbuf
+	      *	ctlbuf;
+__CONST__ struct strbuf
+	      *	databuf;
 int		band;
 int		flags;
+cred_t	      *	credp;
 int	      *	rvalp;
 #endif
 {
@@ -6312,12 +6316,13 @@ int	      *	rvalp;
  */
 
 #if	__USE_PROTO__
-int (STREAMS_WRITE) (shead_t * sheadp, uio_t * uiop)
+int (STREAMS_WRITE) (shead_t * sheadp, uio_t * uiop, cred_t * credp)
 #else
 int
-STREAMS_WRITE __ARGS ((sheadp, uiop))
+STREAMS_WRITE __ARGS ((sheadp, uiop, credp))
 shead_t	      *	sheadp;
 uio_t	      *	uiop;
+cred_t	      *	credp;
 #endif
 {
 	queue_t	      *	q;
@@ -6333,7 +6338,8 @@ uio_t	      *	uiop;
 		return EBADF;
 
 	mode = uiop->uio_fmode & ~ FREAD;
-
+	if (sheadp->sh_linked != NULL)
+		return EINVAL;
 
 	/*
 	 * Deal with the zero-length-message special case.
@@ -6442,15 +6448,16 @@ extern struct streamtab headinfo;
 
 #if	__USE_PROTO__
 int (STREAMS_OPEN) (n_dev_t * devp, struct streamtab * stabp, int mode,
-		    cred_t * credp)
+		    cred_t * credp, int cloneflag)
 #else
 int
-STREAMS_OPEN (devp, stabp, mode, credp)
+STREAMS_OPEN (devp, stabp, mode, credp, cloneflag)
 n_dev_t	      *	devp;
 struct streamtab
 	      *	stabp;
 int		mode;
 cred_t	      *	credp;
+int		cloneflag;
 #endif
 {
 	shead_t	      *	sheadp;
@@ -6461,7 +6468,6 @@ cred_t	      *	credp;
 	ASSERT (devp != NULL);
 	ASSERT (stabp != NULL);
 	ASSERT (credp != NULL);
-
 
 	dev = * devp;
 
@@ -6494,7 +6500,8 @@ cred_t	      *	credp;
 	do {
 		retval = (* R (q)->q_qinfo->qi_qopen)
 				(R (q), & dev, mode,
-				 q->q_next == NULL ? 0 : MODOPEN, credp);
+				 q->q_next != NULL ? MODOPEN :
+					 cloneflag ? CLONEOPEN : 0, credp);
 
 		if (dev != * devp && q->q_next != NULL) {
 			/*
@@ -6646,6 +6653,5 @@ cred_t	      *	credp;
 		SHEAD_DO_CLOSE (sheadp, mode, credp);
 
 	SHEAD_SLEEP_UNLOCK (sheadp, SH_OPENCLOSE | SH_IOCTL_LOCK);
-
 	return 0;
 }

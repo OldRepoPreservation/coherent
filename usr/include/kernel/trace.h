@@ -10,7 +10,6 @@
 
 #include <kernel/proc_lib.h>
 #include <sys/cmn_err.h>
-#include <common/ccompat.h>
 
 /*
  * This header contains the MWC tracing macros.
@@ -179,9 +178,5 @@ extern	unsigned short	t_filedev;
 #define	T_FILESYS(dev, mask, cmd)	((void) 0)
 #endif
 
-void		_chirp		__PROTO ((char c, int off));
-void		chirp		__PROTO ((char c));
-void		mchirp		__PROTO ((char c));
-void		strchirp	__PROTO ((char * str));
-
 #endif	/* ! defined (__KERNEL_TRACE_H__) */
+

@@ -2,12 +2,12 @@
 #define	_SYSV3		1
 
 #include <common/xdebug.h>
-#include <kernel/confinfo.h>
+#include <sys/confinfo.h>
 #include <sys/types.h>
 #include <string.h>
 
 #ifdef	__MSDOS__
-#include <sys/_con.h>
+# include <sys/_con.h>
 #else
 #include <sys/con.h>
 #endif

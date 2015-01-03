@@ -6,8 +6,10 @@
 #define	_SYSV4		1
 
 #include <common/ccompat.h>
+#include <sys/types.h>
 #include <sys/stream.h>
 #include <sys/stropts.h>
+#include <sys/cred.h>
 #include <stddef.h>
 
 

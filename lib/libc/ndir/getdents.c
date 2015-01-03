@@ -104,7 +104,7 @@ extern int	_getdents();		/* actual system call */
 #endif
 
 extern char	*strncpy();
-extern int	fstat(), strlen();
+extern int	fstat();
 
 off_t	lseek();
 

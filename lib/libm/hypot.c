@@ -1,6 +1,10 @@
 /*
+ * libm/hypot.c
+ * C mathematics library.
+ * hypot()
  * Hypotenuse function.
  */
+
 #include <math.h>
 
 #if	EMU87
@@ -8,9 +12,7 @@
 #endif
 
 double
-hypot(x, y)
-double x;
-double y;
+hypot(x, y) double x, y;
 {
 	double r;
 
@@ -18,7 +20,9 @@ double y;
 		r = y;
 	else {
 		r = y/x;
-		r = x * sqrt(1.0 + r*r);
+		r = x * sqrt(1.0 + r * r);
 	}
-	return (r < 0. ? -r : r);
+	return (r < 0.0) ? -r : r;
 }
+
+/* end of libm/hypot.c */

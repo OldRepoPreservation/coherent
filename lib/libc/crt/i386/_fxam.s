@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / int _fxam(double d)
 / Return a value indicating the type of d,

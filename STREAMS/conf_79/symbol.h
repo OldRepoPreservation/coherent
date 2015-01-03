@@ -66,15 +66,19 @@ struct symbol {
 #define	SYM_EOF		-1
 
 
-typedef	int	(* dev_func_p)	PROTO ((input_t * _input, lex_t * _lexp));
+typedef	int	(* dev_func_p)	PROTO ((input_t * _input, lex_t * _lexp,
+					VOID * _extra));
 
 
 EXTERN_C_BEGIN
 
 int		symbol_init	PROTO ((void));
 
-void		read_dev_file	PROTO ((CONST char * _name,
-					dev_func_p _devfuncp));
+void		read_dev_file	PROTO ((CONST char * _inname,
+					CONST char * _outname,
+					dev_func_p _devfuncp, VOID * extra));
+void		read_dev_string	PROTO ((CONST char * _string,
+					dev_func_p _devfuncp, VOID * extra));
 int		read_symbol	PROTO ((input_t * _input, lex_t * _lexp,
 					symbol_t ** _sym));
 symbol_t      *	sym_intern	PROTO ((token_t * tok));

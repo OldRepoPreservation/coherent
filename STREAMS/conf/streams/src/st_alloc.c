@@ -1,5 +1,6 @@
+/* $Header: $ */
 /*
- * Main C routines for the quick heap manager.
+ * A portable, fast heap manager.
  *
  * This implementation is directly derived from the article in which this
  * algorithm first appeared ;
@@ -9,6 +10,8 @@
  *	R. P. Brent, Australian National University
  *	ACM Transactions on Programming Languages and Systems
  *	Volume 11, No. 3, July 1989 pp 388-403.
+ *
+ * $Log: $
  */
 
 /*
@@ -19,15 +22,39 @@
  *		__ARGS ()
  *	<common/xdebug.h>
  *		__LOCAL__
+ *	<common/tricks.h>
+ *		IS_POWER_OF_TWO
  *	<stddef.h>
  *		NULL
  */
 
 #include <common/ccompat.h>
 #include <common/xdebug.h>
+#include <common/tricks.h>
 #include <stddef.h>
 
+#define	_ST_IMPL	1
+
 #include <kernel/st_alloc.h>
+
+#ifndef	_ST_ASSERT
+# define	_ST_ASSERT	1
+#endif
+#ifndef	_ST_ALLOC
+# define	_ST_ALLOC	1
+#endif
+#ifndef	_ST_FREE
+# define	_ST_FREE	1
+#endif
+#ifndef	_ST_REALLOC
+# define	_ST_REALLOC	1
+#endif
+#ifndef	_ST_INIT
+# define	_ST_INIT	1
+#endif
+#ifndef	_ST_MAXAVAIL
+# define	_ST_MAXAVAIL	1
+#endif
 
 
 /*
@@ -39,7 +66,6 @@
 #if	_HOSTED
 
 #include <assert.h>
-
 #define	ASSERT(x)	assert (x)
 
 #else
@@ -48,6 +74,14 @@
 
 #endif
 
+/*
+ * Set up default fast-copy routines for various environments.
+ */
+
+#include <string.h>
+
+#define	_ST_COPY(dest, src, words) \
+		(void) memcpy (dest, src, (words) * sizeof (_ST_WORD_T))
 
 /*
  * In several places in the code we need to adjust pointer values by +1 or -1
@@ -66,7 +100,8 @@
 
 #define	_ST_AHDR_SIZE	1		/* word size of an allocated header */
 
-#define	_ST_BYTE2WORD(s) ((s + (1 + _ST_AHDR_SIZE) * _ST_WORD_S - 1) / _ST_WORD_S)
+#define	_ST_BYTE2WORD(s) ((s + (1 + _ST_AHDR_SIZE) * _ST_WORD_S - 1) / \
+			  _ST_WORD_S)
 					/*
 					 * _ST_BYTE2WORD () converts a size
 					 * passed in by a client into a block
@@ -90,6 +125,9 @@
 					 */
 
 #define	_ST_BUCKET_BASE(q,b) (q->_arena_base + (b) * q->_words_per_bucket)
+
+
+#if	_ST_ASSERT
 
 /*
  * This function does some general checks on the consistency of the contents
@@ -166,6 +204,10 @@ _ST_HEAP_CONTROL_P	q;
 			} else				/* block in use */
 				count = 0;
 
+			if (_ST_BLOCK_SIZE (cntl) > q->_arena_size) {
+				_ST_SET_ERROR (q, "Link to next block invalid");
+				return -1;
+			}
 			scan = _ST_HEAP_NEXT (scan, cntl);
 		}
 
@@ -198,6 +240,34 @@ _ST_HEAP_CONTROL_P	q;
 	return 0;
 }
 
+
+#if	TRACER
+
+#include <sys/cmn_err.h>
+
+#if	__USE_PROTO__
+int st_check (_ST_HEAP_CONTROL_P q, __CONST__ char * where)
+#else
+int
+st_check (q, where)
+_ST_HEAP_CONTROL_P	q;
+__CONST__ char	      *	where;
+#endif
+{
+	if (st_assert (q)) {
+		cmn_err (CE_WARN, "kernel heap bad: %s",
+			 _ST_HEAP_ERROR (q));
+		return -1;
+	}
+	return 0;
+}
+
+#endif	/* TRACER */
+
+#endif	/* _ST_ASSERT */
+
+
+#if	_ST_ALLOC
 
 /*
  * st_double () doubles the depth of the index heap, assuming that
@@ -274,9 +344,9 @@ _ST_HEAP_CONTROL_P	q;
  */
 
 #if	__USE_PROTO__
-__LOCAL__ void (st_reduced) (_ST_HEAP_CONTROL_P q, int bucket)
+void (st_reduced) (_ST_HEAP_CONTROL_P q, int bucket)
 #else
-__LOCAL__ void
+void
 st_reduced __ARGS ((q, bucket))
 _ST_HEAP_CONTROL_P	q;
 int			bucket;
@@ -293,7 +363,8 @@ int			bucket;
 
 	max = _ST_BLOCK_CONTROL (q, a);
 	if (_ST_BLOCK_FREE (max) &&
-	    _ST_HEAP_BIGGEST (q, bucket + q->_buckets_inuse) > _ST_BLOCK_SIZE (max))
+	    _ST_HEAP_BIGGEST (q, bucket + q->_buckets_inuse) > \
+			_ST_BLOCK_SIZE (max))
 		return;
 #endif
 
@@ -359,9 +430,9 @@ int			bucket;
  */
 
 #if	__USE_PROTO__
-__LOCAL__ void (st_grown) (_ST_HEAP_CONTROL_P q, _ST_ADDR_T a, int bucket)
+void (st_grown) (_ST_HEAP_CONTROL_P q, _ST_ADDR_T a, int bucket)
 #else
-__LOCAL__ void
+void
 st_grown __ARGS ((q, a, bucket))
 _ST_HEAP_CONTROL_P	q;
 _ST_ADDR_T		a;
@@ -371,7 +442,6 @@ int			bucket;
 	int 	max;
 
 	ASSERT (bucket == _ST_HEAP_BUCKET (q, a));
-
 
 	/*
 	 * Expand the number of buckets in the heap if necessary.
@@ -398,7 +468,6 @@ int			bucket;
 	while (_ST_HEAP_BIGGEST (q, bucket) < max) {
 
 		_ST_HEAP_BIGGEST (q, bucket) = max;
-
 		bucket = _ST_BUCKET_PARENT (bucket);
 	}
 }
@@ -413,9 +482,9 @@ int			bucket;
  */
 
 #if	__USE_PROTO__
-__LOCAL__ _ST_ADDR_T (st_pred) (_ST_HEAP_CONTROL_P q, _ST_ADDR_T a, int bucket)
+_ST_ADDR_T (st_pred) (_ST_HEAP_CONTROL_P q, _ST_ADDR_T a, int bucket)
 #else
-__LOCAL__ _ST_ADDR_T
+_ST_ADDR_T
 st_pred __ARGS ((q, a, bucket))
 _ST_HEAP_CONTROL_P	q;
 _ST_ADDR_T		a;
@@ -425,7 +494,6 @@ int			bucket;
 	_ST_ADDR_T prev, scan;
 
 	ASSERT (bucket == _ST_HEAP_BUCKET (q, a));
-
 
 	/*
 	 * If the passed-in block is the first in the bucket, then the
@@ -469,8 +537,6 @@ int			bucket;
 		 * case we snap the result of the search to the lowest bucket
 		 * on the left.
 		 */
-
-#define	IS_POWER_OF_TWO(n) (((n - 1) ^ n) >= n)
 
 		if (! IS_POWER_OF_TWO (bucket)) {
 
@@ -551,7 +617,6 @@ size_t			size;
 	if (_ST_HEAP_BIGGEST (q, 1) < n)
 		return 0;
 
-
 	/*
 	 * Now traverse the heap to find the first bucket containing a block
 	 * of sufficient size to satisfy the request.
@@ -628,6 +693,9 @@ size_t			size;
 	return _ST_ADDR2PTR (q, _ST_HEAP_NEXT (scan, _ST_AHDR_SIZE));
 }
 
+#endif	/* _ST_ALLOC */
+
+#if	_ST_FREE
 
 /*
  * Release a block of memory obtained using st_alloc (), where "a" is the
@@ -718,7 +786,8 @@ __VOID__	      *	a;
 		 * third argument anyway.
 		 */
 
-		_ST_BLOCK_SET_FREE (q, addr, cntl += temp);
+		cntl += temp;
+		_ST_BLOCK_SET_FREE (q, addr, cntl);
 
 		temp = _ST_HEAP_BUCKET (q, next);
 
@@ -766,7 +835,8 @@ __VOID__	      *	a;
 
 	if (_ST_BLOCK_FREE (temp = _ST_BLOCK_CONTROL (q, prev))) {
 
-		_ST_BLOCK_SET_FREE (q, prev, cntl += temp);
+		cntl += temp;
+		_ST_BLOCK_SET_FREE (q, prev, cntl);
 
 		/*
 		 * If we are merging with a block in a previous bucket, then
@@ -820,8 +890,11 @@ __VOID__	      *	a;
 	return 0;
 }
 
+#endif	/* _ST_FREE */
 
-#ifndef	_ST_BLOCK_COPY
+#if	_ST_REALLOC
+
+#ifndef	_ST_COPY
 
 /*
  * Helper function which supplies a default block-copy routine for the
@@ -830,11 +903,11 @@ __VOID__	      *	a;
  */
 
 #if	__USE_PROTO__
-__LOCAL__  void (st_copy) (_ST_WORD_T * dest, __CONST__ _ST_WORD_T * src,
+__LOCAL__  void (_ST_COPY) (_ST_WORD_T * dest, __CONST__ _ST_WORD_T * src,
 			   size_t copywords)
 #else
 __LOCAL__ void
-st_copy __ARGS ((dest, src, copywords))
+_ST_COPY __ARGS ((dest, src, copywords))
 _ST_WORD_T	      * dest;
 _ST_WORD_T	      * src;
 size_t			copywords;
@@ -844,9 +917,11 @@ size_t			copywords;
 		* dest ++ = * src ++;
 }
 
-#define	_ST_BLOCK_COPY(q,d,s,n)	st_copy (_ST_HEAP_ADDR (q, d), _ST_HEAP_ADDR(q, s), n)
 
-#endif	/* ! defined (_ST_BLOCK_COPY) */
+#endif	/* ! defined (_ST_COPY) */
+
+#define	_ST_BLOCK_COPY(q,d,s,n)	\
+		_ST_COPY (_ST_HEAP_ADDR (q, d), _ST_HEAP_ADDR(q, s), n)
 
 
 /*
@@ -878,7 +953,7 @@ size_t			copywords;
  *  (iv) Find any other block of sufficient size to fulfil the request.
  *
  * The primary criterion I have set for this routine is that it must always
- * succeed in finding memory to saisfy the request. Note that the number of
+ * succeed in finding memory to satisfy the request. Note that the number of
  * cases that this produces as a result is extremely large, but that it seems
  * better to fulfil a user's request than to fail it simply on the basis that
  * we want the common case to be fast.
@@ -1085,7 +1160,8 @@ size_t			newsize;
 
 		_ST_BLOCK_COPY (q, _ST_HEAP_NEXT (prev, _ST_AHDR_SIZE),
 				_ST_HEAP_NEXT (addr, _ST_AHDR_SIZE),
-				_ST_BLOCK_SIZE (_ST_BLOCK_CONTROL (q, addr)) - _ST_AHDR_SIZE);
+				_ST_BLOCK_SIZE (_ST_BLOCK_CONTROL (q, addr)) -\
+					_ST_AHDR_SIZE);
 
 		/*
 		 * Now, do the common part.
@@ -1283,42 +1359,12 @@ adjust_right:
 	return _ST_ADDR2PTR (q, _ST_HEAP_NEXT (prev, 1));
 }
 
+#endif	/* _ST_REALLOC */
+
+#if	_ST_INIT
 
 /*
- * Initialise an arena.
- */
-
-#if	__USE_PROTO__
-void (st_init) (_ST_HEAP_CONTROL_P q)
-#else
-void
-st_init __ARGS ((q))
-_ST_HEAP_CONTROL_P	q;
-#endif
-{
-	q->_heap_error = NULL;
-	q->_buckets_inuse = 1;
-	q->_words_per_bucket = (q->_arena_size + q->_buckets_maximum - 1)
-					/ q->_buckets_maximum;
-
-	_ST_HEAP_BIGGEST (q, 1) = q->_arena_size;
-
-	_ST_HEAP_FIRST (q, 0) = q->_arena_base;
-
-	_ST_BLOCK_SET_FREE (q, q->_arena_base, q->_arena_size);
-
-	/*
-	 * Create dummy sentinel block.
-	 */
-
-	st_alloc (q, 0);
-
-	return;
-}
-
-
-/*
- * As above, but a full construction.
+ * Initialize a heap with fine control over parameter settings.
  */
 
 #if	__USE_PROTO__
@@ -1345,16 +1391,79 @@ _ST_ADDR_T		arenabase;
 	 * Perform regular initialisation.
 	 */
 
-	st_init (q);
+	q->_heap_error = NULL;
+	q->_buckets_inuse = 1;
+	q->_words_per_bucket = (q->_arena_size + q->_buckets_maximum - 1)
+					/ q->_buckets_maximum;
+
+	_ST_HEAP_BIGGEST (q, 1) = q->_arena_size;
+
+	_ST_HEAP_FIRST (q, 0) = q->_arena_base;
+
+	_ST_BLOCK_SET_FREE (q, q->_arena_base, q->_arena_size);
+
+	/*
+	 * Create dummy sentinel block.
+	 */
+
+	st_alloc (q, 0);
 }
 
+
+/*
+ * Simplified initialization code. Here we are just given a chunk of memory,
+ * and we try to do our best with setting it up.
+ *
+ * For estimating the number of buckets, we take the square root of the heap
+ * size as our starting point. To make this easy, we round the size up to the
+ * nearest power of two and take the log, halve it and then exponentiate. Note
+ * that by wrapping up the code below in a macro, we not only make it clearer
+ * but we also get the extra level of macro rescanning necessary to expand the
+ * _SIZE_T macro passed as the "type".
+ *
+ * I am just guessing that this is a good number of buckets, BTW.
+ */
+
+#define	ST_SQRT(x, type) \
+		(1 << (__CONCAT (__MOST_BIT, type) (x) / 2 + 1))
+
+#if	__USE_PROTO__
+_ST_HEAP_CONTROL_P (st_heap_init) (__VOID__ * memory, size_t size)
+#else
+_ST_HEAP_CONTROL_P
+st_heap_init __ARGS ((memory, size))
+__VOID__      *	memory;
+size_t		size;
+#endif
+{
+	size_t		buckets;
+	size_t		overhead;
+	_ST_HEAP_CONTROL_P q;
+
+	buckets = size - 1;
+	buckets = ST_SQRT (buckets, _SIZE_T);
+	overhead = _ST_HEAP_CONTROL_SIZE (buckets);
+
+	q = (_ST_HEAP_CONTROL_P) memory;
+	memory = (__VOID__ *) ((char *) memory + overhead);
+	size -= overhead;
+
+	st_ctor (q, buckets, size / sizeof (_ST_WORD_T), (_ST_ADDR_T) memory);
+
+	(void) _ST_CHECK (q, "st_heap_init ()");
+
+	return q;
+}
+
+#endif	/* _ST_INIT */
+
+#if	_ST_MAXAVAIL
 
 /*
  * Return a size suitable for requesting the largest currently available
  * block of memory.
  *
- * Thanks to the way the index heap is constructed, this is in fact
- * trivially implementable.
+ * Thanks to the way the index heap is constructed, this is in fact trivial.
  */
 
 #if	__USE_PROTO__
@@ -1365,5 +1474,8 @@ st_maxavail __ARGS ((q))
 _ST_HEAP_CONTROL_P	q;
 #endif
 {
-	return _ST_WORD2BYTE (_ST_HEAP_BIGGEST (q, 0));
+	return _ST_WORD2BYTE (_ST_HEAP_BIGGEST (q, 1));
 }
+
+#endif	/* _ST_MAXAVAIL */
+

@@ -4,6 +4,8 @@
 / ANSI 4.11.4.2, 4.11.4.4.
 //////////
 
+	.intelorder
+
 //////////
 / int strcmp(char *String1, char *String2)
 / Compare String1 and String2 until mismatch or NUL seen.

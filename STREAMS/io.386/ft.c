@@ -1,35 +1,21 @@
-extern int OUTB_DB;
-
-int FT_BLAB = 0;
-int FT_ACKBLAB = 0;
+extern unsigned long __bolt;
 
 /*
- * File:	ft.c
+ * Floppy tape device control.
+ * Requires 765 controller module fdc.c
  *
- * Purpose:	Floppy tape device control.
- *		Requires 765 controller module fdc.c
- *		FDC = floppy disk controller, e.g. NEC upd765
+ * FDC = floppy disk controller, NEC upd765 or compatible.
  *
- * Revised: Tue Jun 29 08:22:14 1993 CDT
+ * This driver can handle only one floppy tape drive at a time!
  *
  * To do:
- *   Read fractional segment or block, then come back for the rest.
- *   Coordinate conversion: tape <--> pseudo diskette
- *   Skip entire segment if bad block map says > 28 bad blocks.
- *   ECC.
- *   QIC-40.
- *   205' cartridges.
- *   Write.
- *   Bad block map.
- *   Don't rewind on close (or on next open?).
- *   Timeout protection whenever sleeping on FDC interrupt.
- *   VTBL
- *   Ability to read/write DOS tapes.
- *   Compression.
- *   ioctl: get info and status
- *   ioctl: format
- *   ioctl: rewind, retension, wind to end of data
- *   Ioctl: mapPhysUser() for improved speed.
+ *   ioctl: rewind, retension, wind to end of data.
+ *   ioctl: format.
+ *   ioctl: set offset to simulate a previous no rewind on close.
+ *
+ *   Dynamic buffer allocation.
+ *   Sane response to signals received.
+ *   FDC data rate control based on tape drive status.
  */
 
 /*
@@ -69,1454 +55,139 @@ int FT_ACKBLAB = 0;
  * Includes.
  */
 #include	<sys/coherent.h>
+#include	<coh/defer.h>
+#include	<coh/i386lib.h>
+#include	<coh/misc.h>
+#include	<coh/proc.h>
+#include	<coh/timeout.h>
+
+#include	<kernel/v_types.h>
 
 #include	<errno.h>
 #include	<sys/buf.h>
+#include	<sys/cmn_err.h>
 #include	<sys/con.h>
 #include	<sys/devices.h>
-#include	<sys/dmac.h>
 #include	<sys/fdc765.h>
 #include	<sys/fdioctl.h>
 #include	<sys/file.h>
-#include	<sys/sched.h>
+#include	<sys/mmu.h>
+#include	<sys/seg.h>
 #include	<sys/stat.h>
-#include	<sys/xl.h>
-#include	<sys/xlfdc.h>
-#include	<sys/xlft.h>
+#include	<sys/tape.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-#define FT_MAX_NBUF	150	/* NBUF patch value is limited to this.	*/
+#include	<sys/ft.h>
+#include	<sys/ftioctl.h>
+#include	<sys/ftx.h>
 
-#define	FT_BFRSZ	32768		/* 32k, size of QIC-80 segment	*/
-#define	FT_BLKSZ	1024		/* 1k, size of QIC-80 block	*/
-#define	FT_BLK_PER_SEG	32		/* 32 blocks per segment	*/
-#define FT_NUM_ECC_BLKS 3		/* 3 ECC blocks per segment	*/
+#define FT_MAX_PAGES	1024	/* Max # of pages allowed in buffer pool. */
+#define FT_MAX_NBUF	127	/* NBUF patch value is limited to this.	*/
+#define FT_SIGNATURE	0xAA55AA55	/* Start of header segment.	*/
 
-#define FT_ACK_TRIES	20	/* max # of tries for ACK to QIC rpt cmd*/
+#define FT_BLK_PER_SEG	32
+#define FT_PAGES_PER_SEG	(FT_SEG_SIZE / NBPC)
+
+#define FT_ACK_TRIES	2000	/* max # of tries for ACK to QIC rpt cmd*/
 #define FT_CAL_TRIES	2	/* max # of tries for seek load point	*/
-
-#define FT_CAL_SECS	120	/* max # seconds for seek load point	*/
-#define FT_PAUSE_SECS	15	/* max # seconds for pause		*/
-#define FT_RDY_SECS	120	/* max # seconds for drive ready	*/
-#define FT_SEEK_SECS	15	/* max # seconds for seek head to track	*/
-#define FT_WIND_SECS	180	/* max # seconds for wind or rewind	*/
-
-#define FT_INITIAL_TRACK	0
-#define FT_INITIAL_PHY_SEG	3	/* Skip 2 format headers + VTBL	*/
 
 #define FT_OPEN_ERR(msg)	{devmsg(dev,msg);goto badFtOpen;}
 #define FT_READ_ERR(msg)	{devmsg(dev,msg);goto badFtRead;}
+#define FT_WRITE_ERR(msg)	{devmsg(dev,msg);goto badFtWrite;}
 
 /*
- * Macros to get information from tape unit number, which is 0..3.
- * Unit 0 is soft select - no motor on.
- * Units 1..3 are hardware select.
+ * CMS Jumbo 120 drive locks up permanently (til next power cycle) unless
+ * each QIC-117 command is followed by a nominal delay of at least 2.5 msec.
+ * For all commands which leave the tape stopped on completion,
+ * we enlarge this considerably (and still see occasional lockups!).
  */
+#define FT_MOTION_TICKS 20
+
 #define FT_DRIVE(unit)		(unit)
-#define FT_MOTOR(unit)		((unit > 0) ? FDC_MOTOR_ON : FDC_MOTOR_OFF)
-#define FT_SOFT_SELECT(unit)	(unit == 0)
 
-/* Divide, rounding up if remainder is nonzero. */
-#define FT_DIV_RU(dividend, divisor) \
-	(((dividend) + (divisor) - 1) / (divisor))
-
-/* Real (tape) and pseudo (diskette) parameters for each cartridge format. */
-struct FtParm {
-	/* Tape parameters. */
-	uint	segPerTrk;
-	uint	tracks;
-
-	/* FDC pseudo parameters. */
-	uint	blkPerTrk;
-	uint	heads;
-	uint	cyls;
-};
-
-/* Driver state variables. */
-struct FT {
-	/* booleans */
-	unchar	ft_wakeMeUp;		/* 1 = sleeping til next FDC IRQ */
-	unchar	ft_dumpIrq;		/* 1 = dump IRQ status		*/
-	unchar	ft_ackNeeded;		/* 1 = awaiting ACK to rpt cmd	*/
-	unchar	ft_ackMissed;		/* 1 = wanted ACK, didn't get	*/
-	unchar	ft_open;		/* 1 = device is open		*/
-	unchar	ft_refd;		/* 1 = found reference burst	*/
-	unchar	ft_useEcc;		/* 1 = Reed-Solomon enabled	*/
-	unchar	ft_useBadMap;		/* 1 = use bad block map	*/
-
-	/* very short ints */
-	unchar	ft_pcn;			/* present cylinder #		*/
-	unchar	ft_bitsNeeded;		/* # of Report Next Bit's to do	*/
-	unchar	ft_bitsRcvd;		/* # of report bits received	*/
-	unchar	ft_drv;			/* drive number, 0..3		*/
-	unchar	ft_fmt;			/* index into ftParm		*/
-
-	unchar	ft_cyl;			/* cylinder	FDC - C		*/
-	unchar	ft_head;		/* head		FDC - H		*/
-	unchar	ft_blk;			/* block	FDC - R		*/
-	unchar	ft_ssz;			/* record size	FDC - N		*/
-
-	/* short ints */
-	ushort	ft_report;		/* where reported bits go	*/
-	ushort	ft_track;		/* track for next access	*/
-	ushort	ft_phySeg;		/* segment # for next access	*/
-
-	/* other structs */
-	TIM	ft_tim;
-};
-
-/* Descriptor for a run of good blocks within a single segment. */
-struct FtRun {
-	uint	blkToRead;	/* Next block wanted from current segment */
-	uint	blksRead;	/* Number of blocks read from this seg    */
-	uint	runLength;	/* Number of good blocks in current run   */
-};
+/* QIC-117 says Motor On line from FDC is ignored by the tape unit. */
+#define FT_MOTOR(unit)		FDC_MOTOR_OFF
 
 /*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-extern int	nulldev();
-extern char *	getDmaMem();
-
-/* CON entry points. */
-static int	ftblock();
-static int	ftclose();
-static int	ftioctl();
-static int	ftload();
-static int	ftopen();
-static int	ftread();
-static int	ftunload();
-static int	ftwrite();
-
-/* Debug routines. */
-static	void	ftDbPrintCmd();
-static	void	ftDbPrintErr();
-static	void	ftDbPrintPos();
-static	void	ftDbPrintStat();
-static	void	ftDbPrtStat();
-
-/* Support routines. */
-static	int	ftCmd();
-static	int	ftCmdArg();
-static	int	ftCmdSend();
-static	void	ftFdcPos();
-static	int	ftGetBlkRun();
-static	void	ftGetInfo();
-static	void	ftIrqHandler();
-static	int	ftReadBlkRun();
-static	int	ftReadBlks();
-static	int	ftReadID();
-static	int	ftReadSegs();
-static	int	ftReadyWait();
-static	int	ftRecal();
-static	void	ftResetFDC();
-static	void	ftRptBegin();
-static	void	ftRptUpdate();
-static	int	ftSeg();
-static	void	ftSelect();
-static	int	ftSkipBack();
-static	int	ftSkipFwd();
-static	int	ftStartTape();
-static	int	ftStopTape();
-static	int	ftStsWthErr();
-static	int	ftWait();
-
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
-
-CON	ftcon = {
-	DFCHR,				/* Flags */
-	FL_MAJOR,			/* Major index */
-	ftopen,				/* Open */
-	ftclose,			/* Close */
-	ftblock,			/* Block */
-	ftread,				/* Read */
-	ftwrite,			/* Write */
-	ftioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	nulldev,			/* Timeout */
-	ftload,				/* Load */
-	ftunload,			/* Unload */
-	nulldev				/* Poll */
-};
-
-/*
- * Patchable values.
+ * Tunable values.
  *
  * FT_NBUF = number of 32 Kbyte segment buffers allocated.  In the
  *   present memory model, this buffer space cannot be used for
  *   anything else, and is part of the "PhysMem" pool reserved at
  *   startup.  The buffer set is attached at ftBigBuf during ftload().
+ * FT_SOFT_SELECT = 0 for hard select, 1 for A/M/S protocol, 2 for CMS.
+ *   If soft select is used, the unit bits in the minor number are
+ *   ignored and all commands to the FDC use unit zero.
+ *   A/M/S = Archive/Conner/Mountain/Summit.
+ *   CMS = Colorado Memory Systems.
+ * FT_AUTO_CONFIG - tries to guess which type of tape drive is installed
+ *   by getting status from each possibility in turn.  The testing is
+ *   done in the driver load routine.
+ */
+
+extern int	FT_NBUF;
+extern int	FT_SOFT_SELECT;
+extern int	FT_AUTO_CONFIG;
+
+
+/*
  * FT_CUSHION = number of segments we try to have between current
  *   physical position of tape when stopped and the next segment to
  *   be accessed.  The cushion allows time for the tape to come up to
  *   speed.
  */
+int		FT_CUSHION = 8;	/* # of segs passed during start/stop	*/
 
-int	FT_NBUF = 16;
-int	FT_CUSHION = 5;		/* # of segs passed during start/stop	*/
+/* Data rate is 500 Kbits/sec.  This will probably not change. */
+int		ftrate = 0;
+
+/*
+ * DMA store.
+ *   ftHeaderSeg is the virtual address of a 1 Kbyte aligned virtually
+ *     contiguous buffer area 32 Kbytes in length, for the tape header info.
+ *   ftBigBuf is the virtual address of a 1 Kbyte aligned, virtually contiguous
+ *     buffer area, FT_NBUF segments in length.
+ *   ftNumBlks [i] is the number of valid blocks in segment buffer i, during
+ *     reads.  At the end of ftReadSegments (), valid blocks are packed
+ *     toward the start of the segment.
+ *   ftNumBytes [i] is the number of valid bytes in segment buffer i, during
+ *     writes.  At the start of ftWriteSegments (), blocks are unpacked
+ *     within the segment according to the bad block table.
+ */
+
+static unsigned char	* ftPool;
+static unsigned char	* ftPooltop;
+static __paddr_t	ftPoolPaddr [FT_MAX_PAGES];
+
+static unsigned char	* ftHeaderSeg;
+static unsigned char	* ftBigBuf;
+
+extern struct FtSegErr	ftSegErr [];
+extern unsigned char	ftNumBlks [];
+
+extern unsigned int	ftNumBytes [];
 
 /* Parameters for FDC Specify Command */
+int FT_RATE = FDC_RATE_500K;
 int FT_SRT_2 = 0xE;
 int FT_SRT_3 = 0xD;
 int FT_HUT = 0xF;
 int FT_HLT = 0x1;
 
-static struct FT	ft;
-static struct FtParm	ftParm[] = {
-/* segments/track, tracks, blocks/pseudotrack, heads, cylinders	*/
-	{ 150, 28, 128, 7, 150 },		/* QIC-80, 307.5'	*/
-	{ 100, 28, 128, 5, 150 },		/* QIC-80, 205'		*/
-	{ 102, 20, 128, 2, 255 },		/* QIC-40, 307.5'	*/
-	{  68, 20, 128, 2, 170 }		/* QIC-40, 205'		*/
+/* Things that depend on the data rate. */
+
+struct FtRateParameters {
+	int	srt;	/* FDC Stepping Rate */
+	int	ftRate;
+	int	fdcRate;
 };
 
-/*
- * DMA store.
- *   ftBigBuf is the virtual address of an aligned, physically contiguous
- *     buffer area, FT_NBUF segments in length.
- *   ftBufBlks[s] says how many blocks (0..32) in segment s of ftBigBuf were
- *     successfully read.  These blocks are contiguous, aligned at the start
- *     of segment buffer s.
- *   ftBadBlkCt[s] says how many blocks in segment s of ftBigBuf could not be
- *     read due to FDC error. This number is in the range (0..2) =
- *     (0..FT_NUM_ECC_BLKS).  It gives a count of blocks that should have
- *     been read (i.e., not listed in the bad block table) and that may be
- *     recovered using ecc.
- *   ftBadBlk[s][e] is the block number in segment s where read error
- *     number e (0..2) occurred.
- *   ftSegCt is the number of segment buffers in ftBigBuf which have data.
- *   ftCurrentSeg is the segment number being read, < ftSegCt.
- *   ftOffset is byte offset within current segment for next access.
- */
-static unchar * ftBigBuf;
-static unchar	ftBufBlks[FT_MAX_NBUF];
-static unchar	ftBadBlkCt[FT_MAX_NBUF];
-static unchar	ftBadBlk[FT_MAX_NBUF][FT_NUM_ECC_BLKS];
-static int	ftSegCt;
-static int	ftCurrentSeg;
-static int	ftOffset;
-
-/* Strings where multibyte FDC commands are built. */
-
-unchar rwCmd[] = {
-	0x46,		/* FDC read, skip deleted data, MFM.	*/
-	0,		/* Head 0, unit 0.			*/
-	0,		/* C = FDC cylinder			*/
-	0,		/* H = FDC head				*/
-	1,		/* R = FDC block number (1-based)	*/
-	3,		/* N = block length (3 = 1024 bytes)	*/
-	226,		/* EOT = last block number on cylinder	*/
-	1,		/* GPL = number of bytes in gap 3	*/
-	255		/* DTL, use 0xFF when N != 0		*/
+struct FtRateParameters ftRateParms [] = {
+	{ 0xe, FT_DATA_RATE_500K, FDC_RATE_500K },
+	{ 0xf, FT_DATA_RATE_250K, FDC_RATE_250K },
+	{ 0xd, FT_DATA_RATE_1MEG, FDC_RATE_1MEG },
 };
 
-/* Read/write command bytes. */
-enum {
-	RW_CMD_RD = 0x46,
-	RW_CMD_WR = 0x45
-};
-
-/* Offsets into rwCmd. */
-enum {
-	RW_CMD_VERB	= 0,
-	RW_CMD_UNIT	= 1,
-	RW_CMD_CYL	= 2,
-	RW_CMD_HEAD	= 3,
-	RW_CMD_SCTR	= 4,
-	RW_CMD_SCSZ	= 5,	/* encoded block length	*/
-	RW_CMD_SCHI	= 6,	/* high block number		*/
-	RW_CMD_GPL	= 7,
-	RW_CMD_DTL	= 8,
-	RW_CMD_LEN	= 9
-};
-
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
-
-/*
- * CON struct routines.
- */
-
-/************************************************************************
- *	ftblock
- *
- * Tape is not a block device, but we need a block entry point since
- * the same driver controls diskette access.
- ***********************************************************************/
-static int
-ftblock(bp)
-BUF *bp;
-{
-	u.u_error = EIO;
-	bp->b_flag |= BFERR;
-	bdone(bp);
-	return;
-}
-
-/************************************************************************
- * ftclose
- *
- ***********************************************************************/
-static int
-ftclose(dev, mode)
-dev_t dev;
-int mode;
-{
-	printf("ftclose ");
-
-	setFtIntr(1);
-	if (FT_SOFT_SELECT(ft.ft_drv))
-		ftCmd(QIC_CMD_SS_OFF);
-
-	ft.ft_open = 0;
-	setFtIntr(0);
-}
-
-/*************************************************************************
- *	ftioctl
- *	Handle tape drive & controller commands like erase, rewind,
- *	retension, read filemark, and write filemark
- ************************************************************************/
-ftioctl(dev, cmd, arg)
-register int	dev, cmd;
-int		arg;
-{
-}
-
-/*************************************************************************
- *	ftload
- ************************************************************************/
-static int
-ftload()
-{
-	uint bigBufLen;
-
-	if (FT_NBUF > FT_MAX_NBUF)
-		FT_NBUF = FT_MAX_NBUF;
-
-	bigBufLen = FT_NBUF * FT_BFRSZ;
-	ftIntr = ftIrqHandler;
-	if ((ftBigBuf = getDmaMem(bigBufLen, FT_BFRSZ)) == NULL)
-		printf("ERROR - can't allocate %d bytes for ft buffers\n",
-		  bigBufLen);
-}
-
-/************************************************************************
- * ftopen
- *
- ***********************************************************************/
-static int
-ftopen(dev, mode)
-dev_t dev;
-int mode;
-{
-	unsigned int drvStat;
-	int i;
-	int bit;
-	int result;
-	int notReady;
-	int drvStatus;
-	int putCount;
-
-	/* Couldn't allocate buffer area. */
-	if (ftBigBuf == NULL) {
-		devmsg(dev, "no buffers ");
-		u.u_error = EIO;
-		return;
-	}
-
-	/* Can't append to tape. */
-	if (mode & IPAPPEND) {
-		devmsg(dev, "can't append ");
-		u.u_error = EINVAL;
-		return;
-	}
-
-	/* Only one open at a time. */
-	if (ft.ft_open) {
-		devmsg(dev, "only one ftopen at a time ");
-		u.u_error = EBUSY;
-		return;
-	}
-	ft.ft_open = 1;
-
-	ft.ft_drv = FT_UNIT(dev);
-
-	if (!setFtIntr(1))
-		FT_OPEN_ERR("fdc unavailable ");
-
-	ftIntr = ftIrqHandler;
-
-	/* Select tape drive. */
-	ftSelect(ft.ft_drv);
-
-	if (ftCmd(QIC_CMD_RST))
-		FT_OPEN_ERR("soft reset failed ");
-
-	/* Need to wait a second after QIC software reset. */
-	ftWait(HZ);
-
-	/* Re-Select tape drive (reset clears soft select). */
-	ftSelect(ft.ft_drv);
-
-	/* HERE is the test for tape drive present. */
-	drvStatus = ftStsWthErr();
-	if (drvStatus == -1)
-		FT_OPEN_ERR("get drive status failed ");
-
-	/* Wait for drive to be ready, or give up. */
-	if(ftReadyWait(FT_RDY_SECS))
-		FT_OPEN_ERR("Tape Drive Not Ready");
-
-	/* Need Cartridge Present to be true. */
-	if ((ft.ft_report & QIC_STAT_PRSNT) == 0)
-		FT_OPEN_ERR("No Cartridge");
-
-	/* Initialize state variables & such. */
-	ft.ft_refd = 0;
-	ft.ft_fmt = 0;		/* 307.5' QIC-80 */
-	ft.ft_useEcc = 0;	/* No ECC. Yet. */
-	ft.ft_useBadMap = 0;	/* No bad block map use. Yet. */
-
-	/* Wrap-up. */
-	fdcSpecify(FT_SRT_3, FT_HUT, FT_HLT);
-	setFtIntr(0);
-	return;
-
-	/* Error exit. */
-badFtOpen:
-
-	u.u_error = EIO;
-	ft.ft_open = 0;
-	fdcSpecify(FT_SRT_3, FT_HUT, FT_HLT);
-	fdcDrvSelect(0, FDC_MOTOR_OFF);
-	if (FT_SOFT_SELECT(ft.ft_drv))
-		ftCmd(QIC_CMD_SS_OFF);
-	setFtIntr(0);
-	return;
-}
-
-/************************************************************************
- * ftread
- *
- * if tape not referenced
- *   seek load point
- *   wait for ready
- *   if tape still not referenced
- *     abort read - tape not formatted
- *   set next access to track 0, segment 3
- * while more data is to be read
- *   read as much as possible into DMA buffer area
- *   abort in case of read error
- *   iowrite() - copy DMA buffers into user space
- ***********************************************************************/
-static int
-ftread(dev, iop)
-dev_t dev;
-IO * iop;
-{
-#if 0
-	unchar	drvStatus;
-	uint	calTries;
-	int	segsWanted;
-	unchar	* bufPtr;
-	int	i;
-	int	bytesInBuffer;
-	int	dataBlksPerSeg;
-	int	dataBytesPerSeg;
-
-	/* Has reference burst been seen? */
-	drvStatus = ftStsWthErr();
-	if (drvStatus == -1)
-		FT_READ_ERR("get drive status failed ");
-
-	/*
-	 * If not, look for reference burst now.
-	 * If this fails, it's probably due to unformatted tape.
-	 */
-	if ((drvStatus & QIC_STAT_REFD) == 0) {
-		ftCmd(QIC_CMD_CAL);
-		if (ftReadyWait(FT_CAL_SECS))
-			FT_READ_ERR("seek load point failed");
-
-		/* Again, has reference burst been seen? */
-		drvStatus = ftStsWthErr();
-		if (drvStatus == -1)
-			FT_READ_ERR("get drive status failed ");
-
-		if ((drvStatus & QIC_STAT_REFD) == 0)
-			FT_READ_ERR("seek load point failed");
-
-		/* Initialize access coordinates for next read. */
-		ft.ft_track = FT_INITIAL_TRACK;
-		ft.ft_phySeg = FT_INITIAL_PHY_SEG;
-	}
-
-	/*
-	 * Compute expected number of data blocks, and bytes, in a segment.
-	 * This is an estimate, as it does not consider bad blocks that are
-	 * mapped out.
-	 */
-	dataBlksPerSeg = FT_BLK_PER_SEG;
-	if (ft.ft_useEcc)
-		dataBlksPerSeg -= FT_NUM_ECC_BLKS;
-	dataBytesPerSeg = dataBlksPerSeg * FT_BLKSZ;
-
-	/*
-	 * While there is input needed
-	 *   If DMA buffer is used up
-	 *     Load DMA buffer area from tape.
-	 *     Update DMA buffer stats:
-	 *       Number of valid segments = number of segments read
-	 *       Current segment and current offset both = 0
-	 *   Transfer data:
-	 *     Source is DMA buffer, current segment and offset.
-	 *     Destination is IO struct.
-	 *     Update DMA buffer current segment and offset.
-	 */
-	while (iop->io_ioc) {
-
-		/* Do we need to fill DMA buffer from tape? */
-		if (ftCurrentSeg >= ftSegCt) {
-
-			/* Estimate how many segments will need to be read. */
-			segsWanted = FT_DIV_RU(iop->io_ioc, dataBytesPerSeg);
-
-			/* Try to fill DMA buffer area. */
-			ftSegCt = ftReadSegs(segsWanted);
-
-			/* Update current DMA data pointer. */
-			ftCurrentSeg = 0;
-			ftOffset = 0;
-
-			/* Abort read if something went wrong. */
-			if (ftSegCt == -1)
-				FT_READ_ERR("ftBufRead failed");
-
-			/* Terminate read if at end of tape. */
-			if (ftSegCt == 0)
-				break;
-
-			/* HERE is where ecc will be done. */
-			/* This will involve decrementing ftBufBlks[?] by 3. */
-		}
-
-XXX
-		/* Transfer data from DMA buffer to IO area. */
-		while
-		for (i = 0, bufPtr = ftCurrentSeg;
-		  bufPtr += FT_BFRSZ, i < ftSegCt; i++) {
-
-			bytesInBuffer = ftBufBlks[i] * FT_BLKSZ;
-			if (bytesInBuffer != 0) {
-
-				int transferCount = iop->io_ioc;
-
-				if (transferCount > bytesInBuffer)
-					transferCount = bytesInBuffer;
-
-			/* May transfer less than a segment. */
-			if (bytesInBuffer > iop->io_ioc)
-				bytesInBuffer = iop->io_ioc;
-			iowrite(iop, bufPtr, bytesInBuffer);
-			}
-		}
-	}
-
-	return;
-
-badFtRead:
-	SET_U_ERROR(EIO, "ftread");
-	return;
-#endif
-}
-
-/************************************************************************
- * ftunload
- *
- ***********************************************************************/
-static int
-ftunload()
-{
-}
-
-/************************************************************************
- * ftwrite
- *
- ***********************************************************************/
-static int
-ftwrite(dev, iop)
-dev_t dev;
-IO * iop;
-{
-	if (!ft.ft_open) {			/* exit if not open		*/
-		u.u_error = EIO;
-		return;
-	}
-}
-
-/*********************
-**********************
-**
-** Support routines.
-**
-**********************
-**********************/
-
-/************************************************************************
- * ftCmd
- *
- * Given a QIC-117 command number, send the command.
- * If report bits are expected in response, initialize the bit counter.
- * Then sleep until the commmand is done and report bits are gathered.
- ***********************************************************************/
-static int
-ftCmd(cmd)
-int cmd;
-{
-	int	bitsNeeded;
-
-	if (cmd != QIC_CMD_STS)
-		printf("[%d]", cmd);
-
-	/* Will sleep until command done and report bits are in. */
-	ft.ft_wakeMeUp = 1;
-
-	/*
-	 * The following commands expect report bits from the tape drive.
-	 * After receiving the QIC command (and subsequent delay),
-	 * the drive sends a leading ACK bit (always 1).  This bit is
-	 * not counted in the numbers below.
-	 * Subseqeunt bits are sent in response to Report Next Bit,
-	 * least significant bit first, then a trailing 1.
-	 * The value of bitsNeeded is either one more than the number of
-	 * data bits in the report, or zero.
-
-	 */
-	switch(cmd) {
-	case QIC_CMD_STS:
-	case QIC_CMD_DRVCN:
-	case QIC_CMD_ROMVN:
-	case QIC_CMD_TPSTAT:
-		bitsNeeded = 9;
-		break;
-	case QIC_CMD_ECD:
-	case QIC_CMD_VNDID:
-		bitsNeeded = 17;
-		break;
-	default:
-		bitsNeeded = 0;
-	}
-	ftRptBegin(bitsNeeded);
-	ft.ft_ackMissed = 0;
-
-	ftCmdSend(cmd);
-
-	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftCmd")) {
-		if (FT_BLAB)
-			printf("sig to cmd %d ", cmd);
-		/* Signal woke us prematurely. */
-		return -1;
-	} else if (ft.ft_ackMissed) {
-		if (FT_BLAB)
-			printf(" Ack missed ");
-		ft.ft_ackMissed = 0;
-		return -1;
-	} else
-		return 0;
-}
-
-/************************************************************************
- * ftCmdArg
- *
- * Like ftCmd, except this routine sends command arguments.
- * No setup for report next bit.
- * Different debug print handling.
- ***********************************************************************/
-static int
-ftCmdArg(arg)
-int arg;
-{
-	int	bitsNeeded;
-
-	printf("(%d)", arg);
-
-	/* Will sleep until stepper pulses sent. */
-	ft.ft_wakeMeUp = 1;
-
-	bitsNeeded = 0;
-	ftRptBegin(bitsNeeded);
-	ft.ft_ackMissed = 0;
-
-	ftCmdSend(arg);
-
-	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftArg")) {
-
-		/* Signal woke us prematurely. */
-		printf("sig to arg %d ", arg);
-
-		return -1;
-	} else
-		return 0;
-}
-
-/************************************************************************
- * ftCmdSend
- *
- * Given a QIC-117 command number, cause that number of step pulses
- * to be sent from the FDC by faking a seek command.
- ***********************************************************************/
-static int
-ftCmdSend(cmd)
-int cmd;
-{
-	/* ncn = new cylinder #. */
-	unsigned char ncn;
-	
-	/*
-	 * Will fake a seek command.
-	 * Figure out whether to simulate seek to lower or higher
-	 * cylinder number.
-	 */
-	if (ft.ft_pcn >= cmd)
-		ncn = ft.ft_pcn - cmd;
-	else
-		ncn = ft.ft_pcn + cmd;
-
-	fdcSeek(ft.ft_drv, 0, ncn);
-}
-
-/************************************************************************
- * ftFdcPos()
- *
- * Given track relative segment within the tape track, and relative block
- * within the segment, store C/H/R (cylinder/head/record) diskette pseudo
- * coordinates into 3-element unchar array given.
- ***********************************************************************/
-static void
-ftFdcPos(track, segment, block, cmdTbl)
-int track, segment;
-unchar * cmdTbl;
-{
-}
-
-/************************************************************************
- * ftGetBlkRun()
- *
- * Given the next block desired from the current segment, get starting
- * block number and number of blocks in next run of consecutive good
- * blocks.
- * This routine checks the bad block map for the cartridge, if this
- *   feature is enabled.
- * We are at a lower level than ecc, so all 32 blocks in a segment are
- *   considered.  Ecc, if enabled, will be applied to the results of
- *   run-level processing.
- * Return 0 if a run can be found, -1 if no further run of good blocks
- *   exists in the current segment.
- ***********************************************************************/
-static int
-ftGetBlkRun(ftrp)
-struct FtRun * ftrp;
-{
-	int	retval;
-
-	if (ft.ft_useBadMap) {
-		printf("Bad block map not enabled yet.\n");
-		/* Will modify blkToRead and runLength fields here. */
-		retval = -1;
-	} else {
-		if (ftrp->blkToRead < FT_BLK_PER_SEG) {
-			ftrp->runLength = FT_BLK_PER_SEG - ftrp->blkToRead;
-			retval = -1;
-		} else
-			retval = 0;
-	}
-	return retval;
-}
-
-/************************************************************************
- * ftGetInfo
- *
- * Issue several QIC report commands - all but Report Drive Status
- * and Report Error Code.
- ***********************************************************************/
-static void
-ftGetInfo(dev)
-dev_t dev;
-{
-	if (ftCmd(QIC_CMD_DRVCN))
-		devmsg(dev, "Warning: get drive configuration failed");
-	else
-		devmsg(dev, "Drive Configuration = %x", ft.ft_report);
-
-	if (ftCmd(QIC_CMD_ROMVN))
-		devmsg(dev, "Warning: get ROM version failed");
-	else
-		devmsg(dev, "Rom Version = 0x%x", ft.ft_report);
-
-	if (ftCmd(QIC_CMD_VNDID))
-		devmsg(dev, "Warning: get vendor ID failed");
-	else
-		devmsg(dev, "Vendor ID = 0x%x", ft.ft_report);
-
-	if (ftCmd(QIC_CMD_TPSTAT))
-		devmsg(dev, "Warning: get tape status failed");
-	else
-		devmsg(dev, "Tape Status = 0x%x", ft.ft_report);
-}
-
-/************************************************************************
- * ftIrqHandler
- *
- * Interrupt handler.
- ***********************************************************************/
-static void
-ftIrqHandler()
-{
-	int i, bit;
-
-	/*
-	 * Need to get FDC status from result phase - fdcCmdStatus -
-	 * or clear interrupt - fdcIntStatus - that may have been
-	 * generated by diskette change or seek/recal complete.
-	 */
-	if (FDC_BUSY()) {
-		fdcCmdStatus();
-	} else {
-		fdcIntStatus();
-/* WARNING - should squawk if wrong number of status bytes. */
-		ft.ft_pcn = fdc.fdc_intstat[1];
-	}
-
-	/* If ACK needed, try several times to get it. */
-	if (ft.ft_ackNeeded) {
-		for (i = 0; i < FT_ACK_TRIES; i++) {
-			fdcDrvStatus(ft.ft_drv, FDC_HEAD_0);
-			fdcCmdStatus();
-			bit = (fdc.fdc_cmdstat[0] & ST3_T0) ? 1 : 0;
-			if (FT_ACKBLAB)
-				putchar(bit?'|':'o');
-			if (bit) {	
-				ft.ft_ackNeeded = 0;
-				break;
-			}
-			/* Wait about 20 usec. then try again. */
-			busyWait2(NULL, 20);
-		}
-
-		/*
-		 * Tape Drive did not send ACK in response to QIC
-		 * Report command.  Probably the command is not
-		 * supported by this drive, or there is no drive
-		 * present.  Set ackMissed flag and clean up.
-		 */
-		if (ft.ft_ackNeeded) {
-			ft.ft_ackNeeded = 0;
-			ft.ft_ackMissed = 1;
-			ft.ft_bitsNeeded = 0;
-			if (ft.ft_wakeMeUp) {
-				ft.ft_wakeMeUp = 0;
-				wakeup(&ft.ft_wakeMeUp);
-			}
-		}
-	} else if (ft.ft_bitsNeeded) {
-
-		/* Report bits are needed.  Get ST3. */
-		fdcDrvStatus(ft.ft_drv, FDC_HEAD_0);
-		fdcCmdStatus();
-
-		/* Get next report bit by checking Track Zero bit in ST3 */
-		if (fdc.fdc_ncmdstat == 1) {
-			int bit;
-
-			bit = (fdc.fdc_cmdstat[0] & ST3_T0) ? 1 : 0;
-			ftRptUpdate(bit);
-		} else {
-			printf("rnb status bad ");
-		}
-	}
-
-	/*
-	 * If more report bits will be needed
-	 *   Send request for next bit.
-	 * Else
-	 *   See if original requestor needs wakeup, etc.
-	 */
-	if (ft.ft_bitsNeeded) {
-		ftCmdSend(QIC_CMD_RNB);
-	} else {
-		if (ft.ft_wakeMeUp) {
-			ft.ft_wakeMeUp = 0;
-			wakeup(&ft.ft_wakeMeUp);
-		}
-
-		/* Print debug output if needed. */
-		if (ft.ft_dumpIrq) {
-			ft.ft_dumpIrq = 0;
-			defer(ftDbPrtStat);
-		}
-	}
-}
-
-/***********************************************************************
- * ftRead1Seg
- *
- * Given buffer number (0..FT_NBUF-1), try to read the next segment
- * into that segment buffer in ftBigBuf DMA area.
- * Set ftBufBlks[bufn] to the number of blocks not marked bad.
- * Valid blocks are deposited contiguously starting at the beginning of
- * segment buffer[bufn].
- *
- * Tape should be in properly positioned and in motion when this
- *   function is called.
- *
- * Initialize number of blocks read to 0, in local counter and in buffer
- *   table.
- * Initialize number of next tape block (relative to start of segment)
- *   to read to 0.
- * Loop
- *   Check bad block map (if using bad block map) to find the next run
- *     of readable blocks, if any, in the current segment.
- *   If there are no further runs of good blocks in the current segment
- *     Exit loop.
- *   Try to read the next run of blocks.
- *     If successful, this will:
- *       Increment number of blocks read by length of current run.
- *       Update the number of the next block to read.
- *     If too many read failures (> 3 if ecc, > 0 if no ecc)
- *       Return -1 (segment read failed).
- * Endloop
- *
- * Store number of blocks read into ftBufBlks table.
- * Update current segment and track numbers.  (Advance to next segment.)
- * Return 0 (success).
- ***********************************************************************/
-static int
-ftRead1Seg(bufn)
-uint bufn;
-{
-	struct FtRun ftRun;
-	struct FtParm	*fp;
-
-	/* Get parameter set pointer. */
-	fp = ftParm + ft.ft_fmt;
-
-	ftBufBlks[bufn] = 0;
-	ftRun.blksRead = 0;
-
-	ftRun.blkToRead = 0;
-
-	for (;;) {
-		if (ftGetBlkRun(&ftRun))
-			break;
-		if (ftReadBlkRun(&ftRun, bufn))
-			return -1;
-	}
-
-	ftBufBlks[bufn] = ftRun.blksRead;
-
-	ft.ft_phySeg++;
-	if (ft.ft_phySeg == fp->segPerTrk
-	  && ft.ft_track <= (fp->tracks - 1)) {
-		ft.ft_track++;
-		ft.ft_phySeg = 0;
-	}
-
-	return 0;
-}
-
-/***********************************************************************
- * ftReadID
- *
- * Send FDC Read ID command and store results in ft context.
- * Return 0 on success, -1 on failure (signal).
- *
- * Of principal interest is fdc.fdc_cmdstat[5] - present block number.
- ***********************************************************************/
-static int
-ftReadID()
-{
-	ft.ft_wakeMeUp = 1;
-	fdcReadID(ft.ft_drv, 0);
-	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftReadID"))
-		return -1;
-	else {
-		if (fdc.fdc_ncmdstat != 7) {
-			printf("ftReadID bad command status: %d",
-			  fdc.fdc_ncmdstat);
-			return -1;
-		} else {
-			ft.ft_cyl = fdc.fdc_cmdstat[3];
-			ft.ft_head = fdc.fdc_cmdstat[4];
-			ft.ft_blk = fdc.fdc_cmdstat[5];
-			ft.ft_ssz = fdc.fdc_cmdstat[6];
-		}
-		return 0;
-	}
-}
-
-/***********************************************************************
- * ftReadSegs()
- *
- * Given a segment count, try to read the given number of segments from
- * the curent track.
- * Return the number of segments read (0 if at end of tape), -1 if failure.
- *
- * Reading a segment may yield from 0 to 32 blocks, depending on how
- * many bad blocks are marked in the segment and whether ecc is used.
- ***********************************************************************/
-static int
-ftReadSegs(segsWanted)
-uint segsWanted;
-{
-	int	segsOnTrack;
-	int	segsRead;
-	struct FtParm	*fp;
-
-	/* Get parameter set pointer. */
-	fp = ftParm + ft.ft_fmt;
-
-	/*
-	 * Calculate how many segments are left on the current track.
-	 * If no segments left on current track
-	 *   Return no segments read.
-	 */
-	segsOnTrack = fp->segPerTrk - ft.ft_phySeg;
-	if (segsOnTrack == 0)
-		return 0;
-
-	/*
-	 * Will do a multisegment read.
-	 * Requested number of segments will be the least of:
-	 * - number of segments wanted
-	 * - number of segments there is room for in DMA area
-	 * - number of segments remaining on current tape track
-	 */
-	if (segsWanted > FT_NBUF)
-		segsWanted = FT_NBUF;
-	if (segsWanted > segsOnTrack)
-		segsWanted = segsOnTrack;
-
-	/*
-	 * Try to position and start tape.
-	 * Read as many segments as possible.
-	 * If there is an irrecoverable read error
-	 *   Abort multisegment read.
-	 * Stop tape.
-	 */
-	if (ftStartTape())
-		return -1;
-	for (segsRead = 0; segsRead < segsWanted; segsRead++) {
-		if (ftRead1Seg(segsRead)) {
-			segsRead = -1;
-			break;
-		}
-	}
-	ftStopTape();
-	
-	/* Return the number of segments successfully read. */
-	return segsRead;
-}
-
-/***********************************************************************
- * ftReadyWait
- *
- * Keep checking drive status every second until drive is ready or
- * the specified number of seconds has elapsed.
- * Return 0 if drive ready, -1 if timeout or signal or protocol failure.
- ***********************************************************************/
-static int
-ftReadyWait(seconds)
-uint seconds;
-{
-	uint i;
-	int retval = -1;
-	int drvStatus;
-
-	for (i = 0; i < seconds; i++) {
-		drvStatus = ftStsWthErr();
-
-		/* Protocol failure? */
-		if (drvStatus == -1)
-			break;
-
-		/* Drive ready?  Change return value to show success. */
-		if (drvStatus & QIC_STAT_RDY) {
-			retval = 0;
-			break;
-		}
-
-		/* Signal arrived while waiting a second? */
-		if (ftWait(HZ))
-			break;
-	}
-
-	return retval;
-}
-
-/************************************************************************
- * ftRecal
- *
- * Send Recalibrate command to FDC and wait for it to finish.
- * Return 0 if normal operation, -1 if signaled before recal complete.
- ***********************************************************************/
-static int
-ftRecal()
-{
-	ft.ft_wakeMeUp = 1;
-	fdcRecal(ft.ft_drv);
-	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftRecal"))
-		return -1;
-	else
-		return 0;
-}
-
-/************************************************************************
- * ftResetFDC
- *
- * Reset the FDC and wait for the resulting interrupt.
- * Reset is done keeping the current unit selected.
- ***********************************************************************/
-static void
-ftResetFDC()
-{
-	/*
-	 * Since FDC reset generates an interrupt, we need to tell the
-	 * interrupt handler there will be *no* report bits incoming.
-	 */
-	ftRptBegin(0);
-
-	ft.ft_pcn = 0;
-	ft.ft_wakeMeUp = 1;
-	fdcResetSel(FT_DRIVE(ft.ft_drv), FT_MOTOR(ft.ft_drv));
-	x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftRstFDC");
-}
-
-/************************************************************************
- * ftRptBegin
- *
- * Initialize ft state information in preparation for QIC report command.
- *
- * Argument "bitCount" is the total number of bits expected, including
- * initial ACK and final TRUE.  It is 1 more than the number of
- * Report Next Bit Commands that will be issued.
- ***********************************************************************/
-static void
-ftRptBegin(bitCount)
-int bitCount;
-{
-	ft.ft_bitsNeeded = bitCount;
-	ft.ft_bitsRcvd = 0;
-	ft.ft_report = 0;
-	ft.ft_ackNeeded = (bitCount) ? 1 : 0;
-}
-
-/************************************************************************
- * ftSeg()
- *
- * Given pseudo cylinder, head, and block numbers from FDC,
- * calculate the segment number relative to start of current track.
- ***********************************************************************/
-static	int
-ftSeg(c, h, r)
-int c, h, r;
-{
-	int	lsn;	/* Logical block (not segment) number. */
-	int	seg;
-	struct FtParm	*fp;
-
-	/* Get parameter set pointer. */
-	fp = ftParm + ft.ft_fmt;
-
-	/* Compute logical block number. */
-	lsn = (r - 1) + c * fp->blkPerTrk + h * fp->blkPerTrk * fp->cyls;
-
-	/* Divide with truncation to get containing segment number. */
-	seg = lsn / FT_BLK_PER_SEG;
-
-	/* Compute segment number relative to start of track. */
-	seg %= fp->segPerTrk;
-
-	return seg;
-}
-
-/************************************************************************
- * ftRptUpdate
- *
- * Acquire another bit for QIC report command.
- * Last bit is discarded.  Other bits are accumulated,
- * least significant bit first, into ft_report.
- ***********************************************************************/
-static void
-ftRptUpdate(bit)
-int bit;
-{
-	ft.ft_bitsNeeded--;
-	ft.ft_bitsRcvd++;
-
-	if (ft.ft_bitsNeeded == 0) {
-		if (bit != 1)
-			printf("Missing final TRUE ");
-	} else {
-		ft.ft_report |= (bit << (ft.ft_bitsRcvd - 1));
-	}
-}
-
-/************************************************************************
- * ftSelect
- *
- * Select tape unit.
- ***********************************************************************/
-static void
-ftSelect()
-{
-	fdcRate(FDC_RATE_500K);
-	fdcDrvSelect(FT_DRIVE(ft.ft_drv), FT_MOTOR(ft.ft_drv));
-
-	/* Reset FDC and Initialize pseudo cylinder number for QIC commands. */
-	ftResetFDC(ft.ft_drv);
-
-	fdcSpecify(FT_SRT_2, FT_HUT, FT_HLT);
-
-	if (FT_SOFT_SELECT(ft.ft_drv)) {
-		ftCmd(77);
-		ftWait(2);
-		ftCmd(QIC_CMD_SS1);
-		ftWait(2);
-		ftCmd(QIC_CMD_SS2);
-		ftWait(2);
-	}
-
-#if 0
-	/* 80 MB nseg_p_track = 100, nseg_p_head = 600, nseg_p_cyl = 4	*/
-	/* 40 MB nseg_p_track = 68, nseg_p_head = 680, nseg_p_cyl = 4	*/
-	if (ftfmt) {
-		nseg_p_track = 100;	/* set for 80 MB drive		*/
-		nseg_p_head = 600;
-		nseg_p_cyl = 4;
-	} else {
-		nseg_p_track = 68;	/* set for 40 MB drive		*/
-		nseg_p_head = 680;
-		nseg_p_cyl = 4;
-	}
-#endif
-}
-
-/************************************************************************
- * ftSkipBack()
- *
- * Skip segments in logical backward direction.
- * Return 0 on success, -1 on failure.
- ***********************************************************************/
-static	int
-ftSkipBack(segCount)
-uint segCount;
-{
-	/* If possible, use short (non-extended) form of skip command. */
-	if ((segCount & ~0xFF) == 0) {
-		if (ftCmd(QIC_CMD_SKPB))
-			return -1;
-		ftCmdArg((segCount & 0xF) +2);
-		ftCmdArg((segCount >> 4) +2);
-	} else {
-		if (ftCmd(QIC_CMD_SKPBX))
-			return -1;
-		ftCmdArg((segCount & 0xF) +2);
-		ftCmdArg(((segCount >> 4) & 0xF) +2);
-		ftCmdArg(((segCount >> 8) & 0xF) +2);
-	}
-}
-
-/************************************************************************
- * ftSkipFwd()
- *
- * Skip segments in logical forward direction.
- * Return 0 on success, -1 on failure.
- ***********************************************************************/
-static	int
-ftSkipFwd(segCount)
-int segCount;
-{
-	/* If possible, use short (non-extended) form of skip command. */
-	if ((segCount & ~0xFF) == 0) {
-		if (ftCmd(QIC_CMD_SKPF))
-			return -1;
-		ftCmdArg((segCount & 0xF) +2);
-		ftCmdArg((segCount >> 4) +2);
-	} else {
-		if (ftCmd(QIC_CMD_SKPFX))
-			return -1;
-		ftCmdArg((segCount & 0xF) +2);
-		ftCmdArg(((segCount >> 4) & 0xF) +2);
-		ftCmdArg(((segCount >> 8) & 0xF) +2);
-	}
-}
-
-/************************************************************************
- * ftStartTape
- *
- * Try to get tape into position to read next segment of interest, then
- * put tape in motion.
- *
- * Return 0 on success.
- * Return -1 on failure and make sure tape is stopped.
- *
- * Seek head to current track.
- * Wait for drive ready.
- * If trying to read first segment of any track
- *   If even track
- *     Rewind tape.
- *   Else (odd track)
- *     Full forward tape.
- *   Wait for drive ready.
- *   Logical forward.
- * Else (reading after first segment)
- *   Pause.  (Backs up a couple segments.)
- *   Wait for drive ready.
- *   While (not in position)
- *     Logical forward.
- *     Read segment ID.
- *     If current segment >= desired segment
- *       Compute skip count.
- *       Skip back some number of segments.
- *       Wait for drive ready.
- *     Else if current segment << desired segment
- *       Compute skip count.
- *       Skip forward some number of segments.
- *       Wait for drive ready.
- *     Else tape is in position.
- *   Endwhile
- ***********************************************************************/
-static	int
-ftStartTape()
-{
-	int	tries;
-	int	notInPlace;
-	unchar	currentSeg;
-	int	skipCount;
-
-	ftCmd(QIC_CMD_SEEK);
-	ftCmdArg(2);
-	if(ftReadyWait(FT_SEEK_SECS))
-		return -1;
-
-	if (ft.ft_phySeg == 0) {
-		if ((ft.ft_track & 1) == 0)
-			ftCmd(QIC_CMD_BOT);
-		else
-			ftCmd(QIC_CMD_EOT);
-		if(ftReadyWait(FT_WIND_SECS))
-			return -1;
-		ftCmd(QIC_CMD_FWD);
-	} else {
-		ftCmd(QIC_CMD_PAUS);
-		if(ftReadyWait(FT_PAUSE_SECS))
-			return -1;
-
-		notInPlace = 1;
-		for (tries = 0; tries < 4 && notInPlace; tries++) {
-			ftCmd(QIC_CMD_FWD);
-			if (ftReadID())	
-				continue;	/* Will try again. */
-			currentSeg = ftSeg(fdc.fdc_cmdstat[3],
-			  fdc.fdc_cmdstat[4], fdc.fdc_cmdstat[5]);
-			if (currentSeg >= ft.ft_phySeg) {
-				skipCount = currentSeg - ft.ft_phySeg
-				  + FT_CUSHION;
-				ftSkipBack(skipCount);
-			} else if (currentSeg < ft.ft_phySeg - FT_CUSHION) {
-				skipCount = ft.ft_phySeg - currentSeg
-				  - FT_CUSHION;
-				ftSkipFwd(skipCount);
-			} else
-				notInPlace = 0;
-		} /* end for */
-	}
-
-	if (notInPlace) {
-		ftStopTape();
-		return -1;
-	}
-
-	return 0;
-}
-
-/************************************************************************
- * ftStopTape
- *
- * Send QIC stop tape command, then sleep til drive ready.
- * Return 0 if success, 1 if timed out before sensing drive ready.
- ***********************************************************************/
-static	int
-ftStopTape()
-{
-	/* Stop, wait for ready. */
-	ftCmd(QIC_CMD_STOP);
-	return ftReadyWait(15);
-}
-
-/************************************************************************
- * ftStsWthErr
- *
- * Do Report Drive Status.
- * If error detected, to Report Error Code.
- * Uses sleep, so may not be used in timeout/interrupt/load/unload, etc.
- * Return status if ok, -1 on protocol failure.
- ***********************************************************************/
-static int
-ftStsWthErr()
-{
-	int retval;
-
-	if (ftCmd(QIC_CMD_STS))
-		return -1;
-
-	retval = ft.ft_report;
-
-	if (FT_BLAB)
-		ftDbPrintStat(ft.ft_report);
-
-	if (ft.ft_report & QIC_STAT_ERR) {
-		if (ftCmd(QIC_CMD_ECD))
-			return -1;
-		ftDbPrintErr(ft.ft_report);
-	}
-	return retval;
-}
-
-/************************************************************************
- * ftWait
- *
- * Wait the specified number of ticks.
- * Return 0 if full wait occurs, -1 if signaled.
- * Uses sleep, so may not be used in timeout/interrupt/load/unload, etc.
- ***********************************************************************/
-static int
-ftWait(ticks)
-uint ticks;
-{
-	timeout(&ft.ft_tim, ticks, wakeup, &ft.ft_wakeMeUp);
-	return x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftWait");
-}
+struct FT	ft;
 
 /*********************
 **********************
@@ -1525,6 +196,12 @@ uint ticks;
 **
 **********************
 **********************/
+
+/* Simulation of read/write errors and bad blocks in the bitmap. */
+
+int	fakeBBTbitmap;
+int	fakeBBTsegment;
+int	fakeIOerrblk;
 
 static	char	*qicErr[] = {
 	"NULL err",
@@ -1595,11 +272,11 @@ static	char	*qicCmd[] = {
 	"enter verify mode",
 	"stop tape",
 	"reserved (19)",
-	"reserved (20)",
+	"A/M/S soft select 2",
 	"micro step head up",
 	"micro step head down",
-	"reserved (23)",
-	"reserved (24)",
+	"A/M/S soft select 1",
+	"A/M/S soft deselect",
 	"skip n segments reverse",
 	"skip n segments forward",
 	"select rate",
@@ -1610,25 +287,45 @@ static	char	*qicCmd[] = {
 	"report vendor ID",
 	"report tape status",
 	"skip n segments extended reverse",
-	"skip n segments extended forward"
+	"skip n segments extended forward",
+	"calibrate tape length",
+	"report format segments",
+	"set N format segments",
+	"reserved (39)",
+	"reserved (40)",
+	"reserved (41)",
+	"reserved (42)",
+	"reserved (43)",
+	"reserved (44)",
+	"reserved (45)",
+	"CMS soft select",
+	"CMS soft deselect",
 };
 
 /* print command as [command] */
+#if	__USE_PROTO__
+static void ftDbPrintCmd (unsigned int cmd)
+#else
 static void
 ftDbPrintCmd(cmd)
 unsigned int cmd;
+#endif
 {
 	if (cmd >= 1 && cmd < sizeof(qicCmd)/sizeof(qicCmd[0])) {
 		if (cmd != QIC_CMD_RNB)
-			printf("[%s] ", qicCmd[cmd]);
+			cmn_err (CE_CONT, "![%s] %ld\n", qicCmd[cmd], __bolt);
 	} else
-		printf("[%x] ", cmd);
+		cmn_err (CE_CONT, "![%x]\n", cmd);
 }
 
 /* print 2-byte error status as <error-code,command> */
+#if	__USE_PROTO__
+static void ftDbPrintErr (unsigned int errword)
+#else
 static void
 ftDbPrintErr(errword)
 unsigned int errword;
+#endif
 {
 	unsigned int lo, hi;
 
@@ -1636,386 +333,3371 @@ unsigned int errword;
 	hi = (errword >> 8) & 0xff;
 
 	if (lo >= 1 && lo < sizeof(qicErr)/sizeof(qicErr[0]))
-		printf("<%s,", qicErr[lo]);
+		cmn_err (CE_CONT, "!<%s,", qicErr[lo]);
 	else
-		printf("<%x,", lo);
+		cmn_err (CE_CONT, "!<%x,", lo);
 
 	if (hi >= 1 && hi < sizeof(qicCmd)/sizeof(qicCmd[0]))
-		printf("%s> ", qicCmd[hi]);
+		cmn_err (CE_CONT, "!%s>\n", qicCmd[hi]);
 	else
-		printf("%x> ", hi);
-}
-
-/* print current FDC position as C= H= R= N=. */
-static void
-ftDbPrintPos()
-{
-	printf("C=%d H=%d R=%d N=%d ",
-	  ft.ft_cyl, ft.ft_head, ft.ft_blk, ft.ft_ssz);
+		cmn_err (CE_CONT, "!%x>\n", hi);
 }
 
 /* print tape status as { status string,... } */
-static void
+#if	__USE_PROTO__
+void ftDbPrintStat (unsigned int stat)
+#else
+void
 ftDbPrintStat(stat)
 unsigned int stat;
+#endif
 {
-	int i;
+	int i, pcount;
 
-	printf("{ ");
+	cmn_err (CE_CONT, "!{ ");
+	pcount = 0;
 	for (i = 0; i < 8; i++) {
-		if (stat & (1 << i))
-			printf("%s, ", qicStat[i]);
+		if (stat & (1 << i)) {
+			if (pcount > 0 && (pcount % 2) == 0)
+				cmn_err (CE_CONT, "!\n");
+			cmn_err (CE_CONT, "!%s, ", qicStat[i]);
+			pcount++;
+		}
 	}
-	putchar('}');
+	cmn_err (CE_CONT, "!}\n");
 }
 
+#if 0
 /************************************************************************
- * ftDbPrtStat
+ * ftDbPrtFDCStat
  *
  * For debugging, print command status and interrupt status to console.
  ***********************************************************************/
+#if	__USE_PROTO__
+static void ftDbPrtFDCStat (void)
+#else
 static void
-ftDbPrtStat()
+ftDbPrtFDCStat()
+#endif
 {
 	int i;
 
-	printf("[[");
+	cmn_err (CE_CONT, "![[");
 	if (fdc.fdc_ncmdstat) {
-		printf("cmd ");
+		cmn_err (CE_CONT, "!cmd ");
 		for (i = 0; i < fdc.fdc_ncmdstat; i++)
-			printf("%x ", fdc.fdc_cmdstat[i]);
+			cmn_err (CE_CONT, "!%x ", fdc.fdc_cmdstat[i]);
 	}
 	if (fdc.fdc_nintstat) {
-		printf("int ");
+		cmn_err (CE_CONT, "!int ");
 		for (i = 0; i < fdc.fdc_nintstat; i++)
-			printf("%x ", fdc.fdc_intstat[i]);
+			cmn_err (CE_CONT, "!%x ", fdc.fdc_intstat[i]);
 	}
-	printf("]] ");
+	cmn_err (CE_CONT, "!]]\n");
 }
+#endif
 
-#if defined(FT_DEAD_CODE)
 /*********************
 **********************
 **
-** Test Read of Segment 0.
+** Level 0 Support routines.
+** (These don't call other routines in this module.)
 **
 **********************
 **********************/
-	FT_BLAB = 0;
 
-#if 0
-	/* Rewind, wait until ready. */
-	ftCmd(QIC_CMD_BOT);
-	if(ftReadyWait(15)) {
-		printf("Not ready after rewind ");
-		goto rd0done;
-	}
+/************************************************************************
+ * ftBufVtop
+ *
+ * Compute physical address for a buffer pool virtual address.
+ * Return 0 on success, 1 in case address out of range.
+ ***********************************************************************/
 
-	/* Stop, wait for ready. */
-	ftCmd(QIC_CMD_STOP);
-	if(ftReadyWait(15)) {
-		printf("Not ready after stop tape 1 ");
-		goto rd0done;
-	}
+#if	__USE_PROTO__
+int ftBufVtop (__caddr_t vadd, __paddr_t * paddp)
+#else
+int
+ftBufVtop (vadd, paddp)
+__caddr_t vadd;
+__paddr_t * paddp;
 #endif
+{
+	int pageIndex;
 
-	/* Seek head to track 0, wait for ready. */
-	ftCmd(QIC_CMD_SEEK);
-	ftCmdArg(2);
-	if(ftReadyWait(15)) {
-		printf("Not ready after seek to track 0 ");
-		goto rd0done;
+	if ((unsigned int)vadd < (unsigned int)ftPool
+	  || (unsigned int)vadd >= (unsigned int)ftPooltop) {
+		cmn_err (CE_WARN, "FT : vtop (%x), addr outside range %x-%x",
+		  (int)vadd, (int)ftPool, (int)ftPooltop);
+		return 1;
 	}
 
-#if 0
-	/* Stop, wait for ready. */
-	ftCmd(QIC_CMD_STOP);
-	if(ftReadyWait(15)) {
-		printf("Not ready after stop tape 2 ");
-		goto rd0done;
-	}
+	pageIndex = ((int)vadd - (int)ftPool) / NBPC;
+	* paddp = ftPoolPaddr [pageIndex] | ((unsigned int)vadd % NBPC);
 
-	/* Skip back 68 segments. SKPB. Wait for ready. */
-	ftCmd(QIC_CMD_SKPB);
-	ftCmdArg(6);
-	ftCmdArg(6);
-	if(ftReadyWait(15)) {
-		printf("Not ready after skip back 68 ");
-		goto rd0done;
-	}
-#endif
-
-	/* Logical forward. */
-	ftCmd(QIC_CMD_FWD);
-
-for (i = 0; i < 3; i++) {
-	/* Setup DMA */
-	if (!dmaon(DMA_CH2, vtop(ftBigBuf)+(i*FT_BFRSZ), FT_BFRSZ, DMA_TO_MEM)) {
-		printf("Ft dma straddle ");
-		goto rd0done;
-	}
-	dmago(DMA_CH2);
-
-	/* Send Read command to FDC */
-	ft.ft_wakeMeUp = 1;
-	ft.ft_dumpIrq = 1;
-	rwCmd[4] = (i*32)+1;
-	if ((putCount = fdcPutStr(rwCmd, RD_CMD_LEN)) != RD_CMD_LEN) {
-		printf("only wrote %d bytes of rwCmd ", putCount);
-		goto rd0done;
-	}
-
-	/* Wait for interrupt when read is done. */
-	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftRd0")) {
-		printf("signaled before DMA done ");
-		goto rd0done;
-	}
-
-	/* Turn off the DMA channel. */
-	if ((putCount = dmaoff(DMA_CH2)) != 0) {
-		printf("DMA residual %d bytes ", putCount);
-		goto rd0done;
-	}
+	return 0;
 }
 
-	/* Stop the tape. */
-	ftCmd(QIC_CMD_STOP);
-	if(ftReadyWait(15)) {
-		printf("not ready after stop tape ");
-		goto rd0done;
-	}
+/************************************************************************
+ * ftAlloc
+ *
+ * Seize pages for the tape buffer.
+ * In case of failure, leave ftBigBuf at its initial value of 0 (NULL).
+ ***********************************************************************/
 
-	/* Quick check on data received. */
-	for (i = 0; i < 4; i++)
-		printf("%d:%x ", i, ftBigBuf[i]);
+#if	__USE_PROTO__
+void ftAlloc (void)
+#else
+void
+ftAlloc ()
+#endif
+{
+	__caddr_t	devVaddr;
+	int		devSeg;
+	int		s;
+	int		pagesNeeded;
+	int		pte;
+	int		i;
+	__paddr_t	tmpPaddr;
+	__caddr_t	pageTableVaddr;
+	int		* ptable;
+	int		usablePages;
 
-rd0done:
-	FT_BLAB = 0;
-/*********************
-**********************
-**
-** End of Read Test.
-**
-**********************
-**********************/
-/* old stuff from read routine */
-	uint src, dest;
-	uint startSeg, endSeg;
-
-	src = iop->io_seek;
-	dest = iop->io.pbase;
-
-#if 0
 	/*
-	 * Seek 0-32767 is header segment.
+	 * This technique limits us to 4 MBytes of buffer pool, or
+	 * 127 tape segment buffers in the pool plus one more for
+	 * the header segment.
 	 */
-	startSeg = src >> 15;
-	endSeg = (src + iop->io_ioc - 1) >> 15;
 
-	if (startSeg != endSeg || startSeg > 0) {
-		u.u_error = EFAULT;
-		return;
+	if (FT_NBUF > FT_MAX_NBUF)
+		FT_NBUF = FT_MAX_NBUF;
+
+	/* Expand paging services to allow for this buffer area. */
+
+	pagesNeeded = (FT_NBUF + 1) * FT_PAGES_PER_SEG;
+
+	/*
+	 * See if there are enough pages to do the allocation.
+	 * Allow about 64 extra since the system will need some room to run.
+	 * Since we are allocating segment buffers, total number of pages
+	 * we can allocate must be a multiple of 32 KBytes.
+	 */
+
+	usablePages = allocno () - 32;
+	usablePages -= (usablePages % FT_PAGES_PER_SEG);
+
+	if (usablePages < pagesNeeded) {
+		if (usablePages < 4) {
+			cmn_err (CE_WARN,
+			  "FT : Not enough RAM for buffers");
+			return;
+		}
+
+		cmn_err (CE_NOTE,
+		  "FT : Reducing number of buffers from %d to %ld",
+		  FT_NBUF, usablePages - FT_PAGES_PER_SEG);
+
+		FT_NBUF = usablePages - FT_PAGES_PER_SEG;
 	}
-#endif
 
-	src += (uint)ftBigBuf;
+	/* Compute the virtual address where device buffer memory starts. */
 
-	iowrite(iop, src, iop->io_ioc);
+	devVaddr = DEVICE_SEG_VADDR(FL_MAJOR);
+
+	/* Compute the segment number of the 4 MByte-aligned virtual segment. */
+
+	devSeg = btosrd ((int)devVaddr);
+
+	s = sphi ();
+
+	/* Grab a page to map the buffer area for this device. */
+
+	tmpPaddr = (__paddr_t)(ctob (* -- sysmem.pfree));
+	pageTableVaddr = __PTOV(tmpPaddr);
+
+	pte = (int)(tmpPaddr) | SEG_RW;
+	ptable0_v [devSeg] = pte;
+	
+	/* Grab and map the specified number of pages for the device buffer. */
+
+	ptable = (int *)pageTableVaddr;
+
+	for (i = 0; i < pagesNeeded; i++) {
+		tmpPaddr = (__paddr_t)(ctob (* -- sysmem.pfree));
+		ftPoolPaddr [i] = tmpPaddr;
+		* ptable ++ = ((int) tmpPaddr) | SEG_RW;
+	}
+
+	spl (s);
+	mmuupd ();
+
+	ftPool = (unsigned char *)devVaddr;
+	ftPooltop = ftPool + pagesNeeded * NBPC;
+
+	cmn_err (CE_NOTE, "!ftAlloc () - using %d pages at virt address %x",
+	  pagesNeeded, (int)devVaddr);
 
 	return;
-#endif
-#if 0
-/************************************************************************
- * ftBufRead
- *
- * Given a read count in bytes, read as much as possible into the DMA
- * buffer area.
- * Return the number of bytes retrieved, or -1 if total failure.
- ***********************************************************************/
-static int
-ftBufRead(bytesWanted)
-int bytesWanted;
-{
-	int	bytesToRead;
-	uint	bigBufLen = FT_NBUF * FT_BFRSZ;
-	int	blocksWanted, blocksRead;
-	unchar	* dmaBufPtr = ftBigBuf;
-
-	/* Try for the smaller of amount wanted and buffer size. */
-	bytesToRead = (bytesWanted > bigBufLen) ? bigBufLen : bytesWanted;
-
-	/* WARNING: The following will change when we read the bad block map! */
-
-	/* Calculate the number of 1K byte tape blocks to read. */
-	blocksWanted = (bytesToRead + FT_BLKSZ - 1) / FT_BLKSZ;
-
-	/* Keep asking for blocks until we have them all. */
-	while (blocksWanted > 0) {
-		blocksRead = ftReadBlks(dmaBufPtr, blocksWanted);
-		if (blocksRead < 0)	/* Failure! */
-			break;
-		dmaBufPtr += FT_BLKSZ;
-		blocksWanted -= blocksRead;
-		bytesToRead -= blocksRead * FT_BLKSZ;
-		if (bytesToRead < 0)
-			bytesToRead = 0;
-	}
-
-	/* Return the number of bytes read into the DMA buffer. */
-	return bytesWanted - bytesToRead;
 }
 
-/***********************************************************************
- * ftReadBlkRun()
+/*************************************************************************
+ * ftAutoConfig
  *
- * Given the location of the next run of good blocks to read from tape
- * and the index where to put it, try to read a run of blocks into
- * DMA buffer area.
- *
- * Requirement: tape must be positioned properly and in motion.
- *
- * Return 0 on success (the number of failed block reads does not exceed
- * the maximum allowable), or -1 on failure.
- * On success, update blkToRead and blksRead fields of the FtRun struct
- * passed in.  Also update error count and location tables for the current
- * segment buffer.
- *
- * Initialize retry count.
- * Initialize retry starting block.
- * While length of current run is > 0 blocks
- *   Make a command to request the run of blocks from the FDC.
- *   Send the command.
- *   When FDC done, get report phase info from FDC.
- *   Update blkToRead, blksRead, and runLength based on FDC report.
- *   Conditionally update retry count and retry starting block.
- *   If FDC reports error
- *     If retry limit not exceeded
- *       Increment retry count.
- *       Reposition with micro step.
- *     Else
- *       If allowable error limit for this segment exceeded
- *         Return read failure.
- *       Else
- *         Save relative block number of failed block for the segment.
- *         Update bad read count for the segment.
- *         Advance blkToRead, blksRead, and runLength to point past
- *           current bad block (may decrement runLength to zero).
- * Endwhile
- * 
-	uint	blkToRead;	/* Next block wanted from current segment */
-	uint	blksRead;	/* Number of blocks read from this seg    */
-	uint	runLength;	/* Number of good blocks in current run   */
- ***********************************************************************/
+ * Return 0 on success, nonzero on failure.
+ ************************************************************************/
+
+/* Here is the list of things to try, in order of decreasing likelihood. */
+struct PossibleCfg {
+	unsigned char drive;
+	unsigned char softsel;
+} pcfg [] = {
+	{ 0, 2 },	/* CMS soft select */
+	{ 0, 1 },	/* A/C/M/S soft select */
+	{ 1, 0 },	/* Unit 1 hard select */
+	{ 2, 0 },	/* Unit 2 hard select */
+	{ 3, 0 },	/* Unit 3 hard select */
+	{ 1, 2 },	/* CMS soft select, unit 1 */
+	{ 2, 2 },	/* CMS soft select, unit 2 */
+	{ 3, 2 },	/* CMS soft select, unit 3 */
+	{ 0, 0 },	/* Unit 0 hard select */
+};
+
+#if	__USE_PROTO__
+static int ftAutoConfig (void)
+#else
 static int
-ftReadBlkRun(ftrp, bufn)
-struct FtRun * ftrp;
-int bufn;
+ftAutoConfig ()
+#endif
 {
+	int		found;
+	int		index;
+	int		retval;
+	int		drvStatus;
 
-#if 0
-	int		putCount;
-	struct FtParm	*fp;
-
-	/* Get parameter set pointer. */
-	fp = ftParm + ft.ft_fmt;
-
-	/* Sanity check - don't try to read past end of track. */
-	if (ft.ft_phySeg >= fp->segPerTrk)
-		return -1;
-
-	/* Set up DMA */
-	if (!dmaon(DMA_CH2, vtop(ftBigBuf + (bufn * FT_BFRSZ)), FT_BFRSZ,
-	  DMA_TO_MEM)) {
-		printf("Ft dma straddle ");
-		return -1;
+	/* If can't get FDC interrupt, fail now. */
+	if (!setFtIntr(1)) {
+		cmn_err (CE_WARN, "FT : Auto Config : Can't get IRQ.");
+		return 1;
 	}
-	dmago(DMA_CH2);
 
+	/* Run through configuration possibilities. */
+	for (index = 0, found = 0;
+	  !found && index < __ARRAY_LENGTH(pcfg); index++) {
+
+		/* Try a select. */
+		ftSelect(pcfg [index].drive, pcfg [index].softsel);
+
+		/* Select worked if we get valid status. */
+		drvStatus = ftStsWthErr();
+		cmn_err (CE_NOTE, "!ftAutoConfig index=%d stat=%x",
+		  index, drvStatus);
+
+		if (drvStatus != -1) {
+			cmn_err (CE_NOTE, "!ftAutoConfig found at index=%d",
+			  index);
+			found = 1;
+			ft.ft_drv = pcfg [index].drive;
+			ft.ft_softsel = pcfg [index].softsel;
+		}
+	}
+
+	/* If we succeeded at soft select, deselect now. */
+	if (found) {
+		switch (ft.ft_softsel) {
+		case 0:
+			break;
+		case 1:
+			/* A/C/M/S soft select disable. */
+			ftCmd(QIC_CMD_SS_OFF);
+			break;
+		case 2:
+			/* CMS soft select disable. */
+			ftCmd(QIC_CMD_CSS_OFF);
+			break;
+		}
+
+		/* Successful return status. */
+		retval = 0;
+	} else
+		/* Unsuccessful return status. */
+		retval = 1;
+
+	setFtIntr(0);
+
+	return retval;
+}
+
+/************************************************************************
+ * ftCmdSend
+ *
+ * Given a QIC-117 command number, cause that number of step pulses
+ * to be sent from the FDC by faking a seek command.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static void ftCmdSend (int cmd)
+#else
+static void
+ftCmdSend(cmd)
+int cmd;
+#endif
+{
+	/* ncn = new cylinder #. */
+	unsigned char ncn;
+	
 	/*
-	 * Make a read command.
-	 * Enter diskette pseudo coordinates into FDC read command.
-	 * C = rwCmd[2], H = rwCmd[3], R = rwCmd[4]
+	 * Will fake a seek command.
+	 * Figure out whether to simulate seek to lower or higher
+	 * cylinder number.
 	 */
-	rwCmd[RW_CMD_VERB] = RW_CMD_RD;
-	rwCmd[RW_CMD_UNIT] = ft.ft_drv;
-	ftFdcPos(ft.ft_track, ft.ft_phySeg, rwCmd + RW_CMD_CYL);
-	rwCmd[RW_CMD_SCHI] = fp->blkPerTrk;
+	if (ft.ft_pcn >= cmd)
+		ncn = ft.ft_pcn - cmd;
+	else
+		ncn = ft.ft_pcn + cmd;
 
-	/* Send Read command to FDC */
-	ft.ft_wakeMeUp = 1;
-	ft.ft_dumpIrq = 1;
-	if ((putCount = fdcPutStr(rwCmd, RW_CMD_LEN)) != RW_CMD_LEN) {
-		printf("only wrote %d bytes of rwCmd ", putCount);
+	fdcSeek(ft.ft_drv, 0, ncn);
+}
+
+#define FT_DATA_BLK_PER_SEG	29
+#define FT_PAGES_PER_SEG	(FT_SEG_SIZE / NBPC)
+
+/* Byte offsets within the header segment. */
+
+#define FT_FIRST_DATA_SEG	10
+#define FT_LAST_DATA_SEG	12
+#define FT_START_BBT			(FT_BLK_SIZE * 2)
+#define FT_END_BBT			(FT_BLK_SIZE * 29)
+
+/************************************************************************
+ * ftBBT
+ *
+ * Look up a logical segment number in the bad block table.
+ *
+ * Return 0 if successful, -1 if no valid header or if bad segment number.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftBBT (int segment, unsigned int * bbtValp)
+#else
+int
+ftBBT (segment, bbtValp)
+int segment;
+unsigned int * bbtValp;
+#endif
+{
+	unsigned int	* bbt;
+
+	if (!ft.ft_hdrOk) {
+		cmn_err (CE_WARN, "FT ftBBT(%d,x) : no BBT available", segment);
 		return -1;
 	}
 
-	/* Wait for interrupt when read is done. */
-	if (x_sleep(&ft.ft_wakeMeUp, pritape, slpriSigCatch, "ftRd1S")) {
-		printf("signaled before DMA done ");
+	if (segment < 0 || segment > ft.ft_lastDataSeg) {
+		cmn_err (CE_WARN, "FT ftBBT(%d,x) : invalid segment", segment);
 		return -1;
 	}
 
-	/* Turn off the DMA channel. */
-	if ((putCount = dmaoff(DMA_CH2)) != 0) {
-		printf("DMA residual %d bytes ", putCount);
-		return -1;
-	}
+	if (segment == fakeBBTsegment) {
 
-	/* Update current segment pointer. */
-	ft.ft_phySeg++;
-	if (ft.ft_phySeg == fp->segPerTrk && ft.ft_track <= (fp->tracks - 1)) {
-		ft.ft_track++;
-		ft.ft_phySeg = 0;
+		* bbtValp = fakeBBTbitmap;
+
+	} else {
+
+		bbt = (unsigned int *)(ftHeaderSeg + FT_START_BBT);
+		* bbtValp = bbt [segment];
+
 	}
 
 	return 0;
+}
+
+/************************************************************************
+ * ftAdjSeek
+ *
+ * Adjust a seek address to account for the offset of data on tape
+ * (after any initial bad segments and header segments) and for blocks
+ * voided by the bad block map.  Return a logical segment number, and
+ * a byte offset into that segment.  Assumes good blocks are already
+ * packed from the start of the segment.
+ *
+ * Return 0 on success, -1 on attempt to seek outside range of tape or
+ * to seek when header segment, which contains the bad block map, is not
+ * available.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static int ftAdjSeek (int seekIn, int * segOutp, int * offsetp)
+#else
+static int
+ftAdjSeek(seekIn, segOutp, offsetp)
+int seekIn;
+int * segOutp;
+int * offsetp;
 #endif
+{
+	int		found;
+	int		byteOffset;
+	int		segment;
+	unsigned int	map;
+	int		goodBlocks;
+	int		goodBytes;
+
+	/* The following are valid if ft.ft_seekAdj is nonzero. */
+	static int	prevSeekIn;
+	static int	prevSegment;
+
+	/* Offset all seek operations to account for no rewind on close. */
+	seekIn += ft.ft_segbase;
+
+	if (seekIn < 0) {
+		cmn_err (CE_WARN, "FT : seek to %d, before BOT", seekIn);
+		return -1;
+	}
+
+	if (!ft.ft_hdrOk) {
+		cmn_err (CE_WARN, "FT : seek to %d, no BBT available", seekIn);
+		return -1;
+	}
+
+	found = 0;
+
+	/*
+	 * Convert Bad Block Table byte offsets in header to integer
+	 * addresses.
+	 *
+	 * Since this is a sequential calculation, work from previous
+	 * results whenever possible.
+	 */
+
+	if (ft.ft_seekAdj && seekIn >= prevSeekIn) {
+		segment = prevSegment;
+		byteOffset = prevSeekIn;
+	} else {
+		segment = ft.ft_firstDataSeg;
+		byteOffset = 0;
+	}
+
+	while (ftBBT (segment, & map) == 0) {
+
+		/*
+		 * Step through bad block bitmaps, one at a time.
+		 *
+		 * Use bad block bitmap to determine # of good
+		 * blocks in this segment.
+		 */
+
+		goodBlocks = FT_DATA_BLK_PER_SEG;
+		while (map != 0) {
+			goodBlocks--;
+			if (goodBlocks <= 0)
+				break;
+			/* Clear a 1 bit in the bitmap. */
+			map &= (map - 1);
+		}
+
+		goodBytes = goodBlocks * FT_BLK_SIZE;
+
+		/*
+		 * When adjustment is done, save values that correspond to
+		 * start of current segment, for next time.
+		 */
+		if (seekIn < byteOffset + goodBytes) {
+
+			prevSeekIn = byteOffset;
+			prevSegment = segment;
+
+			ft.ft_seekAdj = 1;
+			found = 1;
+
+			break;
+		}
+
+		/* Update for next iteration. */
+
+		byteOffset += goodBytes;
+		segment++;
+		if (segment > ft.ft_lastDataSeg) {
+			cmn_err (CE_WARN, "FT : seek to %d, past EOT", seekIn);
+			return -1;
+		}
+	}
+
+	if (!found) {
+		cmn_err (CE_WARN, "FT : seek to %d, past BBT", seekIn);
+		return -1;
+	}
+
+	* segOutp = segment;
+	* offsetp = seekIn - byteOffset;
+
+	return 0;
+}
+
+#if 0
+/************************************************************************
+ * ftRecal
+ *
+ * Send Recalibrate command to FDC and wait for it to finish.
+ * Return 0 if normal operation, -1 if signaled before recal complete.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static int ftRecal (void)
+#else
+static int
+ftRecal()
+#endif
+{
+	ft.ft_wakeMeUp = 1;
+	fdcRecal(ft.ft_drv);
+	if (x_sleep ((char *)(&ft.ft_wakeMeUp), pritape,
+	  slpriSigCatch, "ftRecal"))
+		return -1;
+	else
+		return 0;
+}
+#endif
+
+/************************************************************************
+ * ftRptBegin
+ *
+ * Initialize ft state information in preparation for QIC report command.
+ *
+ * Argument "bitCount" is the total number of bits expected, including
+ * initial ACK and final TRUE.  It is 1 more than the number of
+ * Report Next Bit Commands that will be issued.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static void ftRptBegin (int bitCount)
+#else
+static void
+ftRptBegin(bitCount)
+int bitCount;
+#endif
+{
+	ft.ft_bitsNeeded = bitCount;
+	ft.ft_bitsRcvd = 0;
+	ft.ft_report = 0;
+	ft.ft_ackNeeded = (bitCount) ? 1 : 0;
+}
+
+/************************************************************************
+ * ftRptUpdate
+ *
+ * Acquire another bit for QIC report command.
+ * Last bit is discarded.  Other bits are accumulated,
+ * least significant bit first, into ft_report.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static void ftRptUpdate (int bit)
+#else
+static void
+ftRptUpdate(bit)
+int bit;
+#endif
+{
+	ft.ft_bitsNeeded--;
+	ft.ft_bitsRcvd++;
+
+	if (ft.ft_bitsNeeded == 0) {
+		if (bit != 1) {
+			cmn_err (CE_WARN, "!Missing final TRUE ");
+			ft.ft_ftruMissed = 1;
+		}
+	} else {
+		ft.ft_report |= (bit << (ft.ft_bitsRcvd - 1));
+	}
 }
 
 /***********************************************************************
- * ftReadBlks()
+ * ftTimeout
  *
- * Given a pointer into the DMA buffer area and a block count, try to
- * read the given number of blocks.  May read fewer due to error or
- * reaching end of track.
- * Return the number of blocks read, or -1 in case of total failure.
+ * Called from timeout () if FDC takes too long to do an operation.
  ***********************************************************************/
+
+#if	__USE_PROTO__
+static int ftTimeout (int __NOTUSED(to_type))
+#else
 static int
-ftReadBlks(dmaBufPtr, blocksWanted);
-unchar * dmaBufPtr;
-uint blocksWanted;
+ftTimeout (to_type)
+int	to_type;
+#endif
 {
-	int segsWanted, segsOnTrack;
-
-	/*
-	 * See how many segments are left on the current track.
-	 * If no segments left on current track
-	 *   If on last track of cartridge
-	 *     Return failure.
-	 *   Increment current track number.
-	 *   Reset current segment number.
-	 */
-	segsOnTrack = ft.ft_segsPerTrk - ft.ft_phySeg;
-	if (segsOnTrack == 0) {
-		if (ft.ft_track + 1 >= ft.ft_trksPerCart)
-			return -1;
-		ft.ft_track++;
-		ft.ft_phySeg = 0;
-	}
-
-	/* WARNING:  This will change with Reed-Solomon ecc. */
-
-	/*
-	 * Calculate how many segments to go after.
-	 * First, round up the number of requested blocks.
-	 * Take the smaller of these.
-	 */
-	segsWanted = (blocksWanted + FT_BLK_PER_SEG - 1) / FT_BLK_PER_SEG;
-	if (segsWanted > segsOnTrk)
-		segsWanted = segsOnTrk;
-
-	/* Now ask for a bunch of segments, all from the same track. */
-	return ftReadSegs(dmaBufPtr, segsWanted);
+	ft.ft_timedOut = 1;
+	wakeup (& ft.ft_wakeMeUp);
+	return 0;
 }
 
+/************************************************************************
+ * ftWait
+ *
+ * Wait the specified number of ticks.
+ * Return 0 if full wait occurs, -1 if signaled.
+ * Uses sleep, so may not be used in timeout/interrupt/load/unload, etc.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftWait (unsigned int ticks)
+#else
+int
+ftWait(ticks)
+unsigned int ticks;
 #endif
+{
+
+	timeout (& ft.ft_tim, ticks, (__TIMED_FN_PTR)wakeup,
+	  (int)(& ft.ft_wakeMeUp));
+	return x_sleep ((char *)(& ft.ft_wakeMeUp), pritape,
+	  slpriSigCatch, "ftWait");
+}
+
+/*********************
+**********************
+**
+** Level 1 Support routines.
+**
+**********************
+**********************/
+
+/************************************************************************
+ * ftCmd
+ *
+ * Given a QIC-117 command number, send the command.
+ * If report bits are expected in response, initialize the bit counter.
+ * Then sleep until the commmand is done and report bits are gathered.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftCmd (int cmd)
+#else
+int
+ftCmd(cmd)
+int cmd;
+#endif
+{
+	int	bitsNeeded;
+
+	ftDbPrintCmd(cmd);
+
+	/* Will sleep until command done and report bits are in. */
+	ft.ft_wakeMeUp = 1;
+
+	/*
+	 * The following commands expect report bits from the tape drive.
+	 * After receiving the QIC command (and subsequent delay),
+	 * the drive sends a leading ACK bit (always 1).  This bit is
+	 * not counted in the numbers below.
+	 * Subseqeunt bits are sent in response to Report Next Bit,
+	 * least significant bit first, then a trailing 1.
+	 * The value of bitsNeeded is either one more than the number of
+	 * data bits in the report, or zero.
+
+	 */
+	switch(cmd) {
+	case QIC_CMD_STS:
+	case QIC_CMD_DRVCN:
+	case QIC_CMD_ROMVN:
+	case QIC_CMD_TPSTAT:
+		bitsNeeded = 9;
+		break;
+	case QIC_CMD_ECD:
+	case QIC_CMD_VNDID:
+		bitsNeeded = 17;
+		break;
+	default:
+		bitsNeeded = 0;
+	}
+	ftRptBegin(bitsNeeded);
+	ft.ft_ackMissed = 0;
+	ft.ft_ftruMissed = 0;
+
+	ftCmdSend(cmd);
+
+	/* Do not allow signals during QIC-117 protocol - tape drive hangs. */
+	timeout (& ft.ft_tim, 50, ftTimeout, NULL);
+	if (x_sleep ((char *)(&ft.ft_wakeMeUp), pritape,
+	  slpriNoSig, "ftCmd")) {
+
+		cmn_err (CE_WARN, "!ftCmd: sig to cmd %d", cmd);
+		/* Signal woke us prematurely. */
+		return -1;
+
+	} else if (ft.ft_ackMissed) {
+
+		cmn_err (CE_WARN, "!ftCmd: Ack missed");
+		ft.ft_ackMissed = 0;
+		return -1;
+
+	} else if (ft.ft_ftruMissed) {
+
+		cmn_err (CE_WARN, "!ftCmd: Final true missed");
+		ft.ft_ftruMissed = 0;
+		return -1;
+	} else
+		return 0;
+}
+
+/************************************************************************
+ * ftCmdArg
+ *
+ * Like ftCmd, except this routine sends command arguments.
+ * No setup for report next bit.
+ * Different debug print handling.
+ * QIC-117 says add 2 to each argument byte.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static int ftCmdArg (int arg)
+#else
+static int
+ftCmdArg(arg)
+int arg;
+#endif
+{
+	int	bitsNeeded;
+
+	cmn_err (CE_CONT, "!(%x)\n", arg);
+
+	/* Will sleep until stepper pulses sent. */
+	ft.ft_wakeMeUp = 1;
+
+	bitsNeeded = 0;
+	ftRptBegin(bitsNeeded);
+	ft.ft_ackMissed = 0;
+
+	ftCmdSend (arg + 2);
+
+	/* Do not allow signals during QIC-117 protocol - tape drive hangs. */
+	timeout (& ft.ft_tim, 50, ftTimeout, NULL);
+	if (x_sleep ((char *)(&ft.ft_wakeMeUp), pritape,
+	  slpriNoSig, "ftArg")) {
+
+		/* Signal woke us prematurely. */
+		cmn_err (CE_WARN, "ftCmdArg: sig to arg %d", arg);
+
+		return -1;
+	} else
+		return 0;
+}
+
+/************************************************************************
+ * ftIrqHandler
+ *
+ * Interrupt handler.
+ ***********************************************************************/
+#if	__USE_PROTO__
+static void ftIrqHandler (void)
+#else
+static void
+ftIrqHandler()
+#endif
+{
+	int i, bit;
+
+	/*
+	 * Need to get FDC status from result phase - fdcCmdStatus -
+	 * or clear interrupt - fdcIntStatus - that may have been
+	 * generated by diskette change or seek/recal complete.
+	 */
+	if (FDC_BUSY()) {
+		fdcCmdStatus();
+	} else {
+		fdcIntStatus();
+/* WARNING - should squawk if wrong number of status bytes. */
+		ft.ft_pcn = fdc.fdc_intstat[1];
+	}
+
+	/* If the FDC-block-transfer in progress, route IRQ handler there. */
+	if (ftx.ftx_IRQpending) {
+		ftx.ftx_IRQpending = 0;
+		ftxIntr ();
+	}
+
+	/* If ACK needed, try several times to get it. */
+	if (ft.ft_ackNeeded) {
+
+	for (i = 0; i < FT_ACK_TRIES; i++) {
+
+			fdcDrvStatus(ft.ft_drv, FDC_HEAD_0);
+			fdcCmdStatus();
+			bit = (fdc.fdc_cmdstat[0] & ST3_T0) ? 1 : 0;
+
+#if 0
+			cmn_err (CE_CONT, bit ? "!|" : "!o");
+#endif
+
+			if (bit) {	
+				ft.ft_ackNeeded = 0;
+				break;
+			}
+
+			/* Wait about 20 usec. then try again. */
+			busyWait2 (NULL, 20);
+		}
+
+		/*
+		 * Tape Drive did not send ACK in response to QIC
+		 * Report command.  Probably the command is not
+		 * supported by this drive, or there is no drive
+		 * present.  Set ackMissed flag and clean up.
+		 */
+		if (ft.ft_ackNeeded) {
+			ft.ft_ackNeeded = 0;
+			ft.ft_ackMissed = 1;
+			ft.ft_bitsNeeded = 0;
+			if (ft.ft_wakeMeUp) {
+				ft.ft_wakeMeUp = 0;
+				wakeup(&ft.ft_wakeMeUp);
+			}
+		}
+	} else if (ft.ft_bitsNeeded) {
+
+		/* Report bits are needed.  Get ST3. */
+		fdcDrvStatus(ft.ft_drv, FDC_HEAD_0);
+		fdcCmdStatus();
+
+		/* Get next report bit by checking Track Zero bit in ST3 */
+		if (fdc.fdc_ncmdstat == 1) {
+			int bit;
+
+			bit = (fdc.fdc_cmdstat[0] & ST3_T0) ? 1 : 0;
+			ftRptUpdate(bit);
+		} else {
+			cmn_err (CE_WARN, "!ftIrqHandler: rnb status bad ");
+		}
+	}
+
+	/*
+	 * If more report bits will be needed
+	 *   Send request for next bit.
+	 * Else
+	 *   See if original requestor needs wakeup, etc.
+	 */
+	if (ft.ft_bitsNeeded) {
+#if 1
+		itimeout ((__tfuncp_t) ftCmdSend, (__VOID__ *) QIC_CMD_RNB,
+		  2, pltimeout);
+#else
+		ftCmdSend(QIC_CMD_RNB);
+#endif
+	} else {
+		if (ft.ft_wakeMeUp) {
+			ft.ft_wakeMeUp = 0;
+			wakeup(&ft.ft_wakeMeUp);
+		}
+	}
+}
+
+/************************************************************************
+ * ftResetFDC
+ *
+ * Reset the FDC and wait for the resulting interrupt.
+ * Reset is done keeping the current unit selected.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static void ftResetFDC (unsigned int drive)
+#else
+static void
+ftResetFDC(drive)
+unsigned int drive;
+#endif
+{
+	/*
+	 * Since FDC reset generates an interrupt, we need to tell the
+	 * interrupt handler there will be *no* report bits incoming.
+	 */
+	ftRptBegin(0);
+
+	ft.ft_pcn = 0;
+	ft.ft_wakeMeUp = 1;
+	fdcResetSel(FT_DRIVE(drive), FT_MOTOR(drive));
+	x_sleep ((char *)(&ft.ft_wakeMeUp), pritape,
+	  slpriSigCatch, "ftRstFDC");
+}
+
+/************************************************************************
+ * ftDataRate
+ *
+ * Set data rate at tape drive.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftDataRate(int rate)
+#else
+int
+ftDataRate(rate)
+int rate;
+#endif
+{
+	ftCmd (QIC_CMD_RATE);
+	ftCmdArg (rate);
+	return ftReadyWait (10);
+}
+
+#if 0
+/************************************************************************
+ * ftSelRate
+ *
+ * Sel Tape Data Rate
+ * Return 0 on success, nonzero on failure.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftSelRate (int rate)
+#else
+int
+ftSelRate(rate)
+int rate;
+#endif
+{
+	/*
+	 * rate 0=250 Kbits/sec:
+	 *   SRT=0xF  HUT=0xF  HLT=0x1
+	 *   fdcRate(FDC_RATE_250K);
+	 *   ftDataRate(FT_DATA_RATE_250K);
+	 *
+	 * rate 1=500 Kbits/sec:
+	 *   SRT=0xE  HUT=0xF  HLT=0x1
+	 *   fdcRate(FDC_RATE_500K);
+	 *   ftDataRate(FT_DATA_RATE_500K);
+	 *
+	 * rate 2=1000 Kbits/sec:
+	 *   SRT=0xD  HUT=0xF  HLT=0x1
+	 *   fdcRate(FDC_RATE_1MEG);
+	 *   ftDataRate(FT_DATA_RATE_1MEG);
+	 *
+	 * fdcSpecify(srt, hut, hlt);
+	 */
+	int ft_rate, fdc_rate, srt, hut, hlt;
+	char * rateName;
+
+	switch (rate) {
+	case 0:
+		rateName = "250K";
+		ft_rate = FT_DATA_RATE_250K;
+		fdc_rate = FDC_RATE_250K;
+		srt = 0xF;  hut = 0xF;  hlt=1;
+		break;
+	case 1:
+		rateName = "500K";
+		ft_rate = FT_DATA_RATE_500K;
+		fdc_rate = FDC_RATE_500K;
+		srt = 0xE;  hut = 0xF;  hlt=1;
+		break;
+	case 2:
+		rateName = "1MEG";
+		ft_rate = FT_DATA_RATE_1MEG;
+		fdc_rate = FDC_RATE_1MEG;
+		srt = 0xD;  hut = 0xF;  hlt=1;
+		break;
+	default:
+		cmn_err (CE_WARN,
+		  "ftSelRate : bad rate constant : %d (not 0, 1, 2)", rate);
+		return 1;
+	}
+
+	/* If slow or fast rates ng., fall back to middle rate (500K). */
+
+	if (ftDataRate (ft_rate)) {
+		cmn_err (CE_WARN, "ftSelRate : can't set rate to %s", rateName);
+		fdcRate(FDC_RATE_500K);
+		fdcSpecify(0xE, 0xF, 1);
+		return 1;
+	} else {
+		fdcRate(fdc_rate);
+		fdcSpecify(srt, hut, hlt);
+		cmn_err (CE_NOTE, "ft : rate set to %s", rateName);
+		return 0;
+	}
+}
+#endif
+
+/************************************************************************
+ * ftSelect
+ *
+ * Select tape unit.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+void ftSelect (unsigned char drive, unsigned char softsel)
+#else
+void
+ftSelect(drive, softsel)
+unsigned char drive;
+unsigned char softsel;
+#endif
+{
+	fdcRate (ftRateParms [ftrate].fdcRate);
+	fdcDrvSelect(FT_DRIVE(drive), FT_MOTOR(drive));
+
+	/* Reset FDC and Initialize pseudo cylinder number for QIC commands. */
+	ftResetFDC(drive);
+
+	fdcSpecify(ftRateParms [ftrate].srt, FT_HUT, FT_HLT);
+
+	switch (softsel) {
+	case 0:
+		break;
+	case 1:
+		/* A/C/M/S soft select enable. */
+		ftCmd(77);
+		ftWait(2);
+		ftCmd(QIC_CMD_SS1);
+		ftWait(2);
+		ftCmd(QIC_CMD_SS2);
+		ftWait(2);
+		break;
+	case 2:
+		/* CMS soft select enable. */
+		ftCmd(77);
+		ftWait(2);
+		ftCmd(QIC_CMD_CSS_ON);
+		ftWait(2);
+		ftCmdArg (drive);
+		ftWait(2);
+		break;
+	}
+
+	return;
+}
+
+/***********************************************************************
+ * ftWaitWithTimeout
+ *
+ * Clear timeout flag.
+ * Start timeout timer.
+ * Sleep.
+ * If timeout did not occur.
+ *   Turn off timeout timer.
+ * Print warning message if operation timed out or was signaled.
+ *
+ * Arguments:
+ *   timeout interval, in clock ticks
+ *   sleep reason string
+ *
+ * Return status:
+ *	0: normal wakeup	FT_RESULT_OK
+ *	1: timeout		FT_RESULT_TIMED_OUT
+ *	2: signal received	FT_RESULT_SIGNALED
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+enum FtWtRslt ftWaitWithTimeout (int ticks, char * reason)
+#else
+enum FtWtRslt
+ftWaitWithTimeout (ticks, reason)
+int	ticks;
+char *	reason;
+#endif
+{
+	int	sleepval;
+	int	retval;
+
+	ft.ft_timedOut = 0;
+	timeout (& ft.ft_tim, ticks, ftTimeout, NULL);
+	sleepval = x_sleep ((char *)(&ft.ft_wakeMeUp), pritape,
+	  slpriSigCatch, reason);
+	timeout (& ft.ft_tim, 0, NULL, NULL);
+
+	if (sleepval) {
+		cmn_err (CE_WARN, "FT %s: Signaled", reason);
+		retval = FT_RESULT_SIGNALED;
+	} else if (ft.ft_timedOut) {
+		cmn_err (CE_WARN, "FT %s: Timeout", reason);
+		retval = FT_RESULT_TIMED_OUT;
+	} else
+		retval = FT_RESULT_OK;
+
+	return retval;
+}
+
+/*********************
+**********************
+**
+** Level 2 Support routines.
+**
+**********************
+**********************/
+
+#if 0
+/************************************************************************
+ * ftGetInfo
+ *
+ * Issue several QIC report commands - all but Report Drive Status
+ * and Report Error Code.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static void ftGetInfo(o_dev_t dev)
+#else
+static void
+ftGetInfo(dev)
+o_dev_t dev;
+#endif
+{
+	if (ftCmd(QIC_CMD_DRVCN))
+		devmsg(dev, "Drive configuration unavailable");
+	else
+		devmsg(dev, "Drive Configuration = %x", ft.ft_report);
+
+	if (ftCmd(QIC_CMD_ROMVN))
+		devmsg(dev, "ROM version unavailable");
+	else
+		devmsg(dev, "Rom Version = 0x%x", ft.ft_report);
+
+	if (ftCmd(QIC_CMD_VNDID))
+		devmsg(dev, "Vendor ID unavailable");
+	else
+		devmsg(dev, "Vendor ID = 0x%x", ft.ft_report);
+
+	if (ftCmd(QIC_CMD_TPSTAT))
+		devmsg(dev, "Tape status unavailable");
+	else
+		devmsg(dev, "Tape Status = 0x%x", ft.ft_report);
+}
+#endif
+
+/***********************************************************************
+ * ftReadyWait
+ *
+ * Keep checking drive status every second until drive is ready or
+ * the specified number of seconds has elapsed.
+ * Return 0 if drive ready, -1 if timeout or signal or protocol failure.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftReadyWait (unsigned int seconds)
+#else
+int
+ftReadyWait(seconds)
+unsigned int seconds;
+#endif
+{
+	uint i;
+	int retval = -1;
+	int drvStatus;
+
+	for (i = 0; i < seconds; i++) {
+#if 1
+		drvStatus = ftStsWthErr();
+		if (drvStatus == -1) {
+			continue;
+		}
+#else
+		int j;
+
+		for (j = 0; j < 5; j++) {
+			drvStatus = ftStsWthErr();
+			cmn_err (CE_NOTE, "!ftReadyWait stat=%x", drvStatus);
+			if (drvStatus != -1)
+				break;
+
+			/* Protocol failure? */
+			cmn_err (CE_NOTE, "!bogus status");
+			fdcStatus ();
+			ftSelect(ft.ft_drv, ft.ft_softsel);
+		}
+#endif
+
+		/* Drive ready?  Change return value to show success. */
+		if (drvStatus & QIC_STAT_RDY) {
+			retval = 0;
+			break;
+		}
+
+		/* Signal arrived while waiting a second? */
+		if (ftWait(HZ))
+			break;
+	}
+
+	return retval;
+}
+
+/*********************
+**********************
+**
+** Global Support routines.
+**
+**********************
+**********************/
+
+
+/***********************************************************************
+ * ftReadID
+ *
+ * Send FDC Read ID command and store results at pointer supplied.
+ * Return 0 on success, -1 on failure (signal).
+ *
+ * Of principal interest is fdc.fdc_cmdstat[5] - present block number.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftReadID (struct ftDiskLocn * diskLoc)
+#else
+int
+ftReadID (diskLoc)
+struct ftDiskLocn * diskLoc;
+#endif
+{
+	ft.ft_wakeMeUp = 1;
+	fdcReadID (ft.ft_drv, 0);
+
+	/* Wait for interrupt when read is done. */
+	if (ftWaitWithTimeout (FT_XFER_SECS * HZ, "ftReadID")) {
+		ftSelect(ft.ft_drv, ft.ft_softsel);
+		return -1;
+	}
+
+	if (fdc.fdc_ncmdstat != 7) {
+		cmn_err (CE_WARN, "ftReadID: bad command status: %d",
+		  fdc.fdc_ncmdstat);
+		return -1;
+	} else {
+		diskLoc->ftDLcylinder = fdc.fdc_cmdstat[3];
+		diskLoc->ftDLhead = fdc.fdc_cmdstat[4];
+		diskLoc->ftDLsector = fdc.fdc_cmdstat[5];
+		diskLoc->ftDLsecsize = fdc.fdc_cmdstat[6];
+
+		ftMSetLoc (diskLoc);
+		return 0;
+	}
+}
+
+/************************************************************************
+ * ftSkipBack()
+ *
+ * Skip segments in logical backward direction.
+ * Return 0 on success, -1 on failure.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftSkipBack(int segCount)
+#else
+int
+ftSkipBack(segCount)
+int segCount;
+#endif
+{
+	int result;
+
+	/* If possible, use short (non-extended) form of skip command. */
+	if ((segCount & ~0xFF) == 0) {
+		if (ftCmd(QIC_CMD_SKPB))
+			return -1;
+		ftCmdArg (segCount & 0xF);
+		ftCmdArg (segCount >> 4);
+	} else {
+		if (ftCmd(QIC_CMD_SKPBX))
+			return -1;
+		ftCmdArg (segCount & 0xF);
+		ftCmdArg ((segCount >> 4) & 0xF);
+		ftCmdArg ((segCount >> 8) & 0xF);
+	}
+
+	ftMSetMtn (FT_WINDING);
+	ftWait(FT_MOTION_TICKS);
+	result = ftReadyWait(FT_SKIP_SECS);
+	ftMSetMtn (FT_STOPPED);
+	return result;
+}
+
+/************************************************************************
+ * ftSkipFwd()
+ *
+ * Skip segments in logical forward direction.
+ * Return 0 on success, -1 on failure.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftSkipFwd(int segCount)
+#else
+int
+ftSkipFwd(segCount)
+int segCount;
+#endif
+{
+	int result;
+
+	/* If possible, use short (non-extended) form of skip command. */
+	if ((segCount & ~0xFF) == 0) {
+		if (ftCmd(QIC_CMD_SKPF))
+			return -1;
+		ftCmdArg (segCount & 0xF);
+		ftCmdArg (segCount >> 4);
+	} else {
+		if (ftCmd(QIC_CMD_SKPFX))
+			return -1;
+		ftCmdArg (segCount & 0xF);
+		ftCmdArg ((segCount >> 4) & 0xF);
+		ftCmdArg ((segCount >> 8) & 0xF);
+	}
+
+	ftMSetMtn (FT_WINDING);
+	ftWait(FT_MOTION_TICKS);
+	result = ftReadyWait(FT_SKIP_SECS);
+	ftMSetMtn (FT_STOPPED);
+	return result;
+}
+
+/************************************************************************
+ * ftFwdTape
+ *
+ * Send QIC forward tape command.
+ * Return 0 if success, -1 if ACK missed or signal interrupted.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftFwdTape(void)
+#else
+int
+ftFwdTape()
+#endif
+{
+	int retval;
+
+	ftMSetMtn (FT_MOVING);
+	retval = ftCmd(QIC_CMD_FWD);
+	return retval;
+}
+
+#if 0
+/************************************************************************
+ * ftMicroPauseTape
+ *
+ * Send QIC micro step pause tape command, then sleep til drive ready.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+static int ftMicroPauseTape(void)
+#else
+static int
+ftMicroPauseTape()
+#endif
+{
+	/* Micro Step Pause, wait for ready. */
+	ftCmd(QIC_CMD_MPAUS);
+	ftWait(FT_MOTION_TICKS);
+	ftMSetMtn (FT_STOPPED);
+	return ftReadyWait(FT_PAUSE_SECS);
+}
+#endif
+
+/************************************************************************
+ * ftPauseTape
+ *
+ * Send QIC pause tape command, then sleep til drive ready.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftPauseTape(void)
+#else
+int
+ftPauseTape()
+#endif
+{
+	/* Pause, wait for ready. */
+	ftCmd(QIC_CMD_PAUS);
+	ftWait(FT_MOTION_TICKS);
+	ftMSetMtn (FT_STOPPED);
+	return ftReadyWait(FT_PAUSE_SECS);
+}
+
+/************************************************************************
+ * ftRewindTape
+ *
+ * Send QIC rewind (BOT) tape command, then sleep til drive ready.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftRewindTape(void)
+#else
+int
+ftRewindTape()
+#endif
+{
+	/* Rewind, wait for ready. */
+	ftCmd(QIC_CMD_BOT);
+	ftWait(FT_MOTION_TICKS);
+	ftMSetMtn (FT_STOPPED);
+	return ftReadyWait(FT_WIND_SECS);
+}
+
+/************************************************************************
+ * ftSeekTape
+ *
+ * Send QIC seek tape command, then sleep til drive ready.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftSeekTape(int track)
+#else
+int
+ftSeekTape(track)
+int track;
+#endif
+{
+	ftWait(3);
+	ftCmd(QIC_CMD_SEEK);
+	ftCmdArg (track);
+	ftWait(2);
+	return ftReadyWait(FT_SEEK_SECS);
+}
+
+/************************************************************************
+ * ftStopTape
+ *
+ * Send QIC stop tape command, then sleep til drive ready.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftStopTape(void)
+#else
+int
+ftStopTape()
+#endif
+{
+	/* Stop, wait for ready. */
+	ftCmd(QIC_CMD_STOP);
+	ftWait(FT_MOTION_TICKS);
+	ftMSetMtn (FT_STOPPED);
+	return ftReadyWait(FT_STOP_SECS);
+}
+
+/************************************************************************
+ * ftStsWthErr
+ *
+ * Do Report Drive Status.
+ * If error detected, do Report Error Code.
+ * Uses sleep, so may not be used in timeout/interrupt/load/unload, etc.
+ * Return status if ok, -1 on protocol failure.
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+int ftStsWthErr(void)
+#else
+int
+ftStsWthErr()
+#endif
+{
+	int status;
+
+	if (ftCmd(QIC_CMD_STS)) {
+		cmn_err (CE_WARN, "!ftStsWthErr : ftCmd failed");
+		return -1;
+	}
+
+	status = ft.ft_report;
+	ft.ft_qicstat = ft.ft_report;
+
+	ftDbPrintStat(status);
+
+	/* If error status detected, get the error code and print in English. */
+
+	if ((status & QIC_STAT_ERR) && (status & QIC_STAT_RDY)) {
+		if (ftCmd(QIC_CMD_ECD)) {
+			cmn_err (CE_WARN,
+			  "ftStsWthErr stat %x, can't get err code", status);
+			return status;
+		}
+		ft.ft_errstat = ft.ft_report;
+		ftDbPrintErr (ft.ft_report);
+	}
+	return status;
+}
+
+/************************************************************************
+ * ftWindTape
+ *
+ * Send QIC wind (EOT) tape command, then sleep til drive ready.
+ * Return 0 if success, -1 if timed out before sensing drive ready.
+ ***********************************************************************/
+#if	__USE_PROTO__
+int ftWindTape(void)
+#else
+int
+ftWindTape()
+#endif
+{
+	/* Wind, wait for ready. */
+	ftCmd(QIC_CMD_EOT);
+	ftWait(FT_MOTION_TICKS);
+	ftMSetMtn (FT_STOPPED);
+	return ftReadyWait(FT_WIND_SECS);
+}
+
+/*********************
+**********************
+**
+** FDC level i/o.
+**
+**********************
+**********************/
+
+/************************************************************************
+ * ftLogIOerr
+ *
+ * Given error table pointer, segment index, and block index,
+ * attempt to log an I/O error.
+ *
+ * Return 0 on success, 1 on failure.
+ ***********************************************************************/
+#if __USE_PROTO__
+static int ftLogIOerr (struct FtSegErr * ftSegErrp,
+  int segIndex, int errBlock)
+#else
+static int
+ftLogIOerr (ftSegErrp, segIndex, errBlock)
+struct FtSegErr * ftSegErrp;
+int segIndex;
+int errBlock;
+#endif
+{
+	int retval = 1;
+
+cmn_err (CE_NOTE, "!ftLogIOerr (%x, %d, %d)",
+  (int)ftSegErrp, segIndex, errBlock);
+
+	if (ftSegErrp) {
+
+		unsigned char * errCountp;
+
+		errCountp = & (ftSegErrp [segIndex].se_errCount);
+
+cmn_err (CE_NOTE, "!ftLogIOerr : old error count is %d", (int)(* errCountp));
+
+		/*
+		 * segIndex is segment number we are on, relative
+		 * to the first segment requested on this call
+		 * to ftReadSegments () - it is used to access
+		 * the i/o error table for each segment.
+		 */
+
+		if (* errCountp < FT_NUM_ERR_BLK) {
+
+			/* Log the error. */
+
+			ftSegErrp [segIndex].se_errBlock [* errCountp] =
+			  errBlock;
+
+cmn_err (CE_NOTE, "!ftLogIOerr : error # %d at block %d",
+  (int)(* errCountp), errBlock);
+
+			(* errCountp) ++;
+
+			/* Return success. */
+
+			retval = 0;
+
+		} else {
+
+			/* Too many errors in this segment. Fail. */
+
+cmn_err (CE_NOTE, "!ftLogIOerr : too many errors for segment");
+
+		}
+	} else {
+
+		/* No provision for error logging.  Fail. */
+
+cmn_err (CE_NOTE, "!ftLogIOerr : error table not in use");
+
+	}
+
+	return retval;
+}
+
+/*********************
+**********************
+**
+** Segment level i/o routines.
+**
+**********************
+**********************/
+
+/************************************************************************
+ * ftReadSegments
+ *
+ * Arguments:
+ *   Starting segment number.
+ *   Number of segments.
+ *   Virtual address of a virtually contiguous buffer region.
+ *   Switch to tell us whether to check Bad Block Table or not.
+ *   Pointer to error struct table, or null.
+ *   Pointer to block count table, or null.
+ *
+ * This routine calls ftXferFDC () and provides these upper-level
+ * functions for the latter:
+ *
+ *   Check for requests for 0 blocks, and do not pass these on to
+ *   ftXferFDC ().
+ *
+ *   Check for requests to read past end of tape, and truncate them
+ *   before calling ftXferFDC ().
+ *
+ *   If a request will go past the end of a tape track, split it 
+ *   into multiple calls to ftXferFDC ().
+ *
+ *   If any request to ftXferFDC () does not finish, repeat the
+ *   attempt.  As long as at least one new block is read with each
+ *   call, keep going.  If a single block cannot be read after several
+ *   attempts, log the error into the i/o error table.  If no error
+ *   table is provided or the error limit for a segment is exceeded, fail.
+ *
+ *   After tape access is completed, pack all good blocks toward the
+ *   beginning of each segment (i.e., skip "holes" left due to observance
+ *   of the bad block map) then apply ecc.  If ecc fails, abort the read.
+ *
+ *   Return number of segments read.
+ ***********************************************************************/
+#if __USE_PROTO__
+int ftReadSegments (int logSegment, int numSegments, caddr_t readBuf,
+  int bbtSw, struct FtSegErr * ftSegErrp, unsigned char * ftnbp)
+#else
+int
+ftReadSegments (logSegment, numSegments, readBuf, bbtSw, ftSegErrp, ftnbp)
+int logSegment;
+int numSegments;
+caddr_t readBuf;
+int bbtSw;
+struct FtSegErr * ftSegErrp;
+unsigned char * ftnbp;
+#endif
+{
+
+/*
+ * WARNING - don't alter the value of logSegment - a couple places below
+ * count on using the value passed into this function!!!
+ */
+
+	int	totBlksRead;
+	int	totSegsRead;
+	int	excessSegments;
+	int	retries;
+	int	logBlock;
+	int	numBlocks;
+	int	segIndex;
+	struct ftDiskLocn dl;
+	caddr_t	readBufOrig = readBuf;  /* Save buffer start addr for later. */
+
+cmn_err (CE_NOTE,
+  "!ftReadSegments (logSeg=%d, numSeg=%d, rbuf=%x, bbtSw=%d, erp=%x, nbp=%x)",
+  logSegment, numSegments, (int) readBuf, bbtSw, (int)ftSegErrp, (int)ftnbp);
+
+	totBlksRead = 0;
+	totSegsRead = 0;
+
+	/* Return now if no work to be done. */
+
+	if (numSegments <= 0)
+		goto endReadSegs;
+
+	/* Compute how many, if any, segments were requested past end of tape. */
+
+	excessSegments = logSegment + numSegments
+	  - (ftCBlksPerVol () / FT_BLK_PER_SEG);
+
+	/* Nothing to do if entire request is beyond EOT. */
+
+	if (excessSegments >= numSegments)
+		goto endReadSegs;
+
+	/* Keep any request from going off the end of the tape. */
+
+	if (excessSegments > 0) {
+		cmn_err (CE_NOTE, "!ftReadSegments : %d blocks past EOT",
+		  excessSegments);
+		numSegments -= excessSegments;
+	}
+
+	/* Convert request for segments into request for blocks. */
+
+	logBlock = logSegment * FT_BLK_PER_SEG;
+	numBlocks = numSegments * FT_BLK_PER_SEG;
+
+	/* Clear out IO error stats.  This is overkill, but helps debug. */
+
+	if (ftSegErrp) {
+		for (segIndex = 0; segIndex < numSegments; segIndex++) {
+			int i;
+
+			ftSegErrp [segIndex].se_errCount = 0;
+			for (i = 0; i < FT_NUM_ERR_BLK; i++)
+				ftSegErrp [segIndex].se_errBlock [i] = 0;
+		}
+	}
+
+	/* Driver loop for low-level read. */
+
+	retries = 0;
+	while (numBlocks > 0) {
+		int blocksRequested = numBlocks;
+		int blocksRead = 0;
+		int bytesRead = 0;
+		struct ftTapeLocn tl;
+		int excessBlocks;
+
+		/* Compute FDC pseudocoordinates for the starting sector. */
+
+		if (ftCLBtoDL (logBlock, & dl))
+			break;
+
+cmn_err (CE_NOTE,
+  "!ftReadSegments : Start from head %d, cyl %d, sector %d",
+  dl.ftDLhead, dl.ftDLcylinder, dl.ftDLsector);
+
+		/* Compute tape coordinates for the starting sector. */
+
+		if (ftCSectoTL (logBlock, & tl))
+			break;
+
+cmn_err (CE_NOTE,
+  "!ftReadSegments : Start from track %d, segment %d, block %d",
+  tl.ftTLtrack, tl.ftTLsegment, tl.ftTLblock);
+
+		/*
+		 * A single call to ftXferFDC should not try to run
+		 * past the end of a tape track.
+		 * Compute the number of blocks remaining on the present track.
+		 * Limit number of blocks requested to at most this number.
+		 */
+		excessBlocks = numBlocks - ftCBlocksLeft (&tl);
+
+		if (excessBlocks > 0)
+			blocksRequested -= excessBlocks;
+
+		bytesRead = ftXferFDC (logBlock, blocksRequested,
+		  readBuf, &dl, bbtSw, FT_READ, retries);
+
+		/* Don't accept partial blocks read. */
+
+		bytesRead -= bytesRead % FT_BLK_SIZE;
+		blocksRead = bytesRead / FT_BLK_SIZE;
+
+		/*
+		 * If at least one block made it in
+		 *   Reset the retry count.
+		 *   Update i/o parameters for next call to ftXferFDC ().
+		 * Else
+		 *   Increment retry count.
+		 *   If count too high, give up on the read.
+		 *
+		 * In order to avoid wasting time on read-ahead,
+		 * if at least one complete segment has been read at the
+		 * time and i/o error occurs, stop accessing the FDC and
+		 * return data to the user.
+		 */
+
+		if (blocksRead > 0) {
+
+			retries = 0;
+			numBlocks -= blocksRead;
+			logBlock += blocksRead;
+			readBuf += bytesRead;
+			totBlksRead += blocksRead;
+			totSegsRead = totBlksRead / FT_BLK_PER_SEG;
+
+			if (blocksRead != blocksRequested) {
+
+				/* Some blocks were not read.  I/O error. */
+
+				if (totSegsRead > 0)
+					break;
+				retries++;
+			}
+
+		} else {
+
+			/* No blocks were read.  I/O error. */
+
+			if (totSegsRead > 0)
+				break;
+			retries++;
+
+			if (retries >= FT_READ_BLK_RETRIES) {
+				if (ftLogIOerr (ftSegErrp, totSegsRead,
+				  logBlock % FT_BLK_PER_SEG)) {
+
+					/* Log Error failed.  Fail. */
+					break;
+
+				} else {
+
+					/* Move on to next block. */
+
+					retries = 0;
+					numBlocks --;
+					logBlock ++;
+					readBuf += FT_BLK_SIZE;
+					totBlksRead ++;
+					totSegsRead =
+					  totBlksRead / FT_BLK_PER_SEG;
+				}
+			}
+		}
+	}
+
+	/*
+	 * For each segment
+	 *   Set good block count to 32.
+	 *   Get bad block map, if any.
+	 *   If bad block map is nonempty
+	 *     Set gap to 0 blocks.
+	 *     For each bit in bad block map
+	 *       If bit is 1 (bad block)
+	 *	   Subtract 1 from good block count.
+	 *         If there is an error table
+	 *           For each block logged in error table
+	 *             If error block number > current block number
+	 *               Subtract 1 from error block number.
+	 *             Else if error block number == current block number
+	 *               Report error - this should not happen
+	 *       Else bit is 0 (good block)
+	 *         If gap > 0
+	 *           Move current block "gap" blocks toward start of segment
+	 *  If there is an error table
+	 *    Fetch error count and blocks
+	 *  Else
+	 *    Use null values
+	 *  If ecc fails
+	 *    Display error and end the call.
+	 */
+cmn_err (CE_NOTE, "!ftReadSegments : %d buffers to process.", totSegsRead);
+
+	for (segIndex = 0; segIndex < totSegsRead; segIndex++) {
+		int	goodBlocks;
+		unsigned int	badBitMap;
+		int	gap;
+		int	bitIndex;
+		int	errBlkIndex;
+		int	eccResult;
+		struct FtSegErr * ftsep;
+		caddr_t x;
+
+		if (ftSegErrp)
+			ftsep = ftSegErrp + segIndex;
+		else
+			ftsep = 0;
+
+		goodBlocks = FT_BLK_PER_SEG;
+		if (bbtSw == FT_USE_BBT) {
+
+			if (ftBBT (logSegment + segIndex, & badBitMap))
+				badBitMap = 0;
+
+			if (badBitMap) {
+				gap = 0;
+				for (bitIndex = 0; bitIndex < FT_BLK_PER_SEG;
+				  bitIndex++) {
+					if (badBitMap & (1 << bitIndex)) {
+cmn_err (CE_NOTE, "!ftReadSegments : "
+  "Buffer %d, segment %d, block %d is bad in BBT",
+  segIndex, logSegment + segIndex, bitIndex);
+						goodBlocks --;
+						gap++;
+						if (ftsep) {
+for (errBlkIndex = 0; errBlkIndex < ftsep->se_errCount; errBlkIndex++) {
+
+	unsigned char  * errBlockp = ftsep->se_errBlock + errBlkIndex;
+
+	if (* errBlockp > bitIndex) {
+
+cmn_err (CE_CONT, "!I/O error at block %d becomes error at block %d.\n",
+  * errBlockp, (* errBlockp) - 1);
+
+		(* errBlockp) --;
+
+	} else if (* errBlockp == bitIndex) {
+
+		/*
+		 * This is an error because we should not have tried to
+		 * read a block marked bad in the BBT, so there should be
+		 * no I/O error at that block.
+		 */
+
+		cmn_err (CE_WARN,
+		  "FT : Squeeze error, block %d, segment %d, segIndex %d",
+		  bitIndex, logSegment + segIndex, segIndex);
+	}
+}
+						}
+					} else { /* Good block. */
+
+						if (gap) {
+
+cmn_err (CE_CONT, "!Moving block %d to position %d to allow for BBT\n",
+  bitIndex, bitIndex - gap);
+
+/* x is the address of the current block in the buffer pool. */
+
+x = readBufOrig + (segIndex * FT_SEG_SIZE) + (bitIndex * FT_BLK_SIZE);
+
+/* Move the current block closer to the start of the segment. */
+memcpy (x - gap * FT_BLK_SIZE, x, FT_BLK_SIZE);
+						}
+					}
+				}
+			}
+
+		}
+
+		/* x is address of current segment in buffer pool. */
+
+		x = readBufOrig + (segIndex * FT_SEG_SIZE);
+
+		if (ftsep) {
+			eccResult = decodeEcc ((unsigned char *)x, goodBlocks,
+			  ftsep->se_errCount, ftsep->se_errBlock [0],
+			  ftsep->se_errBlock [1], ftsep->se_errBlock [2]);
+		} else {
+			eccResult = decodeEcc ((unsigned char *)x, goodBlocks,
+			  0, 0, 0, 0);
+		}
+
+		if (eccResult == 0) {
+
+			/* Only display warning if no data was read. */
+			if (totSegsRead == 0)
+				cmn_err (CE_WARN,
+				  "FT : ECC failure at segment %d",
+				  logSegment + segIndex);
+			else
+				cmn_err (CE_NOTE,
+				  "!FT : ECC failure at segment %d",
+				  logSegment + segIndex);
+		}
+
+		/* Update count of good blocks in the buffer pool. */
+		if (ftnbp)
+			ftnbp [segIndex] = goodBlocks - FT_NUM_ECC_BLKS;
+
+	} /* End for loop over segments read. */
+
+
+endReadSegs:
+	cmn_err (CE_NOTE, "!ftReadSegments : %d segments read", totSegsRead);
+	return totSegsRead;
+}
+
+/************************************************************************
+ * ftWriteSegments
+ *
+ * Arguments:
+ *   Starting segment number.
+ *   Number of segments.
+ *   Virtual address of a virtually contiguous buffer region.
+ *   Switch to tell us whether to check Bad Block Table or not.
+ *   Pointer to byte count table, or null.
+ *
+ * This routine calls ftXferFDC () and provides these upper-level
+ * functions for the latter:
+ *
+ *   Check for requests for 0 blocks, and do not pass these on to
+ *   ftXferFDC ().
+ *
+ *   Check for requests to read past end of tape, and truncate them
+ *   before calling ftXferFDC ().
+ *
+ *   If a request will go past the end of a tape track, split it 
+ *   into multiple calls to ftXferFDC ().
+ *
+ *   If any request to ftXferFDC () does not finish, repeat the
+ *   attempt.  As long as at least one new block is read with each
+ *   call, keep going.  If a single block cannot be read after several
+ *   attempts, log the error into the i/o error table.  If no error
+ *   table is provided or the error limit for a segment is exceeded, fail.
+ *
+ *   After tape access is completed, pack all good blocks toward the
+ *   beginning of each segment (i.e., skip "holes" left due to observance
+ *   of the bad block map) then apply ecc.  If ecc fails, abort the read.
+ *
+ *   Return number of segments read.
+
+For all segment buffers
+  If data count does not match the number of blocks that may be written to this
+  segment according to the Bad Block Table
+    Display warning
+      Segment x, buffer has %d bytes, bbt allows %d, writing %d
+  Generate ECC blocks.
+  Unpack data blocks to allow for Bad Block Table.
+End for all segment buffers.
+
+Compute number of segments to pass to FDC in a single request, the smaller of:
+  Number of segments remaining on current track
+  Number of segments stored in buffer pool.
+
+Write blocks to FDC, using Bad Block Table.
+  
+ ***********************************************************************/
+#if __USE_PROTO__
+int ftWriteSegments (int logSegment, int numSegments, caddr_t writeBuf,
+  int bbtSw, unsigned int * ftnbyp)
+#else
+int
+ftWriteSegments (logSegment, numSegments, writeBuf, bbtSw, ftnbyp)
+int logSegment;
+int numSegments;
+caddr_t writeBuf;
+int bbtSw;
+unsigned int * ftnbyp;
+#endif
+{
+	int		totSegsWritten;
+	int		totBlksWritten;
+	int		excessSegments;
+	int		segIndex;
+	int		numBlocks;
+	int		logBlock;
+	int		retries;
+
+	struct ftDiskLocn dl;
+
+	totSegsWritten = 0;
+	totBlksWritten = 0;
+
+cmn_err (CE_NOTE,
+  "!ftWriteSegments (%d, %d, %x, %d, %x)",
+  logSegment, numSegments, (int) writeBuf, bbtSw, (int)ftnbyp);
+
+	/* Return now if no work to be done. */
+
+	if (numSegments <= 0)
+		goto endWriteSegs;
+
+	/* Compute how many, if any, segments were requested past end of tape. */
+
+	excessSegments = logSegment + numSegments
+	  - (ftCBlksPerVol () / FT_BLK_PER_SEG);
+
+	/* Nothing to do if entire request is beyond EOT. */
+
+	if (excessSegments >= numSegments)
+		goto endWriteSegs;
+
+	/* Keep any request from going off the end of the tape. */
+
+	if (excessSegments > 0) {
+		cmn_err (CE_NOTE, "!ftWriteSegments : %d blocks past EOT",
+		  excessSegments);
+		numSegments -= excessSegments;
+	}
+
+	/* Loop over all segment buffers that have data to go out. */
+
+	for (segIndex = 0; segIndex < numSegments; segIndex++) {
+
+		int	goodBlocks;
+		int	writeBytes;
+		unsigned int	bitMap;
+		unsigned char	nb;
+		int	gap;
+
+		/* Calculate how many bytes we may write for the segment. */
+
+		gap = 0;
+		goodBlocks = FT_DATA_BLK_PER_SEG;
+
+		if (bbtSw == FT_USE_BBT) {
+			if (ftBBT (logSegment + segIndex, & bitMap))
+				bitMap = 0;
+		} else
+			bitMap = 0;
+
+cmn_err (CE_NOTE, "!ftWriteSegments : segment %d, buffer %d, bitmap is %x",
+  logSegment + segIndex, segIndex, bitMap);
+
+		if (bbtSw == FT_USE_BBT) {
+
+			unsigned int tempMap;
+
+			tempMap = bitMap;
+
+			while (tempMap != 0) {
+				goodBlocks--;
+				gap++;
+				if (goodBlocks <= 0)
+					break;
+				/* Clear a 1 bit in the bitmap. */
+				tempMap &= (tempMap - 1);
+			}
+		}
+
+cmn_err (CE_NOTE, "!segment has %d good blocks", goodBlocks);
+
+		writeBytes = goodBlocks * FT_BLK_SIZE;
+		if (writeBytes != ftnbyp [segIndex]) {
+			cmn_err (CE_NOTE,
+"!ftWriteSegments : segment %d, buffer has %d bytes, BBT allows %d",
+			  logSegment + segIndex, ftnbyp [segIndex], writeBytes);
+		}
+
+		if (writeBytes <= 0)
+			continue;
+
+		/* Generate 3 ECC blocks per segment buffer. */
+
+		nb = goodBlocks + FT_NUM_ECC_BLKS;
+		encodeEcc ((unsigned char *)
+		  (writeBuf + (segIndex * FT_SEG_SIZE)), nb);
+
+cmn_err (CE_NOTE, "!encodeEcc (%x, %d)",
+  (int)(writeBuf + (segIndex * FT_SEG_SIZE)), nb);
+
+		/* Unpack blocks within segment according to BBT. */
+
+		if (bitMap != 0) {
+
+			int	srcBlk;
+			int	destBlk;
+			caddr_t	src;
+			caddr_t	dest;
+
+			srcBlk = goodBlocks + FT_NUM_ECC_BLKS - 1;
+			for (destBlk = FT_BLK_PER_SEG - 1;
+			  destBlk >= 0 && srcBlk != destBlk; destBlk--) {
+
+				if (bitMap & (1 << destBlk)) {
+
+cmn_err (CE_NOTE, "!Leaving gap at block %d", destBlk);
+
+				} else {
+
+src = writeBuf + (segIndex * FT_SEG_SIZE) + (srcBlk * FT_BLK_SIZE);
+dest = writeBuf + (segIndex * FT_SEG_SIZE) + (destBlk * FT_BLK_SIZE);
+
+					/* Move a block closer to the end of
+					 * the segment. */
+
+					memcpy (dest, src, FT_BLK_SIZE);
+
+cmn_err (CE_NOTE, "!Moving block %d to position %d", srcBlk, destBlk);
+					srcBlk --;
+				}
+			}
+		}
+
+	} /* End for loop over all segments to be written. */
+
+	/* Convert request for segments into request for blocks. */
+
+	logBlock = logSegment * FT_BLK_PER_SEG;
+	numBlocks = numSegments * FT_BLK_PER_SEG;
+
+	/* Driver loop for low-level write. */
+
+	retries = 0;
+	while (numBlocks > 0) {
+
+		int blocksRequested = numBlocks;
+		int blocksWritten = 0;
+		int bytesWritten = 0;
+		struct ftTapeLocn tl;
+		int excessBlocks;
+
+		/* Compute FDC pseudocoordinates for the starting sector. */
+
+		if (ftCLBtoDL (logBlock, & dl))
+			break;
+
+cmn_err (CE_NOTE,
+  "!ftWriteSegments : Start from head %d, cyl %d, sector %d",
+  dl.ftDLhead, dl.ftDLcylinder, dl.ftDLsector);
+
+		/* Compute tape coordinates for the starting sector. */
+
+		if (ftCSectoTL (logBlock, & tl))
+			break;
+
+cmn_err (CE_NOTE,
+  "!ftWriteSegments : Start from track %d, segment %d, block %d",
+  tl.ftTLtrack, tl.ftTLsegment, tl.ftTLblock);
+
+		/*
+		 * A single call to ftXferFDC should not try to run
+		 * past the end of a tape track.
+		 * Compute the number of blocks remaining on the present track.
+		 * Limit number of blocks requested to at most this number.
+		 */
+		excessBlocks = numBlocks - ftCBlocksLeft (&tl);
+
+		if (excessBlocks > 0)
+			blocksRequested -= excessBlocks;
+
+		bytesWritten = ftXferFDC (logBlock, blocksRequested,
+		  writeBuf, &dl, bbtSw, FT_WRITE, retries);
+
+		/* Don't accept partial blocks written. */
+
+		bytesWritten -= bytesWritten % FT_BLK_SIZE;
+		blocksWritten = bytesWritten / FT_BLK_SIZE;
+
+		/*
+		 * If at least one block made it in
+		 *   Reset the retry count.
+		 *   Update i/o parameters for next call to ftXferFDC ().
+		 * Else
+		 *   Increment retry count.
+		 *   If count too high, give up on the write.
+		 */
+
+		if (blocksWritten > 0) {
+			retries = 0;
+			numBlocks -= blocksWritten;
+			logBlock += blocksWritten;
+			writeBuf += bytesWritten;
+			totBlksWritten += blocksWritten;
+			totSegsWritten = totBlksWritten / FT_BLK_PER_SEG;
+
+			if (blocksWritten != blocksRequested)
+				retries++;
+
+		} else {
+			retries++;
+			if (retries >= FT_WRITE_BLK_RETRIES) {
+
+cmn_err (CE_WARN, "FT : ftWriteSegments : block %d, too many retries",
+  logBlock);
+
+				break;
+			}
+		}
+	}
+
+endWriteSegs:
+
+	cmn_err (CE_NOTE,
+	  "!ftWriteSegments : %d Segments Written", totSegsWritten);
+
+	return totSegsWritten;
+}
+
+
+/************************************************************************
+ * ftGetHeaderSeg
+ *
+ * Try to read the header info from the first valid segment into the
+ * buffer area reserved for that purpose.  This loads the bad block
+ * map for us.  Don't do anything if there is already a valid header.
+ *
+ * Return 0 if success, -1 on failure.
+ ***********************************************************************/
+#if	__USE_PROTO__
+static int ftGetHeaderSeg (void)
+#else
+static int
+ftGetHeaderSeg ()
+#endif
+{
+	int		trySeg;
+
+	if (ft.ft_hdrOk)
+		return 0;
+
+	for (trySeg = 0; trySeg < FT_GET_HEADER_TRIES; trySeg++) {
+
+		if (ftReadSegments (trySeg, 1, (caddr_t)ftHeaderSeg,
+		  FT_DONT_USE_BBT, 0, 0) == 1) {
+
+			/* Read segment succeeded.  Check for valid signature. */
+			if (*(int *)ftHeaderSeg == FT_SIGNATURE) {
+				ft.ft_hdrOk = 1;
+				break;
+			}
+			cmn_err (CE_WARN, "FT : signature is %x, want %x",
+			  *(int *)ftHeaderSeg, FT_SIGNATURE);
+		} else
+			cmn_err (CE_WARN, "FT : read segment %d failed", trySeg);
+	}
+	if (ft.ft_hdrOk) {
+
+		unsigned int spt;
+		unsigned int tracks;
+		unsigned int heads;
+		unsigned int cyls;
+		unsigned int blkPerPseudoTrack;
+
+		/*
+		 * Sanity test.  *All* valid tape formats have 128 sectors
+		 * per floppy pseudotrack.
+		 */
+
+		blkPerPseudoTrack = ftHeaderSeg [29];
+		if (blkPerPseudoTrack != FT_SEC_PER_PTRK) {
+			cmn_err (CE_WARN,
+			  "FT : unlikely max sector # %d, want %d",
+			  blkPerPseudoTrack, FT_SEC_PER_PTRK);
+			return -1;
+		}
+
+		spt = *(short *)(ftHeaderSeg + 24);
+		tracks = ftHeaderSeg [26];
+		heads = ftHeaderSeg [27] + 1;
+		cyls = ftHeaderSeg [28] + 1;
+
+		/* Valid signature seen.  Set tape parameters. */
+
+		ftCvtSetFtParms (spt, tracks, heads, cyls);
+
+cmn_err (CE_NOTE,
+  "!ftGetHeaderSeg : %d segs per track, %d tracks, %d heads, %d cyls",
+  spt, tracks, heads, cyls);
+
+		/* Make note of data range on tape. */
+
+		ft.ft_firstDataSeg = *(unsigned short *)(ftHeaderSeg + FT_FIRST_DATA_SEG);
+		ft.ft_lastDataSeg = *(unsigned short *)(ftHeaderSeg + FT_LAST_DATA_SEG);
+
+cmn_err (CE_NOTE, "!ftGetHeaderSeg : Data segment range: %d to %d",
+  ft.ft_firstDataSeg, ft.ft_lastDataSeg);
+
+		return 0;
+	} else
+		return -1;
+}
+
+/*********************
+**********************
+**
+** CON struct routines.
+**
+**********************
+**********************/
+
+/************************************************************************
+ *	ftblock
+ *
+ * Tape is not a block device, but we need a block entry point since
+ * the same driver controls diskette access.
+ ***********************************************************************/
+#if	__USE_PROTO__
+static void ftblock (buf_t * bp)
+#else
+static void
+ftblock (bp)
+buf_t * bp;
+#endif
+{
+	set_user_error (EIO);
+	bp->b_flag |= BFERR;
+	bdone (bp);
+}
+
+/************************************************************************
+ * ftclose
+ *
+ ***********************************************************************/
+#if	__USE_PROTO__
+static void ftclose(o_dev_t dev,
+  int __NOTUSED(_mode), int __NOTUSED(_flags), __cred_t * __NOTUSED(_credp))
+#else
+static void
+ftclose (dev)
+o_dev_t dev;
+#endif
+{
+	cmn_err (CE_NOTE, "!ftclose");
+
+	/* Write any data still in buffers. */
+
+	if (ft.ft_write && ft.ft_numSegs > 0) {
+
+		int	segsWritten;
+
+		segsWritten = ftWriteSegments (ft.ft_segment, ft.ft_numSegs,
+		  (caddr_t)ftBigBuf, FT_USE_BBT, ftNumBytes);
+
+		if (segsWritten != ft.ft_numSegs) {
+			cmn_err (CE_WARN,
+"FT : Only wrote %d of %d segments, starting at segment %d",
+			  segsWritten, ft.ft_numSegs, ft.ft_segment);
+		}
+		ft.ft_numSegs = 0;
+	}
+
+	if (ft.ft_norwdcl) {
+
+		/*
+		 * No rewind on close.
+		 * Save number of next unused segment for next open.
+		 */
+
+		ft.ft_segbase += ft.ft_lastseek;
+
+#if 0
+		/* Align final offset to 1 KByte block boundary. */
+		{
+			int phySeg;
+			int byteOffset;
+			int pad;
+
+			/* Leave off on a block boundary. */
+			pad = ft.ft_segbase % FT_BLK_SIZE;
+			if (pad > 0)
+				ft.ft_segbase += (FT_BLK_SIZE - pad);
+		}
+#endif
+		ftStopTape ();
+
+	} else {
+		/* Rewind on close. */
+		ftRewindTape();
+		ft.ft_segbase = 0;
+	}
+
+cmn_err (CE_NOTE, "!ftclose : segbase = %ld", ft.ft_segbase);
+
+	switch (ft.ft_softsel) {
+	case 0:
+		break;
+	case 1:
+		/* A/C/M/S soft select disable. */
+		ftCmd(QIC_CMD_SS_OFF);
+		break;
+	case 2:
+		/* CMS soft select disable. */
+		ftCmd(47);
+		break;
+	}
+
+	setFtIntr(0);
+	ft.ft_open = 0;
+}
+
+/*************************************************************************
+ *	ftioctl
+ *	Handle tape drive & controller commands like erase, rewind,
+ *	retension, read filemark, and write filemark
+ ************************************************************************/
+
+#if	__USE_PROTO__
+static void ftioctl(o_dev_t dev, int com, __VOID__ * vec,
+  int __NOTUSED (_mode), __cred_t * __NOTUSED( _credp), int *__NOTUSED(_rvalp))
+#else
+static void
+ftioctl (dev, com, vec)
+o_dev_t dev;
+int com;
+__VOID__ * vec;
+#endif
+{
+	int			result;
+
+	switch (com) {
+
+	case FT_GET_HEADER:
+		{
+			struct FtHdrBuf	fthb;
+			unsigned int	bytesToCopy;
+
+			/* Get header buffer descriptor from user. */
+
+			if (copyin((caddr_t) vec, (caddr_t)(& fthb),
+			  sizeof(fthb)))
+				set_user_error (EIO);
+
+			/* If no valid tape header yet, get one now. */
+
+			else if (ftGetHeaderSeg ())
+				set_user_error (EIO);
+
+			/* Copy up to 29 Kbytes of tape header to user. */
+
+			else {
+				bytesToCopy = FT_BLK_SIZE
+				  * (FT_BLK_PER_SEG - FT_NUM_ECC_BLKS);
+				if (bytesToCopy > fthb.bufLen)
+					bytesToCopy = fthb.bufLen;
+				if (copyout((caddr_t) ftHeaderSeg,
+				  (caddr_t)(fthb.buffer), (size_t)bytesToCopy))
+					set_user_error (EIO);
+			}
+		}
+		break;
+
+	case FT_SET_HEADER:
+		{
+			struct FtHdrBuf	fthb;
+			unsigned int	bytesToCopy;
+
+			/* Get header buffer descriptor from user. */
+
+			if (copyin((caddr_t) vec, (caddr_t)(& fthb),
+			  sizeof(fthb)))
+				set_user_error (EIO);
+
+			/* If no valid tape header yet, get one now. */
+
+			else if (ftGetHeaderSeg ())
+				set_user_error (EIO);
+
+			/* Copy up to 29 Kbytes of tape header from user. */
+
+			else {
+				bytesToCopy =
+				  FT_DATA_BLK_PER_SEG * FT_BLK_SIZE;
+
+				if (bytesToCopy > fthb.bufLen)
+					bytesToCopy = fthb.bufLen;
+
+				if (copyin((caddr_t)(fthb.buffer),
+				  (caddr_t) ftHeaderSeg,
+				  (size_t)bytesToCopy)) {
+					set_user_error (EIO);
+					return;
+				}
+
+				encodeEcc (ftHeaderSeg, FT_BLK_PER_SEG);
+
+				result = ftWriteSegments (0, 1,
+				  (caddr_t)ftHeaderSeg,
+				  FT_DONT_USE_BBT, & bytesToCopy);
+
+				if (result != 1) {
+					cmn_err (CE_WARN,
+					  "FT : Failed to write to segment 0");
+					return;
+				}
+
+				result = ftWriteSegments (0, 1,
+				  (caddr_t)ftHeaderSeg,
+				  FT_DONT_USE_BBT, & bytesToCopy);
+
+				if (result != 1) {
+					cmn_err (CE_WARN,
+					  "FT : Failed to write to segment 1");
+					return;
+				}
+
+			}
+		}
+		break;
+
+	case FT_GET_OFFSET:
+	case T_TELL:
+		if (copyout((caddr_t) & ft.ft_segbase,
+		  (caddr_t)vec, sizeof(int)))
+			set_user_error (EIO);
+		break;
+
+	case FT_SET_OFFSET:
+	case T_SEEK:
+		ft.ft_segbase = (int)vec;
+		break;
+
+	case T_RDSTAT:
+		{
+			/* save stack space */
+			static struct TapeStat ts;
+
+			/* load up the local status struct */
+
+			/* Type of tape device is FLOPPY TAPE.*/
+			ts.tape_stat_type = TAPE_STAT_FT;
+
+			/* QIC-117 Status (8 bits, or -1). */
+			ts.tsu.ftstat.qicstat = ftStsWthErr();
+
+			/* QIC-117 Error Status (16 bits, or -1). */
+			if (ft.ft_qicstat & QIC_STAT_ERR)
+				ts.tsu.ftstat.qicerrstat = ft.ft_errstat;
+			else
+				ts.tsu.ftstat.qicerrstat = -1;
+
+			/* QIC-117 Drive Configuration (8 bits, or -1). */
+			if (ftCmd(QIC_CMD_DRVCN))
+				ts.tsu.ftstat.drvcn = -1;
+			else
+				ts.tsu.ftstat.drvcn = ft.ft_report;
+
+			/* QIC-117 ROM Version (8 bits, or -1). */
+			if (ftCmd(QIC_CMD_ROMVN))
+				ts.tsu.ftstat.romvn = -1;
+			else
+				ts.tsu.ftstat.romvn = ft.ft_report;
+
+			/* QIC-117 Vendor ID (16 bits, or -1). */
+			if (ftCmd(QIC_CMD_VNDID))
+				ts.tsu.ftstat.vndid = -1;
+			else
+				ts.tsu.ftstat.vndid = ft.ft_report;
+
+			/* QIC-117 Tape Status (8 bits, or -1). */
+			if (ftCmd(QIC_CMD_TPSTAT))
+				ts.tsu.ftstat.tpstat = -1;
+			else
+				ts.tsu.ftstat.tpstat = ft.ft_report;
+
+			/* Copy status struct into user space. */
+
+			if (copyout ((caddr_t) &ts, (caddr_t)vec, sizeof(ts)))
+				set_user_error (EIO);
+		}
+		break;
+
+	case T_RWD:
+		ftRewindTape();
+
+		/* Reset seek pointer - overrides no-rewind-on-close */
+		ft.ft_segbase = 0;
+		break;
+
+	case T_RETENSION:
+		ftRewindTape();
+		ftWait(2 * HZ);
+		ftWindTape();
+		ftWait(2 * HZ);
+		ftRewindTape();
+		ftWait(2 * HZ);
+
+		/* Reset seek pointer - overrides no-rewind-on-close */
+		ft.ft_segbase = 0;
+		break;
+
+	case FT_READ_SEGMENTS:
+		{
+			int	logBlock;
+			int	numBlocks;
+			caddr_t	inbuf;
+
+			copyin((caddr_t) vec, (caddr_t)(& logBlock), 4);
+			copyin((caddr_t) vec + 4, (caddr_t)(& numBlocks), 4);
+
+			inbuf = (caddr_t)ftBigBuf;
+
+cmn_err(CE_NOTE, "!ftioctl : Read Segments ioctl : start=%d  num blocks=%d  buffer=%x",
+  logBlock, numBlocks, (int) inbuf);
+			
+			result = ftReadSegments (logBlock, numBlocks,
+			  (caddr_t)inbuf, 0, 0, 0);
+		}
+
+		if (result == 0)
+			set_user_error (EIO);
+		copyout ((caddr_t) (& result), ((caddr_t)(vec)) + 8, 4);
+		break;
+
+	case FT_FIND_SEG:
+		result = ftMPosTape ((int) vec);
+		if (result)
+			set_user_error (EIO);
+		break;
+
+	case FT_PRINT_STAT:
+		ftDbPrintStat (ftStsWthErr ());
+		break;
+
+	case FT_SKIP_TAPE:
+		if ((int)vec >= 0)
+			result = ftSkipFwd((int)vec);
+		else
+			result = ftSkipBack((int)vec);
+		if (result)
+			set_user_error (EIO);
+		break;
+
+	case FT_STOP_TAPE:
+		ftStopTape();
+		break;
+
+	case FT_SPECIFY:
+		if (ftDataRate((int) vec))
+			set_user_error (EIO);
+		break;
+
+	case FT_FAKE_BBT_MAP:
+		fakeBBTbitmap = (int)vec;
+cmn_err (CE_NOTE, "FT : ftioctl : fakeBBTbitmap = %x", (int)vec);
+		break;
+
+	case FT_FAKE_BBT_SEG:
+		fakeBBTsegment = (int)vec;
+cmn_err (CE_NOTE, "FT : ftioctl : fakeBBTsegment = %d", (int)vec);
+		break;
+
+	case FT_FAKE_IOERR:
+		fakeIOerrblk = (int)vec;
+cmn_err (CE_NOTE, "FT : ftioctl : fakeIOerrlbk = %d", (int)vec);
+		break;
+
+	default:
+		cmn_err (CE_WARN, "!ftioctl bad command %d", com);
+		set_user_error (EINVAL);
+	}
+}
+
+/*************************************************************************
+ *	ftload
+ ************************************************************************/
+
+#if	__USE_PROTO__
+static void ftload (void)
+#else
+static void
+ftload ()
+#endif
+{
+	if (ftPool) {
+
+		ftHeaderSeg = ftPool;
+		ftBigBuf = ftHeaderSeg + FT_SEG_SIZE;
+
+	} else {
+		cmn_err (CE_WARN,
+		  "FT : Could not allocate %d KBytes of buffer pool.",
+		  (FT_NBUF + 1) * FT_BLK_PER_SEG);
+	}
+
+	/* Got buffers ok.  Attach interrupt handler to fdc module. */
+	ftIntr = ftIrqHandler;
+
+	/* Fire up Reed-Solomon tables. */
+	initEcc ();
+}
+
+/************************************************************************
+ * ftopen
+ *
+ ***********************************************************************/
+#if	__USE_PROTO__
+static void ftopen(o_dev_t dev, int mode,
+  int __NOTUSED(_flags), __cred_t * __NOTUSED(_credp))
+#else
+static void
+ftopen (dev, mode)
+o_dev_t dev;
+int mode;
+#endif
+{
+	int drvStatus;
+	int fmt;
+	static int driveAutoconfigured = 0;
+
+	/* Debug setup. */
+
+	fakeBBTbitmap = 0;
+	fakeBBTsegment = -1;
+	fakeIOerrblk = -1;
+
+	/* Couldn't allocate buffer area. */
+	if (ftBigBuf == NULL) {
+		devmsg (dev, "no buffers ");
+		set_user_error (EIO);
+		return;
+	}
+
+	/* Can't append to tape (yet?). */
+	if ((mode & IPAPPEND) != 0) {
+		devmsg (dev, "can't append ");
+		set_user_error (EINVAL);
+		return;
+	}
+
+	/* Open for read or write, not both. */
+	if ((mode & IPR) != 0 && (mode & IPW) != 0) {
+		devmsg (dev, "can't open for both read and write ");
+		set_user_error (EINVAL);
+		return;
+	}
+
+	/* Only one open at a time. */
+	if (ft.ft_open) {
+		devmsg (dev, "only one ftopen at a time ");
+		set_user_error (EBUSY);
+		return;
+	}
+
+	/* Try to determine soft-select v. unit #, etc., if asked to do so. */
+	if (FT_AUTO_CONFIG && !driveAutoconfigured) {
+
+		cmn_err (CE_NOTE, "!ftopen : trying autoconfig.");
+
+		if (ftAutoConfig ()) {
+			cmn_err (CE_WARN,
+			  "FT : Can't initialize QIC-80/QIC-40 tape drive.");
+			set_user_error (EIO);
+			return;
+		}
+		driveAutoconfigured = 1;
+	}
+
+	ft.ft_open = 1;
+
+	/* Get fdc unit from device minor number. */
+	if (!FT_AUTO_CONFIG) {
+
+		ft.ft_softsel = FT_SOFT_SELECT;
+
+		cmn_err (CE_NOTE, "!ftopen : soft select mode %d.",
+		  ft.ft_softsel);
+
+#if 1
+		ft.ft_drv = FT_UNIT(dev);
+#else
+		if (ft.ft_softsel == 0)
+			ft.ft_drv = FT_UNIT(dev);
+		else
+			ft.ft_drv = 0;
+#endif
+	}
+
+	/* Get rewind-on-close status from minor number. */
+	ft.ft_norwdcl = FT_NORWDCL(dev);
+
+cmn_err (CE_NOTE, "!ftopen : %s on close",
+  ft.ft_norwdcl ? "No rewind" : "Rewind");
+
+	/* Need to seize IRQ from fdc - won't be able to if diskette in use. */
+	if (!setFtIntr(1))
+		FT_OPEN_ERR("Floppy Disk Controller is Busy");
+
+	/* Save read/write mode of this open. */
+	ft.ft_write = (mode & IPW) ? 1 : 0;
+
+	/* Can't write to write-protected cartridge. */
+	if (ft.ft_write && (ft.ft_qicstat & QIC_STAT_WPROT))
+		FT_OPEN_ERR("Cartridge Write Protected");
+
+	/* Select tape drive. */
+	ftSelect(ft.ft_drv, ft.ft_softsel);
+
+	/* Get initial status. */
+	drvStatus = ftStsWthErr();
+	cmn_err (CE_NOTE, "!ftopen initial stat=%x", drvStatus);
+
+	if (drvStatus == -1) {
+
+		if (ftCmd(QIC_CMD_RST))
+			FT_OPEN_ERR("Soft Reset Failed ");
+
+		/* Need to wait a second after QIC software reset. */
+		ftWait(HZ);
+
+		/* Re-Select tape drive (reset clears soft select). */
+		ftSelect(ft.ft_drv, ft.ft_softsel);
+
+		drvStatus = ftStsWthErr();
+		cmn_err (CE_NOTE, "!ftopen retry stat=%x", drvStatus);
+
+		if (drvStatus == -1)
+			FT_OPEN_ERR("Get Drive Status Failed ");
+	}
+
+	/* Can't issue most commands if new cartridge is detected. */
+
+	if (ft.ft_qicstat & QIC_STAT_NEWCT) {
+
+		/* Invalidate saved header segment. */
+		ft.ft_hdrOk = 0;
+
+		/* Invalidate referenced status. */
+		ft.ft_refOk = 0;
+
+		/* New Cart blows no rewind on close. */
+		if (ft.ft_norwdcl && ft.ft_segbase > 0) {
+			cmn_err (CE_NOTE,
+			  "!ftopen : segbase reset from %ld to zero",
+			  ft.ft_segbase);
+			ft.ft_segbase = 0;
+		}
+
+		/* Get Error Code clears New Cartridge flag. */
+		ftCmd (QIC_CMD_ECD);
+		ftReadyWait(FT_RDY_SECS);
+	}
+
+	/* If writing, ignore previous buffer contents. */
+	if (ft.ft_write) {
+		ft.ft_segment = 0;
+		ft.ft_numSegs = 0;
+	}
+
+	/* On startup or new cart, discard state info. */
+	if (!ft.ft_hdrOk) {
+	
+		/* Invalidate buffer pool contents. */
+		ft.ft_segment = 0;
+		ft.ft_numSegs = 0;
+
+		/* Invalidate saved seek adjustment values. */
+		ft.ft_seekAdj = 0;
+
+		/* Get default format from minor number. */
+		if (FT_Q80_FORMAT(dev))
+			if (FT_LONGTAPE(dev))
+				fmt = FT_Q80_307;
+			else
+				fmt = FT_Q80_205;
+		else
+			if (FT_LONGTAPE(dev))
+				fmt = FT_Q40_307;
+			else
+				fmt = FT_Q40_205;
+
+		/* Set default format.  Will be overridden by header segment. */
+		ftCvtSetFmt(0);
+
+		/* Initialize tape motion control. */
+		ftMNewTape();
+	}
+
+
+	/* Do soft reset if there is an error state. */
+
+	if (ft.ft_qicstat & QIC_STAT_ERR) {
+
+		if (ftCmd(QIC_CMD_RST))
+			FT_OPEN_ERR("Soft Reset Failed ");
+
+		/* Need to wait a second after QIC software reset. */
+		ftWait(HZ);
+
+		/* Re-Select tape drive (reset clears soft select). */
+		ftSelect(ft.ft_drv, ft.ft_softsel);
+	}
+
+	/* Wait for drive to be ready, or give up. */
+	if(ftReadyWait(FT_RDY_SECS))
+		FT_OPEN_ERR("Tape Drive Not Ready");
+
+	/* Need Cartridge Present to be true. */
+	if ((ft.ft_qicstat & QIC_STAT_PRSNT) == 0)
+		FT_OPEN_ERR("No Cartridge");
+
+	/* Put drive select bits into read/write command. */
+	ftxSetDrive (ft.ft_drv);
+	
+	/* Reset local seek pointer. */
+	ft.ft_lastseek = 0;
+
+	return;
+
+	/* Error exit.  Try to clean up as much as possible.*/
+badFtOpen:
+
+	set_user_error (EIO);
+	ft.ft_open = 0;
+	fdcSpecify(FT_SRT_3, FT_HUT, FT_HLT);
+
+	/* Turn off tape motor and soft select. */
+	fdcDrvSelect(0, FDC_MOTOR_OFF);
+	switch (ft.ft_softsel) {
+	case 0:
+		break;
+	case 1:
+		/* A/C/M/S soft select disable. */
+		ftCmd(QIC_CMD_SS_OFF);
+		break;
+	case 2:
+		/* CMS soft select disable. */
+		ftCmd(47);
+		break;
+	}
+
+	setFtIntr(0);
+	return;
+}
+
+/************************************************************************
+ * ftread
+ *
+ * while more segments are to be read
+ *   read as many segments as possible into buffer area
+ *   if no segments were read
+ *     end read prematurely
+ *   copy segments from buffer area into user space (iowrite)
+ *
+ ***********************************************************************/
+#if	__USE_PROTO__
+static void ftread(o_dev_t dev, IO * iop, __cred_t * __NOTUSED(_credp))
+#else
+static void
+ftread(dev, iop)
+o_dev_t dev;
+IO * iop;
+#endif
+{
+	int	drvStatus;
+	int	phySeg;		/* Physical segment number. */
+	int	offset;		/* Byte offset within segment. */
+	int	ft_seek;
+
+	cmn_err (CE_NOTE, "!ftread");
+
+	/* Get reference burst, or fail. */
+
+	if (ftGetRefBurst ())
+		FT_READ_ERR("Get Reference Burst Failed ");
+
+	/* Get header segment, or fail. */
+
+	if (ftGetHeaderSeg ())
+		FT_READ_ERR("Get Header Segment Failed ");
+
+	cmn_err (CE_NOTE, "!ftread : Read offset=%d, len=%d.",
+	  (int)iop->io_seek, iop->io_ioc);
+
+	/* Read as much as possible at a time. */
+
+/*
+Get a read request, header segment is ok...
+
+Convert seek address - get segment and byte offset.
+
+While there is more data wanted (ioc > 0)
+  Copy Buffer Data
+  Compute number of segments to ask for, whichever is fewer:
+    (Number of segments from start of request to end of track)
+    [First one is checked in ftReadSegments.]
+    Number of segments that will fit in buffer pool
+    Number of segments from start of request to end of data area
+  If this number is 0
+    Break from loop.
+  Ask for the segments.
+  If got 0 segments back
+    Break from loop.
+Endwhile.
+
+Copy Buffer Data
+
+If seek segment is within segments represented by buffer pool
+  Set current buffer to the one containing the seek segment.
+  While there is another buffer and there are still bytes to transfer:
+    Number of bytes to copy is minimum of:
+      Bytes in segment after seek byte offset
+      Number of bytes in i/o request
+    If number of bytes to copy > 0
+      Do the copy (iowrite).
+      Add # of bytes copied to seek address.
+      Convert new seek address - get segment and byte offset.
+      (iowrite () has already updated number of bytes in i/o request)
+    Advance to next segment buffer.
+  Endwhile.
+Endif.
+*/
+	/*
+	 * Make a local copy of the user's seek pointer -
+	 * driver will update the local copy; file system code outside
+	 * the driver maintains the original.
+	 */
+	ft_seek = iop->io_seek;
+
+	/* Adjust seek address for header segment, bad blocks. */
+
+	if (ftAdjSeek (ft_seek, & phySeg, & offset)) {
+		/* Function that just failed will display error. */
+		cmn_err (CE_WARN, "FT : Read Seek Adjust Failure");
+		FT_READ_ERR("FT : Read : Initial seek adjust failed");
+	}
+
+	while (iop->io_ioc) {
+
+		int	segIndex;	/* Index into segment buffer pool. */
+		int	segsWanted;
+		int	segsRead;
+
+		/* Copy Buffer Data. */
+
+cmn_err (CE_NOTE, "!ftread : Copy buf data, seek %d, phySeg %d, offset %d",
+  ft_seek, phySeg, offset);
+
+cmn_err (CE_NOTE, "!ftread : buffer has %d segments starting with %d",
+  ft.ft_numSegs, ft.ft_segment);
+
+		for (segIndex = phySeg - ft.ft_segment;
+		  segIndex >= 0 && segIndex < ft.ft_numSegs && iop->io_ioc;
+		  segIndex++) {
+
+			int	bytesToCopy;
+			int	bytesLeftInSeg;
+
+			bytesLeftInSeg = ftNumBlks [segIndex] * FT_BLK_SIZE
+			  - offset;
+
+cmn_err (CE_NOTE, "!ftread : %d bytes left in segment buffer %d",
+  bytesLeftInSeg, segIndex);
+
+			bytesToCopy = iop->io_ioc;
+			if (bytesToCopy > bytesLeftInSeg)
+				bytesToCopy = bytesLeftInSeg;
+
+			if (bytesToCopy > 0) {
+
+cmn_err (CE_NOTE, "!ftread : iowrite(x,%x,%d)",
+  (int)(ftBigBuf + (segIndex * FT_SEG_SIZE) + offset), bytesToCopy);
+
+				iowrite (iop, (char *)(ftBigBuf
+				  + (segIndex * FT_SEG_SIZE) + offset),
+				  (size_t)bytesToCopy);
+
+				ft_seek += bytesToCopy;
+				ft.ft_lastseek = ft_seek;
+
+				if (ftAdjSeek (ft_seek, & phySeg, & offset)) {
+cmn_err (CE_WARN, "ftread : Adj 2 failure");
+					goto badFtRead;
+				}
+
+				/* If all wanted data has been moved, quit. */
+
+				if (iop->io_ioc == 0)
+					goto okFtRead;
+
+cmn_err (CE_NOTE, "!ftread : New seek ptr, seek %d, phySeg %d, offset %d",
+  ft_seek, phySeg, offset);
+
+			}
+
+		} /* Endwhile there is another valid segment buffer. */
+
+		/* Calculate how many segments to ask for. */
+
+		segsWanted = (ft.ft_lastDataSeg + 1) - phySeg;
+		if (segsWanted > FT_NBUF)
+			segsWanted = FT_NBUF;
+
+cmn_err (CE_NOTE, "!ftread : Want %d segments from tape", segsWanted);
+
+		if (segsWanted <= 0)
+			break;
+
+		segsRead = ftReadSegments (phySeg, segsWanted,
+		  (caddr_t)ftBigBuf, FT_USE_BBT,
+		  ftSegErr, ftNumBlks);
+
+		if (segsRead == 0)
+			break;
+
+		ft.ft_segment = phySeg;
+		ft.ft_numSegs = segsRead;
+
+	} /* Endwhile more characters requested. */
+
+okFtRead:
+	return;
+
+badFtRead:
+	set_user_error (EIO);
+	return;
+}
+
+/************************************************************************
+ * ftunload
+ *
+ ***********************************************************************/
+
+#if	__USE_PROTO__
+static void ftunload (void)
+#else
+static void
+ftunload ()
+#endif
+{
+}
+
+/************************************************************************
+ * ftwrite
+ *
+ ***********************************************************************/
+#if	__USE_PROTO__
+static void ftwrite(o_dev_t dev, IO * iop, __cred_t * __NOTUSED(_credp))
+#else
+static void
+ftwrite(dev, iop)
+o_dev_t dev;
+IO * iop;
+#endif
+{
+	int	drvStatus;
+	int	ft_seek;
+
+	cmn_err (CE_NOTE, "!ftwrite");
+
+	/* Get reference burst, or fail. */
+
+	if (ftGetRefBurst ())
+		FT_WRITE_ERR("Get Reference Burst Failed ");
+
+	/* Get header segment, or fail. */
+
+	if (ftGetHeaderSeg ())
+		FT_WRITE_ERR("Get Header Segment Failed ");
+
+	cmn_err (CE_NOTE, "!ftwrite : Write offset=%d, len=%d.",
+	  (int)iop->io_seek, iop->io_ioc);
+
+	ft_seek = iop->io_seek;
+
+	while (iop->io_ioc > 0) {
+
+		int	phySeg;		/* Physical segment number. */
+		int	byteOffset;	/* Byte offset within segment. */
+		int	segIndex;	/* Index into segment buffer pool. */
+		int	segsWritten;
+		int	segsRead;
+		unsigned int map;
+		int	goodBlocks;
+		int	writeBytes;
+		int	doFlush;
+
+		/* Adjust seek address for header and bad blocks. */
+
+		if (ftAdjSeek (ft_seek, & phySeg, & byteOffset)) {
+			cmn_err (CE_WARN, "FT : Write Seek Adjust Failure");
+			break;
+		}
+
+cmn_err (CE_NOTE, "!ftwrite : phySeg=%d  byteOffset=%d", phySeg, byteOffset);
+
+cmn_err (CE_NOTE, "!ftwrite : buffer has %d segments starting with %d",
+  ft.ft_numSegs, ft.ft_segment);
+
+		/* Can we continue with a current write buffer? */
+
+		segIndex = phySeg - ft.ft_segment;
+		doFlush = 1;
+
+		/* Do not flush if the buffer pool is empty. */
+
+		if (ft.ft_numSegs == 0) {
+			doFlush = 0;
+			ft.ft_segment = phySeg;
+			segIndex = 0;
+		  	ftNumBytes [segIndex] = 0;
+
+cmn_err (CE_NOTE, "!no doFlush 1");
+
+		/* Do not flush if writing into or just after data in a
+		 * currently used buffer. */
+
+		} else if (phySeg >= ft.ft_segment
+		  && phySeg < ft.ft_segment + ft.ft_numSegs
+		  && byteOffset <= ftNumBytes [segIndex]) {
+			doFlush = 0;
+		  	ftNumBytes [segIndex] = byteOffset;
+
+cmn_err (CE_NOTE, "!no doFlush 2");
+
+		/* Do not flush if we can start on another buffer,
+		 * contiguous with previous writes. */
+
+		} else if (ft.ft_numSegs < FT_NBUF
+		  && phySeg == ft.ft_segment + ft.ft_numSegs) {
+			doFlush = 0;
+
+cmn_err (CE_NOTE, "!no doFlush 3");
+		  	ftNumBytes [segIndex] = 0;
+		}
+
+		/* Is it time to flush the write buffer pool? */
+
+		if (doFlush) {
+
+			segsWritten = ftWriteSegments (ft.ft_segment,
+			  ft.ft_numSegs, (caddr_t)ftBigBuf, FT_USE_BBT,
+			  ftNumBytes);
+
+			if (segsWritten != ft.ft_numSegs) {
+				cmn_err (CE_WARN,
+"FT : Only wrote %d of %d segments, starting at segment %d",
+				  segsWritten, ft.ft_numSegs, ft.ft_segment);
+					break;
+			}
+
+			ft.ft_segment = phySeg;
+			ft.ft_numSegs = 0;
+			segIndex = 0;
+		  	ftNumBytes [segIndex] = 0;
+		}
+
+cmn_err (CE_NOTE, "!ftwrite : starting to write into buffer %d", segIndex);
+
+		/* Is preread of a segment needed? */
+
+		if (byteOffset > ftNumBytes [segIndex]) {
+
+			/* Check - buffer should be empty! */
+			if (ftNumBytes [segIndex] > 0)
+				cmn_err (CE_WARN,
+  "FT : ftwrite : segment %d, buffer %d, write offset %d, buffer has %d",
+  phySeg, segIndex, byteOffset, ftNumBytes [segIndex]);
+
+cmn_err (CE_NOTE,
+  "!ftwrite : Preread of Segment %d for %d bytes.", phySeg, byteOffset);
+
+			segsRead = ftReadSegments (phySeg, 1,
+			  (caddr_t)(ftBigBuf + FT_SEG_SIZE * segIndex),
+			  FT_USE_BBT, ftSegErr, ftNumBlks);
+
+			if (segsRead != 1) {
+				cmn_err (CE_WARN,
+"FT : Read segment %d (before write at offset %d) failed", phySeg, byteOffset);
+				break;
+			}
+			ftNumBytes [segIndex] = byteOffset;
+
+		}
+
+
+		/* At this point, buffer at segIndex represents phySeg. */
+
+		/* Calculate how many bytes we may write into this buffer. */
+
+		ftBBT (phySeg, & map);
+		goodBlocks = FT_DATA_BLK_PER_SEG;
+
+cmn_err (CE_NOTE,
+  "!ftwrite : segment %d, buffer %d, has bitmap %x.", phySeg, segIndex, map);
+
+		while (map != 0) {
+			goodBlocks--;
+			if (goodBlocks <= 0)
+				break;
+			/* Clear a 1 bit in the bitmap. */
+			map &= (map - 1);
+		}
+
+cmn_err (CE_NOTE, "!ftwrite : %d writable data blocks.", goodBlocks);
+
+		writeBytes = goodBlocks * FT_BLK_SIZE - byteOffset;
+
+		if (writeBytes > iop->io_ioc)
+			writeBytes = iop->io_ioc;
+
+		if (writeBytes > 0) {
+			ioread (iop,
+			  (char *)(ftBigBuf + (segIndex * FT_SEG_SIZE))
+			  + byteOffset, writeBytes);
+
+cmn_err (CE_NOTE, "!ftwrite : ioread (%x, %x, %d).",
+  (int)iop, (int)(ftBigBuf + (segIndex * FT_SEG_SIZE)), writeBytes);
+
+			ft_seek += writeBytes;
+			ft.ft_lastseek = ft_seek;
+			ftNumBytes [segIndex] += writeBytes;
+			if (ft.ft_numSegs <= segIndex)
+				ft.ft_numSegs = segIndex + 1;
+		}
+	}
+	return;
+
+badFtWrite:
+	set_user_error (EIO);
+	return;
+
+}
+
+CON	ftcon = {
+	DFCHR,				/* Flags */
+	FL_MAJOR,			/* Major index */
+	ftopen,				/* Open */
+	ftclose,			/* Close */
+	ftblock,			/* Block */
+	ftread,				/* Read */
+	ftwrite,			/* Write */
+	ftioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	NULL,				/* Timeout */
+	ftload,				/* Load */
+	ftunload,			/* Unload */
+	NULL				/* Poll */
+};

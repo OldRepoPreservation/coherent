@@ -1,6 +1,7 @@
 /*
- * pr -- print files
- *
+ * pr.c
+ * Print files.
+ * 7/5/94
  * All references to page length exclude possible margin lines.
  */
 
@@ -24,6 +25,18 @@
 
 #define	MARGIN	(TMAR+BMAR)
 
+#define	USAGE	"Usage: pr [ options ] [ file ...]\n"\
+"Options:\n"\
+"\t+skip\tSkip the first skip pages of input before printing\n"\
+"\t-cols\tPrint the input in cols columns\n"\
+"\t-h\tThe next argument is the header (replaces file name)\n"\
+"\t-ln\tSet page size to n lines (default, 66)\n"\
+"\t-m\tPrint each input file in a separate column\n"\
+"\t-n\tNumber the output lines\n"\
+"\t-sc\tSeparate each column with character c\n"\
+"\t-t\tSuppress top and bottom margins and header\n"\
+"\t-wn\tPage width is set to n columns (default, 80)\n"\
+"A file named `-' means stdin.\n"
 
 /*
  * info on input file streams
@@ -149,8 +162,10 @@ register char	**av;
 		default:
 			if ('0'<=av[0][1] && av[0][1]<='9')
 				ncol = atoi( &av[0][1]);
-			else
-				fatal( "no such switch %s", av[0]);
+			else {
+				fprintf(stderr, USAGE);
+				exit(1);
+			}
 			continue;
 		}
 		break;
@@ -214,7 +229,7 @@ register char	*file;
 			fatal( "too many files for -m");
 		else
 #endif
-			fatal( "can't open %s", file);
+			fatal( "cannot open \"%s\"", file);
 	return (stream);
 }
 
@@ -307,7 +322,7 @@ int	(*putline)( );
 			f[0].f_ff = 0;
 		if (k = getline( &f[0], lbuf)) {
 			if ((lines[i]=malloc( k+1)) == NULL)
-				fatal( "out of core");
+				fatal( "out of space");
 			strcpy( lines[i], lbuf);
 		}
 		else
@@ -479,3 +494,5 @@ fatal( arg0)
 	fprintf( stderr, "pr: %r\n", &arg0);
 	exit (1);
 }
+
+/* end of pr.c */

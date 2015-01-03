@@ -63,6 +63,7 @@ char		hyphbuf[WORSIZE];
 
 /* Register globals, declared in reg.h. */
 REG		*nrctreg;		/* Character type		*/
+REG		*nrddreg;		/* Process id			*/
 REG		*nrdlreg;		/* Max width of last diversion	*/
 REG		*nrdnreg;		/* Height of last diversion	*/
 REG		*nrdwreg;		/* Day of the week		*/

@@ -124,12 +124,12 @@ register struct _args *arg;
 	}
 
 
-	fprintf(fd, "/ C library - %s\n",  arg->a_name);
+	fprintf(fd, "/ C library - %s\n\n",  arg->a_name);
+	fprintf(fd, "	.unixorder\n",  arg->a_name);
+	fprintf(fd, "	.globl	%s\n", arg->a_name);
+	fprintf(fd, "	.globl	.cerror\n\n");
 
-	fprintf(fd,"\n	.globl	%s", arg->a_name);
-	fprintf(fd,"\n	.globl	.cerror");
-
-	fprintf(fd,"\n\n%s:\n", arg->a_name);
+	fprintf(fd,"%s:\n", arg->a_name);
 	
 	if(flag & FLAG1) {		/* arg must be *arg */
 

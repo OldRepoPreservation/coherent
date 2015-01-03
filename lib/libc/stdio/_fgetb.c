@@ -5,7 +5,7 @@
  * Read character, buffered.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #if	COHERENT || GEMDOS
 #include <errno.h>
 #endif

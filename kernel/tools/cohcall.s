@@ -1,3 +1,4 @@
+	.unixorder
 	.globl	cohcall
 	.globl	errno
 	.set	COHCALL,500

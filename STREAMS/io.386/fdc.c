@@ -1,38 +1,45 @@
-int OUTB_DB = 0;
-
+/* $Header: /ker/io.386/RCS/fdc.c,v 2.5 93/08/19 10:38:44 nigel Exp Locker: nigel $ */
 /*
- * io.386/fdc.c
- *
  * Support 765-style controller for diskette and floppy tape
  *
- * Revised: Wed Jun  9 12:15:08 1993 CDT
+ * $Log:	fdc.c,v $
+ * Revision 2.5  93/08/19  10:38:44  nigel
+ * r83 ioctl (), corefile, new headers
+ * 
+ * Revision 2.4  93/08/19  04:02:19  nigel
+ * Nigel's R83
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
-#include	<sys/coherent.h>
+#define _KERNEL 1
 
-#include	<errno.h>
-#include	<sys/buf.h>
-#include	<sys/con.h>
-#include	<sys/devices.h>
-#include	<sys/dmac.h>
-#include	<sys/fdc765.h>
-#include	<sys/stat.h>
+#include <sys/errno.h>
+#include <sys/cred.h>
+#include <sys/stat.h>
+#include <sys/coherent.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
+#include <kernel/trace.h>
+
+#include <coh/i386lib.h>
+#include <coh/md.h>
+#include <coh/misc.h>
+#include <coh/putchar.h>
+
+#include <common/ccompat.h>
+
+#include <sys/uproc.h>
+#include <sys/buf.h>
+#include <sys/con.h>
+#include <sys/devices.h>
+#include <sys/dmac.h>
+#include <sys/fdc765.h>
+#include <sys/cmn_err.h>
+
 
 /* Number of ticks to busy-wait the kernel before timeout awaiting RQM. */
 #define FDC_RQM_WAIT	2
+
+int fdcTblk;
+int OUTB_DB = 0;
 
 enum {
 	FL_TIMING = 1,
@@ -43,16 +50,6 @@ enum {
 	FL_INTR = 1,
 	FT_INTR = 2
 };
-
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-extern int	nulldev();
-extern unsigned int inb();
 
 void	fdcCmdStatus();
 void	fdcDrvSelect();
@@ -74,57 +71,19 @@ void	setFlTimer();
 int	setFtIntr();
 void	setFtTimer();
 
-static int	fdcload();
-static int	fdcunload();
-static int	fdcopen();
-static int	fdcclose();
-static int	fdcblock();
-static int	fdcread();
-static int	fdcwrite();
-static int	fdcioctl();
-static int	fdctimeout();
-
-static void	fdcIntr();
-static void	fdcRate();
+void		fdcRate();
 static int	fdcWaitRQM();
 
 static int	setFdcIntr();
 static void	setFdcTiming();
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
-
-CON	fdccon	= {
-	DFBLK | DFCHR,			/* Flags */
-	FL_MAJOR,			/* Major index */
-	fdcopen,			/* Open */
-	fdcclose,			/* Close */
-	fdcblock,			/* Block */
-	fdcread,			/* Read */
-	fdcwrite,			/* Write */
-	fdcioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	fdctimeout,			/* Timeout */
-	fdcload,			/* Load */
-	fdcunload			/* Unload */
-};
-
-/*
- * Configured in "fl/Space.c"
- */
-
-extern	CON * flCon;
 
 /*
  * Two patchable pointers, for enabling diskette and/or tape device control.
  */
 
-CON * ftCon = NULL;
+extern	CON * flCon;		/* Initialized in fl/Space.c */
+extern	CON * ftCon;		/* Initialized in ft/Space.c */
 
 /* Global struct "fdc" passes FDC status to diskette and tape drivers. */
 struct FDC fdc;
@@ -135,10 +94,33 @@ void	(*ftIntr)();
 static int	fdcIntOwner;
 static int	fdcTiming;
 
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
+/******* FOR DEBUG PURPOSES ONLY ************/
+#if __USE_PROTO__
+void outbDb (int addr, int data)
+#else
+void
+outbDb(addr, data)
+int addr, data;
+#endif
+{
+	static int oldAddr, oldData;
+	int s = sphi();
+
+	if (OUTB_DB) {
+		outb(addr, data);
+		if (addr != oldAddr) {
+			cmn_err (CE_CONT, "!OUT[%x,%x]", addr, data);
+			oldAddr = addr;
+			oldData = data;
+		} else if (data != oldData) {
+			cmn_err (CE_CONT, "!/%x", data);
+			oldData = data;
+		} else
+			putchar('=');
+	} else
+		outb(addr, data);
+	spl(s);
+}
 
 /***************************************************************************/
 /*
@@ -154,13 +136,18 @@ static int	fdcTiming;
  * in the floppy database. It also grabs
  * the level 6 interrupt vector.
  */
-static int
+
+#if __USE_PROTO__
+static void fdcload(void)
+#else
+static void
 fdcload()
+#endif
 {
 	register int	s;
 
 	if (flCon == NULL && ftCon == NULL) {
-		printf("fdc has no target devices\n");
+		cmn_err (CE_WARN, "fdc has no target devices");
 		return;
 	}
 
@@ -173,35 +160,38 @@ fdcload()
 	dmaoff(DMA_CH2);
 
 	if (flCon)
-		(*flCon->c_load)();
+		(* flCon->c_load) ();
 	if (ftCon)
-		(*ftCon->c_load)();
+		(* ftCon->c_load) ();
 
 	/*
 	 * Initialize the floppy disk controller (if we
 	 * have any floppy drives).
 	 */
+
 	s = sphi();
-
-	setivec(6, fdcIntr);
-	fdcReset();
-
+	fdcReset ();
 	spl(s);
 }
 
 /*
  * Release resources.
  */
-static int
+
+#if __USE_PROTO__
+static void fdcunload(void)
+#else
+static void
 fdcunload()
+#endif
 {
 	if (flCon == NULL && ftCon == NULL)
 		return;
 	
 	if (flCon)
-		(*flCon->c_uload)();
+		(*flCon->c_uload) ();
 	if (ftCon)
-		(*ftCon->c_uload)();
+		(*ftCon->c_uload) ();
 
 	/*
 	 * Cancel periodic (1 second) invocation.
@@ -220,144 +210,146 @@ fdcunload()
 	clrivec(6);
 }
 
-static int
-fdcopen(dev, mode)
-dev_t	dev;
-int	mode;
+#if __USE_PROTO__
+static void fdcopen(o_dev_t dev, int mode, int flags, __cred_t * credp)
+#else
+static void
+fdcopen (dev, mode, flags, credp)
+o_dev_t		dev;
+int		mode;
+int		flags;
+cred_t	      *	credp;
+#endif
 {
-	if (FDC_DISKETTE(dev)) {
+	if (FDC_DISKETTE (dev)) {
 		if (flCon)
-			(*flCon->c_open)(dev, mode);
-		else {
-			SET_U_ERROR(ENXIO, "fdcopen()-no floppy");
-			return;
-		}
-	} else if (FDC_TAPE(dev)) {
+			(* flCon->c_open) (dev, mode, flags, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcopen()-no floppy");
+	} else if (FDC_TAPE (dev)) {
 		if (ftCon)
-			(*ftCon->c_open)(dev, mode);
-		else {
-			SET_U_ERROR(ENXIO, "fdcopen()-no tape");
-			return;
-		}
-	} else {
-		SET_U_ERROR(ENXIO, "fdcopen()-no device");
-		return;
-	}
+			(* ftCon->c_open) (dev, mode, flags, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcopen()-no tape");
+	} else
+		SET_U_ERROR (ENXIO, "fdcopen()-no device");
 }
 
-static int
-fdcclose(dev, mode)
-dev_t	dev;
-int	mode;
+#if __USE_PROTO__
+static void fdcclose(o_dev_t dev, int mode, int flags, __cred_t * credp)
+#else
+static void
+fdcclose(dev, mode, flags, credp)
+o_dev_t		dev;
+int		mode;
+int		flags;
+cred_t	      *	credp;
+#endif
 {
-	if (FDC_DISKETTE(dev)) {
+	if (FDC_DISKETTE (dev)) {
 		if (flCon)
-			(*flCon->c_close)(dev, mode);
-		else {
-			SET_U_ERROR(ENXIO, "fdcclose()-no floppy");
-			return;
-		}
-	} else if (FDC_TAPE(dev)) {
+			(* flCon->c_close) (dev, mode, flags, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcclose()-no floppy");
+	} else if (FDC_TAPE (dev)) {
 		if (ftCon)
-			(*ftCon->c_close)(dev, mode);
-		else {
-			SET_U_ERROR(ENXIO, "fdcclose()-no tape");
-			return;
-		}
-	} else {
-		SET_U_ERROR(ENXIO, "fdcclose()-no device");
-		return;
-	}
+			(* ftCon->c_close) (dev, mode, flags, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcclose()-no tape");
+	} else
+		SET_U_ERROR (ENXIO, "fdcclose()-no device");
 }
 
-static int
-fdcread(dev, iop)
-dev_t	dev;
-IO	*iop;
+#if __USE_PROTO__
+static void fdcread(o_dev_t dev, IO * iop, __cred_t * credp)
+#else
+static void
+fdcread(dev, iop, credp)
+o_dev_t		dev;
+IO	      *	iop;
+cred_t	      *	credp;
+#endif
 {
-	if (FDC_DISKETTE(dev)) {
+	if (FDC_DISKETTE (dev)) {
 		if (flCon)
-			(*flCon->c_read)(dev, iop);
-		else {
-			SET_U_ERROR(ENXIO, "fdcread()-no floppy");
-			return;
-		}
-	} else if (FDC_TAPE(dev)) {
+			(* flCon->c_read) (dev, iop, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcread()-no floppy");
+	} else if (FDC_TAPE (dev)) {
 		if (ftCon)
-			(*ftCon->c_read)(dev, iop);
-		else {
-			SET_U_ERROR(ENXIO, "fdcread()-no tape");
-			return;
-		}
-	} else {
+			(* ftCon->c_read) (dev, iop, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcread()-no tape");
+	} else
 		SET_U_ERROR(ENXIO, "fdcread()-no device");
-		return;
-	}
 }
 
-static int
-fdcwrite(dev, iop)
-dev_t	dev;
-IO	*iop;
+#if __USE_PROTO__
+static void fdcwrite(o_dev_t dev, IO * iop, __cred_t * credp)
+#else
+static void
+fdcwrite(dev, iop, credp)
+o_dev_t		dev;
+IO	      *	iop;
+cred_t	      *	credp;
+#endif
 {
-	if (FDC_DISKETTE(dev)) {
+	if (FDC_DISKETTE (dev)) {
 		if (flCon)
-			(*flCon->c_write)(dev, iop);
-		else {
-			SET_U_ERROR(ENXIO, "fdcwrite()-no floppy");
-			return;
-		}
-	} else if (FDC_TAPE(dev)) {
+			(* flCon->c_write) (dev, iop, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcwrite()-no floppy");
+	} else if (FDC_TAPE (dev)) {
 		if (ftCon)
-			(*ftCon->c_write)(dev, iop);
-		else {
-			SET_U_ERROR(ENXIO, "fdcwrite()-no tape");
-			return;
-		}
-	} else {
-		SET_U_ERROR(ENXIO, "fdcwrite()-no device");
-		return;
-	}
+			(* ftCon->c_write) (dev, iop, credp);
+		else
+			SET_U_ERROR (ENXIO, "fdcwrite()-no tape");
+	} else
+		SET_U_ERROR (ENXIO, "fdcwrite()-no device");
 }
 
-static int
-fdcioctl(dev, com, par)
-dev_t	dev;
-int	com;
-char	*par;
+
+#if __USE_PROTO__
+static void fdcioctl(o_dev_t dev, int com, __VOID__ * par, int mode,
+  __cred_t * credp, int * rvalp)
+#else
+static void
+fdcioctl (dev, com, par, mode, credp, rvalp)
+o_dev_t		dev;
+int		com;
+char	      *	par;
+int		mode;
+cred_t	      *	credp;
+int	      *	rvalp;
+#endif
 {
-	if (FDC_DISKETTE(dev)) {
+	if (FDC_DISKETTE (dev)) {
 		if (flCon)
-			(*flCon->c_ioctl)(dev, com, par);
-		else {
-			SET_U_ERROR(ENXIO, "fdcioctl()-no floppy");
-			return;
-		}
+			(* flCon->c_ioctl) (dev, com, par, mode, credp, rvalp);
+		else
+			SET_U_ERROR (ENXIO, "fdcioctl()-no floppy");
 	} else if (FDC_TAPE(dev)) {
 		if (ftCon)
-			(*ftCon->c_ioctl)(dev, com, par);
-		else {
-			SET_U_ERROR(ENXIO, "fdcioctl()-no tape");
-			return;
-		}
-	} else {
-		SET_U_ERROR(ENXIO, "fdcioctl()-no device");
-		return;
-	}
+			(* ftCon->c_ioctl) (dev, com, par, mode, credp, rvalp);
+		else
+			SET_U_ERROR (ENXIO, "fdcioctl()-no tape");
+	} else
+		SET_U_ERROR (ENXIO, "fdcioctl()-no device");
 }
 
 /* Can't set u.u_error inside block routine. */
-static int
-fdcblock(bp)
-BUF	*bp;
+static void
+fdcblock (bp)
+BUF	      *	bp;
 {
-	if (FDC_DISKETTE(bp->b_dev)) {
+	if (FDC_DISKETTE (bp->b_dev)) {
 		if (flCon)
-			(*flCon->c_block)(bp);
-	} else if (FDC_TAPE(bp->b_dev))
+			(* flCon->c_block) (bp);
+	} else if (FDC_TAPE (bp->b_dev))
 		if (ftCon)
-			(*ftCon->c_block)(bp);
+			(* ftCon->c_block) (bp);
 }
+
 
 /***************************************************************************/
 /*
@@ -374,7 +366,6 @@ fdcCmdStatus()
 {
 	register int	b;
 	register int	n = 0;		/* # of status bytes read */
-	register int	i = 0;		/* Timeout count */
 	register int	s;
 
 	s = sphi();
@@ -409,7 +400,8 @@ int drive, motorOn;
 	unsigned char motorBits = 0;
 
 	if (drive >= 4) {
-		printf("Can't fdcDrvSelect(%d,%d) ", drive, motorOn);
+		cmn_err (CE_WARN, "fdcDrvSelect(**drive**=%d,%d)",
+		  drive, motorOn);
 		return;
 	}
 
@@ -456,7 +448,6 @@ fdcIntStatus()
 {
 	register int	b;
 	register int	n = 0;		/* # of status bytes read */
-	register int	i = 0;		/* Timeout count */
 	register int	s;
 
 	s = sphi();
@@ -503,12 +494,13 @@ fdcIntStatus()
  * bytes away.
  ***********************************************
  */
-static void
-fdcIntr()
-{
-	register int s;
 
-	s = sphi();
+void
+fdcintr ()
+{
+	int s;
+
+	s = sphi ();
 
 	/* Invalidate previously stored interrupt and command status. */
 	fdc.fdc_nintstat = 0;
@@ -516,13 +508,14 @@ fdcIntr()
 
 	/* Vector to diskette or tape device interrupt handler. */
 	if ((fdcIntOwner & FL_INTR) && flIntr)
-		(*flIntr)();
+		(* flIntr)();
 	else if ((fdcIntOwner & FT_INTR) && ftIntr)
-		(*ftIntr)();
+		(* ftIntr)();
 	else /* Just clear the interrupt status. */
-		fdcSense();
-	spl(s);
+		fdcSense ();
+	spl (s);
 }
+
 
 /*
  * Send a command byte to the NEC chip, first waiting until the chip
@@ -559,8 +552,11 @@ unsigned int cmdLen;
 	int bytesSent;
 
 	for (bytesSent = 0; bytesSent < cmdLen; bytesSent++) {
-		if (fdcPut(*cmdStr++))
+		if (fdcPut(*cmdStr++)) {
+			cmn_err (CE_WARN, "fdcPutStr: only sent %d bytes of %d",
+			  bytesSent, cmdLen);
 			break;
+		}
 	}
 	return bytesSent;
 }
@@ -649,18 +645,25 @@ int srt, hut, hlt;
 void
 fdcStatus()
 {
-	printf("fd%d: head=%u",
-	  fdc.fdc_cmdstat[0] & 3, (fdc.fdc_cmdstat[0] & 4) >> 1);
+	/* If using floppy tape, show block number, not drive & head. */
+	if (fdcIntOwner & FT_INTR)
+		cmn_err (CE_CONT,
+		  "WARNING : FDC tape block=%d (u=%d h=%u)",
+		  fdcTblk,
+		  fdc.fdc_cmdstat[0] & 3, (fdc.fdc_cmdstat[0] & 4) >> 2);
+	else
+		cmn_err (CE_CONT, "WARNING : FDC unit=%d  head=%u",
+		  fdc.fdc_cmdstat[0] & 3, (fdc.fdc_cmdstat[0] & 4) >> 2);
 
 	/*
 	 * Report on ST0 bits.
 	 */
 	if (fdc.fdc_ncmdstat >= 1) {
 		if (fdc.fdc_cmdstat[0] & ST0_NR)
-			printf(" <Not Ready>");
+			cmn_err (CE_CONT, " <Not Ready>");
 
 		if (fdc.fdc_cmdstat[0] & ST0_EC)
-			printf(" <Equipment Check>");
+			cmn_err (CE_CONT, " <Equipment Check>");
 	}
 
 	/*
@@ -668,22 +671,22 @@ fdcStatus()
 	 */
 	if (fdc.fdc_ncmdstat >= 2) {
 		if (fdc.fdc_cmdstat[1] & ST1_MA)
-			printf(" <Missing Address Mark>");
+			cmn_err (CE_CONT, " <Missing Address Mark>");
 
 		if (fdc.fdc_cmdstat[1] & ST1_NW)
-			printf(" <Write Protected>");
+			cmn_err (CE_CONT, " <Write Protected>");
 
 		if (fdc.fdc_cmdstat[1] & ST1_ND)
-			printf(" <No Data>");
+			cmn_err (CE_CONT, " <No Data>");
 
 		if (fdc.fdc_cmdstat[1] & ST1_OR)
-			printf(" <Overrun>");
+			cmn_err (CE_CONT, " <Overrun>");
 
 		if (fdc.fdc_cmdstat[1] & ST1_DE)
-			printf(" <Data Error>");
+			cmn_err (CE_CONT, " <Data Error>");
 
 		if (fdc.fdc_cmdstat[1] & ST1_EN)
-			printf(" <End of Cyl>");
+			cmn_err (CE_CONT, " <End of Cyl>");
 	}
 
 	/*
@@ -691,22 +694,22 @@ fdcStatus()
 	 */
 	if (fdc.fdc_ncmdstat >= 3) {
 		if (fdc.fdc_cmdstat[2] & ST2_MD)
-			printf(" <Missing Data Address Mark>");
+			cmn_err (CE_CONT, " <Missing Data Address Mark>");
 
 		if (fdc.fdc_cmdstat[2] & ST2_BC)
-			printf(" <Bad Cylinder>");
+			cmn_err (CE_CONT, " <Bad Cylinder>");
 
 		if (fdc.fdc_cmdstat[2] & ST2_WC)
-			printf(" <Wrong Cylinder>");
+			cmn_err (CE_CONT, " <Wrong Cylinder>");
 
 		if (fdc.fdc_cmdstat[2] & ST2_DD)
-			printf(" <Bad Data CRC>");
+			cmn_err (CE_CONT, " <Bad Data CRC>");
 
 		if (fdc.fdc_cmdstat[2] & ST2_CM)
-			printf(" <Data Deleted>");
+			cmn_err (CE_CONT, " <Data Deleted>");
 	}
 
-	printf("\n");
+	cmn_err (CE_CONT, "\n");
 }
 
 /*
@@ -769,33 +772,41 @@ setFdcTimingDone:
 	return;
 }
 
-static int
-fdctimeout()
+#if __USE_PROTO__
+static void fdctimeout (o_dev_t dev)
+#else
+static void
+fdctimeout (dev)
+o_dev_t		dev;
+#endif
 {
 	if ((fdcTiming & FL_TIMING) && flCon)
-		(*flCon->c_timer)();
+		(* flCon->c_timer) (dev);
 	if ((fdcTiming & FT_TIMING) && ftCon)
-		(*ftCon->c_timer)();
+		(* ftCon->c_timer) (dev);
 }
+
 
 /*
  * Reset the fdc.
  * Sets drive select bits to 00, motor on bits to 0000.
  */
+
 void
 fdcReset()
 {
-	outbDb(FDCDOR, 0);
-
 	/* "Not Reset FDC" must remain low for at least 3.5 usec */
-	busyWait2(NULL, 4);
-	outbDb(FDCDOR, DORNMR | DORIEN);
+	outbDb (FDCDOR, 0);
+	busyWait2 (NULL, 4);
+	outbDb (FDCDOR, DORNMR | DORIEN);
 }
+
 
 /*
  * Reset the fdc.
  * Maintain drive select and motor enable (as specified) during the reset.
  */
+
 void
 fdcResetSel(drive, motorOn)
 int drive, motorOn;
@@ -865,43 +876,41 @@ int sw, mask;
 	 *   else
 	 *      return failure
 	 */
-	if (sw)
+
+	if (sw) {
 		if (fdcIntOwner == 0) {
 			fdcIntOwner = mask;
 			ret = 1;
-		} else
+		} else if (fdcIntOwner == mask) {
+			ret = 1;
+		} else {
 			ret = 0;
-	else
+		}
+	} else {
 		if (fdcIntOwner == mask) {
 			fdcIntOwner = 0;
 			ret = 1;
-		} else
+		} else {
 			ret = 0;
+		}
+	}
+
+	return ret;
 }
 
-/******* FOR DEBUG PURPOSES ONLY ************/
 
-int
-outbDb(addr, data)
-int addr, data;
-{
-	static int oldAddr, oldData;
-	int s = sphi();
-
-	if (OUTB_DB) {
-		outb(addr, data);
-		if (addr != oldAddr) {
-			printf("[%x,%x]", addr, data);
-			oldAddr = addr;
-			oldData = data;
-		} else if (data != oldData) {
-			printf("/%x", data);
-			oldData = data;
-		} else
-			putchar('=');
-	} else
-		outb(addr, data);
-	spl(s);
-}
-
-/*			  * * * * End of fdc.c * * * *			*/
+CON	fdccon	= {
+	DFBLK | DFCHR,			/* Flags */
+	FL_MAJOR,			/* Major index */
+	fdcopen,			/* Open */
+	fdcclose,			/* Close */
+	fdcblock,			/* Block */
+	fdcread,			/* Read */
+	fdcwrite,			/* Write */
+	fdcioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	fdctimeout,			/* Timeout */
+	fdcload,			/* Load */
+	fdcunload,			/* Unload */
+	NULL				/* Poll */
+};

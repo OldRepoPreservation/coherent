@@ -53,6 +53,7 @@
 #include "mkinput.h"
 #include "read.h"
 #include "lex.h"
+#include "ecodes.h"
 
 #include "symbol.h"
 
@@ -139,7 +140,7 @@ size_t		len;
 	symbol_t      *	scan;
 
 	if ((scan = (symbol_t *) malloc (sizeof (* scan))) == NULL)
-		throw_error ("Unable to allocate symbol record");
+		throw_error (NO_MEMORY, "Unable to allocate symbol record");
 
 	scan->s_size = len;
 	scan->s_data = str;
@@ -232,7 +233,8 @@ symbol_t     **	sym;
 	int		ch;
 
 	if ((ch = build_begin (data_heap, 0, 0)) != 0)
-		throw_error ("Problem beginning symbol construction, %s",
+		throw_error (INTERNAL_ERROR,
+			     "Problem beginning symbol construction, %s",
 			     build_error (ch));
 
 	ch = read_token (input, lexp, data_heap, & temp);
@@ -274,14 +276,16 @@ VOID	      *	extra;
 	ehand_t		err;
 
 	if ((infile = fopen (inname, "r" TEXT_MODE)) == NULL)
-		throw_error ("cannot open file '%s', OS error %d \"%s\"",
+		throw_error (MISSING_FILE,
+			     "cannot open file '%s', OS error %d \"%s\"",
 			     inname, errno, strerror (errno));
 
 	outfile = NULL;
 
 	if (outname != NULL &&
 	    (outfile = fopen (outname, "w" TEXT_MODE)) == NULL) {
-		throw_error ("cannot open file '%s', OS error %d \"%s\"",
+		throw_error (MISSING_FILE,
+			     "cannot open file '%s', OS error %d \"%s\"",
 			     outname, errno, strerror (errno));
 	}
 
@@ -292,7 +296,8 @@ VOID	      *	extra;
 		(void) fclose (infile);
 		if (outfile != NULL)
 			(void) fclose (outfile);
-		throw_error ("could not create input stream in read_dev_file ()");
+		throw_error (INTERNAL_ERROR,
+			     "could not create input stream in read_dev_file ()");
 	}
 
 	if (PUSH_HANDLER (err) == 0) {
@@ -303,6 +308,7 @@ VOID	      *	extra;
 
 		read_error (input);
 		read_close (input);
+		remove (outname);
 		CHAIN_ERROR (err);
 	}
 
@@ -329,7 +335,8 @@ VOID	      *	extra;
 	ehand_t		err;
 
 	if ((input = make_string_input (string, 0)) == NULL)
-		throw_error ("could not create input stream in read_dev_string ()");
+		throw_error (INTERNAL_ERROR,
+			     "could not create input stream in read_dev_string ()");
 
 	if (PUSH_HANDLER (err) == 0)
 		(* devfuncp) (input, WHITESPACE, extra);

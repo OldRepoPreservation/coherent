@@ -1,55 +1,81 @@
-/* (lgl-
- *	The information contained herein is a trade secret of Mark Williams
- *	Company, and  is confidential information.  It is provided  under a
- *	license agreement,  and may be  copied or disclosed  only under the
- *	terms of  that agreement.  Any  reproduction or disclosure  of this
- *	material without the express written authorization of Mark Williams
- *	Company or persuant to the license agreement is unlawful.
+/* $Header: /ker/i386/RCS/sys1632.c,v 2.7 93/10/29 00:57:24 nigel Exp Locker: nigel $ */
+/*
+ * This file contains the implementations of system calls for Coherent 286,
+ * and the machinery for making a system call from a 286 process.
  *
- *	Intel 386 port and extensions (16/32 bit compatibility)
- *	Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991
- -lgl)
+ * $Log:	sys1632.c,v $
+ * Revision 2.7  93/10/29  00:57:24  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.6  93/09/13  07:51:09  nigel
+ * Extra debugging (show 286 system-call return value)
+ * 
+ * Revision 2.5  93/09/02  18:12:18  nigel
+ * Minor edits to use new flag system
+ * 
+ * Revision 2.4  93/08/19  03:40:15  nigel
+ * Nigel's R83
  */
 
-/*
- * i386/sys1632.c
- *
- * This file contains the code for those system calls whose implementation
- * must vary, according to system call arguments size (16 or 32 bits)
- *
- * exec: argv[], envp[] pointers (ingoing and outgoing)
- * istat:alignment of longs (called by ustat, ufstat in [sys?.c])
- * ftime:alignment of longs
- * lseek:argument is a long pointer
- * dup, dup2: old implementation
- * 
- * Revised: Fri Jun 11 06:36:06 1993 CDT
- */
-#include <sys/coherent.h>
+#include <common/_limits.h>
+#include <common/_tricks.h>
+#include <common/_gregset.h>
+#include <sys/errno.h>
+#include <sys/debug.h>
+#include <sys/cmn_err.h>
+#include <signal.h>
+#include <stddef.h>
+
+#define	_KERNEL		1
+
+#include <kernel/trace.h>
+#include <kernel/reg.h>
 #include <sys/acct.h>
 #include <sys/buf.h>
-#include <canon.h>
 #include <sys/con.h>
-#include <errno.h>
 #include <sys/filsys.h>
 #include <sys/ino.h>
 #include <sys/inode.h>
-#include <l.out.h>
 #include <sys/proc.h>
+#include <sys/uproc.h>
 #include <sys/sched.h>
 #include <sys/seg.h>
-#include <signal.h>
-#include <sys/systab.h>
-#include <sys/oldstat.h>
 #include <sys/timeb.h>
 #include <sys/fd.h>
+#include <l.out.h>
+#include <canon.h>
+
+#include <kernel/systab.h>
+
+/*
+ * Structure returned by COH-286 stat and fstat system calls.
+ */
+
+struct oldstat {
+	o_dev_t	 st_dev;		/* Device */
+	o_ino_t	 st_ino;		/* Inode number */
+	unsigned short st_mode;		/* Mode */
+	short	 st_nlink;		/* Link count */
+	short	 st_uid;		/* User id */
+	short	 st_gid;		/* Group id */
+	o_dev_t	 st_rdev;		/* Real device */
+#pragma	align 2
+	long	 st_size __ALIGN (2);	/* Size */
+	long	 st_atime __ALIGN (2);	/* Access time */
+	long	 st_mtime __ALIGN (2);	/* Modify time */
+	long	 st_ctime __ALIGN (2);	/* Change time */
+#pragma align
+#pragma	align 2
+};
+#pragma align	/* controls structure padding in Coherent 'cc' */
+
 
 /*
  * emulate a 16 bit system call
  * called from trap.c
  */
 
-char cvtsig[] = 
+static char cvtsig [] = 
 {
 	0,
 	SIGHUP, SIGINT, SIGQUIT, SIGALRM, SIGTERM, SIGPWR, 
@@ -58,8 +84,7 @@ char cvtsig[] =
 	SIGEMT, /* SIGOVFL */
 	SIGUSR1,
 	SIGUSR2,
-	SIGUSR2,
-	-1
+	SIGUSR2
 };
 
 int	ostat();
@@ -72,223 +97,233 @@ int	usysi86();
 int	ulock();
 int	ufcntl();
 int	uexece();
-int	fddup();
-int	obrk();
+long	oalarm2 ();
+long	otick ();
 
-static long ualarm2();
-static long utick();
+
+/*
+ * Duplicate a file descriptor number.  This has the same calling
+ * sequence as the dup2 system call and even uses the silly DUP2 bit.
+ */
 
 int
-oldsys()
+coh286dup(ofd, nfd)
+unsigned ofd;
+unsigned nfd;
+{
+	__fd_t	      *	fdp;
+
+	if ((fdp = fd_get (ofd & ~ DUP2)) == NULL)
+		return -1;
+	if ((ofd & DUP2) != 0) {
+		if (nfd >= NOFILE) {
+			SET_U_ERROR (EBADF, "coh286dup ()");
+			return -1;
+		}
+		ofd &= ~ DUP2;
+		if (ofd == nfd)
+			return nfd;
+		if (u.u_filep [nfd] != NULL) {
+			fd_close (nfd);
+			if (get_user_error ())
+				return -1;
+		}
+	} else
+		nfd = 0;
+
+	return fd_dup (ofd, nfd);
+}
+
+
+int
+ostime (timep)
+time_t	      *	timep;
+{
+	return ustime (getuwd (timep));
+}
+
+
+int
+opipe (pipep)
+short	      *	pipep;
+{
+	short		res;
+
+	res = upipe ();
+
+	putusd (pipep, res);
+	putusd (pipep + 1, u.u_rval2);
+	return 0;
+}
+
+
+int
+osetpgrp ()
+{
+	return setpgrp ();
+}
+
+int
+ogetpgrp ()
+{
+	return getpgrp ();
+}
+
+
+int
+ogeteuid ()
+{
+	(void) ugetuid ();
+	return u.u_rval2;
+}
+
+int
+ogetegid ()
+{
+	(void) ugetgid ();
+	return u.u_rval2;
+}
+
+
+int
+ounique ()
+{
+	return usysi86 (SYI86UNEEK);
+}
+
+
+int
+okill (pid, signal)
+short		pid;
+unsigned	signal;
+{
+	if (signal >= __ARRAY_LENGTH (cvtsig)) {
+		SET_U_ERROR (EINVAL, "286 kill ()");
+		return -1;
+	}
+
+	return ukill (pid, cvtsig [signal]);
+}
+
+
+__sighand_t *
+osignal (signal, func, regsetp)
+unsigned	signal;
+__sighand_t   *	func;
+gregset_t     *	regsetp;
+{
+	if (signal >= __ARRAY_LENGTH (cvtsig)) {
+		SET_U_ERROR (EINVAL, "286 signal ()");
+		return (__sighand_t *) -1;
+	}
+
+	return (__sighand_t *) usigsys (cvtsig [signal], func, regsetp);
+}
+
+
+#if	__SHRT_BIT != 16
+# error	This code expects 16-bit shorts
+#endif
+
+long
+olseek (fd, seeklo, seekhi, whence)
+unsigned	fd;
+unsigned short	seeklo;
+unsigned short	seekhi;
+unsigned	whence;
+{
+	return ulseek (fd, seeklo + (seekhi << 16), whence);
+}
+
+
+/* msgsys, shmsys, and semsys are not emulated */
+/* poll is not emulated;NOTE:the code calls putuwd */
+
+int
+oldsys (regsetp)
+gregset_t     *	regsetp;
 {
 	register struct	systab	*stp;
-	register int syscall, callnum, nargs;
-	int	l;
-	int	(*func)();
-	int	swap, res;
-	int	temp;
+	unsigned int	callnum;
+	int		i;
+	int		res;
+	int		args [MSACOUNT];
+	struct __menv	sigenv;
 
-	u.u_error = 0;
-	syscall = getuwd(NBPS+u.u_regl[EIP]-sizeof(short));
-	if (u.u_error || (syscall&0xFF) != 0xCD) 
-		return SIGSYS;
-	callnum = (syscall>>8) & 0x7F;
-	/* Print out this 286 call number only if tracing is on.  */
-	T_PIGGY(0x2, printf("[%d]", callnum););
+	set_user_error (0);
+	callnum = getusd (NBPS + regsetp->_i286._ip - sizeof (short));
 
-	stp = &sysitab[callnum];
-	if (callnum >= NMICALL)
+	/*
+	 * Check that we are on an INT instruction, and that the fetch did
+	 * not cause a memory fault. Note that the magic NBPS number above,
+	 * which presumably means "Number of Bytes Per Segment", is how to
+	 * get to 286 code.
+	 */
+
+	if (get_user_error () || (callnum & 0xFF) != 0xCD) 
 		return SIGSYS;
-	u.u_io.io_seg = IOUSR;
-	if (envsave(&u.u_sigenv)) {
-		u.u_error = EINTR;
+	callnum = (callnum >> 8) & 0x7F;
+
+	if (callnum >= __ARRAY_LENGTH (sys286tab))
+		return SIGSYS;
+	stp = sys286tab + callnum;
+
+	/* Print out this 286 call only if tracing is on.  */
+	T_ERRNO (4, cmn_err (CE_CONT, "[%s", stp->s_name));
+	stp->s_stat ++;
+
+	if (envsave (u.u_sigenvp = & sigenv)) {
+		set_user_error (EINTR);
 		goto done;
 	}
 
-	func = stp->s_func;
-	swap = 0;
-	nargs = stp->s_nargs;
-
-	for (l=0; l<nargs; l++)
-		u.u_args[l] = (unsigned short)
-			getuwd(u.u_regl[UESP]+(l+1)*sizeof(short));
-
-	switch (callnum) {
-	case 7:
-		nargs = 1;
-		goto update;
-	case 17:		/* brk(0)  was used in old Coherent */
-		func = obrk;
-		break;	
-	case 18:		/* stat and fstat have 32 bit alignment now */
-		func = ostat;
-		break;
-	case 25:		/* ustime() 386 takes a value, not a ptr */
-		u.u_args[0] = getuwd(u.u_args[0]);
-		break;
-	case 28:
-		func = ofstat;
-		break;
-	case 35:		/* ftime system call has gone away */
-		func = oftime;
-		nargs = 1;
-		goto update;
-	case 41:		/* kludge second argument for dup2() */
-		nargs = 2;
-		func = fddup;
-		goto update;
-	case 42:		/* pipe - store thru pointer */
-		nargs = 1;
-		goto update;
-	case 72:		/* ualarm2 and utick have disappeared */
-		func = ualarm2;
-		nargs = 1;
-		goto update;
-	case 73:
-		func = utick;
-		nargs = 1;
-		goto update;
-	case 62:	/* setpgrp */
-		u.u_args[0] = 1;
-		nargs = 1;
-		func = upgrp;
-		break;
-	case 63:	/* getpgrp */
-		u.u_args[0] = 0;
-		nargs = 1;
-		func = upgrp;
-		break;
-	case 24:		/* getuid and geteuid are together now */
-	case 57:
-		swap = callnum==57;
-		func = ugetuid;
-		break;
-	case 47:
-	case 56:		/* getgid & getegid are together now */
-		swap = callnum==56;
-		func = ugetgid;
-		break;
-	case 45:		/* unique is a sys-86 call now */
-		func = usysi86;
-		u.u_args[0] = SYI86UNEEK;
-		nargs = 1;
-		break;
-	case 37:		/* kill - signal#'s have changed */
-		u.u_args[0] = (signed short) u.u_args[0]; /* Sign extend pid. */
-		u.u_args[1] = cvtsig[u.u_args[1]];
-		break;
-	case 48:		/* signal - signal#'s have changed */
-		u.u_args[0] = cvtsig[u.u_args[0]];
-		break;	
-	case 53:		/* ulock has moved */	
-		func = ulock;
-		nargs = 1;
-		goto update;
-	case 66:		/* fcntl has moved */	
-		func = ufcntl;
-		nargs = 3;
-		goto update;
-	case 11:		/* exec has only one entry point now */
-		func = uexece;
-		nargs = 3;
-		goto update;
-	case 19:		/* seek offset is 32 bits now ; shift */
-		u.u_args[1] |= u.u_args[2]<<16;
-		u.u_args[2] = (unsigned short)
-			getuwd(u.u_regl[UESP]+4*sizeof(short));
-		break;
-	update:
-		for (l=0; l<nargs; l++)
-			u.u_args[l] = (unsigned short)
-				getuwd(u.u_regl[UESP]+(l+1)*sizeof(short));
-		break;
+	i = stp->s_nargs + 1;
+	while (-- i > 0) {
+		args [i - 1] = getusd (regsetp->_i286._usp +
+				       i * sizeof (short));
 	}
 
-	if (u.u_error)
+	if (get_user_error ())
 		return SIGSYS;
 
-	res = (*func)(u.u_args[0], u.u_args[1], u.u_args[2], u.u_args[3],
-		u.u_args[4], u.u_args[5]);
-	if (swap)
-		res = u.u_rval2;
+	/*
+	 * Perform the system call and collect the return value in "res".
+	 */
 
-	switch (callnum) {
-	case 7:			/* wait - must store u_rval2 thru pointer */
-		if (u.u_args[0]) {
-			putubd(u.u_args[0], u.u_rval2);
-			putubd(u.u_args[0]+1, u.u_rval2>>8);
-		}
-		break;
-	case 19:		/* lseek - upper 16 bits of result in dx */
-		u.u_rval2 = res >> 16;
-		break;
-	case 42:		/* pipe - store thru pointer */
-		putubd(u.u_args[0],   res);
-		putubd(u.u_args[0]+1, res>>8);
-		putubd(u.u_args[0]+2, u.u_rval2);
-		putubd(u.u_args[0]+3, u.u_rval2>>8);
-		res = 0;
-		break;
-	default:
-			/* msgsys, shmsys, and semsys are not emulated */
-			/* poll is not emulated;NOTE:the code calls putuwd */
-		;
-	}
-	u.u_regl[EAX] = res;
-	u.u_regl[EDX] = u.u_rval2;
+	res = __DOSYSCALL (stp->s_nargs, stp->s_func, args, regsetp);
+
+	if (stp->s_type == __SYSCALL_LONG)
+		regsetp->_i286._dx = res >> 16;
+	else
+		regsetp->_i286._dx = u.u_rval2;
+	regsetp->_i286._ax = res;
+
 done:
-	if (u.u_error) {
-		u.u_regl[EAX] = u.u_regl[EDX] = -1;
-		putubd(MUERR, u.u_error);
-		if (u.u_error == EFAULT)
+	u.u_sigenvp = NULL;
+	if (get_user_error ()) {
+		T_ERRNO (4, cmn_err (CE_NOTE, "-err"));
+		regsetp->_i286._ax = regsetp->_i286._dx = -1;
+		putubd (MUERR, get_user_error ());
+		if (get_user_error () == EFAULT)
 			return SIGSYS;
 	}
+	T_ERRNO (4, cmn_err (CE_NOTE, "=%d] ", regsetp->_i286._ax));
 	return 0;
 }
 
-/*
- * Given a file descriptor, return a status structure.
- */
-ofstat(fd, stp)
-struct oldstat *stp;
-{
-	register INODE *ip;
-	register FD *fdp;
-	struct oldstat stat;
-
-	if ((fdp=fdget(fd)) == NULL)
-		return;
-	ip = fdp->f_ip;
-	oistat(ip, &stat);
-	kucopy(&stat, stp, sizeof(stat));
-	return (0);
-}
-
-/*
- * Return a status structure for the given file name.
- */
-ostat(np, stp)
-char *np;
-struct oldstat *stp;
-{
-	register INODE *ip;
-	struct oldstat stat;
-
-	if (ftoi(np, 'r') != 0)
-		return;
-	ip = u.u_cdiri;
-	oistat(ip, &stat);
-	kucopy(&stat, stp, sizeof(stat));
-	idetach(ip);
-	return 0;
-}
 
 /*
  * Copy the appropriate information from the inode to the stat buffer.
  */
+
+#if	__USE_PROTO__
+__LOCAL__ void oistat (struct inode * ip, struct oldstat * sbp)
+#else
+__LOCAL__ void
 oistat(ip, sbp)
-register INODE *ip;
-register struct oldstat *sbp;
+struct inode  *	ip;
+struct oldstat *sbp;
+#endif
 {
 	sbp->st_dev = ip->i_dev;
 	sbp->st_ino = ip->i_ino;
@@ -296,26 +331,78 @@ register struct oldstat *sbp;
 	sbp->st_nlink = ip->i_nlink;
 	sbp->st_uid = ip->i_uid;
 	sbp->st_gid = ip->i_gid;
-	sbp->st_rdev = NODEV;
+	sbp->st_rdev = (o_dev_t) -1;
 	sbp->st_size = ip->i_size;
 	sbp->st_atime = ip->i_atime;
 	sbp->st_mtime = ip->i_mtime;
 	sbp->st_ctime = ip->i_ctime;
-	switch (ip->i_mode&IFMT) {
+
+	switch (ip->i_mode & IFMT) {
 	case IFBLK:
 	case IFCHR:
-		sbp->st_rdev = ip->i_a.i_rdev;
+		sbp->st_rdev = ip->i_rdev;
 		sbp->st_size = 0;
 		break;
+
 	case IFPIPE:
 		sbp->st_size = ip->i_pnc;
 		break;
 	}
 }
 
+
+/*
+ * Given a file descriptor, return a status structure.
+ */
+
+int
+ofstat(fd, stp)
+int	fd;
+struct oldstat *stp;
+{
+	INODE *ip;
+	__fd_t	      *	fdp;
+	struct oldstat stat;
+
+	if ((fdp = fd_get (fd)) == NULL)
+		return -1;
+	ip = fdp->f_ip;
+	oistat (ip, & stat);
+	kucopy (& stat, stp, sizeof (stat));
+	return 0;
+}
+
+
+/*
+ * Return a status structure for the given file name.
+ */
+
+int
+ostat(np, stp)
+char *np;
+struct oldstat *stp;
+{
+	struct oldstat stat;
+	struct direct	dir;
+
+	if (ftoi (np, 'r', IOUSR, NULL, & dir, SELF->p_credp) != 0)
+		return -1;
+
+	oistat (u.u_cdiri, & stat);
+
+	if (kucopy (& stat, stp, sizeof (stat)) != sizeof (stat))
+		SET_U_ERROR (EFAULT, "286 stat ()");
+
+	idetach (u.u_cdiri);
+	return 0;
+}
+
+
 /*
  * Return date and time.
  */
+
+int
 oftime(tbp)
 struct timeb *tbp;
 {
@@ -328,19 +415,26 @@ struct timeb *tbp;
 	timeb.millitm = timer.t_tick*(1000/HZ);
 	timeb.timezone = timer.t_zone;
 	timeb.dstflag = timer.t_dstf;
-	kucopy(&timeb, tbp, sizeof(timeb));
+
+	if (kucopy (& timeb, tbp, sizeof (timeb)) != sizeof (timeb)) {
+		SET_U_ERROR (EFAULT, "286 ftime ()");
+		return -1;
+	}
+	return 0;
 }
+
 
 /*
  * Send a SIGALARM signal in `n' clock ticks.
  */
+
 long
-ualarm2(n)
+oalarm2(n)
 long n;
 {
 	register PROC * pp = SELF;
 	long s;
-	extern sigalrm();
+	extern sigalrm ();
 
 	/*
 	 * Calculate time left before current alarm timeout.
@@ -352,93 +446,75 @@ long n;
 	/*
 	 * Cancel previous alarm [if any], start new alarm [if n != 0].
 	 */
-	timeout2(&pp->p_alrmtim, (long) n, sigalrm, pp);
+
+	timeout2 (& pp->p_alrmtim, (long) n, sigalrm, pp);
 
 	/*
 	 * Return time left before previous alarm timeout.
 	 */
-	return(s);
+	return s;
 }
+
 
 /*
  * Return elapsed ticks since system startup.
  */
+
 long
-utick()
+otick()
 {
-	return(lbolt);
+	return lbolt;
 }
+
 
 /*
  * Cause a signal routine to be executed.
  * Called from [coh/sig.c]
  */
-oldsigstart(n, f)
-{
-	int i, n1;		
-	register int	usp;
 
-	usp = u.u_regl[UESP];
+void
+oldsigstart (sig, func, regsetp)
+int		sig;
+__sighand_t   *	func;
+gregset_t     *	regsetp;
+{
+	int		i;
+	struct {
+		ushort_t	sf_signo;
+		ushort_t	sf_prev_ip;
+		__286_flags_t	sf_flags;
+	} signal_frame;
 
 	/*
 	 *                 -1
-	 * calculate cvtsig  [n]
+	 * calculate cvtsig  [sig]
 	 *
  	 */
-	n1 = n; 
-	for (i=0; cvtsig[i]>=0; i++)
-		if (cvtsig[i]==n)
-			n1 = i;
-			
-	putuwd(usp-3*sizeof(short), n1);
-	putuwd(usp-2*sizeof(short), u.u_regl[EIP]);
-	putubd(usp-2, u.u_regl[EFL]);
-	putubd(usp-1, u.u_regl[EFL]>>8);
-	u.u_regl[EFL] &= ~MFTTB;
-	u.u_regl[EIP] = f;
-	u.u_regl[UESP] -= 3*sizeof(short);
-	if (n != SIGTRAP)
-		u.u_sfunc[n-1] = SIG_DFL;
+
+	signal_frame.sf_signo = sig;
+	for (i = 0 ; i < __ARRAY_LENGTH (cvtsig) ; i ++)
+		if (cvtsig [i] == sig) {
+			signal_frame.sf_signo = i;
+			break;
+		}
+
+	signal_frame.sf_prev_ip = regsetp->_i286._ip;
+	signal_frame.sf_flags = regsetp->_i286._flags;
+
+	/*
+	 * Turn off single-stepping in signal handler.
+	 */
+
+	__FLAG_REG (regsetp) = __FLAG_CLEAR_FLAG (__FLAG_REG (regsetp),
+						  __TRAP);
+	regsetp->_i286._ip = (ushort_t) (ulong_t) func;
+	regsetp->_i286._usp -= sizeof (signal_frame);
+
+	i = kucopy (& signal_frame, regsetp->_i286._usp,
+		    sizeof (signal_frame));
+	ASSERT (i == sizeof (signal_frame));
 }
 
-/*
- * Duplicate a file descriptor number.  This has the same calling
- * sequence as the dup2 system call and even uses the silly DUP2 bit.
- */
-fddup(ofd, nfd)
-register unsigned ofd;
-register unsigned nfd;
-{
-	register FD *fdp;
-
-	if ((fdp=fdget(ofd&~DUP2)) == NULL)
-		return (-1);
-	if ((ofd&DUP2) != 0) {
-		if (nfd >= NOFILE) {
-			u.u_error = EBADF;
-			return (-1);
-		}
-		ofd &= ~DUP2;
-		if (ofd == nfd)
-			return (nfd);
-		if (u.u_filep[nfd] != NULL) {
-			fdclose(nfd);
-			if (u.u_error)
-				return (-1);
-		}
-	} else {
-		for (nfd=0; nfd<NOFILE; nfd++)
-			if (u.u_filep[nfd] == NULL)
-				break;
-		if (nfd == NOFILE) {
-			u.u_error = EMFILE;
-			return (-1);
-		}
-	}
-	u.u_filep[nfd] = fdp;
-	fdp->f_refc++;
-	return (nfd);
-}
 
 /*
  * obrk()
@@ -446,23 +522,23 @@ register unsigned nfd;
  * Argument is the new linear space value for the end of the PDATA segment.
  * As was done in COH286, arg of zero asks for the old upper limit.
  */
-obrk(cp)
-long cp;
+
+__EXTERN_C__	caddr_t		ubrk	__PROTO ((unsigned cp));
+
+caddr_t
+obrk (cp)
+unsigned	cp;
 {
-	register int res;
-
-	cp &= 0xffff;	/* Ward off sign extension problems with cp. */
-
 	/*
 	 * If cp nonzero
 	 *	resize user data segment
 	 * else
 	 *	just give info - current brk address
 	 */
-	if (cp)
-		res = ubrk(cp);
-	else
-		res = u.u_segl[SIPDATA].sr_base + SELF->p_segp[SIPDATA]->s_size;
 
-	return res; 
+	if (cp)
+		return ubrk (cp);
+	else
+		return SELF->p_segl [SIPDATA].sr_base +
+			SELF->p_segl [SIPDATA].sr_segp->s_size;
 }

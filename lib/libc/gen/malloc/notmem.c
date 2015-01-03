@@ -1,5 +1,9 @@
 /*
- * notmem.c
+ * libc/stdlib/malloc/notmem.c
+ * C general utilities library.
+ * Memory allocation routines.
+ * notmem()
+ * Not ANSI by a long shot.
  * Test if pointer is in malloc arena.
  */
 
@@ -32,3 +36,5 @@ notmem(cp) char *cp;
 		return -1;			/* trouble in arena */
 	return 1;				/* not found */
 }
+
+/* end of libc/gen/stdlib/notmem.c */

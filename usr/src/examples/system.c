@@ -1,57 +1,37 @@
+/*
+ * libc/stdlib/system.c
+ * C general utilities library.
+ * system()
+ * ANSI 4.10.4.4.
+ * Call the system to execute a command line which is passed as an argument.
+ */
+
+#include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 
-FILE *newfp;
-int oldstdout;
-
-main()
+int
+system(line) char *line;
 {
-	extern int system();
+	int status, pid;
+	register wpid;
+	register int (*intfun)(), (*quitfun)();
 
-	ropen("list.fil");
-	system("ls *.c");
-	rclose();
+	if ((pid = fork()) < 0)
+		return -1;
+	if (pid == 0) {		/* Child */
+		execl("/bin/sh", "sh", "-c", line, NULL);
+		exit(0177);
+	}
+	intfun = signal(SIGINT, SIG_IGN);
+	quitfun = signal(SIGQUIT, SIG_IGN);
+	while ((wpid = wait(&status))!=pid && wpid>=0)
+		;
+	if (wpid < 0)
+		status = wpid;
+	signal(SIGINT, intfun);
+	signal(SIGQUIT, quitfun);
+	return status;
 }
 
-/*
- * Redirect stdout prior to system() call.
- * You can't redirect child process's I/O
- * but you can redirect main()'s and let the child inherit it.
- */
-ropen(tofile)
-char *tofile;
-{
-	if ((newfp = fopen(tofile, "wr")) == NULL)
-		fatal("cannot open output file \"%s\"", tofile);
-
-	/* Duplicate stdout so it can be restored later */
-	if ((oldstdout = dup(fileno(stdout))) == -1)
-		fatal("dup failed");
-
-	/* Force duplication of new file handle as stdout */
-	if (dup2(fileno(newfp), fileno(stdout)) == -1)
-		fatal("dup2 failed");
-}
-
-/*
- * Terminate redirection
- */
-rclose()
-{
-	/* Restore old stdout */
-	if (dup2(oldstdout, fileno(stdout)) == -1)
-		fatal("dup2 failed");
-	/* Close the extra handle */
-	if (close(oldstdout) != 0)
-		fatal("cannot close old stdout");
-	fclose(newfp);
-}
-
-/*
- * Fatal error
- */
-fatal(p)
-char *p;
-{
-	fprintf(stderr, "system: %r\n", &p);
-	exit(1);
-}
+/* end of libc/stdlib/system.c */

@@ -1,5 +1,5 @@
 /*
- * /usr/src/libc/gen/atof.c
+ * /usr/src/libc/stdlib/atof.c
  * C general utilities library.
  * atof()
  * ANSI 4.10.1.1.
@@ -8,15 +8,16 @@
  * Does not use any knowledge about floating point representation.
  */
 
-#if	__STDC__
 #include <stdlib.h>
+#include <ctype.h>
+
+#if	__STDC__
 #include <limits.h>
 #include <locale.h>
 #else
 #define	_decimal_point	'.'
 extern	double	_pow10();
 #endif
-#include <ctype.h>
 
 /* Flag bits. */
 #define	NEG	1			/* negative significand	*/
@@ -123,4 +124,4 @@ atof(nptr) register char *nptr;
 	return ((flag & NEG) ? -d : d);
 }
 
-/* end of libc/gen/atof.c */
+/* end of libc/stdlib/atof.c */

@@ -18,8 +18,10 @@
 #include "read.h"
 #include "mtune.h"
 #include "input.h"
+#include "ecodes.h"
 
 #include "stune.h"
+#include "val_str.h"
 
 LOCAL stune_t *	_stunes;
 
@@ -37,11 +39,11 @@ stune_t	      *	stunep;
 input_t	      *	input;
 #endif
 {
-	if ((* input->in_filter) (input, "%s<2>%ld\n",
+	if ((* input->in_filter) (input, "%s<2>%s\n",
 				  stunep->st_name->s_data,
-				  stunep->st_value) < 0) {
+				  stunep->st_valstr) < 0) {
 
-		throw_error ("Output error");
+		throw_error (CANNOT_UPDATE, "Output error");
 	}
 }
 
@@ -65,7 +67,7 @@ int	      *	end_char;
 	ehand_t		err;
 
 	if ((stunep = (stune_t *) malloc (sizeof (* stunep))) == NULL)
-		throw_error ("out of memory in read_stune ()");
+		throw_error (NO_MEMORY, "out of memory in read_stune ()");
 
 	if (PUSH_HANDLER (err) == 0) {
 		/*
@@ -92,6 +94,7 @@ int	      *	end_char;
 		 */
 
 		ch = read_longs (input, lexp, & stunep->st_value, NO_RANGE);
+		strncpy(stunep->st_valstr, get_val_str(), STUNE_VAL_LEN);
 
 		ch = expect_eol (input, lexp, ch);
 	} else {
@@ -150,14 +153,17 @@ input_t	      *	input;
 #endif
 {
 	if ((stunep->st_mtune = find_mtune (stunep->st_name)) == NULL)
-		throw_error ("Parameter name not in 'mtune' file");
+		throw_error (FORMAT_ERROR,
+			     "Parameter name not in 'mtune' file");
 
 	if (stunep->st_mtune->mt_stune != NULL)
-		throw_error ("Two values configured for parameter");
+		throw_error (FORMAT_ERROR,
+			     "Two values configured for parameter");
 
 	if (stunep->st_value < stunep->st_mtune->mt_min ||
 	    stunep->st_value > stunep->st_mtune->mt_max)
-		throw_error ("Parameter value outside configurable range");
+		throw_error (FORMAT_ERROR,
+			     "Parameter value outside configurable range");
 
 	stunep->st_mtune->mt_stune = stunep;
 

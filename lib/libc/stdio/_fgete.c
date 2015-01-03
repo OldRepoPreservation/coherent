@@ -5,7 +5,7 @@
  * Read character from write-only stream; always returns error.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fgete(fp) FILE *fp;

@@ -6,7 +6,7 @@
  * Get character from stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 fgetc(stream) FILE *stream;

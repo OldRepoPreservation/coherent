@@ -1,46 +1,23 @@
+/* $Header: /ker/coh.386/RCS/sys4.c,v 2.3 93/08/19 03:26:55 nigel Exp Locker: nigel $ */
 /*
- * File:	sys4.c
- *
- * Purpose:
  * Non-Sytem V (compatibility) system calls introduced by the 386 port.
  *
  * $Log:	sys4.c,v $
+ * Revision 2.3  93/08/19  03:26:55  nigel
+ * Nigel's r83 (Stylistic cleanup)
+ * 
+ * Revision 2.2  93/07/26  14:29:12  nigel
+ * Nigel's R80
+ * 
  * Revision 1.2  92/01/06  12:00:58  hal
  * Compile with cc.mwc.
- * 
  */
 
-/*
- * Includes.
- */
 #include <sgtty.h> 
 
-/*
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-typedef unsigned char uchar;
-typedef unsigned int  uint;
-typedef unsigned long ulong;
-
-/*
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
 int ustty(); 
 int ugtty(); 
 
-/*
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 /*
  *
  */ 

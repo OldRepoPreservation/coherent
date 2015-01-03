@@ -1,6 +1,7 @@
+/* $Header: $ */
+
 #define	_DDI_DKI	1
 #define	_SYSV4		1
-
 
 /*
  * System V DDI/DKI compatible synchronisation functions
@@ -13,8 +14,15 @@
  *	"Synchronisation Without Contention"
  *	John M. Mellor-Crummey & Michael L. Scott,
  *	Proceedings 4th International Conference on Architectural Support for
- *		Programming Languages and Operating Systems (ASPLOS 4)
+ *		Programming Languages and Operating Systems (ASPLOS IV)
  *	1991, ACM
+ *
+ * For an overview of techniques and a survey of software methods:
+ *	"Algorithms for Mutual Exclusion"
+ *	M. Raynal,
+ *	1986, MIT Press ISBN 0-262-18119-3
+ *
+ * $Log: $
  */
 
 /*
@@ -64,6 +72,7 @@
  */
 
 #include <common/ccompat.h>
+#include <common/_tricks.h>
 #include <kernel/ddi_cpu.h>
 #include <kernel/ddi_lock.h>
 #include <kernel/v_proc.h>
@@ -72,6 +81,7 @@
 #include <sys/inline.h>
 #include <sys/cmn_err.h>
 #include <sys/kmem.h>
+#include <stddef.h>
 
 #include <sys/ksynch.h>
 
@@ -292,7 +302,7 @@ struct lock_node {
 struct __basic_lock {
 	lnode_t		bl_node;	/* generic information */
 
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	atomic_ushort_t	bl_next_ticket;	/* next ticket number to be granted */
 	atomic_ushort_t	bl_lock_holder;	/* ticket number of lock holder */
 #endif
@@ -506,8 +516,6 @@ __lkhier_t	hierarchy;
  * hierarchy information for a lock release.
  */
 
-#define	ARRAY_MAX(array)	(sizeof (array) / sizeof ((array) [0])
-
 #if	__USE_PROTO__
 __LOCAL__ void (LOCK_FREE_HIERARCHY) (__lkhier_t hierarchy)
 #else
@@ -667,7 +675,6 @@ __CONST__ char	      * name;
 		if (ATOMIC_TEST_AND_SET_UCHAR (locked) == 0)
 			return prev_pl;		/* all OK */
 
-
 		/*
 		 * While we spin for the lock, we can allow interrupts that
 		 * were permissible at entry to this routine.
@@ -675,9 +682,9 @@ __CONST__ char	      * name;
 
 		(void) splx (prev_pl);
 
-#ifdef	__UNIPROCESSOR__
+#if	_UNIPROCESSOR
 		cmn_err (CE_PANIC, "%s : test-and-set deadlock", name);
-#elif	defined (__TEST_AND_TEST__)
+#elif	__TEST_AND_TEST__
 		/*
 		 * To reduce contention, we wait until the test-and-set lock
 		 * is free before attempting to re-acquire it. Of course, more
@@ -691,6 +698,64 @@ __CONST__ char	      * name;
 	}
 }
 
+
+#if	1
+/*
+ * Dump the basic-lock list.
+ */
+
+#if	__USE_PROTO__
+__LOCAL__ void dump_locks (int level)
+#else
+__LOCAL__ void
+dump_locks (level)
+int		level;
+#endif
+{
+static	int		do_dump = 1;
+	lnode_t	      *	lnode = basic_locks.ll_head;
+
+	if (! do_dump) {
+		backtrace (0);
+		return;
+	}
+
+	do_dump --;
+
+	while (lnode != NULL) {
+		lock_t	      *	lock = lnode_to_basic (lnode);
+		lnode = lnode->ln_next;
+
+		if (level && ATOMIC_FETCH_UCHAR (lock->bl_locked) == 0)
+			continue;
+
+		cmn_err (CE_NOTE, "name %s locked %d",
+			 lock->bl_node.ln_lkinfo->lk_name,
+			 ATOMIC_FETCH_UCHAR (lock->bl_locked));
+	}
+}
+#else
+#define	dump_locks(level)	((void) 0)
+#endif
+
+
+/*
+ * When we are about to dispatch a process, check that the hierarchy level
+ * is correct (ie, no basic or read/write locks are being held).
+ */
+
+#if	__USE_PROTO__
+void LOCK_DISPATCH (void)
+#else
+void
+LOCK_DISPATCH ()
+#endif
+{
+	if (ddi_cpu_data ()->dc_max_hierarchy > __MIN_HIERARCHY__) {
+		dump_locks (0);
+		backtrace ();
+	}
+}
 
 
 /*
@@ -969,7 +1034,7 @@ int		flag;
 
 		ATOMIC_CLEAR_UCHAR (lockp->bl_locked);
 
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 		ATOMIC_CLEAR_USHORT (lockp->bl_next_ticket);
 		ATOMIC_CLEAR_USHORT (lockp->bl_lock_holder);
 #endif
@@ -1028,7 +1093,7 @@ lock_t	      *	lockp;
 	ASSERT (lockp != NULL);
 	ASSERT (ATOMIC_FETCH_UCHAR (lockp->bl_locked) == 0);
 
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	ASSERT (ATOMIC_FETCH_USHORT (lockp->bl_next_ticket) ==
 		ATOMIC_FETCH_USHORT (lockp->bl_lock_holder));
 #endif
@@ -1120,7 +1185,7 @@ pl_t		pl;
 #endif
 {
 	pl_t		prev_pl;
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	ushort_t	ticket_no;
 #endif
 
@@ -1135,7 +1200,6 @@ pl_t		pl;
 	 */
 
 	ASSERT (splcmp (pl, lockp->bl_min_pl) >= 0);
-
 
 	/*
 	 * On a uniprocessor, encountering a basic lock that is already
@@ -1152,7 +1216,7 @@ pl_t		pl;
 
 	prev_pl = TEST_AND_SET_LOCK (lockp->bl_locked, pl, "LOCK");
 
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	/*
 	 * If we are working with a ticket-lock scheme, we now take a ticket
 	 * and release the test-and-set lock. After that, we can just wait for
@@ -1182,12 +1246,12 @@ pl_t		pl;
 		 * on other CPUs...
 		 */
 
-#ifdef	__UNIPROCESSOR__
+#if	_UNIPROCESSOR
 		cmn_err (CE_PANIC, "LOCK : deadlock on ticket");
 #endif
 	}
 
-#endif	/* defined (__TICKET_LOCK__) */
+#endif	/* _TICKET_LOCK */
 
 
 	/*
@@ -1208,7 +1272,17 @@ pl_t		pl;
 	 * Test the lock-acquisition-hierarchy assertions.
 	 */
 
+#if	1
+	if (ddi_cpu_data ()->dc_max_hierarchy >= lockp->bl_hierarchy) {
+		cmn_err (CE_WARN, "Heirarchy problem; want %s (%d), have %d",
+			 lockp->bl_node.ln_lkinfo->lk_name, lockp->bl_hierarchy,
+			 ddi_cpu_data ()->dc_max_hierarchy);
+		dump_locks (1);
+		backtrace (0);
+	}
+#else
 	ASSERT (ddi_cpu_data ()->dc_max_hierarchy < lockp->bl_hierarchy);
+#endif
 
 	LOCK_COUNT_HIERARCHY (lockp->bl_hierarchy);
 
@@ -1305,13 +1379,12 @@ pl_t		pl;
 #endif
 {
 	pl_t		prev_pl;
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	ushort_t	ticket_no;
 #endif
 
 	ASSERT (lockp != NULL);
 	ASSERT (splcmp (pl, plhi) <= 0);
-
 
 	/*
 	 * Enforce minimum-priority assertion, pl >= lockp->bl_min_pl. Note
@@ -1321,8 +1394,7 @@ pl_t		pl;
 
 	ASSERT (splcmp (pl, lockp->bl_min_pl) >= 0);
 
-
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	/*
 	 * If this is a ticket-lock, we test the ticket numbers to see
 	 * whether there is any reason to even try acquiring the test-and-set
@@ -1338,7 +1410,6 @@ pl_t		pl;
 	if (ticket_no != ATOMIC_FETCH_USHORT (lockp->bl_next_ticket))
 		return invpl;
 #endif
-
 
 	/*
 	 * We block out interrupts at this point to allow the following
@@ -1361,7 +1432,6 @@ pl_t		pl;
 
 	ASSERT (splcmp (pl, prev_pl) >= 0);
 
-
 	/*
 	 * Test to see whether the lock in question is already taken, and if
 	 * not, we take it. We don't spin if this is a ticket lock, since if
@@ -1370,7 +1440,7 @@ pl_t		pl;
 	 */
 
 	if (ATOMIC_TEST_AND_SET_UCHAR (lockp->bl_locked) == 0) {
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 		/*
 		 * If this is a ticket lock, now would be a good time to
 		 * check the ticket numbers to ensure that the lock *really*
@@ -1402,8 +1472,7 @@ pl_t		pl;
 
 		ATOMIC_CLEAR_UCHAR (lockp->bl_locked);
 
-#endif	/* defined (__TICKET_LOCK__) */
-
+#endif	/* _TICKET_LOCK */
 
 		/*
 		 * TRYLOCK () bypasses the hierarchy-assertion mechanism,
@@ -1421,7 +1490,9 @@ pl_t		pl;
 		return prev_pl;
 	}
 
+#if	_TICKET_LOCK
 try_failed:
+#endif
 	/*
 	 * We cannot acquire the lock, so reset the priority and exit with
 	 * the flag value.
@@ -1498,13 +1569,12 @@ lock_t	      *	lockp;
 pl_t		pl;
 #endif
 {
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	ushort_t	ticket_no;
 #endif
 
 	ASSERT (lockp != NULL);
 	ASSERT (splcmp (plbase, pl) <= 0 && splcmp (pl, plhi) <= 0);
-
 
 	/*
 	 * We assert that the lock is actually held by someone... in the case
@@ -1512,7 +1582,7 @@ pl_t		pl;
 	 * have an increment instruction and we'll need it later anyway.
 	 */
 
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	ticket_no = ATOMIC_FETCH_USHORT (lockp->bl_lock_holder);
 
 	ASSERT (ticket_no != ATOMIC_FETCH_USHORT (lockp->bl_next_ticket));
@@ -1535,7 +1605,7 @@ pl_t		pl;
 	 * whoever gets in first, depending on the locking system.
 	 */
 
-#ifdef	__TICKET_LOCK__
+#if	_TICKET_LOCK
 	if (ATOMIC_FETCH_AND_STORE_USHORT (lockp->bl_lock_holder,
 					   ticket_no + 1) != ticket_no) {
 		/*
@@ -1967,9 +2037,9 @@ pl_t		pl;
 
 		(void) splx (prev_pl);
 
-#ifdef	__UNIPROCESSOR__
+#if	_UNIPROCESSOR
 		cmn_err (CE_PANIC, "RW_RDLOCK : deadlock!");
-#elif	defined (__TEST_AND_TEST__)
+#elif	__TEST_AND_TEST__
 		/*
 		 * In order to reduce contention on the test-and-set part of
 		 * the read/write lock, we defer attempting to acquire that
@@ -2014,7 +2084,7 @@ pl_t		pl;
 
 
 #if 0
-#ifdef	__UNIPROCESSOR__
+#if	_UNIPROCESSOR
 	if (ticket_no != 0)
 		cmn_err (CE_WARN, "RW_RDLOCK : Recursive read-lock attempt");
 #endif
@@ -2558,9 +2628,9 @@ pl_t		pl;
 
 		while (ATOMIC_TEST_AND_SET_UCHAR (lockp->rw_locked) != 0) {
 
-#ifdef	__UNIPROCESSOR__
+#if	_UNIPROCESSOR
 			cmn_err (CE_PANIC, "RW_UNLOCK : deadlock!");
-#elif	defined (__TEST_AND_TEST__)
+#elif	__TEST_AND_TEST__
 			/*
 			 * To reduce contention, we wait until the test-and-
 			 * set lock is free before attempting to re-acquire
@@ -2770,7 +2840,7 @@ pl_t		pl;
 		 * on other CPUs...
 		 */
 
-#ifdef	__UNIPROCESSOR__
+#if	_UNIPROCESSOR
 		cmn_err (CE_PANIC, "RW_WRLOCK : deadlock on ticket");
 #endif
 	}

@@ -1,79 +1,34 @@
-#include <stdio.h>
-#include "tsort.h"
-
-
 /*
- *	Htab is the hash table.
+ * Read a string return the hash value computed using CRC-16 methods.
  */
-
-	static struct wordlist *htable[HASHSIZE];
-
-
-/*
- *	The function insert returns a pointer to the hash table entry
- *	corresponding to the name "str".
- *	If the entry is new, then it initializes the ancestors field to
- *	NULL.
- */
-
-struct word *
-insert(str)
-register char *str;
+unsigned short
+hash(p)
+register char *p;
 {
-	register struct wordlist *ptr; 
-	unsigned hindex;
-	unsigned hash();
-	struct word *newword();
-	struct wordlist *newwordl();
+	register unsigned char tmp, c; /* warning types are carefully chosen */
+	register unsigned short h;
 
-	hindex = hash(str) % HASHSIZE;
-	for (ptr=htable[hindex]; ptr != NULL; ptr=ptr->next)
-		if (strcmp(ptr->element->name, str) == 0)
-			return (ptr->element);
-	ptr = newwordl(newword(str));
-	ptr->next = htable[hindex];
-	htable[hindex] = ptr;
-	return (ptr->element);
-}
+	/*
+	 * Tables for the table-driven CRC16 algorithm.
+	 * This should be relatively uniform statistically.
+	 */
+	static	unsigned short crctab1[] = {
+		0000000,	0140301,	0140601,	0000500,
+		0141401,	0001700,	0001200,	0141101,
+		0143001,	0003300,	0003600,	0143501,
+		0002400,	0142701,	0142201,	0002100
+	};
 
+	static	unsigned short crctab2[] = {
+		0000000,	0146001,	0154001,	0012000,
+		0170001,	0036000,	0024000,	0162001,
+		0120001,	0066000,	0074000,	0132001,
+		0050000,	0116001,	0104001,	0043000
+	};
 
-/*
- *	The function hash computes the hash index of the
- *	string pointed to by "str".
- */
-
-static unsigned
-hash(str)
-register char *str;
-{
-	register unsigned result = 0;
-	register int ch;
-
-	while ((ch = *str++) != '\0')
-		result = 128 * result - result + 16 * (ch % 16) + (ch / 16);
-	return (result);
-}
-
-
-/*
- *	Cmphash returns a pointer to a wordlist which is a linked list
- *	of all words in the hash table.
- */
-
-struct wordlist *
-cmphash()
-{
-	register struct wordlist *mrk;
-	register struct wordlist *head;
-	register struct wordlist **htabp;
-
-	head = NULL;
-	for (htabp = htable; htabp - htable < HASHSIZE; ++htabp)
-		if (*htabp != NULL) {
-			for (mrk = *htabp; mrk->next != NULL; mrk = mrk->next)
-				;
-			mrk->next = head;
-			head = *htabp;
-		}
-	return (head);
+	for(h = 0; c = *p; p++) {
+		tmp = c ^ h;
+		h = (h >> 8) ^ crctab1[tmp & 15] ^ crctab2[tmp >> 4];
+	}
+	return(h);
 }

@@ -3,6 +3,8 @@
 / i387 mathematics library
 / sin(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

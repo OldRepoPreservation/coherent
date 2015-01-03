@@ -1,11 +1,13 @@
 /*
+ * libc/stdlib/putenv.c
+ * C general utilities library.
+ * putenv()
+ * Not in ANSI Standard.
  * Change or add value to environment.
- *
- * $Log: $
- * 87/02/05	Allan Cornish
- * Initial revision.
  */
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 
 /**
@@ -117,3 +119,5 @@ char * string;
 
 	return 0;
 }
+
+/* end of libc/stdlib/putenv.c */

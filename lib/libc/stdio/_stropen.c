@@ -6,7 +6,7 @@
  * Called by sprintf(), sscanf(), vsprintf().
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <limits.h>
 
 extern	int	_fputstr();

@@ -33,14 +33,14 @@
 
 #if	defined	(GNUDOS)
 
-#include <pc.h>
+# include <pc.h>
 
 #define	_putconsole(x,y,c)	ScreenPutChar (c, 0x07, x, y)	
 #define	_setcursor(x,y)		ScreenSetCursor (y, x)
 
 #elif	__BORLANDC__
 
-#include <dos.h>
+# include <dos.h>
 
 #define	_putconsole(x,y,c)	(* ((int __far *) MK_FP (0xB800, \
 					((x) - 1 + ((y) - 1) * 80) * 2)) \

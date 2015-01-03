@@ -1,4 +1,5 @@
 /*
+ * libc/stdlib/qsort.c
  * C general utilities library.
  * qsort()
  * ANSI 4.10.5.2.
@@ -39,11 +40,12 @@
  * alternative sorts rather than shellsort.
  */
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
 
-#define inOrder(h, l) ((*compar)((Void *)(h), (Void *)(l)) >= 0)
+#define inOrder(h, l) ((*compar)((__VOID__ *)(h), (__VOID__ *)(l)) >= 0)
 #define ptrToIx(p) (((p) - (char *)base) / size)
 #define ixToPtr(d) (base + ((d) * size))
 
@@ -60,14 +62,14 @@ extern void _memxchg();
 
 /* Recursion stack frame */
 typedef struct STACK {
-	Void *s_base;
+	__VOID__ *s_base;
 	size_t s_nmemb;
 	int s_badPivot;
 } STACK;
 
 void
 qsort(base, nmemb, size, compar)
-Void *base;
+__VOID__ *base;
 size_t nmemb, size;
 int (*compar)();
 {
@@ -126,13 +128,13 @@ int (*compar)();
 			 */
 			sp++;
 			if ((n = ptrToIx(top)) < (nmemb -= ptrToIx(bot))) {
-				sp->s_base = (Void *)bot;
+				sp->s_base = (__VOID__ *)bot;
 				sp->s_nmemb = nmemb;
 				nmemb = n;
 			} else {
 				sp->s_base = base;
 				sp->s_nmemb = n;
-				base = (Void *)bot;
+				base = (__VOID__ *)bot;
 			}
 
 			/*
@@ -148,3 +150,5 @@ int (*compar)();
 		shellsort(base, nmemb, size, compar);
 	}
 }
+
+/* end of libc/stdlib/qsort.c */

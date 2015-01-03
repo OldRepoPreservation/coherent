@@ -3,6 +3,8 @@
 / i387 mathematics library
 / atan(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

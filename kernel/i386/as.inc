@@ -1,17 +1,18 @@
+	.globl	__cinit
+	.globl	mchinit
+	.globl	i8086
+	.globl	main
+	.globl	gpfault
+	.globl	stackfault
+
 	.globl	_canl
-	.globl	aicodep		/ Position of code.
-	.globl	aicodes		/ Size of code.
+	.globl	aicode		/ Position of code.
+	.globl	aicode_end	/ Size of code.
 	.globl	boot
-	.globl	clearseg_b
-	.globl	clearseg_d
-	.globl	clk
-	.globl	clrq
-	.globl	cltinit
 	.globl	conrest
 	.globl	consave
-	.globl	copyseg_b
-	.globl	copyseg_d
 	.globl	cs_sel
+	.globl	dev0
 	.globl	dev1
 	.globl	dev10
 	.globl	dev11
@@ -28,10 +29,6 @@
 	.globl	dev9
 	.globl	envrest
 	.globl	envsave
-	.globl	eoi
-	.globl	gdt
-	.globl	gdtinit
-	.globl	gdtmap
 	.globl	getubd
 	.globl	getupd
 	.globl	getusd
@@ -39,43 +36,35 @@
 	.globl	halt
 	.globl	idt
 	.globl	idtend
-	.globl	idtmap
-	.globl	inb
 	.globl	int11
-	.globl	io2seg
 	.globl	kucopy
 	.globl	ldt
 	.globl	ldtend
 	.globl	mmuupd
 	.globl	mmuupdfR0
 	.globl	mmuupdnR0
-	.globl	msysgen
-	.globl	outb
 	.globl	putubd
 	.globl	putusd
 	.globl	putuwd
 	.globl	putuwi
 	.globl	read_cmos
-	.globl	regcr2
-	.globl	regfp
 	.globl	sdata
-	.globl	seg2io
 	.globl	setEmfR0
 	.globl	setspace
-	.globl	sig32
+	.globl	signal_386
 	.globl	sphi
 	.globl	spl
 	.globl	splo
 	.globl	stext
-	.globl	syc
-	.globl	syc32
+	.globl	syscall_286
+	.globl	syscall_386
 	.globl	trap0
 	.globl	trap1_ker
 	.globl	trap1_usr
 	.globl	trap10
 	.globl	trap11
-	.globl	trap12
-	.globl	trap13
+/	.globl	trap12
+/	.globl	trap13
 	.globl	trap14
 	.globl	trap16
 	.globl	trap2
@@ -86,14 +75,8 @@
 	.globl	trap7
 	.globl	trap8
 	.globl	trap9
-	.globl	trapcode
-	.globl	tsave
-	.globl	tss
 	.globl	u
 	.globl	ukcopy
-	.globl	vecs
-	.globl	vret
-	.globl	waitq
 	.globl	write_cmos
 
 	.set	BPC1SHIFT,	10	/ BPCSHIFT - log2(sizeof(long))
@@ -122,7 +105,7 @@
 	.set	PX_OPND,	0x66	/ register values & immediates
 	.set	R_USR,		3	/ user level ring number
 	.set	SBASE,		0xFFC00
-	.set	TSS_IOMAP_LEN,	0x1A40	/ number of port addresses mapped
+	.set	TSS_IOMAP_LEN,	0x1000	/ number of port addresses mapped
 	.set	TSS_IOMAP_OFF,	0x68	/ byte offset of io bitmap in tss
 	.set	VIDEO,		0x10	/ Video BIOS interrupt for early debugging.
 
@@ -162,6 +145,4 @@
 	.set	SPICM,		0xA1	/ Slave 8259 IMR I/O port.
 	.set	STROBE,	0x01
 	.set	UADDR,		0x3FFFFC
-	.set	U_ERROR,	2	/ Offset into u for u_error
-	.set	X_ERR,		52
-	.set	X_TRAPNO,	48
+	.set	U_ERROR,	0	/ Offset into u for u_error

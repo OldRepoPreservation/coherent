@@ -1,4 +1,5 @@
 /*
+ * libc/stdlib/atol.c
  * C general utilities library.
  * atol()
  * ANSI 4.10.1.3.
@@ -34,4 +35,4 @@ atol(nptr) register char *nptr;
 	return (sign ? -val : val);
 }
 
-/* end of atol.c */
+/* end of libc/stdlib/atol.c */

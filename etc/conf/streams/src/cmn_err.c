@@ -1,8 +1,12 @@
+/* $Header: $ */
+
 #define	_DDI_DKI	1
 #define	_SYSV4		1
 
 /*
- * Error-reporting code....
+ * Error-reporting code, in the DDI/DKI mould.
+ *
+ * $Log: $
  */
 
 /*
@@ -21,8 +25,6 @@
  *		LOCK ()
  *		LOCK_ALLOC ()
  *		UNLOCK ()
- *	<common/_null.h>
- *		NULL
  *	<limits.h>
  *		CHAR_BIT
  *	<stdarg.h>
@@ -40,17 +42,18 @@
 #include <common/xdebug.h>
 #include <sys/inline.h>
 #include <sys/ksynch.h>
-#include <common/_null.h>
 #include <sys/ddi.h>
 
+#include <sys/types.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stddef.h>
 
 #include <sys/cmn_err.h>
 
 #ifdef	__MSDOS__
 
-#include <process.h>
+# include <process.h>
 
 #endif
 
@@ -520,6 +523,11 @@ bad_format:
 		splx (plbase);
 
 		exit (3);	/* call atexit () functions */
+#else
+		extern void backtrace ();
+		backtrace ();
+		for (;;)
+			/* DO NOTHING */ ;
 #endif
 	}
 }

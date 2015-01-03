@@ -1,3 +1,7 @@
+/*
+ * Test routines for the fast heap manager
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 

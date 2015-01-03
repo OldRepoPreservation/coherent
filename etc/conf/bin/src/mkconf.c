@@ -13,8 +13,7 @@
  *		PROTO
  *		ARGS ()
  *		LOCAL
- *	<kernel/v_types.h>
- *		NODEV
+ *	<sys/types.h>
  *		major_t
  *		minor_t
  *	<stddef.h>
@@ -51,12 +50,15 @@
  */
 
 #include <sys/compat.h>
-#include <kernel/v_types.h>
+#include <sys/types.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <time.h>
 #if	__COHERENT__
 #include <string.h>
+#if	1
+#include <fcntl.h>
+#endif
 #endif
 
 #include "ehand.h"
@@ -64,8 +66,13 @@
 #include "sdev.h"
 #include "symbol.h"
 #include "assign.h"
+#include "ecodes.h"
 
 #include "mkconf.h"
+
+#ifndef	NODEV
+# define	NODEV	((major_t) -1)
+#endif
 
 
 /*
@@ -120,6 +127,9 @@ LOCAL struct extern_tab _exttab [] = {
 	 * combination STREAMS and block drivers, because with a common entry
 	 * point table for both types of device the block-mode entry points
 	 * like open () will conflict with the stub generated for STREAMS.
+	 *
+	 * There are special cases which this table is too simple to be able
+	 * to deal with... look in the main code as well.
 	 */
 
 	{ NULL,	MDEV_OPEN,	"DECLARE_OPEN (%s)" },
@@ -130,7 +140,7 @@ LOCAL struct extern_tab _exttab [] = {
 	{ NULL,	MDEV_CHPOLL,	"DECLARE_CHPOLL (%s)" },
 
 	{ NULL,	MDEV_INIT,	"DECLARE_INIT (%s)" },
-	{ NULL,	MDEV_STARTUP,	"DECLARE_STARTUP (%s)" },
+	{ NULL,	MDEV_START,	"DECLARE_START (%s)" },
 	{ NULL,	MDEV_EXIT,	"DECLARE_EXIT (%s)" },
 	{ NULL,	MDEV_HALT,	"DECLARE_HALT (%s)" },
 
@@ -181,10 +191,12 @@ struct extern_tab * tab;
 	CONST char    *	fcheck;
 
 	if (out == NULL || mdevp == NULL || tab == NULL)
-		throw_error ("NULL pointer passed to write_func ()");
+		throw_error (INTERNAL_ERROR,
+			     "NULL pointer passed to write_func ()");
 
 	if (tab->outstr == NULL)
-		throw_error ("bad table parameter passed to write_func ()");
+		throw_error (INTERNAL_ERROR,
+			     "bad table parameter passed to write_func ()");
 
 	if ((fcheck = tab->flags) != NULL) {
 		/*
@@ -206,7 +218,11 @@ struct extern_tab * tab;
 	if (tab->func && ! mdev_func (mdevp, tab->func))
 		return;
 
-	(void) fprintf (out, tab->outstr, mdevp->md_prefix->s_data);
+	if (tab->func == MDEV_OPEN && mdev_func (mdevp, MDEV_CLOSE)) {
+		(void) fprintf (out, "DECLARE_OPEN_CLOSE (%s);",
+				mdevp->md_prefix->s_data);
+	} else
+		(void) fprintf (out, tab->outstr, mdevp->md_prefix->s_data);
 	(void) fputc ('\n', out);
 }
 
@@ -227,7 +243,8 @@ mdev_t	      *	mdevp;
 	int		i;
 
 	if (mdevp == NULL)
-		throw_error ("NULL 'mdevp' passed to write_extern ()");
+		throw_error (INTERNAL_ERROR,
+			     "NULL 'mdevp' passed to write_extern ()");
 
 	if (mdevp->md_configure != MD_ENABLED)
 		return;
@@ -363,7 +380,7 @@ FILE	      *	out;
 #endif
 {
 	write_ISEH (out, MDEV_INIT,	"init",	"INIT");
-	write_ISEH (out, MDEV_STARTUP,	"start","START");
+	write_ISEH (out, MDEV_START,	"start","START");
 	write_ISEH (out, MDEV_EXIT,	"exit",	"EXIT");
 	write_ISEH (out, MDEV_HALT,	"halt",	"HALT");
 }
@@ -614,7 +631,7 @@ sel_vector ARGS ((sdevp))
 sdev_t	      *	sdevp;
 #endif
 {
-	return sdevp->sd_itype > 0;
+	return sdevp->sd_itype > 0 && sdevp->sd_config != 0;
 }
 
 
@@ -672,7 +689,7 @@ FILE	      *	out;
 		masks [i] = 0;
 
 	for (sdevp = sdev_list ; sdevp != NULL ; sdevp = sdevp->sd_link)
-		masks [sdevp->sd_ipl] = 1UL << sdevp->sd_vector;
+		masks [sdevp->sd_ipl] |= 1UL << sdevp->sd_vector;
 
 	(void) fprintf (out, "intmask_t _masktab [] = {");
 
@@ -708,7 +725,8 @@ FILE	      *	out;
 					i, masks [sdevp->sd_ipl]);
 		}
 
-		(void) fprintf (out, "\tCALL_INTR (%d, %s)\n", i,
+		(void) fprintf (out, "\tCALL_INTR (%d, %d, %s)\n", i,
+				sdevp->sd_unit,
 				sdevp->sd_mdevp->md_prefix->s_data);
 	}
 
@@ -742,7 +760,11 @@ FILE	      *	out;
 
 			i = sdevp->sd_vector;
 
-			(void) fprintf (out, "\tINTR_THUNK (%d)", i);
+			(void) fprintf (out,
+					"\tINTR_THUNK (%d, %d, 0x%xUL, %s)",
+					i, sdevp->sd_unit,
+					masks [sdevp->sd_ipl],
+					sdevp->sd_mdevp->md_prefix->s_data);
 		}
 	}
 
@@ -785,6 +807,22 @@ extinfo_t     *	extinfop;
 
 
 /*
+ * Write out information about Controller Memory Area usage.
+ */
+
+#if	USE_PROTO
+int write_memstuff (FILE * out)
+#else
+int
+write_memstuff (out)
+FILE	      *	out;
+#endif
+{
+	fprintf (out, "unsigned long	physical_mapping_map = 0;\n");
+}
+
+
+/*
  * Write out a C-language configuration file with definitions for all the data
  * the implementation needs compiled from the plain-text configuration
  * database.
@@ -807,7 +845,17 @@ extinfo_t     *	extinfop;
 	if (name == NULL)
 		out = stdout;
 	else if ((out = fopen (name, "w")) == NULL)
-		throw_error ("Unable to open output file for writing");
+		throw_error (CANNOT_UPDATE,
+			     "Unable to open output file for writing");
+
+#if	1
+	/*
+	 * For debugging some installation problems.
+	 */
+
+	(void) fcntl (fileno (out), F_SETFL,
+		      fcntl (fileno (out), F_GETFL) | O_TRACE);
+#endif
 
 	if (PUSH_HANDLER (err) == 0) {
 		time (& gentime);
@@ -831,7 +879,8 @@ extinfo_t     *	extinfop;
 		fprintf (out, " */\n\n");
 		fprintf (out, "#define _KERNEL\t\t1\n");
 		fprintf (out, "#define _DDI_DKI\t1\n\n");
-		fprintf (out, "#include <sys/confinfo.h>\n\n");
+		fprintf (out, "#include <sys/confinfo.h>\n");
+		fprintf (out, "#include <sys/types.h>\n\n");
 
 		write_externs (out);
 		write_misc (out);
@@ -839,6 +888,8 @@ extinfo_t     *	extinfop;
 		write_modtab (out, extinfop);
 		write_mappings (out, extinfop);
 		write_vectors (out);
+		write_memstuff (out);
+
 #if	__COHERENT__
 		write_drvl (out, extinfop);
 #endif

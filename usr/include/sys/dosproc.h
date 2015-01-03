@@ -16,7 +16,9 @@ typedef enum {
 
 typedef struct {
 	pstate_t	p_state;
-	char		p_nigel	[16];
+	struct {
+		char		_space [16];
+	} p_ddi_space;
 } proc_t;
 
 

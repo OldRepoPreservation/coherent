@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / double _dfcvt()
 / Convert float in %eax to double, return in %edx:%eax.

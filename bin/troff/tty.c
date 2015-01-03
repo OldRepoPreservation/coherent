@@ -4,6 +4,29 @@
  * nroff output writer, aka TTY driver.
  */
 
+/*
+ * Print model notes:
+ * Prior to 7/94, this nroff back end performed spacing with \b, \n, \r,
+ * and the escape sequences RLF HRLF HLF LF (i.e. <Esc> [789B]).
+ * \r implies movement to horizontal position 0 with no vertical movement (CR).
+ * \n implies movement to both horizontal and vertical position 0 (CR + LF).
+ * Escape sequences LF and RLF imply movement to the next or previous
+ * line with no horizontal movement.
+ * Escape sequences HLF and HRLF imply movement to the next or previous
+ * half-line with no horizontal movement.
+ *
+ * fred noted 7/94 that the half-line movement escapes caused problems for e.g.
+ *	.sp .5
+ * and that the output was inconsistent with gnroff.
+ * Accordingly, steve eliminated all use of half-line motions.
+ * gnroff performs reverse line motions by building a virtual output page
+ * and writing the entire page when done, so there are no reverse movement
+ * characters in the output.  While this is clearly the right thing to do,
+ * it requires fairly extensive recoding and is not done at this time.
+ * Instead, this source still uses the escapes LF and RLF for now,
+ * a simple back-end filter could be used to build the virtual page if desired.
+ */
+
 #include <ctype.h>
 #include "roff.h"
 
@@ -12,10 +35,8 @@
 #define	FONTB	1			/* Bold				*/
 #define	FONTI	2			/* Italic			*/
 
-/* Special escape sequences. */
+/* Special escape sequences, meaningless for real devices; see comment above. */
 #define	RLF	"\0337"			/* Reverse line feed		*/
-#define	HRLF	"\0338"			/* Half reverse line feed	*/
-#define	HLF	"\0339"			/* Half line feed		*/
 #define	LF	"\033B"			/* Line feed			*/
 
 /*
@@ -123,20 +144,25 @@ flushl(buffer, bufend) CODE *buffer; CODE *bufend;
 		case DPSZE:
 			continue;
 		case DSPAR:
+			/* Space down and return. */
 			hpos = hres = 0;
 			vres += i;
 			if (vres >= 0) {
-				n = (vres+10) / 20;
-				vres -= n*20;
+				n = (vres + 9) / 20;
 				while (n--)
 					putchar('\n');
 			} else {
 				putchar('\r');
-				n = (-vres+9)/20;
-				vres += n*20;
+				n = (-vres + 9) / 20;
 				while (n--)
 					printf(RLF);
 			}
+			/*
+			 * N.B. Before 7/94, this accumulated the difference
+			 * in vres, now it zeroes it; i.e., non-line motions
+			 * do not accumulate across commands.
+			 */
+			vres = 0;
 			continue;
 		case DTRAB:			/* transparent line */
 			tp = cp->b_arg.c_bufp;
@@ -146,19 +172,13 @@ flushl(buffer, bufend) CODE *buffer; CODE *bufend;
 			continue;
 		default:
 			if (vres >= 0) {
-				vres += 5;
-				n = (vres) / 20;
+				n = (vres + 9) / 20;
 				while (n--)
 					printf(LF);
-				if (vres%20/10)
-					printf(HLF);
 			} else {
-				vres -= 5;
-				n = (-vres)/20;
+				n = (-vres + 9 )/20;
 				while (n--)
 					printf(RLF);
-				if (-vres%20/10)
-					printf(HRLF);
 			}
 			vres = 0;
 			if (hres >= 0) {

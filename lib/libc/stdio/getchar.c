@@ -6,7 +6,7 @@
  * Get character from stdin.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #undef	getchar
 
 int

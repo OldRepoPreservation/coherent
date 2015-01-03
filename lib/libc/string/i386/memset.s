@@ -4,6 +4,8 @@
 / ANSI 4.11.6.1.
 //////////
 
+	.intelorder
+
 //////////
 / void *
 / memset(void *String, int Char, size_t Count)

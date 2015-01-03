@@ -1,124 +1,57 @@
 /*
- * ld/data.c
- * General Loader-Binder
- *
- * Knows about FILE struct to the extent it is revealed in putc
- * if BREADBOX is non-zero
+ * 80386 assembler common data
  */
+#include <asm.h>
 
-#include "data.h"
+#ifdef GEM
+long _stksize = 4096;
+#endif
+short errCt;		/* count of errors */
+short kind;		/* the op->kind of current opcode */
+short lastToken;	/* last token returned to yacc */
+char gswitch;		/* make symbols of type S_NEW global */
 
-/*
- * Start variables & constants
- */
+char lswitch;		/* print a listing */
+char pswitch;		/* print headers */
+char mlistsw = 1;	/* print macro expansions */
+char rswitch;		/* don't use % on register names */
+char fswitch;		/* reverse order of operands */
+char bswitch;		/* reverse bracket sense */
+char wswitch;		/* shut off as warnings */
+char nswitch;		/* place nop after E9 type jump */
+char Qswitch;		/* no messages */
+char xswitch;		/* don't put local symbols in object file */
+char Xswitch;		/* don't put .L symbols in object file */
+char *title;		/* title header */
+char *dTime;		/* time of compile */
+char *lastL;		/* last line read for listing */
+char alignon;		/* automatically align data objects */
+char alignonX;		/* alignon from switches */
+short lineSize = 79;	/* listing line length */
+short nlpp = 56;	/* default lines per page */
+short linect = 56;	/* current line number */
+short pass = 0;		/* current pass number */
+int statement;		/* statment number */
+inpctl *inpc;		/* file stack */
+macro *inMacDef;	/* in macro definition */
+macro *macFound;	/* the macro found by lex.c */
+macctl *macExp;		/* in macro expansion */
+macctl *trueMac;	/* get the real macro being expanded */
+macctl *logic;		/* logical level of control */
+macline *lastDef;	/* last macro line defined */
+short macNo;		/* macro expansion number */
+short defCt;		/* number of defines */
+short longMode = 1;	/* 1 = 80386 mode, 0 = 80286 mode */
+unsigned lflags;	/* is it long mode or not */
+char *outName;		/* name of output file */
+char lswitchX;		/* storage for lswitch from -l */
+char fswitchX;		/* storage for fswitch from -f */
+char bswitchX;		/* storage for bswitch from -b */
+char wswitchX;		/* storage for wswitch from -w */
+char nswitchX;		/* storage for nswitch from -n */
+short pcnt, bcnt;	/* count op parens and brackets + left - right */
+short choices;		/* Number of ways to do this opcode */
+char xpass;		/* set if a branch changes size */
 
-sym_t	*symtable[NHASH];	/* hashed symbol table */
-mod_t	*modhead, *modtail;	/* module list head and tail */
-seg_t	oseg[NLSEG];		/* output segment descriptors */
-int	nundef;			/* number of undefined symbols */
-uaddr_t	commons;		/* accumulate size of commons */
-sym_t	*etext_s, *edata_s, *end_s;	/* special loader generated symbols */
-char	etext_id[NCPLN] = "etext_",	/* and their names */
-	edata_id[NCPLN] = "edata_",
-	end_id[NCPLN] = "end_";
-ldh_t	oldh			/* output load file header */
-		= { L_MAGIC };
-char	*mchname[]		/* names of known machines */
-		= {	"Turing Machine",
-			"PDP-11",
-			"VAX-11",
-			"3sickly",
-			"Z8001",
-			"Z8002",
-			"iAPX 86",
-			"i8080",
-			"6800",
-			"6809",
-			"68000"
-		};
-uaddr_t	segsize[]		/* size of segment on target machine */
-		= {	0,
-			8192,
-			512,
-			2048,
-			0,
-			512,
-			16,
-			0,
-			0,
-			0,
-			0
-		},
-	drvbase[]		/* base of loadable driver */
-		= {	0,
-			0120000,
-			0,
-			0,
-			0,
-			0xD000,
-			0xD000,
-			0,
-			0,
-			0,
-			0
-		},
-	drvtop[]		/* address limit of loadable driver */
-		= {	0,
-			0140000,
-			0,
-			0,
-			0,
-			0xF000,
-			0xF000,
-			0,
-			0,
-			0,
-			0
-		};
-flag_t	noilcl,			/* discard internal symbols `L...' */
-	nolcl,			/* discard local symbols */
-	watch,			/* watch everything happen */
-	worder;			/* byte order in word; depends on machine */
-char	*outbuf;		/* buffer for in-memory load */
-FILE	*outputf[NLSEG];	/* output ptrs (for each segment) */
-
-/*
- * Structures associated with storage economy
- */
-char	pbuf1[BUFSIZ],		/* permanent i/o buffers */
-	pbuf2[BUFSIZ];
-mod_t	*mtemp;			/* only one module in core at a time */
-FILE	*mfp;			/* temp file for module structures */
-int	mdisk,			/* flag <>0 means module struct to disk */
-	nmod,			/* module count */
-	mxmsym;			/* max # of symbols ref'd by 1 module */
-
-/*
- * Seconds between ranlib update and archive modify times
- */
-#define	SLOPTIME 150
-
-/* values for worder */
-#define	LOHI	0
-#define	HILO	1
-
-/*
- * For pass 2; these will change if format of relocation changed
- */
-#define	getaddr	getlohi
-#define	putaddr(addr, fp, sgp)	putlohi((short)(addr), fp, sgp)
-#define	getsymno getlohi
-#define	putsymno putlohi
-
-/*
- * C requires this...
- */
-void	baseall(), endbind(), undef();
-uaddr_t	setbase(), newpage(), lentry();
-fsize_t	segoffs();
-void	symredef(), rdsystem();
-sym_t	*addsym(), *symref(), *newsym();
-fsize_t	symoff();
-void	loadmod(), putstruc(), putword(), putlohi(), puthilo(), putbyte();
-unsigned short	getword(), getlohi(), gethilo();
-void	message(), fatal(), usage(), filemsg(), modmsg(), mpmsg(), spmsg();
+long showSym;		/* location of clobbered symbol */
+FILE *errdev;		/* Where to put out errors */

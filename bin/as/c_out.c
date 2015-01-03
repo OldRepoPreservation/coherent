@@ -594,7 +594,7 @@ char *fn;
 			linepos += s->s_nlnno  * LINESZ;
 		}
 	}
-	size =  sizeof(FILEHDR) + (usects * sizeof(SCNHDR));
+	size =  sizeof(FILHDR) + (usects * sizeof(SCNHDR));
 	debpos  = size + datapos + relpos + linepos;
 	sympos  = debpos + (txtAt * SYMESZ);
 	linepos = size + datapos + relpos;
@@ -661,7 +661,7 @@ static void
 writeHeader()
 {
 	register seg *s;
-	FILEHDR head;
+	FILHDR head;
 	int i;
 	long loadd;
 

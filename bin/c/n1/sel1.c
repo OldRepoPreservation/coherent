@@ -1,7 +1,9 @@
 /*
+ * n1/sel1.c
  * C compiler.
  * Pattern selection.
  */
+
 #ifdef   vax
 #include "INC$LIB:cc1.h"
 #else
@@ -94,17 +96,23 @@ rematch:
 	nflag = nflagtab[c];
 	ntype = pertype[tp->t_type].p_type;
 	if (tp->t_op < MIOBASE)
-		return (0);
-	/* Try for matches with widening conversions deleted.
-	 * Shrink type conversions must remain as
-	 * they may clear or sign extend the operand. */
+		return 0;
+	/*
+	 * Try for simpler matches with widening conversions deleted.
+	 * Only signed->signed or unsigned->unsigned widens can be deleted.
+	 * The result of a shrink may be a truncation of
+	 * the operand value, so shrink conversions must remain.
+	 * The result of a signed->unsigned or unsigned->signed widen
+	 * must be treated as unsigned or signed, so it must remain also.
+	 */
 	lp = tp->t_lp;
 	if (iswiden(lp)) {
 		ap = lp->t_lp;
-		if (ap->t_op >= MIOBASE) {
+		if (ap->t_op >= MIOBASE
+		 && (isuns(lp->t_type) == isuns(ap->t_type))) {
 			tp->t_lp = ap;
 			if (seltree(tp, c, r))
-				return (1);
+				return 1;
 			tp->t_lp = lp;
 		}
 	}
@@ -117,12 +125,14 @@ rematch:
 	if ((op = tp->t_op) != FIELD) {
 		rp = tp->t_rp;
 		if (rp != NULL) {
+			/* Try to delete widening conversions, see comment above. */
 			if (iswiden(rp)) {
 				ap = rp->t_lp;
-				if (ap->t_op >= MIOBASE) {
+				if (ap->t_op >= MIOBASE
+				 && (isuns(rp->t_type) == isuns(ap->t_type))) {
 					tp->t_rp = ap;
 					if (seltree(tp, c, r))
-						return (1);
+						return 1;
 					tp->t_rp = rp;
 				}
 			}
@@ -144,7 +154,7 @@ again:
 	curxreg = savxreg;
 	tp->t_patp = NULL;
 	if (--npat < 0)
-		return (0);
+		return 0;
 	++patp;
 	consnapv(10, "%I: ", patp);
 	/* Pattern flag: specifies whether this pattern
@@ -436,5 +446,7 @@ again:
 		setused(tp, rreg);
 	curbusy = savbusy;
 	curxreg = savxreg;
-	return (1);
+	return 1;
 }
+
+/* end of n1/sel1.c */

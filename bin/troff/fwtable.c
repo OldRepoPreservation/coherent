@@ -1,6 +1,6 @@
 /*
  * fwtable.c
- * 6/7/91
+ * 4/23/95
  * Usage: fwtable [ -cptv ] [ -ssymset ] [ infile [ outfile ] ]
  * Read HP PCL bitmap font, PostScript AFM file, or HP TFM file
  * from infile or stdin, write font width table to outfile or stdout.
@@ -30,6 +30,7 @@
  */
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <canon.h>
 #include "fwtable.h"
 
@@ -122,7 +123,7 @@ char	*faces[] = {
 	"Broadway",			/* 21 */
 	"BauerBodoniBlack",		/* 22 */
 	"NewCenturySchlbk",		/* 23 */
-	"               "		/* >23 */
+	NULL				/* >23 */
  };
 #define	NFACES	((sizeof faces / sizeof faces[0]) - 1)
 
@@ -304,7 +305,7 @@ char_def(size) int size;
 {
 	register character_header *ch;
 
-	ch = alloc(size);
+	ch = (character_header *)alloc(size);
 	ch->c_format = getuchar();
 	ch->c_continuation = getuchar();
 	ch->c_size = getuchar();
@@ -492,7 +493,7 @@ escape_cparen()
 			fhp->f_symbol_set % 32 + 64);
 	}
 	if (fhp->f_hsize > 26) {
-		fe = fhp->f_comment;
+		fe = (font_extra *)fhp->f_comment;
 		pointsz += ((double) fe->a_poextend)/4275.0;
 		if (fe->a_serif > NSERIFS)
 			fe->a_serif = NSERIFS;
@@ -643,13 +644,23 @@ escape_star()
 }
 
 /* VARARGS */
+#if	defined(__STDC__)
+void
+fatal(char *args, ...)
+#else
 void
 fatal(args) char *args;
+#endif
 {
+	va_list ap;
+
 	fprintf(stderr, "fwtable: ");
 	if (lineno != 0)
 		fprintf(stderr, "%d: ", lineno);
-	fprintf(stderr, "%r\n", &args);
+	va_start(ap, args);
+	vfprintf(stderr, args, ap);
+	va_end(ap);
+	fputc('\n', stderr);
 	exit(1);
 }
 
@@ -705,11 +716,22 @@ getuchar()
 	return (c & 0xFF);
 }
 
+#if	defined(__STDC__)
+void
+nonfatal(char *args, ...)
+#else
 /* VARARGS */
 void
 nonfatal(args) char *args;
+#endif
 {
-	fprintf(stderr, "fwtable: %ld: %r\n", ftell(ifp), &args);
+	va_list ap;
+
+	fprintf(stderr, "fwtable: %ld: ", ftell(ifp));
+	va_start(ap, args);
+	vfprintf(stderr, args, ap);
+	va_end(ap);
+	fputc('\n', stderr);
 }
 
 /*
@@ -759,7 +781,7 @@ read_header(size) register int size;
 
 	if (fhp != NULL)
 		fatal("multiple font headers");
-	fhp = alloc(size);
+	fhp = (font_header *)alloc(size);
 	fhp->f_hsize = getshort();
 	fhp->f_desc_format = getuchar();
 	if (fhp->f_desc_format == 10)
@@ -782,6 +804,8 @@ read_header(size) register int size;
 	fhp->f_face = getuchar();
 	if (fhp->f_face > NFACES) {
 		/* Use extra entry at end of table. */
+		if (faces[NFACES] == NULL)
+			faces[NFACES] = alloc(strlen("[Typeface nnn]") + 1);
 		sprintf(faces[NFACES], "[Typeface %3d]", fhp->f_face);
 		fhp->f_face = NFACES;
 	}

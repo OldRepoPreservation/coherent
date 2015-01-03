@@ -1,6 +1,10 @@
 /*
+ * libm/exp.c
+ * C mathematics library.
+ * exp()
  * Exponential function.
  */
+
 #include <math.h>
 
 #if	EMU87
@@ -8,8 +12,9 @@
 #endif
 
 double
-exp(x)
-double x;
+exp(x) double x;
 {
-	return (_two(x*LOGEB2));
+	return _two(x * LOGEB2);
 }
+
+/* end of libm/exp.c */

@@ -18,7 +18,7 @@ int	cantype;			/* Canonization type		*/
 #endif
 char	*cfn;				/* Core file name		*/
 FILE	*cfp;				/* Core file pointer		*/
-FILEHDR	coff_hdr;			/* COFF file header		*/
+FILHDR	coff_hdr;			/* COFF file header		*/
 int	cseg;				/* Current segment		*/
 ADDR_T	dot;				/* Current address		*/
 MAP	*endpure;			/* End of pure area		*/
@@ -48,6 +48,7 @@ char	*step_cmd;			/* Command for single step	*/
 int	step_count;			/* Single step count		*/
 int	step_mode;			/* Single step mode		*/
 int	step_prev;			/* Last mode run (if single)	*/
+char	*symfile;			/* Symbol file given by -m	*/
 SYM	*symhash[NHASH];		/* SYM table hash buckets	*/
 int	ungotc;				/* Ungot character		*/
 

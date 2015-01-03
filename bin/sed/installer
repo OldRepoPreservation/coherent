@@ -1,2 +1,4 @@
-cp sed /bin
-chmog 511 bin bin /bin/sed
+set -x
+cp $* /bin
+cd /bin
+chmog 555 bin bin $*

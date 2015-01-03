@@ -8,6 +8,16 @@
 #ifndef	__CANON_H__
 #define	__CANON_H__
 
+#if	defined(sparc)
+
+extern	unsigned short	_canshort();
+extern	unsigned long	_canlong();
+
+#define	canlong(l)	((l) = _canlong(l))
+#define	canshort(i)	((i) = _canshort(i))
+
+#else	/* defined(sparc) */
+
 /*
  * Coherent.
  * Canonical conversion routines for the Intel 8086.
@@ -25,4 +35,6 @@ long	_canl();
 #define	cantime(t)	((t)=_canl(t))
 #define	canvaddr(v)
 
-#endif
+#endif	/* defined(sparc) */
+
+#endif	/* __CANON_H__) */

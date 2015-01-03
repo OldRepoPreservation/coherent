@@ -4,23 +4,22 @@
 / ANSI 4.11.5.5.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / strrchr(char *String, int Char)
 /
 / Find rightmost occurence of Char in String, return pointer or NULL.
-/ Previously known as rindex();
-/ rindex() entry point retained for backward compatability.
+/ Previously known as rindex().
 //////////
 
 String	.equ	8
 Char	.equ	String+4
 
 	.globl	strrchr
-	.globl	rindex
 
 strrchr:
-rindex:
 	push	%esi
 
 	movl	%esi, String(%esp)	/ String address to ESI

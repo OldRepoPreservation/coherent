@@ -5,7 +5,7 @@
  * Write character, line buffered.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fputt(c, fp) int c; register FILE *fp;

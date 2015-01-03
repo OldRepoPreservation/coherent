@@ -1,14 +1,21 @@
-/*
- * /usr/include/sys/types.h
- *
- * Revised: Wed Apr  7 15:15:05 1993 CDT
- */
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
+#ifndef	__SYS_TYPES_H__
+#define	__SYS_TYPES_H__
 
 /*
  * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990, and as
- * such client programs which include this program may not use any symbols
+ * such client programs which include this header may not use any symbols
  * which end in "_t".
  */
+
+#include <common/feature.h>
+#include <common/ccompat.h>
 
 /*
  * The contents of this header are also defined by the provisions of binary
@@ -17,9 +24,9 @@
  * controlled by feature-test macros such as _SYSV3 for iBCS2, and _SYSV4 for
  * System V, Release 4.
  *
- * System headers which depend on this file for definitions should take care
- * when using symbols that have different definitions under the _SVR3 and
- * _SVR4 environments. This header defines both versions under internal names
+ * System headers that depend on this file for definitions should take care
+ * when using symbols that have different definitions under the _SYSV3 and
+ * _SYSV4 environments. This header defines both versions under internal names
  * beginning with o_ for SVR3 and n_ for SVR4, and then uses one of those
  * definitions as the base for the external definition.
  */
@@ -29,7 +36,7 @@
  * the System V, Release 4 Multiprocessor DDI/DKI, which defines additional
  * symbols. The visibility of symbols unique to the DDI/DKI is controlled by
  * the _DDI_DKI feature-test macro. Headers in the DDI/DKI are part of the
- * kernel environment, and should not depend on the _SVR3 or _SVR4 feature-
+ * kernel environment, and should not depend on the _SYSV3 or _SYSV4 feature-
  * tests.
  *
  * The rationale for all of this is to ease the transition between providing
@@ -39,111 +46,113 @@
  * set of data declarations even when attempting to provide a service which
  * uses conflicting definitions.
  */
-#ifndef	__SYS_TYPES_H__
-#define	__SYS_TYPES_H__
 
-typedef	unsigned short	o_dev_t;
-typedef	unsigned long	n_dev_t;
+#include <common/_ssize.h>
+#include <common/_size.h>
+#include <common/_pid.h>
+#include <common/_off.h>
+#include <common/_uid.h>
 
-typedef	short		o_nlink_t;
-typedef	unsigned long	n_nlink_t;
-
-typedef	unsigned short	o_ino_t;
-typedef	unsigned long	n_ino_t;
-
-
-/*
- * "ssize_t" and "size_t" are defined by several other headers. We appeal to
- * the common definition.  Here we also pull in internal definitions that
- * are kept in special system headers.
- */
-
-#include <sys/_ssize.h>
-#include <sys/_size.h>
-#include <sys/__pid.h>
+typedef	__uid_t		uid_t;
+typedef	__gid_t		gid_t;
+typedef	__dev_t		dev_t;
+typedef	__nlink_t	nlink_t;
+typedef	__ino_t		ino_t;
+typedef	__mode_t	mode_t;
 
 
-typedef	long		uid_t;
-typedef	uid_t		gid_t;
-typedef	__pid_t		pid_t;
-typedef	unsigned long	mode_t;
-typedef	long		off_t;
-
-
-#if	! _POSIX_SOURCE
-
-typedef	unsigned char	uchar_t;
-typedef	unsigned short	ushort_t;
-typedef	unsigned int	uint_t;
-typedef	unsigned long	ulong_t;
-
-typedef	char	      *	caddr_t;
-typedef	long		daddr_t;	/* disk address */
-typedef	__pid_t		id_t;
-typedef	int		key_t;		/* for System V IPC */
+#if	! _POSIX_C_SOURCE
 
 /*
+ * We build our definitions of 'uchar_t' and friends from a common base type.
  * System V defines "ushort", "ulong", "u_char", "u_short", "u_int", and
  * "u_long" to satisfy its own portability needs. In addition, System V
- * defines "time_t" and "clock_t" here.  Coherent needs but a few of these.
+ * defines "time_t" and "clock_t" here. Be aware that POSIX.1 does not
+ * make any of these types available through this header.
  */
-#include <sys/_time.h>
+
+#include <common/__types.h>
+#include <common/_clock.h>
+#include <common/_daddr.h>
+#include <common/_time.h>
+#include <common/_fsize.h>
+#include <common/_caddr.h>
+
+typedef	__uchar_t	uchar_t;
+typedef	__ushort_t	ushort_t;
+typedef	__uint_t	uint_t;
+typedef	__ulong_t	ulong_t;
+
+typedef	__uchar_t	u_char;
+typedef	__ushort_t	u_short;
+typedef	__uint_t	u_int;
+typedef	__ulong_t	u_long;
+
+typedef	__uchar_t	unchar;
+typedef	__ushort_t	ushort;
+typedef	__uint_t	uint;
+typedef	__ulong_t	ulong;
+
+typedef	__pid_t		id_t;
+typedef	__key_t		key_t;		/* for System V IPC */
+
 
 /*
- * This definition is peculiar to Coherent; it is the type used to represent
- * file sizes, which is an "off_t" in POSIX.1 usage. It is debatable whether
- * this needs to be a separate type from "off_t".
+ * Internal COHERENT kernel code here defines several types that conflict with
+ * DDI/DKI usage. Most have been changed to more portable equivalents, but
+ * since these do not have a corresponding DDI/DKI definition, they have been
+ * left.
+ *
+ * Developers are advised to read the cautionary notice in <common/__paddr.h>.
+ * The nature of physical memory management is likely to undergo substantial
+ * revision soon.
  */
 
-typedef	off_t		fsize_t;
+#include <common/__paddr.h>
+
+typedef __paddr_t	paddr_t;
+typedef	char	      *	vaddr_t;
+
+typedef	__VOID__	_VOID;		/* for System V */
+
+/*
+ * Satisfy BSD requirements.
+ */
+
+#include <sys/select.h>
 
 #endif
 
 
-#if	_SYSV4 || _DDI_DKI
+/*
+ * The major/minor device number concepts have been altered a little under
+ * System V release 4 to encompass the idea of internal and external minor
+ * device numbers.
+ *
+ * Under this concept the "bdevsw" and "cdevsw" can map down from 32-bit
+ * device numbers to some smaller internal major/minor space.
+ */
 
-typedef	n_dev_t		dev_t;
-typedef	n_nlink_t	nlink_t;
-typedef	n_ino_t		ino_t;
+typedef	unsigned short	minor_t;	/* external minor device number */
+typedef	unsigned short	major_t;	/* external major device number */
 
-#else
+#if	_DDI_DKI || _KERNEL
 
-typedef	o_dev_t		dev_t;
-typedef	o_nlink_t	nlink_t;
-typedef	o_ino_t		ino_t;
-
-#endif
-
+#include <kernel/_pl.h>
+#include <kernel/_buf.h>
 
 #if	_DDI_DKI
+
+# define	NODEV		((major_t) -1)
 
 /*
  * We keep the DDI/DKI definitions in a separate header, since they are
  * really unrelated to any user-level issues.
  */
 
-#include <sys/v_types.h>
+#include <kernel/v_types.h>
 
-#endif
-
-
-#if	(! _POSIX_SOURCE) && (defined (__KERNEL__) || _DDI_DKI)
-
-/*
- * Old Coherent kernel code defined several types here that conflict with
- * DDI/DKI usage. Most have been changed to more portable equivalents, but
- * since this does not have a corresponding DDI/DKI definition it has been
- * left.
- *
- * Developers are advised to read the cautionary notice in <sys/__paddr.h>.
- * The nature of physical memory management is likely to undergo substantial
- * revision soon.
- */
-
-#include <sys/__paddr.h>
-typedef __paddr_t	paddr_t;
-
-#endif
-
+#endif	/* _DDI_DKI */
+#endif	/* _DDI_DKI || _KERNEL */
 
 #endif	/* ! defined (__SYS_TYPES_H__) */

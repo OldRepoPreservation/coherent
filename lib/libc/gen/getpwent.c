@@ -79,12 +79,14 @@ again:
 	return &pw;
 }
 
+void
 setpwent()
 {
 	if (pwfile != NULL)
 		rewind(pwfile);
 }
 
+void
 endpwent()
 {
 	if (pwfile != NULL) {

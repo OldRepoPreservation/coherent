@@ -48,11 +48,6 @@ LEAF:
 		*		*
 			[ZLEA]	[R],[NSE AL]
 
-/ For the word and byte patterns below,
-/ if [AL] is register, e.g. EAX (meaning word AX or byte AL),
-/ the generated ZMOV looks wrong (using EAX rather than AX or AL),
-/ but it gets cleaned up ex post facto by n2/i386/asm.c/asm().
-/ This is a kludge but at the moment I see no way around it.
 / Load a dword.
 %	PVALUE
 	DWORD		ANYR	*	*	TEMP
@@ -69,6 +64,8 @@ LEAF:
 		ADR|IMM		BYTE
 		*		*
 			[TN ZMOV]	[TN R],[AL]
+
+#ifndef	NDPDEF
 
 / DECVAX or IEEE software floating point loads.
 / Double immediate load.
@@ -107,6 +104,10 @@ LEAF:
 			[ZMOV]	[LO R],[AL]
 			[ZCALL]	[GID _dfcvt]
 
+#endif
+
+#ifdef	NDPDEF 
+
 / Floating point loads using the numeric data coprocessor (80x87).
 / Load floating 0.
 %	PVALUE|PNDP
@@ -128,6 +129,7 @@ LEAF:
 		ADR		FF64
 		*		*
 			[ZFLDD]	[AL]
+#endif
 
 /////////
 /
@@ -135,11 +137,27 @@ LEAF:
 /
 /////////
 
-/ Widen short to dword.
+/ Integer to integer widen conversions.
 / If [AL] is register, e.g. EAX (meaning word AX or byte AL),
-/ the generated ZMOVSX looks wrong (using EAX rather than AX or AL),
+/ the ZMOV[SZ]X generated below looks wrong (using EAX rather than AX or AL),
 / but it gets cleaned up ex post facto by n2/i386/asm.c/asm().
 / This is a kludge but at the moment I see no way around it.
+
+/ Widen signed to signed using sign-extension.
+/ Widen signed short to signed dword.
+%	PVALUE|PEFFECT
+	FS32		ANYR	*	*	TEMP
+		ADR		FS8|FS16
+		*		*
+/ Widen signed byte to signed word.
+%	PVALUE|PEFFECT
+	FS16		ANYR	*	*	TEMP
+		ADR		FS8
+		*		*
+			[TL ZMOVSX]	[R],[AL]
+
+/ Widen when unsigned on either side using zero-extension.
+/ Widen short to dword.
 %	PVALUE|PEFFECT
 	DWORD		ANYR	*	*	TEMP
 		ADR		SHORT
@@ -149,7 +167,9 @@ LEAF:
 	WORD		ANYR	*	*	TEMP
 		ADR		BYTE
 		*		*
-			[TL ZMOVSX]	[R],[AL]
+			[TL ZMOVZX]	[R],[AL]
+
+#ifndef	NDPDEF
 
 / DECVAX or IEEE software floating point.
 / Widen signed immediate dword to double.
@@ -192,12 +212,18 @@ LEAF:
 			[ZMOV]		[LO R],[AL]
 			[ZCALL]		[GID _dfcvt]
 
+#endif
+
+#ifdef	NDPDEF
+
 / Widen to NDP float or double.
 %	PVALUE|PNDP
 	FLOAT		FPAC	*	*	FPAC
 		ADR		FS16|FS32|FF32
 		*		*
 			[TL ZFLDD] [AL]
+
+#endif
 
 /////////
 /
@@ -266,6 +292,8 @@ LEAF:
 		*		*
 			[ZMOV]	[R],[AL]
 
+#ifndef	NDPDEF
+
 / IEEE or DECVAX software floating point.
 / The bogus left arg spec EDX prevents EDX from being used
 / for addressing the left arg, which would make the second fetch invalid.
@@ -289,10 +317,10 @@ LEAF:
 			[ZCALL]		[GID _idcvt]
 			[TN ZMOVSX]	[REGNO EAX], [TN REGNO EAX]
 
-/ Shrink double to unsigned long integer or pointer.
+/ Shrink double to unsigned long integer.
 / Cf. comment above re EDX.
 %	PVALUE|PEFFECT|PDECVAX|PIEEE
-	FU32|PTX	EDXEAX	EDX	*	EAX
+	FU32		EDXEAX	EDX	*	EAX
 		ADR|IMM		FF64
 		*		*
 			[ZMOV]	[REGNO EDX], [HI AL]
@@ -327,9 +355,9 @@ LEAF:
 			[ZCALL]		[GID _ifcvt]
 			[TN ZMOVSX]	[R], [TN R]
 
-/ Shrink float to unsigned long integer or pointer.
+/ Shrink float to unsigned long integer.
 %	PVALUE|PEFFECT|PDECVAX|PIEEE
-	FU32|PTX	EAX	*	*	TEMP
+	FU32		EAX	*	*	TEMP
 		ADR|IMM		FF32
 		*		*
 			[ZMOV]	[R], [AL]
@@ -343,6 +371,8 @@ LEAF:
 			[ZMOV]		[R], [AL]
 			[ZCALL]		[GID _ufcvt]
 			[TN ZMOVZX]	[R], [TN R]
+
+#endif
 
 /////////
 /
@@ -415,6 +445,8 @@ LEAF:
 			[ZOR]	[RL],[RL]
 			[REL0]	[LAB]
 
+#ifndef	NDPDEF
+
 / Double, IEEE software floating point.
 %	PREL|PIEEE
 	FF64		NONE	*	*	NONE
@@ -439,13 +471,18 @@ LEAF:
 			[ZTEST]	[AL],[CONST 0x7F800000]
 			[REL0]	[LAB]
 
+#endif
+
+#ifdef	NDPDEF
+
 / NDP floating point.
 %	PREL|PNDP
 	FF64		*	*	*	NONE
 		REG|MMX		FF64
 		*		*
-			[ZCALL]	[GID _tstccp]
+			[ZCALL]	[GID tstccp]
 			[REL0]	[LAB]
+#endif
 
 /////////
 / 
@@ -477,6 +514,8 @@ LEAF:
 / Floating point.
 //////////
 
+#ifndef	NDPDEF
+
 / IEEE or DECVAX software fp.
 / Push FPAC.
 %	PFNARG|PIEEE|PDECVAX
@@ -494,24 +533,19 @@ LEAF:
 			[ZPUSH]	[HI AL]
 			[ZPUSH]	[LO AL]
 
-/ Hardware coprocessor (NDP) floating point.
-/ Push direct double.
-/ The fwait is required to assure completion of any pending NDP operation,
-/ notably a store into the location being pushed.
-%	PFNARG|PNDP
-	FF64		NONE	*	*	NONE
-		DIR|MMX		FF64
-		*		*
-			[ZFWAIT]
-			[ZPUSH]	[HI AL]
-			[ZPUSH]	[LO AL]
+#endif
 
+#ifdef	NDPDEF
+
+/ Hardware coprocessor (NDP) floating point.
 / Push double from NDP stacktop.
 %	PFNARG|PNDP
 	FF64		NONE	*	*	NONE
 		REG|MMX		FF64
 		*		*
-			[ZCALL]	[GID _dp87]
+			[ZCALL]	[GID dp87]
+
+#endif
 
 ////////
 /
@@ -535,12 +569,17 @@ LEAF:
 		*		*
 			;
 
+#ifndef NDPDEF
+
 / Ignore software fp double for effect.
 %	PEFFECT|PIEEE|PDECVAX
 	FF64		NONE	*	*	NONE
 		REG|MMX		FF64
 		*		*
 			;
+#endif
+
+#ifdef	NDPDEF
 
 / Clean the 80x87 stack.
 %	PEFFECT|PNDP
@@ -548,6 +587,8 @@ LEAF:
 		REG|MMX		FF64
 		*		*
 			[ZFDROP]
+
+#endif
 
 //////////
 / end of n1/i386/tables/leaves.t

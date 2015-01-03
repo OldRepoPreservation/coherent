@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #endif
 #include <time.h>
+#include <unistd.h>
 #include <path.h>
 #include "roff.h"
 
@@ -71,7 +72,8 @@ main(argc, argv) int argc; char *argv[];
 		else if (c == 'm') {
 			/* Process "-m" macro package argument. */
 			sprintf(miscbuf, TMACFMT, cp);
-			libpath = DEFLIBPATH;
+			if ((libpath = getenv("ROFF_LIBPATH")) == NULL)
+				libpath = DEFLIBPATH;
 			if ((libpath = path(libpath, miscbuf, R_OK)) != NULL)
 				strcpy(miscbuf, libpath);
 #if	(DDEBUG & DBGFILE)
@@ -205,7 +207,7 @@ initialize(argc, argv) int argc; char *argv[];
 	dprint2(DBGFILE, "temp file name = %s\n", tempname);
 	if ((tmp=fopen(tempname, "wb")) == NULL)
 		panic("cannot create temp file");
-	else if (freopen(tempname, "rwb", tmp) == NULL)
+	else if (freopen(tempname, "w+b", tmp) == NULL)
 		panic("cannot reopen temp file");
 	tmpseek = ENVSIZE * sizeof (ENV);
 	tmpseek = (tmpseek+DBFSIZE+DBFSIZE-1) & ~(DBFSIZE-1);
@@ -257,6 +259,7 @@ initialize(argc, argv) int argc; char *argv[];
 	/* UNDONE: "c.", same as ".c" */
 	nrpnreg = getnreg("%");
 	nrctreg = getnreg("ct");
+	nrddreg = getnreg("$$");
 	nrdlreg = getnreg("dl");
 	nrdnreg = getnreg("dn");
 	nrdwreg = getnreg("dw");
@@ -325,6 +328,7 @@ setnreg()
 	nrmoreg->n_reg.r_nval = tmp->tm_mon + 1;
 	nrdyreg->n_reg.r_nval = tmp->tm_mday;
 	nrdwreg->n_reg.r_nval = tmp->tm_wday + 1;
+	nrddreg->n_reg.r_nval = getpid();
 }
 
 /*

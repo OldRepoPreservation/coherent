@@ -15,7 +15,7 @@
  * cf. libc/stdio/Makefile.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 
 void	(**_atexitfp)();	/* pointer to last atexit-registered function */

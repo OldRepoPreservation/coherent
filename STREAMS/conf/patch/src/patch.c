@@ -22,11 +22,13 @@
 #define __KERNEL__ 1
 
 #include <string.h>
-#include <sys/coherent.h>
-#include <sys/con.h>
 #include <sys/errno.h>
+#include <sys/cred.h>
+
+#include <sys/coherent.h>
+#include <sys/uproc.h>
 #include <sys/patch.h>
-#include <kernel/v_types.h>
+
 
 /*
  * -----------------------------------------------------------------
@@ -44,13 +46,7 @@
  *	Export Functions.
  *	Local Functions.
  */
-int nulldev();
 
-/*
- * Configuration functions (local functions).
- */
-struct patch;
-static int patchioctl  __PROTO((dev_t dev, int com, struct patch * vec));
 
 /*
  * Support functions (local functions).
@@ -75,25 +71,6 @@ static int validMajor();
  */
 
 /*
- * Configuration table (export data).
- */
-CON patchcon ={
-	DFCHR,				/* Flags */
-	0,				/* Major index */
-	nulldev,			/* Open */
-	nulldev,			/* Close */
-	nulldev,			/* Block */
-	nulldev,			/* Read */
-	nulldev,			/* Write */
-	patchioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	nulldev,			/* Timeout */
-	nulldev,			/* Load */
-	nulldev,			/* Unload */
-	nulldev				/* Poll */
-};
-
-/*
  * -----------------------------------------------------------------
  * Code.
  */
@@ -106,15 +83,16 @@ CON patchcon ={
  * Return 0 if there is a match.
  * Return -1 and set EINVAL if no match.
  ******************************************************************/
+
 static int
 matchMajor(major, addr)
 int major;
 CON * addr;
 {
-	if (drvl[major].d_conp == addr)
+	if (drvl [major].d_conp == addr)
 		return 0;
 	else {
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 		return -1;
 	}
 }
@@ -126,6 +104,7 @@ CON * addr;
  * Return 0 if valid.
  * Return -1 and set EINVAL if not valid.
  ******************************************************************/
+
 static int
 validMajor(major)
 unsigned int major;
@@ -133,7 +112,7 @@ unsigned int major;
 	if (major < NDRV)
 		return 0;
 	else {
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 		return -1;
 	}
 }
@@ -147,6 +126,7 @@ unsigned int major;
  * Return a pointer to the matching record if there is a match.
  * Return 0 and set EINVAL if no match.
  ******************************************************************/
+
 static struct patchVarInternal *
 patchVarLookup(vname)
 char * vname;
@@ -160,7 +140,7 @@ char * vname;
 			match = patchVarTable + i;
 
 	if (!match)
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 	return match;
 }
 
@@ -173,6 +153,7 @@ char * vname;
  * Return a pointer to the matching record if there is a match.
  * Return 0 and set EINVAL if no match.
  ******************************************************************/
+
 static struct patchConInternal *
 patchConLookup(vname)
 char * vname;
@@ -186,7 +167,7 @@ char * vname;
 			match = patchConTable + i;
 
 	if (!match)
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 	return match;
 }
 
@@ -211,8 +192,9 @@ size_t byteCount;
 	size_t result;
 
 	result = copyin(userBuf, driverBuf, byteCount);
+
 	if (result)
-		u.u_error = EFAULT;
+		set_user_error (EFAULT);
 	return result;
 }
 
@@ -237,25 +219,28 @@ size_t byteCount;
 	size_t result;
 
 	result = copyout(driverBuf, userBuf, byteCount);
+
 	if (result)
-		u.u_error = EFAULT;
+		set_user_error (EFAULT);
 	return result;
 }
 
 /*******************************************************************
  * patchioctl()
- *
- * Although the type returned is int according to con.h, the
- * return value is discarded by bio.c !!!
  ******************************************************************/
 #if __USE_PROTO__
-static int patchioctl(dev_t __NOTUSED(dev), int com, struct patch * vec)
+static void patchioctl (dev_t __NOTUSED(dev), int com, struct patch * vec,
+			int __NOTUSED (mode), cred_t * __NOTUSED (credp),
+			int * rvalp)
 #else
-static int
-patchioctl(dev, com, vec)
+static void
+patchioctl(dev, com, vec, mode, credp, rvalp)
 dev_t	dev;
 int	com;
 struct patch *vec;
+int		mode;
+cred_t	      *	credp;
+int	      *	rvalp;
 #endif
 {
 	int result;	/* ignored */
@@ -282,6 +267,7 @@ struct patch *vec;
 		else
 			result = pvarintp->patch_size;
 		break;
+
 	case PATCH_RD:
 		/*
 		 * Read value of a patchable variable.
@@ -297,6 +283,7 @@ struct patch *vec;
 		else
 			result = pvarintp->patch_size;
 		break;
+
 	case PATCH_CON_IN:
 		/*
 		 * Delayed activation of a device driver.
@@ -319,6 +306,7 @@ struct patch *vec;
 			result = 0;
 		}
 		break;
+
 	case PATCH_CON_OUT:
 		/*
 		 * Deactivation of a device driver.
@@ -340,10 +328,32 @@ struct patch *vec;
 			result = 0;
 		}
 		break;
+
 	default:
-		u.u_error = EINVAL;
+		set_user_error (EINVAL);
 		result = -1;
 	}
 
-	return result; 	/* ignored */
+	* rvalp = result;
 }
+
+/*
+ * Configuration table (export data).
+ */
+
+CON patchcon = {
+	DFCHR,				/* Flags */
+	0,				/* Major index */
+	NULL,				/* Open */
+	NULL,				/* Close */
+	NULL,				/* Block */
+	NULL,				/* Read */
+	NULL,				/* Write */
+	patchioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	NULL,				/* Timeout */
+	NULL,				/* Load */
+	NULL,				/* Unload */
+	NULL				/* Poll */
+};
+

@@ -3,13 +3,13 @@
 
 /*
  *-IMPORTS:
- *	<kernel/v_types.h>
+ *	<sys/types.h>
  *		major_t
  *		minor_t
  */
 
+#include <sys/types.h>
 #include "devadm.h"
-#include <kernel/v_types.h>
 
 
 /*

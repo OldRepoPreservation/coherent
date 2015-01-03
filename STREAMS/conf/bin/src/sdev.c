@@ -37,6 +37,7 @@
 #include "read.h"
 #include "lex.h"
 #include "input.h"
+#include "ecodes.h"
 
 #include "sdev.h"
 
@@ -87,7 +88,8 @@ sdev_t	      *	check;
 	int		share_conflict = 0;
 
 	if (check == NULL)
-		throw_error ("check argument is NULL in sdev_check_ioa ()");
+		throw_error (INTERNAL_ERROR,
+			     "check argument is NULL in sdev_check_ioa ()");
 
 	if (check->sd_ioa [1] == 0)
 		return 0;
@@ -133,7 +135,8 @@ sdev_t	      *	check;
 	int		conflict = 0;
 
 	if (check == NULL)
-		throw_error ("check argument is NULL in sdev_check_cma ()");
+		throw_error (INTERNAL_ERROR,
+			     "check argument is NULL in sdev_check_cma ()");
 
 	if (check->sd_cma [1] == 0)
 		return 0;
@@ -170,12 +173,13 @@ sdev_t	      *	check;
 	sdev_t	      *	sdevp;
 	int		conflict = 0;
 
-	if (check->sd_vector == 0)
+	if (check->sd_vector == 0 || check->sd_config == 0)
 		return 0;
 
 	for (sdevp = _sdevices ; sdevp != NULL ; sdevp = sdevp->sd_next) {
 
-		if (sdevp->sd_vector != check->sd_vector)
+		if (sdevp->sd_vector != check->sd_vector ||
+		    sdevp->sd_config == 0)
 			continue;
 
 		switch (sdevp->sd_itype) {
@@ -232,7 +236,7 @@ input_t	      *	input;
 				  sdevp->sd_ioa [0], sdevp->sd_ioa [1],
 				  sdevp->sd_cma [0], sdevp->sd_cma [1]) < 0) {
 
-		throw_error ("Output error");
+		throw_error (CANNOT_UPDATE, "Output error");
 	}
 }
 
@@ -263,7 +267,7 @@ int	      *	end_char;
 	yesno.l_prev = lexp;
 
 	if ((sdevp = (sdev_t *) malloc (sizeof (* sdevp))) == NULL)
-		throw_error ("out of memory in read_sdevice ()");
+		throw_error (NO_MEMORY, "out of memory in read_sdevice ()");
 
 	if (PUSH_HANDLER (err) == 0) {
 		/*
@@ -283,7 +287,8 @@ int	      *	end_char;
 		check_not_eol (ch);
 
 		if (sdevp->sd_devname->s_size > MAX_DEVNAME)
-			throw_error ("device name must be <= %d characters",
+			throw_error (FORMAT_ERROR,
+				     "device name must be <= %d characters",
 				     MAX_DEVNAME);
 
 		/*
@@ -295,7 +300,8 @@ int	      *	end_char;
 		check_not_eol (ch);
 
 		if (config_flag->s_size > 1)
-			throw_error ("a single Y or N is required");
+			throw_error (FORMAT_ERROR,
+				     "a single Y or N is required");
 
 		sdevp->sd_config = (config_flag->s_data [0] == 'y' ||
 				    config_flag->s_data [0] == 'Y');
@@ -312,7 +318,8 @@ int	      *	end_char;
 		for (scan = _sdevices ; scan != NULL ; scan = scan->sd_next)
 			if (scan->sd_devname == sdevp->sd_devname &&
 			    scan->sd_unit == sdevp->sd_unit) {
-				throw_error ("Only one sdevice entry per device unit allowed");
+				throw_error (FORMAT_ERROR,
+					     "Only one sdevice entry per device unit allowed");
 			}
 
 
@@ -320,14 +327,16 @@ int	      *	end_char;
 		check_not_eol (ch);
 
 		if (sdevp->sd_ipl > MAX_IPL)
-			throw_error ("IPL must be in the range 0 through %d",
+			throw_error (FORMAT_ERROR,
+				     "IPL must be in the range 0 through %d",
 				     MAX_IPL);
 
 		ch = read_uints (input, lexp, & sdevp->sd_itype, NO_RANGE);
 		check_not_eol (ch);
 
 		if (sdevp->sd_itype > MAX_ITYPE)
-			throw_error ("interrupt type must be in the range 0 to %d",
+			throw_error (FORMAT_ERROR,
+				     "interrupt type must be in the range 0 to %d",
 				     MAX_ITYPE);
 
 		ch = read_uints (input, lexp, & sdevp->sd_vector, NO_RANGE);
@@ -342,11 +351,13 @@ int	      *	end_char;
 		if (strcmp (sdevp->sd_devname->s_data, "clock") != 0 &&
 		    ((sdevp->sd_ipl > 0 && sdevp->sd_vector == 0) ||
 		     (sdevp->sd_ipl == 0 && sdevp->sd_vector > 0))) {
-			throw_error ("IPL and vector must both be either zero or non-zero");
+			throw_error (FORMAT_ERROR,
+				     "IPL and vector must both be either zero or non-zero");
 		}
 
 		if (sdevp->sd_vector > MAX_VECTOR)
-			throw_error ("vector numbers run from 0 (no vector) through %d",
+			throw_error (FORMAT_ERROR,
+				     "vector numbers run from 0 (no vector) through %d",
 				     MAX_VECTOR);
 
 		ch = read_ulongs (input, lexp, & sdevp->sd_ioa [0], NO_RANGE);
@@ -356,7 +367,8 @@ int	      *	end_char;
 		check_not_eol (ch);
 
 		if (sdevp->sd_ioa [0] > sdevp->sd_ioa [1])
-			throw_error ("lower bound of address range higher than upper bound");
+			throw_error (FORMAT_ERROR,
+				     "lower bound of address range higher than upper bound");
 
 		ch = read_ulongs (input, lexp, & sdevp->sd_cma [0], NO_RANGE);
 		check_not_eol (ch);
@@ -364,7 +376,8 @@ int	      *	end_char;
 		ch = read_ulongs (input, lexp, & sdevp->sd_cma [1], NO_RANGE);
 
 		if (sdevp->sd_cma [0] > sdevp->sd_cma [1])
-			throw_error ("lower bound of address range higher than upper bound");
+			throw_error (FORMAT_ERROR,
+				     "lower bound of address range higher than upper bound");
 
 		ch = expect_eol (input, lexp, ch);
 	} else {
@@ -474,8 +487,8 @@ input_t	      *	input;
 	if ((sdevp->sd_mdevp = find_mdev (sdevp->sd_devname)) == NULL) {
 		errmsg = "device name does not match any master device entry";
 have_error:
-		report_error (errmsg);
 		free (sdevp);
+		throw_error (FORMAT_ERROR, errmsg);
 		return;
 	}
 
@@ -699,8 +712,8 @@ size_t		ptroff;
 	int		count;
 
 	if (sdlistp == NULL || ptroff > sizeof (sdev_t))
-		throw_error ("bogus parameters to sdev_sort ()");
-
+		throw_error (INTERNAL_ERROR,
+			     "bogus parameters to sdev_sort ()");
 
 	/*
 	 * We'll just insert each selected member of the total list of
@@ -755,7 +768,7 @@ size_t		ptroff;
 			LINK (prev, ptroff) = scan;
 
 		if ((LINK (scan, ptroff) = findpos) == NULL && sdendp != NULL)
-			* sdendp = scan;
+			* sdlistp = scan;
 
 		count ++;
 	}

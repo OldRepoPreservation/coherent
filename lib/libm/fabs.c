@@ -1,6 +1,10 @@
 /*
+ * libm/fabs.c
+ * C mathematics library.
+ * fabs()
  * Floating absolute value.
  */
+
 #include <math.h>
 
 #if	EMU87
@@ -8,10 +12,9 @@
 #endif
 
 double
-fabs(x)
-double x;
+fabs(x) double x;
 {
-	if (x < 0.0)
-		x = -x;
-	return (x);
+	return (x < 0.0) ? -x : x;
 }
+
+/* end of libm/fabs.c */

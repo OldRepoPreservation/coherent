@@ -3,6 +3,8 @@
 / i387 mathematics library
 / cosh(d), sinh(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

@@ -17,7 +17,7 @@
  *		with no interpretation or processing.
  *
  * Options still up for grabs:
- * [  C  FGH J     P R    W Y ]
+ * [  C  F H J       R    W Y ]
  * [ b     h j  m           yz]
  * Change the verbose usage() message below when options change!
  *
@@ -26,13 +26,14 @@
  *7c	Bstring		use string to find compiler passes
  *7	Dname[=value]	preprocessor: #define
  *7	E		run preprocessor to stdout
+ *	G		loader: suppress common/global warnings
  *7	Ipathname	preprocessor: #include search directory
  *	K		keep intermediate files
  *	Lpathname	loader: library directory specification
  *	Mstring		use string as cross-compiler prefix
  *	N[01ab2sdlrt]string	rename pass with string
  *7	O		run object code optimiser
- *7d	P		put preprocessor output into name.i; use -Kqp
+ *	P		preserve #line output with -E
  *	Q		be quiet, make no messages
  *7	S		make assembly language output
  *	T[value]	use in-memory tempfiles of size value (default: 64K)
@@ -63,6 +64,9 @@
  *	x		loader: remove local symbols from symbol table
  */
 
+/* Compilation switches. */
+#define	COMEAU	1	/* Special handling for Comeau */
+
 #if	GEMDOS
 #ifndef VERS
 #define VERS	"2.1"
@@ -70,6 +74,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <setjmp.h>
 #include <string.h>
 #include <ctype.h>
@@ -183,6 +188,9 @@ struct pass {
 #define FLAG_GEMACC	0x400	/* Gem accessory compile */
 #endif
 #define	FLAG_a	0x800		/* Suppress output file name to ld */
+#if	COMEAU
+#define	FLAG_COMEAU	0x1000	/* -VCOMEAU */
+#endif
 
 struct option {			/* option table */
 	char o_kind;
@@ -228,7 +236,7 @@ struct option {			/* option table */
 	{ 0,	CCOPT,	"VREADONLY",	VREADONLY },
 	{ 0,	CCOPT,	"VSINU",	VSINU	},
 	{ 0,	CCOPT,	"VNOOPT",	VNOOPT	},
-	{ 0,	CCOPT,	"VCPLUS",	VCPLUS	},
+	{ 10,	CCOPT,	"VCPLUS",	VCPLUS	},
 	{ 0,	CCOPT,	"VCPPE",	VCPPE	},
 	{ 0,	CCOPT,	"VCPPC",	VCPPC	},
 	{ 0,	CCOPT,	"VCPP",		VCPP	},
@@ -264,6 +272,9 @@ struct option {			/* option table */
 	{ 12,	CCOPT,	"a",		FLAG_a	},
 	{ 12,	CCOPT,	"Z",		FLAG_Z	},
 	{ 12,	CCOPT,	"c",		FLAG_c	},
+#if	COMEAU
+	{ 12,	CCOPT,	"VCOMEAU",	FLAG_COMEAU	},
+#endif
 	{ 10,	CCOPT,	"S",		VASM	},
 	{ 2,	CCOPT,	"O",		FLAG_O	},
 	{ 0,	CCOPT,	"E",		VCPPE	},
@@ -282,6 +293,7 @@ struct option {			/* option table */
 	{ 3,	PPOPT,	"U"	},
 /* Loader options */
 	{ 4,	LDOPT,	"d"	},
+	{ 4,	LDOPT,	"G"	},
 	{ 4,	LDOPT,	"i"	},
 	{ 4,	LDOPT,	"n"	},
 	{ 5,	LDOPT,	"o"	},
@@ -351,6 +363,9 @@ int	partial;			/* Partial link specified */
 #define GEMAPPflag	((ccvariant&FLAG_GEMAPP)!=0)
 #define GEMACCflag	((ccvariant&FLAG_GEMACC)!=0)
 #endif
+#if	COMEAU
+#define	COMEAUflag	((ccvariant&FLAG_COMEAU)!=0)
+#endif
 
 int	qpass = NONE;		/* Quit after this pass */
 int	nload;			/* No load phase */
@@ -404,8 +419,6 @@ char	*makelib();
 int	cleanup();
 
 /* External. */
-char	*getenv();
-char	*malloc();
 char	*tempnam();
 char	*path();
 
@@ -418,6 +431,10 @@ main(argc, argv) int argc; char *argv[];
 #if COHERENT
 	if (signal(SIGINT, SIG_IGN) != SIG_IGN)
 		signal(SIGINT, cleanup);
+#endif
+#if	COMEAU
+	if ((p = getenv("COMEAU")) != NULL && strcmp(p, "1") == 0)
+		ccvariant |= FLAG_COMEAU;
 #endif
 #if	_I386
 	/* Conditionalized only because _addargs() not in COH286 libc.a yet. */
@@ -693,6 +710,7 @@ resolve()
 #if	TEMPBUF
 	register char *p;
 
+	if (Eflag) setvariant(VCPP);
 	/*
 	 * The following malloc is a temporary hack for COH386 efficiency.
 	 * The rationale is:
@@ -705,7 +723,7 @@ resolve()
 #define	NARENA	131072
 	if ((p = malloc(tempsize + tempsize + NARENA)) != NULL)
 		free(p);
-	if (tempsize != 0 && Eflag == 0 && Kflag == 0) {
+	if (tempsize != 0 && notvariant(VCPP) && Kflag == 0) {
 		inbuf = malloc(tempsize);
 		outbuf = malloc(tempsize);
 		outbufp = outbuf;
@@ -757,7 +775,16 @@ resolve()
 	if (GEMACCflag) getpass('N', "rcrtsd.o");
 #endif
 	if (pflag) getpass('N', "rmcrts0.o");
-	if (Eflag) setvariant(VCPP);
+#if	COMEAU
+	if (COMEAUflag) {
+		ccvariant |= FLAG_a;
+		setvariant(VCPLUS);		/* recognize C++-style comments */
+		setvariant(VNOWARN);
+		setvariant(VXSTAT);
+		if (isvariant(VCPP))
+			clrvariant(VCPPE);	/* force #line items */
+	}
+#endif
 	if (qpass == NONE) {
 		if (isvariant(VCPP))
 			qpass = CPP;
@@ -787,7 +814,7 @@ resolve()
 		++nload;
 	if (Aflag)
 		maketempfile(6);
-	if ( ! Eflag) {
+	if (notvariant(VCPP)) {
 		chkofile();
 		if (Kflag) {
 			pass[CPP].p_ofn = pass[CC0].p_ifn = tmp[0];
@@ -943,7 +970,7 @@ runpp(argc, argv, var) int argc; register char *argv[]; char var[];
 	} else {
 #endif
 		p1 = cmdb;
-		p1 = makepass(CC0, *cp++ = p1, AEXEC);
+		p1 = makepass(CC0, *cp++ = p1, X_OK);
 #if	MONOLITHIC
 	}
 #endif
@@ -967,7 +994,7 @@ runpp(argc, argv, var) int argc; register char *argv[]; char var[];
 			fprintf(stderr, "cc: cannot open %s\n", pass[CPP].p_ifn);
 			return 1;
 		}
-		if (Eflag)
+		if (isvariant(VCPP))
 			ofp = (strcmp(p1, "-") == 0) ? stdout : ccopen(p1, "w");
 		else
 			ofp = (*p1 == '\0') ? NULL : ccopen(p1, SWMODE);
@@ -981,6 +1008,9 @@ runpp(argc, argv, var) int argc; register char *argv[]; char var[];
 		}
 		if (Aflag)
 			err_open();
+#if	TEMPBUF
+		outbufp = outbuf;	/* outbuf initially empty */
+#endif
 		status = cc0(argc, cmda);
 		if (Aflag)
 			err_close(status);
@@ -1146,7 +1176,7 @@ runcc(pn) register int pn;
 	}
 #endif
 	cp = cmda;
-	makepass(pn, *cp++ = cmdb, AEXEC);
+	makepass(pn, *cp++ = cmdb, X_OK);
 	*cp++ = vstr;
 	*cp++ = pass[pn].p_ifn;
 	*cp++ = pass[pn].p_ofn;
@@ -1161,7 +1191,7 @@ runas()
 	register char **cp;
 
 	cp = cmda;
-	makepass(AS, *cp++ = cmdb, AEXEC);
+	makepass(AS, *cp++ = cmdb, X_OK);
 #if	_I386
 	*cp++ = "-fgx";
 	if (Qflag)
@@ -1182,7 +1212,7 @@ char *fn;
 	register char **cp;
 
 	cp = cmda;
-	makepass(ED, *cp++ = cmdb, AEXEC);
+	makepass(ED, *cp++ = cmdb, X_OK);
 	*cp++ = fn;
 	*cp++ = "-e";
 	*cp++ = tmp[6];
@@ -1201,11 +1231,15 @@ char *argv[];
 	static char buff[32];
 
 	cp = cmda;
-	p1 = makepass(LD, *cp++ = cmdb, AEXEC);
+	p1 = makepass(LD, *cp++ = cmdb, X_OK);
 	*cp++ = ((ccvariant&VDB) != 0) ? "-g" : "-X";
 #if	_I386
 	if (Qflag)
 		*cp++ = "-Q";
+#endif
+#if	COMEAU
+	if (COMEAUflag)
+		*cp++ = "-G";
 #endif
 	if (isvariant(VNDP)) {
 		/*
@@ -1249,7 +1283,7 @@ char *argv[];
 		}
 	}
 	cp1 = cp;
-	p1 = makepass(CRT, *cp++ = p1, AREAD);
+	p1 = makepass(CRT, *cp++ = p1, R_OK);
 	if (fflag) {
 		*cp++ = "-u";
 		*cp++ = DTEFG;
@@ -1595,7 +1629,7 @@ register char *cp;
 		cp = outf;
 	if (c == CCARG) {
 		pass[CPP].p_ifn = ip;
-		if (Eflag)
+		if (isvariant(VCPP))
 			return;
 		if (Kflag) {
 			makeft(pass[CPP].p_ofn, cp, "i");
@@ -1715,7 +1749,7 @@ char *lp;
 	strcpy(cp, pass[pn].p_pln);
 	strcat(cp, lp);
 	strcat(cp, ".a");
-	return ccpath(cp, pass[pn].p_dir, cp, AREAD);
+	return ccpath(cp, pass[pn].p_dir, cp, R_OK);
 #endif
 }
 
@@ -1767,6 +1801,7 @@ usage(flag) register int flag;
 		"\t-Bpathname\tUse pathname to find substitute compiler passes\n"
 		"\t-Dname[=value]\tcpp: #define\n"
 		"\t-E\t\tExpand: run preprocessor to stdout\n"
+		"\t-G\t\tld: suppress common/global warnings\n"
 		"\t-Ipathname\tcpp: #include search directory\n"
 		"\t-K\t\tKeep intermediate files\n"
 		"\t-Lpathname\tld: library directory specification\n"
@@ -1874,6 +1909,10 @@ VGEMAPP
 VGEM
 VSPLIM
 VNOTRAPS
+#endif
+#if	COMEAU
+/* Comeau */
+VCOMEAU
 #endif
 #endif
 }

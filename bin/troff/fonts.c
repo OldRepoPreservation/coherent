@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <canon.h>
+#include <stdlib.h>
 #include "roff.h"
 
 static	int	errflag;		/* font table read error flag */
@@ -33,7 +34,7 @@ get_short(fp) register FILE *fp;
 
 	if (fread(&s, sizeof s, 1, fp) != 1)
 		errflag = 1;
-	canint(s);
+	canshort(s);
 	return (int)s;
 }
 
@@ -75,11 +76,14 @@ load_font(s, file) char *s, *file;
 	register FWTAB *p;
 	register FILE *fp;
 	int i, new, newflag;
+	char *libdir;
 
 	if ((fp = fopen(file, "rb")) == NULL) {
 		/* Not found, look in default fwt directory. */
+		if ((libdir = getenv("ROFF_LIB")) == NULL)
+			libdir = LIBDIR;
 		sprintf(miscbuf, "%s%sfwt/%s",
-			LIBDIR, (pflag) ? TPSDIR : TPCLDIR, file);
+			libdir, (pflag) ? TPSDIR : TPCLDIR, file);
 		if ((fp = fopen(miscbuf, "rb")) == NULL) {
 			printe(".lf: cannot open file \"%s\"", file);
 			return;
@@ -93,7 +97,7 @@ load_font(s, file) char *s, *file;
 		}
 		newflag = 1;
 		new = nfonts;			/* assign new font number */
-		fwptab[new] = nalloc(sizeof(FWTAB)); /* allocate new FWTAB */
+		fwptab[new] = (FWTAB *)nalloc(sizeof(FWTAB)); /* allocate new FWTAB */
 	} else
 		newflag = 0;
 	errflag = 0;

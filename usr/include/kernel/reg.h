@@ -16,9 +16,9 @@
  * blocko - block offset from byte number
  * nbnrem - offset into indirect block from block number
  * nbndiv - residual indirect mapping from block number
- * btocru - byte to page (saddr_t) rounding up
- * btocrd - byte to page rounding down
- * ctob - page to byte
+ * btocru - byte to click (saddr_t) rounding up
+ * btocrd - byte to click rounding down
+ * ctob - click to byte
  */
 
 #define	NIVEC	192
@@ -46,7 +46,7 @@
 
 
 /*
- * These addresses are all in pages.
+ * These addresses are all in clicks.
  */
 
 #define	ROM		0xFFFC0	/* BIOS virtual address.		*/
@@ -56,15 +56,15 @@
 #define MAX_VADDR	ctob(VIDEOb)	/* Highest allocatable virtual address.  */
 
 /*
- * Temporary virtual pages WORK0 and WORK1 are no longer used.
- * Instead there is a range of page pairs starting at START_WORK
+ * Temporary virtual clicks WORK0 and WORK1 are no longer used.
+ * Instead there is a range of click pairs starting at START_WORK
  * (which is currently 0xFFFFA000) and working down, managed in work.c.
  *
  * Addresses in kernel data for the RAM disk are now in rm.c.
  * As of 92/12/23, they are
- *	RAM0	0x88000		Ram disk 0 virtual page address.
- *	RAM1	0x88800		Ram disk 1 virtual page address.
- *	RAMSIZE	0x00800		Number of pages in each ram disk.
+ *	RAM0	0x88000		Ram disk 0 virtual click address.
+ *	RAM1	0x88800		Ram disk 1 virtual click address.
+ *	RAMSIZE	0x00800		Number of clicks in each ram disk.
  */
 
 #define	PBASE		0x00002	/* Start of kernel, physical address.	*/

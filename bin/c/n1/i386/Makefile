@@ -1,33 +1,11 @@
-# c/n1/i8086/Makefile 12/17/91
-# Execute $(TABGEN) to build new code tables in current directory.
-# Expects $(TABGEN) and $(TFLAGS) to be set accordingly.
+# /usr/src/libc/stdlib/i386/Makefile 6/8/94
 
-ALL=\
-	prefac.f \
-	aadd.t \
-	add.t \
-	adiv.t \
-	aft.t \
-	alogic.t \
-	amul.t \
-	and.t \
-	arem.t \
-	ashift.t \
-	assign.t \
-	asub.t \
-	bef.t \
-	div.t \
-	leaves.t \
-	mul.t \
-	neg.t \
-	not.t \
-	orxor.t \
-	relop.t \
-	rem.t \
-	shift.t \
-	sub.t
+LIBOBJ=\
+	$(TARGET)(abort.o) \
+	$(TARGET)(ldiv.o)
 
-macros.c patern.c: $(ALL)
-	$(TABGEN) $(TFLAGS) $<
+# Primary target.
+all:	$(LIBOBJ)
+	: libc/stdlib/i386 done
 
-# end of c/n1/i8086/Makefile
+# end of /usr/src/libc/stdlib/i386/Makefile

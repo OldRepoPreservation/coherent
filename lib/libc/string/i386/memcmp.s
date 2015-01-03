@@ -4,6 +4,8 @@
 / ANSI 4.11.4.1.
 //////////
 
+	.intelorder
+
 //////////
 / int
 / memcmp(void *String1, void *String2, size_t Count)

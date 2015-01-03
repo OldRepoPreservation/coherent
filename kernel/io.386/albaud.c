@@ -1,47 +1,31 @@
+/* $Header: /ker/io.386/RCS/albaud.c,v 2.4 93/10/29 00:58:25 nigel Exp Locker: nigel $ */
 /*
- * File:	albaud.c
- *
  * Purpose:	common code for various async drivers
  *
  * $Log:	albaud.c,v $
+ * Revision 2.4  93/10/29  00:58:25  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.3  93/08/19  04:02:04  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  15:27:51  nigel
+ * Nigel's R80
+ * 
+ * Revision 1.2  93/04/14  10:24:08  root
+ * r75
+ * 
  * Revision 1.1  92/04/30  08:58:54  hal
  * Add asy.  Remove silos from tty struct.
- * 
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
-#include <sys/coherent.h>
+#include <kernel/param.h>
 #include <sys/ins8250.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
 #define TESTBAUD	0x03A5
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-int uart_sense();
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
+int uart_sense();
 
 int albaud[] ={
 	0,				/* 0 */
@@ -79,6 +63,7 @@ int albaud[] ={
  *	rate for the corresponding port speed; it must be a multiple
  *	of 100 (system clock Hz) and >= baud/6
  */
+
 int alp_rate[] ={			/* baud/6 or zero */
 	0,				/* 0 */
 	1*HZ,				/* 50 */
@@ -111,11 +96,6 @@ int alp_rate[] ={			/* baud/6 or zero */
 };
 
 /*
- * ----------------------------------------------------------------------
- * Code.
- */
-
-/*
  * uart_sense()
  *
  * Given port address, return what type of 8250-family chip is found there.
@@ -136,6 +116,15 @@ int port;
 	short		testbaud;
 	char		lcr, dll, dlh;
 
+#if 0
+	/*
+	 * Late in '93, apparently, Natl. Semiconductor started
+	 * making 16550's that don't follow their own spec of
+	 * xx00 xxxx in IIR.  So, this part of test for UART
+	 * present is conditioned out, but may still be of
+	 * interest.
+	 */
+
 	/*
 	 * See if UART is detected at port address.
 	 * UART should have IER = 0000 xxxx
@@ -148,6 +137,8 @@ int port;
 	  || inb(port+IIR) & 0x30) {
 		goto done;
 	}
+#endif
+
 	lcr = inb(port + LCR);
 	outb(port+LCR, LC_DLAB);
 	dll = inb(port + DLL);

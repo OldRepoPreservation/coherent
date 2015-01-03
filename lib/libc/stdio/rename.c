@@ -7,7 +7,7 @@
  *	rename(old, new) fails and returns -1 if new exists.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 rename(old, new) char *old, *new;

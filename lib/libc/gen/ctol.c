@@ -5,7 +5,7 @@
  * numbers can be comp_t numbers.
  */
 
-#include <sys/types.h>
+#include <sys/acct.h>
 
 #define	MAXMANT		017777		/* 2^13-1 - largest mantissa */
 

@@ -5,9 +5,9 @@
  * so programs which don't use floating point can stay small.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
-/* char *_dtefg() for consistency with <stdio.h>, this one is void _dtefg(). */
+/* char *_dtefg() for consistency with <coh_stdio.h>, this one is void _dtefg(). */
 char *
 _dtefg()
 {

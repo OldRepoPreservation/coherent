@@ -5,6 +5,8 @@
 
 / #include <signal.h>
 
+	.unixorder
+
 	.globl	sighold
 	.globl	sigrelse
 	.globl	sigignore

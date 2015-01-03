@@ -6,11 +6,11 @@
 
 #include "sh.h"
 #include <sys/times.h>
-#include <time.h>
+#include <sys/const.h>		/* HZ defined here */
 
-#define HOUR	(60L * 60L * CLK_TCK)
-#define MINUTE	(60L * CLK_TCK)
-#define SECOND	CLK_TCK
+#define HOUR	(60L*60L*HZ)
+#define MINUTE	(60L*HZ)
+#define SECOND	HZ
 
 NODE	*copy_node();
 char	*cd();
@@ -35,9 +35,7 @@ extern	s_set();
 extern	s_shift();
 extern	s_times();
 extern	s_trap();
-extern	s_ulimit();
 extern	s_umask();
-extern	s_unset();
 extern	s_wait();
 #define SNULL	((int (*)())0)
 
@@ -69,52 +67,62 @@ INLINE inls[] = {
 	0,	"shift",	s_shift,
 	0,	"times",	s_times,
 	0,	"trap",		s_trap,
-	0,	"ulimit",	s_ulimit,
 	0,	"umask",	s_umask,
-	0,	"unset",	s_unset,
 	0,	"wait",		s_wait,
 	0,	NULL,		SNULL
 };
 
-int shell_builtin ()
+inline()
 {
 	register int (*s_func)();
 	register INLINE *ip;
 	register int ahash;
+	int pid, status;
 
-	if (inls[0].i_hash == 0)
-		for (ip = inls ; ip->i_name != NULL ; ip ++)
-			ip->i_hash = ihash (ip->i_name);
+	if (inls[0].i_hash==0)
+		for (ip=inls; ip->i_name!=NULL; ip++)
+			ip->i_hash = ihash(ip->i_name);
 	if (nargv[0] == NULL)
 		return 0;
-	ahash = ihash (nargv [0]);
-	for (ip = inls ; ip->i_name != NULL ; ip ++)
-		if (ip->i_hash == ahash &&
-		    strcmp (nargv [0], ip->i_name) == 0)
+	ahash = ihash(nargv[0]);
+	for (ip=inls; ip->i_name!=NULL; ip++)
+		if (ip->i_hash==ahash && strcmp(nargv[0], ip->i_name)==0)
 			break;
-	if ((s_func = ip->i_func) == SNULL)
+	if ((s_func=ip->i_func) == SNULL)
 		return 0;
-	/*
-	 * Process exec specially, because it has unique semantics for
-	 * redirection (among other things). Redirection of builtins is done
-	 * using the "undo" facility because builtins must execute in the
-	 * top-level environment. The original code here permitted a small
-	 * subset of builtins to be redirected, but executed them in a
-	 * subshell, giving bogus semantics (eg, it permitted "export" to be
-	 * redirected, but in a subshell it had no effect).
-	 */
-	if (s_func == s_exec)
-		slret = s_exec ();
-	else {
-		REDIR_UNDO    *	undo = NULL;
-
-		if (redirect (niovp, & undo) < 0)
+	if (*niovp != NULL && s_func != s_exec) {
+		/* Redirection with built-in command. */
+		/* Allowed only with eval, export, readonly, set, times. */
+		if (s_func != s_eval
+		 && s_func != s_export
+		 && s_func != s_set
+		 && s_func != s_times) {
+			eredir();
 			slret = 1;
-		else 
-			slret = (* s_func) ();
-
-		redirundo (& undo);
-	}
+			return 1;
+		}
+		if ((pid = clone()) == 0) {
+			/* Perform redirection in child process. */
+			if (redirect(niovp) < 0)
+				slret = 1;
+			else if (s_func == s_eval)
+				slret = (*s_func)();
+			else {
+				/* Kludge stderr output to stdout. */
+				dup2(1, 2);
+				close(1);
+				slret = (*s_func)();
+			}
+			exit(slret);
+			/* NOTREACHED */
+		} else {
+			/* Parent waits for child and takes its exit status. */
+			while (wait(&status) != pid)
+				;
+			slret = status >> 8;
+		}
+	} else
+		slret = (*s_func)();
 	return 1;
 }
 
@@ -122,11 +130,9 @@ ihash(cp)
 register char *cp;
 {
 	register int i;
-	for (i = 0 ; *cp ; i += * cp ++)
-		/* DO NOTHING */ ;
+	for (i=0; *cp; i+=*cp++);
 	return i;
 }
-
 
 /*
  * Actual builtin functions.
@@ -138,18 +144,17 @@ s_colon()
 
 s_dot()
 {
-	if (nargc == 2) {
-		ffind (NULL);
-		if (ffind (vpath, nargv [1], 4))
-			return session (SFILE, duplstr (strt, 0));
+	if (nargc==2) {
+		ffind(NULL);
+		if (ffind(vpath, nargv[1], 4))
+			return session(SFILE, duplstr(strt, 0));
 		else {
-			ecantfind (nargv [1]);
+			ecantfind(nargv[1]);
 			return 1;
 		}
-	} else if (nargc == 1)
+	} else if (nargc==1)
 		return 0;
-
-	syntax ();
+	syntax();
 	return 1;
 }
 
@@ -160,19 +165,18 @@ s_break()
 	register int n;
 	int ret;
 
-	ret = nargv[0][0] == 'b' ? 2 : 1;
-	n = nargc > 1 ? atoi (nargv [1]) : 1;
-
+	ret = nargv[0][0]=='b' ? 2 : 1;
+	n = nargc>1 ? atoi(nargv[1]) : 1;
 	for (cp = sesp->s_con; cp; cp = cp->c_next) {
 		t = cp->c_node->n_type;
-		if ((t == NWHILE || t == NFOR || t == NUNTIL) && --n == 0) {
+		if ((t==NWHILE || t==NFOR || t==NUNTIL) && --n == 0) {
 			sesp->s_con = cp;
-			longjmp (cp->c_envl, ret);
+			longjmp(cp->c_envl, ret);
 			break;
 		}
-		DESTROY_CON (cp);
+		freebuf(cp->c_bpp);
 	}
-	printe ("%s out of bounds", ret == 1 ? "Continue" : "Break");
+	printe("%s out of bounds", ret==1 ? "Continue" : "Break");
 }
 
 /* s_continue is overlaid with s_break */
@@ -181,12 +185,11 @@ s_cd()
 {
 	register char *dir;
 
-	if ((dir = cd (nargc < 2 ? vhome : nargv [1])) == NULL)
+	if ((dir = cd((nargc<2) ? vhome : nargv[1])) == NULL)
 		return -1;			/* cd failed */
-
-	if (dstack [dstkp] != NULL)
-		sfree (dstack [dstkp]);
-	dstack [dstkp] = duplstr (dir, 1);	/* update dir stack */
+	if (dstack[dstkp] != NULL)
+		sfree(dstack[dstkp]);
+	dstack[dstkp] = duplstr(dir, 1);	/* update dir stack */
 	return 0;
 }
 
@@ -195,45 +198,45 @@ s_dirs()
 	register int i;
 
 	for (i = dstkp; i >= 0; i--)
-		printf ("%s ", dstack[i]);
-	fputc('\n', stdout);
+		fprintf(stderr, "%s ", dstack[i]);
+	fputc('\n', stderr);
 }
 
 s_eval()
 {
-	return nargc > 1 ? session (SARGV, ++ nargv) : 0;
+	if (nargc>1)
+		return session(SARGV, ++nargv);
+	else
+		return 0;
 }
 
 s_exec()
 {
-	if (redirect (niovp, NULL) < 0) {
-		if (nargc > 1) {
-			exit (1);
+	if (redirect(niovp) < 0) {
+		if (nargc>1) {
+			exit(1);
 			NOTREACHED;
 		}
 		return 1;
 	}
-	if (nargc == 1)
+	if (nargc==1)
 		return 0;
-
-	if (no1flag) {
-		cleanup_shell_fns ();
-		unlink_temp (capture_temp ());
-	}
-	dflttrp (ICMD);
-	++ nargv;
-	-- nargc;
+	if (no1flag)
+		cleanup(2, NULL);
+	dflttrp(ICMD);
+	++nargv;
+	--nargc;
 	nenvp = envlvar(nenvp);
-	flexec ();
-	exit (1);
+	flexec();
+	exit(1);
 	NOTREACHED;
 }
 
 s_exit()
 {
 	if (nargc > 1)
-		slret = atoi (nargv [1]);
-	reset (RUEXITS);
+		slret = atoi(nargv[1]);
+	reset(RUEXITS);
 	NOTREACHED;
 }
 
@@ -242,18 +245,15 @@ s_export()
 	register int flag;
 	register char **varv;
 
-	flag = nargv [0][0]=='e' ? VEXP : VRDO;
+	flag = nargv[0][0]=='e' ? VEXP : VRDO;
 	if (nargc < 2)
-		tellvar (flag);
-	else {
-		varv = ++ nargv;
-		while (* varv) {
-			if (namevar (* varv))
-				flagvar (* varv ++, flag);
+		tellvar(flag);
+	else
+		for (varv=++nargv; *varv; )
+			if (namevar(*varv))
+				flagvar(*varv++, flag);
 			else
-				eillvar (* varv ++);
-		}
-	}
+				eillvar(*varv++);
 	return 0;
 }
 
@@ -261,9 +261,9 @@ s_login()
 {
 	register char *cmd;
 
-	cmd = nargv [0][0] == 'l' ? "/bin/login" : "/bin/newgrp";
-	execve (cmd, nargv, envlvar (nenvp));
-	ecantfind (cmd);
+	cmd = nargv[0][0]=='l' ? "/bin/login" : "/bin/newgrp";
+	execve(cmd, nargv, envlvar(nenvp));
+	ecantfind(cmd);
 	return 1;
 }
 
@@ -274,26 +274,26 @@ s_popd()
 	register int i, j, n, ret;
 
 	if (nargc == 1)
-		return popd ();
+		return popd();
 	/*
 	 * Kludge to pop one or more specific dir stack elements.
 	 * Do args backwards so e.g. "popd 2 3 4" works as expected.
 	 * Internal indices [0, dstkp] are user indices [dstkp, 0].
 	 */
-	for (ret = 0, i = nargc - 1; i > 0; i --) {
-		if ((n = atoi (nargv [i])) == 0)
-			ret |= popd ();
+	for (ret = 0, i = nargc-1; i > 0; i--) {
+		if ((n = atoi(nargv[i])) == 0)
+			ret |= popd();
 		else if (n < 0 || n > dstkp) {
-			printe ("Illegal arg: %d", n);
+			printe("Illegal arg: %d", n);
 			ret = -1;
 			continue;
 		} else {
 			j = dstkp - n;
-			if (dstack [j] != NULL)
-				sfree (dstack [j]);
-			for ( ; j < dstkp; j ++)
-				dstack [j] = dstack [j + 1];
-			-- dstkp;
+			if (dstack[j] != NULL)
+				sfree(dstack[j]);
+			for ( ; j < dstkp; j++)
+				dstack[j] = dstack[j+1];
+			--dstkp;
 		}
 	}
 	return ret;
@@ -308,122 +308,51 @@ s_pushd()
 		/* Exchange top two stack elements. */
 		if (dstkp == 0)
 			return 1;		/* only one element on stack */
-		dir = dstack [dstkp - 1];
-		dstack [dstkp - 1] = dstack [dstkp];
-		dstack [dstkp] = dir;		/* exchange top two */
-		return cd (dir) == NULL ? -1 : 0;	/* and cd accordingly */
+		dir = dstack[dstkp-1];
+		dstack[dstkp-1] = dstack[dstkp];
+		dstack[dstkp] = dir;		/* exchange top two */
+		return ((cd(dir) == NULL) ? -1 : 0);	/* and cd accordingly */
 	}
 	/* Push one or more directories to stack. */
-	for (ret = 0, i = 1; i < nargc; i ++)
-		ret |= pushd (nargv [i]);
+	for (ret = 0, i = 1; i < nargc; i++)
+		ret |= pushd(nargv[i]);
 	return ret;
 }
 
-/*
- * NB: For s_read (), wrap up the temporary-space global bullshit. Later we
- * can add parameters to this stuff to get the effect of string streams.
- */
-
-#define	temp_string_begin()	((void) (strp = strt))
-#define	temp_string_max()	STRSIZE
-#define	temp_string_add(c) \
-		(strp < strt + temp_string_max () ? (void) (* strp ++ = c) : \
-		 (void) etoolong ())
-#define	temp_string_end()	(strt)
-#define	temp_string_end_copy()	(duplstr (temp_string_end (), 1))
-#define	temp_string_temp_copy()	(duplstr (temp_string_end (), 0))
-#define	temp_mark()		(0)
-#define	temp_release(x)		((void) x)
-
-typedef	int		temp_mark_type;
-
-#define	ARGS(x)		x
-void temp_string_begin ARGS (()) {
-	temp_string_begin ();
-}
-int temp_string_max ARGS (()) {
-	return temp_string_max ();
-}
-void temp_string_add ARGS ((c)) int c; {
-	temp_string_add (c);
-}
-char * temp_string_end ARGS (()) {
-	return temp_string_end ();
-}
-char * temp_string_end_copy ARGS (()) {
-	return temp_string_end_copy ();
-}
-char * temp_string_temp_copy ARGS (()) {
-	return temp_string_temp_copy ();
-}
-temp_mark_type temp_mark ARGS (()) {
-	return temp_mark ();
-}
-void temp_release ARGS ((m)) temp_mark_type m; {
-	temp_release (m);
-}
-
-/*
- * NB: Originally, this code used yylex () to break the input up into words.
- * This was a bad idea, because this caused the IFS variable to have no
- * useful effect. Now we just read using <stdio.h> functions, because the
- * extra machinery for session-management doesn't seem to buy anything.
- */
-
 s_read()
 {
-	char	     **	argp = nargv + 1;
-	char	     **	arg_end = argp + (nargc - 1);
-	char	      *	delimiters;
-	int		ch;
+	SES s;
+	register int n, c;
+	register char **vp;
+	int eol;
 
-	while (argp < arg_end)
-		if (! namevar (* argp ++))
-			eillvar (argp - 1);
-
-	delimiters = vifs == NULL ? " \t" : vifs;
-
-	argp = nargv + 1;
-	while (argp < arg_end)  {
-		temp_mark_type	mark;
-		enum	{
-			EAT_WS,
-			WORD
-		} state = EAT_WS;
-
-		mark = temp_mark ();
-		temp_string_begin ();
-
-		if (argp + 1 == arg_end)
-			delimiters = "";
-
-		while ((ch = getc (stdin)) != EOF && ch != '\n') {
-
-			if (strchr (delimiters, ch) != NULL) {
-
-				if (state == EAT_WS)
-					continue;
-				break;
-			}
-
-			temp_string_add (ch);
-			state = WORD;
-		}
-		temp_string_add (0);
-
-		assnvar (* argp ++, temp_string_temp_copy ());
-		temp_release (mark);
-
-		if (ch == EOF || ch == '\n')
-			break;
+	s.s_type = SSTR;
+	s.s_flag = 0;
+	s.s_ifp = stdin;
+	s.s_next = sesp;
+	sesp = &s;
+	for (eol=0, vp=++nargv, n=--nargc; n; n-=1, vp+=1) {
+		if (n==1 && ! eol) {
+			strp = strt;
+			c = collect('\n', 2);
+			if (c == '\n')
+				--strp;
+			*strp = '\0';
+		} else if (! eol) {
+			readflag = 1;
+			c = yylex();
+			readflag = 0;
+		} else
+			*strt = '\0';
+		if (namevar(*vp))
+			assnvar(*vp, duplstr(strt, 0));
+		else
+			eillvar(*vp);
+		eol = c=='\n' || c==EOF;
 	}
-
-	while (argp < arg_end)
-		assnvar (* argp ++, "");
-
-	return ch == EOF;
+	sesp = s.s_next;
+	return c==EOF;
 }
-
 
 /* s_readonly overlaid with s_export */
 
@@ -463,7 +392,7 @@ s_times()
 	times(&tb);
 	ptime(tb.tb_cutime);
 	ptime(tb.tb_cstime);
-	puts ("\n");
+	prints("\n");
 	return 0;
 }
 
@@ -474,43 +403,30 @@ s_trap()
 	register int err;
 
 	err = 0;
-	if (nargc == 1)
-		return telltrp ();
-	vp = ++ nargv;
-	cp = * vp;
-	if (class (cp [0], MDIGI) &&
-	    (cp [1] == '\0' || (class (cp [1], MDIGI) && cp [2]=='\0')))
+	if (nargc==1)
+		return telltrp();
+	vp = ++nargv;
+	cp = *vp;
+	if (class(cp[0], MDIGI)
+	 && (cp[1]=='\0' || (class(cp[1], MDIGI) && cp[2]=='\0')))
 		cp = NULL;
 	else
-		++ vp;
-	while (* vp) {
-		if (class (vp [0][0], MDIGI))
-			err |= setstrp (atoi (* vp ++), cp);
+		++vp;
+	while (*vp) {
+		if (class(vp[0][0], MDIGI))
+			err |= setstrp(atoi(*vp++), cp);
 		else {
-			printe ("Bad trap: %s", * vp ++);
+			printe("Bad trap: %s", *vp++);
 			err |= 1;
 		}
 	}
 	return err;
 }
 
-#include <ulimit.h>
-
-s_ulimit ()
-{
-	long		newlimit;
-
-	if (nargc < 2)
-		printf ("%ld\n", ulimit (UL_GETFSIZE));
-	else if ((newlimit = atol (nargv [1])) > 0)
-		ulimit (UL_SETFSIZE, newlimit);
-	return 0;
-}
-
 s_umask()
 {
 	if (nargc < 2)
-		printf ("%03o\n", ufmask);
+		prints("%03o\n", ufmask);
 	else
 		umask(ufmask = atoi(nargv[1]));
 	return 0;
@@ -535,12 +451,11 @@ s_wait()
 char *
 cd(dir) register char *dir;
 {
-	if (chdir (dir) < 0) {
-		printe ("%s: bad directory", dir);
+	if (chdir(dir) < 0) {
+		printe("%s: bad directory", dir);
 		return NULL;
 	}
-
-	if (* dir != '/') {
+	if (*dir != '/') {
 		/*
 		 * Find an absolute pathname for the dstack and $CWD.
 		 * The directory now in dstack[dstkp] is "." if _getwd() failed
@@ -548,11 +463,11 @@ cd(dir) register char *dir;
 		 * down the path to "/", or "." was rm'ed by another process).
 		 * Avoid _getwd() in this case, it can undo the chdir() above.
 		 */
-		if ((strcmp (dstack [dstkp], ".") == 0) ||
-		    (dir = _getwd ()) == NULL)
+		if ((strcmp(dstack[dstkp], ".") == 0)
+		 || ((dir = _getwd()) == NULL))
 			return NULL;
 	}
-	assnvar ("CWD", dir);
+	assnvar("CWD", dir);
 	return dir;
 }
 
@@ -562,12 +477,12 @@ cd(dir) register char *dir;
 popd()
 {
 	if (dstkp == 0) {
-		printe ("Directory stack underflow");
+		printe("Directory stack underflow");
 		return -1;
 	}
-	if (dstack [dstkp] != NULL)
-		sfree (dstack [dstkp]);
-	return cd (dstack [-- dstkp]) == NULL ? -1 : 0;
+	if (dstack[dstkp] != NULL)
+		sfree(dstack[dstkp]);
+	return (cd(dstack[--dstkp]) == NULL ? -1 : 0);
 }
 
 /*
@@ -575,14 +490,14 @@ popd()
  */
 pushd(dir) register char *dir;
 {
-	if ((dir = cd (dir)) == NULL)
+	if ((dir = cd(dir)) == NULL)
 		return -1;			/* cd failed */
-	if (++ dstkp >= DSTACKN) {
-		-- dstkp;
-		printe ("Directory stack overflow");
+	if (++dstkp >= DSTACKN) {
+		--dstkp;
+		printe("Directory stack overflow");
 		return -1;
 	}
-	dstack [dstkp] = duplstr (dir, 1);
+	dstack[dstkp] = duplstr(dir, 1);
 	return 0;
 }
 
@@ -609,15 +524,15 @@ register char *argv[];
 		register char *fp;
 
 		n++;
-		for (cp = & argv [1][1] ; * cp ; cp ++) {
-			if ((fp = index (shfnams, * cp)) == NULL ||
-			    (fp += shflags - shfnams) == NULL ||
-			    (fp != & lgnflag && fp > & xflag && flag == 0))
-				printe ("-%c: Bad option", *cp);
-			else if (fp != & lgnflag)
-				* fp = * cp;
+		for (cp = &argv[1][1]; *cp; cp++) {
+			if ((fp=index(shfnams, *cp)) == NULL
+			 || (fp+=shflags-shfnams) == NULL
+			 || (fp != &lgnflag && fp > &xflag && flag == 0))
+				printe("-%c: Bad option", *cp);
+			else if (fp != &lgnflag)
+				*fp = *cp;
 		}
-		if (cp ==  &argv [1][1]) {
+		if (cp == &argv[1][1]) {
 			vflag = 0;
 			xflag = 0;
 		}
@@ -627,8 +542,8 @@ register char *argv[];
 	if (errflag)
 		return 1;
 	if (sargv != NULL)
-		vfree (sargv);
-	sargv = vdupl (argv);
+		vfree(sargv);
+	sargv = vdupl(argv);
 	sargc = argc - n;
 	sargp = sargv + n;
 	return 0;
@@ -643,15 +558,15 @@ long t;
 {
 	register int ticks, tenths, seconds;
 
-	printf ("%ldm", t / MINUTE);
-	ticks = t % MINUTE;
-	seconds = ticks / SECOND;
-	tenths = (ticks % SECOND + SECOND / 20) / (SECOND / 10);
+	prints("%Dm", t/MINUTE);
+	ticks = t%MINUTE;
+	seconds = ticks/SECOND;
+	tenths = (ticks%SECOND + SECOND/20)/(SECOND/10);
 	if (tenths == 10) {
 		tenths = 0;
-		seconds ++;
+		seconds++;
 	}
-	printf ("%d.%ds ", seconds, tenths);
+	prints("%d.%ds ", seconds, tenths);
 }
 
 /* User-defined shell functions. */
@@ -674,122 +589,37 @@ lookup_sh_fn(name) char *name;
 }
 
 /*
- * When a subshell is created, the functions are available in the subshell
- * but we don't want to lose the here-documents.
- */
-
-void subshell_shell_fns ()
-{
-	SHFUNC	      *	scan;
-
-	scan = sh_fnp;
-
-	while (scan != NULL) {
-		forget_temp (scan->fn_temp);
-		scan->fn_temp = NULL;
-		scan = scan->fn_link;
-	}
-}
-
-
-/*
- * Unset a shell function, freeing the function body and detaching any
- * temporary files.
- */
-
-void cleanup_shell_fn (fnp)
-SHFUNC	      *	fnp;
-{
-	free_node (fnp->fn_body);
-	unlink_temp (fnp->fn_temp);
-}
-
-
-/*
- * Delete a shell function. Returns -1 on failure.
- */
-
-int unset_shell_fn (name) char * name; {
-	register SHFUNC * fnp, * prev;
-
-	prev = NULL;
-	for (fnp = sh_fnp ; fnp != NULL; fnp = (prev = fnp)->fn_link)
-		if (strcmp (name, fnp->fn_name) == 0) {
-			if (prev == NULL)
-				sh_fnp = fnp->fn_link;
-			else
-				prev->fn_link = fnp->fn_link;
-			cleanup_shell_fn (fnp);
-			sfree (fnp);
-			return 0;
-		}
-	return -1;
-}
-
-
-/*
- * Before final exit, clean up all shell functions. Freeing the memory of
- * the function bodies is a waste of time here, so we leave that alone.
- */
-
-void cleanup_shell_fns ()
-{
-	SHFUNC	      *	scan;
-	SHFUNC	      *	next;
-
-	for (scan = sh_fnp ; scan != NULL ; scan = next) {
-		next = scan->fn_link;
-		unlink_temp (scan->fn_temp);
-#if 0
-		cleanup_shell_fn (scan);
-		sfree (scan->fn_name);
-		sfree (scan);
-#endif
-	}
-
-	sh_fnp = NULL;
-}
-
-
-/*
  * Define a shell function.
  */
-
-def_shell_fn (np, temps)
-NODE	      *	np;
-TEMP_FILE     *	temps;
+def_shell_fn(np) register NODE *np;
 {
 	register char *name;
 	register SHFUNC *fnp;
 
 	name = np->n_strp;
 	if ((fnp = lookup_sh_fn(name)) != NULL)
-		cleanup_shell_fn (fnp);	/* redeclared, free old body */
+		free_node(fnp->fn_body);	/* redeclared, free old body */
 	else {
-		fnp = (SHFUNC *) salloc (sizeof (* fnp));
-						/* allocate new function */
+		fnp = salloc(sizeof *fnp);	/* allocate new function */
 		fnp->fn_link = sh_fnp;		/* add it to list */
 		sh_fnp = fnp;
 		fnp->fn_hash = ihash(name);	/* and set member info */ 
 		fnp->fn_name = duplstr(name, 1);
 	}
-	fnp->fn_temp = temps;
 	fnp->fn_body = copy_node(np->n_next);	/* and copy function body */
 }
 
 /*
- * Look for a shell function, execute it if found. Let's not forget that
- * shell functions have to be redirected in a similar manner to builtins.
+ * Look for a shell function, execute it if found.
  */
-
-int shell_function()
+int
+sh_fn()
 {
 	register SHFUNC *fnp;
 	CON *ocon;
 	int oargc;
 	char *oarg0;
 	char **oargv, **oargp;
-	REDIR_UNDO    *	undo = NULL;
 
 	if (nargv[0] == NULL)
 		return 0;
@@ -807,16 +637,9 @@ int shell_function()
 	ocon = sesp->s_con;
 	sesp->s_con = NULL;
 
-	if (redirect (niovp, & undo) < 0)
-		slret = 1;
-	else  {
-		++in_sh_fn;
-		slret = command(fnp->fn_body);		/* execute it */
-		--in_sh_fn;
-
-		redirundo (& undo);
-	}
-
+	++in_sh_fn;
+	slret = command(fnp->fn_body);		/* execute it */
+	--in_sh_fn;
 	ret_done = 0;
 	vfree(sargv);
 
@@ -848,7 +671,7 @@ copy_node(np) NODE *np;
 	if (np == NULL)
 		return NULL;
 	flag = 0;
-	newnp = (NODE *) salloc(sizeof (* np));		/* allocate new NODE */
+	newnp = salloc(sizeof *np);			/* allocate new NODE */
 	newnp->n_type = np->n_type;
 	switch(np->n_type) {
 
@@ -952,26 +775,6 @@ free_node(np) register NODE *np;
 	}
 	free_node(np->n_next);
 	sfree(np);
-}
-
-extern int unsetvar ();
-
-int s_unset ()
-{
-	int		i;
-
-	if (nargc > 1 && strcmp (nargv [1], "-f") == 0) {
-		/*
-		 * Unsetting functions.
-		 */
-
-		for (i = 2 ; i < nargc ; i ++)
-			(void) unset_shell_fn (nargv [i]);
-	} else
-		for (i = 1 ; i < nargc ; i ++)
-			(void) unsetvar (nargv [i]);
-
-	return 0;
 }
 
 /* end of sh/exec3.c */

@@ -1,16 +1,9 @@
 /* (-lgl
- * 	COHERENT Version 4.0
- * 	Copyright (c) 1983, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * Machine types.
- *
- * $Log:	/usr/src/cmd/include/RCS/mtype.h,v $
- * Revision 1.1	89/04/26  16:25:40 	root
- * Initial revision
- * 
- */
 
 #ifndef	 __MTYPE_H__
 #define	 __MTYPE_H__

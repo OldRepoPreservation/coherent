@@ -27,7 +27,7 @@ typedef struct input	input_t;
 #endif
 
 /*
- * Pass this rather than a character to make_file_input () if you don't want
+ * Pass this rather than a character to make_filter () if you don't want
  * support for commentary in input text. Comments in file input simply throw
  * away all text from the comment character (which may appear anywhere) to the
  * end of the line. It's just a hack, but handy nonetheless, since sometimes
@@ -44,8 +44,9 @@ enum {
 
 EXTERN_C_BEGIN
 
-input_t	      *	make_file_input	PROTO ((FILE * _file, CONST char * _name,
-					int _comment));
+input_t	      *	make_filter	PROTO ((FILE * _infile, CONST char * _inname,
+					int _inclose, int _comment,
+					FILE * _outfile, int _outclose));
 input_t	      *	make_string_input PROTO ((CONST unsigned char * _str,
 					  int _copy));
 

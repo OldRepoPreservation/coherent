@@ -5,7 +5,7 @@
  * Get character from string stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _fgetstr(fp) register FILE *fp;

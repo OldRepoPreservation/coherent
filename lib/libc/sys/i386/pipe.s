@@ -7,7 +7,7 @@
 / pipe(fd) int fd[2];
 //////////
 
-        .text
+	.unixorder
 	.globl	pipe
 	.globl	.cerror
 

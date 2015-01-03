@@ -1,5 +1,4 @@
 /*
- * date.c
  * Print and set the date.
  */
 
@@ -13,9 +12,6 @@
 #include <utmp.h>
 #include <sys/stat.h>
 #endif
-
-void	error();
-void	usage();
 
 #define TFCFLAG	0		/* Truly French GMT is UTC */
 int	gmtflag;		/* Do things in Greenwich Mean Time */
@@ -131,7 +127,7 @@ char *s;
 	 */
 	ltime = tmp->tm_sec + MIN*tmp->tm_min + HOUR*tmp->tm_hour;
 	ltime += (tmp->tm_mday-1) * DAY;
-	year = 1900 + tmp->tm_year;
+	year = 2000 + tmp->tm_year;
 	/*
 	 * Adjust length of February in leap years.
 	 */
@@ -151,9 +147,9 @@ char *s;
 	status = stime(&ltime);
 	if (status < 0) {
 #if COHERENT
-		error("no permission");
+		error("No permission\n");
 #else
-		error("bad date");
+		error("Bad date\n");
 #endif
 		return;
 	}
@@ -221,18 +217,13 @@ register time_t *tp;
 	return (gmtflag ? gmtime(tp) : localtime(tp));
 }
 
-void
 usage()
 {
-	fprintf(stderr, "Usage: date [-u] [yymmddhhmm[.ss]]\n");
-	exit(1);
+	error("Usage: date [-u] [yymmddhhmm[.ss]]\n");
 }
 
-void
 error(x)
 {
-	fprintf(stderr, "date: %r\n", &x);
+	printf("%r", &x);
 	exit(1);
 }
-
-/* end of date.c */

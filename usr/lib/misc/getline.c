@@ -1,4 +1,6 @@
 /*
+ * Special Getline for tabbld. Keeps comments in char *comment.
+ *
  * char * getline(ifp, lineno) FILE *ifp; int *lineno;
  *
  * Function to get lines from an input file.
@@ -8,8 +10,8 @@
  * be incremented by the number of lines in the previous call.
  * Thus lineno will be the number of the line just gotten.
  *
- * # to end of line is passed.
- * \ whitespace through end of line is passed.
+ * # to end of line is ignored.
+ * \ whitespace through end of line is ignored.
  * \n newline
  * \p #
  * \b backspace
@@ -22,21 +24,37 @@
  */
 #include <misc.h>
 
-static char outSpace[] = "Out of space";
-static char *line = NULL;
-static int i;
-static int size = 0;
-static int oldline = 0;
+extern char *realloc();
 
+static char *line = NULL;
+char *comment = NULL;
+static int oldline = 0;
+static int i = 0, size = 0;	/* stuff for line */
+static int j = 0, csize = 0;	/* stuff for comment */
+
+/*
+ * Add char to line.
+ */
 static void
 addchr(c)
 {
-	extern char *realloc();
-
 	while (i >= size)
 		if (NULL == (line = realloc(line, size += 80)))
 			fatal("Out of space");
+			/* NODOC */
 	line[i++] = c;
+}
+
+/*
+ * Add char to comment.
+ */
+static void
+addcom(c)
+{
+	while (j >= csize)
+		if (NULL == (comment = realloc(comment, csize += 80)))
+			fatal("Out of space");	/* NODOC */
+	comment[j++] = c;
 }
 
 char *
@@ -45,10 +63,10 @@ FILE *ifp;
 int *lineno;
 {
 	int c, octacc, octcnt;
-	enum state { normal, incont, incomm, bsl, octdig } state;
+	enum state { normal, incont, incomm, incommb, bsl, octdig } state;
 
 	*lineno += oldline;
-	for (state = normal, oldline = i = 0;;) {
+	for (state = normal, oldline = j = i = 0;;) {
 		if (EOF == (c = fgetc(ifp))) {
 			if (i)
 				fprintf(stderr, 
@@ -70,6 +88,7 @@ int *lineno;
 
 			case '\n':
 				oldline++;
+				addcom(0);
 				addchr(0);
 				return (line);
 			}
@@ -85,12 +104,30 @@ int *lineno;
 			continue;
 
 		case incomm:
+			switch (c) {
+			case ' ':
+			case '\t':
+				continue;
+			case '\n':
+				state = normal;
+				oldline++;
+				addchr(0);
+				addcom(0);
+				return (line);
+			}
+			state = incommb;
+			addcom(c);
+			continue;
+
+		case incommb:
 			if ('\n' == c) {
 				state = normal;
 				oldline++;
 				addchr(0);
+				addcom(0);
 				return (line);
 			}
+			addcom(c);
 			continue;
 
 		case bsl:
@@ -101,8 +138,16 @@ int *lineno;
 			case '\\':
 				break;
 
+			case 'p':
+				c = '#';
+				break;
+
 			case 'f':
 				c = '\f';
+				break;
+
+			case 'a':
+				c = '\a';
 				break;
 
 			case 'r':
@@ -115,14 +160,6 @@ int *lineno;
 
 			case 'n':
 				c = '\n';
-				break;
-
-			case 'a':
-				c = '\a';
-				break;
-
-			case 'p':
-				c = '#';
 				break;
 
 			case ' ':
@@ -179,7 +216,11 @@ main()
 	for (;;) {
 		if (NULL == (got = getline(stdin, &line)))
 			exit(0);
-		printf("%d - %s\n", line, got);
+
+		if (*comment)
+			printf("%d: %s #%s\n", line, got, comment);
+		else
+			printf("%d: %s\n", line, got);
 	}
 }
 #endif

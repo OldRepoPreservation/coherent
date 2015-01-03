@@ -43,6 +43,23 @@
 
 
 ehand_t	      *	estack_base;
+CONST char    *	command_name;
+
+/*
+ * Register the name of the currently executing command with the error-
+ * reporting system.
+ */
+
+#if	USE_PROTO
+void (register_name) (CONST char * name)
+#else
+void
+register_name ARGS ((name))
+CONST char    *	name;
+#endif
+{
+	command_name = name;
+}
 
 
 /*
@@ -60,7 +77,9 @@ CONST char    *	fmt;
 	va_list		args;
 
 	va_start (args, fmt);
-	(void) fprintf (stderr, "ERROR : ");
+	if (command_name != NULL)
+		(void) fprintf (stderr, "%s: ", command_name);
+	(void) fprintf (stderr, "error: ");
 	(void) vfprintf (stderr, fmt, args);
 	va_end (args);
 
@@ -74,25 +93,29 @@ CONST char    *	fmt;
  */
 
 #if	USE_PROTO
-NO_RETURN void (throw_error) (CONST char * fmt, ...)
+NO_RETURN (throw_error) (int ecode, CONST char * fmt, ...)
 #else
-NO_RETURN void
-throw_error ARGS ((fmt))
+NO_RETURN
+throw_error ARGS ((ecode, fmt))
+int		ecode;
 CONST char    *	fmt;
 #endif
 {
 	va_list		args;
 
-	va_start (args, fmt);
-	(void) fprintf (stderr, "ERROR : ");
+ 	va_start (args, fmt);
+ 	if (command_name != NULL)
+ 		(void) fprintf (stderr, "%s: ", command_name);
+	(void) fprintf (stderr, "error: ");
 	(void) vfprintf (stderr, fmt, args);
 	va_end (args);
 
 	putc ('\n', stderr);
 
 	if (estack_base == NULL)
-		exit (EXIT_FAILURE);
+		exit (ecode == 0 ? EXIT_FAILURE : ecode);
 
+	estack_base->eh_code = ecode;
 	longjmp (estack_base->eh_buf, -1);
 }
 
@@ -112,8 +135,12 @@ CONST char    *	file;
 int		line;
 #endif
 {
-	fprintf (stderr, "FATAL ERROR : Exception handler nesting error ");
-	fprintf (stderr, "detected in file\n  '%s' at line %d\n", file, line);
+	if (command_name != NULL)
+		(void) fprintf (stderr, "%s: ", command_name);
+
+	(void) fprintf (stderr, "fatal error : Exception handler nesting error "
+				"detected in file\n  '%s' at line %d\n",
+			file, line);
 
 	exit (EXIT_FAILURE);
 }
@@ -136,8 +163,9 @@ ehand_t	      *	err;
 		error_error ("chain_error, " __FILE__, __LINE__);
 
 	if ((estack_base = err->eh_next) == NULL)
-		exit (EXIT_FAILURE);
+		exit (err->eh_code == 0 ? EXIT_FAILURE : err->eh_code);
 
+	estack_base->eh_code = err->eh_code;
 	longjmp (estack_base->eh_buf, -1);
 }
 

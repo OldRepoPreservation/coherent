@@ -6,11 +6,11 @@
  * Read nmemb items of given size from stream to ptr.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdlib.h>
 
 size_t
-fread(ptr, size, nmemb, stream) const Void *ptr; size_t size, nmemb; register FILE *stream;
+fread(ptr, size, nmemb, stream) const __VOID__ *ptr; size_t size, nmemb; register FILE *stream;
 {
 	register size_t nb;
 	register int c;

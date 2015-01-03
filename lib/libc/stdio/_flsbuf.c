@@ -2,12 +2,12 @@
  * libc/stdio/_flsbuf.c
  * ANSI-compliant C standard i/o library internals.
  * _flsbuf()
- * This function is defined for compatability with Unix <stdio.h> internals.
+ * This function is defined for compatability with Unix <coh_stdio.h> internals.
  * The Unix version of putc() does a _flsbuf() to flush a buffer of
  * characters when the buffer is full.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 _flsbuf(c, fp) register int c; register FILE *fp;

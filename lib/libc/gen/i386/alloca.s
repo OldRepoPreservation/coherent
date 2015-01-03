@@ -3,6 +3,8 @@
 / Dynamic stack allocation.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / alloca(int n)

@@ -8,7 +8,7 @@
  * where <pid> is the 5-digit pid and x is an ASCII character.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <string.h>
 
 extern	char *mktemp();

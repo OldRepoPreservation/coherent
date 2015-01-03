@@ -3,6 +3,8 @@
 / i387 mathematics library
 / pow(x, y)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

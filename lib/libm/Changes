@@ -48,3 +48,32 @@ i387/tanh87.s
 		Change fdiv/fsub ops in keeping with cef's as change,
 		for Unix compatability.
 
+Thu Feb  4 15:07:33 1993 PST
+Makefile
+i387/Makefile
+fmod.c
+		Added fmod.c defining fmod() per ANSI 4.5.6.4 after a user
+		observed that it was not there.  Updated Makefiles accordingly.
+
+Tue May 18 07:03:19 1993 PDT
+i387/atan287.s
+		User Jim West <jwest@jwest.ecen.okstate.edu> reported that
+		atan2(1., -1.) and atan2(-1., 1.) returned the wrong values
+		with -VNDP (and thus with gcc).  He's right, the 80x87 code
+		incorrectly (and unnecessarily) adjusted the fpatan return
+		value.  Now it leaves the return value alone and it works.
+
+Tue Mar  8 14:49:55 1994 PST
+Makefile
+i387/Makefile
+		Added comments to Makefiles to clarify making.
+*.c
+		Added "#include <errno.h>" to sources for compilation
+		with COH 4.2 header suite.  Nonsubstantive whitespace changes.
+i387/*.s
+		Added ".intelorder" to sources so that -f is not required.
+
+Fri Jun 10 13:42:43 1994 PDT
+Makefile
+i387/Makefile
+		Modified to include library object dependencies.

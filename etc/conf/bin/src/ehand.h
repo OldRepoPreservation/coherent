@@ -25,7 +25,15 @@ typedef struct ehandler	ehand_t;
 struct ehandler {
 	ehand_t	      *	eh_next;
 	jmp_buf		eh_buf;
+
+	/*
+	 * We can use additional members of this structure to carry extra
+	 * information about the exceptional condition up the chain.
+	 */
+
+	int		eh_code;
 };
+
 
 extern ehand_t	      *	estack_base;
 
@@ -39,12 +47,12 @@ extern ehand_t	      *	estack_base;
 
 EXTERN_C_BEGIN
 
-NO_RETURN void	throw_error	PROTO ((CONST char * _fmt, ...));
+void		register_name	PROTO ((CONST char * _name));
+NO_RETURN	throw_error	PROTO ((int _ecode, CONST char * _fmt, ...));
 void		report_error	PROTO ((CONST char * _fmt, ...));
 void		error_error	PROTO ((CONST char * _file, int _line));
 void		chain_error	PROTO ((ehand_t * _ehand));
 
 EXTERN_C_END
-
 
 #endif	/* ! define (EHAND_H) */

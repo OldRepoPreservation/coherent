@@ -1,21 +1,27 @@
+/* $Header: /ker/io.386/RCS/mm.c,v 2.3 93/08/19 04:02:55 nigel Exp Locker: nigel $ */
 /*
- * mm.c
- *
  * Memory Mapped Video
  * High level output routines.
  *
  * $Log:	mm.c,v $
+ * Revision 2.3  93/08/19  04:02:55  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  15:32:02  nigel
+ * Nigel's R80
+ * 
  * Revision 1.4  92/04/09  10:25:38  hal
  * Call mmgo() from mmstart() at low priority.
- * 
  */
+
+#include <kernel/timeout.h>
+
 #include <sys/coherent.h>
 #include <sys/sched.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/io.h>
 #include <sys/tty.h>
-#include <sys/timeout.h>
 
 /* For beeper */
 #define	TIMCTL	0x43			/* Timer control port */
@@ -24,9 +30,9 @@
 #define	FREQ	((int)(1193181L/440))	/* Counter for 440 Hz. tone */
 
 int mmtime();
+extern char mmesc;	/* last unserviced escape character */
 
 char mmbeeps;		/* number of ticks remaining on bell */
-char mmesc;		/* last unserviced escape character */
 int  mmcrtsav = 1;	/* crt saver enabled */
 int  mmvcnt   = 900;	/* seconds remaining before crt saver is activated */
 
@@ -39,30 +45,34 @@ extern TTY istty;
 TIM mmtim;
 
 mmstart(tp)
-register TTY *tp;
+TTY * tp;
 {
-	int c, s;
-	IO iob;
 	static int mmbegun;
 
 	if (mmbegun == 0) {
-		++mmbegun;
-		timeout(&mmtim, HZ/10, mmtime, (char *)tp);
+		++ mmbegun;
+		timeout (& mmtim, HZ / 10, mmtime, (char *) tp);
 	}
 
-	while ((tp->t_flags&T_STOP) == 0) {
-		if ((c = ttout(tp)) < 0)
+	while ((tp->t_flags & T_STOP) == 0) {
+		IO		iob;
+		char		c;
+		int		temp;
+		unsigned short	s;
+
+		if ((temp = ttout (tp)) < 0)
 			break;
-		iob.io_seg  = IOSYS;
-		iob.io_ioc  = 1;
-		iob.io.vbase = &c;
+		iob.io_seg = IOSYS;
+		iob.io_ioc = 1;
+		c = temp;
+		iob.io.vbase = & c;
 		iob.io_flag = 0;
 #if 0
-		mmwrite( makedev(2,0), &iob );
+		mmwrite (makedev (2, 0), & iob);
 #else
-		s = splo();
-		mmgo(&iob);
-		spl(s);
+		s = splo ();
+		mmgo (& iob);
+		spl (s);
 #endif
 	}
 }
@@ -70,29 +80,29 @@ register TTY *tp;
 mmtime(xp)
 char *xp;
 {
-	register int s;
+	int s;
 
 	s = sphi();
 	if (mmbeeps < 0) {
 		mmbeeps = 2;
-		outb(TIMCTL, 0xB6);	/* Timer 2, lsb, msb, binary */
-		outb(TIMCNT, FREQ&0xFF);
-	        outb(TIMCNT, FREQ>>8);
-		outb(PORTB, inb(PORTB) | 03);	/* Turn speaker on */
-	}
-	else if ((mmbeeps > 0) && (--mmbeeps == 0))
-		outb( PORTB, inb(PORTB) & ~03 );
+		outb (TIMCTL, 0xB6);	/* Timer 2, lsb, msb, binary */
+		outb (TIMCNT, FREQ & 0xFF);
+	        outb (TIMCNT, FREQ >> 8);
+		outb (PORTB, inb (PORTB) | 3);	/* Turn speaker on */
+	} else if (mmbeeps > 0 && -- mmbeeps == 0)
+		outb (PORTB, inb (PORTB) & ~ 3);
 
 	if (mmesc) {
-		ismmfunc(mmesc);
+		ismmfunc (mmesc);
 		mmesc = 0;
 	}
-	spl(s);
+	spl (s);
 
-	ttstart( (TTY *) xp );
+	ttstart ((TTY *) xp);
 
-	timeout(&mmtim, HZ/10, mmtime, xp);
+	timeout (& mmtim, HZ / 10, mmtime, xp);
 }
+
 
 /**
  *
@@ -102,13 +112,13 @@ char *xp;
 void
 mmwatch()
 {
-	if ( (mmcrtsav > 0) && (mmvcnt > 0) && (--mmvcnt == 0) )
-		mm_voff();
+	if (mmcrtsav > 0 && mmvcnt > 0 && -- mmvcnt == 0)
+		mm_voff ();
 }
 
-mmwrite( dev, iop )
+mmwrite (dev, iop)
 dev_t dev;
-register IO *iop;
+IO *iop;
 {
 	int ioc;
 	int s;
@@ -117,9 +127,9 @@ register IO *iop;
 	 * Kernel writes.
 	 */
 	if (iop->io_seg == IOSYS) {
-		while (mmgo(iop))
-			;
-		goto mmwdone;
+		while (mmgo (iop))
+			/* DO NOTHING */ ;
+		return;
 	}
 
 #if 0
@@ -127,56 +137,60 @@ register IO *iop;
 	/*
 	 * Blocking user writes.
 	 */
-	if ( (iop->io_flag & IONDLY) == 0 ) {
+	if ((iop->io_flag & IONDLY) == 0) {
 		do {
 			while (istty.t_flags & T_STOP) {
-				s = sphi();
+				s = sphi ();
 				istty.t_flags |= T_HILIM;
-				sleep((char*) &istty.t_oq,
+				sleep ((char*) & istty.t_oq,
 					CVTTOUT, IVTTOUT, SVTTOUT);
-				spl( s );
+				spl (s);
 			}
+
 			/*
 			 * Signal received.
 			 */
-			if ( SELF->p_ssig && nondsig() ) {
+
+			if (curr_signal_pending ()) {
 				kbunscroll();	/* update kbd LEDS */
+
 				/*
 				 * No data transferred yet.
 				 */
-				if ( ioc == iop->io_ioc )
-					u.u_error = EINTR;
-				/*
-				 * Transfer remaining data
-				 * without pausing after scrolling.
-				 */
-				else while ( mmgo(iop) )
-					;
-				goto mmwdone;
+
+				if (ioc == iop->io_ioc)
+					set_user_error (EINTR);
+				else {
+					/*
+					 * Transfer remaining data
+					 * without pausing after scrolling.
+					 */
+					while (mmgo (iop))
+						/* DO NOTHING */ ;
+				}
+				return;
 			}
-			mmgo(iop);
-		} while ( iop->io_ioc );
-		goto mmwdone;
+
+			mmgo (iop);
+		} while (iop->io_ioc != 0);
+		return;
 	}
 
 	/*
 	 * Non-blocking user writes with output stopped.
 	 */
-	if ( istty.t_flags & T_STOP ) {
-		u.u_error = EAGAIN;
-		goto mmwdone;
+	if ((istty.t_flags & T_STOP) != 0) {
+		set_user_error (EAGAIN);
+		return;
 	}
 
 	/*
 	 * Non-blocking user writes do not pause after scrolling.
 	 */
-	{
-		while ( mmgo(iop) )
-			;
-	}
+
+	while (mmgo (iop))
+		/* DO NOTHING */ ;
 #else
-	ttwrite(&istty, iop);
+	ttwrite (& istty, iop);
 #endif
-mmwdone:
-	return;
 }

@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / double _ddiv(double d)
 / Return d / %edx:eax in %edx:%eax.

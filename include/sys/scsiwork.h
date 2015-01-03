@@ -1,13 +1,18 @@
 /* (-lgl
- * 	COHERENT 386 Device Driver Kit release 2.0
- * 	Copyright (c) 1982, 1992 by Mark Williams Company.
- * 	All rights reserved. May not be copied without permission.
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
  -lgl) */
-/*
- * Common SCSI portions of Adaptec AHA154x driver
- */
+
 #ifndef __SYS_SCSIWORK_H__
 #define __SYS_SCSIWORK_H__
+
+/*
+ * Common SCSI portions of Adaptec and Seagate device drivers.
+ */
+
+#include <kernel/__buf.h>
 
 #define	MAX_SCSI_ID	8
 #define	MAX_LUN		4		/* limited by minor device number */ 
@@ -15,7 +20,9 @@
 /*
  * drive_info contains the "per drive" flags
  */
+
 extern	char	drive_info[MAX_SCSI_ID * MAX_LUN];
+
 #define	D_DISK		0x01		/* disk-type device (random) */
 #define	D_TAPE		0x02		/* tape-type device (sequential) */
 #define	D_PRINTER	0x04		/* printer-type device */
@@ -23,15 +30,16 @@ extern	char	drive_info[MAX_SCSI_ID * MAX_LUN];
 #define	D_REMOVEABLE	0x10		/* media can be changed */
 #define	D_WORM		0x20		/* WORM-type characteristics */
 
+
 /*
  * Per disk controller data.
- * Only one host adapter; no more, no less.
+ * Only one per host adapter; no more, no less.
  */
 
 struct	scsi_work	{
 	struct scsi_work *sw_actf;	/* Link to first */
 	struct scsi_work *sw_actl;	/* Link to last */
-	BUF		*sw_bp;		/* block request */
+	__buf_t	      *	sw_bp;		/* block request */
 	long		sw_bno;
 	char		sw_drv;		/* 000sssll s=SCSI_ID l=LUN */
 	char		sw_type;
@@ -95,4 +103,10 @@ typedef	struct	scsi_cmd	scsi_cmd_t;
 
 #define VTOP2(a1, a2)	vtop(a1,a2)
 
-#endif
+typedef struct {
+	unsigned int		ncyl;
+	unsigned char		nhead;
+	unsigned char		nspt;
+} _drv_parm_t;
+
+#endif	/* ! defined (__SYS_SCSIWORK_H__) */

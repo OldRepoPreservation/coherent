@@ -231,7 +231,7 @@ main(argc, argv) int argc; char *argv[];
 	cppfinal();
 	return (nerr != 0) ? BAD : OK;
 #else
-	exit (nerr != 0) ? BAD : OK;
+	exit ((nerr != 0) ? BAD : OK);
 #endif
 }
 

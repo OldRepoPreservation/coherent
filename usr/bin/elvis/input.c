@@ -1,804 +1,688 @@
-/* input.c */
-
-/* Author:
- *	Steve Kirkendall
- *	16820 SW Tallac Way
- *	Beaverton, OR 97006
- *	kirkenda@jove.cs.pdx.edu, or ...uunet!tektronix!psueea!jove!kirkenda
+/*
+ * Input stream abstraction.
  */
 
-
-/* This file contains the input() function, which implements vi's INPUT mode.
- * It also contains the code that supports digraphs.
+/*
+ *-IMPORTS:
+ *	<sys/compat.h>
+ *		CONST
+ *		USE_PROTO
+ *		ARGS ()
+ *		LOCAL
+ *	<stddef.h>
+ *		NULL
+ *		offsetof ()
+ *	<stdio.h>
+ *		EOF
+ *		FILE
+ *		stderr
+ *		fprintf ()
+ *		fputs ()
+ *		getc ()
+ *		putc ()
+ *	<stdlib.h>
+ *		free ()
+ *		malloc ()
+ *	<string.h>
+ *		memcpy ()
+ *		strlen ()
  */
 
-#include <ctype.h>
-#include "config.h"
-#include "vi.h"
+#include <common/tricks.h>
+#include <sys/compat.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+
+#include "devadm.h"
+
+#include "lex.h"
+
+#include "input.h"
+#include "mkinput.h"
 
 
-#ifndef NO_DIGRAPH
-static struct _DIG
-{
-	struct _DIG	*next;
-	char		key1;
-	char		key2;
-	char		dig;
-	char		save;
-} *digs;
-
-char digraph(key1, key2)
-	char	key1;	/* the underlying character */
-	char	key2;	/* the second character */
-{
-	int		newkey;
-	REG struct _DIG	*dp;
-
-	/* if digraphs are disabled, then just return the new char */
-	if (!*o_digraph)
-	{
-		return key2;
-	}
-
-	/* remember the new key, so we can return it if this isn't a digraph */
-	newkey = key2;
-
-	/* sort key1 and key2, so that their original order won't matter */
-	if (key1 > key2)
-	{
-		key2 = key1;
-		key1 = newkey;
-	}
-
-	/* scan through the digraph chart */
-	for (dp = digs;
-	     dp && (dp->key1 != key1 || dp->key2 != key2);
-	     dp = dp->next)
-	{
-	}
-
-	/* if this combination isn't in there, just use the new key */
-	if (!dp)
-	{
-		return newkey;
-	}
-
-	/* else use the digraph key */
-	return dp->dig;
-}
-
-/* this function lists or defines digraphs */
-void do_digraph(bang, extra)
-	int	bang;
-	char	extra[];
-{
-	int		dig;
-	REG struct _DIG	*dp;
-	struct _DIG	*prev;
-	static int	user_defined = FALSE; /* boolean: are all later digraphs user-defined? */
-
-	/* if "extra" is NULL, then we've reached the end of the built-ins */
-	if (!extra)
-	{
-		user_defined = TRUE;
-		return;
-	}
-
-	/* if no args, then display the existing digraphs */
-	if (*extra < ' ')
-	{
-		for (dp = digs; dp; dp = dp->next)
-		{
-			if (dp->save || bang)
-			{
-				addstr("digraph ");
-				addch(dp->key1);
-				addch(dp->key2);
-				addch(' ');
-				addch(dp->dig);
-				addch('\n');
-				exrefresh();
-			}
-		}
-		return;
-	}
-
-	/* make sure we have at least two characters */
-	if (!extra[1])
-	{
-		msg("Digraphs must be composed of two characters");
-		return;
-	}
-
-	/* sort key1 and key2, so that their original order won't matter */
-	if (extra[0] > extra[1])
-	{
-		dig = extra[0];
-		extra[0] = extra[1];
-		extra[1] = dig;
-	}
-
-	/* locate the new digraph character */
-	for (dig = 2; extra[dig] == ' ' || extra[dig] == '\t'; dig++)
-	{
-	}
-	dig = extra[dig];
-	if (!bang && dig)
-	{
-		dig |= 0x80;
-	}
-
-	/* search for the digraph */
-	for (prev = (struct _DIG *)0, dp = digs;
-	     dp && (dp->key1 != extra[0] || dp->key2 != extra[1]);
-	     prev = dp, dp = dp->next)
-	{
-	}
-
-	/* deleting the digraph? */
-	if (!dig)
-	{
-		if (!dp)
-		{
-#ifndef CRUNCH
-			msg("%c%c not a digraph", extra[0], extra[1]);
-#endif
-			return;
-		}
-		if (prev)
-			prev->next = dp->next;
-		else
-			digs = dp->next;
-		free(dp);
-		return;
-	}
-
-	/* if necessary, create a new digraph struct for the new digraph */
-	if (dig && !dp)
-	{
-		dp = (struct _DIG *)malloc(sizeof *dp);
-		if (!dp)
-		{
-			msg("Out of space in the digraph table");
-			return;
-		}
-		if (prev)
-			prev->next = dp;
-		else
-			digs = dp;
-		dp->next = (struct _DIG *)0;
-	}
-
-	/* assign it the new digraph value */
-	dp->key1 = extra[0];
-	dp->key2 = extra[1];
-	dp->dig = dig;
-	dp->save = user_defined;
-}
-
-# ifndef NO_MKEXRC
-void savedigs(fd)
-	int		fd;
-{
-	static char	buf[] = "digraph! XX Y\n";
-	REG struct _DIG	*dp;
-
-	for (dp = digs; dp; dp = dp->next)
-	{
-		if (dp->save)
-		{
-			buf[9] = dp->key1;
-			buf[10] = dp->key2;
-			buf[12] = dp->dig;
-			write(fd, buf, (unsigned)14);
-		}
-	}
-}
-# endif
-#endif
-
-
-#ifndef NO_ABBR
-static struct _AB
-{
-	struct _AB	*next;
-	char		*large;		/* the expanded form */
-	char		small[1];	/* the abbreviated form (appended to struct) */
-}
-	*abbrev;
-
-/* This functions lists or defines abbreviations */
-void do_abbr(extra)
-	char	*extra;
-{
-	int		smlen;	/* length of the small form */
-	int		lrg;	/* index of the start of the large form */
-	REG struct _AB	*ab;	/* used to move through the abbrev list */
-	struct _AB	*prev;
-
-	/* no arguments? */
-	if (!*extra)
-	{
-		/* list all current abbreviations */
-		for (ab = abbrev; ab; ab = ab->next)
-		{
-			qaddstr("abbr ");
-			qaddstr(ab->small);
-			qaddch(' ');
-			qaddstr(ab->large);
-			addch('\n');
-			exrefresh();
-		}
-		return;
-	}
-
-	/* else one or more arguments.  Parse the first & look up in abbrev[] */
-	for (smlen = 0; extra[smlen] && isalnum(extra[smlen]); smlen++)
-	{
-	}
-	for (prev = (struct _AB *)0, ab = abbrev; ab; prev = ab, ab = ab->next)
-	{
-		if (!strncmp(extra, ab->small, smlen) && !ab->small[smlen])
-		{
-			break;
-		}
-	}
-
-	/* locate the start of the large form, if any */
-	for (lrg = smlen; extra[lrg] && isascii(extra[lrg]) && isspace(extra[lrg]); lrg++)
-	{
-	}
-
-	/* only one arg? */
-	if (!extra[lrg])
-	{
-		/* trying to undo an abbreviation which doesn't exist? */
-		if (!ab)
-		{
-#ifndef CRUNCH
-			msg("\"%s\" not an abbreviation", extra);
-#endif
-			return;
-		}
-
-		/* undo the abbreviation */
-		if (prev)
-			prev->next = ab->next;
-		else
-			abbrev = ab->next;
-		free(ab->large);
-		free(ab);
-
-		return;
-	}
-
-	/* multiple args - [re]define an abbreviation */
-	if (ab)
-	{
-		/* redefining - free the old large form */
-		free(ab->large);
-	}
-	else
-	{
-		/* adding a new definition - make a new struct */
-		ab = (struct _AB *)malloc((unsigned)(smlen + sizeof *ab));
-#ifndef CRUNCH
-		if (!ab)
-		{
-			msg("Out of memory -- Sorry");
-			return;
-		}
-#endif
-		strncpy(ab->small, extra, smlen);
-		ab->small[smlen] = '\0';
-		ab->next = (struct _AB *)0;
-		if (prev)
-			prev->next = ab;
-		else
-			abbrev = ab;
-	}
-
-	/* store the new form */
-	ab->large = (char *)malloc((unsigned)(strlen(&extra[lrg]) + 1));
-	strcpy(ab->large, &extra[lrg]);
-}
-
-
-# ifndef NO_MKEXRC
-/* This function is called from cmd_mkexrc() to save the abbreviations */
-void saveabbr(fd)
-	int	fd;	/* fd to which the :abbr commands should be written */
-{
-	REG struct _AB	*ab;
-
-	for (ab = abbrev; ab; ab = ab->next)
-	{
-		twrite(fd, "abbr ", 5);
-		twrite(fd, ab->small, strlen(ab->small));
-		twrite(fd, " ", 1);
-		twrite(fd, ab->large, strlen(ab->large));
-		twrite(fd, "\n", 1);
-	}
-}
-# endif
-
-/* This function should be called before each char is inserted.  If the next
- * char is non-alphanumeric and we're at the end of a word, then that word
- * is checked against the abbrev[] array and expanded, if appropriate.  Upon
- * returning from this function, the new char still must be inserted.
+/*
+ * Structures for dealing with input from a file.
+ *
+ * A new feature added to this for the 'devadm' utility is support for an
+ * output file attached to the input file that can be used to support input
+ * filtering effectively. Comments in the input source are copied to the
+ * output by the lower layer, while higher-level software can perform semantic
+ * processing and then copy the resulting changes out, retaining the relative
+ * ordering of the components. This may cause some reordering (moving comments
+ * at the end of a line to the beginning of a line), but will in general be
+ * benign.
  */
-static MARK expandabbr(m, ch)
-	MARK		m;	/* the cursor position */
-	int		ch;	/* the character to insert */
-{
-	char		*word;	/* where the word starts */
-	int		len;	/* length of the word */
-	REG struct _AB	*ab;
 
-	/* if no abbreviations are in effect, or ch is aphanumeric, then
-	 * don't do anything
-	 */
-	if (!abbrev || !isascii(ch) || isalnum(ch))
-	{
-		return m;
-	}
+typedef struct fileinput filein_t;
 
-	/* see where the preceding word starts */
-	pfetch(markline(m));
-	for (word = ptext + markidx(m), len = 0;
-	     --word >= ptext && (!isascii(*word) || isalnum(*word));
-	     len++)
-	{
-	}
-	word++;
+struct fileinput {
+	input_t		fi_input;
 
-	/* if zero-length, then it isn't a word, really -- so nothing */
-	if (len == 0)
-	{
-		return m;
-	}
+	char	      *	fi_name;
+	FILE	      *	fi_infile;	/* input stream */
+	int		fi_inclose;	/* close when stream is closed? */
+	FILE	      *	fi_outfile;	/* output stream */
+	int		fi_outclose;	/* close when stream is closed? */
+	int		fi_lineno;	/* line number in file */
+	int		fi_colno;	/* current column number */
+	int		fi_bufpos;	/* character offset in line */
+	int		fi_prevline;
+	int		fi_prevpos;
+	int		fi_prevcol;
+	int		fi_comment;	/* comment character (maybe none) */
+	int		fi_prevchar;	/* previous character */
+	int		fi_outcol;	/* output column number */
 
-	/* look it up in the abbrev list */
-	for (ab = abbrev; ab; ab = ab->next)
-	{
-		if (!strncmp(ab->small, word, len) && !ab->small[len])
-		{
-			break;
-		}
-	}
+	char		fi_line [64];	/* line buffer for errors */
+};
 
-	/* not an abbreviation? then do nothing */
-	if (!ab)
-	{
-		return m;
-	}
+#define	ARRAY_LEN(a)	(sizeof (a) / sizeof (* a))
 
-	/* else replace the small form with the large form */
-	add(m, ab->large);
-	delete(m - len, m);
 
-	/* return with the cursor after the end of the large form */
-	return m - len + strlen(ab->large);
-}
-#endif
-
-		
-/* This function allows the user to replace an existing (possibly zero-length)
- * chunk of text with typed-in text.  It returns the MARK of the last character
- * that the user typed in.
+/*
+ * Structure for processing input from a string.
  */
-MARK input(from, to, when)
-	MARK	from;	/* where to start inserting text */
-	MARK	to;	/* extent of text to delete */
-	int	when;	/* either WHEN_VIINP or WHEN_VIREP */
-{
-	char	key[2];	/* key char followed by '\0' char */
-	char	*build;	/* used in building a newline+indent string */
-	char	*scan;	/* used while looking at the indent chars of a line */
-	MARK	m;	/* some place in the text */
-#ifndef NO_EXTENSIONS
-	int	quit = FALSE;	/* boolean: are we exiting after this? */
-#endif
 
-#ifdef DEBUG
-	/* if "from" and "to" are reversed, complain */
-	if (from > to)
-	{
-		msg("ERROR: input(%ld:%d, %ld:%d)",
-			markline(from), markidx(from),
-			markline(to), markidx(to));
-		return MARK_UNSET;
-	}
-#endif
+typedef struct strinput	strin_t;
 
-	key[1] = 0;
+struct strinput {
+	input_t		si_input;
 
-	/* if we're replacing text with new text, save the old stuff */
-	/* (Alas, there is no easy way to save text for replace mode) */
-	if (from != to)
-	{
-		cut(from, to);
-	}
+	CONST unsigned char
+		      *	si_data;	/* data being read */
+	size_t		si_pos;		/* position in input stream */
+	size_t		si_len;		/* length of input stream */
+};
 
-	ChangeText
-	{
-		/* if doing a dot command, then reuse the previous text */
-		if (doingdot)
-		{
-			/* delete the text that's there now */
-			if (from != to)
-			{
-				delete(from, to);
-			}
 
-			/* insert the previous text */
-			cutname('.');
-			cursor = paste(from, FALSE, TRUE) + 1L;
-		}
-		else /* interactive version */
-		{
-			/* if doing a change within the line... */
-			if (from != to && markline(from) == markline(to))
-			{
-				/* mark the end of the text with a "$" */
-				change(to - 1, to, "$");
-			}
-			else
-			{
-				/* delete the old text right off */
-				if (from != to)
-				{
-					delete(from, to);
-				}
-				to = from;
-			}
+/*
+ * Send a single character to the filter output.
+ */
 
-			/* handle autoindent of the first line, maybe */
-			cursor = from;
-			if (*o_autoindent && markline(cursor) > 1L && markidx(cursor) == 0)
-			{
-				/* Only autoindent blank lines. */
-				pfetch(markline(cursor));
-				if (plen == 0)
-				{
-					/* Okay, we really want to autoindent */
-					pfetch(markline(cursor) - 1L);
-					for (scan = ptext, build = tmpblk.c;
-					     *scan == ' ' || *scan == '\t';
-					     )
-					{
-						*build++ = *scan++;
-					}
-					if (build > tmpblk.c)
-					{
-						*build = '\0';
-						add(cursor, tmpblk.c);
-						cursor += (build - tmpblk.c);
-					}
-				}
-			}
-
-			/* repeatedly add characters from the user */
-			for (;;)
-			{
-				/* Get a character */
-				redraw(cursor, TRUE);
-#ifdef DEBUG
-				msg("cursor=%ld.%d, to=%ld.%d",
-					markline(cursor), markidx(cursor),
-					markline(to), markidx(to));
-#endif
-				key[0] = getkey(when);
-
-				/* if whitespace & wrapmargin is set & we're
-				 * past the warpmargin, then change the
-				 * whitespace character into a newline
-				 */
-				if ((*key == ' ' || *key == '\t')
-				 && *o_wrapmargin != 0)
-				{
-					pfetch(markline(cursor));
-					if (idx2col(cursor, ptext, TRUE) > COLS - (*o_wrapmargin & 0xff))
-					{
-						*key = '\n';
-					}
-				}
-
-				/* process it */
-				switch (*key)
-				{
-#ifndef NO_EXTENSIONS
-				  case 0: /* special movement mapped keys */
-					*key = getkey(0);
-					switch (*key)
-					{
-					  case 'h':	m = m_left(cursor, 0L);		break;
-					  case 'j':
-					  case 'k':	m = m_updnto(cursor, 0L, *key);	break;
-					  case 'l':	m = cursor + 1;			break;
-					  case 'b':	m = m_bword(cursor, 0L);	break;
-					  case 'w':	m = m_fword(cursor, 0L);	break;
-					  case '^':	m = m_front(cursor, 0L);	break;
-					  case '$':	m = m_rear(cursor, 0L);		break;
-					  case ctrl('B'):
-					  case ctrl('F'):
-							m = m_scroll(cursor, 0L, *key); break;
-					  case 'x':	m = v_xchar(cursor, 0L);	break;
-					  case 'i':	m = to = from = cursor;		break;
-					  default:	m = MARK_UNSET;			break;
-					}
-					/* adjust the moved cursor */
-					m = adjmove(cursor, m, (*key == 'j' || *key == 'k' ? 0x20 : 0));
-					if (*key == '$' || (*key == 'l' && m <= cursor))
-					{
-						m++;
-					}
-					/* if the cursor is reasonable, use it */
-					if (m == MARK_UNSET)
-					{
-						beep();
-					}
-					else
-					{
-						if (to > cursor)
-						{
-							delete(cursor, to);
-							redraw(cursor, TRUE);
-						}
-						from = to = cursor = m;
-					}
-					break;
-
-				  case ctrl('Z'):
-					if (getkey(0) == ctrl('Z'))
-					{
-						quit = TRUE;
-						goto BreakBreak;
-					}
-					break;
-#endif
-
-				  case ctrl('['):
-#ifndef NO_ABBR
-					cursor = expandabbr(cursor, ctrl('['));
-#endif
-					goto BreakBreak;
-
-				  case ctrl('U'):
-					if (markline(cursor) == markline(from))
-					{
-						cursor = from;
-					}
-					else
-					{
-						cursor &= ~(BLKSIZE - 1);
-					}
-					break;
-
-				  case ctrl('D'):
-				  case ctrl('T'):
-					if (to > cursor)
-					{
-						delete(cursor, to);
-					}
-					mark[27] = cursor;
-					cmd_shift(cursor, cursor, *key == ctrl('D') ? CMD_SHIFTL : CMD_SHIFTR, TRUE, "");
-					if (mark[27])
-					{
-						cursor = mark[27];
-					}
-					else
-					{
-						cursor = m_front(cursor, 0L);
-					}
-					to = cursor;
-					break;
-
-				  case '\b':
-					if (cursor <= from)
-					{
-						beep();
-					}
-					else if (markidx(cursor) == 0)
-					{
-						cursor -= BLKSIZE;
-						pfetch(markline(cursor));
-						cursor += plen;
-					}
-					else
-					{
-						cursor--;
-					}
-					break;
-
-				  case ctrl('W'):
-					m = m_bword(cursor, 1L);
-					if (markline(m) == markline(cursor) && m >= from)
-					{
-						cursor = m;
-						if (from > cursor)
-						{
-							from = cursor;
-						}
-					}
-					else
-					{
-						beep();
-					}
-					break;
-
-				  case '\n':
-#if OSK
-				  case '\l':
-#else				  
-				  case '\r':
-#endif
-#ifndef NO_ABBR
-					cursor = expandabbr(cursor, '\n');
-#endif
-					build = tmpblk.c;
-					*build++ = '\n';
-					if (*o_autoindent)
-					{
-						/* figure out indent for next line */
-						pfetch(markline(cursor));
-						for (scan = ptext; *scan == ' ' || *scan == '\t'; )
-						{
-							*build++ = *scan++;
-						}
-
-						/* remove indent from this line, if blank */
-						if (!*scan && plen > 0)
-						{
-							to = cursor &= ~(BLKSIZE - 1);
-							delete(cursor, cursor + plen);
-						}
-					}
-					*build = 0;
-					if (cursor >= to && when != WHEN_VIREP)
-					{
-						add(cursor, tmpblk.c);
-					}
-					else
-					{
-						change(cursor, to, tmpblk.c);
-					}
-					redraw(cursor, TRUE);
-					to = cursor = (cursor & ~(BLKSIZE - 1))
-							+ BLKSIZE
-							+ (int)(build - tmpblk.c) - 1;
-					break;
-
-				  case ctrl('A'):
-				  case ctrl('P'):
-					if (cursor < to)
-					{
-						delete(cursor, to);
-					}
-					if (*key == ctrl('A'))
-					{
-						cutname('.');
-					}
-					to = cursor = paste(cursor, FALSE, TRUE) + 1L;
-					break;
-
-				  case ctrl('V'):
-					if (cursor >= to && when != WHEN_VIREP)
-					{
-						add(cursor, "^");
-					}
-					else
-					{
-						change(cursor, to, "^");
-						to = cursor + 1;
-					}
-					redraw(cursor, TRUE);
-					*key = getkey(0);
-					if (*key == '\n')
-					{
-						/* '\n' too hard to handle */
-#if OSK
-						*key = '\l';
+#if	USE_PROTO
+LOCAL int _fi_putc (int ch, filein_t * fi)
 #else
-						*key = '\r';
+LOCAL int
+_fi_putc (ch, fi)
+int		ch;
+filein_t      *	fi;
 #endif
-					}
-					change(cursor, cursor + 1, key);
-					cursor++;
-					if (cursor > to)
-					{
-						to = cursor;
-					}
-					break;
+{
+	FILE	      *	file;
 
-				  case ctrl('L'):
-				  case ctrl('R'):
-					redraw(MARK_UNSET, FALSE);
-					break;
+	if ((file = fi->fi_outfile) == NULL) {
+#if	TRACE
+		if (do_debug == 0)
+			return 0;
+		file = stderr;
+#else
+		return 0;
+#endif
+	}
 
-				  default:
-					if (cursor >= to && when != WHEN_VIREP)
-					{
-#ifndef NO_ABBR
-						cursor = expandabbr(cursor, *key);
-#endif
-						add(cursor, key);
-						cursor++;
-						to = cursor;
-					}
-					else
-					{
-						pfetch(markline(cursor));
-						if (markidx(cursor) == plen)
-						{
-#ifndef NO_ABBR
-							cursor = expandabbr(cursor, *key);
-#endif
-							add(cursor, key);
-						}
-						else
-						{
-#ifndef NO_DIGRAPH
-							*key = digraph(ptext[markidx(cursor)], *key);
-#endif
-#ifndef NO_ABBR
-							cursor = expandabbr(cursor, *key);
-#endif
-							change(cursor, cursor + 1, key);
-						}
-						cursor++;
-					}
-#ifndef NO_SHOWMATCH
-					/* show matching "({[" if neceesary */
-					if (*o_showmatch && strchr(")}]", *key))
-					{
-						m = m_match(cursor - 1, 0L);
-						if (markline(m) >= topline
-						 && markline(m) <= botline)
-						{
-							redraw(m, TRUE);
-							refresh();
-							sleep(1);
-						}
-					}
-#endif
-				} /* end switch(*key) */
-			} /* end for(;;) */
-BreakBreak:;
+	if (fputc (ch, file) < 0)
+		return -1;
 
-			/* delete any excess characters */
-			if (cursor < to)
-			{
-				delete(cursor, to);
+	switch (ch) {
+	case '\n':
+		fi->fi_outcol = 0;
+		break;
+
+	case '\t':
+		fi->fi_outcol = ROUND_UP_TO_MULTIPLE (fi->fi_outcol + 1, 8);
+		break;
+
+	default:
+		fi->fi_outcol ++;
+		break;
+	}
+
+	return 0;
+}
+
+
+/*
+ * Read a character from a file.
+ */
+
+#if	USE_PROTO
+LOCAL int fi_read (input_t * input)
+#else
+LOCAL int
+fi_read (input)
+input_t	      *	input;
+#endif
+{
+	filein_t      *	fi = (filein_t *) input;
+	int		ch;
+
+	/*
+	 * Get a character from the input file, recording the data for the
+	 * purpose of error reporting.
+	 */
+
+	fi->fi_prevpos = fi->fi_bufpos;
+	fi->fi_prevcol = fi->fi_colno;
+	fi->fi_prevline = fi->fi_lineno;
+
+another_line:
+	if ((ch = getc (fi->fi_infile)) == EOF)
+		return IN_EOF;
+
+	fi->fi_line [fi->fi_bufpos ++ % ARRAY_LEN (fi->fi_line)] = ch;
+
+	fi->fi_colno ++;
+	if (ch == '\t')
+		fi->fi_colno = ROUND_UP_TO_MULTIPLE (fi->fi_colno, 8);
+
+	if (ch == fi->fi_comment) {
+		/*
+		 * Consume data to EOL, then return EOL.
+		 */
+
+		do {
+			_fi_putc (ch, fi);
+
+			if ((ch = getc (fi->fi_infile)) == EOF)
+				return IN_EOF;
+		} while (ch != '\n');
+
+		if (fi->fi_bufpos > 1)
+			_fi_putc (ch, fi);
+	}
+
+
+	if (ch == '\n') {
+
+		fi->fi_lineno ++;
+
+		if (fi->fi_bufpos == 1) {
+
+			fi->fi_bufpos = fi->fi_colno = 0;
+			_fi_putc (ch, fi);
+			goto another_line;
+		};
+
+		fi->fi_bufpos = fi->fi_colno = 0;
+	}
+
+	fi->fi_prevchar = ch;
+	return ch;
+}
+
+
+/*
+ * Return the last read character to the input stream.
+ */
+
+#if	USE_PROTO
+LOCAL void fi_unread (input_t * input)
+#else
+LOCAL void
+fi_unread (input)
+input_t	      *	input;
+#endif
+{
+	filein_t      *	fi = (filein_t *) input;
+
+	if (fi->fi_prevchar != IN_EOF) {
+
+		ungetc (fi->fi_prevchar, fi->fi_infile);
+
+		fi->fi_prevchar = IN_EOF;
+		fi->fi_bufpos = fi->fi_prevpos;
+		fi->fi_colno = fi->fi_prevcol;
+		fi->fi_lineno = fi->fi_prevline;
+	}
+}
+
+
+/*
+ * Close the input file.
+ */
+
+#if	USE_PROTO
+LOCAL void fi_close (input_t * input)
+#else
+LOCAL void
+fi_close (input)
+input_t	      *	input;
+#endif
+{
+	filein_t      *	fi = (filein_t *) input;
+
+	if (fi->fi_infile != NULL && fi->fi_inclose)
+		(void) fclose (fi->fi_infile);
+	if (fi->fi_outfile != NULL && fi->fi_outclose)
+		(void) fclose (fi->fi_outfile);
+	free (fi);
+}
+
+
+/*
+ * Produce an error report for this input source.
+ */
+
+#if	USE_PROTO
+LOCAL void fi_error (input_t * input)
+#else
+LOCAL void
+fi_error (input)
+input_t	      *	input;
+#endif
+{
+	filein_t      *	fi = (filein_t *) input;
+	int		pos;
+	int		ch;
+	int		end;
+
+	(void) fprintf (stderr, "Error vicinity : file \"%s\", line %d, column %d\n",
+			fi->fi_name, fi->fi_prevline, fi->fi_prevcol);
+
+	pos = fi->fi_bufpos < 30 ? 0 : fi->fi_prevpos - 30;
+
+	if (fi->fi_bufpos > (end = fi->fi_prevpos))
+		end ++;
+
+	while (pos < end) {
+		/*
+		 * Should think about escaping controls.
+		 */
+
+		ch = fi->fi_line [pos ++ % ARRAY_LEN (fi->fi_line)];
+		(void) putc (ch, stderr);
+	}
+
+
+	fputs (" <---\n", stderr);
+}
+
+
+/*
+ * Perform columnar formatted output.
+ */
+
+#if	USE_PROTO
+LOCAL int fi_filter (input_t * input, CONST char * format, ...)
+#else
+LOCAL int
+fi_filter (input, format)
+input_t	      *	input;
+CONST char    *	format;
+#endif
+{
+	filein_t      *	fi = (filein_t *) input;
+	va_list		args;
+	FILE	      *	file;
+
+	if ((file = fi->fi_outfile) == NULL) {
+#if	TRACE
+		if (do_debug == 0)
+			return 0;
+		file = stderr;
+#else
+		return 0;
+#endif
+	}
+
+	va_start (args, format);
+
+	while (* format) {
+		char		ch;
+		int		cols;
+		char	      *	tmp;
+		static char	digits [] = "0123456789";
+		int		long_datum;
+
+		/*
+		 * We accept either a '%' or '<' sign to introduce a format
+		 * so that we don't clutter things up with too many '%'-signs.
+		 */
+
+		if (((ch = * format ++) != '%' && ch != '<') ||
+		    * format == ch) {
+			_fi_putc (ch, fi);
+			continue;
+		}
+
+		if ((ch = * format ++) == 0)
+			return -1;
+
+		/*
+	 	 * After a percent-sign, look for a number of tab-columns to
+		 * align the output to.
+		 */
+
+		cols = 0;
+		while ((tmp = strchr (digits, ch)) != NULL) {
+
+			cols = (cols * 10) + (tmp - digits);
+			if ((ch = * format ++) == 0)
+				break;
+		}
+
+		/*
+		 * Dispatch on the format character and record the number of
+		 * characters written (which will be negative on error).
+		 */
+
+		if ((long_datum = ch == 'l') != 0)
+			ch = * format ++;
+
+		switch (ch) {
+		case 'c':
+			ch = fprintf (file, "%*c", cols,
+				      va_arg (args, int));
+			break;
+
+		case 's':
+			ch = fprintf (file, "%*s", cols,
+				      va_arg (args, char *));
+			break;
+
+		case 'd':
+			ch = fprintf (file, "%*ld", cols,
+				      long_datum ? va_arg (args, long) :
+						   (long) va_arg (args, int));
+			break;
+
+		case 'x':
+			ch = fprintf (file, "%*lx", cols,
+				      long_datum ? va_arg (args, long) :
+						   (long) va_arg (args, int));
+			break;
+
+		case '>':
+			/*
+			 * Here is what we add: <{digits}> indicates a column
+			 * number to seek forward to.
+			 */
+
+			cols = cols * 8 - fi->fi_outcol;
+
+			if (cols <= 0)
+				_fi_putc (' ', fi);
+
+			while (cols > 0) {
+				_fi_putc ('\t', fi);
+				cols -= 8;
 			}
 
-		} /* end if doingdot else */
+			ch = 0;
+			break;
 
-	} /* end ChangeText */
+		default:
+			return -1;
+		}
 
-	/* put the new text into a cut buffer for possible reuse */
-	if (!doingdot)
-	{
-		blksync();
-		cutname('.');
-		cut(from, cursor);
+		if (ch < 0)
+			return -1;
+
+		fi->fi_outcol += ch;
 	}
 
-	/* move to last char that we inputted, unless it was newline */
-	if (markidx(cursor) != 0)
-	{
-		cursor--;
-	}
-	redraw(cursor, FALSE);
+	va_end (args);
+	return 0;
+}
 
-#ifndef NO_EXTENSIONS
-	if (quit)
-	{
-		refresh();
-		cursor = v_xit(cursor, 0L, 'Z');
-	}
+
+/*
+ * Create a source of input from a file. The 'comment' parameter gives the
+ * code of a character which can be used to indicate input sections that are
+ * to be ignored. The 'filter' parameter points to an optional FILE where the
+ * input is going to be copied.
+ */
+
+#if	USE_PROTO
+input_t * (make_filter) (FILE * infile, CONST char * inname, int inclose,
+			 int comment, FILE * outfile, int outclose)
+#else
+input_t *
+make_filter ARGS ((infile, inname, inclose, comment, outfile, outclose))
+FILE	      *	infile;
+CONST char    *	inname;
+int		inclose;
+int		comment;
+FILE	      *	outfile;
+int		outclose;
 #endif
+{
+	filein_t      *	fi;
+	size_t		namelen;
 
-	rptlines = 0L;
-	return cursor;
+	/* ASSERT that fi_input is the first member of the structure */
+
+	if (offsetof (filein_t, fi_input) != 0)
+		return NULL;
+
+	if (inname == NULL)
+		inname = "no name";
+
+	namelen = strlen (inname) + 1;
+
+	if ((fi = (filein_t *) malloc (sizeof (* fi) + namelen)) == NULL)
+		return NULL;
+
+	fi->fi_lineno = 1;
+	fi->fi_colno = 0;
+	fi->fi_infile = infile;
+	fi->fi_inclose = inclose;
+	fi->fi_outfile = outfile;
+	fi->fi_outclose = outclose;
+	fi->fi_name = (char *) (fi + 1);
+
+	fi->fi_comment = comment;
+	fi->fi_prevchar = IN_EOF;
+
+	if (namelen > 0)
+		memcpy (fi->fi_name, inname, namelen);
+
+	fi->fi_input.in_read = fi_read;
+	fi->fi_input.in_unread = fi_unread;
+	fi->fi_input.in_readtok = NULL;
+	fi->fi_input.in_close = fi_close;
+	fi->fi_input.in_error = fi_error;
+	fi->fi_input.in_filter = fi_filter;
+
+	return & fi->fi_input;
+}
+
+
+/*
+ * Return a character from an input string, or EOF when the end-of-string is
+ * reached.
+ */
+
+#if	USE_PROTO
+LOCAL int si_read (input_t * input)
+#else
+LOCAL int
+si_read (input)
+input_t	      *	input;
+#endif
+{
+	strin_t	      *	si = (strin_t *) input;
+
+	if (si->si_pos >= si->si_len)
+		return IN_EOF;
+
+	return si->si_data [si->si_pos ++];
+}
+
+
+/*
+ * Return a character to the input stream to be read again.
+ */
+
+#if	USE_PROTO
+LOCAL void si_unread (input_t * input)
+#else
+LOCAL void
+si_unread (input)
+input_t	      *	input;
+#endif
+{
+	strin_t	      *	si = (strin_t *) input;
+
+	if (si->si_pos > 0)
+		si->si_pos --;
+}
+
+
+/*
+ * Reading a token, specialized to string input streams.
+ */
+
+#if	USE_PROTO
+LOCAL CONST unsigned char * si_readtok (input_t * input, lex_t * lexp,
+					size_t * lengthp)
+#else
+LOCAL CONST unsigned char *
+si_readtok (input, lexp, lengthp)
+input_t	      *	input;
+lex_t	      *	lexp;
+size_t	      *	lengthp;
+#endif
+{
+	strin_t	      *	si = (strin_t *) input;
+	int		start = -1;
+	int		ch;
+
+	for (;;) {
+		if ((ch = si_read (input)) == IN_EOF)
+			break;
+
+		switch (classify (lexp, ch, start == -1)) {
+
+		case CLASS_FLUSH:
+			continue;
+
+		case CLASS_SEP:
+			si_unread (input);
+			goto separator;
+
+		default:
+			break;
+		}
+
+		if (start == -1)
+			start = si->si_pos - 1;
+	}
+
+separator:
+	* lengthp = start == -1 ? 0 : si->si_pos - start;
+	return start == -1 ? NULL : & si->si_data [start];
+}
+
+
+/*
+ * Finish with a string input stream.
+ */
+
+#if	USE_PROTO
+LOCAL void si_close (input_t * input)
+#else
+LOCAL void
+si_close (input)
+input_t	      *	input;
+#endif
+{
+	free (input);
+}
+
+
+/*
+ * Display an error locus in a string input stream.
+ */
+
+#if	USE_PROTO
+LOCAL void si_error (input_t * input)
+#else
+LOCAL void
+si_error (input)
+input_t	      *	input;
+#endif
+{
+	strin_t       *	si = (strin_t *) input;
+	int		col;
+
+	col = si->si_pos < 40 ? 0 : si->si_pos - 40;
+
+	(void) fprintf (stderr, "Error vicinity in input string : %.*s <---\n",
+			(int) si->si_pos - col, & si->si_data [col]);
+}
+
+
+/*
+ * The filtering concept does not really apply to strings yet.
+ */
+
+#if	USE_PROTO
+LOCAL int si_filter (input_t * NOTUSED (input), CONST char * NOTUSED (format),
+		     ...)
+#else
+LOCAL int
+si_filter (input, format)
+input_t	      *	input;
+CONST char    *	format;
+#endif
+{
+	return -1;
+}
+
+
+/*
+ * Create a source of input from a string. Depending on the "action" code,
+ * the string may or may not be copied or left alone. If the user wants some
+ * clean processing to be done at close time, then another version of this
+ * code should be set in place which allows registration of a close-time
+ * callback (which is messy, so it hasn't been done).
+ */
+
+#if	USE_PROTO
+input_t * (make_string_input) (CONST unsigned char * str, int copy)
+#else
+input_t *
+make_string_input ARGS ((str, copy))
+CONST unsigned char
+	      *	str;
+int		copy;
+#endif
+{
+	strin_t	      *	si;
+	size_t		len;
+
+	/* ASSERT that si_input is the first member of the structure */
+
+	if (offsetof (strin_t, si_input) != 0)
+		return NULL;
+
+	len = strlen ((char *) str);
+
+	if ((si = (strin_t *) malloc (sizeof (* si) +
+				      (copy ? len : 0))) == NULL)
+		return NULL;
+
+	si->si_pos = 0;
+	si->si_len = len;
+
+	if (copy) {
+
+		si->si_data = (CONST unsigned char *) (si + 1);
+		memcpy (si + 1, str, len);
+	} else
+		si->si_data = str;
+
+	si->si_input.in_read = si_read;
+	si->si_input.in_unread = si_unread;
+	si->si_input.in_readtok = si_readtok;
+	si->si_input.in_close = si_close;
+	si->si_input.in_error = si_error;
+	si->si_input.in_filter = si_filter;
+
+	return & si->si_input;
 }

@@ -1,11 +1,18 @@
+/* $Header: /ker/io.386/RCS/bufq.c,v 2.3 93/08/19 04:02:17 nigel Exp Locker: nigel $ */
 /*
- * File:	bufq.c
- *
- * Purpose:
  *	Queueing routines for SCSI driver.
  *	Should be generalizable for other hard drives.
  *
  * $Log:	bufq.c,v $
+ * Revision 2.3  93/08/19  04:02:17  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  15:28:01  nigel
+ * Nigel's R80
+ * 
+ * Revision 1.1  93/04/14  10:10:07  root
+ * r75
+ * 
  * Revision 1.3  92/04/06  15:35:10  hal
  * *** empty log message ***
  * 
@@ -14,43 +21,21 @@
  * 
  * Revision 1.1  91/05/21  13:54:11  root
  * First running version.
- * 
  */
 
-/*
- * Includes.
- */
 #include <sys/coherent.h>
 #include <sys/buf.h>
 
-/*
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
 typedef struct {
 	BUF	* head;	/* point to first node */
 	BUF	* tail;	/* point to last node */
 	int	count;	/* number of nodes in the queue */
 } bufq_type;
 
-/*
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 static int	num_q;		/* number of queues in use */
 static bufq_type  * bufq_q;	/* pointer to allocated queue structs */
 
-/*
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
+
 int bufq_init();
 void bufq_rlse();
 void bufq_wr_tail();

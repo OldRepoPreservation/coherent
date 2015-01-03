@@ -1,35 +1,19 @@
-/ $Header: /usr/src/sys/ldrv/RCS/outb.s,v 1.1 88/03/24 16:31:00 src Exp $
-/
-/	The  information  contained herein  is a trade secret  of INETCO
-/	Systems, and is confidential information.   It is provided under
-/	a license agreement,  and may be copied or disclosed  only under
-/	the terms of that agreement.   Any reproduction or disclosure of
-/	this  material  without  the express  written  authorization  of
-/	INETCO Systems or persuant to the license agreement is unlawful.
-/
-/	Copyright (c) 1988
-/	An unpublished work by INETCO Systems, Ltd.
-/	All rights reserved.
-/
-/ $Log:	/usr/src/sys/ldrv/RCS/outb.s,v $
-/ Revision 1.1	88/03/24  16:31:00	src
-/ Initial revision
-/ 
-/
-////////
+/ $Header: $
+		.unixorder
 
-////////
+/ outb (), as per the System V DDI/DKI:
+/ 	void outb (int _port, uchar_t _data);
 /
-/ Basic port level I/O.
+/ The header file <kernel/x86io.h> contains the prototype.
+/ $Log: $
 /
-/ int	outb(port, data);
-/
-////////
+		.text
+		.globl	outb
 
-	.globl	outb_
+port		=	4
+data		=	8
 
-outb_:	mov	bx, sp
-	mov	dx, 2(bx)
-	mov	ax, 4(bx)
-	outb	dx, al
-	ret
+outb:		movl	port(%esp), %edx	/ port
+		movl	data(%esp), %eax	/ data
+		outb	(%dx)
+		ret

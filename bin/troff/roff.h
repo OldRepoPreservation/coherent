@@ -18,7 +18,7 @@
 #include "request.h"
 #include "str.h"
 
-#define	VERSION	"4.0.8"
+#define	VERSION	"4.1.7"
 
 /* Buffer sizes. */
 #define	ABFSIZE	256			/* Size of argument buffer	*/
@@ -207,5 +207,10 @@ extern	SPECIAL	*spc_find();
 
 /* Library functions. */
 extern	long	lseek();
+
+#if	!defined(index)
+#define	index(s, c)	strchr((s), (c))
+#endif
+
 
 /* end of roff.h */

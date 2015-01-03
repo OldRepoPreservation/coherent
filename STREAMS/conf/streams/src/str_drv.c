@@ -1,13 +1,18 @@
-#define	_DDI_DKI	1
-#define	_SYSV3		1
-
+/* $Header: */
 /*
  * This file contains supplementary definitions used to deal with or aid the
  * implementation of the automatically generated device configuration code
  * in the "conf.c" file.
  *
  * Note that we are in the _SYSV3 world because we touch <sys/uproc.h>
+ *
+ * $Log: $
  */
+
+#define	_DDI_DKI	1
+#define	_DDI_DKI_IMPL	1
+#define	_SYSV3		1
+
 /*
  *-IMPORTS:
  *	<common/ccompat.h>
@@ -27,7 +32,7 @@
  *		o_dev_t
  *		makedevice ()
  *	<sys/cmn_err.h>
- *		CE_PANIC
+ *		CE_NOTE
  *		cmn_err ()
  *	<sys/file.h>
  *		FREAD
@@ -42,10 +47,12 @@
  *	<sys/uio.h>
  *		iovec_t
  *		uio_t
- *	<stddef.h>
- *		NULL
  *	<sys/errno.h>
  *		ENXIO
+ *	<sys/poll.h>
+ *		POLLNVAL
+ *	<stddef.h>
+ *		NULL
  */
 
 #include <common/ccompat.h>
@@ -59,6 +66,8 @@
 #include <sys/open.h>
 #include <sys/uio.h>
 #include <sys/errno.h>
+#include <sys/poll.h>
+#include <sys/cred.h>
 #include <stddef.h>
 
 #include <sys/confinfo.h>
@@ -66,40 +75,20 @@
 /*
  * These are Coherent header files! Treat with all the caution you would
  * normally use for handling toxic waste!
- *
- *	<sys/stat.h>
- *		major ()
- *		minor ()
- *	<sys/uproc.h>
- *		u.u_uid
- *		u.u_gid
- *	<sys/con.h>
- *		DFBLK
- *
- * The following values which used to be in Coherent <sys/inode.h> have been
- * moved here so we can use them. <sys/inode.h> is too much of a mess.
- *
- *	<sys/file.h>
- *		IPR
- *		IPW
- *		IPNDLY
- *		IPEXCL
- *
- * Note that the actual magic u area variable 'u' is extern'ed in
  * <sys/coherent.h>.
  */
 
-#include <sys/stat.h>
+#include <sys/inode.h>
 
-#if	__COHERENT__
 
-#define	SETUERROR(e)	u.u_error = (e)
+__EXTERN_C_BEGIN__
 
-#else
+uio_t	      *	MAKE_UIO	__PROTO ((uio_t * uiop, iovec_t * iovp,
+					  int mode, IO * iop));
+void		DESTROY_UIO	__PROTO ((uio_t * uiop, IO * iop));
+int		MAKE_MODE	__PROTO ((int oldmode));
 
-#define	SETUERROR(e)	ASSERT (e == 0 || "Hit error" == NULL)
-
-#endif
+__EXTERN_C_END__
 
 
 /*
@@ -107,42 +96,63 @@
  */
 
 #if	__USE_PROTO__
-int (_streams_open) (o_dev_t dev, int mode, int __NOTUSED (flags),
-		     struct streamtab * stabp)
+void (_streams_open) (o_dev_t dev, int mode, int __NOTUSED (flags),
+		      cred_t * credp, struct inode ** inodepp,
+		      struct streamtab * stabp)
 #else
-int
-_streams_open __ARGS ((dev, mode, flags, stabp))
+void
+_streams_open __ARGS ((dev, mode, flags, credp, inodepp, stabp))
 o_dev_t		dev;
 int		mode;
 int		flags;
+cred_t	      *	credp;
+struct inode **	inodepp;
 struct streamtab
 	      *	stabp;
 #endif
 {
 	n_dev_t		newdev = makedevice (major (dev), minor (dev));
-	n_dev_t		olddev = newdev;
-	cred_t		cred;
-	int		newmode;
-	int		ret;
+	o_dev_t		clonedev;
+	int		cloneflag;
+	struct inode  *	temp;
+	shead_t	      *	sheadp;
+	int		err;
 
-	newmode = 0;
+	cloneflag = (mode & IPCLONE) != 0;
 
-	if ((mode & IPR) != 0)
-		newmode |= FREAD;
-	if ((mode & IPW) != 0)
-		newmode |= FWRITE;
-	if ((mode & IPEXCL) != 0)
-		newmode |= FEXCL;
-	if ((mode & IPNDLY) != 0)
-		newmode |= FNDELAY;
+	err = STREAMS_OPEN (& newdev, stabp, MAKE_MODE (mode), credp,
+			    cloneflag);
 
-	ret = STREAMS_OPEN (& newdev, stabp, newmode, MAKE_CRED (& cred));
+	if (err != 0) {
+		set_user_error (err);
+		return;
+	}
 
-	if (olddev != newdev)
-		cmn_err (CE_PANIC, "No cloning permitted through the Coherent driver system");
+	if ((sheadp = SHEAD_FIND (newdev,  DEV_SLIST)) == NULL)
+		return;
 
-	SETUERROR (ret);
-	return ret;
+	clonedev = makedev (getemajor (newdev), geteminor (newdev));
+	if (! cloneflag && clonedev == dev) {
+
+		(* inodepp)->i_private = sheadp;
+		return;
+	}
+
+	cmn_err (CE_NOTE, "cloning...");
+
+	if ((temp = inode_clone (* inodepp, clonedev)) != NULL) {
+		temp->i_private = sheadp;
+		* inodepp = temp;
+		return;
+	}
+
+	/*
+	 * We are out of in-core inode space.
+	 */
+
+	set_user_error (ENOMEM);
+
+	STREAMS_CLOSE (sheadp, MAKE_MODE (mode), credp);
 }
 
 
@@ -151,44 +161,20 @@ struct streamtab
  */
 
 #if	__USE_PROTO__
-int (_streams_close) (o_dev_t dev, int mode, int __NOTUSED (flags),
-		      struct streamtab * __NOTUSED (stabp))
+void (_streams_close) (o_dev_t dev, int mode, int __NOTUSED (flags),
+		       cred_t * credp, __VOID__ * private)
 #else
-int
-_streams_close __ARGS ((dev, mode, flags, stabp))
+void
+_streams_close __ARGS ((dev, mode, flags, credp, private))
 o_dev_t		dev;
 int		mode;
 int		flags;
-struct streamtab
-	      *	stabp;
+cred_t	      *	credp;
+__VOID__      *	private;
 #endif
 {
-	shead_t	      *	sheadp;
-	cred_t		cred;
-	int		newmode;
-	int		ret;
-
-	if ((sheadp = SHEAD_FIND (makedevice (major (dev), minor (dev)),
-				  DEV_SLIST)) == NULL) {
-		SETUERROR (ENXIO);
-		return -1;
-	}
-
-	newmode = 0;
-
-	if ((mode & IPR) != 0)
-		newmode |= FREAD;
-	if ((mode & IPW) != 0)
-		newmode |= FWRITE;
-	if ((mode & IPEXCL) != 0)
-		newmode |= FEXCL;
-	if ((mode & IPNDLY) != 0)
-		newmode |= FNDELAY;
-
-	ret = STREAMS_CLOSE (sheadp, newmode, MAKE_CRED (& cred));
-
-	SETUERROR (ret);
-	return ret;
+	set_user_error (STREAMS_CLOSE ((shead_t *) private, MAKE_MODE (mode),
+				       credp));
 }
 
 
@@ -197,33 +183,24 @@ struct streamtab
  */
 
 #if	__USE_PROTO__
-int (_streams_read) (o_dev_t dev, IO * iop,
-		     struct streamtab * __NOTUSED (stabp))
+void (_streams_read) (o_dev_t dev, IO * iop, cred_t * credp,
+		      __VOID__ * private)
 #else
-int
-_streams_read __ARGS ((dev, iop, stabp))
+void
+_streams_read __ARGS ((dev, iop, credp, private))
 o_dev_t		dev;
 IO	      *	iop;
-struct streamtab
-	      *	stabp;
+cred_t	      *	credp;
+__VOID__      *	private;
 #endif
 {
 	iovec_t		iov;
 	uio_t		uio;
-	int		ret;
-	shead_t	      *	sheadp;
 
-	if ((sheadp = SHEAD_FIND (makedevice (major (dev), minor (dev)),
-				  DEV_SLIST)) == NULL) {
-		SETUERROR (ENXIO);
-		return -1;
-	}
-
-	ret = STREAMS_READ (sheadp, MAKE_UIO (& uio, & iov, FREAD, iop));
-
+	set_user_error (STREAMS_READ ((shead_t *) private,
+				      MAKE_UIO (& uio, & iov, FREAD, iop),
+				      credp));
 	DESTROY_UIO (& uio, iop);
-	SETUERROR (ret);
-	return ret;
 }
 
 
@@ -232,33 +209,24 @@ struct streamtab
  */
 
 #if	__USE_PROTO__
-int (_streams_write) (o_dev_t dev, IO * iop,
-		      struct streamtab * __NOTUSED (stabp))
+void (_streams_write) (o_dev_t dev, IO * iop, cred_t * credp,
+		       __VOID__ * private)
 #else
-int
-_streams_write __ARGS ((dev, iop, stabp))
+void
+_streams_write __ARGS ((dev, iop, credp, private))
 o_dev_t		dev;
 IO	      *	iop;
-struct streamtab
-	      *	stabp;
+cred_t	      *	credp;
+__VOID__      *	private;
 #endif
 {
 	iovec_t		iov;
 	uio_t		uio;
-	int		ret;
-	shead_t	      *	sheadp;
 
-	if ((sheadp = SHEAD_FIND (makedevice (major (dev), minor (dev)),
-				  DEV_SLIST)) == NULL) {
-		SETUERROR (ENXIO);
-		return -1;
-	}
-
-	ret = STREAMS_WRITE (sheadp, MAKE_UIO (& uio, & iov, FWRITE, iop));
-
+	set_user_error (STREAMS_WRITE ((shead_t *) private,
+				       MAKE_UIO (& uio, & iov, FWRITE, iop),
+				       credp));
 	DESTROY_UIO (& uio, iop);
-	SETUERROR (ret);
-	return ret;
 }
 
 
@@ -267,48 +235,22 @@ struct streamtab
  */
 
 #if	__USE_PROTO__
-int (_streams_ioctl) (o_dev_t dev, int cmd, _VOID * arg, int mode,
-		      struct streamtab * __NOTUSED (stabp))
+void (_streams_ioctl) (o_dev_t dev, int cmd, __VOID__ * arg, int mode,
+		       cred_t * credp, int * rvalp, __VOID__ * private)
 #else
-int
-_streams_ioctl __ARGS ((dev, cmd, arg, mode, stabp))
+void
+_streams_ioctl __ARGS ((dev, cmd, arg, mode, credp, rvalp, private))
 o_dev_t		dev;
 int		cmd;
-_VOID	      *	arg;
+__VOID__      *	arg;
 int		mode;
-struct streamtab
-	      *	stabp;
+cred_t	      *	credp;
+int	      *	rvalp;
+__VOID__      *	private;
 #endif
 {
-	cred_t		cred;
-	int		rval;
-	int		newmode;
-	int		ret;
-	shead_t	      *	sheadp;
-
-	if ((sheadp = SHEAD_FIND (makedevice (major (dev), minor (dev)),
-				  DEV_SLIST)) == NULL) {
-		SETUERROR (ENXIO);
-		return -1;
-	}
-
-	newmode = 0;
-
-	if ((mode & IPR) != 0)
-		newmode |= FREAD;
-	if ((mode & IPW) != 0)
-		newmode |= FWRITE;
-	if ((mode & IPEXCL) != 0)
-		newmode |= FEXCL;
-	if ((mode & IPNDLY) != 0)
-		newmode |= FNDELAY;
-
-	ret = STREAMS_IOCTL (sheadp, cmd, arg, newmode, MAKE_CRED (& cred),
-			     & rval);
-
-	SETUERROR (ret);
-	return rval;
-
+	set_user_error (STREAMS_IOCTL ((shead_t *) private, cmd, arg,
+				       MAKE_MODE (mode), credp, rvalp));
 }
 
 
@@ -318,27 +260,30 @@ struct streamtab
 
 #if	__USE_PROTO__
 int (_streams_chpoll) (o_dev_t dev, int events, int msec,
-		       struct streamtab * stabp)
+		       __VOID__ * private)
 #else
 int
-_streams_chpoll __ARGS ((dev, events, msec, stabp))
+_streams_chpoll __ARGS ((dev, events, msec, private))
 o_dev_t		dev;
 int		events;
 int		msec;
-struct streamtab
-	      *	stabp;
+__VOID__      *	private;
 #endif
 {
-	int		ret;
+	short		revents;
 
-	cmn_err (CE_PANIC, "DDI/DKI polling not yet supported");
+	if (msec == 0) {
+		/*
+		 * Simply check to see what events are outstanding.
+		 */
 
-#if	0
-	ret = (* funcp) (newdev, events, msec == 0, & revents, pollhead)
-#else
-	ret = EIO;
-#endif
-	SETUERROR (ret);
-	return ret;
+		set_user_error (STREAMS_CHPOLL ((shead_t *) private, events,
+						1, & revents, NULL));
+		return revents;
+	}
+
+	set_user_error (STREAMS_CHPOLL ((shead_t *) private, events, 0,
+					& revents, get_next_phpp (events)));
+	install_phpp ();
+	return revents;
 }
-

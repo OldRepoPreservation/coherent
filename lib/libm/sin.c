@@ -1,6 +1,8 @@
 /*
  * libm/sin.c
- * Evaluate the sine function.
+ * C mathematics library.
+ * sin()
+ * Sine function.
  */
 
 #include <math.h>
@@ -31,7 +33,7 @@ sin(x) double x;
 {
 	if (fabs(x) < THRESHOLD)
 		return _pol(x, sintab, 6);
-	return cos(PI/2.0 - x);
+	return cos(PI / 2.0 - x);
 }
 
-/* end of sin.c */
+/* end of libm/sin.c */

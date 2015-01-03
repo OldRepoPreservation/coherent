@@ -1,54 +1,27 @@
+/* $Header: /ker/i386/RCS/defer.c,v 2.3 93/08/19 03:40:00 nigel Exp Locker: nigel $ */
 /*
- * File:	defer.c
- *
  * Purpose:	Handle deferring of functions and subsequent execution.
  *
  * $Log:	defer.c,v $
+ * Revision 2.3  93/08/19  03:40:00  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  13:55:49  nigel
+ * Nigel's R80
+ * 
  * Revision 1.1  92/11/09  17:08:40  root
  * Just before adding vio segs.
- * 
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
-
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
 #define	DEFLIM	128	/* maximum number of deferred functions */
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
 void defer();
 void defend();
 
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 static void (*defunc[DEFLIM])();
 static int defarg[DEFLIM];
 static int defqix, defqox, defcnt;
 
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
 
 /*
  * defer()

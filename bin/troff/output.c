@@ -150,7 +150,7 @@ dev_ps(n) register int n;
 /*
  * Set a fixed pointsize for a font.
  */
-dev_fz(font, size) char *font, size;
+dev_fz(font, size) char *font, *size;
 {
 	char name[2];
 	register int n;

@@ -1,226 +1,213 @@
-/*					
- * fsck  --  File System Check Program
- * an interactive file system check and repair program.
- *
- * Usage:
- *	/etc/fsck [-y] [-n] [-q] [-f] [-{sS}] [-t TMPFILE] [filesystem ...]
- *	audit and interactively repair inconsistent conditions for
- *  	file systems.  Options -y and -n indicate an assumed response
- *	to all questions asked by fsck.  Default is to prompt operator
- *	for yes/no response.  Option -q is to quiet fsck from printing
- *	certain messages, i.e. no size check messages, unreferenced
- *	pipes will be silently removed, and counts in the superblock
- *	will be automatically fixed and free list salvaged, if necessary.
- *	Option -f is for a 'fast' check of the file system, i.e. only
- *	check blocks, sizes, superblock counts, and the free list.
- *	(-f) does not check pathnames, connectivity, or reference
- *	counts.  Option -s forces the reconstruction (or salvaging) of
- *	both the free inode list and the free block list, even if there
- *	are no file system problems.  This will reorder the free block
- *	list in the best order to limit additional fragmentation (respecting
- *	interleaving as well).  Note: Option -s will be ignored on mounted
- *	file systems.  The option -S acts in the same manner as -s except
- *	that it will not be ignored on mounted file systems.  Beware: -S
- *	on mounted file systems should only be used if you intend to reboot
- *	NO SYNC immediately afterwards.  Option -t sets the temporary file
- *	to use for disk caching of necessary tables on filesystems which are
- *	too big to do in core. The temporary file defaults to "/dev/rram1",
- *	which must be there.
+/*
+ * Initialize the assembler
  */
+#include <asm.h>
 
-#include "fsck.h"
+#ifdef COHERENT
+#define SLASH '/'
+#else
+#define SLASH '\\'
+#endif
 
-int	errflag;
+#if 0
+	/* This is used only to get the Syntax error message into the docs. */
 
-int	mdaction;			/* default action for invocation */
-int	daction;			/* default action for file system */
-int	gSflag=FALSE;			/* force salvage flag ignored mounted */
-int	gsflag=FALSE;			/* force salvage flag ignored mounted */
-int	sflag=FALSE;			/* force salvage flag	*/
-int	qflag=FALSE;			/* fsck quiet flag	*/
-int	fflag=FALSE;			/* fsck fast flag	*/
+	yyerror("Syntax error");
+	/* The syntax of this statement makes no sense to the parser.
+	 * This can be a variety of problems. */
+#endif
 
-char *tmpfile = NULL;			/* TMP file for virtual.c */
-char *checklistfile = "/etc/checklist";	/* default file for list of file */
-					/* systems to fsck. */
-char *filelist[NFILSYS];		/* list of filesystems */
-char word[MAXCH];			/* hold single words */
-char *fsname;				/* file system name */
+static char swChars[] = "VwQXaxfpbgnlo:?E:D:"; /* list for getargs */
+static int savArgc;
+static char **savArgv;
+static char dodefsw;	/* -D or -E used */
 
-dev_t	rootdev;			/* root device number */
-dev_t	fsysrdev;			/* file system real device number */
-int	mounted;			/* flag for mounted file system */
-
-int	changeflg;			/* file system modified flag */
-
-main(argc, argv)
-char *argv[];
+/*
+ * Do -E and -D definitions. 
+ * -Dx=y is the same as x .define y
+ * -Ea=5 is the same as a .equ 5
+ * This is called every pass.
+ */
+void
+dodefs()
 {
-	int yflag=0, nflag=0;
-	int retval;
+	register char *p, c;
 
-	while (argc>1 && *argv[1]=='-') {
-		switch (argv[1][1]) {
-		case 'q':
-			qflag = TRUE;
-			break;
-		case 'y':
-			yflag = 1;
-			break;
-		case 'n':
-			nflag = 1;
-			break;
-		case 'f':
-			fflag = TRUE;
-			break;
-		case 'S':
-			gSflag = TRUE;
-			break;
-		case 's':
-			gsflag = TRUE;
-			break;
-		case 't':
-			tmpfile = argv[2];
-			argc--;
-			argv++;
-			break;
+	if (!dodefsw)	/* no -D or -E to process */
+		return;
+
+	optix = 1;	/* reset getargs */
+	while (EOF != (c = getargs(savArgc, savArgv, swChars))) {
+		switch(c) {
+		case 'D':
+		case 'E':
+			if (NULL == (p = strchr(optarg, '=')) || p == optarg)
+				fatal("Invalid option on -%c switch", c);
+				/* The syntax of -D and -E switches is
+				 * -Dname=string
+				 * -Ename=number */
+			*p++ = '\0';
+			if ('D' == c) {
+				defCt++;
+				defMac(gcpy(optarg, 0),
+				       gcpy(p, offset(parm, str)),
+				       MACSTR);
+			}
+			else
+				symLookUp(gcpy(optarg, 0), S_XSYM, atol(p), 0);
+			*--p = '=';
 		default:
-			usage();
-			break;
+			continue;
 		}
-	
-		argc--;
-		argv++;
 	}
-	
-	if ( yflag+nflag > 1 )
-		usage();
-
-	mdaction = ( yflag ? YES :
-		    nflag ? NO : ASK );
-
-	if ( argc > 1 )
-		retval = allfsck(argv+1);
-	else {
-		getlist();
-		retval = allfsck(filelist);
-	}
-	exit(retval);
-}
-
-
-/*
- *	perform fsck on each of the individual filesystem in list
- */
-
-allfsck(fsl)
-register char **fsl;
-{
-	int fatal();
-	int retval = 0;
-
-	sync();
-	statit("/", fatal);
-	rootdev = stats.st_dev;
-	while (*fsl != NULL)
-		retval |= fsck(*fsl++);
-	return(retval);
-}
-
-/* 
- *  	get the names of the filesystems from the default file
- *	checklistfile  (e.g. /etc/checklist)
- */
-
-getlist()
-{
-	int fd;
-	int index, size;
-
-	if ( (fd = open(checklistfile, 0)) == (-1) )
-		fatal("Can't open checklist file: %s", checklistfile);
-
-	index = 0;
-	while ( ((size = getword(fd)) != 0) && (index < NFILSYS) ) {
-                filelist[index] = malloc( size );
-		strcpy(filelist[index++], word);
-	}
-
-	if (size != 0) 
-		fatal("Too many file systems in checklist file: %s",
-							checklistfile);
-
-	filelist[index] = NULL;
-
-	close(fd);
 }
 
 /*
- *	read in the next "word" from file with descriptor fd
- *  	return the length of the word.
+ * Invalid usage message.
  */
-
-getword(fd)
-int fd;
-{
-	int n = 0, num;
-	char *cp = word;
-	char ch;
-
-	while ( ( (num=read(fd, &ch, 1)) == 1 ) &&
-		( (ch==' ')||(ch=='\t')||(ch=='\n')||(ch=='\r') ) );
-
-	if (num != 1)
-		return(0);
-
-	do {
-		*cp++ = ch;
-	} while (  (++n < MAXCH) && (read(fd, &ch, 1) == 1) &&
-		(ch != ' ') && (ch != '\t') && (ch != '\n') && (ch != '\r') );
-	
-	*cp = '\0';
-
-	return(n+1);
-}
-	
-/*
- *	perform fsck on the given filesystem
- */
-fsck(name)
-char *name;
-{
-	int retval = 1;
-	int nonfatal();
-
-	fsname = name;		/* file system name */
-	errflag = FALSE;
-	statit(fsname, nonfatal);
-	fsysrdev = stats.st_rdev;
-	if ( errflag )
-		return(retval);
-	changeflg = FALSE;
-	init();
-	if ( sflag = ((gsflag && !mounted) || gSflag) )
-		printf("Switch \"-s\" selected to automatically rebuild free lists\n");
-	if (!sflag && gsflag)
-		printf("Ignoring \"-s\" on mounted file system\n");
-	if ( !errflag ) {
-		phase1();	/* check blocks and sizes */
-		if ( !fflag ) {
-			phase2();	/* check pathnames        */
-			phase3();	/* check connectivity     */
-			phase4();	/* check reference counts */
-		}
-		phase5();	/* check free list	  */
-		phase6();	/* salvage free list	  */
-		retval = cleanup();
-	}
-	return(retval);
-}
-
+void
 usage()
 {
-	printf("\
-Usage: /etc/fsck [-y] [-n] [-q] [-f] [-{sS}] [-t TMPFILE] [filesystem ...]\n");
-	_exit(1);
+	fprintf(stderr, "usage: as [-wXxfpbgnlQ] [-o output] filename\n");
+	exit(1);
+}
+
+/*
+ * process arguments and call yyparse.
+ */
+main(argc, argv)
+char **argv;
+{
+	register char *p, c;
+	char *fileName;
+
+	initStor();		/* init storage control */
+	segInit();		/* init segment data */
+	indPass();		/* init indefinite branch logic */
+	newLevel(NORMAL);	/* set base level for if else etc */
+
+	_addargs("AS", &argc, &argv);
+	savArgv = argv;
+	savArgc = argc;
+
+	fileName = NULL;
+	while (EOF != (c = getargs(argc, argv, swChars))) {
+		switch(c) {
+		case 0:
+			if (NULL != fileName)	/* one time only */
+				fatal("more than one file to process");
+				/* The assembler will only process one file
+				 * at a time. */
+			fileName = optarg;
+			break;
+
+		case 'a':	/* align data objects */
+			alignon = alignonX ^= 1;
+			break;
+
+		case 'n':	/* No fixes for chip errata */
+			nswitch = nswitchX ^= 1; 
+			break;
+
+		case 'w':	/* No warning messages */
+			wswitchX ^= 1;	
+			break;
+
+		case 'X':	/* don't output .L local symbols */
+			Xswitch ^= 1;	
+			break;
+
+		case 'x':	/* no local symbols in object file */
+			xswitch ^= 1;	
+			break;
+
+		case 'f':	/* reverse order of operands */
+			fswitch = fswitchX ^= 1; 
+			break;
+
+		case 'p':	/* don't use % on register names */
+			rswitch ^= 1;	
+			break;
+
+		case 'b':	/* reverse bracket sense */
+			bswitch = bswitchX ^= 1; 
+			break;
+
+		case 'Q':	/* No messages at all */
+			Qswitch ^= 1;
+			break;
+
+		case 'g':	/* treat unrefrenced symbols as globl */
+			gswitch = 1;	
+			break;
+
+		case 'l':	/* print a listing */
+			lswitchX ^= 1;	
+			break;
+
+		case 'o':
+			outName = optarg;
+			if ((NULL == (p = strrchr(outName, '.'))) ||
+			    strcmp(p, ".o"))
+				fatal("Unlikely output file '%s'", outName);
+			/* Output file-names should have \fB.o\fR suffixes.
+			 * Because this is generally a typographical error,
+			 * \fBas\fR aborts to
+			 * avoid overwriting an important file. */
+			break;
+
+		case 'D':	/* process in dodefs */
+		case 'E':
+			dodefsw = 1;
+		case 'V':
+			fprintf(stderr, "Mark Williams 80386 assembler\n");
+			break;
+
+		case '?':
+		default:
+			usage();
+		}
+	}
+
+	if (fileName == NULL)
+		fatal("no work");
+		/* There were no files listed on the command line. */
+
+	symInit();		/* init symbol table */
+
+	errdev = lswitchX ? stdout : stderr;
+
+	fileOpen(fileName);
+	title = scpy(fileName, 0);
+
+	if(NULL == outName) {	/* develop output filename */
+		char *q;
+		int len;
+
+		/* point p at input file name */
+		if (NULL != (q = strrchr(p = fileName, SLASH)))
+			p = q + 1;
+
+		outName = alloc((unsigned)(3 + (len = strlen(p))));
+		strcpy(outName, p);
+
+		p = outName + len - 2;	/* right spot for .  */
+		if ('.' != *p)		/* if no . append .o */
+			p += 2;
+
+		strcpy(p, ".o");
+	}
+
+	/* get ctime without \n */
+	{
+		long t;
+
+		time(&t);
+		c = strlen(dTime = ctime(&t)) - 1;
+		dTime[c] = '\0';
+	}
+
+	dodefs();
+	yyparse();
+	fatal("Unexpected return from parser"); /* TECH */
 }

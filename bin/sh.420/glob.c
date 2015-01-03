@@ -5,21 +5,22 @@
 #include "sh.h"
 
 #include <sys/types.h>
+#include <sys/dir.h>
 #include <sys/stat.h>
-#include <dirent.h>
 
-#define	DIRSIZ		14
+#define isdir(s)	(((s)->st_mode&S_IFMT)==S_IFDIR)
 
 struct nmlst {
-	struct nmlst  *	g_next;
-	char	      *	g_name;
+	struct nmlst *g_next;
+	char g_name[];
 };
 
-char *dirname = NULL;
+char *dirn = NULL;
 int pref = 0;
 
 struct nmlst *newnm();
 char *gany();
+char *dread();
 int nmcmp();
 
 /*
@@ -39,35 +40,35 @@ char *args;
 		strip(args);
 		newarg(args, 0);
 	} else {
-		if (dirname != NULL)
-			sfree (dirname);
-		dirname = salloc (DIRSIZ);
-		if (args [0] == '/') {
+		if (dirn != NULL)
+			sfree(dirn);
+		dirn = salloc(DIRSIZ);
+		if (args[0]=='/') {
 			pref = 0;
-			strcpy (dirname, "/");
+			strcpy(dirn, "/");
 			patt = args + 1;
 		} else {
 			pref = 2;
-			strcpy (dirname, "./");
+			strcpy(dirn, "./");
 			patt = args;
 		}
 	
-		if ((suff = strchr (patt, '/')) != NULL)
-			for (nsep = 0; * suff == '/'; nsep += 1)
-				* suff ++ = '\0';
+		if ((suff=index(patt, '/')) != NULL)
+			for (nsep=0; *suff=='/'; nsep+=1)
+				*suff++ = '\0';
 		else
 			nsep = 0;
 		myargc = nargc;
-		glob2 (patt, nsep, suff);
+		glob2(patt, nsep, suff);
 		if (myargc != nargc)
-			qsort (& nargv [myargc], nargc - myargc,
-				sizeof (nargv [0]), nmcmp);
+			qsort(&nargv[myargc], nargc-myargc,
+				sizeof(nargv[0]), nmcmp);
 		else {
 			/* No match */
-			while (nsep -- > 0)
-				* -- suff = '/';
-			strip (args);
-			newarg (args, 0);
+			while (nsep-- > 0)
+				*--suff = '/';
+			strip(args);
+			newarg(args, 0);
 		}
 	}
 }
@@ -84,52 +85,46 @@ int nsep;
 {
 	register struct nmlst *nmlst = NULL;
 	struct nmlst *np;
-	char *nsuff, *ndirname;
+	register char *name;
+	char *nsuff, *ndirn;
 	int nnsep, dirp;
-	DIR	      *	dir;
 
 	if (gany(patt)==NULL) {
-		nmlst = newnm (nmlst, patt);
-		strip (nmlst->g_name);
-	} else if ((dir = opendir (dirname)) != NULL) {
-		struct dirent *	direntry;
-
-		while ((direntry = readdir (dir)) != NULL) {
-			if (match (patt, direntry->d_name) &&
-			    (direntry->d_name [0] != '.' || patt [0] == '.')) {
-				nmlst = newnm(nmlst, direntry->d_name);
+		nmlst = newnm(nmlst, patt);
+		strip(nmlst->g_name);
+	} else if (dopen(dirn) >= 0) {
+		while ((name = dread()) != NULL) {
+			if (match(patt, name)
+			 && (name[0]!='.' || patt[0]=='.')) {
+				nmlst = newnm(nmlst, name);
 			}
 		}
-		closedir (dir);
 	}
-
-	if (nmlst != NULL) {
-		ndirname = salloc (strlen (dirname) + DIRSIZ + nsep + 1);
-		strcpy (ndirname, dirname);
-		sfree (dirname);
-		dirname = ndirname;
-		dirp = strlen (dirname);
-		if ((nsuff = suff) != NULL &&
-		    (nsuff = strchr (nsuff, '/')) != NULL)
-			for (nnsep = 0; * nsuff == '/'; nnsep += 1)
-				* nsuff ++ = '\0';
+	if (nmlst!=NULL) {
+		ndirn = salloc(strlen(dirn)+DIRSIZ+nsep+1);
+		strcpy(ndirn, dirn);
+		sfree(dirn);
+		dirn = ndirn;
+		dirp = strlen(dirn);
+		if ((nsuff=suff)!=NULL && (nsuff=index(nsuff, '/'))!=NULL)
+			for (nnsep=0; *nsuff=='/'; nnsep+=1)
+				*nsuff++ = '\0';
 		else
 			nnsep = 0;
-		while (nmlst != NULL) {
-			char	      *	name;
-			name = dirname + dirp;
-			strcpy (name, nmlst->g_name);
+		while (nmlst!=NULL) {
+			name = dirn + dirp;
+			strcpy(name, nmlst->g_name);
 			nmlst = (np = nmlst)->g_next;
-			sfree (np);
-			mksep (name, nsep);
-			if (suff != NULL)
-				glob2 (suff, nnsep, nsuff);
+			sfree(np);
+			mksep(name, nsep);
+			if (suff!=NULL)
+				glob2(suff, nnsep, nsuff);
 			else
-				newarg (dirname + pref, 1);
+				newarg(dirn + pref, 1);
 		}
-		while (nnsep -- > 0)
-			* -- nsuff = '/';
-		dirname [dirp] = '\0';
+		while (nnsep-- > 0)
+			*--nsuff = '/';
+		dirn[dirp] = '\0';
 	}
 }
 
@@ -143,7 +138,6 @@ register char *sp;
 {
 	int c2;
 	register int c1;
-	int	notflag;
 
 	while ((c1=*pp++)) {
 		switch (c1) {
@@ -160,25 +154,13 @@ register char *sp;
 		case '[':
 			if ((c2=*sp++) == '\0')
 				return (0);
-			if ((notflag = * pp == '!') != 0)
-				pp ++;
 			for (;;) {
-				if ((c1=*pp++) == '\0')
-					return 0;
-				if (c1 == ']') {
-					if (notflag) {
-						pp --;
-						break;
-					}
-					return 0;
-				}
+				if ((c1=*pp++) == '\0' || c1 == ']')
+					return (0);
 				if (c1 == '\\' && (c1=*pp++) == '\0')
-					return 0;
-				if (c1 == c2) {
-					if (notflag)
-						return 0;
+					return (0);
+				if (c1 == c2)
 					break;
-				}
 				if (*pp == '-') {
 					pp += 1;
 					if (c2 < c1)
@@ -187,11 +169,8 @@ register char *sp;
 						return (0);
 					if (c1 == '\\' && (c1=*pp++) == '\0')
 						return (0);
-					if (c2 <= c1) {
-						if (notflag)
-							return 0;
+					if (c2 <= c1)
 						break;
-					}
 				}
 			}
 			while ((c1 = *pp++) != ']') {
@@ -222,10 +201,9 @@ char *name;
 	register struct nmlst *np;
 	register int n;
 
-	n = strlen (name) + 1 + sizeof (* np);
-	np = (struct nmlst *) salloc (n);
+	n = strlen(name)+1+sizeof(*np);
+	np = (struct nmlst *) salloc(n);
 	np->g_next = olst;
-	np->g_name = (char *) (np + 1);
 	strcpy(np->g_name, name);
 	return (np);
 }
@@ -291,3 +269,45 @@ register char *s;
 			p++;
 	*p = *s;
 }
+
+int dfd;
+int dcnt;
+struct direct *dptr;
+struct direct *dbuf = strt;
+char dtmp[DIRSIZ+2] = { 0 };
+
+dopen(p)
+char *p;
+{
+	struct stat s;
+
+	dcnt = 0;
+	if (stat(p, &s) < 0
+	 || ! isdir(&s)
+	 || (dfd = open(p, 0)) < 0)
+		dfd = -1;
+	return (dfd);
+}
+
+char *
+dread()
+{
+	register struct direct *dp;
+
+	while (dfd >= 0) {
+		while (dcnt-- > 0) {
+			dp = dptr++;
+			if (dp->d_ino != 0)
+				return (strncpy(dtmp, dp->d_name, DIRSIZ));
+		}
+		dptr = dbuf;
+		dcnt = read(dfd, (char *)dptr, 64*sizeof(dbuf[0]));
+		dcnt /= sizeof(dbuf[0]);
+		if (dcnt <= 0) {
+			close(dfd);
+			dfd = -1;
+		}
+	}
+	return (NULL);
+}
+

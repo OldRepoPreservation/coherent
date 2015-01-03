@@ -1,4 +1,4 @@
-/* $Header: /v4a/coh/RCS/clist.c,v 1.2 92/01/06 11:58:44 hal Exp $ */
+/* $Header: /ker/coh.386/RCS/clist.c,v 2.3 93/08/19 03:26:21 nigel Exp Locker: nigel $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,17 +13,29 @@
  *	All rights reserved.
  -lgl) */
 /*
- * Coherent.
  * Character list management.
+ *
+ * $Log:	clist.c,v $
+ * Revision 2.3  93/08/19  03:26:21  nigel
+ * Nigel's r83 (Stylistic cleanup)
  */
-#include <sys/coherent.h>
+
+#define	_KERNEL		1
+
+#include <kernel/trace.h>
+#include <kernel/param.h>
 #include <sys/clist.h>
 #include <sys/sched.h>
 
 #define	cvirt(p)	((CLIST *)(p))
-#ifdef TRACER
+
+static int	cltwant;
+static cmap_t	cltfree;
+
 int nclfree = 0;
-#endif
+
+caddr_t		 clistp;	/* Base of clists */
+
 
 /*
  * Initialise character list queues.
@@ -39,16 +51,18 @@ cltinit()
 
 	s = sphi();
 	lm = 0;
-	for (p = clistp+NCLIST*sizeof(CLIST); (p-=sizeof(CLIST)) >= clistp; ) {
+	p = clistp + NCLIST * sizeof (CLIST);
+
+	while ((p -= sizeof (CLIST)) >= clistp) {
 		cm = p;
 		cvirt(cm)->cl_fp = lm;
 		lm = cm;
 	}
 	cltfree = lm;
-#ifdef TRACER
+
 	nclfree = NCLIST;
-#endif
-	spl(s);
+
+	spl (s);
 }
 
 /*
@@ -83,9 +97,9 @@ register CQUEUE *cqp;
 			cltwant = 0;
 			wakeup((char *)&cltwant);
 		}
-#ifdef TRACER
-		T_HAL(0x0040, {nclfree++; printf("F%d ", nclfree);});
-#endif
+
+		nclfree++;
+
 	}
 	spl(s);
 	return (c);
@@ -117,7 +131,7 @@ register CQUEUE *cqp;
 			cvirt(np)->cl_fp = ip;
 		}
 		cqp->cq_ip = ip;
-		T_HAL(0x0040, { nclfree--; printf("f%d ", nclfree);});
+		nclfree--;
 	}
 	cvirt(ip)->cl_ch[ix] = c;
 	if (++cqp->cq_ix == NCPCL)

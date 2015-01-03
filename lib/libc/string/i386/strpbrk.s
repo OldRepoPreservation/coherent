@@ -4,6 +4,8 @@
 / ANSI 4.11.5.4.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / strpbrk(char *String1, char *String2)

@@ -1,10 +1,13 @@
 /*
  * libm/two.c
+ * C mathematics library internals.
  * Evaluate 2 to the power x.
+ * _two()
  * (Hart 1067, 18.08)
  */
 
 #include <math.h>
+#include <errno.h>
 
 #if	EMU87
 #include "emumath.h"
@@ -40,10 +43,10 @@ _two(x) double x;
 		s = 1;
 		x -= 0.5;
 	}
-	r = x*x;
-	p = x*_pol(r, twontab, 3);
+	r = x * x;
+	p = x * _pol(r, twontab, 3);
 	q = _pol(r, twomtab, 3);
-	r = (q+p)/(q-p);
+	r = (q + p) / (q - p);
 	if (s)
 		r *= SQRT2;
 	return ldexp(r, (int) e);

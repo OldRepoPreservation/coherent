@@ -1,3 +1,4 @@
+/* $Header: /ker/io.386/RCS/hs.c,v 2.6 93/10/29 00:58:50 nigel Exp Locker: nigel $ */
 /* (-lgl
  * 	COHERENT Driver Kit Version 1.1.0
  * 	Copyright (c) 1982, 1990 by Mark Williams Company.
@@ -6,6 +7,18 @@
 /*
  * Polled Serial Port Device Driver.
  * - supports version 7 compatible ioctl
+ * $Log:	hs.c,v $
+ * Revision 2.6  93/10/29  00:58:50  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.5  93/09/13  08:06:34  nigel
+ * Changed to reflect the fact that entry points are 'void' once more
+ * 
+ * Revision 2.4  93/08/19  10:39:07  nigel
+ * r83 ioctl (), corefile, new headers
+ * 
+ * Revision 2.3  93/08/19  04:02:48  nigel
+ * Nigel's R83
  */
 
 #include <sys/coherent.h>
@@ -15,15 +28,11 @@
 #include <sys/tty.h>		/* indirectly includes sgtty.h */
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
 #include <sys/poll_clk.h>
 
-#ifdef _I386
-#define	EEBUSY	EBUSY
-#else
 #define	EEBUSY	EDBUSY
-#endif
 
 /*
  * Definitions.
@@ -64,54 +73,11 @@ struct port_config HS_PORTS[MAX_HSNUM] = {
 	{ 0x2E8, B9600 }
 };
 
-/*
- * Export Functions.
- */
-int	hsload();
-int	hsopen();
-int	hsclose();
-int	hsread();
-int	hswrite();
-int	hsunload();
-int	hspoll();
-
-static void hsioctl();
-
-int	hscycle();
-int	hsintr();
-int	hsparam();
-int	hsstart();
-int	hsclk();
-int	set_poll_rate();
-
-/*
- * Import Functions
- */
-int	nulldev();
-int	nonedev();
-
-/*
- * Configuration table.
- */
-CON hscon ={
-	DFCHR|DFPOL,			/* Flags */
-	HS_MAJOR,			/* Major index */
-	hsopen,				/* Open */
-	hsclose,			/* Close */
-	nulldev,			/* Block */
-	hsread,				/* Read */
-	hswrite,			/* Write */
-	hsioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	nulldev,			/* Timeout */
-	hsload,				/* Load */
-	hsunload,			/* Unload */
-	hspoll				/* Poll */
-};
 
 /*
  * Local variables.
  */
+
 static TTY *hstty;
 static silo_t *out_silos, *in_silos;
 static TTY *hslimtty;
@@ -124,266 +90,15 @@ static char ioclcr[MAX_HSNUM];
  * Time constant table.
  * Indexed by ioctl baud rate.
  */
+
 extern int albaud[], alp_rate[];
 
-/*
- * Load Routine.
- */
-static hsload()
-{
-	register TTY * tp;
-	register int port;
-	int i, b;
-
-	if ((in_silos = (silo_t *)kalloc(HSNUM*sizeof(silo_t))) == 0) {
-		printf("hsload: can't allocate in_silos\n");
-		return;
-	}
-	kclear(in_silos, HSNUM*sizeof(silo_t));
-
-	if ((out_silos = (silo_t *)kalloc(HSNUM*sizeof(silo_t))) == 0) {
-		printf("hsload: can't allocate out_silos\n");
-		return;
-	}
-	kclear(out_silos, HSNUM*sizeof(silo_t));
-
-	if ((hstty = (TTY *)kalloc(HSNUM*sizeof(TTY))) == 0) {
-		printf("hsload: can't allocate tty's\n");
-		return;
-	}
-	kclear(hstty, HSNUM*sizeof(TTY));
-
-	for (i = 0; i < HSNUM; i++) {
-		port = HS_PORTS[i].addr;
-		tp = hstty + i;
-
-		outb(port+MCR, 0);
-		outb(port+IER, 0);
-
-		tp->t_cs_sel  = cs_sel();
-		tp->t_start   = hsstart;
-		tp->t_param   = hsparam;
-		tp->t_sgttyb.sg_ospeed = tp->t_sgttyb.sg_ispeed = 
-		tp->t_dispeed = tp->t_dospeed = HS_PORTS[i].speed;
-		tp->t_ddp     = port;
-
-		b = albaud[ tp->t_sgttyb.sg_ospeed ];
-		outb(port+LCR, LC_DLAB);
-		outb(port+DLL, b);
-		outb(port+DLH, b >> 8);
-		outb(port+LCR, LC_CS8);
-
-	}
-	hslimtty = hstty + HSNUM;
-}
-
-static hsunload()
-{
-	if (hstty != (TTY *)0)
-		kfree(hstty);
-}
-
-/*
- * Open Routine.
- */
-hsopen(dev, mode)
-dev_t dev;
-{
-	register TTY * tp = &hstty[ dev & 15 ];
-	register int b;
-	int s;
-
-	/*
-	 * Verify hardware exists.
-	 */
-	if ((PORT == 0) || (inb(PORT+IER) & ~IE_TxI)) {
-		u.u_error = ENXIO;
-		return;
-	}
-
-	/*
-	 * Can't open if another driver is using polling
-	 */
-	if (poll_owner & ~ POLL_HS) {
-		u.u_error = EEBUSY;
-		return;
-	}
-
-	/*
-	 * Initialize if not already open.
-	 */
-	if (++tp->t_open == 1) {
-		ttopen(tp);
-
-		if (dev & 0x80) {
-			s = sphi();
-			b = inb(PORT+MSR);
-			tp->t_flags |= T_MODC + T_STOP;
-			if (b & MS_CTS)
-				tp->t_flags &= ~T_STOP;
-			if (b & MS_DSR)
-				tp->t_flags |=  T_CARR;
-			spl(s);
-		} else  {
-			tp->t_flags &= ~T_MODC;
-			tp->t_flags |=  T_CARR;
-		}
-		hscycle(tp);
-	}
-	ttsetgrp(tp, dev, mode);
-	set_poll_rate();
-}
-
-/*
- * Close Routine.
- */
-hsclose(dev)
-dev_t dev;
-{
-	short chan = dev & 15;
-	register TTY * tp = hstty + chan;
-	silo_t * out_silo = out_silos + chan;
-
-	/*
-	 * Reset if last close.
-	 */
-	if (tp->t_open == 1) {
-		int state;
-
-		ttclose(tp);
-		/*
-		 * ttclose() only emptied the output queue tp->t_oq;
-		 * now wait 0.1 sec for the silo to empty
-		 * and allow a delay for the UART on-chip xmit buffer to empty
-		 *
-		 * state 2: waiting for silo to empty
-		 * state 1: stalling so UART can empty xmit buffer
-		 * state 0: done!
-		 */
-		state = 2;
-		while (state) {
-			timeout(&hstim, 10, wakeup, (int)&hstim);
-#ifdef _I386
-			x_sleep((char *)&hstim,
-			  pritty, slpriNoSig, "hsopen");
-#else
-			v_sleep((char *)&hstim,
-			  CVTTOUT, IVTTOUT, SVTTOUT, "hsopen");
-#endif
-			if (out_silo->si_ix == out_silo->si_ox  && state)
-				state--;
-		}
-	}
-
-	--tp->t_open;
-	set_poll_rate();
-}
-
-/*
- * Read Routine.
- */
-hsread(dev, iop)
-dev_t dev;
-register IO * iop;
-{
-	ttread(&hstty[ dev & 15 ], iop);
-}
-
-/*
- * Write Routine.
- */
-hswrite(dev, iop)
-dev_t dev;
-register IO * iop;
-{
-	ttwrite(&hstty[ dev & 15 ], iop);
-}
-
-/*
- * Ioctl Routine.
- */
-static void
-hsioctl(dev, com, vec)
-dev_t	dev;
-int	com;
-struct sgttyb *vec;
-{
-	ttioctl(&hstty[ dev & 15 ], com, vec);
-}
-
-/*
- * Polling Routine.
- */
-hspoll(dev, ev, msec)
-dev_t dev;
-int ev;
-int msec;
-{
-	return ttpoll(&hstty[ dev & 15 ], ev, msec);
-}
-
-/*
- * Cyclic routine - invoked every clock tick to perform raw input/output.
- *
- *	Notes:	Invoked 10 times per second.
- */
-hscycle(tp)
-register TTY * tp;
-{
-	register int resid;
-	register int c;
-	int chan = tp - hstty;
-	silo_t * out_silo = out_silos + chan;
-	silo_t * in_silo = in_silos + chan;
-
-	/*
-	 * Process rawin buf.
-	 */
-	while (in_silo->si_ix != in_silo->si_ox) {
-
-		ttin(tp, in_silo->si_buf[ in_silo->si_ox ]);
-
-		if (in_silo->si_ox >= sizeof(in_silo->si_buf) - 1)
-			in_silo->si_ox = 0;
-		else
-			in_silo->si_ox++;
-	}
-
-	/*
-	 * Calculate free output slot count.
-	 */
-	resid  = sizeof(out_silo->si_buf) - 1;
-	resid += out_silo->si_ox - out_silo->si_ix;
-	resid %= sizeof(out_silo->si_buf);
-
-	/*
-	 * Fill raw output buffer.
-	 */
-	while ((--resid >= 0) && ((c = ttout(tp)) >= 0)) {
-
-		out_silo->si_buf[ out_silo->si_ix ] = c;
-
-		if (out_silo->si_ix >= sizeof(out_silo->si_buf) - 1)
-			out_silo->si_ix = 0;
-		else
-			out_silo->si_ix++;
-	}
-
-	/*
-	 * (Re)start output, waking processes waiting to output, etc.
-	 */
-	ttstart(tp);
-
-	/*
-	 * Schedule next cycle.
-	 */
-	if (tp->t_open != 0)
-		timeout(&tp->t_rawtim, HZ/10, hscycle, tp);
-}
 
 /*
  * Clock Interrupt driven Polling routine.
  */
+
+static void
 hsintr()
 {
 	register TTY * tp = hstty;
@@ -459,9 +174,74 @@ hsintr()
 	}
 }
 
+
+/*
+ * hsclk will be called every time T0 interrupts - if it returns 0,
+ * the usual system timer interrupt stuff is done
+ */
+
+static int
+hsclk()
+{
+	static int count;
+
+	hsintr();
+	count++;
+	if (count >= poll_divisor)
+		count = 0;
+	return count;
+}
+
+
+/*
+ * set_poll_rate is called when a port is opened or closed or changes speed
+ * it sets the polling rate only as fast as needed, and shuts off polling
+ * whenever possible
+ */
+
+static void
+set_poll_rate()
+{
+	int port_num, max_rate, port_rate;
+
+	/*
+	 * If another driver has the polling clock, do nothing.
+	 */
+	if (poll_owner & ~ POLL_HS)
+		return;
+
+	/*
+	 * find highest valid polling rate in units of HZ/10
+	 */
+	max_rate = 0;
+	for (port_num = 0; port_num < HSNUM; port_num++) {
+		if (hstty[port_num].t_open) {
+		  port_rate = alp_rate[hstty[port_num].t_sgttyb.sg_ispeed];
+		  if (max_rate < port_rate)
+			max_rate = port_rate;
+		}
+	}
+	/*
+	 * if max_rate is not current rate, adjust the system clock
+	 */
+	if (max_rate != poll_rate) {
+		poll_rate = max_rate;
+		poll_divisor = poll_rate/HZ;  /* used in hsclk() */
+		altclk_out();		/* stop previous polling */
+		poll_owner &= ~POLL_HS;
+		if (max_rate) {	/* resume polling at new rate if needed */
+			altclk_in(poll_rate, hsclk);
+			poll_owner |= POLL_HS;
+		}
+	}
+}
+
+
 /*
  * Set hardware parameters.
  */
+
+static void
 hsparam(tp)
 register TTY * tp;
 {
@@ -531,10 +311,13 @@ register TTY * tp;
 	set_poll_rate();
 }
 
+
 /*
  * Start Routine.
  */
-hsstart(tp)
+
+static void
+hsstart (tp)
 register TTY * tp;
 {
 	register int s;
@@ -559,58 +342,301 @@ register TTY * tp;
 	spl(s);
 }
 
-/*
- * hsclk will be called every time T0 interrupts - if it returns 0,
- * the usual system timer interrupt stuff is done
- */
-static int hsclk()
-{
-	static int count;
-
-	hsintr();
-	count++;
-	if (count >= poll_divisor)
-		count = 0;
-	return count;
-}
 
 /*
- * set_poll_rate is called when a port is opened or closed or changes speed
- * it sets the polling rate only as fast as needed, and shuts off polling
- * whenever possible
+ * Load Routine.
  */
-static set_poll_rate()
-{
-	int port_num, max_rate, port_rate;
 
-	/*
-	 * If another driver has the polling clock, do nothing.
-	 */
-	if (poll_owner & ~ POLL_HS)
+static void
+hsload()
+{
+	register TTY * tp;
+	register int port;
+	int i, b;
+
+	if ((in_silos = (silo_t *)kalloc(HSNUM*sizeof(silo_t))) == 0) {
+		printf("hsload: can't allocate in_silos\n");
 		return;
+	}
+	kclear(in_silos, HSNUM*sizeof(silo_t));
+
+	if ((out_silos = (silo_t *)kalloc(HSNUM*sizeof(silo_t))) == 0) {
+		printf("hsload: can't allocate out_silos\n");
+		return;
+	}
+	kclear(out_silos, HSNUM*sizeof(silo_t));
+
+	if ((hstty = (TTY *)kalloc(HSNUM*sizeof(TTY))) == 0) {
+		printf("hsload: can't allocate tty's\n");
+		return;
+	}
+	kclear(hstty, HSNUM*sizeof(TTY));
+
+	for (i = 0; i < HSNUM; i++) {
+		port = HS_PORTS[i].addr;
+		tp = hstty + i;
+
+		outb(port+MCR, 0);
+		outb(port+IER, 0);
+
+		tp->t_start   = hsstart;
+		tp->t_param   = hsparam;
+		tp->t_sgttyb.sg_ospeed = tp->t_sgttyb.sg_ispeed = 
+		tp->t_dispeed = tp->t_dospeed = HS_PORTS[i].speed;
+		tp->t_ddp     = port;
+
+		b = albaud[ tp->t_sgttyb.sg_ospeed ];
+		outb(port+LCR, LC_DLAB);
+		outb(port+DLL, b);
+		outb(port+DLH, b >> 8);
+		outb(port+LCR, LC_CS8);
+
+	}
+	hslimtty = hstty + HSNUM;
+}
+
+static void
+hsunload()
+{
+	if (hstty != (TTY *)0)
+		kfree(hstty);
+}
+
+
+/*
+ * Cyclic routine - invoked every clock tick to perform raw input/output.
+ *
+ *	Notes:	Invoked 10 times per second.
+ */
+
+static void
+hscycle(tp)
+register TTY * tp;
+{
+	register int resid;
+	register int c;
+	int chan = tp - hstty;
+	silo_t * out_silo = out_silos + chan;
+	silo_t * in_silo = in_silos + chan;
 
 	/*
-	 * find highest valid polling rate in units of HZ/10
+	 * Process rawin buf.
 	 */
-	max_rate = 0;
-	for (port_num = 0; port_num < HSNUM; port_num++) {
-		if (hstty[port_num].t_open) {
-		  port_rate = alp_rate[hstty[port_num].t_sgttyb.sg_ispeed];
-		  if (max_rate < port_rate)
-			max_rate = port_rate;
-		}
+	while (in_silo->si_ix != in_silo->si_ox) {
+
+		ttin(tp, in_silo->si_buf[ in_silo->si_ox ]);
+
+		if (in_silo->si_ox >= sizeof(in_silo->si_buf) - 1)
+			in_silo->si_ox = 0;
+		else
+			in_silo->si_ox++;
 	}
+
 	/*
-	 * if max_rate is not current rate, adjust the system clock
+	 * Calculate free output slot count.
 	 */
-	if (max_rate != poll_rate) {
-		poll_rate = max_rate;
-		poll_divisor = poll_rate/HZ;  /* used in hsclk() */
-		altclk_out();		/* stop previous polling */
-		poll_owner &= ~POLL_HS;
-		if (max_rate) {	/* resume polling at new rate if needed */
-			altclk_in(poll_rate, hsclk);
-			poll_owner |= POLL_HS;
+	resid  = sizeof(out_silo->si_buf) - 1;
+	resid += out_silo->si_ox - out_silo->si_ix;
+	resid %= sizeof(out_silo->si_buf);
+
+	/*
+	 * Fill raw output buffer.
+	 */
+	while ((--resid >= 0) && ((c = ttout(tp)) >= 0)) {
+
+		out_silo->si_buf[ out_silo->si_ix ] = c;
+
+		if (out_silo->si_ix >= sizeof(out_silo->si_buf) - 1)
+			out_silo->si_ix = 0;
+		else
+			out_silo->si_ix++;
+	}
+
+	/*
+	 * (Re)start output, waking processes waiting to output, etc.
+	 */
+	ttstart(tp);
+
+	/*
+	 * Schedule next cycle.
+	 */
+	if (tp->t_open != 0)
+		timeout(&tp->t_rawtim, HZ/10, hscycle, tp);
+}
+
+
+/*
+ * Open Routine.
+ */
+
+static void
+hsopen(dev, mode)
+dev_t dev;
+int mode;
+{
+	register TTY * tp = &hstty[ dev & 15 ];
+	register int b;
+	int s;
+
+	/*
+	 * Verify hardware exists.
+	 */
+	if (PORT == 0 || (inb (PORT + IER) & ~IE_TxI) != 0) {
+		set_user_error (ENXIO);
+		return;
+	}
+
+	/*
+	 * Can't open if another driver is using polling
+	 */
+	if ((poll_owner & ~ POLL_HS) != 0) {
+		set_user_error (EBUSY);
+		return;
+	}
+
+	/*
+	 * Initialize if not already open.
+	 */
+	if (++tp->t_open == 1) {
+		ttopen(tp);
+
+		if (dev & 0x80) {
+			s = sphi();
+			b = inb(PORT+MSR);
+			tp->t_flags |= T_MODC + T_STOP;
+			if (b & MS_CTS)
+				tp->t_flags &= ~T_STOP;
+			if (b & MS_DSR)
+				tp->t_flags |=  T_CARR;
+			spl(s);
+		} else  {
+			tp->t_flags &= ~T_MODC;
+			tp->t_flags |=  T_CARR;
+		}
+		hscycle (tp);
+	}
+	ttsetgrp(tp, dev, mode);
+	set_poll_rate();
+}
+
+/*
+ * Close Routine.
+ */
+
+static void
+hsclose(dev)
+dev_t dev;
+{
+	short chan = dev & 15;
+	register TTY * tp = hstty + chan;
+	silo_t * out_silo = out_silos + chan;
+
+	/*
+	 * Reset if last close.
+	 */
+	if (tp->t_open == 1) {
+		int state;
+
+		ttclose(tp);
+		/*
+		 * ttclose() only emptied the output queue tp->t_oq;
+		 * now wait 0.1 sec for the silo to empty
+		 * and allow a delay for the UART on-chip xmit buffer to empty
+		 *
+		 * state 2: waiting for silo to empty
+		 * state 1: stalling so UART can empty xmit buffer
+		 * state 0: done!
+		 */
+		state = 2;
+		while (state) {
+			timeout(&hstim, 10, wakeup, (int)&hstim);
+#ifdef _I386
+			x_sleep((char *)&hstim,
+			  pritty, slpriNoSig, "hsopen");
+#else
+			v_sleep((char *)&hstim,
+			  CVTTOUT, IVTTOUT, SVTTOUT, "hsopen");
+#endif
+			if (out_silo->si_ix == out_silo->si_ox  && state)
+				state--;
 		}
 	}
+
+	--tp->t_open;
+	set_poll_rate();
 }
+
+
+/*
+ * Read Routine.
+ */
+
+static void
+hsread(dev, iop)
+dev_t dev;
+register IO * iop;
+{
+	ttread(&hstty[ dev & 15 ], iop);
+}
+
+
+/*
+ * Write Routine.
+ */
+
+static void
+hswrite(dev, iop)
+dev_t dev;
+register IO * iop;
+{
+	ttwrite (& hstty [dev & 15], iop);
+}
+
+
+/*
+ * Ioctl Routine.
+ */
+
+static void
+hsioctl(dev, com, vec)
+dev_t	dev;
+int	com;
+struct sgttyb *vec;
+{
+	ttioctl (& hstty [dev & 15], com, vec);
+}
+
+/*
+ * Polling Routine.
+ */
+
+static int
+hspoll(dev, ev, msec)
+dev_t dev;
+int ev;
+int msec;
+{
+	return ttpoll(&hstty[ dev & 15 ], ev, msec);
+}
+
+
+/*
+ * Configuration table.
+ */
+
+CON hscon = {
+	DFCHR|DFPOL,			/* Flags */
+	HS_MAJOR,			/* Major index */
+	hsopen,				/* Open */
+	hsclose,			/* Close */
+	NULL,				/* Block */
+	hsread,				/* Read */
+	hswrite,			/* Write */
+	hsioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	NULL,				/* Timeout */
+	hsload,				/* Load */
+	hsunload,			/* Unload */
+	hspoll				/* Poll */
+};
+

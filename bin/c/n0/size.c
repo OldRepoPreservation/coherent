@@ -111,14 +111,16 @@ isfr(t) register int t;
  */
 unksize(t, sp) register int t; register SYM *sp;
 {
-	register char *p;
+	register char *s;
 
-	p = "enumeration";
-	if (t == T_FSTRUCT)
-		p = "structure";
-	if (t == T_FUNION)
-		p = "union";
-	cerror("size of %s \"%s\" is not known", p, sp->s_id);
+	s = (t == T_FSTRUCT) ? "structure"
+	  : (t == T_FUNION)  ? "union"
+	  :		       "enumeration";
+	if (sp->s_id != NULL)
+		cerror("size of %s \"%s\" is not known",
+			s, sp->s_id);
+	else
+		cerror("size of %s is not known", s);
 }
 
 static

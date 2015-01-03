@@ -7,7 +7,7 @@
  * Append newline.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 puts(s) const char *s;

@@ -3,6 +3,7 @@
 / Copyright (c) Ciaran O'Donnell, Bievres (FRANCE), 1991.
 //////////
 
+	.unixorder
 	.globl	fork
 	.globl	.cerror
 

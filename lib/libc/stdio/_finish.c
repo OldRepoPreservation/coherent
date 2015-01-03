@@ -6,7 +6,7 @@
  * Called from exit().
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 void
 _finish()

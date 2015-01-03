@@ -1,33 +1,39 @@
 /*
  * PSfont.c
- * 5/17/93
+ * 6/8/00
  * Usage: PSfont [ -q ] [ -s ] [ infile [ outfile ] ]
  * Options:
  *	-q	Quiet: suppress warning messages.
- *	-s	Suppress "exitserver" header line.
+ *	-s	Suppress "serverdict" header line.
  * Expand PostScript font from infile (default: stdin)
- * in IBM PC compressed binary format (PostScript binary format, .pfb)
- * to outfile (default: stdout) in downloadable ASCII PostScript (.ps).
- * Use "-s" when embedding outfile in a PS document,
- * do not use "-s" when downloading a font permanently.
+ * in IBM PC compressed binary format
+ * to outfile (default: stdout) in downloadable ASCII PostScript.
  * Reference: "Supporting Downloadable PostScript Language Fonts",
  * Adobe Technical Note #5040, 3/31/92, section 3.3.
  */
 
-#if	__STDC__
+/* Compatability. */
+#if	defined(__STDC__)
+#define	USE_PROTOS	1
+#else	/* !defined(__STDC__) */
+#define	USE_PROTOS	0
+#endif	/* !defined(__STDC__) */
+
+#if	USE_PROTOS
 #define	__(args)	args
-#else
+#else	/* !USE_PROTOS */
 #define	__(args)	()
-#endif
+#endif	/* !USE_PROTOS */
 
 #define	VERSION	"1.2"
 
+#include <stdarg.h>
 #include <stdio.h>
 
 /* Manifest constants. */
-#define	NBUF	32		/* offset message buffer size */
-#define	NDATA	32		/* output line binary data items (64 in Adobe PCSEND.EXE) */
-#define	HDRCMT	"%! Adobe PostScript follows...\n"
+#define	NBUF	32		/* buffer size for offset message */
+#define	NDATA	32		/* binary data items per output line (64 in Adobe PCSEND.EXE) */
+#define	HDRCMT	"%!PS-Adobe-1.0\n"
 #define	HDRSRV	"%%BeginExitServer: 0\n"\
 		"serverdict begin 0 exitserver\n"\
 		"%%EndExitServer\n"
@@ -49,13 +55,18 @@ extern	int	xgetc	__((void			));
 extern	FILE	*xopen	__((char *name, char *mode	));
 
 /* Global. */
-FILE	*ifp = stdin;			/* input FILE		*/
-FILE	*ofp = stdout;			/* output FILE		*/
-int	qflag;				/* no warnings		*/
-int	sflag;				/* no exitserver line	*/
+FILE	*ifp = stdin;				/* input FILE		*/
+FILE	*ofp = stdout;				/* output FILE		*/
+int	qflag;					/* no warnings		*/
+int	sflag;					/* no serverdict line	*/
 
+#if	USE_PROTOS
+int
+main(int argc, char *argv[])
+#else	/* !USE_PROTOS */
 int
 main(argc, argv) int argc; char *argv[];
+#endif	/* !USE_PROTOS */
 {
 	register char *s;
 
@@ -90,17 +101,33 @@ main(argc, argv) int argc; char *argv[];
 }
 
 /* Print a fatal error message and die. */
+#if	USE_PROTOS
+void
+fatal(char *fmt, ...)
+#else	/* !USE_PROTOS */
 /* VARARGS */
 void
 fatal(fmt) char *fmt;
+#endif	/* !USE_PROTOS */
 {
-	fprintf(stderr, "PSfont: %r\n", &fmt);
+	va_list	args;
+
+	va_start(args, fmt);
+	fprintf(stderr, "PSfont: ");
+	vfprintf(stderr, fmt, args);
+	fprintf(stderr, "\n");
+	va_end(args);
 	exit(1);
 }
 
 /* Read a four-byte long in Intel byte order. */
+#if	USE_PROTOS
+long
+getlong(void)
+#else	/* !USE_PROTOS */
 long
 getlong()
+#endif	/* !USE_PROTOS */
 {
 	register long l;
 
@@ -125,11 +152,16 @@ getlong()
  * ASCII CR gets translated to NL for the benefit of other programs
  * which may want to edit the PS output.
  */
+#if	USE_PROTOS
+void
+process(void)
+#else	/* !USE_PROTOS */
 void
 process()
+#endif	/* !USE_PROTOS */
 {
+	register int c, type, i, count;
 	register long length;
-	register int c, i, type, count;
 	char buf[NBUF];
 
 	fputs(HDRCMT, ofp);		/* write header comment */
@@ -168,12 +200,17 @@ process()
 	}
 	putc('\n', ofp);
 	if (getc(ifp) != EOF)
-		warning("extra data after input file EOF indicator ignored");
+		warning("extra data after EOF indicator in input file ignored");
 }
 
 /* Print a fatal usage message and die. */
+#if	USE_PROTOS
+void
+usage(void)
+#else	/* !USE_PROTOS */
 void
 usage()
+#endif	/* !USE_PROTOS */
 {
 	fprintf(stderr,
 		"Usage: PSfont [ -q ] [ -s ] [ infile [ outfile ] ]\n"
@@ -185,17 +222,34 @@ usage()
 }
 
 /* Print a nonfatal warning message. */
+#if	USE_PROTOS
+void
+warning(char *fmt, ...)
+#else	/* !USE_PROTOS */
 /* VARARGS */
 void
 warning(fmt) char *fmt;
+#endif	/* !USE_PROTOS */
 {
-	if (!qflag)
-		fprintf(stderr, "PSfont: warning: %r\n", &fmt);
+	va_list	args;
+
+	if (qflag)
+		return;
+	va_start(args, fmt);
+	fprintf(stderr, "PSfont: warning: ");
+	vfprintf(stderr, fmt, args);
+	fprintf(stderr, "\n");
+	va_end(args);
 }
 
 /* Read a character and return it, die on EOF. */
+#if	USE_PROTOS
+int
+xgetc(void)
+#else	/* !USE_PROTOS */
 int
 xgetc()
+#endif	/* !USE_PROTOS */
 {
 	register int c;
 
@@ -205,8 +259,13 @@ xgetc()
 }
 
 /* Open a file, die on failure. */
+#if	USE_PROTOS
+FILE *
+xopen(char *name, char *mode)
+#else	/* !USE_PROTOS */
 FILE *
 xopen(name, mode) register char *name, *mode;
+#endif	/* !USE_PROTOS */
 {
 	register FILE *fp;
 
@@ -216,3 +275,4 @@ xopen(name, mode) register char *name, *mode;
 }
 
 /* end of PSfont.c */
+

@@ -5,8 +5,8 @@
  * This one builds a TINY i386 COHERENT compiler with disk tempfiles.
  */
 
-#define	DATE		"7/18/93"	/* Date			*/
-#define	VERSMWC		"V4.3.4"	/* MWC version number	*/
+#define	DATE		"12/15/94"	/* Date			*/
+#define	VERSMWC		"V4.6.3"	/* MWC version number	*/
 #define	VERSINT		"X324"		/* Intel version number	*/
 
 #define	EATDOL		0	/* Eat '$' in identifiers?	*/

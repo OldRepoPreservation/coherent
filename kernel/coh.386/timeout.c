@@ -1,4 +1,4 @@
-/* $Header: /y/coh.386/RCS/timeout.c,v 1.4 93/04/14 10:08:12 root Exp $ */
+/* $Header: /ker/coh.386/RCS/timeout.c,v 2.4 93/10/29 00:56:00 nigel Exp Locker: nigel $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,10 +13,18 @@
  *	All rights reserved.
  -lgl) */
 /*
- * Coherent.
  * Timeout management.
  *
  * $Log:	timeout.c,v $
+ * Revision 2.4  93/10/29  00:56:00  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.3  93/08/19  03:27:01  nigel
+ * Nigel's r83 (Stylistic cleanup)
+ * 
+ * Revision 2.2  93/07/26  14:29:27  nigel
+ * Nigel's R80
+ * 
  * Revision 1.4  93/04/14  10:08:12  root
  * r75
  * 
@@ -45,9 +53,14 @@
  * 86/11/24	Allan Cornish		/usr/src/sys/coh/timeout.c
  * Added support for new t_last field in tim struct.
  */
+
 #include <sys/coherent.h>
-#include <sys/timeout.h>
-#include <sys/fun.h>
+#include <common/_tricks.h>
+#include <kernel/_timers.h>
+#include <stddef.h>
+
+#include <coh/timeout.h>
+
 
 /*
  * Given a pointer to a timeout structure, `tp', call the function `f'
@@ -55,84 +68,100 @@
  * searched to see if the specified timeout structure is already in a
  * list, and it is removed if already there.
  */
+
+#if __USE_PROTO__
+void timeout(TIM * tp, unsigned int n, int (*f)(int a), int a)
+#else
 void
 timeout(tp, n, f, a)
 register TIM *tp;
 unsigned n;
 int (*f)();
-char *a;
+int a;
+#endif
 {
-	register TIM ** qp;
+	TIM ** qp;
 	int s;
 
 	/*
 	 * Already on a timing queue.
 	 */
-	s = sphi();
-	if ( qp = tp->t_last ) {
+	s = sphi ();
+	if ((qp = tp->t_last) != NULL) {
 		tp->t_last = NULL;
-		if ( *qp = tp->t_next )
+		if ((* qp = tp->t_next))
 			tp->t_next->t_last = qp;
 	}
-	spl( s );
+	spl (s);
 
-	if ( (tp->t_func = f) == NULL )
+	if ((tp->t_func = f) == NULL)
 		return;
 
 	/*
 	 * Calculate clock tick at which timeout is to occur.
 	 * Record function and argument to be invoked upon timeout.
 	 */
+
 	tp->t_lbolt = lbolt + n;
 	tp->t_farg  = a;
 
 	/*
 	 * Identify timeout queue.
 	 */
-	qp = &timq[ tp->t_lbolt % nel(timq) ];
+
+	qp = timq + (tp->t_lbolt % __ARRAY_LENGTH (timq));
 
 	/*
 	 * Insert at head of timeout queue.
 	 */
-	s = sphi();
-	if ( tp->t_next = *qp )
+
+	s = sphi ();
+
+	if ((tp->t_next = * qp) != NULL)
 		tp->t_next->t_last = tp;
 	tp->t_last = qp;
-	*qp = tp;
-	spl(s);
+	* qp = tp;
+
+	spl (s);
 }
 
+#if __USE_PROTO__
+void timeout2(TIM * tp, long n, int (*f)(int a), int a)
+#else
 void
 timeout2(tp, n, f, a)
 register TIM *tp;
 long n;
 int (*f)();
-char *a;
+int a;
+#endif
 {
-	register TIM ** qp;
+	TIM ** qp;
 	int s;
 
 	/*
 	 * Already on a timing queue.
 	 */
-	s = sphi();
-	if ( qp = tp->t_last ) {
+
+	s = sphi ();
+	if ((qp = tp->t_last) != NULL) {
 		tp->t_last = NULL;
-		if ( *qp = tp->t_next )
+		if ((* qp = tp->t_next))
 			tp->t_next->t_last = qp;
 	}
-	spl( s );
+	spl (s);
 
 	/*
 	 * Do not schedule new timer if no function or delay interval.
 	 */
-	if ( (f == NULL) || (n == 0) )
+	if (f == NULL || n == 0)
 		return;
 
 	/*
 	 * Calculate clock tick at which timeout is to occur.
 	 * Record function and argument to be invoked upon timeout.
 	 */
+
 	tp->t_lbolt = lbolt + n;
 	tp->t_func  = f;
 	tp->t_farg  = a;
@@ -140,15 +169,18 @@ char *a;
 	/*
 	 * Identify timeout queue.
 	 */
-	qp = &timq[ tp->t_lbolt % nel(timq) ];
+
+	qp = timq + (tp->t_lbolt % __ARRAY_LENGTH (timq));
 
 	/*
 	 * Insert at head of timeout queue.
 	 */
-	s = sphi();
-	if ( tp->t_next = *qp )
+	s = sphi ();
+
+	if ((tp->t_next = * qp) != NULL)
 		tp->t_next->t_last = tp;
 	tp->t_last = qp;
-	*qp = tp;
-	spl(s);
+	* qp = tp;
+
+	spl (s);
 }

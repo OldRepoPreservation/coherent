@@ -1,9 +1,16 @@
+/* (-lgl
+ *	Coherent 386 release 4.2
+ *	Copyright (c) 1982, 1993 by Mark Williams Company.
+ *	All rights reserved. May not be copied without permission.
+ *	For copying permission and licensing info, write licensing@mwc.com
+ -lgl) */
+
 #ifndef	__SYS_UTIME_H__
 #define	__SYS_UTIME_H__
 
 /*
- * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990, and as
- * such client programs which include this header should not use any symbols
+ * This header is defined in the POSIX.1 standard ISO/IEC 9945-1:1990; and, as
+ * such, client programs that include it should not use any symbols
  * which end in "_t".
  */
 
@@ -15,11 +22,11 @@
  * System V, Release 4.
  */
 
-#include <sys/ccompat.h>
-#include <sys/__time.h>
+#include <common/ccompat.h>
+#include <common/__time.h>
 
 /*
- * Note that this header imports <sys/__time.h> rather than <sys/_time.h>,
+ * Note that this header imports <common/__time.h> rather than <common/_time.h>,
  * since POSIX.1 requires that the types of the "actime" and "modtime" members
  * be "time_t", yet does not specify "time_t" as being defined by this header.
  */

@@ -9,6 +9,7 @@
 #define	CC0_H	CC0_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <setjmp.h>
 #ifdef	vax
 #include "INC$LIB:mch.h"
@@ -38,8 +39,8 @@
 #define	NDIRS	32		/* Number of include directories	*/
 #define	NLEV	32		/* Nesting level of cpp constructs	*/
 #if	_I386
-#define NDLEV	256		/* DSTACK size				*/
-#define	NDBUF	4096		/* Size of the define buffer		*/
+#define NDLEV	512		/* DSTACK size				*/
+#define	NDBUF	8192		/* Size of the define buffer		*/
 #else
 #define NDLEV	128		/* DSTACK size				*/
 #define	NDBUF	1024		/* Size of the define buffer		*/
@@ -180,6 +181,9 @@
 #define	sgn2uns(t)	((t)+1)	/* signed to unsigned		*/
 #define	uns2sgn(t)	((t)-1)	/* unsigned to signed		*/
 
+#define	getdope(lt, rt)		cvdope[13 * ((lt) - T_CHAR) + ((rt) - T_CHAR)]
+#define	goaltype(lt, rt)	(getdope((lt), (rt)) & GOAL)
+
 /*
  * Storage classes.
  */
@@ -236,7 +240,7 @@ typedef	struct	{
 		sizeof_t i_data0;
 		int	 i_data1;
 	} i_data;
-	struct	sym *i_sp[];		/* The symbols		*/
+	struct	symbol	*i_sp[];	/* The symbols		*/
 }	INFO;
 
 #define	i_size	i_data.i_data0		/* Structure or union size	*/
@@ -247,7 +251,6 @@ typedef	struct	{
  * Symbols are kept in a hash table.
  * Each bucket has the keywords on the front.
  */
-
 typedef struct symbol SYM;
 typedef struct token TOK;
 struct symbol {

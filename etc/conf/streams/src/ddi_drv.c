@@ -1,4 +1,7 @@
+/* $Header: $ */
+
 #define	_DDI_DKI	1
+#define	_DDI_DKI_IMPL	1
 #define	_SYSV3		1
 
 /*
@@ -7,41 +10,8 @@
  * in the "conf.c" file.
  *
  * Note that we are in the _SYSV3 world because we touch <sys/uproc.h>
- */
-/*
- *-IMPORTS:
- *	<common/ccompat.h>
- *		__USE_PROTO__
- *		__ARGS ()
- *	<common/xdebug.h>
- *		__LOCAL__
- *	<sys/debug.h>
- *		ASSERT ()
- *	<sys/types.h>
- *		cred_t
- *		n_dev_t
- *		o_dev_t
- *		makedevice ()
- *	<sys/cmn_err.h>
- *		CE_PANIC
- *		cmn_err ()
- *	<sys/file.h>
- *		FREAD
- *		FWRITE
- *		FNDELAY
- *		FNONBLOCK
- *		FEXCL
- *	<sys/open.h>
- *		OTYP_BLK
- *		OTYP_CHR
- *		OTYP_LYR
- *	<sys/uio.h>
- *		iovec_t
- *		uio_t
- *	<stddef.h>
- *		NULL
- *	<sys/errno.h>
- *		ENXIO
+ *
+ * $Log: $
  */
 
 #include <common/ccompat.h>
@@ -49,11 +19,13 @@
 #include <kernel/strmlib.h>
 #include <sys/debug.h>
 #include <sys/types.h>
+#include <sys/cred.h>
 #include <sys/cmn_err.h>
 #include <sys/file.h>
 #include <sys/open.h>
 #include <sys/errno.h>
 #include <sys/uio.h>
+#include <sys/poll.h>
 #include <stddef.h>
 
 #include <sys/confinfo.h>
@@ -69,63 +41,54 @@
  *	<sys/con.h>
  *		DFBLK
  *
- * The following values which used to be in Coherent <sys/inode.h> have been
- * moved here so we can use them. <sys/inode.h> is too much of a mess.
- *
- *	<sys/file.h>
- *		IPR
- *		IPW
- *		IPNDLY
- *		IPEXCL
- *
  * Note that the actual magic u area variable 'u' is extern'ed in
  * <kernel/ddi_base.h>
  */
 
 #include <sys/stat.h>
-
-#if	__COHERENT__
-
-#define	SETUERROR(e)	u.u_error = (e)
-
-#else
-
-#define	SETUERROR(e)	ASSERT (e == 0 || "Hit error" == NULL)
-
-#endif
-
+#include <sys/inode.h>
 
 /*
- * This function initialises a cred_t structure from Coherent's internal data
- * structures. This function would normally be local, but it is also called
- * upon by code in "drv_ddi.c" to implement the drv_getparm () and
- * drv_setparm () utilities, and also by the STREAMS equivalent to the
- * character-driver interface routines.
+ * Convert the broken Coherent file-mode flags to something sane.
  */
 
 #if	__USE_PROTO__
-cred_t * (MAKE_CRED) (cred_t * credp)
+int MAKE_MODE (int mode)
 #else
-cred_t *
-MAKE_CRED __ARGS ((credp))
-cred_t	      *	credp;
+int
+MAKE_MODE (mode)
+int		mode;
 #endif
 {
-	credp->cr_ref = 1;
-	credp->cr_ngroups = 0;	/* no supplementary groups */
+	int		newmode = 0;
 
-#ifdef	__MSDOS__
-	credp->cr_uid = credp->cr_ruid = credp->cr_suid = 0;
-	credp->cr_gid = credp->cr_rgid = credp->cr_sgid = 0;
-#else
-	credp->cr_uid = u.u_uid;
-	credp->cr_gid = u.u_gid;
-	credp->cr_ruid = u.u_ruid;
-	credp->cr_rgid = u.u_rgid;
-	credp->cr_suid = u.u_euid;	/* u.u_euid is saved effective uid */
-	credp->cr_sgid = u.u_egid;	/* u.u_egid is saved effective gid */
-#endif
-	return credp;
+	/*
+	 * These are the flags documented by the Coherent driver kit. In
+	 * actual fact, there are more (corresponding to the DDI/DKI flags)
+	 * that are passed down from the system file table's flag entry. The
+	 * fact that the others are not documented probably reflects the fact
+	 * that calls to dread () either pass only IPR or IPW directly, while
+	 * the existence of the other flags can only be discovered by tracing
+	 * many layers of calls.
+	 */
+
+	if ((mode & IPR) != 0)
+		newmode |= FREAD;
+	if ((mode & IPW) != 0)
+		newmode |= FWRITE;
+
+	/*
+	 * And the other flags.
+	 */
+
+	if ((mode & IPEXCL) != 0)
+		newmode |= FEXCL;
+	if ((mode & IPNDLY) != 0)
+		newmode |= FNDELAY;
+	if ((mode & IPNONBLOCK) != 0)
+		newmode |= FNONBLOCK;
+
+	return newmode;
 }
 
 
@@ -150,7 +113,11 @@ IO	      *	iop;
 	uiop->uio_iovcnt = 1;
 	uiop->uio_offset = iop->io_seek;
 	uiop->uio_segflg = iop->io_seg == IOSYS ? UIO_SYSSPACE : UIO_USERSPACE;
-	uiop->uio_fmode = mode | ((iop->io_flag & IONDLY) != 0 ? FNDELAY : 0);
+	if ((iop->io_flag & IONDLY) != 0)
+		mode |= FNDELAY;
+	if ((iop->io_flag & IONONBLOCK) != 0)
+		mode |= FNONBLOCK;
+	uiop->uio_fmode = mode;
 	uiop->uio_resid = iop->io_ioc;
 
 #ifdef	_I386
@@ -197,53 +164,53 @@ IO	      *	iop;
  */
 
 #if	__USE_PROTO__
-int (_forward_open) (o_dev_t dev, int mode, int flags, ddi_open_t funcp)
+void (_forward_open) (o_dev_t dev, int mode, int flags, cred_t * credp,
+		      struct inode ** inodepp, ddi_open_t funcp,
+		      ddi_close_t closep)
 #else
-int
-_forward_open __ARGS ((dev, mode, flags, funcp))
+void
+_forward_open __ARGS ((dev, mode, flags, credp, inodepp, funcp, closep))
 o_dev_t		dev;
 int		mode;
 int		flags;
+cred_t	      *	credp;
+struct inode **	inodepp;
 ddi_open_t	funcp;
+ddi_close_t	closep;
 #endif
 {
 	n_dev_t		newdev = makedevice (major (dev), minor (dev));
-	cred_t		cred;
-	int		newmode;
-	int		ret;
-
-	newmode = 0;
+	o_dev_t		clonedev;
+	struct inode  *	temp;
 
 	/*
-	 * These are the flags documented by the Coherent driver kit. In
-	 * actual fact, there are more (corresponding to the DDI/DKI flags)
-	 * that are passed down from the system file table's flag entry. The
-	 * fact that the others are not documented probably reflects the fact
-	 * that calls to dread () either pass only IPR or IPW directly, while
-	 * the existence of the other flags can only be discovered by tracing
-	 * many layers of calls.
+	 * Character devices do not specifically support clone semantics.
 	 */
 
-	if ((mode & IPR) != 0)
-		newmode |= FREAD;
-	if ((mode & IPW) != 0)
-		newmode |= FWRITE;
-
-	/*
-	 * And the other flags. There is no equivalent for FNONBLOCK.
-	 */
-
-	if ((mode & IPEXCL) != 0)
-		newmode |= FEXCL;
-	if ((mode & IPNDLY) != 0)
-		newmode |= FNDELAY;
+	if ((mode & IPCLONE) != 0) {
+		set_user_error (ENXIO);
+		return;
+	}
 
 	flags = (flags & DFBLK) != 0 ? OTYP_BLK : OTYP_CHR;
 
-	ret = (* funcp) (& newdev, newmode, flags, MAKE_CRED (& cred));
+	set_user_error ((* funcp) (& newdev, MAKE_MODE (mode), flags, credp));
 
-	SETUERROR (ret);
-	return ret;
+	clonedev = makedev (getemajor (newdev), geteminor (newdev));
+	if (clonedev != dev)
+		return;
+
+	if ((temp = inode_clone (* inodepp, clonedev)) != NULL) {
+		* inodepp = temp;
+		return;
+	}
+
+	/*
+	 * We are out of in-core inode space.
+	 */
+
+	if (closep != NULL)
+		(* closep) (newdev, MAKE_MODE (mode), flags, credp);
 }
 
 
@@ -253,53 +220,22 @@ ddi_open_t	funcp;
  */
 
 #if	__USE_PROTO__
-int (_forward_close) (o_dev_t dev, int mode, int flags, ddi_close_t funcp)
+void (_forward_close) (o_dev_t dev, int mode, int flags, cred_t * credp,
+		       ddi_close_t funcp)
 #else
-int
-_forward_close __ARGS ((dev, mode, flags, funcp))
+void
+_forward_close __ARGS ((dev, mode, flags, credp, funcp))
 o_dev_t		dev;
 int		mode;
 int		flags;
+cred_t	      *	credp;
 ddi_close_t	funcp;
 #endif
 {
-	n_dev_t		newdev = makedevice (major (dev), minor (dev));
-	cred_t		cred;
-	int		newmode;
-	int		ret;
-
-	newmode = 0;
-
-	/*
-	 * These are the flags documented by the Coherent driver kit. In
-	 * actual fact, there are more (corresponding to the DDI/DKI flags)
-	 * that are passed down from the system file table's flag entry. The
-	 * fact that the others are not documented probably reflects the fact
-	 * that calls to dread () either pass only IPR or IPW directly, while
-	 * the existence of the other flags can only be discovered by tracing
-	 * many layers of calls.
-	 */
-
-	if ((mode & IPR) != 0)
-		newmode |= FREAD;
-	if ((mode & IPW) != 0)
-		newmode |= FWRITE;
-
-	/*
-	 * And the other flags. There is no equivalent for FNONBLOCK.
-	 */
-
-	if ((mode & IPEXCL) != 0)
-		newmode |= FEXCL;
-	if ((mode & IPNDLY) != 0)
-		newmode |= FNDELAY;
-
 	flags = (flags & DFBLK) != 0 ? OTYP_BLK : OTYP_CHR;
 
-	ret = (* funcp) (newdev, newmode, flags, MAKE_CRED (& cred));
-
-	SETUERROR (ret);
-	return ret;
+	set_user_error ((* funcp) (makedevice (major (dev), minor (dev)),
+				   MAKE_MODE (mode), flags, credp));
 }
 
 
@@ -309,26 +245,24 @@ ddi_close_t	funcp;
  */
 
 #if	__USE_PROTO__
-int (_forward_read) (o_dev_t dev, IO * iop, ddi_read_t funcp)
+void (_forward_read) (o_dev_t dev, IO * iop, cred_t * credp,
+		      ddi_read_t funcp)
 #else
-int
-_forward_read __ARGS ((dev, iop, funcp))
+void
+_forward_read __ARGS ((dev, iop, credp, funcp))
 o_dev_t		dev;
 IO	      *	iop;
+cred_t	      *	credp;
 ddi_read_t	funcp;
 #endif
 {
-	n_dev_t		newdev = makedevice (major (dev), minor (dev));
-	cred_t		cred;
 	iovec_t		iov;
 	uio_t		uio;
-	int		ret;
 
-	ret = (* funcp) (newdev, MAKE_UIO (& uio, & iov, FREAD, iop),
-				 MAKE_CRED (& cred));
+	set_user_error ((* funcp) (makedevice (major (dev), minor (dev)),
+				   MAKE_UIO (& uio, & iov, FREAD, iop),
+				   credp));
 	DESTROY_UIO (& uio, iop);
-	SETUERROR (ret);
-	return ret;
 }
 
 
@@ -338,26 +272,24 @@ ddi_read_t	funcp;
  */
 
 #if	__USE_PROTO__
-int (_forward_write) (o_dev_t dev, IO * iop, ddi_write_t funcp)
+void (_forward_write) (o_dev_t dev, IO * iop, cred_t * credp,
+		       ddi_write_t funcp)
 #else
-int
-_forward_write __ARGS ((dev, iop, funcp))
+void
+_forward_write __ARGS ((dev, iop, credp, funcp))
 o_dev_t		dev;
 IO	      *	iop;
+cred_t	      *	credp;
 ddi_write_t	funcp;
 #endif
 {
-	n_dev_t		newdev = makedevice (major (dev), minor (dev));
-	cred_t		cred;
 	iovec_t		iov;
 	uio_t		uio;
-	int		ret;
 
-	ret = (* funcp) (newdev, MAKE_UIO (& uio, & iov, FWRITE, iop),
-				 MAKE_CRED (& cred));
+	set_user_error ((* funcp) (makedevice (major (dev), minor (dev)),
+				   MAKE_UIO (& uio, & iov, FWRITE, iop),
+				   credp));
 	DESTROY_UIO (& uio, iop);
-	SETUERROR (ret);
-	return ret;
 }
 
 
@@ -367,54 +299,22 @@ ddi_write_t	funcp;
  */
 
 #if	__USE_PROTO__
-int (_forward_ioctl) (o_dev_t dev, int cmd, _VOID * arg, int mode,
-		      ddi_ioctl_t funcp)
+void (_forward_ioctl) (o_dev_t dev, int cmd, _VOID * arg, int mode,
+		       cred_t * credp, int * rvalp, ddi_ioctl_t funcp)
 #else
-int
-_forward_ioctl __ARGS ((dev, cmd, arg, mode, funcp))
+void
+_forward_ioctl __ARGS ((dev, cmd, arg, mode, credp, rvalp, funcp))
 o_dev_t		dev;
 int		cmd;
 _VOID	      *	arg;
 int		mode;
+cred_t	      *	credp;
+int	      *	rvalp;
 ddi_ioctl_t	funcp;
 #endif
 {
-	n_dev_t		newdev = makedevice (major (dev), minor (dev));
-	cred_t		cred;
-	int		rval;
-	int		newmode;
-	int		ret;
-
-	newmode = 0;
-
-	/*
-	 * These are the flags documented by the Coherent driver kit. In
-	 * actual fact, there are more (corresponding to the DDI/DKI flags)
-	 * that are passed down from the system file table's flag entry. The
-	 * fact that the others are not documented probably reflects the fact
-	 * that calls to dread () either pass only IPR or IPW directly, while
-	 * the existence of the other flags can only be discovered by tracing
-	 * many layers of calls.
-	 */
-
-	if ((mode & IPR) != 0)
-		newmode |= FREAD;
-	if ((mode & IPW) != 0)
-		newmode |= FWRITE;
-
-	/*
-	 * And the other flags. There is no equivalent for FNONBLOCK.
-	 */
-
-	if ((mode & IPEXCL) != 0)
-		newmode |= FEXCL;
-	if ((mode & IPNDLY) != 0)
-		newmode |= FNDELAY;
-
-	ret = (* funcp) (newdev, cmd, arg, mode, MAKE_CRED (& cred), & rval);
-
-	SETUERROR (ret);
-	return rval;
+	set_user_error ((* funcp) (makedevice (major (dev), minor (dev)),
+				   cmd, arg, mode, credp, rvalp));
 }
 
 
@@ -455,15 +355,22 @@ int		msec;
 ddi_chpoll_t	funcp;
 #endif
 {
-	int		ret;
+	short		revents;
 
-	cmn_err (CE_PANIC, "DDI/DKI polling not yet supported");
+	if (msec == 0) {
+		/*
+		 * Simply check to see what events are outstanding.
+		 */
 
-#if	0
-	ret = (* funcp) (newdev, events, msec == 0, & revents, pollhead);
-#else
-	ret = EIO;
-#endif
-	SETUERROR (ret);
-	return 0;
+		set_user_error ((* funcp) (makedevice (major (dev),
+						       minor (dev)),
+					   events, 1, & revents, NULL));
+		return revents;
+	}
+
+	set_user_error ((* funcp) (makedevice (major (dev), minor (dev)),
+				   events, 0, & revents,
+				   get_next_phpp (events)));
+	install_phpp ();
+	return revents;
 }

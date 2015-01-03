@@ -1,1756 +1,1034 @@
 /*
- * build.c
- * 07/01/93	COH 386 release
- *
- * Build (install) COHERENT on a system, part 1.
- * The second part of the install procedure is in install.c.
- * Uses common routines in build0.c,
- * serial number checking in numtab.c and serialno.c.
- * Requires floating point output: cc build.c build0.c numtab.c serialno.c -f
- * Usage: build [ -dv ]
- * Options:
- *	-d	Debug, echo commands without executing
- *	-u	Update, rather than full installation
- *	-v	Verbose
- *
- * In addition to the files necessary to run the single user system
- * (/coherent, /etc/init, /bin/sh, /dev/console, /dev/null, etc.),
- * the build disk from which this program runs must contain:
- *	In /bin:	chgrp, chown, cpdir, date, echo, ln, mkdir, mv, rm, touch
- *	In /conf:	boot, mboot, patch, upd_suppress, upd_save
- *	In /dev:	at[01][abcdx], rat[01][abcd]
- *	In /etc:	ATclock, badscan, fdisk, mkdev, mkfs, mount, umount
- * It must also contain directories /mnt and /tmp.
- * This program runs from a write-protected floppy-disk-based COHERENT
- * boot disk, so it writes only to directory /tmp (mounted on a RAM disk).
+ * 80386 Assembler Build output code.
  */
+#include <asm.h>
+#include <asflags.h>
+#include <y_tab.h>
+#include <symtab.h>
 
-#include <stdio.h>
-#include <canon.h>
-#include <string.h>
-#include <time.h>
-#include <sys/devices.h>
-#include <sys/fdisk.h>
-#include <sys/filsys.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <access.h>
-#include "build0.h"
-#include "serialno.h"
+static symt *st;
+static struct expr *opList[3];
+static int ct;
 
-/* Compilation switches. */
-#define	DOSSHRINK	0		/* punt dosshrink for now	*/
+/* as checkop runs it sets the following fields */
+static expr *addr, *displ, *immed, *immedx;
+static char mod, rm, reg, scale, index, base, immed8;
 
-/* Manifest constants. */
-#define	VERSION		"4.3"
-#define	USAGE		"Usage: /etc/build [ -dv ]\n"
-#define	ATDEVS		(NPARTN+NPARTN)	/* number of AT disk devices	*/
-#define	BSIZE		512		/* sector size			*/
-#if _I386
-#define	BAR_BAR		"__"		/* 1st copy of serial # */
-#define	BAR_ENTRY	"_entry"	/* 2nd copy of serial # */
-#define	MAXSIZE		500		/* suggested max size (MB)	*/
-#define	MINSIZE		10		/* required root size (MB)	*/
-#define	NEEDSIZE	10		/* suggested min root size (MB)	*/
-#define	PIPEDEV		"pipedev"	/* kernel pipe F.S. device */
-#define	RONFLAG		"ronflag"	/* kernel readonly root F.S. flag */
-#define	ROOTDEV		"rootdev"	/* kernel root F.S. device */
-#else
-#define	BAR_BAR		"___"		/* 1st copy of serial # */
-#define	BAR_ENTRY	"_entry_"	/* 2nd copy of serial # */
-#define	MAXSIZE		75		/* suggested max size (MB)	*/
-#define	MINSIZE		8		/* required root size (MB)	*/
-#define	NEEDSIZE	10		/* suggested min root size (MB)	*/
-#define	PIPEDEV		"pipedev_"	/* kernel pipe F.S. device */
-#define	RONFLAG		"ronflag_"	/* kernel readonly root F.S. flag */
-#define	ROOTDEV		"rootdev_"	/* kernel root F.S. device */
-#endif
-#define	NAMESIZE	6		/* max device name buffer size	*/
-#define	NDEVICES	24		/* number of disk devices	*/
+static unsigned long uflags;
+#define U_REL8	1	/* relative 8  bit operand */
+#define U_REL16	2	/* relative 16 bit operand */
+#define U_RELI	3	/* we get to choose 8 0r 16 bit */
+#define U_REL_MASK 3
 
-/* (unsigned long) sectors to (double) megabytes. */
-#define	meg(sec)	((double)sec * BSIZE / 1000000.)
-
-/* Device table structure. */
-typedef	struct	device	{
-	char		d_xname[NAMESIZE];	/* partition table name	*/
-	char		d_dname[NAMESIZE];	/* device name		*/
-	int		d_major;		/* major number		*/
-	int		d_minor;		/* minor number		*/
-	int		d_flags;		/* flags		*/
-	unsigned long	d_size;			/* size in blocks	*/
-}	DEVICE;
-
-/* Flag bits. */
-#define	F_COH	0x01				/* COHERENT partition	*/
-#define	F_BOOT	0x02				/* Active		*/
-#define	F_ROOT	0x04				/* Root			*/
-#define	F_FS	0x08				/* File system exists	*/
-#define	F_MOUNT	0x10				/* Mounted by /etc/rc	*/
-#define	F_PROTO	0x20				/* Proto created	*/
-#define	F_SCAN	0x40				/* Badscanned		*/
-#define	F_ATDEV	0x80				/* AT device		*/
-#define	isflag(i, f)	((devices[i].d_flags & (f)) != 0)
-#define	notflag(i, f)	((devices[i].d_flags & (f)) == 0)
-#define	clrflag(i, f)	devices[i].d_flags &= ~(f)
-#define	setflag(i, f)	devices[i].d_flags |= (f)
+#define U_RMS	 0x04	/* mod/rm .16 */
+#define U_RML	 0x08	/* mod/rm .32 */
+#define U_IMM8	 0x10	/* 8  bit immediate field */
+#define U_IMM16	 0x20	/* 16 bit immediate field */
+#define U_IMM16X 0x40	/* 16 bit second immediate field */
+#define U_IMM32	 0x80	/* 32 bit immediate field */
+#define U_IMM32X 0x100	/* 32 bit second immediate field */
+#define U_ADR16  0x200	/* 16 bit direct address */
+#define U_ADR32  0x400	/* 32 bit direct address */
+#define U_DSP8	 0x800  /* 8 bit displacment with mod/rm */
+#define U_DSP    0x1000	/* 16 or 32 bit displacment with mod/rm */
+#define U_CTL	 0x2000 /* control register */
 
 /*
- * Device table.
- * add_devices() adds entries for devices created by /etc/mkdev.
- * fdisk() zaps the entries for which the xdevice open fails.
+ * Build indefinate opcode. On 80386 thats everything.
+ * First try all instrs not in the wrong mode.
+ * Then try the instrs in the wrong mode.
  */
-DEVICE	devices[NDEVICES] = {
-	{ "at0x", "at0a", AT_MAJOR, 0, F_ATDEV, 0L },
-	{ "at0x", "at0b", AT_MAJOR, 1, F_ATDEV, 0L },
-	{ "at0x", "at0c", AT_MAJOR, 2, F_ATDEV, 0L },
-	{ "at0x", "at0d", AT_MAJOR, 3, F_ATDEV, 0L },
-	{ "at1x", "at1a", AT_MAJOR, 4, F_ATDEV, 0L },
-	{ "at1x", "at1b", AT_MAJOR, 5, F_ATDEV, 0L },
-	{ "at1x", "at1c", AT_MAJOR, 6, F_ATDEV, 0L },
-	{ "at1x", "at1d", AT_MAJOR, 7, F_ATDEV, 0L }
-};
-
-/* Externals. */
-extern	long	atol();
-extern	char	*fgets();
-extern	long	lseek();
-extern	time_t	time();
-
-/* Forward. */
-void	add_devices();
-void	badscan();
-void	copy();
-char	*devname();
-void	done();
-int	exists_and_nz();
-void	fdisk();
-void	fsck();
-void	get_timezone();
-int	is_fs();
-void	mkdev();
-void	mkfs();
-void	new_boot();
-void	patches();
-char	*protoname();
-char	*rawname();
-void	rootpatch();
-void	save_files();
-void	set_date();
-void	uucp();
-void	user_devices();
-void	welcome();
-char	*xname();
-
-/* Globals. */
-int	active = -1;			/* active partition	*/
-char	*activeos;			/* active partition OS	*/
-char	buf2[NBUF];			/* extra buffer		*/
-HDISK_S	hd;				/* hard disk boot block	*/
-int	mboot;				/* mboot replaced	*/
-int	ncohdev;			/* number of COHERENT devices */
-int	ndevices = ATDEVS;		/* number of devices	*/
-int	protoflag;			/* prototypes created	*/
-int	root;				/* root partition	*/
-char	tzone[NBUF];			/* timezone		*/
-char	tzone5[NBUF];			/* timezone for Sys V	*/
-int	update;				/* update, rather than install */
-
-main(argc, argv) int argc; char *argv[];
+buildind(label, op, oper)
+parm *label;
+register opc *op;
+register expr *oper;
 {
-	register char *s;
-
-	argv0 = argv[0];
-	abortmsg = 1;
-	usagemsg = USAGE;
-	if (argc > 1 && argv[1][0] == '-') {
-		for (s = &argv[1][1]; *s; ++s) {
-			switch(*s) {
-			case 'd':	++dflag;	break;
-			case 'u':	++update;	break;
-			case 'v':	++vflag;	break;
-			case 'V':
-				fprintf(stderr, "%s: V%s\n", argv0, VERSION);
-				break;
-			default:	usage();	break;
-			}
-		}
-		--argc;
-		++argv;
-	}
-	if (argc != 1)
-		usage();
-
-	welcome();
-	set_date();
-	mkdev();
-	fdisk();
-	if (update) {
-/*		fsck(); */		/* rel notes tells user to do this */
-		new_boot();
-		save_files();
-	} else {
-		badscan();
-		mkfs();
-	}
-	copy();
-	if (!update)
-		user_devices();
-	uucp();
-	rootpatch();
-/*	sys("/conf/ldker", S_FATAL); */
-	patches();
-	sys("/bin/echo /etc/build: success >>/mnt/etc/install.log", S_NONFATAL);
-	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
-	sys(cmd, S_NONFATAL);
-	sys("/bin/echo >>/mnt/etc/install.log", S_NONFATAL);
-	done();
-	sync();
-	sys("/etc/reboot -p", S_IGNORE);
-	/* NOTREACHED */
-	exit(0);
-}
-
-/*
- * Append devices as specified by /etc/mkdev to devices table.
- */
-void
-add_devices()
-{
-	register FILE *fp;
-	register int i, n;
-
-	if ((fp = fopen("/tmp/devices", "r")) == NULL)
-		return;
-	for (i = ndevices; i < NDEVICES; i++) {
-		n = fscanf(fp, "%s %s %d %d\n",
-			devices[i].d_xname, devices[i].d_dname,
-			&devices[i].d_major, &devices[i].d_minor);
-		if (n == 0 || n == EOF)
-			break;
-		else if (n != 4)
-			fatal("scanf failed on /tmp/devices, n=%d", n);
-		++ndevices;
-	}
-	if (i == NDEVICES)
-		nonfatal("too many devices, excess ignored");
-	fclose(fp);
-}
-
-/*
- * Scan each COHERENT device for bad blocks.
- */
-void
-badscan()
-{
-	register int i;
-	register char *name;
-
-	cls(1);
-	printf(
-"The next step in installation is to scan each COHERENT partition\n"
-"for bad blocks.  This will not write to the partition being scanned.\n"
-"Be patient.  This takes a few minutes.\n"
-		);
-	for (i = 0; i < ndevices; i++) {
-		if (notflag(i, F_COH) || notflag(i, F_ATDEV))
-			continue;	/* scan only AT device COH partitions */
-		printf("\n");
-		name = devname(i, 0);
-		if (isflag(i, F_FS)) {
-			printf(
-"Partition %d (%s) already contains a COHERENT filesystem.\n"
-"If you wish to continue to use the existing filesystem, you can skip\n"
-"scanning it for bad blocks.  If you want to replace it with an empty\n"
-"filesystem, you must scan it for bad blocks first.\n",
-				i, name);
-			if (yes_no("Do you want to scan %s for bad blocks",
-				name) == 0)
-				continue;
-		}
-		printf("Scanning partition %d:\n", i);
-		setflag(i, F_SCAN);
-		sprintf(cmd, "/etc/badscan -v -o %s %s %s",
-			protoname(i), rawname(i, 1), xname(i, 1));
-		if (sys(cmd, S_NONFATAL) == 0) {
-			setflag(i, F_PROTO);
-			++protoflag;
-		}
-	}
-}
-
-/*
- * Mount the root filesystem, copy files to it, patch /coherent.
- * Kludge around as required.
- */
-void
-copy()
-{
-	cls(0);
-	printf(
-"The next step is to copy some COHERENT files from the diskette to the\n"
-"root filesystem of your hard disk.  This will take a few minutes...\n"
-		);
-
-	/* Mount the filesystem. */
-	sprintf(cmd, "/etc/mount %s /mnt", devname(root, 1));
-
-	sys(cmd, S_FATAL);
-
-	/* Copy kernel patch and link scripts in case regen needed some day */
-	/* Do it now - don't wait for the whole diskette to cpdir */
-	sprintf(cmd, "/bin/cpdir -ad%s /conf /mnt/conf", (vflag) ? "v" : "");
-	sys(cmd, S_FATAL);
-	sprintf(cmd, "/bin/cpdir -ad%s /tmp /mnt/conf/gen", (vflag) ? "v" : "");
-	sys(cmd, S_FATAL);
-	printf( "..............\n" );
-
-	/* Copy the boot floppy to it. */
-	sprintf(cmd, "/bin/cpdir -ad%s -smnt -sbegin -stmp -sconf %s / /mnt",
-	  (vflag) ? "v" : "", (update) ? "`cat /conf/upd_suppress`" : "");
-	sys(cmd, S_FATAL);
-	if (!is_dir("/mnt/mnt"))
-		sys("/bin/mkdir /mnt/mnt", S_FATAL);
-	sys("/bin/chmog 0755 bin bin /mnt/mnt", S_NONFATAL);
-
-	/* Write entry to /etc/install.log. */
-	sprintf(cmd, "/bin/echo /etc/build: %s %s >>/mnt/etc/install.log",
-#if _I386
-		"386",
-#else
-		"286",
-#endif
-		(update) ? "update" : "install");
-	sys(cmd, S_NONFATAL);
-	sprintf(cmd, "TIMEZONE=\"%s\" /bin/date >>/mnt/etc/install.log", tzone);
-	sys(cmd, S_NONFATAL);
-
-#if 0
-	/* If /etc/fdisk created patched /tmp/coherent, replace /coherent. */
-	if (exists("/mnt/tmp/coherent")) {
-		sys("/bin/mv /mnt/tmp/coherent /mnt/coherent", S_FATAL);
-		sys("/bin/chmod 0400 /mnt/coherent", S_NONFATAL);
-		sys("/bin/chown sys /mnt/coherent", S_NONFATAL);
-		sys("/bin/chgrp sys /mnt/coherent", S_NONFATAL);
-	}
-#endif
-
-	/* If /etc/mkdev created devices in /tmp/dev, copy them to /dev. */
-	/* Remove the copies in /tmp/dev on the hard disk. */
-	if (exists("/tmp/dev"))
-		sys("/bin/cpdir -d /tmp/dev /mnt/dev", S_FATAL);
-#if !_I386
-	/*
-	 * As of COH 3.2, support for COM ports is not built into the system.
-	 * Echo lines to /tmp/drvld.all to drvld com line support,
-	 * then replace /mnt/etc/drvld.all and make sure permissions are right.
-	 */
-	sys("/bin/echo /etc/drvld -r /drv/al0 >>/tmp/drvld.all", S_NONFATAL);
-	sys("/bin/echo /etc/drvld -r /drv/al1 >>/tmp/drvld.all", S_NONFATAL);
-#endif
-	if (exists("/tmp/drvld.all")) {
-		sys("/bin/cp /tmp/drvld.all /mnt/etc/drvld.all", S_NONFATAL);
-		sys("/bin/chmog 0744 root root /mnt/etc/drvld.all", S_NONFATAL);
-	}
-
-	sys("/bin/cat /tmp/ttys >>/mnt/etc/ttys", S_NONFATAL);
-
-	/* Grow /lost+found to make room for files. */
-	sys("cd /mnt/lost+found \n"
-	    "/bin/touch `/bin/from 1 to 200` \n"
-	    "/bin/rm *", S_IGNORE);
-
-	/* Create /autoboot. */
-	sys("/bin/ln -f /mnt/coherent /mnt/autoboot", S_FATAL);
-
-	/* Replace the build version of /etc/brc with the install version. */
-	sys("/bin/rm /mnt/etc/brc", S_NONFATAL);
-	if (update)
-		sys("/bin/ln -f /mnt/etc/brc.update /mnt/etc/brc", S_FATAL);
-	else
-		sys("/bin/ln -f /mnt/etc/brc.install /mnt/etc/brc", S_FATAL);
-
-	/* Link root device to /dev/root. */
-	sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/root", devname(root, 0));
-	sys(cmd, S_FATAL);
-
-	/* Write the timezone to /etc/timezone. */
-	sprintf(cmd, "/bin/echo export TIMEZONE=\\\"%s\\\" >/mnt/etc/timezone", tzone);
-	sys(cmd, S_NONFATAL);
-	sprintf(cmd, "/bin/echo export TZ=\\\"%s\\\" >>/mnt/etc/timezone", tzone5);
-	sys(cmd, S_NONFATAL);
-
-	if (!update) {
-		/* Write the serial number to /etc/serialno. */
-		sprintf(cmd, "/bin/echo %s >/mnt/etc/serialno", serialno);
-		sys(cmd, S_NONFATAL);
-	}
-
-	/* Save the prototypes from /tmp to /conf. */
-	if (protoflag)
-		sys("/bin/mv /tmp/*.proto /mnt/conf", S_NONFATAL);
-}
-
-/*
- * Generate a device name from a DEVICE entry name.
- * Return a pointer to the statically allocated name.
- * If flag and not one of the built-in AT device names,
- * the device is in /tmp/dev rather than /dev.
- * Sleazy hack: this always writes "/tmp/dev/..." in the buffer and
- * massages the return value accordingly so that subsequent calls
- * with same i but different flag will not clobber previous return values.
- */
-char *
-devname(i, flag) int i, flag;
-{
-	static char name[4+4+1+NAMESIZE];	/* e.g. "/tmp/dev/at0a" */
-
-	sprintf(name, "/tmp/dev/%s", devices[i].d_dname);
-	return (flag && notflag(i, F_ATDEV)) ? name : name+4;
-}
-
-/*
- * Done.
- * Print useful information.
- */
-void
-done()
-{
-	cls(1);
-	printf(
-"You have installed the COHERENT operating system onto your hard disk.\n"
-"To install files from the remaining diskettes in the installation kit,\n"
-"you must boot the COHERENT system from the hard disk.  It will prompt\n"
-"you to install the remaining diskettes in the installation kit.\n"
-"\n"
-"After you finish reading this information, remove the floppy disk,\n"
-"hit <Enter> and your system will automatically reboot.\n"
-"\n"
-		);
-	if (mboot) {
-		printf(
-"If you type a partition number (0 to 7) while\n"
-"the boot procedure is trying to read the floppy disk,\n"
-"your system will boot the operating system on that partition.\n"
-			);
-		if (active != -1) {
-			printf("If you type nothing, your system will boot ");
-			if (active == root)
-				printf("COHERENT (partition %d).\n", active);
-			else {
-				printf("active partition %d", active);
-				if (activeos != NULL)
-					printf(" (%s)", activeos);
-				printf(".\n", active);
-			}
-		}
-	} else
-		printf(
-"You must boot the new COHERENT root filesystem on partition %d.\n",
-			root);
-	printf("\nNow remove the floppy disk so your system does not boot from the floppy.\n");
-	if (mboot && root != active)
-		printf(
-"You MUST type %d when the system tries to read the floppy disk during the boot\n"
-"procedure to boot the partition containing the new COHERENT root filesystem.\n",
-			root);
-}
-
-/*
- * See if the specified file exists and has non-zero length.
- */
-exists_and_nz(fn)
-char *fn;
-{
-	struct stat s;
-
-	if (stat(fn, &s) == -1)
-		return 0;			/* does not exist */
-	return (s.st_size > 0);			/* exists and length > 0 */
-}
-
-/*
- * Get partition table information.
- */
-void
-fdisk()
-{
-	register int fd, i, j, n, part, cohpart, flag;
-	char *fname, *s;
-
-	cls(1);
-	if (update) {
-		printf("Reading existing partition tables...\n");
-	} else {
-		printf(
-"This installation procedure allows you to create one or more partitions\n"
-"on your hard disk to contain the COHERENT system and its files.\n"
-"Each disk drive may contain no more than four logical partitions.\n"
-"If all four partitions on your disk are already in use, you will\n"
-"have to overwrite at least one of them to install COHERENT.\n"
-"If your disk uses fewer than four partitions and has enough unused space\n"
-"for COHERENT (%d megabytes), you can install COHERENT into the unused space.\n"
-"If you intend to install MS-DOS after installing COHERENT,\n"
-"you must leave the first physical partition free for MS-DOS.\n"
-"\n"
-"The next part of the installation procedure will let you change the\n"
-"partitions on your hard disk.  Data on unchanged hard disk partitions\n"
-"will not be changed.  However, data already on your hard disk may be\n"
-"destroyed if you change the base or the size of a logical partition,\n"
-"or if you change the order of the partition table entries.\n"
-"If you need to back up existing data from the hard disk,\n"
-"type <Ctrl-C> now to interrupt COHERENT installation; then reboot your\n"
-"system and back up your hard disk data onto diskettes.\n"
-"\n"
-			, NEEDSIZE);
-		cls(1);
-		printf(
-"COHERENT initialization normally writes a new master bootstrap program onto\n"
-"your hard disk.  The COHERENT master boot allows you to boot the operating\n"
-"system on one selected disk partition (the active partition) automatically;\n"
-"it also allows you to boot the operating system on any disk partition by\n"
-"typing a key when you reboot.  Mark Williams strongly recommends that you\n"
-"use the COHERENT master boot.  However, the COHERENT master boot may not\n"
-"work with some operating systems (for example, Xenix) if you make the\n"
-"COHERENT partition active; instead, leave the other partition (e.g. Xenix)\n"
-"active and boot COHERENT by typing a key.  If you do not use the COHERENT\n"
-"bootstrap, you must understand how to boot the COHERENT partition using your\n"
-"existing bootstrap program.\n"
-"\n"
-			);
-		if (yes_no("Do you want to use the COHERENT master boot"))
-			++mboot;
-
-retry:
-	/* Construct an /etc/fdisk command with appropriate xdevice names. */
-		strcpy(cmd, "/etc/fdisk -cB");
-		if (mboot)
-			strcat(cmd, "b /conf/mboot");
-		for (i = 0; i < ndevices; i++) {
-			if (i == 0
-			 || strcmp(devices[i-1].d_xname, devices[i].d_xname) != 0) {
-				if ((fd = open(xname(i, 1), 0)) < 0)
-					continue;
-				close(fd);
-				strcat(cmd, " ");
-				strcat(cmd, xname(i, 1));
-			}
-		}
-		sys(cmd, S_FATAL);		/* do the fdisk command */
-	} /* !update */
-
-	/* Read the partition table and set device flags appropriately. */
-	for (i = part = 0; i < ndevices; ++i) {
-		if (i != 0
-		 && strcmp(devices[i-1].d_xname, devices[i].d_xname) == 0)
-			continue;		/* partition already done */
-		fname = xname(i, 1);
-		if ((fd = open(fname, 0)) < 0)
-			continue;		/* cannot open xdevice */
-		if (read(fd, &hd, sizeof hd) != sizeof hd)
-			fatal("%s: read failed", fname);
-		close(fd);
-		if (hd.hd_sig != HDSIG) {
-			nonfatal("%s: invalid partition table", fname);
-			continue;
-		}
-		/* The partition table is valid, check its partitions. */
-		for (j = 0; j < NPARTN && i + j < ndevices; j++) {
-			n = i + j;		/* index in devices[] */
-			if (part != n) {
-				/*
-				 * Copy over unopenable partitions.
-				 * This allows subsequent code to use
-				 * the devices[] index as the partition number.
-				 */
-				devices[part] = devices[n];
-				n = part;
-			}
-			part++;			/* another valid partition */
-			if (hd.hd_partn[j].p_boot != 0) {
-				setflag(n, F_BOOT);
-				if (active == -1)
-					active = n;	/* first active partition */
-				switch(hd.hd_partn[j].p_sys) {
-				case SYS_COH:
-					activeos = "COHERENT";
-					break;
-				case SYS_DOS_12:
-				case SYS_DOS_16:
-				case SYS_DOS_XP:
-				case SYS_DOS_LARGE:
-					activeos = "MS-DOS";
-					break;
-				case SYS_XENIX:
-					activeos = "Xenix";
-					break;
-				default:
-					activeos = NULL;
-					break;
-				}
-			}
-			if (hd.hd_partn[j].p_sys != SYS_COH)
-				continue;
-
-			/* Make sure the device can be accessed. */
-			s = devname(n, 1);
-			if (!exists(s)) {
-				nonfatal("cannot open COHERENT partition %d (%s)",
-					n, devname(n, 0));
-				continue;
-			} else if (hd.hd_partn[j].p_size == 0L) {
-				nonfatal("COHERENT partition %d (%s) is empty",
-					j, devname(n, 0));
-				continue;
-			}
-
-			/* OK, set flags in the device table. */
-			++ncohdev;
-			setflag(n, F_COH);
-			devices[n].d_size = hd.hd_partn[j].p_size;
-			if (is_fs(s, devices[n].d_size))
-				setflag(n, F_FS);
-
-			/* Make sure the device is not mounted. */
-			sprintf(cmd, "/etc/umount %s 2>/dev/null", s);
-			sys(cmd, S_IGNORE);
-		}
-	}
-	ndevices = part;
-	if (ndevices == 0)
-		fatal("cannot open partition tables");
-	else if (ncohdev == 0)
-		fatal("no COHERENT partition found");
-	cls(0);
-	printf("Your system includes %d COHERENT partition%s:\n",
-		ncohdev, (ncohdev == 1) ? "" : "s");
-	printf("Drive Partition\t  Device\tMegabytes\n");
-	for (flag = i = 0; i < ndevices; i++)
-		if (isflag(i, F_COH)) {
-			cohpart = i;
-			printf("%3d\t%3d\t%s\t%.2f\n",
-				i/NPARTN,
-				i,
-				devname(i, 0),
-				meg(devices[i].d_size));
-			if (((int)meg(devices[i].d_size)) > MAXSIZE)
-				flag = 1;
-		}
-	if (!update && flag) {
-		printf(
-"\n"
-"Your system includes a large COHERENT filesystem (larger than %d megabytes).\n"
-#if !_I386
-"The /etc/mkfs command which builds COHERENT 286 filesystems may run out of\n"
-"memory and fail on large filesystems.\n"
-#endif
-"You should repartition the hard disk to define smaller COHERENT partitions.\n",
-			MAXSIZE);
-		if (yes_no("Do you want to repartition the hard disk"))
-			goto retry;
-		printf("\n");
-	}
-
-	if (ncohdev == 1) {
-		root = cohpart;
-		setflag(root, F_ROOT);
-		return;
-	}
-	printf(
-"You must specify one COHERENT partition as the root filesystem.\n"
-		);
-	if (!update)
-		printf(
-"The root filesystem contains the files normally used by COHERENT.\n"
-"The root filesystem should contain at least %d megabytes.\n",
-			NEEDSIZE);
-	if (ndevices > ATDEVS)
-		printf(
-"The COHERENT root filesystem must be on partition 0 through 7.\n"
-			);
-	if (active != -1 && isflag(active, F_COH)) {
-		printf("COHERENT partition %d is marked as active in the partition table.\n",
-			active);
-		if (!update)
-			printf(
-"If you choose it as the root, you can boot COHERENT automatically.\n"
-				);
-	}
-	printf("\n");
-again:
-	if (update)
-		s = get_line("Which partition contains the COHERENT 286 root filesystem?");
-	else
-		s = get_line("Which partition do you want to be the root filesystem?");
-	root = *s - '0';
-	if (*++s != '\0' || root < 0 || root >= ATDEVS || notflag(root, F_COH)) {
-		printf("Enter a number between 0 and 7 which specifies a COHERENT partition.\n");
-		goto again;
-	}
-
-	if (meg(devices[root].d_size) < (double)NEEDSIZE) {
-		if (update) {
-			printf(
-"\n"
-"Your current COHERENT 286 root filesystem is too small to contain the\n"
-"COHERENT 386 update along with the on-line manual pages and the on-line\n"
-"dictionary.  If you wish to have the COHERENT 386 on-line manual pages and\n"
-"the on-line dictionary installed, you will need to do the following:\n\n"
-"\t1) Exit from the update.\n"
-"\t2) Boot from your existing COHERENT 286 root partition.\n"
-"\t3) Perform a full \"backup\" of ALL PARTITIONS on your hard disk\n"
-"\t   include all of your existing programs, files, and any system\n"
-"\t   files that you have modified using backup utilities \"cpio\",\n"
-"\t   \"ustar\", or \"tar\".  If your hard disk includes partitions\n"
-"\t   assigned to other operating systems, be sure to back these up also!\n"
-"\t4) Perform a full installation of COHERENT 386 using the same disks\n"
-"\t   supplied for the update.  Note that you will need to increase the\n"
-"\t   size of the root partition, or you will need to select a different\n"
-"\t   partition to contain the root filesystem.   Please refer to the\n"
-"\t   chapter on installation found in the COHERENT 386 release notes.\n"
-				);
-			sync();
-			if (yes_no("Do you wish to abort the update"))
-				fatal("Insufficient disk space for update!");
-		} else {
-			printf("Partition %d contains only %.2f megabytes.\n",
-				root, meg(devices[root].d_size));
-			if (meg(devices[root].d_size) < (double)MINSIZE) {
-				printf("It is too small to contain the COHERENT root filesystem.\n");
-				goto again;
-			}
-			if (!yes_no("Are you sure you want it to be the root partition"))
-				goto again;
-		}
-	}
-	setflag(root, F_ROOT);
-}
-
-/*
- * Perform a file system integrity check
- */
-void
-fsck()
-{
-	fatal("Need to add code for fsck here!");
-}
-
-/*
- * Set up a nonstandard timezone.
- */
-void
-get_timezone(dstflag)
-int dstflag;
-{
-	register char *s;
-	int diff;
-	char std_abbr[20], dst_abbr[20];
-	int east_of_gr;
-
-	/* tzone5 is like tzone except no colons and number is in hours */
-
-	printf(
-"You need to specify an abbreviation for your timezone,\n"
-"whether you are east or west of Greenwich, England,\n"
-"and the difference in minutes between your timezone\n"
-"and Greenwich Time (called UT or GMT).  For example,\n"
-"Germany is 60 minutes of time east of Greenwich.\n"
-		);
-	s = get_line("Abbreviation for your timezone:");
-	strcpy(std_abbr, s);
-	east_of_gr = yes_no("Is your timezone east of Greenwich");
-	s = get_line("Difference in minutes from GMT:");
-	diff = atoi(s);
-	if (east_of_gr)
-		diff = -diff;
-	if (dstflag) {
-		s = get_line("Abbreviation for your daylight savings timezone:");
-		strcpy(dst_abbr, s);
-		sprintf(tzone, "%s:%d:%s:1.1.4", std_abbr, diff, dst_abbr);
-		sprintf(tzone5, "%s%d%s", std_abbr, diff/60, dst_abbr);
-	} else {
-		sprintf(tzone, "%s:%d:", std_abbr, diff);
-		sprintf(tzone5, "%s%d", std_abbr, diff/60);
-	}
-}
-
-/*
- * Check if a special file is a well-formed filesystem.
- * This routine is derived from code in "mount.c".
- * Here the check that "special" is a block special file is eliminated
- * and the size is checked against the partition size.
- */
-int
-is_fs(special, size) char *special; unsigned long size;
-{
-	static struct filsys f;
-	register int fd;
-	register struct filsys *fp;
-	register daddr_t *dp;
-	register ino_t *ip, maxinode;
-
-	if ((fd = open(special, 0)) < 0			/* cannot open */
-	 || lseek(fd, (long)SUPERI*BSIZE, 0) == -1L	/* seek failed */
-	 || read(fd, &f, sizeof(f)) != sizeof(f))	/* read failed */
-		return 0;
-	close(fd);
-
-	/* Canonical stuff. */
-	fp = &f;
-	canshort(fp->s_isize);
-	candaddr(fp->s_fsize);
-	canshort(fp->s_nfree);
-	for (dp = &fp->s_free[0]; dp < &fp->s_free[NICFREE]; dp += 1)
-		candaddr(*dp);
-	canshort(fp->s_ninode);
-	for (ip = &fp->s_inode[0]; ip < &fp->s_inode[NICINOD]; ip += 1)
-		canino(*ip);
-	candaddr(fp->s_tfree);
-	canino(fp->s_tinode);
-
-	/* Test for rationality. */
-	maxinode = (fp->s_isize - INODEI) * INOPB + 1;
-	if (fp->s_isize >= fp->s_fsize)
-		return 0;
-	if ((fp->s_tfree < fp->s_nfree)
-	||  (fp->s_tfree >= fp->s_fsize - fp->s_isize + 1))
-		return 0;
-	if ((fp->s_tinode < fp->s_ninode) || (fp->s_tinode >= maxinode-1 ))
-		return 0;
-	for (dp = &fp->s_free[0]; dp < &fp->s_free[fp->s_nfree]; dp += 1)
-		if ((*dp < fp->s_isize) || (*dp >= fp->s_fsize))
-			return 0;
-	for (ip = &fp->s_inode[0]; ip < &fp->s_inode[fp->s_ninode]; ip += 1)
-		if ((*ip < 1) || (*ip > maxinode))
-			return 0;
-	if (fp->s_fsize > (daddr_t)size)
-		return 0;
-	if (fp->s_fsize > (daddr_t)size)
-		nonfatal("warning: filesystem size=%ld but partition size=%ld",
-			(long)fp->s_fsize, size);
-	return 1;
-}
-
-/*
- * Make new devices with /etc/mkdev if appropriate.
- */
-void
-mkdev()
-{
-	int hdc;
-
-	cls(0);
-printf("Most PC compatible computer systems use MFM, RLL, IDE, or ESDI disk\n");
-printf("controllers and disk drives.  A few percent use SCSI disk drives.\n");
-printf("Please indicate the type(s) of disk drive(s) used in your computer system.\n");
-printf("If you are uncertain of the type, please select choice 1.\n\n");
-printf("Are you using:\n\n");
-printf("1.  AT-compatible hard drive controller (IDE/RLL/MFM/ESDI).\n");
-printf("2.  SCSI hard drive controller.\n");
-printf("3.  Both.\n\n");
-	hdc = get_int(1, 3, "Enter your choice:");
-
-	/*
-	 * Note: -b option to mkdev also OK for update
-	 */
-	sprintf(cmd, "/etc/mkdev -b%s%s %s %s",
-		(dflag) ? "d" : "",
-		(vflag) ? "v" : "",
-		(hdc == 1 || hdc == 3) ? "at" : "",
-		(hdc == 2 || hdc == 3) ? "scsi" : "");
-		sys(cmd, S_NONFATAL);
-	if (hdc == 2 || hdc == 3)
-		add_devices();
-}
-
-/*
- * Make filesystems on COHERENT partitions.
- */
-void
-mkfs()
-{
-	register int i;
-	char *name;
-
-	cls(0);
-	printf(
-"You must create an empty COHERENT filesystem on each COHERENT partition\n"
-"before you can use it.  Creating an empty filesystem will destroy all\n"
-"previously existing data on the partition.\n"
-		);
-	for (i = 0; i < ndevices; i++) {
-		if (notflag(i, F_COH) || (isflag(i, F_ATDEV) && notflag(i, F_SCAN)))
-			continue;
-		printf("\n");
-		if (isflag(i, F_FS))
-			printf("Partition %d (%s) already contains a COHERENT filesystem.\n",
-				i, devname(i, 0));
-		if (i == root)
-			printf(
-"\nWARNING!!!\n\n"
-"The installation process expects a NEW file system in the root partition.\n"
-"If you are trying to update an existing COHERENT partition, you must run\n"
-"the COHERENT update.  If you are trying to install again after a partial\n"
-"or failed installation, a new root file system must be created again now.\n\n"
-			);
-		name = devname(i, 1);
-again:
-		if (yes_no("Do you want to create a new COHERENT filesystem on partition %d", i)) {
-			if (notflag(i, F_ATDEV))
-				sprintf(cmd, "/etc/mkfs %s %lu", name, devices[i].d_size);
-			else if (notflag(i, F_PROTO)) {
-				printf("The attempt to scan %s for bad blocks previously failed.",
-					name);
-				if (yes_no("Do you want to create a new filesystem on it without a bad block list"))
-					sprintf(cmd, "/etc/mkfs %s %lu", name, devices[i].d_size);
-				else
-					continue;
-			} else
-				sprintf(cmd, "/etc/mkfs %s %s",
-					name, protoname(i));
-			clrflag(i, F_FS);
-			if (sys(cmd, S_NONFATAL) == 0) {
-				setflag(i, F_FS);
-				if (notflag(i, F_PROTO)) {
-					/* Stick a boot block on device. */
-					/* The proto does it in the other case. */
-					sprintf(cmd, "/bin/cp /conf/boot %s", name);
-					sys(cmd, S_NONFATAL);
-				}
-
-				/*
-				 * Mount the file system,
-				 * create /lost+found,
-				 * unmount it.
-				 */
-				sprintf(cmd, "/etc/mount %s /mnt", name);
-				if (sys(cmd, S_NONFATAL))
-					continue;
-				sprintf(cmd, "/bin/mkdir /mnt/lost+found");
-				if (sys(cmd, S_NONFATAL) == 0)
-					sys(
-"cd /mnt/lost+found \n"
-"/bin/touch `/bin/from 1 to 200` \n"
-"/bin/rm *",
-						S_IGNORE);
-				sprintf(cmd, "/etc/umount %s", name);
-				sys(cmd, S_NONFATAL);
-			} else if (i == root)
-				fatal("%s: root partition mkfs failed", name);
-		} else if (i == root) {
-			if (notflag(i, F_FS)) {
-				printf("You must create a filesystem on the root partition.\n");
-				goto again;
-			} else {
-				/* Stick a boot block on the root device. */
-				sprintf(cmd, "/bin/cp /conf/boot %s", name);
-				sys(cmd, S_NONFATAL);
-			}
-		}
-	}
-}
-
-/*
- * Place a bootstrap on the root filesystem.
- * This is only called from update.
- */
-void
-new_boot()
-{
-	sprintf(cmd, "/bin/cp /conf/boot %s", devname(root, 1));
-	sys(cmd, S_FATAL);
-}
-
-/*
- * Validate "name" to see if its an OK UUCP sitename or domain name.  If
- * anything suspicious is found, query the user and allow them to change
- * their answer.  The domain defaults to UUCP.  In order to avoid having
- * 10,000 machines called bbsuser, no default exists for the sitename.
- *
- * Return true if OK, false otherwise.
- */
-int
-ok_name(name, type)
-unsigned char *name;		/* User's response to site/domain question */
-int	type;			/* 'd' == domain, 'u' == uucpname/site */
-{
-	int warn = 0;
-	char	save[NBUF];	/* save off name for caller */
-
-	if (type == 'd' && name[0] == '.')
-		strcpy(name, name+1);
-	strcpy(save, name);
-	if (name[0] == '\0') {			/* no input ? */
-		if (type == 'd') {
-			strcpy(name, "UUCP");	/* default to UUCP domain */
-			return 1;
-		} else {
-			return 0;		/* no defaults for sitename */
-		}
-	}
-	if (type == 'u' && strlen(name) > 7) {
-		++warn;
-		printf(
-"The system name you chose is greater than seven characters in length.\n"
-		);
-	}
-	if ((type == 'd' && strspn(name, "abcdefghijklmnopqrstuvwxyz"
-			 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			 "0123456789"
-			 ".-_") != strlen(name))
-	  || (type == 'u' && strspn(name, "abcdefghijklmnopqrstuvwxyz"
-			 "0123456789") != strlen(name))) {
-		++warn;
-		printf("The name you chose contains invalid characters.\n");
-	}
-	if (!warn)
-		return 1;
-	if (yes_no("Would you like to choose a different name"))
-		return 0;
-	strcpy(name, save);
-	return 1;
-}
-
-/*
- * If PATCHFILE exists, execute it.
- */
-void patches()
-{
-	printf("The kernel on your hard drive will now be patched to run on your system. You\n");
-	printf("may see some messages indicating that certain symbols are not present in the\n");
-	printf("kernel. You should note them, but otherwise ignore them. Install will use these\n");
-	printf("values after all of the diskettes have been copied to the hard drive.\n\n");
-	if (access(PATCHFILE, AREAD) == 0) {
-		sprintf(cmd, "/bin/sh %s", PATCHFILE);
-		sys(cmd, S_NONFATAL);
-	}
-}
-
-/*
- * Generate a prototype name from a DEVICE entry name.
- * Return a pointer to the statically allocated name.
- */
-char *
-protoname(i) int i;
-{
-	static char pname[5+NAMESIZE+6];	/* e.g. "/tmp/at0a.proto" */
-
-	sprintf(pname, "/tmp/%s.proto", devices[i].d_dname);
-	return pname;
-}
-
-/*
- * Generate a raw device name from a DEVICE entry name.
- * Return a pointer to the statically allocated name.
- * If flag and not one of the built-in AT device names,
- * the device is in /tmp/dev rather than /dev.
- */
-char *
-rawname(i, flag) int i, flag;
-{
-	static char rname[4+4+1+1+NAMESIZE];	/* e.g. "/tmp/dev/rat0a" */
-
-	sprintf(rname, "/tmp/dev/r%s", devices[i].d_dname);
-	return (flag && notflag(i,  F_ATDEV)) ? rname : rname+4;
-}
-/*
- * Patches to be done to the kernel - but can't do them yet because
- * kernel hasn't been linked.
- */
-void
-rootpatch()
-{
-	/*
-	 * After fdisk() we know "root".  Write to PATCHFILE the patches
-	 * that will be needed when a new kernel is linked at /mnt/coherent.
-	 */
-	sprintf(cmd,
-	  "echo /conf/patch /mnt/coherent %s=0 %s=0x%lx:l %s=0x%lx:l >> %s\n",
-	  RONFLAG, BAR_BAR, atol(serialno),
-	  BAR_ENTRY, atol(serialno), PATCHFILE);
-	sys(cmd, S_FATAL);
-	sprintf(cmd,
-	  "echo /conf/patch /mnt/coherent "
-	  "\\\"%s\\=makedev\\(%d,%d\\)\\\" "
-	  "\\\"%s\\=makedev\\(%d,%d\\)\\\" >> %s\n",
-	  ROOTDEV, devices[root].d_major, devices[root].d_minor,
-	  PIPEDEV, devices[root].d_major, devices[root].d_minor, PATCHFILE);
-	sys(cmd, S_FATAL);
-}
-
-/*
- * Need to mount root.
- * Need to set serialno.
- * Remove /usr/man/{ALL,COHERENT,MULTI}, /usr/man/man.tar*
- * Save off any special files before copying in the update
- * Need to umount root.
- */
-void
-save_files()
-{
-	char	buf[20];		/* more than enough for a serial # */
-	int	fd;			/* file descriptor */
-	int	i;
-	char	*s;
-
-	cls(1);
-	printf("We will now mount your existing COHERENT 286 root filesystem...\n");
-	sprintf(cmd, "/etc/mount %s /mnt", devname(root, 1));
-	sys(cmd, S_FATAL);
-
-	if (!is_dir("/mnt/dev"))	/* sanity check! */
-		fatal("Corrupt or incorrect root filesystem specified");
-	/*
-	 * Read in the old 286 serial number and save it off for later.
-	 * If it doesn't exist on the disk, make the user re-enter
-	 * the old serial number by hand.
-	 */
-	serialno[0] = '\0';
-	buf[0] = '\0';
-	if ((fd = open("/mnt/etc/serialno", 0)) >= 0) {
-		read(fd, buf, sizeof(buf)-1);	/* ignore errors */
-		close(fd);
-		if (!isserial(buf))		/* sets serialno[] */
-			serialno[0] = '\0';
-	}
-	if (serialno[0] == '\0') {
-		printf(
-"\nA card included with your original COHERENT 286 distribution gives the\n"
-"serial number of your copy of COHERENT.\n\n"
-			);
-		for (i = 1; i <= 3; i++) {
-			s = get_line("Type in the serial number from the card:");
-			if (isserial(s))
-				break;
-			if (i < 3)
-				printf("Invalid serial number, please try again.\n");
-			else
-				fatal("invalid serial number");
-		}
-	}
-
-	printf("\nRemoving old on-line COHERENT manual pages -- please wait...\n");
-	sys("/bin/rm -rf /mnt/usr/man/ALL /mnt/usr/man/COHERENT "
-	    "/mnt/usr/man/MULTI /mnt/usr/man/man.tar*", S_NONFATAL);
-	sync();
-
-	/*
-	 * Save off any special files just in case the user wants to
-	 * get the old ones back...
-	 */
-	if (!is_dir("/mnt/old_coh")) {
-		printf(
-"\nSaving existing configuration files to directory /old_coh -- please wait...\n\n"
-			);
-		sys("mkdir -r `cat /conf/upd_dirs`", S_NONFATAL);
-		sys(
-"for a in `cat /conf/upd_save` ;"
-" do ;"
-" cp -d /mnt/$a /mnt/old_coh/$a 2>/dev/null && echo $a... ;"
-" done ;"
-" echo", S_IGNORE);
-		sync();
-	} else
-		printf("Directory /old_coh contains configuration file backups.\n");
-
-
-	sprintf(cmd, "rm -f /mnt/coherent.* /mnt/drv/*");  /* rm stale copies */
-	sys(cmd, S_FATAL);
-
-	sprintf(cmd, "/etc/umount %s", devname(root, 1));
-	sys(cmd, S_FATAL);
-
-}
-
-/*
- * Date and time.
- */
-void
-set_date()
-{
-	register char *s;
-	int dst_conv;		/* 1 if DST conversion will be used */
-	int dst_now;		/* 1 if DST in effect today */
-	int n;
-	char *tz;
-	time_t now;
-	struct tm *tmp;
-	char *timestr;
-
-again:
-#if 1	/* new set_date */
-
-	/*
-	 * yyy:
-	 *
-	 * dst_conv = FALSE
-	 * dst_now = FALSE
-	 *
-	 * if using DST conversion
-	 *	dst_conv = TRUE
-	 *	if DST in effect today
-	 *		dst_now = TRUE
-	 * get date from system clock
-	 * if dst_conv and dst_now
-	 *	add 1 hour to date fetched
-	 * display date
-	 * while date not correct
-	 *	if proceed without setting clock
-	 *		goto xxx
-	 *	read date from kb
-	 *	write date to CMOS clock and RAM clock
-	 *	if dst_conv and dst_now
-	 *		subtract 1 hour from date entered
-	 *		write adjusted date to CMOS clock
-	 * xxx:
-	 * set TIMEZONE and TZ variables
-	 * if date, TIMEZONE, and TZ not all correct
-	 *	goto yyy
-	 */
-	cls(0);
-	dst_conv = 0;
-	dst_now = 0;
-	printf(
-"You can run COHERENT with or without conversion for daylight savings time\n"
-"(summer time).  You should normally run with daylight savings time\n"
-"conversion.  However, if you are going to use both COHERENT and MS-DOS\n"
-"and you choose to run with daylight savings time conversion,\n"
-"your time will be wrong (by one hour) during daylight savings time\n"
-"while you are running under MS-DOS.\n"
-"\n"
-		);
-	if (yes_no(
-	  "Do you want COHERENT to use daylight savings time conversion")) {
-		dst_conv = 1;
-		printf(
-"\n"
-"By default, COHERENT assumes daylight savings time begins on the\n"
-"first Sunday in April and ends on the last Sunday in October.\n"
-"If you want to change the defaults, edit the file \"/etc/timezone\"\n"
-"after you finish installing COHERENT.\n"
-"\n"
-		);
-		if (yes_no("Is daylight savings time currently in effect"))
-			dst_now = 1;
-	}
-	sys("/bin/date `/etc/ATclock` > /dev/null", S_NONFATAL);
-	now = time(0);
-	if (dst_conv && dst_now)
-		now += 3600;
-	timestr = ctime(&now);
-	printf(
-"\nAccording to your system clock, your local date and time are:\n"
-	);
-	printf("%s\n", timestr);
-	if (!yes_no("Is this correct")) {
-		n = 0;
-		do {
-			if (++n > 3) {
-				printf(
-"The command which sets the internal real-time clock of your system is\n"
-"failing repeatedly.  Either you are entering the date and time incorrectly\n"
-"or your clock hardware is not completely AT-compatible.  If your clock\n"
-"hardware is incompatible, you can continue with the installation without\n"
-"setting the clock correctly.  However, if you do so, subsequent clock\n"
-"references (including file access and modification time information) will be\n"
-"incorrect and some commands (such as \"date\") will not function correctly.\n"
-					);
-				if (yes_no("Do you want to proceed without setting the clock correctly"))
-					break;
-				n = 0;
-			}
-			s = get_line(
-"\nEnter the correct date and time in the form YYMMDDHHMM.SS:"
-				);
-			sprintf(cmd, "/etc/ATclock %s >/dev/null", s);
-		} while (sys(cmd, S_NONFATAL) != 0);
-		sys("/bin/date `/etc/ATclock` >/dev/null", S_NONFATAL);
-
-		if (dst_conv && dst_now) {
-			/* Adjust for DST: set hardware clock back one hour. */
-			now = time(0) - 3600;
-			tmp = localtime(&now);
-			sprintf(cmd,
-			  "/etc/ATclock %02d%02d%02d%02d%02d.%02d >/dev/null",
-			  tmp->tm_year, tmp->tm_mon + 1, tmp->tm_mday,
-			  tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-			sys(cmd, S_NONFATAL);
-		}
-
-	}
-
-	/* Timezone. */
-	cls(0);
-	printf(
-"Please choose one of the following timezones:\n"
-"\t0\tCentral European\n"
-"\t1\tGreenwich\n"
-"\t2\tNewfoundland\n"
-"\t3\tAtlantic\n"
-"\t4\tEastern\n"
-"\t5\tCentral\n"
-"\t6\tMountain\n"
-"\t7\tPacific\n"
-"\t8\tYukon\n"
-"\t9\tAlaska\n"
-"\t10\tBering\n"
-"\t11\tHawaii\n"
-"\t12\tOther\n"
-		);
-	do {
-		s = get_line("Timezone code:");
-	} while ((n = atoi(s)) < 0 || n > 12);
-	switch (n) {
-	/* N.B. entries truncated at tz[8] below if !dst_conv. */
-	case 0:		tz = "EST:-60:EDT:1.1.4";	break;
-	case 1:		tz = "GMT:000:GDT:1.1.4";	break;
-	case 2:		tz = "NST:210:NDT:1.1.4";	break;
-	case 3:		tz = "AST:240:ADT:1.1.4";	break;
-	case 4:		tz = "EST:300:EDT:1.1.4";	break;
-	case 5:		tz = "CST:360:CDT:1.1.4";	break;
-	case 6:		tz = "MST:420:MDT:1.1.4";	break;
-	case 7:		tz = "PST:480:PDT:1.1.4";	break;
-	case 8:		tz = "YST:540:YDT:1.1.4";	break;
-	case 9:		tz = "AST:600:ADT:1.1.4";	break;
-	case 10:	tz = "BST:660:BDT:1.1.4";	break;
-	case 11:	tz = "HST:600:HDT:1.1.4";	break;
-	case 12:	tz = NULL;			break;
-	}
-
-	if (tz == NULL)
-		get_timezone(dst_conv);
-	else {
-		strcpy(tzone, tz);
-		if (dst_conv) {
-			/* for TZ, AST:240:ADT becomes AST4ADT */
-			sprintf(tzone5, "%.3s%d%cDT",
-			  tz, atoi(tzone + 4)/60, tz[0]);
-		} else {
-			/* for TZ, AST:240 becomes AST4 */
-			sprintf(tzone5, "%.3s%d", tz, atoi(tzone + 4)/60);
-			tzone[8] = '\0';
-		}
-	}
-	/* Done, print current time and retry if user botched it. */
-	printf("\nYour current local date and time are now:\n");
-	sprintf(cmd, "TIMEZONE='%s' /bin/date -s `/etc/ATclock`", tzone);
-	sys(cmd, S_NONFATAL);
-
-	/* Write the timezone to /tmp/timezone for debug */
-	sprintf(cmd, "/bin/echo export TIMEZONE=\\\"%s\\\" >/tmp/timezone", tzone);
-	sys(cmd, S_NONFATAL);
-	sprintf(cmd, "/bin/echo export TZ=\\\"%s\\\" >>/tmp/timezone", tzone5);
-	sys(cmd, S_NONFATAL);
-#else
-	cls(0);
-	/* Get correct local time, set system time accordingly. */
-	printf(
-"It is important for the COHERENT system to know the correct date and time.\n"
-"You must provide information about your timezone and daylight savings time.\n"
-"\n"
-"According to your computer system clock, your current local date and time are:\n"
-		);
-	sys("/bin/date `/etc/ATclock`", S_NONFATAL);
-	if (!yes_no("Is this correct")) {
-		n = 0;
-		do {
-			if (++n > 3) {
-				printf(
-"The command which sets the internal real-time clock of your system is\n"
-"failing repeatedly.  Either you are entering the date and time incorrectly\n"
-"or your clock hardware is not completely AT-compatible.  If your clock\n"
-"hardware is incompatible, you can continue with the installation without\n"
-"setting the clock correctly.  However, if you do so, subsequent clock\n"
-"references (including file access and modification time information) will be\n"
-"incorrect and some commands (such as \"date\") will not function correctly.\n"
-					);
-				if (yes_no("Do you want to proceed without setting the clock correctly"))
-					break;
-				n = 0;
-			}
-			s = get_line(
-"Enter the correct date and time in the form YYMMDDHHMM.SS:"
-				);
-			sprintf(cmd, "/etc/ATclock %s >/dev/null", s);
-		} while (sys(cmd, S_NONFATAL) != 0);
-		sys("/bin/date `/etc/ATclock` >/dev/null", S_NONFATAL);
-	}
-
-	/* DST. */
-	cls(0);
-	printf(
-"You can run COHERENT with or without conversion for daylight savings time\n"
-"(summer time).  You should normally run with daylight savings time\n"
-"conversion.  However, if you are going to use both COHERENT and MS-DOS\n"
-"and you choose to run with daylight savings time conversion,\n"
-"your time will be wrong (by one hour) during daylight savings time\n"
-"while you are running under MS-DOS.\n"
-"\n"
-		);
-	dst_conv = yes_no("Do you want COHERENT to use daylight savings time conversion");
-	if (dst_conv) {
-		printf(
-"\n"
-"By default, COHERENT assumes daylight savings time begins on the\n"
-"first Sunday in April and ends on the last Sunday in October.\n"
-"If you want to change the defaults, edit the file \"/etc/timezone\"\n"
-"after you finish installing COHERENT.\n"
-"\n"
-			);
-		if (yes_no("Is daylight savings time currently in effect")) {
-			/* Adjust for DST: set hardware clock back one hour. */
-			now = time(NULL) - 60 * 60;
-			tmp = localtime(&now);
-			sprintf(cmd, "/etc/ATclock %02d%02d%02d%02d%02d.%02d >/dev/null",
-				tmp->tm_year, tmp->tm_mon + 1, tmp->tm_mday,
-				tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
-			sys(cmd, S_NONFATAL);
-		}
-	}
-
-	/* Timezone. */
-	cls(0);
-	printf(
-"Please choose one of the following timezones:\n"
-"\t0\tCentral European\n"
-"\t1\tGreenwich\n"
-"\t2\tNewfoundland\n"
-"\t3\tAtlantic\n"
-"\t4\tEastern\n"
-"\t5\tCentral\n"
-"\t6\tMountain\n"
-"\t7\tPacific\n"
-"\t8\tYukon\n"
-"\t9\tAlaska\n"
-"\t10\tBering\n"
-"\t11\tHawaii\n"
-"\t12\tOther\n"
-		);
-	do {
-		s = get_line("Timezone code:");
-	} while ((n = atoi(s)) < 0 || n > 12);
-	switch (n) {
-	/* N.B. entries truncated at tz[8] below if !dst_conv. */
-	case 0:		tz = "EST:-60:EDT:1.1.4";	break;
-	case 1:		tz = "GMT:000:GDT:1.1.4";	break;
-	case 2:		tz = "NST:210:NDT:1.1.4";	break;
-	case 3:		tz = "AST:240:ADT:1.1.4";	break;
-	case 4:		tz = "EST:300:EDT:1.1.4";	break;
-	case 5:		tz = "CST:360:CDT:1.1.4";	break;
-	case 6:		tz = "MST:420:MDT:1.1.4";	break;
-	case 7:		tz = "PST:480:PDT:1.1.4";	break;
-	case 8:		tz = "YST:540:YDT:1.1.4";	break;
-	case 9:		tz = "AST:600:ADT:1.1.4";	break;
-	case 10:	tz = "BST:660:BDT:1.1.4";	break;
-	case 11:	tz = "HST:600:HDT:1.1.4";	break;
-	case 12:	tz = NULL;			break;
-	}
-
-	if (tz == NULL)
-		get_timezone(dst_conv);
-	else {
-		strcpy(tzone, tz);
-		if (!dst_conv)
-			tzone[8] = '\0';
-	}
-
-	/* Done, print current time and retry if user botched it. */
-	printf("\nYour current local date and time are now:\n");
-	sprintf(cmd, "TIMEZONE='%s' /bin/date -s `/etc/ATclock`", tzone);
-	sys(cmd, S_NONFATAL);
-#endif	/* new set_date */
-	if (!yes_no("Is this correct"))
-		goto again;
-}
-
-/*
- * Configure user devices.
- * Assumes hard disk filesystem mounted on /mnt.
- * Write lines to /etc/mount.all, /etc/umount.all to [u]mount the user devices.
- */
-void
-user_devices()
-{
-	register int i, status;
-	register char *s, *s2, *name, *rname;
-
-	if (ncohdev == 1) {
-		sys("/bin/echo /dev/root >>/mnt/etc/checklist", S_NONFATAL);
-		return;
-	}
-
-	/* Create user device names. */
-	cls(0);
-	printf(
-"Your system includes %d partition%s in addition to the root partition.\n"
-"These partitions are usually mounted on directories in the COHERENT\n"
-"root filesystem when the system goes into multiuser mode.\n"
-"For example, one non-root partition might be mounted on\n"
-"directory \"/u\", another on \"/v\", and so on.\n"
-"You now may specify where you want each partition mounted.\n",
-		ncohdev - 1, ncohdev == 2 ? "" : "s");
-	for (i = 0; i < ndevices; i++) {
-		if (notflag(i, F_COH) || notflag(i, F_FS) || isflag(i, F_ROOT))
-			continue;
-		name = devname(i, 0);
-		rname = rawname(i, 0);
-		printf("\nPartition %d (%s):\n", i, name);
-		if (yes_no("Do you want %s mounted", name)) {
-			setflag(i, F_MOUNT);
-again:
-			s = get_line("Where do you want to mount it?");
-			if (*s != '/') {
-				printf("Type a directory name beginning with '/', such as \"/u\".\n");
-				goto again;
-			} else if ((s2 = strchr(s, ' ')) != NULL)
-				*s2 = '\0';
-			sprintf(cmd, "/mnt/%s", s);
-			if ((status = is_dir(cmd)) == -1) {
-				printf("%s exists but is not a directory.\n", s);
-				goto again;
-			} else if (status == 1) {
-				strcpy(buf2, s);
-				printf("Directory %s already exists.\n", s);
-				if (!yes_no("Are you sure you want %s mounted on %s", name, s))
-					goto again;
-				s = buf;
-				strcpy(s, buf2);
-			} else {
-				/* Make the target directory, uid=bin, gid=bin. */
-				sprintf(cmd, "/bin/mkdir -r /mnt%s", s);
-				if (sys(cmd, S_NONFATAL))
-					goto again;
-				sprintf(cmd, "/bin/chown bin /mnt%s", s);
-				sys(cmd, S_NONFATAL);
-				sprintf(cmd, "/bin/chgrp bin /mnt%s", s);
-				sys(cmd, S_NONFATAL);
-			}
-			printf("%s will be mounted on %s when COHERENT goes multiuser.\n",
-				name, s);
-
-			/* Change e.g. /usr/src to usr_src. */
-			strcpy(buf2, &s[1]);
-			while ((s2 = strchr(buf2, '/')) != NULL)
-				*s2 = '_';
-
-			/* Make link to pseudo-device, e.g. "/dev/usr_src". */
-			sprintf(cmd, "/mnt/dev/%s", buf2);
-			if (exists(cmd))
-				status = 1;		/* use normal name */
-			else {
-				sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/%s",
-					name, buf2);
-				if ((status = sys(cmd, S_NONFATAL)) == 0)
-					printf(
-"/dev/%s is linked to %s to provide a mnemonic device name.\n",
-						buf2, name);
-			}
-
-			/* Add lines to /etc/mount.all, /etc/umount.all. */
-			if (status == 0)
-				sprintf(cmd, "/bin/echo /etc/mount /dev/%s %s >>/mnt/etc/mount.all",
-					buf2, s);
-			else
-				sprintf(cmd, "/bin/echo /etc/mount %s %s >>/mnt/etc/mount.all",
-					name, s);
-			sys(cmd, S_NONFATAL);
-			if (status == 0)
-				sprintf(cmd, "/bin/echo /etc/umount /dev/%s >>/mnt/etc/umount.all",
-					buf2);
-			else
-				sprintf(cmd, "/bin/echo /etc/umount %s >>/mnt/etc/umount.all",
-					name);
-			sys(cmd, S_NONFATAL);
-
-			/* And again, for the raw device. */
-			sprintf(cmd, "/mnt/dev/r%s", buf2);
-			if (exists(cmd))
-				status = 1;
-			else {
-				sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/r%s",
-					rname, buf2);
-				if ((status = sys(cmd, S_NONFATAL)) == 0)
-					printf(
-"/dev/r%s is linked to %s to provide a mnemonic device name.\n",
-						buf2, rname);
-			}
-
-			/* Add raw device line to /etc/checklist. */
-			if (status == 0)
-				sprintf(cmd, "/bin/echo /dev/r%s >>/mnt/etc/checklist",
-					buf2);
-			else
-				sprintf(cmd, "/bin/echo %s >>/mnt/etc/checklist",
-					rname);
-			sys(cmd, S_NONFATAL);
-		} else {
-			/* Not mounted, check using standard name. */
-			sprintf(cmd, "/bin/echo %s >>/mnt/etc/checklist", rname);
-			sys(cmd, S_NONFATAL);
-		}
-	}
-	sys("/bin/echo /dev/root >>/mnt/etc/checklist", S_NONFATAL);
-
-	/* Link /dev/dos if desired. */
-	if (yes_no("Do you use both COHERENT and MS-DOS on your hard disk")) {
-		i = get_int(0, ndevices-1, "Enter the partition number of your MS-DOS partition:");
-		sprintf(cmd, "/bin/ln -f /mnt%s /mnt/dev/dos", devname(i, 0));
-		if (sys(cmd, S_NONFATAL) == 0)
-			printf(
-"Device name /dev/dos is now linked to %s for use as a mnemonic\n"
-"device name.  You may use the \"dos*\" family of commands to transfer files\n"
-"to and from the MS-DOS partition on your hard disk as well as MS-DOS floppies.\n",
-				devname(i, 0));
-		printf("\n");
-	}
-}
-
-
-/*
- * Set up site/machine specific info in files /etc/uucpname and /etc/domain
- */
-void
-uucp()
-{
-	unsigned char *cp;
-
-	cls(1);
-	if (!update || !exists_and_nz("/mnt/etc/uucpname")) {
-		printf(
-"In order to use COHERENT's electronic mail facility and UUCP subsystem,\n"
-"you must choose a \"site name\" for your computer system.  In general, a site\n"
-"name consists of lower case letters or digits and should be at most seven\n"
-"characters in length.  The name you choose should be unique if you intend\n"
-"to access any other computer systems.  Some of the more well known site\n"
-"names include \"mwc\", \"uunet\", \"clout\", \"decwrl\", \"hp\", \"kgbvax\", "
-"\"prep\",\n\"seismo\", and \"ucbvax\".\n\n"
-		);
-		for (;;) {
-			cp = get_line("Please enter the site name for this system: ");
-			if (ok_name(cp, 'u'))
-				break;
-		}
-		sprintf(cmd, "/bin/echo \"%s\" >/mnt/etc/uucpname", cp);
-		sys(cmd, S_NONFATAL);
-	}
-
-	if (!update || !exists_and_nz("/mnt/etc/domain")) {
-		printf(
-"\nThe COHERENT mail subsystem supports \"domain addressing\" in addition to\n"
-"traditional \"bang paths\".  Until your system becomes part of a registered\n"
-"domain, you may use the UUCP pseudo-domain.  Domain names consist of groups\n"
-"of letters and digits separated by periods (dots).  Some of the more well\n"
-"known domains include \"com\", \"edu\", \"gov\", \"org\", \"net\", as well as domains\n"
-"covering a geographical area, such as the Chicago area \"chi.il.us\" domain.\n"
-"If you are not registered in a domain, or if you are uncertain about this\n"
-"question, simply press the <Enter> key to default to the UUCP pseudo-domain.\n\n"
-		);
-		for (;;) {
-			cp = get_line("Please enter the domain name for this system: ");
-			if (ok_name(cp, 'd'))
-				break;
-		}
-		sprintf(cmd, "/bin/echo \"%s\" >/mnt/etc/domain", cp);
-		sys(cmd, S_NONFATAL);
-	}
-}
-
-/*
- * Hi there.
- */
-void
-welcome()
-{
-	register char *s;
 	int i;
+	unsigned short wrongMode;
 
-	cls(0);
-	printf(
-"\n\n\n\n\n\n\n\n"
-"                              The COHERENT System\n\n"
-"                Copyright (c) 1982, 1992 by Mark Williams Company\n\n"
-"                     60 Revere Drive, Northbrook, IL  60062\n\n"
-"                        708-291-6700, 708-291-6750 (FAX)\n"
-"\n\n\n\n\n\n"
-		);
+	buildlab(label);
 
-	cls(1);
-	printf(
-"Welcome to the COHERENT operating system!\n\n"
-"Your computer is now running COHERENT "
-#if _I386
-"386"
-#else
-"286"
-#endif
-" from the floppy disk.\n");
-	if (update)
-		printf(
-"This program will update your existing COHERENT 286 system to COHERENT 386.\n"
-"\n"
-"Be sure to read the section on \"Updating\" in the COHERENT 386 Release\n"
-"Notes prior to attempting this update!\n\n"
-"Please be patient and read the instructions on the screen carefully.\n"
-"\n"
-			);
-	else
-		printf(
-"This program will install COHERENT onto your hard disk.\n"
-"\n"
-"If you are already running COHERENT on your hard disk, you must perform an\n"
-"update rather than a full installation.  To do so, please REBOOT NOW and\n"
-"follow the detailed update instructions in the COHERENT release notes supplied\n"
-"with this release.\n"
-"\n"
-"You can interrupt installation at any time by typing <Ctrl-C>;\n"
-"then reboot and start the installation procedure again.\n"
-"Please be patient and read the instructions on the screen carefully.\n"
-"\n"
-			);
-#if 0
-	cls(1);
-	printf(
-"If you do not know the BIOS parameters for your hard disk drive,\n"
-"please reset your computer NOW and enter \"dpb\" at the boot prompt.\n"
-"Copy the displayed parameter values for later reference, then reset\n"
-"again and restart installation by entering \"begin\" at the boot prompt.\n"
-		);
-#endif
-	cls(1);
-	if (update)
-		sys("/etc/kbdinstall -u", S_NONFATAL);
-	else
-		sys("/etc/kbdinstall -b", S_NONFATAL);
+	ct = countList((parm *)oper);
 
-	cls(1);
-	if (!update) {
-		printf(
-"A card included with your distribution gives the serial number\n"
-"of your copy of COHERENT.\n"
-			);
-		for (i = 1; i <= 3; i++) {
-			s = get_line("Type in the serial number from the card:");
-			if (isserial(s))
-				return;
-			printf("Invalid serial number, please try again.\n");
+	if (ct > 3) {
+		yyerror("Too many operands");
+		/* No 386 opcode has more than three operands. */
+		return (1);
+	}
+
+	if (fswitch)	/* reverse operand order */
+		for (i = ct; i--; oper = oper->next)
+			opList[i] = oper;
+	else		/* normal operand order */
+		for (i = 0; i < ct; i++, oper = oper->next)
+			opList[i] = oper;
+
+	/* try the stuff not in the wrong mode */
+	wrongMode = longMode ? WORD_MODE : LONG_MODE;
+	for (i = 0; i < choices; i++) {
+		st = typTab + op[i].kind;
+		if (!(st->bldr & wrongMode) && !buildop(op + i))
+			return(0);
+	}
+
+	/* now try the wrong mode choices */
+	for (i = 0; i < choices; i++) {
+		st = typTab + op[i].kind;
+		if ((st->bldr & wrongMode) && !buildop(op + i))
+			return(0);
+	}
+
+	yyerror("Illegal combination of opcode and operands");
+	/* Although the opcode is valid and the operands are valid,
+	 * there is no form of this opcode which takes this combination
+	 * of operands in this order. If there are a lot of these messages
+	 * the -f command option may be in the wrong sense. */
+	return(1);
+}
+
+/*
+ * Convienience function for checkop.
+ * Checks if displacment is byte or longer.
+ */
+static void
+setDisp(this)
+register expr *this;
+{
+	long d;
+
+	if ((NULL != this->ref) ||
+	    (d = this->exp) < -128 || d > 127) {
+		uflags |= U_DSP;
+		mod = 2;
+	}
+	else {
+		uflags |= U_DSP8;
+		mod = 1;
+	}
+	displ = this;
+}
+
+/*
+ * Check if operator validly fits mode.
+ * return 1 for false zero for true.
+ */
+static
+checkop(this, type)
+register expr *this;
+unsigned short type;
+{
+	register sym *r1;
+	long d;
+	int  regsz;
+
+	r1 = this->r1;
+
+	switch (type) {
+	case m8:
+	case m16:
+	case m32:
+	case m64:
+	case m80:
+		regsz = -1;	/* can't be a register */
+		break;
+
+	case rm8:
+		regsz = 1;	/* reg must be 1 long */
+		break;
+
+	case rm16:
+		regsz = 2;	/* reg must be 2 long */
+		break;
+
+	case rm32:
+		regsz = 4;	/* reg must be 4 long */
+		break;
+
+	case reli:	/* near branch */
+		if (!(lflags & A_INDIR)) {
+			uflags = U_RELI;
+			return (T_D != this->mode);
 		}
-		fatal("invalid serial number");
+		regsz = longMode ? 4 : 2;
+		break;
+
+	case rel8:	/* near branch */
+		uflags = U_REL8;
+		return (T_D != this->mode);
+		    
+	case rel16:	/* medium or long branch */
+		uflags = U_REL16;
+		return (T_D != this->mode);
+		    
+	case mem32:	/* 32 bit simple address */
+		uflags |= U_ADR32;
+		rm = 5;
+		return (T_D != (addr = this)->mode);
+
+	case mem16:	/* 16 bit simple address */
+		uflags |= U_ADR16;
+		rm = 6;
+		return (T_D != (addr = this)->mode);
+
+
+	case imm8:
+		uflags |= U_IMM8;
+		immed8 = this->exp;
+		return (this->ref != NULL ||
+			this->mode != T_IMM ||
+			this->exp < -128 ||
+			this->exp > 255);
+
+	case imm8s:
+		uflags |= U_IMM8;
+		immed8 = this->exp;
+		return (this->ref != NULL ||
+			this->mode != T_IMM ||
+			this->exp < -128 ||
+			this->exp > 127);
+
+	case imm16x:
+		uflags |= U_IMM16X;
+		d = (immedx = this)->exp;
+		return (this->mode != T_IMM ||
+			d < -32768L ||
+			d > 65535L);
+
+	case imm16:
+		uflags |= U_IMM16;
+		d = (immed = this)->exp;
+		return (this->mode != T_IMM ||
+			d < -32768L ||
+			d > 65535L);
+
+	case imm32x:
+		uflags |= U_IMM32X;
+		immedx = this;
+		return (this->mode != T_IMM);
+
+	case moffs:
+		uflags |= U_IMM32;
+		immed = this;
+		return (this->mode != T_D);
+
+	case imm32:
+		uflags |= U_IMM32;
+		immed = this;
+		return (this->mode != T_IMM);
+
+	case con1:
+		return (this->mode != T_IMM ||
+			this->exp != 1);
+
+	case con3:
+		return (this->mode != T_IMM ||
+			this->exp != 3);
+
+	case al:
+		return (this->mode != T_R ||
+			r1->flag != ORD_REG ||
+			r1->size != 1 ||
+			r1->loc != 0);
+
+	case ax:
+		return (this->mode != T_R ||
+			r1->flag != ORD_REG ||
+			r1->size != 2 ||
+			r1->loc != 0);
+
+	case eax:
+		return (this->mode != T_R ||
+			r1->flag != ORD_REG ||
+			r1->size != 4 ||
+			r1->loc != 0);
+
+	case r16:
+		if (this->mode != T_R || r1->flag != ORD_REG || r1->size != 2)
+			return (1);
+		reg = r1->loc;
+		return (0);
+
+	case atdx:
+		if (this->mode != T_RI || r1->flag != ORD_REG ||
+		    r1->size != 2 || r1->loc != 2)
+		 	return(1);
+		lflags &= ~A_SHORT;
+		return(0);
+
+	case cl:
+		return (this->mode != T_R ||
+			r1->flag != ORD_REG ||
+			r1->size != 1 ||
+			r1->loc != 1);
+
+	case ds:
+		return (this->mode != T_R ||
+			r1->flag != SEG_REG ||
+			r1->loc != 3);
+
+	case es:
+		return (this->mode != T_R ||
+			r1->flag != SEG_REG ||
+			r1->loc != 0);
+
+	case ss:
+		return (this->mode != T_R ||
+			r1->flag != SEG_REG ||
+			r1->loc != 2);
+
+	case fs:
+		return (this->mode != T_R ||
+			r1->flag != SEG_REG ||
+			r1->loc != 4);
+
+	case gs:
+		return (this->mode != T_R ||
+			r1->flag != SEG_REG ||
+			r1->loc != 5);
+
+	case cs:
+		return (this->mode != T_R ||
+			r1->flag != SEG_REG ||
+			r1->loc != 1);
+
+	case sreg:
+		if (this->mode != T_R || r1->flag != SEG_REG)
+			return (1);
+		reg = r1->loc;
+		return (0);
+
+	case st0:
+		if (this->mode != T_FP || this->exp)
+			return (1);
+		return (0);
+
+	case fpreg:
+		if (this->mode != T_FP)
+			return (1);
+		reg = this->exp;
+		return (0);
+
+	case ctlreg:
+		if (this->mode != T_R || r1->flag != CTL_REG)
+			return (1);
+		uflags |= U_CTL;
+		rm = r1->loc;
+		return (0);
+
+	case dbreg:
+		if (this->mode != T_R || r1->flag != DEB_REG)
+			return (1);
+		uflags |= U_CTL;
+		rm = r1->loc;
+		return (0);
+
+	case treg:
+		if (this->mode != T_R || r1->flag != TST_REG)
+			return (1);
+		uflags |= U_CTL;
+		rm = r1->loc;
+		return (0);
+
+	case r32:
+		if (this->mode != T_R || r1->flag != ORD_REG || r1->size != 4)
+			return (1);
+		reg = r1->loc;
+		return (0);
+
+	case r8:
+		if (this->mode != T_R || r1->flag != ORD_REG || r1->size != 1)
+			return (1);
+		reg = r1->loc;
+		return (0);
+	}
+
+	/*
+	 * If we get to here the mode must be rm16 or rm32.
+	 * The table mode has been used to decide the proper
+	 * size for registers. Decide which is the real mode.
+	 */
+	if (longMode)
+		if (lflags & A_SHORT)
+			type = rm16;
+		else
+			type = rm32;
+	else
+		if (lflags & A_LONG)
+			type = rm32;
+		else
+			type = rm16;
+
+	switch(type) {
+	case rm32:	/* r/m 32 See Tables 17-3 and 17-4 */
+		uflags |= U_RML;
+		switch (this->mode) {
+		case T_D:	/* all 32 bit disp must be good */
+			mod = 0;
+			rm = 5;
+			uflags |= U_DSP;
+			displ = this;
+			return (0);
+
+		case T_RID:
+			setDisp(this);
+			if (4 == (rm = r1->loc)) { /* disp (%esp) */
+				base = 4;	/* base = %esp */
+				index = 4;	/* no index */
+			}
+			return (0);
+
+		case T_R:	/* eax | ecx || edx || ebx || esi || edi */
+			if ((r1->size != regsz) || (r1->flag != ORD_REG))
+				return (1);
+			rm  = r1->loc;
+			mod = 3;
+			return(0);
+
+		case T_RI:
+			switch (rm = r1->loc) {
+			case 5: /* ( %ebp ) */
+				mod = 1;	/* 0 ( %ebp ) */
+				uflags |= U_DSP8; /* force displacment 0 */
+				displ = this;
+				break;
+			case 4: /* ( %esp ) */
+				base = 4;	/* %sp */
+				index = 4;	/* no index */
+			default: /* (eax | ecx | edx | ebx | esi | edi) */
+				mod = 0;
+			}
+
+			return (0);
+
+		case T_RIS:
+			if (4 == (index = r1->loc)) /* can't index %esp */
+				return (1);
+
+			rm = 4;		/* use sib */
+			mod = 0;	/* no disp */
+			base = 5;	/* no base */
+			uflags |= U_DSP;
+			scale = this->scale;
+			index = r1->loc;
+			displ = this;
+			return (0);
+
+		case T_RIX:		
+		case T_RIXS:
+			/* can't index esp */
+			if (4 == (index = this->r2->loc))
+				return(1);
+
+			if (5 != (base = r1->loc)) {
+				mod = 0;
+				rm = 4;
+				scale = this->scale;
+				return (0);
+			} /* if base %ebp use T_RIXDS */
+
+		case T_RIXD:
+		case T_RIXDS:
+			/* can't index esp */
+			if (4 == (index = this->r2->loc))
+				return (1);
+
+			base = r1->loc;
+			setDisp(this);
+
+			rm = 4;
+			scale = this->scale;
+			return (0);
+
+		case T_RIDS:
+			if (4 == (index = r1->loc))	/* can't index sp */
+				return (1);
+
+			mod = 0;
+			uflags |= U_DSP;
+			scale = this->scale;
+			rm = 4;
+			base = 5;
+			displ = this;
+			return (0);
+		}
+		return (1);
+
+	case rm16:	/* r/m 16 */
+		uflags |= U_RMS;
+		switch (this->mode) {
+		case T_RI:	/* register indirect */
+			switch ((int)r1->loc) {
+			case 6: /* (%si) */
+				rm = 4;	break;
+			case 7:	/* (%di) */
+				rm = 5; break;
+			case 3: /* (%bx) */
+				rm = 7; break;
+			default:
+				return (1);
+			}
+			mod = 0;
+			return (0);
+
+		case T_R:	/* register */
+			if ((r1->size != regsz) || (r1->flag != ORD_REG))
+				return (1);
+			rm = r1->loc;
+			mod = 3;
+			return (0);
+			
+		case T_D:	/* displacment */
+			if (this->exp < -32768L || this->exp > 65535L)
+				return(1);
+
+			mod = 0;
+			rm  = 6;
+			uflags |= U_DSP;
+			displ = this;
+			return (0);
+
+		case T_RID:	/* register indirect displacment */
+			if (this->exp < -32768L || this->exp > 65535L)
+				return(1);
+
+			switch ((int)r1->loc) {
+			case 6: /* (%si) */
+				rm = 4;	break;
+			case 7:	/* (%di) */
+				rm = 5; break;
+			case 5:	/* (%bp) */
+				rm = 6; break;
+			case 3: /* (%bx) */
+				rm = 7; break;
+			default:
+				return (1);
+			}
+
+			setDisp(this);
+			return (0);
+
+		case T_RIXD:	/* register index displacment */
+			if (this->exp < -32768L || this->exp > 65535L)
+				return(1);
+
+			setDisp(this);
+			/* fall through */
+
+		case T_RIX:	/* register index */
+			if (T_RIX == this->mode)
+				mod = 0;
+
+			switch ((int)r1->loc) {
+			case 3: /* %bx */
+				switch ((int)this->r2->loc) {
+				case 6: /* %si */
+					rm = 0; break;
+				case 7: /* %di */
+					rm = 1; break;
+				default:
+					return (1);
+				}
+				break;
+			case 5:	/* bp */
+				switch ((int)this->r2->loc) {
+				case 6: /* %si */
+					rm = 2; break;
+				case 7: /* %di */
+					rm = 3; break;
+				default:
+					return (1);
+				}
+				break;
+			default:
+				return (1);
+			}
+			return (0);
+		}
+		return (1);
 	}
 }
 
 /*
- * Generate a partition table device name from a DEVICE entry name.
- * Return a pointer to the statically allocated name.
- * If flag and not one of the built-in AT device names,
- * the device is in /tmp/dev rather than /dev.
+ * Chip errata message.
  */
-char *
-xname(i, flag) int i, flag;
+errata(opcode)
 {
-	static char xname[4+4+1+NAMESIZE];	/* e.g. "/tmp/dev/at0x" */
-
-	sprintf(xname, "/tmp/dev/%s", devices[i].d_xname);
-	return (flag && notflag(i,  F_ATDEV)) ? xname : xname+4;
+	if (opcode && !nswitch)
+		outab(opcode);
+	else
+		yywarn("This code may not work the same way on all chips");
+		/* Some chips may not execute this code as expected. */
 }
 
-/* end of build.c */
+/*
+ * Try to build an opcode.
+ */
+static
+buildop(op)
+opc *op;
+{
+	register unsigned short i, j;
+	static short postSw = 0;
+	static short lastOp = 0;
+	static short lastFlags = 0;
+
+	/* First check if everything is ok */
+	if (st->operands != ct)
+		return(1);
+
+	uflags = base = mod = rm = reg = scale = index = 0;
+	for (i = 0; i < ct; i++)
+		if (checkop(opList[i], (unsigned short)(st->ap[i])))
+			return(1);
+
+	/* deal with unusual stuff */
+	if (st->bldr & (AMBIG_MATCH | TWO_OP_MULT | XTENDS)) {
+		if (st->bldr & AMBIG_MATCH)
+			yywarn("Ambiguous operand length, %d bytes selected", 
+			   (MOV_BYTE == op->code) ? 1 : (longMode ? 4 : 2));
+			/* The assembler cannot tell the operand length by
+			 * looking at the opcode and the operands.
+			 * You may want to do something like change
+			 * \fBmov\fR to \fBmovl\fR. */
+
+		/* 2 operand form of 3 operand multiply */
+		if (st->bldr & TWO_OP_MULT) {
+			mod = 3;
+			rm  = opList[1]->r1->loc;
+		}
+
+		/* movsx and movzx have mixed 16 and 32 bit stuff */
+		if (st->bldr & XTENDS)
+			lflags &= ~(O_LONG|O_SHORT);
+	}
+
+	/*
+	 * Only a few instructions are defined after a rep  or lock
+	 * Instructions valid after lock are marked but are
+	 * only valid if a memory location is accessed. This is
+	 * checked by excluding (mod == 3) which is rm is register.
+	 */
+	if (postSw) {
+		if (postSw & REP_INSTR)
+			if (!(st->bldr & AFTER_REP))
+				yywarn("Improper instruction following rep");
+				/* Only a few instructions
+				 * are valid after a rep instruction.
+				 * See your machine documentation for details.*/
+			else if (op->code == INSB || op->code == INSW)
+				errata(0);
+
+		if ((postSw & LOCK_OP) &&
+		    (!(st->bldr & AFTER_LOCK) || (3 == mod)))
+			yywarn("Improper instruction following lock");
+			/* Only a few instructions
+			 * are valid after a lock instruction.
+			 * See your machine documentation for details. */
+	}
+	postSw = st->bldr & (LOCK_OP | REP_INSTR);
+
+	/* 
+	 * check for various chip errata
+	 * sometimes wave a dead chicken over your head to make things work
+	 */
+#if 0
+	/* See Intel chip errata for 80386-B1 17.
+	 * Coprocessor instruction crossing segment boundaries may hang chip.
+	 * Assume any 4's boundary is a potential boundary. */
+	if ((st->bldr & FLOAT_ESC) &&
+	    (((st->bldr & FLOAT_PFX) ? 2 : 3) == (dot.loc % 4)))
+		errata(NOP);
+#endif
+
+	/* See Intel chip errata for 80386-B1 23. */
+	if (((lastOp == POPA) && (uflags & U_RML) && (mod != 3)) &&
+		/* determine longmode of popa */
+	    ((longMode ? !(lastFlags & 2) : (lastFlags & 4)) ?
+		/* longmode then if base index and either not %eax */
+	     ((rm == 4) && (index || base)) :
+		/* not longmode any index was %eax */
+	     (!rm || ((rm == 4) && (!index || !base)))))
+		errata(NOP);
+
+	if (POP_MEM == op->code) {
+		/* pop	%cs:mem */
+		if (opList[0]->sg == 1)
+			errata(0);
+
+		/* pop 	n(%esp)	 */
+		if ((uflags & U_RML) && base == 4 && rm == 4 && mod)
+			errata(0);
+	}
+	
+	/*
+	 * aam must be preceeded with special stuff on 80486
+	 * The idea is that there must be an xchg with a non 1 value.
+	 */
+	if (op->code == AAM) {
+		static char seq[8] = {
+			0x51,		/* push		%ecx */
+			0x33, 0xC9,	/* xor		%ecx, %ecx */
+			0x87, 0xC9,	/* xchg		%ecx, %ecx */
+			0xD4, 0x0A,	/* aam */
+			0x59		/* pop		%ecx */
+		};
+
+		if (nswitch)
+			errata(0);
+		else {
+			for (i = 0; i < 8; i++)
+				outab(seq[i]);
+			return (0);
+		}
+	}
+			
+	lastFlags = st->bldr;
+	lastOp = op->code;
+
+	if (lflags & A_INDIR) {
+		lastFlags = (longMode ? LONG_MODE : WORD_MODE) | MODRM_BYTE;
+		switch (lastOp) {
+		case JMP_NEAR:
+			lastOp = JMP_INDIR;	break;
+		case CALL_NEAR:
+			lastOp = CALL_INDIR;	break;
+		default:
+			yyerror("Indirect mode on invalid instruction");
+			/* Indirection is only allowed on call and jump near
+			 * instructions. */
+		}
+	}
+
+	if (longMode) {
+		if (lflags & A_SHORT) {
+			yywarn("16 bit addressing mode used in 32 bit code");
+			/* You probably don't want to do this.
+			 * For example, you may want to say \fB(%esi)\fR, not
+			 * \fB(%si)\fR. */
+			outab(PREFIX_AD);	/* address size prefix */
+		}
+		else
+			lflags |= A_LONG;
+
+		if (lastFlags & WORD_MODE)
+			outab(PREFIX_OP);	/* operand size prefix */
+	}
+	else {
+		if (lflags & A_LONG) {
+			yywarn("32 bit addressing mode used in 16 bit code");
+			/* You probably don't want to do this.
+			 * For example, you may want to say \fB(%si)\fR, not
+			 * \fB(%esi)\fR. */
+			outab(PREFIX_AD);	/* address size prefix */
+		}
+		else
+			lflags |= A_SHORT;
+
+		if (lastFlags & LONG_MODE)
+			outab(PREFIX_OP); /* operand size prefix */
+	}
+
+#define ck(x, y) if (j & x) break; j |= x; outab(y); break;
+
+	/* Put out nessisary prefix bytes */
+	for (j = i = 0; i < ct; i++) {
+		switch (opList[i]->sg) {
+		case 0:	/* es: */
+			ck(1, PREFIX_ES);
+		case 1: /* cs: */
+			ck(2, PREFIX_CS);
+		case 2: /* ss: */
+			ck(4, PREFIX_SS);
+		case 3: /* ds: */
+			ck(8, PREFIX_DS);
+		case 4: /* fs: */
+			ck(16, PREFIX_FS);
+		case 5: /* gs: */
+			ck(32, PREFIX_GS);
+		}
+	}
+
+#undef ck
+
+	/* Then build the op code */
+
+	/* Test for relative jump first */
+	switch ((int)(uflags & U_REL_MASK)) {
+	case U_REL16:	/* 16 or 32 bit branch */
+		indBra(lastOp, NON_OP, opList[0]);
+		return(0);
+
+	case U_REL8:	/* 8 bit branch */
+		indBra(NON_OP, lastOp, opList[0]);
+		return(0);
+
+	case U_RELI:	/* may become 8, 16 or 32 bit branch */
+		switch (lastOp) {
+		case JMP_NEAR:
+			indBra(lastOp, JMP_SHORT, opList[0]);
+			break;
+		case CALL_NEAR:
+			indBra(lastOp, NON_OP, opList[0]);
+			break;
+		default:	/* conditional jump */
+			indBra(lastOp + JCC_NEAR,
+			       lastOp + JCC_SHORT, opList[0]);
+		}
+		return(0);
+	}
+
+	if (lastFlags & PFX_0F)
+		outab(0x0F);
+
+	if (lastFlags & FLOAT_PFX)
+		outab(0x9B);
+
+	if (lastFlags & MODRM_BYTE ||
+	    lastOp & 0xFF00)
+		outab(lastOp >> 8);
+
+	j = lastOp & 0xFF;
+
+	if (lastFlags & ADD_REG)
+		j += reg;
+
+	if (lastFlags & MODRM_BYTE)
+		reg = j;
+	else
+		outab(j);
+
+	if (uflags & (U_RML|U_CTL))
+		outrm32();
+	else if (uflags & U_RMS)
+		outrm16();
+
+	if (uflags & U_IMM16)
+		outrw(immed, 0);
+
+	if (uflags & U_IMM32)
+		outrl(immed, 0);
+
+	if (uflags & U_IMM8)
+		outab(immed8);
+
+	if (uflags & U_IMM16X)
+		outrw(immedx, 0);
+
+	if (uflags & U_IMM32X)
+		outrl(immedx, 0);
+
+	if (uflags & U_ADR16)
+		outrw(addr, 0);
+
+	if (uflags & U_ADR32)
+		outrl(addr, 0);
+
+	return(0);
+}
+
+/*
+ * Output mod/rm byte and maybe sib
+ */
+static
+outrm32()
+{
+	short modrm, sib;
+
+	if (uflags & U_CTL)	/* Special register used */
+		modrm = (3 << 6) | (rm << 3) | reg;
+	else
+		modrm = (mod << 6) | (reg << 3) | rm;
+
+	outab(modrm);
+	if (4 == rm && 3 != mod) {
+		sib = (scale << 6) | (index << 3) | base;
+		outab(sib);
+	}
+
+	if (uflags & U_DSP8)
+		outrb(displ, 0);
+
+	else if (uflags & U_DSP)
+		outrl(displ, 0);
+}
+
+/*
+ * Output mod/rm byte
+ */
+static
+outrm16()
+{
+	short modrm;
+
+	modrm = (mod << 6) | (reg << 3) | rm;
+	outab(modrm);
+
+	if (uflags & U_DSP8)
+		outrb(displ, 0);
+
+	else if (uflags & U_DSP)
+		outrw(displ, 0);
+}
+
+/*
+ * Code for relative branches.
+ * Save type of all branch operators on a list assuming shortest feasable.
+ * If a type changes set xpass = 1.
+ *
+ * Pass logic in newPass goes to 2 only if xpass == 0 else it goes to 1
+ *
+ * There is an elegant algorithm for fixing up jumps between passes by
+ * tree manipulation, this would reduce this to a two pass assembler.
+ * Sadly it won't work. It assumes smooth code, that is if I change a
+ * byte jump to a near jump the following addresses will change by addition.
+ * In assembly language people can insert things like .align or .org which
+ * break that assumption, the GNU compiler does this every few lines.
+ *
+ * Once the smooth code assumption is broken we no longer know that the
+ * tree algorithm terminates at all, a byte jump can go to a longer jump
+ * and back again in the next pass. To guarantee termination we start at
+ * byte jumps and only go to longer jumps when we know it is forced. Once
+ * we go to longer jump we never go back. This speeds the assembly of GNU
+ * output by about 10 times.
+ */
+static unsigned braCt;		/* count of branches */
+
+#define BYTE_J	0	/* byte jump length */
+#define NEAR_J	1	/* int  jump length */
+#define EXT_J	2	/* jump around sequence */
+
+/*
+ * Called at new pass or init. Returns 1 if another pass required.
+ */
+indPass()
+{
+	braCt = 0;		/* so far no branches */
+	if (xpass) {
+		xpass = 0;
+		return (1);
+	}
+	return (0);
+}
+
+/*
+ * Put out op code.
+ */
+static void
+putOp(opCode)
+register unsigned short opCode;
+{
+	if (opCode & 0xFF00) {
+		outab(opCode >> 8);
+		outab(opCode & 0xff);
+	}
+	else
+		outab(opCode);
+}
+
+/*
+ * Called for each relative branch.
+ * Calculates branch size. Forces another pass if a branch expands.
+ */
+void
+indBra(nearOp, byteOp, op)
+unsigned short nearOp, byteOp;
+register expr *op;
+{
+	static char *list;		/* one for each relative branch */
+	static unsigned max;		/* size of list */
+	char size;			/* BYTE_J NEAR_J EXT_J */
+	long d;				/* displacment */
+	short  flag, exref;
+	char *old;
+
+	/* insure space for branch data */
+	if (max <= ++braCt)
+		expand(&list, &max, 64, sizeof(char));
+
+	old = list + (braCt - 1);
+	/* assume size from last pass or shortest size for this jump. */
+	size = pass ? *old : ((byteOp == NON_OP) ? NEAR_J : BYTE_J);
+
+	if (NULL == op->ref)
+		fatal("NULL address in relative branch"); /* TECH */
+
+	flag = op->ref->flag;
+	exref = 0; 
+
+	if (flag & S_UNDEF) {	/* undefined symbol */
+		if (pass)
+			size = NEAR_J;	/* known near */
+		else if (BYTE_J == size)
+			xpass = 1;
+
+		if (gswitch)	/* -g turns undefined to global */
+			exref = 1;
+	}
+
+	else if ((flag & S_EXREF) || (dot.sg != op->ref->sg)) {
+		exref = 1;
+		size = NEAR_J;		/* known near */
+	}
+
+	else if (BYTE_J == size) {
+		/* Calculate displacment from end of byte instr */
+		d = op->exp - (dot.loc + ((byteOp & 0xFF00) ? 3 : 2));
+
+		if ((d < -128) || (d > 127))	/* near limits */
+			size = NEAR_J;
+	}
+
+	/* near branch and none available build jumpover */
+	if ((NEAR_J == size) && (NON_OP == nearOp))
+		size = EXT_J;
+
+	/* How does this compare to the last time? */
+	if (*old != size) {
+		switch(pass) {
+		case 1:
+			if (*old > size)	/* never shrink */
+				break;
+			xpass = 1;		/* take one more pass */
+		case 0:
+			*old = size;		/* take new size */
+			break;
+		default:
+			if (*old < size)	/* too late for changes */
+				fatal("Internal error relative branch logic");
+				 /* TECH */
+		}
+	}
+
+	/* output code */
+	switch(*old) {
+	case BYTE_J:	/* short op */
+		putOp(byteOp);
+		if (exref)
+			outrb(op, 1);
+		else
+			outab((int)d);
+		break;
+
+	case EXT_J:	/* jump around sequence */
+		putOp(byteOp);		/* caller's jump over byte jump */
+		outab(2);
+
+		outab(JMP_SHORT);	/* byte jump over near jump */
+		outab(longMode ? 0x05 : 0x03);
+
+		nearOp = JMP_NEAR;	/* near jump to caller's destination */
+
+	case NEAR_J:	/* near jumps */
+		putOp(nearOp);
+		if (longMode)
+			if (exref)
+				outrl(op, 1);
+			else	/* displacement from end of address */
+				outal(op->exp - (dot.loc + 4));
+		else
+			if (exref)
+				outrw(op, 1);
+			else	/* displacement from end of address */
+				outaw((int)(op->exp - (dot.loc + 2)));
+	}
+}

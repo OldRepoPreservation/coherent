@@ -18,6 +18,7 @@
  */
 
 #include <mon.h>
+#include <sys/types.h>
 
 #define MODE	0666			/* mon.out creation mode */
 

@@ -1,11 +1,14 @@
-# /usr/src/libc/string/Makefile 7/6/93
+# /usr/src/libc/string/Makefile 10/7/94
 
-OBJ=\
-	strcoll.o\
-	strdup.o\
-	strerror.o\
-	strtok.o\
-	strxfrm.o\
+LIBOBJ=\
+	$(TARGET)(bcmp.o) \
+	$(TARGET)(bcopy.o) \
+	$(TARGET)(bzero.o) \
+	$(TARGET)(strcoll.o) \
+	$(TARGET)(strdup.o) \
+	$(TARGET)(strerror.o) \
+	$(TARGET)(strtok.o) \
+	$(TARGET)(strxfrm.o)
 
 # These C sources are unused, the assembler sources in $(MCH)
 # are used instead for efficiency.
@@ -29,24 +32,14 @@ UNUSED=\
 	strpbrk.c\
 	strrchr.c\
 	strspn.c\
-	strstr.c\
+	strstr.c
 
 # Primary target.
-all:	STRING string$(MCH)
+all:	$(LIBOBJ) string$(MCH)
 	: libc/string done
 
-# Pseudotargets.
-STRING:	$(OBJ)
-	$(AR) rkus libc.a $?
-	touch $@
+# Secondary target.
 string$(MCH):
-	SRCPATH=$(SRCPATH)/$(MCH) make -e
-
-# Secondary targets.
-strcoll.o:	strcoll.c
-strdup.o:	strdup.c
-strerror.o:	strerror.c
-strtok.o:	strtok.c
-strxfrm.o:	strxfrm.c
+	$(MAKE) $(MAKEARGS) "SRCPATH=$(SRCPATH)/$(MCH)" "MAKEARGS=$(MAKEARGS)"
 
 # end of /usr/src/libc/string/Makefile

@@ -1,20 +1,23 @@
 /*
  * prps.c
- * 7/10/92
+ * 4/17/99
  * Produce PostScript pages containing input files.
  * By default, each page has a header line and text enclosed in a box.
  * See usage() for usage and options.
  * Requires fp output: cc prps.c -f
  */
 
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #if	COHERENT
 #include <sys/types.h>
 #endif
 
 /* Manifest constants. */
-#define	VERSION		"2.3"
+#define	VERSION		"2.8"
 #define	DEFFONT		"Courier"	/* default font			*/
 #define	DEFFONTB	"-Bold"		/* default boldface font suffix	*/
 #define	DEFFONTI	"-Oblique"	/* default italic font suffix	*/
@@ -38,10 +41,6 @@ int	printline();
 char	*PSstring();
 void	usage();
 
-/* External. */
-double	atof();
-char	*index();
-
 /* Global. */
 char	*argv0;				/* Command name.		*/
 int	bflag;				/* Suppress box.		*/
@@ -59,6 +58,8 @@ char	*hdrname = NULL;		/* Name for header line.	*/
 int	indent;				/* Indent.			*/
 int	lflag;				/* Landscape mode.		*/
 int	nlines;				/* Lines per page.		*/
+time_t	now;				/* Current time.		*/
+int	npages;				/* PS output pages.		*/
 double	ptsize;				/* Point size.			*/
 int	rhpage;				/* Right-hand page flag.	*/
 int	skip;				/* Output pages to skip.	*/
@@ -94,6 +95,7 @@ main(argc, argv) int argc; char *argv[];
 	register char c;
 
 	/* Process command line options. */
+	time(&now);
 	argv0 = argv[0];
 	while (argc > 1 && (argv[1][0] == '-' || argv[1][0] == '+')) {
 		s = &argv[1][1];
@@ -184,8 +186,8 @@ main(argc, argv) int argc; char *argv[];
 		while (--argc > 0)
 			file(*++argv);
 	if (lflag == 2 && rhpage)
-		printf("endpage\n");
-	printf("state restore\n");
+		printf("endpage\n\n");
+	printf("%%%%Trailer\nstate restore\n%%%%Pages: %d", npages);
 
 	/* Done. */
 	exit(0);
@@ -196,9 +198,15 @@ main(argc, argv) int argc; char *argv[];
  */
 /* VARARGS */
 void
-fatal(args) char *args;
+fatal(format) char *format;
 {
-	fprintf(stderr, "%s: %r\n", argv0, &args);
+	va_list ap;
+
+	va_start(ap, format);
+	fprintf(stderr, "%s: ", argv0);
+	vfprintf(stderr, format, ap);
+	fprintf(stderr, "\n");
+	va_end(ap);
 	exit(1);
 }
 
@@ -210,23 +218,11 @@ file(name) char *name;
 {
 	register FILE *fp;
 	register int line, page;
-	time_t t;
 
 	if (name == NULL)
 		fp = stdin;
 	else if ((fp = fopen(name, "r")) == NULL)
 		fatal("cannot open \"%s\"", name);
-
-	/* Define name and date fields for header line. */
-	if (!hflag) {
-		printf("/hdrname %s def\n",
-			PSstring((hdrname != NULL) ? hdrname : 
-				 (name != NULL)    ? name    : ""));
-		time(&t);
-		printf("/hdrdate %s def\n\n",
-			dodate	? PSstring(asctime(localtime(&t)))
-				: PSstring(""));
-	}
 
 	/* Process the file. */
 	if (skip) {
@@ -236,7 +232,7 @@ file(name) char *name;
 			for (line = 0; line < nlines; line++) {
 				if (fgets(buf, NBUF, fp) == NULL)
 					break;
-				if (index(buf, '\f') != NULL)
+				if (strchr(buf, '\f') != NULL)
 					break;
 			}
 		}
@@ -246,10 +242,23 @@ file(name) char *name;
 	while (fgets(buf, NBUF, fp) != NULL) {
 		if (line++ == 0) {
 			/* Start of page. */
+			if (lflag != 2 || !rhpage) {
+				/* Start of a PS page. */
+				if (lflag == 2)
+					printf("%%%%Page: %d-%d %d\n", page, page+1, ++npages);
+				else
+					printf("%%%%Page: %d %d\n", page, ++npages);
+			}
 			printf("%% Page %d.\n", page);
-			if (!hflag)
+
+			/* Define name and date fields for header line. */
+			if (!hflag) {
+				printf("/hdrname %s def\n",
+				       PSstring((hdrname != NULL) ? hdrname : 
+						(name != NULL)    ? name    : ""));
 				printf("/hdrpage (Page %d, line %d) def\n",
 					page, (page-1)*nlines+1);
+			}
 			if (lflag == 2)
 				printf("%chpage\n", (rhpage) ? 'r' : 'l');
 			else
@@ -387,10 +396,21 @@ init()
 
 	/* PostScript globals. */
 	printf(
-		"%% Global definitions.\n"
-		"/state save def\n"
+		"%%!PS-Adobe-1.0\n"
+		"%%%%Creator: prps " VERSION "\n"
+		"%%%%Title: %s\n"
+		"%%%%CreationDate: %s"	/* '\n' provided by asctime() */
+		"%%%%Pages: (atend)\n"
+		"%%%%DocumentFonts: %s %s%s %s%s %s%s\n"
+		"%%%%BoundingBox: 0 0 612 792\n"
+		"%%%%EndComments\n\n"
+		"/state save def\n\n"
+		"%% Definitions.\n"
 		"/FS { findfont ptsize scalefont } bind def\n"
-		"/S { show } bind def\n"
+		"/S { show } bind def\n",
+		(hdrname == NULL) ? "" : hdrname,
+		asctime(localtime(&now)),
+		DEFFONT, fontname, fontRsuffix, fontname, fontBsuffix, fontname, fontIsuffix
 		);
 	printf("/ptsize %.2f def\n", ptsize);
 	printf("/fontH /%s findfont %d scalefont def\n",
@@ -404,23 +424,24 @@ init()
 		"/fB {fontB setfont} bind def\n"
 		"/fI {fontI setfont} bind def\n"
 		);
-	putchar('\n');
-
-	/* PostScript routines. */
-	printf("%% Routines.\n");
 	if (!bflag)
 		printf(
 			"/box\t%% boxdx boxdy boxx boxy box -\n"
 			"{\n"
+			"\t/y exch def /x exch def\n"
+			"\tx y transform floor exch floor exch itransform\n"
+			"\t/lly exch def /llx exch def\n"
+			"\ty add exch x add exch\n"
+			"\ttransform floor exch floor exch itransform\n"
+			"\t/ury exch def /urx exch def\n"
 			"\tnewpath\n"
-			"\tmoveto\n"
-			"\texch dup 0 rlineto\n"
-			"\texch 0 exch rlineto\n"
-			"\tneg 0 rlineto\n"
+			"\tllx lly moveto\n"
+			"\turx lly lineto\n"
+			"\turx ury lineto\n"
+			"\tllx ury lineto\n"
 			"\tclosepath\n"
+			"\tgsave .2 setlinewidth stroke grestore\n"
 			"\tclip\n"
-			"\t0.02 setlinewidth\n"
-			"\tstroke\n"
 			"} bind def\n"
 			);
 	printf("/endpage {grestore showpage} bind def\n");
@@ -475,7 +496,11 @@ init()
 		(indent) ? " indent add" : "",
 		inch(texty) - (int)ptsize);
 	printf("\t0 0 moveto\n\tfR\n} bind def\n");
-	printf("\n%% Text.\n");
+	if (!hflag)
+		printf("/hdrdate %s def\n",
+		       dodate	? PSstring(asctime(localtime(&now)))
+		       : PSstring(""));
+	printf("%%%%EndProlog\n\n");
 }
 
 /*
@@ -549,9 +574,9 @@ printline()
  * The tab expansion here assumes the string starts at the left margin.
  */
 char *
-PSstring(cp) register char *cp;
+PSstring(cp) register unsigned char *cp;
 {
-	register char *s, c;
+	register unsigned char *s, c;
 	register int col;
 
 	col = 1;			/* current output column */
@@ -559,10 +584,18 @@ PSstring(cp) register char *cp;
 	*s++ = '(';
 	while ((c = *cp++) != '\n' && c != '\0') {
 		if (c == '\t') {
+			/* Tab. */
 			do {
 				*s++ = ' ';
 			} while ((col++ % tab) != 0);
+		} else if (c >= 0x80) {
+			/* High-bit-set character, output octal escape. */
+			*s++ = '\\';
+			*s++ = '0' + ((c >> 6) & 3);
+			*s++ = '0' + ((c >> 3) & 7);
+			*s++ = '0' + ((c >> 0) & 7);
 		} else {
+			/* Other characters, watch out for "\()". */
 			if (c == '(' || c == ')' || c == '\\')
 				*s++ = '\\';
 			*s++ = c;

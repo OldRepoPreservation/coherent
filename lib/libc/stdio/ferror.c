@@ -6,7 +6,7 @@
  * Test the error indicator for stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #undef	ferror
 
 int

@@ -1,7 +1,13 @@
+/*
+ * Minimal testing of STREAMS functionality; open an echo stream, push the
+ * dump module and do a read, write, putmsg and getmsg.
+ */
+
 #include <stropts.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <poll.h>
+#include <errno.h>
 
 int main (argc, argv)
 int		argc;
@@ -11,6 +17,7 @@ char	      *	argv [];
 	char		buf [20];
 	int		cnt;
 	struct pollfd	fds [1];
+	struct strbuf	databuf;
 
 	if ((fd = open ("/dev/echo", O_RDWR)) == -1) {
 
@@ -23,7 +30,7 @@ char	      *	argv [];
 	fprintf (stderr, "PUSH ioctl () says %d\n", ioctl (fd, I_PUSH, "dump"));
 	fprintf (stderr, "SRDOPT ioctl () says %d\n", ioctl (fd, I_SRDOPT, RMSGN));
 
-	write (fd, "Foo!", 5);
+	fprintf (stderr, "write () says %d\n", write (fd, "Foo!", 5));
 
 	fds->fd = fd;
 	fds->events = POLLIN;
@@ -38,6 +45,26 @@ char	      *	argv [];
 
 	fprintf (stderr, "Read %d bytes, result = %s\n", cnt, buf);
 
+	databuf.maxlen = sizeof (buf);
+	databuf.len = 12;
+	databuf.buf = "STREAM this!";
+
+	errno = 0;
+	fprintf (stderr, "putmsg says %d\n", putmsg (fd, NULL, & databuf, 0));
+
+	if (errno != 0)					    
+		fprintf (stderr, "errno says %d\n", errno);
+
+	errno = 0;
+	cnt = 0;
+	databuf.buf = buf;
+	fprintf (stderr, "getmsg says %d\n", getmsg (fd, NULL, & databuf,
+						     & cnt));
+
+	if (errno != 0)					    
+		fprintf (stderr, "errno says %d\n", errno);
+
+	fprintf (stderr, "len = %d flag = %d\n", databuf.len, cnt);
 	close (fd);
 
 	return 0;

@@ -1,6 +1,5 @@
+/* $Header: /ker/conf/asy/src/RCS/asy.c,v 1.1 93/09/14 18:30:31 nigel Exp $ */
 /*
- * File:	asy.c
- *
  * Purpose:	8250-family async port device driver
  *
  *	Devices are named /dev/asy[00..31]{fpl}
@@ -9,36 +8,33 @@
  *		.x.. ....	1 for polled operation (no irq service), "p"
  *		..x. ....	1 for RTS/CTS flow control, "f"
  *		...x xxxx	channel number - 0..31
+ *
+ * $Log:	asy.c,v $
+ * Revision 1.1  93/09/14  18:30:31  nigel
+ * First "conf"-system revision
  */
 
-/*
- * -----------------------------------------------------------------
- * Includes.
- */
 #include <sys/coherent.h>
+
+#include <sys/errno.h>
 #include <sys/stat.h>
+#include <kernel/v_types.h>
+#include <termio.h>
+#include <poll.h>
+
+#include <kernel/trace.h>
+#include <sys/uproc.h>
 #include <sys/proc.h>
 #include <sys/tty.h>
 #include <sys/con.h>
 #include <sys/devices.h>
-#include <sys/errno.h>
-#include <poll.h>
-#include <sys/sched.h>		/* CVTTOUT, IVTTOUT, SVTTOUT */
+#include <sys/sched.h>
 #include <sys/asy.h>
 #include <sys/ins8250.h>
 #include <sys/poll_clk.h>
-#ifdef _I386
-#include <termio.h>
-#endif
 
-/*
- * -----------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
+#define ASY_CLOSE_SECS  10
+
 #define	IEN_USE_MSI	(IE_RxI | IE_TxI | IE_LSI | IE_MSI)
 #define	IEN_NO_MSI	(IE_RxI | IE_TxI | IE_LSI)
 
@@ -54,7 +50,12 @@
  * For rawin silo (see poll_clk.h), use last element of si_buf to count
  * the number of characters in the silo.
  */
+#if 0
 #define SILO_CHAR_COUNT	si_buf[SI_BUFSIZ-1]
+#else
+#define SILO_CHAR_COUNT	si_cnt
+#endif
+
 #define SILO_HIGH_MARK	(SI_BUFSIZ-SI_BUFSIZ/4)
 #define SILO_LOW_MARK	(SI_BUFSIZ/4)
 #define MAX_SILO_INDEX	(SI_BUFSIZ-2)
@@ -67,40 +68,19 @@
 #define channel(dev)	(dev & 0x1F)
 
 #define IEN	((a0->a_nms)?IEN_NO_MSI:IEN_USE_MSI)
-#ifdef _I386
-#define	EEBUSY	EBUSY
-#else
-#define	EEBUSY	EDBUSY
-#endif
 
 #define NW_OUTSILO	1	/* bits in need_wake[] entries		*/
 
 typedef void (* VPTR)();	/* pointer to function returning void	*/
-typedef void (* FPTR)();	/* pointer to function returning int	*/
+typedef int (* FPTR)();		/* pointer to function returning int	*/
 
-/*
- * -----------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-int nulldev();
 
 void asy_putchar();
 
 /*
  * Configuration functions (local).
  */
-static void asyclose();
-static void asyioctl();
-static void asyload();
-static void asyopen();
-static void asyread();
-static void asytimer();
-static void asyunload();
-static void asywrite();
-static int asypoll();
+
 static void cinit();
 
 /*
@@ -122,17 +102,9 @@ static void endbrk();
 static void irqdummy();
 static void upd_irq1();
 
-static void i2(),i3(),i4(),i5(),i6(),i7(),i8(),i9();
-static void i10(),i11(),i12(),i13(),i14(),i15();
 static int p1(),p2(),p3(),p4();
 
-/*
- * -----------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
+
 extern int albaud[], alp_rate[];
 
 /*
@@ -154,13 +126,10 @@ asy_gp_t asy_gp[MAX_ASYGP] = {
 static asy1_t * asy1;		/* unused entries have type US_NONE	*/
 static short dummy_port;	/* used only during driver startup	*/
 static int poll_divisor;	/* set by asyspr(), read by asyclk()	*/
-static char pptbl[MAX_ASY];	/* channel numbers of polled ports	*/
+static char pptbl [MAX_ASY];	/* channel numbers of polled ports	*/
 static int ppnum;		/* number of channels in pptbl		*/
 
 /*
- * itbl keeps function pointers for irq service routines, for ease of setting
- *   and clearing vectors.
- *
  * irq0[x] and irq1[x] are lists for irq number x.
  * irq0 has nodes that may possibly cause an irq.
  * irq1 contains nodes for active devices.
@@ -170,9 +139,8 @@ static int ppnum;		/* number of channels in pptbl		*/
  * nextnode points to the next free node.
  * Nodes are taken from nodespace only during driver load.
  */
-static VPTR itbl[NUM_IRQ] = {
-	0,0,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,i12,i13,i14,i15 };
-static FPTR ptbl[PT_MAX] = { asyintr,p1,p2,p3,p4 };
+
+static FPTR ptbl [PT_MAX] = { asyintr,p1,p2,p3,p4 };
 static struct irqnode *irq0[NUM_IRQ], *irq1[NUM_IRQ];
 static struct irqnode nodespace[MAX_ASY];
 static char need_wake[MAX_ASY];
@@ -180,32 +148,9 @@ static char nextnode;
 static int initialized;	/* for asy_putchar() */
 
 /*
- * Configuration table (export data).
- */
-CON asycon ={
-	DFCHR|DFPOL,			/* Flags */
-	ASY_MAJOR,			/* Major index */
-	asyopen,			/* Open */
-	asyclose,			/* Close */
-	nulldev,			/* Block */
-	asyread,			/* Read */
-	asywrite,			/* Write */
-	asyioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	asytimer,			/* Timeout */
-	asyload,			/* Load */
-	asyunload,			/* Unload */
-	asypoll				/* Poll */
-};
-
-/*
- * -----------------------------------------------------------------
- * Code.
- */
-
-/*
  * asyload()
  */
+
 static void
 asyload()
 {
@@ -232,8 +177,6 @@ asyload()
 
 	/*
 	 * For each non-null port:
-	 * 	if port is uses irq
-	 *		set dummy routine in case uart_sense causes bogus irpts
 	 *	sense chip type
 	 *	write baud rate to sgtty/termio structs
 	 *	disable port interrupts
@@ -242,8 +185,7 @@ asyload()
 	 *	hook "start" function into line discipline module
 	 *	hook "param" function into line discipline module
 	 *	hook CS into line discipline module
-	 * 	if port is uses irq
-	 *		release dummy routine
+	 * 	if port uses irq
 	 *		if not in a port group
 	 *			add to irq list
 	 */
@@ -260,20 +202,21 @@ asyload()
 		 * A port address of zero means a skipped entry in the table.
 		 * In this case a1->a_ut keeps its initial value of US_NONE.
 		 */
+
 		if (port) {
 			dummy_port = port;
-			if (a0->a_irqno)
-				setivec(a0->a_irqno, irqdummy);
 			/*
 			 * uart_sense() prints port info.
 			 * Do this four times per line.
 			 */
+
 			a1->a_ut = uart_sense(port);
 			sense_ct++;
 			if ((sense_ct & 1) == 0)
 				putchar('\n');
 			else
 				putchar('\t');
+
 			s = sphi();
 			outb(port+MCR, 0);
 			outb(port+LCR, LC_DLAB);
@@ -282,14 +225,11 @@ asyload()
 			outb(port+LCR, LC_CS8);
 			tp->t_start = asystart;
 			/* leave tp->t_param at 0 */
-			tp->t_cs_sel = cs_sel();
-			tp->t_ddp = (int *)chan;
+			tp->t_ddp = (char *) chan;
 			spl(s);
-			if (a0->a_irqno) {
-				clrivec(a0->a_irqno);
-				if (a0->a_asy_gp == NO_ASYGP)
-					add_irq(a0->a_irqno, asyintr, chan);
-			}
+
+			if (a0->a_irqno && a0->a_asy_gp == NO_ASYGP)
+				add_irq (a0->a_irqno, asyintr, chan);
 		}
 	}
 	if (sense_ct & 1)
@@ -299,22 +239,24 @@ asyload()
 	 * for each port group
 	 *	add group to irq list
 	 */
-	for (g = 0; g < ASYGP_NUM; g++) {
-		add_irq(asy_gp[g].irq, ptbl[asy_gp[g].gp_type], g);
-	}
+
+	for (g = 0 ; g < ASYGP_NUM ; g ++)
+		add_irq (asy_gp [g].irq, ptbl [asy_gp [g].gp_type], g);
 
 	/*
 	 * Attach irq routines.
 	 */
-	for (irq = 0; irq < NUM_IRQ; irq++)
-		if (irq0[irq]) {
-			setivec(irq, itbl[irq]);
-		}
+
+	for (irq = 0 ; irq < NUM_IRQ ; irq ++) {
+		if (irq0 [irq])
+			setivec (irq, asy_irq);
+	}
 }
 
 /*
  * asyunload()
  */
+
 static void
 asyunload()
 {
@@ -326,6 +268,7 @@ asyunload()
 	 *	hangup port
 	 *	cancel timer
 	 */
+
 	for (chan = 0; chan < ASY_NUM; chan++) {
 		asy0_t * a0 = asy0 + chan;
 		asy1_t * a1 = asy1 + chan;
@@ -334,7 +277,8 @@ asyunload()
 
 		outb(port+IER, 0);
 		outb(port+MCR, 0);
-		timeout(tp->t_rawtim, 0, NULL, 0);
+
+		timeout (tp->t_rawtim, 0, NULL, 0);
 	}
 
 	/*
@@ -342,20 +286,22 @@ asyunload()
 	 *	if irq routine was attached
 	 *		detach it
 	 */
-	for (irq = 0; irq < NUM_IRQ; irq++)
-		if (irq0[irq])
+
+	for (irq = 0 ; irq < NUM_IRQ ; irq ++)
+		if (irq0 [irq])
 			clrivec(irq);
 
 	/*
 	 * Deallocate dynamic asy storage.
 	 */
 	if (asy1)
-		kfree(asy1);
+		kfree (asy1);
 }
 
 /*
  * asyopen()
  */
+
 static void
 asyopen(dev, mode)
 dev_t dev;
@@ -370,21 +316,18 @@ int mode;
 	short	port = a0->a_port;
 
 	if (a1->a_ut == US_NONE) { /* chip not found */
-		T_HAL(4, devmsg(dev, "no UART"));
-		u.u_error = ENXIO;
+		set_user_error (ENXIO);
 		goto bad_open;
 	}
 
-	if ((tp->t_flags & T_EXCL) && !super()) {
-		T_HAL(4, devmsg(dev, "exclusive use"));
-		u.u_error = ENODEV;
+	if ((tp->t_flags & T_EXCL) != 0 && ! super()) {
+		set_user_error (ENODEV);
 		goto bad_open;
 	}
 
 #if 0
 	if (drvl[major(dev)].d_time != 0) {	/* Modem settling */
-		T_HAL(4, devmsg(dev, "modem settling"));
-		u.u_error = EEBUSY;
+		set_user_error (EBUSY);
 		goto bad_open;
 	}
 #endif
@@ -393,9 +336,8 @@ int mode;
 	 * Can't open for hardware flow control if modem status
 	 * interrupts are disallowed.
 	 */
-	if (a0->a_nms && (dev & CFLOW)) {
-		T_HAL(4, devmsg(dev, "no modem status irq's"));
-		u.u_error = ENXIO;
+	if (a0->a_nms && (dev & CFLOW) != 0) {
+		set_user_error (ENXIO);
 		goto bad_open;
 	}
 
@@ -403,8 +345,7 @@ int mode;
 	 * Can't open a polled port if another driver is using polling.
 	 */
 	if (dev & CPOLL && poll_owner & ~ POLL_ASY) {
-		T_HAL(4, devmsg(dev, "polling unavailable"));
-		u.u_error = EEBUSY;
+		set_user_error (EBUSY);
 		goto bad_open;
 	}
 
@@ -415,8 +356,7 @@ int mode;
 		struct irqnode *np = irq1[a0->a_irqno];
 		while (np) {
 			if (np->func != ptbl[0] || np->arg != chan) {
-				T_HAL(4, devmsg(dev, "irq conflict"));
-				u.u_error = EEBUSY;
+				set_user_error (EBUSY);
 				goto bad_open;
 			}
 			np = np->next_actv;
@@ -442,8 +382,7 @@ int mode;
 		if (dev & CFLOW)
 			newmode += 4;
 		if (oldmode != newmode) {
-			T_HAL(4, devmsg(dev, "conflicting open modes"));
-			u.u_error = EEBUSY;
+			set_user_error (EBUSY);
 			goto bad_open;
 		}
 	}
@@ -459,24 +398,22 @@ int mode;
 	 * Don't try to set tp->t_flags before this sleep!  During
 	 *   the sleep, ttclose() may be called and clear the flags.
 	 */
-	while (a1->a_in_use && (a1->a_hcls ||
-	  ((dev & NMODC) == 0 && (inb(port+MSR) & MS_RLSD) == 0))) {
-#ifdef _I386
+	while (a1->a_in_use &&
+	       (a1->a_hcls || ((dev & NMODC) == 0 &&
+			       (inb (port + MSR) & MS_RLSD) == 0))) {
+
 		if (x_sleep ((char *) & tp->t_open, pritty, slpriSigCatch,
 			     "asyblk") == PROCESS_SIGNALLED) {
-#else
-		v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT, SVTTOUT,
-		  "asyblk");
-		if (nondsig ()) {  /* signal? */
-#endif
-			u.u_error = EINTR;
+			set_user_error (EINTR);
 			goto bad_open;
 		}
 	}
 
+
 	/*
 	 * If channel not in use, mark it as such.
 	 */
+
 	if (a1->a_in_use == 0) {
 		/*
 		 * Save modes for this open attempt to avoid future conflicts.
@@ -548,19 +485,14 @@ int mode;
 				 */
 				if (msr & MS_RLSD)
 					break;
+
 				/* wait for carrier */
-#ifdef _I386
 				if (x_sleep ((char *) & tp->t_open, pritty,
 					     slpriSigCatch, "need CD")
 				    == PROCESS_SIGNALLED) {
-#else
-	   	  		v_sleep((char *)(&tp->t_open), CVTTOUT, IVTTOUT,
-				  SVTTOUT, "need CD");
-		 		if (nondsig ()) {  /* signal? */
-#endif
-					outb(port+MCR, 0);
-			    		outb(port+IER, 0);
-					u.u_error = EINTR;
+					outb(port + MCR, 0);
+			    		outb(port + IER, 0);
+					set_user_error (EINTR);
 					tp->t_flags &= ~(T_HOPEN | T_STOP);
 					spl(s);
 					goto bad_open_u;
@@ -584,10 +516,10 @@ int mode;
 			 */
 			wakeup((char *)(&tp->t_open));
 		}
-		ttopen(tp);				/* stty inits */
-		tp->t_flags |= T_CARR;
 		if (ASY_HPCL)
 			tp->t_flags |= T_HPCL;
+		ttopen(tp);				/* stty inits */
+		tp->t_flags |= T_CARR;
 
 		asyparam(tp);	/* gimmick: do this while t_open is zero */
 
@@ -607,7 +539,7 @@ int mode;
 	} /* end of first-open case */
 
 	tp->t_open++;
-	T_HAL(0x400, printf("ch%d open + %d\n", chan, tp->t_open));
+
 	ttsetgrp(tp, dev, mode);
 
 	return;
@@ -617,6 +549,22 @@ bad_open_u:
 	wakeup((char *)(&tp->t_open));
 bad_open:
 	return;
+}
+
+/*******
+*
+* asyflagset
+*
+* Set a flag to 1 and send a wakeup.  Used from itimeout ().
+*******/
+static void
+asyflagset (a1)
+asy1_t * a1;
+{
+	silo_t	* out_silo = &a1->a_out;
+
+	wakeup((char *)out_silo);
+	a1->a_clto = 1;
 }
 
 /*
@@ -638,9 +586,10 @@ int mode;
 	short	port = a0->a_port;
 	char	lsr;
 
-	if (--tp->t_open)
+	tp->t_open --;
+
+	if (tp->t_open)
 		goto not_last_close;
-	T_HAL(0x400, printf("ch%d open - %d\n", chan, tp->t_open));
 	s = sphi();
 
 	a1->a_hcls = 1;			/* disallow reopen til done closing */
@@ -651,26 +600,28 @@ int mode;
 	 * Wait for output silo and UART xmit buffer to empty.
 	 * Allow signal to break the sleep.
 	 */
+	a1->a_clto = 0;
+	itimeout ((__tfuncp_t) asyflagset, (__VOID__ *) a1,
+	  ASY_CLOSE_SECS * HZ, pltimeout);
+
 	for (;;) {
 		int chipEmpty = 0, siloEmpty = 0;
 
 		lsr = inb(port + LSR);
 		chipEmpty = (lsr & LS_TxIDLE);
-		T_HAL(0x400, printf("ch%d chipEmpty=%d\n", chan, chipEmpty));
 		siloEmpty = (out_silo->si_ix == out_silo->si_ox);
-		T_HAL(0x400, printf("ch%d siloEmpty=%d\n", chan, siloEmpty));
 
+		/* If all pending output is done, we can close. */
 		if (chipEmpty && siloEmpty)
 			break;
+
+		/* Only wait so long for output to finish. */
+		if (a1->a_clto)
+			break;
+
 		need_wake[chan] |= NW_OUTSILO;
-#ifdef _I386
 		if (x_sleep ((char *) out_silo, pritty, slpriSigCatch,
 			     "asyclose") == PROCESS_SIGNALLED) {
-#else
-		v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
-		  "asyclose");
-		if (nondsig ()) {  /* signal? */
-#endif
 			RAWOUT_FLUSH(out_silo);
 			break;
 		}
@@ -691,8 +642,9 @@ int mode;
 	/*
 	 * If hupcls
 	 */
+
 	if (flags & T_HPCL) {
-		T_HAL(0x400, printf("ch%d drop DTR\n", chan));
+
 		/*
 		 * Hangup port - drop DTR and RTS.
 		 */
@@ -703,13 +655,9 @@ int mode;
 		 */
 		maj = major(dev);
 		drvl[maj].d_time = 1;
-#ifdef _I386
+
 		x_sleep ((char *) & drvl [maj].d_time, pritty, slpriNoSig,
 			 "drop DTR");
-#else
-		v_sleep((char *)&drvl[maj].d_time, CVTTOUT, IVTTOUT, SVTTOUT,
-		  "drop DTR");
-#endif
 		drvl[maj].d_time = 0;
 	}
 
@@ -726,7 +674,6 @@ int mode;
 	return;
 
 not_last_close:
-	T_HAL(0x400, printf("ch%d open - %d\n", chan, tp->t_open));
 	a1->a_in_use--;
 	wakeup((char *)(&tp->t_open));
 	return;
@@ -805,10 +752,12 @@ register IO * iop;
 /*
  * asyioctl()
  */
+
 static void
 asyioctl(dev, com, vec)
 dev_t	dev;
-int	com; struct sgttyb *vec;
+int	com;
+struct sgttyb *vec;
 {
 	int	chan = channel(dev);
 	asy0_t	*a0 = asy0 + chan;
@@ -828,13 +777,14 @@ int	com; struct sgttyb *vec;
 	mcr = inb(port+MCR);		/* get current MCR register status */
 	lcr = inb(port+LCR);		/* get current LCR register status */
 
-#ifdef _I386
 	/*
 	 * If command will drain output, do the drain now
 	 * before calling ttioctl().
 	 * Don't do this for 286 kernel:  we're running out of code space.
 	 */
+
 	switch(com) {
+
 	case TCSETAW:
 	case TCSETAF:
 	case TCSBRK:
@@ -844,62 +794,65 @@ int	com; struct sgttyb *vec;
 		 * Allow signal to break the sleep.
 		 */
 		for (;;) {
-			if (!ttoutp(tp)
-			  && (out_silo->si_ix == out_silo->si_ox)
-			  && (inb(port + LSR) & LS_TxIDLE))
+			if (! ttoutp (tp) &&
+			    out_silo->si_ix == out_silo->si_ox &&
+			    (inb (port + LSR) & LS_TxIDLE) != 0)
 				break;
 			need_wake[chan] |= NW_OUTSILO;
-#ifdef _I386
+
 			if (x_sleep ((char *) out_silo, pritty, slpriSigCatch,
-				     "asydrain") == PROCESS_SIGNALLED) {
-#else
-			v_sleep((char *)out_silo, CVTTOUT, IVTTOUT, SVTTOUT,
-			  "asydrain");
-			if (nondsig ()) {  /* signal? */
-#endif
+				     "asydrain") == PROCESS_SIGNALLED)
 				break;
-			}
 		}
-		need_wake[chan] &= ~NW_OUTSILO;
+
+		need_wake [chan] &= ~NW_OUTSILO;
 	}
-#endif
 
 	switch(com) {
 	case TIOCSBRK:			/* set BREAK */
-		outb(port+LCR, lcr|LC_SBRK);
+		outb (port + LCR, lcr | LC_SBRK);
 		break;
+
 	case TIOCCBRK:			/* clear BREAK */
-		outb(port+LCR, lcr & ~LC_SBRK);
+		outb (port + LCR, lcr & ~ LC_SBRK);
 		break;
+
 	case TIOCSDTR:			/* set DTR */
-		outb(port+MCR, mcr|MC_DTR);
+		outb (port + MCR, mcr | MC_DTR);
 		break;
+
 	case TIOCCDTR:			/* clear DTR */
-		outb(port+MCR, mcr & ~MC_DTR);
+		outb (port + MCR, mcr & ~ MC_DTR);
 		break;
+
 	case TIOCSRTS:			/* set RTS */
-		outb(port+MCR, mcr|MC_RTS);
+		outb (port + MCR, mcr | MC_RTS);
 		break;
+
 	case TIOCCRTS:			/* clear RTS */
-		outb(port+MCR, mcr & ~MC_RTS);
+		outb (port + MCR, mcr & ~ MC_RTS);
 		break;
+
 	case TIOCRSPEED:		/* set "raw" I/O speed divisor */
-		outb(port+LCR, lcr|LC_DLAB);  /* set speed latch bit */
-		outb(port+DLL, (unsigned) vec);
-		outb(port+DLH, (unsigned) vec >> 8);
-		outb(port+LCR, lcr);       /* reset latch bit */
+		outb (port + LCR, lcr | LC_DLAB);  /* set speed latch bit */
+		outb (port + DLL, (unsigned) vec);
+		outb (port + DLH, (unsigned) vec >> 8);
+		outb (port + LCR, lcr);       /* reset latch bit */
 		break;
+
 	case TIOCWORDL:		/* set word length and stop bits */
-		outb(port+LCR, ((lcr&~0x7) | ((unsigned) vec & 0x7)));
+		outb (port + LCR, ((lcr & ~ 0x7) | ((unsigned) vec & 0x7)));
 		break;
+
 	case TIOCRMSR:		/* get CTS/DSR/RI/RLSD (MSR) */
-		msr = inb(port+MSR);
+		msr = inb (port + MSR);
 		temp = msr >> 4;
-		kucopy(&temp, (unsigned *) vec, sizeof(unsigned));
+		kucopy (& temp, (unsigned *) vec, sizeof (unsigned));
 		break;
+
 	case TIOCFLUSH:		/* Flush silos here, queues in tty.c */
-		RAWIN_FLUSH(in_silo);
-		RAWOUT_FLUSH(out_silo);
+		RAWIN_FLUSH (in_silo);
+		RAWOUT_FLUSH (out_silo);
 		do_ttioctl = 1;
 		break;
 
@@ -907,42 +860,43 @@ int	com; struct sgttyb *vec;
 		 * If port parameters change, plan to call asyparam().
 		 * Need to check now before structs are updated.
 		 */
-#ifdef _I386
 	case TCSETA:
 	case TCSETAW:
 	case TCSETAF:
 		{
 			struct	termio	trm;
 
-			ukcopy(vec, &trm, sizeof(struct termio));
+			ukcopy (vec, & trm, sizeof (struct termio));
 			if (trm.c_cflag != tp->t_termio.c_cflag)
 				do_asyparam = 1;
 		}
 		do_ttioctl = 1;
 		break;
-#endif
+
 	case TIOCSETP:
 	case TIOCSETN:
 		{
 			struct	sgttyb	sg;
 
 			ukcopy(vec, &sg, sizeof(struct sgttyb));
-			if (sg.sg_ispeed != tp->t_sgttyb.sg_ispeed
-			  || ((sg.sg_flags ^ tp->t_sgttyb.sg_flags) & ANYP))
+			if (sg.sg_ispeed != tp->t_sgttyb.sg_ispeed ||
+			   ((sg.sg_flags ^ tp->t_sgttyb.sg_flags) & ANYP) != 0)
 				do_asyparam = 1;
 		}
 		do_ttioctl = 1;
 		break;
+
 	default:
 		do_ttioctl = 1;
 	}
-	outb(port+IER, ier);
+
+	outb (port + IER, ier);
 	if (do_ttioctl)
-		ttioctl(tp, com, vec);
-	spl(s);
+		ttioctl (tp, com, vec);
+	spl (s);
 	if (do_asyparam)
-		asyparam(tp);
-#ifdef _I386
+		asyparam (tp);
+
 	/*
 	 * Things to be done after calling ttioctl().
 	 */
@@ -955,26 +909,24 @@ int	com; struct sgttyb *vec;
 		 * 3.  Sleep till timer expires.
 		 * 4.  Turn off break level.
 		 */
-		outb(port+LCR, lcr|LC_SBRK);
+
+		outb (port + LCR, lcr | LC_SBRK);
 		a1->a_brk = 1;
-		timeout(&tp->t_sbrk, HZ/4, endbrk, chan);
-		while(a1->a_brk) {
-#ifdef _I386
+		timeout (& tp->t_sbrk, HZ / 4, endbrk, chan);
+
+		while (a1->a_brk)
 			x_sleep (a1, pritty, slpriNoSig, "asybreak");
-#else
-			v_sleep(a1, CVTTOUT, IVTTOUT, SVTTOUT, "asybreak");
-#endif
-		}
-		outb(port+LCR, lcr & ~LC_SBRK);
+
+		outb (port + LCR, lcr & ~ LC_SBRK);
 	}
-#endif
 }
 
-#ifdef _I386
+
 /*
  * Turn off the break level.
  * Called from timeout after ioctl(fd, TCSBRK, 0).
  */
+
 void
 endbrk(chan)
 int chan;
@@ -982,13 +934,14 @@ int chan;
 	asy1_t	*a1 = asy1 + chan;
 
 	a1->a_brk = 0;
-	wakeup(a1);
+	wakeup (a1);
 }
-#endif
+
 
 /*
  * asyparam()
  */
+
 static void
 asyparam(tp)
 TTY * tp;
@@ -1000,11 +953,8 @@ TTY * tp;
 	int	s;
 	int	write_baud=1, write_lcr=1;
 	unsigned char	mcr, newlcr, speed, oldSpeed;
-
-#ifdef _I386
 	unsigned short cflag = tp->t_termio.c_cflag;
 
-	T_HAL(4, printf("ch%d asyparam cflag=%x\n", chan, cflag));
 	speed = cflag & CBAUD;
 	switch (cflag & CSIZE) {
 	case CS5:  newlcr = LC_CS5;  break;
@@ -1019,15 +969,23 @@ TTY * tp;
 		if ((cflag & PARODD) == 0)
 			newlcr |= LC_PAREVEN;
 	}
-#else
+#if 0
+	/*
+	 * Bad 286 code...kill it soon! -Louis
+	 */
+
 	speed = tp->t_sgttyb.sg_ispeed;
-	switch (tp->t_sgttyb.sg_flags & (EVENP|ODDP|RAW)) {
+
+	switch (tp->t_sgttyb.sg_flags & (EVENP | ODDP | RAW)) {
+
 	case ODDP:
-		newlcr = LC_CS7|LC_PARENB;
+		newlcr = LC_CS7 | LC_PARENB;
 		break;
+
 	case EVENP:
-		newlcr = LC_CS7|LC_PARENB|LC_PAREVEN;
+		newlcr = LC_CS7 | LC_PARENB | LC_PAREVEN;
 		break;
+
 	default:
 		newlcr = LC_CS8;
 		break;
@@ -1039,7 +997,9 @@ TTY * tp;
 	 * Writing baud rate resets the port, which loses characters.
 	 * You want this on first open, NOT on later opens.
 	 */
+
 	oldSpeed = a0->a_speed;
+
 	if (speed == oldSpeed && tp->t_open) {
 		write_baud = 0;
 		if (newlcr == a1->a_lcr) {
@@ -1055,7 +1015,7 @@ TTY * tp;
 		ier_save = inb(port+IER);
 		if (write_baud) {
 			if (speed) {
-				short divisor = albaud[speed];
+				short divisor = albaud [speed];
 
 				if (oldSpeed == 0) {
 					/* if previous baud rate was zero,
@@ -1063,7 +1023,6 @@ TTY * tp;
 					mcr = inb(port+MCR) | (MC_RTS | MC_DTR);
 					outb(port+MCR, mcr);
 				}
-				T_HAL(4, printf("CH%d speed=%x\n", chan, speed));
 				outb(port+LCR, LC_DLAB);
 				outb(port+DLL, divisor);
 				outb(port+DLH, divisor >> 8);
@@ -1073,7 +1032,6 @@ TTY * tp;
 				outb(port+MCR, mcr);
 			}
 		}
-		T_HAL(4, printf("CH%d newlcr=%x\n", chan, newlcr));
 		outb(port+LCR, newlcr);
 		if (a1->a_ut == US_16550A)
 			outb(port+FCR, FC_ENABLE | FC_Rx_RST | FC_Rx_08);
@@ -1081,7 +1039,7 @@ TTY * tp;
 		spl(s);
 	}
 	if (write_baud)
-		asyspr();
+		asyspr ();
 }
 
 /*
@@ -1103,15 +1061,16 @@ TTY * tp;
 	/*
 	 * Read line status register AFTER disabling interrupts.
 	 */
-	s = sphi();
-	lsr = inb(port + LSR);
+
+	s = sphi ();
+	lsr = inb (port + LSR);
 
 	/*
 	 * Process break indication.
 	 * NOTE: Break indication cleared when line status register was read.
 	 */
 	if (lsr & LS_BREAK)
-		defer(asybreak, chan);
+		defer (asybreak, chan);
 
 	/*
 	 * If no output data, it may be time to finish closing the port;
@@ -1155,9 +1114,9 @@ int msec;
 {
 	int	chan = channel(dev);
 	asy1_t	*a1 = asy1 + chan;
-	TTY	*tp = &a1->a_tty;
+	TTY	*tp = & a1->a_tty;
 
-	return ttpoll(tp, ev, msec);
+	return ttpoll (tp, ev, msec);
 }
 
 /*
@@ -1258,14 +1217,6 @@ int chan;
 		else
 			a1->a_ohlt = 1;
 		spl(s);
-#if	0
-	/*
-	 * NIGEL: From now on, trace macros need to be given expressions. This
-	 * one needs some work to fix...
-	 */
-T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
-} else if (cts && !(msr & MS_CTS)) { cts = 0; putchar(']'); }});
-#endif
 
 		/*
 		 * If using hardware flow control, see if we need to drop RTS.
@@ -1276,7 +1227,6 @@ T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 			mcr = inb(port+MCR);
 			if (mcr & MC_RTS) {
 				outb(port+MCR, mcr & ~MC_RTS);
-				T_HAL(4, putchar('-'));
 			}
 			spl(s);
 		}
@@ -1289,7 +1239,6 @@ T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 			mcr = inb(port+MCR);
 			if ((mcr & MC_RTS) == 0) {
 				outb(port+MCR, mcr | MC_RTS);
-				T_HAL(4, putchar('+'));
 			}
 			spl(s);
 		}
@@ -1298,7 +1247,8 @@ T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 	/*
 	 * Calculate free output slot count.
 	 */
-	n  = sizeof(out_silo->si_buf) - 1;
+
+	n = sizeof(out_silo->si_buf) - 1;
 	n += out_silo->si_ox - out_silo->si_ix;
 	n %= sizeof(out_silo->si_buf);
 
@@ -1323,7 +1273,6 @@ T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 		spl(s);
 	}
 
-#ifdef _I386
 	/*
 	 * if port has an interrupt pending (probably missed an irq)
 	 *	the following two loops should not be merged
@@ -1333,28 +1282,28 @@ T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 	 *	for each port on this irq line
 	 *		restore interrupts
 	 */
-	if (a1->a_has_irq && ((iir=inb(port+IIR)) & 1) == 0) {
+
+	if (a1->a_has_irq && ((iir = inb (port + IIR)) & 1) == 0) {
 		struct irqnode	*ip;
 		asy_gp_t	*gp;
 		int	s;
 		short	p;
 		char	c, slot;
 
-		T_HAL(4, printf("CH%d missed iir:x\n", chan, iir));
-
 		do_start = 0;
-		s = sphi();
-		ip = irq1[a0->a_irqno];
+		s = sphi ();
+		ip = irq1 [a0->a_irqno];
 		while(ip) {
 			if (ip->func == asyintr) {
 				p = ip->arg;
-				outb(p + IER, 0);
+				outb (p + IER, 0);
 			} else {
 				gp = asy_gp + ip->arg;
 				for (slot = 0; slot < MAX_SLOTS; slot++) {
-					if ((c=gp->chan_list[slot]) < MAX_ASY){
-						p = asy0[c].a_port;
-						outb(p + IER, 0);
+					if ((c = gp->chan_list [slot]) <
+					    MAX_ASY) {
+						p = asy0 [c].a_port;
+						outb (p + IER, 0);
 					}
 				}
 			}
@@ -1363,35 +1312,34 @@ T_HAL(4, {static cts = 0; if (!cts && (msr & MS_CTS)) { cts = 1; putchar('[');\
 		/*
 		 * Now, all ports on the offending irq line have irq off.
 		 */
-		ip = irq1[a0->a_irqno];
-		while(ip) {
+		ip = irq1 [a0->a_irqno];
+		while (ip) {
 			if (ip->func == asyintr) {
 				p = ip->arg;
-				outb(p + IER, IEN);
+				outb (p + IER, IEN);
 			} else {
 				gp = asy_gp + ip->arg;
 				for (slot = 0; slot < MAX_SLOTS; slot++) {
-					if ((c=gp->chan_list[slot]) < MAX_ASY){
-						p = asy0[c].a_port;
-						outb(p + IER, IEN);
+					if ((c = gp->chan_list [slot]) <
+					    MAX_ASY){
+						p = asy0 [c].a_port;
+						outb (p + IER, IEN);
 					}
 				}
 			}
 			ip = ip->next_actv;
 		}
-		spl(s);
+		spl (s);
 	}
-#endif
 
-	if(do_start)
-		ttstart(tp);
+	if (do_start)
+		ttstart (tp);
 
 	/*
 	 * Schedule next cycle.
 	 */
-	if (a1->a_in_use) {
-		timeout(&tp->t_rawtim, HZ/10, asycycle, chan);
-	}
+	if (a1->a_in_use)
+		timeout (& tp->t_rawtim, HZ / 10, asycycle, chan);
 }
 
 /*
@@ -1419,7 +1367,7 @@ irqdummy()
 static void
 add_irq(irq, func, arg)
 int irq;
-void (*func)();
+int (*func)();
 int arg;
 {
 	struct irqnode * np;
@@ -1427,7 +1375,7 @@ int arg;
 	/*
 	 * Sanity check.
 	 */
-	if (irq <=0 || irq >= NUM_IRQ || itbl[irq] == 0)
+	if (irq <= 0 || irq >= NUM_IRQ)
 		return;
 
 	if (nextnode < MAX_ASY) {
@@ -1441,45 +1389,32 @@ int arg;
 	}
 }
 
-/*
- * Interrupt handlers.
- */
-static void i2() { asy_irq(irq1[2]); }
-static void i3() { asy_irq(irq1[3]); }
-static void i4() { asy_irq(irq1[4]); }
-static void i5() { asy_irq(irq1[5]); }
-static void i6() { asy_irq(irq1[6]); }
-static void i7() { asy_irq(irq1[7]); }
-static void i8() { asy_irq(irq1[8]); }
-static void i9() { asy_irq(irq1[9]); }
-static void i10() { asy_irq(irq1[10]); }
-static void i11() { asy_irq(irq1[11]); }
-static void i12() { asy_irq(irq1[12]); }
-static void i13() { asy_irq(irq1[13]); }
-static void i14() { asy_irq(irq1[14]); }
-static void i15() { asy_irq(irq1[15]); }
 
 /*
  * asy_irq()
  *
  * Given pointer to node list, service async interrupt.
  */
+
 static void
-asy_irq(ip)
-struct irqnode * ip;
+asy_irq (level)
+int level;
 {
-	struct irqnode	*here;
+	struct irqnode * ip = irq1 [level];
 	int		doit;
 
 	do {
+		struct irqnode * here = ip;
+
 		doit = 0;
-		here = ip;
-		while(here) {
-			doit |= (*(here->func))(here->arg);
+
+		while (here != NULL) {
+			doit |= (* here->func) (here->arg);
 			here = here->next_actv;
 		}
-	} while(doit);
+	} while (doit);
 }
+
 
 /*
  * upd_irq1()
@@ -1498,7 +1433,7 @@ int irq;
 	/*
 	 * Sanity check.
 	 */
-	if (irq <=0 || irq >= NUM_IRQ || itbl[irq] == 0)
+	if (irq <= 0 || irq >= NUM_IRQ)
 		return;
 
 	/*
@@ -1592,13 +1527,11 @@ rescan:
 	case LS_INTR:
 		ret = 1;
 		lsr = inb(port + LSR);
-		T_HAL(0x800, printf("[%d:L%x]", chan, lsr));
 		if (lsr & LS_BREAK)
 			defer(asybreak, chan);
 		goto rescan;
 
 	case Rx_INTR:
-		T_HAL(0x800, printf("[%d:R]", chan));
 		ret = 1;
 		c = inb(port+DREG);
 		if (tp->t_open == 0)
@@ -1611,23 +1544,18 @@ rescan:
 			/*
 			 * XON.
 			 */
-#if _I386
+
 			if (_IS_START_CHAR (tp, c) ||
 			    (_IS_IXANY_MODE (tp) &&
 			     (tp->t_flags & T_STOP) != 0)) {
 				tp->t_flags &= ~(T_STOP | T_XSTOP);
 				goto rescan;
 			}
-#else
-			if (_IS_START_CHAR (tp, c)) {
-				tp->t_flags &= ~T_STOP;
-				goto rescan;
-			}
-#endif
 
 			/*
 			 * XOFF.
 			 */
+
 			if (_IS_STOP_CHAR (tp, c)) {
 				tp->t_flags |= T_STOP;
 				goto rescan;
@@ -1640,27 +1568,25 @@ rescan:
 		if (in_silo->SILO_CHAR_COUNT < MAX_SILO_CHARS) {
 			in_silo->si_buf[in_silo->si_ix] = c;
 			if (in_silo->si_ix < MAX_SILO_INDEX)
-				in_silo->si_ix++;
+				in_silo->si_ix ++;
 			else
 				in_silo->si_ix = 0;
-			in_silo->SILO_CHAR_COUNT++;
+			in_silo->SILO_CHAR_COUNT ++;
 		}
 
 		/*
 		 * If using hardware flow control, see if we need to drop RTS.
 		 */
-		if ((tp->t_flags & T_CFLOW)
-		&& (in_silo->SILO_CHAR_COUNT > SILO_HIGH_MARK)) {
-			unsigned char mcr = inb(port+MCR);
+		if ((tp->t_flags & T_CFLOW) != 0 &&
+		    in_silo->SILO_CHAR_COUNT > SILO_HIGH_MARK) {
+			unsigned char mcr = inb (port + MCR);
 			if (mcr & MC_RTS) {
 				outb(port+MCR, mcr & ~MC_RTS);
 			}
 		}
-
 		goto rescan;
 
 	case Tx_INTR:
-		T_HAL(0x800, printf("[%d:T]", chan));
 		ret = 1;
 		/*
 		 * Do nothing if output is stopped.
@@ -1684,7 +1610,6 @@ rescan:
 		 * Get status (and clear interrupt).
 		 */
 		msr = inb(port+MSR);
-		T_HAL(0x800, printf("[%d:M%x]", chan, msr));
 
 		/*
 		 * Hardware flow control.
@@ -2127,3 +2052,22 @@ char *tag;
 	printf("opn=%d  ier=%x\n", tp->t_open, inb(a0->a_port+IER));
 }
 #endif
+
+/*
+ * Configuration table (export data).
+ */
+CON asycon ={
+	DFCHR|DFPOL,			/* Flags */
+	ASY_MAJOR,			/* Major index */
+	asyopen,			/* Open */
+	asyclose,			/* Close */
+	NULL,				/* Block */
+	asyread,			/* Read */
+	asywrite,			/* Write */
+	asyioctl,			/* Ioctl */
+	NULL,				/* Powerfail */
+	asytimer,			/* Timeout */
+	asyload,			/* Load */
+	asyunload,			/* Unload */
+	asypoll				/* Poll */
+};

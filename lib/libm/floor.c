@@ -1,6 +1,8 @@
 /*
  * libm/floor.c
- * Floor.
+ * C mathematics library.
+ * floor()
+ * Floor function.
  */
 
 #include <math.h>

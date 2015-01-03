@@ -95,6 +95,7 @@ clone()
 		slret = spipe = 0;
 		sp = sesp;
 		sp->s_con->c_next = NULL;
+		sh_fnp = NULL;
 		while (sp) {
 			if (sp->s_type == SFILE)
 				fclose(sp->s_ifp);

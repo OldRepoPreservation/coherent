@@ -14,9 +14,10 @@ char dummyChar = 'Z';
  * -----------------------------------------------------------------
  * Includes.
  */
+
 #include <sys/coherent.h>
+#include <sys/uproc.h>
 #include <sys/cmn_err.h>
-#include <sys/con.h>
 #include <sys/errno.h>
 
 /*
@@ -35,18 +36,17 @@ char dummyChar = 'Z';
  *	Export Functions.
  *	Local Functions.
  */
-int nulldev();
 
 /*
  * Configuration functions (local functions).
  */
-static int dummyclose();
-static int dummyioctl();
-static int dummyload();
-static int dummyopen();
-static int dummyread();
-static int dummyunload();
-static int dummywrite();
+static void dummyclose();
+static void dummyioctl();
+static void dummyload();
+static void dummyopen();
+static void dummyread();
+static void dummyunload();
+static void dummywrite();
 
 /*
  * Support functions (local functions).
@@ -68,15 +68,15 @@ CON dummycon ={
 	0,				/* Major index */
 	dummyopen,			/* Open */
 	dummyclose,			/* Close */
-	nulldev,			/* Block */
+	NULL,				/* Block */
 	dummyread,			/* Read */
 	dummywrite,			/* Write */
 	dummyioctl,			/* Ioctl */
-	nulldev,			/* Powerfail */
-	nulldev,			/* Timeout */
+	NULL,				/* Powerfail */
+	NULL,				/* Timeout */
 	dummyload,			/* Load */
 	dummyunload,			/* Unload */
-	nulldev				/* Poll */
+	NULL				/* Poll */
 };
 
 /*
@@ -87,7 +87,7 @@ CON dummycon ={
 /*
  * dummyload()
  */
-static int
+static void
 dummyload()
 {
 	cmn_err(CE_NOTE, "Dummy: load");
@@ -96,7 +96,7 @@ dummyload()
 /*
  * dummyunload()
  */
-static int
+static void
 dummyunload()
 {
 	cmn_err(CE_NOTE, "Dummy: unload");
@@ -105,7 +105,7 @@ dummyunload()
 /*
  * dummyopen()
  */
-static int
+static void
 dummyopen(dev, mode)
 dev_t dev;
 int mode;
@@ -116,7 +116,7 @@ int mode;
 /*
  * dummyclose()
  */
-static int
+static void
 dummyclose(dev, mode)
 dev_t dev;
 int mode;
@@ -127,7 +127,7 @@ int mode;
 /*
  * dummyread()
  */
-static int
+static void
 dummyread(dev, iop)
 dev_t dev;
 register IO * iop;
@@ -138,7 +138,7 @@ register IO * iop;
 /*
  * dummywrite()
  */
-static int
+static void
 dummywrite(dev, iop)
 dev_t dev;
 register IO * iop;
@@ -149,7 +149,7 @@ register IO * iop;
 /*
  * dummyioctl()
  */
-static int
+static void
 dummyioctl(dev, com, vec)
 dev_t	dev;
 int	com;

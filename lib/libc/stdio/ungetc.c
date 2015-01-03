@@ -6,7 +6,7 @@
  * Unget a character.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <string.h>
 
 extern	int	_fungotc();

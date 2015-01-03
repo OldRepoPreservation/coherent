@@ -6,7 +6,7 @@
  * Set i/o buffer.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 void
 setbuf(stream, buf) FILE *stream; char *buf;

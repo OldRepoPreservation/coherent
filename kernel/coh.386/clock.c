@@ -1,4 +1,5 @@
-/* $Header: /y/coh.386/RCS/clock.c,v 1.8 92/11/09 17:10:52 root Exp $ */
+int __bolt;
+/* $Header: /ker/coh.386/RCS/clock.c,v 2.6 93/10/29 00:55:00 nigel Exp Locker: nigel $ */
 /* (lgl-
  *	The information contained herein is a trade secret of Mark Williams
  *	Company, and  is confidential information.  It is provided  under a
@@ -13,15 +14,23 @@
  *	All rights reserved.
  -lgl) */
 /*
- * Coherent.
- * Clock.
  * The clock comes in two parts.  There is the routine `clock' which
  * gets called every tick at high priority.  It does the minimum it
  * can and returns as soon as possible.  The second routine, `stand',
  * gets called whenever we are about to return from an interrupt to
- * user mode a low priority.  It can look at flags that the clock set
+ * user mode at low priority.  It can look at flags that the clock set
  * and do the things the clock really wanted to do but didn't have time.
  * Stand is truly the kernel of the system.
+ *
+ * $Log:	clock.c,v $
+ * Revision 2.6  93/10/29  00:55:00  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.5  93/09/02  18:03:30  nigel
+ * Remove spurious globals and unusable #ifdef'd code
+ * 
+ * Revision 2.4  93/08/19  03:26:22  nigel
+ * Nigel's r83 (Stylistic cleanup)
  *
  * 90/08/13	Hal Snyder		/usr/src/sys/coh/clock.c
  * Add external altclk to allow polled device drivers.
@@ -45,38 +54,67 @@
  * 86/11/19	Allan Cornish		/usr/src/sys/coh/clock.c
  * Stand() calls defend() to execute functions deferred from interrupt level.
  */
-#include <sys/coherent.h>
+
+#include <common/_gregset.h>
+#include <common/_tricks.h>
+#include <kernel/ddi_glob.h>
+#include <kernel/ddi_cpu.h>
+#include <sys/cmn_err.h>
+#include <sys/stat.h>
+#include <stddef.h>
+
+#define	_KERNEL		1
+
+#include <kernel/_timers.h>
+#include <kernel/sig_lib.h>
+#include <kernel/timeout.h>
 #include <sys/con.h>
+#include <sys/uproc.h>
 #include <sys/proc.h>
 #include <sys/sched.h>
-#include <sys/stat.h>
-#include <sys/timeout.h>
-#include <sys/mdata.h>
+#include <sys/mmu.h>
+
+
+__EXTERN_C_BEGIN__
+
+int		__RUN_INT_DEFER	__PROTO ((defer_t * deferp));
+
+__EXTERN_C_END__
+
 
 int (*altclk)();	/* pointer to higher-speed clock function */
 
-#ifndef _I386
-int altsel;	/* if nonzero, CS for LOADABLE driver owning altclk() */
+static	int 	clocks;
+static	int	broken_clocks;
+
+#if	TRACER
+
+extern	char	stext;
+extern	char	__end_text;
+
 #endif
 
-int clocks;
+#if	_USE_IDLE_PROCESS
+extern	__proc_t      *	iprocp;
+#endif
+
 
 /*
- * This routine is called once every tick (1/HZ seconds).
- * It gets called with the program counter that was interrupted
- * and the CPL of the interrupted code (0..3).
+ * This routine is the raw clock-interrupt handler, which is normally the
+ * highest-priority interrupt task in the system to avoid lost clock ticks.
  */
-clock(pc, umode)
-caddr_t pc;
+
+#if	__USE_PROTO__
+void clock_intr (int __NOTUSED (arg), __VOID__ * __NOTUSED (intstuff),
+		 gregset_t regset)
+#else
+void
+clock_intr (arg, intstuff, regset)
+int		arg;
+__VOID__      *	intstuff;
+gregset_t	regset;
+#endif
 {
-	register PROC *pp;
-
-	/*
-	 * Ignore clock interrupts till we are ready.
-	 */
-	if (batflag == 0)
-		return;
-
 	/*
 	 * Hook for alternate clock interrupt;
 	 * Call polling function ("altclk") if there is one.
@@ -89,356 +127,364 @@ caddr_t pc;
 	 * far return, far invocation is via ld_call() (ldas.s) which uses
 	 * the despatch routine at CS:4 (ld.s) in any loadable driver.
 	 */
-	if (altclk) {
-#ifndef _I386
-		if (altsel) {	/* will do far call to altclk fn */
-			if (ld_call(altsel, altclk))
-				return;
-		} else
-#endif
-			if ((*altclk)())
-				return;
-	}
+	if (altclk && (* altclk) ())
+		return;
+
+__bolt++;
 
 	/*
 	 * Update timers.  Decrement time slice.
 	 */
-	utimer += 1;
+
 	clocks += 1;
 	timer.t_tick += 1;
-	quantum -= 1;
 
-#ifndef _I386
-	/*
-	 * Give processes their schedule values per tick.
+	/* Ensure we don't bill the wrong process.
+	 *
+	 * The global variable "quantum" is how many clock ticks remain
+	 * for the current running process.
 	 */
-	if (procq.p_lforw->p_cval > CVCLOCK) {
-		procq.p_lforw->p_cval -= CVCLOCK;
-		procq.p_cval += CVCLOCK;
-	}
-#endif
+	if (ddi_cpu_data()->dc_int_level <= 1)
+	  quantum -= 1;
 
 	/*
 	 * Tax current process and update his times.
 	 */
-	pp = SELF;
-#ifndef _I386
-	pp->p_cval >>= 1;
-#endif
-	if (umode == R_USR) {
-		pp->p_utime++;
-		u.u_ppc = pc;
-	} else
-		pp->p_stime++;
-}
 
-/*
- * stand()
- *
- * Called when there is an interrupt or trap.
- */
-stand()
-{
-	int s;
+	if (__IS_USER_REGS (& regset)) {
+		SELF->p_utime ++;
+		u.u_ppc = (caddr_t) __PC_REG (& regset);
+	} else if (! __IS_CPU_IDLE ())
+		SELF->p_stime ++;
+	else
+		ddi_cpu_data ()->dc_idle_ticks ++;
 
-#ifdef TIMING
-	/*
-	 * Every 500th call to stand(), dump logged intervals.
-	 *
-	 * Log a group of events doing
-	 * 	LOGIN(label);
-	 *	...
-	 *	LOGOUT();
-	 *
-	 * If you want to group several selected events in one total,
-	 * do LOGPAUSE() to halt between events and LOGRESUME() to
-	 * add in the time for another event.  Event count is displayed.
-	 * For example:
-	 * 	LOGIN(label);
-	 * 	while (...) {
-	 *		LOGPAUSE();
-	 *		... stuff you don't want timed...
-	 *		LOGRESUME();
-	 *		... stuff you want timed...
-	 *	}
-	 *	LOGOUT();
-	 *
-	 * Display is for the 3 longest intervals seen in latest logging
-	 * period.
-	 *
-	 * Timing between in & out is displayed with ~1 usec resolution.
-	 * Overhead per event is ~20 usec.
-	 */
-	static int call_ct; /* DEBUG */
+#if 0
+	/* Watch size of free clist pool. */
+	{
+		int		i;
+		unsigned long	pc;
+		extern int	nclfree;
 
-	call_ct++;
-	if (call_ct >= 500) {
-		call_ct = 0;
-		LOGLIST();
+		pc = nclfree;
+
+		for (i = 0 ; i < 8 ; i ++) {
+			(* __PTOV (0xB8020UL - i * 2)) =
+				"0123456789ABCDEF" [pc & 0x0F];
+			pc >>= 4;
+		}
 	}
 #endif
 
-	u.u_error = 0;
+#if	0
+	/*
+	 * Put a blob on the screen showing the interrupt nesting level and
+	 * the caller's PC.
+	 */
+
+	(* __PTOV (0xB8000UL)) = ddi_cpu_data ()->dc_int_level + '0';
+
+	if ((timer.t_tick % 50U) != 0)
+		return;
+
+	{
+		int		i;
+		unsigned long	pc;
+
+		pc = st_maxavail (ddi_global_data ()->dg_kmem_heap);
+
+		for (i = 0 ; i < 8 ; i ++) {
+			(* __PTOV (0xB8020UL - i * 2)) =
+				"0123456789ABCDEF" [pc & 0x0F];
+			pc >>= 4;
+		}
+
+		if (st_assert (ddi_global_data ()->dg_kmem_heap) < 0) {
+			char	      *	dest = __PTOV (0xB8050UL);
+
+			memcpy (dest, "B A D   H E A P ", 16);
+		}
+	}
+#endif
+}
+
+
+/*
+ * return_from_interrupt ()
+ *
+ * Called when there has been an interrupt and the system is about to return
+ * from the topmost interrupt context. There may not be any valid process
+ * context at this point.
+ */
+
+#if	__USE_PROTO__
+void return_from_interrupt (void)
+#else
+void
+return_from_interrupt ()
+#endif
+{
+	/*
+	 * Check the timed function queue if necessary. Note that we don't
+	 * manipulate the interrupt mask because there should only be one
+	 * context active here at once. Code in the interrupt-dispatch routine
+	 * and below in return_to_user () deals with ensuring this.
+	 */
+
+	while (clocks) {
+		broken_clocks ++;
+		clocks --;
+
+		/*
+		 * Check the sane DDI/DKI timeout system.
+		 */
+
+		CHECK_TIMEOUT ();
+	}
 
 	/*
-	 * Update the clock.
+	 * Run the DDI/DKI version of the deferred function system.
 	 */
+
+	__CHEAP_DISABLE_INTS ();
+
+	while (__RUN_INT_DEFER (& ddi_global_data ()->dg_defint) ||
+	       __RUN_INT_DEFER (& ddi_cpu_data ()->dc_defint))
+		;	/* DO NOTHING */
+
+	__CHEAP_ENABLE_INTS ();
+}
+
+
+/*
+ * check_clock ()
+ *
+ * This routine deals with the stuff normally done before return to user level
+ * that doesn't relate to the current process. This routine could be called
+ * within an idle look in dispatch () if we don't want to be running a special
+ * idle process.
+ */
+
+void
+check_clock ()
+{
+	int		outflag = 0;
+
+	LOCK_DISPATCH ();
+
+	/*
+	 * Update the clock. This ought to be in the return_from_interrupt ()
+	 * section; needless to say, the stupidity of those who came before
+	 * prevents this...
+	 */
+
 	while (timer.t_tick >= HZ) {
-		timer.t_time++;
+		timer.t_time ++;
 		timer.t_tick -= HZ;
 		outflag = 1;
 	}
 
-	/*
-	 * Check expiration of quantum.
-	 */
-	if (quantum <= 0) {
-		quantum = 0;
-		disflag = 1;
-	}
 
 	/*
-	 * Check the timed function queue if necessary.
+	 * Timeout any devices.
 	 */
-	if (clocks > 0)
-	do {
-		register TIM * np;
-		register TIM * tp;
+
+	if (outflag) {
+		int		n;
+
+		for (n = 0 ; n < drvn ; n ++) {
+			short		s;
+
+			if (drvl [n].d_time == 0)
+				continue;
+
+			s = sphi ();
+			dtime ((dev_t) makedev (n, 0));
+			spl (s);
+		}
+	}
+
+
+	/*
+	 * As is typical for Coherent, the users of this garbage don't
+	 * perform any form of synchronization at all.
+	 */
+
+	while (broken_clocks) {
+		short		s;
+		TIM	      *	np;
+		TIM	      *	tp;
 
 		/*
 		 * Update [serviced] clock ticks since startup.
 		 */
-		lbolt++;
-		clocks--;
+
+		lbolt ++;
+		broken_clocks --;
 
 		/*
 		 * Remove timing list from queue, creating new temporary queue.
 		 */
-		tp = (TIM *) &timq[ lbolt % nel(timq) ];
-		s  = sphi();
+
+		s = sphi ();
 
 		/*
 		 * Scan timing list.
 		 */
-		for (np = tp->t_next; tp = np;) {
 
+		for (np = timq [lbolt % __ARRAY_LENGTH (timq)];
+		     (tp = np) != NULL ;) {
 			/*
 			 * Remember next function in timing list.
 			 * NOTE: Must be done before function is invoked,
 			 *	 since it may start a new timer.
 			 */
+
 			np = tp->t_next;
 
 			/*
 			 * Function has not timed out: leave it on timing list.
 			 */
+
 			if (tp->t_lbolt != lbolt)
 				continue;
 
 			/*
 			 * Remove function from timing list.
 			 */
-			if (tp->t_last->t_next = tp->t_next)
+
+			if ((tp->t_last->t_next = tp->t_next) != NULL)
 				tp->t_next->t_last = tp->t_last;
 			tp->t_last = NULL;
 
 			/*
 			 * Invoke function.
 			 */
-			spl(s);
-			(*tp->t_func)(tp->t_farg, tp);
-			sphi();
+#if	TRACER
+			if ((char *) tp->t_func < (char *) & stext ||
+			    (char *) tp->t_func > (char *) & __end_text)
+				cmn_err (CE_PANIC,
+					 "Bad timeout function %x in timer %x",
+					 (unsigned) tp->t_func,
+					 (unsigned) tp);
+#endif
+
+			spl (s);
+			(* tp->t_func) (tp->t_farg, tp);
+			sphi ();
 		}
 
-		spl(s);
+		spl (s);
+	}
 
-		STREAMS_TIMEOUT ();
-
-	} while (clocks);
 
 	/*
-	 * Timeout any devices.
+	 * Execute deferred functions.
 	 */
-	if (outflag) {
-		register int n;
 
-		outflag = 0;
-		for (n=0; n<drvn; n++) {
-			if (drvl[n].d_time == 0)
-				continue;
-			s = sphi();
-			dtime((dev_t)makedev(n, 0));
-			spl(s);
-		}
+	defend ();
+}
+
+
+/*
+ * return_to_user ()
+ *
+ * Called when there is an interrupt or trap, and the system is about to
+ * return to user mode (or to the idle process, if there is one).
+ */
+
+void
+return_to_user (regset)
+gregset_t	regset;
+{
+	check_clock ();
+
+	/*
+	 * Check expiration of quantum.
+	 */
+
+	if (quantum <= 0) {
+		quantum = 0;
+		disflag = 1;
 	}
+
 
 	/*
 	 * Do profiling.
 	 */
-#ifdef _I386	/* profiling */
-	if (u.u_pscale & ~1) {	/* if scale is not zero or one */
+
+	if (u.u_pscale & ~ 1) {	/* if scale is not zero or one */
 		/*
 		 * Treat u.u_pscale as fixed-point fraction 0xXXXX.YYYY.
 		 * Increment the (short) profiling entry at
 		 *	base + (pc - offset) * scale
 		 */
-		register caddr_t a;
 
-		a = (caddr_t) ((long) (u.u_pbase + pscale(u.u_ppc-u.u_pofft,
-							  u.u_pscale)) & ~1);
+		caddr_t a;
+
+		a = (caddr_t) ((long) (u.u_pbase + pscale (u.u_ppc - u.u_pofft,
+							   u.u_pscale)) & ~ 1);
 		if (a < u.u_pbend)
-			putusd(a, getusd(a)+1);
-	}
-#else		/* profiling */
-	if (u.u_pscale) {
-		register unsigned p;
-		register caddr_t a;
-
-		p = u.u_pscale;
-		a = (int *)u.u_pbase +
-		    pscale((int)(u.u_ppc-u.u_pofft), p/sizeof (int));
-		if (a < u.u_pbend)
-			putuwd(a, getuwd(a)+1);
-	}
-#endif		/* profiling */
-
-	/*
-	 * Check for signals and execute them.
-	 */
-	if (SELF->p_ssig) {
-		actvsig();
+			putusd (a, getusd (a) + 1);
 	}
 
-	/*
-	 * Execute deferred functions.
-	 */
-	defend();
 
 	/*
-	 * Should we dispatch?
+	 * Check for signals and execute them; we pass in the address of the
+	 * user's process context rather than depend on the state of the
+	 * "u.u_regl" global idiocy.
 	 */
-	if ((SELF->p_flags&PFDISP) != 0) {
-		SELF->p_flags &= ~PFDISP;
+#if	0
+cmn_err (CE_NOTE, "calling curr_check_signals from return_to_user, regsetp=%x", &regset);
+#endif
+	curr_check_signals (& regset, NULL);
+
+
+	/*
+	 * Should we dispatch? Note that we don't have to check for whether
+	 * there is an active process because the fact we are executing is
+	 * sufficient.
+	 */
+
+	if ((SELF->p_flags & PFDISP) != 0) {
+		SELF->p_flags &= ~ PFDISP;
 		disflag = 1;
-		if (stimer.t_last != 0)
-			wakeup((char *)&stimer);
 	}
+
 
 	/*
 	 * Redispatch.
 	 */
+
 	if (disflag) {
-		register PROC *pp;
+		short		s = sphi ();
+#if	_USE_IDLE_PROCESS
+		/*
+		 * If we are not running the idle process, save the context of
+		 * the current process.
+		 */
 
-		s=sphi();
-		if ((pp=SELF)!=iprocp)
-			setrun(pp);
-		dispatch();
-		spl(s);
-	}
-
-	STREAMS_SCHEDULER ();
-
-	return;
-}
-
-#ifdef TIMING
-
-#define EIMAX 3
-
-static int label, b_in, t_in;
-static int b_pause, t_pause, e_pause, paused, timing;
-
-struct H_event {
-	int f; /* timing label */
-	int b; /* delta ticks */
-	int t; /* delta timer */
-	int e; /* event count */
-} Ltab[EIMAX];
-
-LOGIN(lab)
-{
-	paused = 0;
-	b_pause = t_pause = 0;
-	e_pause = 1;
-	label = lab;
-	b_in = clocks + lbolt;
-	t_in = read_t0();
-	timing = 1;
-}
-
-LOGOUT()
-{
-	int i;
-
-	if (!timing)
-		return;
-	if (!paused) {
-		b_pause += clocks + lbolt - b_in;
-		t_pause += (t_in - read_t0());
-		if (t_pause < 0)
-			t_pause += 11932;
-	}
-	for (i = 0; i < EIMAX; i++) {
-		if (b_pause > Ltab[i].b) {
-			Ltab[i].b = b_pause;
-			Ltab[i].t = t_pause;
-			Ltab[i].f = label;
-			Ltab[i].e = e_pause;
-			break;
-		} else if (b_pause == Ltab[i].b) {
-			if (t_pause > Ltab[i].t) {
-				Ltab[i].t = t_pause;
-				Ltab[i].f = label;
-				Ltab[i].e = e_pause;
-				break;
-			} else if (t_pause == Ltab[i].t) {
-				break;
-			}
-		}
-	}
-	timing = 0;
-}
-
-LOGLIST()
-{
-	int i, printed = 0;
-
-	for (i = 0; i < EIMAX; i++)
-		if (Ltab[i].t || Ltab[i].b) {
-			if (printed == 0) {
-				printf("\npsw=%x ", read_psw());
-				printed = 1;
-			}
-			printf("f=%x b=%d t=%d e=%d  ",
-			  Ltab[i].f, Ltab[i].b, Ltab[i].t, Ltab[i].e);
-			Ltab[i].f = Ltab[i].b = Ltab[i].t = 0;
-		} else
-			break;
-}
-
-LOGPAUSE()
-{
-	if (!timing)
-		return;
-	if (!paused) {
-		b_pause += clocks + lbolt - b_in;
-		t_pause += (t_in - read_t0());
-		if (t_pause < 0)
-			t_pause += 11932;
-		paused = 1;
-	}
-}
-
-LOGRESUME()
-{
-	if (!timing)
-		return;
-	if (paused) {
-		b_in = clocks + lbolt;
-		t_in = read_t0();
-		paused = 0;
-		e_pause++;
-	}
-}
+		if (SELF != iprocp)
+			process_set_runnable (SELF);
 #endif
+		dispatch ();
+		spl (s);
+	}
+
+
+	/*
+	 * We call the return-from-interrupt code to give early service to
+	 * deferred functions queued while we were running at base level.
+	 *
+	 * We maintain the CPU state variables to prevent an interrupt context
+	 * from entering the return_from_interrupt () code. This is required
+	 * if we want to assume that return_to_interrupt () is only active in
+	 * one context.
+	 */
+
+	ASSERT_BASE_LEVEL ();
+
+	ddi_cpu_data ()->dc_int_level ++;
+	return_from_interrupt ();
+	ddi_cpu_data ()->dc_int_level --;
+}

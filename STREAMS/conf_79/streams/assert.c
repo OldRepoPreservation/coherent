@@ -1,9 +1,13 @@
+/* $Header: $ */
+
 #define	_DDI_DKI	1
 #define	_SYSV4		1
 
 /*
  * This file contains the definition for the kernel assertion helper function
  * __assert_fail (), and a manual page for ASSERT ().
+ *
+ * $Log: $
  */
 
 /*
@@ -109,15 +113,14 @@
  */
 
 #if	__USE_PROTO__
-int (__assert_fail) (__CONST__ char * exp)
+__NO_RETURN__ (__assert_fail) (__CONST__ char * exp)
 #else
-int
+void
 __assert_fail __ARGS ((exp))
 __CONST__ char * exp;
 #endif
 {
 	cmn_err (CE_PANIC, "Assertion \"%s\" failed", exp);
-	return 0;
 }
 
 
@@ -167,10 +170,10 @@ __CONST__ char * exp;
  */
 
 #if	__USE_PROTO__
-int (__assert_fail2) (__CONST__ char * exp, __CONST__ char * info,
-		     int lineno)
+__NO_RETURN__ (__assert_fail2) (__CONST__ char * exp, __CONST__ char *
+		info, int lineno)
 #else
-int
+void
 __assert_fail2 __ARGS ((exp, info, lineno))
 __CONST__ char * exp;
 __CONST__ char * info;
@@ -181,5 +184,4 @@ int		lineno;
 		 lineno == 0 ? "Assertion \"%s\" failed in %s" :
 			       "Assertion \"%s\" failed in %s at line %d",
 		 exp, info, lineno);
-	return 0;
 }

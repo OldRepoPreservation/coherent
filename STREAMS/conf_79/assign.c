@@ -3,7 +3,7 @@
 
 /*
  * This file assigns device major and minor numbers based on configuration
- * data read in by "mkdev.c".
+ * data read in by "devadm.c".
  */
 /*
  *-IMPORTS:
@@ -12,8 +12,7 @@
  *		PROTO
  *		ARGS ()
  *		LOCAL
- *	<kernel/v_types.h>
- *		NODEV
+ *	<sys/types.h>
  *		major_t
  *		minor_t
  *	<stddef.h>
@@ -31,24 +30,30 @@
  */
 
 #include <sys/compat.h>
-#include <kernel/v_types.h>
+#include <sys/types.h>
 #include <stddef.h>
 #include <stdlib.h>
 
 #include "ehand.h"
 #include "mdev.h"
+#include "ecodes.h"
 
 #include "assign.h"
+
+#ifndef	NODEV
+# define	((major_t) -1)
+#endif
+
 
 /*
  * Selection predicate for choosing enabled character devices.
  */
 
-#ifdef	USE_PROTO
-LOCAL int (chr_sel) (mdev_t * mdevp)
+#if	USE_PROTO
+LOCAL int chr_sel (mdev_t * mdevp)
 #else
 LOCAL int
-chr_sel ARGS ((mdevp))
+chr_sel (mdevp)
 mdev_t	      *	mdevp;
 #endif
 {
@@ -62,11 +67,11 @@ mdev_t	      *	mdevp;
  * external character-device number.
  */
 
-#ifdef	USE_PROTO
-LOCAL int (chr_pred) (mdev_t * left, mdev_t * right)
+#if	USE_PROTO
+LOCAL int chr_pred (mdev_t * left, mdev_t * right)
 #else
 LOCAL int
-chr_pred ARGS ((left, right))
+chr_pred (left, right)
 mdev_t	      *	left;
 mdev_t	      *	right;
 #endif
@@ -79,11 +84,11 @@ mdev_t	      *	right;
  * Selection predicate for choosing enabled block devices.
  */
 
-#ifdef	USE_PROTO
-LOCAL int (blk_sel) (mdev_t * mdevp)
+#if	USE_PROTO
+LOCAL int blk_sel (mdev_t * mdevp)
 #else
 LOCAL int
-blk_sel ARGS ((mdevp))
+blk_sel (mdevp)
 mdev_t	      *	mdevp;
 #endif
 {
@@ -97,11 +102,11 @@ mdev_t	      *	mdevp;
  * external block-device number.
  */
 
-#ifdef	USE_PROTO
-LOCAL int (blk_pred) (mdev_t * left, mdev_t * right)
+#if	USE_PROTO
+LOCAL int blk_pred (mdev_t * left, mdev_t * right)
 #else
 LOCAL int
-blk_pred ARGS ((left, right))
+blk_pred (left, right)
 mdev_t	      *	left;
 mdev_t	      *	right;
 #endif
@@ -114,17 +119,51 @@ mdev_t	      *	right;
  * Predicate for selecting modules (streams drivers that are not devices).
  */
 
-#ifdef	USE_PROTO
-LOCAL int (mod_sel) (mdev_t * mdevp)
+#if	USE_PROTO
+LOCAL int mod_sel (mdev_t * mdevp)
 #else
 LOCAL int
-mod_sel ARGS ((mdevp))
+mod_sel (mdevp)
 mdev_t	      *	mdevp;
 #endif
 {
 	return mdevp->md_configure == MD_ENABLED &&
 	       mdev_flag (mdevp, MDEV_STREAM) &&
 	       ! mdev_flag (mdevp, MDEV_CHAR);
+}
+
+
+/*
+ * Predicate for selecting Coherent drivers.
+ */
+
+#if	USE_PROTO
+LOCAL int coh_sel (mdev_t * mdevp)
+#else
+LOCAL int
+coh_sel (mdevp)
+mdev_t	      *	mdevp;
+#endif
+{
+	return mdevp->md_configure == MD_ENABLED &&
+	       mdev_flag (mdevp, MDEV_COHERENT);
+}
+
+
+/*
+ * Predicate for comparing two Coherent devices on the basis of major number.
+ */
+
+#if	USE_PROTO
+LOCAL int coh_pred (mdev_t * left, mdev_t * right)
+#else
+LOCAL int
+coh_pred (left, right)
+mdev_t	      *	left;
+mdev_t	      *	right;
+#endif
+{
+	return left->md_blk_maj [0] < right->md_blk_maj [0];
 }
 
 
@@ -198,7 +237,7 @@ mdev_t	      *	mdevp;
  * attempt to deal with assigning major number ranges.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 extinfo_t * (assign_imajors) (void)
 #else
 extinfo_t *
@@ -206,9 +245,16 @@ assign_imajors ARGS (())
 #endif
 {
 	extinfo_t     *	extinfop;
-	mdlist_t	blklist;
-	mdlist_t	chrlist;
-	mdlist_t	modlist;
+	mdev_t	      *	blk_list;
+	mdev_t	      *	blk_end;
+	mdev_t	      *	chr_list;
+	mdev_t	      *	chr_end;
+	mdev_t	      *	mod_list;
+	mdev_t	      *	coh_list;
+	int		n_blk_list;
+	int		n_chr_list;
+	int		n_mod_list;
+	int		n_coh_list;
 
 	int		nemajors;
 	int		i;
@@ -223,17 +269,22 @@ assign_imajors ARGS (())
 	 * external number used.
 	 */
 
-	mdev_sort (& chrlist, chr_sel, chr_pred, offsetof (mdev_t, md_link1));
-	mdev_sort (& blklist, blk_sel, blk_pred, offsetof (mdev_t, md_link2));
-	mdev_sort (& modlist, mod_sel, NULL, offsetof (mdev_t, md_link3));
+	n_chr_list = mdev_sort (& chr_list, & chr_end, chr_sel, chr_pred,
+				offsetof (mdev_t, md_chrlink));
+	n_blk_list = mdev_sort (& blk_list, & blk_end, blk_sel, blk_pred,
+				offsetof (mdev_t, md_blklink));
+	n_mod_list = mdev_sort (& mod_list, NULL, mod_sel, NULL,
+				offsetof (mdev_t, md_modlink));
+	n_coh_list = mdev_sort (& coh_list, NULL, coh_sel, coh_pred,
+				offsetof (mdev_t, md_cohlink));
 
 	nemajors = 0;
 
-	if (chrlist.mdl_last != NULL)
-		nemajors = MAX (nemajors, chrlist.mdl_last->md_chr_maj [1]);
+	if (chr_end != NULL)
+		nemajors = MAX (nemajors, chr_end->md_chr_maj [1]);
 
-	if (blklist.mdl_last != NULL)
-		nemajors = MAX (nemajors, blklist.mdl_last->md_blk_maj [1]);
+	if (blk_end != NULL)
+		nemajors = MAX (nemajors, blk_end->md_blk_maj [1]);
 
 	nemajors ++;
 
@@ -244,24 +295,23 @@ assign_imajors ARGS (())
 	 */
 
 	i = sizeof (* extinfop) +
-	    sizeof (mdev_t *) * (MAX_CHR_IMAJORS (chrlist.mdl_count,
-						  blklist.mdl_count) +
-				 MAX_BLK_IMAJORS (chrlist.mdl_count,
-						  blklist.mdl_count) +
-				 modlist.mdl_count) +
+	    sizeof (mdev_t *) * (MAX_CHR_IMAJORS (n_chr_list, n_blk_list) +
+				 MAX_BLK_IMAJORS (n_chr_list, n_blk_list) +
+				 n_mod_list + n_coh_list) +
 	    2 * sizeof (minor_t) * nemajors;
 
 	if ((extinfop = (extinfo_t *) malloc (i)) == NULL)
-		throw_error ("insufficient memory in assign_imajors ()");
+		throw_error (NO_MEMORY,
+			     "insufficient memory in assign_imajors ()");
 
 	extinfop->ei_etoimajor = (minor_t *) (extinfop + 1);
 	extinfop->ei_minoroffset = extinfop->ei_etoimajor + nemajors;
 	extinfop->ei_modules = (mdev_t **) (extinfop->ei_minoroffset +
 					    nemajors);
-	extinfop->ei_cdevsw = extinfop->ei_modules + modlist.mdl_count;
+	extinfop->ei_cohdrivers = extinfop->ei_modules + n_mod_list;
+	extinfop->ei_cdevsw = extinfop->ei_cohdrivers + n_coh_list;
 	extinfop->ei_bdevsw = extinfop->ei_cdevsw +
-				MAX_CHR_IMAJORS (chrlist.mdl_count,
-						 blklist.mdl_count);
+				MAX_CHR_IMAJORS (n_chr_list, n_blk_list);
 
 	/*
 	 * Since we allocate space for the maximum number of table entries,
@@ -272,7 +322,8 @@ assign_imajors ARGS (())
 	extinfop->ei_nemajors = nemajors;
 	extinfop->ei_ncdevs = 0;
 	extinfop->ei_nbdevs = 0;
-	extinfop->ei_nmodules = modlist.mdl_count;
+	extinfop->ei_nmodules = n_mod_list;
+	extinfop->ei_ncohdrivers = n_coh_list;
 
 	for (i = 0 ; i < nemajors ; i ++) {
 
@@ -281,19 +332,14 @@ assign_imajors ARGS (())
 	}
 
 
-	for (i = 0 ; i < MAX_CHR_IMAJORS (chrlist.mdl_count,
-					  blklist.mdl_count) ; i ++) {
+	for (i = 0 ; i < MAX_CHR_IMAJORS (n_chr_list, n_blk_list) ; i ++)
 		extinfop->ei_cdevsw [i] = NULL;
-	}
 
-	for (i = 0 ; i < MAX_BLK_IMAJORS (chrlist.mdl_count,
-					  blklist.mdl_count) ; i ++) {
+	for (i = 0 ; i < MAX_BLK_IMAJORS (n_chr_list, n_blk_list) ; i ++)
 		extinfop->ei_bdevsw [i] = NULL;
-	}
 
 
-
-	while (chrlist.mdl_first != NULL || blklist.mdl_first != NULL) {
+	while (chr_list != NULL || blk_list != NULL) {
 		mdev_t	      *	chrp;
 		mdev_t	      *	blkp;
 		int		extlo;
@@ -309,9 +355,9 @@ assign_imajors ARGS (())
 		 * external numbers, then we deal with that.
 		 */
 
-		blkp = blklist.mdl_first;
+		blkp = blk_list;
 
-		if ((chrp = chrlist.mdl_first) != NULL) {
+		if ((chrp = chr_list) != NULL) {
 
 			extlo = chrp->md_chr_maj [0];
 			exthi = chrp->md_chr_maj [1];
@@ -342,7 +388,8 @@ assign_imajors ARGS (())
 				     exthi > extlo)) {
 
 					free (extinfop);
-					throw_error ("minor number mapping conflict");
+					throw_error (FORMAT_ERROR,
+						     "minor number mapping conflict");
 				}
 
 
@@ -374,7 +421,8 @@ dochar:
 			if (internal > extinfop->ei_ncdevs) {
 
 				free (extinfop);
-				throw_error ("internal check failed, assign_imajors ()");
+				throw_error (INTERNAL_ERROR,
+					     "internal check failed, assign_imajors ()");
 			}
 		} else {
 			/*
@@ -395,7 +443,8 @@ doblock:
 			if (internal > extinfop->ei_nbdevs) {
 
 				free (extinfop);
-				throw_error ("internal check failed, assign_imajors ()");
+				throw_error (INTERNAL_ERROR,
+					     "internal check failed, assign_imajors ()");
 			}
 		}
 done:
@@ -411,7 +460,8 @@ done:
 			if (extinfop->ei_etoimajor [extlo] != NODEV) {
 
 				free (extinfop);
-				throw_error ("major-number mapping conflict");
+				throw_error (FORMAT_ERROR,
+					     "major-number mapping conflict");
 			}
 
 			extinfop->ei_etoimajor [extlo] = internal;
@@ -426,7 +476,7 @@ done:
 			if (internal >= extinfop->ei_ncdevs)
 				extinfop->ei_ncdevs = internal + 1;
 
-			chrlist.mdl_first = chrp->md_link1;
+			chr_list = chrp->md_chrlink;
 		}
 
 
@@ -435,7 +485,7 @@ done:
 			if (internal >= extinfop->ei_nbdevs)
 				extinfop->ei_nbdevs = internal + 1;
 
-			blklist.mdl_first = blkp->md_link2;
+			blk_list = blkp->md_blklink;
 		}
 	}
 
@@ -446,18 +496,24 @@ done:
 
 	i = 0;
 
-	while (modlist.mdl_first != NULL) {
+	while (mod_list != NULL) {
 
-		extinfop->ei_modules [i ++] = modlist.mdl_first;
-
-		modlist.mdl_first = modlist.mdl_first->md_link3;
+		extinfop->ei_modules [i ++] = mod_list;
+		mod_list = mod_list->md_modlink;
 	}
 
-	if (i != modlist.mdl_count) {
 
-		free (extinfop);
-		throw_error ("internal consistency check failed in assign_imajors ()");
-        }
+	/*
+	 * Now we can build a table of all the Coherent drivers.
+	 */
+
+	i = 0;
+
+	while (coh_list != NULL) {
+
+		extinfop->ei_cohdrivers [i ++] = coh_list;
+		coh_list = coh_list->md_cohlink;
+	}
 
 	return extinfop;
 }

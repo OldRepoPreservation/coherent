@@ -4,6 +4,8 @@
 / rindex() entry point to strrchr(), retained for backward compatability.
 //////////
 
+	.intelorder
+
 //////////
 / char *
 / rindex(char *String, int Char)

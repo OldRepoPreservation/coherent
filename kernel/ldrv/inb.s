@@ -1,35 +1,18 @@
-/ $Header: /usr/src/sys/ldrv/RCS/inb.s,v 1.1 88/03/24 16:30:39 src Exp $
-/
-/	The  information  contained herein  is a trade secret  of INETCO
-/	Systems, and is confidential information.   It is provided under
-/	a license agreement,  and may be copied or disclosed  only under
-/	the terms of that agreement.   Any reproduction or disclosure of
-/	this  material  without  the express  written  authorization  of
-/	INETCO Systems or persuant to the license agreement is unlawful.
-/
-/	Copyright (c) 1988
-/	An unpublished work by INETCO Systems, Ltd.
-/	All rights reserved.
-/
-/ $Log:	/usr/src/sys/ldrv/RCS/inb.s,v $
-/ Revision 1.1	88/03/24  16:30:39	src
-/ Initial revision
-/ 
-/
-////////
+/ $Header: $
+		.unixorder
 
-////////
+/ inb (), as per the System V DDI/DKI:
+/ 	uchar_t inb (int _port);
 /
-/ Basic port level I/O.
+/ The header file <kernel/x86io.h> contains the prototype.
+/ $Log: $
 /
-/ int	inb(port);
-/
-////////
+		.text
+		.globl	inb
 
-	.globl	inb_
+port		=	4
 
-inb_:	mov	bx, sp
-	mov	dx, 2(bx)
-	sub	ax, ax
-	inb	al, dx
-	ret
+inb:		mov	port(%esp), %edx	/ port
+		sub	%eax, %eax		/ cheap zero-fill
+		inb	(%dx)
+		ret

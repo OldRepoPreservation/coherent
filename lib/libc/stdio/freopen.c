@@ -6,7 +6,7 @@
  * Open file with specified stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 FILE *
 freopen(filename, mode, stream) const char *filename, *mode; FILE *stream;

@@ -44,8 +44,8 @@ char *optstring;
 
 	if ((place = strchr(optstring, c = *scan++)) == NULL ||
 	     c == ':' || c == '!')
-		fatal("unknown command option %c", c);
-
+		fatal("Unknown command option %c", c);
+		/**/
 	if (((a = place[1]) == ':') || (a == '!')) {
 		if (*scan || (a == '!')) {
 			optarg = scan;
@@ -53,7 +53,8 @@ char *optstring;
 		} else if (optix < argc)
 			optarg = argv[optix++];
 		else
-			fatal("command option %c missing its argument", c);
+			fatal("Command option '%c' missing its argument", c);
+			/**/
 	}
 
 	return(c);

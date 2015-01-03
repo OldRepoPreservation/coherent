@@ -1,17 +1,84 @@
-# makefile for FP emulation.
+# Standard 'conf'-system makefile with productions for standardized targets;
+# 'make install', 'make clean', 'make manifest', 'make setup', 'make distrib'
+# See the top-level 'conf' system Makefile for more details.
 
-INSTALL_DIR= ..
+INSTALL_DIR=..
+PREFIX=.
+MANIFEST=$(PREFIX)/src
+MAKEFILE=Makefile
+USRINC=/usr/include
+GCC=gcc
+GCCFLAGS=-O2 $(CFLAGS) -Wall -ansi -pedantic
+GLDFLAGS=-nostdlib /lib/crts0.o
+GLIBFLAGS=/lib/libc.a
 
-all: $(INSTALL_DIR)/Driver.o $(INSTALL_DIR)/Stub.o $(INSTALL_DIR)/Space.c
+DRIVER=$(INSTALL_DIR)/Driver.o
 
-$(INSTALL_DIR)/Stub.o : stub.c
-	$(CC) $(CFLAGS) -o $@ -c stub.c
+TARGETS=$(DRIVER)
 
-$(INSTALL_DIR)/Driver.o: ../obj/em87.o
-	ln $< $@
+OBJS=
 
-$(INSTALL_DIR)/Space.c: Space.c
-	ln Space.c $(INSTALL_DIR)
+all: $(TARGETS)
+
+gcc:
+	+@exec make "CC=$(GCC)" "CFLAGS=$(GCCFLAGS)" \
+		    "LDFLAGS=$(GLDFLAGS)" "LIBFLAGS=$(GLIBFLAGS)" \
+		    -f $(MAKEFILE)
+
+install setup:
 
 clean:
-	rm -f $(OBJS) $(INSTALL_DIR)/Stub.o
+	rm -f $(TARGETS)
+
+manifest:
+	@for i in *; do \
+		case $$i in \
+		RCS)	;; \
+		*)	echo $(MANIFEST)/$$i \
+			;; \
+		esac \
+	done
+
+distrib:
+	@for i in $(TARGETS); do echo $(PREFIX)/$${i\#$(INSTALL_DIR)/}; done
+
+$(DRIVER): fdc.c
+	$(CC) $(CFLAGS) -o $@ -c fdc.c
+
+depend:
+	echo > makedep
+	grep "^\#include" * \
+		| sed 's/\(.*\)\.c:.*"\(.*\)".*/$$(TARGETS): \2/' \
+		| sed '/\#include/d' >> makedep
+	grep "^\#include" * \
+		| sed 's/\(.*\)\.c:.*<\(.*\)>.*/$$(TARGETS): $$(USRINC)\/\2/' \
+		| sed '/\#include/d' >> makedep
+	grep "^\#include" * \
+		| sed 's/\(.*\)\.spc:.*<\(.*\)>.*/$$(INSTALL_DIR)\/\1.c: $$(USRINC)\/\2/' \
+		| sed '/\#include/d' >> makedep
+	echo '/^\# DO NOT DELETE THIS LINE/+1,$$d' > eddep
+	echo '$$r makedep' >> eddep
+	echo 'w' >> eddep
+	ed $(MAKEFILE) < eddep
+	rm makedep eddep
+	echo >> $(MAKEFILE)
+	echo "\# DEPENDENCIES MUST END AT END OF FILE:" \
+	     "IF YOU PUT STUFF HERE, IT WILL GO AWAY" >> $(MAKEFILE)
+	echo "\# See make depend, above" >> $(MAKEFILE)
+
+# DO NOT DELETE THIS LINE - make depend needs it
+
+$(TARGETS): $(USRINC)/sys/errno.h
+$(TARGETS): $(USRINC)/sys/cred.h
+$(TARGETS): $(USRINC)/sys/stat.h
+$(TARGETS): $(USRINC)/sys/coherent.h
+$(TARGETS): $(USRINC)/kernel/trace.h
+$(TARGETS): $(USRINC)/sys/uproc.h
+$(TARGETS): $(USRINC)/sys/buf.h
+$(TARGETS): $(USRINC)/sys/con.h
+$(TARGETS): $(USRINC)/sys/devices.h
+$(TARGETS): $(USRINC)/sys/dmac.h
+$(TARGETS): $(USRINC)/sys/fdc765.h
+
+# DEPENDENCIES MUST END AT END OF FILE: IF YOU PUT STUFF HERE, IT WILL GO AWAY
+# See make depend, above

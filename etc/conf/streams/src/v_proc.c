@@ -27,13 +27,15 @@
  *		__LOCAL__
  *	<common/_siginfo.h>
  *		__siginfo_t
+ *	<common/_tricks.h>
+ *		__ARRAY_LENGTH ()
  *	<kernel/ddi_proc.h>
  *		ddi_proc_data ()
  *	<kernel/ddi_glob.h>
  *		ddi_global_data ()
  *	<kernel/ddi_lock.h>
  *		proc_global_priority
- *	<kernel/sigproc.h>
+ *	<kernel/sig_lib.h>
  *		proc_send_signal ()
  *	<sys/debug.h>
  *		ASSERT ()
@@ -48,13 +50,16 @@
  *		SIGTSTP
  */
 
+#include <common/feature.h>
 #include <common/ccompat.h>
 #include <common/xdebug.h>
 #include <common/_siginfo.h>
+#include <common/_tricks.h>
 #include <kernel/ddi_proc.h>
 #include <kernel/ddi_glob.h>
 #include <kernel/ddi_lock.h>
-#include <kernel/sigproc.h>
+#include <kernel/sig_lib.h>
+#include <sys/cmn_err.h>
 #include <sys/debug.h>
 #include <sys/types.h>
 #include <sys/inline.h>
@@ -80,13 +85,14 @@ typedef	unsigned short	pri_t;
 
 #if	__COHERENT__
 
-#define	__KERNEL__	2
+#define	_KERNEL		1
+
 #include <sys/sched.h>
-#undef	__KERNEL__
+#include <sys/proc.h>
 
 __sleep_t	x_sleep		__PROTO ((__VOID__ * _addr, int _pri,
 					  int _how, char * where));
-void		dwakeup		__PROTO ((__VOID__ * _addr));
+void		wakeup		__PROTO ((__VOID__ * _addr));
 
 #define	DPDATA_TO_PROC(dpdata)	__DOWNCAST (PROC, p_ddi_space, dpdata)
 #define	PNODE_TO_PROC(pnode)	DPDATA_TO_PROC (__DOWNCAST (dpdata_t, \
@@ -106,9 +112,10 @@ int		priority;
 int		flag;
 #endif
 {
-	pnode_t	      *	pnode = PROCESS_PNODE ();
+	pnode_t	      *	pnodep = PROCESS_PNODE ();
 	int		state;
 
+	ASSERT (ATOMIC_FETCH_PTR (pnodep->pn_plistp) == plistp);
 
 	/*
 	 * We expect to be running with interrupts disabled, so there's no
@@ -119,7 +126,7 @@ int		flag;
 	for (;;) {
 		PLIST_UNLOCK (plistp, plhi);
 
-		(void) x_sleep (pnode, priority,
+		(void) x_sleep (pnodep, priority,
 				flag == SLEEP_INTERRUPTIBLE ? slpriSigCatch :
 							      slpriNoSig,
 				"DDI/DKI");
@@ -136,7 +143,7 @@ int		flag;
 
 		(void) PLIST_LOCK (plistp, "KERNEL_SLEEP");
 
-		if (ATOMIC_FETCH_PTR (pnode->pn_plistp) == 0) {
+		if (ATOMIC_FETCH_PTR (pnodep->pn_plistp) == NULL) {
 			state = PROCESS_NORMAL_WAKE;
 			break;	/* dequeued, normal wakeup */
 		}
@@ -156,10 +163,10 @@ int		flag;
 			 * return the indication.
 			 */
 
-			plistp->pl_head = pnode->pn_next;
-			pnode->pn_next->pn_prev = NULL;
+			plistp->pl_head = pnodep->pn_next;
+			pnodep->pn_next->pn_prev = NULL;
 
-			ATOMIC_CLEAR_PTR (pnode->pn_plistp);
+			ATOMIC_CLEAR_PTR (pnodep->pn_plistp);
 
 			state = PROCESS_SIGNALLED;
 			break;
@@ -190,7 +197,8 @@ KERNEL_WAKE __ARGS ((pnodep))
 pnode_t	      *	pnodep;
 #endif
 {
-	dwakeup (pnodep);		/* don't defer this */
+	ATOMIC_CLEAR_PTR (pnodep->pn_plistp);
+	wakeup (pnodep);		/* don't defer this */
 }
 
 
@@ -225,7 +233,7 @@ int		sig;
 }
 
 
-#else
+#else	/* if ! __COHERENT__ */
 
 
 uarea_t		_dos_uarea_;
@@ -234,8 +242,8 @@ proc_t		_dos_proc_;
 #define	PNODE_TO_PROC(pnodep)	__DOWNCAST (proc_t, p_nigel, \
 				    __DOWNCAST (dpdata_t, dp_pnode, pnodep))
 
-#include <sys/cmn_err.h>
-#include <bios.h>
+# include <sys/cmn_err.h>
+# include <bios.h>
 
 
 /*
@@ -348,8 +356,6 @@ __LOCAL__ pri_t _pri_map [] = {
  * the main kernel dispatched is invoked.
  */
 
-#define	ARRAY_MAX(array)	(sizeof (array) / sizeof ((array) [0]))
-
 #if	__USE_PROTO__
 __sleep_t (MAKE_SLEEPING) (plist_t * plistp, int priority, int flag)
 #else
@@ -368,7 +374,7 @@ int		flag;
 	ASSERT (plistp != NULL);
 	PLIST_ASSERT_LOCKED (plistp);
 
-	ASSERT (priority >= 0 && priority < ARRAY_MAX (_pri_map));
+	ASSERT (priority >= 0 && priority < __ARRAY_LENGTH (_pri_map));
 	ASSERT (flag == SLEEP_NO_SIGNALS || flag == SLEEP_INTERRUPTIBLE);
 
 	/*
@@ -450,8 +456,8 @@ plist_t	      *	plistp;
 		 * make it runnable.
 		 */
 
-		plistp->pl_head = pnodep->pn_next;
-		pnodep->pn_next->pn_prev = NULL;
+		if ((plistp->pl_head = pnodep->pn_next) != NULL)
+			pnodep->pn_next->pn_prev = NULL;
 
 		KERNEL_WAKE (pnodep);
 

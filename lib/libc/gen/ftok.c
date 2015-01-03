@@ -6,6 +6,7 @@
 
 #include <sys/ipc.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 key_t
 ftok(name, id)

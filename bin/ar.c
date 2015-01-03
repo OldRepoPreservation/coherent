@@ -1,10 +1,12 @@
 /*
+ * ar.c
  * Archive manager.
  * Also manages libraries for the
  * link editor,
  * including ranlib header updates.
  */
-#define PORTAR	1	/* COFF frmat */
+
+#define PORTAR	1	/* COFF format */
 
 #ifdef COHERENT
 #define SLASH '/'
@@ -24,6 +26,7 @@
 #endif
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 #define	RO	0
 #define	RW	1
@@ -36,12 +39,12 @@
 #define	NOTALL	1
 #define	ERROR	2
 
-#define	aechk()	{ if(ferror(afp)) ioerr(anp); }
-#define	techk()	{ if(ferror(tfp)) ioerr(tnp); }
+#define	aechk()	{ if (ferror(afp)) ioerr(anp); }
+#define	techk()	{ if (ferror(tfp)) ioerr(tnp); }
 
 char	nwork[] = "No work";
-char	found[]	= "found";
-char	copen[]	= "%s: cannot open";
+char	found[] = "found";
+char	copen[] = "%s: cannot open";
 char	ccrea[] = "%s: cannot create";
 char	creop[] = "%s: cannot reopen";
 
@@ -70,6 +73,7 @@ char	**namep;
 int	cflag;
 int	kflag;
 int	lflag;
+int	pflag;
 int	sflag;
 int	uflag;
 int	vflag;
@@ -180,6 +184,7 @@ register char *p;
 
 		case 'p':	/* Print */
 			ffp = pfunc;
+			++pflag;
 			break;
 
 		case 'm':	/* Move */
@@ -239,7 +244,7 @@ seekPast()
 	long len;
 
 	len = (ahb.ar_size + 1) & ~1;
-	fseek(afp, len, 1);
+	fseek(afp, len, SEEK_CUR);
 }
 
 /*
@@ -262,30 +267,30 @@ rfunc()
 	ropen();	/* maybe open ranlib */
 	if (uflag) {
 		update();
-		fseek(afp, (long)SARMAG, 0);	/* bypass magic */
+		fseek(afp, (long)SARMAG, SEEK_SET);	/* bypass magic */
 		if (rfp != NULL) {
 			geth();
 			if (eqh(rnp))	/* if SYMBOL header bypass */
 				seekPast();
 			else
-				fseek(afp, (long)SARMAG, 0);
+				fseek(afp, (long)SARMAG, SEEK_SET);
 		}
 	}
 	topen();	/* open tmpfile */
 	while (nef = geth()) {
-		if (pos==BEFORE && eqh(pnp)) {
-			fseek(afp, (long)-sizeof(struct ar_hdr), 1);
+		if (pos == BEFORE && eqh(pnp)) {
+			fseek(afp, (long)-sizeof(struct ar_hdr), SEEK_CUR);
 			break;
 		}
 		if (pos == NONE) {
-			for (i=0; i<nname; ++i) {
-				if ((qfn=namep[i])!=NULL && eqh(qfn))
+			for (i = 0; i < nname; ++i) {
+				if ((qfn = namep[i]) != NULL && eqh(qfn))
 					break;
 			}
 			if (i != nname) {
 				seekPast();
 				namep[i] = NULL;
-				remove(i, qfn);
+				list_remove(i, qfn);
 				qfp = makeh(qfn);
 				if (vflag)
 					printf("%s: in place replace.\n", qfn);
@@ -296,15 +301,15 @@ rfunc()
 			}
 		}
 		mmove(0);
-		if (pos==AFTER &&  eqh(pnp))
+		if (pos == AFTER && eqh(pnp))
 			break;
 	}
-	if (nef==0 && pos!=NONE)
+	if (nef == 0 && pos != NONE)
 		diag(1, "%s: not in archive", pnp);
-	for (i=0; i<nname; ++i) {
-		if ((qfn=namep[i]) == NULL)
+	for (i = 0; i < nname; ++i) {
+		if ((qfn = namep[i]) == NULL)
 			continue;
-		remove(i, qfn);
+		list_remove(i, qfn);
 		qfp = makeh(qfn);
 		if (vflag)
 			printf("%s: replaced.\n", qfn);
@@ -332,22 +337,22 @@ update()
 	struct stat sb;
 
 	while (geth()) {
-		for (i=0; i<nname; ++i) {
+		for (i = 0; i < nname; ++i) {
 			p = namep[i];
-			if (p!=NULL && eqh(p)) {
+			if (p != NULL && eqh(p)) {
 				if (stat(p, &sb) < 0)
 					diag(1, state, p);
 				if (ahb.ar_date >= sb.st_mtime) {
 					if (vflag)
 						printf("%s: no update.\n", p);
 					namep[i] = NULL;
-					remove(i, p);
+					list_remove(i, p);
 				}
 			}
 		}
 		seekPast();
 	}
-	for (i=0; i<nname && namep[i]==NULL; ++i)
+	for (i = 0; i < nname && namep[i] == NULL; ++i)
 		;
 	if (i >= nname) {
 		if (vflag)
@@ -372,22 +377,22 @@ mfunc()
 	ropen();
 	topen();
 	while (nef = geth()) {
-		if (pos==BEFORE && eqh(pnp))
+		if (pos == BEFORE && eqh(pnp))
 			break;
 		mmove(0);
-		if (pos==AFTER &&  eqh(pnp))
+		if (pos == AFTER && eqh(pnp))
 			break;
 	}
-	if (nef==0 && pos!=NONE)
+	if (nef == 0 && pos != NONE)
 		diag(1, "%s: not in archive", pnp);
 	s = ftell(afp);
 	if (pos == BEFORE)
 		s -= sizeof(struct ar_hdr);
-	fseek(afp, (long)SARMAG, 0);
+	fseek(afp, (long)SARMAG, SEEK_SET);
 	while (geth())
 		mmove(1);
 	if (nef) {
-		fseek(afp, s, 0);
+		fseek(afp, s, SEEK_SET);
 		while (geth())
 			mmove(0);
 	}
@@ -406,7 +411,7 @@ register f1;
 	register long size;
 
 	f2 = 0;
-	for (i=0; i<nname; ++i) {
+	for (i = 0; i < nname; ++i) {
 		if (eqh(namep[i])) {
 			++f2;
 			break;
@@ -432,7 +437,7 @@ pfunc()
 {
 	aopen(RO);
 	while (geth()) {
-		if (nname==0 || match())
+		if (nname == 0 || match())
 			pfile();
 		else
 			seekPast();
@@ -498,15 +503,15 @@ qfunc()
 		diag(1, nwork);
 	aopen(RW);
 	if (geth() != 0 && eqh(rnp)) {
-		fseek(afp, (long)-sizeof(ahb), 1);
+		fseek(afp, (long)-sizeof(ahb), SEEK_CUR);
 		ahb.ar_date = 0;
 		puth(afp, anp);
 	}
-	fseek(afp, (long)0, 2);
-	for (i=0; i<nname; ++i) {
-		if ((qfn=namep[i]) == NULL)
+	fseek(afp, (long)0, SEEK_END);
+	for (i = 0; i < nname; ++i) {
+		if ((qfn = namep[i]) == NULL)
 			continue;
-		remove(i, qfn);
+		list_remove(i, qfn);
 		qfp = makeh(qfn);
 		if (vflag)
 			printf("%s: quick insert.\n", qfn);
@@ -529,22 +534,22 @@ tfunc()
 
 	aopen(RO);
 	while (geth()) {
-		if (nname==0 || match()) {
+		if (nname == 0 || match()) {
 			if (!*(p = ahb.ar_name)) {
 				seekPast();
 				continue;
 			}
 			n = 0;
-			while (n<DIRSIZ && (c=*p++)) {
+			while (n < DIRSIZ && (c = *p++)) {
 				putchar(c);
 				++n;
 			}
 			if (vflag) {
-				while (n++ < DIRSIZ+1)
+				while (n++ < DIRSIZ + 1)
 					putchar(' ');
 #if COHERENT
 				printf("%5d %5d ", ahb.ar_gid, ahb.ar_uid);
-				printf("%03o ",  ahb.ar_mode & 0777);
+				printf("%04o ",  ahb.ar_mode & 07777);
 #endif
 				printf("%10ld ", ahb.ar_size);
 				printf("%s", ctime(&ahb.ar_date));
@@ -568,21 +573,21 @@ xfunc()
 {
 	register char *p1, *p2;
 	register c;
-	char fnb[DIRSIZ+1];
+	char fnb[DIRSIZ + 1];
 	FILE *xfp;
 
 	aopen(RO);
 	while (geth()) {
-		if (nname==0 || match()) {
+		if (nname == 0 || match()) {
 			if (!*(p1 = ahb.ar_name)) {
 				seekPast();
 				continue;
 			}
 			p2 = fnb;
-			while (p1<&ahb.ar_name[DIRSIZ] && (c=*p1++))
+			while (p1 < &ahb.ar_name[DIRSIZ] && (c = *p1++))
 				*p2++ = c;
 			*p2 = 0;
-			if ((xfp=fopen(fnb, "wb")) == NULL) {
+			if ((xfp = fopen(fnb, "wb")) == NULL) {
 				diag(0, ccrea, fnb);
 				seekPast();
 				continue;
@@ -597,7 +602,7 @@ xfunc()
 				time_t	times[2];
 				time_t	time();
 
-				time(times+0);
+				time(times + 0);
 				times[1] = ahb.ar_date;
 				if (utime(fnb, times) < 0)
 					diag(0, "Unable to set time for %s",
@@ -656,7 +661,7 @@ char *fn;
 	ahb.ar_mode = sb.st_mode & 07777;
 	ahb.ar_size = sb.st_size;
 
-	return (fp);
+	return fp;
 }
 
 /*
@@ -673,15 +678,15 @@ match()
 	register i, n;
 
 	n = 0;
-	for (i=0; i<nname; ++i) {
-		if ((p=namep[i]) == NULL)
+	for (i = 0; i < nname; ++i) {
+		if ((p = namep[i]) == NULL)
 			continue;
 		if (eqh(p)) {
 			++n;
 			namep[i] = NULL;
 		}
 	}
-	return (n);
+	return n;
 }
 
 /*
@@ -689,16 +694,16 @@ match()
  * 'fn' from the list of names that
  * is described by 'namep' and
  * 'nname'.
- * Start at index 'i+1'.
+ * Start at index 'i + 1'.
  */
-remove(i, fn)
+list_remove(i, fn)
 register i;
 register char *fn;
 {
 	register char *p;
 
-	for (++i; i<nname; ++i) {
-		if ((p=namep[i]) == NULL)
+	for (++i; i < nname; ++i) {
+		if ((p = namep[i]) == NULL)
 			continue;
 		if (strcmp(fn, p) == 0)
 			namep[i] = NULL;
@@ -721,7 +726,7 @@ char *s;
 	register i, n;
 
 	n = 0;
-	for (i=0; i<nname; ++i) {
+	for (i = 0; i < nname; ++i) {
 		p = namep[i];
 		if (p != NULL) {
 			if (n++ == 0)
@@ -729,7 +734,7 @@ char *s;
 			fprintf(stderr, "%s\n", p);
 		}
 	}
-	return (n);
+	return n;
 }
 
 /*
@@ -752,14 +757,14 @@ long s;
 	for (n = ftell(ffp) % BUFSIZ; s; (s -= n), (n = 0)) {
 		if ((n = BUFSIZ - n) > s)
 			n = s;
-		if (fread (fb, sizeof(char), n, ffp) != n)
+		if (fread(fb, sizeof(char), n, ffp) != n)
 			ioerr(ffn);
 		if (fwrite(fb, sizeof(char), n, tfp) != n)
 			ioerr(tfn);
 	}
 	if (pad) {
 		fgetc(ffp);
-		if (!xflag)
+		if (!xflag && !pflag)
 			fputc(0, tfp);
 	}
 }
@@ -779,7 +784,7 @@ geth()
 
 	if (fread(&hdr, sizeof(hdr), 1, afp) != 1) {
 		aechk();
-		return (0);
+		return 0;
 	}
 
 	memset(&ahb, '\0', sizeof(ahb));
@@ -796,7 +801,7 @@ geth()
 #else
 	if (fread(&ahb, sizeof(ahb), 1, afp) != 1) {
 		aechk();
-		return (0);
+		return 0;
 	}
 	cantime(ahb.ar_date);
 	canshort(ahb.ar_gid);
@@ -804,7 +809,7 @@ geth()
 	canshort(ahb.ar_mode);
 	cansize(ahb.ar_size);
 #endif
-	return (1);
+	return 1;
 }
 
 /*
@@ -840,7 +845,7 @@ char *np;
 	cansize(ahb.ar_size);
 	fwrite(&ahb, sizeof(ahb), 1, fp);
 #endif
-	if(ferror(fp))
+	if (ferror(fp))
 		ioerr(np);
 }
 
@@ -859,7 +864,7 @@ char *p;
 	else
 		p1++;
 
-	return (!strncmp(p1, ahb.ar_name, DIRSIZ));
+	return !strncmp(p1, ahb.ar_name, DIRSIZ);
 }
 
 /*
@@ -869,17 +874,17 @@ char *p;
  */
 aopen(aam)
 {
-#ifdef PORTAR
+#if PORTAR
 	char	buf[SARMAG];
 #else
 	int i;
 #endif
 
-	if ((afp=fopen(anp, "rb")) == NULL) {
+	if ((afp = fopen(anp, "rb")) == NULL) {
 		if (aam == RO)
 			diag(1, copen, anp);
-		if ((afp=fopen(anp, "wb"))==NULL
-		 || (afp=freopen(anp, "wrb", afp))==NULL)
+		if ((afp = fopen(anp, "wb")) == NULL
+		 || (afp = freopen(anp, "wrb", afp)) == NULL)
 			diag(1, ccrea, anp);
 		if (cflag == 0)
 			printf("%s: new archive.\n", anp);
@@ -891,17 +896,18 @@ aopen(aam)
 		fwrite(&i, sizeof(i), 1, afp);
 #endif
 		aechk();
+		fflush(afp);		/* allow read after write */
 		return;
 	}
 	if (aam != RO) {
 		fclose(afp);
-		if ((afp=fopen(anp, "rwb"))==NULL)
+		if ((afp = fopen(anp, "rwb")) == NULL)
 			diag(1, copen, anp);
 	}
 #if PORTAR
 	fread(buf, SARMAG, 1, afp);
 	aechk();
-	if(memcmp(buf, ARMAG, SARMAG))
+	if (memcmp(buf, ARMAG, SARMAG))
 #else
 	fread(&i, sizeof(i), 1, afp);
 	aechk();
@@ -925,7 +931,7 @@ topen()
 	extern char *tempnam();
 	tnp = tempnam((lflag ? "." : NULL), "v");
 
-	if ((tfp=fopen(tnp, "wb")) == NULL) 
+	if ((tfp = fopen(tnp, "wb")) == NULL) 
 		diag(1, ccrea, tnp);
 #if PORTAR
 	fputs(ARMAG, tfp);
@@ -953,9 +959,10 @@ tacopy()
 	fclose(tfp);
 	tfp = NULL;  /* Scare off delexit */
 	fclose(afp);
-	if ((xtp=fopen(tnp, "rb")) == NULL)
+
+	if ((xtp = fopen(tnp, "rb")) == NULL)
 		diag(1, creop, tnp);
-	if ((afp=fopen(anp, "wb")) == NULL)
+	if ((afp = fopen(anp, "wb")) == NULL)
 		diag(1, creop, anp);
 	if (vflag)
 		printf("%s: copy back.\n", anp);
@@ -1003,7 +1010,7 @@ char *s;
 	register c;
 
 	p = ahb.ar_name;
-	while (p<&ahb.ar_name[DIRSIZ] && (c=*p++)!=0)
+	while (p < &ahb.ar_name[DIRSIZ] && (c = *p++) != 0)
 		putchar(c);
 	putchar(':');
 	if (s != NULL)
@@ -1065,7 +1072,7 @@ char *fn;
 #else
 	fstat(fileno(fp), &sb);
 #endif
-	return (sb.st_size);
+	return sb.st_size;
 }
 
 /*
@@ -1094,7 +1101,7 @@ ropen()
 			} else
 				++sflag;
 		} else {
-			fseek(afp, loc, 0);
+			fseek(afp, loc, SEEK_SET);
 			if (sflag && ffp == dfunc) {
 				strcpy(ahb.ar_name, rnp);
 				match();
@@ -1116,7 +1123,7 @@ raddmod(afp, mfp, s)
 FILE *afp, *mfp;
 long s;
 {
-	FILEHDR  fdh;
+	FILHDR  fdh;
 	SYMENT	sym;
 	long	off;
 	long	str_length, aroff, i;
@@ -1136,7 +1143,7 @@ long s;
 	if (!fdh.f_symptr)
 		goto done;
 	if (i < s) {	/* make our own eof inside archive */
-		fseek(mfp, i + off, 0);
+		fseek(mfp, i + off, SEEK_SET);
 		if (1 != fread(&str_length, sizeof(str_length), 1, mfp))
 			str_length = 0;
 	}
@@ -1145,13 +1152,13 @@ long s;
 		if (len != str_length)
 			diag(1, "Cannot process %.*s small model",
 				DIRSIZ, ahb.ar_name);
-		if(NULL == (str_tab = malloc(len)))
+		if (NULL == (str_tab = malloc(len)))
 			diag(1, "out of space %.*s", DIRSIZ, ahb.ar_name);
 		if (1 != fread(str_tab, len, 1, mfp))
 			diag(1, "truncated module %.*s", DIRSIZ, ahb.ar_name);
 	}
 
-	fseek(mfp, fdh.f_symptr + off, 0);
+	fseek(mfp, fdh.f_symptr + off, SEEK_SET);
 
 	for (aux = i = 0; i < fdh.f_nsyms; i++) {
 		if (1 != fread(&sym, sizeof(sym), 1, mfp))
@@ -1183,7 +1190,7 @@ long s;
 	if (str_length)
 		free(str_tab);
 done:
-	fseek(mfp, off, 0);
+	fseek(mfp, off, SEEK_SET);
 }
 
 /*
@@ -1230,7 +1237,7 @@ rcopy()
 	ahb.ar_size = ranLen += pad + sizeof(ranCt);
 
 	time(&ahb.ar_date);
-	ahb.ar_date += (long)(10*365+3)*24*60*60;
+	ahb.ar_date += (long)(10 * 365 + 3) * 24 * 60 * 60;
 
 	puth(afp, anp);
 	tfp = NULL;
@@ -1241,11 +1248,11 @@ rcopy()
 		if (1 != fread(&x, sizeof(x), 1, fp))
 			ioerr(rnpx);
 		flipwrite(x + ranLen);
-		while(fgetc(fp))
+		while (fgetc(fp))
 			;
 	}
 
-	fseek (fp, 0L, 0);
+	fseek(fp, 0L, SEEK_SET);
 	for (i = 0; i < ranCt; i++) {
 		if (1 != fread(&x, sizeof(x), 1, fp))
 			ioerr(rnpx);
@@ -1286,7 +1293,7 @@ xread(fp) register FILE *fp;
 		canlong(lds.ls_addr);
 	}
 	canshort(lds.ls_type);
-	return (r);
+	return r;
 }
 
 raddmod(afp, mfp) FILE *afp, *mfp;
@@ -1305,33 +1312,33 @@ raddmod(afp, mfp) FILE *afp, *mfp;
 		goto done;
 	canshort(ldh.l_flag);
 	if ((ldh.l_flag & LF_32) == 0)
-		ldh.l_tbase = sizeof(ldh) - 2*sizeof(short);
+		ldh.l_tbase = sizeof(ldh) - 2 * sizeof(short);
 	else
 		canshort(ldh.l_tbase);
 	offset = ldh.l_tbase - (fsize_t)sizeof(ldh);
-	for (seg=0; seg<L_SYM; seg++) {
-		if (seg==L_BSSI || seg==L_BSSD)
+	for (seg = 0; seg < L_SYM; seg++) {
+		if (seg == L_BSSI || seg == L_BSSD)
 			continue;
 		cansize(ldh.l_ssize[seg]);
 		offset += ldh.l_ssize[seg];
 	}
-	fseek(mfp, offset, 1);
+	fseek(mfp, offset, SEEK_CUR);
 	cansize(ldh.l_ssize[L_SYM]);
 	if ((ldh.l_flag & LF_32) == 0)
 		nsym = ldh.l_ssize[L_SYM]
 		    / (sizeof(struct ldsym) - sizeof(short));
 	else
-		nsym = ldh.l_ssize[L_SYM]/sizeof(struct ldsym);
+		nsym = ldh.l_ssize[L_SYM] / sizeof(struct ldsym);
 	while (nsym--) {
 		if (xread(mfp) == 0)
 			diag(1, "truncated module %.*s", DIRSIZ, ahb.ar_name);
-		if ((lds.ls_type&L_GLOBAL) == 0)
+		if ((lds.ls_type & L_GLOBAL) == 0)
 			continue;
-		if ((lds.ls_type&LR_SEG) != L_REF)
+		if ((lds.ls_type & LR_SEG) != L_REF)
 			xwrite();
 	}
 done:
-	fseek(mfp, off, 0);	/* back to beginning of module */
+	fseek(mfp, off, SEEK_SET);	/* back to beginning of module */
 }
 
 /*
@@ -1345,7 +1352,7 @@ rcopy()
 	rfp = NULL;
 	fp = makeh(rnpx);
 	time(&ahb.ar_date);
-	ahb.ar_date += (long)(10*365+3)*24*60*60;
+	ahb.ar_date += (long)(10 * 365 + 3) * 24 * 60 * 60;
 	puth(afp, anp);
 	tfp = NULL;
 	ffcopy(afp, anp, fp, rnpx, fsize(fp, rnpx));
@@ -1353,3 +1360,5 @@ rcopy()
 	unlink(rnpx);
 }
 #endif
+
+/* end of ar.c */

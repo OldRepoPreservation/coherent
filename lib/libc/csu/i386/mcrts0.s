@@ -1,6 +1,6 @@
 / (-lgl
-/ 	COHERENT Version 4.0
-/ 	Copyright (c) 1982, 1992 by Mark Williams Company.
+/ 	COHERENT Version 4.2
+/ 	Copyright (c) 1982, 1993 by Mark Williams Company.
 /	Copyright (c) Ciaran O'Donnell, Bievres, France, 1991.
 / 	All rights reserved. May not be copied without permission.
 / -lgl)
@@ -9,6 +9,8 @@
 / C run-time start-off with profiling.
 / i386 COHERENT native version.
 //////////
+
+	.unixorder
 
 	.globl	_start
 	.globl	environ

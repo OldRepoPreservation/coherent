@@ -1,53 +1,32 @@
+/* $Header: /ker/coh.386/RCS/fifo.c,v 2.5 93/10/29 00:55:09 nigel Exp Locker: nigel $ */
 /*
- * File:	fifo.c
- *
- * Purpose:	allow kernel to fetch data from real-mode bootstrap data area
- *
  * $Log:	fifo.c,v $
+ * Revision 2.5  93/10/29  00:55:09  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.4  93/08/19  03:26:26  nigel
+ * Nigel's r83 (Stylistic cleanup)
+ * 
+ * Revision 2.3  93/07/26  14:59:42  nigel
+ * Nigel's R80
+ * 
+ * Revision 1.3  93/04/14  10:06:27  root
+ * r75
+ * 
  * Revision 1.2  92/01/06  11:59:11  hal
  * Compile with cc.mwc.
- * 
  */
 
-/*
- * Includes.
- */
-#define KERNEL
-#include <sys/typed.h>
+#include <kernel/typed.h>
+
 
 /*
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-
-typedef unsigned char uchar;
-typedef unsigned int  uint;
-typedef unsigned long ulong;
-
-/*
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
-FIFO * fifo_open();
-int fifo_close();
-typed_space * fifo_read();
-
-/*
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- *
  * Arguments are passed into the kernel through boot_gift.
  * If you start getting "Not enough room for all arguments." messages
  * at boot time, just increase the BG_LEN  to whatever you need.
  * This structure is EXACTLY BG_LEN bytes long.
  */
+
 TYPED_SPACE(boot_gift, BG_LEN, T_FIFO_SIC);
 
 /*
@@ -84,7 +63,7 @@ int mode;
 	FIFO *the_fifo;	/* The fifo we are going to allocate.  */
 
 	/* Initialize ff_table the first time we get called.  */
-	if (!inited) {
+	if (! inited) {
 		for (i = 0; i < NFIFOS; ++i) {
 			ff_table[i].f_space = F_NULL;
 			ff_table[i].f_flags = 0;
@@ -94,19 +73,25 @@ int mode;
 
 	/* Check the type of the space we were passed.  */
 	switch (fifo_space->ts_type) {
+
 	case T_FIFO:	/* Overly general type, assuming SIC.  */
 		fifo_space->ts_type = T_FIFO_SIC;
 		break;
+
 	case T_FIFO_SIC:	/* Static In-core Fifo.  */
 		break;
+
 	case T_FIFO_DIC:	/* Dynamic In-core Fifo (can grow).  */
-		return(F_NULL);	/* Unimplemented.  */
+		return F_NULL;	/* Unimplemented.  */
+
 	case T_FIFO_SP:	/* Static Permanent Fifo (fixed size file). */
-		return(F_NULL);	/* Unimplemented.  */
+		return F_NULL;	/* Unimplemented.  */
+
 	case T_FIFO_DP:	/* Dynamic Permanent Fifo (ordinary file).  */
-		return(F_NULL);	/* Unimplemented.  */
+		return F_NULL;	/* Unimplemented.  */
+
 	default:
-		return(F_NULL);	/* Illegal type encountered.  */
+		return F_NULL;	/* Illegal type encountered.  */
 	}
 
 	/* ASSERTION: fifo_space is a valid and implemented FIFO.  */
@@ -117,15 +102,13 @@ int mode;
 	 * At the moment, the tertiary boot libraries do not include a
 	 * malloc.
 	 */
-	for (i = 0; (i < NFIFOS) && (0 != ff_table[i].f_flags); ++i) {
-		/* Do nothing else.  */
-	}
+	for (i = 0 ; i < NFIFOS && ff_table[i].f_flags != 0 ; i ++)
+		/* DO NOTHING */ ;
 
-	if (NFIFOS == i) {
-		return(F_NULL);	/* No more free fifo structs.  */
-	}
+	if (NFIFOS == i)
+		return F_NULL;	/* No more free fifo structs.  */
 
-	the_fifo = &(ff_table[i]);
+	the_fifo = ff_table + i;
 
 	/* ASSERTION: the_fifo points at a FIFO we can take.  */
 
@@ -142,11 +125,11 @@ int mode;
 		the_fifo->f_flags |= F_WRITE;
 		break;
 	default:
-		return(F_NULL);	/* Illegal mode flag.  */
+		return F_NULL;	/* Illegal mode flag.  */
 	}
 		
-	return(the_fifo);
-} /* fifo_open() */
+	return the_fifo;
+}
 
 /*
  * fifo_close()
@@ -159,15 +142,16 @@ int
 fifo_close(ffp)
 FIFO *ffp;
 {
-	if (0 == ffp->f_flags) {
-		return(0);	/* This ffp is not open.  */
-	}
+	if (0 == ffp->f_flags)
+		return 0;	/* This ffp is not open.  */
+
 	ffp->f_space = F_NULL;
 	ffp->f_offset = 0;
 	ffp->f_flags = 0;
 
-	return(1);
-} /* fifo_close() */
+	return 1;
+}
+
 
 /*
  * fifo_read()
@@ -178,6 +162,7 @@ FIFO *ffp;
  *
  * This read assumes that ffp->f_space has type T_FIFO_SIC.
  */
+
 typed_space *
 fifo_read(ffp)
 register FIFO *ffp;
@@ -186,7 +171,7 @@ register FIFO *ffp;
 
 	/* Read MUST be set.  */
 	if (F_READ != F_READ & ffp->f_flags ) {
-printf(" fifo_read: READ not set ");
+		printf(" fifo_read: READ not set ");
 		return 0;  /* This ffp is not open for reading.  */
 	}
 
@@ -194,8 +179,8 @@ printf(" fifo_read: READ not set ");
 
 
 	/* Space of size 0 marks EOFIFO.  */
-	if ((long)0 == ffp->f_offset->ts_size) {
-printf(" fifo_read: space of size 0 ");
+	if (ffp->f_offset->ts_size == 0) {
+		printf(" fifo_read: space of size 0 ");
 		retval = 0;
 	} else {
 		/* Return the next space.  */
@@ -205,85 +190,4 @@ printf(" fifo_read: space of size 0 ");
 	}
 
 	return retval;
-} /* fifo_read() */
-
-#ifdef TEST
-#include <stdio.h>
-
-/* This is the typed space we will use for our FIFO operations.  */
-TYPED_SPACE(global_space, 128, T_FIFO_SIC);	/* Static In-Core Fifo.  */
-
-void
-main()
-{
-	FIFO *ffp;		/* Fifo pointer for a handle.  */
-	char line[1024];	/* Place to put input lines.  */
-	long size;		/* Length for line.  (Sizes are all long.)  */
-	int i;
-
-	typed_space *local_space;
-
-	/* Open the fifo for writing.  */
-	if (F_NULL == (ffp = fifo_open(&global_space, 1))) {
-		fprintf(stderr, "Can't open global_space for writing.\n");
-		exit(1);
-	}
-
-	do {
-		printf("Feed me: ");
-		gets(line);
-		size = (long) (strlen(line) + 1);
-	} while (fifo_write_untyped(ffp, line, size, T_STR_STR));
-
-	if (0 == fifo_close(ffp)) {
-		fprintf(stderr, "Failed to close global_space.\n");
-		exit(1);
-	}
-
-	printf("OK, global_space is now full.\n");
-	/* ASSERTION: We've filled global_space with strings.  */
-
-	/* Open the fifo for reading.  */
-	if (F_NULL == (ffp = fifo_open(&global_space, 0))) {
-		fprintf(stderr, "Can't open global_space for reading.\n");
-		exit(1);
-	}
-
-	/* Dump the contents of this FIFO.  */
-	for (i = 1; (local_space = fifo_read(ffp)); ++i) {
-		printf("%d: size: %ld: type: 0x%x\n", i,
-			local_space->ts_size,
-			local_space->ts_type);
-
-		/* Assume everything is a NUL terminated string.  */
-		printf("datum: %s\n\n", local_space->ts_data);
-		printf("Hit <RETURN>");
-		gets(line);
-	}
-
-
-	/* Rewind the file, and dump it out again.  */
-	printf("Rewinding.\n");
-	if (0 == fifo_rewind(ffp)) {
-		fprintf("Can't rewind global_space.\n");
-		exit(1);
-	}
-
-	for (i = 1; (local_space = fifo_read(ffp)); ++i) {
-		printf("%d: size: %ld: type: 0x%x\n", i,
-			local_space->ts_size,
-			local_space->ts_type);
-
-		/* Assume everything is a NUL terminated string.  */
-		printf("datum: %s\n\n", local_space->ts_data);
-	}
-
-	if (0 == fifo_close(ffp)) {
-		fprintf(stderr, "Failed to close global_space.\n");
-		exit(1);
-	}
-
-	exit(0);
-} /* main() */
-
-#endif /* TEST */
+}

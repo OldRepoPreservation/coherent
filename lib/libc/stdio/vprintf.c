@@ -6,7 +6,7 @@
  * Formatted print to standard output.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #include <stdarg.h>
 
 int

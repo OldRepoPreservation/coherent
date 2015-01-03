@@ -3,6 +3,8 @@
 / i387 mathematics library
 / sqrt(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

@@ -4,6 +4,8 @@
 / IEEE software floating point support.
 //////////
 
+	.intelorder
+
 //////////
 / double _modf(real, dp, exp) double real; double *dp; int exp;
 / 

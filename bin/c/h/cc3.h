@@ -1,8 +1,11 @@
 /*
+ * h/cc3.h
  * C intermediate language.
  * Header file.
  */
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <setjmp.h>
 #ifdef	vax
 #include "INC$LIB:mch.h"
@@ -50,3 +53,5 @@ extern	int	line;
 #if OVERLAID
 extern	jmp_buf	death;
 #endif
+
+/* end of h/cc3.h */

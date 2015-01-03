@@ -1,25 +1,16 @@
-# /usr/src/libc/gen/malloc/Makefile 1/9/92
+# /usr/src/libc/stdlib/malloc/Makefile 6/8/94
 
-OBJ=\
-	calloc.o\
-	malloc.o\
-	memok.o\
-	notmem.o\
-	realloc.o
+LIBOBJ=\
+	$(TARGET)(calloc.o) \
+	$(TARGET)(malloc.o) \
+	$(TARGET)(memok.o) \
+	$(TARGET)(notmem.o) \
+	$(TARGET)(realloc.o)
 
 UNUSED=trymallo.c
 
 # Primary target.
-GENMALLOC:	$(OBJ)
-	$(AR) rkus libc.a $?
-	touch $@
-	: libc/gen/malloc done
+all:	$(LIBOBJ)
+	: libc/stdlib/malloc done
 
-# Secondary targets.
-calloc.o:	calloc.c
-malloc.o:	malloc.c
-memok.o:	memok.c
-notmem.o:	notmem.c
-realloc.o:	realloc.c
-
-# end of /usr/src/libc/gen/malloc/Makefile
+# end of /usr/src/libc/stdlib/malloc/Makefile

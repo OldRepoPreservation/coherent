@@ -3,6 +3,8 @@
 / i387 mathematics library
 / tan(d)
 //////////
+.intelorder
+
 
 RASIZE	=	4
 

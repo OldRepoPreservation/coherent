@@ -4,7 +4,7 @@
  * Non-ANSI.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 char *
 gcvt(d, prec, buf) double d; int prec; char *buf;

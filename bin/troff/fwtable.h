@@ -5,7 +5,7 @@
 #define	FLAG_PS		2		/* PostScript font width table flag */
 #define	NBUF		512
 #define	NWIDTH		256		/* character buffer size */
-#define	VERSION		"1.5"
+#define	VERSION		"1.7"
 
 /* Debugging output macro. */
 #if	DEBUG
@@ -27,12 +27,20 @@ void		escape();
 void		escape_cparen();
 void		escape_oparen();
 void		escape_star();
+#if	defined(__STDC__)
+extern	void	fatal(char *args, ...);
+#else
 void		fatal();
+#endif
 void		getextra();
 int		getparm();
 short		getshort();
 unsigned int	getuchar();
+#if	defined(__STDC__)
+extern	void	nonfatal(char *args, ...);
+#else
 void		nonfatal();
+#endif
 void		ofpwrite();
 void		putshort();
 void		putstring();
@@ -56,14 +64,14 @@ int		getword();
 void		inputTFM();
 void		outputTFM();
 int		PCL_width();
-int		*read_array();
+short		*read_array();
 void		read_symbol_set();
 void		xseek();
 long		xtell();
 
 /* Externals in libc.a. */
 extern	long	ftell();
-/* extern	char	*malloc(); */
+extern	char	*malloc();
 
 /* Globals in fwtable.c. */
 extern	char	buf[NBUF];

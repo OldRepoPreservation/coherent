@@ -1,12 +1,14 @@
+/* $Header: /ker/i386/RCS/mem_cache.c,v 2.2 93/08/19 03:40:05 nigel Exp Locker: nigel $ */
 /*
- * mem_cache.c - remember correspondences between virtual and physical
- *	addresses.
+ * remember correspondences between virtual and physical addresses.
+ *
+ * $Log:	mem_cache.c,v $
+ * Revision 2.2  93/08/19  03:40:05  nigel
+ * Nigel's R83
  */
-#include <sys/coherent.h>
 
-#ifndef NULL
-#define NULL	((char *) 0)
-#endif /* NULL */
+#include <sys/coherent.h>
+#include <kernel/trace.h>
 
 /*
  * We maintain a dynamicly allocated linked list of vaddr/paddr pairs.
@@ -39,7 +41,7 @@ mem_remember(vaddr, paddr)
 {
 	CACHE_ENTRY *entry;
 
-	T_PIGGY( 0x40, printf("mem_remember(v:%x, p:%x)", vaddr, paddr); );
+	T_PIGGY( 0x40, printf("mem_remember(v:%x, p:%x)", vaddr, paddr));
 
 	/* Be sure to overwrite any existing entry.  */
 	if (NULL != (entry = find_paddr(paddr))) {
@@ -53,7 +55,7 @@ mem_remember(vaddr, paddr)
 			return;
 		}
 
-		T_PIGGY( 0x40, printf(": creating %x,", entry); );
+		T_PIGGY( 0x40, printf(": creating %x,", entry));
 
 		/* Store the data.  */
 		entry->vaddr = vaddr;
@@ -76,10 +78,10 @@ void
 mem_forget(vaddr)
 {
 	CACHE_ENTRY *entry, *my_next, *my_prev;
-	T_PIGGY( 0x40, printf("mem_forget(v:%x)", vaddr); );
+	T_PIGGY( 0x40, printf("mem_forget(v:%x)", vaddr));
 
 	if (NULL != (entry = find_vaddr(vaddr))) {
-		T_PIGGY( 0x40, printf("forgetting(p:%x)", entry->paddr); );
+		T_PIGGY( 0x40, printf("forgetting(p:%x)", entry->paddr));
 
 		/* Remove 'entry' from the linked list.  */
 		my_next = entry->next;
@@ -106,7 +108,7 @@ mem_recall(paddr)
 	CACHE_ENTRY *entry;
 	caddr_t retval;
 
-	T_PIGGY( 0x40, printf("mem_recall(%x)=", paddr); );
+	T_PIGGY( 0x40, printf("mem_recall(%x)=", paddr));
 
 	if (NULL == (entry = find_paddr(paddr))) {
 		retval = 0;
@@ -114,9 +116,9 @@ mem_recall(paddr)
 		retval = entry->vaddr;
 	}
 
-	T_PIGGY( 0x40, printf("%x, ", retval); );
+	T_PIGGY( 0x40, printf("%x, ", retval));
 
-	return( retval );
+	return retval;
 } /* mem_recall() */
 
 

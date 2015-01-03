@@ -17,6 +17,8 @@
 #include "ehand.h"
 #include "symbol.h"
 #include "read.h"
+#include "input.h"
+#include "ecodes.h"
 
 #include "mtune.h"
 
@@ -27,7 +29,7 @@ LOCAL mtune_t *	_mtunes;
  * Locate a parameter definition by symbol.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 mtune_t * (find_mtune) (symbol_t * sym)
 #else
 mtune_t *
@@ -48,24 +50,47 @@ symbol_t      *	sym;
 
 
 /*
+ * Regenerate an 'mtune' line from the stored record.
+ */
+
+#if	USE_PROTO
+void (write_mtune) (mtune_t * mtunep, input_t * input)
+#else
+void
+write_mtune ARGS ((mtunep, input))
+mtune_t	      *	mtunep;
+input_t	      *	input;
+#endif
+{
+	if ((* input->in_filter) (input, "%s<2>%ld<3>%ld<4>%ld\n",
+				  mtunep->mt_name->s_data, mtunep->mt_min,
+				  mtunep->mt_default, mtunep->mt_max) < 0) {
+
+		throw_error (CANNOT_UPDATE, "Output error");
+	}
+}
+
+
+/*
  * Read lines from an "mtune" file.
  */
 
-#ifdef	USE_PROTO
-LOCAL int (read_mtune) (input_t * input, lex_t * lexp)
+#if	USE_PROTO
+LOCAL mtune_t * (read_mtune) (input_t * input, lex_t * lexp, int * end_char)
 #else
-LOCAL int
-read_mtune ARGS ((input, lexp))
+LOCAL mtune_t *
+read_mtune ARGS ((input, lexp, end_char))
 input_t	      *	input;
 lex_t	      *	lexp;
+int	      *	end_char;
 #endif
 {
-	int		ch = '\n';
-	mtune_t	      *	mtunep;
+	VOLATILE int	ch = '\n';
+	mtune_t * VOLATILE mtunep;
 	ehand_t		err;
 
 	if ((mtunep = (mtune_t *) malloc (sizeof (* mtunep))) == NULL)
-		throw_error ("out of memory in read_mtune ()");
+		throw_error (NO_MEMORY, "out of memory in read_mtune ()");
 
 	if (PUSH_HANDLER (err) == 0) {
 		/*
@@ -81,16 +106,16 @@ lex_t	      *	lexp;
 			 * also allow a blank line.
 			 */
 
+			free (mtunep);
+			mtunep = NULL;
 			goto at_eof;
 		}
 		check_not_eol (ch);
 
 		if (mtunep->mt_name->s_size > MAX_PARAMNAME)
-			throw_error ("parameter name must be <= %d characters",
+			throw_error (FORMAT_ERROR,
+				     "parameter name must be <= %d characters",
 				     MAX_PARAMNAME);
-
-		if (find_mtune (mtunep->mt_name) != NULL)
-			throw_error ("parameter name must be unique");
 
 		/*
 		 * Pull in the parameter values
@@ -105,16 +130,7 @@ lex_t	      *	lexp;
 		ch = read_longs (input, lexp, & mtunep->mt_max, NO_RANGE);
 		ch = expect_eol (input, lexp, ch);
 
-
-		/*
-		 * Having passed all the reasonableness checks, we link the
-		 * new entry into the chain.
-		 */
-
 		mtunep->mt_stune = NULL;
-
-		mtunep->mt_next = _mtunes;
-		_mtunes = mtunep;
 	} else {
 
 		free (mtunep);
@@ -123,37 +139,138 @@ lex_t	      *	lexp;
 
 at_eof:
 	POP_HANDLER (err);
+
+	* end_char = ch;
+	return mtunep;
+}
+
+
+/*
+ * This function is passed as a parameter to read_dev_string () to read an
+ * 'mtune' entry (usually a program argument) and hook it into a global list.
+ */
+
+#if	USE_PROTO
+LOCAL int _read_mtune_string (input_t * input, lex_t * lexp,
+			      mtune_t ** mtlistp)
+#else
+LOCAL int
+_read_mtune_string (input, lexp, mtlistp)
+input_t	      *	input;
+lex_t	      *	lexp;
+mtune_t	     **	mtlistp;
+#endif
+{
+	mtune_t	      *	mtunep;
+	int		ch;
+
+	if ((mtunep = read_mtune (input, lexp, & ch)) != NULL) {
+		mtunep->mt_next = * mtlistp;
+		* mtlistp = mtunep;
+	}
+
 	return ch;
 }
 
 
-#if 0
 /*
- * Regenerate an 'mtune' line from the stored record.
+ * This function is used by _read_mtune_file () to link an mtune entry into
+ * the global lists and check it.
  */
 
-#ifdef	USE_PROTO
-void (write_mtune) (mtune_t * mtunep, FILE * out)
+#if	USE_PROTO
+LOCAL void (link_mtune) (mtune_t * mtunep, input_t * input)
 #else
-void
-write_mtune ARGS ((mtunep, out))
+LOCAL void
+link_mtune ARGS ((mtunep, input))
 mtune_t	      *	mtunep;
-FILE	      *	out;
+input_t	      *	input;
 #endif
 {
-	(void) fprintf (out, "%-8s %-7ld %-7ld %-7ld\n",
-			mtunep->mt_name->s_data,
-			mtunep->mt_min, mtunep->mt_default,
-			mtunep->mt_max);
+	if (find_mtune (mtunep->mt_name) != NULL)
+		throw_error (FORMAT_ERROR,
+			     "tunable parameter name must be unique");
+
+	mtunep->mt_next = _mtunes;
+	_mtunes = mtunep;
+
+	write_mtune (mtunep, input);
 }
+
+
+/*
+ * This function is passed as a parameter to read_dev_file () to read an
+ * 'mtune' entry and link it in to the global list.
+ */
+
+#if	USE_PROTO
+LOCAL int _read_mtune_file (input_t * input, lex_t * lexp,
+			    mtune_t ** changes)
+#else
+LOCAL int
+_read_mtune_file (input, lexp, changes)
+input_t	      *	input;
+lex_t	      *	lexp;
+mtune_t	     **	changes;
 #endif
+{
+	mtune_t	      *	mtunep;
+	int		ch;
+
+	if ((mtunep = read_mtune (input, lexp, & ch)) == NULL) {
+		if (ch == READ_EOF) {
+			/*
+			 * Blow remaining changes out as new entries
+			 */
+
+			while ((mtunep = * changes) != NULL) {
+				* changes = mtunep->mt_next;
+				link_mtune (mtunep, input);
+			}
+		}
+		return ch;
+	}
+
+
+	/*
+	 * Link in the newly-read entry.
+	 */
+
+	if (changes) {
+		mtune_t	     **	scan;
+
+		for (scan = changes ; * scan != NULL ;
+		     scan = & (* scan)->mt_next) {
+
+			if ((* scan)->mt_name == mtunep->mt_name) {
+				/*
+				 * Our current entry is being replaced by a
+				 * new one; unlink the new entry from the
+				 * change list and discard the old entry.
+				 */
+
+				free (mtunep);
+
+				if (report_mode ())
+					return ch;
+
+				mtunep = * scan;
+				* scan = mtunep->mt_next;
+				break;
+			}
+		}
+	}
+
+	link_mtune (mtunep, input);
+	return ch;
+}
 
 
 /*
  * Return the head of the list of all tuneable parameters.
  */
 
-#ifdef	USE_PROTO
+#if	USE_PROTO
 mtune_t * (mtunes) (void)
 #else
 mtune_t *
@@ -165,16 +282,36 @@ mtunes ARGS (())
 
 
 /*
+ * Read in an "mtune" entry from a string and add it to a list.
+ */
+
+#if	USE_PROTO
+void read_mtune_string (CONST char * string, VOID * extra)
+#else
+void
+read_mtune_string (string, extra)
+CONST char    *	string;
+VOID	      *	extra;
+#endif
+{
+	read_dev_string (string, (dev_func_p) _read_mtune_string, extra);
+}
+
+
+/*
  * Suck in a complete 'mtune' file.
  */
 
-#ifdef	USE_PROTO
-void (read_mtune_file) (CONST char * name)
+#if	USE_PROTO
+void (read_mtune_file) (CONST char * inname, CONST char * outname,
+			VOID * extra)
 #else
 void
-read_mtune_file ARGS ((name))
-CONST char    *	name;
+read_mtune_file ARGS ((inname, outname, extra))
+CONST char    *	inname;
+CONST char    *	outname;
+VOID	      *	extra;
 #endif
 {
-	read_dev_file (name, read_mtune);
+	read_dev_file (inname, outname, (dev_func_p) _read_mtune_file, extra);
 }

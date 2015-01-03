@@ -1,5 +1,7 @@
 /*
+ * libc/stdlib/malloc/calloc.c
  * C general utilities library.
+ * Memory allocation routines.
  * calloc()
  * ANSI 4.10.3.1.
  * Allocate and clear.
@@ -8,19 +10,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-Void *
+__VOID__ *
 calloc(nmemb, size) size_t nmemb; register size_t size;
 {
-	register Void *bp;
+	register __VOID__ *bp;
 	long lsize;
 
 	lsize = (long)size * nmemb;
 	size *= nmemb;
 	if (lsize != (long)size)
-		return (Void *)NULL;
+		return (__VOID__ *)NULL;
 	if ((bp = malloc(size)) != NULL)
 		memset(bp, 0, size);
 	return bp;
 }
 
-/* end of calloc.c */
+/* end of libc/gen/stdlib/calloc.c */

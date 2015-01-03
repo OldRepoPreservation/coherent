@@ -552,12 +552,13 @@ req_fp(argc, argv) int argc; char *argv[];
 
 /*
  * Set current font.
+ * If used with no arg, gives previous font.
  */
 req_ft(argc, argv) int argc; char *argv[];
 {
 	char name[2];
 
-	argname(argv[1], name);
+	argname((argc < 2) ? "P" : argv[1], name);
 	setfont(name, 1);
 }
 

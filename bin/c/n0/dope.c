@@ -80,7 +80,7 @@ short   opdope[] = {
 
 /*
  * Conversions.
- * Indexed by 12*(lt-T_CHAR) + (rt-T_CHAR).
+ * Indexed by 13*(lt-T_CHAR) + (rt-T_CHAR), cf. h/cc0.h/getdope().
  * Linear types are the same as the abstract types,
  * with all pointers mapped to T_PTR
  * and nothing greater than T_STRUCT.

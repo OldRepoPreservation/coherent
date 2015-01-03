@@ -1,5 +1,5 @@
-/* $Header: /usr/src/sys/i8086/src/RCS/dmalock.c,v 1.1 89/06/30 16:21:26 src Exp $
- *
+/* $Header: /ker/i386/RCS/dmalock.c,v 2.4 93/10/29 00:56:43 nigel Exp Locker: nigel $ */
+/*
  *	The  information  contained herein  is a trade secret  of INETCO
  *	Systems, Ltd, and is  confidential information.   It is provided
  *	under a license agreement,  and may be copied or disclosed  only
@@ -12,20 +12,28 @@
  *	An unpublished work by INETCO Systems, Ltd.
  *	All rights reserved.
  *
- * $Description: $
- *	Routines to lock/unlock the DMA controller chip.
- *
- * $Author: src $
+ * Routines to lock/unlock the DMA controller chip.
  *
  * $Creation: June 21, 1989 $
  *
- * $Log:	/usr/src/sys/i8086/src/RCS/dmalock.c,v $
+ * $Log:	dmalock.c,v $
+ * Revision 2.4  93/10/29  00:56:43  nigel
+ * R98 (aka 4.2 Beta) prior to removing System Global memory
+ * 
+ * Revision 2.3  93/08/19  03:40:02  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  13:55:59  nigel
+ * Nigel's R80
+ * 
+ * Revision 1.1  93/04/14  10:26:34  root
+ * r75
+ * 
  * Revision 1.1	89/06/30  16:21:26 	src
  * Initial revision
- * 
  */
 
-#include <sys/timeout.h>
+#include <kernel/timeout.h>
 
 typedef void (* vfp_t)();		/* Void function pointer type.	     */
 
@@ -76,6 +84,7 @@ int		arg;
 	/*
 	 * Record function and argument to be invoked upon dmaunlock.
 	 */
+
 	dfp->t_func = fun;
 	dfp->t_farg = arg;
 	dfp->t_next = (TIM *)0;

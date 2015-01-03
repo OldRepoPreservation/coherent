@@ -3,6 +3,8 @@
 / i386 C library.
 //////////
 
+	.intelorder
+
 //////////
 / long
 / _canl(l) long l;

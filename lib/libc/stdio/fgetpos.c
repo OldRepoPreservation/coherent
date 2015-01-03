@@ -9,7 +9,7 @@
  * ftell() already sets errno if an error occurs.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 int
 fgetpos(stream, pos) FILE *stream; fpos_t *pos;

@@ -15,8 +15,11 @@
  *	<common/ccompat.h>
  *		__USE_PROTO__
  *		__ARGS ()
- *	<common/ccompat.h>
  *		__LOCAL__
+ *	<kernel/ddi_lock.h>
+ *		stream_heap_hierarchy
+ *		stream_dir_hierarchy
+ *		stream_proc_hierarchy
  *	<sys/debug.h>
  *		ASSERT ()
  *	<sys/types.h>
@@ -42,6 +45,36 @@
 #include <sys/kmem.h>
 #include <kernel/strmlib.h>
 #include <string.h>
+
+
+/*
+ * Here we'll define the actual instance of the streams memory control
+ * structure.
+ */
+
+struct streams_mem str_mem [1];
+
+
+/*
+ * We need to define information structures for the various locks and
+ * synchronization variables used in the above.
+ */
+
+__LOCAL__ lkinfo_t _stream_heap_lkinfo = {
+	"STREAMS message memory lock", INTERNAL_LOCK
+};
+
+__LOCAL__ lkinfo_t _stream_seq_lkinfo = {
+	"STREAMS log sequence-number lock", INTERNAL_LOCK
+};
+
+__LOCAL__ lkinfo_t _stream_proc_lkinfo = {
+	"STREAMS qprocsoff () lock", INTERNAL_LOCK
+};
+
+__LOCAL__ lkinfo_t _stream_dir_lkinfo = {
+	"STREAM directory read/write lock", INTERNAL_LOCK
+};
 
 
 /*
@@ -193,3 +226,87 @@ size_t		size;
 	}
 }
 
+
+__EXTERN_C__
+#if	__USE_PROTO__
+int (STRMEM_INIT) (__VOID__ * addr, size_t size)
+#else
+int
+STRMEM_INIT __ARGS ((addr, size))
+__VOID__      *	addr;
+size_t		size;
+#endif
+{
+	int		i;
+
+	/*
+	 * Now initialize the fast-first-fit heap manager.
+	 */
+
+	str_mem->sm_msg_heap = st_heap_init (addr, size);
+
+	str_mem->sm_msg_lock =
+			LOCK_ALLOC (stream_heap_hierarchy, str_msg_pl,
+				    & _stream_heap_lkinfo, KM_NOSLEEP);
+
+	str_mem->sm_msg_sv = SV_ALLOC (KM_NOSLEEP);
+
+
+	/*
+	 * If either of the above allocations failed, we have some kind of
+	 * major problem, so we exit without unlocking the initialization flag
+	 * with an error indication.
+	 */
+
+	if (str_mem->sm_msg_lock == NULL || str_mem->sm_msg_sv == NULL) {
+
+init_error:
+		cmn_err (CE_PANIC, "Could not initialize STREAMS subsystem");
+		return -1;
+	}
+
+
+	/*
+	 * Now we can calculate the watermarks... start at the
+	 * top and make each lower one some percentage of the
+	 * next higher one (say, 15/16 or 93%, so that it's
+	 * easy to calculate).
+	 */
+
+	for (i = N_PRI_LEVELS ; i -- > 0 ;) {
+
+		str_mem->sm_max [i] = size;
+		size -= size >> 4;	/* - 1/16 */
+	}
+
+
+	/*
+	 * Do other kinds of initialization for the "str_mem" structure.
+	 */
+
+	for (i = N_PRI_LEVELS ; i -- > 0 ; ) {
+
+		if (SELIST_INIT (& str_mem->sm_bcevents [i],
+				 KM_SLEEP) == NULL)
+			goto init_error;
+	}
+
+
+	str_mem->sm_seq_lock = LOCK_ALLOC (stream_seq_hierarchy, plstr,
+					   & _stream_seq_lkinfo, KM_SLEEP);
+
+	str_mem->sm_head_lock = RW_ALLOC (stream_dir_hierarchy, plstr,
+					  & _stream_dir_lkinfo, KM_SLEEP);
+
+	str_mem->sm_proc_lock = LOCK_ALLOC (stream_proc_hierarchy, plstr,
+					    & _stream_proc_lkinfo, KM_SLEEP);
+
+	str_mem->sm_proc_sv = SV_ALLOC (KM_SLEEP);
+
+	if (SCHED_INIT (str_mem->sm_sched, KM_SLEEP) == NULL ||
+	    str_mem->sm_seq_lock == NULL || str_mem->sm_head_lock == NULL ||
+	    str_mem->sm_proc_lock == NULL || str_mem->sm_proc_sv == NULL)
+		goto init_error;
+
+	return 0;		/* all OK */
+}

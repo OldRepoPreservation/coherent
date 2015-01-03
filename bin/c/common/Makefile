@@ -1,73 +1,44 @@
-# c/common/Makefile 3/26/92
+# c/common/Makefile 6/9/94
 
 COM=\
-	bget.$X\
-	bput.$X\
-	dget.$X\
-	diag.$X\
-	dput.$X\
-	getvar.$X\
-	iget.$X\
-	iput.$X\
-	lget.$X\
-	lput.$X\
-	makvar.$X\
-	milnam.$X\
-	mionam.$X\
-	newlab.$X\
-	newseg.$X\
-	nput.$X\
-	segnam.$X\
-	sget.$X\
-	sput.$X\
-	talloc.$X\
-	tcpy.$X\
-	unbget.$X
+	common.a(bget.$X) \
+	common.a(bput.$X) \
+	common.a(dget.$X) \
+	common.a(diag.$X) \
+	common.a(dput.$X) \
+	common.a(getvar.$X) \
+	common.a(iget.$X) \
+	common.a(iput.$X) \
+	common.a(lget.$X) \
+	common.a(lput.$X) \
+	common.a(makvar.$X) \
+	common.a(milnam.$X) \
+	common.a(mionam.$X) \
+	common.a(newlab.$X) \
+	common.a(newseg.$X) \
+	common.a(nput.$X) \
+	common.a(segnam.$X) \
+	common.a(sget.$X) \
+	common.a(sput.$X) \
+	common.a(talloc.$X) \
+	common.a(tcpy.$X) \
+	common.a(unbget.$X)
 COMMCH=\
-	geno.$X\
-	mdlnam.$X\
-	mdonam.$X\
-	regnam.$X\
-	tyname.$X
+	common.a(geno.$X) \
+	common.a(mdlnam.$X) \
+	common.a(mdonam.$X) \
+	common.a(regnam.$X) \
+	common.a(tyname.$X)
 
 # Primary targets.
-lib.a:		$(COM) $(COMMCH)
-	$(AR) rucks $@ $<
+common.a:		$(COM) $(COMMCH)
+	: common.a done
+
 lib.olb:	$(COM) $(COMMCH)
 	lb c $@
-	lb r $@ $<
+	lb r $@ $(COM) $(COMMCH)
+
 lib.lib:	$(COM) $(COMMCH)
-	mwlib c lib $<
-
-# Machine independent.
-bget.$X:	bget.c
-bput.$X:	bput.c
-dget.$X:	dget.c
-diag.$X:	diag.c
-dput.$X:	dput.c
-getvar.$X:	getvar.c
-iget.$X:	iget.c
-iput.$X:	iput.c
-lget.$X:	lget.c
-lput.$X:	lput.c
-makvar.$X:	makvar.c
-milnam.$X:	milnam.c
-mionam.$X:	mionam.c
-newlab.$X:	newlab.c
-newseg.$X:	newseg.c
-nput.$X:	nput.c
-segnam.$X:	segnam.c
-sget.$X:	sget.c
-sput.$X:	sput.c
-talloc.$X:	talloc.c
-tcpy.$X:	tcpy.c
-unbget.$X:	unbget.c
-
-# Machine dependent.
-geno.$X:	geno.c
-mdlnam.$X:	mdlnam.c
-mdonam.$X:	mdonam.c
-regnam.$X:	regnam.c
-tyname.$X:	tyname.c
+	mwlib c lib $(COM) $(COMMCH)
 
 # end of c/common/Makefile

@@ -348,6 +348,8 @@ long		offset;
 	if (alignment == 0) {
 		if (t == T_STRUCT || t == T_UNION)
 			bitwidth = 8 * saligntype(ip);
+		else if (mysizes[t] == 8)
+			bitwidth = 4 * mysizes[t];	/* dword not qword */
 		else
 			bitwidth = 8 * mysizes[t];
 		if (bitwidth == 0)
@@ -357,7 +359,7 @@ long		offset;
 		if (t == T_STRUCT || t == T_UNION)
 			a = saligntype(ip);
 		else
-			a = (mysizes[t] == 0) ? 4 : mysizes[t];
+			a = (mysizes[t] == 0 || mysizes[t] == 8) ? 4 : mysizes[t];
 		amask = 8 * ((a < alignment) ? a : alignment) - 1;
 		bitwidth = 8 * a;
 	}
@@ -418,7 +420,7 @@ transform(tp, why, above) register TREE *tp; int why, above;
 	/* Fixup any remaining ZCONs. */
 	if (tp->t_op == ZCON) {
 		tp->t_op = ICON;
-		tp->t_type = T_INT;
+		tp->t_type = T_UINT;
 		tp->t_ival = tp->t_zval;
 	}
 
@@ -515,7 +517,7 @@ aligntype(sp) SYM *sp;
 		cerror("alignment of %s \"%s\" is not known",
 			(type == T_FSTRUCT) ? "struct"
 		      : (type == T_FUNION)  ? "union"
-		      : "enum",
+		      : "enumeration",
 			sp->s_id);
 		return 4;
 	}
@@ -550,6 +552,13 @@ faligntype(t) register int t;
 {
 	if (t <= T_ULONG && t != T_PTR)
 		return mysizes[t];
+	if (t == T_FSTRUCT || t == T_FUNION || t == T_FENUM) {
+		cerror("alignment of incomplete %s type is not known",
+			(t == T_FSTRUCT) ? "struct"
+		      : (t == T_FUNION)  ? "union"
+		      : "enumeration");
+		return mysizes[T_INT];
+	}
 	cbotch("faligntype %d", t);
 }
 

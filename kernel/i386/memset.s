@@ -1,57 +1,42 @@
-	.intelorder
-//////////
-/ libc/string/i386/memset.s
-/ i386 C string library.
-/ ANSI 4.11.6.1.
-//////////
+/ $Header: $
+		.unixorder
 
-//////////
-/ void *
-/ memset(void *String, int Char, size_t Count)
+/ memset () routines, exactly as per the Standard C Library.
+/ $Log: $
 /
-/ Set Count bytes of String to Char.
-/ Uses repeated dword copy for efficiency.
-//////////
+		.text
+		.globl	memset
 
-String	.equ	12
-Char	.equ	String+4
-Count	.equ	Char+4
-
-	.text
-	.globl	memset
+dest		=	4
+ch		=	8
+len		=	12
 
 memset:
-	push	%edi
-	push	%es			/ save es
-	push	%ds			/ copy ds to es
-	pop	%es
+		movzxb	ch(%esp), %eax		/ Fill pattern to %eax
+		movl	$0x01010101, %ecx	/ Replicate fill byte into
+		mull	%ecx, %eax		/ all of %eax (4 copies)
+						/ (overwrites %edx too)
 
-	movl	%edi, String(%esp)	/ String address to EDI
+		movl	%edi, %edx		/ Save %edi
+		movl	dest(%esp), %edi	/ Get dest to %edi
 
-	movzxb	%eax, Char(%esp)	/ Char to EAX
-	movl	%ecx, $0x01010101	/ Char:Char:Char:Char in EAX
-	mull	%eax, %ecx		/ Char:Char:Char:Char in EAX
+		movl	len(%esp), %ecx		/ Get length
+		shrl	$2, %ecx		/ in longwords
 
-	movl	%ecx, Count(%esp)	/ Count to ECX
-	movl	%edx, %ecx		/ Save Count in EDX
-	shrl	%ecx, $2		/ Count/4
+		cld				/ Fill upwards
+		rep stosl			/ Perform the fill
 
-	cld
-	rep
-	stosl				/ Copy Count/4 Char dwords to String
-	jnc	?byte			/ CF contains Count bit 1 from shrl above
-	stosw				/ Copy a word
+		jnc	?noword			/ Skip over residual word copy
 
-?byte:
-	shrl	%edx, $1
-	jnc	?done
-	stosb				/ Copy Char to String
+		stosw
+?noword:
+		testb	$1, len(%esp)		/ Check low part of count
+		je	?nobyte			/ Skip over residual byte copy
 
-?done:
-	movl	%eax, String(%esp)	/ Return the destination in EAX
+		stosb
+?nobyte:
+		movl	%edx, %edi		/ Restore %edi
+		movl	dest(%esp), %eax	/ Return destination
+		ret
 
-	pop	%es			/ restore es
-	pop	%edi
-	ret
 
-/ end of libc/string/i386/memset.s

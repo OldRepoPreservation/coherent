@@ -4,6 +4,8 @@
 / Profile call counter.
 ////////
 
+	.intelorder
+
 	.globl	_scount
 	.globl	_fnclst
 	.globl	_mhdr

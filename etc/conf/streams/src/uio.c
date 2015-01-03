@@ -1,3 +1,5 @@
+/* $Header: $ */
+
 #define	_DDI_DKI	1
 #define	_SYSV3		1
 
@@ -5,7 +7,10 @@
  * Implementations of the functions which manipulate the uio(4) structure
  * under the DDI/DKI. This function runs in _SYSV3 mode to interface with
  * the iBCS2 Coherent kernel.
+ *
+ * $Log: $
  */
+
 /*
  *-IMPORTS:
  *	<common/ccompat.h>
@@ -40,9 +45,6 @@
 
 #if	__COHERENT__
 
-#include <sys/coherent.h>
-
-
 /*
  * Routines to perform transfers between the user and kernel address spaces.
  */
@@ -61,19 +63,17 @@ __EXTERN_C_END__
 #define	TOUSER(usr,ker,n)	kucopy ((caddr_t) ker, (caddr_t) usr, n)
 #define	FROMUSER(ker,usr,n)	ukcopy ((caddr_t) usr, (caddr_t) ker, n)
 
-#define	PUTBYTE(c,usr)		(putubd (usr, c), u.u_error)
+#define	PUTBYTE(c,usr)		(putubd (usr, c), get_user_error ())
 #define	GETBYTE(usr)		((unsigned char) getubd (usr) - \
-					(u.u_error > 0 ? UCHAR_MAX : 0))
+				 (get_user_error () > 0 ? UCHAR_MAX : 0))
 
-#else	/* if ! defined (COHERENT) */
-
+#else	/* if ! __COHERENT__ */
 
 #define	TOUSER(usr,ker,n)	(memcpy ((usr), (ker), (n)), (n))
 #define	FROMUSER(ker,usr,n)	(memcpy ((ker), (usr), (n)), (n))
 
 #define	PUTBYTE(c,usr)		(* (usr) = (c), 0)
 #define	GETBYTE(usr)		(* (unsigned char *) (usr))
-
 
 #endif
 

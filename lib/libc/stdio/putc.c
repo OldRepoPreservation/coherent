@@ -6,7 +6,7 @@
  * Write character c to stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 #undef	putc
 
 int

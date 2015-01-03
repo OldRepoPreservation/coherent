@@ -7,7 +7,7 @@
  * Read up to n-1 characters, including newline.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 char *
 fgets(s, n, stream) char *s; register int n; FILE *stream;

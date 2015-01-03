@@ -6,7 +6,7 @@
  * Rewind stream.
  */
 
-#include <stdio.h>
+#include <coh_stdio.h>
 
 void
 rewind(stream) register FILE *stream;

@@ -1,7 +1,8 @@
 /*
- * This file contains all of the lexical analysis routines
- * for the portable C compiler.
+ * n0/lex.c
+ * Lexical analysis routines for the portable C compiler.
  */
+
 #ifdef   vax
 #include "INC$LIB:cc0.h"
 #else
@@ -568,16 +569,21 @@ getnum(c, dotf) register int c; int dotf;
 	if (islong) {
 		s = LCON;
 		tval = T_LONG;
-		if (isunsigned || (n&SLMASK) != 0)
+		if (isunsigned)
 			tval = T_ULONG;
+		else if ((n & SLMASK) != 0) {
+			tval = T_ULONG;
+			if (base == 10)
+				np = ulong;
+		}
 	} else if (isunsigned) {
 		tval = T_UINT;
-		if ((n&UIMASK) != 0) {
+		if ((n & UIMASK) != 0) {
 			s = LCON;
 			tval = T_ULONG;
 			np = ulong;
 		}
-	} else if (base == 10 && (n&SIMASK) != 0) {
+	} else if (base == 10 && (n & SIMASK) != 0) {
 		s = LCON;
 		tval = T_LONG;
 		np = slong;
@@ -585,13 +591,13 @@ getnum(c, dotf) register int c; int dotf;
 			tval = T_ULONG;
 			np = ulong;
 		}
-	} else if ((n&SIMASK) != 0) {
+	} else if ((n & SIMASK) != 0) {
 		tval = T_UINT;
-		if ((n&UIMASK) != 0) {
+		if ((n & UIMASK) != 0) {
 			s = LCON;
 			tval = T_LONG;
 			np = slong;
-			if ((n&SLMASK) != 0) {
+			if ((n & SLMASK) != 0) {
 				tval = T_ULONG;
 				np = ulong;
 			}
@@ -605,3 +611,5 @@ getnum(c, dotf) register int c; int dotf;
 	if (incpp == 0 && np != NULL && isvariant(VSLCON))
 		cwarn("\"%s\" promoted to %s", id, np);
 }
+
+/* end of n0/lex.c */

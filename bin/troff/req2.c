@@ -486,6 +486,15 @@ req_sv(argc, argv) int argc; char *argv[];
 }
 
 /*
+ * Pass a command line to the system.
+ * !V7.
+ */
+req_sy(argc, argv) int argc; char *argv[];
+{
+	system(&miscbuf[3]);		/* miscbuf[] contains "sy command" */
+}
+
+/*
  * Set tab stops.
  */
 req_ta(argc, argv) int argc; char *argv[];

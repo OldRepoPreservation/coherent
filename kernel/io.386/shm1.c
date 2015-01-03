@@ -1,142 +1,116 @@
+/* $Header: /ker/io.386/RCS/shm1.c,v 2.3 93/08/19 04:03:17 nigel Exp Locker: nigel $ */
 /*
- * File: shm1.c
- *
- * Purpose: System V Compatible Shared Memory Device Driver
+ * System V Compatible Shared Memory Device Driver
  *
  * $Log:	shm1.c,v $
+ * Revision 2.3  93/08/19  04:03:17  nigel
+ * Nigel's R83
+ * 
+ * Revision 2.2  93/07/26  15:32:18  nigel
+ * Nigel's R80
+ * 
  * Revision 1.3  93/04/14  10:23:10  root
  * r75
- * 
  */
 
-/*
- * ----------------------------------------------------------------------
- * Includes.
- */
+#include <kernel/_timers.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/errno.h>
+#include <sys/cmn_err.h>
+
 #include <sys/coherent.h>
 #include <sys/types.h>
 #include <sys/proc.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <errno.h>
+#include <limits.h>
 
-/*
- * ----------------------------------------------------------------------
- * Definitions.
- *	Constants.
- *	Macros with argument lists.
- *	Typedefs.
- *	Enums.
- */
-#define SHMBASE	0x80000000	/* Base shared memory address */
-/* These macros should be somewhere in the headers ???*/
-#define	DATAST	0x400000	/* Start of the data virtual address */
-#define DATAEND	0x7FFFFF	/* End of the data virtual address */
-#define STACKST	0x7C000000	/* Start of the stack */
-#define	STACKEN	0x7FFFFFFF	/* End of the stack virtual address */
 
-/*
- * ----------------------------------------------------------------------
- * Functions.
- *	Import Functions.
- *	Export Functions.
- *	Local Functions.
- */
+#define	__SHM_READ	__IRUGO
+#define	__SHM_WRITE	__IWUGO
+
+#define SHMBASE	0x40000000	/* Base shared memory address */
+
 extern SEG	*shmAlloc();	/* shm0.c */
-char		*ushmat();
-int		ushmdt();
-int		ushmctl();
-int		ushmget();
-int		iShmPerm();	/* Check permissions */
-caddr_t		vCheckReqAdd();	/* Check attach address for shmat */
-/*
- * ----------------------------------------------------------------------
- * Global Data.
- *	Import Variables.
- *	Export Variables.
- *	Local Variables.
- */
 
-/* Patchable global variables. */
-int	SHMMNI = 100;	  /* Maximum # of shared memory segments, systemwide */
-int 	SHMMAX = 0x10000; /* Max size in bytes of shared memory segment */
+/* Configurable variables - see /etc/conf/mtune. */
 
+extern int	SHMMNI;
+extern int 	SHMMAX;
 
 struct shmid_ds	*shmids = NULL;		/* Array of shared memory segments */
-SEG		**shmsegs;		/* Array of pointers to segments */
-/*
- * ----------------------------------------------------------------------
- * Code.
- */
+SEG	     **	shmsegs;		/* Array of pointers to segments */
 
 /*
  * Shmctl - Shared Memory Control Operations.
  */
+
 int
-ushmctl(iShmId, iCmd, pstShmId)
-int 		iShmId,		/* Shared memory id */
-		iCmd;		/* Command */
-struct shmid_ds	*pstShmId;	/* User shmid_ds buffer */
+ushmctl(shm_id, cmd, ushm_buf)
+int 		shm_id,		/* Shared memory id */
+		cmd;		/* Command */
+struct shmid_ds	*ushm_buf;	/* User shmid_ds buffer */
 {
-	register struct shmid_ds *rstIdp;	
-	int iRet = 0;
+	struct shmid_ds * shm_buf;	
 
 	/* Check if id is in proper range. */
-	if (iShmId >= SHMMNI || iShmId < 0) {
-		u.u_error = EINVAL;
-		return;
+	if (! __IN_RANGE (0, shm_id, SHMMNI - 1)) {
+		set_user_error (EINVAL);
+		return -1;
 	}
+
 	/* Check we did alloc. All allocatable arrays are alloced after
 	 * the first ~correct usage of shmget.
 	 */
+
 	if (shmids == NULL) {
-		u.u_error = EINVAL;
-		return;
+		set_user_error (EINVAL);
+		return -1;
 	}
-	rstIdp = &shmids[iShmId];	/* Requested segment */
+	shm_buf = shmids + shm_id;	/* Requested segment */
 
-	/* Check if segment is in used */
-	if ((rstIdp->shm_perm.mode & IPC_ALLOC) == 0) {
-		u.u_error = EINVAL;
-		return;
+	/*
+	 * Check if segment is in use. If the segment does not exist, refuse
+	 * operations except for IPC_STAT from root.
+	 */
+
+	if ((shm_buf->shm_perm.mode & __IPC_ALLOC) == 0 &&
+	    (cmd != IPC_STAT || ! super ())) {
+		set_user_error (EINVAL);
+		return -1;
 	}
 
-	switch (iCmd) {
+	switch (cmd) {
 	case IPC_STAT:
 		/* Check read permission for stat. */
-		if (iShmPerm((rstIdp), SHM_R)) {
-			u.u_error = EACCES;
-			return;
-		}
+		if (ipc_lack_perm (& shm_buf->shm_perm, __SHM_READ))
+			return -1;
+
 		/* Check if user gives a valid buffer */
-		if (!useracc(pstShmId, sizeof(struct shmid_ds), 1)) {
-			u.u_error = EFAULT;
-			return;
+		if (! useracc (ushm_buf, sizeof (struct shmid_ds), 1)) {
+			set_user_error (EFAULT);
+			return -1;
 		}
 		/* kucopy will set u_error if error occurs */
-		kucopy(rstIdp, pstShmId, sizeof(struct shmid_ds));
+		kucopy (shm_buf, ushm_buf, sizeof(struct shmid_ds));
 		break;
 
 	case IPC_SET:
-		if ((u.u_uid != 0) && (u.u_uid != rstIdp->shm_perm.uid) &&
-				(u.u_uid != rstIdp->shm_perm.cuid)) {
-			u.u_error = EPERM;
-			iRet = -1;
-			break;
+		if (ipc_cred_match (& shm_buf->shm_perm) != _CRED_OWNER) {
+			set_user_error (EPERM);
+			return -1;
 		}
-		rstIdp->shm_perm.uid   = getuwd(&(pstShmId->shm_perm.uid));
-		rstIdp->shm_perm.gid   = getuwd(&(pstShmId->shm_perm.gid));
-		rstIdp->shm_perm.mode &= ~0777;
-		rstIdp->shm_perm.mode |= getuwd(&(pstShmId->shm_perm.mode)) 
-									& 0777;
+
+		shm_buf->shm_perm.uid = getuwd (& ushm_buf->shm_perm.uid);
+		shm_buf->shm_perm.gid = getuwd (& ushm_buf->shm_perm.gid);
+		shm_buf->shm_perm.mode &= ~0777;
+		shm_buf->shm_perm.mode |= getuwd (& ushm_buf->shm_perm.mode) &
+					 0777;
 		break;
 
 	case IPC_RMID:
-		if ((u.u_uid != 0) && (u.u_uid != rstIdp->shm_perm.uid) &&
-				(u.u_uid != rstIdp->shm_perm.cuid)) {
-			u.u_error = EPERM;
-			iRet = -1;
-			break;
+		if (ipc_cred_match (& shm_buf->shm_perm) != _CRED_OWNER) {
+			set_user_error (EPERM);
+			return -1;
 		}
 		
 		/* SVR3 allows removing an attached segment. Even worse, the
@@ -144,150 +118,168 @@ struct shmid_ds	*pstShmId;	/* User shmid_ds buffer */
 		 * Some buggy third party software uses this "feature". 
 		 * So, we have to make it available too;-(
 		 */
-		rstIdp->shm_perm.seq = 0;
-		rstIdp->shm_perm.mode = 0;
+		shm_buf->shm_perm.seq = 0;
+		shm_buf->shm_perm.mode = 0;
 
 		/* If segment is attached, set flag to be removed */
-		if (rstIdp->shm_nattch > 0)
-			shmsegs[iShmId]->s_flags |= SRFBERM;
-		else	/* remove it otherwise */
-			shmFree(shmsegs[iShmId]);
-		shmsegs[iShmId] = NULL;
+		if (shm_buf->shm_nattch > 0)
+			shmsegs [shm_id]->s_flags |= SRFBERM;
+		else if (shmsegs [shm_id] != NULL)
+			shmFree (shmsegs [shm_id]); /* remove it otherwise */
+
+		shmsegs [shm_id] = NULL;
 		break;
 
 	/* SHM_LOCK and SHM_UNLOCK: lock/unlock shared memory segement 
 	 * in core. Is not a part of iBCS2.
 	 * Has no meaning for current 4.0.* release of COHERENT.
-	 * Have been done for binary portability.
+	 * Have been done for binary compatibility.
 	 */
+
 	case SHM_LOCK:	
-		if (!u.u_uid) {
-			u.u_error = EPERM;
-			return;
-		}
+		if (! super ())
+			return -1;
 		break;
+
 	case SHM_UNLOCK:	
-		if (!u.u_uid) {
-			u.u_error = EPERM;
-			return;
-		}
+		if (! super ())
+			return -1;
 		break;
 	
 	default:
-		u.u_error = EINVAL;
-		iRet = -1;
+		set_user_error (EINVAL);
+		return -1;
 	}
 
-	return iRet;
+	return 0;
 }
+
 
 /*
  * Shmget - Get Shared Memory Segment
  * Return shared memory id if succed, -1 and set u_error otheriwse.
  */
+
 int
-ushmget(kShmKey, iShmSize, iShmFlg)
-key_t	kShmKey;	/* Shared memory key */
-int	iShmSize;	/* Shared memory segment size */
-int	iShmFlg;	/* Flags */
+ushmget(shm_key, shm_size, shm_flag)
+key_t	shm_key;	/* Shared memory key */
+int	shm_size;	/* Shared memory segment size */
+int	shm_flag;	/* Flags */
 {
-	register struct shmid_ds *rstShmId;	/* Work pointer */
-	register struct shmid_ds *rstOldest = 0;/* Oldest free segment */
-	register int		 i;		/* Loop index */
-	SEG			 *pstSeg;
+	struct shmid_ds * oldest = 0;/* Oldest free segment */
+	unsigned short	i;		/* Loop index */
+	SEG	      *	seg;
 
 	/* Check the requested segment size */
-	if (iShmSize < 0 || iShmSize > SHMMAX) {
-		u.u_error = EINVAL;
-		return;
+	if (! __IN_RANGE (0, shm_size, SHMMAX)) {
+		set_user_error (EINVAL);
+		return -1;
 	}
+
 	/* Init the shared memory on the first shmget. */
 	if (shmids == NULL) 
-		if (shminit()) {
-			u.u_error = ENOSPC;
-			return;
+		if (shminit ()) {
+			set_user_error (ENOSPC);
+			return -1;
 		}
 
-	/* Search for desire shared memory segment. */
-	for (rstShmId = shmids, i = 0; i < SHMMNI; i++, rstShmId++) {
-		/* If segment is not alloced, we will look for the oldest
+	/*
+	 * Search for desired shared memory segment.
+	 */
+
+	for (i = 0; i < SHMMNI ; i++) {
+		struct shmid_ds * shm_buf = shmids + i;
+
+		/*
+		 * If segment is not alloced, we will look for the oldest
 		 * free segment. We will use it to create a new one.
-		 * The "oldest" will increase (a little) system reliability.
 		 */
-		if ((rstShmId->shm_perm.mode & IPC_ALLOC) == 0) {
-			if ((rstOldest == NULL) || 
-			   (rstOldest->shm_ctime > rstShmId->shm_ctime))
-				rstOldest = rstShmId;
+
+		if ((shm_buf->shm_perm.mode & __IPC_ALLOC) == 0) {
+			if (oldest == NULL || 
+			    oldest->shm_ctime > shm_buf->shm_ctime)
+				oldest = shm_buf;
 			continue;
 		}
-		/* Do we need a new segment? */
-		if (kShmKey == IPC_PRIVATE)
-			continue;
-		/* Keep going if key is different. The key is an element
-		 * number of shmids
+
+		/*
+		 * Match the segment key.
 		 */
-		if (kShmKey != rstShmId->shm_perm.key)
+
+		if (shm_key == IPC_PRIVATE ||
+		    shm_key != shm_buf->shm_perm.key)
 			continue;
 
-		/* We found the segment with requested key. */
-		
-		/* Request was for the exclusive segment should fail. */
-		if ((iShmFlg & IPC_CREAT) && (iShmFlg & IPC_EXCL)) {
-			u.u_error = EEXIST;
-			return;
+		/*
+		 * Request for an exclusive segment should fail.
+		 */
+
+		if ((shm_flag & (IPC_CREAT | IPC_EXCL)) ==
+		    (IPC_CREAT | IPC_EXCL)) {
+			set_user_error (EEXIST);
+			return -1;
 		}
 
-		/* Check the requested size */
-		if (rstShmId->shm_segsz < iShmSize) {
-			u.u_error = EINVAL;
-			return;
+		/*
+		 * Check the requested size and permissions
+		 */
+
+		if (shm_buf->shm_segsz < shm_size) {
+			set_user_error (EINVAL);
+			return -1;
 		}
 
-		/* Check permissions */
-		if (iShmPerm(rstShmId, iShmFlg))
-			return;
+		if (ipc_lack_perm (& shm_buf->shm_perm, shm_flag))
+			return -1;
 		return i;
 	}
 
 	/* We need to create a new segment */
-	if (rstOldest == 0) { /* Check system limits */
-		u.u_error = ENOSPC;
-		return;
+	if (oldest == NULL) {
+		set_user_error (ENOSPC);
+		return -1;
 	}
-	if (!(iShmFlg & IPC_CREAT)) {
-		u.u_error = ENOENT;
-		return;
+	if ((shm_flag & IPC_CREAT) == 0) {
+		set_user_error (ENOENT);
+		return -1;
 	}
-	rstShmId = rstOldest;
-	/* Allocate a new shared memory segment */
-	pstSeg = shmAlloc(iShmSize);
-	if (pstSeg == NULL) {
-		u.u_error = ENOSPC;
-		return;
+
+	/*
+	 * Allocate a new shared memory segment
+	 */
+
+	if ((seg = shmAlloc (shm_size)) == NULL) {
+		set_user_error (ENOSPC);
+		return -1;
 	}
-	/* Save it in shmsegs */
-	shmsegs[rstShmId - shmids] = pstSeg;
 
-	rstShmId->shm_perm.seq = (unsigned short) (rstShmId - shmids);
-	rstShmId->shm_segsz = iShmSize;
-	rstShmId->shm_atime = 0;
-	rstShmId->shm_dtime = 0;
-	rstShmId->shm_ctime = timer.t_time;
-	rstShmId->shm_cpid  = SELF->p_pid;
-	rstShmId->shm_perm.cuid = rstShmId->shm_perm.uid = u.u_uid;
-	rstShmId->shm_perm.cgid = rstShmId->shm_perm.gid = u.u_gid;
-	rstShmId->shm_perm.mode = (iShmFlg & 0777) | IPC_ALLOC;
-	rstShmId->shm_perm.key  = kShmKey;
+	/*
+	 * Save it in shmsegs
+	 */
 
-	if (kShmKey == IPC_PRIVATE)
-		rstShmId->shm_perm.mode |= SHM_DEST;
+	i = oldest - shmids;
+	shmsegs [i] = seg;
 
-	return rstShmId - shmids;
+	ipc_perm_init (& oldest->shm_perm, shm_flag);
+	oldest->shm_perm.key  = shm_key;
+	oldest->shm_perm.seq = i;
+	oldest->shm_segsz = shm_size;
+	oldest->shm_atime = 0;
+	oldest->shm_dtime = 0;
+	oldest->shm_ctime = posix_current_time ();
+	oldest->shm_cpid  = SELF->p_pid;
+
+	if (shm_key == IPC_PRIVATE)
+		oldest->shm_perm.mode |= SHM_DEST;
+
+	return i;
 }
+
 
 /*
  * Allocate space for shared memory data structures.
  */
+
 int
 shminit()
 {
@@ -298,72 +290,150 @@ shminit()
 	/* Allocate array of shared memory segments. We do not have to
 	 * initalise it
 	 */
-	shmsegs = (SEG *) kalloc(sizeof(SEG *) * SHMMNI);
-	if (shmsegs == NULL)
+	shmsegs = (SEG **) kalloc(sizeof(SEG *) * SHMMNI);
+	if (shmsegs == NULL) {
+		kfree (shmids);
+		shmids = NULL;
 		return -1;
+	}
 	return 0;
 }
+
+
+#define	NO_OVERLAP	0
+#define	CONTAINS_BASE	1
+#define	CONTAINS_LIMIT	2
+#define	CONTAINED	(CONTAINS_BASE + CONTAINS_LIMIT)
+
+
+/*
+ * For use below, simple interval calculation.
+ */
+
+#if	__USE_PROTO__
+__LOCAL__ int seg_overlap (struct sr * srp, caddr_t base, size_t len)
+#else
+__LOCAL__ int
+seg_overlap (srp, base, len)
+struct sr     *	srp;
+caddr_t		base;
+size_t		len;
+#endif
+{
+	size_t		temp;
+
+	if (srp->sr_segp == 0)
+		return 0;		/* no overlap */
+
+	temp = base - srp->sr_base;
+	return (temp < srp->sr_size ? CONTAINS_BASE : 0) +
+		(temp + len <= srp->sr_size ? CONTAINS_LIMIT : 0);
+}
+
+
+/*
+ * Check requested address for attach.
+ * Just fail for the first release.
+ */
+
+#if	__USE_PROTO__
+__LOCAL__ caddr_t check_request_address (caddr_t addr, size_t len)
+#else
+__LOCAL__ caddr_t
+check_request_address (addr, len)
+caddr_t		addr;	/* Address to atatch */
+size_t		len;
+#endif
+{
+	int		i;
+
+	/*
+	 * All we really need do is ensure that we are not going to collide
+	 * with an existing segment. Clearly, our underlying segment-mangement
+	 * system should have a primitive for this, and once demand paging is
+	 * implemented it no doubt will.
+	 *
+	 * Of course, there are also addresses that we cannot use that are
+	 * not visible in the segment list. For now, pretend we are on a VAX
+	 * and limit ourself to [0, INT_MAX] bytes.
+	 */
+
+	if (addr > (caddr_t) INT_MAX)
+		return -1;
+
+	for (i = 0 ; i < NUSEG ; i ++)
+		if (seg_overlap (& SELF->p_segl [i], addr, len) != NO_OVERLAP) {
+			cmn_err (CE_NOTE, "attach [%x, %d] refused, conflict with seg %d",
+				 (unsigned) addr, len, i);
+			return -1;
+		}
+
+	for (i = 0 ; i < NSHMSEG ; i ++)
+		if (seg_overlap (& SELF->p_shmsr [i], addr, len) != NO_OVERLAP) {
+			cmn_err (CE_NOTE, "attach [%x, %d] refused, conflict with shm %d",
+				 (unsigned) addr, len, i);
+			return -1;
+		}
+
+	return 0;
+}
+
 
 /*
  * Attach shared memory segment.
  */
-char *
-ushmat(iSysId, pcShmAddr, iShmFlg)
-int	iSysId;		/* System segment id */
-char	*pcShmAddr;	/* Address to attach */
-int	iShmFlg;	/* Flags */
+
+caddr_t
+ushmat (sys_id, shm_addr, shm_flag)
+int	sys_id;		/* System segment id */
+caddr_t	shm_addr;	/* Address to attach */
+int	shm_flag;	/* Flags */
 {
-	register PROC		*rpstProc;	/* Current process */
-	register struct sr	*rpstSr;	/* Shared memory segments */
-	struct sr		*pstSrTmp;
-	SEG			*pstSegSh;	/* Segment to attach */
-	struct shmid_ds		*pstShmId;	/* Pointer to a system segment*/
-	unsigned int		uSegId;		/* Segment id */
-	caddr_t			vAttAddr;	/* Address to attach */
-	int			i;		/* Loop index */
-	int			iReadOnly = 0;	/* 1 - read only, 0 - rw */
+	struct sr     *	srp;		/* Shared memory segments */
+	SEG	      *	segp;	/* Segment to attach */
+	struct shmid_ds	* shm_id;	/* Pointer to a system segment*/
+	unsigned int	seg_id;		/* Segment id */
+	caddr_t		vAttAddr;	/* Address to attach */
+	int		i;		/* Loop index */
+	int		read_only = 0;	/* 1 - read only, 0 - rw */
 		
-	/* Check if iSysId is a valid shared memory id. */
-	if (iSysId < 0 || iSysId > SHMMNI) {
-		u.u_error = EINVAL;
-		return;
+	/* Check if sys_id is a valid shared memory id. */
+	if (! __IN_RANGE (0, sys_id, SHMMNI)) {
+		set_user_error (EINVAL);
+		return -1;
 	}
+
 	/* Do we really have this segment? */
-	pstShmId = shmids + iSysId;
-	if (pstShmId->shm_perm.seq != iSysId) {
-		u.u_error = EINVAL;
-		return;
+	shm_id = shmids + sys_id;
+	if (shm_id->shm_perm.seq != sys_id) {
+		set_user_error (EINVAL);
+		return -1;
 	}
+
 	/* Check permissions. */
-	if (iShmFlg & SHM_RDONLY)
-		iReadOnly = 1;
-	if (iReadOnly) {
-		if (iShmPerm(pstShmId, 0444)) {
-			u.u_error = EACCES;
-			return;
-		}
-	} else {
-		if (iShmPerm(pstShmId, 0666)) {
-			u.u_error = EACCES;
-			return;
-		}
-	}
-	/* Check if process has free shm index. */
-	rpstProc = SELF;
+	if (ipc_lack_perm (& shm_id->shm_perm,
+			   (shm_flag & SHM_RDONLY) != 0 ? __SHM_READ :
+							 __SHM_WRITE))
+		return -1;
+
 	/* We will go through all NSHMSEG segments to see if any is free. */
-	for (rpstSr = rpstProc->p_shmsr; rpstSr < rpstProc->p_shmsr + NSHMSEG; 
-								rpstSr++)
-		if (rpstSr->sr_segp == NULL)
+	for (srp = SELF->p_shmsr; srp < SELF->p_shmsr + NSHMSEG;
+	     srp ++) {
+		if (srp->sr_segp == NULL)
 			break;
-	/* The segment id is just an element number. */
-	uSegId = rpstSr - rpstProc->p_shmsr;
-	/* If segment id is >= NSHMSEG we cannot attach any new segment. */
-	if (uSegId >= NSHMSEG) {
-		u.u_error = EMFILE;
-		return;
 	}
+
+	/* The segment id is just an element number. */
+	seg_id = srp - SELF->p_shmsr;
+
+	/* If segment id is >= NSHMSEG we cannot attach any new segment. */
+	if (seg_id >= NSHMSEG) {
+		set_user_error (EMFILE);
+		return -1;
+	}
+
 	/* Get the pointer to the shared memory segment */
-	pstSegSh = shmsegs[iSysId];
+	segp = shmsegs [sys_id];
 
 	/* Find an address to attach.
 	 * There are two cases: process does not request the address,
@@ -373,166 +443,113 @@ int	iShmFlg;	/* Flags */
 	 * In the second case we have to check if address is an available and
 	 * attach to this address.
 	 */
+
 	/* First case. We have to find a free address. */
-	if (pcShmAddr == NULL) {
-		/* Find a free space to attach.  */
-		for (pstSrTmp = rpstProc->p_shmsr, i = 0; i < NSHMSEG; 
-							i++, pstSrTmp++) 
-			if (pstSrTmp->sr_base == NULL)
+	if (shm_addr == NULL) {
+		/* Find free space to attach.  */
+		for (i = 0; i < NSHMSEG; i ++) {
+			if (SELF->p_shmsr [i].sr_base == NULL)
 				break;
+		}
+
 		/* Check limit of attaches per process */
 		if (i >= NSHMSEG) {
-			u.u_error = EINVAL;
+			set_user_error (EINVAL);
 			return;
 		}
-		/* We will use the addresses starting from SHMBASE. 
+
+		/*
+		 * We will use the addresses starting from SHMBASE. 
 		 * Each new address can be SHMMAX + NBPC appart.
 		 */
-		vAttAddr = (caddr_t) (SHMBASE + i * (SHMMAX + NBPC));
-	} else {
-		/* Requst attach to a specific address. This is none portable 
-		 * way to use a shared memory. 
-	 	 */
-		if ((vAttAddr = vCheckReqAdd(pcShmAddr, iReadOnly)) < 0) {
-			printf("%s: attempt attach to 0x%x\n", 
-			u.u_comm, pcShmAddr);
-			u.u_error = EINVAL;
-			return;
-		} 
-	}
 
-	if (!shmAtt(uSegId, vAttAddr, pstSegSh, iReadOnly)) {
-		u.u_error = EINVAL;
+		shm_addr = (caddr_t) (SHMBASE + i * (SHMMAX + NBPC));
+	} else if (check_request_address (shm_addr, shm_id->shm_segsz)) {
+		cmn_err (CE_NOTE, "%s: attempt attach to 0x%x\n", SELF->p_comm,
+			 shm_addr);
+		set_user_error (EINVAL);
 		return;
 	}
-	pstShmId->shm_lpid = SELF->p_pid;
-	pstShmId->shm_atime = timer.t_time;
-	pstShmId->shm_dtime = 0;
-	pstShmId->shm_nattch = pstSegSh->s_urefc - 1;
-	/* Keep all attached addresses. We will need them for detach */
-	return (char *) vAttAddr;
-}
 
-/*
- * Check requested address for attach.
- * Just fail for the first release.
- */
-caddr_t
-vCheckReqAdd(pcAdd, iFlg)
-char	*pcAdd;	/* Address to atatch */
-int	iFlg;	/* Mode flag */
-{
-	return (caddr_t) -1;
-}
-
-/*
- * Check permissions of the shared memory segment.
- * Return 0 on success, -1 and set errno on error.
- */
-int
-iShmPerm(pstShmId, iShmFlg)
-struct shmid_ds	*pstShmId;
-int		iShmFlg;
-{
-	int	iShmMode;
-
-	/* We need 9 lower order bits. There is a question what we have to do
-	 * if someone sets an execute bits on. At this point we just ignore 
-	 * them.
-	 */
-	iShmMode = iShmFlg & 0666;
-
-	/* For superuser or if mode is 0 */
-	if (u.u_uid == 0 || !iShmMode) 
-		return 0;
-	/* For owner or creator */
-	if (u.u_uid == pstShmId->shm_perm.uid || u.u_uid 
-						== pstShmId->shm_perm.cuid) {
-		if ((iShmMode & pstShmId->shm_perm.mode) & 0600)
-			return 0;
-		else {
-			u.u_error = EACCES;
-			return -1;
-		}
-	}
-	/* For group */		
-	if (u.u_gid == pstShmId->shm_perm.gid 
-					|| u.u_gid == pstShmId->shm_perm.cgid) {
-		if ((iShmMode & pstShmId->shm_perm.mode) & 060)
-			return 0;
-		else {
-			u.u_error = EACCES;
-			return -1;
-		}
-	}
-	/* For the rest of the world */
-	if ((iShmMode & pstShmId->shm_perm.mode) & 06) 
-		return 0;
-	else {
-		u.u_error = EACCES;
+	if (! shmAtt (seg_id, shm_addr, segp, read_only)) {
+		set_user_error (EINVAL);
 		return -1;
 	}
-	/* We should never come here */
-	u.u_error = EACCES;
-	return -1;
+
+	shm_id->shm_lpid = SELF->p_pid;
+	shm_id->shm_atime = posix_current_time ();
+	shm_id->shm_dtime = 0;
+	shm_id->shm_nattch = segp->s_urefc - 1;
+
+	/* Keep all attached addresses. We will need them for detach */
+	return shm_addr;
 }
+
 
 /*
  * ushmdt() - Detach shared memory segment.
  * Find segment number and call shmDetach() (shm0.c).
  */
 int
-ushmdt(cpShmAddr)
-char	*cpShmAddr;	/* Pointer to a segment */
+ushmdt(shm_addr)
+char	*shm_addr;	/* Pointer to a segment */
 {
-	register PROC		*rpstProc;	/* Current process */
-	register struct sr	*rpstSr;	/* Shared memory segments */
-	int			i;		/* Loop indexe */
-
-	rpstProc = SELF;	/* Get pointer to our process */
+	int		i;		/* Loop index */
 
 	/* Go through all segments. */
-	for (rpstSr = rpstProc->p_shmsr, i = 0; i < NSHMSEG; i++, rpstSr++) {
-		if (rpstSr->sr_base == (caddr_t) cpShmAddr) {
- 			shmDetach(i);
+	for (i = 0; i < NSHMSEG; i++)
+		if (SELF->p_shmsr [i].sr_base == (caddr_t) shm_addr) {
+ 			shmDetach (i);
                         return 0;
 		}
-	}
 
 	/* We can come here only if we have invalid address */
-	u.u_error = EINVAL;
-	return;
+	set_user_error (EINVAL);
+	return -1;
 }
+
 
 /*
  * shmSetDs(). Called from shm0.c.
  *
  * Given a pointer to shared memory segment, set shmid_ds.
  */
+
 void
-shmSetDs(rpstSeg)
-register SEG	*rpstSeg;
+shmSetDs(segp)
+SEG	*segp;
 {
-	struct shmid_ds		*pstShmId;	/* Shared memory structure */
-	int			iShmId;		/* Shared memory id */
-	int			j;		/* Loop indexe */
+	int		j;		/* Loop index */
 
 	for (j = 0; j < SHMMNI; j++)
-		if (shmsegs[j] == rpstSeg)
-			break;
+		if (shmsegs [j] == segp) {
+
+			/* Set proper values */
+			shmids [j].shm_lpid = SELF->p_pid;
+			shmids [j].shm_dtime = posix_current_time ();
+			shmids [j].shm_nattch = segp->s_urefc - 1;
+			return;
+		}
 
 	/* We should have this segment. */
-	if (j >= SHMMNI) {
-		u.u_error = EINVAL;
-		return;
-	}
-
-	iShmId = j;
-	pstShmId = shmids + iShmId;
-
-	/* Set proper values */
-	pstShmId->shm_lpid = SELF->p_pid;
-	pstShmId->shm_dtime = timer.t_time;
-	pstShmId->shm_nattch = rpstSeg->s_urefc - 1;
-	return;
+	set_user_error (EINVAL);
 }
+
+
+/*
+ * Dispatch the top-level system call; under iBCS2, all the shm... () calls
+ * are funneled through a single kernel entry point.
+ */
+
+ushmsys(func, arg1, arg2, arg3)
+int func, arg1, arg2, arg3;
+{
+	switch (func) {
+	case 0: return ushmat (arg1, arg2, arg3);
+	case 1: return ushmctl (arg1, arg2, arg3);
+	case 2: return ushmdt (arg1);
+	case 3: return ushmget (arg1, arg2, arg3);
+	default: set_user_error (EINVAL);
+	}
+}
+

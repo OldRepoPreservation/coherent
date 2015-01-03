@@ -1,12 +1,14 @@
+/ $Header: $
 / Coherent 'as' macro for simplifying some aspects of structure and data type
 / declaration. This facility uses the rich macro facilities of the Coherent
 / 'as' assembler to ease interfacing of assembly language and C or C++, with
 / some limitations. Do not expect this to work with any other assembler.
+/ $Log: $
+/
 
 / It would have been nice to actually have a notion of scope, but the macro
-/ facility in Coherent 'as', while better than most, is still an ad hoc kludge.
-/ Now, something more along Scheme lines...
-
+/ facility in Coherent 'as', while far better than most, is still an ad hoc
+/ kludge. Now, something more along Scheme lines...
 / Limitations:
 /	Only one structure may be declared at a time. Nested structures must
 /	be defined separately (and thus, must be given names).
